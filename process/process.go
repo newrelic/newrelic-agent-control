@@ -1,0 +1,91 @@
+package process
+
+import (
+	"context"
+	"fmt"
+	"os/exec"
+	"time"
+
+	log "github.com/sirupsen/logrus"
+)
+
+const (
+	defaultShell = "/bin/sh"
+)
+
+var defaultBackoff = FixedBackoff(1 * time.Second)
+
+type Process struct {
+	// Command line to be run on a bourne shell.
+	Cmdline string
+	// Shell to use when running Cmdline. If empty it will default to defaultShell.
+	Shell string
+	// Backoff policy to restart a failed process. If empty it defaults to waiting one second between attempts
+	// (defaultBackoff).
+	Backoff Backoff
+}
+
+func (p *Process) Start(ctx context.Context) error {
+	if p.Shell == "" {
+		p.Shell = defaultShell
+	}
+
+	if p.Backoff == nil {
+		p.Backoff = defaultBackoff
+	}
+
+	runtimeErrCh, err := p.supervise(ctx)
+	if err != nil {
+		return fmt.Errorf("supervising %q: %w", p.Cmdline, err)
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("stopped supervising process: %w", err)
+
+		case runtimeErr := <-runtimeErrCh:
+			log.Warnf("Process %q exited with: %v", p.Cmdline, runtimeErr)
+
+			backoff, bErr := p.Backoff.Backoff()
+			if bErr != nil {
+				return fmt.Errorf("not retrying process due to backoff policy: %w", bErr)
+			}
+
+			log.Infof("Restarting after %v", backoff)
+
+			time.Sleep(backoff)
+			runtimeErrCh, err = p.supervise(ctx)
+			if err != nil {
+				return fmt.Errorf("supervising %q: %w", p.Cmdline, err)
+			}
+		}
+	}
+}
+
+func (p *Process) supervise(ctx context.Context) (chan error, error) {
+	cmd := exec.CommandContext(ctx, p.Shell, "-c", p.Cmdline)
+	err := cmd.Start()
+	if err != nil {
+		return nil, fmt.Errorf("starting process: %w", err)
+	}
+
+	runtimeErrCh := make(chan error)
+
+	go func() {
+		runtimeErrCh <- cmd.Wait()
+		close(runtimeErrCh)
+	}()
+
+	// Hack: As we run Cmdline inside a shell, some errors that should not be retryable are not captured upon `cmd.Start`.
+	// To mitigate this, we check if the process exits within runtimeGrace. If it does, we consider that error non-retryable.
+	runtimeGrace := 100 * time.Millisecond
+	select {
+	case err := <-runtimeErrCh:
+		log.Infof("Runtime error received within %v from process start, treating it as non-retryable", runtimeGrace)
+		return nil, err
+	case <-time.After(runtimeGrace):
+	}
+
+	return runtimeErrCh, nil
+}
