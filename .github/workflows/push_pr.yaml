@@ -1,0 +1,86 @@
+name: Push/PR pipeline
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  rebase:
+    name: Branch needs rebase
+    runs-on: ubuntu-latest
+    if: github.event.pull_request
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          # This job might fail for PRs with more than 50 commits. I take that as a feature.
+          fetch-depth: 50
+      - name: Check if PR is up to date with target branch
+        run: |
+          main=origin/${{ github.base_ref }}
+          git fetch origin ${{ github.base_ref }}
+
+          echo "Getting current HEAD"
+          target_head=$(git show-ref -s $main)
+          echo "Getting $main"
+          merge_base=$(git merge-base HEAD $main)
+          echo "Checking if current branch is up to date"
+          if [[ ${target_head} != ${merge_base} ]]; then
+            echo "Branch ${{ github.head_ref }} is not up to date with $main (${merge_base} != ${target_head}), please rebase"
+            exit 1
+          fi
+          
+          echo "${target_head} = ${merge_base}"
+          exit 0
+
+  test:
+    name: Run tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v3
+        with:
+          go-version: '1.19'
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+      - name: Run tests
+        # CLI autodetects whether it is running on GHA or not. If we let GHA set this to true, as it normally does,
+        # tests cases where GITHUB_ACTIONS is expected to be unset would fail.
+        run: GITHUB_ACTIONS=false go test -race ./...
+
+  static-analysis:
+    name: Static analysis and linting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v3
+        with:
+          go-version: '1.19'
+      - uses: newrelic/newrelic-infra-checkers@v1
+        with:
+          # Use full list of linters, rather than the (default) limited set.
+          golangci-lint-config: golangci-lint
+      - name: Semgrep
+        uses: returntocorp/semgrep-action@v1
+        with:
+          auditOn: push
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        continue-on-error: ${{ github.event_name != 'pull_request' }}
+
+  codespell:
+    name: Codespell
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v3
+      - name: Codespell test
+        uses: codespell-project/actions-codespell@master
+        with:
+          ignore_words_file: ./.codespellignore
