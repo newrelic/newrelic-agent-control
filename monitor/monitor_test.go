@@ -1,4 +1,4 @@
-package process_test
+package monitor_test
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/newrelic/supervisor/process"
+	"github.com/newrelic/supervisor/monitor"
 )
 
 func TestProcess_Exits_On_Error(t *testing.T) {
@@ -36,14 +36,14 @@ sleep infinity
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			p := process.Process{Cmdline: tc.path}
+			m := monitor.Monitor{Cmdline: tc.path}
 
 			ctx, cancel := context.WithCancel(context.Background())
 
-			// Channel for p.Start to report any error back without relying on unprotected shared variables.
+			// Channel for m.Start to report any error back without relying on unprotected shared variables.
 			errChan := make(chan error)
 			go func() {
-				errChan <- p.Start(ctx)
+				errChan <- m.Start(ctx)
 			}()
 
 			// Assume that within one second startup errors would have been captured
@@ -53,7 +53,7 @@ sleep infinity
 			select {
 			case <-errChan:
 			default:
-				t.Fatalf("Process did not report startup error within %v", grace)
+				t.Fatalf("Monitor did not report startup error within %v", grace)
 			}
 
 			cancel()
@@ -64,14 +64,14 @@ sleep infinity
 func TestProcess_Does_Not_Fail_Runtime(t *testing.T) {
 	t.Parallel()
 
-	p := process.Process{Cmdline: script(t, `sleep 1 && exit 1`)}
+	m := monitor.Monitor{Cmdline: script(t, `sleep 1 && exit 1`)}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	// Channel for p.Start to report any error back without relying on unprotected shared variables.
+	// Channel for m.Start to report any error back without relying on unprotected shared variables.
 	errChan := make(chan error)
 	go func() {
-		errChan <- p.Start(ctx)
+		errChan <- m.Start(ctx)
 	}()
 
 	// Assume that within one second startup errors would have been captured
@@ -80,7 +80,7 @@ func TestProcess_Does_Not_Fail_Runtime(t *testing.T) {
 
 	select {
 	case err := <-errChan:
-		t.Fatalf("Process exited after completion %v", err)
+		t.Fatalf("Monitor exited after completion %v", err)
 	default:
 	}
 
@@ -96,18 +96,18 @@ func TestProcess_BacksOff(t *testing.T) {
 
 	dumper := script(t, fmt.Sprintf("echo 'ran' >> %q; sleep 1; exit 1", dumpfile.Name()))
 
-	// p will append a "run counter" to a temporary file, wait 1 second so the error is seen as retryable, and exit.
-	p := process.Process{
+	// mp will append a "run counter" to a temporary file, wait 1 second so the error is seen as retryable, and exit.
+	m := monitor.Monitor{
 		Cmdline: dumper,
-		Backoff: process.FixedBackoff(3 * time.Second),
+		Backoff: monitor.FixedBackoff(3 * time.Second),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	// Channel for p.Start to report any error back without relying on unprotected shared variables.
+	// Channel for mp.Start to report any error back without relying on unprotected shared variables.
 	errChan := make(chan error)
 	go func() {
-		errChan <- p.Start(ctx)
+		errChan <- m.Start(ctx)
 	}()
 
 	// After 2 seconds, process should have run once.
@@ -117,7 +117,7 @@ func TestProcess_BacksOff(t *testing.T) {
 	runs := strings.Count(string(file), "ran")
 
 	if runs != 1 {
-		t.Fatalf("Process ran %d times, expected 1", runs)
+		t.Fatalf("Monitor ran %d times, expected 1", runs)
 	}
 
 	// 3 seconds later, process should have run again.
@@ -126,12 +126,12 @@ func TestProcess_BacksOff(t *testing.T) {
 	runs = strings.Count(string(file), "ran")
 
 	if runs != 2 {
-		t.Fatalf("Process ran %d times, expected 2", runs)
+		t.Fatalf("Monitor ran %d times, expected 2", runs)
 	}
 
 	select {
 	case err := <-errChan:
-		t.Fatalf("Process exited with error: %v", err)
+		t.Fatalf("Monitor exited with error: %v", err)
 	default:
 	}
 
@@ -143,11 +143,11 @@ func TestProcess_Fails_On_BacksOff(t *testing.T) {
 
 	hasBackedOff := false
 	backoffError := errors.New("give up")
-	p := process.Process{
+	m := monitor.Monitor{
 		Cmdline: script(t, "sleep 1; exit 1"),
 		// Purpose-made backoff strategy that instructs to wait 1s on the first failure, but tells the process to
 		// abort on the second.
-		Backoff: process.BackoffFunc(func() (time.Duration, error) {
+		Backoff: monitor.BackoffFunc(func() (time.Duration, error) {
 			if !hasBackedOff {
 				hasBackedOff = true
 				return 2 * time.Second, nil
@@ -159,24 +159,24 @@ func TestProcess_Fails_On_BacksOff(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	// Channel for p.Start to report any error back without relying on unprotected shared variables.
+	// Channel for m.Start to report any error back without relying on unprotected shared variables.
 	errChan := make(chan error)
 	go func() {
-		errChan <- p.Start(ctx)
+		errChan <- m.Start(ctx)
 	}()
 
 	select {
 	case <-time.After(2 * time.Second):
 	case err := <-errChan:
-		t.Fatalf("Process exited before the first backoff interval: %v", err)
+		t.Fatalf("Monitor exited before the first backoff interval: %v", err)
 	}
 
 	select {
 	case <-time.After(3 * time.Second):
-		t.Fatalf("Process did not exit after the second backoff interval")
+		t.Fatalf("Monitor did not exit after the second backoff interval")
 	case err := <-errChan:
 		if !errors.Is(err, backoffError) {
-			t.Fatalf("Process exited but not with the expected error")
+			t.Fatalf("Monitor exited but not with the expected error")
 		}
 	}
 
