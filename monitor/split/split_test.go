@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/newrelic/supervisor/process/split"
+	"github.com/newrelic/supervisor/monitor/split"
 )
 
 func TestSplit(t *testing.T) {
