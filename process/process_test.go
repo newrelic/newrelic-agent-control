@@ -2,6 +2,8 @@ package process_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -49,7 +51,7 @@ sleep infinity
 			time.Sleep(grace)
 
 			select {
-			case _ = <-errChan:
+			case <-errChan:
 			default:
 				t.Fatalf("Process did not report startup error within %v", grace)
 			}
@@ -62,7 +64,7 @@ sleep infinity
 func TestProcess_Does_Not_Fail_Runtime(t *testing.T) {
 	t.Parallel()
 
-	p := process.Process{Cmdline: "sleep 1 && exit 1"}
+	p := process.Process{Cmdline: script(t, `sleep 1 && exit 1`)}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -89,12 +91,14 @@ func TestProcess_BacksOff(t *testing.T) {
 	t.Parallel()
 
 	tmp := t.TempDir()
-	dumper, _ := os.Create(filepath.Join(tmp, "dumper"))
-	_ = dumper.Close()
+	dumpfile, _ := os.Create(filepath.Join(tmp, "dumpfile"))
+	_ = dumpfile.Close()
+
+	dumper := script(t, fmt.Sprintf("echo 'ran' >> %q; sleep 1; exit 1", dumpfile.Name()))
 
 	// p will append a "run counter" to a temporary file, wait 1 second so the error is seen as retryable, and exit.
 	p := process.Process{
-		Cmdline: fmt.Sprintf("echo 'ran' >> %q; sleep 1; exit 1", dumper.Name()),
+		Cmdline: dumper,
 		Backoff: process.FixedBackoff(3 * time.Second),
 	}
 
@@ -109,7 +113,7 @@ func TestProcess_BacksOff(t *testing.T) {
 	// After 2 seconds, process should have run once.
 	// It will run again 1 (shell sleep) + 3 (backoff) - 2 (this sleep) = 2 seconds later.
 	time.Sleep(2 * time.Second)
-	file, _ := os.ReadFile(dumper.Name())
+	file, _ := os.ReadFile(dumpfile.Name())
 	runs := strings.Count(string(file), "ran")
 
 	if runs != 1 {
@@ -118,7 +122,7 @@ func TestProcess_BacksOff(t *testing.T) {
 
 	// 3 seconds later, process should have run again.
 	time.Sleep(3 * time.Second)
-	file, _ = os.ReadFile(dumper.Name())
+	file, _ = os.ReadFile(dumpfile.Name())
 	runs = strings.Count(string(file), "ran")
 
 	if runs != 2 {
@@ -140,7 +144,7 @@ func TestProcess_Fails_On_BacksOff(t *testing.T) {
 	hasBackedOff := false
 	backoffError := errors.New("give up")
 	p := process.Process{
-		Cmdline: "sleep 1; exit 1",
+		Cmdline: script(t, "sleep 1; exit 1"),
 		// Purpose-made backoff strategy that instructs to wait 1s on the first failure, but tells the process to
 		// abort on the second.
 		Backoff: process.BackoffFunc(func() (time.Duration, error) {
@@ -177,4 +181,23 @@ func TestProcess_Fails_On_BacksOff(t *testing.T) {
 	}
 
 	cancel()
+}
+
+// script creates a script with the supplied contents. It returns a command that runs the script path to the script by
+// invoking a shell.
+// Returning `sh /script/path...` rather than just `/script/path` removes the need to mark the script as executable,
+// which is not possible on linux systems where `t.TempDir()` is mounted as `noexec`.
+func script(t *testing.T, contents string) string {
+	t.Helper()
+
+	hash := hex.EncodeToString(sha256.New().Sum([]byte(contents)))
+	dir := t.TempDir()
+	path := filepath.Join(dir, fmt.Sprintf("%s.sh", hash))
+	err := os.WriteFile(path, []byte(fmt.Sprintf("#!/bin/sh\n%s\n", contents)), 0640)
+
+	if err != nil {
+		t.Fatalf("cannot create test script: %v", err)
+	}
+
+	return fmt.Sprintf("/bin/sh %s", path)
 }

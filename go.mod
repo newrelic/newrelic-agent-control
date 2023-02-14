@@ -3,6 +3,7 @@ module github.com/newrelic/supervisor
 go 1.20
 
 require (
+	github.com/google/go-cmp v0.5.6
 	github.com/oklog/ulid/v2 v2.0.2
 	github.com/open-telemetry/opamp-go v0.6.0
 	github.com/sirupsen/logrus v1.9.0
