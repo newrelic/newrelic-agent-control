@@ -1,4 +1,4 @@
-package process
+package monitor
 
 import (
 	"context"
@@ -7,13 +7,13 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/newrelic/supervisor/process/split"
+	"github.com/newrelic/supervisor/monitor/split"
 	log "github.com/sirupsen/logrus"
 )
 
 var defaultBackoff = FixedBackoff(1 * time.Second)
 
-type Process struct {
+type Monitor struct {
 	// Command line to be run on a bourne shell.
 	Cmdline string
 	// Backoff policy to restart a failed process. If empty it defaults to waiting one second between attempts
@@ -21,14 +21,14 @@ type Process struct {
 	Backoff Backoff
 }
 
-func (p *Process) Start(ctx context.Context) error {
-	if p.Backoff == nil {
-		p.Backoff = defaultBackoff
+func (m *Monitor) Start(ctx context.Context) error {
+	if m.Backoff == nil {
+		m.Backoff = defaultBackoff
 	}
 
-	runtimeErrCh, err := p.supervise(ctx)
+	runtimeErrCh, err := m.supervise(ctx)
 	if err != nil {
-		return fmt.Errorf("supervising %q: %w", p.Cmdline, err)
+		return fmt.Errorf("supervising %q: %w", m.Cmdline, err)
 	}
 
 	for {
@@ -37,9 +37,9 @@ func (p *Process) Start(ctx context.Context) error {
 			return fmt.Errorf("stopped supervising process: %w", err)
 
 		case runtimeErr := <-runtimeErrCh:
-			log.Warnf("Process %q exited with: %v", p.Cmdline, runtimeErr)
+			log.Warnf("Monitor %q exited with: %v", m.Cmdline, runtimeErr)
 
-			backoff, bErr := p.Backoff.Backoff()
+			backoff, bErr := m.Backoff.Backoff()
 			if bErr != nil {
 				return fmt.Errorf("not retrying process due to backoff policy: %w", bErr)
 			}
@@ -47,16 +47,16 @@ func (p *Process) Start(ctx context.Context) error {
 			log.Infof("Restarting after %v", backoff)
 
 			time.Sleep(backoff)
-			runtimeErrCh, err = p.supervise(ctx)
+			runtimeErrCh, err = m.supervise(ctx)
 			if err != nil {
-				return fmt.Errorf("supervising %q: %w", p.Cmdline, err)
+				return fmt.Errorf("supervising %q: %w", m.Cmdline, err)
 			}
 		}
 	}
 }
 
-func (p *Process) supervise(ctx context.Context) (chan error, error) {
-	args, err := split.Split(p.Cmdline)
+func (m *Monitor) supervise(ctx context.Context) (chan error, error) {
+	args, err := split.Split(m.Cmdline)
 	if err != nil {
 		return nil, fmt.Errorf("splitting cmdline: %w", err)
 	}
