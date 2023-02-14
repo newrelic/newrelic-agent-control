@@ -76,15 +76,5 @@ func (p *Process) supervise(ctx context.Context) (chan error, error) {
 		close(runtimeErrCh)
 	}()
 
-	// Hack: As we run Cmdline inside a shell, some errors that should not be retryable are not captured upon `cmd.Start`.
-	// To mitigate this, we check if the process exits within runtimeGrace. If it does, we consider that error non-retryable.
-	runtimeGrace := 100 * time.Millisecond
-	select {
-	case err := <-runtimeErrCh:
-		log.Infof("Runtime error received within %v from process start, treating it as non-retryable", runtimeGrace)
-		return nil, err
-	case <-time.After(runtimeGrace):
-	}
-
 	return runtimeErrCh, nil
 }
