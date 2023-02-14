@@ -3,14 +3,12 @@ package process
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"time"
 
+	"github.com/newrelic/supervisor/process/split"
 	log "github.com/sirupsen/logrus"
-)
-
-const (
-	defaultShell = "/bin/sh"
 )
 
 var defaultBackoff = FixedBackoff(1 * time.Second)
@@ -18,18 +16,12 @@ var defaultBackoff = FixedBackoff(1 * time.Second)
 type Process struct {
 	// Command line to be run on a bourne shell.
 	Cmdline string
-	// Shell to use when running Cmdline. If empty it will default to defaultShell.
-	Shell string
 	// Backoff policy to restart a failed process. If empty it defaults to waiting one second between attempts
 	// (defaultBackoff).
 	Backoff Backoff
 }
 
 func (p *Process) Start(ctx context.Context) error {
-	if p.Shell == "" {
-		p.Shell = defaultShell
-	}
-
 	if p.Backoff == nil {
 		p.Backoff = defaultBackoff
 	}
@@ -64,8 +56,15 @@ func (p *Process) Start(ctx context.Context) error {
 }
 
 func (p *Process) supervise(ctx context.Context) (chan error, error) {
-	cmd := exec.CommandContext(ctx, p.Shell, "-c", p.Cmdline)
-	err := cmd.Start()
+	args, err := split.Split(p.Cmdline)
+	if err != nil {
+		return nil, fmt.Errorf("splitting cmdline: %w", err)
+	}
+
+	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
+	cmd.Stdout = os.Stderr
+	cmd.Stderr = os.Stderr
+	err = cmd.Start()
 	if err != nil {
 		return nil, fmt.Errorf("starting process: %w", err)
 	}
