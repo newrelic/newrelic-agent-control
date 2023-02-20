@@ -47,6 +47,7 @@ func (h *Handler) Handle(remoteConfig *protobufs.AgentRemoteConfig) (string, err
 
 	newHash := hash(outConfigs)
 	if bytes.Equal(newHash, h.hash) {
+		log.Debugf("Computed effective config has not changed, reusing old config directory")
 		return h.dir, nil
 	}
 
