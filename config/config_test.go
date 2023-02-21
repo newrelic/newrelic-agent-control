@@ -163,3 +163,23 @@ func TestHandler_Handles_Files(t *testing.T) {
 		t.Fatalf("output files did not match expectations:\n%s", diff)
 	}
 }
+
+func TestAsMap(t *testing.T) {
+	in := &protobufs.AgentRemoteConfig{
+		Config: &protobufs.AgentConfigMap{
+			ConfigMap: map[string]*protobufs.AgentConfigFile{
+				"foo": {Body: []byte("bar")},
+				"boo": {Body: []byte("baz")},
+			},
+		},
+	}
+
+	diff := cmp.Diff(config.AsMap(in), map[string][]byte{
+		"foo": []byte("bar"),
+		"boo": []byte("baz"),
+	})
+
+	if diff != "" {
+		t.Fatalf("map ouput did not match expectations:\n%s", diff)
+	}
+}

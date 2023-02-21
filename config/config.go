@@ -34,13 +34,7 @@ type Handler struct {
 // previously created directory after it has finished working with it.
 // If the Merger returns an error, that same error is returned by Handle (wrapper).
 func (h *Handler) Handle(remoteConfig *protobufs.AgentRemoteConfig) (string, error) {
-	inConfigs := make(map[string][]byte)
-
-	for name, config := range remoteConfig.Config.ConfigMap {
-		inConfigs[name] = config.Body
-	}
-
-	outConfigs, err := h.Merger.Merge(inConfigs)
+	outConfigs, err := h.Merger.Merge(AsMap(remoteConfig))
 	if err != nil {
 		return h.dir, fmt.Errorf("processing configs from server: %w", err)
 	}
@@ -76,6 +70,17 @@ func (h *Handler) Handle(remoteConfig *protobufs.AgentRemoteConfig) (string, err
 	h.hash = newHash
 
 	return h.dir, nil
+}
+
+// AsMap converts protobufs.AgentRemoteConfig to a plain map[string][]byte.
+func AsMap(remoteConfig *protobufs.AgentRemoteConfig) map[string][]byte {
+	inConfigs := make(map[string][]byte)
+
+	for name, config := range remoteConfig.Config.ConfigMap {
+		inConfigs[name] = config.Body
+	}
+
+	return inConfigs
 }
 
 // Merger is an object that can receive a map of config files from the OpAMP server and write them on the
