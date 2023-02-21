@@ -20,8 +20,9 @@ func hash(configs map[string][]byte) []byte {
 	sum := sha256.New()
 	for _, key := range keys {
 		sum.Write([]byte(key))
+		sum.Write([]byte("\n---\n"))
 		sum.Write(configs[key])
-		sum.Write([]byte("---"))
+		sum.Write([]byte("\n---\n"))
 	}
 
 	return sum.Sum(nil)
