@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/newrelic/supervisor/config"
+	"github.com/newrelic/supervisor/historian"
 	"github.com/newrelic/supervisor/module"
 	"github.com/newrelic/supervisor/monitor"
 	"github.com/open-telemetry/opamp-go/client"
@@ -62,6 +63,8 @@ func (m Module) Start(ctx context.Context, c module.Context) error {
 		Root: configDir,
 	}
 
+	configHistorian := historian.Historian{}
+
 	// Cancel for an empty context. This will be replaced with the actual cancel for a real process when the first
 	// config is received.
 	_, cancel := context.WithCancel(context.Background())
@@ -114,6 +117,11 @@ func (m Module) Start(ctx context.Context, c module.Context) error {
 
 					log.Debugf("New processed config located in %q", newConfigDir)
 					currentConfigDir = newConfigDir
+					hErr := configHistorian.Push(currentConfigDir)
+					if hErr != nil {
+						errChan <- fmt.Errorf("pushing config dir history: %w", hErr)
+						return
+					}
 
 					log.Infof("Killing previous process")
 					cancel()
