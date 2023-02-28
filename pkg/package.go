@@ -28,7 +28,7 @@ var (
 	ErrUnimplementedType = errors.New("unimplemented package type")
 	ErrExistsFalse       = errors.New("cannot set existence to false")
 	ErrPackageExists     = errors.New("package already exists")
-	ErrIllegalName       = fmt.Errorf("package name cannot be %s", strings.TrimSuffix(allHashPath, hashSuffix))
+	ErrIllegalName       = fmt.Errorf("invalid package name")
 )
 
 // Manager implements PackagesStateProvider, managing packages under the tree specified by Root.
@@ -146,7 +146,15 @@ func (m Manager) CreatePackage(name string, t protobufs.PackageType) error {
 	}
 
 	if name == strings.TrimSuffix(allHashPath, hashSuffix) {
-		return ErrIllegalName
+		return fmt.Errorf("%w: package name cannot be \"_all\"", ErrIllegalName)
+	}
+
+	if strings.HasSuffix(name, hashSuffix) {
+		return fmt.Errorf("%w: package name cannot end in %q", ErrIllegalName, hashSuffix)
+	}
+
+	if strings.HasSuffix(name, versionSuffix) {
+		return fmt.Errorf("%w: package name cannot end in %q", ErrIllegalName, versionSuffix)
 	}
 
 	pkgPath := filepath.Join(m.Root, name)
