@@ -2,13 +2,16 @@ package pkg_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/newrelic/supervisor/pkg"
 	"github.com/open-telemetry/opamp-go/client/types"
 	"github.com/open-telemetry/opamp-go/protobufs"
@@ -331,19 +334,47 @@ func TestManager_FileContentHash(t *testing.T) {
 	t.Run("Returns_Manually_Created_Hash", func(t *testing.T) {
 		t.Parallel()
 
-		t.Fatalf("TODO")
+		tDir := t.TempDir()
+
+		_ = os.MkdirAll(filepath.Join(tDir, "myPackage"), 0777)
+		hashPath := filepath.Join(tDir, "myPackage", "myPackage.hash")
+		_ = os.WriteFile(hashPath, []byte("44e0a6799874aa5258fec7ad170e26ec"), 0666)
+
+		pacman := pkg.Manager{Root: tDir}
+		hash, err := pacman.FileContentHash("myPackage")
+		if err != nil {
+			t.Fatalf("reading hash: %v", err)
+		}
+
+		if !bytes.Equal(hash, b64MustDecode("ROCmeZh0qlJY/setFw4m7A==")) {
+			t.Fatalf("unexpected hash returned")
+		}
 	})
 
 	t.Run("Returns_Previously_Created_File", func(t *testing.T) {
 		t.Parallel()
 
-		t.Fatalf("TODO")
+		tDir := t.TempDir()
+		pacman := pkg.Manager{Root: tDir}
+		err := pacman.CreatePackage("myPackage", 0)
+		if err != nil {
+			t.Fatalf("creating package: %v", err)
+		}
+
+		err = pacman.UpdateContent(context.Background(), "myPackage", strings.NewReader("irrelevant"), b64MustDecode("ROCmeZh0qlJY/setFw4m7A=="))
+		if err != nil {
+			t.Fatalf("creating package file: %v", err)
+		}
+
+		hash, err := pacman.FileContentHash("myPackage")
+		if err != nil {
+			t.Fatalf("retrieving hash for created file: %v", err)
+		}
+
+		if !bytes.Equal(hash, b64MustDecode("ROCmeZh0qlJY/setFw4m7A==")) {
+			t.Fatalf("unexpected hash returned")
+		}
 	})
-}
-
-func TestManager_UpdateContent(t *testing.T) {
-	t.Parallel()
-
 }
 
 func TestManager_UpdateContent_Fails(t *testing.T) {
@@ -352,15 +383,84 @@ func TestManager_UpdateContent_Fails(t *testing.T) {
 	t.Run("On_Non_Existing_Package", func(t *testing.T) {
 		t.Parallel()
 
-		t.Fatalf("TODO")
+		tDir := t.TempDir()
+		pacman := pkg.Manager{Root: tDir}
+		err := pacman.UpdateContent(context.Background(), "myPackage", strings.NewReader("irrelevant"), b64MustDecode("ROCmeZh0qlJY/setFw4m7A=="))
+		if !errors.Is(err, pkg.ErrPackageDoesNotExist) {
+			t.Fatalf("expected error for non-existing package, got: %v", err)
+		}
 	})
+}
 
-	t.Run("Returns_Previously_Created_File", func(t *testing.T) {
-		t.Parallel()
+func TestManager_LastReportedStatuses(t *testing.T) {
+	t.Parallel()
 
-		t.Fatalf("TODO")
-	})
+	tDir := t.TempDir()
+	pacman := pkg.Manager{Root: tDir}
 
+	statuses := &protobufs.PackageStatuses{
+		Packages: map[string]*protobufs.PackageStatus{
+			"foo": {
+				Name:                 "foo",
+				AgentHasVersion:      "0.0.1",
+				AgentHasHash:         b64MustDecode("ROCmeZh0qlJY/setFw4m7A=="),
+				ServerOfferedVersion: "0.1.0",
+				ServerOfferedHash:    b64MustDecode("ROCmeZh0qlJY/setFw4m7A=="),
+				Status:               0,
+				ErrorMessage:         "something something",
+			},
+		},
+		ServerProvidedAllPackagesHash: b64MustDecode("ROCmeZh0qlJY/setFw4m7A=="),
+		ErrorMessage:                  "not an actual error",
+	}
+
+	err := pacman.SetLastReportedStatuses(statuses)
+	if err != nil {
+		t.Fatalf("error storing statuses: %v", err)
+	}
+
+	retrieved, err := pacman.LastReportedStatuses()
+	if err != nil {
+		t.Fatalf("error retriving statuses: %v", err)
+	}
+
+	// Ignore unexported fields of protobufs.PackageStatus for comparison.
+	// Implementation is backed by json.Marshal, so unexported fields will not be stored or retrieved.
+	cmpOpts := []cmp.Option{
+		cmpopts.IgnoreUnexported(protobufs.PackageStatuses{}),
+		cmpopts.IgnoreUnexported(protobufs.PackageStatus{}),
+	}
+
+	if diff := cmp.Diff(statuses, retrieved, cmpOpts...); diff != "" {
+		t.Fatalf("retrieved statuses do not match stored:\n%s", diff)
+	}
+
+	// Change some bits to ensure we are overwriting stuff
+	statuses.Packages = map[string]*protobufs.PackageStatus{
+		"bar": {
+			Name:                 "bar",
+			AgentHasVersion:      "0.0.1",
+			AgentHasHash:         b64MustDecode("ROCmeZh0qlJY/setFw4m7A=="),
+			ServerOfferedVersion: "0.1.0",
+			ServerOfferedHash:    b64MustDecode("ROCmeZh0qlJY/setFw4m7A=="),
+			Status:               0,
+			ErrorMessage:         "something something",
+		},
+	}
+
+	err = pacman.SetLastReportedStatuses(statuses)
+	if err != nil {
+		t.Fatalf("error storing statuses: %v", err)
+	}
+
+	retrieved, err = pacman.LastReportedStatuses()
+	if err != nil {
+		t.Fatalf("error retriving statuses: %v", err)
+	}
+
+	if diff := cmp.Diff(statuses, retrieved, cmpOpts...); diff != "" {
+		t.Fatalf("retrieved statuses do not match stored:\n%s", diff)
+	}
 }
 
 func b64MustDecode(in string) []byte {
