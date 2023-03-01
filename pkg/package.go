@@ -25,10 +25,11 @@ const (
 )
 
 var (
-	ErrUnimplementedType = errors.New("unimplemented package type")
-	ErrExistsFalse       = errors.New("cannot set existence to false")
-	ErrPackageExists     = errors.New("package already exists")
-	ErrIllegalName       = fmt.Errorf("invalid package name")
+	ErrUnimplementedType   = errors.New("unimplemented package type")
+	ErrExistsFalse         = errors.New("cannot set existence to false")
+	ErrPackageExists       = errors.New("package already exists")
+	ErrIllegalName         = errors.New("invalid package name")
+	ErrPackageDoesNotExist = errors.New("package does not exist")
 )
 
 // Manager implements PackagesStateProvider, managing packages under the tree specified by Root.
@@ -68,7 +69,15 @@ func (m Manager) Packages() ([]string, error) {
 	var packages []string
 
 	err := filepath.WalkDir(m.Root, func(path string, d fs.DirEntry, err error) error {
+		if path == m.Root {
+			return nil
+		}
+
 		if !d.IsDir() {
+			if filepath.Base(path) != allHashPath {
+				log.Warnf("Extraneous file %q in package root", path)
+			}
+
 			return nil
 		}
 
@@ -118,6 +127,15 @@ func (m Manager) PackageState(name string) (types.PackageState, error) {
 func (m Manager) SetPackageState(name string, state types.PackageState) error {
 	pkgPath := filepath.Join(m.Root, name)
 
+	info, err := os.Stat(pkgPath)
+	if err != nil {
+		return fmt.Errorf("cannot set state for package %q: %w", pkgPath, ErrPackageDoesNotExist)
+	}
+
+	if !info.IsDir() {
+		return fmt.Errorf("internal error: package folder %q is not a folder: %w", pkgPath, ErrPackageDoesNotExist)
+	}
+
 	if !state.Exists {
 		return fmt.Errorf("updating %q: %w", pkgPath, ErrExistsFalse)
 	}
@@ -126,7 +144,7 @@ func (m Manager) SetPackageState(name string, state types.PackageState) error {
 		return fmt.Errorf("updating %q: %w", pkgPath, ErrUnimplementedType)
 	}
 
-	err := writeHashFile(pkgPath+hashSuffix, state.Hash)
+	err = writeHashFile(pkgPath+hashSuffix, state.Hash)
 	if err != nil {
 		return err
 	}
@@ -183,7 +201,19 @@ func (m Manager) FileContentHash(name string) ([]byte, error) {
 }
 
 func (m Manager) UpdateContent(_ context.Context, name string, data io.Reader, contentHash []byte) error {
-	packageFilePath := filepath.Join(m.Root, name, name)
+	pkgPath := filepath.Join(m.Root, name)
+
+	info, err := os.Stat(pkgPath)
+	if err != nil {
+		return fmt.Errorf("cannot set state for package %q: %w", pkgPath, ErrPackageDoesNotExist)
+	}
+
+	if !info.IsDir() {
+		return fmt.Errorf("internal error: package folder %q is not a folder: %w", pkgPath, ErrPackageDoesNotExist)
+	}
+
+	// /package1/package1
+	packageFilePath := filepath.Join(pkgPath, name)
 
 	// Package directory should exist already as per call to CreatePackage
 	file, err := os.Create(packageFilePath)
@@ -212,8 +242,17 @@ func (m Manager) UpdateContent(_ context.Context, name string, data io.Reader, c
 func (m Manager) DeletePackage(name string) error {
 	pkgPath := filepath.Join(m.Root, name)
 
+	info, err := os.Stat(pkgPath)
+	if err != nil {
+		return fmt.Errorf("removing package %q: %w", pkgPath, ErrPackageDoesNotExist)
+	}
+
+	if !info.IsDir() {
+		return fmt.Errorf("internal error: package folder %q is not a folder: %w", pkgPath, ErrPackageDoesNotExist)
+	}
+
 	log.Infof("Removing package %q", pkgPath)
-	err := os.RemoveAll(pkgPath)
+	err = os.RemoveAll(pkgPath)
 	if err != nil {
 		return fmt.Errorf("deleting %q: %w", pkgPath, err)
 	}
