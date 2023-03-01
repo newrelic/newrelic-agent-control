@@ -74,10 +74,6 @@ func (m Manager) Packages() ([]string, error) {
 		}
 
 		if !d.IsDir() {
-			if filepath.Base(path) != allHashPath {
-				log.Warnf("Extraneous file %q in package root", path)
-			}
-
 			return nil
 		}
 
