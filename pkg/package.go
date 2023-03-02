@@ -51,6 +51,8 @@ type Manager struct {
 	Root string
 }
 
+// AllPackagesHash returns the hash for all installed packages as it was previously stored by SetAllPackagesHash.
+// Hash is stored hex-encoded in the allHashPath file.
 func (m Manager) AllPackagesHash() ([]byte, error) {
 	path := filepath.Join(m.Root, allHashPath)
 
@@ -62,11 +64,15 @@ func (m Manager) AllPackagesHash() ([]byte, error) {
 	return hash, nil
 }
 
+// SetAllPackagesHash stores the specified hash, so it can be later retrieved by AllPackagesHash.
 func (m Manager) SetAllPackagesHash(hash []byte) error {
 	path := filepath.Join(m.Root, allHashPath)
 	return writeHashFile(path, hash)
 }
 
+// Packages returns the list of packages installed in the root.
+// It does so by simply listing the directories in the package root, it does not perform any validation of the package
+// structure.
 func (m Manager) Packages() ([]string, error) {
 	var packages []string
 
@@ -89,6 +95,10 @@ func (m Manager) Packages() ([]string, error) {
 	return packages, nil
 }
 
+// PackageState returns a types.PackageState for the given package name.
+// As mandated by the PackagesStateProvider interface, it returns (PackageState{Exists: false}, nil) if the package
+// folder does not exist. ErrPackageDoesNotExist is returned if there is any other error reading the package folder.
+// If version and hash files for the package do not exist, an error is returned.
 func (m Manager) PackageState(name string) (types.PackageState, error) {
 	emptyState := types.PackageState{}
 
@@ -121,6 +131,9 @@ func (m Manager) PackageState(name string) (types.PackageState, error) {
 	}, nil
 }
 
+// SetPackageState stores the specified package state, so it can later be retrieved using PackageState.
+// ErrPackageDoesNotExist error will be returned if the package does not already exist.
+// Attempting to set an state with {Exists: false} will return ErrExistsFalse.
 func (m Manager) SetPackageState(name string, state types.PackageState) error {
 	pkgPath := filepath.Join(m.Root, name)
 
@@ -155,6 +168,10 @@ func (m Manager) SetPackageState(name string, state types.PackageState) error {
 	return nil
 }
 
+// CreatePackage creates the folder used to store a package. .hash and .version files are not created by this method.
+// Due to the file-based implementation of Manager, some package names are not allowed, namely those names that would
+// collide with special files. If an attempt is made to create a package with such a name, ErrIllegalName is returned.
+// As mandated by the interface, CreatePackage will return ErrPackageExists if the package already exists.
 func (m Manager) CreatePackage(name string, t protobufs.PackageType) error {
 	if t != 0 {
 		return fmt.Errorf("updating %q: %w", name, ErrUnimplementedType)
@@ -191,12 +208,16 @@ func (m Manager) CreatePackage(name string, t protobufs.PackageType) error {
 	return nil
 }
 
+// FileContentHash returns the previously stored hash for a package file, which is stored next to said file.
+// As mandated by the interface, it returns (nil, nil) if the package or file do not exist.
 func (m Manager) FileContentHash(name string) ([]byte, error) {
 	// /package1/package1.hash
 	hashFile := filepath.Join(m.Root, name, name) + hashSuffix
 	return readHashFile(hashFile)
 }
 
+// UpdateContent sets the content and specified hash for a package file.
+// If the package does not exist, ErrPackageDoesNotExist is returned.
 func (m Manager) UpdateContent(_ context.Context, name string, data io.Reader, contentHash []byte) error {
 	pkgPath := filepath.Join(m.Root, name)
 
@@ -231,6 +252,8 @@ func (m Manager) UpdateContent(_ context.Context, name string, data io.Reader, c
 	return writeHashFile(hashFile, contentHash)
 }
 
+// DeletePackage removes a package and its companion files from disk.
+// ErrPackageDoesNotExist is returned if the package did not exist.
 func (m Manager) DeletePackage(name string) error {
 	pkgPath := filepath.Join(m.Root, name)
 
@@ -244,14 +267,22 @@ func (m Manager) DeletePackage(name string) error {
 	}
 
 	log.Infof("Removing package %q", pkgPath)
-	err = os.RemoveAll(pkgPath)
-	if err != nil {
-		return fmt.Errorf("deleting %q: %w", pkgPath, err)
+	// Remove /package (folder), /package.version, and /package.hash.
+	for _, suffix := range []string{"", versionSuffix, hashSuffix} {
+		path := pkgPath + suffix
+		err = os.RemoveAll(path)
+		if err != nil {
+			return fmt.Errorf("deleting %q: %w", path, err)
+		}
 	}
 
 	return nil
 }
 
+// LastReportedStatuses returns the previously stored protobufs.PackageStatuses, which are stored as a JSON file on the
+// package root.
+// LastReportedStatuses returns an io error if the json file does not exist (e.g. has been removed, or
+// SetLastReportedStatuses has not been called).
 func (m Manager) LastReportedStatuses() (*protobufs.PackageStatuses, error) {
 	statuses := protobufs.PackageStatuses{}
 
@@ -273,6 +304,8 @@ func (m Manager) LastReportedStatuses() (*protobufs.PackageStatuses, error) {
 	return &statuses, nil
 }
 
+// SetLastReportedStatuses stores the specified protobufs.PackageStatuses on disk as a JSON file in the package root.
+// Unexported fields are not stored.
 func (m Manager) SetLastReportedStatuses(statuses *protobufs.PackageStatuses) error {
 	jsonFilePath := filepath.Join(m.Root, statusesJSON)
 
@@ -318,6 +351,7 @@ func readHashFile(path string) ([]byte, error) {
 	return rawHash, nil
 }
 
+// writeHashFile writes to the file specified in path the supplied hash, hex-encoded.
 func writeHashFile(path string, rawHash []byte) error {
 	file, err := os.Create(path)
 	if err != nil {
