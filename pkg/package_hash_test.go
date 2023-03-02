@@ -39,7 +39,7 @@ func TestReadHashFile(t *testing.T) {
 			t.Parallel()
 			root := t.TempDir()
 
-			err := os.WriteFile(filepath.Join(root, "file"), []byte(tc.contents), 0777)
+			err := os.WriteFile(filepath.Join(root, "file"), []byte(tc.contents), 0o600)
 			if err != nil {
 				t.Fatalf("creating file: %v", err)
 			}
@@ -89,7 +89,7 @@ func TestWriteHashFile(t *testing.T) {
 			t.Parallel()
 			root := t.TempDir()
 
-			err := os.WriteFile(filepath.Join(root, "file"), []byte(tc.expected), 0777)
+			err := os.WriteFile(filepath.Join(root, "file"), []byte(tc.expected), 0o600)
 			if err != nil {
 				t.Fatalf("creating file: %v", err)
 			}

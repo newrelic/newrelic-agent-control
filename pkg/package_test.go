@@ -25,7 +25,7 @@ func TestManager_AllPackagesHash(t *testing.T) {
 
 		tDir := t.TempDir()
 
-		err := os.WriteFile(filepath.Join(tDir, "_all.hash"), []byte("44e0a6799874aa5258fec7ad170e26ec"), 0666)
+		err := os.WriteFile(filepath.Join(tDir, "_all.hash"), []byte("44e0a6799874aa5258fec7ad170e26ec"), 0o600)
 		if err != nil {
 			t.Fatalf("writing test file: %v", err)
 		}
@@ -36,7 +36,7 @@ func TestManager_AllPackagesHash(t *testing.T) {
 			t.Fatalf("pacman returned error: %v", err)
 		}
 
-		if !bytes.Equal(b64MustDecode("ROCmeZh0qlJY/setFw4m7A=="), hash) {
+		if !bytes.Equal(testHash(), hash) {
 			t.Fatalf("Returned has is not as expected")
 		}
 	})
@@ -54,7 +54,6 @@ func TestManager_AllPackagesHash(t *testing.T) {
 
 		if hash != nil {
 			t.Fatalf("should have returned a nil hash, got %v", hash)
-
 		}
 	})
 
@@ -64,7 +63,7 @@ func TestManager_AllPackagesHash(t *testing.T) {
 		tDir := t.TempDir()
 		pacman := pkg.Manager{Root: tDir}
 
-		err := pacman.SetAllPackagesHash(b64MustDecode("ROCmeZh0qlJY/setFw4m7A=="))
+		err := pacman.SetAllPackagesHash(testHash())
 		if err != nil {
 			t.Fatalf("error saving packages hash: %v", err)
 		}
@@ -74,7 +73,7 @@ func TestManager_AllPackagesHash(t *testing.T) {
 			t.Fatalf("error retrieving packages hash: %v", err)
 		}
 
-		if !bytes.Equal(hash, b64MustDecode("ROCmeZh0qlJY/setFw4m7A==")) {
+		if !bytes.Equal(hash, testHash()) {
 			t.Fatalf("retrieved hash is not the stored hash")
 		}
 	})
@@ -88,11 +87,11 @@ func TestManager_Packages(t *testing.T) {
 
 		// List of packages should be just a list of the folders in the root dir.
 		tDir := t.TempDir()
-		_ = os.MkdirAll(filepath.Join(tDir, "1one"), 0777)
-		_ = os.MkdirAll(filepath.Join(tDir, "2two"), 0777)
-		_ = os.MkdirAll(filepath.Join(tDir, "3three"), 0777)
+		_ = os.MkdirAll(filepath.Join(tDir, "1one"), 0o700)
+		_ = os.MkdirAll(filepath.Join(tDir, "2two"), 0o700)
+		_ = os.MkdirAll(filepath.Join(tDir, "3three"), 0o700)
 
-		_ = os.WriteFile(filepath.Join(tDir, "extraneous"), []byte("file"), 0666)
+		_ = os.WriteFile(filepath.Join(tDir, "extraneous"), []byte("file"), 0o600)
 
 		pacman := pkg.Manager{Root: tDir}
 		packages, err := pacman.Packages()
@@ -185,10 +184,10 @@ func TestManager_PackageState(t *testing.T) {
 		tDir := t.TempDir()
 
 		pkgDir := filepath.Join(tDir, "myPackage")
-		_ = os.MkdirAll(pkgDir, 0777)
-		_ = os.WriteFile(pkgDir+".hash", []byte("44e0a6799874aa5258fec7ad170e26ec"), 0666)
-		_ = os.WriteFile(pkgDir+".version", []byte("1.2.3"), 0666)
-		_ = os.WriteFile(filepath.Join(pkgDir, "myPackage"), []byte("ignored"), 0666)
+		_ = os.MkdirAll(pkgDir, 0o700)
+		_ = os.WriteFile(pkgDir+".hash", []byte("44e0a6799874aa5258fec7ad170e26ec"), 0o600)
+		_ = os.WriteFile(pkgDir+".version", []byte("1.2.3"), 0o600)
+		_ = os.WriteFile(filepath.Join(pkgDir, "myPackage"), []byte("ignored"), 0o600)
 
 		pacman := pkg.Manager{Root: tDir}
 		state, err := pacman.PackageState("myPackage")
@@ -199,7 +198,7 @@ func TestManager_PackageState(t *testing.T) {
 		if diff := cmp.Diff(types.PackageState{
 			Exists:  true,
 			Type:    0,
-			Hash:    b64MustDecode("ROCmeZh0qlJY/setFw4m7A=="),
+			Hash:    testHash(),
 			Version: "1.2.3",
 		}, state); diff != "" {
 			t.Fatalf("state does not match expected:\n%s", diff)
@@ -222,7 +221,7 @@ func TestManager_PackageState(t *testing.T) {
 		state := types.PackageState{
 			Exists:  true,
 			Type:    0,
-			Hash:    b64MustDecode("ROCmeZh0qlJY/setFw4m7A=="),
+			Hash:    testHash(),
 			Version: "1.2.3",
 		}
 
@@ -336,9 +335,9 @@ func TestManager_FileContentHash(t *testing.T) {
 
 		tDir := t.TempDir()
 
-		_ = os.MkdirAll(filepath.Join(tDir, "myPackage"), 0777)
+		_ = os.MkdirAll(filepath.Join(tDir, "myPackage"), 0o700)
 		hashPath := filepath.Join(tDir, "myPackage", "myPackage.hash")
-		_ = os.WriteFile(hashPath, []byte("44e0a6799874aa5258fec7ad170e26ec"), 0666)
+		_ = os.WriteFile(hashPath, []byte("44e0a6799874aa5258fec7ad170e26ec"), 0o600)
 
 		pacman := pkg.Manager{Root: tDir}
 		hash, err := pacman.FileContentHash("myPackage")
@@ -346,7 +345,7 @@ func TestManager_FileContentHash(t *testing.T) {
 			t.Fatalf("reading hash: %v", err)
 		}
 
-		if !bytes.Equal(hash, b64MustDecode("ROCmeZh0qlJY/setFw4m7A==")) {
+		if !bytes.Equal(hash, testHash()) {
 			t.Fatalf("unexpected hash returned")
 		}
 	})
@@ -361,7 +360,7 @@ func TestManager_FileContentHash(t *testing.T) {
 			t.Fatalf("creating package: %v", err)
 		}
 
-		err = pacman.UpdateContent(context.Background(), "myPackage", strings.NewReader("irrelevant"), b64MustDecode("ROCmeZh0qlJY/setFw4m7A=="))
+		err = pacman.UpdateContent(context.Background(), "myPackage", strings.NewReader("irrelevant"), testHash())
 		if err != nil {
 			t.Fatalf("creating package file: %v", err)
 		}
@@ -371,7 +370,7 @@ func TestManager_FileContentHash(t *testing.T) {
 			t.Fatalf("retrieving hash for created file: %v", err)
 		}
 
-		if !bytes.Equal(hash, b64MustDecode("ROCmeZh0qlJY/setFw4m7A==")) {
+		if !bytes.Equal(hash, testHash()) {
 			t.Fatalf("unexpected hash returned")
 		}
 	})
@@ -385,7 +384,7 @@ func TestManager_UpdateContent_Fails(t *testing.T) {
 
 		tDir := t.TempDir()
 		pacman := pkg.Manager{Root: tDir}
-		err := pacman.UpdateContent(context.Background(), "myPackage", strings.NewReader("irrelevant"), b64MustDecode("ROCmeZh0qlJY/setFw4m7A=="))
+		err := pacman.UpdateContent(context.Background(), "myPackage", strings.NewReader("irrelevant"), testHash())
 		if !errors.Is(err, pkg.ErrPackageDoesNotExist) {
 			t.Fatalf("expected error for non-existing package, got: %v", err)
 		}
@@ -403,14 +402,14 @@ func TestManager_LastReportedStatuses(t *testing.T) {
 			"foo": {
 				Name:                 "foo",
 				AgentHasVersion:      "0.0.1",
-				AgentHasHash:         b64MustDecode("ROCmeZh0qlJY/setFw4m7A=="),
+				AgentHasHash:         testHash(),
 				ServerOfferedVersion: "0.1.0",
-				ServerOfferedHash:    b64MustDecode("ROCmeZh0qlJY/setFw4m7A=="),
+				ServerOfferedHash:    testHash(),
 				Status:               0,
 				ErrorMessage:         "something something",
 			},
 		},
-		ServerProvidedAllPackagesHash: b64MustDecode("ROCmeZh0qlJY/setFw4m7A=="),
+		ServerProvidedAllPackagesHash: testHash(),
 		ErrorMessage:                  "not an actual error",
 	}
 
@@ -440,9 +439,9 @@ func TestManager_LastReportedStatuses(t *testing.T) {
 		"bar": {
 			Name:                 "bar",
 			AgentHasVersion:      "0.0.1",
-			AgentHasHash:         b64MustDecode("ROCmeZh0qlJY/setFw4m7A=="),
+			AgentHasHash:         testHash(),
 			ServerOfferedVersion: "0.1.0",
-			ServerOfferedHash:    b64MustDecode("ROCmeZh0qlJY/setFw4m7A=="),
+			ServerOfferedHash:    testHash(),
 			Status:               0,
 			ErrorMessage:         "something something",
 		},
@@ -463,8 +462,8 @@ func TestManager_LastReportedStatuses(t *testing.T) {
 	}
 }
 
-func b64MustDecode(in string) []byte {
-	b, err := base64.StdEncoding.DecodeString(in)
+func testHash() []byte {
+	b, err := base64.StdEncoding.DecodeString("ROCmeZh0qlJY/setFw4m7A==")
 	if err != nil {
 		panic(err)
 	}

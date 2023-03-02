@@ -18,10 +18,15 @@ import (
 )
 
 const (
-	statusesJson  = "statuses.json"
+	statusesJSON  = "statuses.json"
 	allHashPath   = "_all.hash"
 	hashSuffix    = ".hash"
 	versionSuffix = ".version"
+)
+
+const (
+	filePerms = 0o640
+	dirPerms  = 0o750
 )
 
 var (
@@ -40,6 +45,8 @@ var (
 // /package1/package1.hash
 // /package1.version
 // /package1.hash
+//
+//nolint:godot,nolintlint
 type Manager struct {
 	Root string
 }
@@ -57,12 +64,7 @@ func (m Manager) AllPackagesHash() ([]byte, error) {
 
 func (m Manager) SetAllPackagesHash(hash []byte) error {
 	path := filepath.Join(m.Root, allHashPath)
-	err := writeHashFile(path, hash)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return writeHashFile(path, hash)
 }
 
 func (m Manager) Packages() ([]string, error) {
@@ -80,7 +82,6 @@ func (m Manager) Packages() ([]string, error) {
 		packages = append(packages, filepath.Base(path))
 		return nil
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("listing packages directory: %w", err)
 	}
@@ -98,7 +99,7 @@ func (m Manager) PackageState(name string) (types.PackageState, error) {
 	}
 
 	if err != nil {
-		return emptyState, fmt.Errorf("cannot stat package file at %q", pkgPath)
+		return emptyState, fmt.Errorf("cannot stat package file at %q: %w", pkgPath, ErrPackageDoesNotExist)
 	}
 
 	hash, err := readHashFile(pkgPath + hashSuffix)
@@ -146,7 +147,7 @@ func (m Manager) SetPackageState(name string, state types.PackageState) error {
 	}
 
 	versionFile := pkgPath + versionSuffix
-	err = os.WriteFile(versionFile, []byte(state.Version), 0666)
+	err = os.WriteFile(versionFile, []byte(state.Version), filePerms)
 	if err != nil {
 		return fmt.Errorf("writing version file %q: %w", versionFile, err)
 	}
@@ -182,7 +183,7 @@ func (m Manager) CreatePackage(name string, t protobufs.PackageType) error {
 		return fmt.Errorf("checking for existence of package %q: %w", pkgPath, err)
 	}
 
-	err = os.MkdirAll(pkgPath, 0777)
+	err = os.MkdirAll(pkgPath, dirPerms)
 	if err != nil {
 		return fmt.Errorf("creating empty package %q: %w", pkgPath, err)
 	}
@@ -227,12 +228,7 @@ func (m Manager) UpdateContent(_ context.Context, name string, data io.Reader, c
 	}
 
 	hashFile := filepath.Join(m.Root, name, name) + hashSuffix
-	err = writeHashFile(hashFile, contentHash)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return writeHashFile(hashFile, contentHash)
 }
 
 func (m Manager) DeletePackage(name string) error {
@@ -259,7 +255,7 @@ func (m Manager) DeletePackage(name string) error {
 func (m Manager) LastReportedStatuses() (*protobufs.PackageStatuses, error) {
 	statuses := protobufs.PackageStatuses{}
 
-	jsonFilePath := filepath.Join(m.Root, statusesJson)
+	jsonFilePath := filepath.Join(m.Root, statusesJSON)
 	jsonFile, err := os.Open(jsonFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("opening %q: %w", jsonFilePath, err)
@@ -278,7 +274,7 @@ func (m Manager) LastReportedStatuses() (*protobufs.PackageStatuses, error) {
 }
 
 func (m Manager) SetLastReportedStatuses(statuses *protobufs.PackageStatuses) error {
-	jsonFilePath := filepath.Join(m.Root, statusesJson)
+	jsonFilePath := filepath.Join(m.Root, statusesJSON)
 
 	jsonFile, err := os.Create(jsonFilePath)
 	if err != nil {
