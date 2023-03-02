@@ -228,7 +228,7 @@ func TestManager_PackageState(t *testing.T) {
 
 		err = pacman.SetPackageState(name, state)
 		if err != nil {
-			t.Fatalf("setting pakcage state: %v", err)
+			t.Fatalf("setting package state: %v", err)
 		}
 
 		receivedState, err := pacman.PackageState(name)
@@ -421,7 +421,7 @@ func TestManager_LastReportedStatuses(t *testing.T) {
 
 	retrieved, err := pacman.LastReportedStatuses()
 	if err != nil {
-		t.Fatalf("error retriving statuses: %v", err)
+		t.Fatalf("error retrieving statuses: %v", err)
 	}
 
 	// Ignore unexported fields of protobufs.PackageStatus for comparison.
@@ -455,7 +455,7 @@ func TestManager_LastReportedStatuses(t *testing.T) {
 
 	retrieved, err = pacman.LastReportedStatuses()
 	if err != nil {
-		t.Fatalf("error retriving statuses: %v", err)
+		t.Fatalf("error retrieving statuses: %v", err)
 	}
 
 	if diff := cmp.Diff(statuses, retrieved, cmpOpts...); diff != "" {
