@@ -330,6 +330,22 @@ func TestManager_DeletePackage_Errors(t *testing.T) {
 func TestManager_FileContentHash(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Does_Not_Error_For_Missing_Package", func(t *testing.T) {
+		t.Parallel()
+
+		tDir := t.TempDir()
+
+		pacman := pkg.Manager{Root: tDir}
+		hash, err := pacman.FileContentHash("myPackage")
+		if err != nil {
+			t.Fatalf("error should be nil for missing package, got: %v", err)
+		}
+
+		if hash != nil {
+			t.Fatalf("hash should be nil for missing package, got %v", hash)
+		}
+	})
+
 	t.Run("Returns_Manually_Created_Hash", func(t *testing.T) {
 		t.Parallel()
 
