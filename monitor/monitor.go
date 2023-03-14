@@ -5,17 +5,19 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
-	"github.com/newrelic/supervisor/monitor/split"
 	log "github.com/sirupsen/logrus"
 )
 
 var defaultBackoff = FixedBackoff(1 * time.Second)
 
 type Monitor struct {
-	// Command line to be run on a bourne shell.
-	Cmdline string
+	// Command is a path to the binary that will be run.
+	Command string
+	// Arguments is a slice of arguments to be passed to command.
+	Arguments []string
 	// Backoff policy to restart a failed process. If empty it defaults to waiting one second between attempts
 	// (defaultBackoff).
 	Backoff Backoff
@@ -28,7 +30,7 @@ func (m *Monitor) Start(ctx context.Context) error {
 
 	runtimeErrCh, err := m.supervise(ctx)
 	if err != nil {
-		return fmt.Errorf("supervising %q: %w", m.Cmdline, err)
+		return fmt.Errorf("supervising %q: %w", asCMDline(m.Command, m.Arguments), err)
 	}
 
 	for {
@@ -37,7 +39,7 @@ func (m *Monitor) Start(ctx context.Context) error {
 			return fmt.Errorf("stopped supervising process: %w", err)
 
 		case runtimeErr := <-runtimeErrCh:
-			log.Warnf("Monitor %q exited with: %v", m.Cmdline, runtimeErr)
+			log.Warnf("Monitor %q exited with: %v", asCMDline(m.Command, m.Arguments), runtimeErr)
 
 			backoff, bErr := m.Backoff.Backoff()
 			if bErr != nil {
@@ -49,22 +51,17 @@ func (m *Monitor) Start(ctx context.Context) error {
 			time.Sleep(backoff)
 			runtimeErrCh, err = m.supervise(ctx)
 			if err != nil {
-				return fmt.Errorf("supervising %q: %w", m.Cmdline, err)
+				return fmt.Errorf("supervising %q: %w", asCMDline(m.Command, m.Arguments), err)
 			}
 		}
 	}
 }
 
 func (m *Monitor) supervise(ctx context.Context) (chan error, error) {
-	args, err := split.Split(m.Cmdline)
-	if err != nil {
-		return nil, fmt.Errorf("splitting cmdline: %w", err)
-	}
-
-	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
+	cmd := exec.CommandContext(ctx, m.Command, m.Arguments...)
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
-	err = cmd.Start()
+	err := cmd.Start()
 	if err != nil {
 		return nil, fmt.Errorf("starting process: %w", err)
 	}
@@ -77,4 +74,9 @@ func (m *Monitor) supervise(ctx context.Context) (chan error, error) {
 	}()
 
 	return runtimeErrCh, nil
+}
+
+// asCMDLine joins command and args on a space-delimited string. It is mostly used for logging.
+func asCMDline(command string, args []string) string {
+	return strings.Join(append([]string{command}, args...), " ")
 }

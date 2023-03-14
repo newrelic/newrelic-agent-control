@@ -36,7 +36,7 @@ sleep infinity
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			m := monitor.Monitor{Cmdline: tc.path}
+			m := monitor.Monitor{Command: tc.path}
 
 			ctx, cancel := context.WithCancel(context.Background())
 
@@ -64,7 +64,7 @@ sleep infinity
 func TestProcess_Does_Not_Fail_Runtime(t *testing.T) {
 	t.Parallel()
 
-	m := monitor.Monitor{Cmdline: script(t, `sleep 1 && exit 1`)}
+	m := monitor.Monitor{Command: "/bin/sh", Arguments: []string{script(t, `sleep 1 && exit 1`)}}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -98,8 +98,9 @@ func TestProcess_BacksOff(t *testing.T) {
 
 	// mp will append a "run counter" to a temporary file, wait 1 second so the error is seen as retryable, and exit.
 	m := monitor.Monitor{
-		Cmdline: dumper,
-		Backoff: monitor.FixedBackoff(3 * time.Second),
+		Command:   "/bin/sh",
+		Arguments: []string{dumper},
+		Backoff:   monitor.FixedBackoff(3 * time.Second),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -144,7 +145,8 @@ func TestProcess_Fails_On_BacksOff(t *testing.T) {
 	hasBackedOff := false
 	backoffError := errors.New("give up")
 	m := monitor.Monitor{
-		Cmdline: script(t, "sleep 1; exit 1"),
+		Command:   "/bin/sh",
+		Arguments: []string{script(t, "sleep 1; exit 1")},
 		// Purpose-made backoff strategy that instructs to wait 1s on the first failure, but tells the process to
 		// abort on the second.
 		Backoff: monitor.BackoffFunc(func() (time.Duration, error) {
@@ -185,8 +187,8 @@ func TestProcess_Fails_On_BacksOff(t *testing.T) {
 
 // script creates a script with the supplied contents. It returns a command that runs the script path to the script by
 // invoking a shell.
-// Returning `sh /script/path...` rather than just `/script/path` removes the need to mark the script as executable,
-// which is not possible on linux systems where `t.TempDir()` is mounted as `noexec`.
+// Callers should run `/bin/sh $returned_path` as opposed to the returned path directly, as the latter may not work
+// on linux systems where `t.TempDir()` is mounted as `noexec`.
 func script(t *testing.T, contents string) string {
 	t.Helper()
 
@@ -199,5 +201,5 @@ func script(t *testing.T, contents string) string {
 		t.Fatalf("cannot create test script: %v", err)
 	}
 
-	return fmt.Sprintf("/bin/sh %s", path)
+	return path
 }
