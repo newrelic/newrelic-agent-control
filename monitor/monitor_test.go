@@ -192,7 +192,7 @@ func TestProcess_Fails_On_BacksOff(t *testing.T) {
 func script(t *testing.T, contents string) string {
 	t.Helper()
 
-	hash := hex.EncodeToString(sha256.New().Sum([]byte(contents)))
+	hash := hex.EncodeToString(sha256.New().Sum([]byte(contents)))[:8]
 	dir := t.TempDir()
 	path := filepath.Join(dir, fmt.Sprintf("%s.sh", hash))
 	err := os.WriteFile(path, []byte(fmt.Sprintf("#!/bin/sh\n%s\n", contents)), 0640)
