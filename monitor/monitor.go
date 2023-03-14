@@ -36,7 +36,7 @@ func (m *Monitor) Start(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("stopped supervising process: %w", err)
+			return fmt.Errorf("stopped supervising process: %w", ctx.Err())
 
 		case runtimeErr := <-runtimeErrCh:
 			log.Warnf("Monitor %q exited with: %v", asCMDline(m.Command, m.Arguments), runtimeErr)
