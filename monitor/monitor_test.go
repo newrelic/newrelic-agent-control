@@ -143,6 +143,7 @@ func TestProcess_Fails_On_BacksOff(t *testing.T) {
 	t.Parallel()
 
 	hasBackedOff := false
+	//nolint:goerr113 // It should be okay to dynamically define errors only used for testing.
 	backoffError := errors.New("give up")
 	m := monitor.Monitor{
 		Command:   "/bin/sh",
@@ -195,8 +196,7 @@ func script(t *testing.T, contents string) string {
 	hash := hex.EncodeToString(sha256.New().Sum([]byte(contents)))[:8]
 	dir := t.TempDir()
 	path := filepath.Join(dir, fmt.Sprintf("%s.sh", hash))
-	err := os.WriteFile(path, []byte(fmt.Sprintf("#!/bin/sh\n%s\n", contents)), 0640)
-
+	err := os.WriteFile(path, []byte(fmt.Sprintf("#!/bin/sh\n%s\n", contents)), 0o600)
 	if err != nil {
 		t.Fatalf("cannot create test script: %v", err)
 	}

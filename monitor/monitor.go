@@ -11,6 +11,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+//nolint:gochecknoglobals // Unexported immutable default.
 var defaultBackoff = FixedBackoff(1 * time.Second)
 
 type Monitor struct {
@@ -58,11 +59,12 @@ func (m *Monitor) Start(ctx context.Context) error {
 }
 
 func (m *Monitor) supervise(ctx context.Context) (chan error, error) {
+	//nolint:gosec // Command and arguments are intentionally user-defined.
 	cmd := exec.CommandContext(ctx, m.Command, m.Arguments...)
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
-	err := cmd.Start()
-	if err != nil {
+
+	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("starting process: %w", err)
 	}
 
