@@ -2,6 +2,7 @@ package monitor
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -13,6 +14,8 @@ import (
 
 //nolint:gochecknoglobals // Unexported immutable default.
 var defaultBackoff = FixedBackoff(1 * time.Second)
+
+var ErrBackoff = errors.New("stopping as instructed by backoff policy")
 
 type Monitor struct {
 	// Command is a path to the binary that will be run.
@@ -44,7 +47,7 @@ func (m *Monitor) Start(ctx context.Context) error {
 
 			backoff, bErr := m.Backoff.Backoff()
 			if bErr != nil {
-				return fmt.Errorf("not retrying process due to backoff policy: %w", bErr)
+				return errors.Join(ErrBackoff, bErr)
 			}
 
 			log.Infof("Restarting after %v", backoff)
