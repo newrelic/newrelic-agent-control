@@ -46,7 +46,7 @@ sleep infinity
 				errChan <- m.Start(ctx)
 			}()
 
-			// Assume that within one second startup errors would have been captured
+			// Startup errors should have been captured within 1 second of starting.
 			grace := 1 * time.Second
 			time.Sleep(grace)
 
@@ -74,13 +74,13 @@ func TestProcess_Does_Not_Fail_Runtime(t *testing.T) {
 		errChan <- m.Start(ctx)
 	}()
 
-	// Assume that within one second startup errors would have been captured
+	// Within 3 seconds the sleep-then-exit script should have been run and exited at least twice.
 	grace := 3 * time.Second
 	time.Sleep(grace)
 
 	select {
 	case err := <-errChan:
-		t.Fatalf("Monitor exited after completion %v", err)
+		t.Fatalf("Monitor did not handle and restart supervised process error: %v", err)
 	default:
 	}
 
@@ -94,26 +94,37 @@ func TestProcess_BacksOff(t *testing.T) {
 	dumpfile, _ := os.Create(filepath.Join(tmp, "dumpfile"))
 	_ = dumpfile.Close()
 
+	// The dumper script logs executions to `dumpfile`, sleeps one second, and then exits.
 	dumper := script(t, fmt.Sprintf("echo 'ran' >> %q; sleep 1; exit 1", dumpfile.Name()))
 
-	// mp will append a "run counter" to a temporary file, wait 1 second so the error is seen as retryable, and exit.
 	m := monitor.Monitor{
 		Command:   "/bin/sh",
 		Arguments: []string{dumper},
-		Backoff:   monitor.FixedBackoff(3 * time.Second),
+		Backoff:   monitor.FixedBackoff(2 * time.Second),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-
-	// Channel for mp.Start to report any error back without relying on unprotected shared variables.
 	errChan := make(chan error)
 	go func() {
 		errChan <- m.Start(ctx)
 	}()
 
-	// After 2 seconds, process should have run once.
-	// It will run again 1 (shell sleep) + 3 (backoff) - 2 (this sleep) = 2 seconds later.
+	// To test the backoff policy, we will count the executions of the monitored process at several points in time:
+	// | Time | Status |
+	// |------|--------|
+	// | 0s   | Script start (1st run) |
+	// | 1s   | Script end (1st run) |
+	// | 1s   | Backoff start (1st run) |
+	// | 3s   | Backoff end (1st run) |
+	// | 3s   | Script start (2nd run) |
+	// | 4s   | Script end  (2nd run) |
+	// | 4s   | Backoff start  (2nd run) |
+	// | 7s   | Backoff end  (2nd run) |
+
+	// After 2 seconds, process should have run once, and we should be in the middle of the first backoff period.
 	time.Sleep(2 * time.Second)
+
+	// The dump file should have logs for one execution.
 	file, _ := os.ReadFile(dumpfile.Name())
 	runs := strings.Count(string(file), "ran")
 
@@ -121,7 +132,9 @@ func TestProcess_BacksOff(t *testing.T) {
 		t.Fatalf("Monitor ran %d times, expected 1", runs)
 	}
 
-	// 3 seconds later, process should have run again.
+	// It will run again at the 4 seconds mark.
+	// 3 seconds later (t=5s), we should be in the middle of the second backoff, and process should have ran one more
+	// time.
 	time.Sleep(3 * time.Second)
 	file, _ = os.ReadFile(dumpfile.Name())
 	runs = strings.Count(string(file), "ran")
@@ -130,6 +143,7 @@ func TestProcess_BacksOff(t *testing.T) {
 		t.Fatalf("Monitor ran %d times, expected 2", runs)
 	}
 
+	// Check that the process monitor did not return any error.
 	select {
 	case err := <-errChan:
 		t.Fatalf("Monitor exited with error: %v", err)
