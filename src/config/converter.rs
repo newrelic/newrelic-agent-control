@@ -1,5 +1,7 @@
-pub trait Convertable {
-    // Convert applies the conversion logic to the given "conf".
-    //async fn convert(&self, conf: &Conf) -> Result<(), Box<dyn Error>>;
-    fn len(&self) -> usize;
+#[derive(Debug, Clone)]
+struct ConvertError;
+
+pub trait Convertible {
+    // Convert applies the conversion logic to the given config.
+    fn convert<C>(&self, config: C) -> Result<C, ConvertError>;
 }
