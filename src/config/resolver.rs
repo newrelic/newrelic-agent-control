@@ -1,4 +1,7 @@
+use std::collections::HashMap;
 use config::{Config as Config_rs, ConfigBuilder, builder::DefaultState, File, FileFormat};
+use std::fmt::Debug;
+use serde::Deserialize;
 
 use crate::agent::config::{Config, Getter};
 
@@ -20,17 +23,17 @@ impl Resolver {
     }
 }
 
-impl Getter for Resolver {
-    fn get(&self) -> Config {
+impl<V> Getter<V> for Resolver where V: Debug + for<'a> Deserialize<'a> {
+    fn get(&self) -> Config<V> {
         match self.static_builder.to_owned().build() {
             Ok(config_rs) => {
                 config_rs
-                    .try_deserialize::<Config>()
+                    .try_deserialize::<Config<V>>()
                     .unwrap()
             },
             Err(e) => {
                 println!("{:?}", e);
-                Config::default()
+                Config{op_amp: "".to_string(), agents: HashMap::new()}
             }
         }
     }

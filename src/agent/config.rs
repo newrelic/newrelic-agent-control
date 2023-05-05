@@ -1,22 +1,13 @@
 use serde::Deserialize;
 use std::collections::HashMap;
-use serde_json::Value;
+use std::fmt::Debug;
 
-#[derive(Debug, Deserialize, Clone, Default)]
-pub struct Config {
+#[derive(Debug, Deserialize, Clone, Default, PartialEq)]
+pub struct Config<V: Debug>  {
     pub op_amp: String,
-    pub agents: HashMap<String, Value>,
+    pub agents: HashMap<String, V>,
 }
 
-pub trait Getter {
-    fn get(&self) -> Config;
+pub trait Getter<V: Debug> {
+    fn get(&self) -> Config<V>;
 }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn exploration() {
-        assert_eq!(2 + 2, 4);
-    }
-}
-
