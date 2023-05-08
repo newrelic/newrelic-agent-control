@@ -6,20 +6,20 @@ use std::fmt::Debug;
 
 use crate::agent::config::Getter;
 
-pub struct Agent<G: Getter<V>, V:Debug> {
+pub(crate) struct Agent<G: Getter<V>, V:Debug> {
     conf_getter: G,
     phantom: PhantomData<V>
 }
 
 impl<G: Getter<V>, V:Debug> Agent<G, V> {
-    pub fn new(getter: G) -> Self {
+    pub(crate) fn new(getter: G) -> Self {
         Self {
             conf_getter: getter,
             phantom: PhantomData
         }
     }
 
-    pub fn start(&self) -> Result<(), Box<dyn Error>> {
+    pub(crate) fn start(&self) -> Result<(), Box<dyn Error>> {
         let parsed_config = self.conf_getter.get();
         println!("{:?}", parsed_config);
         Ok(())
