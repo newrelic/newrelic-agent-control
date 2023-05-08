@@ -1,0 +1,113 @@
+permissions:
+  contents: read
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+name: checks
+jobs:
+  rebase:
+    name: branch needs rebase
+    runs-on: ubuntu-latest
+    if: github.event.pull_request
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          # This job might fail for PRs with more than 50 commits. I take that as a feature.
+          fetch-depth: 50
+      - name: Check if PR is up to date with target branch
+        run: |
+          main=origin/${{ github.base_ref }}
+          git fetch origin ${{ github.base_ref }}
+
+          echo "Getting current HEAD"
+          target_head=$(git show-ref -s $main)
+          echo "Getting $main"
+          merge_base=$(git merge-base HEAD $main)
+          echo "Checking if current branch is up to date"
+          if [[ ${target_head} != ${merge_base} ]]; then
+            echo "Branch ${{ github.head_ref }} is not up to date with $main (${merge_base} != ${target_head}), please rebase"
+            exit 1
+          fi
+          
+          echo "${target_head} = ${merge_base}"
+          exit 0
+
+  codespell:
+    name: codespell
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v3
+      - name: Codespell test
+        uses: codespell-project/actions-codespell@master
+  fmt:
+    runs-on: ubuntu-latest
+    name: stable / fmt
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+      - name: Install stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: cargo fmt --check
+        run: cargo fmt --check
+  clippy:
+    runs-on: ubuntu-latest
+    name: ${{ matrix.toolchain }} / clippy
+    permissions:
+      contents: read
+      checks: write
+    strategy:
+      fail-fast: false
+      matrix:
+        toolchain: [stable, beta]
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+      - name: Install ${{ matrix.toolchain }}
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.toolchain }} minus 1 release
+          components: clippy
+      - name: cargo clippy
+        uses: actions-rs/clippy-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+  doc:
+    runs-on: ubuntu-latest
+    name: nightly / doc
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+      - name: Install nightly
+        uses: dtolnay/rust-toolchain@nightly
+      - name: cargo doc
+        run: cargo doc --no-deps --all-features
+        env:
+          RUSTDOCFLAGS: --cfg docsrs
+  msrv:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        msrv: [1.69.0]
+    name: ubuntu / ${{ matrix.msrv }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+      - name: Install ${{ matrix.msrv }}
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.msrv }}
+      - name: cargo +${{ matrix.msrv }} check
+        run: cargo check
