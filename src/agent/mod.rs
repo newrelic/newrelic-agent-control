@@ -1,4 +1,4 @@
-pub mod config;
+pub(crate) mod config;
 
 use std::error::Error;
 use std::marker::PhantomData;
