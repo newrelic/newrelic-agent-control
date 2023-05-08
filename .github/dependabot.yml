@@ -1,23 +1,18 @@
 version: 2
 updates:
-  - package-ecosystem: gomod
-    directory: "/"
-    schedule:
-      interval: daily
-    open-pull-requests-limit: 3
-    labels:
-      - dependencies
-  - package-ecosystem: docker
-    directory: "/"
-    schedule:
-      interval: daily
-    open-pull-requests-limit: 3
-    labels: 
-      - dependencies
   - package-ecosystem: github-actions
-    directory: "/"
+    directory: /
     schedule:
       interval: daily
-    open-pull-requests-limit: 3
-    labels: 
-      - dependencies
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: daily
+    ignore:
+      - dependency-name: "*"
+        # patch and minor updates don't matter for libraries
+        # remove this ignore rule if your package has binaries
+        update-types:
+          - "version-update:semver-patch"
+          - "version-update:semver-minor"
+          - "version-update:semver-major"
