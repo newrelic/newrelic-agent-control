@@ -1,21 +1,21 @@
 pub(crate) mod config;
 
 use std::error::Error;
-use std::marker::PhantomData;
 use std::fmt::Debug;
+use std::marker::PhantomData;
 
 use crate::agent::config::Getter;
 
-pub(crate) struct Agent<G: Getter<V>, V:Debug> {
+pub(crate) struct Agent<G: Getter<V>, V: Debug> {
     conf_getter: G,
-    phantom: PhantomData<V>
+    phantom: PhantomData<V>,
 }
 
-impl<G: Getter<V>, V:Debug> Agent<G, V> {
+impl<G: Getter<V>, V: Debug> Agent<G, V> {
     pub(crate) fn new(getter: G) -> Self {
         Self {
             conf_getter: getter,
-            phantom: PhantomData
+            phantom: PhantomData,
         }
     }
 

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 
 #[derive(Debug, Deserialize, Clone, Default, PartialEq)]
-pub(crate) struct Config<V: Debug>  {
+pub(crate) struct Config<V: Debug> {
     pub(crate) op_amp: String,
     pub(crate) agents: HashMap<String, V>,
 }
@@ -15,15 +15,15 @@ pub(crate) trait Getter<V: Debug> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::Value;
     use serde::Deserialize;
+    use serde_json::Value;
 
     #[test]
     fn test_deserialize_agent_config() {
         #[derive(Debug, Deserialize, PartialEq)]
         struct InfraAgent {
             uuid_dir: String,
-            value: i64
+            value: i64,
         }
 
         let yaml_cfg = r#"{
@@ -40,9 +40,12 @@ mod tests {
         let cfg: Config<Value> = serde_json::from_str(yaml_cfg).unwrap();
 
         let infra_agent = cfg.agents.get("nr_infra_agent").unwrap();
-        let agent:InfraAgent = serde_json::from_value(infra_agent.clone()).unwrap();
+        let agent: InfraAgent = serde_json::from_value(infra_agent.clone()).unwrap();
 
-        let expected = InfraAgent{ uuid_dir: "/bin/sudoo".to_string(), value: 1 as i64};
+        let expected = InfraAgent {
+            uuid_dir: "/bin/sudoo".to_string(),
+            value: 1 as i64,
+        };
 
         assert_eq!(agent, expected);
     }
