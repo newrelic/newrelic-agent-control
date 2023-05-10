@@ -2,14 +2,45 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::fmt::Debug;
 
+/// The Config for the meta-agent and the managers
 #[derive(Debug, Deserialize, Clone, Default, PartialEq)]
 pub struct Config<V: Debug> {
     pub(crate) op_amp: String,
     pub(crate) agents: HashMap<String, V>,
 }
 
+/// Describes the way to get a serialized Config
+///
+/// Implementations of this trait need a generic parameter V that will store the serialized values
+/// for the agents configs. For example Config<serde_json::Value>
 pub trait Getter<V: Debug> {
     fn get(&self) -> Config<V>;
+}
+
+#[cfg(test)]
+#[derive(Debug, Deserialize, PartialEq)]
+pub enum CustomTypeTest {
+    A,
+    B,
+}
+
+// Deserialize this field using a this function that is different
+// from its implementation of Serialize
+#[cfg(test)]
+mod serde_custom_type_test {
+    use super::*;
+    use serde::{self, Deserialize, Deserializer};
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<CustomTypeTest, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        if s == "type-a" {
+            return Ok(CustomTypeTest::A);
+        }
+        Ok(CustomTypeTest::B)
+    }
 }
 
 #[cfg(test)]
@@ -24,6 +55,8 @@ mod tests {
         struct InfraAgent {
             uuid_dir: String,
             value: i64,
+            #[serde(with = "serde_custom_type_test")]
+            kind: CustomTypeTest,
         }
 
         let yaml_cfg = r#"{
@@ -32,10 +65,11 @@ mod tests {
                 "nr_otel_collector/gateway": {},
                 "nr_infra_agent": {
                     "uuid_dir": "/bin/sudoo",
-                    "value": 1
+                    "value": 1,
+                    "kind": "type-a"
                 }
             }
-    }"#;
+        }"#;
 
         let cfg: Config<Value> = serde_json::from_str(yaml_cfg).unwrap();
 
@@ -45,6 +79,7 @@ mod tests {
         let expected = InfraAgent {
             uuid_dir: "/bin/sudoo".to_string(),
             value: 1 as i64,
+            kind: CustomTypeTest::A,
         };
 
         assert_eq!(agent, expected);
