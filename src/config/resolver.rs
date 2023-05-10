@@ -8,12 +8,12 @@ use crate::agent::config::{Config, Getter};
 const DEFAULT_STATIC_CONFIG: &str = "/tmp/static.yaml";
 
 #[derive(Debug)]
-pub(crate) struct Resolver {
+pub struct Resolver {
     static_builder: ConfigBuilder<DefaultState>,
 }
 
 impl Resolver {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         let static_builder =
             Config_rs::builder().add_source(File::new(DEFAULT_STATIC_CONFIG, FileFormat::Yaml));
 

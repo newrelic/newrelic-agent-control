@@ -1,9 +1,5 @@
-use crate::agent::Agent;
-use crate::config::resolver::Resolver;
+use meta_agent::{Agent, Resolver};
 use serde_json::Value;
-
-mod agent;
-mod config;
 
 fn main() {
     let config_resolver = Resolver::new();
