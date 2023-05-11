@@ -1,0 +1,8 @@
+[package]
+name = "cmd_supervisor"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1.27.0", features = ["full"] }
+nix = {version = "0.26.2", features = ["signal"]}
