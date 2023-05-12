@@ -1,7 +1,9 @@
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Read};
 use std::process::{Child, ChildStderr, ChildStdout, Command, Stdio};
 use std::thread::sleep;
 use std::{thread, time};
+use std::sync::mpsc;
+use std::sync::mpsc::Sender;
 
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
@@ -24,7 +26,7 @@ impl Cmd {
     }
     fn start(&mut self) {
         //self.process_handle = &(self.process_command.spawn());
-        let handle = self.process_command.stdout(Stdio::piped()).spawn();
+        let handle = self.process_command.stdout(Stdio::piped()).stderr(Stdio::piped()).spawn();
         match handle {
             Ok(c) => self.process_handle = Some(c),
             Err(e) => println!("{}", e),
@@ -56,6 +58,15 @@ impl Cmd {
     fn is_alive() {}
 }
 
+fn std_to_chan<T: Read>(std: Option<T> ,chan: Sender<String>){
+    let std_reader = BufReader::new(std.unwrap());
+    let std_lines = std_reader.lines();
+
+    for line in std_lines {
+        chan.send(line.unwrap());
+    }
+}
+
 fn main() {
     println!("starting supervisor");
 
@@ -63,16 +74,29 @@ fn main() {
 
     orig_command.start();
     let stdout = orig_command.stdout();
+    let stderr = orig_command.stderr();
 
     // let clonned_command_2 = command.clone();
     sleep(time::Duration::from_millis(1000));
 
-    thread::spawn(move || {
-        let stdout_reader = BufReader::new(stdout.unwrap());
-        let stdout_lines = stdout_reader.lines();
+    let (stderr_tx, stderr_rx) = mpsc::channel();
+    let (stdout_tx, stdout_rx) = mpsc::channel();
 
-        for line in stdout_lines {
-            println!("Read: {:?}", line);
+    thread::spawn(move || {
+        std_to_chan(stdout, stdout_tx);
+    });
+    thread::spawn(move || {
+        std_to_chan(stderr, stderr_tx);
+    });
+
+    thread::spawn(move || {
+        for msg in stderr_rx {
+            println!("stderr channel: {}", msg);
+        }
+    });
+    thread::spawn(move || {
+        for msg in stdout_rx {
+            println!("stdout channel: {}", msg);
         }
     });
 
