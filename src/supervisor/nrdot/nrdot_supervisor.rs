@@ -1,4 +1,4 @@
-use std::{thread, time, vec};
+use std::{thread, time};
 use std::sync::mpsc;
 use std::thread::sleep;
 
@@ -6,13 +6,13 @@ use crate::Cmd;
 use crate::cmd::cmd::std_to_chan;
 use crate::supervisor::supervisor::{Supervisor, SupervisorError};
 
-pub struct InfraAgentSupervisor {
+pub struct NrDotSupervisor {
     cmd: Cmd,
 }
 
-impl Supervisor for InfraAgentSupervisor {
+impl Supervisor for NrDotSupervisor {
     fn start(&mut self) -> crate::supervisor::supervisor::Result<()> {
-        println!("starting infra agent supervisor");
+        println!("starting nrdot supervisor");
 
 
         self.cmd.start()?;
@@ -63,9 +63,15 @@ impl Supervisor for InfraAgentSupervisor {
     }
 }
 
-impl InfraAgentSupervisor {
+impl NrDotSupervisor {
     pub fn new() -> Self {
-        let cmd = Cmd::new("/usr/bin/newrelic-infra-service", Vec::new());
+        let cmd = Cmd::new(
+            "/usr/bin/nr-otel-collector",
+            vec![
+                "--config".to_string(),
+                "/etc/nr-otel-collector/config.yaml".to_string(),
+            ],
+        );
         Self { cmd }
     }
 }

@@ -1,6 +1,6 @@
+use std::{io, result};
 use std::io::{BufRead, BufReader, Read};
-use std::process::{Child, ChildStderr, ChildStdout, Command, Stdio};
-use std::result;
+use std::process::{Child, ChildStderr, ChildStdout, Command, ExitStatus, Stdio};
 use std::sync::mpsc::Sender;
 
 use nix::sys::signal::{self, Signal};
@@ -27,10 +27,13 @@ pub struct Cmd {
 }
 
 impl Cmd {
-    pub fn new(command: &str) -> Cmd {
+    pub fn new(command: &str, args: Vec<String>) -> Cmd {
+        let mut cmd = Command::new(command);
+        args.iter().for_each(|arg| { cmd.arg(arg); });
+
         Cmd {
             command: command.to_string(),
-            process_command: Command::new(command),
+            process_command: cmd,
             process_handle: None,
             pid: 0,
         }
@@ -47,6 +50,10 @@ impl Cmd {
                 Ok(())
             }
         }
+    }
+
+    pub fn wait(&mut self) -> io::Result<ExitStatus> {
+        self.process_handle.as_mut().unwrap().wait()
     }
 
     pub fn stdout(&mut self) -> Option<ChildStdout> {
