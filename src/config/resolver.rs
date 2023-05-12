@@ -1,9 +1,7 @@
-use std::collections::HashMap;
 use std::fmt::Debug;
 
-use config::{builder::DefaultState, Config as Config_rs, ConfigBuilder, File, FileFormat};
+use config::{builder::DefaultState, Config as Config_rs, ConfigBuilder, File};
 use serde::Deserialize;
-use thiserror::Error;
 
 use crate::config::config::Error::Error;
 use crate::config::config::Getter;
