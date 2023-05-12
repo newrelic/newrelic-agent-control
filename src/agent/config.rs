@@ -9,13 +9,6 @@ pub struct Config<V: Debug> {
     pub(crate) agents: HashMap<String, V>,
 }
 
-/// Describes the way to get a serialized Config
-///
-/// Implementations of this trait need a generic parameter V that will store the serialized values
-/// for the agents configs. For example Config<serde_json::Value>
-pub trait Getter<V: Debug> {
-    fn get(&self) -> Config<V>;
-}
 
 #[cfg(test)]
 #[derive(Debug, Deserialize, PartialEq)]

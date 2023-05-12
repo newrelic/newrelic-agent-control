@@ -1,9 +1,9 @@
-pub(crate) mod config;
-
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
 use std::marker::PhantomData;
 
-use crate::agent::config::Getter;
+use crate::config::config::Getter;
+
+pub(crate) mod config;
 
 pub struct AgentError;
 
@@ -15,16 +15,16 @@ impl Display for AgentError {
 
 /// The Agent Struct that injects a config getter that implements
 /// the config::Getter trait and uses the V value serializer
-pub struct Agent<G: Getter<V>, V: Debug> {
+pub struct Agent<C: Debug, G: Getter<C>, V: Debug> {
     conf_getter: G,
-    phantom: PhantomData<V>,
+    _marker: PhantomData<(C, V)>,
 }
 
-impl<G: Getter<V>, V: Debug> Agent<G, V> {
+impl<C: Debug, G: Getter<C>, V: Debug> Agent<C, G, V> {
     pub fn new(getter: G) -> Self {
         Self {
             conf_getter: getter,
-            phantom: PhantomData,
+            _marker: PhantomData,
         }
     }
 

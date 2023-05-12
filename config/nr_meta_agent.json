@@ -1,0 +1,30 @@
+{
+  "op_amp": "https://...",
+  "agents": {
+    "infra_agent": {
+      "agent_type": "",
+      "agent_name": "telegraf",
+      "executables": [
+        {
+          "binary": "${bin}/newrelic-infra",
+          "args": [
+            "--config",
+            "${etc}/newrelic-infra.yml"
+          ]
+        }
+      ]
+    },
+    "nrdot/scrapper": {
+      "agent_name": "nrdot",
+      "executables": [
+        {
+          "binary": "${bin}/nrdot",
+          "args": [
+            "--config",
+            "${etc}/config.yml"
+          ]
+        }
+      ]
+    }
+  }
+}
