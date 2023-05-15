@@ -1,10 +1,11 @@
 use std::env::args;
 use std::thread;
+use std::thread::JoinHandle;
 
 use serde_json::Value;
 
-use meta_agent::{Agent, Config, InfraAgentSupervisor, NrDotSupervisor, Resolver};
-use meta_agent::supervisor::supervisor::Supervisor;
+use meta_agent::{Agent, Config, Resolver};
+use meta_agent::supervisor::factory::SupervisorFactory;
 
 fn main() {
     let args: Vec<String> = args().collect();
@@ -14,42 +15,47 @@ fn main() {
         "config/nr_meta_agent.json"
     };
 
-    // testing some conf unmarshalling
+
+    // Get agent's generic config to get agent's names
     let config_resolver = Resolver::from_path(path);
-    let nextgen: Agent<Config<Value>, Resolver, Value> = Agent::new(config_resolver);
-    if let Err(err) = nextgen.start() {
-        eprintln!("{}", err);
+    let nextgen: Agent<Config<Value>, Resolver, Config<Value>> = Agent::new(config_resolver);
+    let conf = nextgen.conf();
+    if conf.is_err() {
+        eprintln!("{}", conf.err().unwrap());
         std::process::exit(1);
     }
 
-    //https://stackoverflow.com/questions/55490906/why-does-spawning-threads-using-iteratormap-not-run-the-threads-in-parallel
-    // let supervisors: Vec<Box<dyn Supervisor>> = vec![Box::new(InfraAgentSupervisor::new()), Box::new(NrDotSupervisor::new())];
-    // supervisors.iter().map(|spv| {
-    //     thread::spawn(|| {
-    //         let mut infra_supervisor = InfraAgentSupervisor::new();
-    //         match infra_supervisor.start() {
-    //             Err(e) => println!("{}", e),
-    //             Ok(()) => println!("all good pavo!")
-    //         }
-    //     })
-    // }).for_each(|handle| { handle.join().unwrap() });
 
-    let handle1 = thread::spawn(|| {
-        let mut infra_supervisor = InfraAgentSupervisor::new();
-        match infra_supervisor.start() {
-            Err(e) => println!("{}", e),
-            Ok(()) => println!("all good pavo!")
+    //supervisors handles to wait until finish
+    let mut handles: Vec<JoinHandle<()>> = Vec::new();
+
+    for (agent_name, conf) in conf.unwrap().agents() {
+        // serialize agent config as poc to deal with different configs per supervisor
+        let serialized_conf = serde_json::to_string(conf);
+        if serialized_conf.is_err() {
+            eprintln!("{}", serialized_conf.err().unwrap());
+            continue;
         }
-    });
 
-    let handle2 = thread::spawn(|| {
-        let mut nrdot_supervisor = NrDotSupervisor::new();
-        match nrdot_supervisor.start() {
-            Err(e) => println!("{}", e),
-            Ok(()) => println!("all good pavo!")
+        // build the supervisor based on the name and the supervisor raw config
+        let supervisor = SupervisorFactory::from_config(agent_name.clone(), serialized_conf.unwrap());
+        if supervisor.is_err() {
+            eprintln!("{}", supervisor.err().unwrap());
+            continue;
         }
-    });
 
-    handle1.join().unwrap();
-    handle2.join().unwrap();
+        // run all supervisors
+        let handle = thread::spawn(move || {
+            match supervisor.unwrap().start() {
+                Err(e) => println!("{}", e),
+                Ok(()) => println!("all good pavo!")
+            }
+        });
+
+        handles.push(handle);
+    }
+
+    for h in handles {
+        h.join().unwrap();
+    }
 }

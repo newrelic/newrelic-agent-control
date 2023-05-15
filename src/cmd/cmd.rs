@@ -1,7 +1,9 @@
-use std::{io, result};
+use std::{io, result, thread};
 use std::io::{BufRead, BufReader, Read};
 use std::process::{Child, ChildStderr, ChildStdout, Command, ExitStatus, Stdio};
+use std::sync::mpsc;
 use std::sync::mpsc::Sender;
+use std::thread::JoinHandle;
 
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
@@ -87,5 +89,45 @@ pub fn std_to_chan<T: Read>(std: Option<T>, chan: Sender<String>) {
 
     for line in std_lines {
         chan.send(line.unwrap());
+    }
+}
+
+
+pub fn cmd_channels(cmd: &mut Cmd) {
+    let stdout = cmd.stdout();
+    let stderr = cmd.stderr();
+
+    let (stderr_tx, stderr_rx) = mpsc::channel();
+    let (stdout_tx, stdout_rx) = mpsc::channel();
+
+    //supervisors handles to wait until finish
+    let mut handles: Vec<JoinHandle<()>> = Vec::new();
+
+    let handle = thread::spawn(move || {
+        std_to_chan(stdout, stdout_tx);
+    });
+    handles.push(handle);
+
+    let handle = thread::spawn(move || {
+        std_to_chan(stderr, stderr_tx);
+    });
+    handles.push(handle);
+
+    let handle = thread::spawn(move || {
+        for msg in stderr_rx {
+            println!("stderr channel: {}", msg);
+        }
+    });
+    handles.push(handle);
+
+    let handle = thread::spawn(move || {
+        for msg in stdout_rx {
+            println!("stdout channel: {}", msg);
+        }
+    });
+    handles.push(handle);
+
+    for handle in handles {
+        handle.join().unwrap();
     }
 }

@@ -1,6 +1,7 @@
-use serde::Deserialize;
 use std::collections::HashMap;
 use std::fmt::Debug;
+
+use serde::Deserialize;
 
 /// The Config for the meta-agent and the managers
 #[derive(Debug, Deserialize, Clone, Default, PartialEq)]
@@ -9,6 +10,11 @@ pub struct Config<V: Debug> {
     pub(crate) agents: HashMap<String, V>,
 }
 
+impl<V: Debug> Config<V> {
+    pub fn agents(&self) -> &HashMap<String, V> {
+        &self.agents
+    }
+}
 
 #[cfg(test)]
 #[derive(Debug, Deserialize, PartialEq)]
@@ -21,12 +27,13 @@ pub enum CustomTypeTest {
 // from its implementation of Serialize
 #[cfg(test)]
 mod serde_custom_type_test {
-    use super::*;
     use serde::{self, Deserialize, Deserializer};
 
+    use super::*;
+
     pub fn deserialize<'de, D>(deserializer: D) -> Result<CustomTypeTest, D::Error>
-    where
-        D: Deserializer<'de>,
+        where
+            D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
         if s == "type-a" {
@@ -38,9 +45,10 @@ mod serde_custom_type_test {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde::Deserialize;
     use serde_json::Value;
+
+    use super::*;
 
     #[test]
     fn test_deserialize_agent_config() {

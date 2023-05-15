@@ -5,6 +5,7 @@ use crate::config::config::Getter;
 
 pub(crate) mod config;
 
+#[derive(Debug)]
 pub struct AgentError;
 
 impl Display for AgentError {
@@ -12,6 +13,7 @@ impl Display for AgentError {
         write!(f, "invalid first item to double")
     }
 }
+
 
 /// The Agent Struct that injects a config getter that implements
 /// the config::Getter trait and uses the V value serializer
@@ -33,5 +35,12 @@ impl<C: Debug, G: Getter<C>, V: Debug> Agent<C, G, V> {
         let parsed_config = self.conf_getter.get();
         println!("{:?}", parsed_config);
         Ok(())
+    }
+
+    pub fn conf(&self) -> Result<C, AgentError> {
+        match self.conf_getter.get() {
+            Err(_) => Err(AgentError),
+            Ok(x) => Ok(x)
+        }
     }
 }

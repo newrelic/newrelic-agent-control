@@ -1,0 +1,18 @@
+---
+op_amp: https://...
+agents:
+  generic/infra_agent:
+    agent_type: ''
+    agent_name: infra-agent
+    executables:
+      - binary: "/usr/bin/newrelic-infra"
+        args:
+          - "--config"
+          - "/etc/newrelic-infra.yml"
+  nrdot:
+#    agent_name: nrdot
+#    executables:
+#      - binary: "${bin}/nrdot"
+#        args:
+#          - "--config"
+#          - "${etc}/config.yml"

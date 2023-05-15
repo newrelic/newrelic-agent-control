@@ -20,6 +20,6 @@ impl From<CmdError> for SupervisorError {
 /// as the error type.
 pub type Result<T> = result::Result<T, SupervisorError>;
 
-pub trait Supervisor {
+pub trait Supervisor: Send {
     fn start(&mut self) -> Result<()>;
 }
