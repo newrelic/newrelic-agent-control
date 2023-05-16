@@ -18,36 +18,30 @@ pub trait Getter<V: Debug> {
 }
 
 #[cfg(test)]
-#[derive(Debug, Deserialize, PartialEq)]
-pub enum CustomTypeTest {
-    A,
-    B,
-}
-
-// Deserialize this field using a this function that is different
-// from its implementation of Serialize
-#[cfg(test)]
-mod serde_custom_type_test {
-    use super::*;
-    use serde::{self, Deserialize, Deserializer};
-
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<CustomTypeTest, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        if s == "type-a" {
-            return Ok(CustomTypeTest::A);
-        }
-        Ok(CustomTypeTest::B)
-    }
-}
-
-#[cfg(test)]
 mod tests {
     use super::*;
+    use serde::de;
     use serde::Deserialize;
     use serde_json::Value;
+
+    #[derive(Debug, PartialEq)]
+    pub enum CustomTypeTest {
+        A,
+        B,
+    }
+
+    impl<'de> de::Deserialize<'de> for CustomTypeTest {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            let s = String::deserialize(deserializer)?;
+            if s == "type-a" {
+                return Ok(CustomTypeTest::A);
+            }
+            Ok(CustomTypeTest::B)
+        }
+    }
 
     #[test]
     fn test_deserialize_agent_config() {
@@ -55,7 +49,6 @@ mod tests {
         struct InfraAgent {
             uuid_dir: String,
             value: i64,
-            #[serde(with = "serde_custom_type_test")]
             kind: CustomTypeTest,
         }
 
