@@ -1,5 +1,5 @@
 mod error;
-mod singlebinary;
+mod processrunner;
 
 use error::CommandError;
 
