@@ -1,4 +1,5 @@
 mod agent;
+mod command;
 mod config;
 
 pub mod command;
