@@ -1,9 +1,9 @@
 use std::{
     ffi::OsStr,
-    process::{Child, Command as StandardCommand},
+    process::{Child, Command as StandardCommand, ExitStatus},
 };
 
-use super::{Command, CommandError, CommandExecutor, Process};
+use super::{Command, CommandError, CommandExecutor, CommandHandler, CommandRunner, Process};
 
 impl Command for StandardCommand {
     type Proc = Child;
@@ -16,20 +16,33 @@ impl Process for Child {
     fn kill(&mut self) -> std::io::Result<()> {
         self.kill()
     }
+
+    fn wait(&mut self) -> std::io::Result<std::process::ExitStatus> {
+        self.wait()
+    }
+}
+
+pub struct Unstarted<C, P>
+where
+    C: Command<Proc = P>,
+{
+    cmd: C,
+}
+
+pub struct Started<P>
+where
+    P: Process,
+{
+    process_handle: P,
 }
 
 #[derive(Debug)]
-struct ProcessRunner<C = StandardCommand, P = Child>
-where
-    C: Command,
-    P: Process,
-{
-    process_command: C,
-    process_handle: Option<P>,
+pub struct ProcessRunner<State = Unstarted<StandardCommand, Child>> {
+    state: State,
 }
 
 impl ProcessRunner {
-    fn new<I, S>(binary_path: &str, args: I) -> Self
+    pub fn new<I, S>(binary_path: &str, args: I) -> Self
     where
         I: IntoIterator<Item = S>,
         S: AsRef<OsStr>,
@@ -38,39 +51,55 @@ impl ProcessRunner {
         command.args(args);
 
         Self {
-            process_command: command,
-            process_handle: None,
+            state: Unstarted { cmd: command },
         }
     }
 }
 
-impl<C, P> CommandExecutor for ProcessRunner<C, P>
+impl<C, P> CommandExecutor for ProcessRunner<Unstarted<C, P>>
 where
     C: Command<Proc = P>,
     P: Process,
 {
     type Error = CommandError;
+    type Handler = ProcessRunner<Started<P>>;
 
-    fn start(&mut self) -> Result<(), Self::Error> {
-        if self.process_handle.is_some() {
-            return Err(CommandError::ProcessAlreadyStarted);
-        }
-
-        Ok(self.process_handle = Some(self.process_command.spawn()?))
+    fn start(mut self) -> Result<Self::Handler, Self::Error> {
+        let child = self.state.cmd.spawn()?;
+        Ok(ProcessRunner {
+            state: Started {
+                process_handle: child,
+            },
+        })
     }
+}
 
-    fn stop(&mut self) -> Result<(), CommandError> {
-        if let Some(mut child) = self.process_handle.take() {
-            Ok(child.kill()?)
-        } else {
-            Err(CommandError::ProcessNotStarted)
-        }
+impl<P> CommandHandler for ProcessRunner<Started<P>>
+where
+    P: Process,
+{
+    type Error = CommandError;
+    fn stop(mut self) -> Result<(), CommandError> {
+        Ok(self.state.process_handle.kill()?)
+    }
+}
+
+impl<C, P> CommandRunner for ProcessRunner<Unstarted<C, P>>
+where
+    C: Command<Proc = P>,
+    P: Process,
+{
+    type Error = CommandError;
+    fn run(mut self) -> Result<ExitStatus, Self::Error> {
+        Ok(self.state.cmd.spawn()?.wait()?)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::command::CommandExecutor;
+    use std::{os::unix::process::ExitStatusExt, process::ExitStatus};
+
+    use crate::command::{processrunner::Unstarted, CommandExecutor, CommandHandler};
 
     use super::ProcessRunner;
 
@@ -80,6 +109,10 @@ mod tests {
     impl super::Process for MockedProc {
         fn kill(&mut self) -> std::io::Result<()> {
             Ok(())
+        }
+
+        fn wait(&mut self) -> std::io::Result<std::process::ExitStatus> {
+            Ok(ExitStatus::from_raw(0))
         }
     }
 
@@ -92,20 +125,10 @@ mod tests {
 
     #[test]
     fn start_stop_workflow() {
-        let mut cmd: ProcessRunner<MockedCommand, MockedProc> = ProcessRunner {
-            process_command: MockedCommand,
-            process_handle: None,
+        let cmd: ProcessRunner<Unstarted<MockedCommand, MockedProc>> = ProcessRunner {
+            state: Unstarted { cmd: MockedCommand },
         };
 
-        // double start
-        assert_eq!(false, cmd.start().is_err());
-        assert_eq!(true, cmd.start().is_err());
-
-        // double stop
-        assert_eq!(false, cmd.stop().is_err());
-        assert_eq!(true, cmd.stop().is_err());
-
-        // start after stop
-        assert_eq!(false, cmd.start().is_err())
+        assert_eq!(cmd.start().unwrap().stop().is_err(), false);
     }
 }
