@@ -1,5 +1,5 @@
 [package]
-name = "meta-agent"
+name = "meta_agent"
 version = "0.1.0"
 edition = "2021"
 

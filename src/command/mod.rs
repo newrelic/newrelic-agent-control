@@ -1,26 +1,30 @@
 mod error;
-mod processrunner;
+pub mod wrapper;
+
+use std::process::ExitStatus;
 
 use error::CommandError;
 
-/// Trait that specifies the interface for task execution
-pub(crate) trait CommandExecutor {
+/// Trait that specifies the interface for a background task execution
+pub trait CommandExecutor {
+    type Error: std::error::Error + Send + Sync;
+    type Process: CommandHandle;
+
+    /// The spawn method will execute command
+    fn start(self) -> Result<Self::Process, Self::Error>;
+}
+
+pub trait CommandHandle {
     type Error: std::error::Error + Send + Sync;
 
-    /// The start method will execute command
-    fn start(&mut self) -> Result<(), Self::Error>;
-
     /// The stop method will stop the command's execution
-    fn stop(&mut self) -> Result<(), Self::Error>;
+    fn stop(self) -> Result<(), Self::Error>;
 }
 
-/// Trait that specifies the interface for a command to run
-pub(crate) trait Command {
-    type Proc: Process;
-    fn spawn(&mut self) -> std::io::Result<Self::Proc>;
-}
+/// Trait that specifies the interface for a blocking task execution
+pub trait CommandRunner {
+    type Error: std::error::Error + Send + Sync;
 
-/// Trait that specifies the interface for a process
-pub(crate) trait Process {
-    fn kill(&mut self) -> std::io::Result<()>;
+    /// The spawn method will execute command
+    fn run(self) -> Result<ExitStatus, Self::Error>;
 }
