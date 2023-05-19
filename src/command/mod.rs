@@ -6,6 +6,7 @@ pub mod stream;
 use std::{process::ExitStatus, sync::mpsc::Sender};
 
 use error::CommandError;
+use ipc::{Message, Notifier};
 use stream::OutputEvent;
 
 /// Trait that specifies the interface for a background task execution

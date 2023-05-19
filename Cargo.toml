@@ -10,4 +10,6 @@ config = "0.13.1"
 serde = { version = "1.0.160", features = ["derive"] }
 serde_json = "1.0.96"
 thiserror = "1.0.40"
+nix = { version = "0.26.2", features = ["signal"] }
+libc = "0.2.144"
 log = "0.4.17"
