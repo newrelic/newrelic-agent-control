@@ -1,85 +1,63 @@
 use std::{
+    ffi::OsStr,
     marker::PhantomData,
     process::{Child, Command},
 };
 
 use super::{CommandError, CommandExecutor, CommandHandle, CommandRunner};
 
-impl CommandExecutor for Command {
-    type Error = CommandError;
-    type Process = Child;
-    fn start(mut self) -> Result<Self::Process, Self::Error> {
-        Ok(self.spawn()?)
-    }
-}
+pub struct Unstarted;
+pub struct Started;
 
-impl CommandHandle for Child {
-    type Error = CommandError;
-    fn stop(mut self) -> Result<(), Self::Error> {
-        Ok(self.kill()?)
-    }
-}
+pub struct ProcessRunner<State = Unstarted> {
+    cmd: Option<Command>,
+    process: Option<Child>,
 
-pub enum ProcessRunner {
-    Command(Command),
-    Child(Child),
+    state: PhantomData<State>,
 }
 
 impl ProcessRunner {
-    pub fn new(cmd: Command) -> Self {
-        ProcessRunner::Command(cmd)
+    pub fn new<I, S>(binary_path: &str, args: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
+        let mut command = Command::new(binary_path);
+        command.args(args);
+
+        Self {
+            cmd: Some(command),
+            state: PhantomData,
+            process: None,
+        }
     }
 }
 
 impl CommandExecutor for ProcessRunner {
     type Error = CommandError;
-    type Process = Child;
+    type Process = ProcessRunner<Started>;
     fn start(self) -> Result<Self::Process, Self::Error> {
-        match self {
-            ProcessRunner::Command(mut cmd) => Ok(cmd.spawn()?),
-            _ => unreachable!(),
-        }
+        Ok(ProcessRunner {
+            cmd: None,
+            state: PhantomData,
+            process: Some(self.cmd.unwrap().spawn()?),
+        })
     }
 }
 
-impl CommandHandle for ProcessRunner {
+impl CommandHandle for ProcessRunner<Started> {
     type Error = CommandError;
     fn stop(self) -> Result<(), Self::Error> {
-        match self {
-            ProcessRunner::Child(mut cmd) => Ok(cmd.kill()?),
-            _ => unreachable!(),
-        }
+        Ok(self.process.unwrap().kill()?)
     }
 }
 
 impl CommandRunner for ProcessRunner {
     type Error = CommandError;
     fn run(self) -> Result<std::process::ExitStatus, Self::Error> {
-        match self {
-            ProcessRunner::Command(mut cmd) => Ok(cmd.spawn()?.wait()?),
-            _ => unreachable!(),
-        }
+        Ok(self.cmd.unwrap().spawn()?.wait()?)
     }
 }
-
-// struct Unstarted;
-// struct Started;
-
-// struct ProcessRunner2<State = Unstarted> {
-//     cmd: Command,
-
-//     state: PhantomData<State>,
-// }
-
-// impl CommandExecutor for ProcessRunner2 {
-//     type Error = CommandError;
-//     type Process = ProcessRunner2<Started>;
-//     fn start(self) -> Result<Self::Process, Self::Error> {
-//         Ok(self.cmd.spawn()?)
-//     }
-// }
-
-// impl CommandHandle for ProcessRunner2<Started> {}
 
 #[cfg(test)]
 mod tests {
