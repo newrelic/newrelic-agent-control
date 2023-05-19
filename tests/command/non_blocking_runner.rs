@@ -10,24 +10,13 @@ where
     cmd: C,
 }
 
-struct Supervisor<C>
-where
-    C: CommandExecutor,
-{
-    cmd: C,
-}
-
 #[test]
 fn non_blocking_runner() {
-    let mut ss = Supervisor {
-        cmd: Command::new("test"),
-    };
-
     let mut sleep_cmd = Command::new("sleep");
     sleep_cmd.arg("5");
 
     let agent = NonSupervisor {
-        cmd: ProcessRunner::new(sleep_cmd),
+        cmd: ProcessRunner::new("sleep", ["5"]),
     };
 
     let started_cmd = agent.cmd.start().unwrap();
