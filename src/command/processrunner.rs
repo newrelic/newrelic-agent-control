@@ -1,10 +1,13 @@
 use std::{
     ffi::OsStr,
+    io::{BufReader, Error, ErrorKind},
     marker::PhantomData,
-    process::{Child, Command},
+    process::{Child, ChildStderr, ChildStdout, Command, Stdio},
 };
 
-use super::{CommandError, CommandExecutor, CommandHandle, CommandRunner};
+use super::{CommandError, CommandExecutor, CommandHandle, CommandRunner, OutputStreamer};
+
+type OutputStream<Out, Err> = (BufReader<Out>, BufReader<Err>);
 
 pub struct Unstarted;
 pub struct Started;
@@ -13,6 +16,7 @@ pub struct ProcessRunner<State = Unstarted> {
     cmd: Option<Command>,
     process: Option<Child>,
 
+    stream: Option<OutputStream<ChildStdout, ChildStderr>>,
     state: PhantomData<State>,
 }
 
@@ -23,12 +27,16 @@ impl ProcessRunner {
         S: AsRef<OsStr>,
     {
         let mut command = Command::new(binary_path);
-        command.args(args);
+        command
+            .args(args)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
 
         Self {
             cmd: Some(command),
             state: PhantomData,
             process: None,
+            stream: None,
         }
     }
 }
@@ -66,6 +74,30 @@ impl CommandRunner for ProcessRunner {
     }
 }
 
+impl OutputStreamer for ProcessRunner<Started> {
+    type Error = CommandError;
+    type Handle = ProcessRunner<Started>;
+
+    fn stream(mut self) -> Result<Self::Handle, Self::Error> {
+        fn build_err(s: &str) -> CommandError {
+            CommandError::IOError(Error::new(ErrorKind::Other, s))
+        }
+        let c = self
+            .process
+            .as_mut()
+            .ok_or(build_err("Process not started"))?;
+        let stdout = c.stdout.take().ok_or(build_err("stdout not piped"))?;
+        let stderr = c.stderr.take().ok_or(build_err("stderr not piped"))?;
+
+        let stdout_r = BufReader::new(stdout);
+        let stderr_r = BufReader::new(stderr);
+
+        self.stream = Some((stdout_r, stderr_r));
+
+        Ok(self)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[cfg(target_family = "unix")]
@@ -76,7 +108,9 @@ mod tests {
     use std::process::ExitStatus;
 
     use crate::command::error::CommandError;
-    use crate::command::{CommandExecutor, CommandHandle};
+    use crate::command::{CommandExecutor, CommandHandle, OutputStreamer};
+
+    use super::OutputStream;
 
     // MockedCommandExector returns an error on start if fail is true
     // It can be used to mock process spawn
@@ -113,5 +147,55 @@ mod tests {
                 .count(),
             2
         )
+    }
+
+    pub struct MockedCommandHandlerWithStream {
+        stream: Option<OutputStream<Cursor<&'static str>, Cursor<&'static str>>>,
+    }
+
+    impl CommandHandle for MockedCommandHandlerWithStream {
+        type Error = CommandError;
+        fn stop(self) -> Result<(), CommandError> {
+            Ok(())
+        }
+    }
+
+    impl OutputStreamer for MockedCommandHandlerWithStream {
+        type Error = CommandError;
+        type Handle = MockedCommandHandlerWithStream;
+        fn stream(mut self) -> Result<Self::Handle, Self::Error> {
+            let stdout_r = Cursor::new("This is the first line\nThis is the second line\n");
+            let stderr_r = Cursor::new("This is the first error\nThis is the second error\n");
+
+            self.stream = Some((BufReader::new(stdout_r), BufReader::new(stderr_r)));
+            Ok(self)
+        }
+    }
+
+    #[test]
+    fn stream() {
+        let cmd = MockedCommandHandlerWithStream { stream: None };
+        let cmd = cmd.stream().unwrap();
+        let (stdout, stderr) = cmd.stream.unwrap();
+
+        let mut stdout_result = Vec::new();
+        let mut stderr_result = Vec::new();
+
+        stdout.lines().for_each(|line| {
+            stdout_result.push(line.unwrap());
+        });
+
+        stderr.lines().for_each(|line| {
+            stderr_result.push(line.unwrap());
+        });
+
+        assert_eq!(
+            stdout_result,
+            vec!["This is the first line", "This is the second line"]
+        );
+        assert_eq!(
+            stderr_result,
+            vec!["This is the first error", "This is the second error"]
+        );
     }
 }

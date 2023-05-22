@@ -29,3 +29,11 @@ pub trait CommandRunner {
     /// The spawn method will execute command
     fn run(self) -> Result<ExitStatus, Self::Error>;
 }
+
+pub trait OutputStreamer {
+    type Error: std::error::Error + Send + Sync;
+    type Handle: CommandHandle;
+
+    /// The spawn method will execute command
+    fn stream(self) -> Result<Self::Handle, Self::Error>;
+}
