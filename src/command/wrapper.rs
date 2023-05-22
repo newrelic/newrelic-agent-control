@@ -17,7 +17,7 @@ pub struct ProcessRunner<State = Unstarted> {
 }
 
 impl ProcessRunner {
-    pub fn new<I, S>(binary_path: &str, args: I) -> Self
+    pub fn new<I, S>(binary_path: S, args: I) -> Self
     where
         I: IntoIterator<Item = S>,
         S: AsRef<OsStr>,
@@ -61,7 +61,11 @@ impl CommandRunner for ProcessRunner {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(target_family = "unix")]
     use std::os::unix::process::ExitStatusExt;
+    #[cfg(target_family = "windows")]
+    use std::os::windows::process::ExitStatusExt;
+
     use std::process::ExitStatus;
 
     use crate::command::error::CommandError;
