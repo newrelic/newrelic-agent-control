@@ -1,4 +1,5 @@
 mod error;
+pub mod ipc;
 pub mod processrunner;
 pub use crate::command::processrunner::ProcessRunner;
 pub mod stream;
@@ -6,7 +7,7 @@ pub mod stream;
 use std::{process::ExitStatus, sync::mpsc::Sender};
 
 use error::CommandError;
-use ipc::{Message, Notifier};
+use ipc::Message;
 use stream::OutputEvent;
 
 /// Trait that specifies the interface for a background task execution
@@ -31,6 +32,13 @@ pub trait CommandRunner {
 
     /// The spawn method will execute command
     fn run(self) -> Result<ExitStatus, Self::Error>;
+}
+
+/// Trait that specifies the interface for an ipc Notifier
+pub trait CommandNotifier {
+    type Error: std::error::Error + Send + Sync;
+
+    fn notify(&self, msg:Message) -> Result<(), Self::Error>;
 }
 
 /// This trait represents the capability of a command to stream its output.

@@ -4,7 +4,8 @@ use std::{
     process::{Child, Command},
 };
 
-use super::{CommandError, CommandExecutor, CommandHandle, CommandRunner};
+use crate::command::ipc::{notify as IPCNotify, Error as IPCError};
+use super::{CommandError, CommandExecutor, CommandHandle, CommandNotifier, CommandRunner, Message};
 
 pub struct Unstarted;
 pub struct Started;
@@ -12,6 +13,7 @@ pub struct Started;
 pub struct ProcessRunner<State = Unstarted> {
     cmd: Option<Command>,
     process: Option<Child>,
+    pid: u32,
 
     state: PhantomData<State>,
 }
@@ -29,6 +31,7 @@ impl ProcessRunner {
             cmd: Some(command),
             state: PhantomData,
             process: None,
+            pid: 0,
         }
     }
 }
@@ -37,10 +40,14 @@ impl CommandExecutor for ProcessRunner {
     type Error = CommandError;
     type Process = ProcessRunner<Started>;
     fn start(self) -> Result<Self::Process, Self::Error> {
+        let process = self.cmd.unwrap().spawn()?;
+        let pid = process.id();
+
         Ok(ProcessRunner {
             cmd: None,
             state: PhantomData,
-            process: Some(self.cmd.unwrap().spawn()?),
+            process: Some(process),
+            pid,
         })
     }
 }
@@ -49,6 +56,13 @@ impl CommandHandle for ProcessRunner<Started> {
     type Error = CommandError;
     fn stop(self) -> Result<(), Self::Error> {
         Ok(self.process.unwrap().kill()?)
+    }
+}
+
+impl CommandNotifier for ProcessRunner<Started>{
+    type Error = IPCError;
+    fn notify(&self, msg:Message) -> Result<(), Self::Error> {
+        IPCNotify(self.pid, msg)
     }
 }
 
@@ -93,6 +107,19 @@ mod tests {
 
     #[test]
     fn start_stop() {
+        let cmds: Vec<MockedCommandExector> = vec![true, false, true, true, false];
+
+        assert_eq!(
+            cmds.iter()
+                .map(|cmd| cmd.start())
+                .filter(Result::is_ok)
+                .count(),
+            2
+        )
+    }
+
+    #[test]
+    fn notify() {
         let cmds: Vec<MockedCommandExector> = vec![true, false, true, true, false];
 
         assert_eq!(

@@ -3,30 +3,22 @@ use nix::unistd::Pid;
 use libc::{SIGKILL, SIGTERM, SIGUSR1, SIGUSR2};
 use thiserror::Error;
 
-/// Trait that specifies the interface for an ipc Notifier
-pub(crate) trait Notifier {
-    type Error: std::error::Error + Send + Sync;
-
-    fn notify(pid:i32, msg:Message) -> Result<(), Self::Error>;
-}
-
 #[repr(i32)]
 #[cfg(target_family = "unix")]
 pub enum Message {
-    NotificationA(Signal) = SIGUSR1,
-    NotificationB(Signal) = SIGUSR2,
-    Kill(Signal) = SIGKILL,
-    Term(Signal) = SIGTERM,
+    NotificationA = SIGUSR1,
+    NotificationB = SIGUSR2,
+    Kill = SIGKILL,
+    Term = SIGTERM,
 }
 
 impl From<Message> for Option<Signal> {
     fn from(value: Message) -> Option<Signal> {
         match value {
-            Message::NotificationA(Signal::SIGUSR1) => Some(Signal::SIGUSR1),
-            Message::NotificationB(Signal::SIGUSR2) => Some(Signal::SIGUSR2),
-            Message::Kill(Signal::SIGKILL) => Some(Signal::SIGKILL),
-            Message::Term(Signal::SIGTERM) => Some(Signal::SIGTERM),
-            _  => None
+            Message::NotificationA => Some(Signal::SIGUSR1),
+            Message::NotificationB => Some(Signal::SIGUSR2),
+            Message::Kill => Some(Signal::SIGKILL),
+            Message::Term => Some(Signal::SIGTERM),
         }
     }
 }
@@ -46,8 +38,8 @@ impl From<nix::errno::Errno> for Error {
 }
 
 #[cfg(target_family = "unix")]
-pub fn notify(pid:i32, msg:Message) -> Result<(), Error> {
-    let result_signal = signal::kill(Pid::from_raw(pid), msg);
+pub(crate) fn notify(pid:u32, msg:Message) -> Result<(), Error> {
+    let result_signal = signal::kill(Pid::from_raw(pid as i32), msg);
     let result = match result_signal {
         Ok(signal) => Ok(signal),
         Err(error) => Err(Error::from(error)),
