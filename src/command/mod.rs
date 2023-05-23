@@ -33,6 +33,9 @@ pub trait CommandRunner {
     fn run(self) -> Result<ExitStatus, Self::Error>;
 }
 
+/// This trait represents the capability of a command to stream its output.
+/// As the output collection will be done in a separate thread,
+/// the output will be sent through the `Sender` provided as argument.
 pub trait OutputStreamer {
     type Error: std::error::Error + Send + Sync;
     type Handle: CommandHandle;
