@@ -91,8 +91,6 @@ impl OutputStreamer for ProcessRunner<Started> {
         let stdout = BufReader::new(stdout);
         let stderr = BufReader::new(stderr);
 
-        let esnd = snd.clone();
-
         // Send output to the channel
         std::thread::spawn(move || {
             let mut out = stdout.lines();
@@ -104,7 +102,7 @@ impl OutputStreamer for ProcessRunner<Started> {
                     None => out_done = true,
                 }
                 match err.next() {
-                    Some(line) => esnd.send(OutputEvent::Stderr(line.unwrap())).unwrap(),
+                    Some(line) => snd.send(OutputEvent::Stderr(line.unwrap())).unwrap(),
                     None => err_done = true,
                 }
 
