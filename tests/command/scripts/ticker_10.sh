@@ -1,9 +1,8 @@
-#!/bin/bash
+#!/bin/sh
 
 TICK=0
 
-# Loop from 0 to 9
-for _ in {0..9}; do
+while [ $TICK -lt 10 ]; do
   >&2 echo "err tick $TICK"
   >&1 echo "ok tick $TICK"
   sleep .1
