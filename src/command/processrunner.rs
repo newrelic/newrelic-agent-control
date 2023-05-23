@@ -1,13 +1,14 @@
 use std::{
     ffi::OsStr,
-    io::{BufReader, Error, ErrorKind},
+    io::{BufRead, BufReader, Error, ErrorKind},
     marker::PhantomData,
-    process::{Child, ChildStderr, ChildStdout, Command, Stdio},
+    process::{Child, Command, Stdio},
+    sync::mpsc::Sender,
 };
 
-use super::{CommandError, CommandExecutor, CommandHandle, CommandRunner, OutputStreamer};
-
-type OutputStream<Out, Err> = (BufReader<Out>, BufReader<Err>);
+use super::{
+    CommandError, CommandExecutor, CommandHandle, CommandRunner, OutputEvent, OutputStreamer,
+};
 
 pub struct Unstarted;
 pub struct Started;
@@ -16,7 +17,6 @@ pub struct ProcessRunner<State = Unstarted> {
     cmd: Option<Command>,
     process: Option<Child>,
 
-    stream: Option<OutputStream<ChildStdout, ChildStderr>>,
     state: PhantomData<State>,
 }
 
@@ -36,7 +36,6 @@ impl ProcessRunner {
             cmd: Some(command),
             state: PhantomData,
             process: None,
-            stream: None,
         }
     }
 }
@@ -78,7 +77,7 @@ impl OutputStreamer for ProcessRunner<Started> {
     type Error = CommandError;
     type Handle = ProcessRunner<Started>;
 
-    fn stream(mut self) -> Result<Self::Handle, Self::Error> {
+    fn stream(mut self, snd: Sender<OutputEvent>) -> Result<Self::Handle, Self::Error> {
         fn build_err(s: &str) -> CommandError {
             CommandError::IOError(Error::new(ErrorKind::Other, s))
         }
@@ -86,13 +85,34 @@ impl OutputStreamer for ProcessRunner<Started> {
             .process
             .as_mut()
             .ok_or(build_err("Process not started"))?;
+
         let stdout = c.stdout.take().ok_or(build_err("stdout not piped"))?;
         let stderr = c.stderr.take().ok_or(build_err("stderr not piped"))?;
+        let stdout = BufReader::new(stdout);
+        let stderr = BufReader::new(stderr);
 
-        let stdout_r = BufReader::new(stdout);
-        let stderr_r = BufReader::new(stderr);
+        let esnd = snd.clone();
 
-        self.stream = Some((stdout_r, stderr_r));
+        // Send output to the channel
+        std::thread::spawn(move || {
+            let mut out = stdout.lines();
+            let mut err = stderr.lines();
+            let (mut out_done, mut err_done) = (false, false);
+            loop {
+                match out.next() {
+                    Some(line) => snd.send(OutputEvent::Stdout(line.unwrap())).unwrap(),
+                    None => out_done = true,
+                }
+                match err.next() {
+                    Some(line) => esnd.send(OutputEvent::Stderr(line.unwrap())).unwrap(),
+                    None => err_done = true,
+                }
+
+                if out_done && err_done {
+                    break;
+                }
+            }
+        });
 
         Ok(self)
     }
@@ -106,11 +126,12 @@ mod tests {
     use std::os::windows::process::ExitStatusExt;
 
     use std::process::ExitStatus;
+    use std::sync::mpsc::Sender;
 
     use crate::command::error::CommandError;
     use crate::command::{CommandExecutor, CommandHandle, OutputStreamer};
 
-    use super::OutputStream;
+    use super::OutputEvent;
 
     // MockedCommandExector returns an error on start if fail is true
     // It can be used to mock process spawn
@@ -149,53 +170,48 @@ mod tests {
         )
     }
 
-    pub struct MockedCommandHandlerWithStream {
-        stream: Option<OutputStream<Cursor<&'static str>, Cursor<&'static str>>>,
-    }
-
-    impl CommandHandle for MockedCommandHandlerWithStream {
+    impl OutputStreamer for MockedCommandHandler {
         type Error = CommandError;
-        fn stop(self) -> Result<(), CommandError> {
-            Ok(())
-        }
-    }
+        type Handle = MockedCommandHandler;
 
-    impl OutputStreamer for MockedCommandHandlerWithStream {
-        type Error = CommandError;
-        type Handle = MockedCommandHandlerWithStream;
-        fn stream(mut self) -> Result<Self::Handle, Self::Error> {
-            let stdout_r = Cursor::new("This is the first line\nThis is the second line\n");
-            let stderr_r = Cursor::new("This is the first error\nThis is the second error\n");
+        fn stream(self, snd: Sender<OutputEvent>) -> Result<Self, Self::Error> {
+            let esnd = snd.clone();
+            (0..9).for_each(|i| {
+                snd.send(OutputEvent::Stdout(format!("This is line {}", i)))
+                    .unwrap()
+            });
+            (0..9).for_each(|i| {
+                esnd.send(OutputEvent::Stderr(format!("This is error {}", i)))
+                    .unwrap()
+            });
 
-            self.stream = Some((BufReader::new(stdout_r), BufReader::new(stderr_r)));
             Ok(self)
         }
     }
 
     #[test]
     fn stream() {
-        let cmd = MockedCommandHandlerWithStream { stream: None };
-        let cmd = cmd.stream().unwrap();
-        let (stdout, stderr) = cmd.stream.unwrap();
+        let cmd = MockedCommandHandler {};
+        let (tx, rx) = std::sync::mpsc::channel();
+
+        let cmd = cmd.stream(tx).unwrap();
+
+        let mut stdout_expected = Vec::new();
+        let mut stderr_expected = Vec::new();
+        // Populate expected results in a similar way as the mocked streamer
+        (0..9).for_each(|i| stdout_expected.push(format!("This is line {}", i)));
+        (0..9).for_each(|i| stderr_expected.push(format!("This is error {}", i)));
 
         let mut stdout_result = Vec::new();
         let mut stderr_result = Vec::new();
-
-        stdout.lines().for_each(|line| {
-            stdout_result.push(line.unwrap());
+        // Receive actual data from streamer
+        rx.iter().for_each(|event| match event {
+            OutputEvent::Stdout(line) => stdout_result.push(line),
+            OutputEvent::Stderr(line) => stderr_result.push(line),
         });
 
-        stderr.lines().for_each(|line| {
-            stderr_result.push(line.unwrap());
-        });
-
-        assert_eq!(
-            stdout_result,
-            vec!["This is the first line", "This is the second line"]
-        );
-        assert_eq!(
-            stderr_result,
-            vec!["This is the first error", "This is the second error"]
-        );
+        assert_eq!(stdout_expected, stdout_result);
+        assert_eq!(stderr_expected, stderr_result);
+        assert!(cmd.stop().is_ok());
     }
 }

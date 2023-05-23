@@ -1,10 +1,13 @@
 mod error;
 pub mod processrunner;
 pub use crate::command::processrunner::ProcessRunner;
+pub mod stream;
+pub mod wrapper;
 
-use std::process::ExitStatus;
+use std::{process::ExitStatus, sync::mpsc::Sender};
 
 use error::CommandError;
+use stream::OutputEvent;
 
 /// Trait that specifies the interface for a background task execution
 pub trait CommandExecutor {
@@ -34,6 +37,5 @@ pub trait OutputStreamer {
     type Error: std::error::Error + Send + Sync;
     type Handle: CommandHandle;
 
-    /// The spawn method will execute command
-    fn stream(self) -> Result<Self::Handle, Self::Error>;
+    fn stream(self, snd: Sender<OutputEvent>) -> Result<Self::Handle, Self::Error>;
 }
