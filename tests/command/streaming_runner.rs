@@ -61,7 +61,7 @@ fn actual_command_streaming() {
 #[test]
 fn actual_command_exiting_closes_channel() {
     let agent = NonSupervisor {
-        // TICKER_10 actually exits when it has ticket 10 times both on stdout and stderr
+        // TICKER_10 actually exits when it has ticked 10 times both on stdout and stderr
         cmd: ProcessRunner::new("sh", [TICKER_10]),
     };
     let (tx, rx) = std::sync::mpsc::channel();
