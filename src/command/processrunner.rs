@@ -95,13 +95,17 @@ impl OutputStreamer for ProcessRunner<Started> {
             let mut err = BufReader::new(stderr).lines();
             let (mut out_done, mut err_done) = (false, false);
             loop {
-                match out.next() {
-                    Some(line) => snd.send(OutputEvent::Stdout(line.unwrap())).unwrap(),
-                    None => out_done = true,
+                if !out_done {
+                    match out.next() {
+                        Some(line) => snd.send(OutputEvent::Stdout(line.unwrap())).unwrap(),
+                        None => out_done = true,
+                    }
                 }
-                match err.next() {
-                    Some(line) => snd.send(OutputEvent::Stderr(line.unwrap())).unwrap(),
-                    None => err_done = true,
+                if !err_done {
+                    match err.next() {
+                        Some(line) => snd.send(OutputEvent::Stderr(line.unwrap())).unwrap(),
+                        None => err_done = true,
+                    }
                 }
 
                 if out_done && err_done {
