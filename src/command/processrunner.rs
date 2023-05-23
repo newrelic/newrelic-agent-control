@@ -88,13 +88,11 @@ impl OutputStreamer for ProcessRunner<Started> {
 
         let stdout = c.stdout.take().ok_or(build_err("stdout not piped"))?;
         let stderr = c.stderr.take().ok_or(build_err("stderr not piped"))?;
-        let stdout = BufReader::new(stdout);
-        let stderr = BufReader::new(stderr);
 
         // Send output to the channel
         std::thread::spawn(move || {
-            let mut out = stdout.lines();
-            let mut err = stderr.lines();
+            let mut out = BufReader::new(stdout).lines();
+            let mut err = BufReader::new(stderr).lines();
             let (mut out_done, mut err_done) = (false, false);
             loop {
                 match out.next() {
