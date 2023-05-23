@@ -117,17 +117,4 @@ mod tests {
             2
         )
     }
-
-    #[test]
-    fn notify() {
-        let cmds: Vec<MockedCommandExector> = vec![true, false, true, true, false];
-
-        assert_eq!(
-            cmds.iter()
-                .map(|cmd| cmd.start())
-                .filter(Result::is_ok)
-                .count(),
-            2
-        )
-    }
 }

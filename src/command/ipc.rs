@@ -12,6 +12,7 @@ pub enum Message {
     Term = SIGTERM,
 }
 
+#[cfg(target_family = "unix")]
 impl From<Message> for Option<Signal> {
     fn from(value: Message) -> Option<Signal> {
         match value {
@@ -30,7 +31,7 @@ pub enum Error {
     NixError(#[source] nix::Error),
 }
 
-
+#[cfg(target_family = "unix")]
 impl From<nix::errno::Errno> for Error {
     fn from(value:nix::errno::Errno) -> Error {
         Error::NixError(value)
@@ -47,8 +48,10 @@ pub(crate) fn notify(pid:u32, msg:Message) -> Result<(), Error> {
     result
 }
 
-#[cfg(target_family = "windows")]
-pub enum Message {
-    String
-}
+#[cfg(not(target_family = "unix"))]
+pub enum Message {}
 
+#[cfg(not(target_family = "unix"))]
+pub(crate) fn notify(pid:u32, msg:Message) -> Result<(), Error> {
+    Ok(())
+}
