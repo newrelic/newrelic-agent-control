@@ -19,3 +19,14 @@ fn non_blocking_runner() {
     // kill the process
     assert_eq!(started_cmd.stop().is_err(), false);
 }
+
+fn non_blocking_runner_notify() {
+    let agent = NonSupervisor {
+        cmd: ProcessRunner::new("sleep", ["5"]),
+    };
+
+    let started_cmd = agent.cmd.start().unwrap();
+
+    // kill the process
+    assert_eq!(started_cmd.stop().is_err(), false);
+}
