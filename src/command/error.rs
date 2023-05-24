@@ -6,6 +6,12 @@ pub enum CommandError {
     #[error("process exited with error: `{0}`")]
     ProcessError(ExitStatus),
 
+    #[error("process not started")]
+    ProcessNotStarted,
+
+    #[error("command not found")]
+    CommandNotFound,
+
     #[error("io error")]
     IOError(#[source] std::io::Error),
 }
