@@ -55,3 +55,39 @@ pub enum Message {}
 pub(crate) fn notify(pid:u32, msg:Message) -> Result<(), Error> {
     Ok(())
 }
+
+#[cfg(target_family = "unix")]
+#[cfg(test)]
+mod tests {
+    use std::process::{Command, Stdio};
+    use std::{thread, time};
+    use std::io::{BufRead, BufReader};
+    use crate::command::ipc::Message::NotificationA;
+    use super::*;
+
+    #[test]
+    fn notify_process() {
+        let mut sleep_cmd = Command::new("sh")
+            .arg("-c")
+            .arg("trap \"echo 'sigusr1 signal captured'\" SIGUSR1;while true; do sleep 1; done")
+            .stdout(Stdio::piped())
+            .spawn();
+
+        let pid = sleep_cmd.as_mut().unwrap().id();
+        let one_second = time::Duration::from_secs(1);
+        thread::sleep(one_second);
+
+        _ = notify(pid, NotificationA);
+
+        let std_reader = BufReader::new(sleep_cmd.as_mut().unwrap().stdout.as_mut().unwrap());
+        let std_lines = std_reader.lines();
+
+        let mut output = String::new();
+        for line in std_lines {
+            output = line.unwrap();
+            break;
+        }
+
+        assert_eq!(output, "sigusr1 signal captured")
+    }
+}

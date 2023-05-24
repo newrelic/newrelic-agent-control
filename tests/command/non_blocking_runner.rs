@@ -1,4 +1,4 @@
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use meta_agent::command::{CommandExecutor, CommandHandle, CommandNotifier, ProcessRunner};
 
@@ -12,9 +12,6 @@ where
 
 #[test]
 fn non_blocking_runner() {
-    let mut sleep_cmd = Command::new("sleep");
-    sleep_cmd.arg("5");
-
     let agent = NonSupervisor {
         cmd: ProcessRunner::new("sleep", ["5"]),
     };
@@ -28,17 +25,12 @@ fn non_blocking_runner() {
 
 #[test]
 fn notify_process() {
-    let mut sleep_cmd = Command::new("sleep");
-    sleep_cmd.arg("5");
-
     let agent = NonSupervisor {
         cmd: ProcessRunner::new("sleep", ["5"]),
     };
 
     let started_cmd = agent.cmd.start().unwrap();
-    assert_eq!(started_cmd.notify(meta_agent::command::ipc::Message::Term).is_err(), false);
-
-    // kill the process
+    assert_eq!(started_cmd.notify(meta_agent::command::ipc::Message::NotificationA).is_err(), false);
     assert_eq!(started_cmd.stop().is_err(), false);
 }
 

@@ -79,14 +79,15 @@ mod tests {
     use std::process::ExitStatus;
 
     use crate::command::error::CommandError;
-    use crate::command::{CommandExecutor, CommandHandle};
+    use crate::command::{CommandExecutor, CommandHandle, CommandNotifier};
+    use crate::command::ipc::Message;
 
     // MockedCommandExector returns an error on start if fail is true
     // It can be used to mock process spawn
     type MockedCommandExector = bool;
     pub struct MockedCommandHandler;
 
-    impl super::CommandExecutor for MockedCommandExector {
+    impl CommandExecutor for MockedCommandExector {
         type Error = CommandError;
         type Process = MockedCommandHandler;
         fn start(self) -> Result<Self::Process, Self::Error> {
@@ -101,6 +102,13 @@ mod tests {
     impl CommandHandle for MockedCommandHandler {
         type Error = CommandError;
         fn stop(self) -> Result<(), CommandError> {
+            Ok(())
+        }
+    }
+
+    impl CommandNotifier for MockedCommandHandler {
+        type Error = CommandError;
+        fn notify(&self, _: Message) -> Result<(), Self::Error> {
             Ok(())
         }
     }
