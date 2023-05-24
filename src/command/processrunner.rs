@@ -1,14 +1,16 @@
 use std::{
     ffi::OsStr,
-    io::{BufRead, BufReader, Error, ErrorKind},
+    io::{BufRead, BufReader},
     marker::PhantomData,
-    process::{Child, Command, Stdio},
+    process::{Child, ChildStderr, ChildStdout, Command, Stdio},
     sync::mpsc::Sender,
 };
 
 use super::{
     CommandError, CommandExecutor, CommandHandle, CommandRunner, OutputEvent, OutputStreamer,
 };
+
+use log::error;
 
 pub struct Unstarted;
 pub struct Started;
@@ -94,31 +96,42 @@ impl OutputStreamer for ProcessRunner<Started> {
 
         // Send output to the channel
         std::thread::spawn(move || {
-            let mut out = BufReader::new(stdout).lines();
-            let mut err = BufReader::new(stderr).lines();
-            let (mut out_done, mut err_done) = (false, false);
-            loop {
-                if !out_done {
-                    match out.next() {
-                        Some(line) => snd.send(OutputEvent::Stdout(line.unwrap())).unwrap(),
-                        None => out_done = true,
-                    }
-                }
-                if !err_done {
-                    match err.next() {
-                        Some(line) => snd.send(OutputEvent::Stderr(line.unwrap())).unwrap(),
-                        None => err_done = true,
-                    }
-                }
-
-                if out_done && err_done {
-                    break;
-                }
-            }
+            process_output_events(stdout, stderr, snd).map_err(|e| error!("stream error: {}", e))
         });
 
         Ok(self)
     }
+}
+
+fn process_output_events(
+    stdout: ChildStdout,
+    stderr: ChildStderr,
+    snd: Sender<OutputEvent>,
+) -> Result<(), CommandError> {
+    let mut out = BufReader::new(stdout).lines();
+    let mut err = BufReader::new(stderr).lines();
+    let (mut out_done, mut err_done) = (false, false);
+
+    loop {
+        if let (false, Some(l)) = (out_done, out.next()) {
+            snd.send(OutputEvent::Stdout(l?))
+                .map_err(|e| CommandError::StreamOutputError(e))?;
+        } else {
+            out_done = true;
+        }
+
+        if let (false, Some(l)) = (err_done, err.next()) {
+            snd.send(OutputEvent::Stderr(l?))
+                .map_err(|e| CommandError::StreamOutputError(e))?;
+        } else {
+            err_done = true;
+        }
+
+        if out_done && err_done {
+            break;
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
