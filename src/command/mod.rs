@@ -1,6 +1,7 @@
 mod error;
 pub mod ipc;
 pub mod processrunner;
+
 pub use crate::command::processrunner::ProcessRunner;
 pub mod stream;
 
