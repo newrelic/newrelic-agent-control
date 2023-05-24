@@ -37,12 +37,8 @@ fn actual_command_streaming() {
         let mut stderr_actual = Vec::new();
 
         (0..20).for_each(|_| match rx.recv().unwrap() {
-            OutputEvent::Stdout(line) => {
-                stdout_actual.push(line);
-            }
-            OutputEvent::Stderr(line) => {
-                stderr_actual.push(line);
-            }
+            OutputEvent::Stdout(line) => stdout_actual.push(line),
+            OutputEvent::Stderr(line) => stderr_actual.push(line),
         });
 
         (stdout_actual, stderr_actual)
@@ -81,16 +77,10 @@ fn actual_command_exiting_closes_channel() {
 
         loop {
             match rx.recv() {
-                Err(_) => {
-                    break;
-                }
+                Err(_) => break,
                 Ok(event) => match event {
-                    OutputEvent::Stdout(line) => {
-                        stdout_actual.push(line);
-                    }
-                    OutputEvent::Stderr(line) => {
-                        stderr_actual.push(line);
-                    }
+                    OutputEvent::Stdout(line) => stdout_actual.push(line),
+                    OutputEvent::Stderr(line) => stderr_actual.push(line),
                 },
             }
         }

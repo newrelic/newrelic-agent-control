@@ -114,15 +114,13 @@ fn process_output_events(
 
     loop {
         if let (false, Some(l)) = (out_done, out.next()) {
-            snd.send(OutputEvent::Stdout(l?))
-                .map_err(|e| CommandError::StreamOutputError(e))?;
+            snd.send(OutputEvent::Stdout(l?))?;
         } else {
             out_done = true;
         }
 
         if let (false, Some(l)) = (err_done, err.next()) {
-            snd.send(OutputEvent::Stderr(l?))
-                .map_err(|e| CommandError::StreamOutputError(e))?;
+            snd.send(OutputEvent::Stderr(l?))?;
         } else {
             err_done = true;
         }
