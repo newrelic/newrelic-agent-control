@@ -22,6 +22,10 @@ pub enum CommandError {
 
     #[error("io error")]
     IOError(#[source] std::io::Error),
+
+    #[cfg(target_family = "unix")]
+    #[error("system error")]
+    NixError(#[source] nix::Error),
 }
 
 impl From<std::io::Error> for CommandError {
@@ -39,5 +43,12 @@ impl From<SendError<OutputEvent>> for CommandError {
 impl From<ExitStatus> for CommandError {
     fn from(value: ExitStatus) -> Self {
         CommandError::ProcessError(value)
+    }
+}
+
+#[cfg(target_family = "unix")]
+impl From<nix::errno::Errno> for CommandError {
+    fn from(value:nix::errno::Errno) -> CommandError {
+        CommandError::NixError(value)
     }
 }

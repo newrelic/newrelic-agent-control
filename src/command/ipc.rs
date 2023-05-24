@@ -3,6 +3,39 @@ use nix::unistd::Pid;
 use libc::{SIGKILL, SIGTERM, SIGUSR1, SIGUSR2};
 use thiserror::Error;
 
+use super::CommandError;
+
+
+pub struct ProcessNotifier{
+    pid: i32
+}
+
+impl ProcessNotifier {
+    pub fn new(pid:i32) -> Self
+    {
+        Self { pid }
+    }
+}
+
+impl Notifier for ProcessNotifier{
+    type Error = CommandError;
+
+    #[cfg(target_family = "unix")]
+    fn notify(msg:Message) -> Result<(), Self::Error> {
+        let result_signal = signal::kill(Pid::from_raw(pid as i32), msg);
+        let result = match result_signal {
+            Ok(signal) => Ok(signal),
+            Err(error) => Err(CommandError::from(error)),
+        };
+        result
+    }
+
+    #[cfg(not(target_family = "unix"))]
+    fn notify(msg:Message) -> Result<(), Self::Error> {
+        Ok(())
+    }
+}
+
 #[repr(i32)]
 #[cfg(target_family = "unix")]
 pub enum Message {
@@ -22,30 +55,6 @@ impl From<Message> for Option<Signal> {
             Message::Term => Some(Signal::SIGTERM),
         }
     }
-}
-
-#[derive(Error, Debug)]
-pub enum Error {
-    #[cfg(target_family = "unix")]
-    #[error("system error")]
-    NixError(#[source] nix::Error),
-}
-
-#[cfg(target_family = "unix")]
-impl From<nix::errno::Errno> for Error {
-    fn from(value:nix::errno::Errno) -> Error {
-        Error::NixError(value)
-    }
-}
-
-#[cfg(target_family = "unix")]
-pub(crate) fn notify(pid:u32, msg:Message) -> Result<(), Error> {
-    let result_signal = signal::kill(Pid::from_raw(pid as i32), msg);
-    let result = match result_signal {
-        Ok(signal) => Ok(signal),
-        Err(error) => Err(Error::from(error)),
-    };
-    result
 }
 
 #[cfg(not(target_family = "unix"))]
