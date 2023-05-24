@@ -1,10 +1,8 @@
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
 use libc::{SIGKILL, SIGTERM, SIGUSR1, SIGUSR2};
-use thiserror::Error;
 
-use super::CommandError;
-
+use super::{CommandError, CommandNotifier};
 
 pub struct ProcessNotifier{
     pid: i32
@@ -17,12 +15,12 @@ impl ProcessNotifier {
     }
 }
 
-impl Notifier for ProcessNotifier{
+impl CommandNotifier for ProcessNotifier{
     type Error = CommandError;
 
     #[cfg(target_family = "unix")]
-    fn notify(msg:Message) -> Result<(), Self::Error> {
-        let result_signal = signal::kill(Pid::from_raw(pid as i32), msg);
+    fn notify(&self, msg:Message) -> Result<(), Self::Error> {
+        let result_signal = signal::kill(Pid::from_raw(self.pid as i32), msg);
         let result = match result_signal {
             Ok(signal) => Ok(signal),
             Err(error) => Err(CommandError::from(error)),
@@ -86,7 +84,8 @@ mod tests {
         let one_second = time::Duration::from_secs(1);
         thread::sleep(one_second);
 
-        _ = notify(pid, NotificationA);
+        let notifier = ProcessNotifier::new(pid as i32);
+        _ = notifier.notify(NotificationA);
 
         let std_reader = BufReader::new(sleep_cmd.as_mut().unwrap().stdout.as_mut().unwrap());
         let std_lines = std_reader.lines();
