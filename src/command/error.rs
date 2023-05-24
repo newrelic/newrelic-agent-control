@@ -12,6 +12,9 @@ pub enum CommandError {
     #[error("command not found")]
     CommandNotFound,
 
+    #[error("`{0}` not piped")]
+    StreamPipeError(String),
+
     #[error("io error")]
     IOError(#[source] std::io::Error),
 }

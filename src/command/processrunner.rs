@@ -78,16 +78,19 @@ impl OutputStreamer for ProcessRunner<Started> {
     type Handle = ProcessRunner<Started>;
 
     fn stream(mut self, snd: Sender<OutputEvent>) -> Result<Self::Handle, Self::Error> {
-        fn build_err(s: &str) -> CommandError {
-            CommandError::IOError(Error::new(ErrorKind::Other, s))
-        }
         let c = self
             .process
             .as_mut()
-            .ok_or(build_err("Process not started"))?;
+            .ok_or(CommandError::ProcessNotStarted)?;
 
-        let stdout = c.stdout.take().ok_or(build_err("stdout not piped"))?;
-        let stderr = c.stderr.take().ok_or(build_err("stderr not piped"))?;
+        let stdout = c
+            .stdout
+            .take()
+            .ok_or(CommandError::StreamPipeError("stdout".to_string()))?;
+        let stderr = c
+            .stderr
+            .take()
+            .ok_or(CommandError::StreamPipeError("stderr".to_string()))?;
 
         // Send output to the channel
         std::thread::spawn(move || {

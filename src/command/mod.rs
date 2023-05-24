@@ -2,7 +2,6 @@ mod error;
 pub mod processrunner;
 pub use crate::command::processrunner::ProcessRunner;
 pub mod stream;
-pub mod wrapper;
 
 use std::{process::ExitStatus, sync::mpsc::Sender};
 

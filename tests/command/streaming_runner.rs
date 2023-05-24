@@ -1,7 +1,7 @@
 use std::thread;
 
 use meta_agent::command::{
-    stream::OutputEvent, wrapper::ProcessRunner, CommandExecutor, CommandHandle, OutputStreamer,
+    stream::OutputEvent, CommandExecutor, CommandHandle, OutputStreamer, ProcessRunner,
 };
 
 const TICKER: &str = "tests/command/scripts/ticker.sh";
