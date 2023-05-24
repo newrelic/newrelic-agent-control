@@ -1,6 +1,6 @@
 use std::process::Command;
 
-use meta_agent::command::{wrapper::ProcessRunner, CommandExecutor, CommandHandle};
+use meta_agent::command::{CommandExecutor, CommandHandle, ProcessRunner};
 
 // non blocking supervisor
 struct NonSupervisor<C = ProcessRunner>

@@ -1,4 +1,4 @@
-use meta_agent::command::{wrapper::ProcessRunner, CommandRunner};
+use meta_agent::command::{CommandRunner, ProcessRunner};
 
 // blocking supervisor
 struct BlockingSupervisor {

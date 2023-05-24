@@ -1,5 +1,6 @@
 mod error;
-pub mod wrapper;
+pub mod processrunner;
+pub use crate::command::processrunner::ProcessRunner;
 
 use std::process::ExitStatus;
 
