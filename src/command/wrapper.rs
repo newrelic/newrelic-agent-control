@@ -40,7 +40,7 @@ impl CommandExecutor for ProcessRunner {
         Ok(ProcessRunner {
             cmd: None,
             state: PhantomData,
-            process: Some(self.cmd.unwrap().spawn()?),
+            process: Some(self.cmd.ok_or(CommandError::CommandNotFound)?.spawn()?),
         })
     }
 }
@@ -48,14 +48,21 @@ impl CommandExecutor for ProcessRunner {
 impl CommandHandle for ProcessRunner<Started> {
     type Error = CommandError;
     fn stop(self) -> Result<(), Self::Error> {
-        Ok(self.process.unwrap().kill()?)
+        Ok(self
+            .process
+            .ok_or(CommandError::ProcessNotStarted)?
+            .kill()?)
     }
 }
 
 impl CommandRunner for ProcessRunner {
     type Error = CommandError;
     fn run(self) -> Result<std::process::ExitStatus, Self::Error> {
-        Ok(self.cmd.unwrap().spawn()?.wait()?)
+        Ok(self
+            .cmd
+            .ok_or(CommandError::CommandNotFound)?
+            .spawn()?
+            .wait()?)
     }
 }
 
