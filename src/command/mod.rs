@@ -42,6 +42,12 @@ pub trait CommandNotifier {
     fn notify(&self, msg:Message) -> Result<(), Self::Error>;
 }
 
+/// Trait that specifies the interface to return the pid of a command
+pub trait PidGetter {
+    /// The pid method will return the pid from the executed command
+    fn pid(&self) -> u32;
+}
+
 /// This trait represents the capability of a command to stream its output.
 /// As the output collection will be done in a separate thread,
 /// the output will be sent through the `Sender` provided as argument.

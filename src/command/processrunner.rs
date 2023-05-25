@@ -11,6 +11,7 @@ use super::{
 };
 
 use log::error;
+use crate::command::PidGetter;
 
 pub struct Unstarted;
 pub struct Started;
@@ -18,6 +19,7 @@ pub struct Started;
 pub struct ProcessRunner<State = Unstarted> {
     cmd: Option<Command>,
     process: Option<Child>,
+    pid: u32,
 
     state: PhantomData<State>,
 }
@@ -38,6 +40,7 @@ impl ProcessRunner {
             cmd: Some(command),
             state: PhantomData,
             process: None,
+            pid: 0
         }
     }
 }
@@ -46,13 +49,24 @@ impl CommandExecutor for ProcessRunner {
     type Error = CommandError;
     type Process = ProcessRunner<Started>;
     fn start(self) -> Result<Self::Process, Self::Error> {
+        let process = self.cmd.ok_or(CommandError::CommandNotFound)?.spawn()?;
+        let pid = process.id();
+
         Ok(ProcessRunner {
             cmd: None,
             state: PhantomData,
-            process: Some(self.cmd.ok_or(CommandError::CommandNotFound)?.spawn()?),
+            process: Some(process),
+            pid,
         })
     }
 }
+
+impl PidGetter for ProcessRunner<Started> {
+    fn pid(&self) -> u32 {
+        self.pid
+    }
+}
+
 
 impl CommandHandle for ProcessRunner<Started> {
     type Error = CommandError;

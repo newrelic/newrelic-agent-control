@@ -69,9 +69,10 @@ mod tests {
 
     #[test]
     fn notify_process() {
+        let signal_txt = "sigusr1 signal captured";
         let mut sleep_cmd = Command::new("sh")
             .arg("-c")
-            .arg("trap \"echo 'sigusr1 signal captured'\" SIGUSR1;while true; do sleep 1; done")
+            .arg(format!("trap \"echo '{}'\" SIGUSR1;while true; do sleep 1; done", signal_txt))
             .stdout(Stdio::piped())
             .spawn();
 
@@ -91,6 +92,6 @@ mod tests {
             break;
         }
 
-        assert_eq!(output, "sigusr1 signal captured")
+        assert_eq!(output, signal_txt);
     }
 }
