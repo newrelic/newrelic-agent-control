@@ -97,7 +97,7 @@ mod tests {
     fn shutdown_default_timeout() {
         let mut trap_cmd = Command::new("sh")
             .arg("-c")
-            .arg("trap \"sleep 35;exit 0\" SIGTERM;while true; do sleep 1; done")
+            .arg("trap \"sleep 35;exit 0\" TERM;while true; do sleep 1; done")
             .spawn();
 
         let pid = trap_cmd.as_mut().unwrap().id();
@@ -129,7 +129,7 @@ mod tests {
     fn shutdown_custom_timeout() {
         let mut trap_cmd = Command::new("sh")
             .arg("-c")
-            .arg("trap \"sleep 35;exit 0\" SIGTERM;while true; do sleep 1; done")
+            .arg("trap \"sleep 35;exit 0\" TERM;while true; do sleep 1; done")
             .spawn();
 
         let pid = trap_cmd.as_mut().unwrap().id();
@@ -161,7 +161,7 @@ mod tests {
     fn shutdown() {
         let mut trap_cmd = Command::new("sh")
             .arg("-c")
-            .arg("trap \"sleep 1;exit 0\" SIGTERM;while true; do sleep 1; done")
+            .arg("trap \"sleep 1;exit 0\" TERM;while true; do sleep 1; done")
             .spawn();
 
         let pid = trap_cmd.as_mut().unwrap().id();
