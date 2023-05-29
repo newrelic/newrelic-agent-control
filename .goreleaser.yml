@@ -11,8 +11,10 @@ builds:
       post:
         - sh ./build/build_rust_package.sh
 archives:
-  - format: gz
+  - format: tar.gz
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    builds:
+      - newrelic-supervisor
   # replacements:
   #   darwin: Darwin
   #   linux: Linux
