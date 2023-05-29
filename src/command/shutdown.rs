@@ -1,3 +1,4 @@
+#[cfg(target_family = "unix")]
 use nix::{
     sys::signal,
     unistd::Pid,
@@ -73,7 +74,7 @@ impl CommandTerminator for ProcessTerminator{
     }
 
     #[cfg(not(target_family = "unix"))]
-    fn shutdown(self, snd: Sender<ExitEvent>, rcv: Receiver<ExitEvent>) -> Result<ExitEvent, Self::Error> {
+    fn shutdown(self, context: Arc<(Mutex<bool>, Condvar)>) -> Result<(), Self::Error> {
         unimplemented!("windows processes can't be shutdown")
     }
 }
