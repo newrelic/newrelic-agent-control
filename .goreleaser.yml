@@ -1,20 +1,24 @@
-project_name: cep
+project_name: newrelic-supervisor
 builds:
   -
-    main: dummy.go
+    main: ./build/dummy.go
     goarch:
-      - amd64
-    binary: cep
+      - arm64
+    goos:
+      - linux
+    binary: newrelic-supervisor
     hooks:
-      post: sh build-cross-release.sh
-archive:
-  replacements:
-    darwin: Darwin
-    linux: Linux
-    windows: Windows
-    386: i386
-    amd64: x86_64
-checksum:
-  name_template: 'checksums.txt'
-release:
-  disable: true
+      post:
+        - sh ./build/build_rust_package.sh
+archives:
+- id: newrelic-supervisor
+  # replacements:
+  #   darwin: Darwin
+  #   linux: Linux
+  #   windows: Windows
+  #   386: i386
+  #   amd64: x86_64
+# checksum:
+#   name_template: 'checksums.txt'
+# release:
+#   disable: true
