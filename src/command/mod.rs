@@ -1,4 +1,4 @@
-mod error;
+pub mod error;
 pub mod processrunner;
 pub use crate::command::processrunner::ProcessRunner;
 pub mod stream;

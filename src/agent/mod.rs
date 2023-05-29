@@ -1,10 +1,26 @@
-pub(crate) mod config;
-
+use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
 use std::marker::PhantomData;
+use std::result::Result;
+use std::sync::{Arc, Mutex};
+use std::sync::mpsc::{Receiver, Sender};
+use std::thread;
 
-use crate::agent::config::Getter;
+use log::{info, trace};
+use serde_json::Value;
 
+use crate::{context, Supervisor};
+use crate::agent::config::Config as AgentConfig;
+use crate::config::config::Error as ConfigError;
+use crate::config::config::Getter;
+use crate::context::ctx::Ctx;
+use crate::stream::OutputEvent;
+use crate::supervisor::factory::SupervisorFactory;
+use crate::supervisor::supervisor::Result as SupervisorResult;
+
+pub(crate) mod config;
+
+#[derive(Debug)]
 pub struct AgentError;
 
 impl Display for AgentError {
@@ -13,25 +29,137 @@ impl Display for AgentError {
     }
 }
 
-/// The Agent Struct that injects a config getter that implements
-/// the config::Getter trait and uses the V value serializer
-pub struct Agent<G: Getter<V>, V: Debug> {
-    conf_getter: G,
-    phantom: PhantomData<V>,
+impl From<ConfigError> for AgentError {
+    fn from(_: ConfigError) -> AgentError {
+        AgentError
+    }
 }
 
-impl<G: Getter<V>, V: Debug> Agent<G, V> {
+/// The Agent Struct that injects a config getter that implements
+/// the config::Getter trait and uses the V value serializer
+pub struct Agent<G: Getter<AgentConfig<Value>> + Sync, V: Debug + Sync> {
+    conf_getter: G,
+    supervisors: Arc<Mutex<HashMap<String, Box<dyn Supervisor + Sync>>>>,
+    _marker: PhantomData<(AgentConfig<Value>, V)>,
+}
+
+impl<G: Getter<AgentConfig<Value>> + Sync, V: Debug + Sync> Agent<G, V> {
     pub fn new(getter: G) -> Self {
         Self {
             conf_getter: getter,
-            phantom: PhantomData,
+            _marker: PhantomData,
+            supervisors: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
     /// The start function calls the config getter to print the configuration.
     pub fn start(&self) -> Result<(), AgentError> {
-        let parsed_config = self.conf_getter.get();
-        println!("{:?}", parsed_config);
+        // application context
+        let ctx = context::ctx::ContextDefault::new();
+
+        // application configuration
+        let conf = self.conf()?;
+
+        // TODO <std_management>
+        let (tx, rx) = std::sync::mpsc::channel::<OutputEvent>();
+        thread::spawn(move || {
+            Self::start_std_receivers(rx);
+        });
+        // TODO </std_management>
+
+
+        // all supervisors will send to the same channel
+        let sender = tx.clone();
+
+        // build and run supervisors
+        for (agent_name, agent_conf) in conf.agents {
+            let std_sender = Mutex::new(sender.clone());
+            let ctx_copy = ctx.clone();
+
+            // build supervisor
+            match Self::build_supervisor(ctx_copy, agent_name.clone(), &agent_conf, std_sender) {
+                Err(e) => {
+                    eprintln!("cannot build supervisor {}", e);
+                }
+                Ok(mut spv) => {
+                    // start supervisor
+                    if let Err(e) = spv.start() {
+                        eprintln!("cannot start supervisor {}", e);
+                        continue;
+                    }
+                    // store supervisor in local state var
+                    self.supervisors.lock().unwrap().insert(agent_name.clone(), spv);
+                }
+            }
+        }
+
+        ctx.wait();
+
         Ok(())
     }
+
+    #[allow(dead_code)] // TODO This is not used for now
+    fn stop(&self) {
+        self.supervisors.clone().lock().unwrap().iter_mut().for_each(|(name, spv)| {
+            trace!("stopping agent {}",name);
+            match spv.stop() {
+                Err(e) => eprintln!("error stopping supervisor {} : {}", name, e),
+                Ok(()) => info!("successfully stopped {}",name)
+            }
+        })
+    }
+
+    // TODO : Temporal as POC of reading logs
+    fn start_std_receivers(rec: Receiver<OutputEvent>) {
+        for line in rec {
+            println!("{:?}", line)
+        }
+    }
+
+    pub fn conf(&self) -> Result<AgentConfig<Value>, AgentError> {
+        match self.conf_getter.get() {
+            Err(_) => Err(AgentError),
+            Ok(x) => Ok(x)
+        }
+    }
+
+    fn build_supervisor<C>(ctx: C, agent_name: String, agent_conf: &Value, std_sender: Mutex<Sender<OutputEvent>>) -> SupervisorResult<Box<dyn Supervisor + Sync>> where C: Ctx + Send + Sync + Clone + 'static {
+        // serialize agent config as poc to deal with different configs per supervisor. This might not be necessary at all
+        // it was to POC that each agent could have different config objects to be unmarshalled to
+        let serialized_conf = serde_json::to_string(agent_conf)?;
+
+        // build the supervisor based on the name and the supervisor raw config
+        SupervisorFactory::from_config(ctx, agent_name.clone(), serialized_conf, std_sender)
+    }
 }
+
+// #[cfg(test)]
+// mod tests {
+//     use crate::Config;
+//
+//     use super::*;
+//
+//     struct TestGetter {
+//         agents: HashMap<String, Value>,
+//     }
+//
+//     impl TestGetter {
+//         fn new(agents: HashMap<String, Value>) -> Self {
+//             Self { agents }
+//         }
+//     }
+//
+//     impl<C> Getter<C> for TestGetter where C: Debug {
+//         fn get(&self) -> crate::config::config::Result<C> {
+//             let cnf = Config { agents: self.agents.clone() };
+//             Ok(cnf)
+//         }
+//     }
+//
+//     #[test]
+//     fn one_test() {
+//         let getter: TestGetter = TestGetter::new(HashMap::new());
+//         let mut ag: Agent<TestGetter, Value> = Agent::new(getter);
+//         ag.start();
+//     }
+// }

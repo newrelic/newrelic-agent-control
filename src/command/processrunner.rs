@@ -1,18 +1,14 @@
-use std::{
-    ffi::OsStr,
-    io::{BufRead, BufReader},
-    marker::PhantomData,
-    process::{Child, ChildStderr, ChildStdout, Command, Stdio},
-    sync::mpsc::Sender,
-};
+use std::{ffi::OsStr, io::{BufRead, BufReader}, io, marker::PhantomData, process::{Child, ChildStderr, ChildStdout, Command, Stdio}, sync::mpsc::Sender};
+use std::process::ExitStatus;
+
+use log::error;
 
 use super::{
     CommandError, CommandExecutor, CommandHandle, CommandRunner, OutputEvent, OutputStreamer,
 };
 
-use log::error;
-
 pub struct Unstarted;
+
 pub struct Started;
 
 pub struct ProcessRunner<State = Unstarted> {
@@ -24,9 +20,9 @@ pub struct ProcessRunner<State = Unstarted> {
 
 impl ProcessRunner {
     pub fn new<I, S>(binary_path: S, args: I) -> Self
-    where
-        I: IntoIterator<Item = S>,
-        S: AsRef<OsStr>,
+        where
+            I: IntoIterator<Item=S>,
+            S: AsRef<OsStr>,
     {
         let mut command = Command::new(binary_path);
         command
@@ -39,6 +35,20 @@ impl ProcessRunner {
             state: PhantomData,
             process: None,
         }
+    }
+}
+
+impl ProcessRunner<Started> {
+    pub fn pid(&self) -> u32 {
+        self.process.as_ref().unwrap().id()
+    }
+
+    pub fn wait(&mut self) -> io::Result<ExitStatus> {
+        self.process.as_mut().unwrap().wait()
+    }
+
+    pub fn stop(&mut self) -> io::Result<()> {
+        self.process.as_mut().unwrap().kill()
     }
 }
 
@@ -138,18 +148,18 @@ mod tests {
     use std::os::unix::process::ExitStatusExt;
     #[cfg(target_family = "windows")]
     use std::os::windows::process::ExitStatusExt;
-
     use std::process::ExitStatus;
     use std::sync::mpsc::Sender;
 
-    use crate::command::error::CommandError;
     use crate::command::{CommandExecutor, CommandHandle, OutputStreamer};
+    use crate::command::error::CommandError;
 
     use super::OutputEvent;
 
     // MockedCommandExector returns an error on start if fail is true
     // It can be used to mock process spawn
     type MockedCommandExector = bool;
+
     pub struct MockedCommandHandler;
 
     impl super::CommandExecutor for MockedCommandExector {

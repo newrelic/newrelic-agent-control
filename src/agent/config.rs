@@ -5,16 +5,14 @@ use std::fmt::Debug;
 /// The Config for the meta-agent and the managers
 #[derive(Debug, Deserialize, Clone, Default, PartialEq)]
 pub struct Config<V: Debug> {
-    pub(crate) op_amp: String,
+    // pub(crate) op_amp: String,
     pub(crate) agents: HashMap<String, V>,
 }
 
-/// Describes the way to get a serialized Config
-///
-/// Implementations of this trait need a generic parameter V that will store the serialized values
-/// for the agents configs. For example Config<serde_json::Value>
-pub trait Getter<V: Debug> {
-    fn get(&self) -> Config<V>;
+impl<V: Debug> Config<V> {
+    pub fn agents(&self) -> &HashMap<String, V> {
+        &self.agents
+    }
 }
 
 #[cfg(test)]
