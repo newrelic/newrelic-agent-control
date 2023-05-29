@@ -33,6 +33,7 @@ pub trait CommandRunner {
     fn run(self) -> Result<ExitStatus, Self::Error>;
 }
 
+/// Trait that specifies the interface for a command terminator
 pub trait CommandTerminator {
     type Error: std::error::Error + Send + Sync;
 

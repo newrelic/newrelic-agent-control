@@ -10,12 +10,15 @@ use super::{CommandError, CommandTerminator};
 // In seconds
 const DEFAULT_EXIT_TIMEOUT: u64 = 2;
 
+/// ProcessTerminator it's a service that allows shutting down gracefully the process
+/// with the pid provided or force killing it if the timeout provided is reached
 pub struct ProcessTerminator {
     pid: u32,
     exit_timeout: u64,
 }
 
 impl ProcessTerminator {
+    /// new creates a new ProcessTerminator with the default timeout
     pub fn new(pid: u32) -> Self {
         Self {
             pid,
@@ -23,6 +26,7 @@ impl ProcessTerminator {
         }
     }
 
+    /// with_custom_timeout allows overriding the timeout
     pub fn with_custom_timeout(mut self, timeout: u64) -> Self {
         self.exit_timeout = timeout;
         self
@@ -33,6 +37,8 @@ impl CommandTerminator for ProcessTerminator {
     type Error = CommandError;
 
     #[cfg(target_family = "unix")]
+    /// shutdown will attempt to kill a process with a SIGTERM if it succeeds the function F is
+    /// executed to wait for the process to exit on time or the process is killed with a SIGKILL
     fn shutdown<F>(self, func: F) -> Result<(), Self::Error>
     where
         F: FnOnce(u64) -> bool,
@@ -61,6 +67,8 @@ impl CommandTerminator for ProcessTerminator {
     }
 }
 
+/// wait_exit_timeout is a function that waits on a condvar for a change in a boolean exit variable
+/// but returning a false if the timeout provided is reached before any state change.
 pub fn wait_exit_timeout(context: Arc<(Mutex<bool>, Condvar)>, exit_timeout: u64) -> bool {
     let (lock, cvar) = &*context;
     let mut exited = lock.lock().unwrap();
