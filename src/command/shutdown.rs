@@ -1,14 +1,7 @@
 #[cfg(target_family = "unix")]
-use nix::{
-    sys::signal,
-    unistd::Pid,
-};
+use nix::{sys::signal, unistd::Pid};
 use std::{
-    sync::{
-        Arc,
-        Condvar,
-        Mutex,
-    },
+    sync::{Arc, Condvar, Mutex},
     thread::sleep,
     time::Duration,
 };
@@ -16,30 +9,28 @@ use std::{
 use super::{CommandError, CommandTerminator};
 
 // In seconds
-const DEFAULT_EXIT_TIMEOUT:u64 = 2;
+const DEFAULT_EXIT_TIMEOUT: u64 = 2;
 
-pub struct ProcessTerminator{
+pub struct ProcessTerminator {
     pid: u32,
     exit_timeout: u64,
 }
 
 impl ProcessTerminator {
-    pub fn new(pid:u32) -> Self
-    {
+    pub fn new(pid: u32) -> Self {
         Self {
             pid,
-            exit_timeout: DEFAULT_EXIT_TIMEOUT
+            exit_timeout: DEFAULT_EXIT_TIMEOUT,
         }
     }
 
-    pub fn with_custom_timeout(mut self, timeout:u64) -> Self
-    {
+    pub fn with_custom_timeout(mut self, timeout: u64) -> Self {
         self.exit_timeout = timeout;
         return self;
     }
 }
 
-impl CommandTerminator for ProcessTerminator{
+impl CommandTerminator for ProcessTerminator {
     type Error = CommandError;
 
     #[cfg(target_family = "unix")]
@@ -52,7 +43,9 @@ impl CommandTerminator for ProcessTerminator{
                 let mut exited = lock.lock().unwrap();
 
                 loop {
-                    let result = cvar.wait_timeout(exited, Duration::new(self.exit_timeout, 0)).unwrap();
+                    let result = cvar
+                        .wait_timeout(exited, Duration::new(self.exit_timeout, 0))
+                        .unwrap();
 
                     exited = result.0;
                     let timer = result.1;
@@ -63,12 +56,12 @@ impl CommandTerminator for ProcessTerminator{
                     }
 
                     if *exited == true {
-                        break
+                        break;
                     }
                 }
 
                 Ok(signal)
-            },
+            }
             Err(error) => Err(CommandError::from(error)),
         };
     }
@@ -82,17 +75,12 @@ impl CommandTerminator for ProcessTerminator{
 #[cfg(target_family = "unix")]
 #[cfg(test)]
 mod tests {
+    use super::*;
     use std::{
         process::Command,
-        thread,
-        time,
-        sync::{
-            Arc,
-            Condvar,
-            Mutex,
-        },
+        sync::{Arc, Condvar, Mutex},
+        thread, time,
     };
-    use super::*;
 
     #[test]
     fn shutdown_default_timeout() {
@@ -105,7 +93,7 @@ mod tests {
         let one_second = time::Duration::from_secs(1);
         sleep(one_second);
 
-        let terminator =  ProcessTerminator::new(pid);
+        let terminator = ProcessTerminator::new(pid);
 
         let context = Arc::new((Mutex::new(false), Condvar::new()));
         let context_child = Arc::clone(&context);
@@ -137,7 +125,7 @@ mod tests {
         let one_second = time::Duration::from_secs(1);
         sleep(one_second);
 
-        let terminator =  ProcessTerminator::new(pid).with_custom_timeout(3);
+        let terminator = ProcessTerminator::new(pid).with_custom_timeout(3);
 
         let context = Arc::new((Mutex::new(false), Condvar::new()));
         let context_child = Arc::clone(&context);
@@ -169,7 +157,7 @@ mod tests {
         let one_second = time::Duration::from_secs(1);
         sleep(one_second);
 
-        let terminator =  ProcessTerminator::new(pid).with_custom_timeout(3);
+        let terminator = ProcessTerminator::new(pid).with_custom_timeout(3);
 
         let context = Arc::new((Mutex::new(false), Condvar::new()));
         let context_child = Arc::clone(&context);

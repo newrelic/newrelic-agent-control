@@ -48,7 +48,7 @@ impl From<ExitStatus> for CommandError {
 
 #[cfg(target_family = "unix")]
 impl From<nix::errno::Errno> for CommandError {
-    fn from(value:nix::errno::Errno) -> CommandError {
+    fn from(value: nix::errno::Errno) -> CommandError {
         CommandError::NixError(value)
     }
 }
