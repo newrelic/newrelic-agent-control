@@ -4,11 +4,7 @@ pub use crate::command::processrunner::ProcessRunner;
 pub mod shutdown;
 pub mod stream;
 
-use std::{
-    process::ExitStatus,
-    sync::mpsc::Sender,
-    sync::{Arc, Condvar, Mutex},
-};
+use std::{process::ExitStatus, sync::mpsc::Sender};
 
 use error::CommandError;
 use stream::OutputEvent;
@@ -41,7 +37,9 @@ pub trait CommandTerminator {
     type Error: std::error::Error + Send + Sync;
 
     /// The shutdown method will try to gracefully shutdown the command's execution
-    fn shutdown(self, context: Arc<(Mutex<bool>, Condvar)>) -> Result<(), Self::Error>;
+    fn shutdown<F>(self, func: F) -> Result<(), Self::Error>
+    where
+        F: FnOnce(u64) -> bool;
 }
 
 /// This trait represents the capability of a command to stream its output.

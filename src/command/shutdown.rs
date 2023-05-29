@@ -2,7 +2,6 @@
 use nix::{sys::signal, unistd::Pid};
 use std::{
     sync::{Arc, Condvar, Mutex},
-    thread::sleep,
     time::Duration,
 };
 
@@ -26,7 +25,7 @@ impl ProcessTerminator {
 
     pub fn with_custom_timeout(mut self, timeout: u64) -> Self {
         self.exit_timeout = timeout;
-        return self;
+        self
     }
 }
 
@@ -34,41 +33,52 @@ impl CommandTerminator for ProcessTerminator {
     type Error = CommandError;
 
     #[cfg(target_family = "unix")]
-    fn shutdown(self, context: Arc<(Mutex<bool>, Condvar)>) -> Result<(), Self::Error> {
+    fn shutdown<F>(self, func: F) -> Result<(), Self::Error>
+    where
+        F: FnOnce(u64) -> bool,
+    {
         let result_signal = signal::kill(Pid::from_raw(self.pid as i32), signal::SIGTERM);
-        return match result_signal {
-            Ok(signal) => {
+        match result_signal {
+            Ok(_) => {
                 // Wait for the thread to start up.
-                let (lock, cvar) = &*context;
-                let mut exited = lock.lock().unwrap();
-
-                loop {
-                    let result = cvar
-                        .wait_timeout(exited, Duration::new(self.exit_timeout, 0))
-                        .unwrap();
-
-                    exited = result.0;
-                    let timer = result.1;
-                    if timer.timed_out() {
-                        _ = signal::kill(Pid::from_raw(self.pid as i32), signal::SIGKILL);
-                        *exited = true;
-                        cvar.notify_all();
-                    }
-
-                    if *exited == true {
-                        break;
-                    }
+                let exited_on_time = func(self.exit_timeout);
+                if !exited_on_time {
+                    _ = signal::kill(Pid::from_raw(self.pid as i32), signal::SIGKILL);
                 }
 
-                Ok(signal)
+                Ok(())
             }
             Err(error) => Err(CommandError::from(error)),
-        };
+        }
     }
 
     #[cfg(not(target_family = "unix"))]
-    fn shutdown(self, context: Arc<(Mutex<bool>, Condvar)>) -> Result<(), Self::Error> {
+    fn shutdown<F>(self, func: F) -> Result<(), Self::Error>
+    where
+        F: FnOnce(u64) -> bool,
+    {
         unimplemented!("windows processes can't be shutdown")
+    }
+}
+
+pub fn wait_exit_timeout(context: Arc<(Mutex<bool>, Condvar)>, exit_timeout: u64) -> bool {
+    let (lock, cvar) = &*context;
+    let mut exited = lock.lock().unwrap();
+
+    loop {
+        let result = cvar
+            .wait_timeout(exited, Duration::new(exit_timeout, 0))
+            .unwrap();
+
+        exited = result.0;
+        let timer = result.1;
+        if timer.timed_out() {
+            return false;
+        }
+
+        if *exited {
+            return true;
+        }
     }
 }
 
@@ -79,7 +89,8 @@ mod tests {
     use std::{
         process::Command,
         sync::{Arc, Condvar, Mutex},
-        thread, time,
+        thread::{self, sleep},
+        time,
     };
 
     #[test]
@@ -99,7 +110,7 @@ mod tests {
         let context_child = Arc::clone(&context);
 
         thread::spawn(|| {
-            _ = terminator.shutdown(context_child);
+            _ = terminator.shutdown(|x| wait_exit_timeout(context_child, x));
         });
 
         // Wait for process to exit
@@ -131,7 +142,7 @@ mod tests {
         let context_child = Arc::clone(&context);
 
         thread::spawn(|| {
-            _ = terminator.shutdown(context_child);
+            _ = terminator.shutdown(|x| wait_exit_timeout(context_child, x));
         });
 
         // Wait for process to exit
@@ -163,7 +174,7 @@ mod tests {
         let context_child = Arc::clone(&context);
 
         thread::spawn(|| {
-            _ = terminator.shutdown(context_child);
+            _ = terminator.shutdown(|x| wait_exit_timeout(context_child, x));
         });
 
         // Wait for process to exit
