@@ -43,19 +43,14 @@ impl CommandTerminator for ProcessTerminator {
     where
         F: FnOnce(u64) -> bool,
     {
-        let result_signal = signal::kill(Pid::from_raw(self.pid as i32), signal::SIGTERM);
-        match result_signal {
-            Ok(_) => {
-                // Wait for the thread to start up.
-                let exited_on_time = func(self.exit_timeout);
-                if !exited_on_time {
-                    _ = signal::kill(Pid::from_raw(self.pid as i32), signal::SIGKILL);
+        signal::kill(Pid::from_raw(self.pid as i32), signal::SIGTERM)
+            .and_then(|_| {
+                if !func(self.exit_timeout) {
+                    signal::kill(Pid::from_raw(self.pid as i32), signal::SIGKILL)?;
                 }
-
                 Ok(())
-            }
-            Err(error) => Err(CommandError::from(error)),
-        }
+            })
+            .map_err(CommandError::from)
     }
 
     #[cfg(not(target_family = "unix"))]
