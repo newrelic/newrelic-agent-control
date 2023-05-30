@@ -78,7 +78,7 @@ pub fn wait_exit_timeout(context: Arc<(Mutex<bool>, Condvar)>, exit_timeout: Dur
         },
         Err(error) => {
             error!("lock error: {}", error);
-            return false;
+            false
         }
     }
 }
