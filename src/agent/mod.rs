@@ -9,14 +9,13 @@ use std::thread;
 use log::{info, trace};
 use serde_json::Value;
 
-use crate::{context, Supervisor};
 use crate::agent::config::Config as AgentConfig;
 use crate::config::config::Error as ConfigError;
 use crate::config::config::Getter;
 use crate::context::ctx::Ctx;
 use crate::stream::OutputEvent;
 use crate::supervisor::factory::SupervisorFactory;
-use crate::supervisor::supervisor::Result as SupervisorResult;
+use crate::supervisor::supervisor::{Result as SupervisorResult, SupervisorHandle};
 
 pub(crate) mod config;
 
@@ -39,7 +38,7 @@ impl From<ConfigError> for AgentError {
 /// the config::Getter trait and uses the V value serializer
 pub struct Agent<G: Getter<AgentConfig<Value>> + Sync, V: Debug + Sync> {
     conf_getter: G,
-    supervisors: Arc<Mutex<HashMap<String, Box<dyn Supervisor + Sync>>>>,
+    supervisors: Arc<Mutex<HashMap<String, Box<dyn SupervisorHandle + Sync>>>>,
     _marker: PhantomData<(AgentConfig<Value>, V)>,
 }
 
@@ -54,9 +53,6 @@ impl<G: Getter<AgentConfig<Value>> + Sync, V: Debug + Sync> Agent<G, V> {
 
     /// The start function calls the config getter to print the configuration.
     pub fn start(&self) -> Result<(), AgentError> {
-        // application context
-        let ctx = context::ctx::ContextDefault::new();
-
         // application configuration
         let conf = self.conf()?;
 
@@ -68,16 +64,12 @@ impl<G: Getter<AgentConfig<Value>> + Sync, V: Debug + Sync> Agent<G, V> {
         // TODO </std_management>
 
 
-        // all supervisors will send to the same channel
-        let sender = tx.clone();
-
         // build and run supervisors
         for (agent_name, agent_conf) in conf.agents {
-            let std_sender = Mutex::new(sender.clone());
-            let ctx_copy = ctx.clone();
-
+            // all supervisors will send to the same channel
+            let std_sender = Mutex::new(tx.clone());
             // build supervisor
-            match Self::build_supervisor(ctx_copy, agent_name.clone(), &agent_conf, std_sender) {
+            match SupervisorFactory::from_config(agent_name.clone(), std_sender) {
                 Err(e) => {
                     eprintln!("cannot build supervisor {}", e);
                 }
@@ -93,13 +85,11 @@ impl<G: Getter<AgentConfig<Value>> + Sync, V: Debug + Sync> Agent<G, V> {
             }
         }
 
-        ctx.wait();
-
         Ok(())
     }
 
     #[allow(dead_code)] // TODO This is not used for now
-    fn stop(&self) {
+    pub fn stop(&self) {
         self.supervisors.clone().lock().unwrap().iter_mut().for_each(|(name, spv)| {
             trace!("stopping agent {}",name);
             match spv.stop() {
@@ -122,44 +112,35 @@ impl<G: Getter<AgentConfig<Value>> + Sync, V: Debug + Sync> Agent<G, V> {
             Ok(x) => Ok(x)
         }
     }
-
-    fn build_supervisor<C>(ctx: C, agent_name: String, agent_conf: &Value, std_sender: Mutex<Sender<OutputEvent>>) -> SupervisorResult<Box<dyn Supervisor + Sync>> where C: Ctx + Send + Sync + Clone + 'static {
-        // serialize agent config as poc to deal with different configs per supervisor. This might not be necessary at all
-        // it was to POC that each agent could have different config objects to be unmarshalled to
-        let serialized_conf = serde_json::to_string(agent_conf)?;
-
-        // build the supervisor based on the name and the supervisor raw config
-        SupervisorFactory::from_config(ctx, agent_name.clone(), serialized_conf, std_sender)
-    }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use crate::Config;
-//
-//     use super::*;
-//
-//     struct TestGetter {
-//         agents: HashMap<String, Value>,
-//     }
-//
-//     impl TestGetter {
-//         fn new(agents: HashMap<String, Value>) -> Self {
-//             Self { agents }
-//         }
-//     }
-//
-//     impl<C> Getter<C> for TestGetter where C: Debug {
-//         fn get(&self) -> crate::config::config::Result<C> {
-//             let cnf = Config { agents: self.agents.clone() };
-//             Ok(cnf)
-//         }
-//     }
-//
-//     #[test]
-//     fn one_test() {
-//         let getter: TestGetter = TestGetter::new(HashMap::new());
-//         let mut ag: Agent<TestGetter, Value> = Agent::new(getter);
-//         ag.start();
-//     }
-// }
+#[cfg(test)]
+mod tests {
+    use crate::Config;
+
+    use super::*;
+
+    struct TestGetter {
+        agents: HashMap<String, Value>,
+    }
+
+    impl TestGetter {
+        fn new(agents: HashMap<String, Value>) -> Self {
+            Self { agents }
+        }
+    }
+
+    impl Getter<Config<Value>> for TestGetter where {
+        fn get(&self) -> crate::config::config::Result<Config<Value>> {
+            let cnf = Config { agents: self.agents.clone() };
+            Ok(cnf)
+        }
+    }
+
+    #[test]
+    fn one_test() {
+        let getter: TestGetter = TestGetter::new(HashMap::new());
+        let ag: Agent<TestGetter, Value> = Agent::new(getter);
+        ag.start();
+    }
+}

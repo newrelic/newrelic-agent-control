@@ -1,7 +1,9 @@
+use std::marker::PhantomData;
 use std::os::unix::process::ExitStatusExt;
 use std::process::ExitStatus;
 use std::sync::{Arc, Mutex};
-use std::sync::mpsc::Sender;
+use std::sync::mpsc::{channel, Receiver, Sender};
+use std::task::Context;
 use std::thread;
 use std::thread::JoinHandle;
 
@@ -12,31 +14,35 @@ use nix::sys::signal::Signal;
 use nix::unistd::Pid;
 
 use crate::command::{CommandExecutor, OutputStreamer, ProcessRunner};
-use crate::ctx::Ctx;
+use crate::ctx::{ContextDefault, Ctx};
 use crate::stream::OutputEvent;
-use crate::supervisor::supervisor::{Result, Supervisor};
-
-pub struct InfraAgentSupervisor<C> where C: Ctx + Send + Sync {
-    std_sender: Option<Mutex<Sender<OutputEvent>>>,
-    ctx: C,
-    pid: Arc<Mutex<u32>>,
-}
+use crate::supervisor::supervisor::{Result, SupervisorExecutor, SupervisorHandle};
 
 const BINARY_PATH: &str = "/usr/bin/newrelic-infra-service";
 
-#[allow(unused_variables)] // TODO temporary until decide what to do with handle
-impl<C> Supervisor for InfraAgentSupervisor<C> where C: Ctx + Send + Sync + Clone + 'static {
-    fn start(&mut self) -> Result<()> {
+pub struct Unstarted;
+
+pub struct Started;
+
+pub struct InfraAgentSupervisorRunner<State = Unstarted> {
+    std_sender: Option<Mutex<Sender<OutputEvent>>>,
+    ctx: ContextDefault,
+    pid: Arc<Mutex<u32>>,
+    _marker:PhantomData<State>
+}
+
+impl SupervisorExecutor for InfraAgentSupervisorRunner {
+    // type Error = CommandError;
+    type Supervisor = InfraAgentSupervisorRunner<Started>;
+    fn start(self) -> Result<Self::Supervisor> {
         trace!("starting infra agent supervisor");
 
-        let supervisor_ctx = self.ctx.clone();
-        let sender = self.std_sender.take().unwrap().lock().unwrap().clone();
-
+        let sender = self.std_sender.unwrap().lock().unwrap().clone();
         let pid = Arc::clone(&self.pid);
 
-        let handle: JoinHandle<Result<ExitStatus>> = thread::spawn(move || {
+        thread::spawn(move || {
             let mut exit_status: ExitStatus = ExitStatus::from_raw(0);
-            while !supervisor_ctx.is_cancelled() {
+            while !self.ctx.is_cancelled() {
                 match ProcessRunner::new(BINARY_PATH.to_string(), Vec::new()).start() {
                     Err(e) => eprintln!("started_process.is_err: {}", e),
                     Ok(started_process) => {
@@ -65,19 +71,26 @@ impl<C> Supervisor for InfraAgentSupervisor<C> where C: Ctx + Send + Sync + Clon
             Ok(exit_status)
         });
 
-        Ok(())
+        Ok(Self::Supervisor {
+            std_sender: None,
+            ctx: self.ctx,
+            pid,
+        })
     }
+}
 
-    fn stop(&mut self) -> crate::supervisor::supervisor::Result<()> {
+
+impl SupervisorHandle for InfraAgentSupervisorRunner<Started> {
+    fn stop(mut self) -> Result<()> {
         self.ctx.cancel();
         signal::kill(Pid::from_raw(self.pid.lock().unwrap().clone() as pid_t), Signal::SIGTERM).unwrap();
         Ok(())
     }
 }
 
-impl<C> InfraAgentSupervisor<C> where C: Ctx + Send + Sync {
-    pub fn new(ctx: C, std_sender: Mutex<Sender<OutputEvent>>) -> Self {
-        Self { ctx, std_sender: Some(std_sender), pid: Arc::new(Mutex::new(0)) }
+impl InfraAgentSupervisorRunner {
+    pub fn new(std_sender: Mutex<Sender<OutputEvent>>) -> Self {
+        Self { ctx: ContextDefault::new(), std_sender: Some(std_sender), pid: Arc::new(Mutex::new(0)) }
     }
 }
 
