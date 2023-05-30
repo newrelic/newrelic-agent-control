@@ -40,7 +40,7 @@ pub trait CommandTerminator {
     /// The shutdown method will try to gracefully shutdown the command's execution
     fn shutdown<F>(self, func: F) -> Result<(), Self::Error>
     where
-        F: FnOnce(u64) -> bool;
+        F: FnOnce() -> bool;
 }
 
 /// This trait represents the capability of a command to stream its output.

@@ -5,31 +5,23 @@ use std::{
     time::Duration,
 };
 
+use log::error;
+
 use super::{CommandError, CommandTerminator};
 
-// In seconds
-const DEFAULT_EXIT_TIMEOUT: u64 = 2;
+/// DEFAULT_EXIT_TIMEOUT of 2 seconds
+const DEFAULT_EXIT_TIMEOUT: Duration = Duration::new(2, 0);
 
 /// ProcessTerminator it's a service that allows shutting down gracefully the process
 /// with the pid provided or force killing it if the timeout provided is reached
 pub struct ProcessTerminator {
     pid: u32,
-    exit_timeout: u64,
 }
 
 impl ProcessTerminator {
-    /// new creates a new ProcessTerminator with the default timeout
+    /// new creates a new ProcessTerminator for the pid provided
     pub fn new(pid: u32) -> Self {
-        Self {
-            pid,
-            exit_timeout: DEFAULT_EXIT_TIMEOUT,
-        }
-    }
-
-    /// with_custom_timeout allows overriding the timeout
-    pub fn with_custom_timeout(mut self, timeout: u64) -> Self {
-        self.exit_timeout = timeout;
-        self
+        Self { pid }
     }
 }
 
@@ -41,16 +33,13 @@ impl CommandTerminator for ProcessTerminator {
     /// executed to wait for the process to exit on time or the process is killed with a SIGKILL
     fn shutdown<F>(self, func: F) -> Result<(), Self::Error>
     where
-        F: FnOnce(u64) -> bool,
+        F: FnOnce() -> bool,
     {
-        signal::kill(Pid::from_raw(self.pid as i32), signal::SIGTERM)
-            .and_then(|_| {
-                if !func(self.exit_timeout) {
-                    signal::kill(Pid::from_raw(self.pid as i32), signal::SIGKILL)?;
-                }
-                Ok(())
-            })
-            .map_err(CommandError::from)
+        signal::kill(Pid::from_raw(self.pid as i32), signal::SIGTERM)?;
+        if !func() {
+            signal::kill(Pid::from_raw(self.pid as i32), signal::SIGKILL)?;
+        }
+        Ok(())
     }
 
     #[cfg(not(target_family = "unix"))]
@@ -64,25 +53,39 @@ impl CommandTerminator for ProcessTerminator {
 
 /// wait_exit_timeout is a function that waits on a condvar for a change in a boolean exit variable
 /// but returning a false if the timeout provided is reached before any state change.
-pub fn wait_exit_timeout(context: Arc<(Mutex<bool>, Condvar)>, exit_timeout: u64) -> bool {
+pub fn wait_exit_timeout(context: Arc<(Mutex<bool>, Condvar)>, exit_timeout: Duration) -> bool {
     let (lock, cvar) = &*context;
-    let mut exited = lock.lock().unwrap();
-
-    loop {
-        let result = cvar
-            .wait_timeout(exited, Duration::new(exit_timeout, 0))
-            .unwrap();
-
-        exited = result.0;
-        let timer = result.1;
-        if timer.timed_out() {
+    let exited = lock.lock();
+    match exited {
+        Ok(mut exited) => loop {
+            let result = cvar.wait_timeout(exited, exit_timeout);
+            match result {
+                Ok(result) => {
+                    exited = result.0;
+                    let timer = result.1;
+                    if timer.timed_out() {
+                        return false;
+                    }
+                    if *exited {
+                        return true;
+                    }
+                }
+                Err(error) => {
+                    error!("wait error: {}", error);
+                    return false;
+                }
+            }
+        },
+        Err(error) => {
+            error!("lock error: {}", error);
             return false;
         }
-
-        if *exited {
-            return true;
-        }
     }
+}
+
+/// wait_exit_timeout_default calls wait_exit_timeout with the DEFAULT_EXIT_TIMEOUT of 2 seconds.
+pub fn wait_exit_timeout_default(context: Arc<(Mutex<bool>, Condvar)>) -> bool {
+    wait_exit_timeout(context, DEFAULT_EXIT_TIMEOUT)
 }
 
 #[cfg(target_family = "unix")]
@@ -113,7 +116,7 @@ mod tests {
         let context_child = Arc::clone(&context);
 
         thread::spawn(|| {
-            _ = terminator.shutdown(|x| wait_exit_timeout(context_child, x));
+            _ = terminator.shutdown(|| wait_exit_timeout_default(context_child));
         });
 
         // Wait for process to exit
@@ -139,13 +142,13 @@ mod tests {
         let one_second = time::Duration::from_secs(1);
         sleep(one_second);
 
-        let terminator = ProcessTerminator::new(pid).with_custom_timeout(3);
+        let terminator = ProcessTerminator::new(pid);
 
         let context = Arc::new((Mutex::new(false), Condvar::new()));
         let context_child = Arc::clone(&context);
 
         thread::spawn(|| {
-            _ = terminator.shutdown(|x| wait_exit_timeout(context_child, x));
+            _ = terminator.shutdown(|| wait_exit_timeout(context_child, Duration::new(3, 0)));
         });
 
         // Wait for process to exit
@@ -171,13 +174,13 @@ mod tests {
         let one_second = time::Duration::from_secs(1);
         sleep(one_second);
 
-        let terminator = ProcessTerminator::new(pid).with_custom_timeout(3);
+        let terminator = ProcessTerminator::new(pid);
 
         let context = Arc::new((Mutex::new(false), Condvar::new()));
         let context_child = Arc::clone(&context);
 
         thread::spawn(|| {
-            _ = terminator.shutdown(|x| wait_exit_timeout(context_child, x));
+            _ = terminator.shutdown(|| wait_exit_timeout(context_child, Duration::new(3, 0)));
         });
 
         // Wait for process to exit
