@@ -45,7 +45,7 @@ impl CommandTerminator for ProcessTerminator {
     #[cfg(not(target_family = "unix"))]
     fn shutdown<F>(self, func: F) -> Result<(), Self::Error>
     where
-        F: FnOnce(u64) -> bool,
+        F: FnOnce() -> bool,
     {
         unimplemented!("windows processes can't be shutdown")
     }
