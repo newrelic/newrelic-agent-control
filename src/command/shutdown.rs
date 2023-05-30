@@ -164,7 +164,7 @@ mod tests {
     }
 
     #[test]
-    fn shutdown() {
+    fn shutdown_on_time() {
         let mut trap_cmd = Command::new("sh")
             .arg("-c")
             .arg("trap \"sleep 1;exit 0\" TERM;while true; do sleep 1; done")
