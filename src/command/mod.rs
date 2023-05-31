@@ -1,6 +1,7 @@
 mod error;
 pub mod processrunner;
 pub use crate::command::processrunner::ProcessRunner;
+pub mod shutdown;
 pub mod stream;
 
 use std::{process::ExitStatus, sync::mpsc::Sender};
@@ -30,6 +31,16 @@ pub trait CommandRunner {
 
     /// The spawn method will execute command
     fn run(self) -> Result<ExitStatus, Self::Error>;
+}
+
+/// Trait that specifies the interface for a command terminator
+pub trait CommandTerminator {
+    type Error: std::error::Error + Send + Sync;
+
+    /// The shutdown method will try to gracefully shutdown the command's execution
+    fn shutdown<F>(self, func: F) -> Result<(), Self::Error>
+    where
+        F: FnOnce() -> bool;
 }
 
 /// This trait represents the capability of a command to stream its output.

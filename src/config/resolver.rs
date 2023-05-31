@@ -26,6 +26,12 @@ impl Resolver {
     }
 }
 
+impl Default for Resolver {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// The implementation of the config::Getter uses config_rs to deserialize the config loaded in the
 /// config_builder into a config::Config
 impl<V> Getter<V> for Resolver
