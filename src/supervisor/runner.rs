@@ -13,7 +13,7 @@ use crate::command::{
     ProcessRunner, ProcessTerminator,
 };
 
-use super::{context::SupervisorContext, error::ProcessError, Handle, Runner, ID};
+use super::{backoff::BackoffStrategy, context::SupervisorContext, error::ProcessError, Handle, Runner, ID};
 
 use log::error;
 
@@ -22,6 +22,7 @@ pub struct Stopped {
     args: Vec<String>,
     ctx: SupervisorContext,
     snd: Sender<Event>,
+    backoff: BackoffStrategy,
 }
 
 pub struct Running {
@@ -148,13 +149,20 @@ impl Handle for SupervisorRunner<Running> {
 }
 
 impl SupervisorRunner<Stopped> {
-    pub fn new(bin: String, args: Vec<String>, ctx: SupervisorContext, snd: Sender<Event>) -> Self {
+    pub fn new(
+        bin: String,
+        args: Vec<String>,
+        ctx: SupervisorContext,
+        snd: Sender<Event>,
+        backoff: BackoffStrategy,
+    ) -> Self {
         SupervisorRunner {
             state: Stopped {
                 bin,
                 args,
                 ctx,
                 snd,
+                backoff,
             },
         }
     }
