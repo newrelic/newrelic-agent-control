@@ -12,19 +12,14 @@ pub trait Runner {
     type E: std::error::Error + Send + Sync;
 
     /// The run method will execute a supervisor (non-blocking)
-    fn run(
-        self,
-        ctx: context::SupervisorContext,
-        tx: Sender<OutputEvent>, // FIXME related to streaming. Move to own trait to hide OutputEvent
-    ) -> JoinHandle<Vec<Result<(), Self::E>>>;
+    fn run(&mut self) -> JoinHandle<Result<(), Self::E>>;
 }
 
 pub trait Handle {
     type E: std::error::Error + Send + Sync;
-    type R: Runner;
 
     /// The stop method will stop the supervisor's execution
-    fn stop(self) -> Result</* Self::R */ (), Self::E>;
+    fn stop(self) -> Result<(), Self::E>;
 }
 
 #[cfg(test)]
@@ -43,13 +38,25 @@ mod tests {
 
         // Create 50 supervisors
         let agents: Vec<SupervisorRunner> = (0..50)
-            .map(|_| SupervisorRunner::new("echo", vec!["hello!"]) /* TODO: I guess we could call `with_restart_policy()` here. */)
+            .map(
+                |_| {
+                    SupervisorRunner::new(
+                        "echo".to_owned(),
+                        vec!["hello!".to_owned()],
+                        ctx.clone(),
+                        tx.clone(),
+                    )
+                }, /* TODO: I guess we could call `with_restart_policy()` here. */
+            )
             .collect();
 
-        // Run all the supervisors, getting the handles
-        let handles = agents
+        // Run all the supervisors, getting the handles)
+        let agents_handles = agents
             .into_iter()
-            .map(|agent| agent.run(ctx.clone(), tx.clone()))
+            .map(|mut agent| {
+                let handle = agent.run();
+                (agent, handle)
+            })
             .collect::<Vec<_>>();
 
         // Get any outputs
@@ -60,10 +67,12 @@ mod tests {
         });
 
         // Sleep for a while
-        thread::sleep(Duration::from_secs(5));
+        thread::sleep(Duration::from_secs(1));
+
+        let (agents, handles) = agents_handles.into_iter().unzip::<_, _, Vec<_>, Vec<_>>();
 
         // Stop all the supervisors
-        ctx.cancel_all().unwrap();
+        let _stopped = agents.into_iter().map(|a| a.stop()).collect::<Vec<_>>();
 
         // Wait for all the supervised processes to finish
         let results = handles.into_iter().map(|h| h.join().unwrap());

@@ -4,7 +4,10 @@ pub use crate::command::processrunner::ProcessRunner;
 pub mod shutdown;
 pub mod stream;
 
-use std::{process::ExitStatus, sync::mpsc::Sender};
+use std::{
+    process::{ExitCode, ExitStatus},
+    sync::mpsc::Sender,
+};
 
 use error::CommandError;
 use stream::OutputEvent;
@@ -23,6 +26,10 @@ pub trait CommandHandle {
 
     /// The stop method will stop the command's execution
     fn stop(self) -> Result<(), Self::Error>;
+
+    fn wait(self) -> Result<ExitStatus, Self::Error>;
+
+    fn get_pid(&self) -> u32;
 }
 
 /// Trait that specifies the interface for a blocking task execution

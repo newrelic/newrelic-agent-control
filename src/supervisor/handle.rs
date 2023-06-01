@@ -6,7 +6,6 @@ pub(crate) struct SupervisorHandle {
 }
 impl Handle for SupervisorHandle {
     type E = std::io::Error;
-    type R = SupervisorRunner;
 
     fn stop(self) -> Result</* Self::R */ (), Self::E> {
         Ok(())

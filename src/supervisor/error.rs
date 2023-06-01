@@ -1,4 +1,8 @@
-use std::{fmt::Debug, process::ExitStatus};
+use std::{
+    fmt::Debug,
+    process::ExitStatus,
+    sync::{MutexGuard, PoisonError},
+};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -9,9 +13,8 @@ pub enum ProcessError {
     #[error("process not started")]
     ProcessNotStarted,
 
-    #[error("process not stopped")]
-    StopProcessError,
-
+    // #[error("terminate condition error")]
+    // TerminateConditionError(#[source] PoisonError<MutexGuard<'static, bool>>),
     #[error("stream error")]
     StreamError,
 
@@ -34,6 +37,12 @@ impl From<ExitStatus> for ProcessError {
         ProcessError::ProcessError(value)
     }
 }
+
+// impl From<PoisonError<MutexGuard<'_, bool>>> for ProcessError {
+//     fn from(value: PoisonError<MutexGuard<'_, bool>>) -> Self {
+//         ProcessError::TerminateConditionError(value)
+//     }
+// }
 
 #[cfg(target_family = "unix")]
 impl From<nix::errno::Errno> for ProcessError {

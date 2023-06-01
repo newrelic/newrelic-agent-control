@@ -1,101 +1,116 @@
 use std::{
-    ffi::OsStr,
     sync::mpsc::Sender,
     thread::{self, JoinHandle},
 };
 
 use crate::command::{
-    processrunner::Unstarted, stream::OutputEvent, CommandExecutor, CommandHandle, OutputStreamer,
-    ProcessRunner,
+    stream::OutputEvent, CommandExecutor, CommandHandle, OutputStreamer, ProcessRunner,
 };
 
-use super::{context::SupervisorContext, error::ProcessError, Runner};
+use super::{context::SupervisorContext, error::ProcessError, Handle, Runner};
 
 use log::error;
+use nix::{
+    sys::signal::{self, Signal},
+    unistd::Pid,
+};
 
-pub(crate) struct SupervisorRunner<
-    Runner = ProcessRunner<Unstarted>,
-    RunnerCollection = Vec<Runner>,
-> where
-    Runner: CommandExecutor,
-    RunnerCollection: IntoIterator<Item = Runner>,
-{
-    runners: RunnerCollection,
+pub(crate) struct SupervisorRunner {
+    // runner: Runner,
+    bin: String,
+    args: Vec<String>,
+    context: SupervisorContext,
+    sender: Sender<OutputEvent>,
 }
 
 impl Runner for SupervisorRunner {
     type E = ProcessError;
 
-    fn run(
-        self,
-        ctx: SupervisorContext,
-        tx: Sender<OutputEvent>,
-    ) -> JoinHandle<Vec<Result<(), Self::E>>> {
-        thread::spawn(move || {
-            // Actually run the process
-            let started = self
-                .runners
-                .into_iter()
-                .map(|r| {
-                    r.start().map_err(|e| {
-                        error!("Failed to start a supervised process: {}", e);
-                        ProcessError::ProcessNotStarted
-                    })
-                })
-                .flatten() // FIXME: filter out the erroring processes
-                .collect::<Vec<_>>();
+    fn run(&mut self) -> JoinHandle<Result<(), Self::E>> {
+        thread::spawn({
+            let ctx = self.context.clone();
+            let tx = self.sender.clone();
+            let bin = self.bin.clone();
+            let args = self.args.clone();
+            move || loop {
+                let runner = ProcessRunner::new(&bin, &args);
+                // Actually run the process
+                let started = runner.start().map_err(|e| {
+                    error!("Failed to start a supervised process: {}", e);
+                    ProcessError::ProcessNotStarted
+                })?;
 
-            // TODO: stream output should be here?
-            // Feel free to remove this!
-            let streaming = started
-                .into_iter()
-                .map(|r| {
-                    r.stream(tx.clone()).map_err(|e| {
-                        error!("Failed to stream a supervised process: {}", e);
-                        ProcessError::StreamError
-                    })
-                })
-                .flatten()
-                .collect::<Vec<_>>();
+                // TODO: stream output should be here?
+                // Feel free to remove this!
+                let streaming = started.stream(tx.clone()).map_err(|e| {
+                    error!("Failed to stream a supervised process: {}", e);
+                    ProcessError::StreamError
+                })?;
 
-            // Wait for the signal that the process has finished to return
-            let (lck, cvar) = SupervisorContext::get_lock_cvar(&ctx);
-            let _guard = cvar.wait_while(lck.lock().unwrap(), |finish| !*finish);
+                let pid = streaming.get_pid();
 
-            // Stop all the processes
-            streaming
-                .into_iter()
-                .map(|r| {
-                    r.stop().map_err(|e| {
-                        error!("Failed to stop a supervised process: {}", e);
-                        ProcessError::StopProcessError
-                    })
-                })
-                .collect::<Vec<_>>()
+                let ctx_c = ctx.clone();
+
+                let _thread_handle = thread::spawn(move || {
+                    let (lck, cvar) = SupervisorContext::get_lock_cvar(&ctx_c);
+                    let _guard = cvar.wait_while(lck.lock().unwrap(), |finish| !*finish);
+
+                    signal::kill(Pid::from_raw(pid as i32), Signal::SIGTERM)
+                });
+
+                let _waiting = streaming.wait();
+
+                let (lck, _) = SupervisorContext::get_lock_cvar(&ctx);
+
+                let val = lck.lock().unwrap();
+                if *val == true {
+                    break Ok(());
+                }
+
+                // // Wait for the signal that the process has finished to return
+                // let (lck, cvar) = SupervisorContext::get_lock_cvar(&ctx);
+                // let _guard = cvar.wait_while(lck.lock().unwrap(), |finish| !*finish);
+
+                // // Stop all the processes
+                // streaming
+                //     .into_iter()
+                //     .map(|r| {
+                //         r.stop().map_err(|e| {
+                //             error!("Failed to stop a supervised process: {}", e);
+                //             ProcessError::StopProcessError
+                //         })
+                //     })
+                //     .collect::<Vec<_>>()
+            }
         })
     }
 }
 
-impl SupervisorRunner<ProcessRunner<Unstarted>, Option<ProcessRunner<Unstarted>>> {
-    fn new<S, I>(bin: S, args: I) -> Self
-    where
-        S: AsRef<OsStr>,
-        I: IntoIterator<Item = S>,
-    {
-        SupervisorRunner {
-            runners: Some(ProcessRunner::new(bin, args)),
-        }
+impl Handle for SupervisorRunner {
+    type E = ProcessError;
+
+    fn stop(self) -> Result<(), Self::E> {
+        self.context.cancel_all().unwrap();
+        Ok(())
     }
 }
 
 impl SupervisorRunner {
-    pub fn new<S, I>(bin: S, args: I) -> Self
-    where
-        S: AsRef<OsStr>,
-        I: IntoIterator<Item = S>,
-    {
+    // pub fn new<S, I>(bin: S, args: I) -> Self
+    // where
+    // S: AsRef<OsStr>,
+    // I: IntoIterator<Item = S>,
+    pub fn new(
+        bin: String,
+        args: Vec<String>,
+        ctx: SupervisorContext,
+        snd: Sender<OutputEvent>,
+    ) -> Self {
         SupervisorRunner {
-            runners: vec![ProcessRunner::new(bin, args)],
+            bin: bin,
+            args: args,
+            context: SupervisorContext::new(),
+            sender: snd,
         }
     }
 

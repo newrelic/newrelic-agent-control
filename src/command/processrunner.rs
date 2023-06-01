@@ -2,7 +2,7 @@ use std::{
     ffi::OsStr,
     io::{BufRead, BufReader},
     marker::PhantomData,
-    process::{Child, ChildStderr, ChildStdout, Command, Stdio},
+    process::{Child, ChildStderr, ChildStdout, Command, ExitStatus, Stdio},
     sync::mpsc::Sender,
 };
 
@@ -17,9 +17,21 @@ pub struct Started;
 
 pub struct ProcessRunner<State = Unstarted> {
     cmd: Option<Command>,
-    process: Option<Child>,
+    pub(crate) process: Option<Child>,
 
     state: PhantomData<State>,
+}
+
+pub struct CmdRunner {
+    cmd: Command,
+}
+
+// impl CmdRunner {
+//     pub fn new(bin: &str, args: &[&str])
+// }
+
+pub struct CmdHandle {
+    process: Child,
 }
 
 impl ProcessRunner {
@@ -61,6 +73,17 @@ impl CommandHandle for ProcessRunner<Started> {
             .process
             .ok_or(CommandError::ProcessNotStarted)?
             .kill()?)
+    }
+
+    fn wait(self) -> Result<ExitStatus, Self::Error> {
+        self.process
+            .ok_or(CommandError::ProcessNotStarted)?
+            .wait()
+            .map_err(CommandError::from)
+    }
+
+    fn get_pid(&self) -> u32 {
+        self.process.as_ref().unwrap().id()
     }
 }
 
@@ -168,6 +191,14 @@ mod tests {
         type Error = CommandError;
         fn stop(self) -> Result<(), CommandError> {
             Ok(())
+        }
+
+        fn wait(self) -> Result<ExitStatus, Self::Error> {
+            Ok(ExitStatus::from_raw(0))
+        }
+
+        fn get_pid(&self) -> u32 {
+            0
         }
     }
 
