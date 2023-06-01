@@ -42,7 +42,7 @@ impl ProcessRunner {
     }
 }
 
-impl CommandExecutor for ProcessRunner {
+impl CommandExecutor for ProcessRunner<Unstarted> {
     type Error = CommandError;
     type Process = ProcessRunner<Started>;
     fn start(self) -> Result<Self::Process, Self::Error> {
