@@ -8,7 +8,7 @@ pub struct SupervisorContext(Arc<(Mutex<bool>, Condvar)>);
 
 impl SupervisorContext {
     pub(crate) fn new() -> Self {
-        SupervisorContext(Arc::new((Mutex::new(false), Condvar::new())))
+        Self(Arc::new((Mutex::new(false), Condvar::new())))
     }
 
     pub(crate) fn cancel_all(&self) -> Result<(), PoisonError<MutexGuard<'_, bool>>> /* this is the error type returned by a failed `lock()` */
@@ -26,6 +26,6 @@ impl SupervisorContext {
 
 impl Clone for SupervisorContext {
     fn clone(&self) -> Self {
-        SupervisorContext(self.0.clone())
+        Self(self.0.clone())
     }
 }

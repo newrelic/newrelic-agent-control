@@ -68,12 +68,6 @@ impl CommandExecutor for ProcessRunner<Unstarted> {
 
 impl CommandHandle for ProcessRunner<Started> {
     type Error = CommandError;
-    fn stop(self) -> Result<(), Self::Error> {
-        Ok(self
-            .process
-            .ok_or(CommandError::ProcessNotStarted)?
-            .kill()?)
-    }
 
     fn wait(self) -> Result<ExitStatus, Self::Error> {
         self.process
@@ -189,10 +183,6 @@ mod tests {
 
     impl CommandHandle for MockedCommandHandler {
         type Error = CommandError;
-        fn stop(self) -> Result<(), CommandError> {
-            Ok(())
-        }
-
         fn wait(self) -> Result<ExitStatus, Self::Error> {
             Ok(ExitStatus::from_raw(0))
         }
@@ -257,6 +247,5 @@ mod tests {
 
         assert_eq!(stdout_expected, stdout_result);
         assert_eq!(stderr_expected, stderr_result);
-        assert!(cmd.stop().is_ok());
     }
 }

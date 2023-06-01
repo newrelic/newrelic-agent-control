@@ -1,10 +1,18 @@
 use std::{
     sync::mpsc::Sender,
+    sync::{Arc, Condvar, Mutex},
     thread::{self, JoinHandle},
 };
 
 use crate::command::{
-    stream::OutputEvent, CommandExecutor, CommandHandle, OutputStreamer, ProcessRunner,
+    stream::OutputEvent,
+    CommandExecutor,
+    CommandHandle,
+    OutputStreamer,
+    ProcessRunner,
+    ProcessTerminator,
+    CommandTerminator,
+    wait_exit_timeout_default,
 };
 
 use super::{context::SupervisorContext, error::ProcessError, Handle, Runner};
@@ -40,8 +48,6 @@ impl Runner for SupervisorRunner {
                     ProcessError::ProcessNotStarted
                 })?;
 
-                // TODO: stream output should be here?
-                // Feel free to remove this!
                 let streaming = started.stream(tx.clone()).map_err(|e| {
                     error!("Failed to stream a supervised process: {}", e);
                     ProcessError::StreamError
@@ -55,11 +61,17 @@ impl Runner for SupervisorRunner {
                     let (lck, cvar) = SupervisorContext::get_lock_cvar(&ctx_c);
                     let _guard = cvar.wait_while(lck.lock().unwrap(), |finish| !*finish);
 
-                    signal::kill(Pid::from_raw(pid as i32), Signal::SIGTERM)
+                    thread::spawn(move || {
+                        let shutdown_ctx = Arc::new((Mutex::new(false), Condvar::new()));
+                        let terminator = ProcessTerminator::new(pid);
+                        _ = terminator.shutdown(|| wait_exit_timeout_default(shutdown_ctx));
+                    });
                 });
 
                 let _waiting = streaming.wait();
 
+
+                //Check this
                 let (lck, _) = SupervisorContext::get_lock_cvar(&ctx);
 
                 let val = lck.lock().unwrap();

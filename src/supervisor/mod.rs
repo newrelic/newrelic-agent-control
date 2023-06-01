@@ -1,4 +1,4 @@
-use std::{sync::mpsc::Sender, thread::JoinHandle};
+use std::thread::JoinHandle;
 
 use crate::command::stream::OutputEvent; // FIXME related to streaming. Move to own trait to hide OutputEvent
 
@@ -81,3 +81,4 @@ mod tests {
         assert_eq!(results.flatten().count(), 50);
     }
 }
+
