@@ -3,7 +3,6 @@ use std::thread::JoinHandle;
 mod context;
 mod error;
 
-pub(crate) mod handle;
 pub(crate) mod runner;
 
 pub trait Runner {
@@ -79,4 +78,3 @@ mod tests {
         assert_eq!(results.flatten().count(), 50);
     }
 }
-

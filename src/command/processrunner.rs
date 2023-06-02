@@ -22,18 +22,6 @@ pub struct ProcessRunner<State = Unstarted> {
     state: PhantomData<State>,
 }
 
-pub struct CmdRunner {
-    cmd: Command,
-}
-
-// impl CmdRunner {
-//     pub fn new(bin: &str, args: &[&str])
-// }
-
-pub struct CmdHandle {
-    process: Child,
-}
-
 impl ProcessRunner {
     pub fn new<I, S>(binary_path: S, args: I) -> Self
     where
@@ -229,7 +217,7 @@ mod tests {
         let cmd = MockedCommandHandler {};
         let (tx, rx) = std::sync::mpsc::channel();
 
-        let cmd = cmd.stream(tx).unwrap();
+        cmd.stream(tx).unwrap();
 
         let mut stdout_expected = Vec::new();
         let mut stderr_expected = Vec::new();

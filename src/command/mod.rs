@@ -2,10 +2,8 @@ mod error;
 pub mod processrunner;
 pub mod shutdown;
 pub use crate::command::{
-    processrunner::ProcessRunner,
+    processrunner::ProcessRunner, shutdown::wait_exit_timeout, shutdown::wait_exit_timeout_default,
     shutdown::ProcessTerminator,
-    shutdown::wait_exit_timeout,
-    shutdown::wait_exit_timeout_default,
 };
 pub mod stream;
 

@@ -1,7 +1,8 @@
 use std::thread;
 
 use meta_agent::command::{
-    stream::OutputEvent, CommandExecutor, CommandHandle, OutputStreamer, ProcessRunner,
+    stream::OutputEvent, CommandExecutor, CommandHandle, CommandTerminator, OutputStreamer,
+    ProcessRunner, ProcessTerminator,
 };
 
 const TICKER: &str = "tests/command/scripts/ticker.sh";
@@ -51,7 +52,8 @@ fn actual_command_streaming() {
     assert_eq!(stderr_expected, stderr_actual);
 
     // kill the process
-    assert_eq!(streaming_cmd.stop().is_err(), false);
+    let terminated = ProcessTerminator::new(streaming_cmd.get_pid()).shutdown(|| true);
+    assert!(terminated.is_ok());
 }
 
 #[test]
@@ -96,10 +98,6 @@ fn actual_command_exiting_closes_channel() {
 
     // At this point, the handle can be closed because the process exited on its own!
     #[cfg(unix)]
-    assert_eq!(handle.stop().is_err(), false);
-
-    // But...
-    // FIXME: ???
-    #[cfg(windows)]
-    assert_eq!(handle.stop().is_err(), true);
+    let terminated = ProcessTerminator::new(handle.get_pid()).shutdown(|| true);
+    assert!(terminated.is_ok());
 }

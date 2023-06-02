@@ -5,23 +5,13 @@ use std::{
 };
 
 use crate::command::{
-    stream::OutputEvent,
-    CommandExecutor,
-    CommandHandle,
-    OutputStreamer,
-    ProcessRunner,
-    ProcessTerminator,
-    CommandTerminator,
-    wait_exit_timeout_default,
+    stream::OutputEvent, wait_exit_timeout_default, CommandExecutor, CommandHandle,
+    CommandTerminator, OutputStreamer, ProcessRunner, ProcessTerminator,
 };
 
 use super::{context::SupervisorContext, error::ProcessError, Handle, Runner};
 
 use log::error;
-use nix::{
-    sys::signal::{self, Signal},
-    unistd::Pid,
-};
 
 pub(crate) struct SupervisorRunner {
     // runner: Runner,
@@ -43,15 +33,22 @@ impl Runner for SupervisorRunner {
             move || loop {
                 let runner = ProcessRunner::new(&bin, &args);
                 // Actually run the process
-                let started = runner.start().map_err(|e| {
-                    error!("Failed to start a supervised process: {}", e);
-                    ProcessError::ProcessNotStarted
-                })?;
+                let started = match runner.start() {
+                    Ok(s) => s,
+                    Err(e) => {
+                        error!("Failed to start a supervised process: {}", e);
+                        continue;
+                    }
+                };
 
-                let streaming = started.stream(tx.clone()).map_err(|e| {
-                    error!("Failed to stream a supervised process: {}", e);
-                    ProcessError::StreamError
-                })?;
+                // Stream the output
+                let streaming = match started.stream(tx.clone()) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        error!("Failed to stream the output of a supervised process: {}", e);
+                        continue;
+                    }
+                };
 
                 let pid = streaming.get_pid();
 
@@ -69,7 +66,6 @@ impl Runner for SupervisorRunner {
                 });
 
                 let _waiting = streaming.wait();
-
 
                 //Check this
                 let (lck, _) = SupervisorContext::get_lock_cvar(&ctx);
