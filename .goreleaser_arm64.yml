@@ -1,0 +1,21 @@
+project_name: newrelic-supervisor
+builds:
+  -
+    main: ./build/dummy.go
+    goarch:
+      - arm64
+    goos:
+      - linux
+    binary: newrelic-supervisor
+    hooks:
+      post:
+        - sh ./replace_go_with_rust.sh
+archives:
+  - format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    builds:
+      - newrelic-supervisor
+# checksum:
+#   name_template: 'checksums.txt'
+release:
+ disable: true

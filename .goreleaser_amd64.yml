@@ -3,7 +3,7 @@ builds:
   -
     main: ./build/dummy.go
     goarch:
-      - arm64
+      - amd64
     goos:
       - linux
     binary: newrelic-supervisor
@@ -15,13 +15,7 @@ archives:
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     builds:
       - newrelic-supervisor
-  # replacements:
-  #   darwin: Darwin
-  #   linux: Linux
-  #   windows: Windows
-  #   386: i386
-  #   amd64: x86_64
 # checksum:
 #   name_template: 'checksums.txt'
-# release:
-#   disable: true
+release:
+ disable: true
