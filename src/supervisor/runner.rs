@@ -16,11 +16,10 @@ use log::error;
 type ProcessHandle = JoinHandle<Result<(), ProcessError>>;
 
 pub struct SupervisorRunner {
-    // runner: Runner,
     bin: String,
     args: Vec<String>,
-    context: SupervisorContext,
-    sender: Sender<OutputEvent>,
+    ctx: SupervisorContext,
+    snd: Sender<OutputEvent>,
 }
 
 pub struct SupervisorHandle(ProcessHandle);
@@ -31,12 +30,9 @@ impl Runner for SupervisorRunner {
 
     fn run(self) -> Self::H {
         SupervisorHandle(thread::spawn({
-            let ctx = self.context;
-            let tx = self.sender;
-            let bin = self.bin.clone();
-            let args = self.args.clone();
             move || loop {
-                let runner = ProcessRunner::new(&bin, &args);
+                let runner = ProcessRunner::new(&self.bin, &self.args);
+
                 // Actually run the process
                 let started = match runner.start() {
                     Ok(s) => s,
@@ -47,7 +43,7 @@ impl Runner for SupervisorRunner {
                 };
 
                 // Stream the output
-                let streaming = match started.stream(tx.clone()) {
+                let streaming = match started.stream(self.snd.clone()) {
                     Ok(s) => s,
                     Err(e) => {
                         error!("Failed to stream the output of a supervised process: {}", e);
@@ -57,7 +53,7 @@ impl Runner for SupervisorRunner {
 
                 let pid = streaming.get_pid();
 
-                let ctx_c = ctx.clone();
+                let ctx_c = self.ctx.clone();
 
                 let _thread_handle = thread::spawn(move || {
                     let (lck, cvar) = SupervisorContext::get_lock_cvar(&ctx_c);
@@ -73,27 +69,12 @@ impl Runner for SupervisorRunner {
                 let _waiting = streaming.wait();
 
                 //Check this
-                let (lck, _) = SupervisorContext::get_lock_cvar(&ctx);
+                let (lck, _) = SupervisorContext::get_lock_cvar(&self.ctx);
 
                 let val = lck.lock().unwrap();
-                if *val == true {
+                if *val {
                     break Ok(());
                 }
-
-                // // Wait for the signal that the process has finished to return
-                // let (lck, cvar) = SupervisorContext::get_lock_cvar(&ctx);
-                // let _guard = cvar.wait_while(lck.lock().unwrap(), |finish| !*finish);
-
-                // // Stop all the processes
-                // streaming
-                //     .into_iter()
-                //     .map(|r| {
-                //         r.stop().map_err(|e| {
-                //             error!("Failed to stop a supervised process: {}", e);
-                //             ProcessError::StopProcessError
-                //         })
-                //     })
-                //     .collect::<Vec<_>>()
             }
         }))
     }
@@ -108,10 +89,6 @@ impl Handle for SupervisorHandle {
 }
 
 impl SupervisorRunner {
-    // pub fn new<S, I>(bin: S, args: I) -> Self
-    // where
-    // S: AsRef<OsStr>,
-    // I: IntoIterator<Item = S>,
     pub fn new(
         bin: String,
         args: Vec<String>,
@@ -119,15 +96,10 @@ impl SupervisorRunner {
         snd: Sender<OutputEvent>,
     ) -> Self {
         SupervisorRunner {
-            bin: bin,
-            args: args,
-            context: ctx,
-            sender: snd,
+            bin,
+            args,
+            ctx,
+            snd,
         }
-    }
-
-    // FIXME: feel free to remove this!
-    pub fn with_restart_policy(self) -> Self {
-        unimplemented!("todo");
     }
 }
