@@ -44,7 +44,7 @@ fn test_supervisors() {
     ctx.cancel_all().unwrap();
 
     // Wait for all the supervised processes to finish
-    let results = handles.into_iter().map(|h| h.get_handles().join().unwrap());
+    let results = handles.into_iter().map(|h| h.get_handle().unwrap().join());
 
     // Check that all the processes have finished correctly
     assert_eq!(results.flatten().count(), 50);

@@ -1,5 +1,6 @@
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 
+#[derive(Debug, Clone, Default)]
 pub struct SupervisorContext(Arc<(Mutex<bool>, Condvar)>);
 
 impl SupervisorContext {
@@ -7,6 +8,7 @@ impl SupervisorContext {
         Self::default()
     }
 
+    /// Sets the cancellation signal. All threads that are waiting for this signal (i.e. were passed this [`SupervisorContext`] are notified so they unblock and finish execution, cancelling the processes.
     pub fn cancel_all(&self) -> Result<(), PoisonError<MutexGuard<'_, bool>>> /* this is the error type returned by a failed `lock()` */
     {
         let (lck, cvar) = &*self.0;
@@ -17,17 +19,5 @@ impl SupervisorContext {
 
     pub(crate) fn get_lock_cvar(&self) -> &(Mutex<bool>, Condvar) {
         &self.0
-    }
-}
-
-impl Clone for SupervisorContext {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
-    }
-}
-
-impl Default for SupervisorContext {
-    fn default() -> Self {
-        Self(Arc::new((Mutex::new(false), Condvar::new())))
     }
 }

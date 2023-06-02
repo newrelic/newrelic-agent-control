@@ -65,6 +65,7 @@ impl CommandHandle for ProcessRunner<Started> {
     }
 
     fn get_pid(&self) -> u32 {
+        // process should always be Some here
         self.process.as_ref().unwrap().id()
     }
 }
