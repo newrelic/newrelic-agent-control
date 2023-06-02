@@ -19,7 +19,7 @@ dependencies:
 
 .PHONY: run
 run:
-	@go run ./... -arch $(GOARCH)
+	@go run ./... -arch $(DOWNLOAD_ARCH)
 
 .PHONY: debug
 debug:

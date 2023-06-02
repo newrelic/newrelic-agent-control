@@ -5,6 +5,7 @@ RUST_VERSION="1.69.0"
 
 # remove go generated files
 rm "${BINARY_PATH}"
+rm -rf ./target/**
 
 # compile production version of rust agent
 
@@ -25,3 +26,4 @@ fi
 cp ./target/release/main "${BINARY_PATH}"
 
 # download assets
+docker run --rm -e DOWNLOAD_ARCH="$ARCH" -v "$PWD":/usr/src/app -w /usr/src/app/build/embedded golang:1.20 make run
