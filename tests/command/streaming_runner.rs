@@ -52,8 +52,11 @@ fn actual_command_streaming() {
     assert_eq!(stderr_expected, stderr_actual);
 
     // kill the process
-    let terminated = ProcessTerminator::new(streaming_cmd.get_pid()).shutdown(|| true);
-    assert!(terminated.is_ok());
+    #[cfg(unix)]
+    {
+        let terminated = ProcessTerminator::new(handle.get_pid()).shutdown(|| true);
+        assert!(terminated.is_ok());
+    }
 }
 
 #[test]
@@ -96,8 +99,10 @@ fn actual_command_exiting_closes_channel() {
     assert_eq!(stdout_expected, stdout_actual);
     assert_eq!(stderr_expected, stderr_actual);
 
-    // At this point, the handle can be closed because the process exited on its own!
+    // At this point, the process can be terminated because the process exited on its own
     #[cfg(unix)]
-    let terminated = ProcessTerminator::new(handle.get_pid()).shutdown(|| true);
-    assert!(terminated.is_ok());
+    {
+        let terminated = ProcessTerminator::new(handle.get_pid()).shutdown(|| true);
+        assert!(terminated.is_ok());
+    }
 }

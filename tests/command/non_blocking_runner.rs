@@ -12,6 +12,7 @@ where
     cmd: C,
 }
 
+#[cfg(unix)]
 #[test]
 fn non_blocking_runner() {
     let mut sleep_cmd = Command::new("sleep");
