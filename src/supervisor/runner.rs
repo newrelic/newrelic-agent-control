@@ -13,7 +13,14 @@ use crate::command::{
     ProcessRunner, ProcessTerminator,
 };
 
-use super::{backoff::BackoffStrategy, context::SupervisorContext, error::ProcessError, Handle, Runner, ID};
+use super::{
+    backoff::{BackoffStrategy, Linear, Exponential, Throttle},
+    context::SupervisorContext,
+    error::ProcessError,
+    Handle,
+    Runner,
+    ID,
+};
 
 use log::error;
 
@@ -165,5 +172,17 @@ impl SupervisorRunner<Stopped> {
                 backoff,
             },
         }
+    }
+
+    pub fn with_restart_policy(&mut self, backoff_strategy: String) -> Self {
+        match backoff_strategy.as_str() {
+            "linear" => self.backoff = BackoffStrategy::Linear(Linear),
+            "exponential" => self.backoff = BackoffStrategy::Exponential(Exponential),
+            "throttle" => self.backoff = BackoffStrategy::Throttle(Throttle),
+            unsupported => {
+                error!("backoff type {} not supported", unsupported);
+            }
+        }
+        *self.clone()
     }
 }

@@ -17,21 +17,21 @@ impl BackoffStrategy {
 }
 
 
-pub struct Linear {}
+pub struct Linear;
 impl Linear {
     pub fn backoff(self) -> bool {
         true
     }
 }
 
-pub struct Exponential {}
+pub struct Exponential;
 impl Exponential {
     fn backoff() -> bool {
         true
     }
 }
 
-pub struct Throttle {}
+pub struct Throttle;
 impl Throttle {
     fn backoff() -> bool {
         true
