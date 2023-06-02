@@ -1,9 +1,5 @@
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 
-// Use atomicbool instead?
-// type SupervisorContext2 = Arc<(AtomicBool, Condvar)>;
-// Or RwMutex?
-// type SupervisorContext3 = Arc<(RwLock<bool>, Condvar)>;
 pub struct SupervisorContext(Arc<(Mutex<bool>, Condvar)>);
 
 impl SupervisorContext {

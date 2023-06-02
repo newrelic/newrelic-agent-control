@@ -1,6 +1,6 @@
 use crate::command::{processrunner::Started, ProcessRunner};
 
-use super::{runner::SupervisorRunner, Handle};
+use super::Handle;
 pub(crate) struct SupervisorHandle {
     pub(crate) p_handle: ProcessRunner<Started>,
 }

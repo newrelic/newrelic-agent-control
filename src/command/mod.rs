@@ -9,10 +9,7 @@ pub use crate::command::{
 };
 pub mod stream;
 
-use std::{
-    process::ExitStatus,
-    sync::mpsc::Sender,
-};
+use std::{process::ExitStatus, sync::mpsc::Sender};
 
 use error::CommandError;
 use stream::OutputEvent;

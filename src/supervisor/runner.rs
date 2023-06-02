@@ -121,7 +121,7 @@ impl SupervisorRunner {
         SupervisorRunner {
             bin: bin,
             args: args,
-            context: SupervisorContext::new(),
+            context: ctx,
             sender: snd,
         }
     }
