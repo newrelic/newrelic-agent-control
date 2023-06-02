@@ -71,7 +71,7 @@ mod tests {
 
         let expected = InfraAgent {
             uuid_dir: "/bin/sudoo".to_string(),
-            value: 1 as i64,
+            value: 1_i64,
             kind: CustomTypeTest::A,
         };
 

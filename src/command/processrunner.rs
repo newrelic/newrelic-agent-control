@@ -154,14 +154,14 @@ mod tests {
 
     // MockedCommandExector returns an error on start if fail is true
     // It can be used to mock process spawn
-    type MockedCommandExector = bool;
+    type MockedCommandExecutor = bool;
     pub struct MockedCommandHandler;
 
-    impl super::CommandExecutor for MockedCommandExector {
+    impl super::CommandExecutor for MockedCommandExecutor {
         type Error = CommandError;
         type Process = MockedCommandHandler;
         fn start(self) -> Result<Self::Process, Self::Error> {
-            if self == true {
+            if self {
                 Err(CommandError::ProcessError(ExitStatus::from_raw(1)))
             } else {
                 Ok(MockedCommandHandler {})
@@ -182,7 +182,7 @@ mod tests {
 
     #[test]
     fn start_stop() {
-        let cmds: Vec<MockedCommandExector> = vec![true, false, true, true, false];
+        let cmds: Vec<MockedCommandExecutor> = vec![true, false, true, true, false];
 
         assert_eq!(
             cmds.iter()
