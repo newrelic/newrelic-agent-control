@@ -8,7 +8,20 @@ rm "${BINARY_PATH}"
 
 # compile production version of rust agent
 
-docker run --rm --user "$(id -u)":"$(id -g)" -v "$PWD":/usr/src/newrelic-supervisor -w /usr/src/newrelic-supervisor rust:${RUST_VERSION} cargo build --release
+if [ "$ARCH" == "arm64" ];then
 
-# moe rust compiled files into goreleaser generated locations
+  docker build -t rust-cross-aarch64 -f ./rust-aarch64.Dockerfile .
+  docker run --rm --user "$(id -u)":"$(id -g)" -v "$PWD":/usr/src/app rust-cross-aarch64
+
+fi
+
+if [ "$ARCH" == "amd64" ];then
+
+  docker run --rm --user "$(id -u)":"$(id -g)" -v "$PWD":/usr/src/app -w /usr/src/app rust:${RUST_VERSION} cargo build --release
+
+fi
+
+# move rust compiled files into goreleaser generated locations
 cp ./target/release/main "${BINARY_PATH}"
+
+# download assets
