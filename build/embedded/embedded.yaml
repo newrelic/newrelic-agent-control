@@ -1,0 +1,51 @@
+# default destination for downloaded artifacts. Template.
+destination: ./artifacts/{{.Arch}}
+
+# Used as defaults for all NR binaries below, can be overridden. Template.
+url: https://download.newrelic.com/infrastructure_agent/binaries/linux/{{.Arch}}/{{.Name}}_linux_{{.Version | trimv}}_{{.Arch}}.tar.gz
+
+# stagingUrl will be used if the download is invoked with -staging. Template.
+staging_url: https://nr-downloads-ohai-staging.s3.amazonaws.com/infrastructure_agent/binaries/linux/{{.Arch}}/{{.Name}}_linux_{{.Version | trimv}}_{{.Arch}}.tar.gz
+
+# List of integrations to download.
+# Individual entries may override any of the values defined above.
+artifacts:
+  - name: newrelic-infra
+    version: 1.42.2
+    files:
+      - name: newrelic-infra binary
+        src: newrelic-infra/usr/bin/newrelic-infra
+
+  - name: nr-otel-collector
+    version: 0.1.0
+    url: https://download.newrelic.com/infrastructure_agent/binaries/linux/{{.Arch}}/{{.Name}}_{{.Version | trimv}}_linux_{{.Arch}}.tar.gz
+    files:
+      - name: nt-otel-collector binary
+        src: nr-otel-collector
+
+  - name: nri-flex
+    version: 1.8.5
+    url: https://github.com/newrelic/nri-flex/releases/download/v{{.Version}}/nri-flex_linux_{{.Version}}_{{.Arch}}.tar.gz
+    files:
+      - name: nri-flex binary
+        src: nri-flex
+
+  - name: nri-docker
+    version: 1.8.6
+    files:
+      - name: nri-docker binary
+        src: var/db/newrelic-infra/newrelic-integrations/bin/nri-docker
+
+  - name: nri-prometheus
+    version: 2.18.1
+    url: https://github.com/newrelic/nri-prometheus/releases/download/v{{.Version}}/nri-prometheus_linux_{{.Version}}_{{.Arch}}.tar.gz
+    files:
+      - name: nri-prometheus binary
+        src: var/db/newrelic-infra/newrelic-integrations/bin/nri-prometheus
+
+  - name: fluent-bit NR plugin
+    version: 1.16.0
+    url: https://github.com/newrelic/newrelic-fluent-bit-output/releases/download/v{{.Version}}/out_newrelic-linux-{{.Arch}}-{{.Version}}.so
+    files:
+      - name: fluent-bit NR plugin
+        src: ./out_newrelic-linux-{{.Arch}}-{{.Version}}.so
