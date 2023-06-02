@@ -7,28 +7,15 @@ pub enum ProcessError {
     ProcessExited(ExitStatus),
 
     #[error("io error")]
-    IOError(#[source] std::io::Error),
+    IOError(#[from] std::io::Error),
 
     #[cfg(target_family = "unix")]
     #[error("system error")]
-    NixError(#[source] nix::Error),
-}
-
-impl From<std::io::Error> for ProcessError {
-    fn from(value: std::io::Error) -> ProcessError {
-        ProcessError::IOError(value)
-    }
+    NixError(#[from] nix::Error),
 }
 
 impl From<ExitStatus> for ProcessError {
     fn from(value: ExitStatus) -> Self {
         ProcessError::ProcessExited(value)
-    }
-}
-
-#[cfg(target_family = "unix")]
-impl From<nix::errno::Errno> for ProcessError {
-    fn from(value: nix::errno::Errno) -> ProcessError {
-        ProcessError::NixError(value)
     }
 }
