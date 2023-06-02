@@ -48,3 +48,17 @@ jobs:
         run: cargo generate-lockfile
       - name: cargo test
         run: cargo test --locked --all-features --all-targets
+
+  embedded:
+    name: Unit test for embedded downloader
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: 'build/embedded/go.mod'
+
+      - name: run tests for embedded downloader
+        run: make -C build/embedded test
