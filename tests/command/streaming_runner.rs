@@ -24,7 +24,7 @@ fn actual_command_streaming() {
 
     let (tx, rx) = std::sync::mpsc::channel();
 
-    let streaming_cmd = agent.cmd.start().unwrap().stream(tx).unwrap();
+    let streaming_runner = agent.cmd.start().unwrap().stream(tx).unwrap();
 
     // Populate the expected output
     let mut stdout_expected = Vec::new();
@@ -54,7 +54,7 @@ fn actual_command_streaming() {
     // kill the process
     #[cfg(unix)]
     {
-        let terminated = ProcessTerminator::new(handle.get_pid()).shutdown(|| true);
+        let terminated = ProcessTerminator::new(streaming_runner.get_pid()).shutdown(|| true);
         assert!(terminated.is_ok());
     }
 }

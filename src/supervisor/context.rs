@@ -3,11 +3,11 @@ use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 pub struct SupervisorContext(Arc<(Mutex<bool>, Condvar)>);
 
 impl SupervisorContext {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self(Arc::new((Mutex::new(false), Condvar::new())))
     }
 
-    pub(crate) fn cancel_all(&self) -> Result<(), PoisonError<MutexGuard<'_, bool>>> /* this is the error type returned by a failed `lock()` */
+    pub fn cancel_all(&self) -> Result<(), PoisonError<MutexGuard<'_, bool>>> /* this is the error type returned by a failed `lock()` */
     {
         let (lck, cvar) = &*self.0;
         *lck.lock()? = true;

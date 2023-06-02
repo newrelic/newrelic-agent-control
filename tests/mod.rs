@@ -2,3 +2,5 @@
 // See: https://github.com/rust-lang/miri/issues/2057
 #[cfg(not(miri))]
 mod command;
+
+mod supervisor;

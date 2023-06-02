@@ -13,7 +13,9 @@ use super::{context::SupervisorContext, error::ProcessError, Handle, Runner};
 
 use log::error;
 
-pub(crate) struct SupervisorRunner {
+type ProcessHandle = JoinHandle<Result<(), ProcessError>>;
+
+pub struct SupervisorRunner {
     // runner: Runner,
     bin: String,
     args: Vec<String>,
@@ -21,13 +23,16 @@ pub(crate) struct SupervisorRunner {
     sender: Sender<OutputEvent>,
 }
 
+pub struct SupervisorHandle(ProcessHandle);
+
 impl Runner for SupervisorRunner {
     type E = ProcessError;
+    type H = SupervisorHandle;
 
-    fn run(&mut self) -> JoinHandle<Result<(), Self::E>> {
-        thread::spawn({
-            let ctx = self.context.clone();
-            let tx = self.sender.clone();
+    fn run(self) -> Self::H {
+        SupervisorHandle(thread::spawn({
+            let ctx = self.context;
+            let tx = self.sender;
             let bin = self.bin.clone();
             let args = self.args.clone();
             move || loop {
@@ -90,16 +95,15 @@ impl Runner for SupervisorRunner {
                 //     })
                 //     .collect::<Vec<_>>()
             }
-        })
+        }))
     }
 }
 
-impl Handle for SupervisorRunner {
+impl Handle for SupervisorHandle {
     type E = ProcessError;
 
-    fn stop(self) -> Result<(), Self::E> {
-        self.context.cancel_all().unwrap();
-        Ok(())
+    fn get_handles(self) -> ProcessHandle {
+        self.0
     }
 }
 
