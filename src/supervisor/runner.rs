@@ -1,5 +1,5 @@
 use std::{
-    marker::PhantomData,
+    ops::Deref,
     sync::mpsc::Sender,
     sync::{Arc, Condvar, Mutex},
     thread::{self, JoinHandle},
@@ -14,17 +14,27 @@ use super::{context::SupervisorContext, error::ProcessError, Handle, Runner};
 
 use log::error;
 
-pub struct Stopped;
-pub struct Running;
-
-#[derive(Debug)]
-pub struct SupervisorRunner<State = Stopped> {
+pub struct Stopped {
     bin: String,
     args: Vec<String>,
     ctx: SupervisorContext,
     snd: Sender<OutputEvent>,
-    handle: Option<JoinHandle<()>>,
-    state: PhantomData<State>,
+}
+pub struct Running {
+    handle: JoinHandle<()>,
+    ctx: SupervisorContext,
+}
+
+#[derive(Debug)]
+pub struct SupervisorRunner<State = Stopped> {
+    state: State,
+}
+
+impl<T> Deref for SupervisorRunner<T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        &self.state
+    }
 }
 
 impl Runner for SupervisorRunner<Stopped> {
@@ -32,35 +42,29 @@ impl Runner for SupervisorRunner<Stopped> {
     type H = SupervisorRunner<Running>;
 
     fn run(self) -> Self::H {
-        let handle = run_process_thread(
-            self.bin.clone(),
-            self.args.clone(),
-            self.ctx.clone(),
-            self.snd.clone(),
-        );
+        let ctx = self.ctx.clone();
         SupervisorRunner {
-            bin: self.bin,
-            args: self.args,
-            ctx: self.ctx,
-            snd: self.snd,
-            handle: Some(handle),
-            state: PhantomData,
+            state: Running {
+                handle: run_process_thread(self),
+                ctx,
+            },
         }
     }
 }
 
-fn run_process_thread(
-    bin: String,
-    args: Vec<String>,
-    ctx: SupervisorContext,
-    snd: Sender<OutputEvent>,
-) -> JoinHandle<()> {
+impl From<&SupervisorRunner<Stopped>> for ProcessRunner {
+    fn from(value: &SupervisorRunner<Stopped>) -> Self {
+        ProcessRunner::new(&value.bin, &value.args)
+    }
+}
+
+fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
     thread::spawn({
         move || loop {
-            let runner = ProcessRunner::new(&bin, &args);
+            let proc_runner = ProcessRunner::from(&runner);
 
             // Actually run the process
-            let started = match runner.start() {
+            let started = match proc_runner.start() {
                 Ok(s) => s,
                 Err(e) => {
                     error!("Failed to start a supervised process: {}", e);
@@ -69,7 +73,7 @@ fn run_process_thread(
             };
 
             // Stream the output
-            let streaming = match started.stream(snd.clone()) {
+            let streaming = match started.stream(runner.snd.clone()) {
                 Ok(s) => s,
                 Err(e) => {
                     error!("Failed to stream the output of a supervised process: {}", e);
@@ -77,10 +81,10 @@ fn run_process_thread(
                 }
             };
 
-            _ = wait_for_termination(streaming.get_pid(), ctx.clone());
+            _ = wait_for_termination(streaming.get_pid(), runner.ctx.clone());
             _ = streaming.wait().unwrap();
 
-            let (lck, _) = SupervisorContext::get_lock_cvar(&ctx);
+            let (lck, _) = SupervisorContext::get_lock_cvar(&runner.ctx);
             let val = lck.lock().unwrap();
             if *val {
                 break;
@@ -106,8 +110,11 @@ impl Handle for SupervisorRunner<Running> {
     type E = ProcessError;
     type S = JoinHandle<()>;
 
-    fn get_handle(self) -> Option<Self::S> {
-        self.handle
+    fn stop(self) -> Self::S {
+        // Stop all the supervisors
+        // TODO: handle PoisonErrors (log?)
+        self.ctx.cancel_all().unwrap();
+        self.state.handle
     }
 }
 
@@ -119,12 +126,12 @@ impl SupervisorRunner<Stopped> {
         snd: Sender<OutputEvent>,
     ) -> Self {
         SupervisorRunner {
-            bin,
-            args,
-            ctx,
-            snd,
-            state: PhantomData,
-            handle: None,
+            state: Stopped {
+                bin,
+                args,
+                ctx,
+                snd,
+            },
         }
     }
 }

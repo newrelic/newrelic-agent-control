@@ -1,25 +1,39 @@
-use std::{thread, time::Duration};
+use std::{sync::mpsc::Sender, thread, time::Duration};
 
-use meta_agent::supervisor::{context, runner::SupervisorRunner, Handle, Runner};
+use meta_agent::{
+    command::stream::OutputEvent,
+    supervisor::{context, runner::SupervisorRunner, Handle, Runner},
+};
+
+struct Config {
+    tx: Sender<OutputEvent>,
+}
+
+impl From<&Config> for SupervisorRunner {
+    fn from(value: &Config) -> Self {
+        SupervisorRunner::new(
+            "echo".to_owned(),
+            vec!["hello!".to_owned()],
+            context::SupervisorContext::new(),
+            value.tx.clone(),
+        )
+    }
+}
 
 // How should this supervisor work?
 #[test]
 fn test_supervisors() {
-    // Create the common context
-    let ctx = context::SupervisorContext::new();
     // Create streaming channel
     let (tx, rx) = std::sync::mpsc::channel();
+
+    // Hypothetical meta agent configuration
+    let mut conf = Config { tx };
 
     // Create 50 supervisors
     let agents: Vec<SupervisorRunner> = (0..50)
         .map(
             |_| {
-                SupervisorRunner::new(
-                    "echo".to_owned(),
-                    vec!["hello!".to_owned()],
-                    ctx.clone(),
-                    tx.clone(),
-                )
+                SupervisorRunner::from(&conf)
             }, /* TODO: I guess we could call `with_restart_policy()` here. */
         )
         .collect();
@@ -40,11 +54,8 @@ fn test_supervisors() {
     // Sleep for a while
     thread::sleep(Duration::from_secs(1));
 
-    // Stop all the supervisors
-    ctx.cancel_all().unwrap();
-
     // Wait for all the supervised processes to finish
-    let results = handles.into_iter().map(|h| h.get_handle().unwrap().join());
+    let results = handles.into_iter().map(|h| h.stop().join());
 
     // Check that all the processes have finished correctly
     assert_eq!(results.flatten().count(), 50);

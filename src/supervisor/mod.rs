@@ -18,5 +18,5 @@ pub trait Handle {
     type S: Send + Sync;
 
     /// Return the inner handle of the supervised process.
-    fn get_handle(self) -> Option<Self::S>;
+    fn stop(self) -> Self::S;
 }
