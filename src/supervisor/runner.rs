@@ -6,6 +6,7 @@ use std::{
     sync::{Arc, Condvar, Mutex},
     thread::{self, JoinHandle},
 };
+use std::time::Duration;
 
 use crate::command::{
     stream::{Event, Metadata},
@@ -24,6 +25,7 @@ use super::{
 
 use log::error;
 
+#[derive(Clone)]
 pub struct Stopped {
     bin: String,
     args: Vec<String>,
@@ -37,7 +39,7 @@ pub struct Running {
     ctx: SupervisorContext,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SupervisorRunner<State = Stopped> {
     state: State,
 }
@@ -126,6 +128,10 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
             if *val {
                 break;
             }
+
+            if !runner.backoff.to_owned().backoff() {
+                break
+            }
         }
     })
 }
@@ -174,14 +180,14 @@ impl SupervisorRunner<Stopped> {
         }
     }
 
-    pub fn with_restart_policy(&mut self, backoff_strategy: String, delay: i32, max_retries: i32) -> Self {
+    pub fn with_restart_policy(&mut self, backoff_strategy: String, delay: Duration, max_retries: usize) -> Self {
         match backoff_strategy.as_str() {
-            "linear" => self.backoff = BackoffStrategy::Linear(Backoff::new()),
-            "exponential" => self.backoff = BackoffStrategy::Exponential(Backoff::new()),
+            "linear" => self.state.backoff = BackoffStrategy::Linear(Backoff::new().with_initial_delay(delay).with_max_retries(max_retries)),
+            "exponential" => self.state.backoff = BackoffStrategy::Exponential(Backoff::new().with_initial_delay(delay).with_max_retries(max_retries)),
             unsupported => {
                 error!("backoff type {} not supported", unsupported);
             }
         }
-        *self.clone()
+        self.clone()
     }
 }

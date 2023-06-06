@@ -1,6 +1,7 @@
 use std::time::{Duration, Instant};
 use std::thread::sleep;
 
+#[derive(Clone)]
 pub enum BackoffStrategy {
     Linear(Backoff),
     Exponential(Backoff),
@@ -12,16 +13,16 @@ pub enum BackoffStrategy {
 const LAST_RETRY_INTERVAL:Duration = Duration::new(30, 0);
 
 impl BackoffStrategy {
-    pub(crate) fn backoff(&self) -> bool {
+    pub(crate) fn backoff(&mut self) -> bool {
         match self {
-            BackoffStrategy::Linear(mut b) => b.backoff(linear, sleep),
-            // BackoffStrategy::Linear(mut b) => b.backoff(, |x| sleep(x)),
-            BackoffStrategy::Exponential(mut b) => b.backoff(exponential, sleep),
+            BackoffStrategy::Linear(ref mut b) => b.backoff(linear, sleep),
+            BackoffStrategy::Exponential(ref mut b) => b.backoff(exponential, sleep),
             BackoffStrategy::None => true,
         }
     }
 }
 
+#[derive(Clone)]
 pub struct Backoff {
     last_retry: Instant,
     tries: usize,
@@ -34,7 +35,7 @@ impl Backoff {
         Self {
             last_retry: Instant::now(),
             tries: 0,
-            initial_delay: Duration::new(0, 0),
+            initial_delay: Duration::new(1, 0),
             max_retries: 0,
             last_retry_interval: LAST_RETRY_INTERVAL,
         }
@@ -50,7 +51,7 @@ impl Backoff {
         self
     }
 
-    pub(crate) fn with_last_default_interval(mut self, last_retry_interval: Duration) -> Self {
+    pub(crate) fn with_last_retry_interval(mut self, last_retry_interval: Duration) -> Self {
         self.last_retry_interval = last_retry_interval;
         self
     }
@@ -61,24 +62,24 @@ impl Backoff {
         S: FnOnce(Duration),
     {
         let duration = self.last_retry.elapsed();
-        if duration > LAST_RETRY_INTERVAL {
+        if duration > self.last_retry_interval {
             self.tries = 0
         }
+        self.tries += 1;
 
-        if self.tries > self.max_retries {
+        if self.max_retries != 0 && self.tries > self.max_retries {
             return false
         }
 
         backoff_func(self.tries, self.initial_delay, sleep_func);
 
-        self.tries += 1;
         self.last_retry = Instant::now();
 
         true
     }
 }
 
-/// linear is a function
+/// linear is a function executing a sleep function with a delay incrementing linearly
 pub fn linear<S>(tries: usize, initial_delay: Duration, sleep_func: S)
     where
         S: FnOnce(Duration),
@@ -87,7 +88,7 @@ pub fn linear<S>(tries: usize, initial_delay: Duration, sleep_func: S)
     sleep_func(Duration::from_secs_f32(total_secs_duration));
 }
 
-/// exponential is a function
+/// linear is a function executing a sleep function with a delay incrementing exponentially in base 2
 pub fn exponential<S>(tries: usize, initial_delay: Duration, sleep_func: S)
     where
         S: FnOnce(Duration),
@@ -100,33 +101,74 @@ pub fn exponential<S>(tries: usize, initial_delay: Duration, sleep_func: S)
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::{Duration, Instant};
+    use std::time::Duration;
 
     #[test]
-    fn test_backoff_linear() {
-        let mut b = Backoff::new();
-
+    fn test_backoff_linear_max_retries_reached() {
         let mut sleeped = Duration::new(0, 0);
-        let sleep_mock = |dur: Duration| {
-            sleeped = dur
+        let mut sleep_mock = |dur: Duration| {
+            sleeped += dur
         };
 
-        b.backoff(linear, sleep_mock);
+        let mut b = Backoff::new().with_max_retries(2);
+        let results = vec![true, true, false];
 
-        assert_eq!(Duration::from_secs(4), sleeped);
+        for n in 0..results.capacity() {
+            assert_eq!(results[n], b.backoff(linear, &mut sleep_mock));
+        }
+        assert_eq!(Duration::from_secs(3), sleeped)
+    }
+
+    #[test]
+    fn test_backoff_linear_max_retries_reached_but_interval_reset() {
+        let mut sleeped = Duration::new(0, 0);
+        let mut sleep_mock = |dur: Duration| {
+            sleeped += dur
+        };
+
+        let mut b = Backoff::new()
+            .with_max_retries(2)
+            .with_last_retry_interval(Duration::from_micros(1));
+        let results = vec![true, true, true];
+
+        for n in 0..results.capacity() {
+            assert_eq!(results[n], b.backoff(linear, &mut sleep_mock));
+            //It will be reset every interval causing backoff to always be 1 second
+            sleep(Duration::from_micros(2))
+        }
+        assert_eq!(Duration::from_secs(3),sleeped)
+    }
+
+    #[test]
+    fn test_backoff_linear_with_initial_delay() {
+        let mut sleeped = Duration::new(0, 0);
+        let mut sleep_mock = |dur: Duration| {
+            sleeped += dur
+        };
+
+        let mut b = Backoff::new()
+            .with_initial_delay(Duration::from_secs(6));
+        let results = vec![true, true, true];
+
+        for n in 0..results.capacity() {
+            assert_eq!(results[n], b.backoff(linear, &mut sleep_mock));
+        }
+        assert_eq!(Duration::from_secs(36), sleeped)
     }
 
     #[test]
     fn test_backoff_exponential() {
-        let mut b = Backoff::new();
-
         let mut sleeped = Duration::new(0, 0);
-        let sleep_mock = |dur: Duration| {
-            sleeped = dur
+        let mut sleep_mock = |dur: Duration| {
+            sleeped += dur
         };
 
-        b.backoff(exponential, sleep_mock);
+        let mut b = Backoff::new();
+        let results = vec![true, true, true, true];
 
-        assert_eq!(Duration::from_secs(4), sleeped);
+        for n in 0..results.capacity() {
+            assert_eq!(results[n], b.backoff(exponential, &mut sleep_mock));
+        }
+        assert_eq!(Duration::from_secs(15), sleeped)
     }
 }
