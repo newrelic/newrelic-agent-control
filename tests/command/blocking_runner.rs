@@ -23,12 +23,12 @@ fn blocking_stop_runner() {
     let mut proc: ProcessRunner = ProcessRunner::from(&agent);
 
     // run the process with wrong parameter
-    assert_eq!(proc.run().unwrap().success(), false);
+    assert!(!proc.run().unwrap().success());
 
     agent.agent_args = vec!["0.1".to_string()];
 
     proc = ProcessRunner::from(&agent);
 
     // run the process with correct parameter
-    assert_eq!(proc.run().unwrap().success(), true);
+    assert!(proc.run().unwrap().success());
 }

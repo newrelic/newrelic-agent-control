@@ -1,7 +1,8 @@
 use std::thread;
 
 use meta_agent::command::{
-    stream::OutputEvent, CommandExecutor, CommandHandle, OutputStreamer, ProcessRunner,
+    stream::OutputEvent, CommandExecutor, CommandHandle, CommandTerminator, OutputStreamer,
+    ProcessRunner, ProcessTerminator,
 };
 
 const TICKER: &str = "tests/command/scripts/ticker.sh";
@@ -23,7 +24,7 @@ fn actual_command_streaming() {
 
     let (tx, rx) = std::sync::mpsc::channel();
 
-    let streaming_cmd = agent.cmd.start().unwrap().stream(tx).unwrap();
+    let streaming_runner = agent.cmd.start().unwrap().stream(tx).unwrap();
 
     // Populate the expected output
     let mut stdout_expected = Vec::new();
@@ -51,7 +52,11 @@ fn actual_command_streaming() {
     assert_eq!(stderr_expected, stderr_actual);
 
     // kill the process
-    assert_eq!(streaming_cmd.stop().is_err(), false);
+    #[cfg(unix)]
+    {
+        let terminated = ProcessTerminator::new(streaming_runner.get_pid()).shutdown(|| true);
+        assert!(terminated.is_ok());
+    }
 }
 
 #[test]
@@ -94,12 +99,10 @@ fn actual_command_exiting_closes_channel() {
     assert_eq!(stdout_expected, stdout_actual);
     assert_eq!(stderr_expected, stderr_actual);
 
-    // At this point, the handle can be closed because the process exited on its own!
+    // At this point, the process can be terminated because the process exited on its own
     #[cfg(unix)]
-    assert_eq!(handle.stop().is_err(), false);
-
-    // But...
-    // FIXME: ???
-    #[cfg(windows)]
-    assert_eq!(handle.stop().is_err(), true);
+    {
+        let terminated = ProcessTerminator::new(handle.get_pid()).shutdown(|| true);
+        assert!(terminated.is_ok());
+    }
 }

@@ -1,6 +1,8 @@
 use std::process::Command;
 
-use meta_agent::command::{CommandExecutor, CommandHandle, ProcessRunner};
+use meta_agent::command::{
+    CommandExecutor, CommandHandle, CommandTerminator, ProcessRunner, ProcessTerminator,
+};
 
 // non blocking supervisor
 struct NonSupervisor<C = ProcessRunner>
@@ -10,6 +12,7 @@ where
     cmd: C,
 }
 
+#[cfg(unix)]
 #[test]
 fn non_blocking_runner() {
     let mut sleep_cmd = Command::new("sleep");
@@ -22,5 +25,6 @@ fn non_blocking_runner() {
     let started_cmd = agent.cmd.start().unwrap();
 
     // kill the process
-    assert_eq!(started_cmd.stop().is_err(), false);
+    let terminated = ProcessTerminator::new(started_cmd.get_pid()).shutdown(|| true);
+    assert!(terminated.is_ok());
 }

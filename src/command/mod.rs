@@ -1,7 +1,10 @@
 mod error;
 pub mod processrunner;
-pub use crate::command::processrunner::ProcessRunner;
 pub mod shutdown;
+pub use crate::command::{
+    processrunner::ProcessRunner, shutdown::wait_exit_timeout, shutdown::wait_exit_timeout_default,
+    shutdown::ProcessTerminator,
+};
 pub mod stream;
 
 use std::{process::ExitStatus, sync::mpsc::Sender};
@@ -21,8 +24,9 @@ pub trait CommandExecutor {
 pub trait CommandHandle {
     type Error: std::error::Error + Send + Sync;
 
-    /// The stop method will stop the command's execution
-    fn stop(self) -> Result<(), Self::Error>;
+    fn wait(self) -> Result<ExitStatus, Self::Error>;
+
+    fn get_pid(&self) -> u32;
 }
 
 /// Trait that specifies the interface for a blocking task execution

@@ -18,37 +18,18 @@ pub enum CommandError {
     StreamPipeError(String),
 
     #[error("could not get output event")]
-    StreamOutputError(#[source] SendError<OutputEvent>),
+    StreamOutputError(#[from] SendError<OutputEvent>),
 
     #[error("io error")]
-    IOError(#[source] std::io::Error),
+    IOError(#[from] std::io::Error),
 
     #[cfg(target_family = "unix")]
     #[error("system error")]
-    NixError(#[source] nix::Error),
-}
-
-impl From<std::io::Error> for CommandError {
-    fn from(value: std::io::Error) -> CommandError {
-        CommandError::IOError(value)
-    }
-}
-
-impl From<SendError<OutputEvent>> for CommandError {
-    fn from(e: SendError<OutputEvent>) -> Self {
-        CommandError::StreamOutputError(e)
-    }
+    NixError(#[from] nix::Error),
 }
 
 impl From<ExitStatus> for CommandError {
     fn from(value: ExitStatus) -> Self {
         CommandError::ProcessError(value)
-    }
-}
-
-#[cfg(target_family = "unix")]
-impl From<nix::errno::Errno> for CommandError {
-    fn from(value: nix::errno::Errno) -> CommandError {
-        CommandError::NixError(value)
     }
 }

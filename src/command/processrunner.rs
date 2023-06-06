@@ -2,7 +2,7 @@ use std::{
     ffi::OsStr,
     io::{BufRead, BufReader},
     marker::PhantomData,
-    process::{Child, ChildStderr, ChildStdout, Command, Stdio},
+    process::{Child, ChildStderr, ChildStdout, Command, ExitStatus, Stdio},
     sync::mpsc::Sender,
 };
 
@@ -42,7 +42,7 @@ impl ProcessRunner {
     }
 }
 
-impl CommandExecutor for ProcessRunner {
+impl CommandExecutor for ProcessRunner<Unstarted> {
     type Error = CommandError;
     type Process = ProcessRunner<Started>;
     fn start(self) -> Result<Self::Process, Self::Error> {
@@ -56,11 +56,17 @@ impl CommandExecutor for ProcessRunner {
 
 impl CommandHandle for ProcessRunner<Started> {
     type Error = CommandError;
-    fn stop(self) -> Result<(), Self::Error> {
-        Ok(self
-            .process
+
+    fn wait(self) -> Result<ExitStatus, Self::Error> {
+        self.process
             .ok_or(CommandError::ProcessNotStarted)?
-            .kill()?)
+            .wait()
+            .map_err(CommandError::from)
+    }
+
+    fn get_pid(&self) -> u32 {
+        // process should always be Some here
+        self.process.as_ref().unwrap().id()
     }
 }
 
@@ -149,14 +155,14 @@ mod tests {
 
     // MockedCommandExector returns an error on start if fail is true
     // It can be used to mock process spawn
-    type MockedCommandExector = bool;
+    type MockedCommandExecutor = bool;
     pub struct MockedCommandHandler;
 
-    impl super::CommandExecutor for MockedCommandExector {
+    impl super::CommandExecutor for MockedCommandExecutor {
         type Error = CommandError;
         type Process = MockedCommandHandler;
         fn start(self) -> Result<Self::Process, Self::Error> {
-            if self == true {
+            if self {
                 Err(CommandError::ProcessError(ExitStatus::from_raw(1)))
             } else {
                 Ok(MockedCommandHandler {})
@@ -166,14 +172,18 @@ mod tests {
 
     impl CommandHandle for MockedCommandHandler {
         type Error = CommandError;
-        fn stop(self) -> Result<(), CommandError> {
-            Ok(())
+        fn wait(self) -> Result<ExitStatus, Self::Error> {
+            Ok(ExitStatus::from_raw(0))
+        }
+
+        fn get_pid(&self) -> u32 {
+            0
         }
     }
 
     #[test]
     fn start_stop() {
-        let cmds: Vec<MockedCommandExector> = vec![true, false, true, true, false];
+        let cmds: Vec<MockedCommandExecutor> = vec![true, false, true, true, false];
 
         assert_eq!(
             cmds.iter()
@@ -208,7 +218,7 @@ mod tests {
         let cmd = MockedCommandHandler {};
         let (tx, rx) = std::sync::mpsc::channel();
 
-        let cmd = cmd.stream(tx).unwrap();
+        cmd.stream(tx).unwrap();
 
         let mut stdout_expected = Vec::new();
         let mut stderr_expected = Vec::new();
@@ -226,6 +236,5 @@ mod tests {
 
         assert_eq!(stdout_expected, stdout_result);
         assert_eq!(stderr_expected, stderr_result);
-        assert!(cmd.stop().is_ok());
     }
 }
