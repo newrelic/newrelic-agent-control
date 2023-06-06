@@ -1,5 +1,6 @@
 use std::{thread, time::Duration};
 
+use log::info;
 use meta_agent::supervisor::{newrelic_infra::NRIConfig, runner::SupervisorRunner, Handle, Runner};
 use test_log;
 
@@ -21,7 +22,7 @@ fn newrelic_infra_supervisor() {
     // Get agent outputs
     thread::spawn(move || {
         rx.iter().for_each(|e| {
-            println!("NewRelic Infra Agent Output Event: {:?}", e);
+            info!(target: "newrelic-infra supervisor", "NewRelic Infra Agent Output Event: {:?}", e);
         })
     });
 
