@@ -11,12 +11,11 @@ pub trait Runner {
     fn run(self) -> Self::H;
 }
 
-// TODO call this `into_inner` instead?
-/// The Handle trait defines the interface for a supervised process' handle. It only exposes a getter for the inner handle.
+/// The Handle trait defines the interface for a supervised process' handle. Exposes a stop method that will cancel the supervised process' execution.
 pub trait Handle {
     type E: std::error::Error + Send + Sync;
     type S: Send + Sync;
 
-    /// Return the inner handle of the supervised process.
+    /// Cancels the supervised process and returns its inner handle.
     fn stop(self) -> Self::S;
 }
