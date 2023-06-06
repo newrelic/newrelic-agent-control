@@ -22,7 +22,7 @@ fn newrelic_infra_supervisor() {
     // Get agent outputs
     thread::spawn(move || {
         rx.iter().for_each(|e| {
-            info!(target: "newrelic-infra supervisor", "NewRelic Infra Agent Output Event: {:?}", e);
+            info!(target:"newrelic-infra supervisor", "output event: {:?}", e);
         })
     });
 
