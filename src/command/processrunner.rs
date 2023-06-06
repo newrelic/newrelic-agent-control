@@ -17,7 +17,7 @@ pub struct Started;
 
 pub struct ProcessRunner<State = Unstarted> {
     cmd: Option<Command>,
-    pub(crate) process: Option<Child>,
+    process: Option<Child>,
 
     state: PhantomData<State>,
 }
