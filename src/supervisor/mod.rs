@@ -1,5 +1,6 @@
 pub mod context;
 mod error;
+pub mod newrelic_infra;
 pub mod runner;
 
 /// The Runner trait defines the entry-point interface for a supervisor. Exposes a run method that will start the supervised process' execution.
