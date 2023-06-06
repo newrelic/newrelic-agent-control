@@ -27,8 +27,10 @@ jobs:
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
       - name: cargo llvm-cov
-        run: cargo llvm-cov --locked --all-features --lcov --output-path lcov.info
-      - name: Upload to codecov.io
-        uses: codecov/codecov-action@v3
-        with:
-          fail_ci_if_error: true
+        run: cargo llvm-cov --locked --all-features --json --output-path jcov.info
+      - name: Calculate and print total coverage
+        run: |
+          echo "Total functions coverage: $(jq '.data[].totals.functions.percent' jcov.info)"
+          echo "Total lines coverage: $(jq '.data[].totals.lines.percent' jcov.info)"
+          echo "Total regions coverage: $(jq '.data[].totals.regions.percent' jcov.info)"
+          echo "Total instantiations coverage: $(jq '.data[].totals.instantiations.percent' jcov.info)"
