@@ -6,6 +6,7 @@ use test_log;
 
 // Using NewRelicInfra supervisor
 #[test_log::test]
+#[cfg(all(unix, infra_agent_tests))]
 fn newrelic_infra_supervisor() {
     // Create streaming channel
     let (tx, rx) = std::sync::mpsc::channel();
