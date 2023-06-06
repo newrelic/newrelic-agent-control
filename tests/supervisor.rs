@@ -27,7 +27,7 @@ fn test_supervisors() {
     let (tx, rx) = std::sync::mpsc::channel();
 
     // Hypothetical meta agent configuration
-    let mut conf = Config { tx };
+    let conf = Config { tx };
 
     // Create 50 supervisors
     let agents: Vec<SupervisorRunner> = (0..50)

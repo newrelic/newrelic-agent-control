@@ -20,11 +20,11 @@ pub enum CommandError {
     #[error("could not get output event")]
     StreamOutputError(#[from] SendError<OutputEvent>),
 
-    #[error("io error")]
+    #[error("io error: `{0}`")]
     IOError(#[from] std::io::Error),
 
     #[cfg(target_family = "unix")]
-    #[error("system error")]
+    #[error("system error: `{0}`")]
     NixError(#[from] nix::Error),
 }
 
