@@ -14,7 +14,7 @@ use crate::command::{
 };
 
 use super::{
-    backoff::{BackoffStrategy, Linear, Exponential},
+    backoff::{BackoffStrategy, Backoff},
     context::SupervisorContext,
     error::ProcessError,
     Handle,
@@ -176,8 +176,8 @@ impl SupervisorRunner<Stopped> {
 
     pub fn with_restart_policy(&mut self, backoff_strategy: String, delay: i32, max_retries: i32) -> Self {
         match backoff_strategy.as_str() {
-            "linear" => self.backoff = BackoffStrategy::Linear(Linear::new()),
-            "exponential" => self.backoff = BackoffStrategy::Exponential(Exponential::new()),
+            "linear" => self.backoff = BackoffStrategy::Linear(Backoff::new()),
+            "exponential" => self.backoff = BackoffStrategy::Exponential(Backoff::new()),
             unsupported => {
                 error!("backoff type {} not supported", unsupported);
             }
