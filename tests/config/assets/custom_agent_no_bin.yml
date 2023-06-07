@@ -1,0 +1,13 @@
+# just Infra Agent enabled
+agents:
+  custom_agent:
+    bin: echo
+  custom_agent/nobin:
+    args:
+      - "hello"
+      - "world"
+  custom_agent/binargs:
+    bin: echo
+    args:
+      - "hello"
+      - "world"

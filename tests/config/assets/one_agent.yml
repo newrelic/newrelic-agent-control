@@ -1,0 +1,3 @@
+# just Infra Agent enabled
+agents:
+  nr_infra_agent:

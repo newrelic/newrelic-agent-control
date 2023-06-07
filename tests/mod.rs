@@ -5,3 +5,6 @@ mod command;
 
 #[cfg(not(miri))]
 mod supervisor;
+
+#[cfg(not(miri))]
+mod config;

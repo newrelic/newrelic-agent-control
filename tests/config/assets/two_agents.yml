@@ -1,0 +1,5 @@
+# both enabled
+agents:
+  nr_infra_agent:
+  nr_otel_collector:
+
