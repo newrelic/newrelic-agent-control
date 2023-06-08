@@ -12,8 +12,8 @@ struct Config {
 impl From<&Config> for SupervisorRunner {
     fn from(value: &Config) -> Self {
         SupervisorRunner::new(
-            "echo".to_owned(),
-            vec!["hello!".to_owned()],
+            "echo".to_string(),
+            vec!["hello!".to_string()],
             context::SupervisorContext::new(),
             value.tx.clone(),
         )

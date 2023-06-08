@@ -101,7 +101,7 @@ mod tests {
                     Value::new(None, ValueKind::Nil),
                 ),
                 (
-                    AgentType::InfraAgent(Some("otherinstance".to_owned())),
+                    AgentType::InfraAgent(Some("otherinstance".to_string())),
                     Value::new(None, ValueKind::Nil),
                 ),
                 (AgentType::Nrdot(None), Value::new(None, ValueKind::Nil)),
