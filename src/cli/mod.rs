@@ -13,7 +13,7 @@ struct MetaAgentCli {
     config: Option<PathBuf>,
 }
 
-pub fn init_meta_agent() -> Result<MetaAgentConfig, Box<dyn std::error::Error>> {
+pub fn init_meta_agent() -> Result<MetaAgentConfig, MetaAgentConfigError> {
     let cli = init_meta_agent_cli();
     Ok(retrieve_config(cli)?)
 }
