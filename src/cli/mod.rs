@@ -15,7 +15,7 @@ struct MetaAgentCli {
 
 pub fn init_meta_agent() -> Result<MetaAgentConfig, MetaAgentConfigError> {
     let cli = init_meta_agent_cli();
-    Ok(retrieve_config(cli)?)
+    retrieve_config(cli)
 }
 
 fn init_meta_agent_cli() -> MetaAgentCli {
