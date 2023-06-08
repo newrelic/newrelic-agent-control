@@ -181,11 +181,15 @@ impl SupervisorRunner<Stopped> {
         }
     }
 
-    pub fn with_restart_policy(&mut self, backoff_strategy: String, delay: Duration, max_retries: usize) -> Self {
+    pub fn with_restart_policy(&mut self, backoff_strategy: String, delay: Duration, max_retries: usize, last_retry_interval: Duration) -> Self {
+        let backoff = Backoff::new()
+            .with_initial_delay(delay)
+            .with_max_retries(max_retries)
+            .with_last_retry_interval(last_retry_interval);
         match backoff_strategy.as_str() {
-            "fixed" => self.state.backoff = BackoffStrategy::Fixed(Backoff::new().with_initial_delay(delay).with_max_retries(max_retries)),
-            "linear" => self.state.backoff = BackoffStrategy::Linear(Backoff::new().with_initial_delay(delay).with_max_retries(max_retries)),
-            "exponential" => self.state.backoff = BackoffStrategy::Exponential(Backoff::new().with_initial_delay(delay).with_max_retries(max_retries)),
+            "fixed" => self.state.backoff = BackoffStrategy::Fixed(backoff),
+            "linear" => self.state.backoff = BackoffStrategy::Linear(backoff),
+            "exponential" => self.state.backoff = BackoffStrategy::Exponential(backoff),
             unsupported => {
                 error!("backoff type {} not supported", unsupported);
             }
@@ -210,7 +214,7 @@ mod tests {
             SupervisorContext::new(),
             tx.clone(),
             BackoffStrategy::None,
-        ).with_restart_policy("linear".to_string(), Duration::new(0, 100), 3);
+        ).with_restart_policy("linear".to_string(), Duration::new(0, 100), 3, Duration::new(30, 0));
 
         let agent = agent.run();
 
