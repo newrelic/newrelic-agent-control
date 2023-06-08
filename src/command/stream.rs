@@ -6,7 +6,7 @@ pub enum OutputEvent {
 }
 
 // TODO/N2H: Switch to HashMap so it can use a list of key/values
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Default, Debug, Clone, PartialEq)]
 pub struct Metadata(String);
 
 impl Metadata {
@@ -19,12 +19,6 @@ impl Metadata {
 
     pub fn values(self) -> String {
         self.0
-    }
-}
-
-impl Default for Metadata {
-    fn default() -> Self {
-        Metadata(String::new())
     }
 }
 

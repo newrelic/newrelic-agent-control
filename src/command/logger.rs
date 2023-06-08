@@ -7,13 +7,8 @@ use super::{stream::Event, EventLogger};
 use log::{debug, error, kv::ToValue};
 
 // TODO: add configuration filters or additional fields for logging
+#[derive(Default)]
 pub struct StdEventReceiver {}
-
-impl Default for StdEventReceiver {
-    fn default() -> Self {
-        Self {}
-    }
-}
 
 impl EventLogger for StdEventReceiver {
     fn log(self, rcv: Receiver<Event>) -> std::thread::JoinHandle<()> {
