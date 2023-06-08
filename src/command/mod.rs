@@ -4,12 +4,16 @@ pub mod logger;
 pub mod processrunner;
 pub mod shutdown;
 pub use crate::command::{
-    logger::EventReceiver, processrunner::ProcessRunner, shutdown::wait_exit_timeout,
+    logger::StdEventReceiver, processrunner::ProcessRunner, shutdown::wait_exit_timeout,
     shutdown::wait_exit_timeout_default, shutdown::ProcessTerminator,
 };
 pub mod stream;
 
-use std::{process::ExitStatus, sync::mpsc::Sender};
+use std::{
+    process::ExitStatus,
+    sync::mpsc::{Receiver, Sender},
+    thread::JoinHandle,
+};
 
 use error::CommandError;
 use stream::OutputEvent;
@@ -61,6 +65,9 @@ pub trait EventStreamer {
     fn stream(self, snd: Sender<Event>) -> Result<Self::Handle, Self::Error>;
 }
 
+/// This trait represents the capability of an Event Receiver to log its output.
+/// The trait consumes itself as the logging is done in a separate thread,
+/// the thread handle is returned.
 pub trait EventLogger {
-    fn log(self);
+    fn log(self, rcv: Receiver<Event>) -> JoinHandle<()>;
 }

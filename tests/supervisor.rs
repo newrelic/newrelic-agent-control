@@ -2,7 +2,7 @@ use std::{sync::mpsc::Sender, thread, time::Duration};
 
 use meta_agent::{
     agent::logging,
-    command::{stream::Event, EventLogger, EventReceiver},
+    command::{stream::Event, EventLogger, StdEventReceiver},
     supervisor::{context, runner::SupervisorRunner, Handle, Runner},
 };
 
@@ -38,7 +38,7 @@ fn test_supervisors() {
     // Create streaming channel
     let (tx, rx) = std::sync::mpsc::channel();
 
-    let logger = EventReceiver::new(rx);
+    let logger = StdEventReceiver::default();
 
     // Hypothetical meta agent configuration
     let conf = Config { tx };
@@ -60,7 +60,7 @@ fn test_supervisors() {
 
     // Get any outputs in the background
     //
-    let handle_logger = thread::spawn(move || logger.log());
+    let handle_logger = logger.log(rx);
 
     // Sleep for a while
     thread::sleep(Duration::from_secs(1));
