@@ -18,9 +18,10 @@ where
     let mut map = HashMap::new();
     let kv: HashMap<AgentType, Value> = HashMap::deserialize(deserializer)?;
     for (agent_type, config_value) in kv {
-        if let AgentType::Custom(custom_type, custom_agent_name) = agent_type.clone() {
+        if let AgentType::Custom(custom_type, custom_agent_name) = &agent_type {
             // Get custom agent type and name as it is in the config
-            let agent_type_name = agent_type_with_name(custom_type.clone(), custom_agent_name);
+            let agent_type_name =
+                agent_type_with_name(custom_type.as_ref(), custom_agent_name.as_ref());
             // Get the actual config values for the custom agent
             let config_values = config_value.clone().into_table().map_err(|err| {
                 serde::de::Error::custom(format!(
@@ -42,9 +43,9 @@ where
     Ok(map)
 }
 
-fn agent_type_with_name(agent_type: String, agent_name: Option<String>) -> String {
+fn agent_type_with_name(agent_type: &str, agent_name: Option<&String>) -> String {
     match agent_name {
         Some(name) => format!("{}/{}", agent_type, name),
-        None => agent_type,
+        None => agent_type.to_string(),
     }
 }
