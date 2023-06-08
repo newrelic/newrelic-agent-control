@@ -98,6 +98,7 @@ impl From<&SupervisorRunner<Stopped>> for Metadata {
 }
 
 fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
+    let mut retry_policy = runner.backoff.clone();
     thread::spawn({
         move || loop {
             let proc_runner = ProcessRunner::from(&runner).with_metadata(Metadata::from(&runner));
@@ -129,8 +130,8 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
                 break;
             }
 
-            if !runner.backoff.to_owned().backoff() {
-                break
+            if !retry_policy.backoff() {
+                break;
             }
         }
     })
@@ -182,6 +183,7 @@ impl SupervisorRunner<Stopped> {
 
     pub fn with_restart_policy(&mut self, backoff_strategy: String, delay: Duration, max_retries: usize) -> Self {
         match backoff_strategy.as_str() {
+            "fixed" => self.state.backoff = BackoffStrategy::Fixed(Backoff::new().with_initial_delay(delay).with_max_retries(max_retries)),
             "linear" => self.state.backoff = BackoffStrategy::Linear(Backoff::new().with_initial_delay(delay).with_max_retries(max_retries)),
             "exponential" => self.state.backoff = BackoffStrategy::Exponential(Backoff::new().with_initial_delay(delay).with_max_retries(max_retries)),
             unsupported => {
@@ -189,5 +191,54 @@ impl SupervisorRunner<Stopped> {
             }
         }
         self.clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::supervisor::context;
+    use crate::supervisor::backoff;
+    use std::time::Duration;
+
+    #[test]
+    fn test_supervisor_fixed_retry_3_times() {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let agent: SupervisorRunner = SupervisorRunner::new(
+            "echo".to_owned(),
+            vec!["hello!".to_owned()],
+            SupervisorContext::new(),
+            tx.clone(),
+            BackoffStrategy::None,
+        ).with_restart_policy("linear".to_string(), Duration::new(0, 100), 3);
+
+        let agent = agent.run();
+
+        let stream = thread::spawn(move || {
+            let mut stdout_actual = Vec::new();
+
+            loop {
+                match rx.recv() {
+                    Err(_) => break,
+                    Ok(event) => match event {
+                        OutputEvent::Stdout(line) => {
+                            stdout_actual.push(line)
+                        },
+                        OutputEvent::Stderr(line) => (),
+                    },
+                }
+            }
+
+            stdout_actual
+        });
+
+        while !agent.handle.is_finished() {
+            thread::sleep(Duration::from_millis(15));
+        }
+
+        drop(tx);
+        let stdout = stream.join().unwrap();
+
+        assert_eq!(4, stdout.iter().count());
     }
 }

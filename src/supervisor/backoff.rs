@@ -3,6 +3,7 @@ use std::thread::sleep;
 
 #[derive(Clone)]
 pub enum BackoffStrategy {
+    Fixed(Backoff),
     Linear(Backoff),
     Exponential(Backoff),
     None,
@@ -15,6 +16,7 @@ const LAST_RETRY_INTERVAL:Duration = Duration::new(30, 0);
 impl BackoffStrategy {
     pub(crate) fn backoff(&mut self) -> bool {
         match self {
+            BackoffStrategy::Fixed(ref mut b) => b.backoff(fixed, sleep),
             BackoffStrategy::Linear(ref mut b) => b.backoff(linear, sleep),
             BackoffStrategy::Exponential(ref mut b) => b.backoff(exponential, sleep),
             BackoffStrategy::None => true,
@@ -79,6 +81,14 @@ impl Backoff {
     }
 }
 
+/// fixed is a function executing a sleep function with a delay incrementing linearly
+pub fn fixed<S>(_: usize, initial_delay: Duration, sleep_func: S)
+    where
+        S: FnOnce(Duration),
+{
+    sleep_func(initial_delay);
+}
+
 /// linear is a function executing a sleep function with a delay incrementing linearly
 pub fn linear<S>(tries: usize, initial_delay: Duration, sleep_func: S)
     where
@@ -88,7 +98,7 @@ pub fn linear<S>(tries: usize, initial_delay: Duration, sleep_func: S)
     sleep_func(Duration::from_secs_f32(total_secs_duration));
 }
 
-/// linear is a function executing a sleep function with a delay incrementing exponentially in base 2
+/// exponential is a function executing a sleep function with a delay incrementing exponentially in base 2
 pub fn exponential<S>(tries: usize, initial_delay: Duration, sleep_func: S)
     where
         S: FnOnce(Duration),
@@ -105,9 +115,9 @@ mod tests {
 
     #[test]
     fn test_backoff_linear_max_retries_reached() {
-        let mut sleeped = Duration::new(0, 0);
+        let mut slept = Duration::new(0, 0);
         let mut sleep_mock = |dur: Duration| {
-            sleeped += dur
+            slept += dur
         };
 
         let mut b = Backoff::new().with_max_retries(2);
@@ -116,14 +126,14 @@ mod tests {
         for n in 0..results.capacity() {
             assert_eq!(results[n], b.backoff(linear, &mut sleep_mock));
         }
-        assert_eq!(Duration::from_secs(3), sleeped)
+        assert_eq!(Duration::from_secs(3), slept)
     }
 
     #[test]
     fn test_backoff_linear_max_retries_reached_but_interval_reset() {
-        let mut sleeped = Duration::new(0, 0);
+        let mut slept = Duration::new(0, 0);
         let mut sleep_mock = |dur: Duration| {
-            sleeped += dur
+            slept += dur
         };
 
         let mut b = Backoff::new()
@@ -136,14 +146,14 @@ mod tests {
             //It will be reset every interval causing backoff to always be 1 second
             sleep(Duration::from_micros(2))
         }
-        assert_eq!(Duration::from_secs(3),sleeped)
+        assert_eq!(Duration::from_secs(3),slept)
     }
 
     #[test]
     fn test_backoff_linear_with_initial_delay() {
-        let mut sleeped = Duration::new(0, 0);
+        let mut slept = Duration::new(0, 0);
         let mut sleep_mock = |dur: Duration| {
-            sleeped += dur
+            slept += dur
         };
 
         let mut b = Backoff::new()
@@ -153,14 +163,30 @@ mod tests {
         for n in 0..results.capacity() {
             assert_eq!(results[n], b.backoff(linear, &mut sleep_mock));
         }
-        assert_eq!(Duration::from_secs(36), sleeped)
+        assert_eq!(Duration::from_secs(36), slept)
+    }
+
+    #[test]
+    fn test_backoff_fixed() {
+        let mut slept = Duration::new(0, 0);
+        let mut sleep_mock = |dur: Duration| {
+            slept += dur
+        };
+
+        let mut b = Backoff::new();
+        let results = vec![true, true, true, true];
+
+        for n in 0..results.capacity() {
+            assert_eq!(results[n], b.backoff(fixed, &mut sleep_mock));
+        }
+        assert_eq!(Duration::from_secs(4), slept)
     }
 
     #[test]
     fn test_backoff_exponential() {
-        let mut sleeped = Duration::new(0, 0);
+        let mut slept = Duration::new(0, 0);
         let mut sleep_mock = |dur: Duration| {
-            sleeped += dur
+            slept += dur
         };
 
         let mut b = Backoff::new();
@@ -169,6 +195,6 @@ mod tests {
         for n in 0..results.capacity() {
             assert_eq!(results[n], b.backoff(exponential, &mut sleep_mock));
         }
-        assert_eq!(Duration::from_secs(15), sleeped)
+        assert_eq!(Duration::from_secs(15), slept)
     }
 }
