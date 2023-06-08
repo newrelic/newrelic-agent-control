@@ -116,7 +116,52 @@ mod tests {
     }
 
     #[test]
-    fn resolve_agents_with_custom_configs() {}
+    fn resolve_agents_with_custom_configs() {
+        // Build the config
+        let actual = Resolver::new(Path::new("tests/config/assets/with_custom_configs.yml"))
+            .build_config()
+            .unwrap();
+
+        // Deserializing with the serde_yaml crate because putting
+        // the literal Value representations here is too verbose!
+        let expected_nria_conf = serde_yaml::from_str::<Value>(
+            r#"
+            configValue: value
+            configList: [value1, value2]
+            configMap:
+                key1: value1
+                key2: value2
+            "#,
+        )
+        .unwrap();
+        let expected_otherinstance_nria_conf = serde_yaml::from_str::<Value>(
+            r#"
+            otherConfigValue: value
+            otherConfigList: [value1, value2]
+            otherConfigMap:
+                key1: value1
+                key2: value2
+            "#,
+        )
+        .unwrap();
+
+        let expected = MetaAgentConfig {
+            agents: [
+                (AgentType::InfraAgent(None), expected_nria_conf),
+                (
+                    AgentType::InfraAgent(Some("otherinstance".to_string())),
+                    expected_otherinstance_nria_conf,
+                ),
+                (AgentType::Nrdot(None), Value::new(None, ValueKind::Nil)),
+            ]
+            .iter()
+            .cloned()
+            .collect(),
+        };
+
+        assert_eq!(actual.agents.len(), 3);
+        assert_eq!(actual, expected);
+    }
 
     #[test]
     fn resolve_config_with_unexpected_fields() {
