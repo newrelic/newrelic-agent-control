@@ -25,7 +25,6 @@ use super::{
 
 use log::error;
 
-#[derive(Clone)]
 pub struct Stopped {
     bin: String,
     args: Vec<String>,
@@ -39,7 +38,7 @@ pub struct Running {
     ctx: SupervisorContext,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct SupervisorRunner<State = Stopped> {
     state: State,
 }
@@ -182,7 +181,7 @@ impl SupervisorRunner<Stopped> {
     }
 
     pub fn with_restart_policy(
-        &mut self,
+        mut self,
         allowed_exit_codes: Vec<i32>,
         backoff_strategy: String,
         delay: Duration,
@@ -205,7 +204,7 @@ impl SupervisorRunner<Stopped> {
         };
 
         self.state.restart = RestartPolicy::new(strategy, allowed_exit_codes);
-        self.clone()
+        self
     }
 }
 
