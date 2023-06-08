@@ -3,6 +3,10 @@ use serde::Deserialize;
 type AgentName = Option<String>;
 type CustomAgentType = String;
 
+/// AgentType represents the type of an agent. We currently support the following agent types:
+/// - `nr_infra_agent`: New Relic Infrastructure agent
+/// - `nr_otel_collector`: New Relic Distribution for the OpenTelemetry Collector
+/// - `custom_agent_type`: Custom agent type (e.g. a binary with its arguments)
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum AgentType {
     InfraAgent(AgentName),

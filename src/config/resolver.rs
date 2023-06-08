@@ -6,6 +6,8 @@ use super::{agent_configs::MetaAgentConfig, error::MetaAgentConfigError};
 
 const DEFAULT_STATIC_CONFIG: &str = "/tmp/static.yaml";
 
+/// Builder for the configuration, managing if it is loaded from a default expected file or from
+/// a custom one provided by the command line arguments.
 pub struct Resolver(ConfigBuilder<DefaultState>);
 
 impl Resolver {
@@ -19,6 +21,7 @@ impl Resolver {
         Ok(self.0.build()?.try_deserialize::<MetaAgentConfig>()?)
     }
 
+    /// Attempts to build the configuration
     pub fn retrieve_config(file: Option<&Path>) -> Result<MetaAgentConfig, MetaAgentConfigError> {
         match file {
             Some(f) => Self::new(f).build_config(),

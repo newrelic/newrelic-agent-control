@@ -5,8 +5,10 @@ use serde::Deserialize;
 
 use super::agent_type::AgentType;
 
+/// MetaAgentConfig represents the configuration for the meta agent.
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct MetaAgentConfig {
+    /// agents is a map of agent types to their specific configuration (if any).
     #[serde(deserialize_with = "des_agent_configs")]
     pub agents: HashMap<AgentType, Value>,
 }

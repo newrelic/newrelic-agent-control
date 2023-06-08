@@ -13,6 +13,7 @@ struct MetaAgentCli {
     config: Option<PathBuf>,
 }
 
+/// Parses command line arguments and retrieves the passed configuration
 pub fn init_meta_agent() -> Result<MetaAgentConfig, MetaAgentConfigError> {
     let cli = init_meta_agent_cli();
     Resolver::retrieve_config(cli.config.as_deref())
