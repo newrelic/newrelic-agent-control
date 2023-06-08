@@ -5,8 +5,8 @@ use std::{
     sync::mpsc::Sender,
     sync::{Arc, Condvar, Mutex},
     thread::{self, JoinHandle},
+    time::Duration,
 };
-use std::time::Duration;
 
 use crate::command::{
     stream::{Event, Metadata},
@@ -15,7 +15,7 @@ use crate::command::{
 };
 
 use super::{
-    backoff::{BackoffStrategy, Backoff},
+    backoff::{Backoff, BackoffStrategy},
     context::SupervisorContext,
     error::ProcessError,
     Handle,
@@ -181,7 +181,13 @@ impl SupervisorRunner<Stopped> {
         }
     }
 
-    pub fn with_restart_policy(&mut self, backoff_strategy: String, delay: Duration, max_retries: usize, last_retry_interval: Duration) -> Self {
+    pub fn with_restart_policy(
+        &mut self,
+        backoff_strategy: String,
+        delay: Duration,
+        max_retries: usize,
+        last_retry_interval: Duration,
+    ) -> Self {
         let backoff = Backoff::new()
             .with_initial_delay(delay)
             .with_max_retries(max_retries)
@@ -201,8 +207,6 @@ impl SupervisorRunner<Stopped> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::supervisor::context;
-    use crate::supervisor::backoff;
     use std::time::Duration;
 
     #[test]
@@ -214,7 +218,13 @@ mod tests {
             SupervisorContext::new(),
             tx.clone(),
             BackoffStrategy::None,
-        ).with_restart_policy("linear".to_string(), Duration::new(0, 100), 3, Duration::new(30, 0));
+        )
+        .with_restart_policy(
+            "linear".to_string(),
+            Duration::new(0, 100),
+            3,
+            Duration::new(30, 0),
+        );
 
         let agent = agent.run();
 
@@ -225,10 +235,8 @@ mod tests {
                 match rx.recv() {
                     Err(_) => break,
                     Ok(event) => match event {
-                        OutputEvent::Stdout(line) => {
-                            stdout_actual.push(line)
-                        },
-                        OutputEvent::Stderr(line) => (),
+                        OutputEvent::Stdout(line) => stdout_actual.push(line),
+                        OutputEvent::Stderr(_) => (),
                     },
                 }
             }

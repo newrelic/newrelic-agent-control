@@ -1,7 +1,7 @@
+pub mod backoff;
 pub mod context;
 mod error;
 pub mod runner;
-pub mod backoff;
 
 /// ID represents the identity for a runner. The trait might be used for structured logs.
 pub trait ID {

@@ -1,5 +1,5 @@
-use std::time::{Duration, Instant};
 use std::thread::sleep;
+use std::time::{Duration, Instant};
 
 #[derive(Clone)]
 pub enum BackoffStrategy {
@@ -11,7 +11,7 @@ pub enum BackoffStrategy {
 
 /// Time Duration interval since last retry to consider a service malfunctioning so backoff strategy
 /// should keep its sequence, if duration is higher, then the backoff will reset its values to start a new sequence
-const LAST_RETRY_INTERVAL:Duration = Duration::new(30, 0);
+const LAST_RETRY_INTERVAL: Duration = Duration::new(30, 0);
 
 impl BackoffStrategy {
     pub(crate) fn backoff(&mut self) -> bool {
@@ -59,7 +59,7 @@ impl Backoff {
     }
 
     pub(crate) fn backoff<B, S>(&mut self, backoff_func: B, sleep_func: S) -> bool
-        where
+    where
         B: FnOnce(usize, Duration, S),
         S: FnOnce(Duration),
     {
@@ -70,7 +70,7 @@ impl Backoff {
         self.tries += 1;
 
         if self.max_retries != 0 && self.tries > self.max_retries {
-            return false
+            return false;
         }
 
         backoff_func(self.tries, self.initial_delay, sleep_func);
@@ -83,16 +83,16 @@ impl Backoff {
 
 /// fixed is a function executing a sleep function with a delay incrementing linearly
 pub fn fixed<S>(_: usize, initial_delay: Duration, sleep_func: S)
-    where
-        S: FnOnce(Duration),
+where
+    S: FnOnce(Duration),
 {
     sleep_func(initial_delay);
 }
 
 /// linear is a function executing a sleep function with a delay incrementing linearly
 pub fn linear<S>(tries: usize, initial_delay: Duration, sleep_func: S)
-    where
-        S: FnOnce(Duration),
+where
+    S: FnOnce(Duration),
 {
     let total_secs_duration = tries as f32 * initial_delay.as_secs_f32();
     sleep_func(Duration::from_secs_f32(total_secs_duration));
@@ -100,13 +100,12 @@ pub fn linear<S>(tries: usize, initial_delay: Duration, sleep_func: S)
 
 /// exponential is a function executing a sleep function with a delay incrementing exponentially in base 2
 pub fn exponential<S>(tries: usize, initial_delay: Duration, sleep_func: S)
-    where
-        S: FnOnce(Duration),
+where
+    S: FnOnce(Duration),
 {
     let base: u32 = 2;
     sleep_func(initial_delay * base.pow(tries as u32 - 1));
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -116,9 +115,7 @@ mod tests {
     #[test]
     fn test_backoff_linear_max_retries_reached() {
         let mut slept = Duration::new(0, 0);
-        let mut sleep_mock = |dur: Duration| {
-            slept += dur
-        };
+        let mut sleep_mock = |dur: Duration| slept += dur;
 
         let mut b = Backoff::new().with_max_retries(2);
         let results = vec![true, true, false];
@@ -132,9 +129,7 @@ mod tests {
     #[test]
     fn test_backoff_linear_max_retries_reached_but_interval_reset() {
         let mut slept = Duration::new(0, 0);
-        let mut sleep_mock = |dur: Duration| {
-            slept += dur
-        };
+        let mut sleep_mock = |dur: Duration| slept += dur;
 
         let mut b = Backoff::new()
             .with_max_retries(2)
@@ -146,18 +141,15 @@ mod tests {
             //It will be reset every interval causing backoff to always be 1 second
             sleep(Duration::from_micros(2))
         }
-        assert_eq!(Duration::from_secs(3),slept)
+        assert_eq!(Duration::from_secs(3), slept)
     }
 
     #[test]
     fn test_backoff_linear_with_initial_delay() {
         let mut slept = Duration::new(0, 0);
-        let mut sleep_mock = |dur: Duration| {
-            slept += dur
-        };
+        let mut sleep_mock = |dur: Duration| slept += dur;
 
-        let mut b = Backoff::new()
-            .with_initial_delay(Duration::from_secs(6));
+        let mut b = Backoff::new().with_initial_delay(Duration::from_secs(6));
         let results = vec![true, true, true];
 
         for n in 0..results.capacity() {
@@ -169,9 +161,7 @@ mod tests {
     #[test]
     fn test_backoff_fixed() {
         let mut slept = Duration::new(0, 0);
-        let mut sleep_mock = |dur: Duration| {
-            slept += dur
-        };
+        let mut sleep_mock = |dur: Duration| slept += dur;
 
         let mut b = Backoff::new();
         let results = vec![true, true, true, true];
@@ -185,9 +175,7 @@ mod tests {
     #[test]
     fn test_backoff_exponential() {
         let mut slept = Duration::new(0, 0);
-        let mut sleep_mock = |dur: Duration| {
-            slept += dur
-        };
+        let mut sleep_mock = |dur: Duration| slept += dur;
 
         let mut b = Backoff::new();
         let results = vec![true, true, true, true];

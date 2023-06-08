@@ -5,7 +5,6 @@ use meta_agent::{
     command::{stream::Event, EventLogger, StdEventReceiver},
     supervisor::{backoff, context, runner::SupervisorRunner, Handle, Runner},
 };
-use meta_agent::supervisor::backoff::Backoff;
 
 struct Config {
     tx: Sender<Event>,
