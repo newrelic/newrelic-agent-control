@@ -15,20 +15,10 @@ struct MetaAgentCli {
 
 pub fn init_meta_agent() -> Result<MetaAgentConfig, MetaAgentConfigError> {
     let cli = init_meta_agent_cli();
-    retrieve_config(cli)
+    Resolver::retrieve_config(cli.config.as_deref())
 }
 
 fn init_meta_agent_cli() -> MetaAgentCli {
     // Get command line args
     MetaAgentCli::parse()
-}
-
-fn retrieve_config(cli: MetaAgentCli) -> Result<MetaAgentConfig, MetaAgentConfigError> {
-    // Program starts, should load the config
-    let cfg = if let Some(file) = cli.config.as_deref() {
-        Resolver::new(file).build_config()?
-    } else {
-        Resolver::default().build_config()?
-    };
-    Ok(cfg)
 }
