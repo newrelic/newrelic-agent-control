@@ -15,7 +15,7 @@ use crate::command::{
 };
 
 use super::{
-    backoff::{Backoff, BackoffStrategy},
+    restart::{Backoff, BackoffStrategy, RestartPolicy},
     context::SupervisorContext,
     error::ProcessError,
     Handle,
@@ -31,7 +31,7 @@ pub struct Stopped {
     args: Vec<String>,
     ctx: SupervisorContext,
     snd: Sender<Event>,
-    backoff: BackoffStrategy,
+    restart: RestartPolicy,
 }
 
 pub struct Running {
@@ -98,7 +98,7 @@ impl From<&SupervisorRunner<Stopped>> for Metadata {
 }
 
 fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
-    let mut retry_policy = runner.backoff.clone();
+    let mut restart_policy = runner.restart.clone();
     thread::spawn({
         move || loop {
             let proc_runner = ProcessRunner::from(&runner).with_metadata(Metadata::from(&runner));
@@ -122,7 +122,7 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
             };
 
             _ = wait_for_termination(streaming.get_pid(), runner.ctx.clone());
-            _ = streaming.wait().unwrap();
+            let exit_code = streaming.wait().unwrap().code().unwrap();
 
             let (lck, _) = SupervisorContext::get_lock_cvar(&runner.ctx);
             let val = lck.lock().unwrap();
@@ -130,7 +130,7 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
                 break;
             }
 
-            if !retry_policy.backoff() {
+            if !restart_policy.retry(exit_code)  {
                 break;
             }
         }
@@ -168,7 +168,7 @@ impl SupervisorRunner<Stopped> {
         args: Vec<String>,
         ctx: SupervisorContext,
         snd: Sender<Event>,
-        backoff: BackoffStrategy,
+        restart: RestartPolicy,
     ) -> Self {
         SupervisorRunner {
             state: Stopped {
@@ -176,13 +176,14 @@ impl SupervisorRunner<Stopped> {
                 args,
                 ctx,
                 snd,
-                backoff,
+                restart,
             },
         }
     }
 
     pub fn with_restart_policy(
         &mut self,
+        allowed_exit_codes: Vec<i32>,
         backoff_strategy: String,
         delay: Duration,
         max_retries: usize,
@@ -192,14 +193,18 @@ impl SupervisorRunner<Stopped> {
             .with_initial_delay(delay)
             .with_max_retries(max_retries)
             .with_last_retry_interval(last_retry_interval);
-        match backoff_strategy.as_str() {
-            "fixed" => self.state.backoff = BackoffStrategy::Fixed(backoff),
-            "linear" => self.state.backoff = BackoffStrategy::Linear(backoff),
-            "exponential" => self.state.backoff = BackoffStrategy::Exponential(backoff),
+
+        let strategy = match backoff_strategy.as_str() {
+            "fixed" => BackoffStrategy::Fixed(backoff),
+            "linear" => BackoffStrategy::Linear(backoff),
+            "exponential" => BackoffStrategy::Exponential(backoff),
             unsupported => {
-                error!("backoff type {} not supported", unsupported);
+                error!("backoff type {} not supported, setting default", unsupported);
+                BackoffStrategy::None
             }
-        }
+        };
+
+        self.state.restart = RestartPolicy::new(strategy, allowed_exit_codes);
         self.clone()
     }
 }
@@ -217,9 +222,10 @@ mod tests {
             vec!["hello!".to_owned()],
             SupervisorContext::new(),
             tx.clone(),
-            BackoffStrategy::None,
+            RestartPolicy::new(BackoffStrategy::None, Vec::new()),
         )
         .with_restart_policy(
+            vec![0],
             "linear".to_string(),
             Duration::new(0, 100),
             3,

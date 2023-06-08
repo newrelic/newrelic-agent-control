@@ -2,6 +2,40 @@ use std::thread::sleep;
 use std::time::{Duration, Instant};
 
 #[derive(Clone)]
+pub struct RestartPolicy {
+    backoff: BackoffStrategy,
+    allowed_exit_codes: Vec<i32>
+}
+
+impl RestartPolicy{
+    pub fn new(backoff: BackoffStrategy, allowed_exit_codes: Vec<i32>) -> Self {
+        Self {
+            backoff,
+            allowed_exit_codes,
+        }
+    }
+
+    pub fn retry(&mut self, exit_code: i32) -> bool {
+        if self.valid_exit_code(exit_code) {
+            return self.backoff.backoff()
+        }
+        false
+    }
+
+    fn valid_exit_code(&self, exit_code: i32) -> bool {
+        let mut retry = false;
+
+        self.allowed_exit_codes.iter().for_each(|code| {
+            if *code == exit_code {
+                retry = true;
+            }
+        });
+        retry
+    }
+}
+
+
+#[derive(Clone)]
 pub enum BackoffStrategy {
     Fixed(Backoff),
     Linear(Backoff),
@@ -14,7 +48,7 @@ pub enum BackoffStrategy {
 const LAST_RETRY_INTERVAL: Duration = Duration::new(30, 0);
 
 impl BackoffStrategy {
-    pub(crate) fn backoff(&mut self) -> bool {
+    fn backoff(&mut self) -> bool {
         match self {
             BackoffStrategy::Fixed(ref mut b) => b.backoff(fixed, sleep),
             BackoffStrategy::Linear(ref mut b) => b.backoff(linear, sleep),

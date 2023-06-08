@@ -3,7 +3,7 @@ use std::{sync::mpsc::Sender, thread, time::Duration};
 use meta_agent::{
     agent::logging,
     command::{stream::Event, EventLogger, StdEventReceiver},
-    supervisor::{backoff, context, runner::SupervisorRunner, Handle, Runner},
+    supervisor::{restart, context, runner::SupervisorRunner, Handle, Runner},
 };
 
 struct Config {
@@ -17,7 +17,7 @@ impl From<&Config> for SupervisorRunner {
             vec!["hello!".to_string()],
             context::SupervisorContext::new(),
             value.tx.clone(),
-            backoff::BackoffStrategy::None,
+            restart::RestartPolicy::new(restart::BackoffStrategy::None, Vec::new()),
         )
     }
 }
