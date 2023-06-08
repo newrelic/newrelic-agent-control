@@ -6,7 +6,7 @@ use super::{stream::Event, EventLogger};
 
 use log::{debug, error, kv::ToValue};
 
-// TODO: add configuration filters or additional fiels for logging
+// TODO: add configuration filters or additional fields for logging
 pub struct StdEventReceiver {}
 
 impl Default for StdEventReceiver {
