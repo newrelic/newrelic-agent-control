@@ -1,9 +1,11 @@
 mod error;
+
+pub mod logger;
 pub mod processrunner;
 pub mod shutdown;
 pub use crate::command::{
-    processrunner::ProcessRunner, shutdown::wait_exit_timeout, shutdown::wait_exit_timeout_default,
-    shutdown::ProcessTerminator,
+    logger::EventReceiver, processrunner::ProcessRunner, shutdown::wait_exit_timeout,
+    shutdown::wait_exit_timeout_default, shutdown::ProcessTerminator,
 };
 pub mod stream;
 
@@ -11,6 +13,8 @@ use std::{process::ExitStatus, sync::mpsc::Sender};
 
 use error::CommandError;
 use stream::OutputEvent;
+
+use self::stream::Event;
 
 /// Trait that specifies the interface for a background task execution
 pub trait CommandExecutor {
@@ -50,9 +54,13 @@ pub trait CommandTerminator {
 /// This trait represents the capability of a command to stream its output.
 /// As the output collection will be done in a separate thread,
 /// the output will be sent through the `Sender` provided as argument.
-pub trait OutputStreamer {
+pub trait EventStreamer {
     type Error: std::error::Error + Send + Sync;
     type Handle: CommandHandle;
 
-    fn stream(self, snd: Sender<OutputEvent>) -> Result<Self::Handle, Self::Error>;
+    fn stream(self, snd: Sender<Event>) -> Result<Self::Handle, Self::Error>;
+}
+
+pub trait EventLogger {
+    fn log(self);
 }

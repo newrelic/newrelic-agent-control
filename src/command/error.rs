@@ -1,7 +1,7 @@
 use std::{fmt::Debug, process::ExitStatus, sync::mpsc::SendError};
 use thiserror::Error;
 
-use super::stream::OutputEvent;
+use super::stream::Event;
 
 #[derive(Error, Debug)]
 pub enum CommandError {
@@ -17,8 +17,8 @@ pub enum CommandError {
     #[error("`{0}` not piped")]
     StreamPipeError(String),
 
-    #[error("could not get output event")]
-    StreamOutputError(#[from] SendError<OutputEvent>),
+    #[error("could not send output event")]
+    StreamSendError(#[from] SendError<Event>),
 
     #[error("io error")]
     IOError(#[from] std::io::Error),

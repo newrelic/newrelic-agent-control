@@ -1,16 +1,19 @@
 use std::{
+    ffi::OsStr,
     ops::Deref,
+    path::Path,
     sync::mpsc::Sender,
     sync::{Arc, Condvar, Mutex},
     thread::{self, JoinHandle},
 };
 
 use crate::command::{
-    stream::OutputEvent, wait_exit_timeout_default, CommandExecutor, CommandHandle,
-    CommandTerminator, OutputStreamer, ProcessRunner, ProcessTerminator,
+    stream::{Event, Metadata},
+    wait_exit_timeout_default, CommandExecutor, CommandHandle, CommandTerminator, EventStreamer,
+    ProcessRunner, ProcessTerminator,
 };
 
-use super::{context::SupervisorContext, error::ProcessError, Handle, Runner};
+use super::{context::SupervisorContext, error::ProcessError, Handle, Runner, ID};
 
 use log::error;
 
@@ -18,8 +21,9 @@ pub struct Stopped {
     bin: String,
     args: Vec<String>,
     ctx: SupervisorContext,
-    snd: Sender<OutputEvent>,
+    snd: Sender<Event>,
 }
+
 pub struct Running {
     handle: JoinHandle<()>,
     ctx: SupervisorContext,
@@ -34,6 +38,19 @@ impl<T> Deref for SupervisorRunner<T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
         &self.state
+    }
+}
+
+// TODO: change with agent identifier (infra_agent/gateway)
+impl From<&SupervisorRunner<Stopped>> for String {
+    fn from(value: &SupervisorRunner<Stopped>) -> Self {
+        value.bin.clone()
+    }
+}
+
+impl ID for SupervisorRunner<Stopped> {
+    fn id(&self) -> String {
+        String::from(self)
     }
 }
 
@@ -58,16 +75,28 @@ impl From<&SupervisorRunner<Stopped>> for ProcessRunner {
     }
 }
 
+impl From<&SupervisorRunner<Stopped>> for Metadata {
+    // use binary file name as supervisor id
+    fn from(value: &SupervisorRunner<Stopped>) -> Self {
+        Metadata::new(
+            Path::new(&value.bin)
+                .file_name()
+                .unwrap_or(OsStr::new("not found"))
+                .to_string_lossy(),
+        )
+    }
+}
+
 fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
     thread::spawn({
         move || loop {
-            let proc_runner = ProcessRunner::from(&runner);
+            let proc_runner = ProcessRunner::from(&runner).with_metadata(Metadata::from(&runner));
 
             // Actually run the process
             let started = match proc_runner.start() {
                 Ok(s) => s,
                 Err(e) => {
-                    error!("Failed to start a supervised process: {}", e);
+                    error!(supervisor = runner.id(); "Failed to start a supervised process: {}", e);
                     continue;
                 }
             };
@@ -76,7 +105,7 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
             let streaming = match started.stream(runner.snd.clone()) {
                 Ok(s) => s,
                 Err(e) => {
-                    error!("Failed to stream the output of a supervised process: {}", e);
+                    error!(supervisor = runner.id(); "Failed to stream the output of a supervised process: {}", e);
                     continue;
                 }
             };
@@ -119,12 +148,7 @@ impl Handle for SupervisorRunner<Running> {
 }
 
 impl SupervisorRunner<Stopped> {
-    pub fn new(
-        bin: String,
-        args: Vec<String>,
-        ctx: SupervisorContext,
-        snd: Sender<OutputEvent>,
-    ) -> Self {
+    pub fn new(bin: String, args: Vec<String>, ctx: SupervisorContext, snd: Sender<Event>) -> Self {
         SupervisorRunner {
             state: Stopped {
                 bin,

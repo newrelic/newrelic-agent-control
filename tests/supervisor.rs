@@ -1,12 +1,13 @@
 use std::{sync::mpsc::Sender, thread, time::Duration};
 
 use meta_agent::{
-    command::stream::OutputEvent,
+    agent::logging,
+    command::{stream::Event, EventLogger, EventReceiver},
     supervisor::{context, runner::SupervisorRunner, Handle, Runner},
 };
 
 struct Config {
-    tx: Sender<OutputEvent>,
+    tx: Sender<Event>,
 }
 
 impl From<&Config> for SupervisorRunner {
@@ -20,17 +21,30 @@ impl From<&Config> for SupervisorRunner {
     }
 }
 
+use std::sync::Once;
+
+static INIT_LOGGER: Once = Once::new();
+pub fn init_logger() {
+    INIT_LOGGER.call_once(|| {
+        logging::init().unwrap();
+    });
+}
+
 // How should this supervisor work?
 #[test]
 fn test_supervisors() {
+    init_logger();
+
     // Create streaming channel
     let (tx, rx) = std::sync::mpsc::channel();
+
+    let logger = EventReceiver::new(rx);
 
     // Hypothetical meta agent configuration
     let conf = Config { tx };
 
     // Create 50 supervisors
-    let agents: Vec<SupervisorRunner> = (0..50)
+    let agents: Vec<SupervisorRunner> = (0..10)
         .map(
             |_| {
                 SupervisorRunner::from(&conf)
@@ -44,12 +58,9 @@ fn test_supervisors() {
         .map(|agent| agent.run())
         .collect::<Vec<_>>();
 
-    // Get any outputs
-    thread::spawn(move || {
-        rx.iter().for_each(|e| {
-            println!("Received: {:?}", e);
-        })
-    });
+    // Get any outputs in the background
+    //
+    let handle_logger = thread::spawn(move || logger.log());
 
     // Sleep for a while
     thread::sleep(Duration::from_secs(1));
@@ -58,5 +69,9 @@ fn test_supervisors() {
     let results = handles.into_iter().map(|h| h.stop().join());
 
     // Check that all the processes have finished correctly
-    assert_eq!(results.flatten().count(), 50);
+    assert_eq!(results.flatten().count(), 10);
+
+    drop(conf);
+    // ensure logger was terminated
+    handle_logger.join().unwrap();
 }

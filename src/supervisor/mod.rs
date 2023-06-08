@@ -2,8 +2,13 @@ pub mod context;
 mod error;
 pub mod runner;
 
+/// ID represents the identity for a runner. The trait might be used for structured logs.
+pub trait ID {
+    fn id(&self) -> String;
+}
+
 /// The Runner trait defines the entry-point interface for a supervisor. Exposes a run method that will start the supervised process' execution.
-pub trait Runner {
+pub trait Runner: ID {
     type E: std::error::Error + Send + Sync;
     type H: Handle;
 
