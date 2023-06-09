@@ -1,3 +1,5 @@
+use std::error::Error;
+
 pub mod context;
 mod error;
 pub mod restart;
@@ -27,4 +29,8 @@ pub trait Handle {
 
     /// Cancels the supervised process and returns its inner handle.
     fn stop(self) -> Self::S;
+
+    fn wait(self) -> Result<(), Self::E>;
+
+    fn is_finished(&self) -> bool;
 }

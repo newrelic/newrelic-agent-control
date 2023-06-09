@@ -24,7 +24,7 @@ agents:
  */
 
 /// MetaAgentConfig represents the configuration for the meta agent.
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct MetaAgentConfig {
     /// agents is a map of agent types to their specific configuration (if any).

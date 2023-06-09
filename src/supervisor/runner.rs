@@ -165,6 +165,17 @@ impl Handle for SupervisorRunner<Running> {
         self.ctx.cancel_all().unwrap();
         self.state.handle
     }
+
+    fn wait(self) -> Result<(), Self::E> {
+        self.state
+            .handle
+            .join()
+            .map_err(|_| ProcessError::ThreadError)
+    }
+
+    fn is_finished(&self) -> bool {
+        self.state.handle.is_finished()
+    }
 }
 
 impl SupervisorRunner<Stopped> {
