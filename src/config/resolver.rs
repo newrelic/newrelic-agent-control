@@ -37,3 +37,61 @@ impl Default for Resolver {
         Self(builder)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use config::{ConfigError, Source, Value};
+
+    use crate::config::agent_type::AgentType;
+
+    use super::*;
+
+    #[derive(Debug, PartialEq)]
+    struct MockedConfig(&'static str);
+
+    impl Source for MockedConfig {
+        fn clone_into_box(&self) -> Box<dyn Source + Send + Sync> {
+            unimplemented!()
+        }
+
+        fn collect(&self) -> Result<HashMap<String, Value>, ConfigError> {
+            serde_yaml::from_str::<HashMap<String, Value>>(self.0)
+                .map_err(|e| ConfigError::Message(format!("{}", e)))
+        }
+
+        fn collect_to(&self, v: &mut Value) -> Result<(), ConfigError> {
+            *v = self.collect()?.into();
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn basic_config() {
+        let builder = Config::builder().add_source(MockedConfig(
+            r#"
+                # just Infra Agent enabled
+                agents:
+                    nr_infra_agent:
+            "#,
+        ));
+
+        let actual = builder
+            .build()
+            .unwrap()
+            .try_deserialize::<MetaAgentConfig>()
+            .unwrap();
+        let expected = MetaAgentConfig {
+            agents: [(
+                AgentType::InfraAgent(None),
+                config::Value::new(None, config::ValueKind::Nil),
+            )]
+            .iter()
+            .cloned()
+            .collect(),
+        };
+
+        assert_eq!(actual, expected);
+    }
+}
