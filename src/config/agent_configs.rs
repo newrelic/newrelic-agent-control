@@ -5,8 +5,8 @@ use serde::Deserialize;
 
 use super::agent_type::AgentType;
 
-/// MetaAgentConfig represents the configuration for the meta agent.
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct MetaAgentConfig {
     /// agents is a map of agent types to their specific configuration (if any).
     #[serde(deserialize_with = "des_agent_configs")]
@@ -19,6 +19,12 @@ where
 {
     let mut map = HashMap::new();
     let kv: HashMap<AgentType, Value> = HashMap::deserialize(deserializer)?;
+    // fail if empty agents
+    if kv.is_empty() {
+        return Err(serde::de::Error::custom(
+            "config must contain at least one agent",
+        ));
+    }
     for (agent_type, config_value) in kv {
         if let AgentType::Custom(custom_type, custom_agent_name) = &agent_type {
             // Get custom agent type and name as it is in the config
