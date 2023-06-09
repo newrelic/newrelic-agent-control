@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use config::{builder::DefaultState, Config, ConfigBuilder, File, FileFormat, Source};
+use config::{builder::DefaultState, Config, ConfigBuilder, File, FileFormat};
 
 use super::{agent_configs::MetaAgentConfig, error::MetaAgentConfigError};
 
@@ -9,9 +9,11 @@ use super::{agent_configs::MetaAgentConfig, error::MetaAgentConfigError};
 pub struct Resolver(ConfigBuilder<DefaultState>);
 
 impl Resolver {
+    // build from an arbitrary source only for tests
+    #[cfg(test)]
     fn new<T>(source: T) -> Self
     where
-        T: Source + Send + Sync + 'static,
+        T: config::Source + Send + Sync + 'static,
     {
         let builder = Config::builder().add_source(source);
         Self(builder)
