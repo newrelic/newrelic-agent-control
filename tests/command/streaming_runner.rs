@@ -1,7 +1,7 @@
 use std::thread;
 
 use meta_agent::command::{
-    stream::OutputEvent, CommandExecutor, CommandHandle, CommandTerminator, OutputStreamer,
+    stream::OutputEvent, CommandExecutor, CommandHandle, CommandTerminator, EventStreamer,
     ProcessRunner, ProcessTerminator,
 };
 
@@ -37,7 +37,7 @@ fn actual_command_streaming() {
         let mut stdout_actual = Vec::new();
         let mut stderr_actual = Vec::new();
 
-        (0..20).for_each(|_| match rx.recv().unwrap() {
+        (0..20).for_each(|_| match rx.recv().unwrap().output {
             OutputEvent::Stdout(line) => stdout_actual.push(line),
             OutputEvent::Stderr(line) => stderr_actual.push(line),
         });
@@ -83,7 +83,7 @@ fn actual_command_exiting_closes_channel() {
         loop {
             match rx.recv() {
                 Err(_) => break,
-                Ok(event) => match event {
+                Ok(event) => match event.output {
                     OutputEvent::Stdout(line) => stdout_actual.push(line),
                     OutputEvent::Stderr(line) => stderr_actual.push(line),
                 },

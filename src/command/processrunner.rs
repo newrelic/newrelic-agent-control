@@ -7,7 +7,8 @@ use std::{
 };
 
 use super::{
-    CommandError, CommandExecutor, CommandHandle, CommandRunner, OutputEvent, OutputStreamer,
+    stream::{Event, Metadata},
+    CommandError, CommandExecutor, CommandHandle, CommandRunner, EventStreamer, OutputEvent,
 };
 
 use log::error;
@@ -18,6 +19,8 @@ pub struct Started;
 pub struct ProcessRunner<State = Unstarted> {
     cmd: Option<Command>,
     process: Option<Child>,
+    //
+    metadata: Metadata,
 
     state: PhantomData<State>,
 }
@@ -38,7 +41,14 @@ impl ProcessRunner {
             cmd: Some(command),
             state: PhantomData,
             process: None,
+            metadata: Metadata::default(),
         }
+    }
+
+    // TODO: move to builder?
+    pub fn with_metadata(mut self, metadata: Metadata) -> Self {
+        self.metadata = metadata;
+        self
     }
 }
 
@@ -50,6 +60,7 @@ impl CommandExecutor for ProcessRunner<Unstarted> {
             cmd: None,
             state: PhantomData,
             process: Some(self.cmd.ok_or(CommandError::CommandNotFound)?.spawn()?),
+            metadata: self.metadata,
         })
     }
 }
@@ -81,11 +92,17 @@ impl CommandRunner for ProcessRunner {
     }
 }
 
-impl OutputStreamer for ProcessRunner<Started> {
+impl From<&ProcessRunner<Started>> for Metadata {
+    fn from(value: &ProcessRunner<Started>) -> Self {
+        value.metadata.clone()
+    }
+}
+
+impl EventStreamer for ProcessRunner<Started> {
     type Error = CommandError;
     type Handle = ProcessRunner<Started>;
 
-    fn stream(mut self, snd: Sender<OutputEvent>) -> Result<Self::Handle, Self::Error> {
+    fn stream(mut self, snd: Sender<Event>) -> Result<Self::Handle, Self::Error> {
         let c = self
             .process
             .as_mut()
@@ -100,9 +117,12 @@ impl OutputStreamer for ProcessRunner<Started> {
             .take()
             .ok_or(CommandError::StreamPipeError("stderr".to_string()))?;
 
+        let fields: Metadata = Metadata::from(&self);
+
         // Send output to the channel
         std::thread::spawn(move || {
-            process_output_events(stdout, stderr, snd).map_err(|e| error!("stream error: {}", e))
+            process_output_events(stdout, stderr, fields, snd)
+                .map_err(|e| error!("stream error: {}", e))
         });
 
         Ok(self)
@@ -112,7 +132,8 @@ impl OutputStreamer for ProcessRunner<Started> {
 fn process_output_events(
     stdout: ChildStdout,
     stderr: ChildStderr,
-    snd: Sender<OutputEvent>,
+    fields: Metadata,
+    snd: Sender<Event>,
 ) -> Result<(), CommandError> {
     let mut out = BufReader::new(stdout).lines();
     let mut err = BufReader::new(stderr).lines();
@@ -120,13 +141,13 @@ fn process_output_events(
 
     loop {
         if let (false, Some(l)) = (out_done, out.next()) {
-            snd.send(OutputEvent::Stdout(l?))?;
+            snd.send(Event::new(OutputEvent::Stdout(l?), fields.clone()))?;
         } else {
             out_done = true;
         }
 
         if let (false, Some(l)) = (err_done, err.next()) {
-            snd.send(OutputEvent::Stderr(l?))?;
+            snd.send(Event::new(OutputEvent::Stderr(l?), fields.clone()))?;
         } else {
             err_done = true;
         }
@@ -149,7 +170,8 @@ mod tests {
     use std::sync::mpsc::Sender;
 
     use crate::command::error::CommandError;
-    use crate::command::{CommandExecutor, CommandHandle, OutputStreamer};
+    use crate::command::stream::{Event, Metadata};
+    use crate::command::{CommandExecutor, CommandHandle, EventStreamer};
 
     use super::OutputEvent;
 
@@ -194,19 +216,30 @@ mod tests {
         )
     }
 
-    impl OutputStreamer for MockedCommandHandler {
+    impl From<&MockedCommandHandler> for Metadata {
+        fn from(_value: &MockedCommandHandler) -> Self {
+            Metadata::new("mocked")
+        }
+    }
+
+    impl EventStreamer for MockedCommandHandler {
         type Error = CommandError;
         type Handle = MockedCommandHandler;
 
-        fn stream(self, snd: Sender<OutputEvent>) -> Result<Self, Self::Error> {
-            let esnd = snd.clone();
+        fn stream(self, snd: Sender<Event>) -> Result<Self, Self::Error> {
             (0..9).for_each(|i| {
-                snd.send(OutputEvent::Stdout(format!("This is line {}", i)))
-                    .unwrap()
+                snd.send(Event::new(
+                    OutputEvent::Stdout(format!("This is line {}", i)),
+                    Metadata::from(&self),
+                ))
+                .unwrap()
             });
             (0..9).for_each(|i| {
-                esnd.send(OutputEvent::Stderr(format!("This is error {}", i)))
-                    .unwrap()
+                snd.send(Event::new(
+                    OutputEvent::Stderr(format!("This is error {}", i)),
+                    Metadata::from(&self),
+                ))
+                .unwrap()
             });
 
             Ok(self)
@@ -229,9 +262,12 @@ mod tests {
         let mut stdout_result = Vec::new();
         let mut stderr_result = Vec::new();
         // Receive actual data from streamer
-        rx.iter().for_each(|event| match event {
-            OutputEvent::Stdout(line) => stdout_result.push(line),
-            OutputEvent::Stderr(line) => stderr_result.push(line),
+        rx.iter().for_each(|event| {
+            assert_eq!(Metadata::new("mocked"), event.metadata);
+            match event.output {
+                OutputEvent::Stdout(line) => stdout_result.push(line),
+                OutputEvent::Stderr(line) => stderr_result.push(line),
+            }
         });
 
         assert_eq!(stdout_expected, stdout_result);
