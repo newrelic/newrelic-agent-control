@@ -83,40 +83,26 @@ fn resolve_agents_with_custom_configs() {
 
     // Deserializing with the serde_yaml crate because putting
     // the literal Value representations here is too verbose!
-    let expected_nria_conf = serde_yaml::from_str::<Value>(
+    let expected = serde_yaml::from_str::<MetaAgentConfig>(
         r#"
-            configValue: value
-            configList: [value1, value2]
-            configMap:
-                key1: value1
-                key2: value2
-            "#,
-    )
-    .unwrap();
-    let expected_otherinstance_nria_conf = serde_yaml::from_str::<Value>(
-        r#"
-            otherConfigValue: value
-            otherConfigList: [value1, value2]
-            otherConfigMap:
-                key1: value1
-                key2: value2
-            "#,
-    )
-    .unwrap();
+agents:
+  nr_infra_agent:
+    configValue: value
+    configList: [value1, value2]
+    configMap:
+      key1: value1
+      key2: value2
+  nr_otel_collector:
+  nr_infra_agent/otherinstance:
+    otherConfigValue: value
+    otherConfigList: [value1, value2]
+    otherConfigMap:
+      key1: value1
+      key2: value2
 
-    let expected = MetaAgentConfig {
-        agents: [
-            (AgentType::InfraAgent(None), expected_nria_conf),
-            (
-                AgentType::InfraAgent(Some("otherinstance".to_string())),
-                expected_otherinstance_nria_conf,
-            ),
-            (AgentType::Nrdot(None), Value::new(None, ValueKind::Nil)),
-        ]
-        .iter()
-        .cloned()
-        .collect(),
-    };
+            "#,
+    )
+    .unwrap();
 
     assert_eq!(actual.agents.len(), 3);
     assert_eq!(actual, expected);
@@ -124,17 +110,12 @@ fn resolve_agents_with_custom_configs() {
 
 #[test]
 fn resolve_config_with_unexpected_fields() {
-    let actual = load_config("tests/config/assets/non_agent_configs.yml").unwrap();
-    let expected = MetaAgentConfig {
-        agents: [(
-            AgentType::InfraAgent(None),
-            Value::new(None, ValueKind::Nil),
-        )]
-        .iter()
-        .cloned()
-        .collect(),
-    };
-    assert_eq!(actual, expected);
+    let actual = load_config("tests/config/assets/non_agent_configs.yml");
+    assert!(actual.is_err());
+    assert!(actual
+        .unwrap_err()
+        .to_string()
+        .contains("unknown field `this_is_another_random_config`"));
 }
 
 #[test]
