@@ -213,6 +213,7 @@ impl SupervisorRunner<Stopped> {
 mod tests {
     use super::*;
     use std::time::Duration;
+    use crate::command::stream::OutputEvent;
 
     #[test]
     fn test_supervisor_fixed_retry_3_times() {
@@ -240,7 +241,7 @@ mod tests {
             loop {
                 match rx.recv() {
                     Err(_) => break,
-                    Ok(event) => match event {
+                    Ok(event) => match event.output {
                         OutputEvent::Stdout(line) => stdout_actual.push(line),
                         OutputEvent::Stderr(_) => (),
                     },
