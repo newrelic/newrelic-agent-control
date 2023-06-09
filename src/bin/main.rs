@@ -1,8 +1,9 @@
 use std::thread;
 
-use log::{debug, error, info};
+use log::info;
 use meta_agent::{
     cli,
+    command::{EventLogger, StdEventReceiver},
     supervisor::{context::SupervisorContext, supervisor_group::SupervisorGroup},
 };
 
@@ -10,6 +11,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initial setup phase
     info!("Starting the meta agent");
     let meta_agent_configs = cli::init_meta_agent()?;
+
+    // Start logger (will be influenced by the meta agent config, and implementation should be hidden behind a trait)
+    std_logger::Config::logfmt().init();
 
     info!("Creating communication channels");
     let (tx, rx) = std::sync::mpsc::channel();
@@ -28,15 +32,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     // FIXME: Placeholder for NR-121865
-    let _output_manager = thread::spawn(move || {
-        info!("Starting the output manager");
-        loop {
-            match rx.recv() {
-                Ok(output) => debug!("Received output: {:?}", output),
-                Err(e) => error!("Error receiving output: {:?}", e),
-            }
-        }
-    });
+    let _output_manager = StdEventReceiver::default().log(rx);
 
     let supervisor_group = SupervisorGroup::new(ctx, tx, &meta_agent_configs);
     {

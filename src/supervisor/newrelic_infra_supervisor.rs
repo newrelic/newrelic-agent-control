@@ -1,6 +1,6 @@
 use std::sync::mpsc::Sender;
 
-use crate::command::stream::OutputEvent;
+use crate::command::stream::Event;
 
 use super::{context::SupervisorContext, runner::SupervisorRunner};
 
@@ -8,7 +8,7 @@ const NEWRELIC_INFRA_PATH: &str = "/usr/bin/newrelic-infra";
 const NEWRELIC_INFRA_CONFIG_PATH: &str = "/etc/newrelic-infra.yml";
 const NEWRELIC_INFRA_ARGS: [&str; 2] = ["--config", NEWRELIC_INFRA_CONFIG_PATH];
 
-pub struct NRIConfig(SupervisorContext, Sender<OutputEvent>);
+pub struct NRIConfig(SupervisorContext, Sender<Event>);
 
 impl From<&NRIConfig> for SupervisorRunner {
     fn from(value: &NRIConfig) -> Self {
@@ -22,7 +22,7 @@ impl From<&NRIConfig> for SupervisorRunner {
 }
 
 impl NRIConfig {
-    pub fn new(ctx: SupervisorContext, tx: Sender<OutputEvent>) -> Self {
+    pub fn new(ctx: SupervisorContext, tx: Sender<Event>) -> Self {
         Self(ctx, tx)
     }
 }

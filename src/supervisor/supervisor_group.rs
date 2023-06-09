@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::mpsc::Sender};
 
 use crate::{
-    command::stream::OutputEvent,
+    command::stream::Event,
     config::{agent_configs::MetaAgentConfig, agent_type::AgentType},
 };
 
@@ -17,7 +17,7 @@ use super::{
 pub struct SupervisorGroup<S>(HashMap<AgentType, SupervisorRunner<S>>);
 
 impl SupervisorGroup<Stopped> {
-    pub fn new(ctx: SupervisorContext, tx: Sender<OutputEvent>, cfg: &MetaAgentConfig) -> Self {
+    pub fn new(ctx: SupervisorContext, tx: Sender<Event>, cfg: &MetaAgentConfig) -> Self {
         let builder = SupervisorGroupBuilder {
             ctx,
             tx,
@@ -48,7 +48,7 @@ impl SupervisorGroup<Running> {
 
 struct SupervisorGroupBuilder {
     ctx: SupervisorContext,
-    tx: Sender<OutputEvent>,
+    tx: Sender<Event>,
     cfg: MetaAgentConfig,
 }
 
