@@ -1,6 +1,9 @@
 pub mod context;
 mod error;
+pub mod newrelic_infra_supervisor;
+pub mod nrdot_supervisor;
 pub mod runner;
+pub mod supervisor_group;
 
 /// ID represents the identity for a runner. The trait might be used for structured logs.
 pub trait ID {
@@ -23,4 +26,8 @@ pub trait Handle {
 
     /// Cancels the supervised process and returns its inner handle.
     fn stop(self) -> Self::S;
+
+    fn wait(self) -> Result<(), Self::E>;
+
+    fn is_finished(&self) -> bool;
 }

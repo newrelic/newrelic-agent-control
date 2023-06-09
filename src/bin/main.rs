@@ -1,11 +1,79 @@
-use meta_agent::cli;
+use std::thread;
+
+use log::info;
+use meta_agent::{
+    cli::MetaAgentCli,
+    command::{EventLogger, StdEventReceiver},
+    config::ConfigResolver,
+    supervisor::{context::SupervisorContext, supervisor_group::SupervisorGroup},
+};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let _config = cli::init_meta_agent()?;
+    // Initial setup phase
+    info!("Starting the meta agent");
+    let args = MetaAgentCli::init();
 
-    println!("Hello, world!");
-    println!("config: {:?}", _config);
-    println!("I should be overseeing {} agents", _config.agents.len());
+    // Load the meta agent config
+    let cfg = ConfigResolver::resolve(args.get_config())?;
+
+    // Start logger (will be influenced by the meta agent config, and implementation should be hidden behind a trait)
+    std_logger::Config::logfmt().init();
+
+    info!("Creating communication channels");
+    let (tx, rx) = std::sync::mpsc::channel();
+
+    info!("Creating the supervisor context");
+    let ctx = SupervisorContext::new();
+
+    // FIXME: Placeholder for NR-124576
+    let _signal_manager = thread::spawn({
+        let ctx = ctx.clone();
+        move || {
+            info!("Starting the signal manager");
+            thread::sleep(std::time::Duration::from_secs(120));
+            ctx.cancel_all().unwrap();
+        }
+    });
+
+    // FIXME: Placeholder for NR-121865
+    let _output_manager = StdEventReceiver::default().log(rx);
+
+    let supervisor_group = SupervisorGroup::new(ctx, tx, &cfg);
+    {
+        /*
+            TODO: We should first compare the current config with the one in the meta agent config.
+            In a future situation, it might have changed due to updates from OpAMP, etc.
+            Then, this would require selecting the agents whose config has changed,
+            and restarting them.
+
+            FIXME: Given the above comment, this should be converted to a loop in which we modify
+            the supervisor group behavior on config changes and selectively restart them as needed.
+            For checking the supervisors in a non-blocking way, we can use Handle::is_finished().
+
+            Suppose there's a config change. Situations:
+            - Current agents stay as is, new agents are added: start these new agents, merge them into the current group.
+            - Current agents stay as is, some agents are removed: get list of these agents, stop and remove them from the current group.
+            - Updated config for a certain agent(s) (type, name). Get by key (type, name), stop, remove from the current group, start again with the new config and add back to the running group.
+
+            The "merge" operation can only be done if the agents are of the same type! Supervisor<Running>. If they are not started we won't be able to merge them to the running group, as they are different types.
+        */
+
+        info!("Starting the supervisor group.");
+        // Run all the agents in the supervisor group
+        let running_supervisors = supervisor_group.run();
+
+        // For the time being, we only need to wait for the supervisor group to finish
+        let _ = running_supervisors.wait();
+        info!("Supervisor group has finished. Exiting the meta agent");
+    }
+
+    // Ending the program
+    info!("Waiting for the signal manager to finish");
+    _signal_manager.join().unwrap();
+    info!("Waiting for the output manager to finish");
+    _output_manager.join().unwrap();
+
+    info!("Exit");
 
     Ok(())
 }

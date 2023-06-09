@@ -1,4 +1,0 @@
-# just Infra Agent enabled
-agents:
-  nr_infra_agent:
-this_is_another_random_config: value
