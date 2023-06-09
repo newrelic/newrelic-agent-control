@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::mpsc::Receiver};
+use std::{collections::HashMap, sync::mpsc::Sender};
 
 use crate::{
     command::stream::OutputEvent,
@@ -6,30 +6,62 @@ use crate::{
 };
 
 use super::{
-    context::SupervisorContext, newrelic_infra_supervisor::NRIConfig,
-    nrdot_supervisor::NRDOTConfig, runner::SupervisorRunner,
+    context::SupervisorContext,
+    error::ProcessError,
+    newrelic_infra_supervisor::NRIConfig,
+    nrdot_supervisor::NRDOTConfig,
+    runner::{Running, Stopped, SupervisorRunner},
+    Handle, Runner,
 };
 
-pub struct SupervisorGroup {
-    _receiver: Receiver<OutputEvent>,
-    _context: SupervisorContext,
-    _runners: HashMap<AgentType, SupervisorRunner>,
+pub struct SupervisorGroup<S>(HashMap<AgentType, SupervisorRunner<S>>);
+
+impl SupervisorGroup<Stopped> {
+    pub fn new(ctx: SupervisorContext, tx: Sender<OutputEvent>, cfg: &MetaAgentConfig) -> Self {
+        let builder = SupervisorGroupBuilder {
+            ctx,
+            tx,
+            cfg: cfg.clone(),
+        };
+        SupervisorGroup::from(&builder)
+    }
+
+    pub fn run(self) -> SupervisorGroup<Running> {
+        let running = self
+            .0
+            .into_iter()
+            .map(|(t, runner)| (t, runner.run()))
+            .collect();
+        SupervisorGroup(running)
+    }
 }
 
-impl SupervisorGroup {}
+type WaitResult = Result<(), ProcessError>;
+impl SupervisorGroup<Running> {
+    pub fn wait(self) -> HashMap<AgentType, WaitResult> {
+        self.0
+            .into_iter()
+            .map(|(t, runner)| (t, runner.wait()))
+            .collect()
+    }
+}
 
-impl From<&MetaAgentConfig> for SupervisorGroup {
-    fn from(value: &MetaAgentConfig) -> Self {
-        let (tx, _receiver) = std::sync::mpsc::channel();
-        let _context = SupervisorContext::new();
+struct SupervisorGroupBuilder {
+    ctx: SupervisorContext,
+    tx: Sender<OutputEvent>,
+    cfg: MetaAgentConfig,
+}
 
-        let _runners = value
+impl From<&SupervisorGroupBuilder> for SupervisorGroup<Stopped> {
+    fn from(value: &SupervisorGroupBuilder) -> Self {
+        let runners = value
+            .cfg
             .agents
-            .keys()
+            .keys() // When we make the agents configurable, we'll need to iterate over both the keys and values
             .map(|agent_type| {
                 let agent_type = agent_type.clone();
-                let ctx = _context.clone();
-                let tx = tx.clone();
+                let ctx = value.ctx.clone();
+                let tx = value.tx.clone();
                 let runner = match agent_type {
                     AgentType::InfraAgent(_) => SupervisorRunner::from(&NRIConfig::new(ctx, tx)),
                     AgentType::Nrdot(_) => SupervisorRunner::from(&NRDOTConfig::new(ctx, tx)),
@@ -40,10 +72,6 @@ impl From<&MetaAgentConfig> for SupervisorGroup {
                 (agent_type, runner)
             })
             .collect();
-        Self {
-            _receiver,
-            _context,
-            _runners,
-        }
+        SupervisorGroup(runners)
     }
 }

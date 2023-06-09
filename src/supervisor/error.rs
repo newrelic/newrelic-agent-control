@@ -12,6 +12,9 @@ pub enum ProcessError {
     #[cfg(target_family = "unix")]
     #[error("system error")]
     NixError(#[from] nix::Error),
+
+    #[error("thread error")]
+    ThreadError,
 }
 
 impl From<ExitStatus> for ProcessError {

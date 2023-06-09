@@ -1,58 +1,79 @@
-use meta_agent::{cli, supervisor::supervisor_group::SupervisorGroup};
+use std::thread;
+
+use log::{debug, error, info};
+use meta_agent::{
+    cli,
+    supervisor::{context::SupervisorContext, supervisor_group::SupervisorGroup},
+};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Ok, what would be the lifecycle of the meta agent?
-    // I expect it to be something like:
-    // There is a setup phase, in which the meta agent config is retrieved from the CLI or default,
-    // then, for each agent in the config, a supervisor is created, and the agent is started.
-    // The supervisor will be in charge of restarting the agent if it fails.
-    // The meta agent will be in charge of stopping the supervisor if it receives a signal.
-    // If there is a signal to finish the meta agent, the meta agent will stop all the supervisors
-
     // Initial setup phase
+    info!("Starting the meta agent");
     let meta_agent_configs = cli::init_meta_agent()?;
 
-    println!("Hello, world!");
-    println!("config: {:?}", meta_agent_configs);
-    println!(
-        "I should be overseeing {} agents",
-        meta_agent_configs.agents.len()
-    );
+    info!("Creating communication channels");
+    let (tx, rx) = std::sync::mpsc::channel();
 
-    // Create the supervisor group
-    let _supervisor_group = SupervisorGroup::from(&meta_agent_configs);
+    info!("Creating the supervisor context");
+    let ctx = SupervisorContext::new();
 
-    println!("Hello, world!");
-    println!("config: {:?}", meta_agent_configs);
-    println!(
-        "I should be overseeing {} agents",
-        meta_agent_configs.agents.len()
-    );
+    // FIXME: Placeholder for NR-124576
+    let _signal_manager = thread::spawn({
+        let ctx = ctx.clone();
+        move || {
+            info!("Starting the signal manager");
+            thread::sleep(std::time::Duration::from_secs(120));
+            ctx.cancel_all().unwrap();
+        }
+    });
 
-    // TODO: List of things needed
-    /*
-    - [ ] When the config is initialized, should be wrapped in a RwLock. This will allow for future hot reloading of the config (OpAMP input will be the writer?).
-    - [ ] Create a tx/rx pair to communicate with the supervisor group and log the outputs
-    - [ ] Create the overall context
-    - [ ] Spawn a thread to manage the received signals and quit the application (for the moment, this can just wait for like 2 minutes and then call ctx.cancel_all()). Placeholder for NR-124576
-    - [ ] Spawn another thread to receive the outputs. Placeholder for NR-121865.
-    - [ ] Spawn another thread for the supervisor group. Then, in a loop:
-        - [ ] From the config (N2H: compare "current loop config" with fixed config, for hot reloading?), create the supervisor group.
-        - [ ] For each supervisor in the group, start it, getting the handles. N2H: The contexts should be accessible for this loop (for hot reloading, finishing supervisors on demand depending on the config comparison done in the previous step).
-        - [ ] In a branch, filter for the finished supervisors (use JoinHandle::is_finished(), non-blocking). This means that the agents have finished via exceeded retries for their max retries policy or some other reason.
-        - [ ] Join the finished supervisors (should not block the loop for too much).
-        - [ ] If the Result from the join() is an Err, log it as error!. Otherwise, log it as debug!.
-        - [ ] Filter the original supervisor group to remove the finished ones
-        - [ ] If there are no more supervisors, break the loop
-        - [ ] Sleep for a while (1 second?)
-        - [ ] Restart the loop
+    // FIXME: Placeholder for NR-121865
+    let _output_manager = thread::spawn(move || {
+        info!("Starting the output manager");
+        loop {
+            match rx.recv() {
+                Ok(output) => debug!("Received output: {:?}", output),
+                Err(e) => error!("Error receiving output: {:?}", e),
+            }
+        }
+    });
 
-    - [ ] In another loop...
-        - [ ] Wait for the three main threads to be finished (the signal manager, the output manager and the supervisor group manager)
-            - [ ] If the signal manager is finished, the supervisor group should be finished as well soon and with it the output manager, so wait for them to finish.
-            - [ ] If the supervisor group is finished, the output manager should be finished as well soon, so wait for it to finish. Forcefully finish the signal manager. (How? A context + condvar for the signal manager?)
-            - [ ] If the output manager is finished but the other two remain, we have somehow lost communication with the supervisor group (but will this happen?). Forcefully finish the signal manager and the supervisor group. (How? I don't have the context at this point?)
-     */
+    let supervisor_group = SupervisorGroup::new(ctx, tx, &meta_agent_configs);
+    {
+        /*
+            TODO: We should first compare the current config with the one in the meta agent config.
+            In a future situation, it might have changed due to updates from OpAMP, etc.
+            Then, this would require selecting the agents whose config has changed,
+            and restarting them.
+
+            FIXME: Given the above comment, this should be converted to a loop in which we modify
+            the supervisor group behavior on config changes and selectively restart them as needed.
+            For checking the supervisors in a non-blocking way, we can use Handle::is_finished().
+
+            Suppose there's a config change. Situations:
+            - Current agents stay as is, new agents are added: start these new agents, merge them into the current group.
+            - Current agents stay as is, some agents are removed: get list of these agents, stop and remove them from the current group.
+            - Updated config for a certain agent (type, name). Stop this agent, remove it from the current group, start it again with the new config, add it to the current group.
+
+            The "merge" operation can only be done if the agents are of the same type! Supervisor<Running>. If they are not started we won't be able to merge them to the running group, as they are different types.
+        */
+
+        info!("Starting the supervisor group.");
+        // Run all the agents in the supervisor group
+        let running_supervisors = supervisor_group.run();
+
+        // For the time being, we only need to wait for the supervisor group to finish
+        let _ = running_supervisors.wait();
+        info!("Supervisor group has finished. Exiting the meta agent");
+    }
+
+    // Ending the program
+    info!("Waiting for the signal manager to finish");
+    _signal_manager.join().unwrap();
+    info!("Waiting for the output manager to finish");
+    _output_manager.join().unwrap();
+
+    info!("Exit");
 
     Ok(())
 }
