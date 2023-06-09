@@ -22,7 +22,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ctx = SupervisorContext::new();
 
     // FIXME: Placeholder for NR-124576
-    let _signal_manager = thread::spawn({
+    let signal_manager = thread::spawn({
         let ctx = ctx.clone();
         move || {
             info!("Starting the signal manager");
@@ -31,8 +31,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    // FIXME: Placeholder for NR-121865
-    let _output_manager = StdEventReceiver::default().log(rx);
+    let output_manager = StdEventReceiver::default().log(rx);
 
     let supervisor_group = SupervisorGroup::new(ctx, tx, &meta_agent_configs);
     {
@@ -47,9 +46,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             For checking the supervisors in a non-blocking way, we can use Handle::is_finished().
 
             Suppose there's a config change. Situations:
-            - Current agents stay as is, new agents are added: start these new agents, merge them into the current group.
-            - Current agents stay as is, some agents are removed: get list of these agents, stop and remove them from the current group.
-            - Updated config for a certain agent(s) (type, name). Get by key (type, name), stop, remove from the current group, start again with the new config and add back to the running group.
+            - Current agents stay as is, new agents are added: start these new agents, merge them with the current group.
+            - Current agents stay as is, some agents are removed: get list of these agents (by key), stop and remove them from the current group.
+            - Updated config for a certain agent(s) (type, name). Get (by key), stop, remove from the current group, start again with the new config and merge with the running group.
 
             The "merge" operation can only be done if the agents are of the same type! Supervisor<Running>. If they are not started we won't be able to merge them to the running group, as they are different types.
         */
@@ -65,9 +64,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Ending the program
     info!("Waiting for the signal manager to finish");
-    _signal_manager.join().unwrap();
+    signal_manager.join().unwrap();
     info!("Waiting for the output manager to finish");
-    _output_manager.join().unwrap();
+    output_manager.join().unwrap();
 
     info!("Exit");
 
