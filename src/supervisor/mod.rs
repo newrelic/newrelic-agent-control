@@ -1,5 +1,3 @@
-use std::error::Error;
-
 pub mod context;
 mod error;
 pub mod newrelic_infra_supervisor;
