@@ -129,9 +129,10 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
                 break;
             }
 
-            if !restart_policy.retry(exit_code)  {
+            if !restart_policy.should_retry(exit_code)  {
                 break;
             }
+            restart_policy.backoff()
         }
     })
 }
@@ -182,7 +183,7 @@ impl SupervisorRunner<Stopped> {
 
     pub fn with_restart_policy(
         mut self,
-        allowed_exit_codes: Vec<i32>,
+        restart_exit_codes: Vec<i32>,
         backoff_strategy: String,
         delay: Duration,
         max_retries: usize,
@@ -203,7 +204,7 @@ impl SupervisorRunner<Stopped> {
             }
         };
 
-        self.state.restart = RestartPolicy::new(strategy, allowed_exit_codes);
+        self.state.restart = RestartPolicy::new(strategy, restart_exit_codes);
         self
     }
 }

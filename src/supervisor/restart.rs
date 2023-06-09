@@ -4,28 +4,29 @@ use std::time::{Duration, Instant};
 #[derive(Clone)]
 pub struct RestartPolicy {
     backoff: BackoffStrategy,
-    allowed_exit_codes: Vec<i32>
+    restart_exit_codes: Vec<i32>
 }
 
 impl RestartPolicy{
-    pub fn new(backoff: BackoffStrategy, allowed_exit_codes: Vec<i32>) -> Self {
+    pub fn new(backoff: BackoffStrategy, restart_exit_codes: Vec<i32>) -> Self {
         Self {
             backoff,
-            allowed_exit_codes,
+            restart_exit_codes,
         }
     }
 
-    pub fn retry(&mut self, exit_code: i32) -> bool {
-        if self.valid_exit_code(exit_code) {
-            return self.backoff.backoff()
-        }
-        false
+    pub fn should_retry(&mut self, exit_code: i32) -> bool {
+        return self.exit_code_triggers_restart(exit_code) && self.backoff.should_backoff()
     }
 
-    fn valid_exit_code(&self, exit_code: i32) -> bool {
+    pub fn backoff(&mut self) {
+        self.backoff.backoff()
+    }
+
+    fn exit_code_triggers_restart(&self, exit_code: i32) -> bool {
         let mut retry = false;
 
-        self.allowed_exit_codes.iter().for_each(|code| {
+        self.restart_exit_codes.iter().for_each(|code| {
             if *code == exit_code {
                 retry = true;
             }
@@ -48,12 +49,21 @@ pub enum BackoffStrategy {
 const LAST_RETRY_INTERVAL: Duration = Duration::new(30, 0);
 
 impl BackoffStrategy {
-    fn backoff(&mut self) -> bool {
+    fn should_backoff(&mut self) -> bool {
+        match self {
+            BackoffStrategy::Fixed(ref mut b) => b.should_backoff(),
+            BackoffStrategy::Linear(ref mut b) => b.should_backoff(),
+            BackoffStrategy::Exponential(ref mut b) => b.should_backoff(),
+            BackoffStrategy::None => true,
+        }
+    }
+
+    fn backoff(&mut self) {
         match self {
             BackoffStrategy::Fixed(ref mut b) => b.backoff(fixed, sleep),
             BackoffStrategy::Linear(ref mut b) => b.backoff(linear, sleep),
             BackoffStrategy::Exponential(ref mut b) => b.backoff(exponential, sleep),
-            BackoffStrategy::None => true,
+            BackoffStrategy::None => { },
         }
     }
 }
@@ -92,26 +102,23 @@ impl Backoff {
         self
     }
 
-    pub(crate) fn backoff<B, S>(&mut self, backoff_func: B, sleep_func: S) -> bool
-    where
-        B: FnOnce(usize, Duration, S),
-        S: FnOnce(Duration),
-    {
+    fn should_backoff(&mut self) -> bool {
         let duration = self.last_retry.elapsed();
         if duration > self.last_retry_interval {
             self.tries = 0
         }
         self.tries += 1;
 
-        if self.max_retries != 0 && self.tries > self.max_retries {
-            return false;
-        }
+        return self.max_retries == 0 || self.tries <= self.max_retries
+    }
 
+    fn backoff<B, S>(&mut self, backoff_func: B, sleep_func: S)
+        where
+            B: FnOnce(usize, Duration, S),
+            S: FnOnce(Duration),
+    {
         backoff_func(self.tries, self.initial_delay, sleep_func);
-
         self.last_retry = Instant::now();
-
-        true
     }
 }
 
@@ -155,9 +162,13 @@ mod tests {
         let results = vec![true, true, false];
 
         for n in 0..results.capacity() {
-            assert_eq!(results[n], b.backoff(linear, &mut sleep_mock));
+            let should_backoff = b.should_backoff();
+            assert_eq!(results[n], should_backoff);
+            if should_backoff {
+                b.backoff(linear, &mut sleep_mock);
+            }
         }
-        assert_eq!(Duration::from_secs(3), slept)
+        assert_eq!(Duration::from_secs(3), slept);
     }
 
     #[test]
@@ -171,7 +182,11 @@ mod tests {
         let results = vec![true, true, true];
 
         for n in 0..results.capacity() {
-            assert_eq!(results[n], b.backoff(linear, &mut sleep_mock));
+            let should_backoff = b.should_backoff();
+            assert_eq!(results[n], should_backoff);
+            if should_backoff {
+                b.backoff(linear, &mut sleep_mock);
+            }
             //It will be reset every interval causing backoff to always be 1 second
             sleep(Duration::from_micros(2))
         }
@@ -187,7 +202,11 @@ mod tests {
         let results = vec![true, true, true];
 
         for n in 0..results.capacity() {
-            assert_eq!(results[n], b.backoff(linear, &mut sleep_mock));
+            let should_backoff = b.should_backoff();
+            assert_eq!(results[n], should_backoff);
+            if should_backoff {
+                b.backoff(linear, &mut sleep_mock);
+            }
         }
         assert_eq!(Duration::from_secs(36), slept)
     }
@@ -201,7 +220,11 @@ mod tests {
         let results = vec![true, true, true, true];
 
         for n in 0..results.capacity() {
-            assert_eq!(results[n], b.backoff(fixed, &mut sleep_mock));
+            let should_backoff = b.should_backoff();
+            assert_eq!(results[n], should_backoff);
+            if should_backoff {
+                b.backoff(fixed, &mut sleep_mock);
+            }
         }
         assert_eq!(Duration::from_secs(4), slept)
     }
@@ -215,7 +238,11 @@ mod tests {
         let results = vec![true, true, true, true];
 
         for n in 0..results.capacity() {
-            assert_eq!(results[n], b.backoff(exponential, &mut sleep_mock));
+            let should_backoff = b.should_backoff();
+            assert_eq!(results[n], should_backoff);
+            if should_backoff {
+                b.backoff(exponential, &mut sleep_mock);
+            }
         }
         assert_eq!(Duration::from_secs(15), slept)
     }
