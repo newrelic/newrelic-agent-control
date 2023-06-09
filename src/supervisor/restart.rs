@@ -4,6 +4,7 @@ use std::time::{Duration, Instant};
 #[derive(Clone)]
 pub struct RestartPolicy {
     backoff: BackoffStrategy,
+    // If empty all codes trigger restart if populated, only the existing codes will.
     restart_exit_codes: Vec<i32>
 }
 
@@ -24,14 +25,16 @@ impl RestartPolicy{
     }
 
     fn exit_code_triggers_restart(&self, exit_code: i32) -> bool {
-        let mut retry = false;
+        if self.restart_exit_codes.is_empty() {
+            return true;
+        }
 
-        self.restart_exit_codes.iter().for_each(|code| {
+        for code in self.restart_exit_codes.iter() {
             if *code == exit_code {
-                retry = true;
+                return true;
             }
-        });
-        retry
+        }
+        false
     }
 }
 
@@ -152,6 +155,16 @@ where
 mod tests {
     use super::*;
     use std::time::Duration;
+
+    #[test]
+    fn test_restart_policy_should_retry() {
+        let mut rb = RestartPolicy::new(BackoffStrategy::None, vec![1,3]);
+        let results = vec![false, true, false, true];
+
+        for n in 0..results.capacity() {
+            assert_eq!(results[n], rb.should_retry(n as i32));
+        }
+    }
 
     #[test]
     fn test_backoff_linear_max_retries_reached() {
