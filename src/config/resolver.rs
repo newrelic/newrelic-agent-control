@@ -20,14 +20,6 @@ impl Resolver {
     fn build_config(self) -> Result<MetaAgentConfig, MetaAgentConfigError> {
         Ok(self.0.build()?.try_deserialize::<MetaAgentConfig>()?)
     }
-
-    // /// Attempts to build the configuration
-    // pub fn retrieve_config(file: Option<&Path>) -> Result<MetaAgentConfig, MetaAgentConfigError> {
-    //     match file {
-    //         Some(f) => Self::new(f).build_config(),
-    //         None => Self::default().build_config(),
-    //     }
-    // }
 }
 
 impl Default for Resolver {
