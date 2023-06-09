@@ -1,8 +1,4 @@
-mod agent;
-mod config;
-
+pub mod cli;
 pub mod command;
-pub use crate::agent::Agent;
-pub use crate::config::resolver::Resolver;
-
+pub mod config;
 pub mod supervisor;

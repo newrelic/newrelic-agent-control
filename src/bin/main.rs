@@ -1,11 +1,11 @@
-use meta_agent::{Agent, Resolver};
-use serde_json::Value;
+use meta_agent::cli;
 
-fn main() {
-    let config_resolver = Resolver::new();
-    let nextgen: Agent<Resolver, Value> = Agent::new(config_resolver);
-    if let Err(err) = nextgen.start() {
-        eprintln!("{}", err);
-        std::process::exit(1);
-    }
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let _config = cli::init_meta_agent()?;
+
+    println!("Hello, world!");
+    println!("config: {:?}", _config);
+    println!("I should be overseeing {} agents", _config.agents.len());
+
+    Ok(())
 }

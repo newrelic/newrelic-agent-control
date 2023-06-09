@@ -12,8 +12,8 @@ struct Config {
 impl From<&Config> for SupervisorRunner {
     fn from(value: &Config) -> Self {
         SupervisorRunner::new(
-            "echo".to_owned(),
-            vec!["hello!".to_owned()],
+            "echo".to_string(),
+            vec!["hello!".to_string()],
             context::SupervisorContext::new(),
             value.tx.clone(),
         )
@@ -27,7 +27,7 @@ fn test_supervisors() {
     let (tx, rx) = std::sync::mpsc::channel();
 
     // Hypothetical meta agent configuration
-    let mut conf = Config { tx };
+    let conf = Config { tx };
 
     // Create 50 supervisors
     let agents: Vec<SupervisorRunner> = (0..50)

@@ -1,54 +1,39 @@
-use config::{builder::DefaultState, Config as Config_rs, ConfigBuilder, File, FileFormat};
-use serde::Deserialize;
-use std::collections::HashMap;
-use std::fmt::Debug;
+use std::path::Path;
 
-use crate::agent::config::{Config, Getter};
+use config::{builder::DefaultState, Config, ConfigBuilder, File, FileFormat};
+
+use super::{agent_configs::MetaAgentConfig, error::MetaAgentConfigError};
 
 const DEFAULT_STATIC_CONFIG: &str = "/tmp/static.yaml";
 
-/// The Resolver contains an static_builder to build config parser, the crate config_rs is used
-/// that allows registering ordered sources of configuration in multiple supported file formats
-/// to later build consistent configs
-#[derive(Debug)]
-pub struct Resolver {
-    static_builder: ConfigBuilder<DefaultState>,
-}
+/// Builder for the configuration, managing if it is loaded from a default expected file or from
+/// a custom one provided by the command line arguments.
+pub struct Resolver(ConfigBuilder<DefaultState>);
 
-/// The Resolver implementation defines a constructor that will define a single config file source,
-/// that is defined from the default static config.
 impl Resolver {
-    pub fn new() -> Self {
-        let static_builder =
-            Config_rs::builder().add_source(File::new(DEFAULT_STATIC_CONFIG, FileFormat::Yaml));
+    fn new(file: &Path) -> Self {
+        let builder = Config::builder()
+            .add_source(File::new(file.to_string_lossy().as_ref(), FileFormat::Yaml));
+        Self(builder)
+    }
 
-        Self { static_builder }
+    fn build_config(self) -> Result<MetaAgentConfig, MetaAgentConfigError> {
+        Ok(self.0.build()?.try_deserialize::<MetaAgentConfig>()?)
+    }
+
+    /// Attempts to build the configuration
+    pub fn retrieve_config(file: Option<&Path>) -> Result<MetaAgentConfig, MetaAgentConfigError> {
+        match file {
+            Some(f) => Self::new(f).build_config(),
+            None => Self::default().build_config(),
+        }
     }
 }
 
 impl Default for Resolver {
     fn default() -> Self {
-        Self::new()
-    }
-}
-
-/// The implementation of the config::Getter uses config_rs to deserialize the config loaded in the
-/// config_builder into a config::Config
-impl<V> Getter<V> for Resolver
-where
-    V: Debug + for<'a> Deserialize<'a>,
-{
-    fn get(&self) -> Config<V> {
-        match self.static_builder.to_owned().build() {
-            // TODO the error should be handled or panics when unwrapping
-            Ok(config_rs) => config_rs.try_deserialize::<Config<V>>().unwrap(),
-            Err(e) => {
-                println!("{:?}", e);
-                Config {
-                    op_amp: "".to_string(),
-                    agents: HashMap::new(),
-                }
-            }
-        }
+        let builder =
+            Config::builder().add_source(File::new(DEFAULT_STATIC_CONFIG, FileFormat::Yaml));
+        Self(builder)
     }
 }
