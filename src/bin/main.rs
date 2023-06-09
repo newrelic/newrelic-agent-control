@@ -53,7 +53,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Suppose there's a config change. Situations:
             - Current agents stay as is, new agents are added: start these new agents, merge them into the current group.
             - Current agents stay as is, some agents are removed: get list of these agents, stop and remove them from the current group.
-            - Updated config for a certain agent (type, name). Stop this agent, remove it from the current group, start it again with the new config, add it to the current group.
+            - Updated config for a certain agent(s) (type, name). Get by key (type, name), stop, remove from the current group, start again with the new config and add back to the running group.
 
             The "merge" operation can only be done if the agents are of the same type! Supervisor<Running>. If they are not started we won't be able to merge them to the running group, as they are different types.
         */
