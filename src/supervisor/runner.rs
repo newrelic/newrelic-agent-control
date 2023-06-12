@@ -128,9 +128,8 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
             }
 
             let mut code = 0;
-            match exit_code {
-                Some(c) => code = c,
-                None => {}
+            if let Some(c) = exit_code {
+                code = c
             }
 
             if !restart_policy.should_retry(code) {

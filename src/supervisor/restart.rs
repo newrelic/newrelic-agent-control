@@ -17,7 +17,7 @@ impl RestartPolicy {
     }
 
     pub fn should_retry(&mut self, exit_code: i32) -> bool {
-        return self.exit_code_triggers_restart(exit_code) && self.backoff.should_backoff();
+        self.exit_code_triggers_restart(exit_code) && self.backoff.should_backoff()
     }
 
     pub fn backoff(&mut self) {
@@ -53,9 +53,9 @@ const LAST_RETRY_INTERVAL: Duration = Duration::new(30, 0);
 impl BackoffStrategy {
     fn should_backoff(&mut self) -> bool {
         match self {
-            BackoffStrategy::Fixed(ref mut b) => b.should_backoff(),
-            BackoffStrategy::Linear(ref mut b) => b.should_backoff(),
-            BackoffStrategy::Exponential(ref mut b) => b.should_backoff(),
+            BackoffStrategy::Fixed(ref mut b)
+            | BackoffStrategy::Linear(ref mut b)
+            | BackoffStrategy::Exponential(ref mut b) => b.should_backoff(),
             BackoffStrategy::None => true,
         }
     }
