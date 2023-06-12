@@ -139,6 +139,16 @@ signs:
     ]
     artifacts: all
 
+publishers:
+  - name: GH Publisher
+    cmd: ./build/scripts/gh_publisher.sh -t {{ .Env.NR_RELEASE_TAG }} -f {{ abs .ArtifactPath }}
+    extra_files:
+      - glob: "./dist/*.asc"
+      - glob: "./dist/*.sum"
+    env:
+      - GITHUB_TOKEN={{ .Env.GITHUB_TOKEN }}
+
+
 release:
   disable: true
 

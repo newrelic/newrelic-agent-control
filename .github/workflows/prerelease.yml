@@ -1,8 +1,13 @@
 permissions:
   contents: read
+
 on:
-  # TODO: validate when to trigger the pipeline
-  push:
+  release:
+    types:
+      - prereleased
+    tags:
+      - '*'
+
 # See https://docs.github.com/en/actions/using-jobs/using-concurrency
 name: pre-release
 jobs:
@@ -27,7 +32,7 @@ jobs:
         with:
           distribution: goreleaser
           version: latest
-          args: build --snapshot --rm-dist --debug --timeout 2h --single-target
+          args: build --rm-dist --debug --timeout 2h --single-target
         env:
           ARCH: "${{ matrix.arch }}"
           GOARCH: "${{ matrix.arch }}"
@@ -38,16 +43,11 @@ jobs:
         with:
           distribution: goreleaser
           version: latest
-          args: release --snapshot --rm-dist --debug --timeout 2h -f dist/config.yaml
+          args: release --rm-dist --debug --timeout 2h -f dist/config.yaml
         env:
           ARCH: "${{ matrix.arch }}"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GPG_PASSPHRASE: ${{ secrets.OHAI_GPG_PASSPHRASE }}
           GPG_PRIVATE_KEY_BASE64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
           GPG_MAIL: 'infrastructure-eng@newrelic.com'
-
-      - name: Upload archive with assets
-        uses: actions/upload-artifact@v3
-        with:
-          name: "assets-${{ matrix.arch }}"
-          path: dist
+          NR_RELEASE_TAG: ${{ github.event.release.tag_name }}
