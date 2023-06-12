@@ -29,10 +29,7 @@ impl Initializer {
     }
 
     pub fn extract_channel(&mut self) -> Result<(Sender<Event>, Receiver<Event>), AgentError> {
-        self.chn
-            .take()
-            .take()
-            .ok_or(AgentError::ChannelExtractError)
+        self.chn.take().ok_or(AgentError::ChannelExtractError)
     }
 
     pub fn get_context(&self) -> SupervisorContext {
