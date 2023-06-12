@@ -1,0 +1,48 @@
+permissions:
+  contents: read
+on:
+  # TODO: validate when to trigger the pipeline
+  push:
+# See https://docs.github.com/en/actions/using-jobs/using-concurrency
+name: pre-release
+jobs:
+  required:
+    runs-on: ubuntu-latest
+    name: Build and upload / ${{ matrix.arch }}
+    strategy:
+      matrix:
+        arch: [arm64, amd64]
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v3
+        with:
+          go-version: '~1.20'
+          check-latest: true
+
+      - name: Cope correct goreleaser file
+        run: cp "./.goreleaser_${{  matrix.arch }}.yml" "./.goreleaser.yml"
+
+      - name: Build binaries & packages with GoReleaser
+        uses: goreleaser/goreleaser-action@v4
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --snapshot --rm-dist --debug --timeout 2h
+        env:
+          ARCH: "${{ matrix.arch }}"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GPG_PASSPHRASE: ${{ secrets.OHAI_GPG_PASSPHRASE }}
+          GPG_PRIVATE_KEY_BASE64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
+          GPG_MAIL: 'infrastructure-eng@newrelic.com'
+
+      - name: Check
+        run: docker run --rm -v "$PWD":/usr/src/app -w /usr/src/app/build/embedded ubuntu /bin/bash -c "apt-get update && apt-get install tree -y && tree ./"
+
+      - name: Upload archive with assets
+        uses: actions/upload-artifact@v2 #v3 just got released and was not working in windows
+        with:
+          name: "assets-${{ matrix.arch }}"
+          path: dist

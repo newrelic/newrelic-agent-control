@@ -1,0 +1,132 @@
+project_name: nr-meta-agent
+builds:
+  -
+    main: ./build/dummy.go
+    goarch:
+      - amd64
+    goos:
+      - linux
+    binary: nr-meta-agent
+    hooks:
+      post:
+        - sh ./build/scripts/replace_go_with_rust.sh
+        - sh ./build/scripts/download_embedded.sh
+archives:
+  - format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    builds:
+      - nr-meta-agent
+
+nfpms:
+  - package_name: nr-meta-agent
+
+    # Replace arch for rpm from amd64 to x86_64 to be consistent with our rpm repo.
+    file_name_template: >-
+      {{ .PackageName }}_{{ .Version }}_{{ .Os }}_
+      {{- if not (eq (filter .ConventionalFileName "\\.rpm$") "") }}
+        {{- replace .Arch "amd64" "x86_64" }}
+      {{- else }}
+        {{- .Arch }}
+      {{- end }}
+      {{- with .Arm }}v{{ . }}{{- end }}
+      {{- with .Mips }}_{{ . }}{{- end }}
+      {{- if not (eq .Amd64 "v1") }}{{ .Amd64 }}{{- end }}
+
+    contents:
+      # NR Meta Agent
+      - src: build/package/nr-meta-agent.service
+        dst: /lib/systemd/system/nr-meta-agent.service
+      # Infra Agent
+      - src: build/embedded/artifacts/amd64/newrelic-infra/newrelic-infra
+        dst: /usr/bin/newrelic-infra
+      # nri-docker
+      - src: build/embedded/artifacts/amd64/nri-docker
+        dst: /var/db/newrelic-infra/newrelic-integrations/bin/nri-docker
+      - src: build/embedded/artifacts/amd64/docker-config.yml
+        dst: /etc/newrelic-infra/integrations.d/docker-config.yml
+        type: config
+      # nri-flex
+      - src: build/embedded/artifacts/amd64/nri-flex
+        dst: /var/db/newrelic-infra/newrelic-integrations/bin/nri-flex
+      # nri-prometheus
+      - src: build/embedded/artifacts/amd64/nri-prometheus
+        dst: /var/db/newrelic-infra/newrelic-integrations/bin/nri-prometheus
+      # fluent-bit / logging
+      - src: build/embedded/artifacts/amd64/fluent-bit/out_newrelic.so
+        dst: /var/db/newrelic-infra/newrelic-integrations/logging/out_newrelic.so
+      - src: build/embedded/artifacts/amd64/fluent-bit/parsers.conf
+        dst: /var/db/newrelic-infra/newrelic-integrations/logging/parsers.conf
+        type: config
+      - src: build/embedded/artifacts/amd64/fluent-bit/file.yml.example
+        dst: /etc/newrelic-infra/logging.d/file.yml.example
+        type: config
+      - src: build/embedded/artifacts/amd64/fluent-bit/fluentbit.yml.example
+        dst: /etc/newrelic-infra/logging.d/fluentbit.yml.example
+        type: config
+      - src: build/embedded/artifacts/amd64/fluent-bit/syslog.yml.example
+        dst: /etc/newrelic-infra/logging.d/syslog.yml.example
+        type: config
+      - src: build/embedded/artifacts/amd64/fluent-bit/systemd.yml.example
+        dst: /etc/newrelic-infra/logging.d/systemd.yml.example
+        type: config
+      - src: build/embedded/artifacts/amd64/fluent-bit/tcp.yml.example
+        dst: /etc/newrelic-infra/logging.d/tcp.yml.example
+        type: config
+      # NR Otel Collector
+      - src: build/embedded/artifacts/amd64/nr-otel-collector/nr-otel-collector
+        dst: /usr/bin/nr-otel-collector
+      - src: build/embedded/artifacts/amd64/nr-otel-collector/nr-otel-collector.conf
+        dst: /etc/nr-otel-collector/nr-otel-collector.conf
+        type: config
+      - src: build/embedded/artifacts/amd64/nr-otel-collector/config.yaml
+        dst: /etc/nr-otel-collector/config.yaml
+        type: config
+
+    scripts:
+      postinstall: build/package/postinstall.sh
+      postremove: build/package/postremove.sh
+      preremove: build/package/preremove.sh
+
+    id: nr-meta-agent
+    builds:
+      - nr-meta-agent
+    formats:
+      - deb
+      - rpm
+    maintainer: New Relic <caos-team@newrelic.com>
+    description: New Relic Meta Agent - nr-meta-agent
+    license: Apache 2.0
+
+signs:
+  -
+    id: checksums
+
+    # Path to the checksum command.
+    cmd: ./build/scripts/generate_checksum.sh
+    args: [
+      "-f", "{{ .Env.artifact }}",
+    ]
+    artifacts: all
+  -
+    id: signing
+
+    # Path to the signature command.
+    cmd: ./build/scripts/signing/sign.sh
+    args: [
+      "-f", "{{ .Env.artifact }}",
+      "-m", "{{ .Env.GPG_MAIL }}",
+      "-p", "{{ .Env.GPG_PASSPHRASE }}",
+      "-k", "{{ .Env.GPG_PRIVATE_KEY_BASE64 }}"
+    ]
+    artifacts: all
+
+release:
+ disable: true
+
+# Disable default checksum generator as we use a custom one per each artifact.
+checksum:
+  disable: true
+
+# Skip auto-generating changelog.
+changelog:
+  skip: true
