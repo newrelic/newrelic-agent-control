@@ -173,7 +173,7 @@ mod tests {
         let mut b = Backoff::new().with_max_retries(2);
         let results = vec![true, true, false];
 
-        for n in 0..results.capacity() {
+        for n in 0..results.len() {
             let should_backoff = b.should_backoff();
             assert_eq!(results[n], should_backoff);
             if should_backoff {
