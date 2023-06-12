@@ -165,7 +165,7 @@ this_is_another_random_config: value
     }
 
     #[test]
-    fn resolve_empty_agents_field() {
+    fn resolve_empty_agents_field_should_fail_without_empty_map() {
         assert!(Resolver::new(File::from_str(
             "
 agents:
@@ -174,6 +174,24 @@ agents:
         ))
         .build_config()
         .is_err());
+    }
+
+    #[test]
+    fn resolve_empty_agents_field_good() {
+        let actual = Resolver::new(File::from_str(
+            r"
+agents: {}
+",
+            FileFormat::Yaml,
+        ))
+        .build_config();
+
+        let expected = MetaAgentConfig {
+            agents: HashMap::new(),
+        };
+
+        assert!(actual.is_ok());
+        assert_eq!(actual.unwrap(), expected);
     }
 
     #[test]

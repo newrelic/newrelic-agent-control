@@ -104,7 +104,6 @@ fn des_agent_configs<'de, D>(
 where
     D: serde::Deserializer<'de>,
 {
-    // let mut map = HashMap::new();
     let agents: HashMap<AgentType, Option<AgentConfig>> = HashMap::deserialize(deserializer)?;
     agents
         .into_iter()
