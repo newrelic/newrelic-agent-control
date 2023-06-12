@@ -29,19 +29,10 @@ pub struct MetaAgentConfig {
     pub agents: HashMap<AgentType, Option<AgentConfig>>,
 }
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, PartialEq, Clone, Default)]
 pub struct AgentConfig {
     pub restart_policy: Option<RestartPolicy>,
     pub config: Option<HashMap<String, Value>>,
-}
-
-impl Default for AgentConfig {
-    fn default() -> Self {
-        Self {
-            restart_policy: None,
-            config: None,
-        }
-    }
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
