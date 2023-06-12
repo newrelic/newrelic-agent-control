@@ -124,7 +124,7 @@ impl Backoff {
     }
 }
 
-/// fixed is a function executing a sleep function with a delay incrementing linearly
+/// fixed is a function executing a sleep function with a constant delay
 pub fn fixed<S>(_: usize, initial_delay: Duration, sleep_func: S)
 where
     S: FnOnce(Duration),
