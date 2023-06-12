@@ -191,6 +191,7 @@ impl SupervisorRunner<Stopped> {
 mod tests {
     use super::*;
     use crate::command::stream::OutputEvent;
+    use crate::supervisor::restart::Backoff;
     use std::time::Duration;
 
     #[test]
