@@ -160,7 +160,7 @@ mod tests {
         let mut rb = RestartPolicy::new(BackoffStrategy::None, vec![1, 3]);
         let results = vec![false, true, false, true];
 
-        for n in 0..results.capacity() {
+        for n in 0..results.len() {
             assert_eq!(results[n], rb.should_retry(n as i32));
         }
     }
@@ -193,7 +193,7 @@ mod tests {
             .with_last_retry_interval(Duration::from_micros(1));
         let results = vec![true, true, true];
 
-        for n in 0..results.capacity() {
+        for n in 0..results.len() {
             let should_backoff = b.should_backoff();
             assert_eq!(results[n], should_backoff);
             if should_backoff {
@@ -213,7 +213,7 @@ mod tests {
         let mut b = Backoff::new().with_initial_delay(Duration::from_secs(6));
         let results = vec![true, true, true];
 
-        for n in 0..results.capacity() {
+        for n in 0..results.len() {
             let should_backoff = b.should_backoff();
             assert_eq!(results[n], should_backoff);
             if should_backoff {
@@ -231,7 +231,7 @@ mod tests {
         let mut b = Backoff::new();
         let results = vec![true, true, true, true];
 
-        for n in 0..results.capacity() {
+        for n in 0..results.len() {
             let should_backoff = b.should_backoff();
             assert_eq!(results[n], should_backoff);
             if should_backoff {
@@ -249,7 +249,7 @@ mod tests {
         let mut b = Backoff::new();
         let results = vec![true, true, true, true];
 
-        for n in 0..results.capacity() {
+        for n in 0..results.len() {
             let should_backoff = b.should_backoff();
             assert_eq!(results[n], should_backoff);
             if should_backoff {
