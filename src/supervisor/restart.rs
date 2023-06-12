@@ -48,7 +48,7 @@ pub enum BackoffStrategy {
 
 /// Time Duration interval since last retry to consider a service malfunctioning so backoff strategy
 /// should keep its sequence, if duration is higher, then the backoff will reset its values to start a new sequence
-const LAST_RETRY_INTERVAL: Duration = Duration::new(30, 0);
+pub const LAST_RETRY_INTERVAL: Duration = Duration::new(30, 0);
 
 impl BackoffStrategy {
     fn should_backoff(&mut self) -> bool {

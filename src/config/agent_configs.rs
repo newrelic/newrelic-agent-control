@@ -3,6 +3,8 @@ use std::{collections::HashMap, time::Duration};
 use config::Value;
 use serde::Deserialize;
 
+use crate::supervisor::restart::LAST_RETRY_INTERVAL;
+
 use super::agent_type::AgentType;
 
 /*
@@ -67,7 +69,7 @@ pub struct RetryInterval(Duration);
 
 impl Default for RetryInterval {
     fn default() -> Self {
-        Self(Duration::from_secs(30))
+        Self(LAST_RETRY_INTERVAL)
     }
 }
 
