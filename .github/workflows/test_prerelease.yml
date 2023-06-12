@@ -22,15 +22,23 @@ jobs:
           go-version: '~1.20'
           check-latest: true
 
-      - name: Cope correct goreleaser file
-        run: cp "./.goreleaser_${{  matrix.arch }}.yml" "./.goreleaser.yml"
-
-      - name: Build binaries & packages with GoReleaser
+      - name: Build binaries with GoReleaser
         uses: goreleaser/goreleaser-action@v4
         with:
           distribution: goreleaser
           version: latest
-          args: release --snapshot --rm-dist --debug --timeout 2h
+          args: build --snapshot --rm-dist --debug --timeout 2h --single-target
+        env:
+          ARCH: "${{ matrix.arch }}"
+          GOARCH: "${{ matrix.arch }}"
+          GOOS: linux
+
+      - name: Release packages with GoReleaser
+        uses: goreleaser/goreleaser-action@v4
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --snapshot --rm-dist --debug --timeout 2h -f dist/config.yaml
         env:
           ARCH: "${{ matrix.arch }}"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -42,7 +50,7 @@ jobs:
         run: docker run --rm -v "$PWD":/usr/src/app -w /usr/src/app/build/embedded ubuntu /bin/bash -c "apt-get update && apt-get install tree -y && tree ./"
 
       - name: Upload archive with assets
-        uses: actions/upload-artifact@v2 #v3 just got released and was not working in windows
+        uses: actions/upload-artifact@v3
         with:
           name: "assets-${{ matrix.arch }}"
           path: dist
