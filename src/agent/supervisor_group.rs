@@ -3,15 +3,14 @@ use std::{collections::HashMap, sync::mpsc::Sender};
 use crate::{
     command::stream::Event,
     config::{agent_configs::MetaAgentConfig, agent_type::AgentType},
-};
-
-use super::{
-    context::SupervisorContext,
-    error::ProcessError,
-    newrelic_infra_supervisor::NRIConfig,
-    nrdot_supervisor::NRDOTConfig,
-    runner::{Running, Stopped, SupervisorRunner},
-    Handle, Runner,
+    supervisor::{
+        context::SupervisorContext,
+        error::ProcessError,
+        newrelic_infra_supervisor::NRIConfig,
+        nrdot_supervisor::NRDOTConfig,
+        runner::{Running, Stopped, SupervisorRunner},
+        Handle, Runner,
+    },
 };
 
 pub struct SupervisorGroup<S>(HashMap<AgentType, SupervisorRunner<S>>);
