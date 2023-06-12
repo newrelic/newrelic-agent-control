@@ -17,7 +17,6 @@ impl From<&Config> for SupervisorRunner {
             vec!["hello!".to_string()],
             context::SupervisorContext::new(),
             value.tx.clone(),
-            restart::RestartPolicy::new(restart::BackoffStrategy::None, Vec::new()),
         )
     }
 }
