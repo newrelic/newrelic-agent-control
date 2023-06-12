@@ -16,7 +16,7 @@ use crate::command::{
 use super::{
     context::SupervisorContext,
     error::ProcessError,
-    restart::{Backoff, BackoffStrategy, RestartPolicy},
+    restart::{BackoffStrategy, RestartPolicy},
     Handle, Runner, ID,
 };
 

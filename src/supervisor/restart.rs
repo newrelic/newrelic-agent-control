@@ -111,7 +111,7 @@ impl Backoff {
         }
         self.tries += 1;
 
-        return self.max_retries == 0 || self.tries <= self.max_retries;
+        self.max_retries == 0 || self.tries <= self.max_retries
     }
 
     fn backoff<B, S>(&mut self, backoff_func: B, sleep_func: S)
