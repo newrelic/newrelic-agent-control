@@ -15,12 +15,10 @@ use crate::command::{
 };
 
 use super::{
-    restart::{Backoff, BackoffStrategy, RestartPolicy},
     context::SupervisorContext,
     error::ProcessError,
-    Handle,
-    Runner,
-    ID,
+    restart::{Backoff, BackoffStrategy, RestartPolicy},
+    Handle, Runner, ID,
 };
 
 use log::error;
@@ -129,7 +127,7 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
                 break;
             }
 
-            if !restart_policy.should_retry(exit_code)  {
+            if !restart_policy.should_retry(exit_code) {
                 break;
             }
             restart_policy.backoff()
@@ -199,7 +197,10 @@ impl SupervisorRunner<Stopped> {
             "linear" => BackoffStrategy::Linear(backoff),
             "exponential" => BackoffStrategy::Exponential(backoff),
             unsupported => {
-                error!("backoff type {} not supported, setting default", unsupported);
+                error!(
+                    "backoff type {} not supported, setting default",
+                    unsupported
+                );
                 BackoffStrategy::None
             }
         };
@@ -212,8 +213,8 @@ impl SupervisorRunner<Stopped> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Duration;
     use crate::command::stream::OutputEvent;
+    use std::time::Duration;
 
     #[test]
     fn test_supervisor_fixed_retry_3_times() {

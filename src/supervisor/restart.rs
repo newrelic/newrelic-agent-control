@@ -5,10 +5,10 @@ use std::time::{Duration, Instant};
 pub struct RestartPolicy {
     backoff: BackoffStrategy,
     // If empty all codes trigger restart if populated, only the existing codes will.
-    restart_exit_codes: Vec<i32>
+    restart_exit_codes: Vec<i32>,
 }
 
-impl RestartPolicy{
+impl RestartPolicy {
     pub fn new(backoff: BackoffStrategy, restart_exit_codes: Vec<i32>) -> Self {
         Self {
             backoff,
@@ -17,7 +17,7 @@ impl RestartPolicy{
     }
 
     pub fn should_retry(&mut self, exit_code: i32) -> bool {
-        return self.exit_code_triggers_restart(exit_code) && self.backoff.should_backoff()
+        return self.exit_code_triggers_restart(exit_code) && self.backoff.should_backoff();
     }
 
     pub fn backoff(&mut self) {
@@ -37,7 +37,6 @@ impl RestartPolicy{
         false
     }
 }
-
 
 #[derive(Clone)]
 pub enum BackoffStrategy {
@@ -66,7 +65,7 @@ impl BackoffStrategy {
             BackoffStrategy::Fixed(ref mut b) => b.backoff(fixed, sleep),
             BackoffStrategy::Linear(ref mut b) => b.backoff(linear, sleep),
             BackoffStrategy::Exponential(ref mut b) => b.backoff(exponential, sleep),
-            BackoffStrategy::None => { },
+            BackoffStrategy::None => {}
         }
     }
 }
@@ -112,13 +111,13 @@ impl Backoff {
         }
         self.tries += 1;
 
-        return self.max_retries == 0 || self.tries <= self.max_retries
+        return self.max_retries == 0 || self.tries <= self.max_retries;
     }
 
     fn backoff<B, S>(&mut self, backoff_func: B, sleep_func: S)
-        where
-            B: FnOnce(usize, Duration, S),
-            S: FnOnce(Duration),
+    where
+        B: FnOnce(usize, Duration, S),
+        S: FnOnce(Duration),
     {
         backoff_func(self.tries, self.initial_delay, sleep_func);
         self.last_retry = Instant::now();
@@ -158,7 +157,7 @@ mod tests {
 
     #[test]
     fn test_restart_policy_should_retry() {
-        let mut rb = RestartPolicy::new(BackoffStrategy::None, vec![1,3]);
+        let mut rb = RestartPolicy::new(BackoffStrategy::None, vec![1, 3]);
         let results = vec![false, true, false, true];
 
         for n in 0..results.capacity() {
