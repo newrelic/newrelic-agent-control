@@ -93,8 +93,8 @@ nfpms:
       preremove: build/package/preremove.sh
 
     provides:
-      - newrelic-infra (= 1.42.4)
-      - nr-otel-collector (= 0.1.0)
+      - newrelic-infra (= 3.0.0)
+      - nr-otel-collector (= 2.0.0)
     conflicts:
       - newrelic-infra
       - nr-otel-collector

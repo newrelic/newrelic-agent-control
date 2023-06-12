@@ -11,4 +11,3 @@ Cargo.lock
 
 # goreleaser paths
 dist/
-#.goreleaser.yml

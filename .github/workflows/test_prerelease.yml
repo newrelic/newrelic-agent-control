@@ -46,9 +46,6 @@ jobs:
           GPG_PRIVATE_KEY_BASE64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
           GPG_MAIL: 'infrastructure-eng@newrelic.com'
 
-      - name: Check
-        run: docker run --rm -v "$PWD":/usr/src/app -w /usr/src/app/build/embedded ubuntu /bin/bash -c "apt-get update && apt-get install tree -y && tree ./"
-
       - name: Upload archive with assets
         uses: actions/upload-artifact@v3
         with:
