@@ -119,7 +119,7 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
             };
 
             _ = wait_for_termination(streaming.get_pid(), runner.ctx.clone());
-            let exit_code = streaming.wait().unwrap().code().unwrap();
+            let exit_code = streaming.wait().unwrap().code();
 
             let (lck, _) = SupervisorContext::get_lock_cvar(&runner.ctx);
             let val = lck.lock().unwrap();
@@ -127,7 +127,13 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
                 break;
             }
 
-            if !restart_policy.should_retry(exit_code) {
+            let mut code = 0;
+            match exit_code {
+                Some(c) => code = c,
+                None => { },
+            }
+
+            if !restart_policy.should_retry(code) {
                 break;
             }
             restart_policy.backoff()
