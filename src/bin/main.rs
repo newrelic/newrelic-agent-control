@@ -2,9 +2,10 @@ use std::thread;
 
 use log::info;
 use meta_agent::{
+    agent::{logging, supervisor_group::SupervisorGroup},
     cli,
     command::{EventLogger, StdEventReceiver},
-    supervisor::{context::SupervisorContext, supervisor_group::SupervisorGroup},
+    supervisor::context::SupervisorContext,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -13,7 +14,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let meta_agent_configs = cli::init_meta_agent()?;
 
     // Start logger (will be influenced by the meta agent config, and implementation should be hidden behind a trait)
-    std_logger::Config::logfmt().init();
+    logging::init()?;
 
     info!("Creating communication channels");
     let (tx, rx) = std::sync::mpsc::channel();
