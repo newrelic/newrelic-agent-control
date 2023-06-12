@@ -3,7 +3,7 @@ use std::{sync::mpsc::Sender, thread, time::Duration};
 use meta_agent::{
     agent::logging,
     command::{stream::Event, EventLogger, StdEventReceiver},
-    supervisor::{context, runner::SupervisorRunner, Handle, Runner},
+    supervisor::{context, restart, runner::SupervisorRunner, Handle, Runner},
 };
 
 struct Config {

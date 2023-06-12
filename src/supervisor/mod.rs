@@ -1,5 +1,6 @@
 pub mod context;
 mod error;
+pub mod restart;
 pub mod runner;
 
 /// ID represents the identity for a runner. The trait might be used for structured logs.

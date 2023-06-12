@@ -13,7 +13,12 @@ use crate::command::{
     ProcessRunner, ProcessTerminator,
 };
 
-use super::{context::SupervisorContext, error::ProcessError, Handle, Runner, ID};
+use super::{
+    context::SupervisorContext,
+    error::ProcessError,
+    restart::{BackoffStrategy, RestartPolicy},
+    Handle, Runner, ID,
+};
 
 use log::error;
 
@@ -22,6 +27,7 @@ pub struct Stopped {
     args: Vec<String>,
     ctx: SupervisorContext,
     snd: Sender<Event>,
+    restart: RestartPolicy,
 }
 
 pub struct Running {
@@ -88,6 +94,7 @@ impl From<&SupervisorRunner<Stopped>> for Metadata {
 }
 
 fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
+    let mut restart_policy = runner.restart.clone();
     thread::spawn({
         move || loop {
             let proc_runner = ProcessRunner::from(&runner).with_metadata(Metadata::from(&runner));
@@ -111,13 +118,26 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
             };
 
             _ = wait_for_termination(streaming.get_pid(), runner.ctx.clone());
-            _ = streaming.wait().unwrap();
+
+            // Signals return exit_code 0, if in the future we need to act on them we can import
+            // std::os::unix::process::ExitStatusExt to get the code with the method into_raw
+            let exit_code = streaming.wait().unwrap().code();
 
             let (lck, _) = SupervisorContext::get_lock_cvar(&runner.ctx);
             let val = lck.lock().unwrap();
             if *val {
                 break;
             }
+
+            let mut code = 0;
+            if let Some(c) = exit_code {
+                code = c
+            }
+
+            if !restart_policy.should_retry(code) {
+                break;
+            }
+            restart_policy.backoff()
         }
     })
 }
@@ -155,7 +175,70 @@ impl SupervisorRunner<Stopped> {
                 args,
                 ctx,
                 snd,
+                restart: RestartPolicy::new(BackoffStrategy::None, Vec::new()),
             },
         }
+    }
+
+    pub fn with_restart_policy(
+        mut self,
+        restart_exit_codes: Vec<i32>,
+        backoff_strategy: BackoffStrategy,
+    ) -> Self {
+        self.state.restart = RestartPolicy::new(backoff_strategy, restart_exit_codes);
+        self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::command::stream::OutputEvent;
+    use crate::supervisor::restart::Backoff;
+    use std::time::Duration;
+
+    #[test]
+    fn test_supervisor_fixed_retry_3_times() {
+        let (tx, rx) = std::sync::mpsc::channel();
+
+        let backoff = Backoff::new()
+            .with_initial_delay(Duration::new(0, 100))
+            .with_max_retries(3)
+            .with_last_retry_interval(Duration::new(30, 0));
+
+        let agent: SupervisorRunner = SupervisorRunner::new(
+            "echo".to_owned(),
+            vec!["hello!".to_owned()],
+            SupervisorContext::new(),
+            tx.clone(),
+        )
+        .with_restart_policy(vec![0], BackoffStrategy::Fixed(backoff));
+
+        let agent = agent.run();
+
+        let stream = thread::spawn(move || {
+            let mut stdout_actual = Vec::new();
+
+            loop {
+                match rx.recv() {
+                    Err(_) => break,
+                    Ok(event) => match event.output {
+                        OutputEvent::Stdout(line) => stdout_actual.push(line),
+                        OutputEvent::Stderr(_) => (),
+                    },
+                }
+            }
+
+            stdout_actual
+        });
+
+        while !agent.handle.is_finished() {
+            thread::sleep(Duration::from_millis(15));
+        }
+
+        drop(tx);
+        let stdout = stream.join().unwrap();
+
+        assert_eq!(4, stdout.iter().count());
     }
 }
