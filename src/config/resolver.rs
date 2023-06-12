@@ -46,9 +46,13 @@ impl Default for Resolver {
 #[cfg(test)]
 mod tests {
 
+    use std::collections::HashMap;
+
     use super::*;
     use crate::config::{
-        agent_configs::MetaAgentConfig, agent_type::AgentType, resolver::Resolver,
+        agent_configs::{AgentConfig, MetaAgentConfig},
+        agent_type::AgentType,
+        resolver::Resolver,
     };
     use config::{Value, ValueKind};
 
@@ -68,13 +72,10 @@ agents:
         .unwrap();
 
         let expected = MetaAgentConfig {
-            agents: [(
-                AgentType::InfraAgent(None),
-                Value::new(None, ValueKind::Nil),
-            )]
-            .iter()
-            .cloned()
-            .collect(),
+            agents: [(AgentType::InfraAgent(None), None)]
+                .iter()
+                .cloned()
+                .collect(),
         };
 
         assert_eq!(actual.agents.len(), 1);
@@ -98,11 +99,8 @@ agents:
 
         let expected = MetaAgentConfig {
             agents: [
-                (
-                    AgentType::InfraAgent(None),
-                    Value::new(None, ValueKind::Nil),
-                ),
-                (AgentType::Nrdot(None), Value::new(None, ValueKind::Nil)),
+                (AgentType::InfraAgent(None), None),
+                (AgentType::Nrdot(None), None),
             ]
             .iter()
             .cloned()
@@ -131,15 +129,12 @@ agents:
 
         let expected = MetaAgentConfig {
             agents: [
-                (
-                    AgentType::InfraAgent(None),
-                    Value::new(None, ValueKind::Nil),
-                ),
+                (AgentType::InfraAgent(None), None),
                 (
                     AgentType::InfraAgent(Some("otherinstance".to_string())),
-                    Value::new(None, ValueKind::Nil),
+                    None,
                 ),
-                (AgentType::Nrdot(None), Value::new(None, ValueKind::Nil)),
+                (AgentType::Nrdot(None), None),
             ]
             .iter()
             .cloned()
@@ -161,18 +156,12 @@ this_is_another_random_config: value
 ",
             FileFormat::Yaml,
         ))
-        .build_config()
-        .unwrap();
-        let expected = MetaAgentConfig {
-            agents: [(
-                AgentType::InfraAgent(None),
-                Value::new(None, ValueKind::Nil),
-            )]
-            .iter()
-            .cloned()
-            .collect(),
-        };
-        assert_eq!(actual, expected);
+        .build_config();
+        assert!(actual.is_err());
+        assert!(actual
+            .unwrap_err()
+            .to_string()
+            .contains("unknown field `this_is_another_random_config`"));
     }
 
     #[test]
@@ -194,18 +183,20 @@ agents:
             "
 agents:
   nr_infra_agent:
-    configValue: value
-    configList: [value1, value2]
-    configMap:
-      key1: value1
-      key2: value2
+    config:
+      configValue: value
+      configList: [value1, value2]
+      configMap:
+        key1: value1
+        key2: value2
   nr_otel_collector:
   nr_infra_agent/otherinstance:
-    otherConfigValue: value
-    otherConfigList: [value1, value2]
-    otherConfigMap:
-      key1: value1
-      key2: value2
+    config:
+      otherConfigValue: value
+      otherConfigList: [value1, value2]
+      otherConfigMap:
+        key1: value1
+        key2: value2
 ",
             FileFormat::Yaml,
         ))
@@ -214,7 +205,7 @@ agents:
 
         // Deserializing with the serde_yaml crate because putting
         // the literal Value representations here is too verbose!
-        let expected_nria_conf = serde_yaml::from_str::<Value>(
+        let expected_nria_conf = serde_yaml::from_str::<HashMap<String, Value>>(
             r#"
             configValue: value
             configList: [value1, value2]
@@ -224,7 +215,7 @@ agents:
             "#,
         )
         .unwrap();
-        let expected_otherinstance_nria_conf = serde_yaml::from_str::<Value>(
+        let expected_otherinstance_nria_conf = serde_yaml::from_str::<HashMap<String, Value>>(
             r#"
             otherConfigValue: value
             otherConfigList: [value1, value2]
@@ -237,12 +228,21 @@ agents:
 
         let expected = MetaAgentConfig {
             agents: [
-                (AgentType::InfraAgent(None), expected_nria_conf),
+                (
+                    AgentType::InfraAgent(None),
+                    Some(AgentConfig {
+                        restart_policy: None,
+                        config: Some(expected_nria_conf),
+                    }),
+                ),
                 (
                     AgentType::InfraAgent(Some("otherinstance".to_string())),
-                    expected_otherinstance_nria_conf,
+                    Some(AgentConfig {
+                        restart_policy: None,
+                        config: Some(expected_otherinstance_nria_conf),
+                    }),
                 ),
-                (AgentType::Nrdot(None), Value::new(None, ValueKind::Nil)),
+                (AgentType::Nrdot(None), None),
             ]
             .iter()
             .cloned()
@@ -259,16 +259,19 @@ agents:
             r#"
 agents:
   custom_agent:
-    bin: echo
+    config:
+      bin: echo
   custom_agent/nobin:
-    args:
-      - "hello"
-      - "world"
+    config:
+      args:
+        - "hello"
+        - "world"
   custom_agent/binargs:
-    bin: echo
-    args:
-      - "hello"
-      - "world"
+    config:
+      bin: echo
+      args:
+        - "hello"
+        - "world"
 "#,
             FileFormat::Yaml,
         ))
