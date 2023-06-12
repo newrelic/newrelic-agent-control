@@ -5,7 +5,6 @@ use std::{
     sync::mpsc::Sender,
     sync::{Arc, Condvar, Mutex},
     thread::{self, JoinHandle},
-    time::Duration,
 };
 
 use crate::command::{
@@ -166,20 +165,14 @@ impl Handle for SupervisorRunner<Running> {
 }
 
 impl SupervisorRunner<Stopped> {
-    pub fn new(
-        bin: String,
-        args: Vec<String>,
-        ctx: SupervisorContext,
-        snd: Sender<Event>,
-        restart: RestartPolicy,
-    ) -> Self {
+    pub fn new(bin: String, args: Vec<String>, ctx: SupervisorContext, snd: Sender<Event>) -> Self {
         SupervisorRunner {
             state: Stopped {
                 bin,
                 args,
                 ctx,
                 snd,
-                restart,
+                restart: RestartPolicy::new(BackoffStrategy::None, Vec::new()),
             },
         }
     }
@@ -187,30 +180,9 @@ impl SupervisorRunner<Stopped> {
     pub fn with_restart_policy(
         mut self,
         restart_exit_codes: Vec<i32>,
-        backoff_strategy: String,
-        delay: Duration,
-        max_retries: usize,
-        last_retry_interval: Duration,
+        backoff_strategy: BackoffStrategy,
     ) -> Self {
-        let backoff = Backoff::new()
-            .with_initial_delay(delay)
-            .with_max_retries(max_retries)
-            .with_last_retry_interval(last_retry_interval);
-
-        let strategy = match backoff_strategy.as_str() {
-            "fixed" => BackoffStrategy::Fixed(backoff),
-            "linear" => BackoffStrategy::Linear(backoff),
-            "exponential" => BackoffStrategy::Exponential(backoff),
-            unsupported => {
-                error!(
-                    "backoff type {} not supported, setting default",
-                    unsupported
-                );
-                BackoffStrategy::None
-            }
-        };
-
-        self.state.restart = RestartPolicy::new(strategy, restart_exit_codes);
+        self.state.restart = RestartPolicy::new(backoff_strategy, restart_exit_codes);
         self
     }
 }
@@ -224,20 +196,19 @@ mod tests {
     #[test]
     fn test_supervisor_fixed_retry_3_times() {
         let (tx, rx) = std::sync::mpsc::channel();
+
+        let backoff = Backoff::new()
+            .with_initial_delay(Duration::new(0, 100))
+            .with_max_retries(3)
+            .with_last_retry_interval(Duration::new(30, 0));
+
         let agent: SupervisorRunner = SupervisorRunner::new(
             "echo".to_owned(),
             vec!["hello!".to_owned()],
             SupervisorContext::new(),
             tx.clone(),
-            RestartPolicy::new(BackoffStrategy::None, Vec::new()),
         )
-        .with_restart_policy(
-            vec![0],
-            "linear".to_string(),
-            Duration::new(0, 100),
-            3,
-            Duration::new(30, 0),
-        );
+        .with_restart_policy(vec![0], BackoffStrategy::Fixed(backoff));
 
         let agent = agent.run();
 
