@@ -50,11 +50,11 @@ mod tests {
 
     use super::*;
     use crate::config::{
-        agent_configs::{AgentConfig, MetaAgentConfig},
+        agent_configs::{AgentConfig, MetaAgentConfig, RestartPolicyConfig},
         agent_type::AgentType,
         resolver::Resolver,
     };
-    use config::{Value, ValueKind};
+    use config::Value;
 
     #[test]
     fn resolve_one_agent() {
@@ -231,14 +231,14 @@ agents:
                 (
                     AgentType::InfraAgent(None),
                     Some(AgentConfig {
-                        restart_policy: None,
+                        restart_policy: RestartPolicyConfig::default(),
                         config: Some(expected_nria_conf),
                     }),
                 ),
                 (
                     AgentType::InfraAgent(Some("otherinstance".to_string())),
                     Some(AgentConfig {
-                        restart_policy: None,
+                        restart_policy: RestartPolicyConfig::default(),
                         config: Some(expected_otherinstance_nria_conf),
                     }),
                 ),

@@ -3,7 +3,7 @@ use std::{collections::HashMap, time::Duration};
 use config::Value;
 use serde::Deserialize;
 
-use crate::supervisor::restart::LAST_RETRY_INTERVAL;
+use crate::supervisor::restart::{Backoff, BackoffStrategy, LAST_RETRY_INTERVAL};
 
 use super::agent_type::AgentType;
 
@@ -14,10 +14,11 @@ The structures below assume a config similar to the following:
 agents:
     nr_infra_agent:
         restart_policy:
-            backoff_strategy: fixed
-            backoff_delay: 1s
-            max_retries: 3
-            with_last_retry_interval: 30s
+            backoff_strategy:
+                type: fixed
+                backoff_delay: 1s
+                max_retries: 3
+                with_last_retry_interval: 30s
         config: {} # Some arbitrary values passed to the agent itself.
         # TODO: What should we do with `bin'/`args` for custom agents?
 ```
@@ -34,43 +35,67 @@ pub struct MetaAgentConfig {
 
 #[derive(Debug, Deserialize, PartialEq, Clone, Default)]
 pub struct AgentConfig {
-    pub restart_policy: Option<RestartPolicy>,
+    #[serde(default)]
+    pub restart_policy: RestartPolicyConfig,
     pub config: Option<HashMap<String, Value>>,
 }
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
-pub struct RestartPolicy {
+#[derive(Debug, Deserialize, PartialEq, Clone, Default)]
+pub struct RestartPolicyConfig {
     #[serde(default)]
-    pub backoff_strategy: BackoffStrategy,
-    pub backoff_delay: Duration,
-    pub max_retries: usize,
-    #[serde(default)]
-    pub with_last_retry_interval: RetryInterval,
+    pub backoff_strategy: BackoffStrategyConfig,
     pub restart_exit_codes: Vec<i32>,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
-#[serde(rename_all = "lowercase")]
-pub enum BackoffStrategy {
+#[serde(rename_all = "lowercase", tag = "type")]
+pub enum BackoffStrategyConfig {
     None,
-    Fixed,
-    Linear,
-    Exponential,
+    Fixed(BackoffStrategyInner),
+    Linear(BackoffStrategyInner),
+    Exponential(BackoffStrategyInner),
 }
 
-impl Default for BackoffStrategy {
+#[derive(Debug, Deserialize, PartialEq, Clone)]
+pub struct BackoffStrategyInner {
+    pub backoff_delay: Duration,
+    pub max_retries: usize,
+    #[serde(default = "default_last_retry_interval")]
+    pub with_last_retry_interval: Duration,
+}
+
+impl From<&BackoffStrategyConfig> for BackoffStrategy {
+    fn from(value: &BackoffStrategyConfig) -> Self {
+        match value {
+            BackoffStrategyConfig::Fixed(inner) => {
+                BackoffStrategy::Fixed(realize_backoff_config(inner))
+            }
+            BackoffStrategyConfig::Linear(inner) => {
+                BackoffStrategy::Linear(realize_backoff_config(inner))
+            }
+            BackoffStrategyConfig::Exponential(inner) => {
+                BackoffStrategy::Exponential(realize_backoff_config(inner))
+            }
+            BackoffStrategyConfig::None => BackoffStrategy::None,
+        }
+    }
+}
+
+impl Default for BackoffStrategyConfig {
     fn default() -> Self {
         Self::None
     }
 }
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
-pub struct RetryInterval(Duration);
+fn realize_backoff_config(i: &BackoffStrategyInner) -> Backoff {
+    Backoff::new()
+        .with_initial_delay(i.backoff_delay)
+        .with_max_retries(i.max_retries)
+        .with_last_retry_interval(i.with_last_retry_interval)
+}
 
-impl Default for RetryInterval {
-    fn default() -> Self {
-        Self(LAST_RETRY_INTERVAL)
-    }
+fn default_last_retry_interval() -> Duration {
+    LAST_RETRY_INTERVAL
 }
 
 fn des_agent_configs<'de, D>(

@@ -56,19 +56,21 @@ impl From<&SupervisorGroupBuilder> for SupervisorGroup<Stopped> {
         let runners = value
             .cfg
             .agents
-            .keys() // When we make the agents configurable, we'll need to iterate over both the keys and values
-            .map(|agent_type| {
-                let agent_type = agent_type.clone();
+            .iter()
+            .map(|(agent_t, agent_cfg)| {
                 let ctx = value.ctx.clone();
                 let tx = value.tx.clone();
-                let runner = match agent_type {
-                    AgentType::InfraAgent(_) => SupervisorRunner::from(&NRIConfig::new(ctx, tx)),
-                    AgentType::Nrdot(_) => SupervisorRunner::from(&NRDOTConfig::new(ctx, tx)),
+                let cfg = agent_cfg.clone();
+                let runner = match &agent_t {
+                    AgentType::InfraAgent(_) => {
+                        SupervisorRunner::from(&NRIConfig::new(ctx, tx, cfg))
+                    }
+                    AgentType::Nrdot(_) => SupervisorRunner::from(&NRDOTConfig::new(ctx, tx, cfg)),
                     AgentType::Custom(_, _) => {
                         unimplemented!("Custom agent type not implemented yet")
                     }
                 };
-                (agent_type, runner)
+                (agent_t.clone(), runner)
             })
             .collect();
         SupervisorGroup(runners)
