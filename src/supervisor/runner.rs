@@ -118,6 +118,9 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
             };
 
             _ = wait_for_termination(streaming.get_pid(), runner.ctx.clone());
+
+            // Signals return exit_code 0, if in the future we need to act on them we can import
+            // std::os::unix::process::ExitStatusExt to get the code with the method into_raw
             let exit_code = streaming.wait().unwrap().code();
 
             let (lck, _) = SupervisorContext::get_lock_cvar(&runner.ctx);
