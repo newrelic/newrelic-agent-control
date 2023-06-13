@@ -11,6 +11,7 @@ mod error;
 pub mod lifecycle;
 pub mod logging;
 pub mod supervisor_group;
+pub mod signal;
 
 pub struct Agent;
 
