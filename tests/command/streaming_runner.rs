@@ -7,6 +7,8 @@ use meta_agent::command::{
 
 const TICKER: &str = "tests/command/scripts/ticker.sh";
 const TICKER_10: &str = "tests/command/scripts/ticker_10.sh";
+const TICKER_10_OUT: &str = "tests/command/scripts/ticker_10_out_only.sh";
+const TICKER_10_ERR: &str = "tests/command/scripts/ticker_10_err_only.sh";
 
 // non blocking supervisor
 struct NonSupervisor<C = ProcessRunner>
@@ -103,6 +105,110 @@ fn actual_command_exiting_closes_channel() {
     #[cfg(unix)]
     {
         let terminated = ProcessTerminator::new(handle.get_pid()).shutdown(|| true);
+        assert!(terminated.is_ok());
+    }
+}
+
+#[test]
+fn actual_command_streaming_stdout_only() {
+    let agent = NonSupervisor {
+        cmd: ProcessRunner::new("sh", [TICKER_10_OUT]),
+    };
+
+    let (tx, rx) = std::sync::mpsc::channel();
+
+    let streaming_runner = agent.cmd.start().unwrap().stream(tx).unwrap();
+
+    // Populate the expected output
+    let mut stdout_expected = Vec::new();
+    let mut stderr_expected = Vec::new();
+
+    // Script init
+    stdout_expected.push("out ticker started".to_string());
+    stderr_expected.push("TICKER WITHOUT STDERR".to_string());
+
+    (0..10).for_each(|i| stdout_expected.push(format!("ok tick {}", i)));
+
+    // stream the actual output on a separate thread
+    let stream = thread::spawn(move || {
+        let mut stdout_actual = Vec::new();
+        let mut stderr_actual = Vec::new();
+
+        loop {
+            match rx.recv() {
+                Err(_) => break,
+                Ok(event) => match event.output {
+                    OutputEvent::Stdout(line) => stdout_actual.push(line),
+                    OutputEvent::Stderr(line) => stderr_actual.push(line),
+                },
+            }
+        }
+
+        (stdout_actual, stderr_actual)
+    });
+
+    // wait for the process to finish
+    let (stdout_actual, stderr_actual) = stream.join().unwrap();
+
+    assert_eq!(stdout_expected, stdout_actual);
+    assert_eq!(stderr_expected, stderr_actual);
+
+    // kill the process
+    #[cfg(unix)]
+    {
+        let terminated = ProcessTerminator::new(streaming_runner.get_pid()).shutdown(|| true);
+        assert!(terminated.is_ok());
+    }
+}
+
+#[test]
+fn actual_command_streaming_stderr_only() {
+    let agent = NonSupervisor {
+        cmd: ProcessRunner::new("sh", [TICKER_10_ERR]),
+    };
+
+    let (tx, rx) = std::sync::mpsc::channel();
+
+    let streaming_runner = agent.cmd.start().unwrap().stream(tx).unwrap();
+
+    // Populate the expected output
+    let mut stdout_expected = Vec::new();
+    let mut stderr_expected = Vec::new();
+
+    // Script init
+    stdout_expected.push("TICKER WITHOUT STDOUT".to_string());
+    stderr_expected.push("err ticker started".to_string());
+
+    (0..10).for_each(|i| stderr_expected.push(format!("err tick {}", i)));
+
+    // stream the actual output on a separate thread
+    let stream = thread::spawn(move || {
+        let mut stdout_actual = Vec::new();
+        let mut stderr_actual = Vec::new();
+
+        loop {
+            match rx.recv() {
+                Err(_) => break,
+                Ok(event) => match event.output {
+                    OutputEvent::Stdout(line) => stdout_actual.push(line),
+                    OutputEvent::Stderr(line) => stderr_actual.push(line),
+                },
+            }
+        }
+
+        (stdout_actual, stderr_actual)
+    });
+
+    // wait for the process to finish
+    let (stdout_actual, stderr_actual) = stream.join().unwrap();
+
+    assert_eq!(stdout_expected, stdout_actual);
+    assert_eq!(stderr_expected, stderr_actual);
+
+    // kill the process
+    #[cfg(unix)]
+    {
+        let terminated = ProcessTerminator::new(streaming_runner.get_pid()).shutdown(|| true);
         assert!(terminated.is_ok());
     }
 }

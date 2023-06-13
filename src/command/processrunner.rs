@@ -1,17 +1,16 @@
 use std::{
     ffi::OsStr,
-    io::{BufRead, BufReader},
+    io::{BufRead, BufReader, Read},
     marker::PhantomData,
-    process::{Child, ChildStderr, ChildStdout, Command, ExitStatus, Stdio},
-    sync::mpsc::Sender,
+    process::{Child, Command, ExitStatus, Stdio},
+    sync::mpsc::{SendError, Sender},
+    thread,
 };
 
 use super::{
     stream::{Event, Metadata},
     CommandError, CommandExecutor, CommandHandle, CommandRunner, EventStreamer, OutputEvent,
 };
-
-use log::error;
 
 pub struct Unstarted;
 pub struct Started;
@@ -117,46 +116,35 @@ impl EventStreamer for ProcessRunner<Started> {
             .take()
             .ok_or(CommandError::StreamPipeError("stderr".to_string()))?;
 
-        let fields: Metadata = Metadata::from(&self);
+        let fields_out: Metadata = Metadata::from(&self);
+        let fields_err: Metadata = fields_out.clone();
 
-        // Send output to the channel
-        std::thread::spawn(move || {
-            process_output_events(stdout, stderr, fields, snd)
-                .map_err(|e| error!("stream error: {}", e))
+        let out_snd = snd;
+        let err_snd = out_snd.clone();
+
+        read_stream(stdout, move |line| {
+            out_snd.send(Event::new(OutputEvent::Stdout(line), fields_out.clone()))
+        });
+        read_stream(stderr, move |line| {
+            err_snd.send(Event::new(OutputEvent::Stderr(line), fields_err.clone()))
         });
 
         Ok(self)
     }
 }
 
-fn process_output_events(
-    stdout: ChildStdout,
-    stderr: ChildStderr,
-    fields: Metadata,
-    snd: Sender<Event>,
-) -> Result<(), CommandError> {
-    let mut out = BufReader::new(stdout).lines();
-    let mut err = BufReader::new(stderr).lines();
-    let (mut out_done, mut err_done) = (false, false);
-
-    loop {
-        if let (false, Some(l)) = (out_done, out.next()) {
-            snd.send(Event::new(OutputEvent::Stdout(l?), fields.clone()))?;
-        } else {
-            out_done = true;
+fn read_stream<R, F>(stream: R, func: F)
+where
+    R: Read + Send + 'static,
+    F: Fn(String) -> Result<(), SendError<Event>> + Send + 'static,
+{
+    let out = BufReader::new(stream).lines();
+    thread::spawn(move || -> Result<(), CommandError> {
+        for line in out {
+            func(line?)?
         }
-
-        if let (false, Some(l)) = (err_done, err.next()) {
-            snd.send(Event::new(OutputEvent::Stderr(l?), fields.clone()))?;
-        } else {
-            err_done = true;
-        }
-
-        if out_done && err_done {
-            break;
-        }
-    }
-    Ok(())
+        Ok(())
+    });
 }
 
 #[cfg(test)]
