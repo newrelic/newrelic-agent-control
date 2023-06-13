@@ -13,8 +13,8 @@ fn print_debug_info() -> Result<(), Box<dyn std::error::Error>> {
     let mut cmd = Command::cargo_bin("main")?;
     cmd.arg("--config").arg(file_path).arg("--print-debug-info");
     cmd.assert()
-        .failure()
-        .stderr(predicate::str::contains("Error: Debug"));
+        .success()
+        .stderr(predicate::str::contains("Error: printed debug info"));
 
     Ok(())
 }

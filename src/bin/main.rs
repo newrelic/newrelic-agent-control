@@ -1,28 +1,22 @@
-use meta_agent::agent::Agent;
+use std::process::ExitCode;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    Agent::work()
-}
-
-/*
-We can also make use of `main() -> ExitCode` if we want to return more specific exit codes
-instead of just success or failure states (What returning `Result` does):
+use meta_agent::agent::{error::AgentError, Agent};
 
 fn main() -> ExitCode {
-    // Assumi8ng Agent::work() returns an `i32`...
-    ExitCode::from(Agent::work())
-    // We could also check the actual errors here and decide what specific exit code to return
-    // based on the error type. Something like:
     match Agent::work() {
         Ok(_) => ExitCode::SUCCESS,
-        Err(AgentError::ConfigNotFound) => ExitCode::from(101),
-        Err(AgentError::ConfigParseError) => ExitCode::from(102),
-        // ...
-    }
-
-    // Or implement the Termination trait for AgentError and return the AgentError directly!
-    main () -> Result<(), AgentError> {
-        // ...
+        Err(e) => exit_with_error(e),
     }
 }
- */
+
+fn exit_with_error(e: AgentError) -> ExitCode {
+    eprintln!("Error: {}", e);
+    // Here we can control what exit code do we want to return based on the error type.
+    // See the LoggingError case below for an example.
+    match e {
+        AgentError::Debug => ExitCode::SUCCESS,
+        AgentError::ChannelExtractError => ExitCode::FAILURE,
+        AgentError::LoggingError(_) => ExitCode::from(101),
+        AgentError::ConfigResolveError(_) => ExitCode::FAILURE,
+    }
+}

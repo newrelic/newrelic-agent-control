@@ -7,7 +7,9 @@ use crate::{
     command::{EventLogger, StdEventReceiver},
 };
 
-mod error;
+use self::error::AgentError;
+
+pub mod error;
 pub mod lifecycle;
 pub mod logging;
 pub mod supervisor_group;
@@ -15,7 +17,7 @@ pub mod supervisor_group;
 pub struct Agent;
 
 impl Agent {
-    pub fn work() -> Result<(), Box<dyn std::error::Error>> {
+    pub fn work() -> Result<(), AgentError> {
         // Initial setup phase
         let mut init = Lifecycle::init()?;
 

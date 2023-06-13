@@ -40,7 +40,7 @@ impl Initializer {
 pub struct Lifecycle;
 
 impl Lifecycle {
-    pub fn init() -> Result<Initializer, Box<dyn std::error::Error>> {
+    pub fn init() -> Result<Initializer, AgentError> {
         // Initial setup phase
         info!("Starting the meta agent");
         let cli = Cli::init_meta_agent_cli();
@@ -50,7 +50,7 @@ impl Lifecycle {
             info!("Printing debug info");
             println!("CLI: {:#?}", cli);
             println!("CFG: {:#?}", cfg);
-            Err(AgentError::Debug)?
+            return Err(AgentError::Debug);
         }
 
         Logging::init()?;
