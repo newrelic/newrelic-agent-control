@@ -69,13 +69,13 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish deb to S3 action
-        uses: newrelic/infrastructure-publish-action@v1.2.6
+        uses: newrelic/infrastructure-publish-action@v1
         with:
           tag: ${{ github.event.release.tag_name }}
           app_name: "nr-meta-agent"
           repo_name: "newrelic/newrelic-supervisor"
           schema: "custom-local"
-          schema_path: "./build/upload-schema-linux-deb.yml"
+          schema_path: "/srv/build/upload-schema-linux-deb.yml"
           aws_access_key_id: ${{ secrets.TMP_OHAI_AWS_ACCESS_KEY_ID_STAGING }}
           aws_secret_access_key: ${{ secrets.TMP_OHAI_AWS_SECRET_ACCESS_KEY_STAGING }}
           aws_s3_bucket_name: "nr-downloads-ohai-staging"
