@@ -1,7 +1,7 @@
 use meta_agent::agent::Agent;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    Ok(Agent::work()?)
+    Agent::work()
 }
 
 /*
@@ -17,6 +17,11 @@ fn main() -> ExitCode {
         Ok(_) => ExitCode::SUCCESS,
         Err(AgentError::ConfigNotFound) => ExitCode::from(101),
         Err(AgentError::ConfigParseError) => ExitCode::from(102),
+        // ...
+    }
+
+    // Or implement the Termination trait for AgentError and return the AgentError directly!
+    main () -> Result<(), AgentError> {
         // ...
     }
 }
