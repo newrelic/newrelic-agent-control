@@ -144,15 +144,8 @@ where
     R: Read,
     F: Fn(String) -> Result<(), CommandError>,
 {
-    let mut buffer_lines = buffer.lines();
-
-    loop {
-        if let Some(l) = buffer_lines.next() {
-            send(l?)?;
-        } else {
-            // break: error while reading buffer
-            break;
-        }
+    for line in buffer.lines() {
+        send(line?)?;
     }
     Ok(())
 }
