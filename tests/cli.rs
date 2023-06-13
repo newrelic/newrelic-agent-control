@@ -14,7 +14,7 @@ fn print_debug_info() -> Result<(), Box<dyn std::error::Error>> {
     cmd.arg("--config").arg(file_path).arg("--print-debug-info");
     cmd.assert()
         .failure()
-        .stderr(predicate::str::contains("printed debug info"));
+        .stderr(predicate::str::contains("Error: Debug"));
 
     Ok(())
 }
