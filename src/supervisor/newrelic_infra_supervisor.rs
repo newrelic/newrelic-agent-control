@@ -22,13 +22,13 @@ impl From<&NRIConfig> for SupervisorRunner {
             value.ctx.clone(),
             value.snd.clone(),
         );
-        supervisor = match value.cfg {
-            Some(ref c) => supervisor.with_restart_policy(
+        // Additional configs if present
+        if let Some(ref c) = value.cfg {
+            supervisor = supervisor.with_restart_policy(
                 c.restart_policy.restart_exit_codes.clone(),
                 BackoffStrategy::from(&c.restart_policy.backoff_strategy),
-            ),
-            None => supervisor,
-        };
+            )
+        }
 
         supervisor
     }
