@@ -10,8 +10,8 @@ use crate::{
 mod error;
 pub mod lifecycle;
 pub mod logging;
-pub mod supervisor_group;
 pub mod signal;
+pub mod supervisor_group;
 
 pub struct Agent;
 

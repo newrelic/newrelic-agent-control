@@ -1,22 +1,20 @@
-use std::thread::{self, JoinHandle, sleep};
-use std::time::{Duration};
-use std::sync::atomic::{AtomicBool, Ordering::Relaxed};
-use log::info;
-#[cfg(target_family = "unix")]
-use libc::{SIGTERM, SIGINT};
 use crate::supervisor::context::SupervisorContext;
+#[cfg(target_family = "unix")]
+use libc::{SIGINT, SIGTERM};
+use log::info;
+use std::sync::atomic::{AtomicBool, Ordering::Relaxed};
+use std::thread::{self, sleep, JoinHandle};
+use std::time::Duration;
 
 static mut SHUT_DOWN: AtomicBool = AtomicBool::new(false);
 
 pub struct SignalManager {
-    ctx: SupervisorContext
+    ctx: SupervisorContext,
 }
 
 impl SignalManager {
     pub fn new(ctx: SupervisorContext) -> Self {
-        SignalManager {
-            ctx,
-        }
+        SignalManager { ctx }
     }
 
     #[cfg(target_family = "unix")]
@@ -26,7 +24,7 @@ impl SignalManager {
         thread::spawn({
             move || loop {
                 unsafe {
-                    if SHUT_DOWN.load(Relaxed)  {
+                    if SHUT_DOWN.load(Relaxed) {
                         info!("Gracefully Shutting down");
                         self.ctx.cancel_all().unwrap();
                         break;
