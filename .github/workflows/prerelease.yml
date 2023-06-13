@@ -56,6 +56,7 @@ jobs:
   upload:
     runs-on: ubuntu-latest
     name: Upload to S3
+    needs: [build]
     steps:
       - uses: actions/checkout@v3
         with:
