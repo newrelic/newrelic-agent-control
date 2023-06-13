@@ -3,7 +3,7 @@ use std::thread;
 use log::info;
 
 use crate::{
-    agent::{lifecycle::Lifecycle, supervisor_group::SupervisorGroup},
+    agent::{lifecycle::Lifecycle, signal::SignalManager, supervisor_group::SupervisorGroup},
     command::{EventLogger, StdEventReceiver},
 };
 
@@ -21,14 +21,8 @@ impl Agent {
         let mut init = Lifecycle::init()?;
 
         // FIXME: Placeholder for NR-124576
-        let signal_manager = thread::spawn({
-            let ctx = init.get_context();
-            move || {
-                info!("Starting the signal manager");
-                thread::sleep(std::time::Duration::from_secs(120));
-                ctx.cancel_all().unwrap();
-            }
-        });
+        info!("Starting the signal manager");
+        let signal_manager = SignalManager::new(init.get_context()).shutdown_handle();
 
         let (tx, rx) = init.extract_channel()?;
 
