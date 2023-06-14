@@ -32,7 +32,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     info!("Starting the meta agent");
-    Agent::new(&cli.get_config_path())?.run(ctx.clone())?;
+    Agent::new(&cli.get_config_path())?.run(ctx)?;
 
     Ok(())
 }
