@@ -29,7 +29,7 @@ impl Agent {
         Ok(Self { cfg })
     }
 
-    pub fn run(self, ctx:Context) -> Result<(), AgentError> {
+    pub fn run(self, ctx: Context) -> Result<(), AgentError> {
         info!("Creating agent's communication channels");
         let (tx, rx) = mpsc::channel();
 
@@ -63,7 +63,6 @@ impl Agent {
             let _ = running_supervisors.wait();
             info!("Supervisor group has finished. Exiting the meta agent");
         }
-
 
         info!("Waiting for the output manager to finish");
         output_manager.join().unwrap();
