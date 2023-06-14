@@ -16,9 +16,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         return Ok(());
     }
 
-    println!("Creating the global context");
+    info!("Creating the global context");
     let ctx = Context::new();
 
+    info!("Creating the signal handler");
     let handler = ctrlc::set_handler({
         let ctx = ctx.clone();
         move || ctx.cancel_all().unwrap()
