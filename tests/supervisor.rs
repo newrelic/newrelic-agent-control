@@ -1,9 +1,9 @@
 use std::{sync::mpsc::Sender, thread, time::Duration};
 
 use meta_agent::{
-    agent::logging::Logging,
     command::{stream::Event, EventLogger, StdEventReceiver},
     context::Context,
+    logging::Logging,
     supervisor::{runner::SupervisorRunner, Handle, Runner},
 };
 
@@ -27,7 +27,7 @@ use std::sync::Once;
 static INIT_LOGGER: Once = Once::new();
 pub fn init_logger() {
     INIT_LOGGER.call_once(|| {
-        Logging::init().unwrap();
+        Logging::try_init().unwrap();
     });
 }
 

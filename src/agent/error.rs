@@ -10,7 +10,4 @@ pub enum AgentError {
 
     #[error("could not resolve config: `{0}`")]
     ConfigResolveError(#[from] MetaAgentConfigError),
-
-    #[error("init logging error: `{0}`")]
-    LoggingError(String),
 }

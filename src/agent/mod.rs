@@ -12,7 +12,6 @@ use crate::{
 use self::error::AgentError;
 
 pub mod error;
-pub mod logging;
 pub mod supervisor_group;
 
 pub struct Agent {
