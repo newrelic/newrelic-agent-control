@@ -1,6 +1,6 @@
-use log::info;
 use meta_agent::{agent::Agent, cli::Cli, logging::Logging};
 use std::error::Error;
+use tracing::info;
 
 fn main() -> Result<(), Box<dyn Error>> {
     // init logging singleton

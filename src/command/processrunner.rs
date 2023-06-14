@@ -11,7 +11,7 @@ use super::{
     CommandError, CommandExecutor, CommandHandle, CommandRunner, EventStreamer, OutputEvent,
 };
 
-use log::error;
+use tracing::error;
 
 pub struct Unstarted;
 pub struct Started;

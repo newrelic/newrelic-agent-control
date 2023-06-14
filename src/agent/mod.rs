@@ -1,6 +1,6 @@
 use std::{path::Path, sync::mpsc, thread};
 
-use log::info;
+use tracing::info;
 
 use crate::{
     agent::supervisor_group::SupervisorGroup,

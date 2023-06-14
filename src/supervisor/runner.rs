@@ -22,7 +22,7 @@ use super::{
     Handle, Runner, ID,
 };
 
-use log::{error, kv::ToValue};
+use tracing::{error, info};
 
 pub struct Stopped {
     bin: String,
@@ -101,11 +101,19 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
         move || loop {
             let proc_runner = ProcessRunner::from(&runner).with_metadata(Metadata::from(&runner));
 
+            info!(
+                supervisor = runner.id(),
+                msg = "Starting supervisor process"
+            );
+
             // Actually run the process
             let started = match proc_runner.start() {
                 Ok(s) => s,
                 Err(e) => {
-                    error!(supervisor = runner.id().to_value(); "Failed to start a supervised process: {}", e);
+                    error!(
+                        supervisor = runner.id(),
+                        "Failed to start a supervised process: {}", e
+                    );
                     continue;
                 }
             };
@@ -114,7 +122,10 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
             let streaming = match started.stream(runner.snd.clone()) {
                 Ok(s) => s,
                 Err(e) => {
-                    error!(supervisor = runner.id().to_value(); "Failed to stream the output of a supervised process: {}", e);
+                    error!(
+                        supervisor = runner.id(),
+                        "Failed to stream the output of a supervised process: {}", e
+                    );
                     continue;
                 }
             };

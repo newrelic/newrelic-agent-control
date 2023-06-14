@@ -4,7 +4,7 @@ use crate::command::stream::OutputEvent;
 
 use super::{stream::Event, EventLogger};
 
-use log::{debug, kv::ToValue};
+use tracing::debug;
 
 // TODO: add configuration filters or additional fields for logging
 #[derive(Default)]
@@ -17,11 +17,11 @@ impl EventLogger for StdEventReceiver {
     fn log(self, rcv: Receiver<Event>) -> std::thread::JoinHandle<()> {
         spawn(move || {
             rcv.iter().for_each(|event| match event.output {
-                OutputEvent::Stdout(line) => {
-                    debug!(command = event.metadata.values().to_value(); "{}", line);
+                OutputEvent::Stdout(log) => {
+                    debug!(command = event.metadata.values(), log)
                 }
-                OutputEvent::Stderr(line) => {
-                    debug!(command = event.metadata.values().to_value();"{}", line)
+                OutputEvent::Stderr(log) => {
+                    debug!(command = event.metadata.values(), log)
                 }
             })
         })
