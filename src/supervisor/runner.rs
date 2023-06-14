@@ -100,6 +100,8 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
     let mut code = 0;
     thread::spawn({
         move || loop {
+            let proc_runner = ProcessRunner::from(&runner).with_metadata(Metadata::from(&runner));
+
             let (lck, _) = Context::get_lock_cvar(&runner.ctx);
             let val = lck.lock().unwrap();
             if *val {
@@ -110,8 +112,6 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
                 break;
             }
             restart_policy.backoff();
-
-            let proc_runner = ProcessRunner::from(&runner).with_metadata(Metadata::from(&runner));
 
             info!(
                 supervisor = runner.id(),
