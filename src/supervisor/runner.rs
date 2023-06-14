@@ -97,8 +97,20 @@ impl From<&SupervisorRunner<Stopped>> for Metadata {
 
 fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
     let mut restart_policy = runner.restart.clone();
+    let mut code = 0;
     thread::spawn({
         move || loop {
+            let (lck, _) = Context::get_lock_cvar(&runner.ctx);
+            let val = lck.lock().unwrap();
+            if *val {
+                break;
+            }
+
+            if !restart_policy.should_retry(code) {
+                break;
+            }
+            restart_policy.backoff();
+
             let proc_runner = ProcessRunner::from(&runner).with_metadata(Metadata::from(&runner));
 
             info!(
@@ -127,22 +139,9 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
             // Signals return exit_code 0, if in the future we need to act on them we can import
             // std::os::unix::process::ExitStatusExt to get the code with the method into_raw
             let exit_code = streaming.wait().unwrap().code();
-
-            let (lck, _) = Context::get_lock_cvar(&runner.ctx);
-            let val = lck.lock().unwrap();
-            if *val {
-                break;
-            }
-
-            let mut code = 0;
             if let Some(c) = exit_code {
                 code = c
             }
-
-            if !restart_policy.should_retry(code) {
-                break;
-            }
-            restart_policy.backoff()
         }
     })
 }
@@ -214,6 +213,32 @@ mod tests {
     use std::time::Duration;
 
     #[test]
+    fn test_supervisor_retries_and_exits_on_wrong_command() {
+        let (tx, _) = std::sync::mpsc::channel();
+
+        let backoff = Backoff::new()
+            .with_initial_delay(Duration::new(0, 100))
+            .with_max_retries(3)
+            .with_last_retry_interval(Duration::new(30, 0));
+
+        let agent: SupervisorRunner = SupervisorRunner::new(
+            "wrong-command".to_owned(),
+            vec!["x".to_owned()],
+            Context::new(),
+            tx.clone(),
+        )
+            .with_restart_policy(vec![0], BackoffStrategy::Fixed(backoff));
+
+        let agent = agent.run();
+
+        while !agent.handle.is_finished() {
+            thread::sleep(Duration::from_millis(15));
+        }
+
+        drop(tx);
+    }
+
+    #[test]
     fn test_supervisor_fixed_retry_3_times() {
         let (tx, rx) = std::sync::mpsc::channel();
 
@@ -255,6 +280,6 @@ mod tests {
         drop(tx);
         let stdout = stream.join().unwrap();
 
-        assert_eq!(4, stdout.iter().count());
+        assert_eq!(3, stdout.iter().count());
     }
 }

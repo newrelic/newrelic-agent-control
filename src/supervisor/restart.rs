@@ -109,9 +109,8 @@ impl Backoff {
         if duration > self.last_retry_interval {
             self.tries = 0
         }
-        self.tries += 1;
 
-        self.max_retries == 0 || self.tries <= self.max_retries
+        self.max_retries == 0 || self.tries < self.max_retries
     }
 
     fn backoff<B, S>(&mut self, backoff_func: B, sleep_func: S)
@@ -119,8 +118,11 @@ impl Backoff {
         B: FnOnce(usize, Duration, S),
         S: FnOnce(Duration),
     {
-        backoff_func(self.tries, self.initial_delay, sleep_func);
+        if self.tries > 0 {
+            backoff_func(self.tries, self.initial_delay, sleep_func);
+        }
         self.last_retry = Instant::now();
+        self.tries += 1;
     }
 }
 
@@ -170,8 +172,8 @@ mod tests {
         let mut slept = Duration::new(0, 0);
         let mut sleep_mock = |dur: Duration| slept += dur;
 
-        let mut b = Backoff::new().with_max_retries(2);
-        let results = vec![true, true, false];
+        let mut b = Backoff::new().with_max_retries(3);
+        let results = vec![true, true, true, false];
 
         for n in 0..results.len() {
             let should_backoff = b.should_backoff();
@@ -186,12 +188,14 @@ mod tests {
     #[test]
     fn test_backoff_linear_max_retries_reached_but_interval_reset() {
         let mut slept = Duration::new(0, 0);
-        let mut sleep_mock = |dur: Duration| slept += dur;
+        let mut sleep_mock = |dur: Duration| {
+            slept += dur;
+        };
 
         let mut b = Backoff::new()
-            .with_max_retries(2)
+            .with_max_retries(3)
             .with_last_retry_interval(Duration::from_micros(1));
-        let results = vec![true, true, true];
+        let results = vec![true, true, true, true];
 
         for n in 0..results.len() {
             let should_backoff = b.should_backoff();
@@ -202,7 +206,7 @@ mod tests {
             //It will be reset every interval causing backoff to always be 1 second
             sleep(Duration::from_micros(2))
         }
-        assert_eq!(Duration::from_secs(3), slept)
+        assert_eq!(Duration::from_secs(0), slept)
     }
 
     #[test]
@@ -211,7 +215,7 @@ mod tests {
         let mut sleep_mock = |dur: Duration| slept += dur;
 
         let mut b = Backoff::new().with_initial_delay(Duration::from_secs(6));
-        let results = vec![true, true, true];
+        let results = vec![true, true, true, true];
 
         for n in 0..results.len() {
             let should_backoff = b.should_backoff();
@@ -229,7 +233,7 @@ mod tests {
         let mut sleep_mock = |dur: Duration| slept += dur;
 
         let mut b = Backoff::new();
-        let results = vec![true, true, true, true];
+        let results = vec![true, true, true, true, true];
 
         for n in 0..results.len() {
             let should_backoff = b.should_backoff();
@@ -247,7 +251,7 @@ mod tests {
         let mut sleep_mock = |dur: Duration| slept += dur;
 
         let mut b = Backoff::new();
-        let results = vec![true, true, true, true];
+        let results = vec![true, true, true, true, true];
 
         for n in 0..results.len() {
             let should_backoff = b.should_backoff();
