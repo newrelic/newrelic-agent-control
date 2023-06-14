@@ -1,4 +1,3 @@
-use ctrlc;
 use meta_agent::{agent::Agent, cli::Cli, context::Context, logging::Logging};
 use std::error::Error;
 use tracing::{error, info};
