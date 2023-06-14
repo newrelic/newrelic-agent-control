@@ -19,7 +19,7 @@ impl Cli {
         Self::parse()
     }
 
-    pub fn get_config(&self) -> PathBuf {
+    pub fn get_config_path(&self) -> PathBuf {
         PathBuf::from(&self.config)
     }
 

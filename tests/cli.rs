@@ -1,7 +1,6 @@
 use std::{fs::File, io::Write};
 
 use assert_cmd::Command;
-use predicates::prelude::predicate;
 
 #[test]
 fn print_debug_info() -> Result<(), Box<dyn std::error::Error>> {
@@ -12,9 +11,7 @@ fn print_debug_info() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut cmd = Command::cargo_bin("main")?;
     cmd.arg("--config").arg(file_path).arg("--print-debug-info");
-    cmd.assert()
-        .success()
-        .stderr(predicate::str::contains("Error: printed debug info"));
+    cmd.assert().success();
 
     Ok(())
 }

@@ -11,9 +11,6 @@ pub enum AgentError {
     #[error("channel is not present in the agent initializer")]
     ChannelExtractError,
 
-    #[error("printed debug info")]
-    Debug,
-
     #[error("could not resolve config: `{0}`")]
     ConfigResolveError(#[from] MetaAgentConfigError),
 }

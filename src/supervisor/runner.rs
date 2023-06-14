@@ -7,14 +7,16 @@ use std::{
     thread::{self, JoinHandle},
 };
 
-use crate::command::{
-    stream::{Event, Metadata},
-    wait_exit_timeout_default, CommandExecutor, CommandHandle, CommandTerminator, EventStreamer,
-    ProcessRunner, ProcessTerminator,
+use crate::{
+    command::{
+        stream::{Event, Metadata},
+        wait_exit_timeout_default, CommandExecutor, CommandHandle, CommandTerminator,
+        EventStreamer, ProcessRunner, ProcessTerminator,
+    },
+    context::Context,
 };
 
 use super::{
-    context::SupervisorContext,
     error::ProcessError,
     restart::{BackoffStrategy, RestartPolicy},
     Handle, Runner, ID,
@@ -25,14 +27,14 @@ use log::error;
 pub struct Stopped {
     bin: String,
     args: Vec<String>,
-    ctx: SupervisorContext,
+    ctx: Context,
     snd: Sender<Event>,
     restart: RestartPolicy,
 }
 
 pub struct Running {
     handle: JoinHandle<()>,
-    ctx: SupervisorContext,
+    ctx: Context,
 }
 
 #[derive(Debug)]
@@ -123,7 +125,7 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
             // std::os::unix::process::ExitStatusExt to get the code with the method into_raw
             let exit_code = streaming.wait().unwrap().code();
 
-            let (lck, _) = SupervisorContext::get_lock_cvar(&runner.ctx);
+            let (lck, _) = Context::get_lock_cvar(&runner.ctx);
             let val = lck.lock().unwrap();
             if *val {
                 break;
@@ -142,10 +144,10 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
     })
 }
 
-/// Blocks on the [`SupervisorContext`], [`ctx`]. When the termination signal is activated, this will send a shutdown signal to the process being supervised (the one whose PID was passed as [`pid`]).
-fn wait_for_termination(pid: u32, ctx: SupervisorContext) -> JoinHandle<()> {
+/// Blocks on the [`Context`], [`ctx`]. When the termination signal is activated, this will send a shutdown signal to the process being supervised (the one whose PID was passed as [`pid`]).
+fn wait_for_termination(pid: u32, ctx: Context) -> JoinHandle<()> {
     thread::spawn(move || {
-        let (lck, cvar) = SupervisorContext::get_lock_cvar(&ctx);
+        let (lck, cvar) = Context::get_lock_cvar(&ctx);
         _ = cvar.wait_while(lck.lock().unwrap(), |finish| !*finish);
 
         thread::spawn(move || {
@@ -179,7 +181,7 @@ impl Handle for SupervisorRunner<Running> {
 }
 
 impl SupervisorRunner<Stopped> {
-    pub fn new(bin: String, args: Vec<String>, ctx: SupervisorContext, snd: Sender<Event>) -> Self {
+    pub fn new(bin: String, args: Vec<String>, ctx: Context, snd: Sender<Event>) -> Self {
         SupervisorRunner {
             state: Stopped {
                 bin,
@@ -220,7 +222,7 @@ mod tests {
         let agent: SupervisorRunner = SupervisorRunner::new(
             "echo".to_owned(),
             vec!["hello!".to_owned()],
-            SupervisorContext::new(),
+            Context::new(),
             tx.clone(),
         )
         .with_restart_policy(vec![0], BackoffStrategy::Fixed(backoff));

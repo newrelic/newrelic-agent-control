@@ -3,7 +3,8 @@ use std::{sync::mpsc::Sender, thread, time::Duration};
 use meta_agent::{
     agent::logging::Logging,
     command::{stream::Event, EventLogger, StdEventReceiver},
-    supervisor::{context, runner::SupervisorRunner, Handle, Runner},
+    context::Context,
+    supervisor::{runner::SupervisorRunner, Handle, Runner},
 };
 
 struct Config {
@@ -15,7 +16,7 @@ impl From<&Config> for SupervisorRunner {
         SupervisorRunner::new(
             "echo".to_string(),
             vec!["hello!".to_string()],
-            context::SupervisorContext::new(),
+            Context::new(),
             value.tx.clone(),
         )
     }

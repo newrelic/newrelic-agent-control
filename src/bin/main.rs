@@ -1,22 +1,18 @@
-use std::process::ExitCode;
+use std::error::Error;
 
-use meta_agent::agent::{error::AgentError, Agent};
+use meta_agent::{agent::Agent, cli::Cli};
 
-fn main() -> ExitCode {
-    match Agent::work() {
-        Ok(_) => ExitCode::SUCCESS,
-        Err(e) => exit_with_error(e),
+fn main() -> Result<(), Box<dyn Error>> {
+    println!("Starting the meta agent");
+    let cli = Cli::init_meta_agent_cli();
+
+    if cli.print_debug_info() {
+        println!("Printing debug info");
+        println!("CLI: {:#?}", cli);
+        println!("CFG: {:#?}", cli.get_config_path());
+        return Ok(());
     }
-}
 
-fn exit_with_error(e: AgentError) -> ExitCode {
-    eprintln!("Error: {}", e);
-    // Here we can control what exit code do we want to return based on the error type.
-    // See the LoggingError case below for an example.
-    match e {
-        AgentError::Debug => ExitCode::SUCCESS,
-        AgentError::ChannelExtractError => ExitCode::FAILURE,
-        AgentError::LoggingError(_) => ExitCode::from(101),
-        AgentError::ConfigResolveError(_) => ExitCode::FAILURE,
-    }
+    Agent::new(&cli.get_config_path())?.run()?;
+    Ok(())
 }

@@ -1,8 +1,8 @@
 use std::sync::mpsc::Sender;
 
-use crate::{command::stream::Event, config::agent_configs::AgentConfig};
+use crate::{command::stream::Event, config::agent_configs::AgentConfig, context::Context};
 
-use super::{context::SupervisorContext, restart::BackoffStrategy, runner::SupervisorRunner};
+use super::{restart::BackoffStrategy, runner::SupervisorRunner};
 
 const NRDOT_PATH: &str = "/usr/bin/nr-otel-collector";
 const NRDOT_CONFIG_PATH: &str = "/etc/nr-otel-collector/config.yaml";
@@ -13,7 +13,7 @@ const NRDOT_ARGS: [&str; 3] = [
 ];
 
 pub struct NRDOTConfig {
-    ctx: SupervisorContext,
+    ctx: Context,
     snd: Sender<Event>,
     cfg: Option<AgentConfig>,
 }
@@ -39,7 +39,7 @@ impl From<&NRDOTConfig> for SupervisorRunner {
 }
 
 impl NRDOTConfig {
-    pub fn new(ctx: SupervisorContext, snd: Sender<Event>, cfg: Option<AgentConfig>) -> Self {
+    pub fn new(ctx: Context, snd: Sender<Event>, cfg: Option<AgentConfig>) -> Self {
         NRDOTConfig { ctx, snd, cfg }
     }
 }

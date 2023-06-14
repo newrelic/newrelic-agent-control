@@ -1,29 +1,46 @@
-use std::thread;
+use std::{path::Path, sync::mpsc, thread};
 
 use log::info;
 
 use crate::{
-    agent::{lifecycle::Lifecycle, supervisor_group::SupervisorGroup},
+    agent::supervisor_group::SupervisorGroup,
     command::{EventLogger, StdEventReceiver},
+    config::{agent_configs::MetaAgentConfig, resolver::Resolver},
+    context::Context,
 };
 
 use self::error::AgentError;
 
 pub mod error;
-pub mod lifecycle;
 pub mod logging;
 pub mod supervisor_group;
 
-pub struct Agent;
+pub struct Agent {
+    cfg: MetaAgentConfig,
+    ctx: Context,
+}
 
 impl Agent {
-    pub fn work() -> Result<(), AgentError> {
-        // Initial setup phase
-        let mut init = Lifecycle::init()?;
+    pub fn get_config(&self) -> &MetaAgentConfig {
+        &self.cfg
+    }
 
+    pub fn get_context(&self) -> Context {
+        self.ctx.clone()
+    }
+
+    pub fn new(cfg_path: &Path) -> Result<Self, AgentError> {
+        let cfg = Resolver::retrieve_config(cfg_path)?;
+
+        info!("Creating the supervisor context");
+        let ctx = Context::new();
+
+        Ok(Self { cfg, ctx })
+    }
+    pub fn run(self) -> Result<(), AgentError> {
         // FIXME: Placeholder for NR-124576
         let signal_manager = thread::spawn({
-            let ctx = init.get_context();
+            let ctx = self.get_context();
             move || {
                 info!("Starting the signal manager");
                 thread::sleep(std::time::Duration::from_secs(120));
@@ -31,11 +48,12 @@ impl Agent {
             }
         });
 
-        let (tx, rx) = init.extract_channel()?;
+        info!("Creating communication channels");
+        let (tx, rx) = mpsc::channel();
 
         let output_manager = StdEventReceiver::default().log(rx);
 
-        let supervisor_group = SupervisorGroup::new(init.get_context(), tx, init.get_configs());
+        let supervisor_group = SupervisorGroup::new(self.get_context(), tx, self.get_config());
         {
             /*
                 TODO: We should first compare the current config with the one in the meta agent config.

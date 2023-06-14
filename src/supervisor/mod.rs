@@ -1,4 +1,3 @@
-pub mod context;
 pub mod error;
 pub mod newrelic_infra_supervisor;
 pub mod nrdot_supervisor;
