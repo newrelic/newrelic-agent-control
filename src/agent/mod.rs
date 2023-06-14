@@ -1,5 +1,4 @@
 use std::{path::Path, sync::mpsc};
-use ctrlc;
 
 use tracing::info;
 
