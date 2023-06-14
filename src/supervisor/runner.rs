@@ -227,7 +227,7 @@ mod tests {
             Context::new(),
             tx.clone(),
         )
-            .with_restart_policy(vec![0], BackoffStrategy::Fixed(backoff));
+        .with_restart_policy(vec![0], BackoffStrategy::Fixed(backoff));
 
         let agent = agent.run();
 
