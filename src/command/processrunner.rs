@@ -3,13 +3,15 @@ use std::{
     io::{BufRead, BufReader, Read},
     marker::PhantomData,
     process::{Child, Command, ExitStatus, Stdio},
-    sync::mpsc::Sender,
+    sync::mpsc::{SendError, Sender},
 };
 
 use super::{
     stream::{Event, Metadata},
     CommandError, CommandExecutor, CommandHandle, CommandRunner, EventStreamer, OutputEvent,
 };
+
+use log::error;
 
 pub struct Unstarted;
 pub struct Started;
@@ -122,29 +124,32 @@ impl EventStreamer for ProcessRunner<Started> {
             let fields = fields.clone();
             let snd = snd.clone();
             move || {
-                process_events(BufReader::new(stdout), |data: String| {
-                    Ok(snd.send(Event::new(OutputEvent::Stdout(data), fields.clone()))?)
+                process_events(stdout, |line| {
+                    snd.send(Event::new(OutputEvent::Stdout(line), fields.clone()))
                 })
+                .map_err(|e| error!("stdout stream error: {}", e))
             }
         });
 
         // Read stderr and send to the channel
         std::thread::spawn(move || {
-            process_events(BufReader::new(stderr), |data: String| {
-                Ok(snd.send(Event::new(OutputEvent::Stderr(data), fields.clone()))?)
+            process_events(stderr, |line| {
+                snd.send(Event::new(OutputEvent::Stderr(line), fields.clone()))
             })
+            .map_err(|e| error!("stderr stream error: {}", e))
         });
 
         Ok(self)
     }
 }
 
-fn process_events<R, F>(buffer: BufReader<R>, send: F) -> Result<(), CommandError>
+fn process_events<R, F>(stream: R, send: F) -> Result<(), CommandError>
 where
     R: Read,
-    F: Fn(String) -> Result<(), CommandError>,
+    F: Fn(String) -> Result<(), SendError<Event>>,
 {
-    for line in buffer.lines() {
+    let out = BufReader::new(stream).lines();
+    for line in out {
         send(line?)?;
     }
     Ok(())
