@@ -39,7 +39,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Ending the program
     println!("Waiting for the signal manager to finish");
-    signal_manager.join().unwrap();
+    signal_manager.join()?;
 
     Ok(())
 }
