@@ -9,8 +9,11 @@
       dest: "{dest_prefix}linux/apt/"
       os_version:
         - jammy
-
-# todo add more debs
+        - focal
+        - bionic
+        - xenial
+        - bullseye
+        - buster
 
 #########################
   # UPLOAD CHECKSUMS #
