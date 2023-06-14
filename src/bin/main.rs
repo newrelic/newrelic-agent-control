@@ -24,22 +24,38 @@ fn main() -> Result<(), Box<dyn Error>> {
         move || {
             let (tx, rx) = mpsc::channel();
 
-            ctrlc::set_handler(move || tx.send(()).expect("Could not send signal on channel"))
-                .expect("Error setting signal handler");
-
-            // Wait for shutdown signal
-            rx.recv().expect("Could not receive from signal channel.");
-            println!("Graceful shutdown");
+            let handler = ctrlc::set_handler(move || tx.send(()).expect("Could not send signal on channel"));
+            match handler {
+                Ok(_) => {
+                    // Wait for shutdown signal
+                    match rx.recv() {
+                        Err(e) => { error!("error {}", e)},
+                        Ok(_) => {
+                            println!("Graceful shutdown");
+                        },
+                    }
+                } ,
+                Err(e) => {
+                    error!("Could not set signal handler: {}", e)
+                }
+            }
             ctx.cancel_all().unwrap();
+        }
+    });
+
+    thread::spawn({
+        let ctx = ctx.clone();
+        move || {
+            // Ending the program
+            println!("Waiting for the signal manager to finish");
+            if signal_manager.join().is_err() {
+                ctx.cancel_all().unwrap();
+            };
         }
     });
 
     info!("Starting the meta agent");
     Agent::new(&cli.get_config_path())?.run(ctx.clone())?;
-
-    // Ending the program
-    println!("Waiting for the signal manager to finish");
-    signal_manager.join()?;
 
     Ok(())
 }
