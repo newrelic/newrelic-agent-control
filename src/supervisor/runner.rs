@@ -141,7 +141,7 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
                     "Failed to stream the output of a supervised process: {}", e
                 );
             }) else { continue };
-            *current_pid.lock().unwrap() = Some(s.get_pid());
+            *current_pid.lock().unwrap() = Some(streaming.get_pid());
             shutdown_ctx.reset().unwrap();
 
             // Signals return exit_code 0, if in the future we need to act on them we can import

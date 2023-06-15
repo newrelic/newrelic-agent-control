@@ -93,7 +93,6 @@ mod tests {
     use std::{
         process::Command,
         thread::{self, sleep},
-        time,
     };
 
     #[test]
