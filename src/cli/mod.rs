@@ -2,24 +2,28 @@ use std::path::PathBuf;
 
 use clap::Parser;
 
-use crate::config::{
-    agent_configs::MetaAgentConfig, error::MetaAgentConfigError, resolver::Resolver,
-};
-
-#[derive(Parser)]
+#[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)] // Read from `Cargo.toml`
-struct MetaAgentCli {
+pub struct Cli {
     #[arg(short, long, default_value_t = String::from("/tmp/static.yml"))]
     config: String,
+
+    #[arg(long)]
+    print_debug_info: bool,
 }
 
-/// Parses command line arguments and retrieves the passed configuration
-pub fn init_meta_agent() -> Result<MetaAgentConfig, MetaAgentConfigError> {
-    let cli = init_meta_agent_cli();
-    Resolver::retrieve_config(&PathBuf::from(cli.config))
-}
+impl Cli {
+    /// Parses command line arguments
+    pub fn init_meta_agent_cli() -> Self {
+        // Get command line args
+        Self::parse()
+    }
 
-fn init_meta_agent_cli() -> MetaAgentCli {
-    // Get command line args
-    MetaAgentCli::parse()
+    pub fn get_config_path(&self) -> PathBuf {
+        PathBuf::from(&self.config)
+    }
+
+    pub fn print_debug_info(&self) -> bool {
+        self.print_debug_info
+    }
 }

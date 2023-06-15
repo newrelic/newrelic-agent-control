@@ -1,11 +1,35 @@
-use meta_agent::cli;
+use meta_agent::{agent::Agent, cli::Cli, context::Context, logging::Logging};
+use std::error::Error;
+use tracing::{error, info};
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let _config = cli::init_meta_agent()?;
+fn main() -> Result<(), Box<dyn Error>> {
+    // init logging singleton
+    Logging::try_init()?;
 
-    println!("Hello, world!");
-    println!("config: {:?}", _config);
-    println!("I should be overseeing {} agents", _config.agents.len());
+    let cli = Cli::init_meta_agent_cli();
+
+    if cli.print_debug_info() {
+        println!("Printing debug info");
+        println!("CLI: {:#?}", cli);
+        println!("CFG: {:#?}", cli.get_config_path());
+        return Ok(());
+    }
+
+    info!("Creating the global context");
+    let ctx = Context::new();
+
+    info!("Creating the signal handler");
+    _ = ctrlc::set_handler({
+        let ctx = ctx.clone();
+        move || ctx.cancel_all().unwrap()
+    })
+    .map_err(|e| {
+        error!("Could not set signal handler: {}", e);
+        ctx.cancel_all().unwrap();
+    });
+
+    info!("Starting the meta agent");
+    Agent::new(&cli.get_config_path())?.run(ctx)?;
 
     Ok(())
 }

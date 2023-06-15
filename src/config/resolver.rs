@@ -50,11 +50,11 @@ mod tests {
 
     use super::*;
     use crate::config::{
-        agent_configs::{AgentConfig, MetaAgentConfig},
+        agent_configs::{AgentConfig, MetaAgentConfig, RestartPolicyConfig},
         agent_type::AgentType,
         resolver::Resolver,
     };
-    use config::{Value, ValueKind};
+    use config::Value;
 
     #[test]
     fn resolve_one_agent() {
@@ -165,7 +165,7 @@ this_is_another_random_config: value
     }
 
     #[test]
-    fn resolve_empty_agents_field() {
+    fn resolve_empty_agents_field_should_fail_without_empty_map() {
         assert!(Resolver::new(File::from_str(
             "
 agents:
@@ -174,6 +174,24 @@ agents:
         ))
         .build_config()
         .is_err());
+    }
+
+    #[test]
+    fn resolve_empty_agents_field_good() {
+        let actual = Resolver::new(File::from_str(
+            r"
+agents: {}
+",
+            FileFormat::Yaml,
+        ))
+        .build_config();
+
+        let expected = MetaAgentConfig {
+            agents: HashMap::new(),
+        };
+
+        assert!(actual.is_ok());
+        assert_eq!(actual.unwrap(), expected);
     }
 
     #[test]
@@ -231,14 +249,14 @@ agents:
                 (
                     AgentType::InfraAgent(None),
                     Some(AgentConfig {
-                        restart_policy: None,
+                        restart_policy: RestartPolicyConfig::default(),
                         config: Some(expected_nria_conf),
                     }),
                 ),
                 (
                     AgentType::InfraAgent(Some("otherinstance".to_string())),
                     Some(AgentConfig {
-                        restart_policy: None,
+                        restart_policy: RestartPolicyConfig::default(),
                         config: Some(expected_otherinstance_nria_conf),
                     }),
                 ),

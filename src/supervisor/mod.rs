@@ -1,5 +1,6 @@
-pub mod context;
-mod error;
+pub mod error;
+pub mod newrelic_infra_supervisor;
+pub mod nrdot_supervisor;
 pub mod restart;
 pub mod runner;
 
@@ -24,4 +25,8 @@ pub trait Handle {
 
     /// Cancels the supervised process and returns its inner handle.
     fn stop(self) -> Self::S;
+
+    fn wait(self) -> Result<(), Self::E>;
+
+    fn is_finished(&self) -> bool;
 }

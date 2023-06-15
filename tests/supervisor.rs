@@ -1,9 +1,10 @@
 use std::{sync::mpsc::Sender, thread, time::Duration};
 
 use meta_agent::{
-    agent::logging,
     command::{stream::Event, EventLogger, StdEventReceiver},
-    supervisor::{context, restart, runner::SupervisorRunner, Handle, Runner},
+    context::Context,
+    logging::Logging,
+    supervisor::{runner::SupervisorRunner, Handle, Runner},
 };
 
 struct Config {
@@ -15,7 +16,7 @@ impl From<&Config> for SupervisorRunner {
         SupervisorRunner::new(
             "echo".to_string(),
             vec!["hello!".to_string()],
-            context::SupervisorContext::new(),
+            Context::new(),
             value.tx.clone(),
         )
     }
@@ -26,7 +27,7 @@ use std::sync::Once;
 static INIT_LOGGER: Once = Once::new();
 pub fn init_logger() {
     INIT_LOGGER.call_once(|| {
-        logging::init().unwrap();
+        Logging::try_init().unwrap();
     });
 }
 

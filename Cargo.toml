@@ -13,8 +13,14 @@ config = "0.13.1"
 serde = { version = "1.0.160", features = ["derive"] }
 thiserror = "1.0.40"
 nix = { version = "0.26.2", features = ["signal"] }
-log = { version = "0.4.18", features = ["kv_unstable"]}
-std-logger = "0.5.2"
+log = { version = "0.4.18", features = ["kv_unstable"] }
+tracing-subscriber = {version = "0.3.17", features = ["env-filter"]}
+tracing = "0.1.37"
+ctrlc = { version = "3.4.0", features = ["termination"] }
+
 
 [dev-dependencies]
 serde_yaml = "0.9.21"
+assert_cmd = "2.0.11"
+assert_fs = "1.0.13"
+predicates = "3.0.3"
