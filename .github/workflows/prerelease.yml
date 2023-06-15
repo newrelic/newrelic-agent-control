@@ -1,0 +1,119 @@
+#permissions:
+#  contents: read
+
+on:
+  release:
+    types:
+      - prereleased
+    tags:
+      - '*'
+
+# See https://docs.github.com/en/actions/using-jobs/using-concurrency
+name: pre-release
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Build and upload / ${{ matrix.arch }}
+    strategy:
+      matrix:
+        arch: [arm64, amd64]
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v3
+        with:
+          go-version: '~1.20'
+          check-latest: true
+
+      - name: Build binaries with GoReleaser
+        uses: goreleaser/goreleaser-action@v4
+        with:
+          distribution: goreleaser
+          version: latest
+          args: build --rm-dist --debug --timeout 2h --single-target
+        env:
+          ARCH: "${{ matrix.arch }}"
+          GOARCH: "${{ matrix.arch }}"
+          GOOS: linux
+
+      - name: Release packages with GoReleaser
+        uses: goreleaser/goreleaser-action@v4
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --rm-dist --debug --timeout 2h -f dist/config.yaml
+        env:
+          ARCH: "${{ matrix.arch }}"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GPG_PASSPHRASE: ${{ secrets.OHAI_GPG_PASSPHRASE }}
+          GPG_PRIVATE_KEY_BASE64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
+          GPG_MAIL: 'infrastructure-eng@newrelic.com'
+          NR_RELEASE_TAG: ${{ github.event.release.tag_name }}
+
+
+  upload:
+    runs-on: ubuntu-latest
+    name: Upload to S3
+    needs: [build]
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      #download release assets
+      - name: Download release
+        run: gh release download ${{ github.event.release.tag_name }} --dir ./dist/
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish deb to S3 action
+        uses: newrelic/infrastructure-publish-action@v1
+        with:
+          tag: ${{ github.event.release.tag_name }}
+          app_name: "nr-meta-agent"
+          repo_name: "newrelic/newrelic-supervisor"
+          schema: "custom-local"
+          schema_path: "/srv/build/upload-schema-linux-deb.yml"
+          aws_access_key_id: ${{ secrets.TMP_OHAI_AWS_ACCESS_KEY_ID_STAGING }}
+          aws_secret_access_key: ${{ secrets.TMP_OHAI_AWS_SECRET_ACCESS_KEY_STAGING }}
+          aws_s3_bucket_name: "nr-downloads-ohai-staging"
+          aws_s3_lock_bucket_name: "onhost-ci-lock-staging"
+          access_point_host: "staging"
+          run_id: ${{ github.run_id }}
+          aws_region: "us-east-1"
+          aws_role_session_name: ${{ secrets.TMP_OHAI_AWS_ROLE_SESSION_NAME_STAGING }}
+          aws_role_arn: ${{ secrets.TMP_OHAI_AWS_ROLE_ARN_STAGING }}
+          # used for signing package stuff
+          gpg_passphrase: ${{ secrets.OHAI_GPG_PASSPHRASE }}
+          gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
+          disable_lock: false
+          dest_prefix: "limited_preview/"
+          local_packages_path:  "/srv/dist/"
+          apt_skip_mirror:  true
+
+      - name: Publish rpm to S3 action
+        uses: newrelic/infrastructure-publish-action@v1
+        with:
+          tag: ${{ github.event.release.tag_name }}
+          app_name: "nr-meta-agent"
+          repo_name: "newrelic/newrelic-supervisor"
+          schema: "custom-local"
+          schema_path: "/srv/build/upload-schema-linux-rpm.yml"
+          aws_access_key_id: ${{ secrets.TMP_OHAI_AWS_ACCESS_KEY_ID_STAGING }}
+          aws_secret_access_key: ${{ secrets.TMP_OHAI_AWS_SECRET_ACCESS_KEY_STAGING }}
+          aws_s3_bucket_name: "nr-downloads-ohai-staging"
+          aws_s3_lock_bucket_name: "onhost-ci-lock-staging"
+          access_point_host: "staging"
+          run_id: ${{ github.run_id }}
+          aws_region: "us-east-1"
+          aws_role_session_name: ${{ secrets.TMP_OHAI_AWS_ROLE_SESSION_NAME_STAGING }}
+          aws_role_arn: ${{ secrets.TMP_OHAI_AWS_ROLE_ARN_STAGING }}
+          # used for signing package stuff
+          gpg_passphrase: ${{ secrets.OHAI_GPG_PASSPHRASE }}
+          gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
+          disable_lock: false
+          dest_prefix: "limited_preview/"
+          local_packages_path:  "/srv/dist/"
+          apt_skip_mirror:  true

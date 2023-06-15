@@ -1,0 +1,66 @@
+# default destination for downloaded artifacts. Template.
+destination: ./artifacts/{{.Arch}}
+
+# Used as defaults for all NR binaries below, can be overridden. Template.
+url: https://download.newrelic.com/infrastructure_agent/binaries/linux/{{.Arch}}/{{.Name}}_linux_{{.Version | trimv}}_{{.Arch}}.tar.gz
+
+# stagingUrl will be used if the download is invoked with -staging. Template.
+staging_url: https://nr-downloads-ohai-staging.s3.amazonaws.com/infrastructure_agent/binaries/linux/{{.Arch}}/{{.Name}}_linux_{{.Version | trimv}}_{{.Arch}}.tar.gz
+
+# List of integrations to download.
+# Individual entries may override any of the values defined above.
+artifacts:
+  - name: newrelic-infra
+    version: 1.42.2
+    url: https://github.com/newrelic/infrastructure-agent/releases/download/{{.Version | trimv}}/newrelic-infra_systemd_{{.Version | trimv}}_{{.Arch}}.deb
+    files:
+      # infra-agent
+      - name: newrelic-infra binary
+        src: usr/bin/newrelic-infra
+        dest: artifacts/{{.Arch}}/newrelic-infra
+      # integrations
+      - name: nri-docker binary
+        src: var/db/newrelic-infra/newrelic-integrations/bin/nri-docker
+      - name: nri-docker config
+        src: etc/newrelic-infra/integrations.d/docker-config.yml
+      - name: nri-prometheus binary
+        src: var/db/newrelic-infra/newrelic-integrations/bin/nri-prometheus
+      - name: nri-flex binary
+        src: var/db/newrelic-infra/newrelic-integrations/bin/nri-flex
+      # fluent-bit conf
+      - name: fb parsers.conf
+        src: var/db/newrelic-infra/newrelic-integrations/logging/parsers.conf
+        dest: artifacts/{{.Arch}}/fluent-bit
+      - name: fb nr-plugin
+        src: var/db/newrelic-infra/newrelic-integrations/logging/out_newrelic.so
+        dest: artifacts/{{.Arch}}/fluent-bit
+      # fb examples
+      - name: fb example file.yml.example
+        src: etc/newrelic-infra/logging.d/file.yml.example
+        dest: artifacts/{{.Arch}}/fluent-bit
+      - name: fb example file.yml.example
+        src: etc/newrelic-infra/logging.d/fluentbit.yml.example
+        dest: artifacts/{{.Arch}}/fluent-bit
+      - name: fb example syslog.yml.example
+        src: etc/newrelic-infra/logging.d/syslog.yml.example
+        dest: artifacts/{{.Arch}}/fluent-bit
+      - name: fb example systemd.yml.example
+        src: etc/newrelic-infra/logging.d/systemd.yml.example
+        dest: artifacts/{{.Arch}}/fluent-bit
+      - name: fb example tcp.yml.example
+        src: etc/newrelic-infra/logging.d/tcp.yml.example
+        dest: artifacts/{{.Arch}}/fluent-bit
+
+  - name: nr-otel-collector
+    version: 0.1.0
+    url: https://github.com/newrelic/opentelemetry-collector-releases/releases/download/nr-otel-collector-{{.Version | trimv}}/nr-otel-collector_{{.Version | trimv}}_linux_{{.Arch}}.deb
+    files:
+      - name: nt-otel-collector binary
+        src: usr/bin/nr-otel-collector
+        dest: artifacts/{{.Arch}}/nr-otel-collector
+      - name: nt-otel-collector conf
+        src: etc/nr-otel-collector/config.yaml
+        dest: artifacts/{{.Arch}}/nr-otel-collector
+      - name: nt-otel-collector conf service
+        src: etc/nr-otel-collector/nr-otel-collector.conf
+        dest: artifacts/{{.Arch}}/nr-otel-collector
