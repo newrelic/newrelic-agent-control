@@ -7,7 +7,7 @@
 
 print_usage() {
   printf -- "Usage: %s\n" "$(basename "${0}")"
-  printf -- "-f: File to uplload\n"
+  printf -- "-f: File to upload\n"
   printf -- "-t: tag of the release\n"
   printf -- "-h: Print help page\n"
 }
