@@ -107,28 +107,20 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
             );
 
             // Actually run the process
-            let started = match proc_runner.start() {
-                Ok(s) => s,
-                Err(e) => {
-                    error!(
-                        supervisor = runner.id(),
-                        "Failed to start a supervised process: {}", e
-                    );
-                    continue;
-                }
-            };
+            let Ok(started) = proc_runner.start().map_err(|e| {
+                error!(
+                    supervisor = runner.id(),
+                    "Failed to start a supervised process: {}", e
+                );
+            }) else { continue };
 
             // Stream the output
-            let streaming = match started.stream(runner.snd.clone()) {
-                Ok(s) => s,
-                Err(e) => {
-                    error!(
-                        supervisor = runner.id(),
-                        "Failed to stream the output of a supervised process: {}", e
-                    );
-                    continue;
-                }
-            };
+            let Ok(streaming) = started.stream(runner.snd.clone()).map_err(|e| {
+                error!(
+                    supervisor = runner.id(),
+                    "Failed to stream the output of a supervised process: {}", e
+                );
+            }) else { continue };
 
             _ = wait_for_termination(streaming.get_pid(), runner.ctx.clone());
 
