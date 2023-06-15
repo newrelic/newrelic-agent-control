@@ -22,7 +22,7 @@ impl<'de> Deserialize<'de> for AgentType {
             1 => agent_type(parts[0], None),
             2 => agent_type(parts[0], Some(parts[1].to_string())),
             _ => Err(serde::de::Error::custom(
-                "`agents` items must be of the form `agent_type` or `agent_type/name`, where `agent_type` is one of `nr_infra_agent`, `nr_otel_collector` or some other custom string, and `name` is a custom name for the agent. Examples: `nr_infra_agent`, `nr_otel_collector/my_col`, `my_agent/agent1`",
+                "`agents` items must be of the form `agent_type` or `agent_type/name`, where `agent_type` is one of `nr_infra_agent` or `nr_otel_collector`, and `name` is a custom name for the agent. Examples: `nr_infra_agent`, `nr_otel_collector/my_col`",
             )),
         }
     }
