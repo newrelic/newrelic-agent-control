@@ -1,4 +1,4 @@
-use std::{path::Path, sync::mpsc, thread};
+use std::{path::Path, sync::mpsc};
 
 use tracing::info;
 
@@ -16,7 +16,6 @@ pub mod supervisor_group;
 
 pub struct Agent {
     cfg: MetaAgentConfig,
-    ctx: Context,
 }
 
 impl Agent {
@@ -24,35 +23,19 @@ impl Agent {
         &self.cfg
     }
 
-    pub fn get_context(&self) -> Context {
-        self.ctx.clone()
-    }
-
     pub fn new(cfg_path: &Path) -> Result<Self, AgentError> {
         let cfg = Resolver::retrieve_config(cfg_path)?;
 
-        info!("Creating the supervisor context");
-        let ctx = Context::new();
-
-        Ok(Self { cfg, ctx })
+        Ok(Self { cfg })
     }
-    pub fn run(self) -> Result<(), AgentError> {
-        // FIXME: Placeholder for NR-124576
-        let signal_manager = thread::spawn({
-            let ctx = self.get_context();
-            move || {
-                info!("Starting the signal manager");
-                thread::sleep(std::time::Duration::from_secs(120));
-                ctx.cancel_all().unwrap();
-            }
-        });
 
-        info!("Creating communication channels");
+    pub fn run(self, ctx: Context) -> Result<(), AgentError> {
+        info!("Creating agent's communication channels");
         let (tx, rx) = mpsc::channel();
 
         let output_manager = StdEventReceiver::default().log(rx);
 
-        let supervisor_group = SupervisorGroup::new(self.get_context(), tx, self.get_config());
+        let supervisor_group = SupervisorGroup::new(ctx, tx, self.get_config());
         {
             /*
                 TODO: We should first compare the current config with the one in the meta agent config.
@@ -81,13 +64,10 @@ impl Agent {
             info!("Supervisor group has finished. Exiting the meta agent");
         }
 
-        // Ending the program
-        info!("Waiting for the signal manager to finish");
-        signal_manager.join().unwrap();
         info!("Waiting for the output manager to finish");
         output_manager.join().unwrap();
 
-        info!("Exit");
+        info!("Agent finished");
         Ok(())
     }
 }

@@ -1,6 +1,6 @@
-use meta_agent::{agent::Agent, cli::Cli, logging::Logging};
+use meta_agent::{agent::Agent, cli::Cli, context::Context, logging::Logging};
 use std::error::Error;
-use tracing::info;
+use tracing::{error, info};
 
 fn main() -> Result<(), Box<dyn Error>> {
     // init logging singleton
@@ -15,8 +15,21 @@ fn main() -> Result<(), Box<dyn Error>> {
         return Ok(());
     }
 
-    info!("Starting the meta agent");
+    info!("Creating the global context");
+    let ctx = Context::new();
 
-    Agent::new(&cli.get_config_path())?.run()?;
+    info!("Creating the signal handler");
+    _ = ctrlc::set_handler({
+        let ctx = ctx.clone();
+        move || ctx.cancel_all().unwrap()
+    })
+    .map_err(|e| {
+        error!("Could not set signal handler: {}", e);
+        ctx.cancel_all().unwrap();
+    });
+
+    info!("Starting the meta agent");
+    Agent::new(&cli.get_config_path())?.run(ctx)?;
+
     Ok(())
 }
