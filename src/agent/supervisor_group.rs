@@ -66,9 +66,6 @@ impl From<&SupervisorGroupBuilder> for SupervisorGroup<Stopped> {
                         SupervisorRunner::from(&NRIConfig::new(ctx, tx, cfg))
                     }
                     AgentType::Nrdot(_) => SupervisorRunner::from(&NRDOTConfig::new(ctx, tx, cfg)),
-                    AgentType::Custom(_, _) => {
-                        unimplemented!("Custom agent type not implemented yet")
-                    }
                 };
                 (agent_t.clone(), runner)
             })

@@ -270,34 +270,4 @@ agents:
         assert_eq!(actual.agents.len(), 3);
         assert_eq!(actual, expected);
     }
-
-    #[test]
-    fn resolve_custom_agent_with_invalid_config() {
-        let actual = Resolver::new(File::from_str(
-            r#"
-agents:
-  custom_agent:
-    config:
-      bin: echo
-  custom_agent/nobin:
-    config:
-      args:
-        - "hello"
-        - "world"
-  custom_agent/binargs:
-    config:
-      bin: echo
-      args:
-        - "hello"
-        - "world"
-"#,
-            FileFormat::Yaml,
-        ))
-        .build_config();
-        assert!(actual.is_err());
-        assert!(actual
-            .unwrap_err()
-            .to_string()
-            .contains("custom agent type `custom_agent/nobin` must have a `bin` key"));
-    }
 }

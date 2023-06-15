@@ -29,7 +29,6 @@ agents:
 #[serde(deny_unknown_fields)]
 pub struct MetaAgentConfig {
     /// agents is a map of agent types to their specific configuration (if any).
-    #[serde(deserialize_with = "des_agent_configs")]
     pub agents: HashMap<AgentType, Option<AgentConfig>>,
 }
 
@@ -96,50 +95,4 @@ fn realize_backoff_config(i: &BackoffStrategyInner) -> Backoff {
 
 fn default_last_retry_interval() -> Duration {
     LAST_RETRY_INTERVAL
-}
-
-fn des_agent_configs<'de, D>(
-    deserializer: D,
-) -> Result<HashMap<AgentType, Option<AgentConfig>>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    let agents: HashMap<AgentType, Option<AgentConfig>> = HashMap::deserialize(deserializer)?;
-    agents
-        .into_iter()
-        .try_fold(HashMap::new(), |mut acc, (agent_t, agent_cfg)| {
-            if let AgentType::Custom(custom_type, custom_agent_name) = &agent_t {
-                // Get custom agent type and name as it is in the config
-                let agent_t_name =
-                    agent_type_with_name(custom_type.as_ref(), custom_agent_name.as_ref());
-                // If using a custom agent type, check that the config contains a `bin` key,
-                // the minimum required info for a custom agent.
-                let a_cfg = agent_cfg.as_ref().ok_or(serde::de::Error::custom(format!(
-                    "custom agent `{}`'s spec must not be empty",
-                    agent_t_name
-                )))?;
-                let cfg = a_cfg
-                    .config
-                    .as_ref()
-                    .ok_or(serde::de::Error::custom(format!(
-                        "custom agent {}'s `config` field must not be empty",
-                        agent_t_name
-                    )))?;
-                if !cfg.contains_key("bin") {
-                    Err(serde::de::Error::custom(format!(
-                        "custom agent type `{}` must have a `bin` key",
-                        agent_t_name
-                    )))?
-                }
-            }
-            acc.insert(agent_t, agent_cfg);
-            Ok(acc)
-        })
-}
-
-fn agent_type_with_name(agent_type: &str, agent_name: Option<&String>) -> String {
-    match agent_name {
-        Some(name) => format!("{}/{}", agent_type, name),
-        None => agent_type.to_string(),
-    }
 }
