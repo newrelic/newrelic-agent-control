@@ -142,6 +142,7 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
             if let Some(c) = exit_code {
                 code = c
             }
+
         }
     })
 }
@@ -152,10 +153,8 @@ fn wait_for_termination(pid: u32, ctx: Context) -> JoinHandle<()> {
         let (lck, cvar) = Context::get_lock_cvar(&ctx);
         _ = cvar.wait_while(lck.lock().unwrap(), |finish| !*finish);
 
-        thread::spawn(move || {
-            let shutdown_ctx = Arc::new((Mutex::new(false), Condvar::new()));
-            _ = ProcessTerminator::new(pid).shutdown(|| wait_exit_timeout_default(shutdown_ctx));
-        });
+        let shutdown_ctx = Arc::new((Mutex::new(false), Condvar::new()));
+        _ = ProcessTerminator::new(pid).shutdown(|| wait_exit_timeout_default(shutdown_ctx));
     })
 }
 
