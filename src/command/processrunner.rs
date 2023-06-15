@@ -75,9 +75,8 @@ impl CommandHandle for ProcessRunner<Started> {
             .map_err(CommandError::from)
     }
 
-    fn get_pid(&self) -> u32 {
-        // process should always be Some here
-        self.process.as_ref().unwrap().id()
+    fn get_pid(&self) -> Option<u32> {
+        self.process.as_ref().map(Child::id)
     }
 }
 
@@ -194,8 +193,8 @@ mod tests {
             Ok(ExitStatus::from_raw(0))
         }
 
-        fn get_pid(&self) -> u32 {
-            0
+        fn get_pid(&self) -> Option<u32> {
+            None
         }
     }
 
