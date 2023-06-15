@@ -3,7 +3,7 @@ use std::{
     ops::Deref,
     path::Path,
     sync::mpsc::Sender,
-    sync::{Arc, Condvar, Mutex},
+    sync::{Arc, Mutex},
     thread::{self, JoinHandle},
 };
 
@@ -22,7 +22,7 @@ use super::{
     Handle, Runner, ID,
 };
 
-use log::error;
+use tracing::{error, info};
 
 pub struct Stopped {
     bin: String,
@@ -97,33 +97,18 @@ impl From<&SupervisorRunner<Stopped>> for Metadata {
 
 fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
     let mut restart_policy = runner.restart.clone();
+    let mut code = 0;
+    let current_pid: Arc<Mutex<Option<u32>>> = Arc::new(Mutex::new(None));
+
+    let shutdown_ctx = Context::new();
+    _ = wait_for_termination(
+        current_pid.clone(),
+        runner.ctx.clone(),
+        shutdown_ctx.clone(),
+    );
     thread::spawn({
         move || loop {
             let proc_runner = ProcessRunner::from(&runner).with_metadata(Metadata::from(&runner));
-
-            // Actually run the process
-            let started = match proc_runner.start() {
-                Ok(s) => s,
-                Err(e) => {
-                    error!(supervisor = runner.id(); "Failed to start a supervised process: {}", e);
-                    continue;
-                }
-            };
-
-            // Stream the output
-            let streaming = match started.stream(runner.snd.clone()) {
-                Ok(s) => s,
-                Err(e) => {
-                    error!(supervisor = runner.id(); "Failed to stream the output of a supervised process: {}", e);
-                    continue;
-                }
-            };
-
-            _ = wait_for_termination(streaming.get_pid(), runner.ctx.clone());
-
-            // Signals return exit_code 0, if in the future we need to act on them we can import
-            // std::os::unix::process::ExitStatusExt to get the code with the method into_raw
-            let exit_code = streaming.wait().unwrap().code();
 
             let (lck, _) = Context::get_lock_cvar(&runner.ctx);
             let val = lck.lock().unwrap();
@@ -131,29 +116,59 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
                 break;
             }
 
-            let mut code = 0;
-            if let Some(c) = exit_code {
-                code = c
-            }
-
             if !restart_policy.should_retry(code) {
                 break;
             }
-            restart_policy.backoff()
+            restart_policy.backoff();
+
+            info!(
+                supervisor = runner.id(),
+                msg = "Starting supervisor process"
+            );
+
+            // Actually run the process
+            let Ok(started) = proc_runner.start().map_err(|e| {
+                error!(
+                    supervisor = runner.id(),
+                    "Failed to start a supervised process: {}", e
+                );
+            }) else { continue };
+
+            // Stream the output
+            let Ok(streaming) = started.stream(runner.snd.clone()).map_err(|e| {
+                error!(
+                    supervisor = runner.id(),
+                    "Failed to stream the output of a supervised process: {}", e
+                );
+            }) else { continue };
+            *current_pid.lock().unwrap() = Some(streaming.get_pid());
+            shutdown_ctx.reset().unwrap();
+
+            // Signals return exit_code 0, if in the future we need to act on them we can import
+            // std::os::unix::process::ExitStatusExt to get the code with the method into_raw
+            let exit_code = streaming.wait().unwrap().code();
+            if let Some(c) = exit_code {
+                code = c
+            }
+            *current_pid.lock().unwrap() = None;
+            shutdown_ctx.cancel_all().unwrap();
         }
     })
 }
 
 /// Blocks on the [`Context`], [`ctx`]. When the termination signal is activated, this will send a shutdown signal to the process being supervised (the one whose PID was passed as [`pid`]).
-fn wait_for_termination(pid: u32, ctx: Context) -> JoinHandle<()> {
+fn wait_for_termination(
+    current_pid: Arc<Mutex<Option<u32>>>,
+    ctx: Context,
+    shutdown_ctx: Context,
+) -> JoinHandle<()> {
     thread::spawn(move || {
         let (lck, cvar) = Context::get_lock_cvar(&ctx);
         _ = cvar.wait_while(lck.lock().unwrap(), |finish| !*finish);
 
-        thread::spawn(move || {
-            let shutdown_ctx = Arc::new((Mutex::new(false), Condvar::new()));
+        if let Some(pid) = *current_pid.lock().unwrap() {
             _ = ProcessTerminator::new(pid).shutdown(|| wait_exit_timeout_default(shutdown_ctx));
-        });
+        }
     })
 }
 
@@ -211,6 +226,32 @@ mod tests {
     use std::time::Duration;
 
     #[test]
+    fn test_supervisor_retries_and_exits_on_wrong_command() {
+        let (tx, _) = std::sync::mpsc::channel();
+
+        let backoff = Backoff::new()
+            .with_initial_delay(Duration::new(0, 100))
+            .with_max_retries(3)
+            .with_last_retry_interval(Duration::new(30, 0));
+
+        let agent: SupervisorRunner = SupervisorRunner::new(
+            "wrong-command".to_owned(),
+            vec!["x".to_owned()],
+            Context::new(),
+            tx.clone(),
+        )
+        .with_restart_policy(vec![0], BackoffStrategy::Fixed(backoff));
+
+        let agent = agent.run();
+
+        while !agent.handle.is_finished() {
+            thread::sleep(Duration::from_millis(15));
+        }
+
+        drop(tx);
+    }
+
+    #[test]
     fn test_supervisor_fixed_retry_3_times() {
         let (tx, rx) = std::sync::mpsc::channel();
 
@@ -252,6 +293,6 @@ mod tests {
         drop(tx);
         let stdout = stream.join().unwrap();
 
-        assert_eq!(4, stdout.iter().count());
+        assert_eq!(3, stdout.iter().count());
     }
 }

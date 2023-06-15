@@ -6,6 +6,7 @@ use meta_agent::command::{
 };
 
 const TICKER: &str = "tests/command/scripts/ticker.sh";
+const TICKER_STDERR: &str = "tests/command/scripts/ticker_stderr.sh";
 const TICKER_10: &str = "tests/command/scripts/ticker_10.sh";
 
 // non blocking supervisor
@@ -38,6 +39,48 @@ fn actual_command_streaming() {
         let mut stderr_actual = Vec::new();
 
         (0..20).for_each(|_| match rx.recv().unwrap().output {
+            OutputEvent::Stdout(line) => stdout_actual.push(line),
+            OutputEvent::Stderr(line) => stderr_actual.push(line),
+        });
+
+        (stdout_actual, stderr_actual)
+    });
+
+    // wait for the process to finish
+    let (stdout_actual, stderr_actual) = stream.join().unwrap();
+
+    assert_eq!(stdout_expected, stdout_actual);
+    assert_eq!(stderr_expected, stderr_actual);
+
+    // kill the process
+    #[cfg(unix)]
+    {
+        let terminated = ProcessTerminator::new(streaming_runner.get_pid()).shutdown(|| true);
+        assert!(terminated.is_ok());
+    }
+}
+
+#[test]
+fn actual_command_streaming_only_stderr() {
+    let agent = NonSupervisor {
+        cmd: ProcessRunner::new("sh", [TICKER_STDERR]),
+    };
+
+    let (tx, rx) = std::sync::mpsc::channel();
+
+    let streaming_runner = agent.cmd.start().unwrap().stream(tx).unwrap();
+
+    // Populate the expected output
+    let stdout_expected: Vec<String> = Vec::new();
+    let mut stderr_expected: Vec<String> = Vec::new();
+    (0..10).for_each(|i| stderr_expected.push(format!("err tick {}", i)));
+
+    // stream the actual output on a separate thread
+    let stream = thread::spawn(move || {
+        let mut stdout_actual = Vec::new();
+        let mut stderr_actual = Vec::new();
+
+        (0..10).for_each(|_| match rx.recv().unwrap().output {
             OutputEvent::Stdout(line) => stdout_actual.push(line),
             OutputEvent::Stderr(line) => stderr_actual.push(line),
         });

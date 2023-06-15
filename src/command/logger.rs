@@ -4,21 +4,24 @@ use crate::command::stream::OutputEvent;
 
 use super::{stream::Event, EventLogger};
 
-use log::{debug, error, kv::ToValue};
+use tracing::debug;
 
 // TODO: add configuration filters or additional fields for logging
 #[derive(Default)]
 pub struct StdEventReceiver {}
 
 impl EventLogger for StdEventReceiver {
+    /// fn log outputs the received data using the debug macro, it does not distinguish between
+    /// data received from stdout or stderr (newrelic-infra uses stdout while nr-otel-collector
+    /// uses stderr)
     fn log(self, rcv: Receiver<Event>) -> std::thread::JoinHandle<()> {
         spawn(move || {
             rcv.iter().for_each(|event| match event.output {
-                OutputEvent::Stdout(line) => {
-                    debug!(command = event.metadata.values().to_value(); "{}", line);
+                OutputEvent::Stdout(log) => {
+                    debug!(command = event.metadata.values(), log)
                 }
-                OutputEvent::Stderr(line) => {
-                    error!(command = event.metadata.values().to_value();"{}", line)
+                OutputEvent::Stderr(log) => {
+                    debug!(command = event.metadata.values(), log)
                 }
             })
         })

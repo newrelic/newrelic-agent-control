@@ -1,13 +1,10 @@
-use log::SetLoggerError;
+use std::fmt::Debug;
 use thiserror::Error;
 
 use crate::config::error::MetaAgentConfigError;
 
 #[derive(Error, Debug)]
 pub enum AgentError {
-    #[error("logging error: `{0}`")]
-    LoggingError(#[from] SetLoggerError),
-
     #[error("channel is not present in the agent initializer")]
     ChannelExtractError,
 
