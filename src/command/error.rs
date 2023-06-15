@@ -17,19 +17,13 @@ pub enum CommandError {
     #[error("`{0}` not piped")]
     StreamPipeError(String),
 
-    #[error("could not send output event")]
+    #[error("could not send event: `{0}`")]
     StreamSendError(#[from] SendError<Event>),
 
-    #[error("io error")]
+    #[error("`{0}`")]
     IOError(#[from] std::io::Error),
 
     #[cfg(target_family = "unix")]
-    #[error("system error")]
+    #[error("`{0}`")]
     NixError(#[from] nix::Error),
-}
-
-impl From<ExitStatus> for CommandError {
-    fn from(value: ExitStatus) -> Self {
-        CommandError::ProcessError(value)
-    }
 }
