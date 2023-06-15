@@ -3,7 +3,7 @@ use std::{
     ops::Deref,
     path::Path,
     sync::mpsc::Sender,
-    sync::{Arc, Condvar, Mutex},
+    sync::{Arc, Mutex},
     thread::{self, JoinHandle},
 };
 
@@ -98,9 +98,14 @@ impl From<&SupervisorRunner<Stopped>> for Metadata {
 fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
     let mut restart_policy = runner.restart.clone();
     let mut code = 0;
-    let mut current_pid:Arc<Mutex<Option<u32>>> = Arc::new(Mutex::new(None));
+    let current_pid: Arc<Mutex<Option<u32>>> = Arc::new(Mutex::new(None));
 
-    _ = wait_for_termination(current_pid.clone(), runner.ctx.clone());
+    let shutdown_ctx = Context::new();
+    _ = wait_for_termination(
+        current_pid.clone(),
+        runner.ctx.clone(),
+        shutdown_ctx.clone(),
+    );
     thread::spawn({
         move || loop {
             let proc_runner = ProcessRunner::from(&runner).with_metadata(Metadata::from(&runner));
@@ -137,6 +142,7 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
                 );
             }) else { continue };
             *current_pid.lock().unwrap() = Some(s.get_pid());
+            shutdown_ctx.reset().unwrap();
 
             // Signals return exit_code 0, if in the future we need to act on them we can import
             // std::os::unix::process::ExitStatusExt to get the code with the method into_raw
@@ -145,21 +151,23 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
                 code = c
             }
             *current_pid.lock().unwrap() = None;
+            shutdown_ctx.cancel_all().unwrap();
         }
     })
 }
 
 /// Blocks on the [`Context`], [`ctx`]. When the termination signal is activated, this will send a shutdown signal to the process being supervised (the one whose PID was passed as [`pid`]).
-fn wait_for_termination(current_pid: Arc<Mutex<Option<u32>>>, ctx: Context) -> JoinHandle<()> {
+fn wait_for_termination(
+    current_pid: Arc<Mutex<Option<u32>>>,
+    ctx: Context,
+    shutdown_ctx: Context,
+) -> JoinHandle<()> {
     thread::spawn(move || {
         let (lck, cvar) = Context::get_lock_cvar(&ctx);
         _ = cvar.wait_while(lck.lock().unwrap(), |finish| !*finish);
 
-        let shutdown_ctx = Arc::new((Mutex::new(false), Condvar::new()));
         if let Some(pid) = *current_pid.lock().unwrap() {
             _ = ProcessTerminator::new(pid).shutdown(|| wait_exit_timeout_default(shutdown_ctx));
-        } else {
-            ()
         }
     })
 }

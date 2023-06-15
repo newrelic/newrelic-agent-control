@@ -20,4 +20,12 @@ impl Context {
     pub(crate) fn get_lock_cvar(&self) -> &(Mutex<bool>, Condvar) {
         &self.0
     }
+
+    /// Resets the Mutex bool to its initial state
+    pub fn reset(&self) -> Result<(), PoisonError<MutexGuard<'_, bool>>> /* this is the error type returned by a failed `lock()` */
+    {
+        let (lck, _) = &*self.0;
+        *lck.lock()? = false;
+        Ok(())
+    }
 }
