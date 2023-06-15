@@ -19,17 +19,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     let ctx = Context::new();
 
     info!("Creating the signal handler");
-    let handler = ctrlc::set_handler({
+    _ = ctrlc::set_handler({
         let ctx = ctx.clone();
         move || ctx.cancel_all().unwrap()
+    })
+    .map_err(|e| {
+        error!("Could not set signal handler: {}", e);
+        ctx.cancel_all().unwrap();
     });
-    match handler {
-        Ok(_) => (),
-        Err(e) => {
-            error!("Could not set signal handler: {}", e);
-            ctx.cancel_all().unwrap();
-        }
-    }
 
     info!("Starting the meta agent");
     Agent::new(&cli.get_config_path())?.run(ctx)?;
