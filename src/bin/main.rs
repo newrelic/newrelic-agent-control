@@ -19,7 +19,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let ctx = Context::new();
 
     info!("Creating the signal handler");
-    _ = ctrlc::set_handler({
+    ctrlc::set_handler({
         let ctx = ctx.clone();
         move || ctx.cancel_all().unwrap()
     })
