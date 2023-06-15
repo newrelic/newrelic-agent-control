@@ -25,6 +25,6 @@ fn non_blocking_runner() {
     let started_cmd = agent.cmd.start().unwrap();
 
     // kill the process
-    let terminated = ProcessTerminator::new(started_cmd.get_pid()).shutdown(|| true);
+    let terminated = ProcessTerminator::new(started_cmd.get_pid().unwrap()).shutdown(|| true);
     assert!(terminated.is_ok());
 }
