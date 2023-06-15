@@ -4,8 +4,8 @@ use crate::{command::stream::Event, config::agent_configs::AgentConfig, context:
 
 use super::{restart::BackoffStrategy, runner::SupervisorRunner};
 
-const NEWRELIC_INFRA_PATH: &str = "/opt/homebrew/bin/newrelic-infra";
-const NEWRELIC_INFRA_CONFIG_PATH: &str = "/opt/homebrew/etc/newrelic-infra/newrelic-infra.yml";
+const NEWRELIC_INFRA_PATH: &str = "/usr/bin/newrelic-infra";
+const NEWRELIC_INFRA_CONFIG_PATH: &str = "/etc/newrelic-infra.yml";
 const NEWRELIC_INFRA_ARGS: [&str; 2] = ["--config", NEWRELIC_INFRA_CONFIG_PATH];
 
 pub struct NRIConfig {
