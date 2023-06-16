@@ -19,5 +19,5 @@ jobs:
     with:
       TAG_OR_UNIQUE_NAME: "0.0.3"
     secrets:
-      AWS_ROLE_ARN: ${{ secrets.TMP_OHAI_AWS_ROLE_ARN_STAGING }}
+      AWS_ROLE_ARN: ${{ secrets.TMP_AWS_ROLE_ARN }}
       AWS_VPC_SUBNET: ${{ secrets.TMP_AWS_VPC_SUBNET }}
