@@ -33,7 +33,8 @@ jobs:
           aws-region: us-east-2
           
       - uses: actions/checkout@v3
-        # with:
+        with:
+          token: "${{ secrets.GITHUB_TOKEN }}" 
         #   fetch-depth: 0
 
       - name: Set branch name
