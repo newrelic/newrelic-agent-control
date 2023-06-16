@@ -155,7 +155,7 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
             }
 
             // canceling the shutdown ctx must be done before getting current_pid lock
-            // as it locked byt the wait_for_termination function
+            // as it locked by the wait_for_termination function
             shutdown_ctx.cancel_all(true).unwrap();
             *current_pid.lock().unwrap() = None;
         }
@@ -221,6 +221,27 @@ impl SupervisorRunner<Stopped> {
     ) -> Self {
         self.state.restart = RestartPolicy::new(backoff_strategy, restart_exit_codes);
         self
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod sleep_supervisor_tests {
+    use std::sync::mpsc::Sender;
+
+    use crate::{command::stream::Event, context::Context};
+
+    use super::{Stopped, SupervisorRunner};
+
+    pub(crate) fn new_sleep_supervisor(
+        tx: Sender<Event>,
+        seconds: u32,
+    ) -> SupervisorRunner<Stopped> {
+        SupervisorRunner::new(
+            "sh".to_owned(),
+            vec!["-c".to_string(), format!("sleep {}", seconds)],
+            Context::new(),
+            tx.clone(),
+        )
     }
 }
 

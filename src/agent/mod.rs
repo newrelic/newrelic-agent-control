@@ -1,12 +1,16 @@
-use std::{path::Path, sync::mpsc};
+use std::{
+    path::Path,
+    sync::mpsc::{self, Sender},
+};
 
 use tracing::{error, info};
 
 use crate::{
     agent::supervisor_group::SupervisorGroup,
-    command::{EventLogger, StdEventReceiver},
+    command::{stream::Event, EventLogger, StdEventReceiver},
     config::{agent_configs::MetaAgentConfig, agent_type::AgentType, resolver::Resolver},
     context::Context,
+    supervisor::runner::Stopped,
 };
 
 use self::error::AgentError;
@@ -22,28 +26,50 @@ pub enum AgentEvent {
     Stop,
 }
 
-pub struct Agent {
-    cfg: MetaAgentConfig,
+pub trait SupervisorGroupResolver {
+    fn retrieve_group(&self, tx: Sender<Event>) -> SupervisorGroup<Stopped>;
+}
+
+impl SupervisorGroupResolver for MetaAgentConfig {
+    fn retrieve_group(&self, tx: Sender<Event>) -> SupervisorGroup<Stopped> {
+        SupervisorGroup::new(tx, self)
+    }
+}
+
+pub struct Agent<R = MetaAgentConfig>
+where
+    R: SupervisorGroupResolver,
+{
+    resolver: R,
 }
 
 impl Agent {
-    pub fn get_config(&self) -> &MetaAgentConfig {
-        &self.cfg
-    }
-
     pub fn new(cfg_path: &Path) -> Result<Self, AgentError> {
         let cfg = Resolver::retrieve_config(cfg_path)?;
 
-        Ok(Self { cfg })
+        Ok(Self { resolver: cfg })
     }
 
+    #[cfg(test)]
+    fn new_custom_resolver<R>(resolver: R) -> Agent<R>
+    where
+        R: SupervisorGroupResolver,
+    {
+        Agent::<R> { resolver }
+    }
+}
+
+impl<R> Agent<R>
+where
+    R: SupervisorGroupResolver,
+{
     pub fn run(self, ctx: Context<Option<AgentEvent>>) -> Result<(), AgentError> {
         info!("Creating agent's communication channels");
         let (tx, rx) = mpsc::channel();
 
         let output_manager = StdEventReceiver::default().log(rx);
 
-        let supervisor_group = SupervisorGroup::new(tx, self.get_config());
+        let supervisor_group = self.resolver.retrieve_group(tx);
         /*
             TODO: We should first compare the current config with the one in the meta agent config.
             In a future situation, it might have changed due to updates from OpAMP, etc.
@@ -107,5 +133,47 @@ impl Agent {
 
         info!("MetaAgent finished");
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        thread::{sleep, spawn},
+        time::Duration,
+    };
+
+    use crate::context::Context;
+
+    use super::{
+        supervisor_group::tests::new_sleep_supervisor_group, Agent, AgentEvent,
+        SupervisorGroupResolver,
+    };
+
+    struct MockedSleepGroupResolver;
+    impl SupervisorGroupResolver for MockedSleepGroupResolver {
+        fn retrieve_group(
+            &self,
+            tx: std::sync::mpsc::Sender<crate::command::stream::Event>,
+        ) -> super::supervisor_group::SupervisorGroup<crate::supervisor::runner::Stopped> {
+            new_sleep_supervisor_group(tx)
+        }
+    }
+
+    #[test]
+    fn run_and_stop_supervisors() {
+        let agent = Agent::new_custom_resolver(MockedSleepGroupResolver);
+        let ctx: Context<Option<AgentEvent>> = Context::new();
+
+        // stop all agents after 3 seconds
+        spawn({
+            let ctx = ctx.clone();
+            move || {
+                sleep(Duration::from_secs(3));
+                ctx.cancel_all(Some(AgentEvent::Stop)).unwrap();
+            }
+        });
+
+        assert!(agent.run(ctx).is_ok())
     }
 }

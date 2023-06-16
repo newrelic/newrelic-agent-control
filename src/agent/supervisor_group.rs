@@ -74,3 +74,34 @@ impl From<&SupervisorGroupBuilder> for SupervisorGroup<Stopped> {
         SupervisorGroup(runners)
     }
 }
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use std::{collections::HashMap, sync::mpsc::Sender};
+
+    use crate::{
+        command::stream::Event,
+        config::agent_type::AgentType,
+        supervisor::runner::{
+            sleep_supervisor_tests::new_sleep_supervisor, Stopped, SupervisorRunner,
+        },
+    };
+
+    use super::SupervisorGroup;
+
+    // new_sleep_supervisor_group returns a stopped supervisor group with to runners which mock the
+    // InfraAgent by sleeping 5 and 10 seconds respectively
+    pub(crate) fn new_sleep_supervisor_group(tx: Sender<Event>) -> SupervisorGroup<Stopped> {
+        let group: HashMap<AgentType, SupervisorRunner<Stopped>> = HashMap::from([
+            (
+                AgentType::InfraAgent(Some("sleep_5".to_string())),
+                new_sleep_supervisor(tx.clone(), 5),
+            ),
+            (
+                AgentType::InfraAgent(Some("sleep_10".to_string())),
+                new_sleep_supervisor(tx, 10),
+            ),
+        ]);
+        SupervisorGroup(group)
+    }
+}
