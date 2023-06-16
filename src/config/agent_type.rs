@@ -17,11 +17,11 @@ impl From<&AgentType> for String {
         match value {
             crate::config::agent_type::AgentType::InfraAgent(name) => match name {
                 Some(name) => format!("infra_agent/{}", name),
-                None => format!("infra_agent"),
+                None => "infra_agent".to_string(),
             },
             crate::config::agent_type::AgentType::Nrdot(name) => match name {
                 Some(name) => format!("nr_otel_collector/{}", name),
-                None => format!("nr_otel_collector"),
+                None => "nr_otel_collector".to_string(),
             },
         }
     }
