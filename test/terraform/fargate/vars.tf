@@ -19,7 +19,7 @@ variable "vpc_subnet" {
 }
 
 variable "cluster_name" {
-  default = "caos_otel_releases"
+  default = "caos_meta_agent_releases"
 }
 
 #######################################
@@ -69,19 +69,19 @@ variable "task_container_image" {
 }
 
 variable "task_logs_group" {
-  default = "/ecs/test-prerelease-otel-releases"
+  default = "/ecs/test-prerelease-meta_agent-releases"
 }
 
 variable "task_container_name" {
-  default = "test-otel-releases"
+  default = "test-meta_agent-releases"
 }
 
 variable "task_name_prefix" {
-  default = "otel-releases"
+  default = "meta_agent-releases"
 }
 
 variable "task_logs_prefix" {
-  default = "ecs-otel-releases"
+  default = "ecs-meta_agent-releases"
 }
 
 variable "s3_bucket" {
@@ -97,7 +97,7 @@ variable "efs_volume_mount_point" {
 }
 
 variable "efs_volume_name" {
-  default = "shared-otel-releases"
+  default = "shared-meta_agent-releases"
 }
 
 variable "canaries_security_group" {
@@ -122,9 +122,9 @@ variable "additional_efs_security_group_rules" {
 #######################################
 
 variable "oidc_repository" {
-  default = "repo:newrelic/opentelemetry-collector-releases:*"
+  default = "repo:newrelic/newrelic-supervisor:*"
 }
 
 variable "oidc_role_name" {
-  default = "caos-pipeline-oidc-otel-releases"
+  default = "caos-pipeline-oidc-meta_agent-releases"
 }

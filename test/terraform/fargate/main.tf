@@ -8,13 +8,13 @@ provider "aws" {
 terraform {
   backend "s3" {
     bucket = "automation-pipeline-terraform-state"
-    key    = "otel_releases"
+    key    = "meta_agent_releases"
     region = "us-east-2"
   }
 }
 
 
-module "otel_infra" {
+module "meta_agent_infra" {
     source = "github.com/newrelic/fargate-runner-action//terraform/modules/infra-ecs-fargate?ref=main"
     region = var.region
     vpc_id = var.vpc_id
