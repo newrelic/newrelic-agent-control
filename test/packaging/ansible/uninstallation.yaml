@@ -1,0 +1,42 @@
+---
+
+- name: uninstallation
+  hosts: testing_hosts_linux
+  become: true
+  gather_facts: yes
+
+  pre_tasks:
+    - name: Initial cleanup # Only required for shared infra.
+      include_tasks: ./custom_tasks/cleanup.yml
+
+  tasks:
+    - name: Uninstallation tests suite
+      vars:
+
+      block:
+
+        - name: NR Otel Distribution
+          include_role:
+            name: caos.ansible_roles.nr_otel_distribution
+          vars:
+            distribution: "nr-otel-collector"
+            repo_endpoint: "http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/infrastructure_agent"
+            collector_otlp_endpoint: "staging-otlp.nr-data.net:4317"
+
+        - name: Uninstall collector
+          include_role:
+            name: caos.ansible_roles.nr_otel_distribution
+          vars:
+            repo_endpoint: "http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/infrastructure_agent"
+            uninstall: true
+
+        - name: assert no service
+          include_role:
+            name: caos.ansible_roles.assert_no_service
+          vars:
+            service_name: nr-otel-collector
+
+      always:
+        - name: Final cleanup # Only required for shared infra.
+          include_tasks: ./custom_tasks/cleanup.yml
+...

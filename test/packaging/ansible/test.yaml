@@ -1,0 +1,17 @@
+---
+
+- name: pinned version agent installation
+  import_playbook: installation-pinned.yaml
+
+- name: pinned version agent installation with full privileges
+  import_playbook: installation-pinned.yaml
+  vars:
+    install_mode: "ROOT"
+
+- name: collector upgrade
+  import_playbook: upgrade.yaml
+
+- name: agent uninstallation
+  import_playbook: uninstallation.yaml
+
+...
