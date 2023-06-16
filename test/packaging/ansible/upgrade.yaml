@@ -1,0 +1,65 @@
+---
+
+- name: upgrade
+  hosts: testing_hosts_linux
+  become: true
+  gather_facts: yes
+
+  pre_tasks:
+    - name: Initial cleanup # Only required for shared infra.
+      include_tasks: ./custom_tasks/cleanup.yml
+
+  tasks:
+    - name: Installation tests suite
+      vars:
+        initial_version: "0.0.1"
+
+      block:
+
+        - name: Install NR Otel Distribution pinned version
+          include_role:
+            name: caos.ansible_roles.nr_otel_distribution
+          vars:
+            collector_otlp_endpoint: "staging-otlp.nr-data.net:4317"
+            repo_endpoint: "http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/infrastructure_agent"
+            target_version: "{{ initial_version }}"
+
+        - name: Assert version
+          include_role:
+            name: caos.ansible_roles.assert_version
+          vars:
+            target_versions:
+              - exec: "nr-otel-collector --version"
+                version: "{{ initial_version }}"
+
+        - name: get initial collector PID
+          command: pgrep -f nr-otel-collector
+          register: collector_pid
+
+        - name: Install NR Otel Distribution latest version
+          include_role:
+            name: caos.ansible_roles.nr_otel_distribution
+          vars:
+            collector_otlp_endpoint: "staging-otlp.nr-data.net:4317"
+            repo_endpoint: "http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/infrastructure_agent"
+
+        - name: register installed version
+          shell: "nr-otel-collector --version | grep  -E -o '[0-9\\.]+'"
+          register: nr_otel_collector_installed_version
+
+        - name: assert installed version is bigger than initial version
+          assert:
+            that: "{{ nr_otel_collector_installed_version.stdout is version(initial_version, '>') }}"
+
+        - name: get updated collector PID
+          command: pgrep -f nr-otel-collector
+          register: updated_collector_pid
+
+        - name: assert collector has been reloaded
+          assert:
+            that: collector_pid.stdout != updated_collector_pid.stdout
+
+      always:
+        - name: Final cleanup # Only required for shared infra.
+          include_tasks: ./custom_tasks/cleanup.yml
+...

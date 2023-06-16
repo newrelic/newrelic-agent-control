@@ -1,0 +1,43 @@
+---
+
+- hosts: all
+  become: true
+  gather_facts: no
+
+  tasks:
+    - name: Remove EOL repository sources
+      include_role:
+        name: caos.ansible_roles.remove_eol_sources
+
+    - name: install python
+      include_role:
+        name: caos.ansible_roles.install_python
+
+    - name: Install Libcap
+      include_role:
+        name: caos.ansible_roles.install_libcap
+
+    - name: Install GPG
+      include_role:
+        name: caos.ansible_roles.install_gpg
+
+- hosts: all
+  become: true
+  gather_facts: yes
+
+  tasks:
+    - name: Configure logrotate
+      include_role:
+        name: caos.ansible_roles.logrotate
+
+    - name: Configure hostname
+      include_role:
+        name: caos.ansible_roles.hostname
+
+- hosts: testing_hosts_windows
+  gather_facts: yes
+
+  tasks:
+    - name: Configure hostname
+      include_role:
+        name: caos.ansible_roles.hostname
