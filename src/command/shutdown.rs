@@ -51,7 +51,7 @@ impl CommandTerminator for ProcessTerminator {
 
 /// wait_exit_timeout is a function that waits on a condvar for a change in a boolean exit variable
 /// but returning a false if the timeout provided is reached before any state change.
-pub fn wait_exit_timeout(context: Context, exit_timeout: Duration) -> bool {
+pub fn wait_exit_timeout(context: Context<bool>, exit_timeout: Duration) -> bool {
     let (lock, cvar) = context.get_lock_cvar();
     let exited = lock.lock();
     match exited {
@@ -82,7 +82,7 @@ pub fn wait_exit_timeout(context: Context, exit_timeout: Duration) -> bool {
 }
 
 /// wait_exit_timeout_default calls wait_exit_timeout with the DEFAULT_EXIT_TIMEOUT of 2 seconds.
-pub fn wait_exit_timeout_default(context: Context) -> bool {
+pub fn wait_exit_timeout_default(context: Context<bool>) -> bool {
     wait_exit_timeout(context, DEFAULT_EXIT_TIMEOUT)
 }
 

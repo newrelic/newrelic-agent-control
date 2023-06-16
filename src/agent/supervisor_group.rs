@@ -1,9 +1,8 @@
-use std::{collections::HashMap, sync::mpsc::Sender};
+use std::{collections::HashMap, sync::mpsc::Sender, thread::JoinHandle};
 
 use crate::{
     command::stream::Event,
     config::{agent_configs::MetaAgentConfig, agent_type::AgentType},
-    context::Context,
     supervisor::{
         error::ProcessError,
         newrelic_infra_supervisor::NRIConfig,
@@ -16,9 +15,8 @@ use crate::{
 pub struct SupervisorGroup<S>(HashMap<AgentType, SupervisorRunner<S>>);
 
 impl SupervisorGroup<Stopped> {
-    pub fn new(ctx: Context, tx: Sender<Event>, cfg: &MetaAgentConfig) -> Self {
+    pub fn new(tx: Sender<Event>, cfg: &MetaAgentConfig) -> Self {
         let builder = SupervisorGroupBuilder {
-            ctx,
             tx,
             cfg: cfg.clone(),
         };
@@ -43,10 +41,16 @@ impl SupervisorGroup<Running> {
             .map(|(t, runner)| (t, runner.wait()))
             .collect()
     }
+
+    pub fn stop(self) -> HashMap<AgentType, JoinHandle<()>> {
+        self.0
+            .into_iter()
+            .map(|(t, runner)| (t, runner.stop()))
+            .collect()
+    }
 }
 
 struct SupervisorGroupBuilder {
-    ctx: Context,
     tx: Sender<Event>,
     cfg: MetaAgentConfig,
 }
@@ -58,14 +62,11 @@ impl From<&SupervisorGroupBuilder> for SupervisorGroup<Stopped> {
             .agents
             .iter()
             .map(|(agent_t, agent_cfg)| {
-                let ctx = value.ctx.clone();
                 let tx = value.tx.clone();
                 let cfg = agent_cfg.clone();
                 let runner = match &agent_t {
-                    AgentType::InfraAgent(_) => {
-                        SupervisorRunner::from(&NRIConfig::new(ctx, tx, cfg))
-                    }
-                    AgentType::Nrdot(_) => SupervisorRunner::from(&NRDOTConfig::new(ctx, tx, cfg)),
+                    AgentType::InfraAgent(_) => SupervisorRunner::from(&NRIConfig::new(tx, cfg)),
+                    AgentType::Nrdot(_) => SupervisorRunner::from(&NRDOTConfig::new(tx, cfg)),
                 };
                 (agent_t.clone(), runner)
             })

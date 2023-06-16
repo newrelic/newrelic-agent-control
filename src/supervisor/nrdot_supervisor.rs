@@ -13,7 +13,7 @@ const NRDOT_ARGS: [&str; 3] = [
 ];
 
 pub struct NRDOTConfig {
-    ctx: Context,
+    ctx: Context<bool>,
     snd: Sender<Event>,
     cfg: Option<AgentConfig>,
 }
@@ -39,7 +39,11 @@ impl From<&NRDOTConfig> for SupervisorRunner {
 }
 
 impl NRDOTConfig {
-    pub fn new(ctx: Context, snd: Sender<Event>, cfg: Option<AgentConfig>) -> Self {
-        NRDOTConfig { ctx, snd, cfg }
+    pub fn new(snd: Sender<Event>, cfg: Option<AgentConfig>) -> Self {
+        NRDOTConfig {
+            ctx: Context::new(),
+            snd,
+            cfg,
+        }
     }
 }

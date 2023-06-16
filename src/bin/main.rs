@@ -1,4 +1,9 @@
-use meta_agent::{agent::Agent, cli::Cli, context::Context, logging::Logging};
+use meta_agent::{
+    agent::{Agent, AgentEvent},
+    cli::Cli,
+    context::Context,
+    logging::Logging,
+};
 use std::error::Error;
 use tracing::{error, info};
 
@@ -16,12 +21,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     info!("Creating the global context");
-    let ctx = Context::new();
+    let ctx: Context<Option<AgentEvent>> = Context::new();
 
     info!("Creating the signal handler");
     ctrlc::set_handler({
         let ctx = ctx.clone();
-        move || ctx.cancel_all().unwrap()
+        move || ctx.cancel_all(Some(AgentEvent::Stop)).unwrap()
     })
     .map_err(|e| {
         error!("Could not set signal handler: {}", e);

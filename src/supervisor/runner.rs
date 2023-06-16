@@ -27,14 +27,14 @@ use tracing::{error, info};
 pub struct Stopped {
     bin: String,
     args: Vec<String>,
-    ctx: Context,
+    ctx: Context<bool>,
     snd: Sender<Event>,
     restart: RestartPolicy,
 }
 
 pub struct Running {
     handle: JoinHandle<()>,
-    ctx: Context,
+    ctx: Context<bool>,
 }
 
 #[derive(Debug)]
@@ -115,6 +115,8 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
             if *val {
                 break;
             }
+            // drop context lock
+            drop(val);
 
             if !restart_policy.should_retry(code) {
                 break;
@@ -151,7 +153,7 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
                 code = c
             }
             *current_pid.lock().unwrap() = None;
-            shutdown_ctx.cancel_all().unwrap();
+            shutdown_ctx.cancel_all(true).unwrap();
         }
     })
 }
@@ -159,8 +161,8 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
 /// Blocks on the [`Context`], [`ctx`]. When the termination signal is activated, this will send a shutdown signal to the process being supervised (the one whose PID was passed as [`pid`]).
 fn wait_for_termination(
     current_pid: Arc<Mutex<Option<u32>>>,
-    ctx: Context,
-    shutdown_ctx: Context,
+    ctx: Context<bool>,
+    shutdown_ctx: Context<bool>,
 ) -> JoinHandle<()> {
     thread::spawn(move || {
         let (lck, cvar) = Context::get_lock_cvar(&ctx);
@@ -179,7 +181,7 @@ impl Handle for SupervisorRunner<Running> {
     fn stop(self) -> Self::S {
         // Stop all the supervisors
         // TODO: handle PoisonErrors (log?)
-        self.ctx.cancel_all().unwrap();
+        self.ctx.cancel_all(true).unwrap();
         self.state.handle
     }
 
@@ -196,7 +198,7 @@ impl Handle for SupervisorRunner<Running> {
 }
 
 impl SupervisorRunner<Stopped> {
-    pub fn new(bin: String, args: Vec<String>, ctx: Context, snd: Sender<Event>) -> Self {
+    pub fn new(bin: String, args: Vec<String>, ctx: Context<bool>, snd: Sender<Event>) -> Self {
         SupervisorRunner {
             state: Stopped {
                 bin,
