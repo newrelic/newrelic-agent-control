@@ -18,6 +18,8 @@ jobs:
     runs-on: ubuntu-latest
     name: ubuntu
     steps:
+      - name: configure git
+        run: git config --global url."https://${{ secrets.GH_TOKEN }}@github.com".insteadOf "https://github.com"
       - uses: actions/checkout@v3
         with:
           submodules: true
