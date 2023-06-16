@@ -105,7 +105,7 @@ impl Agent {
         info!("Waiting for the output manager to finish");
         output_manager.join().unwrap();
 
-        info!("Agent finished");
+        info!("MetaAgent finished");
         Ok(())
     }
 }

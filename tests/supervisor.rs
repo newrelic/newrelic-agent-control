@@ -14,8 +14,8 @@ struct Config {
 impl From<&Config> for SupervisorRunner {
     fn from(value: &Config) -> Self {
         SupervisorRunner::new(
-            "echo".to_string(),
-            vec!["hello!".to_string()],
+            "sh".to_string(),
+            vec!["-c".to_string(), "sleep 2".to_string()],
             Context::new(),
             value.tx.clone(),
         )
@@ -31,9 +31,12 @@ pub fn init_logger() {
     });
 }
 
-// How should this supervisor work?
+// only unix: shutdown is not implemented for Windows
+#[cfg(target_family = "unix")]
 #[test]
 fn test_supervisors() {
+    use std::thread::JoinHandle;
+
     init_logger();
 
     // Create streaming channel
@@ -67,10 +70,17 @@ fn test_supervisors() {
     thread::sleep(Duration::from_secs(1));
 
     // Wait for all the supervised processes to finish
-    let results = handles.into_iter().map(|h| h.stop().join());
+    let results: Vec<JoinHandle<()>> = handles.into_iter().map(|h| h.stop()).collect();
 
     // Check that all the processes have finished correctly
-    assert_eq!(results.flatten().count(), 10);
+    assert_eq!(
+        results
+            .into_iter()
+            .map(|handle| handle.join())
+            .flatten()
+            .count(),
+        10
+    );
 
     drop(conf);
     // ensure logger was terminated

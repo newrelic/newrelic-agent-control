@@ -115,6 +115,7 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
             if *val {
                 break;
             }
+
             // drop context lock
             drop(val);
 
@@ -152,8 +153,11 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
             if let Some(c) = exit_code {
                 code = c
             }
-            *current_pid.lock().unwrap() = None;
+
+            // canceling the shutdown ctx must be done before getting current_pid lock
+            // as it locked byt the wait_for_termination function
             shutdown_ctx.cancel_all(true).unwrap();
+            *current_pid.lock().unwrap() = None;
         }
     })
 }
