@@ -1,31 +1,90 @@
-name: . 🚀 🐧 🦺 Otel packaging tests on demand
+# FIXME: provision and packaging tests won't work as the repo is private and cannot be fetched from fargate!
+name: 🚀 💾 Packaging tests on demand
 
 on:
   push:
-    # workflow_dispatch:
-    # inputs:
-    #   unique_tag:
-    #     description: 'Unique tag or prefix'
-    #     required: true
-    #   branch:
-    #     description: 'Branch to test'
-    #     required: false
-    #     type: string
-    #     default: "main"
+
+env:
+  TAG_OR_UNIQUE_NAME: "0.0.3"
+
+permissions:
+  id-token: write
 
 jobs:
-  required:
+  infra:
+    name: Prepare infra
+
     runs-on: ubuntu-latest
-    name: ubuntu
+
     steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: ${{ secrets.TMP_AWS_ROLE_ARN }}
+          aws-region: us-east-2
+          
       - uses: actions/checkout@v3
         with:
-          submodules: true
           token: "${{ secrets.GITHUB_TOKEN }}" 
-  packaging:
-    uses: ./.github/workflows/component_provision_packaging.yml
-    with:
-      TAG_OR_UNIQUE_NAME: "0.0.3"
-    secrets:
-      AWS_ROLE_ARN: ${{ secrets.TMP_AWS_ROLE_ARN }}
-      AWS_VPC_SUBNET: ${{ secrets.TMP_AWS_VPC_SUBNET }}
+        #   fetch-depth: 0
+
+      # - name: Set branch name
+      #   run: |
+      #     # Short name for current branch. For PRs, use target branch (base ref)
+      #     GIT_BRANCH=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
+      #     # Is the ref a tag? If so, remove refs/tags/ prefix
+      #     GIT_BRANCH=${GIT_BRANCH#refs/tags/}
+      #     echo "GIT_BRANCH=$GIT_BRANCH" >> $GITHUB_ENV
+
+      # # This sets NR_VERSION which is used below
+      # - name: Set and validate distribution name and version
+      #   run: .github/workflows/scripts/set_version.sh
+
+      # - name: Provision infra
+      #   uses: newrelic/fargate-runner-action@main
+      #   with:
+      #     aws_region: us-east-2
+      #     container_make_target: "test/provision TF_VAR_inventory_output=/srv/runner/inventory/${{ env.TAG_OR_UNIQUE_NAME }}-inventory.ec2 TAG_OR_UNIQUE_NAME=${{ env.TAG_OR_UNIQUE_NAME }}"
+      #     ecs_cluster_name: caos_meta_agent_releases
+      #     task_definition_name: meta_agent-releases-td
+      #     cloud_watch_logs_group_name: /ecs/test-prerelease-meta_agent-releases
+      #     cloud_watch_logs_stream_name: ecs/test-meta_agent-releases
+      #     aws_vpc_subnet: ${{ secrets.AWS_VPC_SUBNET }}
+      #     repo_name: "newrelic/newrelic-supervisor"
+      #     ref: "${{ env.GIT_BRANCH }}"
+      #     log_filters: |
+      #       \[ALLOW_MSG\].+
+      #       TASK\s\[.*\]\s
+      #       PLAY\s\[.*\]\s
+      #       PLAY\sRECAP\s
+      #       Apply\scomplete!
+      #       ok=\d+\s+changed=\d+\s+unreachable=\d+\s+failed=\d+\s+skipped=\d+\s+rescued=\d+\s+ignored=\d+
+
+      # #todo adapt this
+      # - name: Run packaging tests
+      #   uses: newrelic/fargate-runner-action@main
+      #   with:
+      #     aws_region: us-east-2
+      #     container_make_target: "test/packaging ANSIBLE_INVENTORY='/srv/runner/inventory/${{ env.TAG_OR_UNIQUE_NAME }}-inventory.ec2' LIMIT=testing_hosts_linux"
+      #     ecs_cluster_name: caos_meta_agent_releases
+      #     task_definition_name: meta_agent-releases-td
+      #     cloud_watch_logs_group_name: /ecs/test-prerelease-meta_agent-releases
+      #     cloud_watch_logs_stream_name: ecs/test-meta_agent-releases
+      #     aws_vpc_subnet: ${{ secrets.AWS_VPC_SUBNET }}
+      #     repo_name: "newrelic/newrelic-supervisor"
+      #     ref: "${{ env.GIT_BRANCH }}"
+
+      # - name: Destroy infra
+      #   uses: newrelic/fargate-runner-action@main
+      #   with:
+      #     aws_region: us-east-2
+      #     container_make_target: "test/provision-clean TAG_OR_UNIQUE_NAME=${{ env.TAG_OR_UNIQUE_NAME }}"
+      #     ecs_cluster_name: caos_meta_agent_releases
+      #     task_definition_name: meta_agent-releases-td
+      #     cloud_watch_logs_group_name: /ecs/test-prerelease-meta_agent-releases
+      #     cloud_watch_logs_stream_name: ecs/test-meta_agent-releases
+      #     aws_vpc_subnet: ${{ secrets.AWS_VPC_SUBNET }}
+      #     repo_name: "newrelic/newrelic-supervisor"
+      #     ref: "${{ env.GIT_BRANCH }}"
+      #     log_filters: |
+      #       Destroy\scomplete!
