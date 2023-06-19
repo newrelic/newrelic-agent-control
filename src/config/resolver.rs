@@ -64,7 +64,7 @@ mod tests {
             "
 # just Infra Agent enabled
 agents:
-  nr_infra_agent:
+  nr_infra_agent: {{}}
 ",
             FileFormat::Yaml,
         ))
@@ -72,7 +72,7 @@ agents:
         .unwrap();
 
         let expected = MetaAgentConfig {
-            agents: [(AgentType::InfraAgent(None), None)]
+            agents: [(AgentType::InfraAgent(None), AgentConfig::default())]
                 .iter()
                 .cloned()
                 .collect(),
@@ -89,8 +89,8 @@ agents:
             "
 # both enabled
 agents:
-  nr_infra_agent:
-  nr_otel_collector:
+  nr_infra_agent: {{}}
+  nr_otel_collector: {{}}
 ",
             FileFormat::Yaml,
         ))
@@ -99,8 +99,8 @@ agents:
 
         let expected = MetaAgentConfig {
             agents: [
-                (AgentType::InfraAgent(None), None),
-                (AgentType::Nrdot(None), None),
+                (AgentType::InfraAgent(None), AgentConfig::default()),
+                (AgentType::Nrdot(None), AgentConfig::default()),
             ]
             .iter()
             .cloned()
@@ -118,9 +118,9 @@ agents:
             "
 # both enabled
 agents:
-  nr_infra_agent:
-  nr_otel_collector:
-  nr_infra_agent/otherinstance:
+  nr_infra_agent: {{}}
+  nr_otel_collector: {{}}
+  nr_infra_agent/otherinstance: {{}}
 ",
             FileFormat::Yaml,
         ))
@@ -129,12 +129,12 @@ agents:
 
         let expected = MetaAgentConfig {
             agents: [
-                (AgentType::InfraAgent(None), None),
+                (AgentType::InfraAgent(None), AgentConfig::default()),
                 (
                     AgentType::InfraAgent(Some("otherinstance".to_string())),
-                    None,
+                    AgentConfig::default(),
                 ),
-                (AgentType::Nrdot(None), None),
+                (AgentType::Nrdot(None), AgentConfig::default()),
             ]
             .iter()
             .cloned()
@@ -151,7 +151,7 @@ agents:
             "
 # just Infra Agent enabled
 agents:
-  nr_infra_agent:
+  nr_infra_agent: {{}}
 this_is_another_random_config: value
 ",
             FileFormat::Yaml,
@@ -207,7 +207,7 @@ agents:
       configMap:
         key1: value1
         key2: value2
-  nr_otel_collector:
+  nr_otel_collector: {{}}
   nr_infra_agent/otherinstance:
     config:
       otherConfigValue: value
@@ -248,19 +248,19 @@ agents:
             agents: [
                 (
                     AgentType::InfraAgent(None),
-                    Some(AgentConfig {
+                    AgentConfig {
                         restart_policy: RestartPolicyConfig::default(),
                         config: Some(expected_nria_conf),
-                    }),
+                    },
                 ),
                 (
                     AgentType::InfraAgent(Some("otherinstance".to_string())),
-                    Some(AgentConfig {
+                    AgentConfig {
                         restart_policy: RestartPolicyConfig::default(),
                         config: Some(expected_otherinstance_nria_conf),
-                    }),
+                    },
                 ),
-                (AgentType::Nrdot(None), None),
+                (AgentType::Nrdot(None), AgentConfig::default()),
             ]
             .iter()
             .cloned()

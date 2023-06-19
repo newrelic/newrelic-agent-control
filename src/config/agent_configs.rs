@@ -24,12 +24,20 @@ agents:
 ```
  */
 
+/*
+Default values for supervisor restarts
+TODO: refine values with real executions
+*/
+const BACKOFF_DELAY: Duration = Duration::from_secs(2);
+const BACKOFF_MAX_RETRIES: usize = 20;
+const BACKOFF_LAST_RETRY_INTERVAL: Duration = Duration::from_secs(420);
+
 /// MetaAgentConfig represents the configuration for the meta agent.
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct MetaAgentConfig {
     /// agents is a map of agent types to their specific configuration (if any).
-    pub agents: HashMap<AgentType, Option<AgentConfig>>,
+    pub agents: HashMap<AgentType, AgentConfig>,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone, Default)]
@@ -82,7 +90,11 @@ impl From<&BackoffStrategyConfig> for BackoffStrategy {
 
 impl Default for BackoffStrategyConfig {
     fn default() -> Self {
-        Self::None
+        Self::Fixed(BackoffStrategyInner {
+            backoff_delay: BACKOFF_DELAY,
+            max_retries: BACKOFF_MAX_RETRIES,
+            with_last_retry_interval: BACKOFF_LAST_RETRY_INTERVAL,
+        })
     }
 }
 

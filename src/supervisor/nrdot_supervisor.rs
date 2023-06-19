@@ -15,31 +15,27 @@ const NRDOT_ARGS: [&str; 3] = [
 pub struct NRDOTConfig {
     ctx: Context<bool>,
     snd: Sender<Event>,
-    cfg: Option<AgentConfig>,
+    cfg: AgentConfig,
 }
 
 impl From<&NRDOTConfig> for SupervisorRunner {
     fn from(value: &NRDOTConfig) -> Self {
-        let mut supervisor = SupervisorRunner::new(
+        SupervisorRunner::new(
             NRDOT_PATH.to_owned(),
             NRDOT_ARGS.iter().map(|&s| s.to_owned()).collect(),
             value.ctx.clone(),
             value.snd.clone(),
-        );
-        // Additional configs if present
-        if let Some(ref c) = value.cfg {
-            supervisor = supervisor.with_restart_policy(
-                c.restart_policy.restart_exit_codes.clone(),
-                BackoffStrategy::from(&c.restart_policy.backoff_strategy),
-            )
-        }
-
-        supervisor
+        )
+        // Additional configs
+        .with_restart_policy(
+            value.cfg.restart_policy.restart_exit_codes.clone(),
+            BackoffStrategy::from(&value.cfg.restart_policy.backoff_strategy),
+        )
     }
 }
 
 impl NRDOTConfig {
-    pub fn new(snd: Sender<Event>, cfg: Option<AgentConfig>) -> Self {
+    pub fn new(snd: Sender<Event>, cfg: AgentConfig) -> Self {
         NRDOTConfig {
             ctx: Context::new(),
             snd,
