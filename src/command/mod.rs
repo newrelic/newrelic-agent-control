@@ -34,7 +34,7 @@ pub trait CommandHandle {
 
     fn wait(self) -> Result<ExitStatus, Self::Error>;
 
-    fn get_pid(&self) -> Option<u32>;
+    fn get_pid(&self) -> u32;
 }
 
 /// Trait that specifies the interface for a blocking task execution

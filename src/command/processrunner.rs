@@ -1,7 +1,6 @@
 use std::{
     ffi::OsStr,
     io::{BufRead, BufReader, Read},
-    marker::PhantomData,
     process::{Child, Command, ExitStatus, Stdio},
     sync::mpsc::{SendError, Sender},
 };
@@ -13,16 +12,18 @@ use super::{
 
 use tracing::error;
 
-pub struct Unstarted;
-pub struct Started;
+pub struct Unstarted {
+    cmd: Command,
+}
+
+pub struct Started {
+    process: Child,
+}
 
 pub struct ProcessRunner<State = Unstarted> {
-    cmd: Option<Command>,
-    process: Option<Child>,
-    //
     metadata: Metadata,
 
-    state: PhantomData<State>,
+    state: State,
 }
 
 impl ProcessRunner {
@@ -31,16 +32,11 @@ impl ProcessRunner {
         I: IntoIterator<Item = S>,
         S: AsRef<OsStr>,
     {
-        let mut command = Command::new(binary_path);
-        command
-            .args(args)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
+        let mut cmd = Command::new(binary_path);
+        cmd.args(args).stdout(Stdio::piped()).stderr(Stdio::piped());
 
         Self {
-            cmd: Some(command),
-            state: PhantomData,
-            process: None,
+            state: Unstarted { cmd },
             metadata: Metadata::default(),
         }
     }
@@ -55,11 +51,10 @@ impl ProcessRunner {
 impl CommandExecutor for ProcessRunner<Unstarted> {
     type Error = CommandError;
     type Process = ProcessRunner<Started>;
-    fn start(self) -> Result<Self::Process, Self::Error> {
+    fn start(mut self) -> Result<Self::Process, Self::Error> {
+        let process = self.state.cmd.spawn()?;
         Ok(ProcessRunner {
-            cmd: None,
-            state: PhantomData,
-            process: Some(self.cmd.ok_or(CommandError::CommandNotFound)?.spawn()?),
+            state: Started { process },
             metadata: self.metadata,
         })
     }
@@ -68,26 +63,19 @@ impl CommandExecutor for ProcessRunner<Unstarted> {
 impl CommandHandle for ProcessRunner<Started> {
     type Error = CommandError;
 
-    fn wait(self) -> Result<ExitStatus, Self::Error> {
-        self.process
-            .ok_or(CommandError::ProcessNotStarted)?
-            .wait()
-            .map_err(CommandError::from)
+    fn wait(mut self) -> Result<ExitStatus, Self::Error> {
+        self.state.process.wait().map_err(CommandError::from)
     }
 
-    fn get_pid(&self) -> Option<u32> {
-        self.process.as_ref().map(Child::id)
+    fn get_pid(&self) -> u32 {
+        self.state.process.id()
     }
 }
 
 impl CommandRunner for ProcessRunner {
     type Error = CommandError;
-    fn run(self) -> Result<std::process::ExitStatus, Self::Error> {
-        Ok(self
-            .cmd
-            .ok_or(CommandError::CommandNotFound)?
-            .spawn()?
-            .wait()?)
+    fn run(mut self) -> Result<std::process::ExitStatus, Self::Error> {
+        Ok(self.state.cmd.spawn()?.wait()?)
     }
 }
 
@@ -102,16 +90,16 @@ impl EventStreamer for ProcessRunner<Started> {
     type Handle = ProcessRunner<Started>;
 
     fn stream(mut self, snd: Sender<Event>) -> Result<Self::Handle, Self::Error> {
-        let c = self
+        let stdout = self
+            .state
             .process
-            .as_mut()
-            .ok_or(CommandError::ProcessNotStarted)?;
-
-        let stdout = c
             .stdout
             .take()
             .ok_or(CommandError::StreamPipeError("stdout".to_string()))?;
-        let stderr = c
+
+        let stderr = self
+            .state
+            .process
             .stderr
             .take()
             .ok_or(CommandError::StreamPipeError("stderr".to_string()))?;
@@ -193,8 +181,8 @@ mod tests {
             Ok(ExitStatus::from_raw(0))
         }
 
-        fn get_pid(&self) -> Option<u32> {
-            None
+        fn get_pid(&self) -> u32 {
+            0
         }
     }
 
