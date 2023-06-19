@@ -23,4 +23,4 @@ ci/terraform/caos.auto.tfvars
 *.tfstate
 *.tfstate.*
 *.auto.tfvars
-.terraform.lock.hcl
+**/.terraform.lock.hcl
