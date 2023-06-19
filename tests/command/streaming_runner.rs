@@ -55,8 +55,7 @@ fn actual_command_streaming() {
     // kill the process
     #[cfg(unix)]
     {
-        let terminated =
-            ProcessTerminator::new(streaming_runner.get_pid().unwrap()).shutdown(|| true);
+        let terminated = ProcessTerminator::new(streaming_runner.get_pid()).shutdown(|| true);
         assert!(terminated.is_ok());
     }
 }
@@ -98,8 +97,7 @@ fn actual_command_streaming_only_stderr() {
     // kill the process
     #[cfg(unix)]
     {
-        let terminated =
-            ProcessTerminator::new(streaming_runner.get_pid().unwrap()).shutdown(|| true);
+        let terminated = ProcessTerminator::new(streaming_runner.get_pid()).shutdown(|| true);
         assert!(terminated.is_ok());
     }
 }
@@ -147,7 +145,7 @@ fn actual_command_exiting_closes_channel() {
     // At this point, the process can be terminated because the process exited on its own
     #[cfg(unix)]
     {
-        let terminated = ProcessTerminator::new(handle.get_pid().unwrap()).shutdown(|| true);
+        let terminated = ProcessTerminator::new(handle.get_pid()).shutdown(|| true);
         assert!(terminated.is_ok());
     }
 }
