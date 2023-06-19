@@ -99,21 +99,25 @@ where
                 if let Some(event) = ctx.wait_condvar().unwrap() {
                     match event {
                         AgentEvent::Stop => {
-                            for (supervisor, handle) in running_supervisors.stop() {
-                                match handle.join() {
-                                    Ok(_) => {
-                                        info!(
-                                            supervisor = String::from(&supervisor),
-                                            msg = "stopped successfully"
-                                        )
-                                    }
-                                    Err(_) => error!(
-                                        supervisor = String::from(&supervisor),
-                                        msg = "stopped with error"
-                                    ),
-                                }
-                            }
-                            break;
+                            break running_supervisors.stop().into_iter().for_each(
+                                |(supervisor, handle)| {
+                                    handle.join().map_or_else(
+                                        |_err| {
+                                            // let error: &dyn std::error::Error = &err;
+                                            error!(
+                                                supervisor = String::from(&supervisor),
+                                                msg = "stopped with error",
+                                            )
+                                        },
+                                        |_| {
+                                            info!(
+                                                supervisor = String::from(&supervisor),
+                                                msg = "stopped successfully"
+                                            )
+                                        },
+                                    )
+                                },
+                            );
                         }
 
                         AgentEvent::Restart(_agent_type) => {
