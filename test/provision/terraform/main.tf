@@ -1,4 +1,4 @@
-variable "ec2_otels" {
+variable "ec2_meta_agents" {
   default = ""
 }
 variable "nr_license_key" {
@@ -29,9 +29,9 @@ variable "inventory_output" {
   default = "./inventory.ec2"
 }
 
-module "otel-env-provisioner" {
-  source             = "git::https://github.com/newrelic-experimental/otel-env-provisioner//terraform/otel-ec2"
-  ec2_otels          = var.ec2_otels
+module "meta_agent-env-provisioner" {
+  source             = "git::https://github.com/newrelic-experimental/meta_agent-env-provisioner//terraform/meta_agent-ec2"
+  ec2_meta_agents    = var.ec2_meta_agents
   nr_license_key     = var.nr_license_key
   otlp_endpoint      = var.otlp_endpoint
   pvt_key            = var.pvt_key
@@ -42,5 +42,5 @@ module "otel-env-provisioner" {
 }
 
 output "check_vars" {
-    value = "${var.inventory_output}"
+  value = var.inventory_output
 }

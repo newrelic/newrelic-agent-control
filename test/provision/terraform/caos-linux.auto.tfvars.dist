@@ -1,5 +1,5 @@
-ec2_otels = {
-  "otel-TAG_OR_UNIQUE_NAME-amd64:ubuntu22.04" = {
+ec2_meta_agents = {
+  "meta_agent-TAG_OR_UNIQUE_NAME-amd64:ubuntu22.04" = {
     ami             = "ami-0aeb7c931a5a61206"
     subnet          = "subnet-09b64de757828cdd4"
     security_groups = ["sg-044ef7bc34691164a"]
@@ -8,10 +8,10 @@ ec2_otels = {
     username        = "ubuntu"
     python          = "/usr/bin/python3"
     tags            = {
-      "otel_role" = "agent"
+      "meta_agent_role" = "agent"
     }
   }
-  "otel-TAG_OR_UNIQUE_NAME-arm64:ubuntu22.04" = {
+  "meta_agent-TAG_OR_UNIQUE_NAME-arm64:ubuntu22.04" = {
     ami             = "ami-0717cbd2f49a61ed0"
     subnet          = "subnet-09b64de757828cdd4"
     security_groups = ["sg-044ef7bc34691164a"]
@@ -20,10 +20,10 @@ ec2_otels = {
     username        = "ubuntu"
     python          = "/usr/bin/python3"
     tags            = {
-      "otel_role" = "agent"
+      "meta_agent_role" = "agent"
     }
   }
-  "otel-TAG_OR_UNIQUE_NAME-amd64:centos-stream" = {
+  "meta_agent-TAG_OR_UNIQUE_NAME-amd64:centos-stream" = {
     ami             = "ami-0d97ef13c06b05a19"
     subnet          = "subnet-09b64de757828cdd4"
     security_groups = ["sg-044ef7bc34691164a"]
@@ -32,10 +32,10 @@ ec2_otels = {
     username        = "centos"
     python          = "/usr/bin/python3"
     tags            = {
-      "otel_role" = "agent"
+      "meta_agent_role" = "agent"
     }
   }
-  "otel-TAG_OR_UNIQUE_NAME-arm64:centos-stream" = {
+  "meta_agent-TAG_OR_UNIQUE_NAME-arm64:centos-stream" = {
     ami             = "ami-0deb895048c4f105b"
     subnet          = "subnet-09b64de757828cdd4"
     security_groups = ["sg-044ef7bc34691164a"]
@@ -44,10 +44,10 @@ ec2_otels = {
     username        = "centos"
     python          = "/usr/bin/python3"
     tags            = {
-      "otel_role" = "agent"
+      "meta_agent_role" = "agent"
     }
   }
-  "otel-TAG_OR_UNIQUE_NAME-amd64:sles-15.4" = {
+  "meta_agent-TAG_OR_UNIQUE_NAME-amd64:sles-15.4" = {
     ami             = "ami-0ca19ecee2be612fc"
     subnet          = "subnet-09b64de757828cdd4"
     security_groups = ["sg-044ef7bc34691164a"]
@@ -56,10 +56,10 @@ ec2_otels = {
     username        = "ec2-user"
     python          = "/usr/bin/python3"
     tags            = {
-      "otel_role" = "agent"
+      "meta_agent_role" = "agent"
     }
   }
-  "otel-TAG_OR_UNIQUE_NAME-arm64:sles-15.4" = {
+  "meta_agent-TAG_OR_UNIQUE_NAME-arm64:sles-15.4" = {
     ami             = "ami-0885abe5302e6fee0"
     subnet          = "subnet-09b64de757828cdd4"
     security_groups = ["sg-044ef7bc34691164a"]
@@ -68,10 +68,10 @@ ec2_otels = {
     username        = "ec2-user"
     python          = "/usr/bin/python3"
     tags            = {
-      "otel_role" = "agent"
+      "meta_agent_role" = "agent"
     }
   }
-  "otel-TAG_OR_UNIQUE_NAME-amd64:redhat-9.0" = {
+  "meta_agent-TAG_OR_UNIQUE_NAME-amd64:redhat-9.0" = {
     ami             = "ami-078cbc4c2d057c244"
     subnet          = "subnet-09b64de757828cdd4"
     security_groups = ["sg-044ef7bc34691164a"]
@@ -80,10 +80,10 @@ ec2_otels = {
     username        = "ec2-user"
     python          = "/usr/bin/python3"
     tags            = {
-      "otel_role" = "agent"
+      "meta_agent_role" = "agent"
     }
   }
-  "otel-TAG_OR_UNIQUE_NAME-arm64:redhat-9.0" = {
+  "meta_agent-TAG_OR_UNIQUE_NAME-arm64:redhat-9.0" = {
     ami             = "ami-01089181b0aa3be51"
     subnet          = "subnet-09b64de757828cdd4"
     security_groups = ["sg-044ef7bc34691164a"]
@@ -92,10 +92,10 @@ ec2_otels = {
     username        = "ec2-user"
     python          = "/usr/bin/python"
     tags            = {
-      "otel_role" = "agent"
+      "meta_agent_role" = "agent"
     }
   }
-  "otel-TAG_OR_UNIQUE_NAME-amd64:debian-bullseye" = {
+  "meta_agent-TAG_OR_UNIQUE_NAME-amd64:debian-bullseye" = {
     ami             = "ami-08a0dab67e025361b"
     subnet          = "subnet-09b64de757828cdd4"
     security_groups = ["sg-044ef7bc34691164a"]
@@ -104,10 +104,10 @@ ec2_otels = {
     username        = "admin"
     python          = "/usr/bin/python3"
     tags            = {
-      "otel_role" = "agent"
+      "meta_agent_role" = "agent"
     }
   }
-  "otel-TAG_OR_UNIQUE_NAME-arm64:debian-bullseye" = {
+  "meta_agent-TAG_OR_UNIQUE_NAME-arm64:debian-bullseye" = {
     ami             = "ami-03cabbbc935f5826f"
     subnet          = "subnet-09b64de757828cdd4"
     security_groups = ["sg-044ef7bc34691164a"]
@@ -116,10 +116,10 @@ ec2_otels = {
     username        = "admin"
     python          = "/usr/bin/python3"
     tags            = {
-      "otel_role" = "agent"
+      "meta_agent_role" = "agent"
     }
   }
-  "otel-TAG_OR_UNIQUE_NAME-amd64:al-2" = {
+  "meta_agent-TAG_OR_UNIQUE_NAME-amd64:al-2" = {
     ami             = "ami-077e31c4939f6a2f3"
     subnet          = "subnet-09b64de757828cdd4"
     security_groups = ["sg-044ef7bc34691164a"]
@@ -128,10 +128,10 @@ ec2_otels = {
     username        = "ec2-user"
     python          = "/usr/bin/python"
     tags            = {
-      "otel_role" = "agent"
+      "meta_agent_role" = "agent"
     }
   }
-  "otel-TAG_OR_UNIQUE_NAME-arm64:al-2" = {
+  "meta_agent-TAG_OR_UNIQUE_NAME-arm64:al-2" = {
     ami             = "ami-07a3e3eda401f8caa"
     subnet          = "subnet-09b64de757828cdd4"
     security_groups = ["sg-044ef7bc34691164a"]
@@ -140,10 +140,10 @@ ec2_otels = {
     username        = "ec2-user"
     python          = "/usr/bin/python"
     tags            = {
-      "otel_role" = "agent"
+      "meta_agent_role" = "agent"
     }
   }
-  "otel-TAG_OR_UNIQUE_NAME-amd64:al-2023" = {
+  "meta_agent-TAG_OR_UNIQUE_NAME-amd64:al-2023" = {
     ami             = "ami-0103f211a154d64a6"
     subnet          = "subnet-09b64de757828cdd4"
     security_groups = ["sg-044ef7bc34691164a"]
@@ -152,10 +152,10 @@ ec2_otels = {
     username        = "ec2-user"
     python          = "/usr/bin/python3"
     tags            = {
-      "otel_role" = "agent"
+      "meta_agent_role" = "agent"
     }
   }
-  "otel-TAG_OR_UNIQUE_NAME-arm64:al-2023" = {
+  "meta_agent-TAG_OR_UNIQUE_NAME-arm64:al-2023" = {
     ami             = "ami-07d16074c2fdf3a19"
     subnet          = "subnet-09b64de757828cdd4"
     security_groups = ["sg-044ef7bc34691164a"]
@@ -164,7 +164,7 @@ ec2_otels = {
     username        = "ec2-user"
     python          = "/usr/bin/python3"
     tags            = {
-      "otel_role" = "agent"
+      "meta_agent_role" = "agent"
     }
   }
 }
