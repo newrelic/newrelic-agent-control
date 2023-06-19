@@ -11,32 +11,26 @@ const NEWRELIC_INFRA_ARGS: [&str; 2] = ["--config", NEWRELIC_INFRA_CONFIG_PATH];
 pub struct NRIConfig {
     ctx: Context<bool>,
     snd: Sender<Event>,
-    cfg: Option<AgentConfig>,
+    cfg: AgentConfig,
 }
 
 impl From<&NRIConfig> for SupervisorRunner {
     fn from(value: &NRIConfig) -> Self {
-        let mut supervisor = SupervisorRunner::new(
+        SupervisorRunner::new(
             NEWRELIC_INFRA_PATH.to_owned(),
             NEWRELIC_INFRA_ARGS.iter().map(|&s| s.to_owned()).collect(),
             value.ctx.clone(),
             value.snd.clone(),
-        );
-
-        // Additional configs if present
-        if let Some(ref c) = value.cfg {
-            supervisor = supervisor.with_restart_policy(
-                c.restart_policy.restart_exit_codes.clone(),
-                BackoffStrategy::from(&c.restart_policy.backoff_strategy),
-            )
-        }
-
-        supervisor
+        )
+        .with_restart_policy(
+            value.cfg.restart_policy.restart_exit_codes.clone(),
+            BackoffStrategy::from(&value.cfg.restart_policy.backoff_strategy),
+        )
     }
 }
 
 impl NRIConfig {
-    pub fn new(snd: Sender<Event>, cfg: Option<AgentConfig>) -> Self {
+    pub fn new(snd: Sender<Event>, cfg: AgentConfig) -> Self {
         NRIConfig {
             ctx: Context::new(),
             snd,
