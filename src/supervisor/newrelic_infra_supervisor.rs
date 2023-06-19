@@ -9,7 +9,7 @@ const NEWRELIC_INFRA_CONFIG_PATH: &str = "/etc/newrelic-infra.yml";
 const NEWRELIC_INFRA_ARGS: [&str; 2] = ["--config", NEWRELIC_INFRA_CONFIG_PATH];
 
 pub struct NRIConfig {
-    ctx: Context,
+    ctx: Context<bool>,
     snd: Sender<Event>,
     cfg: Option<AgentConfig>,
 }
@@ -35,7 +35,11 @@ impl From<&NRIConfig> for SupervisorRunner {
 }
 
 impl NRIConfig {
-    pub fn new(ctx: Context, snd: Sender<Event>, cfg: Option<AgentConfig>) -> Self {
-        NRIConfig { ctx, snd, cfg }
+    pub fn new(snd: Sender<Event>, cfg: Option<AgentConfig>) -> Self {
+        NRIConfig {
+            ctx: Context::new(),
+            snd,
+            cfg,
+        }
     }
 }

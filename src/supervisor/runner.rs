@@ -27,14 +27,14 @@ use tracing::{error, info};
 pub struct Stopped {
     bin: String,
     args: Vec<String>,
-    ctx: Context,
+    ctx: Context<bool>,
     snd: Sender<Event>,
     restart: RestartPolicy,
 }
 
 pub struct Running {
     handle: JoinHandle<()>,
-    ctx: Context,
+    ctx: Context<bool>,
 }
 
 #[derive(Debug)]
@@ -116,6 +116,9 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
                 break;
             }
 
+            // drop context lock
+            drop(val);
+
             if !restart_policy.should_retry(code) {
                 break;
             }
@@ -141,7 +144,7 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
                     "Failed to stream the output of a supervised process: {}", e
                 );
             }) else { continue };
-            *current_pid.lock().unwrap() = streaming.get_pid();
+            *current_pid.lock().unwrap() = Some(streaming.get_pid());
             shutdown_ctx.reset().unwrap();
 
             // Signals return exit_code 0, if in the future we need to act on them we can import
@@ -150,8 +153,11 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
             if let Some(c) = exit_code {
                 code = c
             }
+
+            // canceling the shutdown ctx must be done before getting current_pid lock
+            // as it locked by the wait_for_termination function
+            shutdown_ctx.cancel_all(true).unwrap();
             *current_pid.lock().unwrap() = None;
-            shutdown_ctx.cancel_all().unwrap();
         }
     })
 }
@@ -159,8 +165,8 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
 /// Blocks on the [`Context`], [`ctx`]. When the termination signal is activated, this will send a shutdown signal to the process being supervised (the one whose PID was passed as [`pid`]).
 fn wait_for_termination(
     current_pid: Arc<Mutex<Option<u32>>>,
-    ctx: Context,
-    shutdown_ctx: Context,
+    ctx: Context<bool>,
+    shutdown_ctx: Context<bool>,
 ) -> JoinHandle<()> {
     thread::spawn(move || {
         let (lck, cvar) = Context::get_lock_cvar(&ctx);
@@ -179,7 +185,7 @@ impl Handle for SupervisorRunner<Running> {
     fn stop(self) -> Self::S {
         // Stop all the supervisors
         // TODO: handle PoisonErrors (log?)
-        self.ctx.cancel_all().unwrap();
+        self.ctx.cancel_all(true).unwrap();
         self.state.handle
     }
 
@@ -196,7 +202,7 @@ impl Handle for SupervisorRunner<Running> {
 }
 
 impl SupervisorRunner<Stopped> {
-    pub fn new(bin: String, args: Vec<String>, ctx: Context, snd: Sender<Event>) -> Self {
+    pub fn new(bin: String, args: Vec<String>, ctx: Context<bool>, snd: Sender<Event>) -> Self {
         SupervisorRunner {
             state: Stopped {
                 bin,
@@ -215,6 +221,27 @@ impl SupervisorRunner<Stopped> {
     ) -> Self {
         self.state.restart = RestartPolicy::new(backoff_strategy, restart_exit_codes);
         self
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod sleep_supervisor_tests {
+    use std::sync::mpsc::Sender;
+
+    use crate::{command::stream::Event, context::Context};
+
+    use super::{Stopped, SupervisorRunner};
+
+    pub(crate) fn new_sleep_supervisor(
+        tx: Sender<Event>,
+        seconds: u32,
+    ) -> SupervisorRunner<Stopped> {
+        SupervisorRunner::new(
+            "sh".to_owned(),
+            vec!["-c".to_string(), format!("sleep {}", seconds)],
+            Context::new(),
+            tx.clone(),
+        )
     }
 }
 

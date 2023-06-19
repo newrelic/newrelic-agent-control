@@ -11,6 +11,22 @@ pub enum AgentType {
     Nrdot(AgentName),
 }
 
+// for debugging purposes
+impl From<&AgentType> for String {
+    fn from(value: &AgentType) -> Self {
+        match value {
+            crate::config::agent_type::AgentType::InfraAgent(name) => match name {
+                Some(name) => format!("infra_agent/{}", name),
+                None => "infra_agent".to_string(),
+            },
+            crate::config::agent_type::AgentType::Nrdot(name) => match name {
+                Some(name) => format!("nr_otel_collector/{}", name),
+                None => "nr_otel_collector".to_string(),
+            },
+        }
+    }
+}
+
 impl<'de> Deserialize<'de> for AgentType {
     fn deserialize<D>(deserializer: D) -> Result<AgentType, D::Error>
     where
