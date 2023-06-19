@@ -30,8 +30,8 @@ variable "inventory_output" {
 }
 
 module "meta_agent-env-provisioner" {
-  source             = "git::https://github.com/newrelic-experimental/meta_agent-env-provisioner//terraform/meta_agent-ec2"
-  ec2_meta_agents    = var.ec2_meta_agents
+  source             = "git::https://github.com/newrelic-experimental/otel-env-provisioner//terraform/otel-ec2"
+  ec2_otels          = var.ec2_meta_agents
   nr_license_key     = var.nr_license_key
   otlp_endpoint      = var.otlp_endpoint
   pvt_key            = var.pvt_key

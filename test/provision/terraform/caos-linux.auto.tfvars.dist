@@ -8,7 +8,7 @@ ec2_meta_agents = {
     username        = "ubuntu"
     python          = "/usr/bin/python3"
     tags            = {
-      "meta_agent_role" = "agent"
+      "otel_role" = "agent"
     }
   }
   "meta_agent-TAG_OR_UNIQUE_NAME-arm64:ubuntu22.04" = {
@@ -20,7 +20,7 @@ ec2_meta_agents = {
     username        = "ubuntu"
     python          = "/usr/bin/python3"
     tags            = {
-      "meta_agent_role" = "agent"
+      "otel_role" = "agent"
     }
   }
   "meta_agent-TAG_OR_UNIQUE_NAME-amd64:centos-stream" = {
@@ -32,7 +32,7 @@ ec2_meta_agents = {
     username        = "centos"
     python          = "/usr/bin/python3"
     tags            = {
-      "meta_agent_role" = "agent"
+      "otel_role" = "agent"
     }
   }
   "meta_agent-TAG_OR_UNIQUE_NAME-arm64:centos-stream" = {
@@ -44,7 +44,7 @@ ec2_meta_agents = {
     username        = "centos"
     python          = "/usr/bin/python3"
     tags            = {
-      "meta_agent_role" = "agent"
+      "otel_role" = "agent"
     }
   }
   "meta_agent-TAG_OR_UNIQUE_NAME-amd64:sles-15.4" = {
@@ -56,7 +56,7 @@ ec2_meta_agents = {
     username        = "ec2-user"
     python          = "/usr/bin/python3"
     tags            = {
-      "meta_agent_role" = "agent"
+      "otel_role" = "agent"
     }
   }
   "meta_agent-TAG_OR_UNIQUE_NAME-arm64:sles-15.4" = {
@@ -68,7 +68,7 @@ ec2_meta_agents = {
     username        = "ec2-user"
     python          = "/usr/bin/python3"
     tags            = {
-      "meta_agent_role" = "agent"
+      "otel_role" = "agent"
     }
   }
   "meta_agent-TAG_OR_UNIQUE_NAME-amd64:redhat-9.0" = {
@@ -80,7 +80,7 @@ ec2_meta_agents = {
     username        = "ec2-user"
     python          = "/usr/bin/python3"
     tags            = {
-      "meta_agent_role" = "agent"
+      "otel_role" = "agent"
     }
   }
   "meta_agent-TAG_OR_UNIQUE_NAME-arm64:redhat-9.0" = {
@@ -92,7 +92,7 @@ ec2_meta_agents = {
     username        = "ec2-user"
     python          = "/usr/bin/python"
     tags            = {
-      "meta_agent_role" = "agent"
+      "otel_role" = "agent"
     }
   }
   "meta_agent-TAG_OR_UNIQUE_NAME-amd64:debian-bullseye" = {
@@ -104,7 +104,7 @@ ec2_meta_agents = {
     username        = "admin"
     python          = "/usr/bin/python3"
     tags            = {
-      "meta_agent_role" = "agent"
+      "otel_role" = "agent"
     }
   }
   "meta_agent-TAG_OR_UNIQUE_NAME-arm64:debian-bullseye" = {
@@ -116,7 +116,7 @@ ec2_meta_agents = {
     username        = "admin"
     python          = "/usr/bin/python3"
     tags            = {
-      "meta_agent_role" = "agent"
+      "otel_role" = "agent"
     }
   }
   "meta_agent-TAG_OR_UNIQUE_NAME-amd64:al-2" = {
@@ -128,7 +128,7 @@ ec2_meta_agents = {
     username        = "ec2-user"
     python          = "/usr/bin/python"
     tags            = {
-      "meta_agent_role" = "agent"
+      "otel_role" = "agent"
     }
   }
   "meta_agent-TAG_OR_UNIQUE_NAME-arm64:al-2" = {
@@ -140,7 +140,7 @@ ec2_meta_agents = {
     username        = "ec2-user"
     python          = "/usr/bin/python"
     tags            = {
-      "meta_agent_role" = "agent"
+      "otel_role" = "agent"
     }
   }
   "meta_agent-TAG_OR_UNIQUE_NAME-amd64:al-2023" = {
@@ -152,7 +152,7 @@ ec2_meta_agents = {
     username        = "ec2-user"
     python          = "/usr/bin/python3"
     tags            = {
-      "meta_agent_role" = "agent"
+      "otel_role" = "agent"
     }
   }
   "meta_agent-TAG_OR_UNIQUE_NAME-arm64:al-2023" = {
@@ -164,7 +164,7 @@ ec2_meta_agents = {
     username        = "ec2-user"
     python          = "/usr/bin/python3"
     tags            = {
-      "meta_agent_role" = "agent"
+      "otel_role" = "agent"
     }
   }
 }
