@@ -9,6 +9,7 @@ env:
 
 permissions:
   id-token: write
+  contents: read
 
 jobs:
   infra:
@@ -25,8 +26,7 @@ jobs:
           
       - uses: actions/checkout@v3
         with:
-          token: "${{ secrets.GITHUB_TOKEN }}" 
-        #   fetch-depth: 0
+          submodules: true
 
       # - name: Set branch name
       #   run: |
