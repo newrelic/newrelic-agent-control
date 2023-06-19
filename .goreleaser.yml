@@ -39,6 +39,9 @@ nfpms:
 
     contents:
       # NR Meta Agent
+      - src: build/package/config.yaml
+        dst: /etc/nr-meta-agent/config.yaml
+        type: config
       - src: build/package/nr-meta-agent.service
         dst: /lib/systemd/system/nr-meta-agent.service
       # Infra Agent

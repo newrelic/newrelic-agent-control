@@ -5,7 +5,7 @@ use clap::Parser;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)] // Read from `Cargo.toml`
 pub struct Cli {
-    #[arg(short, long, default_value_t = String::from("/tmp/static.yml"))]
+    #[arg(short, long, default_value_t = String::from("/etc/nr-meta-agent/config.yaml"))]
     config: String,
 
     #[arg(long)]
