@@ -88,6 +88,7 @@ jobs:
           cloud_watch_logs_stream_name: ecs/test-meta_agent-releases
           aws_vpc_subnet: ${{ secrets.AWS_VPC_SUBNET }}
           repo_name: "newrelic/newrelic-supervisor"
+          git_clone_url: ssh://git@github.com:newrelic/newrelic-supervisor.git
           ref: "${{ env.GIT_BRANCH }}"
           log_filters: |
             Destroy\scomplete!
