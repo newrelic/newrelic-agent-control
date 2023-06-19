@@ -125,10 +125,8 @@ where
                             // TODO: remove agent from map, stop, run and reinsert it again
                         }
                     };
-                } else {
-                    // spurious wake up, continue
-                    continue;
                 }
+                // spurious condvar wake up, loop should continue
             }
         }
 
