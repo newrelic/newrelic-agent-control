@@ -22,6 +22,7 @@ impl From<&NRIConfig> for SupervisorRunner {
             value.ctx.clone(),
             value.snd.clone(),
         );
+
         // Additional configs if present
         if let Some(ref c) = value.cfg {
             supervisor = supervisor.with_restart_policy(

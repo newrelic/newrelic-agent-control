@@ -8,13 +8,6 @@ use crate::supervisor::restart::{Backoff, BackoffStrategy, LAST_RETRY_INTERVAL};
 use super::agent_type::AgentType;
 
 /*
-Default values for supervisor restarts
-TODO: refine values with real executions
-*/
-const BACKOFF_DELAY: Duration = Duration::new(2, 0);
-const BACKOFF_MAX_RETRIES: usize = 200;
-
-/*
 The structures below assume a config similar to the following:
 
 ```yaml
@@ -89,17 +82,7 @@ impl From<&BackoffStrategyConfig> for BackoffStrategy {
 
 impl Default for BackoffStrategyConfig {
     fn default() -> Self {
-        Self::Linear(BackoffStrategyInner::default())
-    }
-}
-
-impl Default for BackoffStrategyInner {
-    fn default() -> Self {
-        Self {
-            backoff_delay: BACKOFF_DELAY,
-            max_retries: BACKOFF_MAX_RETRIES,
-            with_last_retry_interval: default_last_retry_interval(),
-        }
+        Self::None
     }
 }
 
