@@ -1,8 +1,11 @@
-# FIXME: provision and packaging tests won't work as the repo is private and cannot be fetched from fargate!
 name: 🚀 💾 Packaging tests on demand
 
 on:
-  push:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Version of the agent to test installation'
+        required: true
 
 env:
   TAG_OR_UNIQUE_NAME: "0.0.3"
@@ -15,7 +18,7 @@ jobs:
   infra:
     uses: ./.github/workflows/component_provision_packaging.yml
     with:
-      TAG_OR_UNIQUE_NAME: "0.0.3"
+      TAG_OR_UNIQUE_NAME: ${{ inputs.tag }}
     secrets:
       AWS_ROLE_ARN: ${{ secrets.TMP_AWS_ROLE_ARN }} 
       AWS_VPC_SUBNET: ${{ secrets.TMP_AWS_VPC_SUBNET }}
