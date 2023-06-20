@@ -46,11 +46,14 @@ impl Default for Resolver {
 #[cfg(test)]
 mod tests {
 
-    use std::collections::HashMap;
+    use std::{collections::HashMap, time::Duration};
 
     use super::*;
     use crate::config::{
-        agent_configs::{AgentConfig, MetaAgentConfig, RestartPolicyConfig},
+        agent_configs::{
+            AgentConfig, BackoffStrategyConfig, BackoffStrategyInner, MetaAgentConfig,
+            RestartPolicyConfig,
+        },
         agent_type::AgentType,
         resolver::Resolver,
     };
@@ -268,6 +271,50 @@ agents:
         };
 
         assert_eq!(actual.agents.len(), 3);
+        assert_eq!(actual, expected);
+    }
+    #[test]
+    fn resolve_duration_seconds() {
+        // Build the config
+
+        let actual = Resolver::new(File::from_str(
+            "
+# just Infra Agent enabled
+agents:
+  nr_infra_agent:
+    restart_policy:
+      backoff_strategy:
+        type: fixed
+        backoff_delay_seconds: 1
+        max_retries: 3
+        last_retry_interval_seconds: 30
+",
+            FileFormat::Yaml,
+        ))
+        .build_config()
+        .unwrap();
+
+        let expected = MetaAgentConfig {
+            agents: [(
+                AgentType::InfraAgent(None),
+                Some(AgentConfig {
+                    restart_policy: RestartPolicyConfig {
+                        backoff_strategy: BackoffStrategyConfig::Fixed(BackoffStrategyInner {
+                            backoff_delay_seconds: Duration::from_secs(1),
+                            max_retries: 3,
+                            last_retry_interval_seconds: Duration::from_secs(30),
+                        }),
+                        restart_exit_codes: vec![],
+                    },
+                    config: None,
+                }),
+            )]
+            .iter()
+            .cloned()
+            .collect(),
+        };
+
+        assert_eq!(actual.agents.len(), 1);
         assert_eq!(actual, expected);
     }
 }
