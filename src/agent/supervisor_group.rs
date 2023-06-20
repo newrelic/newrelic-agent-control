@@ -63,7 +63,7 @@ impl From<&SupervisorGroupBuilder> for SupervisorGroup<Stopped> {
             .iter()
             .map(|(agent_t, agent_cfg)| {
                 let tx = value.tx.clone();
-                let cfg = agent_cfg.clone();
+                let cfg = agent_cfg.clone().unwrap_or_default();
                 let runner = match &agent_t {
                     AgentType::InfraAgent(_) => SupervisorRunner::from(&NRIConfig::new(tx, cfg)),
                     AgentType::Nrdot(_) => SupervisorRunner::from(&NRDOTConfig::new(tx, cfg)),

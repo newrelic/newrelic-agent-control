@@ -97,7 +97,7 @@ impl From<&SupervisorRunner<Stopped>> for Metadata {
 
 fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
     let mut restart_policy = runner.restart.clone();
-    let mut code = 0;
+    let mut code: Option<i32> = None;
     let current_pid: Arc<Mutex<Option<u32>>> = Arc::new(Mutex::new(None));
 
     let shutdown_ctx = Context::new();
@@ -119,7 +119,7 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
             // drop context lock
             drop(val);
 
-            if !restart_policy.should_retry(code) {
+            if !restart_policy.should_retry(code.unwrap_or_default()) {
                 break;
             }
             restart_policy.backoff();
@@ -149,10 +149,15 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
 
             // Signals return exit_code 0, if in the future we need to act on them we can import
             // std::os::unix::process::ExitStatusExt to get the code with the method into_raw
-            let exit_code = streaming.wait().unwrap().code();
-            if let Some(c) = exit_code {
-                code = c
+            let exit_code = streaming.wait().unwrap();
+            if !exit_code.success() {
+                error!(
+                    supervisor = runner.id(),
+                    exit_code = exit_code.code(),
+                    "Supervisor process exited unsuccessfully"
+                )
             }
+            code = exit_code.code();
 
             // canceling the shutdown ctx must be done before getting current_pid lock
             // as it locked by the wait_for_termination function
@@ -209,6 +214,7 @@ impl SupervisorRunner<Stopped> {
                 args,
                 ctx,
                 snd,
+                // default restart policy to prevent automatic restarts
                 restart: RestartPolicy::new(BackoffStrategy::None, Vec::new()),
             },
         }
