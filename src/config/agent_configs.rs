@@ -67,6 +67,7 @@ pub enum BackoffStrategyConfig {
 
 #[serde_as]
 #[derive(Debug, Deserialize, PartialEq, Clone)]
+#[serde(default)]
 pub struct BackoffStrategyInner {
     #[serde_as(as = "serde_with::DurationSeconds<u64>")]
     pub backoff_delay_seconds: Duration,
@@ -94,11 +95,17 @@ impl From<&BackoffStrategyConfig> for BackoffStrategy {
 
 impl Default for BackoffStrategyConfig {
     fn default() -> Self {
-        Self::Linear(BackoffStrategyInner {
+        Self::Linear(BackoffStrategyInner::default())
+    }
+}
+
+impl Default for BackoffStrategyInner {
+    fn default() -> Self {
+        Self {
             backoff_delay_seconds: BACKOFF_DELAY,
             max_retries: BACKOFF_MAX_RETRIES,
             last_retry_interval_seconds: BACKOFF_LAST_RETRY_INTERVAL,
-        })
+        }
     }
 }
 
