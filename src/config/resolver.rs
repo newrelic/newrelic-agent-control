@@ -273,6 +273,45 @@ agents:
         assert_eq!(actual.agents.len(), 3);
         assert_eq!(actual, expected);
     }
+
+    #[test]
+    fn resolve_default_backoff_strategy() {
+        // Build the config
+
+        let actual = Resolver::new(File::from_str(
+            "
+# just Infra Agent enabled
+agents:
+  nr_infra_agent:
+    restart_policy: {{}}
+",
+            FileFormat::Yaml,
+        ))
+        .build_config()
+        .unwrap();
+
+        let expected = MetaAgentConfig {
+            agents: [(
+                AgentType::InfraAgent(None),
+                Some(AgentConfig {
+                    restart_policy: RestartPolicyConfig {
+                        backoff_strategy: BackoffStrategyConfig::Linear(
+                            BackoffStrategyInner::default(),
+                        ),
+                        restart_exit_codes: vec![],
+                    },
+                    config: None,
+                }),
+            )]
+            .iter()
+            .cloned()
+            .collect(),
+        };
+
+        assert_eq!(actual.agents.len(), 1);
+        assert_eq!(actual, expected);
+    }
+
     #[test]
     fn resolve_duration_seconds() {
         // Build the config
@@ -304,6 +343,125 @@ agents:
                             max_retries: 3,
                             last_retry_interval_seconds: Duration::from_secs(30),
                         }),
+                        restart_exit_codes: vec![],
+                    },
+                    config: None,
+                }),
+            )]
+            .iter()
+            .cloned()
+            .collect(),
+        };
+
+        assert_eq!(actual.agents.len(), 1);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn resolve_only_backoff_strategy_type() {
+        // Build the config
+
+        let actual = Resolver::new(File::from_str(
+            "
+# just Infra Agent enabled
+agents:
+  nr_infra_agent:
+    restart_policy:
+      backoff_strategy:
+        type: fixed
+",
+            FileFormat::Yaml,
+        ))
+        .build_config()
+        .unwrap();
+
+        let expected = MetaAgentConfig {
+            agents: [(
+                AgentType::InfraAgent(None),
+                Some(AgentConfig {
+                    restart_policy: RestartPolicyConfig {
+                        backoff_strategy: BackoffStrategyConfig::Fixed(
+                            BackoffStrategyInner::default(),
+                        ),
+                        restart_exit_codes: vec![],
+                    },
+                    config: None,
+                }),
+            )]
+            .iter()
+            .cloned()
+            .collect(),
+        };
+
+        assert_eq!(actual.agents.len(), 1);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn resolve_backoff_strategy_none() {
+        // Build the config
+
+        let actual = Resolver::new(File::from_str(
+            "
+# just Infra Agent enabled
+agents:
+  nr_infra_agent:
+    restart_policy:
+      backoff_strategy:
+        type: none
+",
+            FileFormat::Yaml,
+        ))
+        .build_config()
+        .unwrap();
+
+        let expected = MetaAgentConfig {
+            agents: [(
+                AgentType::InfraAgent(None),
+                Some(AgentConfig {
+                    restart_policy: RestartPolicyConfig {
+                        backoff_strategy: BackoffStrategyConfig::None,
+                        restart_exit_codes: vec![],
+                    },
+                    config: None,
+                }),
+            )]
+            .iter()
+            .cloned()
+            .collect(),
+        };
+
+        assert_eq!(actual.agents.len(), 1);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn backoff_strategy_none_ignores_additional_configs() {
+        // Build the config
+
+        let actual = Resolver::new(File::from_str(
+            "
+# just Infra Agent enabled
+agents:
+  nr_infra_agent:
+    restart_policy:
+      backoff_strategy:
+        type: none
+        backoff_delay_seconds: 1
+        max_retries: 3
+        last_retry_interval_seconds: 30
+",
+            FileFormat::Yaml,
+        ))
+        .build_config()
+        .unwrap();
+
+        let expected = MetaAgentConfig {
+            agents: [(
+                AgentType::InfraAgent(None),
+                Some(AgentConfig {
+                    restart_policy: RestartPolicyConfig {
+                        backoff_strategy: BackoffStrategyConfig::None,
                         restart_exit_codes: vec![],
                     },
                     config: None,
