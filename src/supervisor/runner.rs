@@ -5,7 +5,6 @@ use std::{
     sync::mpsc::Sender,
     sync::{Arc, Mutex},
     thread::{self, JoinHandle},
-    time::Duration,
 };
 
 use crate::{
@@ -19,7 +18,7 @@ use crate::{
 
 use super::{
     error::ProcessError,
-    restart::{Backoff, BackoffStrategy, RestartPolicy},
+    restart::{BackoffStrategy, RestartPolicy},
     Handle, Runner, ID,
 };
 
