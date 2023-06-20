@@ -2,8 +2,9 @@ use std::{collections::HashMap, time::Duration};
 
 use config::Value;
 use serde::Deserialize;
+use serde_with::serde_as;
 
-use crate::supervisor::restart::{Backoff, BackoffStrategy, LAST_RETRY_INTERVAL};
+use crate::supervisor::restart::{Backoff, BackoffStrategy};
 
 use super::agent_type::AgentType;
 
@@ -16,9 +17,9 @@ agents:
         restart_policy:
             backoff_strategy:
                 type: fixed
-                backoff_delay: 1s
+                backoff_delay_seconds: 1
                 max_retries: 3
-                with_last_retry_interval: 30s
+                last_retry_interval_seconds: 30
         config: {} # Some arbitrary values passed to the agent itself.
         # TODO: What should we do with `bin'/`args` for custom agents?
 ```
@@ -51,6 +52,7 @@ pub struct AgentConfig {
 pub struct RestartPolicyConfig {
     #[serde(default)]
     pub backoff_strategy: BackoffStrategyConfig,
+    #[serde(default)]
     pub restart_exit_codes: Vec<i32>,
 }
 
@@ -63,12 +65,14 @@ pub enum BackoffStrategyConfig {
     Exponential(BackoffStrategyInner),
 }
 
+#[serde_as]
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct BackoffStrategyInner {
-    pub backoff_delay: Duration,
+    #[serde_as(as = "serde_with::DurationSeconds<u64>")]
+    pub backoff_delay_seconds: Duration,
     pub max_retries: usize,
-    #[serde(default = "default_last_retry_interval")]
-    pub with_last_retry_interval: Duration,
+    #[serde_as(as = "serde_with::DurationSeconds<u64>")]
+    pub last_retry_interval_seconds: Duration,
 }
 
 impl From<&BackoffStrategyConfig> for BackoffStrategy {
@@ -91,20 +95,16 @@ impl From<&BackoffStrategyConfig> for BackoffStrategy {
 impl Default for BackoffStrategyConfig {
     fn default() -> Self {
         Self::Linear(BackoffStrategyInner {
-            backoff_delay: BACKOFF_DELAY,
+            backoff_delay_seconds: BACKOFF_DELAY,
             max_retries: BACKOFF_MAX_RETRIES,
-            with_last_retry_interval: BACKOFF_LAST_RETRY_INTERVAL,
+            last_retry_interval_seconds: BACKOFF_LAST_RETRY_INTERVAL,
         })
     }
 }
 
 fn realize_backoff_config(i: &BackoffStrategyInner) -> Backoff {
     Backoff::new()
-        .with_initial_delay(i.backoff_delay)
+        .with_initial_delay(i.backoff_delay_seconds)
         .with_max_retries(i.max_retries)
-        .with_last_retry_interval(i.with_last_retry_interval)
-}
-
-fn default_last_retry_interval() -> Duration {
-    LAST_RETRY_INTERVAL
+        .with_last_retry_interval(i.last_retry_interval_seconds)
 }
