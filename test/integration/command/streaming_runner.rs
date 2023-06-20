@@ -5,9 +5,9 @@ use meta_agent::command::{
     ProcessRunner, ProcessTerminator,
 };
 
-const TICKER: &str = "tests/command/scripts/ticker.sh";
-const TICKER_STDERR: &str = "tests/command/scripts/ticker_stderr.sh";
-const TICKER_10: &str = "tests/command/scripts/ticker_10.sh";
+const TICKER: &str = "test/integration/command/scripts/ticker.sh";
+const TICKER_STDERR: &str = "test/integration/command/scripts/ticker_stderr.sh";
+const TICKER_10: &str = "test/integration/command/scripts/ticker_10.sh";
 
 // non blocking supervisor
 struct NonSupervisor<C = ProcessRunner>
