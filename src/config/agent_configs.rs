@@ -30,7 +30,7 @@ TODO: refine values with real executions
 */
 const BACKOFF_DELAY: Duration = Duration::from_secs(2);
 const BACKOFF_MAX_RETRIES: usize = 20;
-const BACKOFF_LAST_RETRY_INTERVAL: Duration = Duration::from_secs(420);
+const BACKOFF_LAST_RETRY_INTERVAL: Duration = Duration::from_secs(450);
 
 /// MetaAgentConfig represents the configuration for the meta agent.
 #[derive(Debug, Deserialize, PartialEq, Clone)]
