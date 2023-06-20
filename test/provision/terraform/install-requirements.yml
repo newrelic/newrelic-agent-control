@@ -9,6 +9,10 @@
       include_role:
         name: caos.ansible_roles.remove_eol_sources
 
+    - name: re-install rpm
+      include_role:
+        name: caos.ansible_roles.reinstall_rpm
+
     - name: install python
       include_role:
         name: caos.ansible_roles.install_python
