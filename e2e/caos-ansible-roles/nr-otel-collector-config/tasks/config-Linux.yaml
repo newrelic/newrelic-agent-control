@@ -1,0 +1,10 @@
+---
+
+- name: Replace the env variables in nr-otel-collector config
+  ansible.builtin.replace:
+    path: "{{ nr_otel_collector_config_path_linux }}"
+    regexp: "{{ item.name }}"
+    replace: '{{ item.val }}'
+  loop: "{{ nr_otel_collector_config_vars }}"
+
+...
