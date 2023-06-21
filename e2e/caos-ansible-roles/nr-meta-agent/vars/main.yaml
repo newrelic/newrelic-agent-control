@@ -1,0 +1,11 @@
+---
+
+meta_agent_package_name: nr-meta-agent
+meta_agent_service_name: nr-meta-agent
+
+uninstall: false
+
+repo_endpoint: "http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/limited_preview"
+
+...
+

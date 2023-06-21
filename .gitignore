@@ -11,3 +11,9 @@ Cargo.lock
 
 # goreleaser paths
 dist/
+
+# Inventories for pkg testing, canaries...
+e2e/**/inventory.*
+# Automatically downloaded external collections and roles
+e2e/**/collections
+e2e/**/roles

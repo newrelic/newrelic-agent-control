@@ -1,0 +1,27 @@
+---
+- name: cleanup
+  include_role:
+    name: caos.ansible_roles.cleanup
+  vars:
+    files_to_cleanup:
+      # nr-meta-agent files
+      - /etc/nr-meta-agent
+      - /usr/bin/nr-meta-agent
+      - /lib/systemd/system/nr-meta-agent.service
+      # nr-otel-collector files
+      - /etc/nr-otel-collector/nr-otel-collector.conf
+      - /etc/nr-otel-collector/config.yaml
+      - /etc/nr-otel-collector
+      - /usr/bin/nr-otel-collector
+      # infra agent files
+      - /etc/newrelic-infra
+      - /etc/newrelic-infra.yml
+      - /var/db/newrelic-infra
+      - /usr/bin/newrelic-infra
+      - /var/run/newrelic-infra
+      - /var/log/newrelic-infra
+    packages_to_cleanup:
+      - nr-meta-agent
+    services_to_stop:
+      - nr-meta-agent.service
+...
