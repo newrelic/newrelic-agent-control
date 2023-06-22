@@ -71,3 +71,10 @@ jobs:
           dest_prefix: "limited_preview/"
           local_packages_path:  "/srv/dist/"
           apt_skip_mirror:  true # todo, update for next releases
+
+  molecule-packaging-tests:
+    uses: ./.github/workflows/component_molecule_packaging.yml
+    with:
+      TAG: ${{ github.event.inputs.tag }}
+      PACKAGE_NAME: "nr-meta-agent"
+      REPO_ENDPOINT: 'https://download.newrelic.com/limited_preview'
