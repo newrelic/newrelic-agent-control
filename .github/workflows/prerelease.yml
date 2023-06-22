@@ -133,3 +133,10 @@ jobs:
           dest_prefix: "limited_preview/"
           local_packages_path:  "/srv/dist/"
           apt_skip_mirror:  true
+
+  molecule-packaging-tests:
+    uses: ./.github/workflows/component_molecule_packaging.yml
+    with:
+      TAG: ${{ github.event.inputs.tag }}
+      PACKAGE_NAME: "nr-meta-agent"
+      REPO_ENDPOINT: 'http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/limited_preview'

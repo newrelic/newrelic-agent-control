@@ -2,9 +2,6 @@ name: 🚀 🧬 Test specific version installation
 on:
   workflow_dispatch:
     inputs:
-      package_name:
-        required: true
-        type: string
       tag:
         description: 'Version of the agent to test installation'
         required: true
@@ -19,5 +16,5 @@ jobs:
     uses: ./.github/workflows/component_molecule_packaging.yml
     with:
       TAG: ${{ github.event.inputs.tag }}
-      PACKAGE_NAME: ${{ github.event.inputs.package_name }}
+      PACKAGE_NAME: "nr-meta-agent"
       REPO_ENDPOINT: 'http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/limited_preview'
