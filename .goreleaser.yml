@@ -44,6 +44,9 @@ nfpms:
         type: config
       - src: build/package/nr-meta-agent.service
         dst: /lib/systemd/system/nr-meta-agent.service
+      - src: distributions/nr-meta-agent/nr-meta-agent.conf
+        dst: /etc/nr-meta-agent/nr-meta-agent.conf
+        type: config|noreplace
       # Infra Agent
       - src: build/embedded/artifacts/ {{- .Arch }}/newrelic-infra/newrelic-infra
         dst: /usr/bin/newrelic-infra
