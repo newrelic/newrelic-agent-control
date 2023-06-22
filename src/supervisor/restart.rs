@@ -1,4 +1,4 @@
-use std::thread::sleep;
+use std::cmp::max;
 use std::time::{Duration, Instant};
 
 #[derive(Clone)]
@@ -20,8 +20,11 @@ impl RestartPolicy {
         self.exit_code_triggers_restart(exit_code) && self.backoff.should_backoff()
     }
 
-    pub fn backoff(&mut self) {
-        self.backoff.backoff()
+    pub fn backoff<S>(&mut self, sleep_func: S)
+    where
+        S: FnOnce(Duration),
+    {
+        self.backoff.backoff(sleep_func)
     }
 
     fn exit_code_triggers_restart(&self, exit_code: i32) -> bool {
@@ -29,12 +32,7 @@ impl RestartPolicy {
             return true;
         }
 
-        for code in self.restart_exit_codes.iter() {
-            if *code == exit_code {
-                return true;
-            }
-        }
-        false
+        self.restart_exit_codes.contains(&exit_code)
     }
 }
 
@@ -60,11 +58,14 @@ impl BackoffStrategy {
         }
     }
 
-    fn backoff(&mut self) {
+    fn backoff<S>(&mut self, sleep_func: S)
+    where
+        S: FnOnce(Duration),
+    {
         match self {
-            BackoffStrategy::Fixed(ref mut b) => b.backoff(fixed, sleep),
-            BackoffStrategy::Linear(ref mut b) => b.backoff(linear, sleep),
-            BackoffStrategy::Exponential(ref mut b) => b.backoff(exponential, sleep),
+            BackoffStrategy::Fixed(ref mut b) => b.backoff(fixed, sleep_func),
+            BackoffStrategy::Linear(ref mut b) => b.backoff(linear, sleep_func),
+            BackoffStrategy::Exponential(ref mut b) => b.backoff(exponential, sleep_func),
             BackoffStrategy::None => {}
         }
     }
@@ -118,9 +119,7 @@ impl Backoff {
         B: FnOnce(usize, Duration, S),
         S: FnOnce(Duration),
     {
-        if self.tries > 0 {
-            backoff_func(self.tries, self.initial_delay, sleep_func);
-        }
+        backoff_func(self.tries, self.initial_delay, sleep_func);
         self.last_retry = Instant::now();
         self.tries += 1;
     }
@@ -149,12 +148,13 @@ where
     S: FnOnce(Duration),
 {
     let base: u32 = 2;
-    sleep_func(initial_delay * base.pow(tries as u32 - 1));
+    sleep_func(initial_delay * base.pow(max(tries as u32, 1) - 1));
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::thread::sleep;
     use std::time::Duration;
 
     #[test]
@@ -242,7 +242,7 @@ mod tests {
                 b.backoff(fixed, &mut sleep_mock);
             }
         }
-        assert_eq!(Duration::from_secs(4), slept)
+        assert_eq!(Duration::from_secs(5), slept)
     }
 
     #[test]
@@ -260,6 +260,6 @@ mod tests {
                 b.backoff(exponential, &mut sleep_mock);
             }
         }
-        assert_eq!(Duration::from_secs(15), slept)
+        assert_eq!(Duration::from_secs(16), slept)
     }
 }
