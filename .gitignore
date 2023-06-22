@@ -12,7 +12,6 @@ Cargo.lock
 # goreleaser paths
 dist/
 
-
 **/.terraform*
 ci/terraform/terraform.backend.tf
 inventory
@@ -24,3 +23,9 @@ ci/terraform/caos.auto.tfvars
 *.tfstate.*
 *.auto.tfvars
 **/.terraform.lock.hcl
+
+# Inventories for pkg testing, canaries...
+e2e/**/inventory.*
+# Automatically downloaded external collections and roles
+e2e/**/collections
+e2e/**/roles
