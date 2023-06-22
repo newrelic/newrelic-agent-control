@@ -16,8 +16,9 @@ impl RestartPolicy {
         }
     }
 
-    pub fn should_retry(&mut self, exit_code: i32) -> bool {
-        self.exit_code_triggers_restart(exit_code) && self.backoff.should_backoff()
+    pub fn should_retry(&mut self, exit_code: Option<i32>) -> bool {
+        exit_code.is_some_and(|exit_code| self.exit_code_triggers_restart(exit_code))
+            && self.backoff.should_backoff()
     }
 
     pub fn backoff<S>(&mut self, sleep_func: S)
@@ -163,7 +164,7 @@ mod tests {
         let results = vec![false, true, false, true];
 
         for n in 0..results.len() {
-            assert_eq!(results[n], rb.should_retry(n as i32));
+            assert_eq!(results[n], rb.should_retry(Some(n as i32)));
         }
     }
 

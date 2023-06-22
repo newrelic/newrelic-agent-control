@@ -159,8 +159,7 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
                     )
                 }
                 exit_code.code()
-            })
-            .unwrap_or_default();
+            });
 
             // canceling the shutdown ctx must be done before getting current_pid lock
             // as it locked by the wait_for_termination function
