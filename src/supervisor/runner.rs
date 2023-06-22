@@ -269,7 +269,7 @@ mod tests {
     use super::*;
     use crate::command::stream::OutputEvent;
     use crate::supervisor::restart::Backoff;
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
 
     #[test]
     fn test_supervisor_retries_and_exits_on_wrong_command() {
@@ -284,7 +284,7 @@ mod tests {
             "wrong-command".to_owned(),
             vec!["x".to_owned()],
             Context::new(),
-            tx.clone(),
+            tx,
         )
         .with_restart_policy(vec![0], BackoffStrategy::Fixed(backoff));
 
@@ -293,8 +293,35 @@ mod tests {
         while !agent.handle.is_finished() {
             thread::sleep(Duration::from_millis(15));
         }
+    }
 
-        drop(tx);
+    #[test]
+    fn test_supervisor_restart_policy_early_exit() {
+        let (tx, _) = std::sync::mpsc::channel();
+
+        let timer = Instant::now();
+
+        // set a fixed backoff of 10 seconds
+        let backoff = Backoff::new()
+            .with_initial_delay(Duration::from_secs(10))
+            .with_max_retries(3)
+            .with_last_retry_interval(Duration::new(30, 0));
+
+        let agent: SupervisorRunner = SupervisorRunner::new(
+            "wrong-command".to_owned(),
+            vec!["x".to_owned()],
+            Context::new(),
+            tx,
+        )
+        .with_restart_policy(vec![0], BackoffStrategy::Fixed(backoff));
+
+        // run the agent with wrong command so it enters in restart policy
+        let agent = agent.run();
+        // wait two seconds to ensure restart policy thread is sleeping
+        thread::sleep(Duration::from_secs(2));
+        assert!(agent.stop().join().is_ok());
+
+        assert!(timer.elapsed() < Duration::from_secs(10));
     }
 
     #[test]
@@ -311,7 +338,7 @@ mod tests {
             "echo".to_owned(),
             vec!["hello!".to_owned()],
             Context::new(),
-            tx.clone(),
+            tx,
         )
         .with_restart_policy(vec![0], BackoffStrategy::Fixed(backoff));
 
@@ -337,7 +364,6 @@ mod tests {
             thread::sleep(Duration::from_millis(15));
         }
 
-        drop(tx);
         let stdout = stream.join().unwrap();
 
         // 1 base execution + 3 retries
