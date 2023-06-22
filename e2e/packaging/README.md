@@ -1,6 +1,7 @@
 # Packaging tests
 
 Run packaging tests:
+
 ```shell
 # Default values
 make e2e/packaging \
