@@ -324,7 +324,6 @@ mod tests {
     }
 
     #[test]
-    //
     fn test_supervisor_fixed_backoff_retry_3_times() {
         let (tx, rx) = std::sync::mpsc::channel();
 
