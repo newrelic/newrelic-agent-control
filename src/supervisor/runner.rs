@@ -174,7 +174,7 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
 
             restart_policy.backoff(|duration| {
                 // early exit if supervisor timeout is canceled
-                wait_exit_timeout(shutdown_ctx.clone(), duration);
+                wait_exit_timeout(runner.ctx.clone(), duration);
             });
         }
     })
