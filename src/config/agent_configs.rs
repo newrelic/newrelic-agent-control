@@ -33,10 +33,10 @@ const BACKOFF_DELAY: Duration = Duration::from_secs(2);
 const BACKOFF_MAX_RETRIES: usize = 20;
 const BACKOFF_LAST_RETRY_INTERVAL: Duration = Duration::from_secs(600);
 
-/// MetaAgentConfig represents the configuration for the meta agent.
+/// SuperAgentConfig represents the configuration for the super agent.
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(deny_unknown_fields)]
-pub struct MetaAgentConfig {
+pub struct SuperAgentConfig {
     /// agents is a map of agent types to their specific configuration (if any).
     pub agents: HashMap<AgentType, Option<AgentConfig>>,
 }

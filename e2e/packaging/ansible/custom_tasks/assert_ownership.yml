@@ -5,7 +5,7 @@
   vars:
     username: "{{ ownership_process }}"
     user_processes:
-      - nr-meta-agent
+      - newrelic-super-agent
 
 - name: assert ownership
   include_role:
@@ -13,10 +13,10 @@
   vars:
     username: "{{ ownership_files }}"
     user_files:
-      # nr-meta-agent files
-      - /etc/nr-meta-agent
-      - /usr/bin/nr-meta-agent
-      - /lib/systemd/system/nr-meta-agent.service
+      # newrelic-super-agent files
+      - /etc/newrelic-super-agent
+      - /usr/bin/newrelic-super-agent
+      - /lib/systemd/system/newrelic-super-agent.service
       # nr-otel-collector files
       - /etc/nr-otel-collector
       - /etc/nr-otel-collector/config.yaml

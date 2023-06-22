@@ -1,7 +1,7 @@
 ---
 
-meta_agent_package_name: nr-meta-agent
-meta_agent_service_name: nr-meta-agent
+super_agent_package_name: newrelic-super-agent
+super_agent_service_name: newrelic-super-agent
 
 uninstall: false
 

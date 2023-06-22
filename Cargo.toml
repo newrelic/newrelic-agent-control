@@ -1,6 +1,6 @@
 [package]
-name = "meta_agent"
-description = "New Relic Meta Agent Limited Preview"
+name = "newrelic_super_agent"
+description = "New Relic Super Agent Limited Preview"
 version = "0.1.0"
 edition = "2021"
 authors = ["The New Relic Core Agent & Open Standards (CAOS) Team"]

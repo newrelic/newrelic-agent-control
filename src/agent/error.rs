@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use thiserror::Error;
 
-use crate::config::error::MetaAgentConfigError;
+use crate::config::error::SuperAgentConfigError;
 
 #[derive(Error, Debug)]
 pub enum AgentError {
@@ -9,5 +9,5 @@ pub enum AgentError {
     ChannelExtractError,
 
     #[error("could not resolve config: `{0}`")]
-    ConfigResolveError(#[from] MetaAgentConfigError),
+    ConfigResolveError(#[from] SuperAgentConfigError),
 }

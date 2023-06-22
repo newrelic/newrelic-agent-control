@@ -8,13 +8,13 @@
   include_role:
     name: caos.ansible_roles.package_install
   vars:
-    package: "{{ meta_agent_package_name }}"
+    package: "{{ super_agent_package_name }}"
 
 - name: assert service status
   include_role:
     name: caos.ansible_roles.assert_service_status
   vars:
     services_running:
-      - "{{ meta_agent_service_name }}.service"
+      - "{{ super_agent_service_name }}.service"
 
 ...

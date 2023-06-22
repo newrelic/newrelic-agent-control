@@ -1,4 +1,4 @@
-use meta_agent::{
+use newrelic_super_agent::{
     agent::{Agent, AgentEvent},
     cli::Cli,
     context::Context,
@@ -11,7 +11,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // init logging singleton
     Logging::try_init()?;
 
-    let cli = Cli::init_meta_agent_cli();
+    let cli = Cli::init_super_agent_cli();
 
     if cli.print_debug_info() {
         println!("Printing debug info");
@@ -39,6 +39,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         e
     })?;
 
-    info!("Starting the meta agent");
+    info!("Starting the super agent");
     Ok(Agent::new(&cli.get_config_path())?.run(ctx)?)
 }

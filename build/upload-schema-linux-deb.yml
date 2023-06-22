@@ -1,5 +1,5 @@
 ---
-- src: "nr-meta-agent_{version}_linux_{arch}.deb"
+- src: "newrelic-super-agent_{version}_linux_{arch}.deb"
   arch:
     - amd64
     - arm64
@@ -19,10 +19,10 @@
   # UPLOAD CHECKSUMS #
 #########################
 
-- src: "nr-meta-agent_{version}_linux_{arch}.deb.sum"
+- src: "newrelic-super-agent_{version}_linux_{arch}.deb.sum"
   arch:
     - amd64
     - arm64
   uploads:
     - type: file
-      dest: "{dest_prefix}linux/apt/pool/main/n/nr-meta-agent/{src}"
+      dest: "{dest_prefix}linux/apt/pool/main/n/newrelic-super-agent/{src}"
