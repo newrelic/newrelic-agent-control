@@ -1,3 +1,4 @@
+use std::process::ExitStatus;
 use std::{
     ffi::OsStr,
     ops::Deref,
@@ -7,11 +8,13 @@ use std::{
     thread::{self, JoinHandle},
 };
 
+use crate::command::error::CommandError;
+use crate::command::processrunner::Unstarted;
 use crate::{
     command::{
         stream::{Event, Metadata},
-        wait_exit_timeout_default, CommandExecutor, CommandHandle, CommandTerminator,
-        EventStreamer, ProcessRunner, ProcessTerminator,
+        wait_exit_timeout, wait_exit_timeout_default, CommandExecutor, CommandHandle,
+        CommandTerminator, EventStreamer, ProcessRunner, ProcessTerminator,
     },
     context::Context,
 };
@@ -95,9 +98,24 @@ impl From<&SupervisorRunner<Stopped>> for Metadata {
     }
 }
 
+// launch_process starts a new process with a streamed channel and sets its current pid
+// into the provided variable. It waits until the process exits.
+fn launch_process(
+    process: ProcessRunner<Unstarted>,
+    pid: Arc<Mutex<Option<u32>>>,
+    tx: Sender<Event>,
+) -> Result<ExitStatus, CommandError> {
+    // run and stream the process
+    let streaming = process.start()?.stream(tx)?;
+
+    // set current running pid
+    *pid.lock().unwrap() = Some(streaming.get_pid());
+
+    streaming.wait()
+}
+
 fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
     let mut restart_policy = runner.restart.clone();
-    let mut code: Option<i32> = None;
     let current_pid: Arc<Mutex<Option<u32>>> = Arc::new(Mutex::new(None));
 
     let shutdown_ctx = Context::new();
@@ -108,61 +126,55 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
     );
     thread::spawn({
         move || loop {
-            let proc_runner = ProcessRunner::from(&runner).with_metadata(Metadata::from(&runner));
-
-            let (lck, _) = Context::get_lock_cvar(&runner.ctx);
-            let val = lck.lock().unwrap();
-            if *val {
+            // check if supervisor context is cancelled
+            if *Context::get_lock_cvar(&runner.ctx).0.lock().unwrap() {
                 break;
             }
-
-            // drop context lock
-            drop(val);
-
-            if !restart_policy.should_retry(code.unwrap_or_default()) {
-                break;
-            }
-            restart_policy.backoff();
 
             info!(
                 supervisor = runner.id(),
                 msg = "Starting supervisor process"
             );
 
-            // Actually run the process
-            let Ok(started) = proc_runner.start().map_err(|e| {
-                error!(
-                    supervisor = runner.id(),
-                    "Failed to start a supervised process: {}", e
-                );
-            }) else { continue };
-
-            // Stream the output
-            let Ok(streaming) = started.stream(runner.snd.clone()).map_err(|e| {
-                error!(
-                    supervisor = runner.id(),
-                    "Failed to stream the output of a supervised process: {}", e
-                );
-            }) else { continue };
-            *current_pid.lock().unwrap() = Some(streaming.get_pid());
             shutdown_ctx.reset().unwrap();
-
             // Signals return exit_code 0, if in the future we need to act on them we can import
             // std::os::unix::process::ExitStatusExt to get the code with the method into_raw
-            let exit_code = streaming.wait().unwrap();
-            if !exit_code.success() {
+            let exit_code = launch_process(
+                ProcessRunner::from(&runner).with_metadata(Metadata::from(&runner)),
+                current_pid.clone(),
+                runner.snd.clone(),
+            )
+            .map_err(|err| {
                 error!(
                     supervisor = runner.id(),
-                    exit_code = exit_code.code(),
-                    "Supervisor process exited unsuccessfully"
-                )
-            }
-            code = exit_code.code();
+                    "Error while launching supervisor process: {}", err
+                );
+            })
+            .map(|exit_code| {
+                if !exit_code.success() {
+                    error!(
+                        supervisor = runner.id(),
+                        exit_code = exit_code.code(),
+                        "Supervisor process exited unsuccessfully"
+                    )
+                }
+                exit_code.code()
+            });
 
             // canceling the shutdown ctx must be done before getting current_pid lock
             // as it locked by the wait_for_termination function
             shutdown_ctx.cancel_all(true).unwrap();
             *current_pid.lock().unwrap() = None;
+
+            // check if restart policy needs to be applied
+            if !restart_policy.should_retry(exit_code.unwrap_or_default()) {
+                break;
+            }
+
+            restart_policy.backoff(|duration| {
+                // early exit if supervisor timeout is canceled
+                wait_exit_timeout(runner.ctx.clone(), duration);
+            });
         }
     })
 }
@@ -256,7 +268,7 @@ mod tests {
     use super::*;
     use crate::command::stream::OutputEvent;
     use crate::supervisor::restart::Backoff;
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
 
     #[test]
     fn test_supervisor_retries_and_exits_on_wrong_command() {
@@ -271,7 +283,7 @@ mod tests {
             "wrong-command".to_owned(),
             vec!["x".to_owned()],
             Context::new(),
-            tx.clone(),
+            tx,
         )
         .with_restart_policy(vec![0], BackoffStrategy::Fixed(backoff));
 
@@ -280,12 +292,40 @@ mod tests {
         while !agent.handle.is_finished() {
             thread::sleep(Duration::from_millis(15));
         }
-
-        drop(tx);
     }
 
     #[test]
-    fn test_supervisor_fixed_retry_3_times() {
+    fn test_supervisor_restart_policy_early_exit() {
+        let (tx, _) = std::sync::mpsc::channel();
+
+        let timer = Instant::now();
+
+        // set a fixed backoff of 10 seconds
+        let backoff = Backoff::new()
+            .with_initial_delay(Duration::from_secs(10))
+            .with_max_retries(3)
+            .with_last_retry_interval(Duration::new(30, 0));
+
+        let agent: SupervisorRunner = SupervisorRunner::new(
+            "wrong-command".to_owned(),
+            vec!["x".to_owned()],
+            Context::new(),
+            tx,
+        )
+        .with_restart_policy(vec![0], BackoffStrategy::Fixed(backoff));
+
+        // run the agent with wrong command so it enters in restart policy
+        let agent = agent.run();
+        // wait two seconds to ensure restart policy thread is sleeping
+        thread::sleep(Duration::from_secs(2));
+        assert!(agent.stop().join().is_ok());
+
+        assert!(timer.elapsed() < Duration::from_secs(10));
+    }
+
+    #[test]
+    //
+    fn test_supervisor_fixed_backoff_retry_3_times() {
         let (tx, rx) = std::sync::mpsc::channel();
 
         let backoff = Backoff::new()
@@ -297,7 +337,7 @@ mod tests {
             "echo".to_owned(),
             vec!["hello!".to_owned()],
             Context::new(),
-            tx.clone(),
+            tx,
         )
         .with_restart_policy(vec![0], BackoffStrategy::Fixed(backoff));
 
@@ -323,9 +363,9 @@ mod tests {
             thread::sleep(Duration::from_millis(15));
         }
 
-        drop(tx);
         let stdout = stream.join().unwrap();
 
-        assert_eq!(3, stdout.iter().count());
+        // 1 base execution + 3 retries
+        assert_eq!(4, stdout.iter().count());
     }
 }
