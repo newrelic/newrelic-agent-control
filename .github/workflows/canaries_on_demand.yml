@@ -1,0 +1,21 @@
+name: 🚀🐤 Canaries
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Version of the agent to test installation'
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  canaries:
+    uses: ./.github/workflows/component_canaries.yml
+    with:
+      TAG: ${{ inputs.tag }}
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.TMP_AWS_ROLE_ARN }} 
+      AWS_VPC_SUBNET: ${{ secrets.TMP_AWS_VPC_SUBNET }}

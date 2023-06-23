@@ -1,0 +1,99 @@
+name: 🚀 💾 Provision canaries
+
+on:
+  workflow_call:
+    secrets:
+      AWS_ROLE_ARN:
+        required: true
+      AWS_VPC_SUBNET:
+        required: true
+
+    inputs:
+      TAG:
+        required: true
+        type: string
+
+env:
+  TAG: ${{ inputs.TAG }}
+  TAG_OR_UNIQUE_NAME: ${{ inputs.TAG }}
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  infra:
+    name: Prepare infra
+
+    runs-on: ubuntu-20.04
+
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-2
+
+      - name: Set branch name
+        run: |
+          # Short name for current branch. For PRs, use target branch (base ref)
+          GIT_BRANCH=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
+          # Is the ref a tag? If so, remove refs/tags/ prefix
+          GIT_BRANCH=${GIT_BRANCH#refs/tags/}
+          echo "GIT_BRANCH=$GIT_BRANCH" >> $GITHUB_ENV
+
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+#      - name: Destroy infra
+#        uses: newrelic/fargate-runner-action@main
+#        with:
+#          aws_region: us-east-2
+#          container_make_target: "test/provision-clean TAG_OR_UNIQUE_NAME=${{ env.TAG_OR_UNIQUE_NAME }}"
+#          ecs_cluster_name: caos_super_agent_releases
+#          task_definition_name: super_agent-releases-td
+#          cloud_watch_logs_group_name: /ecs/test-prerelease-super_agent-releases
+#          cloud_watch_logs_stream_name: ecs/test-super_agent-releases
+#          aws_vpc_subnet: ${{ secrets.AWS_VPC_SUBNET }}
+#          repo_name: "newrelic/newrelic-supervisor"
+#          git_clone_url: "ssh://git@github.com/newrelic/newrelic-supervisor.git"
+#          ref: "${{ env.GIT_BRANCH }}"
+#          log_filters: |
+#            Destroy\scomplete!
+
+      - name: Provision infra
+        uses: newrelic/fargate-runner-action@main
+        with:
+          aws_region: us-east-2
+          container_make_target: "test/provision TF_VAR_inventory_output=/srv/runner/inventory/${{ env.TAG_OR_UNIQUE_NAME }}-inventory.ec2 TAG_OR_UNIQUE_NAME=${{ env.TAG_OR_UNIQUE_NAME }}"
+          ecs_cluster_name: caos_super_agent_releases
+          task_definition_name: super_agent-releases-td
+          cloud_watch_logs_group_name: /ecs/test-prerelease-super_agent-releases
+          cloud_watch_logs_stream_name: ecs/test-super_agent-releases
+          aws_vpc_subnet: ${{ secrets.AWS_VPC_SUBNET }}
+          repo_name: "newrelic/newrelic-supervisor"
+          git_clone_url: "ssh://git@github.com/newrelic/newrelic-supervisor.git"
+          ref: "${{ env.GIT_BRANCH }}"
+          log_filters: |
+            \[ALLOW_MSG\].+
+            TASK\s\[.*\]\s
+            PLAY\s\[.*\]\s
+            PLAY\sRECAP\s
+            Apply\scomplete!
+            ok=\d+\s+changed=\d+\s+unreachable=\d+\s+failed=\d+\s+skipped=\d+\s+rescued=\d+\s+ignored=\d+
+
+      - name: Deploy canaries
+        uses: newrelic/fargate-runner-action@main
+        with:
+          aws_region: us-east-2
+          container_make_target: "test/canaries ANSIBLE_INVENTORY='/srv/runner/inventory/${{ env.TAG_OR_UNIQUE_NAME }}-inventory.ec2' LIMIT=testing_hosts_linux NR_OTEL_COLLECTOR_MEMORY_LIMIT=100 NR_OTEL_COLLECTOR_OTLP_ENDPOINT=staging-otlp.nr-data.net:4317"
+          ecs_cluster_name: caos_super_agent_releases
+          task_definition_name: super_agent-releases-td
+          cloud_watch_logs_group_name: /ecs/test-prerelease-super_agent-releases
+          cloud_watch_logs_stream_name: ecs/test-super_agent-releases
+          aws_vpc_subnet: ${{ secrets.AWS_VPC_SUBNET }}
+          repo_name: "newrelic/newrelic-supervisor"
+          git_clone_url: "ssh://git@github.com/newrelic/newrelic-supervisor.git"
+          ref: "${{ env.GIT_BRANCH }}"
+

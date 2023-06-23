@@ -1,0 +1,40 @@
+---
+
+- name: canaries
+  hosts: testing_hosts_linux
+  become: true
+  gather_facts: yes
+  vars:
+    newrelic_super_agent_version: "{{ lookup('ansible.builtin.env', 'NEWRELIC_SUPER_AGENT_VERSION') }}"
+    process_user: "root"
+
+  pre_tasks:
+    - name: Update package repositories
+      include_role:
+        name: caos.ansible_roles.package_repo_update
+
+  tasks:
+    - name: Install The Super Agent
+      vars:
+
+      block:
+
+        - name: Newrelic Super Agent
+          include_role:
+            name: newrelic-super-agent
+            apply:
+              environment:
+                NRDOT_MODE: "{{ 'ROOT' if (install_mode is defined and install_mode == 'ROOT') | default(omit) }}"
+          vars:
+            repo_endpoint: "http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview"
+            target_version: "{{ newrelic_super_agent_version }}"
+
+        - name: Setup Infra Agent config
+          include_role:
+            name: infra-agent-config
+
+        - name: Setup NR Otel Collector config
+          include_role:
+            name:  nr-otel-collector-config
+
+...
