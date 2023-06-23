@@ -21,7 +21,6 @@ fn print_debug_info() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[cfg(unix)]
-#[cfg_attr(feature = "test_root", ignore)]
 #[test]
 fn does_not_run_if_no_root() -> Result<(), Box<dyn std::error::Error>> {
     let file_path = create_simple_config()?;
@@ -33,11 +32,9 @@ fn does_not_run_if_no_root() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-// Run the below test with `cargo test --features test_root`
 #[cfg(unix)]
-#[cfg_attr(not(feature = "test_root"), ignore)]
 #[test]
-fn runs_if_root() -> Result<(), Box<dyn std::error::Error>> {
+fn runs_as_root() -> Result<(), Box<dyn std::error::Error>> {
     use std::time::Duration;
 
     let file_path = create_simple_config()?;
@@ -51,7 +48,7 @@ fn runs_if_root() -> Result<(), Box<dyn std::error::Error>> {
         .failure()
         .stdout(predicate::str::contains("Creating the signal handler"))
         .stdout(predicate::str::contains("Creating the global context"))
-        .stdout(predicate::str::contains("Starting the super agent"));
+        .stdout(predicate::str::contains("Starting the meta agent"));
     // No supervisor group so we don't check for it.
     Ok(())
 }

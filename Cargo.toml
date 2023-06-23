@@ -29,5 +29,3 @@ predicates = "3.0.3"
 [[test]]
 name = "integration"
 path = "test/integration/mod.rs"
-[features]
-"test_root" = []
