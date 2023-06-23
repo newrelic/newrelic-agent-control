@@ -16,7 +16,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     if cli.print_debug_info() {
         println!("Printing debug info");
         println!("CLI: {:#?}", cli);
-        println!("CFG: {:#?}", cli.get_config_path());
         return Ok(());
     }
 
