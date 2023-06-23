@@ -30,6 +30,19 @@ jobs:
         run: cargo test --locked --all-features --all-targets
       - name: cargo test --doc
         run: cargo test --locked --all-features --doc
+  test-with-root:
+    runs-on: ubuntu-latest
+    container: rust:latest
+    name: tests as root
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+      - name: cargo generate-lockfile
+        if: hashFiles('Cargo.lock') == ''
+        run: cargo generate-lockfile
+      - name: cargo test --locked --features test_root
+        run: cargo test --locked --features test_root --all-targets
   os-check:
     runs-on: ${{ matrix.os }}
     name: ${{ matrix.os }} / stable
