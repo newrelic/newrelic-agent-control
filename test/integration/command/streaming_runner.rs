@@ -150,7 +150,6 @@ fn env_vars_are_inherited() {
 
     let expected = vec!["bar", "baz"];
 
-    // wait for the thread loop to break
     let (stdout_actual, _stderr_actual) = get_n_outputs(rx, 2);
 
     assert_eq!(expected, stdout_actual);
