@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-RUST_VERSION="1.69.0"
+RUST_VERSION="1.70.0"
 
 # remove go generated files
 rm -rf ./target/**
