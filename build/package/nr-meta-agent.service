@@ -3,6 +3,7 @@ Description=New Relic Meta Agent
 After=network.target
 
 [Service]
+EnvironmentFile=/etc/nr-meta-agent/nr-meta-agent.conf
 ExecStart=/usr/bin/nr-meta-agent
 KillMode=mixed
 Restart=on-failure

@@ -1,8 +1,9 @@
-use std::thread;
+use std::{sync::mpsc::Receiver, thread};
 
 use meta_agent::command::{
-    stream::OutputEvent, CommandExecutor, CommandHandle, CommandTerminator, EventStreamer,
-    ProcessRunner, ProcessTerminator,
+    stream::{Event, OutputEvent},
+    CommandExecutor, CommandHandle, CommandTerminator, EventStreamer, ProcessRunner,
+    ProcessTerminator,
 };
 
 const TICKER: &str = "test/integration/command/scripts/ticker.sh";
@@ -15,6 +16,33 @@ where
     C: CommandExecutor,
 {
     cmd: C,
+}
+
+fn get_n_outputs(rx: Receiver<Event>, times: usize) -> (Vec<String>, Vec<String>) {
+    // stream the actual output on a separate thread
+    let stream = thread::spawn(move || {
+        let mut stdout_actual = Vec::new();
+        let mut stderr_actual = Vec::new();
+
+        let mut match_output_event = |event: Event| {
+            match event.output {
+                OutputEvent::Stdout(line) => stdout_actual.push(line),
+                OutputEvent::Stderr(line) => stderr_actual.push(line),
+            };
+            Some(())
+        };
+
+        if times == 0 {
+            (0..).try_for_each(|_| match_output_event(rx.recv().ok()?))
+        } else {
+            (0..times).try_for_each(|_| match_output_event(rx.recv().ok()?))
+        };
+
+        (stdout_actual, stderr_actual)
+    });
+
+    // wait for the process to finish
+    stream.join().unwrap()
 }
 
 #[test]
@@ -33,21 +61,8 @@ fn actual_command_streaming() {
     (0..10).for_each(|i| stdout_expected.push(format!("ok tick {}", i)));
     (0..10).for_each(|i| stderr_expected.push(format!("err tick {}", i)));
 
-    // stream the actual output on a separate thread
-    let stream = thread::spawn(move || {
-        let mut stdout_actual = Vec::new();
-        let mut stderr_actual = Vec::new();
-
-        (0..20).for_each(|_| match rx.recv().unwrap().output {
-            OutputEvent::Stdout(line) => stdout_actual.push(line),
-            OutputEvent::Stderr(line) => stderr_actual.push(line),
-        });
-
-        (stdout_actual, stderr_actual)
-    });
-
     // wait for the process to finish
-    let (stdout_actual, stderr_actual) = stream.join().unwrap();
+    let (stdout_actual, stderr_actual) = get_n_outputs(rx, 20);
 
     assert_eq!(stdout_expected, stdout_actual);
     assert_eq!(stderr_expected, stderr_actual);
@@ -75,21 +90,8 @@ fn actual_command_streaming_only_stderr() {
     let mut stderr_expected: Vec<String> = Vec::new();
     (0..10).for_each(|i| stderr_expected.push(format!("err tick {}", i)));
 
-    // stream the actual output on a separate thread
-    let stream = thread::spawn(move || {
-        let mut stdout_actual = Vec::new();
-        let mut stderr_actual = Vec::new();
-
-        (0..10).for_each(|_| match rx.recv().unwrap().output {
-            OutputEvent::Stdout(line) => stdout_actual.push(line),
-            OutputEvent::Stderr(line) => stderr_actual.push(line),
-        });
-
-        (stdout_actual, stderr_actual)
-    });
-
     // wait for the process to finish
-    let (stdout_actual, stderr_actual) = stream.join().unwrap();
+    let (stdout_actual, stderr_actual) = get_n_outputs(rx, 10);
 
     assert_eq!(stdout_expected, stdout_actual);
     assert_eq!(stderr_expected, stderr_actual);
@@ -118,26 +120,8 @@ fn actual_command_exiting_closes_channel() {
     (0..10).for_each(|i| stdout_expected.push(format!("ok tick {}", i)));
     (0..10).for_each(|i| stderr_expected.push(format!("err tick {}", i)));
 
-    // stream the actual output on a separate thread
-    let stream = thread::spawn(move || {
-        let mut stdout_actual = Vec::new();
-        let mut stderr_actual = Vec::new();
-
-        loop {
-            match rx.recv() {
-                Err(_) => break,
-                Ok(event) => match event.output {
-                    OutputEvent::Stdout(line) => stdout_actual.push(line),
-                    OutputEvent::Stderr(line) => stderr_actual.push(line),
-                },
-            }
-        }
-
-        (stdout_actual, stderr_actual)
-    });
-
     // wait for the thread loop to break
-    let (stdout_actual, stderr_actual) = stream.join().unwrap();
+    let (stdout_actual, stderr_actual) = get_n_outputs(rx, 0);
 
     assert_eq!(stdout_expected, stdout_actual);
     assert_eq!(stderr_expected, stderr_actual);
@@ -148,4 +132,25 @@ fn actual_command_exiting_closes_channel() {
         let terminated = ProcessTerminator::new(handle.get_pid()).shutdown(|| true);
         assert!(terminated.is_ok());
     }
+}
+
+#[test]
+fn env_vars_are_inherited() {
+    // Set environment variable
+    std::env::set_var("FOO", "bar");
+    std::env::set_var("BAR", "baz");
+
+    // Child processes will inherit environment variables from their parent process by default
+    let agent = NonSupervisor {
+        cmd: ProcessRunner::new("sh", ["-c", "echo $FOO; echo $BAR"]),
+    };
+
+    let (tx, rx) = std::sync::mpsc::channel();
+    let _handle = agent.cmd.start().unwrap().stream(tx).unwrap();
+
+    let expected = vec!["bar", "baz"];
+
+    let (stdout_actual, _stderr_actual) = get_n_outputs(rx, 2);
+
+    assert_eq!(expected, stdout_actual);
 }
