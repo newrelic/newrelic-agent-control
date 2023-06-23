@@ -20,6 +20,7 @@ impl Logging {
             .with_env_filter(
                 EnvFilter::builder()
                     .with_default_directive(LevelFilter::INFO.into())
+                    .with_env_var("LOG_LEVEL")
                     .from_env_lossy(),
             )
             .fmt_fields(PrettyFields::new())
