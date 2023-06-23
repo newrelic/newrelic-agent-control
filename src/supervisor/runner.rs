@@ -1,15 +1,14 @@
 use std::process::ExitStatus;
 use std::{
-    ffi::OsStr,
     ops::Deref,
-    path::Path,
     sync::mpsc::Sender,
     sync::{Arc, Mutex},
     thread::{self, JoinHandle},
 };
 
 use crate::command::error::CommandError;
-use crate::command::processrunner::Unstarted;
+use crate::command::processrunner::{ProcessRunnerBuilder, Unstarted};
+use crate::command::CommandBuilder;
 use crate::{
     command::{
         stream::{Event, Metadata},
@@ -27,9 +26,11 @@ use super::{
 
 use tracing::{error, info};
 
-pub struct Stopped {
-    bin: String,
-    args: Vec<String>,
+pub struct Stopped<B = ProcessRunnerBuilder>
+where
+    B: CommandBuilder,
+{
+    process_builder: B,
     ctx: Context<bool>,
     snd: Sender<Event>,
     restart: RestartPolicy,
@@ -55,7 +56,7 @@ impl<T> Deref for SupervisorRunner<T> {
 // TODO: change with agent identifier (infra_agent/gateway)
 impl From<&SupervisorRunner<Stopped>> for String {
     fn from(value: &SupervisorRunner<Stopped>) -> Self {
-        value.bin.clone()
+        "TODO".to_string()
     }
 }
 
@@ -82,19 +83,15 @@ impl Runner for SupervisorRunner<Stopped> {
 
 impl From<&SupervisorRunner<Stopped>> for ProcessRunner {
     fn from(value: &SupervisorRunner<Stopped>) -> Self {
-        ProcessRunner::new(&value.bin, &value.args)
+        value.process_builder.build()
     }
 }
 
 impl From<&SupervisorRunner<Stopped>> for Metadata {
     // use binary file name as supervisor id
     fn from(value: &SupervisorRunner<Stopped>) -> Self {
-        Metadata::new(
-            Path::new(&value.bin)
-                .file_name()
-                .unwrap_or(OsStr::new("not found"))
-                .to_string_lossy(),
-        )
+        // TODO: move to AgentType value
+        Metadata::new("my_supervisor_ID")
     }
 }
 
@@ -218,17 +215,32 @@ impl Handle for SupervisorRunner<Running> {
     }
 }
 
+impl Stopped {
+    fn new<B>(process_builder: B, ctx: Context<bool>, snd: Sender<Event>) -> Stopped<B>
+    where
+        B: CommandBuilder,
+    {
+        Stopped::<B> {
+            process_builder,
+            ctx,
+            snd,
+            // default restart policy to prevent automatic restarts
+            restart: RestartPolicy::new(BackoffStrategy::None, Vec::new()),
+        }
+    }
+}
+
 impl SupervisorRunner<Stopped> {
-    pub fn new(bin: String, args: Vec<String>, ctx: Context<bool>, snd: Sender<Event>) -> Self {
+    pub fn new<B>(
+        process_builder: B,
+        ctx: Context<bool>,
+        snd: Sender<Event>,
+    ) -> SupervisorRunner<Stopped<B>>
+    where
+        B: CommandBuilder,
+    {
         SupervisorRunner {
-            state: Stopped {
-                bin,
-                args,
-                ctx,
-                snd,
-                // default restart policy to prevent automatic restarts
-                restart: RestartPolicy::new(BackoffStrategy::None, Vec::new()),
-            },
+            state: Stopped::new(process_builder, ctx, snd),
         }
     }
 
@@ -246,7 +258,10 @@ impl SupervisorRunner<Stopped> {
 pub(crate) mod sleep_supervisor_tests {
     use std::sync::mpsc::Sender;
 
-    use crate::{command::stream::Event, context::Context};
+    use crate::{
+        command::{processrunner::ProcessRunnerBuilder, stream::Event},
+        context::Context,
+    };
 
     use super::{Stopped, SupervisorRunner};
 
@@ -255,8 +270,10 @@ pub(crate) mod sleep_supervisor_tests {
         seconds: u32,
     ) -> SupervisorRunner<Stopped> {
         SupervisorRunner::new(
-            "sh".to_owned(),
-            vec!["-c".to_string(), format!("sleep {}", seconds)],
+            ProcessRunnerBuilder::new(
+                "sh".to_owned(),
+                vec!["-c".to_string(), format!("sleep {}", seconds)],
+            ),
             Context::new(),
             tx.clone(),
         )
@@ -280,8 +297,7 @@ mod tests {
             .with_last_retry_interval(Duration::new(30, 0));
 
         let agent: SupervisorRunner = SupervisorRunner::new(
-            "wrong-command".to_owned(),
-            vec!["x".to_owned()],
+            ProcessRunnerBuilder::new("wrong-command".to_owned(), vec!["x".to_owned()]),
             Context::new(),
             tx,
         )
@@ -307,8 +323,7 @@ mod tests {
             .with_last_retry_interval(Duration::new(30, 0));
 
         let agent: SupervisorRunner = SupervisorRunner::new(
-            "wrong-command".to_owned(),
-            vec!["x".to_owned()],
+            ProcessRunnerBuilder::new("wrong-command".to_owned(), vec!["x".to_owned()]),
             Context::new(),
             tx,
         )
@@ -333,8 +348,7 @@ mod tests {
             .with_last_retry_interval(Duration::new(30, 0));
 
         let agent: SupervisorRunner = SupervisorRunner::new(
-            "echo".to_owned(),
-            vec!["hello!".to_owned()],
+            ProcessRunnerBuilder::new("echo".to_owned(), vec!["Hello!".to_owned()]),
             Context::new(),
             tx,
         )

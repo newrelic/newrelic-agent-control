@@ -1,8 +1,15 @@
 use std::sync::mpsc::Sender;
 
-use crate::{command::stream::Event, config::agent_configs::AgentConfig, context::Context};
+use crate::{
+    command::{processrunner::ProcessRunnerBuilder, stream::Event},
+    config::agent_configs::AgentConfig,
+    context::Context,
+};
 
-use super::{restart::BackoffStrategy, runner::SupervisorRunner};
+use super::{
+    restart::BackoffStrategy,
+    runner::{Stopped, SupervisorRunner},
+};
 
 const NEWRELIC_INFRA_PATH: &str = "/usr/bin/newrelic-infra";
 const NEWRELIC_INFRA_CONFIG_PATH: &str = "/etc/newrelic-infra.yml";
@@ -14,11 +21,13 @@ pub struct NRIConfig {
     cfg: AgentConfig,
 }
 
-impl From<&NRIConfig> for SupervisorRunner {
+impl From<&NRIConfig> for SupervisorRunner<Stopped> {
     fn from(value: &NRIConfig) -> Self {
         SupervisorRunner::new(
-            NEWRELIC_INFRA_PATH.to_owned(),
-            NEWRELIC_INFRA_ARGS.iter().map(|&s| s.to_owned()).collect(),
+            ProcessRunnerBuilder::new(
+                NEWRELIC_INFRA_PATH.to_owned(),
+                NEWRELIC_INFRA_ARGS.iter().map(|&s| s.to_owned()).collect(),
+            ),
             value.ctx.clone(),
             value.snd.clone(),
         )

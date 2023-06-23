@@ -20,6 +20,11 @@ use stream::OutputEvent;
 
 use self::stream::Event;
 
+pub trait CommandBuilder {
+    type OutputType: CommandExecutor;
+    fn build(&self) -> Self::OutputType;
+}
+
 /// Trait that specifies the interface for a background task execution
 pub trait CommandExecutor {
     type Error: std::error::Error + Send + Sync;

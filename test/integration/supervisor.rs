@@ -1,7 +1,7 @@
 use std::{sync::mpsc::Sender, thread, time::Duration};
 
 use meta_agent::{
-    command::{stream::Event, EventLogger, StdEventReceiver},
+    command::{processrunner::ProcessRunnerBuilder, stream::Event, EventLogger, StdEventReceiver},
     context::Context,
     logging::Logging,
     supervisor::{runner::SupervisorRunner, Handle, Runner},
@@ -14,8 +14,10 @@ struct Config {
 impl From<&Config> for SupervisorRunner {
     fn from(value: &Config) -> Self {
         SupervisorRunner::new(
-            "sh".to_string(),
-            vec!["-c".to_string(), "sleep 2".to_string()],
+            ProcessRunnerBuilder::new(
+                "sh".to_owned(),
+                vec!["-c".to_owned(), "sleep 2".to_string()],
+            ),
             Context::new(),
             value.tx.clone(),
         )

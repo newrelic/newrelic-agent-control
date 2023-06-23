@@ -7,7 +7,8 @@ use std::{
 
 use super::{
     stream::{Event, Metadata},
-    CommandError, CommandExecutor, CommandHandle, CommandRunner, EventStreamer, OutputEvent,
+    CommandBuilder, CommandError, CommandExecutor, CommandHandle, CommandRunner, EventStreamer,
+    OutputEvent,
 };
 
 use tracing::error;
@@ -26,6 +27,24 @@ pub struct ProcessRunner<State = Unstarted> {
     state: State,
 }
 
+pub struct ProcessRunnerBuilder {
+    binary_path: String,
+    args: Vec<String>,
+}
+
+impl CommandBuilder for ProcessRunnerBuilder {
+    type OutputType = ProcessRunner;
+    fn build(&self) -> Self::OutputType {
+        ProcessRunner::new(self.binary_path.clone(), self.args.clone())
+    }
+}
+
+impl ProcessRunnerBuilder {
+    pub fn new(binary_path: String, args: Vec<String>) -> Self {
+        Self { binary_path, args }
+    }
+}
+
 impl ProcessRunner {
     pub fn new<I, S>(binary_path: S, args: I) -> Self
     where
@@ -37,11 +56,12 @@ impl ProcessRunner {
 
         Self {
             state: Unstarted { cmd },
+            // TODO: create with binary path
             metadata: Metadata::default(),
         }
     }
 
-    // TODO: move to builder?
+    // TODO: rename to append_metadata (e.g supervisor ID)
     pub fn with_metadata(mut self, metadata: Metadata) -> Self {
         self.metadata = metadata;
         self
