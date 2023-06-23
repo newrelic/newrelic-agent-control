@@ -40,8 +40,8 @@ fn runs_as_root() -> Result<(), Box<dyn std::error::Error>> {
     let file_path = create_simple_config()?;
     let mut cmd = Command::cargo_bin("main")?;
     cmd.arg("--config").arg(file_path);
-    // cmd_assert is not made for long running programs, so we kill it anyway after 10 seconds
-    cmd.timeout(Duration::from_secs(5));
+    // cmd_assert is not made for long running programs, so we kill it anyway after 1 second
+    cmd.timeout(Duration::from_secs(1));
     // But in any case we make sure that it actually attempted to create the supervisor group,
     // so it works when the program is run as root
     cmd.assert()
