@@ -21,6 +21,7 @@ fn print_debug_info() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[cfg(unix)]
+#[cfg_attr(feature = "test_root", ignore)]
 #[test]
 fn does_not_run_if_no_root() -> Result<(), Box<dyn std::error::Error>> {
     let file_path = create_simple_config()?;
@@ -29,5 +30,28 @@ fn does_not_run_if_no_root() -> Result<(), Box<dyn std::error::Error>> {
     cmd.assert()
         .failure()
         .stderr(predicate::str::contains("Program must run as root"));
+    Ok(())
+}
+
+// Run the below test with `cargo test --features test_root`
+#[cfg(unix)]
+#[cfg_attr(not(feature = "test_root"), ignore)]
+#[test]
+fn runs_if_root() -> Result<(), Box<dyn std::error::Error>> {
+    use std::time::Duration;
+
+    let file_path = create_simple_config()?;
+    let mut cmd = Command::cargo_bin("main")?;
+    cmd.arg("--config").arg(file_path);
+    // cmd_assert is not made for long running programs, so we kill it anyway after 10 seconds
+    cmd.timeout(Duration::from_secs(5));
+    // But in any case we make sure that it actually attempted to create the supervisor group,
+    // so it works when the program is run as root
+    cmd.assert()
+        .failure()
+        .stdout(predicate::str::contains("Creating the signal handler"))
+        .stdout(predicate::str::contains("Creating the global context"))
+        .stdout(predicate::str::contains("Starting the super agent"));
+    // No supervisor group so we don't check for it.
     Ok(())
 }
