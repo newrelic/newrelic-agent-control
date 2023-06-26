@@ -20,18 +20,23 @@ use stream::OutputEvent;
 
 use self::stream::Event;
 
-pub trait CommandBuilder {
+pub trait CommandBuilder: Send + Sync {
     type OutputType: CommandExecutor;
     fn build(&self) -> Self::OutputType;
 }
 
+pub trait TerminatorBuilder: Send + Sync {
+    type OutputType: CommandTerminator;
+    fn build(&self) -> Self::OutputType;
+    fn with_pid(&mut self, pid: u32);
+}
+
 /// Trait that specifies the interface for a background task execution
 pub trait CommandExecutor {
-    type Error: std::error::Error + Send + Sync;
-    type Process: CommandHandle;
+    type Process: CommandHandle + EventStreamer;
 
     /// The spawn method will execute command
-    fn start(self) -> Result<Self::Process, Self::Error>;
+    fn start(self) -> Result<Self::Process, CommandError>;
 }
 
 pub trait CommandHandle {
@@ -64,10 +69,9 @@ pub trait CommandTerminator {
 /// As the output collection will be done in a separate thread,
 /// the output will be sent through the `Sender` provided as argument.
 pub trait EventStreamer {
-    type Error: std::error::Error + Send + Sync;
     type Handle: CommandHandle;
 
-    fn stream(self, snd: Sender<Event>) -> Result<Self::Handle, Self::Error>;
+    fn stream(self, snd: Sender<Event>) -> Result<Self::Handle, CommandError>;
 }
 
 /// This trait represents the capability of an Event Receiver to log its output.

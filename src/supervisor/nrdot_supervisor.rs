@@ -1,7 +1,9 @@
 use std::sync::mpsc::Sender;
 
 use crate::{
-    command::{processrunner::ProcessRunnerBuilder, stream::Event},
+    command::{
+        processrunner::ProcessRunnerBuilder, shutdown::ProcessTerminatorBuilder, stream::Event,
+    },
     config::agent_configs::AgentConfig,
     context::Context,
 };
@@ -26,13 +28,13 @@ pub struct NRDOTConfig {
     id: String,
 }
 
-impl From<&NRDOTConfig> for SupervisorRunner<Stopped> {
+impl From<&NRDOTConfig>
+    for SupervisorRunner<Stopped<ProcessRunnerBuilder, ProcessTerminatorBuilder>>
+{
     fn from(value: &NRDOTConfig) -> Self {
         SupervisorRunner::new(
-            ProcessRunnerBuilder::new(
-                NRDOT_PATH.to_string(),
-                NRDOT_ARGS.iter().map(|&s| s.to_owned()).collect(),
-            ),
+            NRDOT_PATH.to_string(),
+            NRDOT_ARGS.iter().map(|&s| s.to_owned()).collect(),
             value.id.clone(),
             value.ctx.clone(),
             value.snd.clone(),

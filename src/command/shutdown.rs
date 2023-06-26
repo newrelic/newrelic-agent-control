@@ -5,7 +5,7 @@ use std::time::Duration;
 use crate::context::Context;
 use tracing::error;
 
-use super::{CommandError, CommandTerminator};
+use super::{CommandError, CommandTerminator, TerminatorBuilder};
 
 /// DEFAULT_EXIT_TIMEOUT of 2 seconds
 const DEFAULT_EXIT_TIMEOUT: Duration = Duration::new(10, 0);
@@ -20,6 +20,28 @@ impl ProcessTerminator {
     /// new creates a new ProcessTerminator for the pid provided
     pub fn new(pid: u32) -> Self {
         Self { pid }
+    }
+}
+
+pub struct ProcessTerminatorBuilder {
+    pid: Option<u32>,
+}
+
+impl Default for ProcessTerminatorBuilder {
+    fn default() -> Self {
+        ProcessTerminatorBuilder { pid: None }
+    }
+}
+
+impl TerminatorBuilder for ProcessTerminatorBuilder {
+    type OutputType = ProcessTerminator;
+    fn build(&self) -> Self::OutputType {
+        ProcessTerminator {
+            pid: self.pid.unwrap(),
+        }
+    }
+    fn with_pid(&mut self, pid: u32) {
+        self.pid = Some(pid)
     }
 }
 
@@ -84,6 +106,50 @@ pub fn wait_exit_timeout(context: Context<bool>, exit_timeout: Duration) -> bool
 /// wait_exit_timeout_default calls wait_exit_timeout with the DEFAULT_EXIT_TIMEOUT of 2 seconds.
 pub fn wait_exit_timeout_default(context: Context<bool>) -> bool {
     wait_exit_timeout(context, DEFAULT_EXIT_TIMEOUT)
+}
+
+#[cfg(test)]
+pub(crate) mod terminator_builder {
+    use std::sync::{atomic::AtomicBool, Arc};
+
+    use crate::command::{error::CommandError, CommandTerminator, TerminatorBuilder};
+
+    pub(crate) struct NopTerminator {
+        release: Arc<AtomicBool>,
+    }
+    pub(crate) struct NopTerminatorBuiler {
+        release: Arc<AtomicBool>,
+    }
+
+    impl CommandTerminator for NopTerminator {
+        type Error = CommandError;
+        fn shutdown<F>(self, func: F) -> Result<(), Self::Error>
+        where
+            F: FnOnce() -> bool,
+        {
+            self.release
+                .store(true, std::sync::atomic::Ordering::Relaxed);
+            func();
+            Ok(())
+        }
+    }
+
+    impl TerminatorBuilder for NopTerminatorBuiler {
+        type OutputType = NopTerminator;
+        fn build(&self) -> Self::OutputType {
+            NopTerminator {
+                release: self.release.clone(),
+            }
+        }
+
+        fn with_pid(&mut self, _pid: u32) {}
+    }
+
+    impl NopTerminatorBuiler {
+        pub fn new(release: Arc<AtomicBool>) -> Self {
+            NopTerminatorBuiler { release }
+        }
+    }
 }
 
 #[cfg(target_family = "unix")]

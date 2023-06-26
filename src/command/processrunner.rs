@@ -69,9 +69,8 @@ impl ProcessRunner {
 }
 
 impl CommandExecutor for ProcessRunner<Unstarted> {
-    type Error = CommandError;
     type Process = ProcessRunner<Started>;
-    fn start(mut self) -> Result<Self::Process, Self::Error> {
+    fn start(mut self) -> Result<Self::Process, CommandError> {
         let process = self.state.cmd.spawn()?;
         Ok(ProcessRunner {
             state: Started { process },
@@ -106,10 +105,9 @@ impl From<&ProcessRunner<Started>> for Metadata {
 }
 
 impl EventStreamer for ProcessRunner<Started> {
-    type Error = CommandError;
     type Handle = ProcessRunner<Started>;
 
-    fn stream(mut self, snd: Sender<Event>) -> Result<Self::Handle, Self::Error> {
+    fn stream(mut self, snd: Sender<Event>) -> Result<Self::Handle, CommandError> {
         let stdout = self
             .state
             .process
@@ -169,21 +167,26 @@ pub(crate) mod sleep_process_builder {
     #[cfg(target_family = "windows")]
     use std::os::windows::process::ExitStatusExt;
 
-    use std::{process::ExitStatus, thread::sleep, time::Duration};
+    use std::{
+        hint::spin_loop,
+        process::ExitStatus,
+        sync::{atomic::AtomicBool, Arc},
+        thread::sleep,
+        time::{Duration, Instant},
+    };
 
-    use crate::command::{CommandBuilder, CommandExecutor, CommandHandle};
+    use crate::command::{error::CommandError, CommandBuilder, CommandExecutor, CommandHandle};
 
-    pub(crate) struct MockedCommandExecutor(pub bool, pub Duration);
-    pub struct MockedCommandHandler(pub Duration);
+    pub(crate) struct MockedCommandExecutor(pub bool, pub Duration, pub Arc<AtomicBool>);
+    pub struct MockedCommandHandler(pub Duration, pub Arc<AtomicBool>);
 
     impl CommandExecutor for MockedCommandExecutor {
-        type Error = super::CommandError;
         type Process = MockedCommandHandler;
-        fn start(self) -> Result<Self::Process, Self::Error> {
+        fn start(self) -> Result<Self::Process, CommandError> {
             if self.0 {
                 Err(super::CommandError::ProcessError(ExitStatus::from_raw(1)))
             } else {
-                Ok(MockedCommandHandler(self.1))
+                Ok(MockedCommandHandler(self.1, self.2))
             }
         }
     }
@@ -191,7 +194,13 @@ pub(crate) mod sleep_process_builder {
     impl CommandHandle for MockedCommandHandler {
         type Error = super::CommandError;
         fn wait(self) -> Result<ExitStatus, Self::Error> {
-            sleep(self.0);
+            let current = Instant::now();
+            while !self.1.load(std::sync::atomic::Ordering::Relaxed) {
+                spin_loop()
+            }
+            if let Some(remaining) = Duration::checked_sub(self.0, current.elapsed()) {
+                sleep(remaining);
+            }
             Ok(ExitStatus::from_raw(0))
         }
 
@@ -203,13 +212,15 @@ pub(crate) mod sleep_process_builder {
     pub(crate) struct MockedProcessBuilder {
         fail_on_start: bool,
         sleepy: Duration,
+        release: Arc<AtomicBool>,
     }
 
     impl MockedProcessBuilder {
-        fn new(fail_on_start: bool, sleepy: Duration) -> Self {
+        pub(crate) fn new(fail_on_start: bool, sleepy: Duration, release: Arc<AtomicBool>) -> Self {
             Self {
                 fail_on_start,
                 sleepy,
+                release,
             }
         }
     }
@@ -217,7 +228,7 @@ pub(crate) mod sleep_process_builder {
     impl CommandBuilder for MockedProcessBuilder {
         type OutputType = MockedCommandExecutor;
         fn build(&self) -> Self::OutputType {
-            MockedCommandExecutor(self.fail_on_start, self.sleepy)
+            MockedCommandExecutor(self.fail_on_start, self.sleepy, self.release.clone())
         }
     }
 }
@@ -225,6 +236,7 @@ pub(crate) mod sleep_process_builder {
 #[cfg(test)]
 mod tests {
 
+    use std::sync::atomic::AtomicBool;
     use std::sync::mpsc::Sender;
     use std::time::Duration;
 
@@ -239,11 +251,11 @@ mod tests {
     #[test]
     fn start_stop() {
         let cmds: Vec<MockedCommandExecutor> = vec![
-            MockedCommandExecutor(true, Duration::new(0, 0)),
-            MockedCommandExecutor(false, Duration::new(0, 0)),
-            MockedCommandExecutor(true, Duration::new(0, 0)),
-            MockedCommandExecutor(true, Duration::new(0, 0)),
-            MockedCommandExecutor(false, Duration::new(0, 0)),
+            MockedCommandExecutor(true, Duration::new(0, 0), AtomicBool::new(true).into()),
+            MockedCommandExecutor(false, Duration::new(0, 0), AtomicBool::new(true).into()),
+            MockedCommandExecutor(true, Duration::new(0, 0), AtomicBool::new(true).into()),
+            MockedCommandExecutor(true, Duration::new(0, 0), AtomicBool::new(true).into()),
+            MockedCommandExecutor(false, Duration::new(0, 0), AtomicBool::new(true).into()),
         ];
 
         assert_eq!(
@@ -262,10 +274,9 @@ mod tests {
     }
 
     impl EventStreamer for MockedCommandHandler {
-        type Error = CommandError;
         type Handle = MockedCommandHandler;
 
-        fn stream(self, snd: Sender<Event>) -> Result<Self, Self::Error> {
+        fn stream(self, snd: Sender<Event>) -> Result<Self, CommandError> {
             (0..9).for_each(|i| {
                 snd.send(Event::new(
                     OutputEvent::Stdout(format!("This is line {}", i)),
@@ -287,7 +298,7 @@ mod tests {
 
     #[test]
     fn stream() {
-        let cmd = MockedCommandHandler(Duration::new(0, 0));
+        let cmd = MockedCommandHandler(Duration::new(0, 0), AtomicBool::new(true).into());
         let (tx, rx) = std::sync::mpsc::channel();
 
         cmd.stream(tx).unwrap();

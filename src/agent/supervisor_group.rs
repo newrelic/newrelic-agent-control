@@ -1,7 +1,10 @@
 use std::{collections::HashMap, sync::mpsc::Sender, thread::JoinHandle};
 
 use crate::{
-    command::stream::Event,
+    command::{
+        processrunner::ProcessRunnerBuilder, shutdown::ProcessTerminatorBuilder, stream::Event,
+        CommandBuilder, TerminatorBuilder,
+    },
     config::{agent_configs::MetaAgentConfig, agent_type::AgentType},
     supervisor::{
         error::ProcessError,
@@ -14,7 +17,7 @@ use crate::{
 
 pub struct SupervisorGroup<S>(HashMap<AgentType, SupervisorRunner<S>>);
 
-impl SupervisorGroup<Stopped> {
+impl SupervisorGroup<Stopped<ProcessRunnerBuilder, ProcessTerminatorBuilder>> {
     pub fn new(tx: Sender<Event>, cfg: &MetaAgentConfig) -> Self {
         let builder = SupervisorGroupBuilder {
             tx,
@@ -22,7 +25,13 @@ impl SupervisorGroup<Stopped> {
         };
         SupervisorGroup::from(&builder)
     }
+}
 
+impl<B, T> SupervisorGroup<Stopped<B, T>>
+where
+    B: CommandBuilder + 'static,
+    T: TerminatorBuilder + 'static,
+{
     pub fn run(self) -> SupervisorGroup<Running> {
         let running = self
             .0
@@ -55,7 +64,9 @@ struct SupervisorGroupBuilder {
     cfg: MetaAgentConfig,
 }
 
-impl From<&SupervisorGroupBuilder> for SupervisorGroup<Stopped> {
+impl From<&SupervisorGroupBuilder>
+    for SupervisorGroup<Stopped<ProcessRunnerBuilder, ProcessTerminatorBuilder>>
+{
     fn from(value: &SupervisorGroupBuilder) -> Self {
         let runners = value
             .cfg
@@ -84,7 +95,10 @@ pub(crate) mod tests {
     use std::{collections::HashMap, sync::mpsc::Sender};
 
     use crate::{
-        command::stream::Event,
+        command::{
+            processrunner::sleep_process_builder::MockedProcessBuilder,
+            shutdown::terminator_builder::NopTerminatorBuiler, stream::Event,
+        },
         config::agent_type::AgentType,
         supervisor::runner::{
             sleep_supervisor_tests::new_sleep_supervisor, Stopped, SupervisorRunner,
@@ -95,8 +109,13 @@ pub(crate) mod tests {
 
     // new_sleep_supervisor_group returns a stopped supervisor group with to runners which mock the
     // InfraAgent by sleeping 5 and 10 seconds respectively
-    pub(crate) fn new_sleep_supervisor_group(tx: Sender<Event>) -> SupervisorGroup<Stopped> {
-        let group: HashMap<AgentType, SupervisorRunner<Stopped>> = HashMap::from([
+    pub(crate) fn new_sleep_supervisor_group(
+        tx: Sender<Event>,
+    ) -> SupervisorGroup<Stopped<MockedProcessBuilder, NopTerminatorBuiler>> {
+        let group: HashMap<
+            AgentType,
+            SupervisorRunner<Stopped<MockedProcessBuilder, NopTerminatorBuiler>>,
+        > = HashMap::from([
             (
                 AgentType::InfraAgent(Some("sleep_5".to_string())),
                 new_sleep_supervisor(tx.clone(), 5),

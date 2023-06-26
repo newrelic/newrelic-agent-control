@@ -7,7 +7,10 @@ use tracing::{error, info};
 
 use crate::{
     agent::supervisor_group::SupervisorGroup,
-    command::{stream::Event, EventLogger, StdEventReceiver},
+    command::{
+        processrunner::ProcessRunnerBuilder, shutdown::ProcessTerminatorBuilder, stream::Event,
+        CommandBuilder, EventLogger, StdEventReceiver, TerminatorBuilder,
+    },
     config::{agent_configs::MetaAgentConfig, agent_type::AgentType, resolver::Resolver},
     context::Context,
     supervisor::runner::Stopped,
@@ -27,11 +30,21 @@ pub enum AgentEvent {
 }
 
 pub trait SupervisorGroupResolver {
-    fn retrieve_group(&self, tx: Sender<Event>) -> SupervisorGroup<Stopped>;
+    type ProcessBuilder: CommandBuilder + 'static;
+    type TerminatorBuilder: TerminatorBuilder + 'static;
+    fn retrieve_group(
+        &self,
+        tx: Sender<Event>,
+    ) -> SupervisorGroup<Stopped<Self::ProcessBuilder, Self::TerminatorBuilder>>;
 }
 
 impl SupervisorGroupResolver for MetaAgentConfig {
-    fn retrieve_group(&self, tx: Sender<Event>) -> SupervisorGroup<Stopped> {
+    type ProcessBuilder = ProcessRunnerBuilder;
+    type TerminatorBuilder = ProcessTerminatorBuilder;
+    fn retrieve_group(
+        &self,
+        tx: Sender<Event>,
+    ) -> SupervisorGroup<Stopped<ProcessRunnerBuilder, ProcessTerminatorBuilder>> {
         SupervisorGroup::new(tx, self)
     }
 }
@@ -145,7 +158,13 @@ mod tests {
         time::Duration,
     };
 
-    use crate::context::Context;
+    use crate::{
+        command::{
+            processrunner::sleep_process_builder::MockedProcessBuilder,
+            shutdown::terminator_builder::NopTerminatorBuiler,
+        },
+        context::Context,
+    };
 
     use super::{
         supervisor_group::tests::new_sleep_supervisor_group, Agent, AgentEvent,
@@ -154,10 +173,14 @@ mod tests {
 
     struct MockedSleepGroupResolver;
     impl SupervisorGroupResolver for MockedSleepGroupResolver {
+        type ProcessBuilder = MockedProcessBuilder;
+        type TerminatorBuilder = NopTerminatorBuiler;
         fn retrieve_group(
             &self,
             tx: std::sync::mpsc::Sender<crate::command::stream::Event>,
-        ) -> super::supervisor_group::SupervisorGroup<crate::supervisor::runner::Stopped> {
+        ) -> super::supervisor_group::SupervisorGroup<
+            crate::supervisor::runner::Stopped<MockedProcessBuilder, NopTerminatorBuiler>,
+        > {
             new_sleep_supervisor_group(tx)
         }
     }

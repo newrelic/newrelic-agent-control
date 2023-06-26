@@ -7,13 +7,14 @@ use std::{
 };
 
 use crate::command::error::CommandError;
-use crate::command::processrunner::{ProcessRunnerBuilder, Unstarted};
-use crate::command::CommandBuilder;
+use crate::command::processrunner::ProcessRunnerBuilder;
+use crate::command::shutdown::ProcessTerminatorBuilder;
+use crate::command::{CommandBuilder, TerminatorBuilder};
 use crate::{
     command::{
         stream::{Event, Metadata},
         wait_exit_timeout, wait_exit_timeout_default, CommandExecutor, CommandHandle,
-        CommandTerminator, EventStreamer, ProcessRunner, ProcessTerminator,
+        CommandTerminator, EventStreamer, ProcessTerminator,
     },
     context::Context,
 };
@@ -26,11 +27,13 @@ use super::{
 
 use tracing::{error, info};
 
-pub struct Stopped<B = ProcessRunnerBuilder>
+pub struct Stopped<B, T>
 where
     B: CommandBuilder,
+    T: TerminatorBuilder,
 {
     process_builder: B,
+    terminator: Arc<Mutex<T>>,
     ctx: Context<bool>,
     snd: Sender<Event>,
     restart: RestartPolicy,
@@ -42,7 +45,7 @@ pub struct Running {
 }
 
 #[derive(Debug)]
-pub struct SupervisorRunner<State = Stopped> {
+pub struct SupervisorRunner<State = Stopped<ProcessRunnerBuilder, ProcessTerminatorBuilder>> {
     state: State,
     // ID corresponds to the string serialization of AgentType
     id: String,
@@ -55,13 +58,15 @@ impl<T> Deref for SupervisorRunner<T> {
     }
 }
 
-impl ID for SupervisorRunner<Stopped> {
+impl<B: CommandBuilder, T: TerminatorBuilder> ID for SupervisorRunner<Stopped<B, T>> {
     fn id(&self) -> String {
         self.id.clone()
     }
 }
 
-impl Runner for SupervisorRunner<Stopped> {
+impl<B: CommandBuilder + 'static, T: TerminatorBuilder + 'static> Runner
+    for SupervisorRunner<Stopped<B, T>>
+{
     type E = ProcessError;
     type H = SupervisorRunner<Running>;
 
@@ -78,44 +83,59 @@ impl Runner for SupervisorRunner<Stopped> {
     }
 }
 
-impl From<&SupervisorRunner<Stopped>> for ProcessRunner {
-    fn from(value: &SupervisorRunner<Stopped>) -> Self {
-        value.process_builder.build()
-    }
-}
-
-impl From<&SupervisorRunner<Stopped>> for Metadata {
-    fn from(value: &SupervisorRunner<Stopped>) -> Self {
+impl<B: CommandBuilder, T: TerminatorBuilder> From<&SupervisorRunner<Stopped<B, T>>> for Metadata {
+    fn from(value: &SupervisorRunner<Stopped<B, T>>) -> Self {
         Metadata::new(value.id())
     }
 }
 
 // launch_process starts a new process with a streamed channel and sets its current pid
 // into the provided variable. It waits until the process exits.
-fn launch_process(
-    process: ProcessRunner<Unstarted>,
+fn launch_process<C: CommandExecutor>(
+    executor: C,
     pid: Arc<Mutex<Option<u32>>>,
     tx: Sender<Event>,
 ) -> Result<ExitStatus, CommandError> {
     // run and stream the process
-    let streaming = process.start()?.stream(tx)?;
+    let streaming = executor.start()?.stream(tx)?;
 
     // set current running pid
     *pid.lock().unwrap() = Some(streaming.get_pid());
 
-    streaming.wait()
+    Ok(streaming.wait().unwrap())
 }
 
-fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
+fn run_process_thread<B: CommandBuilder + 'static, T: TerminatorBuilder + 'static>(
+    runner: SupervisorRunner<Stopped<B, T>>,
+) -> JoinHandle<()> {
     let mut restart_policy = runner.restart.clone();
     let current_pid: Arc<Mutex<Option<u32>>> = Arc::new(Mutex::new(None));
 
     let shutdown_ctx = Context::new();
-    _ = wait_for_termination(
-        current_pid.clone(),
-        runner.ctx.clone(),
-        shutdown_ctx.clone(),
-    );
+    // _ = wait_for_termination(
+    //     current_pid.clone(),
+    //     runner.ctx.clone(),
+    //     shutdown_ctx.clone(),
+    // );
+    thread::spawn({
+        let ctx = runner.ctx.clone();
+        let shutdown_ctx = shutdown_ctx.clone();
+        let current_pid = current_pid.clone();
+        let terminator_builder = runner.terminator.clone();
+        move || {
+            let (lck, cvar) = Context::get_lock_cvar(&ctx);
+            _ = cvar.wait_while(lck.lock().unwrap(), |finish| !*finish);
+
+            if let Some(pid) = *current_pid.lock().unwrap() {
+                terminator_builder.lock().unwrap().with_pid(pid);
+                let _ = terminator_builder
+                    .lock()
+                    .unwrap()
+                    .build()
+                    .shutdown(|| wait_exit_timeout_default(shutdown_ctx));
+            }
+        }
+    });
     thread::spawn({
         move || loop {
             // check if supervisor context is cancelled
@@ -132,7 +152,7 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
             // Signals return exit_code 0, if in the future we need to act on them we can import
             // std::os::unix::process::ExitStatusExt to get the code with the method into_raw
             let exit_code = launch_process(
-                ProcessRunner::from(&runner).with_metadata(Metadata::from(&runner)),
+                runner.process_builder.build(),
                 current_pid.clone(),
                 runner.snd.clone(),
             )
@@ -210,33 +230,68 @@ impl Handle for SupervisorRunner<Running> {
     }
 }
 
-impl Stopped {
-    fn new<B>(process_builder: B, ctx: Context<bool>, snd: Sender<Event>) -> Stopped<B>
+impl<B, T> Stopped<B, T>
+where
+    B: CommandBuilder,
+    T: TerminatorBuilder,
+{
+    fn new(
+        custom_builder: B,
+        custom_terminator: T,
+        ctx: Context<bool>,
+        snd: Sender<Event>,
+    ) -> Stopped<B, T>
     where
         B: CommandBuilder,
+        T: TerminatorBuilder,
     {
-        Stopped::<B> {
-            process_builder,
+        Stopped::<B, T> {
+            process_builder: custom_builder,
+            terminator: Arc::new(Mutex::new(custom_terminator)),
             ctx,
             snd,
-            // default restart policy to prevent automatic restarts
             restart: RestartPolicy::new(BackoffStrategy::None, Vec::new()),
         }
     }
 }
 
-impl SupervisorRunner<Stopped> {
-    pub fn new<B>(
+impl<B, T> SupervisorRunner<Stopped<B, T>>
+where
+    B: CommandBuilder,
+    T: TerminatorBuilder,
+{
+    pub fn new_with_builder_and_terminator(
         process_builder: B,
+        process_terminator: T,
         id: String,
         ctx: Context<bool>,
         snd: Sender<Event>,
-    ) -> SupervisorRunner<Stopped<B>>
+    ) -> SupervisorRunner<Stopped<B, T>>
     where
         B: CommandBuilder,
     {
         SupervisorRunner {
-            state: Stopped::new(process_builder, ctx, snd),
+            state: Stopped::new(process_builder, process_terminator, ctx, snd),
+            id,
+        }
+    }
+}
+
+impl SupervisorRunner<Stopped<ProcessRunnerBuilder, ProcessTerminatorBuilder>> {
+    pub fn new(
+        bin: String,
+        args: Vec<String>,
+        id: String,
+        ctx: Context<bool>,
+        snd: Sender<Event>,
+    ) -> SupervisorRunner<Stopped<ProcessRunnerBuilder, ProcessTerminatorBuilder>> {
+        SupervisorRunner {
+            state: Stopped::new(
+                ProcessRunnerBuilder::new(bin, args),
+                ProcessTerminatorBuilder::default(),
+                ctx,
+                snd,
+            ),
             id,
         }
     }
@@ -253,10 +308,16 @@ impl SupervisorRunner<Stopped> {
 
 #[cfg(test)]
 pub(crate) mod sleep_supervisor_tests {
-    use std::sync::mpsc::Sender;
+    use std::{
+        sync::{atomic::AtomicBool, mpsc::Sender, Arc},
+        time::Duration,
+    };
 
     use crate::{
-        command::{processrunner::ProcessRunnerBuilder, stream::Event},
+        command::{
+            processrunner::sleep_process_builder::MockedProcessBuilder,
+            shutdown::terminator_builder::NopTerminatorBuiler, stream::Event,
+        },
         context::Context,
     };
 
@@ -265,12 +326,11 @@ pub(crate) mod sleep_supervisor_tests {
     pub(crate) fn new_sleep_supervisor(
         tx: Sender<Event>,
         seconds: u32,
-    ) -> SupervisorRunner<Stopped> {
-        SupervisorRunner::new(
-            ProcessRunnerBuilder::new(
-                "sh".to_owned(),
-                vec!["-c".to_string(), format!("sleep {}", seconds)],
-            ),
+    ) -> SupervisorRunner<Stopped<MockedProcessBuilder, NopTerminatorBuiler>> {
+        let release = Arc::new(AtomicBool::new(false));
+        SupervisorRunner::new_with_builder_and_terminator(
+            MockedProcessBuilder::new(false, Duration::from_secs(seconds as u64), release.clone()),
+            NopTerminatorBuiler::new(release),
             "sleep/test".to_string(),
             Context::new(),
             tx.clone(),
@@ -295,7 +355,8 @@ mod tests {
             .with_last_retry_interval(Duration::new(30, 0));
 
         let agent: SupervisorRunner = SupervisorRunner::new(
-            ProcessRunnerBuilder::new("wrong-command".to_owned(), vec!["x".to_owned()]),
+            "wrong-command".to_owned(),
+            vec!["x".to_owned()],
             "test/wrong_command".to_string(),
             Context::new(),
             tx,
@@ -322,7 +383,8 @@ mod tests {
             .with_last_retry_interval(Duration::new(30, 0));
 
         let agent: SupervisorRunner = SupervisorRunner::new(
-            ProcessRunnerBuilder::new("wrong-command".to_owned(), vec!["x".to_owned()]),
+            "wrong-command".to_owned(),
+            vec!["x".to_owned()],
             "test/wrong_command".to_string(),
             Context::new(),
             tx,
@@ -348,7 +410,8 @@ mod tests {
             .with_last_retry_interval(Duration::new(30, 0));
 
         let agent: SupervisorRunner = SupervisorRunner::new(
-            ProcessRunnerBuilder::new("echo".to_owned(), vec!["Hello!".to_owned()]),
+            "echo".to_owned(),
+            vec!["Hello!".to_owned()],
             "test/retry".to_string(),
             Context::new(),
             tx,
