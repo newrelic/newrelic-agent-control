@@ -25,7 +25,7 @@ ci/terraform/caos.auto.tfvars
 **/.terraform.lock.hcl
 
 # Inventories for pkg testing, canaries...
-e2e/**/inventory.*
+test/**/inventory.*
 # Automatically downloaded external collections and roles
-e2e/**/collections
-e2e/**/roles
+test/**/collections
+test/**/roles

@@ -4,14 +4,14 @@ Run packaging tests:
 
 ```shell
 # Default values
-make e2e/packaging \
+make test/packaging \
   NR_LICENSE_KEY=**************** \
   NR_SUPER_AGENT_VERSION=0.0.4 \
   NR_OTEL_COLLECTOR_MEMORY_LIMIT=100 \
   NR_OTEL_COLLECTOR_OTLP_ENDPOINT=staging-otlp.nr-data.net:4317
 
 # Limit to linux
-make e2e/packaging \
+make test/packaging \
   LIMIT=testing_hosts_linux \
   NR_LICENSE_KEY=**************** \
   NR_SUPER_AGENT_VERSION=0.0.4 \
