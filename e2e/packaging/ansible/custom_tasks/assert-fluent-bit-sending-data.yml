@@ -1,0 +1,21 @@
+---
+
+- name: nrql request to get logs sent by fluent-bit
+  include_role:
+    name: caos.ansible_roles.nrql_api_request
+    apply:
+      become: false
+  vars:
+    nrql_query: >-
+      SELECT count(*) AS logEntries
+      FROM Log
+      WHERE hostname = '{{ ansible_hostname }}'
+      SINCE 1 minute AGO
+
+- name: assert that logs are being sent to NR
+  assert:
+    that:
+      - results[0]["logEntries"] > 1
+    success_msg: "fluent-bit is sending expected data {{ results[0].logEntries }}"
+    
+...

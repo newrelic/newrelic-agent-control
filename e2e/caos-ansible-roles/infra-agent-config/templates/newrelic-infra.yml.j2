@@ -31,6 +31,9 @@ custom_attributes:
 display_name: {{ display_name }}
 log:
   level: {{ log_level }}
+{% if log_file != "" %}
+  file: {{ log_file }}
+{% endif %}
   forward: {{ log_forward }}
   rotate:
     max_size_mb: {{ log_rotation_mb }}

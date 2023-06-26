@@ -3,4 +3,7 @@
 - name: pinned version agent installation
   import_playbook: installation-pinned.yaml
 
+- name: installation-over-infra-agent
+  import_playbook: installation-over-infra-agent.yaml
+
 ...
