@@ -18,6 +18,7 @@ impl From<&Config> for SupervisorRunner {
                 "sh".to_owned(),
                 vec!["-c".to_owned(), "sleep 2".to_string()],
             ),
+            "test/sleep2s".to_string(),
             Context::new(),
             value.tx.clone(),
         )

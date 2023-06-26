@@ -44,6 +44,8 @@ pub struct Running {
 #[derive(Debug)]
 pub struct SupervisorRunner<State = Stopped> {
     state: State,
+    // ID corresponds to the string serialization of AgentType
+    id: String,
 }
 
 impl<T> Deref for SupervisorRunner<T> {
@@ -53,16 +55,9 @@ impl<T> Deref for SupervisorRunner<T> {
     }
 }
 
-// TODO: change with agent identifier (infra_agent/gateway)
-impl From<&SupervisorRunner<Stopped>> for String {
-    fn from(value: &SupervisorRunner<Stopped>) -> Self {
-        "TODO".to_string()
-    }
-}
-
 impl ID for SupervisorRunner<Stopped> {
     fn id(&self) -> String {
-        String::from(self)
+        self.id.clone()
     }
 }
 
@@ -72,11 +67,13 @@ impl Runner for SupervisorRunner<Stopped> {
 
     fn run(self) -> Self::H {
         let ctx = self.ctx.clone();
+        let id = self.id.clone();
         SupervisorRunner {
             state: Running {
                 handle: run_process_thread(self),
                 ctx,
             },
+            id,
         }
     }
 }
@@ -88,10 +85,8 @@ impl From<&SupervisorRunner<Stopped>> for ProcessRunner {
 }
 
 impl From<&SupervisorRunner<Stopped>> for Metadata {
-    // use binary file name as supervisor id
     fn from(value: &SupervisorRunner<Stopped>) -> Self {
-        // TODO: move to AgentType value
-        Metadata::new("my_supervisor_ID")
+        Metadata::new(value.id())
     }
 }
 
@@ -233,6 +228,7 @@ impl Stopped {
 impl SupervisorRunner<Stopped> {
     pub fn new<B>(
         process_builder: B,
+        id: String,
         ctx: Context<bool>,
         snd: Sender<Event>,
     ) -> SupervisorRunner<Stopped<B>>
@@ -241,6 +237,7 @@ impl SupervisorRunner<Stopped> {
     {
         SupervisorRunner {
             state: Stopped::new(process_builder, ctx, snd),
+            id,
         }
     }
 
@@ -274,6 +271,7 @@ pub(crate) mod sleep_supervisor_tests {
                 "sh".to_owned(),
                 vec!["-c".to_string(), format!("sleep {}", seconds)],
             ),
+            "sleep/test".to_string(),
             Context::new(),
             tx.clone(),
         )
@@ -298,6 +296,7 @@ mod tests {
 
         let agent: SupervisorRunner = SupervisorRunner::new(
             ProcessRunnerBuilder::new("wrong-command".to_owned(), vec!["x".to_owned()]),
+            "test/wrong_command".to_string(),
             Context::new(),
             tx,
         )
@@ -324,6 +323,7 @@ mod tests {
 
         let agent: SupervisorRunner = SupervisorRunner::new(
             ProcessRunnerBuilder::new("wrong-command".to_owned(), vec!["x".to_owned()]),
+            "test/wrong_command".to_string(),
             Context::new(),
             tx,
         )
@@ -349,6 +349,7 @@ mod tests {
 
         let agent: SupervisorRunner = SupervisorRunner::new(
             ProcessRunnerBuilder::new("echo".to_owned(), vec!["Hello!".to_owned()]),
+            "test/retry".to_string(),
             Context::new(),
             tx,
         )

@@ -23,6 +23,7 @@ pub struct NRDOTConfig {
     ctx: Context<bool>,
     snd: Sender<Event>,
     cfg: AgentConfig,
+    id: String,
 }
 
 impl From<&NRDOTConfig> for SupervisorRunner<Stopped> {
@@ -32,6 +33,7 @@ impl From<&NRDOTConfig> for SupervisorRunner<Stopped> {
                 NRDOT_PATH.to_string(),
                 NRDOT_ARGS.iter().map(|&s| s.to_owned()).collect(),
             ),
+            value.id.clone(),
             value.ctx.clone(),
             value.snd.clone(),
         )
@@ -43,9 +45,10 @@ impl From<&NRDOTConfig> for SupervisorRunner<Stopped> {
 }
 
 impl NRDOTConfig {
-    pub fn new(snd: Sender<Event>, cfg: AgentConfig) -> Self {
+    pub fn new(snd: Sender<Event>, id: String, cfg: AgentConfig) -> Self {
         NRDOTConfig {
             ctx: Context::new(),
+            id,
             snd,
             cfg,
         }

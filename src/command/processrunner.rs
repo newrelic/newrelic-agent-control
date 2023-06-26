@@ -163,41 +163,35 @@ where
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod sleep_process_builder {
     #[cfg(target_family = "unix")]
     use std::os::unix::process::ExitStatusExt;
     #[cfg(target_family = "windows")]
     use std::os::windows::process::ExitStatusExt;
 
-    use std::process::ExitStatus;
-    use std::sync::mpsc::Sender;
+    use std::{process::ExitStatus, thread::sleep, time::Duration};
 
-    use crate::command::error::CommandError;
-    use crate::command::stream::{Event, Metadata};
-    use crate::command::{CommandExecutor, CommandHandle, EventStreamer};
+    use crate::command::{CommandBuilder, CommandExecutor, CommandHandle};
 
-    use super::OutputEvent;
+    pub(crate) struct MockedCommandExecutor(pub bool, pub Duration);
+    pub struct MockedCommandHandler(pub Duration);
 
-    // MockedCommandExector returns an error on start if fail is true
-    // It can be used to mock process spawn
-    type MockedCommandExecutor = bool;
-    pub struct MockedCommandHandler;
-
-    impl super::CommandExecutor for MockedCommandExecutor {
-        type Error = CommandError;
+    impl CommandExecutor for MockedCommandExecutor {
+        type Error = super::CommandError;
         type Process = MockedCommandHandler;
         fn start(self) -> Result<Self::Process, Self::Error> {
-            if self {
-                Err(CommandError::ProcessError(ExitStatus::from_raw(1)))
+            if self.0 {
+                Err(super::CommandError::ProcessError(ExitStatus::from_raw(1)))
             } else {
-                Ok(MockedCommandHandler {})
+                Ok(MockedCommandHandler(self.1))
             }
         }
     }
 
     impl CommandHandle for MockedCommandHandler {
-        type Error = CommandError;
+        type Error = super::CommandError;
         fn wait(self) -> Result<ExitStatus, Self::Error> {
+            sleep(self.0);
             Ok(ExitStatus::from_raw(0))
         }
 
@@ -206,12 +200,54 @@ mod tests {
         }
     }
 
+    pub(crate) struct MockedProcessBuilder {
+        fail_on_start: bool,
+        sleepy: Duration,
+    }
+
+    impl MockedProcessBuilder {
+        fn new(fail_on_start: bool, sleepy: Duration) -> Self {
+            Self {
+                fail_on_start,
+                sleepy,
+            }
+        }
+    }
+
+    impl CommandBuilder for MockedProcessBuilder {
+        type OutputType = MockedCommandExecutor;
+        fn build(&self) -> Self::OutputType {
+            MockedCommandExecutor(self.fail_on_start, self.sleepy)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use std::sync::mpsc::Sender;
+    use std::time::Duration;
+
+    use crate::command::error::CommandError;
+    use crate::command::processrunner::sleep_process_builder::MockedCommandExecutor;
+    use crate::command::stream::{Event, Metadata};
+    use crate::command::{CommandExecutor, EventStreamer};
+
+    use super::sleep_process_builder::MockedCommandHandler;
+    use super::OutputEvent;
+
     #[test]
     fn start_stop() {
-        let cmds: Vec<MockedCommandExecutor> = vec![true, false, true, true, false];
+        let cmds: Vec<MockedCommandExecutor> = vec![
+            MockedCommandExecutor(true, Duration::new(0, 0)),
+            MockedCommandExecutor(false, Duration::new(0, 0)),
+            MockedCommandExecutor(true, Duration::new(0, 0)),
+            MockedCommandExecutor(true, Duration::new(0, 0)),
+            MockedCommandExecutor(false, Duration::new(0, 0)),
+        ];
 
         assert_eq!(
-            cmds.iter()
+            cmds.into_iter()
                 .map(|cmd| cmd.start())
                 .filter(Result::is_ok)
                 .count(),
@@ -251,7 +287,7 @@ mod tests {
 
     #[test]
     fn stream() {
-        let cmd = MockedCommandHandler {};
+        let cmd = MockedCommandHandler(Duration::new(0, 0));
         let (tx, rx) = std::sync::mpsc::channel();
 
         cmd.stream(tx).unwrap();

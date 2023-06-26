@@ -19,6 +19,7 @@ pub struct NRIConfig {
     ctx: Context<bool>,
     snd: Sender<Event>,
     cfg: AgentConfig,
+    id: String,
 }
 
 impl From<&NRIConfig> for SupervisorRunner<Stopped> {
@@ -28,6 +29,7 @@ impl From<&NRIConfig> for SupervisorRunner<Stopped> {
                 NEWRELIC_INFRA_PATH.to_owned(),
                 NEWRELIC_INFRA_ARGS.iter().map(|&s| s.to_owned()).collect(),
             ),
+            value.id.clone(),
             value.ctx.clone(),
             value.snd.clone(),
         )
@@ -39,11 +41,12 @@ impl From<&NRIConfig> for SupervisorRunner<Stopped> {
 }
 
 impl NRIConfig {
-    pub fn new(snd: Sender<Event>, cfg: AgentConfig) -> Self {
+    pub fn new(snd: Sender<Event>, id: String, cfg: AgentConfig) -> Self {
         NRIConfig {
             ctx: Context::new(),
             snd,
             cfg,
+            id,
         }
     }
 }
