@@ -1,0 +1,64 @@
+all-features = false
+no-default-features = false
+feature-depth = 1
+
+# This section is considered when running `cargo deny check advisories`
+# More documentation for the advisories section can be found here:
+# https://embarkstudios.github.io/cargo-deny/checks/advisories/cfg.html
+[advisories]
+# The path where the advisory database is cloned/fetched into
+db-path = "~/.cargo/advisory-db"
+# The url(s) of the advisory databases to use
+db-urls = ["https://github.com/rustsec/advisory-db"]
+# The lint level for security vulnerabilities
+vulnerability = "deny"
+# The lint level for unmaintained crates
+unmaintained = "warn"
+# The lint level for crates that have been yanked from their source registry
+yanked = "warn"
+# The lint level for crates with security notices. Note that as of
+# 2019-12-17 there are no security notice advisories in
+# https://github.com/rustsec/advisory-db
+notice = "warn"
+
+# This section is considered when running `cargo deny check licenses`
+# More documentation for the licenses section can be found here:
+# https://embarkstudios.github.io/cargo-deny/checks/licenses/cfg.html
+[licenses]
+# The lint level for crates which do not have a detectable license
+unlicensed = "deny"
+# List of explicitly allowed licenses
+# See https://spdx.org/licenses/ for list of possible licenses
+# [possible values: any SPDX 3.11 short identifier (+ optional exception)].
+allow = [
+    "Apache-2.0",
+    "MIT",
+    "ISC",
+    "BSD-2-Clause-FreeBSD",
+    "BSD-2-Clause-NetBSD",
+    "BSD-2-Clause",
+    "BSD-3-Clause-Attribution",
+    "BSD-3-Clause-Clear",
+    "BSD-3-Clause-LBNL",
+    "BSD-3-Clause",
+    "BSD-4-Clause-UC",
+    "BSD-4-Clause",
+    "BSD-Protection",
+    "MS-PL",
+    "Ruby",
+    "ISC",
+    "CC0-1.0",
+    "Zlib",
+    "Unicode-DFS-2016", #BSD-3
+
+    #"Apache-2.0 WITH LLVM-exception",
+]
+# Lint level for licenses considered copyleft
+copyleft = "warn"
+allow-osi-fsf-free = "neither"
+default = "deny"
+# [possible values: any between 0.0 and 1.0].
+confidence-threshold = 0.8
+
+[licenses.private]
+ignore = true
