@@ -18,6 +18,10 @@ artifacts:
       - name: newrelic-infra binary
         src: usr/bin/newrelic-infra
         dest: artifacts/{{.Arch}}/newrelic-infra
+      - name: newrelic-infra license
+        src: var/db/newrelic-infra/LICENSE.txt
+        dest: artifacts/{{.Arch}}/newrelic-infra
+
       # integrations
       - name: nri-docker binary
         src: var/db/newrelic-infra/newrelic-integrations/bin/nri-docker
