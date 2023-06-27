@@ -95,5 +95,5 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Validate third party libraries
-        uses: EmbarkStudios/cargo-deny-action@v1
+      - name: cargo deny check
+        run: cargo install --locked cargo-deny && cargo deny check
