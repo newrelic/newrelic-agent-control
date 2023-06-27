@@ -44,7 +44,7 @@ nfpms:
         type: config
       - src: build/package/newrelic-super-agent.service
         dst: /lib/systemd/system/newrelic-super-agent.service
-      - src: distributions/newrelic-super-agent/newrelic-super-agent.conf
+      - src: build/package/newrelic-super-agent.conf
         dst: /etc/newrelic-super-agent/newrelic-super-agent.conf
         type: config|noreplace
       - src: LICENSE.md
