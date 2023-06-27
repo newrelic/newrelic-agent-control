@@ -17,4 +17,4 @@ jobs:
     with:
       TAG: ${{ github.event.inputs.tag }}
       PACKAGE_NAME: "nr-super-agent"
-      REPO_ENDPOINT: 'http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/limited_preview'
+      REPO_ENDPOINT: 'http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview'

@@ -105,7 +105,7 @@ jobs:
           gpg_passphrase: ${{ secrets.OHAI_GPG_PASSPHRASE }}
           gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
           disable_lock: false
-          dest_prefix: "limited_preview/"
+          dest_prefix: "preview/"
           local_packages_path:  "/srv/dist/"
           apt_skip_mirror:  true
 
@@ -130,7 +130,7 @@ jobs:
           gpg_passphrase: ${{ secrets.OHAI_GPG_PASSPHRASE }}
           gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
           disable_lock: false
-          dest_prefix: "limited_preview/"
+          dest_prefix: "preview/"
           local_packages_path:  "/srv/dist/"
           apt_skip_mirror:  true
 
@@ -139,4 +139,4 @@ jobs:
     with:
       TAG: ${{ github.event.inputs.tag }}
       PACKAGE_NAME: "newrelic-super-agent"
-      REPO_ENDPOINT: 'http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/limited_preview'
+      REPO_ENDPOINT: 'http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview'
