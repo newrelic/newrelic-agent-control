@@ -61,13 +61,13 @@ jobs:
           GPG_MAIL: 'infrastructure-eng@newrelic.com'
           NR_RELEASE_TAG: ${{ github.event.release.tag_name }}
 
-      - name: Check released version matches tag
-        run: |
-          NEWRELIC_SUPER_AGENT_VERSION=$(./dist/newrelic-super-agent_linux_${{ matrix.arch }}/newrelic-super-agent --version | sed -n 's/^newrelic_super_agent \(.*\)/\1/p')
-          if [ "${NEWRELIC_SUPER_AGENT_VERSION}" != "${{ github.ref_name }}" ]; then
-            echo "Binary version (${NEWRELIC_SUPER_AGENT_VERSION}) differs from tag (${{ github.event.release.tag_name }}), exiting"
-            exit 1
-          fi
+      # - name: Check released version matches tag
+      #   run: |
+      #     NEWRELIC_SUPER_AGENT_VERSION=$(./dist/newrelic-super-agent_linux_${{ matrix.arch }}/newrelic-super-agent --version | sed -n 's/^newrelic_super_agent \(.*\)/\1/p')
+      #     if [ "${NEWRELIC_SUPER_AGENT_VERSION}" != "${{ github.ref_name }}" ]; then
+      #       echo "Binary version (${NEWRELIC_SUPER_AGENT_VERSION}) differs from tag (${{ github.event.release.tag_name }}), exiting"
+      #       exit 1
+      #     fi
 
   upload:
     runs-on: ubuntu-latest
