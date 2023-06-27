@@ -136,6 +136,7 @@ jobs:
 
   molecule-packaging-tests:
     uses: ./.github/workflows/component_molecule_packaging.yml
+    needs: [upload]
     with:
       TAG: ${{ github.event.inputs.tag }}
       PACKAGE_NAME: "newrelic-super-agent"
