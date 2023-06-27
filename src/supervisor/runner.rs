@@ -260,6 +260,7 @@ where
     B: CommandBuilder,
     T: TerminatorBuilder,
 {
+    #[cfg(test)]
     pub fn new_with_builder_and_terminator(
         process_builder: B,
         process_terminator: T,
