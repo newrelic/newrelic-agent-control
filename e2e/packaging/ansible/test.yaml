@@ -6,4 +6,7 @@
 - name: installation-over-infra-agent
   import_playbook: installation-over-infra-agent.yaml
 
+- name: agent assert correct shutdown
+  import_playbook: shutdown-and-terminate.yaml
+
 ...

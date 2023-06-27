@@ -1,0 +1,10 @@
+---
+
+- name: restart the super agent
+  become: true
+  service:
+    name: nr-meta-agent
+    state: restarted
+
+
+...
