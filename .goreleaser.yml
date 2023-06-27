@@ -47,6 +47,8 @@ nfpms:
       - src: distributions/nr-meta-agent/nr-meta-agent.conf
         dst: /etc/nr-meta-agent/nr-meta-agent.conf
         type: config|noreplace
+      - src: LICENSE.md
+        dst: /usr/share/doc/newrelic/newrelic-super-agent/LICENSE.md
       # Infra Agent
       - src: build/embedded/artifacts/ {{- .Arch }}/newrelic-infra/newrelic-infra
         dst: /usr/bin/newrelic-infra
