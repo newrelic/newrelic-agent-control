@@ -26,7 +26,7 @@ jobs:
         uses: newrelic/infrastructure-publish-action@v1
         with:
           tag: ${{ github.event.release.tag_name }}
-          app_name: "nr-meta-agent"
+          app_name: "nr-super-agent"
           repo_name: "newrelic/newrelic-supervisor"
           schema: "custom-local"
           schema_path: "/srv/build/upload-schema-linux-deb.yml"
@@ -43,7 +43,7 @@ jobs:
           gpg_passphrase: ${{ secrets.OHAI_GPG_PASSPHRASE }}
           gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
           disable_lock: false
-          dest_prefix: "limited_preview/"
+          dest_prefix: "preview/"
           local_packages_path:  "/srv/dist/"
           apt_skip_mirror:  true # todo, update for next releases
 
@@ -51,7 +51,7 @@ jobs:
         uses: newrelic/infrastructure-publish-action@v1
         with:
           tag: ${{ github.event.release.tag_name }}
-          app_name: "nr-meta-agent"
+          app_name: "nr-super-agent"
           repo_name: "newrelic/newrelic-supervisor"
           schema: "custom-local"
           schema_path: "/srv/build/upload-schema-linux-rpm.yml"
@@ -68,7 +68,7 @@ jobs:
           gpg_passphrase: ${{ secrets.OHAI_GPG_PASSPHRASE }}
           gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
           disable_lock: false
-          dest_prefix: "limited_preview/"
+          dest_prefix: "preview/"
           local_packages_path:  "/srv/dist/"
           apt_skip_mirror:  true # todo, update for next releases
 
@@ -76,5 +76,5 @@ jobs:
     uses: ./.github/workflows/component_molecule_packaging.yml
     with:
       TAG: ${{ github.event.inputs.tag }}
-      PACKAGE_NAME: "nr-meta-agent"
-      REPO_ENDPOINT: 'https://download.newrelic.com/limited_preview'
+      PACKAGE_NAME: "nr-super-agent"
+      REPO_ENDPOINT: 'https://download.newrelic.com/preview'

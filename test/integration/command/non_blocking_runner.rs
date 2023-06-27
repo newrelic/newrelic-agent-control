@@ -1,6 +1,6 @@
 use std::process::Command;
 
-use meta_agent::command::{
+use newrelic_super_agent::command::{
     CommandExecutor, CommandHandle, CommandTerminator, ProcessRunner, ProcessTerminator,
 };
 

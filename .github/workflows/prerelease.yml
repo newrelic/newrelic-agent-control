@@ -25,9 +25,9 @@ jobs:
 
       - name: Verify version matches tag
         run: |
-          META_AGENT_VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml)
-          if [ "${META_AGENT_VERSION}" != "${{ github.ref_name }}" ]; then
-            echo "Package version specified in Cargo.toml (${META_AGENT_VERSION}) differs from tag (${{ github.event.release.tag_name }}), exiting"
+          NEWRELIC_SUPER_AGENT_VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml)
+          if [ "${NEWRELIC_SUPER_AGENT_VERSION}" != "${{ github.ref_name }}" ]; then
+            echo "Package version specified in Cargo.toml (${NEWRELIC_SUPER_AGENT_VERSION}) differs from tag (${{ github.event.release.tag_name }}), exiting"
             exit 1
           fi
 
@@ -63,9 +63,9 @@ jobs:
 
       - name: Check released version matches tag
         run: |
-          META_AGENT_VERSION=$(./dist/nr-meta-agent_linx_${{ matrix.arch }}/nr-meta-agent --version | sed -n 's/^meta_agent \(.*\)/\1/p')
-          if [ "${META_AGENT_VERSION}" != "${{ github.ref_name }}" ]; then
-            echo "Binary version (${META_AGENT_VERSION}) differs from tag (${{ github.event.release.tag_name }}), exiting"
+          NEWRELIC_SUPER_AGENT_VERSION=$(./dist/newrelic-super-agent_linx_${{ matrix.arch }}/newrelic-super-agent --version | sed -n 's/^newrelic_super_agent \(.*\)/\1/p')
+          if [ "${NEWRELIC_SUPER_AGENT_VERSION}" != "${{ github.ref_name }}" ]; then
+            echo "Binary version (${NEWRELIC_SUPER_AGENT_VERSION}) differs from tag (${{ github.event.release.tag_name }}), exiting"
             exit 1
           fi
 
@@ -88,7 +88,7 @@ jobs:
         uses: newrelic/infrastructure-publish-action@v1
         with:
           tag: ${{ github.event.release.tag_name }}
-          app_name: "nr-meta-agent"
+          app_name: "newrelic-super-agent"
           repo_name: "newrelic/newrelic-supervisor"
           schema: "custom-local"
           schema_path: "/srv/build/upload-schema-linux-deb.yml"
@@ -105,7 +105,7 @@ jobs:
           gpg_passphrase: ${{ secrets.OHAI_GPG_PASSPHRASE }}
           gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
           disable_lock: false
-          dest_prefix: "limited_preview/"
+          dest_prefix: "preview/"
           local_packages_path:  "/srv/dist/"
           apt_skip_mirror:  true
 
@@ -113,7 +113,7 @@ jobs:
         uses: newrelic/infrastructure-publish-action@v1
         with:
           tag: ${{ github.event.release.tag_name }}
-          app_name: "nr-meta-agent"
+          app_name: "newrelic-super-agent"
           repo_name: "newrelic/newrelic-supervisor"
           schema: "custom-local"
           schema_path: "/srv/build/upload-schema-linux-rpm.yml"
@@ -130,7 +130,7 @@ jobs:
           gpg_passphrase: ${{ secrets.OHAI_GPG_PASSPHRASE }}
           gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
           disable_lock: false
-          dest_prefix: "limited_preview/"
+          dest_prefix: "preview/"
           local_packages_path:  "/srv/dist/"
           apt_skip_mirror:  true
 
@@ -138,5 +138,5 @@ jobs:
     uses: ./.github/workflows/component_molecule_packaging.yml
     with:
       TAG: ${{ github.event.inputs.tag }}
-      PACKAGE_NAME: "nr-meta-agent"
-      REPO_ENDPOINT: 'http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/limited_preview'
+      PACKAGE_NAME: "newrelic-super-agent"
+      REPO_ENDPOINT: 'http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview'

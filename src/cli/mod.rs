@@ -5,7 +5,7 @@ use clap::Parser;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)] // Read from `Cargo.toml`
 pub struct Cli {
-    #[arg(short, long, default_value_t = String::from("/etc/nr-meta-agent/config.yaml"))]
+    #[arg(short, long, default_value_t = String::from("/etc/newrelic-super-agent/config.yaml"))]
     config: String,
 
     #[arg(long)]
@@ -14,7 +14,7 @@ pub struct Cli {
 
 impl Cli {
     /// Parses command line arguments
-    pub fn init_meta_agent_cli() -> Self {
+    pub fn init_super_agent_cli() -> Self {
         // Get command line args
         Self::parse()
     }

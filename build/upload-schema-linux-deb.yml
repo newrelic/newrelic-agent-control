@@ -1,11 +1,11 @@
 ---
-- src: "nr-meta-agent_{version}_linux_{arch}.deb"
+- src: "newrelic-super-agent_{version}_linux_{arch}.deb"
   arch:
     - amd64
     - arm64
   uploads:
     - type: apt
-      src_repo: "{access_point_host}/limited_preview/linux/apt"
+      src_repo: "{access_point_host}/preview/linux/apt"
       dest: "{dest_prefix}linux/apt/"
       os_version:
         - jammy
@@ -19,10 +19,10 @@
   # UPLOAD CHECKSUMS #
 #########################
 
-- src: "nr-meta-agent_{version}_linux_{arch}.deb.sum"
+- src: "newrelic-super-agent_{version}_linux_{arch}.deb.sum"
   arch:
     - amd64
     - arm64
   uploads:
     - type: file
-      dest: "{dest_prefix}linux/apt/pool/main/n/nr-meta-agent/{src}"
+      dest: "{dest_prefix}linux/apt/pool/main/n/newrelic-super-agent/{src}"

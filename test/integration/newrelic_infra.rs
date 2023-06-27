@@ -1,7 +1,7 @@
 use std::{thread, time::Duration};
 
 use log::info;
-use meta_agent::supervisor::{
+use super_agent::supervisor::{
     context::SupervisorContext, newrelic_infra_supervisor::NRIConfig, runner::SupervisorRunner,
     Handle, Runner,
 };
@@ -13,7 +13,7 @@ fn newrelic_infra_supervisor() {
     // Create streaming channel
     let (tx, rx) = std::sync::mpsc::channel();
 
-    // Hypothetical meta agent configuration for NewRelicInfra
+    // Hypothetical super agent configuration for NewRelicInfra
     let conf = NRIConfig::new(SupervisorContext::new(), tx);
 
     // Create a newrelic-infra supervisor instance

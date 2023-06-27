@@ -4,7 +4,7 @@
 terraform {
   backend "s3" {
     bucket = "automation-pipeline-terraform-state"
-    key    = "meta_agent-pipeline/TAG_OR_UNIQUE_NAME"
+    key    = "super_agent-pipeline/TAG_OR_UNIQUE_NAME"
     region = "us-east-2"
   }
 }

@@ -1,4 +1,4 @@
-project_name: nr-meta-agent
+project_name: newrelic-super-agent
 builds:
   -
     main: ./build/dummy.go
@@ -7,7 +7,7 @@ builds:
       - amd64
     goos:
       - linux
-    binary: nr-meta-agent
+    binary: newrelic-super-agent
     hooks:
       post:
         - cmd: sh ./build/scripts/replace_go_with_rust.sh
@@ -20,10 +20,10 @@ archives:
   - format: tar.gz
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     builds:
-      - nr-meta-agent
+      - newrelic-super-agent
 
 nfpms:
-  - package_name: nr-meta-agent
+  - package_name: newrelic-super-agent
 
     # Replace arch for rpm from amd64 to x86_64 to be consistent with our rpm repo.
     file_name_template: >-
@@ -38,14 +38,14 @@ nfpms:
       {{- if not (eq .Amd64 "v1") }}{{ .Amd64 }}{{- end }}
 
     contents:
-      # NR Meta Agent
+      # NR Super Agent
       - src: build/package/config.yaml
-        dst: /etc/nr-meta-agent/config.yaml
+        dst: /etc/newrelic-super-agent/config.yaml
         type: config
-      - src: build/package/nr-meta-agent.service
-        dst: /lib/systemd/system/nr-meta-agent.service
-      - src: distributions/nr-meta-agent/nr-meta-agent.conf
-        dst: /etc/nr-meta-agent/nr-meta-agent.conf
+      - src: build/package/newrelic-super-agent.service
+        dst: /lib/systemd/system/newrelic-super-agent.service
+      - src: distributions/newrelic-super-agent/newrelic-super-agent.conf
+        dst: /etc/newrelic-super-agent/newrelic-super-agent.conf
         type: config|noreplace
       # Infra Agent
       - src: build/embedded/artifacts/{{- .Arch }}/newrelic-infra/newrelic-infra
@@ -114,14 +114,14 @@ nfpms:
       - td-agent-bit #To be removed on removal of the ff fluent_bit_19
       - fluent-bit
 
-    id: nr-meta-agent
+    id: newrelic-super-agent
     builds:
-      - nr-meta-agent
+      - newrelic-super-agent
     formats:
       - deb
       - rpm
     maintainer: New Relic <caos-team@newrelic.com>
-    description: New Relic Meta Agent - nr-meta-agent
+    description: New Relic Super Agent - newrelic-super-agent
     license: Apache 2.0
 
 signs:

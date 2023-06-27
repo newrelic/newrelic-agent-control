@@ -4,10 +4,10 @@
     name: caos.ansible_roles.cleanup
   vars:
     files_to_cleanup:
-      # nr-meta-agent files
-      - /etc/nr-meta-agent
-      - /usr/bin/nr-meta-agent
-      - /lib/systemd/system/nr-meta-agent.service
+      # newrelic-super-agent files
+      - /etc/newrelic-super-agent
+      - /usr/bin/newrelic-super-agent
+      - /lib/systemd/system/newrelic-super-agent.service
       # nr-otel-collector files
       - /etc/nr-otel-collector/nr-otel-collector.conf
       - /etc/nr-otel-collector/config.yaml
@@ -21,7 +21,7 @@
       - /var/run/newrelic-infra
       - /var/log/newrelic-infra
     packages_to_cleanup:
-      - nr-meta-agent
+      - newrelic-super-agent
     services_to_stop:
-      - nr-meta-agent.service
+      - newrelic-super-agent.service
 ...

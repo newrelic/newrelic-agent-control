@@ -13,7 +13,7 @@ on:
         required: false
         type: string
         description: 'Repository endpoint to fetch packages from'
-        default: "https://download.newrelic.com/limited_preview"
+        default: "https://download.newrelic.com/preview"
 
 env:
   TAG: ${{ inputs.TAG }}

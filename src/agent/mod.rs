@@ -8,7 +8,7 @@ use tracing::{error, info};
 use crate::{
     agent::supervisor_group::SupervisorGroup,
     command::{stream::Event, EventLogger, StdEventReceiver},
-    config::{agent_configs::MetaAgentConfig, agent_type::AgentType, resolver::Resolver},
+    config::{agent_configs::SuperAgentConfig, agent_type::AgentType, resolver::Resolver},
     context::Context,
     supervisor::runner::Stopped,
 };
@@ -30,13 +30,13 @@ pub trait SupervisorGroupResolver {
     fn retrieve_group(&self, tx: Sender<Event>) -> SupervisorGroup<Stopped>;
 }
 
-impl SupervisorGroupResolver for MetaAgentConfig {
+impl SupervisorGroupResolver for SuperAgentConfig {
     fn retrieve_group(&self, tx: Sender<Event>) -> SupervisorGroup<Stopped> {
         SupervisorGroup::new(tx, self)
     }
 }
 
-pub struct Agent<R = MetaAgentConfig>
+pub struct Agent<R = SuperAgentConfig>
 where
     R: SupervisorGroupResolver,
 {
@@ -71,7 +71,7 @@ where
 
         let supervisor_group = self.resolver.retrieve_group(tx);
         /*
-            TODO: We should first compare the current config with the one in the meta agent config.
+            TODO: We should first compare the current config with the one in the super agent config.
             In a future situation, it might have changed due to updates from OpAMP, etc.
             Then, this would require selecting the agents whose config has changed,
             and restarting them.
@@ -133,7 +133,7 @@ where
         info!("Waiting for the output manager to finish");
         output_manager.join().unwrap();
 
-        info!("MetaAgent finished");
+        info!("SuperAgent finished");
         Ok(())
     }
 }

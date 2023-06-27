@@ -1,9 +1,9 @@
 #!/bin/sh
 
 ######################################################################################
-# NR Meta Agent
+# NR Super Agent
 ######################################################################################
 if command -v systemctl >/dev/null 2>&1; then
-    systemctl stop nr-meta-agent.service
-    systemctl disable nr-meta-agent.service
+    systemctl stop newrelic-super-agent.service
+    systemctl disable newrelic-super-agent.service
 fi

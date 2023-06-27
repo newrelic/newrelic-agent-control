@@ -2,7 +2,7 @@ use std::path::Path;
 
 use config::{builder::DefaultState, Config, ConfigBuilder, File, FileFormat};
 
-use super::{agent_configs::MetaAgentConfig, error::MetaAgentConfigError};
+use super::{agent_configs::SuperAgentConfig, error::SuperAgentConfigError};
 
 /// Builder for the configuration, managing if it is loaded from a default expected file or from
 /// a custom one provided by the command line arguments.
@@ -26,12 +26,12 @@ impl Resolver {
         )
     }
 
-    fn build_config(self) -> Result<MetaAgentConfig, MetaAgentConfigError> {
-        Ok(self.0.build()?.try_deserialize::<MetaAgentConfig>()?)
+    fn build_config(self) -> Result<SuperAgentConfig, SuperAgentConfigError> {
+        Ok(self.0.build()?.try_deserialize::<SuperAgentConfig>()?)
     }
 
     /// Attempts to build the configuration
-    pub fn retrieve_config(file: &Path) -> Result<MetaAgentConfig, MetaAgentConfigError> {
+    pub fn retrieve_config(file: &Path) -> Result<SuperAgentConfig, SuperAgentConfigError> {
         Self::default().with_file_source(file).build_config()
     }
 }
@@ -51,8 +51,8 @@ mod tests {
     use super::*;
     use crate::config::{
         agent_configs::{
-            AgentConfig, BackoffStrategyConfig, BackoffStrategyInner, MetaAgentConfig,
-            RestartPolicyConfig,
+            AgentConfig, BackoffStrategyConfig, BackoffStrategyInner, RestartPolicyConfig,
+            SuperAgentConfig,
         },
         agent_type::AgentType,
         resolver::Resolver,
@@ -74,7 +74,7 @@ agents:
         .build_config()
         .unwrap();
 
-        let expected = MetaAgentConfig {
+        let expected = SuperAgentConfig {
             agents: [(AgentType::InfraAgent(None), None)]
                 .iter()
                 .cloned()
@@ -100,7 +100,7 @@ agents:
         .build_config()
         .unwrap();
 
-        let expected = MetaAgentConfig {
+        let expected = SuperAgentConfig {
             agents: [
                 (AgentType::InfraAgent(None), None),
                 (AgentType::Nrdot(None), None),
@@ -130,7 +130,7 @@ agents:
         .build_config()
         .unwrap();
 
-        let expected = MetaAgentConfig {
+        let expected = SuperAgentConfig {
             agents: [
                 (AgentType::InfraAgent(None), None),
                 (
@@ -189,7 +189,7 @@ agents: {}
         ))
         .build_config();
 
-        let expected = MetaAgentConfig {
+        let expected = SuperAgentConfig {
             agents: HashMap::new(),
         };
 
@@ -247,7 +247,7 @@ agents:
         )
         .unwrap();
 
-        let expected = MetaAgentConfig {
+        let expected = SuperAgentConfig {
             agents: [
                 (
                     AgentType::InfraAgent(None),
@@ -290,7 +290,7 @@ agents:
         .build_config()
         .unwrap();
 
-        let expected = MetaAgentConfig {
+        let expected = SuperAgentConfig {
             agents: [(
                 AgentType::InfraAgent(None),
                 Some(AgentConfig {
@@ -333,7 +333,7 @@ agents:
         .build_config()
         .unwrap();
 
-        let expected = MetaAgentConfig {
+        let expected = SuperAgentConfig {
             agents: [(
                 AgentType::InfraAgent(None),
                 Some(AgentConfig {
@@ -375,7 +375,7 @@ agents:
         .build_config()
         .unwrap();
 
-        let expected = MetaAgentConfig {
+        let expected = SuperAgentConfig {
             agents: [(
                 AgentType::InfraAgent(None),
                 Some(AgentConfig {
@@ -415,7 +415,7 @@ agents:
         .build_config()
         .unwrap();
 
-        let expected = MetaAgentConfig {
+        let expected = SuperAgentConfig {
             agents: [(
                 AgentType::InfraAgent(None),
                 Some(AgentConfig {
@@ -456,7 +456,7 @@ agents:
         .build_config()
         .unwrap();
 
-        let expected = MetaAgentConfig {
+        let expected = SuperAgentConfig {
             agents: [(
                 AgentType::InfraAgent(None),
                 Some(AgentConfig {

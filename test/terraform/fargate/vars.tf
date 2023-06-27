@@ -19,7 +19,7 @@ variable "vpc_subnet" {
 }
 
 variable "cluster_name" {
-  default = "caos_meta_agent_releases"
+  default = "caos_super_agent_releases"
 }
 
 #######################################
@@ -69,19 +69,19 @@ variable "task_container_image" {
 }
 
 variable "task_logs_group" {
-  default = "/ecs/test-prerelease-meta_agent-releases"
+  default = "/ecs/test-prerelease-super_agent-releases"
 }
 
 variable "task_container_name" {
-  default = "test-meta_agent-releases"
+  default = "test-super_agent-releases"
 }
 
 variable "task_name_prefix" {
-  default = "meta_agent-releases"
+  default = "super_agent-releases"
 }
 
 variable "task_logs_prefix" {
-  default = "ecs-meta_agent-releases"
+  default = "ecs-super_agent-releases"
 }
 
 variable "s3_bucket" {
@@ -97,7 +97,7 @@ variable "efs_volume_mount_point" {
 }
 
 variable "efs_volume_name" {
-  default = "shared-meta_agent-releases"
+  default = "shared-super_agent-releases"
 }
 
 variable "canaries_security_group" {
@@ -126,5 +126,5 @@ variable "oidc_repository" {
 }
 
 variable "oidc_role_name" {
-  default = "caos-pipeline-oidc-meta_agent-releases"
+  default = "caos-pipeline-oidc-super_agent-releases"
 }

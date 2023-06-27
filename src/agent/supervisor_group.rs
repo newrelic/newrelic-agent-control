@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::mpsc::Sender, thread::JoinHandle};
 
 use crate::{
     command::stream::Event,
-    config::{agent_configs::MetaAgentConfig, agent_type::AgentType},
+    config::{agent_configs::SuperAgentConfig, agent_type::AgentType},
     supervisor::{
         error::ProcessError,
         newrelic_infra_supervisor::NRIConfig,
@@ -15,7 +15,7 @@ use crate::{
 pub struct SupervisorGroup<S>(HashMap<AgentType, SupervisorRunner<S>>);
 
 impl SupervisorGroup<Stopped> {
-    pub fn new(tx: Sender<Event>, cfg: &MetaAgentConfig) -> Self {
+    pub fn new(tx: Sender<Event>, cfg: &SuperAgentConfig) -> Self {
         let builder = SupervisorGroupBuilder {
             tx,
             cfg: cfg.clone(),
@@ -52,7 +52,7 @@ impl SupervisorGroup<Running> {
 
 struct SupervisorGroupBuilder {
     tx: Sender<Event>,
-    cfg: MetaAgentConfig,
+    cfg: SuperAgentConfig,
 }
 
 impl From<&SupervisorGroupBuilder> for SupervisorGroup<Stopped> {

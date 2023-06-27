@@ -13,11 +13,11 @@ if [ -e "$oldPid" ]; then
 fi
 
 ######################################################################################
-# NR Meta Agent
+# NR Super Agent
 ######################################################################################
 if command -v systemctl >/dev/null 2>&1; then
-    systemctl enable nr-meta-agent.service
-    if [ -f /etc/nr-meta-agent/config.yaml ]; then
-        systemctl start nr-meta-agent.service
+    systemctl enable newrelic-super-agent.service
+    if [ -f /etc/newrelic-super-agent/config.yaml ]; then
+        systemctl start newrelic-super-agent.service
     fi
 fi

@@ -1,4 +1,4 @@
-use meta_agent::command::{CommandRunner, ProcessRunner};
+use newrelic_super_agent::command::{CommandRunner, ProcessRunner};
 
 // blocking supervisor
 struct BlockingSupervisor {

@@ -1,6 +1,6 @@
 use std::{sync::mpsc::Sender, thread, time::Duration};
 
-use meta_agent::{
+use newrelic_super_agent::{
     command::{stream::Event, EventLogger, StdEventReceiver},
     context::Context,
     logging::Logging,
@@ -44,7 +44,7 @@ fn test_supervisors() {
 
     let logger = StdEventReceiver::default();
 
-    // Hypothetical meta agent configuration
+    // Hypothetical super agent configuration
     let conf = Config { tx };
 
     // Create 50 supervisors

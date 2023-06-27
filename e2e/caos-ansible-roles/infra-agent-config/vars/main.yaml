@@ -15,7 +15,7 @@ nr_environment: 'development'
 department: 'product'
 product: 'integrations'
 owning_team: 'caos'
-project: 'nr-meta-agent'
+project: 'newrelic-super-agent'
 enable_process_metrics: 'true'
 self_instrumentation: false
 

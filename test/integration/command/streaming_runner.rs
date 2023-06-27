@@ -1,6 +1,6 @@
 use std::{sync::mpsc::Receiver, thread};
 
-use meta_agent::command::{
+use newrelic_super_agent::command::{
     stream::{Event, OutputEvent},
     CommandExecutor, CommandHandle, CommandTerminator, EventStreamer, ProcessRunner,
     ProcessTerminator,
