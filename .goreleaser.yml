@@ -48,48 +48,50 @@ nfpms:
         dst: /etc/nr-meta-agent/nr-meta-agent.conf
         type: config|noreplace
       # Infra Agent
-      - src: build/embedded/artifacts/ {{- .Arch }}/newrelic-infra/newrelic-infra
+      - src: build/embedded/artifacts/{{- .Arch }}/newrelic-infra/newrelic-infra
         dst: /usr/bin/newrelic-infra
+      - src: build/embedded/artifacts/{{- .Arch }}/newrelic-infra/LICENSE.txt
+        dst: /var/db/newrelic-infra/LICENSE.txt
       # nri-docker
-      - src: build/embedded/artifacts/ {{- .Arch }}/nri-docker
+      - src: build/embedded/artifacts/{{- .Arch }}/nri-docker
         dst: /var/db/newrelic-infra/newrelic-integrations/bin/nri-docker
-      - src: build/embedded/artifacts/ {{- .Arch }}/docker-config.yml
+      - src: build/embedded/artifacts/{{- .Arch }}/docker-config.yml
         dst: /etc/newrelic-infra/integrations.d/docker-config.yml
         type: config
       # nri-flex
-      - src: build/embedded/artifacts/ {{- .Arch }}/nri-flex
+      - src: build/embedded/artifacts/{{- .Arch }}/nri-flex
         dst: /var/db/newrelic-infra/newrelic-integrations/bin/nri-flex
       # nri-prometheus
-      - src: build/embedded/artifacts/ {{- .Arch }}/nri-prometheus
+      - src: build/embedded/artifacts/{{- .Arch }}/nri-prometheus
         dst: /var/db/newrelic-infra/newrelic-integrations/bin/nri-prometheus
       # fluent-bit / logging
-      - src: build/embedded/artifacts/ {{- .Arch }}/fluent-bit/out_newrelic.so
+      - src: build/embedded/artifacts/{{- .Arch }}/fluent-bit/out_newrelic.so
         dst: /var/db/newrelic-infra/newrelic-integrations/logging/out_newrelic.so
-      - src: build/embedded/artifacts/ {{- .Arch }}/fluent-bit/parsers.conf
+      - src: build/embedded/artifacts/{{- .Arch }}/fluent-bit/parsers.conf
         dst: /var/db/newrelic-infra/newrelic-integrations/logging/parsers.conf
         type: config
-      - src: build/embedded/artifacts/ {{- .Arch }}/fluent-bit/file.yml.example
+      - src: build/embedded/artifacts/{{- .Arch }}/fluent-bit/file.yml.example
         dst: /etc/newrelic-infra/logging.d/file.yml.example
         type: config
-      - src: build/embedded/artifacts/ {{- .Arch }}/fluent-bit/fluentbit.yml.example
+      - src: build/embedded/artifacts/{{- .Arch }}/fluent-bit/fluentbit.yml.example
         dst: /etc/newrelic-infra/logging.d/fluentbit.yml.example
         type: config
-      - src: build/embedded/artifacts/ {{- .Arch }}/fluent-bit/syslog.yml.example
+      - src: build/embedded/artifacts/{{- .Arch }}/fluent-bit/syslog.yml.example
         dst: /etc/newrelic-infra/logging.d/syslog.yml.example
         type: config
-      - src: build/embedded/artifacts/ {{- .Arch }}/fluent-bit/systemd.yml.example
+      - src: build/embedded/artifacts/{{- .Arch }}/fluent-bit/systemd.yml.example
         dst: /etc/newrelic-infra/logging.d/systemd.yml.example
         type: config
-      - src: build/embedded/artifacts/ {{- .Arch }}/fluent-bit/tcp.yml.example
+      - src: build/embedded/artifacts/{{- .Arch }}/fluent-bit/tcp.yml.example
         dst: /etc/newrelic-infra/logging.d/tcp.yml.example
         type: config
       # NR Otel Collector
-      - src: build/embedded/artifacts/ {{- .Arch }}/nr-otel-collector/nr-otel-collector
+      - src: build/embedded/artifacts/{{- .Arch }}/nr-otel-collector/nr-otel-collector
         dst: /usr/bin/nr-otel-collector
-      - src: build/embedded/artifacts/ {{- .Arch }}/nr-otel-collector/nr-otel-collector.conf
+      - src: build/embedded/artifacts/{{- .Arch }}/nr-otel-collector/nr-otel-collector.conf
         dst: /etc/nr-otel-collector/nr-otel-collector.conf
         type: config
-      - src: build/embedded/artifacts/ {{- .Arch }}/nr-otel-collector/config.yaml
+      - src: build/embedded/artifacts/{{- .Arch }}/nr-otel-collector/config.yaml
         dst: /etc/nr-otel-collector/config.yaml
         type: config
 
