@@ -1,9 +1,9 @@
 on:
-  release:
-    types:
-      - released
-    tags:
-      - '*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release'
+        required: true
 
 # See https://docs.github.com/en/actions/using-jobs/using-concurrency
 name: Release
@@ -25,7 +25,7 @@ jobs:
       - name: Publish deb to S3 action
         uses: newrelic/infrastructure-publish-action@v1
         with:
-          tag: ${{ github.event.release.tag_name }}
+          tag: ${{ github.event.inputs.tag }}
           app_name: "nr-super-agent"
           repo_name: "newrelic/newrelic-supervisor"
           schema: "custom-local"
@@ -50,7 +50,7 @@ jobs:
       - name: Publish rpm to S3 action
         uses: newrelic/infrastructure-publish-action@v1
         with:
-          tag: ${{ github.event.release.tag_name }}
+          tag: ${{ github.event.inputs.tag }}
           app_name: "nr-super-agent"
           repo_name: "newrelic/newrelic-supervisor"
           schema: "custom-local"
@@ -75,6 +75,6 @@ jobs:
   molecule-packaging-tests:
     uses: ./.github/workflows/component_molecule_packaging.yml
     with:
-      TAG: ${{ github.event.inputs.tag_name }}
+      TAG: ${{ github.event.inputs.tag }}
       PACKAGE_NAME: "nr-super-agent"
       REPO_ENDPOINT: 'https://download.newrelic.com/preview'
