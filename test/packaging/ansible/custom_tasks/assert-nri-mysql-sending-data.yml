@@ -1,0 +1,21 @@
+---
+
+- name: nrql request to get metrics sent by nri-mysql
+  include_role:
+    name: caos.ansible_roles.nrql_api_request
+    apply:
+      become: false
+  vars:
+    nrql_query: >-
+      SELECT latest(`mysql.node.openTables`) AS openTables
+      FROM Metric
+      WHERE host.hostname = '{{ ansible_hostname }}'
+      SINCE 30 SECONDS AGO
+
+- name: assert that nri-mysql is sending data
+  assert:
+    that:
+      - results[0]["openTables"] == 86
+    success_msg: "nri-mysql is sending expected data"
+
+...

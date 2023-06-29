@@ -20,8 +20,13 @@
       - /usr/bin/newrelic-infra
       - /var/run/newrelic-infra
       - /var/log/newrelic-infra
+      - /etc/systemd/system/newrelic-infra.service
     packages_to_cleanup:
       - newrelic-super-agent
+      - newrelic-infra
+      - nr-otel-collector
     services_to_stop:
       - newrelic-super-agent.service
+      - newrelic-infra
+      - nr-otel-collector
 ...

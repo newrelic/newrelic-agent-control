@@ -5,11 +5,9 @@
   become: true
   gather_facts: yes
   vars:
-    nr_super_agent_version: "{{ lookup('ansible.builtin.env', 'NR_SUPER_AGENT_VERSION') }}"
-    nr_super_agent_version_real: "0.1.0" #TODO fix this. super agent doesn't have toml file up-to-date
     process_user: "root"
-    nr_infra_agent_version: "1.42.2"
-    nr_otel_collector_version: "0.1.0"
+    nr_infra_agent_version: "1.43.1"
+    nr_otel_collector_version: "0.2.0"
 
   pre_tasks:
     - name: Update package repositories
@@ -49,7 +47,7 @@
           vars:
             target_versions:
               - exec: "newrelic-super-agent --version"
-                version: "{{ nr_super_agent_version_real }}"
+                version: "{{ nr_super_agent_version }}"
               - exec: "newrelic-infra --version"
                 version: "{{ nr_infra_agent_version }}"
               - exec: "nr-otel-collector --version"
