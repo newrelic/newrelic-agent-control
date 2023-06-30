@@ -1,0 +1,105 @@
+---
+
+- name: installation-over-nr-otel-collector
+  hosts: testing_hosts_linux
+  become: true
+  gather_facts: yes
+  vars:
+    process_user: "root"
+    nr_infra_agent_version: "1.43.1"
+    nr_otel_collector_version: "0.2.0"
+
+  pre_tasks:
+    - name: Update package repositories
+      include_role:
+        name: caos.ansible_roles.package_repo_update
+
+    - name: Initial cleanup # Only required for shared infra.
+      include_tasks: ./custom_tasks/cleanup.yml
+
+  tasks:
+    - name: Installation in a system with the NR Otel Collector present
+      vars:
+
+      block:
+        - name: Setup NR Repo
+          include_role:
+            name: caos.ansible_roles.nr_repo_setup
+
+        - name: install the NR Otel Collector
+          include_role:
+            name: caos.ansible_roles.package_install
+          vars:
+            package: nr-otel-collector
+
+        - name: Setup NR Otel Collector config
+          include_role:
+            name:  nr-otel-collector-config
+
+        - name: restart nr-otel-collector service
+          include_role:
+            name: caos.ansible_roles.service_status
+          vars:
+            service_name: "nr-otel-collector"
+            action: "restart"
+
+        - name: assert NR Otel Collector running
+          include_role:
+            name: caos.ansible_roles.assert_service_status
+          vars:
+            services_running:
+              - nr-otel-collector.service
+
+        - name: wait for 2 minute to give nri-mysql and fluent-bit time to send metrics again
+          pause:
+            minutes: 2
+
+        - name:
+          include_tasks: ./custom_tasks/assert-nr-otel-collector-sending-data.yml
+
+        - name: install NR Meta Agent
+          include_role:
+            name: newrelic-super-agent
+            apply:
+              environment:
+                NRDOT_MODE: "{{ 'ROOT' if (install_mode is defined and install_mode == 'ROOT') | default(omit) }}"
+          vars:
+            repo_endpoint: "http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview"
+            target_version: "{{ nr_super_agent_version }}"
+
+        - name: assert no service
+          include_role:
+            name: caos.ansible_roles.assert_no_service
+          vars:
+            service_name: nr-otel-collector.service
+
+        - name: assert versions of the installed binaries
+          include_role:
+            name: caos.ansible_roles.assert_version
+          vars:
+            target_versions:
+              - exec: "newrelic-super-agent --version"
+                version: "{{ nr_super_agent_version }}"
+              - exec: "newrelic-infra --version"
+                version: "{{ nr_infra_agent_version }}"
+              - exec: "nr-otel-collector --version"
+                version: "{{ nr_otel_collector_version }}"
+
+        - name: assert that expected processes are running
+          include_role:
+            name: caos.ansible_roles.assert_process_running
+          vars:
+            processes_running:
+              - "^/usr/bin/nr-otel-collector "
+
+        - name: wait for 2 minute to give nri-mysql and fluent-bit time to send metrics again
+          pause:
+            minutes: 2
+
+        - name:
+          include_tasks: ./custom_tasks/assert-nr-otel-collector-sending-data.yml
+
+      always:
+        - name: Final cleanup # Only required for shared infra.
+          include_tasks: ./custom_tasks/cleanup.yml
+...

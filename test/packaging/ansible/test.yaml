@@ -6,6 +6,10 @@
 - name: installation-over-infra-agent
   import_playbook: installation-over-infra-agent.yaml
 
+- name: installation-over-nr-otel-collector
+  import_playbook: installation-over-nr-otel-collector.yaml
+
+# Shutdown and terminate should be always the latest playbook
 - name: agent assert correct shutdown
   import_playbook: shutdown-and-terminate.yaml
 
