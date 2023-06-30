@@ -80,7 +80,7 @@
         - name:
           include_tasks: ./custom_tasks/assert-fluent-bit-sending-data.yml
 
-        - name: install NR Meta Agent
+        - name: install Newrelic Super Agent
           include_role:
             name: newrelic-super-agent
             apply:

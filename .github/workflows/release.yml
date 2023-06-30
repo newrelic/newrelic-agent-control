@@ -26,7 +26,7 @@ jobs:
         uses: newrelic/infrastructure-publish-action@v1
         with:
           tag: ${{ github.event.release.tag_name }}
-          app_name: "nr-super-agent"
+          app_name: "newrelic-super-agent"
           repo_name: "newrelic/newrelic-supervisor"
           schema: "custom-local"
           schema_path: "/srv/build/upload-schema-linux-deb.yml"
@@ -51,7 +51,7 @@ jobs:
         uses: newrelic/infrastructure-publish-action@v1
         with:
           tag: ${{ github.event.release.tag_name }}
-          app_name: "nr-super-agent"
+          app_name: "newrelic-super-agent"
           repo_name: "newrelic/newrelic-supervisor"
           schema: "custom-local"
           schema_path: "/srv/build/upload-schema-linux-rpm.yml"
@@ -76,5 +76,5 @@ jobs:
     uses: ./.github/workflows/component_molecule_packaging.yml
     with:
       TAG: ${{ github.event.inputs.tag_name }}
-      PACKAGE_NAME: "nr-super-agent"
+      PACKAGE_NAME: "newrelic-super-agent"
       REPO_ENDPOINT: 'https://download.newrelic.com/preview'
