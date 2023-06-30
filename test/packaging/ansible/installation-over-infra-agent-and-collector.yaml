@@ -8,6 +8,7 @@
     process_user: "root"
     nr_infra_agent_version: "1.43.1"
     nr_otel_collector_version: "0.2.0"
+    nr_super_agent_repo: "http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview"
 
   pre_tasks:
     - name: Update package repositories
@@ -115,7 +116,7 @@
               environment:
                 NRDOT_MODE: "{{ 'ROOT' if (install_mode is defined and install_mode == 'ROOT') | default(omit) }}"
           vars:
-            repo_endpoint: "http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview"
+            repo_endpoint: "{{ nr_super_agent_repo }}"
             target_version: "{{ nr_super_agent_version }}"
 
         - name: assert no service for the Infra Agent
