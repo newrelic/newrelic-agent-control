@@ -19,12 +19,12 @@ ifndef NR_LICENSE_KEY
 	@echo "NR_LICENSE_KEY variable must be provided for test/packaging"
 	exit 1
 endif
-ifndef NR_ACCOUNT_ID
-	@echo "NR_ACCOUNT_ID variable must be provided for test/packaging"
+ifndef NEW_RELIC_ACCOUNT_ID
+	@echo "NEW_RELIC_ACCOUNT_ID variable must be provided for test/packaging"
 	exit 1
 endif
-ifndef NR_API_KEY
-	@echo "NR_API_KEY variable must be provided for test/packaging"
+ifndef NEW_RELIC_API_KEY
+	@echo "NEW_RELIC_API_KEY variable must be provided for test/packaging"
 	exit 1
 endif
 ifndef NR_OTEL_COLLECTOR_MEMORY_LIMIT
@@ -45,8 +45,8 @@ endif
  		-i $(ANSIBLE_INVENTORY) \
  		--limit=$(LIMIT) \
  		-e nr_license_key=$(NR_LICENSE_KEY) \
- 		-e nr_api_key=$(NR_API_KEY) \
- 		-e nr_account_id=$(NR_ACCOUNT_ID) \
+ 		-e nr_api_key=$(NEW_RELIC_API_KEY) \
+ 		-e nr_account_id=$(NEW_RELIC_ACCOUNT_ID) \
  		-e nr_super_agent_version=$(NR_SUPER_AGENT_VERSION) \
  		-e nr_otel_collector_license_key=$(NR_LICENSE_KEY) \
  		-e nr_otel_collector_otlp_endpoint=$(NR_OTEL_COLLECTOR_OTLP_ENDPOINT) \

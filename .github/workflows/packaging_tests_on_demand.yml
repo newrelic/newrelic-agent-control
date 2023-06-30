@@ -7,9 +7,6 @@ on:
         description: 'Version of the agent to test installation'
         required: true
 
-env:
-  TAG_OR_UNIQUE_NAME: "0.0.3"
-
 permissions:
   id-token: write
   contents: read
