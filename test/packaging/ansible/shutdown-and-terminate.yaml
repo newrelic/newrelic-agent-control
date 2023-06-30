@@ -63,6 +63,8 @@
         - name: stop instances
           include_role:
             name: caos.ansible_roles.ec2_instance
+            apply:
+              become: false
           vars:
             action: stop
             instance_id: "{{ iid }}"
@@ -82,6 +84,8 @@
         - name: start instances
           include_role:
             name: caos.ansible_roles.ec2_instance
+            apply:
+              become: false
           vars:
             action: start
             instance_id: "{{ iid }}"
@@ -97,6 +101,8 @@
         - name: terminate instances
           include_role:
             name: caos.ansible_roles.ec2_instance
+            apply:
+              become: false
           vars:
             action: terminate
             instance_id: "{{ iid }}"
