@@ -1,6 +1,6 @@
 ---
 
-- name: installation-over-nr-otel-collector
+- name: installation-over-infra-agent-and-collector
   hosts: testing_hosts_linux
   become: true
   gather_facts: yes
@@ -18,7 +18,7 @@
       include_tasks: ./custom_tasks/cleanup.yml
 
   tasks:
-    - name: Installation in a system with the NR Otel Collector present
+    - name: Installation in a system with the Infra Agent present
       vars:
 
       block:
@@ -26,6 +26,51 @@
           include_role:
             name: caos.ansible_roles.nr_repo_setup
 
+        # Install the Infra Agent
+        - name: Setup Infra Agent config
+          include_role:
+            name: infra-agent-config
+          vars:
+            nria_log_forward: true
+            nria_log_level: debug
+            #TODO : not sending to file is not currently working as the Infra Agent configures FB to get logs
+            # from newrleic-infra systemd service and this doesn't exist with the super agent
+            nria_log_file: /tmp/nr.log
+
+        - name: install the infra agent
+          include_role:
+            name: caos.ansible_roles.package_install
+          vars:
+            package: newrelic-infra
+
+        - name: assert Infra Agent running
+          include_role:
+            name: caos.ansible_roles.assert_service_status
+          vars:
+            services_running:
+              - newrelic-infra.service
+
+        - name: assert fluent-bit running
+          include_role:
+            name: caos.ansible_roles.assert_process_running
+          vars:
+            processes_running:
+              - "^/opt/fluent-bit/bin/fluent-bit"
+
+        - name: install docker
+          include_role:
+            name: caos.ansible_roles.docker_install
+          vars:
+            docker_compose_version: "2.15.1"
+
+        - name: run mysql in a container to be scraped by nri-mysql
+          include_tasks: ./custom_tasks/run-mysql-in-container.yaml
+
+        - name: install nri-mysql integration
+          include_role:
+            name: caos.ansible_roles.nri_mysql
+
+        # Install the NR Otel Collector
         - name: install the NR Otel Collector
           include_role:
             name: caos.ansible_roles.package_install
@@ -50,14 +95,20 @@
             services_running:
               - nr-otel-collector.service
 
-        - name: wait for 2 minute to give nri-mysql and fluent-bit time to send metrics again
+        - name: wait for 2 minute to allow Infra Agent and NR Otel Collector to send metrics again
           pause:
             minutes: 2
 
         - name:
+          include_tasks: ./custom_tasks/assert-nri-mysql-sending-data.yml
+
+        - name:
+          include_tasks: ./custom_tasks/assert-fluent-bit-sending-data.yml
+
+        - name:
           include_tasks: ./custom_tasks/assert-nr-otel-collector-sending-data.yml
 
-        - name: install NR Meta Agent
+        - name: install Newrelic Super Agent
           include_role:
             name: newrelic-super-agent
             apply:
@@ -67,7 +118,13 @@
             repo_endpoint: "http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview"
             target_version: "{{ nr_super_agent_version }}"
 
-        - name: assert no service
+        - name: assert no service for the Infra Agent
+          include_role:
+            name: caos.ansible_roles.assert_no_service
+          vars:
+            service_name: newrelic-infra.service
+
+        - name: assert no service for the NR Otel Collector
           include_role:
             name: caos.ansible_roles.assert_no_service
           vars:
@@ -90,11 +147,20 @@
             name: caos.ansible_roles.assert_process_running
           vars:
             processes_running:
+              - "^/usr/bin/newrelic-infra "
+              - "^/usr/bin/newrelic-super-agent "
+              - "^/opt/fluent-bit/bin/fluent-bit "
               - "^/usr/bin/nr-otel-collector "
 
-        - name: wait for 2 minute to give nr-otel-collector time to send metrics again
+        - name: wait for 2 minute to give the Infra Agent and NR Otel Collector time to send metrics again
           pause:
             minutes: 2
+
+        - name:
+          include_tasks: ./custom_tasks/assert-nri-mysql-sending-data.yml
+
+        - name:
+          include_tasks: ./custom_tasks/assert-fluent-bit-sending-data.yml
 
         - name:
           include_tasks: ./custom_tasks/assert-nr-otel-collector-sending-data.yml
