@@ -22,7 +22,7 @@
       vars:
 
       block:
-        - name: Setup NR Repo
+        - name: Setup Newrelic Repo
           include_role:
             name: caos.ansible_roles.nr_repo_setup
 

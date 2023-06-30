@@ -13,7 +13,7 @@ if [ -e "$oldPid" ]; then
 fi
 
 ######################################################################################
-# NR Super Agent
+# Newrelic Super Agent
 ######################################################################################
 if command -v systemctl >/dev/null 2>&1; then
     systemctl enable newrelic-super-agent.service
