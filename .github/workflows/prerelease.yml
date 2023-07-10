@@ -107,7 +107,7 @@ jobs:
           disable_lock: false
           dest_prefix: "preview/"
           local_packages_path:  "/srv/dist/"
-          apt_skip_mirror:  true
+          apt_skip_mirror: false
 
       - name: Publish rpm to S3 action
         uses: newrelic/infrastructure-publish-action@v1
@@ -132,7 +132,7 @@ jobs:
           disable_lock: false
           dest_prefix: "preview/"
           local_packages_path:  "/srv/dist/"
-          apt_skip_mirror:  true
+          apt_skip_mirror: false
 
   molecule-packaging-tests:
     uses: ./.github/workflows/component_molecule_packaging.yml
