@@ -13,6 +13,7 @@ For any licenses that require the disclosure of source code, the source code
 can be found at https://github.com/newrelic/infrastructure-agent.
 
 {% for dep, licenseObj in dependencies %}
+{% if dep is containing("newrelic_super_agent") %}{% continue %}{% endif -%}
 ## {{ dep | replace(from="registry+https://github.com/rust-lang/crates.io-index", to="https://crates.io/crates/" ~ dep | split(pat=" ") | first ) }}
 
 Distributed under the following license(s):

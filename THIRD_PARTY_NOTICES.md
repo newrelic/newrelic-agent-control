@@ -522,11 +522,6 @@ Distributed under the following license(s):
 
 
 
-## newrelic_super_agent 0.1.0 (path+file:///Users/acabanas/dev/newrelic-supervisor)
-
-Distributed under the following license(s):
-
-
 
 ## nix 0.26.2 (https://crates.io/crates/nix)
 
