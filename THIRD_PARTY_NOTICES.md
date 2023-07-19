@@ -845,7 +845,7 @@ Distributed under the following license(s):
 
 
 
-## thiserror 1.0.40 (https://crates.io/crates/thiserror)
+## thiserror 1.0.43 (https://crates.io/crates/thiserror)
 
 Distributed under the following license(s):
 * MIT
@@ -853,7 +853,7 @@ Distributed under the following license(s):
 
 
 
-## thiserror-impl 1.0.40 (https://crates.io/crates/thiserror-impl)
+## thiserror-impl 1.0.43 (https://crates.io/crates/thiserror-impl)
 
 Distributed under the following license(s):
 * MIT

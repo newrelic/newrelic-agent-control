@@ -6,4 +6,4 @@ third-party-notices:
 
 .PHONY: third-party-notices-check
 third-party-notices-check: third-party-notices
-	@git diff --name-only | grep -q "THIRD_PARTY_NOTICES.md" && { echo "Third party notices out of date, please run \"make -C license third-party-noticess\" and commit the changes in this PR.";  exit 1; } || exit 0
+	@git diff --name-only | grep -q "THIRD_PARTY_NOTICES.md" && { echo "Third party notices out of date, please run \"make -C license third-party-notices\" and commit the changes in this PR.";  exit 1; } || exit 0
