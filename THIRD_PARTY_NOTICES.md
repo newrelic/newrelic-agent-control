@@ -641,7 +641,7 @@ Distributed under the following license(s):
 
 
 
-## proc-macro2 1.0.56 (https://crates.io/crates/proc-macro2)
+## proc-macro2 1.0.66 (https://crates.io/crates/proc-macro2)
 
 Distributed under the following license(s):
 * MIT
@@ -649,7 +649,7 @@ Distributed under the following license(s):
 
 
 
-## quote 1.0.26 (https://crates.io/crates/quote)
+## quote 1.0.31 (https://crates.io/crates/quote)
 
 Distributed under the following license(s):
 * MIT
@@ -736,7 +736,7 @@ Distributed under the following license(s):
 
 
 
-## serde 1.0.163 (https://crates.io/crates/serde)
+## serde 1.0.171 (https://crates.io/crates/serde)
 
 Distributed under the following license(s):
 * MIT
@@ -744,7 +744,7 @@ Distributed under the following license(s):
 
 
 
-## serde_derive 1.0.163 (https://crates.io/crates/serde_derive)
+## serde_derive 1.0.171 (https://crates.io/crates/serde_derive)
 
 Distributed under the following license(s):
 * MIT
@@ -752,7 +752,7 @@ Distributed under the following license(s):
 
 
 
-## serde_json 1.0.96 (https://crates.io/crates/serde_json)
+## serde_json 1.0.103 (https://crates.io/crates/serde_json)
 
 Distributed under the following license(s):
 * MIT
@@ -822,7 +822,7 @@ Distributed under the following license(s):
 
 
 
-## syn 2.0.15 (https://crates.io/crates/syn)
+## syn 2.0.26 (https://crates.io/crates/syn)
 
 Distributed under the following license(s):
 * MIT

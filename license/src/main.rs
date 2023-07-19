@@ -7,7 +7,6 @@ use tera::{Context, Tera};
 use std::error::Error;
 use std::fs::File;
 use std::io::Write;
-use std::string::ToString;
 
 use clap::Parser;
 
@@ -40,13 +39,25 @@ lazy_static! {
     };
 }
 
-fn main() -> std::io::Result<()>  {
+fn main() -> Result<(), Box<dyn Error>>  {
     let args = Args::parse();
     let mut f = File::create(args.output_file)?;
-    f.write_all(render_markdown(args.dependencies).as_bytes())
+    let markdown = render_markdown(args.dependencies);
+    match markdown {
+        Ok(s) => Ok(f.write_all(s.as_bytes())?),
+        Err(e) => {
+            println!("Error: {}", e);
+            let mut cause = e.source();
+            while let Some(e) = cause {
+                println!("Reason: {}", e);
+                cause = e.source();
+            }
+            Err("Error rendering the template".into())
+        }
+    }
 }
 
-fn render_markdown(data:String) -> String {
+fn render_markdown(data:String) -> Result<String, Box<dyn Error>> {
     let serialized = serde_json::from_str::<Map<String, Value>>(data.as_str()).unwrap();
 
     let mut context = Context::new();
@@ -55,16 +66,5 @@ fn render_markdown(data:String) -> String {
     // A one off template
     Tera::one_off("hello", &Context::new(), true).unwrap();
 
-    match TEMPLATES.render("THIRD_PARTY_NOTICES.md.tmpl", &context) {
-        Ok(s) => return s,
-        Err(e) => {
-            println!("Error: {}", e);
-            let mut cause = e.source();
-            while let Some(e) = cause {
-                println!("Reason: {}", e);
-                cause = e.source();
-            }
-        }
-    };
-    "".to_string()
+    Ok(TEMPLATES.render("THIRD_PARTY_NOTICES.md.tmpl", &context)?)
 }
