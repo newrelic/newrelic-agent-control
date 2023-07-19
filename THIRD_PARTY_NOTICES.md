@@ -773,7 +773,7 @@ Distributed under the following license(s):
 
 
 
-## serde 1.0.171 (https://crates.io/crates/serde)
+## serde 1.0.172 (https://crates.io/crates/serde)
 
 Distributed under the following license(s):
 * MIT
@@ -781,7 +781,7 @@ Distributed under the following license(s):
 
 
 
-## serde_derive 1.0.171 (https://crates.io/crates/serde_derive)
+## serde_derive 1.0.172 (https://crates.io/crates/serde_derive)
 
 Distributed under the following license(s):
 * MIT
