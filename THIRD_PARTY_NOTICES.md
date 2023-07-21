@@ -396,22 +396,6 @@ Distributed under the following license(s):
 
 
 
-## instant (https://crates.io/crates/instant)
-
-Distributed under the following license(s):
-* BSD-3-Clause
-
-
-
-## io-lifetimes (https://crates.io/crates/io-lifetimes)
-
-Distributed under the following license(s):
-* Apache-2.0 WITH LLVM-exception
-* Apache-2.0
-* MIT
-
-
-
 ## is-terminal (https://crates.io/crates/is-terminal)
 
 Distributed under the following license(s):
@@ -463,15 +447,6 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 * MIT
 * Apache-2.0
-
-
-
-## linux-raw-sys (https://crates.io/crates/linux-raw-sys)
-
-Distributed under the following license(s):
-* Apache-2.0 WITH LLVM-exception
-* Apache-2.0
-* MIT
 
 
 
@@ -735,15 +710,6 @@ Distributed under the following license(s):
 ## rust-ini (https://crates.io/crates/rust-ini)
 
 Distributed under the following license(s):
-* MIT
-
-
-
-## rustix (https://crates.io/crates/rustix)
-
-Distributed under the following license(s):
-* Apache-2.0 WITH LLVM-exception
-* Apache-2.0
 * MIT
 
 
