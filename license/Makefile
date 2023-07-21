@@ -1,8 +1,10 @@
-LICENSES := $(shell cargo deny --manifest-path ../Cargo.toml list -l crate -f json 2>&1)
-
 .PHONY: third-party-notices
 third-party-notices:
-	@cargo run -- --dependencies '$(LICENSES)' --output-file '../THIRD_PARTY_NOTICES.md'
+	@if ! cargo install --list | grep -q cargo-deny ; then\
+        cargo install --locked cargo-deny;\
+    fi ;\
+    LICENSES=$$(cargo deny --manifest-path ../Cargo.toml list -l crate -f json 2>&1); \
+	cargo run -- --dependencies "$$(printf "%s " $$LICENSES)" --output-file "../THIRD_PARTY_NOTICES.md"
 
 .PHONY: third-party-notices-check
 third-party-notices-check: third-party-notices
