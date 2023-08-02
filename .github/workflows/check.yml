@@ -58,7 +58,7 @@ jobs:
           args: -- -D clippy::all
   doc:
     runs-on: ubuntu-latest
-    name: nightly / doc
+    name: stable / doc
     steps:
       - uses: actions/checkout@v3
         with:
