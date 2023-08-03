@@ -5,12 +5,9 @@ on:
     # Scheduled to run at 8 a.m on every day-of-week from Monday through Friday.
     - cron:  '0 8 * * 1-5'
   workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Tag to scan'
-        required: false
-        default: 'latest'
 
 jobs:
   security:
     uses: ./.github/workflows/component_security.yml
+    secrets:
+      slack_webhook: ${{ secrets.CAOS_SLACK_WEBHOOK }}
