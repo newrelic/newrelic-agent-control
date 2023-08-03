@@ -4,7 +4,7 @@ on:
   workflow_call:
 
 jobs:
-  snyk:
+  audit:
     name: Scheduled rust audit scanner
     runs-on: ubuntu-20.04
     steps:
