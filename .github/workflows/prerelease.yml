@@ -138,14 +138,15 @@ jobs:
     uses: ./.github/workflows/component_molecule_packaging.yml
     needs: [upload]
     with:
-      TAG: ${{ github.event.inputs.tag }}
+      TAG: ${{ github.event.inputs.tag || github.event.release.tag_name }}
       PACKAGE_NAME: "newrelic-super-agent"
       REPO_ENDPOINT: 'http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview'
 
   canaries:
     uses: ./.github/workflows/component_canaries.yml
+    needs: [upload]
     with:
-      TAG: ${{ github.event.inputs.tag }}
+      TAG: ${{ github.event.inputs.tag || github.event.release.tag_name }}
     secrets:
       AWS_ROLE_ARN: ${{ secrets.TMP_AWS_ROLE_ARN }}
       AWS_VPC_SUBNET: ${{ secrets.TMP_AWS_VPC_SUBNET }}
