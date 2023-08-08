@@ -22,7 +22,7 @@ serde_with = "3.1.0"
 
 
 [dev-dependencies]
-serde_yaml = "0.9.21"
+serde_yaml = "0.9.25"
 assert_cmd = "2.0.12"
 assert_fs = "1.0.13"
 predicates = "3.0.3"

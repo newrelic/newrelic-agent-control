@@ -279,6 +279,14 @@ Distributed under the following license(s):
 
 
 
+## equivalent (https://crates.io/crates/equivalent)
+
+Distributed under the following license(s):
+* Apache-2.0
+* MIT
+
+
+
 ## fastrand (https://crates.io/crates/fastrand)
 
 Distributed under the following license(s):
@@ -329,6 +337,14 @@ Distributed under the following license(s):
 
 Distributed under the following license(s):
 * MIT
+
+
+
+## hashbrown (https://crates.io/crates/hashbrown)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
 
 
 
