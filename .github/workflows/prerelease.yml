@@ -144,7 +144,7 @@ jobs:
 
   canaries:
     uses: ./.github/workflows/component_canaries.yml
-    needs: [upload]
+    needs: [molecule-packaging-tests]
     with:
       TAG: ${{ github.event.inputs.tag || github.event.release.tag_name }}
     secrets:
