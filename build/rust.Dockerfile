@@ -3,6 +3,7 @@ FROM rust:${RUST_VERSION}
 
 ARG ARCH_NAME
 RUN rustup target add "${ARCH_NAME}-unknown-linux-gnu"
+RUN rustup toolchain install "stable-${ARCH_NAME}-unknown-linux-gnu"
 
 WORKDIR /usr/src/app
 
