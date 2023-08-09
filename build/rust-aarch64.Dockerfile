@@ -11,6 +11,7 @@ WORKDIR /usr/src/app
 
 ENV CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
     CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
-    CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++
+    CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++ \
+    RUSTFLAGS="-C target-feature=+crt-static"
 
 CMD ["cargo", "build", "--release", "--target", "aarch64-unknown-linux-gnu"]

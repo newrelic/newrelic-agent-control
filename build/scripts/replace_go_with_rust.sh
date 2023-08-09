@@ -21,7 +21,7 @@ fi
 if [ "$ARCH" = "amd64" ];then
   BINARY_PATH="./dist/newrelic-super-agent_linux_${ARCH}_v1/newrelic-super-agent"
   rm "${BINARY_PATH}"
-  docker run --rm --user "$(id -u)":"$(id -g)" -v "$PWD":/usr/src/app -w /usr/src/app rust:${RUST_VERSION} cargo build --release
+  docker run --rm --user "$(id -u)":"$(id -g)" -v "$PWD":/usr/src/app -w /usr/src/app --env RUSTFLAGS="-C target-feature=+crt-static" rust:${RUST_VERSION} cargo build --release
   # move rust compiled files into goreleaser generated locations
   cp ./target/release/main "${BINARY_PATH}"
 fi
