@@ -4,7 +4,7 @@ FROM rust:${RUST_VERSION}
 RUN apt update && apt upgrade -y
 
 ARG ARCH_NAME
-RUN if [ ARCH_NAME = "aarch64" ]; then \
+RUN if [ "${ARCH_NAME}" = "aarch64" ]; then \
       # We assume the docker image's arch is x86_64, so cross-compiling for aarch64
       apt install -y g++-aarch64-linux-gnu libc6-dev-arm64-cross && \
       rustup toolchain install stable-aarch64-unknown-linux-gnu --force-non-host; \
