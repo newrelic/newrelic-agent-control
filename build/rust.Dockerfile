@@ -1,13 +1,15 @@
 ARG RUST_VERSION=1.71.1
-FROM rust:${RUST_VERSION}-alpine
-
-RUN apk add musl-dev
+FROM rust:${RUST_VERSION}
 
 ARG ARCH_NAME
-RUN rustup target add "${ARCH_NAME}-unknown-linux-musl"
+RUN rustup target add "${ARCH_NAME}-unknown-linux-gnu"
 
 WORKDIR /usr/src/app
 
-ENV ARCH_NAME=${ARCH_NAME} RUSTFLAGS="-C target-feature=+crt-static"
+ENV ARCH_NAME=${ARCH_NAME} \
+    RUSTFLAGS="-C target-feature=+crt-static" \
+    CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
+    CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
+    CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++
 
-CMD cargo build --release --target "${ARCH_NAME}-unknown-linux-musl"
+CMD cargo build --release --target "${ARCH_NAME}-unknown-linux-gnu"
