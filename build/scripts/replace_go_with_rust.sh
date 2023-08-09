@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-RUST_VERSION="1.70.0"
+RUST_VERSION="1.71.1"
 
 # remove go generated files
 rm -rf ./target/**
@@ -10,20 +10,22 @@ rm -rf ./target/**
 
 if [ "$ARCH" = "arm64" ];then
   BINARY_PATH="./dist/newrelic-super-agent_linux_${ARCH}/newrelic-super-agent"
+  ARCH_NAME="aarch64"
   rm "${BINARY_PATH}"
-  docker build -t rust-cross-aarch64 -f ./build/rust-aarch64.Dockerfile .
-  docker run --rm --user "$(id -u)":"$(id -g)" -v "$PWD":/usr/src/app rust-cross-aarch64
+  docker build -t rust-cross-${ARCH_NAME} -f ./build/rust.Dockerfile --build-arg ARCH_NAME=${ARCH_NAME} .
+  docker run --rm --user "$(id -u)":"$(id -g)" -v "$PWD":/usr/src/app rust-cross-${ARCH_NAME}
   # move rust compiled files into goreleaser generated locations
-  cp ./target/aarch64-unknown-linux-gnu/release/main "${BINARY_PATH}"
-
+  cp ./target/${ARCH_NAME}-unknown-linux-musl/release/main "${BINARY_PATH}"
 fi
 
 if [ "$ARCH" = "amd64" ];then
   BINARY_PATH="./dist/newrelic-super-agent_linux_${ARCH}_v1/newrelic-super-agent"
+  ARCH_NAME="x86_64"
   rm "${BINARY_PATH}"
-  docker run --rm --user "$(id -u)":"$(id -g)" -v "$PWD":/usr/src/app -w /usr/src/app --env RUSTFLAGS="-C target-feature=+crt-static" rust:${RUST_VERSION} cargo build --release
+  docker build -t rust-cross-${ARCH_NAME} -f ./build/rust.Dockerfile --build-arg ARCH_NAME=${ARCH_NAME} .
+  docker run --rm --user "$(id -u)":"$(id -g)" -v "$PWD":/usr/src/app rust-cross-${ARCH_NAME}
   # move rust compiled files into goreleaser generated locations
-  cp ./target/release/main "${BINARY_PATH}"
+  cp ./target/${ARCH_NAME}-unknown-linux-musl/release/main "${BINARY_PATH}"
 fi
 
 
