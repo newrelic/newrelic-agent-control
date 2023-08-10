@@ -76,6 +76,6 @@ jobs:
     uses: ./.github/workflows/component_molecule_packaging.yml
     needs: [upload]
     with:
-      TAG: ${{ github.event.inputs.tag_name }}
+      TAG: ${{ github.event.inputs.tag_name || github.event.release.tag_name }}
       PACKAGE_NAME: "newrelic-super-agent"
       REPO_ENDPOINT: 'https://download.newrelic.com/preview'
