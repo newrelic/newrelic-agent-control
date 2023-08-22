@@ -107,17 +107,14 @@ fn inner_normalize(key: String, spec: Spec) -> NormalizedSpec {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
-    use serde_yaml::{Error, Value};
-
     use super::*;
+    use serde_yaml::{Error, Value};
+    use std::collections::HashMap;
 
     const GIVEN_YAML: &str = r#"
 name: nrdot
 namespace: newrelic
 version: 0.1.0
-
 spec:
   description:
     name:
@@ -125,8 +122,7 @@ spec:
       type: string
       required: false
       default: nrdot
-
-meta:      
+meta:
   deployment:
     on_host:
       executables:
@@ -138,12 +134,10 @@ meta:
 name: nrdot
 namespace: newrelic
 version: 0.1.0
-
 spec:
   description:
     name:
-
-meta:      
+meta:
   deployment:
     on_host:
       executables:
