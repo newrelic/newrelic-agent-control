@@ -8,7 +8,9 @@ use tracing::{error, info};
 use crate::{
     agent::supervisor_group::SupervisorGroup,
     command::{stream::Event, EventLogger, StdEventReceiver},
-    config::{agent_configs::SuperAgentConfig, agent_type::AgentType, resolver::Resolver},
+    config::{
+        agent_configs::SuperAgentConfig, agent_definition::AgentDefinition, resolver::Resolver,
+    },
     context::Context,
     supervisor::runner::Stopped,
 };
@@ -21,7 +23,7 @@ pub mod supervisor_group;
 #[derive(Clone)]
 pub enum AgentEvent {
     // this should be a list of agentTypes
-    Restart(AgentType),
+    Restart(AgentDefinition),
     // stop all supervisors
     Stop,
 }

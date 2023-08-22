@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::mpsc::Sender, thread::JoinHandle};
 
 use crate::{
     command::stream::Event,
-    config::{agent_configs::SuperAgentConfig, agent_type::AgentType},
+    config::{agent_configs::SuperAgentConfig, agent_definition::AgentDefinition},
     supervisor::{
         error::ProcessError,
         newrelic_infra_supervisor::NRIConfig,
@@ -12,7 +12,7 @@ use crate::{
     },
 };
 
-pub struct SupervisorGroup<S>(HashMap<AgentType, SupervisorRunner<S>>);
+pub struct SupervisorGroup<S>(HashMap<AgentDefinition, SupervisorRunner<S>>);
 
 impl SupervisorGroup<Stopped> {
     pub fn new(tx: Sender<Event>, cfg: &SuperAgentConfig) -> Self {
@@ -35,14 +35,14 @@ impl SupervisorGroup<Stopped> {
 
 type WaitResult = Result<(), ProcessError>;
 impl SupervisorGroup<Running> {
-    pub fn wait(self) -> HashMap<AgentType, WaitResult> {
+    pub fn wait(self) -> HashMap<AgentDefinition, WaitResult> {
         self.0
             .into_iter()
             .map(|(t, runner)| (t, runner.wait()))
             .collect()
     }
 
-    pub fn stop(self) -> HashMap<AgentType, JoinHandle<()>> {
+    pub fn stop(self) -> HashMap<AgentDefinition, JoinHandle<()>> {
         self.0
             .into_iter()
             .map(|(t, runner)| (t, runner.stop()))
@@ -65,8 +65,10 @@ impl From<&SupervisorGroupBuilder> for SupervisorGroup<Stopped> {
                 let tx = value.tx.clone();
                 let cfg = agent_cfg.clone().unwrap_or_default();
                 let runner = match &agent_t {
-                    AgentType::InfraAgent(_) => SupervisorRunner::from(&NRIConfig::new(tx, cfg)),
-                    AgentType::Nrdot(_) => SupervisorRunner::from(&NRDOTConfig::new(tx, cfg)),
+                    AgentDefinition::InfraAgent(_) => {
+                        SupervisorRunner::from(&NRIConfig::new(tx, cfg))
+                    }
+                    AgentDefinition::Nrdot(_) => SupervisorRunner::from(&NRDOTConfig::new(tx, cfg)),
                 };
                 (agent_t.clone(), runner)
             })
@@ -81,7 +83,7 @@ pub(crate) mod tests {
 
     use crate::{
         command::stream::Event,
-        config::agent_type::AgentType,
+        config::agent_definition::AgentDefinition,
         supervisor::runner::{
             sleep_supervisor_tests::new_sleep_supervisor, Stopped, SupervisorRunner,
         },
@@ -92,13 +94,13 @@ pub(crate) mod tests {
     // new_sleep_supervisor_group returns a stopped supervisor group with to runners which mock the
     // InfraAgent by sleeping 5 and 10 seconds respectively
     pub(crate) fn new_sleep_supervisor_group(tx: Sender<Event>) -> SupervisorGroup<Stopped> {
-        let group: HashMap<AgentType, SupervisorRunner<Stopped>> = HashMap::from([
+        let group: HashMap<AgentDefinition, SupervisorRunner<Stopped>> = HashMap::from([
             (
-                AgentType::InfraAgent(Some("sleep_5".to_string())),
+                AgentDefinition::InfraAgent(Some("sleep_5".to_string())),
                 new_sleep_supervisor(tx.clone(), 5),
             ),
             (
-                AgentType::InfraAgent(Some("sleep_10".to_string())),
+                AgentDefinition::InfraAgent(Some("sleep_10".to_string())),
                 new_sleep_supervisor(tx, 10),
             ),
         ]);

@@ -54,7 +54,7 @@ mod tests {
             AgentConfig, BackoffStrategyConfig, BackoffStrategyInner, RestartPolicyConfig,
             SuperAgentConfig,
         },
-        agent_type::AgentType,
+        agent_definition::AgentDefinition,
         resolver::Resolver,
     };
     use config::Value;
@@ -75,7 +75,7 @@ agents:
         .unwrap();
 
         let expected = SuperAgentConfig {
-            agents: [(AgentType::InfraAgent(None), None)]
+            agents: [(AgentDefinition::InfraAgent(None), None)]
                 .iter()
                 .cloned()
                 .collect(),
@@ -102,8 +102,8 @@ agents:
 
         let expected = SuperAgentConfig {
             agents: [
-                (AgentType::InfraAgent(None), None),
-                (AgentType::Nrdot(None), None),
+                (AgentDefinition::InfraAgent(None), None),
+                (AgentDefinition::Nrdot(None), None),
             ]
             .iter()
             .cloned()
@@ -132,12 +132,12 @@ agents:
 
         let expected = SuperAgentConfig {
             agents: [
-                (AgentType::InfraAgent(None), None),
+                (AgentDefinition::InfraAgent(None), None),
                 (
-                    AgentType::InfraAgent(Some("otherinstance".to_string())),
+                    AgentDefinition::InfraAgent(Some("otherinstance".to_string())),
                     None,
                 ),
-                (AgentType::Nrdot(None), None),
+                (AgentDefinition::Nrdot(None), None),
             ]
             .iter()
             .cloned()
@@ -250,20 +250,20 @@ agents:
         let expected = SuperAgentConfig {
             agents: [
                 (
-                    AgentType::InfraAgent(None),
+                    AgentDefinition::InfraAgent(None),
                     Some(AgentConfig {
                         restart_policy: RestartPolicyConfig::default(),
                         config: Some(expected_nria_conf),
                     }),
                 ),
                 (
-                    AgentType::InfraAgent(Some("otherinstance".to_string())),
+                    AgentDefinition::InfraAgent(Some("otherinstance".to_string())),
                     Some(AgentConfig {
                         restart_policy: RestartPolicyConfig::default(),
                         config: Some(expected_otherinstance_nria_conf),
                     }),
                 ),
-                (AgentType::Nrdot(None), None),
+                (AgentDefinition::Nrdot(None), None),
             ]
             .iter()
             .cloned()
@@ -292,7 +292,7 @@ agents:
 
         let expected = SuperAgentConfig {
             agents: [(
-                AgentType::InfraAgent(None),
+                AgentDefinition::InfraAgent(None),
                 Some(AgentConfig {
                     restart_policy: RestartPolicyConfig {
                         backoff_strategy: BackoffStrategyConfig::Linear(
@@ -335,7 +335,7 @@ agents:
 
         let expected = SuperAgentConfig {
             agents: [(
-                AgentType::InfraAgent(None),
+                AgentDefinition::InfraAgent(None),
                 Some(AgentConfig {
                     restart_policy: RestartPolicyConfig {
                         backoff_strategy: BackoffStrategyConfig::Fixed(BackoffStrategyInner {
@@ -377,7 +377,7 @@ agents:
 
         let expected = SuperAgentConfig {
             agents: [(
-                AgentType::InfraAgent(None),
+                AgentDefinition::InfraAgent(None),
                 Some(AgentConfig {
                     restart_policy: RestartPolicyConfig {
                         backoff_strategy: BackoffStrategyConfig::Fixed(
@@ -417,7 +417,7 @@ agents:
 
         let expected = SuperAgentConfig {
             agents: [(
-                AgentType::InfraAgent(None),
+                AgentDefinition::InfraAgent(None),
                 Some(AgentConfig {
                     restart_policy: RestartPolicyConfig {
                         backoff_strategy: BackoffStrategyConfig::None,
@@ -458,7 +458,7 @@ agents:
 
         let expected = SuperAgentConfig {
             agents: [(
-                AgentType::InfraAgent(None),
+                AgentDefinition::InfraAgent(None),
                 Some(AgentConfig {
                     restart_policy: RestartPolicyConfig {
                         backoff_strategy: BackoffStrategyConfig::None,

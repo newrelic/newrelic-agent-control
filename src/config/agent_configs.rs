@@ -6,7 +6,7 @@ use serde_with::serde_as;
 
 use crate::supervisor::restart::{Backoff, BackoffStrategy};
 
-use super::agent_type::AgentType;
+use super::agent_definition::AgentDefinition;
 
 /*
 The structures below assume a config similar to the following:
@@ -38,7 +38,7 @@ const BACKOFF_LAST_RETRY_INTERVAL: Duration = Duration::from_secs(600);
 #[serde(deny_unknown_fields)]
 pub struct SuperAgentConfig {
     /// agents is a map of agent types to their specific configuration (if any).
-    pub agents: HashMap<AgentType, Option<AgentConfig>>,
+    pub agents: HashMap<AgentDefinition, Option<AgentConfig>>,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone, Default)]
