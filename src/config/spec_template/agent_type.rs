@@ -172,7 +172,7 @@ meta:
         assert!(raw_agent_err.is_err());
         assert_eq!(
             raw_agent_err.unwrap_err().to_string(),
-            "spec: data did not match any variant of untagged enum Spec at line 7 column 3"
+            "spec: data did not match any variant of untagged enum Spec at line 6 column 3"
         );
     }
 
