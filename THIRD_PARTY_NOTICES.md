@@ -29,14 +29,6 @@ Distributed under the following license(s):
 
 
 
-## aho-corasick (https://crates.io/crates/aho-corasick)
-
-Distributed under the following license(s):
-* Unlicense
-* MIT
-
-
-
 ## anstream (https://crates.io/crates/anstream)
 
 Distributed under the following license(s):
@@ -110,6 +102,14 @@ Distributed under the following license(s):
 
 
 ## base64 (https://crates.io/crates/base64)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+
+## bitflags (https://crates.io/crates/bitflags)
 
 Distributed under the following license(s):
 * MIT
@@ -396,22 +396,6 @@ Distributed under the following license(s):
 
 
 
-## instant (https://crates.io/crates/instant)
-
-Distributed under the following license(s):
-* BSD-3-Clause
-
-
-
-## io-lifetimes (https://crates.io/crates/io-lifetimes)
-
-Distributed under the following license(s):
-* Apache-2.0 WITH LLVM-exception
-* Apache-2.0
-* MIT
-
-
-
 ## is-terminal (https://crates.io/crates/is-terminal)
 
 Distributed under the following license(s):
@@ -688,6 +672,14 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 * Unlicense
 * MIT
+
+
+
+## regex-automata (https://crates.io/crates/regex-automata)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
 
 
 

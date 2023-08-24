@@ -2,9 +2,11 @@ use serde::Deserialize;
 use serde_yaml::Value;
 use std::collections::HashMap;
 
+pub(super) type AgentName = String;
+
 #[derive(Debug, Deserialize)]
 pub(super) struct RawAgent {
-    pub(super) name: String,
+    pub(super) name: AgentName,
     namespace: String,
     version: String,
     spec: AgentSpec,
@@ -14,7 +16,7 @@ pub(super) struct RawAgent {
 
 #[derive(Debug)]
 pub(super) struct Agent {
-    pub(super) name: String,
+    pub(super) name: AgentName,
     namespace: String,
     version: String,
     spec: NormalizedSpec,
@@ -131,7 +133,7 @@ meta:
           args: "-c ${deployment.k8s.image}"
 "#;
 
-    pub(crate) const AGENT_GIVEN_BAD_YAML: &str = r#"
+    const AGENT_GIVEN_BAD_YAML: &str = r#"
 name: nrdot
 namespace: newrelic
 version: 0.1.0
