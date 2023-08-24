@@ -5,44 +5,38 @@ use thiserror::Error;
 use super::agent_type::{Agent, RawAgent};
 
 #[derive(Error, Debug)]
-pub enum AgentTypeRegistryError {
+pub enum AgentRepositoryError {
     #[error("agent not found")]
     NotFound,
     #[error("`{0}`")]
     SerdeYaml(#[from] serde_yaml::Error),
 }
 
-/// AgentTypeRegistry stores and loads Agent types.
-trait AgentTypeRepository {
+/// AgentRegistry stores and loads Agent types.
+trait AgentRepository {
     // get returns an AgentType given a definition.
-    fn get(&self, name: &str) -> Result<&Agent, AgentTypeRegistryError>;
+    fn get(&self, name: &str) -> Result<&Agent, AgentRepositoryError>;
 }
 
-struct LocalRepository {
-    agents: HashMap<String, Agent>,
-}
+struct LocalRepository(HashMap<String, Agent>);
 
-impl AgentTypeRepository for LocalRepository {
-    fn get(&self, name: &str) -> Result<&Agent, AgentTypeRegistryError> {
-        self.agents
-            .get(name)
-            .ok_or(AgentTypeRegistryError::NotFound)
+impl AgentRepository for LocalRepository {
+    fn get(&self, name: &str) -> Result<&Agent, AgentRepositoryError> {
+        self.0.get(name).ok_or(AgentRepositoryError::NotFound)
     }
 }
 
 impl LocalRepository {
     pub(crate) fn new() -> Self {
-        LocalRepository {
-            agents: HashMap::new(),
-        }
+        LocalRepository(HashMap::new())
     }
 
-    fn add_source<R>(&mut self, reader: R) -> Result<(), AgentTypeRegistryError>
+    fn add_source<R>(&mut self, reader: R) -> Result<(), AgentRepositoryError>
     where
         R: std::io::Read,
     {
         let raw_agent: RawAgent = serde_yaml::from_reader(reader)?;
-        self.agents
+        self.0
             .insert(raw_agent.name.clone(), Agent::from(raw_agent));
         Ok(())
     }
