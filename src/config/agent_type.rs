@@ -37,7 +37,7 @@ impl<'de> Deserialize<'de> for AgentType {
     {
         let raw_agent: RawAgent = RawAgent::deserialize(deserializer)?;
         let normalized_agent =
-            normalize_agent_spec(raw_agent.spec).map_err(|e| serde::de::Error::custom(e))?;
+            normalize_agent_spec(raw_agent.spec).map_err(serde::de::Error::custom)?;
         Ok(AgentType {
             spec: normalized_agent,
             name: raw_agent.name,
