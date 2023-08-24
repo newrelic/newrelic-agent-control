@@ -7,6 +7,11 @@ use crate::config::supervisor_config::N;
 
 use super::supervisor_config::TrivialValue;
 
+const TEMPLATE_RE: &str = r"\$\{([a-zA-Z0-9\.\-_/]+)\}";
+const TEMPLATE_BEGIN: &str = "${";
+const TEMPLATE_END: char = '}';
+pub(crate) const TEMPLATE_KEY_SEPARATOR: &str = ".";
+
 #[derive(Debug, Deserialize)]
 struct RawAgent {
     name: String,
@@ -175,12 +180,8 @@ trait Templateable {
 
 impl Templateable for Executable {
     fn template_with(self, kv: Map<String, TrivialValue>) -> Result<Executable, String> {
-        const RE: &str = r"\$\{([a-zA-Z0-9\.\-_/]+)\}";
-        let re = Regex::new(RE).unwrap();
-        let mut result = Executable {
-            path: self.path,
-            args: self.args,
-        };
+        let re = Regex::new(TEMPLATE_RE).unwrap();
+        let mut result = self;
 
         let path = result.path.clone();
         let res = re
@@ -189,7 +190,9 @@ impl Templateable for Executable {
             .collect::<Vec<&str>>();
 
         for i in res {
-            let trimmed_s = i.trim_start_matches("${").trim_end_matches('}');
+            let trimmed_s = i
+                .trim_start_matches(TEMPLATE_BEGIN)
+                .trim_end_matches(TEMPLATE_END);
             if !kv.contains_key(trimmed_s) {
                 return Err(format!("Missing required template key: {trimmed_s}"));
             }
@@ -282,9 +285,12 @@ fn inner_normalize(key: String, spec: Spec) -> NormalizedSpec {
     let mut result = Map::new();
     match spec {
         Spec::SpecEnd(s) => _ = result.insert(key, s),
-        Spec::SpecMapping(m) => m
-            .into_iter()
-            .for_each(|(k, v)| result.extend(inner_normalize(key.clone() + "." + &k, v))),
+        Spec::SpecMapping(m) => m.into_iter().for_each(|(k, v)| {
+            result.extend(inner_normalize(
+                key.clone() + TEMPLATE_KEY_SEPARATOR + &k,
+                v,
+            ))
+        }),
     }
     result
 }

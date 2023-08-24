@@ -3,7 +3,7 @@ use std::collections::HashMap as Map;
 
 use crate::config::agent_type::SpecType;
 
-use super::agent_type::AgentType;
+use super::agent_type::{AgentType, TEMPLATE_KEY_SEPARATOR};
 
 type SupervisorConfig = Map<String, SupervisorConfigInner>;
 
@@ -45,9 +45,12 @@ fn normalize_supervisor_config(config: SupervisorConfig) -> NormalizedSupervisor
 fn inner_normalize(key: String, config: SupervisorConfigInner) -> NormalizedSupervisorConfig {
     let mut result = Map::new();
     match config {
-        SupervisorConfigInner::NestedConfig(c) => c
-            .into_iter()
-            .for_each(|(k, v)| result.extend(inner_normalize(key.clone() + "." + &k, v))),
+        SupervisorConfigInner::NestedConfig(c) => c.into_iter().for_each(|(k, v)| {
+            result.extend(inner_normalize(
+                key.clone() + TEMPLATE_KEY_SEPARATOR + &k,
+                v,
+            ))
+        }),
         SupervisorConfigInner::EndValue(v) => _ = result.insert(key, v),
     }
     result
