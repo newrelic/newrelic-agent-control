@@ -1,7 +1,9 @@
 use regex::Regex;
 use serde::Deserialize;
-use serde_yaml::Value;
+use serde_yaml::{Number, Value};
 use std::collections::HashMap as Map;
+
+use crate::config::supervisor_config::N;
 
 use super::supervisor_config::TrivialValue;
 
@@ -55,7 +57,7 @@ pub(crate) struct EndSpec {
     description: String,
     pub(crate) type_: SpecType,
     pub(crate) required: bool,
-    pub(crate) default: Option<Value>,
+    pub(crate) default: Option<TrivialValue>,
 }
 
 #[derive(Debug, PartialEq, Clone, Deserialize)]
@@ -118,6 +120,22 @@ impl<'de> Deserialize<'de> for EndSpec {
                 "Missing `default` field for a non-required value.",
             ));
         }
+
+        let default = match default {
+            Some(Value::Bool(b)) => Some(TrivialValue::Bool(b)),
+            Some(Value::String(s)) => Some(TrivialValue::String(s)),
+            Some(Value::Number(n)) if n.is_u64() => {
+                Some(TrivialValue::Number(N::PosInt(n.as_u64().unwrap())))
+            }
+            Some(Value::Number(n)) if n.is_i64() => {
+                Some(TrivialValue::Number(N::NegInt(n.as_i64().unwrap())))
+            }
+            Some(Value::Number(n)) if n.is_f64() => {
+                Some(TrivialValue::Number(N::Float(n.as_f64().unwrap())))
+            }
+            Some(_) => None,
+            None => None,
+        };
 
         Ok(EndSpec {
             description,
@@ -226,7 +244,6 @@ enum Spec {
 type NormalizedSpec = Map<String, EndSpec>;
 
 fn normalize_agent_spec(spec: AgentSpec) -> Result<NormalizedSpec, String> {
-    use serde_yaml::Value as V;
     use SpecType as ST;
 
     let mut result = Map::new();
@@ -239,14 +256,13 @@ fn normalize_agent_spec(spec: AgentSpec) -> Result<NormalizedSpec, String> {
             }
             if let Some(default) = v.default.as_ref() {
                 match default {
-                    V::String(_) if v.type_ == ST::String => {}
-                    V::Bool(_) if v.type_ == ST::Bool => {}
-                    V::Number(_) if v.type_ == ST::Number => {}
-                    V::Mapping(_)
-                        if (v.type_ == ST::MapStringString
-                            || v.type_ == ST::MapStringBool
-                            || v.type_ == ST::MapStringNumber) => {}
-
+                    TrivialValue::String(_) if v.type_ == ST::String => {}
+                    TrivialValue::Bool(_) if v.type_ == ST::Bool => {}
+                    TrivialValue::Number(_) if v.type_ == ST::Number => {}
+                    // TrivialValue::Mapping(_)
+                    //     if (v.type_ == ST::MapStringString
+                    //         || v.type_ == ST::MapStringBool
+                    //         || v.type_ == ST::MapStringNumber) => {}
                     _ => {
                         return Err(
                             "Invalid default value (invalid data or data does not match `type`)"
@@ -268,7 +284,7 @@ fn inner_normalize(key: String, spec: Spec) -> NormalizedSpec {
         Spec::SpecEnd(s) => _ = result.insert(key, s),
         Spec::SpecMapping(m) => m
             .into_iter()
-            .for_each(|(k, v)| result.extend(inner_normalize(key.clone() + "/" + &k, v))),
+            .for_each(|(k, v)| result.extend(inner_normalize(key.clone() + "." + &k, v))),
     }
     result
 }
@@ -276,7 +292,7 @@ fn inner_normalize(key: String, spec: Spec) -> NormalizedSpec {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_yaml::{Error, Value};
+    use serde_yaml::Error;
     use std::collections::HashMap as Map;
 
     const GIVEN_YAML: &str = r#"
@@ -349,12 +365,12 @@ meta:
         let given_agent: AgentType = serde_yaml::from_str(GIVEN_YAML).unwrap();
 
         let expected_map: Map<String, EndSpec> = Map::from([(
-            "description/name".to_string(),
+            "description.name".to_string(),
             EndSpec {
                 description: "Name of the agent".to_string(),
                 type_: SpecType::String,
                 required: false,
-                default: Some(Value::String("nrdot".to_string())),
+                default: Some(TrivialValue::String("nrdot".to_string())),
             },
         )]);
 
@@ -366,13 +382,13 @@ meta:
             description: "Name of the agent".to_string(),
             type_: SpecType::String,
             required: false,
-            default: Some(Value::String("nrdot".to_string())),
+            default: Some(TrivialValue::String("nrdot".to_string())),
         };
 
         assert_eq!(
             expected_spec,
             given_agent
-                .get_spec("description/name".to_string())
+                .get_spec("description.name".to_string())
                 .unwrap()
         );
     }
