@@ -1,7 +1,9 @@
 use serde::Deserialize;
-use std::collections::HashMap as Map;
+use std::{collections::HashMap as Map, env::temp_dir};
+use uuid::Uuid;
 
 use crate::config::agent_type::SpecType;
+use std::io::Write;
 
 use super::agent_type::{AgentType, TEMPLATE_KEY_SEPARATOR};
 
@@ -18,8 +20,27 @@ enum SupervisorConfigInner {
 #[serde(untagged)]
 pub(crate) enum TrivialValue {
     String(String),
+    File(File),
     Bool(bool),
     Number(N),
+}
+
+#[derive(Debug, PartialEq, Default, Clone)]
+pub(crate) struct File {
+    path: String,
+    content: String,
+}
+
+impl<'de> Deserialize<'de> for File {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Ok(File {
+            content: String::deserialize(deserializer)?,
+            ..Default::default()
+        })
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Deserialize)]
@@ -89,6 +110,9 @@ fn validate_with_agent_type(
             Some(n @ TrivialValue::Number(_)) if v.type_ == SpecType::Number => {
                 _ = result.insert(k.clone(), n.clone())
             }
+            Some(f @ TrivialValue::File(_)) if v.type_ == SpecType::File => {
+                _ = result.insert(k.clone(), f.clone())
+            }
             None => return Err(format!("Missing required key in config: {}", k)),
             _ => {
                 return Err(format!(
@@ -109,6 +133,26 @@ fn validate_with_agent_type(
             "Found unexpected keys in config: {:?}",
             keys.collect::<Vec<&String>>()
         ));
+    }
+
+    for (k, v) in result.clone() {
+        if let TrivialValue::File(f) = v {
+            let contents = f.content;
+
+            let mut dir = temp_dir();
+            let file_name = format!("{}.yaml", Uuid::new_v4());
+            dir.push(file_name);
+            let file_path = dir;
+            let mut file = std::fs::File::create(file_path.clone()).map_err(|e| format!("{e}"))?;
+            writeln!(file, "{contents}").map_err(|e| format!("{e}"))?;
+
+            let final_file = TrivialValue::File(File {
+                path: file_path.to_str().ok_or("Invalid path")?.to_string(),
+                content: contents,
+            });
+
+            result.insert(k, final_file);
+        }
     }
 
     Ok(result)

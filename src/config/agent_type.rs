@@ -73,6 +73,8 @@ pub(crate) enum SpecType {
     Bool,
     #[serde(rename = "number")]
     Number,
+    #[serde(rename = "file")]
+    File,
     #[serde(rename = "map[string]string")]
     MapStringString,
     #[serde(rename = "map[string]number")]
@@ -107,9 +109,10 @@ impl<'de> Deserialize<'de> for EndSpec {
             "string" => ST::String,
             "boolean" => ST::Bool,
             "number" => ST::Number,
-            "map[string]string" => ST::MapStringString,
-            "map[string]number" => ST::MapStringNumber,
-            "map[string]bool" => ST::MapStringBool,
+            "file" => ST::File,
+            // "map[string]string" => ST::MapStringString,
+            // "map[string]number" => ST::MapStringNumber,
+            // "map[string]bool" => ST::MapStringBool,
             x => return Err(E::custom(format!("Invalid type: {}", x))),
         };
 
@@ -262,6 +265,7 @@ fn normalize_agent_spec(spec: AgentSpec) -> Result<NormalizedSpec, String> {
                     TrivialValue::String(_) if v.type_ == ST::String => {}
                     TrivialValue::Bool(_) if v.type_ == ST::Bool => {}
                     TrivialValue::Number(_) if v.type_ == ST::Number => {}
+                    TrivialValue::File(_) if v.type_ == ST::File => {}
                     // TrivialValue::Mapping(_)
                     //     if (v.type_ == ST::MapStringString
                     //         || v.type_ == ST::MapStringBool
@@ -333,6 +337,32 @@ meta:
       executables:
         - path: ${bin}/otelcol
           args: "-c ${deployment.k8s.image}"
+"#;
+
+    const GIVEN_NEWRELIC_INFRA_YAML: &str = r#"
+name: newrelic-infra
+namespace: newrelic
+version: 1.39.1
+spec:
+  config:
+    description: "Newrelic infra configuration yaml"
+    type: file
+    required: true
+    default: | 
+        license: abc123
+        staging: true
+meta:
+  deployment:
+    on_host:
+      executables:
+        - path: /usr/bin/newrelic-infra
+          args: "--config ${config}"
+"#;
+
+    const GIVEN_NEWRELIC_INFRA_USER_CONFIG_YAML: &str = r#"
+config: | 
+    license: abc123
+    staging: true
 "#;
 
     #[test]
