@@ -1,30 +1,30 @@
 use serde::Deserialize;
-use std::collections::HashMap;
+use std::collections::HashMap as Map;
 
 use crate::config::agent_type::SpecType;
 
 use super::agent_type::AgentType;
 
-type SupervisorConfig = HashMap<String, SupervisorConfigInner>;
+type SupervisorConfig = Map<String, SupervisorConfigInner>;
 
 #[derive(Debug, PartialEq, Deserialize)]
 #[serde(untagged)]
 enum SupervisorConfigInner {
-    NestedConfig(HashMap<String, SupervisorConfigInner>),
+    NestedConfig(Map<String, SupervisorConfigInner>),
     EndValue(TrivialValue),
 }
 
-#[derive(Debug, PartialEq, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Deserialize)]
 #[serde(untagged)]
-enum TrivialValue {
+pub(crate) enum TrivialValue {
     String(String),
     Bool(bool),
     Number(N),
 }
 
-#[derive(Debug, PartialEq, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Deserialize)]
 #[serde(untagged)]
-enum N {
+pub(crate) enum N {
     PosInt(u64),
     /// Always less than zero.
     NegInt(i64),
@@ -32,10 +32,10 @@ enum N {
     Float(f64),
 }
 
-type NormalizedSupervisorConfig = HashMap<String, TrivialValue>;
+type NormalizedSupervisorConfig = Map<String, TrivialValue>;
 
 fn normalize_supervisor_config(config: SupervisorConfig) -> NormalizedSupervisorConfig {
-    let mut result = HashMap::new();
+    let mut result = Map::new();
     config
         .into_iter()
         .for_each(|(k, v)| result.extend(inner_normalize(k, v)));
@@ -43,7 +43,7 @@ fn normalize_supervisor_config(config: SupervisorConfig) -> NormalizedSupervisor
 }
 
 fn inner_normalize(key: String, config: SupervisorConfigInner) -> NormalizedSupervisorConfig {
-    let mut result = HashMap::new();
+    let mut result = Map::new();
     match config {
         SupervisorConfigInner::NestedConfig(c) => c
             .into_iter()
@@ -61,12 +61,14 @@ fn validate_with_agent_type(
     // Check that all the keys in the agent_type are present in the config
     // Also, check that all the values of the config are of the type declared in the config's NormalizedSpec
 
+    let mut tmp_config = config.clone();
+
     for (k, v) in agent_type.spec.iter() {
-        if !config.contains_key(k) && v.required {
+        if !tmp_config.contains_key(k) && v.required {
             return Err(format!("Missing required key in config: {}", k));
         }
         // Check if the types match
-        match config.get(k) {
+        match tmp_config.get(k) {
             Some(TrivialValue::String(_)) if v.type_ == SpecType::String => {}
             Some(TrivialValue::Bool(_)) if v.type_ == SpecType::Bool => {}
             Some(TrivialValue::Number(_)) if v.type_ == SpecType::Number => {}
@@ -80,7 +82,18 @@ fn validate_with_agent_type(
                 ));
             }
         }
+
+        tmp_config.remove(k);
     }
+
+    if !tmp_config.is_empty() {
+        let keys = tmp_config.keys();
+        return Err(format!(
+            "Found unexpected keys in config: {:?}",
+            keys.collect::<Vec<&String>>()
+        ));
+    }
+
     Ok(())
 }
 
@@ -136,7 +149,7 @@ meta:
     fn test_normalize_supervisor_config() {
         let input_structure = serde_yaml::from_str::<SupervisorConfig>(EXAMPLE_CONFIG).unwrap();
         let actual = normalize_supervisor_config(input_structure);
-        let expected: NormalizedSupervisorConfig = HashMap::from([
+        let expected: NormalizedSupervisorConfig = Map::from([
             (
                 "description/name".to_string(),
                 TrivialValue::String("newrelic-infra".to_string()),

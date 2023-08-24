@@ -1,6 +1,9 @@
+use regex::Regex;
 use serde::Deserialize;
 use serde_yaml::Value;
-use std::collections::HashMap;
+use std::collections::HashMap as Map;
+
+use super::supervisor_config::TrivialValue;
 
 #[derive(Debug, Deserialize)]
 struct RawAgent {
@@ -27,37 +30,32 @@ impl AgentType {
     }
 }
 
-impl From<RawAgent> for AgentType {
-    fn from(raw_agent: RawAgent) -> Self {
-        let normalized_agent = normalize_agent_spec(raw_agent.spec);
-        AgentType {
-            spec: normalized_agent,
-            name: raw_agent.name,
-            namespace: raw_agent.namespace,
-            version: raw_agent.version,
-            meta: raw_agent.meta,
-        }
-    }
-}
-
 impl<'de> Deserialize<'de> for AgentType {
     fn deserialize<D>(deserializer: D) -> Result<AgentType, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
         let raw_agent: RawAgent = RawAgent::deserialize(deserializer)?;
-        Ok(AgentType::from(raw_agent))
+        let normalized_agent =
+            normalize_agent_spec(raw_agent.spec).map_err(|e| serde::de::Error::custom(e))?;
+        Ok(AgentType {
+            spec: normalized_agent,
+            name: raw_agent.name,
+            namespace: raw_agent.namespace,
+            version: raw_agent.version,
+            meta: raw_agent.meta,
+        })
     }
 }
 
-type AgentSpec = HashMap<String, Spec>;
+type AgentSpec = Map<String, Spec>;
 
 #[derive(Debug, PartialEq, Clone)]
 pub(crate) struct EndSpec {
     description: String,
     pub(crate) type_: SpecType,
     pub(crate) required: bool,
-    pub(crate) default: Value,
+    pub(crate) default: Option<Value>,
 }
 
 #[derive(Debug, PartialEq, Clone, Deserialize)]
@@ -82,10 +80,9 @@ impl<'de> Deserialize<'de> for EndSpec {
         D: serde::Deserializer<'de>,
     {
         use serde::de::Error as E;
-        use serde_yaml::Value as V;
         use SpecType as ST;
 
-        let mut map: HashMap<String, Value> = HashMap::deserialize(deserializer)?;
+        let mut map: Map<String, Value> = Map::deserialize(deserializer)?;
         let description = map
             .remove("description")
             .ok_or(E::custom("Could not get `description` field"))?
@@ -114,25 +111,14 @@ impl<'de> Deserialize<'de> for EndSpec {
             .ok_or(E::custom("Could not get `required` field"))?
             .as_bool()
             .ok_or(E::custom("`required` field is not a boolean"))?;
-        let default = map
-            .remove("default")
-            .ok_or(E::custom("Could not get `default` field"))?;
+        let default = map.remove("default");
 
-        match default.clone() {
-            V::String(_) if type_ == ST::String => {}
-            V::Bool(_) if type_ == ST::Bool => {}
-            V::Number(_) if type_ == ST::Number => {}
-            V::Mapping(_)
-                if (type_ == ST::MapStringString
-                    || type_ == ST::MapStringBool
-                    || type_ == ST::MapStringNumber) => {}
-
-            _ => {
-                return Err(E::custom(
-                    "Invalid default value (invalid data or data does not match `type`)",
-                ))
-            }
+        if default.is_none() && !required {
+            return Err(E::custom(
+                "Missing `default` field for a non-required value.",
+            ));
         }
+
         Ok(EndSpec {
             description,
             type_,
@@ -163,6 +149,66 @@ struct Executable {
     args: String,
 }
 
+trait Templateable {
+    fn template_with(self, kv: Map<String, TrivialValue>) -> Result<Self, String>
+    where
+        Self: std::marker::Sized;
+}
+
+impl Templateable for Executable {
+    fn template_with(self, kv: Map<String, TrivialValue>) -> Result<Executable, String> {
+        const RE: &str = r"\$\{([a-zA-Z0-9\.\-_/]+)\}";
+        let re = Regex::new(RE).unwrap();
+        let mut result = Executable {
+            path: self.path,
+            args: self.args,
+        };
+
+        let path = result.path.clone();
+        let res = re
+            .find_iter(&path)
+            .map(|i| i.as_str())
+            .collect::<Vec<&str>>();
+
+        for i in res {
+            let trimmed_s = i.trim_start_matches("${").trim_end_matches('}');
+            if !kv.contains_key(trimmed_s) {
+                return Err(format!("Missing required template key: {trimmed_s}"));
+            }
+            if let TrivialValue::String(replacement) = &kv[trimmed_s] {
+                result.path = re.replace(&result.path, replacement.as_str()).to_string();
+            } else {
+                return Err(format!(
+                    "Invalid value to replace in template for key {trimmed_s}"
+                ));
+            }
+        }
+
+        // Same for args
+        let args = result.args.clone();
+        let res = re
+            .find_iter(&args)
+            .map(|i| i.as_str())
+            .collect::<Vec<&str>>();
+
+        for i in res {
+            let trimmed_s = i.trim_start_matches("${").trim_end_matches('}');
+            if !kv.contains_key(trimmed_s) {
+                return Err(format!("Missing required template key: {trimmed_s}"));
+            }
+            if let TrivialValue::String(replacement) = &kv[trimmed_s] {
+                result.args = re.replace(&result.args, replacement.as_str()).to_string();
+            } else {
+                return Err(format!(
+                    "Invalid value to replace in template for key {trimmed_s}"
+                ));
+            }
+        }
+
+        Ok(result)
+    }
+}
+
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 struct K8s {
     crd: String,
@@ -174,20 +220,50 @@ struct K8s {
 #[serde(untagged)]
 enum Spec {
     SpecEnd(EndSpec),
-    SpecMapping(HashMap<String, Spec>),
+    SpecMapping(Map<String, Spec>),
 }
 
-type NormalizedSpec = HashMap<String, EndSpec>;
+type NormalizedSpec = Map<String, EndSpec>;
 
-fn normalize_agent_spec(spec: AgentSpec) -> NormalizedSpec {
-    let mut result = HashMap::new();
-    spec.into_iter()
-        .for_each(|(k, v)| result.extend(inner_normalize(k, v)));
-    result
+fn normalize_agent_spec(spec: AgentSpec) -> Result<NormalizedSpec, String> {
+    use serde_yaml::Value as V;
+    use SpecType as ST;
+
+    let mut result = Map::new();
+
+    for (k, v) in spec {
+        let n_spec = inner_normalize(k, v);
+        for (k, v) in n_spec.iter() {
+            if v.default.is_none() && !v.required {
+                return Err(format!("Missing `default` field for key {k}"));
+            }
+            if let Some(default) = v.default.as_ref() {
+                match default {
+                    V::String(_) if v.type_ == ST::String => {}
+                    V::Bool(_) if v.type_ == ST::Bool => {}
+                    V::Number(_) if v.type_ == ST::Number => {}
+                    V::Mapping(_)
+                        if (v.type_ == ST::MapStringString
+                            || v.type_ == ST::MapStringBool
+                            || v.type_ == ST::MapStringNumber) => {}
+
+                    _ => {
+                        return Err(
+                            "Invalid default value (invalid data or data does not match `type`)"
+                                .to_string(),
+                        )
+                    }
+                }
+            }
+        }
+        result.extend(n_spec);
+    }
+
+    Ok(result)
 }
 
 fn inner_normalize(key: String, spec: Spec) -> NormalizedSpec {
-    let mut result = HashMap::new();
+    let mut result = Map::new();
     match spec {
         Spec::SpecEnd(s) => _ = result.insert(key, s),
         Spec::SpecMapping(m) => m
@@ -201,7 +277,7 @@ fn inner_normalize(key: String, spec: Spec) -> NormalizedSpec {
 mod tests {
     use super::*;
     use serde_yaml::{Error, Value};
-    use std::collections::HashMap;
+    use std::collections::HashMap as Map;
 
     const GIVEN_YAML: &str = r#"
 name: nrdot
@@ -239,9 +315,7 @@ meta:
 
     #[test]
     fn test_basic_parsing() {
-        let raw_agent: RawAgent = serde_yaml::from_str(GIVEN_YAML).unwrap();
-
-        let agent = AgentType::from(raw_agent);
+        let agent: AgentType = serde_yaml::from_str(GIVEN_YAML).unwrap();
 
         assert_eq!("nrdot", agent.name);
         assert_eq!("newrelic", agent.namespace);
@@ -272,19 +346,15 @@ meta:
     fn test_normalize_agent_spec() {
         // create AgentSpec
 
-        let given_agent_config: RawAgent = serde_yaml::from_str(GIVEN_YAML).unwrap();
+        let given_agent: AgentType = serde_yaml::from_str(GIVEN_YAML).unwrap();
 
-        // println!("agent: {:#?}", given_agent_config);
-
-        let given_agent = AgentType::from(given_agent_config);
-
-        let expected_map: HashMap<String, EndSpec> = HashMap::from([(
+        let expected_map: Map<String, EndSpec> = Map::from([(
             "description/name".to_string(),
             EndSpec {
                 description: "Name of the agent".to_string(),
                 type_: SpecType::String,
                 required: false,
-                default: Value::String("nrdot".to_string()),
+                default: Some(Value::String("nrdot".to_string())),
             },
         )]);
 
@@ -296,7 +366,7 @@ meta:
             description: "Name of the agent".to_string(),
             type_: SpecType::String,
             required: false,
-            default: Value::String("nrdot".to_string()),
+            default: Some(Value::String("nrdot".to_string())),
         };
 
         assert_eq!(
@@ -305,5 +375,61 @@ meta:
                 .get_spec("description/name".to_string())
                 .unwrap()
         );
+    }
+
+    #[test]
+    fn test_replacer() {
+        let exec = Executable {
+            path: "${bin}/otelcol".to_string(),
+            args: "--verbose ${deployment.on_host.verbose} --logs ${deployment.on_host.log_level}"
+                .to_string(),
+        };
+
+        let user_values = Map::from([
+            ("bin".to_string(), TrivialValue::String("/etc".to_string())),
+            (
+                "deployment.on_host.verbose".to_string(),
+                TrivialValue::String("true".to_string()),
+            ),
+            (
+                "deployment.on_host.log_level".to_string(),
+                TrivialValue::String("trace".to_string()),
+            ),
+        ]);
+
+        let exec_actual = exec.template_with(user_values).unwrap();
+
+        let exec_expected = Executable {
+            path: "/etc/otelcol".to_string(),
+            args: "--verbose true --logs trace".to_string(),
+        };
+
+        assert_eq!(exec_actual, exec_expected);
+    }
+
+    #[test]
+    fn test_replacer_two_same() {
+        let exec = Executable {
+            path: "${bin}/otelcol".to_string(),
+            args: "--verbose ${deployment.on_host.verbose} --verbose_again ${deployment.on_host.verbose}"
+                .to_string(),
+        };
+
+        let user_values = Map::from([
+            ("bin".to_string(), TrivialValue::String("/etc".to_string())),
+            (
+                "deployment.on_host.verbose".to_string(),
+                TrivialValue::String("true".to_string()),
+            ),
+        ]);
+
+        let exec_actual = exec.template_with(user_values).unwrap();
+
+        let exec_expected = Executable {
+            path: "/etc/otelcol".to_string(),
+            args: "--verbose true --verbose_again true".to_string(),
+        };
+
+        assert_eq!(exec_actual, exec_expected);
     }
 }
