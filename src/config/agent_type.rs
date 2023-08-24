@@ -1,6 +1,6 @@
 use regex::Regex;
 use serde::Deserialize;
-use serde_yaml::{Number, Value};
+use serde_yaml::Value;
 use std::collections::HashMap as Map;
 
 use crate::config::supervisor_config::N;
