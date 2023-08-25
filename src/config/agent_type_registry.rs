@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use thiserror::Error;
 
-use crate::config::agent_type::Agent;
+use crate::config::agent_type::{Agent, Deployment, Executable, Meta, OnHost};
 
 
 #[derive(Error, Debug)]
@@ -37,7 +37,60 @@ impl AgentRepository for LocalRepository {
 
 impl LocalRepository {
     pub(crate) fn new() -> Self {
-        LocalRepository(HashMap::new())
+        const NEWRELIC_INFRA_PATH: &str = "/usr/bin/newrelic-infra";
+        const NEWRELIC_INFRA_ARGS: [&str; 2] = [
+            "--config",
+            "/etc/newrelic-infra.yml"
+        ];
+
+        const NRDOT_PATH: &str = "/usr/bin/nr-otel-collector";
+        const NRDOT_ARGS: [&str; 3] = [
+            "--config",
+            "/etc/nr-otel-collector/config.yaml",
+            "--feature-gates=-pkg.translator.prometheus.NormalizeName",
+        ];
+        LocalRepository(
+            HashMap::from([
+                ("nr_otel_collector".to_string(), Agent{
+                    name: "nr_otel_collector".to_string(),
+                    namespace: "".to_string(),
+                    version: "".to_string(),
+                    spec: Default::default(),
+                    meta: Meta{
+                        deployment: Deployment{
+                            on_host: Option::from(
+                                OnHost { executables: vec![
+                                    Executable{
+                                        path: NRDOT_PATH.to_string(),
+                                        args: NRDOT_ARGS.concat(),
+                                        env: "".to_string(),
+                                    }
+                                ]}
+                            )
+                        }
+                    },
+                }),
+                ("nr_infra_agent".to_string(), Agent{
+                    name: "nr_infra_agent".to_string(),
+                    namespace: "".to_string(),
+                    version: "".to_string(),
+                    spec: Default::default(),
+                    meta: Meta{
+                        deployment: Deployment{
+                            on_host: Option::from(
+                                OnHost { executables: vec![
+                                    Executable{
+                                        path: NEWRELIC_INFRA_PATH.to_string(),
+                                        args: NRDOT_ARGS.concat(),
+                                        env: "".to_string(),
+                                    }
+                                ]}
+                            )
+                        }
+                    },
+                })
+            ])
+        )
     }
 }
 

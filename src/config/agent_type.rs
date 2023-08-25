@@ -15,9 +15,9 @@ pub(super) struct RawAgent {
 #[derive(Debug)]
 pub struct Agent {
     pub(super) name: String,
-    namespace: String,
-    version: String,
-    spec: NormalizedSpec,
+    pub(crate) namespace: String,
+    pub(crate) version: String,
+    pub(crate) spec: NormalizedSpec,
     pub meta: Meta,
 }
 
@@ -43,7 +43,7 @@ impl From<RawAgent> for Agent {
 type AgentSpec = HashMap<String, Spec>;
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
-struct EndSpec {
+pub struct EndSpec {
     description: String,
     #[serde(rename = "type")]
     type_: String,

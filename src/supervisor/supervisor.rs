@@ -43,34 +43,3 @@ impl Config {
         }
     }
 }
-
-/*
-
-meta:
-#
-#  configuration:
-#    # all configurations should be merged into one file by the meta agent
-#    merge_policy: 'merge'
-#  # the meta agent knows in which environment it runs. Depending on it
-#  # one of the section will be applied
-  deployment:
-    on_host:
-      executables:
-        - path: ${bin}/otelcol
-          args: "-c ${configuration/config}"
-      # the health of nrdot is determined by whether the agent process
-      # is up and alive
-      health:
-        strategy: process
-    k8s:
-      crd: |
-        apiVersion: newrelic.com/v1alpha1
-        kind: nrdot
-        metadata:
-          name: nrdot
-        spec:
-          replicas: ${replicas}
-          config: ${config}
-          image: ${image}
-
- */
