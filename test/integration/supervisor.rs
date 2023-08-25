@@ -14,9 +14,10 @@ struct Config {
 impl From<&Config> for SupervisorRunner {
     fn from(value: &Config) -> Self {
         SupervisorRunner::new(
+            Context::new(),
             "sh".to_string(),
             vec!["-c".to_string(), "sleep 2".to_string()],
-            Context::new(),
+            Vec::new(),
             value.tx.clone(),
         )
     }

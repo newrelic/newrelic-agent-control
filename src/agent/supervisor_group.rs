@@ -2,23 +2,24 @@ use std::{collections::HashMap, sync::mpsc::Sender, thread::JoinHandle};
 
 use crate::{
     command::stream::Event,
-    config::{agent_configs::SuperAgentConfig, agent_definition::AgentDefinition},
+    config::agent_configs::SuperAgentConfig,
     supervisor::{
         error::ProcessError,
-        newrelic_infra_supervisor::NRIConfig,
-        nrdot_supervisor::NRDOTConfig,
+        supervisor::Config,
         runner::{Running, Stopped, SupervisorRunner},
         Handle, Runner,
     },
 };
+use crate::config::agent_type_registry::AgentRepository;
 
-pub struct SupervisorGroup<S>(HashMap<AgentDefinition, SupervisorRunner<S>>);
+pub struct SupervisorGroup<S>(HashMap<String, Vec<SupervisorRunner<S>>>);
 
 impl SupervisorGroup<Stopped> {
-    pub fn new(tx: Sender<Event>, cfg: &SuperAgentConfig) -> Self {
+    pub fn new<R: AgentRepository>(tx: Sender<Event>, cfg: &SuperAgentConfig, agent_types: R) -> Self {
         let builder = SupervisorGroupBuilder {
             tx,
             cfg: cfg.clone(),
+            agent_repository: agent_types,
         };
         SupervisorGroup::from(&builder)
     }
@@ -27,7 +28,13 @@ impl SupervisorGroup<Stopped> {
         let running = self
             .0
             .into_iter()
-            .map(|(t, runner)| (t, runner.run()))
+            .map(|(t, runners)| {
+                let mut running_runners = Vec::new();
+                for runner in runners {
+                    running_runners.push(runner.run());
+                }
+                (t, running_runners)
+            })
             .collect();
         SupervisorGroup(running)
     }
@@ -35,46 +42,71 @@ impl SupervisorGroup<Stopped> {
 
 type WaitResult = Result<(), ProcessError>;
 impl SupervisorGroup<Running> {
-    pub fn wait(self) -> HashMap<AgentDefinition, WaitResult> {
+    pub fn wait(self) -> HashMap<String, Vec<WaitResult>> {
         self.0
             .into_iter()
-            .map(|(t, runner)| (t, runner.wait()))
+            .map(|(t, runners)| {
+                let mut waiting_runners = Vec::new();
+                for runner in runners {
+                    waiting_runners.push(runner.wait());
+                }
+                (t, waiting_runners)
+            })
             .collect()
     }
 
-    pub fn stop(self) -> HashMap<AgentDefinition, JoinHandle<()>> {
+    pub fn stop(self) -> HashMap<String, Vec<JoinHandle<()>>> {
         self.0
             .into_iter()
-            .map(|(t, runner)| (t, runner.stop()))
+            .map(|(t, runners)| {
+                let mut stopped_runners = Vec::new();
+                for runner in runners {
+                    stopped_runners.push(runner.stop());
+                }
+                (t, stopped_runners)
+            })
             .collect()
     }
 }
 
-struct SupervisorGroupBuilder {
+struct SupervisorGroupBuilder<R: AgentRepository> {
     tx: Sender<Event>,
     cfg: SuperAgentConfig,
+    agent_repository: R,
 }
 
-impl From<&SupervisorGroupBuilder> for SupervisorGroup<Stopped> {
-    fn from(value: &SupervisorGroupBuilder) -> Self {
-        let runners = value
+impl<R: AgentRepository> From<&SupervisorGroupBuilder<R>> for SupervisorGroup<Stopped> {
+    fn from(builder: &SupervisorGroupBuilder<R>) -> Self {
+        let agent_runners = builder
             .cfg
             .agents
             .iter()
             .map(|(agent_t, agent_cfg)| {
-                let tx = value.tx.clone();
-                let cfg = agent_cfg.clone().unwrap_or_default();
-                let runner = match &agent_t {
-                    AgentDefinition::InfraAgent(_) => {
-                        SupervisorRunner::from(&NRIConfig::new(tx, cfg))
+                let agent = builder.agent_repository.get(agent_t);
+                if let Some(on_host) = &agent.unwrap().meta.deployment.on_host {
+                    let mut runners = Vec::new();
+                    for exec in &on_host.executables {
+                        let runner = SupervisorRunner::from(
+                            &Config::new(
+                                exec.path.clone(),
+                                exec.args.clone(),
+                                exec.env.clone(),
+                                builder.tx.clone(),
+                                agent_cfg.clone().unwrap_or_default()
+                            )
+                        );
+                        runners.push(runner);
                     }
-                    AgentDefinition::Nrdot(_) => SupervisorRunner::from(&NRDOTConfig::new(tx, cfg)),
-                };
-                (agent_t.clone(), runner)
+                    (agent_t.clone(), runners)
+                } else {
+                    (agent_t.clone(), Vec::new())
+                }
             })
             .collect();
-        SupervisorGroup(runners)
+
+        SupervisorGroup(agent_runners)
     }
+
 }
 
 #[cfg(test)]
@@ -83,7 +115,7 @@ pub(crate) mod tests {
 
     use crate::{
         command::stream::Event,
-        config::agent_definition::AgentDefinition,
+        config::agent_type_registry::AgentRepository,
         supervisor::runner::{
             sleep_supervisor_tests::new_sleep_supervisor, Stopped, SupervisorRunner,
         },
@@ -91,17 +123,20 @@ pub(crate) mod tests {
 
     use super::SupervisorGroup;
 
-    // new_sleep_supervisor_group returns a stopped supervisor group with to runners which mock the
-    // InfraAgent by sleeping 5 and 10 seconds respectively
+    // new_sleep_supervisor_group returns a stopped supervisor group with 2 runners with
+    // generic agents one with one exec and the other with 2
     pub(crate) fn new_sleep_supervisor_group(tx: Sender<Event>) -> SupervisorGroup<Stopped> {
-        let group: HashMap<AgentDefinition, SupervisorRunner<Stopped>> = HashMap::from([
+        let group: HashMap<String, Vec<SupervisorRunner<Stopped>>> = HashMap::from([
             (
-                AgentDefinition::InfraAgent(Some("sleep_5".to_string())),
-                new_sleep_supervisor(tx.clone(), 5),
+                "sleep_5".to_string(),
+                vec![new_sleep_supervisor(tx.clone(), 5)],
             ),
             (
-                AgentDefinition::InfraAgent(Some("sleep_10".to_string())),
-                new_sleep_supervisor(tx, 10),
+                "sleep_10".to_string(),
+                vec![
+                    new_sleep_supervisor(tx.clone(), 10),
+                    new_sleep_supervisor(tx.clone(), 10)
+                ],
             ),
         ]);
         SupervisorGroup(group)

@@ -30,6 +30,7 @@ use tracing::{error, info};
 pub struct Stopped {
     bin: String,
     args: Vec<String>,
+    env: Vec<String>,
     ctx: Context<bool>,
     snd: Sender<Event>,
     restart: RestartPolicy,
@@ -219,12 +220,13 @@ impl Handle for SupervisorRunner<Running> {
 }
 
 impl SupervisorRunner<Stopped> {
-    pub fn new(bin: String, args: Vec<String>, ctx: Context<bool>, snd: Sender<Event>) -> Self {
+    pub fn new(ctx: Context<bool>, bin: String, args: Vec<String>, env: Vec<String>, snd: Sender<Event>) -> Self {
         SupervisorRunner {
             state: Stopped {
+                ctx,
                 bin,
                 args,
-                ctx,
+                env,
                 snd,
                 // default restart policy to prevent automatic restarts
                 restart: RestartPolicy::new(BackoffStrategy::None, Vec::new()),
@@ -255,9 +257,10 @@ pub(crate) mod sleep_supervisor_tests {
         seconds: u32,
     ) -> SupervisorRunner<Stopped> {
         SupervisorRunner::new(
+            Context::new(),
             "sh".to_owned(),
             vec!["-c".to_string(), format!("sleep {}", seconds)],
-            Context::new(),
+            Vec::new(),
             tx.clone(),
         )
     }
@@ -280,9 +283,10 @@ mod tests {
             .with_last_retry_interval(Duration::new(30, 0));
 
         let agent: SupervisorRunner = SupervisorRunner::new(
+            Context::new(),
             "wrong-command".to_owned(),
             vec!["x".to_owned()],
-            Context::new(),
+            Vec::new(),
             tx,
         )
         .with_restart_policy(vec![0], BackoffStrategy::Fixed(backoff));
@@ -307,9 +311,10 @@ mod tests {
             .with_last_retry_interval(Duration::new(30, 0));
 
         let agent: SupervisorRunner = SupervisorRunner::new(
+            Context::new(),
             "wrong-command".to_owned(),
             vec!["x".to_owned()],
-            Context::new(),
+            Vec::new(),
             tx,
         )
         .with_restart_policy(vec![0], BackoffStrategy::Fixed(backoff));
@@ -334,9 +339,10 @@ mod tests {
             .with_last_retry_interval(Duration::new(30, 0));
 
         let agent: SupervisorRunner = SupervisorRunner::new(
+            Context::new(),
             "echo".to_owned(),
             vec!["hello!".to_owned()],
-            Context::new(),
+            Vec::new(),
             tx,
         )
         .with_restart_policy(vec![0], BackoffStrategy::Fixed(backoff));

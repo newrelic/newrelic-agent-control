@@ -2,11 +2,9 @@ use serde::Deserialize;
 use serde_yaml::Value;
 use std::collections::HashMap;
 
-pub(super) type AgentName = String;
-
 #[derive(Debug, Deserialize)]
 pub(super) struct RawAgent {
-    pub(super) name: AgentName,
+    pub(super) name: String,
     namespace: String,
     version: String,
     spec: AgentSpec,
@@ -15,12 +13,12 @@ pub(super) struct RawAgent {
 }
 
 #[derive(Debug)]
-pub(super) struct Agent {
-    pub(super) name: AgentName,
+pub struct Agent {
+    pub(super) name: String,
     namespace: String,
     version: String,
     spec: NormalizedSpec,
-    meta: Meta,
+    pub meta: Meta,
 }
 
 impl Agent {
@@ -54,24 +52,26 @@ struct EndSpec {
 }
 
 #[derive(Debug, Deserialize, Default)]
-struct Meta {
-    deployment: Deployment,
+pub struct Meta {
+    pub deployment: Deployment,
 }
 
 #[derive(Debug, Deserialize, Default)]
-struct Deployment {
-    on_host: Option<OnHost>,
+pub struct Deployment {
+    pub on_host: Option<OnHost>,
 }
 
 #[derive(Debug, Deserialize, Default, Clone)]
-struct OnHost {
-    executables: Vec<Executable>,
+pub struct OnHost {
+    pub executables: Vec<Executable>,
 }
 
 #[derive(Debug, Deserialize, Default, Clone)]
-struct Executable {
-    path: String,
-    args: String,
+pub struct Executable {
+    pub path: String,
+    pub args: String,
+    #[serde(default)]
+    pub env: String,
 }
 
 #[derive(Debug, Deserialize, Default)]

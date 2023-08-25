@@ -54,7 +54,6 @@ mod tests {
             AgentConfig, BackoffStrategyConfig, BackoffStrategyInner, RestartPolicyConfig,
             SuperAgentConfig,
         },
-        agent_definition::AgentDefinition,
         resolver::Resolver,
     };
     use config::Value;
@@ -75,7 +74,7 @@ agents:
         .unwrap();
 
         let expected = SuperAgentConfig {
-            agents: [(AgentDefinition::InfraAgent(None), None)]
+            agents: [("nr_infra_agent".to_string(), None)]
                 .iter()
                 .cloned()
                 .collect(),
@@ -102,8 +101,8 @@ agents:
 
         let expected = SuperAgentConfig {
             agents: [
-                (AgentDefinition::InfraAgent(None), None),
-                (AgentDefinition::Nrdot(None), None),
+                ("nr_infra_agent".to_string(), None),
+                ("nr_otel_collector".to_string(), None),
             ]
             .iter()
             .cloned()
@@ -132,12 +131,9 @@ agents:
 
         let expected = SuperAgentConfig {
             agents: [
-                (AgentDefinition::InfraAgent(None), None),
-                (
-                    AgentDefinition::InfraAgent(Some("otherinstance".to_string())),
-                    None,
-                ),
-                (AgentDefinition::Nrdot(None), None),
+                ("nr_infra_agent".to_string(), None),
+                ("nr_otel_collector".to_string(), None),
+                ("nr_infra_agent/otherinstance".to_string(), None),
             ]
             .iter()
             .cloned()
@@ -250,20 +246,20 @@ agents:
         let expected = SuperAgentConfig {
             agents: [
                 (
-                    AgentDefinition::InfraAgent(None),
+                    "nr_infra_agent".to_string(),
                     Some(AgentConfig {
                         restart_policy: RestartPolicyConfig::default(),
                         config: Some(expected_nria_conf),
                     }),
                 ),
                 (
-                    AgentDefinition::InfraAgent(Some("otherinstance".to_string())),
+                    "nr_infra_agent/otherinstance".to_string(),
                     Some(AgentConfig {
                         restart_policy: RestartPolicyConfig::default(),
                         config: Some(expected_otherinstance_nria_conf),
                     }),
                 ),
-                (AgentDefinition::Nrdot(None), None),
+                ("nr_otel_collector".to_string(), None),
             ]
             .iter()
             .cloned()
@@ -292,7 +288,7 @@ agents:
 
         let expected = SuperAgentConfig {
             agents: [(
-                AgentDefinition::InfraAgent(None),
+                "nr_infra_agent".to_string(),
                 Some(AgentConfig {
                     restart_policy: RestartPolicyConfig {
                         backoff_strategy: BackoffStrategyConfig::Linear(
@@ -335,7 +331,7 @@ agents:
 
         let expected = SuperAgentConfig {
             agents: [(
-                AgentDefinition::InfraAgent(None),
+                "nr_infra_agent".to_string(),
                 Some(AgentConfig {
                     restart_policy: RestartPolicyConfig {
                         backoff_strategy: BackoffStrategyConfig::Fixed(BackoffStrategyInner {
@@ -377,7 +373,7 @@ agents:
 
         let expected = SuperAgentConfig {
             agents: [(
-                AgentDefinition::InfraAgent(None),
+                "nr_infra_agent".to_string(),
                 Some(AgentConfig {
                     restart_policy: RestartPolicyConfig {
                         backoff_strategy: BackoffStrategyConfig::Fixed(
@@ -417,7 +413,7 @@ agents:
 
         let expected = SuperAgentConfig {
             agents: [(
-                AgentDefinition::InfraAgent(None),
+                "nr_infra_agent".to_string(),
                 Some(AgentConfig {
                     restart_policy: RestartPolicyConfig {
                         backoff_strategy: BackoffStrategyConfig::None,
@@ -458,7 +454,7 @@ agents:
 
         let expected = SuperAgentConfig {
             agents: [(
-                AgentDefinition::InfraAgent(None),
+                "nr_infra_agent".to_string(),
                 Some(AgentConfig {
                     restart_policy: RestartPolicyConfig {
                         backoff_strategy: BackoffStrategyConfig::None,

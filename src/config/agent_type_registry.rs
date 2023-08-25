@@ -2,7 +2,8 @@ use std::collections::HashMap;
 
 use thiserror::Error;
 
-use super::agent_type::{Agent, AgentName};
+use crate::config::agent_type::Agent;
+
 
 #[derive(Error, Debug)]
 pub enum AgentRepositoryError {
@@ -13,18 +14,18 @@ pub enum AgentRepositoryError {
 }
 
 /// AgentRegistry stores and loads Agent types.
-trait AgentRepository {
+pub trait AgentRepository {
     // get returns an Agent type given a definition.
-    fn get(&self, name: &AgentName) -> Result<&Agent, AgentRepositoryError>;
+    fn get(&self, name: &str) -> Result<&Agent, AgentRepositoryError>;
 
     // stores a given Agent type.
     fn store(&mut self, agent: Agent) -> Result<(), AgentRepositoryError>;
 }
 
-struct LocalRepository(HashMap<String, Agent>);
+pub struct LocalRepository(HashMap<String, Agent>);
 
 impl AgentRepository for LocalRepository {
-    fn get(&self, name: &AgentName) -> Result<&Agent, AgentRepositoryError> {
+    fn get(&self, name: &str) -> Result<&Agent, AgentRepositoryError> {
         self.0.get(name).ok_or(AgentRepositoryError::NotFound)
     }
 

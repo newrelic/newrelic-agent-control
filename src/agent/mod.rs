@@ -9,11 +9,13 @@ use crate::{
     agent::supervisor_group::SupervisorGroup,
     command::{stream::Event, EventLogger, StdEventReceiver},
     config::{
-        agent_configs::SuperAgentConfig, agent_definition::AgentDefinition, resolver::Resolver,
+        agent_configs::SuperAgentConfig,
+        resolver::Resolver,
     },
     context::Context,
     supervisor::runner::Stopped,
 };
+use crate::config::agent_type_registry::{AgentRepository, LocalRepository};
 
 use self::error::AgentError;
 
@@ -23,18 +25,18 @@ pub mod supervisor_group;
 #[derive(Clone)]
 pub enum AgentEvent {
     // this should be a list of agentTypes
-    Restart(AgentDefinition),
+    Restart(String),
     // stop all supervisors
     Stop,
 }
 
 pub trait SupervisorGroupResolver {
-    fn retrieve_group(&self, tx: Sender<Event>) -> SupervisorGroup<Stopped>;
+    fn retrieve_group<R: AgentRepository>(&self, tx: Sender<Event>, agent_types: R) -> SupervisorGroup<Stopped>;
 }
 
 impl SupervisorGroupResolver for SuperAgentConfig {
-    fn retrieve_group(&self, tx: Sender<Event>) -> SupervisorGroup<Stopped> {
-        SupervisorGroup::new(tx, self)
+    fn retrieve_group<R: AgentRepository>(&self, tx: Sender<Event>, agent_types: R) -> SupervisorGroup<Stopped> {
+        SupervisorGroup::new(tx, self, agent_types)
     }
 }
 
@@ -71,7 +73,9 @@ where
 
         let output_manager = StdEventReceiver::default().log(rx);
 
-        let supervisor_group = self.resolver.retrieve_group(tx);
+        let agent_types = LocalRepository::new();
+
+        let supervisor_group = self.resolver.retrieve_group(tx, agent_types);
         /*
             TODO: We should first compare the current config with the one in the super agent config.
             In a future situation, it might have changed due to updates from OpAMP, etc.
@@ -102,22 +106,24 @@ where
                     match event {
                         AgentEvent::Stop => {
                             break running_supervisors.stop().into_iter().for_each(
-                                |(supervisor, handle)| {
-                                    handle.join().map_or_else(
-                                        |_err| {
-                                            // let error: &dyn std::error::Error = &err;
-                                            error!(
+                                |(supervisor, handles)| {
+                                    for handle in handles {
+                                        handle.join().map_or_else(
+                                            |_err| {
+                                                // let error: &dyn std::error::Error = &err;
+                                                error!(
                                                 supervisor = String::from(&supervisor),
                                                 msg = "stopped with error",
                                             )
-                                        },
-                                        |_| {
-                                            info!(
+                                            },
+                                            |_| {
+                                                info!(
                                                 supervisor = String::from(&supervisor),
                                                 msg = "stopped successfully"
                                             )
-                                        },
-                                    )
+                                            },
+                                        )
+                                    }
                                 },
                             );
                         }
@@ -146,7 +152,7 @@ mod tests {
         thread::{sleep, spawn},
         time::Duration,
     };
-
+    use crate::config::agent_type_registry::AgentRepository;
     use crate::context::Context;
 
     use super::{
@@ -156,9 +162,10 @@ mod tests {
 
     struct MockedSleepGroupResolver;
     impl SupervisorGroupResolver for MockedSleepGroupResolver {
-        fn retrieve_group(
+        fn retrieve_group<R: AgentRepository>(
             &self,
             tx: std::sync::mpsc::Sender<crate::command::stream::Event>,
+            agent_types: R,
         ) -> super::supervisor_group::SupervisorGroup<crate::supervisor::runner::Stopped> {
             new_sleep_supervisor_group(tx)
         }
