@@ -1,17 +1,20 @@
 use serde::Deserialize;
-use std::{collections::HashMap as Map, env::temp_dir};
-use uuid::Uuid;
+use std::{
+    collections::HashMap as Map,
+    fmt::{Display, Formatter},
+};
+use tempfile::NamedTempFile;
 
 use crate::config::agent_type::SpecType;
 use std::io::Write;
 
-use super::agent_type::{AgentType, TEMPLATE_KEY_SEPARATOR};
+use super::agent_type::{AgentType, AgentTypeError, TEMPLATE_KEY_SEPARATOR};
 
-type SupervisorConfig = Map<String, SupervisorConfigInner>;
+pub(crate) type SupervisorConfig = Map<String, SupervisorConfigInner>;
 
 #[derive(Debug, PartialEq, Deserialize)]
 #[serde(untagged)]
-enum SupervisorConfigInner {
+pub(crate) enum SupervisorConfigInner {
     NestedConfig(Map<String, SupervisorConfigInner>),
     EndValue(TrivialValue),
 }
@@ -20,26 +23,44 @@ enum SupervisorConfigInner {
 #[serde(untagged)]
 pub(crate) enum TrivialValue {
     String(String),
-    File(File),
+    #[serde(skip)]
+    File(FilePathWithContent),
     Bool(bool),
     Number(N),
 }
 
+impl Display for TrivialValue {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TrivialValue::String(s) => write!(f, "{}", s),
+            TrivialValue::File(file) => write!(f, "{}", file.path),
+            TrivialValue::Bool(b) => write!(f, "{}", b),
+            TrivialValue::Number(n) => write!(f, "{}", n),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Default, Clone)]
-pub(crate) struct File {
+pub(crate) struct FilePathWithContent {
     path: String,
     content: String,
 }
 
-impl<'de> Deserialize<'de> for File {
+impl FilePathWithContent {
+    pub(crate) fn new(content: String) -> Self {
+        FilePathWithContent {
+            content,
+            ..Default::default()
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for FilePathWithContent {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        Ok(File {
-            content: String::deserialize(deserializer)?,
-            ..Default::default()
-        })
+        Ok(FilePathWithContent::new(String::deserialize(deserializer)?))
     }
 }
 
@@ -53,9 +74,19 @@ pub(crate) enum N {
     Float(f64),
 }
 
-type NormalizedSupervisorConfig = Map<String, TrivialValue>;
+impl Display for N {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            N::PosInt(n) => write!(f, "{}", n),
+            N::NegInt(n) => write!(f, "{}", n),
+            N::Float(n) => write!(f, "{}", n),
+        }
+    }
+}
 
-fn normalize_supervisor_config(config: SupervisorConfig) -> NormalizedSupervisorConfig {
+pub(crate) type NormalizedSupervisorConfig = Map<String, TrivialValue>;
+
+pub(crate) fn normalize_supervisor_config(config: SupervisorConfig) -> NormalizedSupervisorConfig {
     let mut result = Map::new();
     config
         .into_iter()
@@ -77,10 +108,10 @@ fn inner_normalize(key: String, config: SupervisorConfigInner) -> NormalizedSupe
     result
 }
 
-fn validate_with_agent_type(
+pub(crate) fn validate_with_agent_type(
     config: NormalizedSupervisorConfig,
     agent_type: &AgentType,
-) -> Result<NormalizedSupervisorConfig, String> {
+) -> Result<NormalizedSupervisorConfig, AgentTypeError> {
     // What do we need to do?
     // Check that all the keys in the agent_type are present in the config
     // Also, check that all the values of the config are of the type declared in the config's NormalizedSpec
@@ -89,7 +120,7 @@ fn validate_with_agent_type(
 
     for (k, v) in agent_type.spec.iter() {
         if !tmp_config.contains_key(k) && v.required {
-            return Err(format!("Missing required key in config: {}", k));
+            return Err(AgentTypeError::MissingAgentKey(k.clone()));
         }
 
         if !tmp_config.contains_key(k) {
@@ -104,23 +135,23 @@ fn validate_with_agent_type(
             Some(s @ TrivialValue::String(_)) if v.type_ == SpecType::String => {
                 _ = result.insert(k.clone(), s.clone())
             }
+            Some(TrivialValue::String(s)) if v.type_ == SpecType::File => {
+                let f = TrivialValue::File(FilePathWithContent::new(s.clone()));
+                _ = result.insert(k.clone(), f)
+            }
             Some(b @ TrivialValue::Bool(_)) if v.type_ == SpecType::Bool => {
                 _ = result.insert(k.clone(), b.clone())
             }
             Some(n @ TrivialValue::Number(_)) if v.type_ == SpecType::Number => {
                 _ = result.insert(k.clone(), n.clone())
             }
-            Some(f @ TrivialValue::File(_)) if v.type_ == SpecType::File => {
-                _ = result.insert(k.clone(), f.clone())
-            }
-            None => return Err(format!("Missing required key in config: {}", k)),
+            None => return Err(AgentTypeError::MissingAgentKey(k.clone())),
             _ => {
-                return Err(format!(
-                    "Type mismatch for key {} in config: expected a {:?}, got {:?}",
-                    k,
-                    v.type_,
-                    config.get(k)
-                ));
+                return Err(AgentTypeError::MismatchedTypes {
+                    key: k.clone(),
+                    expected_type: v.type_.clone(),
+                    actual_value: config.get(k).unwrap().clone(),
+                });
             }
         }
 
@@ -129,26 +160,26 @@ fn validate_with_agent_type(
 
     if !tmp_config.is_empty() {
         let keys = tmp_config.keys();
-        return Err(format!(
-            "Found unexpected keys in config: {:?}",
-            keys.collect::<Vec<&String>>()
+        return Err(AgentTypeError::UnexpectedKeysInConfig(
+            keys.cloned().collect::<Vec<String>>(),
         ));
     }
 
     for (k, v) in result.clone() {
         if let TrivialValue::File(f) = v {
-            let contents = f.content;
+            let content = f.content;
 
-            let mut dir = temp_dir();
-            let file_name = format!("{}.yaml", Uuid::new_v4());
-            dir.push(file_name);
-            let file_path = dir;
-            let mut file = std::fs::File::create(file_path.clone()).map_err(|e| format!("{e}"))?;
-            writeln!(file, "{contents}").map_err(|e| format!("{e}"))?;
+            // FIXME: What happens when early removal of the temp file while the SuperAgent is still running?
+            let mut file = NamedTempFile::new()?;
+            writeln!(file, "{content}")?;
+            let file_path = file.path();
 
-            let final_file = TrivialValue::File(File {
-                path: file_path.to_str().ok_or("Invalid path")?.to_string(),
-                content: contents,
+            let final_file = TrivialValue::File(FilePathWithContent {
+                path: file_path
+                    .to_str()
+                    .ok_or(AgentTypeError::InvalidFilePath)?
+                    .to_string(),
+                content,
             });
 
             result.insert(k, final_file);
@@ -178,6 +209,7 @@ deployment:
   on_host:
     path: "/etc"
     args: --verbose true
+    env: ""
 "#;
 
     #[test]
@@ -224,6 +256,10 @@ extra_list:
                 "deployment.on_host.path".to_string(),
                 TrivialValue::String("/etc".to_string()),
             ),
+            (
+                "deployment.on_host.env".to_string(),
+                TrivialValue::String("".to_string()),
+            ),
         ]);
 
         assert_eq!(actual, expected);
@@ -256,6 +292,7 @@ meta:
       executables:
         - path: ${deployment.on_host.path}/otelcol
           args: "-c ${deployment.on_host.args}"
+          env: ""
 "#;
 
     #[test]
@@ -297,8 +334,8 @@ deployment:
 
         assert!(actual.is_err());
         assert_eq!(
-            actual.unwrap_err(),
-            "Missing required key in config: deployment.on_host.path"
+            format!("{}", actual.unwrap_err()),
+            "Missing required key in config: `deployment.on_host.path`"
         );
     }
 
@@ -324,6 +361,7 @@ meta:
       executables:
         - path: ${deployment.on_host.args}/otelcol
           args: "-c ${deployment.on_host.args}"
+          env: ""
 "#;
 
     #[test]

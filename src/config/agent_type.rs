@@ -1,16 +1,47 @@
 use regex::Regex;
 use serde::Deserialize;
 use serde_yaml::Value;
-use std::collections::HashMap as Map;
+use std::{collections::HashMap as Map, io};
+use thiserror::Error;
 
-use crate::config::supervisor_config::N;
+use crate::config::supervisor_config::{FilePathWithContent, N};
 
-use super::supervisor_config::TrivialValue;
+use super::supervisor_config::{
+    normalize_supervisor_config, validate_with_agent_type, NormalizedSupervisorConfig,
+    SupervisorConfig, TrivialValue,
+};
 
 const TEMPLATE_RE: &str = r"\$\{([a-zA-Z0-9\.\-_/]+)\}";
 const TEMPLATE_BEGIN: &str = "${";
 const TEMPLATE_END: char = '}';
 pub(crate) const TEMPLATE_KEY_SEPARATOR: &str = ".";
+
+#[derive(Error, Debug)]
+pub(crate) enum AgentTypeError {
+    #[error("`{0}`")]
+    SerdeYaml(#[from] serde_yaml::Error),
+    #[error("Missing required key in config: `{0}`")]
+    MissingAgentKey(String),
+    #[error("Type mismatch for key `{key}` in config: expected a {expected_type:?}, got {actual_value:?}")]
+    MismatchedTypes {
+        key: String,
+        expected_type: SpecType,
+        actual_value: TrivialValue,
+    },
+    #[error("Found unexpected keys in config: {0:?}")]
+    UnexpectedKeysInConfig(Vec<String>),
+    #[error("I/O error: `{0}`")]
+    IOError(#[from] io::Error),
+    #[error("Attempted to store an invalid path on a FilePathWithContent object")]
+    InvalidFilePath,
+    #[error("Missing required template key: `{0}`")]
+    MissingTemplateKey(String),
+
+    #[error("Missing default value for spec key `{0}`")]
+    MissingDefaultForSpecKey(String),
+    #[error("Invalid default value for spec key `{key}`: expected a {type_:?}")]
+    InvalidDefaultForSpec { key: String, type_: SpecType },
+}
 
 #[derive(Debug, Deserialize)]
 struct RawAgent {
@@ -22,7 +53,7 @@ struct RawAgent {
     meta: Meta,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Default)]
 pub(crate) struct AgentType {
     name: String,
     namespace: String,
@@ -34,6 +65,22 @@ pub(crate) struct AgentType {
 impl AgentType {
     fn get_spec(self, path: String) -> Option<EndSpec> {
         self.spec.get(&path).cloned()
+    }
+
+    fn populate(self, config: SupervisorConfig) -> Result<Self, AgentTypeError> {
+        let normalized_config = normalize_supervisor_config(config);
+        let validated_conf = validate_with_agent_type(normalized_config, &self)?;
+
+        let meta = self.meta.template_with(validated_conf.clone())?;
+        let mut spec = self.spec;
+
+        validated_conf.into_iter().for_each(|(k, v)| {
+            spec.entry(k).and_modify(|s| {
+                s.final_value = Some(v);
+            });
+        });
+
+        Ok(AgentType { meta, spec, ..self })
     }
 }
 
@@ -63,6 +110,7 @@ pub(crate) struct EndSpec {
     pub(crate) type_: SpecType,
     pub(crate) required: bool,
     pub(crate) default: Option<TrivialValue>,
+    pub(crate) final_value: Option<TrivialValue>,
 }
 
 #[derive(Debug, PartialEq, Clone, Deserialize)]
@@ -131,7 +179,11 @@ impl<'de> Deserialize<'de> for EndSpec {
 
         let default = match default {
             Some(Value::Bool(b)) => Some(TrivialValue::Bool(b)),
-            Some(Value::String(s)) => Some(TrivialValue::String(s)),
+            Some(Value::String(s)) => Some(if type_ == ST::File {
+                TrivialValue::File(FilePathWithContent::new(s))
+            } else {
+                TrivialValue::String(s)
+            }),
             Some(Value::Number(n)) if n.is_u64() => {
                 Some(TrivialValue::Number(N::PosInt(n.as_u64().unwrap())))
             }
@@ -150,6 +202,7 @@ impl<'de> Deserialize<'de> for EndSpec {
             type_,
             required,
             default,
+            final_value: None,
         })
     }
 }
@@ -159,9 +212,48 @@ struct Meta {
     deployment: Deployment,
 }
 
+impl Templateable for Meta {
+    fn template_with(self, kv: NormalizedSupervisorConfig) -> Result<Self, AgentTypeError> {
+        Ok(Meta {
+            deployment: self.deployment.template_with(kv)?,
+        })
+    }
+}
+
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 struct Deployment {
     on_host: Option<OnHost>,
+}
+
+impl Templateable for Deployment {
+    fn template_with(self, kv: NormalizedSupervisorConfig) -> Result<Self, AgentTypeError> {
+        /*
+        `self.on_host` has type `Option<OnHost>`
+
+        let t = self.on_host.map(|o| o.template_with(kv)); `t` has type `Option<Result<OnHost, AgentTypeError>>`
+
+        Let's visit all the possibilities of `t`.
+        When I do `t.transpose()`, which takes an Option<Result<_,_>> and returns a Result<Option<_>,_>, this is what happens:
+
+        ```
+        match t {
+            None => Ok(None),
+            Some(Ok(on_host)) => Ok(Some(on_host)),
+            Some(Err(e)) => Err(e),
+        }
+        ```
+
+        In general:
+        - None will be mapped to Ok(None).
+        - Some(Ok(_)) will be mapped to Ok(Some(_)).
+        - Some(Err(_)) will be mapped to Err(_).
+
+        With `?` I get rid of the original Result<_,_> wrapper type and get the Option<_> (or else the error bubbles up if it contained the Err(_) variant). Then I am able to store that Option<_>, be it None or Some(_), back into the Deployment object which contains the Option<_> field.
+         */
+
+        let oh = self.on_host.map(|oh| oh.template_with(kv)).transpose()?;
+        Ok(Deployment { on_host: oh })
+    }
 }
 
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
@@ -169,20 +261,63 @@ struct OnHost {
     executables: Vec<Executable>,
 }
 
+impl Templateable for OnHost {
+    fn template_with(self, kv: NormalizedSupervisorConfig) -> Result<Self, AgentTypeError> {
+        Ok(OnHost {
+            executables: self
+                .executables
+                .into_iter()
+                .map(|e| e.template_with(kv.clone()))
+                .collect::<Result<Vec<Executable>, AgentTypeError>>()?,
+        })
+    }
+}
+
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 struct Executable {
     path: String,
-    args: String,
+    args: Args,
+    env: Env,
+}
+
+trait IntoVector<T> {
+    fn into_vector(self) -> Vec<T>;
+}
+
+#[derive(Debug, Default, Deserialize, Clone, PartialEq)]
+struct Args(String);
+
+impl IntoVector<String> for Args {
+    fn into_vector(self) -> Vec<String> {
+        self.0.split_whitespace().map(|s| s.to_string()).collect()
+    }
+}
+
+#[derive(Debug, Default, Deserialize, Clone, PartialEq)]
+struct Env(String);
+
+impl IntoVector<(String, String)> for Env {
+    fn into_vector(self) -> Vec<(String, String)> {
+        self.0
+            .split_whitespace()
+            .map(|s| {
+                // FIXME: Non-existing '=' on input??
+                s.split_once('=')
+                    .map(|(k, v)| (k.to_string(), v.to_string()))
+                    .unwrap()
+            })
+            .collect()
+    }
 }
 
 trait Templateable {
-    fn template_with(self, kv: Map<String, TrivialValue>) -> Result<Self, String>
+    fn template_with(self, kv: Map<String, TrivialValue>) -> Result<Self, AgentTypeError>
     where
         Self: std::marker::Sized;
 }
 
 impl Templateable for Executable {
-    fn template_with(self, kv: Map<String, TrivialValue>) -> Result<Executable, String> {
+    fn template_with(self, kv: Map<String, TrivialValue>) -> Result<Executable, AgentTypeError> {
         let re = Regex::new(TEMPLATE_RE).unwrap();
         let mut result = self;
 
@@ -197,36 +332,32 @@ impl Templateable for Executable {
                 .trim_start_matches(TEMPLATE_BEGIN)
                 .trim_end_matches(TEMPLATE_END);
             if !kv.contains_key(trimmed_s) {
-                return Err(format!("Missing required template key: {trimmed_s}"));
+                return Err(AgentTypeError::MissingTemplateKey(trimmed_s.to_string()));
             }
-            if let TrivialValue::String(replacement) = &kv[trimmed_s] {
-                result.path = re.replace(&result.path, replacement.as_str()).to_string();
-            } else {
-                return Err(format!(
-                    "Invalid value to replace in template for key {trimmed_s}"
-                ));
-            }
+            // if let TrivialValue::String(replacement) = &kv[trimmed_s] {
+            let replacement = &kv[trimmed_s];
+            result.path = re
+                .replace(&result.path, replacement.to_string())
+                .to_string();
         }
 
         // Same for args
         let args = result.args.clone();
         let res = re
-            .find_iter(&args)
+            .find_iter(&args.0)
             .map(|i| i.as_str())
             .collect::<Vec<&str>>();
 
         for i in res {
             let trimmed_s = i.trim_start_matches("${").trim_end_matches('}');
             if !kv.contains_key(trimmed_s) {
-                return Err(format!("Missing required template key: {trimmed_s}"));
+                return Err(AgentTypeError::MissingTemplateKey(trimmed_s.to_string()));
             }
-            if let TrivialValue::String(replacement) = &kv[trimmed_s] {
-                result.args = re.replace(&result.args, replacement.as_str()).to_string();
-            } else {
-                return Err(format!(
-                    "Invalid value to replace in template for key {trimmed_s}"
-                ));
-            }
+            let replacement = &kv[trimmed_s];
+            result.args = Args(
+                re.replace(&result.args.0, replacement.to_string())
+                    .to_string(),
+            );
         }
 
         Ok(result)
@@ -249,7 +380,7 @@ enum Spec {
 
 type NormalizedSpec = Map<String, EndSpec>;
 
-fn normalize_agent_spec(spec: AgentSpec) -> Result<NormalizedSpec, String> {
+fn normalize_agent_spec(spec: AgentSpec) -> Result<NormalizedSpec, AgentTypeError> {
     use SpecType as ST;
 
     let mut result = Map::new();
@@ -258,7 +389,7 @@ fn normalize_agent_spec(spec: AgentSpec) -> Result<NormalizedSpec, String> {
         let n_spec = inner_normalize(k, v);
         for (k, v) in n_spec.iter() {
             if v.default.is_none() && !v.required {
-                return Err(format!("Missing `default` field for key {k}"));
+                return Err(AgentTypeError::MissingDefaultForSpecKey(k.clone()));
             }
             if let Some(default) = v.default.as_ref() {
                 match default {
@@ -271,10 +402,10 @@ fn normalize_agent_spec(spec: AgentSpec) -> Result<NormalizedSpec, String> {
                     //         || v.type_ == ST::MapStringBool
                     //         || v.type_ == ST::MapStringNumber) => {}
                     _ => {
-                        return Err(
-                            "Invalid default value (invalid data or data does not match `type`)"
-                                .to_string(),
-                        )
+                        return Err(AgentTypeError::InvalidDefaultForSpec {
+                            key: k.clone(),
+                            type_: v.type_.clone(),
+                        })
                     }
                 }
             }
@@ -301,6 +432,8 @@ fn inner_normalize(key: String, spec: Spec) -> NormalizedSpec {
 
 #[cfg(test)]
 mod tests {
+    use crate::config::supervisor_config::SupervisorConfig;
+
     use super::*;
     use serde_yaml::Error;
     use std::collections::HashMap as Map;
@@ -322,6 +455,7 @@ meta:
       executables:
         - path: ${bin}/otelcol
           args: "-c ${deployment.k8s.image}"
+          env: ""
 "#;
 
     const GIVEN_BAD_YAML: &str = r#"
@@ -337,32 +471,7 @@ meta:
       executables:
         - path: ${bin}/otelcol
           args: "-c ${deployment.k8s.image}"
-"#;
-
-    const GIVEN_NEWRELIC_INFRA_YAML: &str = r#"
-name: newrelic-infra
-namespace: newrelic
-version: 1.39.1
-spec:
-  config:
-    description: "Newrelic infra configuration yaml"
-    type: file
-    required: true
-    default: | 
-        license: abc123
-        staging: true
-meta:
-  deployment:
-    on_host:
-      executables:
-        - path: /usr/bin/newrelic-infra
-          args: "--config ${config}"
-"#;
-
-    const GIVEN_NEWRELIC_INFRA_USER_CONFIG_YAML: &str = r#"
-config: | 
-    license: abc123
-    staging: true
+          env: ""
 "#;
 
     #[test]
@@ -378,7 +487,7 @@ config: |
             agent.meta.deployment.on_host.clone().unwrap().executables[0].path
         );
         assert_eq!(
-            "-c ${deployment.k8s.image}",
+            Args("-c ${deployment.k8s.image}".to_string()),
             agent.meta.deployment.on_host.unwrap().executables[0].args
         );
     }
@@ -407,6 +516,7 @@ config: |
                 type_: SpecType::String,
                 required: false,
                 default: Some(TrivialValue::String("nrdot".to_string())),
+                final_value: None,
             },
         )]);
 
@@ -419,6 +529,7 @@ config: |
             type_: SpecType::String,
             required: false,
             default: Some(TrivialValue::String("nrdot".to_string())),
+            final_value: None,
         };
 
         assert_eq!(
@@ -433,8 +544,11 @@ config: |
     fn test_replacer() {
         let exec = Executable {
             path: "${bin}/otelcol".to_string(),
-            args: "--verbose ${deployment.on_host.verbose} --logs ${deployment.on_host.log_level}"
-                .to_string(),
+            args: Args(
+                "--verbose ${deployment.on_host.verbose} --logs ${deployment.on_host.log_level}"
+                    .to_string(),
+            ),
+            env: Env("".to_string()),
         };
 
         let user_values = Map::from([
@@ -453,7 +567,8 @@ config: |
 
         let exec_expected = Executable {
             path: "/etc/otelcol".to_string(),
-            args: "--verbose true --logs trace".to_string(),
+            args: Args("--verbose true --logs trace".to_string()),
+            env: Env("".to_string()),
         };
 
         assert_eq!(exec_actual, exec_expected);
@@ -463,8 +578,9 @@ config: |
     fn test_replacer_two_same() {
         let exec = Executable {
             path: "${bin}/otelcol".to_string(),
-            args: "--verbose ${deployment.on_host.verbose} --verbose_again ${deployment.on_host.verbose}"
-                .to_string(),
+            args: Args("--verbose ${deployment.on_host.verbose} --verbose_again ${deployment.on_host.verbose}"
+                .to_string()),
+            env: Env("".to_string()),
         };
 
         let user_values = Map::from([
@@ -479,9 +595,49 @@ config: |
 
         let exec_expected = Executable {
             path: "/etc/otelcol".to_string(),
-            args: "--verbose true --verbose_again true".to_string(),
+            args: Args("--verbose true --verbose_again true".to_string()),
+            env: Env("".to_string()),
         };
 
         assert_eq!(exec_actual, exec_expected);
+    }
+
+    const GIVEN_NEWRELIC_INFRA_YAML: &str = r#"
+name: newrelic-infra
+namespace: newrelic
+version: 1.39.1
+spec:
+  config:
+    description: "Newrelic infra configuration yaml"
+    type: file
+    required: true
+meta:
+  deployment:
+    on_host:
+      executables:
+        - path: /usr/bin/newrelic-infra
+          args: "--config ${config}"
+          env: ""
+"#;
+
+    const GIVEN_NEWRELIC_INFRA_USER_CONFIG_YAML: &str = r#"
+config: | 
+    license: abc123
+    staging: true
+"#;
+
+    #[test]
+    fn test_populate_meta_field() {
+        let input_agent_type =
+            serde_yaml::from_str::<AgentType>(GIVEN_NEWRELIC_INFRA_YAML).unwrap();
+        let input_user_config =
+            serde_yaml::from_str::<SupervisorConfig>(GIVEN_NEWRELIC_INFRA_USER_CONFIG_YAML)
+                .unwrap();
+
+        let actual = input_agent_type
+            .populate(input_user_config)
+            .expect("Failed to populate the AgentType's Meta field");
+
+        println!("Output: {:#?}", actual);
     }
 }
