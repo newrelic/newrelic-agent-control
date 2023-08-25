@@ -119,6 +119,30 @@ ec2_super_agents = {
       "otel_role" = "agent"
     }
   }
+  "super_agent-TAG_OR_UNIQUE_NAME-amd64:debian-bookworm" = {
+    ami             = "ami-02e9e442f629e6834"
+    subnet          = "subnet-09b64de757828cdd4"
+    security_groups = ["sg-044ef7bc34691164a"]
+    key_name        = "caos-dev-arm"
+    instance_type   = "t3a.small"
+    username        = "admin"
+    python          = "/usr/bin/python3"
+    tags            = {
+      "otel_role" = "agent"
+    }
+  }
+  "super_agent-TAG_OR_UNIQUE_NAME-arm64:debian-bookworm" = {
+    ami             = "ami-05f312273b2ebaf0b"
+    subnet          = "subnet-09b64de757828cdd4"
+    security_groups = ["sg-044ef7bc34691164a"]
+    key_name        = "caos-dev-arm"
+    instance_type   = "t4g.small"
+    username        = "admin"
+    python          = "/usr/bin/python3"
+    tags            = {
+      "otel_role" = "agent"
+    }
+  }
   "super_agent-TAG_OR_UNIQUE_NAME-amd64:al-2" = {
     ami             = "ami-077e31c4939f6a2f3"
     subnet          = "subnet-09b64de757828cdd4"
