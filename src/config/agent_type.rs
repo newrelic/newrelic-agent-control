@@ -2,9 +2,11 @@ use serde::Deserialize;
 use serde_yaml::Value;
 use std::collections::HashMap;
 
+pub(super) type AgentName = String;
+
 #[derive(Debug, Deserialize)]
-struct RawAgent {
-    name: String,
+pub(super) struct RawAgent {
+    pub(super) name: AgentName,
     namespace: String,
     version: String,
     spec: AgentSpec,
@@ -12,8 +14,9 @@ struct RawAgent {
     meta: Meta,
 }
 
-struct Agent {
-    name: String,
+#[derive(Debug)]
+pub(super) struct Agent {
+    pub(super) name: AgentName,
     namespace: String,
     version: String,
     spec: NormalizedSpec,
@@ -106,12 +109,12 @@ fn inner_normalize(key: String, spec: Spec) -> NormalizedSpec {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use serde_yaml::{Error, Value};
     use std::collections::HashMap;
 
-    const GIVEN_YAML: &str = r#"
+    pub(crate) const AGENT_GIVEN_YAML: &str = r#"
 name: nrdot
 namespace: newrelic
 version: 0.1.0
@@ -130,7 +133,7 @@ meta:
           args: "-c ${deployment.k8s.image}"
 "#;
 
-    const GIVEN_BAD_YAML: &str = r#"
+    const AGENT_GIVEN_BAD_YAML: &str = r#"
 name: nrdot
 namespace: newrelic
 version: 0.1.0
@@ -147,7 +150,7 @@ meta:
 
     #[test]
     fn test_basic_parsing() {
-        let raw_agent: RawAgent = serde_yaml::from_str(GIVEN_YAML).unwrap();
+        let raw_agent: RawAgent = serde_yaml::from_str(AGENT_GIVEN_YAML).unwrap();
 
         let agent = Agent::from(raw_agent);
 
@@ -167,7 +170,7 @@ meta:
 
     #[test]
     fn test_bad_parsing() {
-        let raw_agent_err: Result<RawAgent, Error> = serde_yaml::from_str(GIVEN_BAD_YAML);
+        let raw_agent_err: Result<RawAgent, Error> = serde_yaml::from_str(AGENT_GIVEN_BAD_YAML);
 
         assert!(raw_agent_err.is_err());
         assert_eq!(
@@ -180,7 +183,7 @@ meta:
     fn test_normalize_agent_spec() {
         // create AgentSpec
 
-        let given_agent_config: RawAgent = serde_yaml::from_str(GIVEN_YAML).unwrap();
+        let given_agent_config: RawAgent = serde_yaml::from_str(AGENT_GIVEN_YAML).unwrap();
 
         println!("agent: {:#?}", given_agent_config);
 
