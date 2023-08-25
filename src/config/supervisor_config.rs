@@ -1,14 +1,9 @@
 use serde::Deserialize;
-use std::{
-    collections::HashMap as Map,
-    fmt::{Display, Formatter},
-};
+use std::collections::HashMap as Map;
+use std::io::Write;
 use tempfile::NamedTempFile;
 
-use crate::config::agent_type::SpecType;
-use std::io::Write;
-
-use super::agent_type::{AgentType, AgentTypeError, TEMPLATE_KEY_SEPARATOR};
+use super::agent_type::{AgentType, AgentTypeError, TrivialValue, TEMPLATE_KEY_SEPARATOR};
 
 pub(crate) type SupervisorConfig = Map<String, SupervisorConfigInner>;
 
@@ -19,93 +14,26 @@ pub(crate) enum SupervisorConfigInner {
     EndValue(TrivialValue),
 }
 
-#[derive(Debug, PartialEq, Clone, Deserialize)]
-#[serde(untagged)]
-pub(crate) enum TrivialValue {
-    String(String),
-    #[serde(skip)]
-    File(FilePathWithContent),
-    Bool(bool),
-    Number(N),
-}
-
-impl Display for TrivialValue {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            TrivialValue::String(s) => write!(f, "{}", s),
-            TrivialValue::File(file) => write!(f, "{}", file.path),
-            TrivialValue::Bool(b) => write!(f, "{}", b),
-            TrivialValue::Number(n) => write!(f, "{}", n),
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Default, Clone)]
-pub(crate) struct FilePathWithContent {
-    path: String,
-    content: String,
-}
-
-impl FilePathWithContent {
-    pub(crate) fn new(content: String) -> Self {
-        FilePathWithContent {
-            content,
-            ..Default::default()
-        }
-    }
-}
-
-impl<'de> Deserialize<'de> for FilePathWithContent {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        Ok(FilePathWithContent::new(String::deserialize(deserializer)?))
-    }
-}
-
-#[derive(Debug, PartialEq, Clone, Deserialize)]
-#[serde(untagged)]
-pub(crate) enum N {
-    PosInt(u64),
-    /// Always less than zero.
-    NegInt(i64),
-    /// May be infinite or NaN.
-    Float(f64),
-}
-
-impl Display for N {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            N::PosInt(n) => write!(f, "{}", n),
-            N::NegInt(n) => write!(f, "{}", n),
-            N::Float(n) => write!(f, "{}", n),
-        }
-    }
-}
-
 pub(crate) type NormalizedSupervisorConfig = Map<String, TrivialValue>;
 
 pub(crate) fn normalize_supervisor_config(config: SupervisorConfig) -> NormalizedSupervisorConfig {
-    let mut result = Map::new();
-    config
-        .into_iter()
-        .for_each(|(k, v)| result.extend(inner_normalize(k, v)));
-    result
+    config.into_iter().fold(Map::new(), |r, (k, v)| {
+        r.into_iter().chain(inner_normalize(k, v)).collect()
+    })
 }
 
 fn inner_normalize(key: String, config: SupervisorConfigInner) -> NormalizedSupervisorConfig {
-    let mut result = Map::new();
     match config {
-        SupervisorConfigInner::NestedConfig(c) => c.into_iter().for_each(|(k, v)| {
-            result.extend(inner_normalize(
-                key.clone() + TEMPLATE_KEY_SEPARATOR + &k,
-                v,
-            ))
+        SupervisorConfigInner::NestedConfig(c) => c.into_iter().fold(Map::new(), |r, (k, v)| {
+            r.into_iter()
+                .chain(inner_normalize(
+                    key.clone() + TEMPLATE_KEY_SEPARATOR + &k,
+                    v,
+                ))
+                .collect()
         }),
-        SupervisorConfigInner::EndValue(v) => _ = result.insert(key, v),
+        SupervisorConfigInner::EndValue(v) => Map::from([(key, v)]),
     }
-    result
 }
 
 pub(crate) fn validate_with_agent_type(
@@ -115,7 +43,7 @@ pub(crate) fn validate_with_agent_type(
     // What do we need to do?
     // Check that all the keys in the agent_type are present in the config
     // Also, check that all the values of the config are of the type declared in the config's NormalizedSpec
-    let mut result: NormalizedSupervisorConfig = Map::new();
+    let mut result = Map::new();
     let mut tmp_config = config.clone();
 
     for (k, v) in agent_type.spec.iter() {
@@ -125,72 +53,60 @@ pub(crate) fn validate_with_agent_type(
 
         if !tmp_config.contains_key(k) {
             // We have validated earlier that for a not `required` value, a default will be provided
-            // so we can just unwrap.
-            result.insert(k.clone(), v.default.clone().unwrap());
+            // so we could just unwrap. Panicking with a certain message here to catch a potential edge case.
+            result.insert(
+                k.clone(),
+                v.default
+                    .clone()
+                    .expect("Failed to retrieve default for a non-required value"),
+            );
             continue;
         }
 
-        // Check if the types match
-        match tmp_config.get(k) {
-            Some(s @ TrivialValue::String(_)) if v.type_ == SpecType::String => {
-                _ = result.insert(k.clone(), s.clone())
-            }
-            Some(TrivialValue::String(s)) if v.type_ == SpecType::File => {
-                let f = TrivialValue::File(FilePathWithContent::new(s.clone()));
-                _ = result.insert(k.clone(), f)
-            }
-            Some(b @ TrivialValue::Bool(_)) if v.type_ == SpecType::Bool => {
-                _ = result.insert(k.clone(), b.clone())
-            }
-            Some(n @ TrivialValue::Number(_)) if v.type_ == SpecType::Number => {
-                _ = result.insert(k.clone(), n.clone())
-            }
-            None => return Err(AgentTypeError::MissingAgentKey(k.clone())),
-            _ => {
-                return Err(AgentTypeError::MismatchedTypes {
-                    key: k.clone(),
-                    expected_type: v.type_.clone(),
-                    actual_value: config.get(k).unwrap().clone(),
-                });
-            }
-        }
+        // Get the key and its value
+        tmp_config
+            .get(k)
+            .map(|tv| tv.clone().check_type(v.type_))
+            .transpose()?
+            .map(|tv| _ = result.insert(k.clone(), tv))
+            .ok_or(AgentTypeError::MissingAgentKey(k.clone()))?;
 
         tmp_config.remove(k);
     }
 
     if !tmp_config.is_empty() {
-        let keys = tmp_config.keys();
         return Err(AgentTypeError::UnexpectedKeysInConfig(
-            keys.cloned().collect::<Vec<String>>(),
+            tmp_config.into_keys().collect::<Vec<String>>(),
         ));
     }
 
-    for (k, v) in result.clone() {
-        if let TrivialValue::File(f) = v {
-            let content = f.content;
-
-            // FIXME: What happens when early removal of the temp file while the SuperAgent is still running?
-            let mut file = NamedTempFile::new()?;
-            writeln!(file, "{content}")?;
-            let file_path = file.path();
-
-            let final_file = TrivialValue::File(FilePathWithContent {
-                path: file_path
-                    .to_str()
-                    .ok_or(AgentTypeError::InvalidFilePath)?
-                    .to_string(),
-                content,
-            });
-
-            result.insert(k, final_file);
-        }
-    }
+    write_files(&mut result)?;
 
     Ok(result)
 }
 
+fn write_files(config: &mut NormalizedSupervisorConfig) -> Result<(), AgentTypeError> {
+    config
+        .values_mut()
+        .try_for_each(|v| -> Result<(), AgentTypeError> {
+            if let TrivialValue::File(f) = v {
+                // FIXME: What happens when early removal of the temp file while the SuperAgent is still running?
+                let mut file = NamedTempFile::new()?;
+                writeln!(file, "{}", f.content)?;
+                f.path = file
+                    .path()
+                    .to_str()
+                    .ok_or(AgentTypeError::InvalidFilePath)?
+                    .to_string();
+            }
+            Ok(())
+        })
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::config::agent_type::N;
+
     use super::*;
 
     const EXAMPLE_CONFIG: &str = r#"

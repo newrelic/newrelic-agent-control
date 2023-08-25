@@ -1,14 +1,15 @@
 use regex::Regex;
 use serde::Deserialize;
-use serde_yaml::Value;
-use std::{collections::HashMap as Map, io};
+use std::{
+    collections::HashMap as Map,
+    fmt::{Display, Formatter},
+    io,
+};
 use thiserror::Error;
-
-use crate::config::supervisor_config::{FilePathWithContent, N};
 
 use super::supervisor_config::{
     normalize_supervisor_config, validate_with_agent_type, NormalizedSupervisorConfig,
-    SupervisorConfig, TrivialValue,
+    SupervisorConfig,
 };
 
 const TEMPLATE_RE: &str = r"\$\{([a-zA-Z0-9\.\-_/]+)\}";
@@ -22,9 +23,10 @@ pub(crate) enum AgentTypeError {
     SerdeYaml(#[from] serde_yaml::Error),
     #[error("Missing required key in config: `{0}`")]
     MissingAgentKey(String),
-    #[error("Type mismatch for key `{key}` in config: expected a {expected_type:?}, got {actual_value:?}")]
-    MismatchedTypes {
-        key: String,
+    #[error(
+        "Type mismatch while parsing. Expected type {expected_type:?}, got value {actual_value:?}"
+    )]
+    TypeMismatch {
         expected_type: SpecType,
         actual_value: TrivialValue,
     },
@@ -37,8 +39,10 @@ pub(crate) enum AgentTypeError {
     #[error("Missing required template key: `{0}`")]
     MissingTemplateKey(String),
 
+    #[error("Missing default value for a non-required spec key")]
+    MissingDefault,
     #[error("Missing default value for spec key `{0}`")]
-    MissingDefaultForSpecKey(String),
+    MissingDefaultWithKey(String),
     #[error("Invalid default value for spec key `{key}`: expected a {type_:?}")]
     InvalidDefaultForSpec { key: String, type_: SpecType },
 }
@@ -53,7 +57,8 @@ struct RawAgent {
     meta: Meta,
 }
 
-#[derive(Debug, PartialEq, Clone, Default)]
+#[derive(Debug, PartialEq, Clone, Default, Deserialize)]
+#[serde(try_from = "RawAgent")]
 pub(crate) struct AgentType {
     name: String,
     namespace: String,
@@ -84,16 +89,12 @@ impl AgentType {
     }
 }
 
-impl<'de> Deserialize<'de> for AgentType {
-    fn deserialize<D>(deserializer: D) -> Result<AgentType, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let raw_agent: RawAgent = RawAgent::deserialize(deserializer)?;
-        let normalized_agent =
-            normalize_agent_spec(raw_agent.spec).map_err(serde::de::Error::custom)?;
+impl TryFrom<RawAgent> for AgentType {
+    type Error = AgentTypeError;
+
+    fn try_from(raw_agent: RawAgent) -> Result<Self, Self::Error> {
         Ok(AgentType {
-            spec: normalized_agent,
+            spec: normalize_agent_spec(raw_agent.spec)?,
             name: raw_agent.name,
             namespace: raw_agent.namespace,
             version: raw_agent.version,
@@ -102,18 +103,96 @@ impl<'de> Deserialize<'de> for AgentType {
     }
 }
 
-type AgentSpec = Map<String, Spec>;
+#[derive(Debug, PartialEq, Clone, Deserialize)]
+#[serde(untagged)]
+pub(crate) enum TrivialValue {
+    String(String),
+    #[serde(skip)]
+    File(FilePathWithContent),
+    Bool(bool),
+    Number(N),
+}
 
-#[derive(Debug, PartialEq, Clone)]
-pub(crate) struct EndSpec {
-    description: String,
-    pub(crate) type_: SpecType,
-    pub(crate) required: bool,
-    pub(crate) default: Option<TrivialValue>,
-    pub(crate) final_value: Option<TrivialValue>,
+impl TrivialValue {
+    pub(crate) fn check_type(self, type_: SpecType) -> Result<Self, AgentTypeError> {
+        match (self.clone(), type_) {
+            (TrivialValue::String(_), SpecType::String)
+            | (TrivialValue::Bool(_), SpecType::Bool)
+            | (TrivialValue::Number(_), SpecType::Number) => Ok(self),
+            (TrivialValue::String(s), SpecType::File) => {
+                Ok(TrivialValue::File(FilePathWithContent::new(s)))
+            }
+            (v, t) => Err(AgentTypeError::TypeMismatch {
+                expected_type: t,
+                actual_value: v,
+            }),
+        }
+    }
+}
+
+impl Display for TrivialValue {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TrivialValue::String(s) => write!(f, "{}", s),
+            TrivialValue::File(file) => write!(f, "{}", file.path),
+            TrivialValue::Bool(b) => write!(f, "{}", b),
+            TrivialValue::Number(n) => write!(f, "{}", n),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Default, Clone, Deserialize)]
+pub(crate) struct FilePathWithContent {
+    #[serde(skip)]
+    pub(crate) path: String,
+    #[serde(flatten)]
+    pub(crate) content: String,
+}
+
+impl FilePathWithContent {
+    pub(crate) fn new(content: String) -> Self {
+        FilePathWithContent {
+            content,
+            ..Default::default()
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Deserialize)]
+#[serde(untagged)]
+pub(crate) enum N {
+    PosInt(u64),
+    /// Always less than zero.
+    NegInt(i64),
+    /// May be infinite or NaN.
+    Float(f64),
+}
+
+impl Display for N {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            N::PosInt(n) => write!(f, "{}", n),
+            N::NegInt(n) => write!(f, "{}", n),
+            N::Float(n) => write!(f, "{}", n),
+        }
+    }
+}
+
+type AgentSpec = Map<String, Spec>;
+
+#[derive(Debug, PartialEq, Clone, Deserialize)]
+#[serde(try_from = "IntermediateEndSpec")]
+pub(crate) struct EndSpec {
+    description: String,
+    #[serde(rename = "type")]
+    pub(crate) type_: SpecType,
+    pub(crate) required: bool,
+    pub(crate) default: Option<TrivialValue>,
+    #[serde(skip)]
+    pub(crate) final_value: Option<TrivialValue>,
+}
+
+#[derive(Debug, PartialEq, Clone, Copy, Deserialize)]
 pub(crate) enum SpecType {
     #[serde(rename = "string")]
     String,
@@ -123,86 +202,36 @@ pub(crate) enum SpecType {
     Number,
     #[serde(rename = "file")]
     File,
-    #[serde(rename = "map[string]string")]
-    MapStringString,
-    #[serde(rename = "map[string]number")]
-    MapStringNumber,
-    #[serde(rename = "map[string]bool")]
-    MapStringBool,
+    // #[serde(rename = "map[string]string")]
+    // MapStringString,
+    // #[serde(rename = "map[string]number")]
+    // MapStringNumber,
+    // #[serde(rename = "map[string]bool")]
+    // MapStringBool,
 }
 
-impl<'de> Deserialize<'de> for EndSpec {
-    fn deserialize<D>(deserializer: D) -> Result<EndSpec, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        use serde::de::Error as E;
-        use SpecType as ST;
+#[derive(Debug, Deserialize)]
+struct IntermediateEndSpec {
+    description: String,
+    #[serde(rename = "type")]
+    type_: SpecType,
+    required: bool,
+    default: Option<TrivialValue>,
+}
 
-        let mut map: Map<String, Value> = Map::deserialize(deserializer)?;
-        let description = map
-            .remove("description")
-            .ok_or(E::custom("Could not get `description` field"))?
-            .as_str()
-            .ok_or(E::custom("`description` field is not a string"))?
-            .to_string();
+impl TryFrom<IntermediateEndSpec> for EndSpec {
+    type Error = AgentTypeError;
 
-        let type_b = map
-            .remove("type")
-            .ok_or(E::custom("Could not get `type` field"))?;
-        let type_str = type_b
-            .as_str()
-            .ok_or(E::custom("`type` field is not a string"))?;
-        let type_ = match type_str {
-            "string" => ST::String,
-            "boolean" => ST::Bool,
-            "number" => ST::Number,
-            "file" => ST::File,
-            // "map[string]string" => ST::MapStringString,
-            // "map[string]number" => ST::MapStringNumber,
-            // "map[string]bool" => ST::MapStringBool,
-            x => return Err(E::custom(format!("Invalid type: {}", x))),
-        };
-
-        let required = map
-            .remove("required")
-            .ok_or(E::custom("Could not get `required` field"))?
-            .as_bool()
-            .ok_or(E::custom("`required` field is not a boolean"))?;
-        let default = map.remove("default");
-
-        if default.is_none() && !required {
-            return Err(E::custom(
-                "Missing `default` field for a non-required value.",
-            ));
+    fn try_from(ies: IntermediateEndSpec) -> Result<Self, Self::Error> {
+        if ies.default.is_none() && !ies.required {
+            return Err(AgentTypeError::MissingDefault);
         }
-
-        let default = match default {
-            Some(Value::Bool(b)) => Some(TrivialValue::Bool(b)),
-            Some(Value::String(s)) => Some(if type_ == ST::File {
-                TrivialValue::File(FilePathWithContent::new(s))
-            } else {
-                TrivialValue::String(s)
-            }),
-            Some(Value::Number(n)) if n.is_u64() => {
-                Some(TrivialValue::Number(N::PosInt(n.as_u64().unwrap())))
-            }
-            Some(Value::Number(n)) if n.is_i64() => {
-                Some(TrivialValue::Number(N::NegInt(n.as_i64().unwrap())))
-            }
-            Some(Value::Number(n)) if n.is_f64() => {
-                Some(TrivialValue::Number(N::Float(n.as_f64().unwrap())))
-            }
-            Some(_) => None,
-            None => None,
-        };
-
         Ok(EndSpec {
-            description,
-            type_,
-            required,
-            default,
+            default: ies.default.map(|d| d.check_type(ies.type_)).transpose()?,
             final_value: None,
+            description: ies.description,
+            type_: ies.type_,
+            required: ies.required,
         })
     }
 }
@@ -243,7 +272,7 @@ impl Templateable for Deployment {
         }
         ```
 
-        In general:
+        In words:
         - None will be mapped to Ok(None).
         - Some(Ok(_)) will be mapped to Ok(Some(_)).
         - Some(Err(_)) will be mapped to Err(_).
@@ -287,6 +316,12 @@ trait IntoVector<T> {
 #[derive(Debug, Default, Deserialize, Clone, PartialEq)]
 struct Args(String);
 
+impl Templateable for Args {
+    fn template_with(self, kv: Map<String, TrivialValue>) -> Result<Self, AgentTypeError> {
+        Ok(Args(self.0.template_with(kv)?))
+    }
+}
+
 impl IntoVector<String> for Args {
     fn into_vector(self) -> Vec<String> {
         self.0.split_whitespace().map(|s| s.to_string()).collect()
@@ -295,6 +330,12 @@ impl IntoVector<String> for Args {
 
 #[derive(Debug, Default, Deserialize, Clone, PartialEq)]
 struct Env(String);
+
+impl Templateable for Env {
+    fn template_with(self, kv: Map<String, TrivialValue>) -> Result<Self, AgentTypeError> {
+        Ok(Env(self.0.template_with(kv)?))
+    }
+}
 
 impl IntoVector<(String, String)> for Env {
     fn into_vector(self) -> Vec<(String, String)> {
@@ -318,49 +359,34 @@ trait Templateable {
 
 impl Templateable for Executable {
     fn template_with(self, kv: Map<String, TrivialValue>) -> Result<Executable, AgentTypeError> {
+        Ok(Executable {
+            path: self.path.template_with(kv.clone())?,
+            args: self.args.template_with(kv.clone())?,
+            env: self.env.template_with(kv)?,
+        })
+    }
+}
+
+// The actual std type that has a meaningful implementation of Templateable
+impl Templateable for String {
+    fn template_with(self, kv: Map<String, TrivialValue>) -> Result<String, AgentTypeError> {
         let re = Regex::new(TEMPLATE_RE).unwrap();
-        let mut result = self;
+        let content = &self.clone();
 
-        let path = result.path.clone();
-        let res = re
-            .find_iter(&path)
+        let result = re
+            .find_iter(content)
             .map(|i| i.as_str())
-            .collect::<Vec<&str>>();
-
-        for i in res {
-            let trimmed_s = i
-                .trim_start_matches(TEMPLATE_BEGIN)
-                .trim_end_matches(TEMPLATE_END);
-            if !kv.contains_key(trimmed_s) {
-                return Err(AgentTypeError::MissingTemplateKey(trimmed_s.to_string()));
-            }
-            // if let TrivialValue::String(replacement) = &kv[trimmed_s] {
-            let replacement = &kv[trimmed_s];
-            result.path = re
-                .replace(&result.path, replacement.to_string())
-                .to_string();
-        }
-
-        // Same for args
-        let args = result.args.clone();
-        let res = re
-            .find_iter(&args.0)
-            .map(|i| i.as_str())
-            .collect::<Vec<&str>>();
-
-        for i in res {
-            let trimmed_s = i.trim_start_matches("${").trim_end_matches('}');
-            if !kv.contains_key(trimmed_s) {
-                return Err(AgentTypeError::MissingTemplateKey(trimmed_s.to_string()));
-            }
-            let replacement = &kv[trimmed_s];
-            result.args = Args(
-                re.replace(&result.args.0, replacement.to_string())
-                    .to_string(),
-            );
-        }
-
-        Ok(result)
+            .try_fold(self, |r, i| {
+                let trimmed_s = i
+                    .trim_start_matches(TEMPLATE_BEGIN)
+                    .trim_end_matches(TEMPLATE_END);
+                if !kv.contains_key(trimmed_s) {
+                    return Err(AgentTypeError::MissingTemplateKey(trimmed_s.to_string()));
+                }
+                let replacement = &kv[trimmed_s];
+                Ok(re.replace(&r, replacement.to_string()).to_string())
+            });
+        result
     }
 }
 
@@ -381,39 +407,19 @@ enum Spec {
 type NormalizedSpec = Map<String, EndSpec>;
 
 fn normalize_agent_spec(spec: AgentSpec) -> Result<NormalizedSpec, AgentTypeError> {
-    use SpecType as ST;
-
-    let mut result = Map::new();
-
-    for (k, v) in spec {
+    spec.into_iter().try_fold(Map::new(), |r, (k, v)| {
         let n_spec = inner_normalize(k, v);
-        for (k, v) in n_spec.iter() {
+        n_spec.iter().try_for_each(|(k, v)| {
             if v.default.is_none() && !v.required {
-                return Err(AgentTypeError::MissingDefaultForSpecKey(k.clone()));
+                return Err(AgentTypeError::MissingDefaultWithKey(k.clone()));
             }
-            if let Some(default) = v.default.as_ref() {
-                match default {
-                    TrivialValue::String(_) if v.type_ == ST::String => {}
-                    TrivialValue::Bool(_) if v.type_ == ST::Bool => {}
-                    TrivialValue::Number(_) if v.type_ == ST::Number => {}
-                    TrivialValue::File(_) if v.type_ == ST::File => {}
-                    // TrivialValue::Mapping(_)
-                    //     if (v.type_ == ST::MapStringString
-                    //         || v.type_ == ST::MapStringBool
-                    //         || v.type_ == ST::MapStringNumber) => {}
-                    _ => {
-                        return Err(AgentTypeError::InvalidDefaultForSpec {
-                            key: k.clone(),
-                            type_: v.type_.clone(),
-                        })
-                    }
-                }
+            if let Some(default) = v.default.clone() {
+                default.check_type(v.type_)?;
             }
-        }
-        result.extend(n_spec);
-    }
-
-    Ok(result)
+            Ok(())
+        })?;
+        Ok(r.into_iter().chain(n_spec).collect())
+    })
 }
 
 fn inner_normalize(key: String, spec: Spec) -> NormalizedSpec {
@@ -630,9 +636,12 @@ config: |
     fn test_populate_meta_field() {
         let input_agent_type =
             serde_yaml::from_str::<AgentType>(GIVEN_NEWRELIC_INFRA_YAML).unwrap();
+        println!("Input: {:#?}", input_agent_type);
+
         let input_user_config =
             serde_yaml::from_str::<SupervisorConfig>(GIVEN_NEWRELIC_INFRA_USER_CONFIG_YAML)
                 .unwrap();
+        println!("Input: {:#?}", input_user_config);
 
         let actual = input_agent_type
             .populate(input_user_config)
