@@ -46,14 +46,11 @@ mod tests {
 
     use super::*;
 
-    fn retrive_agent<R>(reader: R) -> super::Agent
+    fn retrieve_agent<R>(reader: R) -> super::Agent
     where
         R: std::io::Read,
     {
-        let raw_agent: crate::config::agent_type::RawAgent =
-            serde_yaml::from_reader(reader).unwrap();
-
-        super::Agent::from(raw_agent)
+        serde_yaml::from_reader(reader).unwrap()
     }
 
     #[test]
@@ -61,7 +58,7 @@ mod tests {
         let mut repository = LocalRepository::new();
 
         assert!(repository
-            .store(retrive_agent(AGENT_GIVEN_YAML.as_bytes()))
+            .store(retrieve_agent(AGENT_GIVEN_YAML.as_bytes()))
             .is_ok());
 
         assert_eq!(repository.get(&"nrdot".to_string()).unwrap().name, "nrdot");
