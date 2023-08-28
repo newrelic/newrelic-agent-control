@@ -5,7 +5,8 @@ use tempfile::NamedTempFile;
 
 use super::agent_type::{AgentType, AgentTypeError, TrivialValue, TEMPLATE_KEY_SEPARATOR};
 
-pub(crate) type SupervisorConfig = Map<String, SupervisorConfigInner>;
+#[derive(Debug, PartialEq, Deserialize)]
+pub(crate) struct SupervisorConfig(Map<String, SupervisorConfigInner>);
 
 #[derive(Debug, PartialEq, Deserialize)]
 #[serde(untagged)]
@@ -16,8 +17,14 @@ pub(crate) enum SupervisorConfigInner {
 
 pub(crate) type NormalizedSupervisorConfig = Map<String, TrivialValue>;
 
-pub(crate) fn normalize_supervisor_config(config: SupervisorConfig) -> NormalizedSupervisorConfig {
-    config.into_iter().fold(Map::new(), |r, (k, v)| {
+impl From<SupervisorConfig> for NormalizedSupervisorConfig {
+    fn from(config: SupervisorConfig) -> Self {
+        normalize_supervisor_config(config)
+    }
+}
+
+fn normalize_supervisor_config(config: SupervisorConfig) -> NormalizedSupervisorConfig {
+    config.0.into_iter().fold(Map::new(), |r, (k, v)| {
         r.into_iter().chain(inner_normalize(k, v)).collect()
     })
 }

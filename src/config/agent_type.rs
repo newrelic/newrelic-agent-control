@@ -8,8 +8,7 @@ use std::{
 use thiserror::Error;
 
 use super::supervisor_config::{
-    normalize_supervisor_config, validate_with_agent_type, NormalizedSupervisorConfig,
-    SupervisorConfig,
+    validate_with_agent_type, NormalizedSupervisorConfig, SupervisorConfig,
 };
 
 const TEMPLATE_RE: &str = r"\$\{([a-zA-Z0-9\.\-_/]+)\}";
@@ -73,7 +72,7 @@ impl AgentType {
     }
 
     fn populate(self, config: SupervisorConfig) -> Result<Self, AgentTypeError> {
-        let normalized_config = normalize_supervisor_config(config);
+        let normalized_config = NormalizedSupervisorConfig::from(config);
         let validated_conf = validate_with_agent_type(normalized_config, &self)?;
 
         let meta = self.meta.template_with(validated_conf.clone())?;
