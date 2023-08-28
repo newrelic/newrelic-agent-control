@@ -49,6 +49,9 @@ impl LocalRepository {
             "/etc/nr-otel-collector/config.yaml",
             "--feature-gates=-pkg.translator.prometheus.NormalizeName",
         ];
+
+        const ARGS_DELIMITER: &str = " ";
+
         LocalRepository(
             HashMap::from([
                 ("nr_otel_collector".to_string(), Agent{
@@ -62,7 +65,7 @@ impl LocalRepository {
                                 OnHost { executables: vec![
                                     Executable{
                                         path: NRDOT_PATH.to_string(),
-                                        args: NRDOT_ARGS.concat(),
+                                        args: NRDOT_ARGS.join(ARGS_DELIMITER),
                                         env: "".to_string(),
                                     }
                                 ]}
@@ -81,7 +84,7 @@ impl LocalRepository {
                                 OnHost { executables: vec![
                                     Executable{
                                         path: NEWRELIC_INFRA_PATH.to_string(),
-                                        args: NRDOT_ARGS.concat(),
+                                        args: NEWRELIC_INFRA_ARGS.join(ARGS_DELIMITER),
                                         env: "".to_string(),
                                     }
                                 ]}
