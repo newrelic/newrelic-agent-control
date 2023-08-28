@@ -69,6 +69,13 @@ Distributed under the following license(s):
 
 
 
+## aquamarine (https://crates.io/crates/aquamarine)
+
+Distributed under the following license(s):
+* MIT
+
+
+
 ## assert_cmd (https://crates.io/crates/assert_cmd)
 
 Distributed under the following license(s):
@@ -380,6 +387,20 @@ Distributed under the following license(s):
 
 
 
+## include_dir (https://crates.io/crates/include_dir)
+
+Distributed under the following license(s):
+* MIT
+
+
+
+## include_dir_macros (https://crates.io/crates/include_dir_macros)
+
+Distributed under the following license(s):
+* MIT
+
+
+
 ## indexmap (https://crates.io/crates/indexmap)
 
 Distributed under the following license(s):
@@ -621,6 +642,22 @@ Distributed under the following license(s):
 
 
 
+## proc-macro-error (https://crates.io/crates/proc-macro-error)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+
+## proc-macro-error-attr (https://crates.io/crates/proc-macro-error-attr)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+
 ## proc-macro2 (https://crates.io/crates/proc-macro2)
 
 Distributed under the following license(s):
@@ -799,6 +836,14 @@ Distributed under the following license(s):
 
 Distributed under the following license(s):
 * MIT
+
+
+
+## syn (https://crates.io/crates/syn)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
 
 
 

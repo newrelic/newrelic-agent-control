@@ -1,7 +1,8 @@
 //! This module contains the definitions of the Supervisor's Agent Type, which is the type of agent that the Supervisor will be running.
 //!
 //! The reasoning behind this is that the Supervisor will be able to run different types of agents, and each type of agent will have its own configuration. Supporting generic agent functionalities, the user can both define its own agent types and provide a config that implement this agent type, and the New Relic Super Agent will spawn a Supervisor which will be able to run it.
-
+//!
+//! See [`Agent::populate`] for a flowchart of the dataflow that ends in the final, enriched structure.
 use regex::Regex;
 use serde::Deserialize;
 use std::{
@@ -104,9 +105,43 @@ impl Agent {
         self.spec.get(&path).cloned()
     }
 
+    #[cfg_attr(doc, aquamarine::aquamarine)]
     /// Populate the [`Meta`] object field of the [`Agent`] type with the user-provided config, which must abide by the agent type's spec.
     ///
     /// This method will return an error if the user-provided config does not conform to the agent type's spec.
+    ///
+    /// The expected overall dataflow ending in `populate`, with the functions involved, is the following:
+    ///
+    /// ```mermaid
+    /// flowchart
+    ///     subgraph main
+    ///     A[User] --> |provides| B["Agent Type (YAML)"]
+    ///     B --> |"parses into (serde)"| C[RawAgent]
+    ///     C --> |"normalize_agent_spec()"| D[Agent]
+    ///     D --> G{"Agent::populate()"}
+    ///     A --> |provides| E["Agent Config (YAML)"]
+    ///     E --> |"parses into (serde)"| F[SupervisorConfig]
+    ///     F --> G{"Agent::populate()"}
+    ///     end
+    ///     subgraph "Agent::populate()"
+    ///     G -.-> H[SupervisorConfig]
+    ///     G -.-> I[Agent]
+    ///     H -->|"::from()"| J[NormalizedSupervisorConfig]
+    ///     J --> K{"validate_with_agent_type()"}
+    ///     I --> K
+    ///     K --> L{{valid and type-checked config with all final values}}
+    ///     end
+    ///     subgraph templating
+    ///     L -->|"::template_with(valid_config)"| M[updated Meta]
+    ///     L --> N[updated Spec]
+    ///     end
+    ///     subgraph "Final Agent Supervisor"
+    ///     M --> O{Agent}
+    ///     N --> O
+    ///     O --> |creates| P[Supervisor]
+    ///     P --> Q(((RUN)))
+    ///     end
+    /// ```
     fn populate(self, config: SupervisorConfig) -> Result<Self, AgentTypeError> {
         let normalized_config = NormalizedSupervisorConfig::from(config);
         let validated_conf = validate_with_agent_type(normalized_config, &self)?;
