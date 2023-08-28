@@ -29,14 +29,6 @@ Distributed under the following license(s):
 
 
 
-## aho-corasick (https://crates.io/crates/aho-corasick)
-
-Distributed under the following license(s):
-* Unlicense
-* MIT
-
-
-
 ## anstream (https://crates.io/crates/anstream)
 
 Distributed under the following license(s):

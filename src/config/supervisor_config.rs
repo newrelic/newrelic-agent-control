@@ -3,7 +3,7 @@ use std::collections::HashMap as Map;
 use std::io::Write;
 use tempfile::NamedTempFile;
 
-use super::agent_type::{AgentType, AgentTypeError, TrivialValue, TEMPLATE_KEY_SEPARATOR};
+use super::agent_type::{Agent, AgentTypeError, TrivialValue, TEMPLATE_KEY_SEPARATOR};
 
 #[derive(Debug, PartialEq, Deserialize)]
 pub(crate) struct SupervisorConfig(Map<String, SupervisorConfigInner>);
@@ -45,7 +45,7 @@ fn inner_normalize(key: String, config: SupervisorConfigInner) -> NormalizedSupe
 
 pub(crate) fn validate_with_agent_type(
     config: NormalizedSupervisorConfig,
-    agent_type: &AgentType,
+    agent_type: &Agent,
 ) -> Result<NormalizedSupervisorConfig, AgentTypeError> {
     // What do we need to do?
     // Check that all the keys in the agent_type are present in the config
@@ -223,7 +223,7 @@ meta:
         let input_structure =
             serde_yaml::from_str::<SupervisorConfig>(EXAMPLE_CONFIG_REPLACE).unwrap();
         let normalized = normalize_supervisor_config(input_structure);
-        let agent_type = serde_yaml::from_str::<AgentType>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
+        let agent_type = serde_yaml::from_str::<Agent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
 
         let expected = Map::from([
             (
@@ -251,7 +251,7 @@ deployment:
         let input_structure =
             serde_yaml::from_str::<SupervisorConfig>(EXAMPLE_CONFIG_REPLACE_NOPATH).unwrap();
         let normalized = normalize_supervisor_config(input_structure);
-        let agent_type = serde_yaml::from_str::<AgentType>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
+        let agent_type = serde_yaml::from_str::<Agent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
 
         let actual = validate_with_agent_type(normalized, &agent_type);
 
@@ -293,7 +293,7 @@ meta:
             serde_yaml::from_str::<SupervisorConfig>(EXAMPLE_CONFIG_REPLACE_NOPATH).unwrap();
         let normalized = normalize_supervisor_config(input_structure);
         let agent_type =
-            serde_yaml::from_str::<AgentType>(EXAMPLE_AGENT_YAML_REPLACE_WITH_DEFAULT).unwrap();
+            serde_yaml::from_str::<Agent>(EXAMPLE_AGENT_YAML_REPLACE_WITH_DEFAULT).unwrap();
 
         let expected = Map::from([
             (

@@ -46,9 +46,11 @@ pub(crate) enum AgentTypeError {
     InvalidDefaultForSpec { key: String, type_: SpecType },
 }
 
+pub(super) type AgentName = String;
+
 #[derive(Debug, Deserialize)]
 struct RawAgent {
-    name: String,
+    name: AgentName,
     namespace: String,
     version: String,
     spec: AgentSpec,
@@ -58,15 +60,15 @@ struct RawAgent {
 
 #[derive(Debug, PartialEq, Clone, Default, Deserialize)]
 #[serde(try_from = "RawAgent")]
-pub(crate) struct AgentType {
-    name: String,
+pub(crate) struct Agent {
+    pub(crate) name: AgentName,
     namespace: String,
     version: String,
     pub(crate) spec: NormalizedSpec,
     meta: Meta,
 }
 
-impl AgentType {
+impl Agent {
     fn get_spec(self, path: String) -> Option<EndSpec> {
         self.spec.get(&path).cloned()
     }
@@ -84,15 +86,15 @@ impl AgentType {
             });
         });
 
-        Ok(AgentType { meta, spec, ..self })
+        Ok(Agent { meta, spec, ..self })
     }
 }
 
-impl TryFrom<RawAgent> for AgentType {
+impl TryFrom<RawAgent> for Agent {
     type Error = AgentTypeError;
 
     fn try_from(raw_agent: RawAgent) -> Result<Self, Self::Error> {
-        Ok(AgentType {
+        Ok(Agent {
             spec: normalize_agent_spec(raw_agent.spec)?,
             name: raw_agent.name,
             namespace: raw_agent.namespace,
@@ -436,14 +438,14 @@ fn inner_normalize(key: String, spec: Spec) -> NormalizedSpec {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use crate::config::supervisor_config::SupervisorConfig;
 
     use super::*;
     use serde_yaml::Error;
     use std::collections::HashMap as Map;
 
-    const GIVEN_YAML: &str = r#"
+    pub(crate) const AGENT_GIVEN_YAML: &str = r#"
 name: nrdot
 namespace: newrelic
 version: 0.1.0
@@ -463,7 +465,7 @@ meta:
           env: ""
 "#;
 
-    const GIVEN_BAD_YAML: &str = r#"
+    const AGENT_GIVEN_BAD_YAML: &str = r#"
 name: nrdot
 namespace: newrelic
 version: 0.1.0
@@ -481,7 +483,7 @@ meta:
 
     #[test]
     fn test_basic_parsing() {
-        let agent: AgentType = serde_yaml::from_str(GIVEN_YAML).unwrap();
+        let agent: Agent = serde_yaml::from_str(AGENT_GIVEN_YAML).unwrap();
 
         assert_eq!("nrdot", agent.name);
         assert_eq!("newrelic", agent.namespace);
@@ -499,7 +501,7 @@ meta:
 
     #[test]
     fn test_bad_parsing() {
-        let raw_agent_err: Result<RawAgent, Error> = serde_yaml::from_str(GIVEN_BAD_YAML);
+        let raw_agent_err: Result<RawAgent, Error> = serde_yaml::from_str(AGENT_GIVEN_BAD_YAML);
 
         assert!(raw_agent_err.is_err());
         assert_eq!(
@@ -512,7 +514,7 @@ meta:
     fn test_normalize_agent_spec() {
         // create AgentSpec
 
-        let given_agent: AgentType = serde_yaml::from_str(GIVEN_YAML).unwrap();
+        let given_agent: Agent = serde_yaml::from_str(AGENT_GIVEN_YAML).unwrap();
 
         let expected_map: Map<String, EndSpec> = Map::from([(
             "description.name".to_string(),
@@ -633,8 +635,7 @@ config: |
 
     #[test]
     fn test_populate_meta_field() {
-        let input_agent_type =
-            serde_yaml::from_str::<AgentType>(GIVEN_NEWRELIC_INFRA_YAML).unwrap();
+        let input_agent_type = serde_yaml::from_str::<Agent>(GIVEN_NEWRELIC_INFRA_YAML).unwrap();
         println!("Input: {:#?}", input_agent_type);
 
         let input_user_config =
