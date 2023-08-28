@@ -10,6 +10,8 @@ use crate::{
         Handle, Runner,
     },
 };
+use crate::config::agent_configs::AgentConfig;
+use crate::config::agent_type::Executable;
 use crate::config::agent_type_registry::AgentRepository;
 
 pub struct SupervisorGroup<S>(HashMap<String, Vec<SupervisorRunner<S>>>);
@@ -84,29 +86,36 @@ impl<R: AgentRepository> From<&SupervisorGroupBuilder<R>> for SupervisorGroup<St
             .map(|(agent_t, agent_cfg)| {
                 let agent = builder.agent_repository.get(agent_t);
                 if let Some(on_host) = &agent.unwrap().meta.deployment.on_host {
-                    let mut runners = Vec::new();
-                    for exec in &on_host.executables {
-                        let runner = SupervisorRunner::from(
-                            &Config::new(
-                                exec.path.clone(),
-                                exec.args.clone(),
-                                exec.env.clone(),
-                                builder.tx.clone(),
-                                agent_cfg.clone().unwrap_or_default()
-                            )
-                        );
-                        runners.push(runner);
+                    if let Some(host_runners) = Self::build_on_host_runners(&builder.tx, agent_t, agent_cfg.clone().unwrap_or_default(), on_host.executables.clone()) {
+                        return host_runners;
                     }
-                    (agent_t.clone(), runners)
-                } else {
-                    (agent_t.clone(), Vec::new())
                 }
+                (agent_t.clone(), Vec::new())
             })
             .collect();
 
         SupervisorGroup(agent_runners)
     }
 
+}
+
+impl SupervisorGroup<Stopped> {
+    fn build_on_host_runners(tx: &Sender<Event>, agent_t: &String, agent_cfg: AgentConfig, execs: Vec<Executable>) -> Option<(String, Vec<SupervisorRunner>)> {
+        let mut runners = Vec::new();
+        for exec in execs {
+            let runner = SupervisorRunner::from(
+                &Config::new(
+                    exec.path.clone(),
+                    exec.args.clone(),
+                    exec.env.clone(),
+                    tx.clone(),
+                    agent_cfg.clone(),
+                )
+            );
+            runners.push(runner);
+        }
+        Some((agent_t.clone(), runners))
+    }
 }
 
 #[cfg(test)]
