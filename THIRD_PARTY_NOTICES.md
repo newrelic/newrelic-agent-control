@@ -364,14 +364,6 @@ Distributed under the following license(s):
 
 
 
-## hermit-abi (https://crates.io/crates/hermit-abi)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
 ## ident_case (https://crates.io/crates/ident_case)
 
 Distributed under the following license(s):
@@ -392,13 +384,6 @@ Distributed under the following license(s):
 
 Distributed under the following license(s):
 * Apache-2.0
-* MIT
-
-
-
-## is-terminal (https://crates.io/crates/is-terminal)
-
-Distributed under the following license(s):
 * MIT
 
 
@@ -803,14 +788,6 @@ Distributed under the following license(s):
 
 
 ## smallvec (https://crates.io/crates/smallvec)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
-## static_assertions (https://crates.io/crates/static_assertions)
 
 Distributed under the following license(s):
 * MIT

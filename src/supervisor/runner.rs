@@ -366,6 +366,6 @@ mod tests {
         let stdout = stream.join().unwrap();
 
         // 1 base execution + 3 retries
-        assert_eq!(4, stdout.iter().count());
+        assert_eq!(4, stdout.len());
     }
 }
