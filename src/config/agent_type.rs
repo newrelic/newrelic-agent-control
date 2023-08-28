@@ -1,5 +1,5 @@
 //! This module contains the definitions of the Supervisor's Agent Type, which is the type of agent that the Supervisor will be running.
-//! 
+//!
 //! The reasoning behind this is that the Supervisor will be able to run different types of agents, and each type of agent will have its own configuration. Supporting generic agent functionalities, the user can both define its own agent types and provide a config that implement this agent type, and the New Relic Super Agent will spawn a Supervisor which will be able to run it.
 
 use regex::Regex;
@@ -16,18 +16,18 @@ use super::supervisor_config::{
 };
 
 /// Regex that extracts the template values from a string.
-/// 
+///
 /// Example:
-/// 
+///
 /// ```
 /// use regex::Regex;
-/// 
-/// const TEMPLATE_RE: &str = r"\$\{([a-zA-Z0-9\.\-_/]+)\}";/// 
+///
+/// const TEMPLATE_RE: &str = r"\$\{([a-zA-Z0-9\.\-_/]+)\}";///
 /// let re = Regex::new(TEMPLATE_RE).unwrap();
 /// let content = "Hello ${name.value}!";
-/// 
+///
 /// let result = re.find_iter(content).map(|i| i.as_str()).collect::<Vec<_>>();
-/// 
+///
 /// assert_eq!(result, vec!["${name.value}"]);
 const TEMPLATE_RE: &str = r"\$\{([a-zA-Z0-9\.\-_/]+)\}";
 const TEMPLATE_BEGIN: &str = "${";
@@ -198,7 +198,7 @@ pub(crate) struct FilePathWithContent {
 
 impl FilePathWithContent {
     /// Create a new `FilePathWithContent` object with the given content. The path will be empty.
-    /// 
+    ///
     /// Note that this method won't create a file anywhere in the filesystem. Only when the file is created will the [`path`] field be populated.
     pub(crate) fn new(content: String) -> Self {
         FilePathWithContent {
@@ -233,7 +233,7 @@ impl Display for N {
 type RawAgentSpec = Map<String, Spec>;
 
 /// The end node of the [`RawAgentSpec`] tree, which contains the actual value definition.
-/// 
+///
 /// An object of this type is created from an [`RawEndSpec`] object, which is the result of parsing the YAML file.
 #[derive(Debug, PartialEq, Clone, Deserialize)]
 #[serde(try_from = "RawEndSpec")]
@@ -280,7 +280,7 @@ impl TryFrom<RawEndSpec> for EndSpec {
     type Error = AgentTypeError;
 
     /// Convert a [`RawEndSpec`] into an [`EndSpec`].
-    /// 
+    ///
     /// This conversion will fail if there is no default value and the spec is not marked as [`required`], as there will be no value to use. Also, the type for the provided default value will be checked against the [`SpecType`], failing if it does not match.
     fn try_from(ies: RawEndSpec) -> Result<Self, Self::Error> {
         if ies.default.is_none() && !ies.required {
@@ -297,7 +297,7 @@ impl TryFrom<RawEndSpec> for EndSpec {
 }
 
 /// Strict structure that describes how to start a given agent with all needed binaries, arguments, env, etc.
-/// 
+///
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 struct Meta {
     /// Deployment definition for the supervisor.
@@ -348,9 +348,8 @@ impl Templateable for Deployment {
     }
 }
 
-
 /// The definition for an on-host supervisor.
-/// 
+///
 /// It contains the instructions of what are the agent binaries, command-line arguments, what are the environment variables passed to it, restart.
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 struct OnHost {
@@ -472,9 +471,9 @@ enum Spec {
 }
 
 /// The normalized version of the [`RawAgentSpec`] tree.
-/// 
+///
 /// Example of the end node in the tree:
-/// 
+///
 /// ```yaml
 /// name:
 ///   description: "Name of the agent"
@@ -482,7 +481,7 @@ enum Spec {
 ///   required: false
 ///   default: nrdot
 /// ```
-/// 
+///
 /// The path to the end node is converted to the string with `.` as a join symbol.
 ///
 /// ```yaml
@@ -495,7 +494,7 @@ enum Spec {
 ///         required: false
 ///         default: info
 /// ```
-/// 
+///
 /// Will be converted to `system.logging.level` and can be used later in the AgentType_Meta part as `${system.logging.level}`.
 type NormalizedSpec = Map<String, EndSpec>;
 

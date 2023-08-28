@@ -23,7 +23,7 @@ use super::agent_type::{Agent, AgentTypeError, TrivialValue, TEMPLATE_KEY_SEPARA
 /// name: nrdot
 /// namespace: newrelic
 /// version: 0.1.0
-/// 
+///
 /// spec:
 ///  system:
 ///   logging:
@@ -31,7 +31,7 @@ use super::agent_type::{Agent, AgentTypeError, TrivialValue, TEMPLATE_KEY_SEPARA
 ///      description: "Logging level"
 ///      type: string
 ///      required: true
-/// 
+///
 /// meta:
 ///   deployment:
 ///     on_host:
@@ -45,12 +45,12 @@ use super::agent_type::{Agent, AgentTypeError, TrivialValue, TEMPLATE_KEY_SEPARA
 /// ```
 ///
 /// Will produce the following end result:
-/// 
+///
 /// ```yaml
 /// name: nrdot
 /// namespace: newrelic
 /// version: 0.1.0
-/// 
+///
 /// spec:
 ///   system:
 ///     logging:
@@ -72,9 +72,9 @@ use super::agent_type::{Agent, AgentTypeError, TrivialValue, TEMPLATE_KEY_SEPARA
 ///       health:
 ///         strategy: process
 /// ```
-/// 
+///
 /// Please see the tests in the sources for more examples.
-/// 
+///
 /// [agent_type]: crate::config::agent_type
 #[derive(Debug, PartialEq, Deserialize)]
 pub(crate) struct SupervisorConfig(Map<String, SupervisorConfigInner>);
