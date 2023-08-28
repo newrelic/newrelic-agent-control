@@ -5,6 +5,77 @@ use tempfile::NamedTempFile;
 
 use super::agent_type::{Agent, AgentTypeError, TrivialValue, TEMPLATE_KEY_SEPARATOR};
 
+/// User-provided config.
+///
+/// User-provided configuration (normally via a YAML file) that must follow the tree-like structure of [`Agent`]'s [`NormalizedSpec`] and will be used to populate the [`Agent`]'s [ `Meta`] field to totally define a deployable supervisor.
+///
+/// The below example in YAML format:
+///
+/// ```yaml
+/// system:
+///  logging:
+///    level: debug
+/// ```
+///
+/// Coupled with a specification like this:
+///
+/// ```yaml
+/// name: nrdot
+/// namespace: newrelic
+/// version: 0.1.0
+/// 
+/// spec:
+///  system:
+///   logging:
+///     level:
+///      description: "Logging level"
+///      type: string
+///      required: true
+/// 
+/// meta:
+///   deployment:
+///     on_host:
+///       executables:
+///         - path: "/etc/otelcol"
+///           args: "--log-level debug"
+///       # the health of nrdot is determined by whether the agent process
+///       # is up and alive
+///       health:
+///         strategy: process
+/// ```
+///
+/// Will produce the following end result:
+/// 
+/// ```yaml
+/// name: nrdot
+/// namespace: newrelic
+/// version: 0.1.0
+/// 
+/// spec:
+///   system:
+///     logging:
+///       level:
+///         description: "Logging level"
+///         type: string
+///         required: true
+///         default:
+///         final_value: debug
+///
+/// meta:
+///   deployment:
+///     on_host:
+///       executables:
+///         - path: "/etc/otelcol"
+///           args: "--log-level debug"
+///       # the health of nrdot is determined by whether the agent process
+///       # is up and alive
+///       health:
+///         strategy: process
+/// ```
+/// 
+/// Please see the tests in the sources for more examples.
+/// 
+/// [agent_type]: crate::config::agent_type
 #[derive(Debug, PartialEq, Deserialize)]
 pub(crate) struct SupervisorConfig(Map<String, SupervisorConfigInner>);
 

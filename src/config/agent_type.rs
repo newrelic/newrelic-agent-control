@@ -1,3 +1,7 @@
+//! This module contains the definitions of the Supervisor's Agent Type, which is the type of agent that the Supervisor will be running.
+//! 
+//! The reasoning behind this is that the Supervisor will be able to run different types of agents, and each type of agent will have its own configuration. Supporting generic agent functionalities, the user can both define its own agent types and provide a config that implement this agent type, and the New Relic Super Agent will spawn a Supervisor which will be able to run it.
+
 use regex::Regex;
 use serde::Deserialize;
 use std::{
@@ -11,11 +15,26 @@ use super::supervisor_config::{
     validate_with_agent_type, NormalizedSupervisorConfig, SupervisorConfig,
 };
 
+/// Regex that extracts the template values from a string.
+/// 
+/// Example:
+/// 
+/// ```
+/// use regex::Regex;
+/// 
+/// const TEMPLATE_RE: &str = r"\$\{([a-zA-Z0-9\.\-_/]+)\}";/// 
+/// let re = Regex::new(TEMPLATE_RE).unwrap();
+/// let content = "Hello ${name.value}!";
+/// 
+/// let result = re.find_iter(content).map(|i| i.as_str()).collect::<Vec<_>>();
+/// 
+/// assert_eq!(result, vec!["${name.value}"]);
 const TEMPLATE_RE: &str = r"\$\{([a-zA-Z0-9\.\-_/]+)\}";
 const TEMPLATE_BEGIN: &str = "${";
 const TEMPLATE_END: char = '}';
 pub(crate) const TEMPLATE_KEY_SEPARATOR: &str = ".";
 
+/// The different error types to be returned by operations of the [`Agent`] type.
 #[derive(Error, Debug)]
 pub(crate) enum AgentTypeError {
     #[error("`{0}`")]
@@ -48,31 +67,46 @@ pub(crate) enum AgentTypeError {
 
 pub(super) type AgentName = String;
 
+/// Represents the raw agent type as it is parsed from the YAML file.
 #[derive(Debug, Deserialize)]
 struct RawAgent {
     name: AgentName,
     namespace: String,
     version: String,
-    spec: AgentSpec,
+    spec: RawAgentSpec,
     #[serde(default)]
     meta: Meta,
 }
 
+/// Configuration of the Agent Type, contains identification metadata, a set of variables that can be adjusted, and rules of how to start given agent binaries.
+///
+/// This is the final representation of the agent type once it has been parsed (first into a [`RawAgent`]) having the spec field normalized.
+///
+/// See also [`RawAgent`] and its [`Agent::try_from`] implementation.
 #[derive(Debug, PartialEq, Clone, Default, Deserialize)]
 #[serde(try_from = "RawAgent")]
 pub(crate) struct Agent {
+    /// Agent name
     pub(crate) name: AgentName,
+    /// Agent type namespace
     namespace: String,
+    /// Type version
     version: String,
+    /// Normalized agent specification
     pub(crate) spec: NormalizedSpec,
+    /// Strict structure that describes how to start a given agent with all needed binaries, arguments, env, etc.
     meta: Meta,
 }
 
 impl Agent {
+    /// Retrieve the `spec` field of the agent type at the specified key, if any.
     fn get_spec(self, path: String) -> Option<EndSpec> {
         self.spec.get(&path).cloned()
     }
 
+    /// Populate the [`Meta`] object field of the [`Agent`] type with the user-provided config, which must abide by the agent type's spec.
+    ///
+    /// This method will return an error if the user-provided config does not conform to the agent type's spec.
     fn populate(self, config: SupervisorConfig) -> Result<Self, AgentTypeError> {
         let normalized_config = NormalizedSupervisorConfig::from(config);
         let validated_conf = validate_with_agent_type(normalized_config, &self)?;
@@ -93,6 +127,9 @@ impl Agent {
 impl TryFrom<RawAgent> for Agent {
     type Error = AgentTypeError;
 
+    /// Convert a [`RawAgent`] into an [`Agent`].
+    ///
+    /// This is where the `spec` field of the [`RawAgent`] is normalized into a [`NormalizedSpec`].
     fn try_from(raw_agent: RawAgent) -> Result<Self, Self::Error> {
         Ok(Agent {
             spec: normalize_agent_spec(raw_agent.spec)?,
@@ -104,17 +141,25 @@ impl TryFrom<RawAgent> for Agent {
     }
 }
 
+/// Represents all the allowed types for a configuration defined in the spec value.
 #[derive(Debug, PartialEq, Clone, Deserialize)]
 #[serde(untagged)]
 pub(crate) enum TrivialValue {
+    /// A string value
     String(String),
+    /// A file, which contain both the path and its content. See [`FilePathWithContent`] for more details.
     #[serde(skip)]
     File(FilePathWithContent),
+    /// A boolean value
     Bool(bool),
+    /// A numeric value. See [`N`] for more details.
     Number(N),
 }
 
 impl TrivialValue {
+    /// Checks the `TrivialValue` against the given [`SpecType`], erroring if they do not match.
+    ///
+    /// This is also in charge of converting a `TrivialValue::String` into a `TrivialValue::File`, using the actual string as the file content, if the given [`SpecType`] is `SpecType::File`.
     pub(crate) fn check_type(self, type_: SpecType) -> Result<Self, AgentTypeError> {
         match (self.clone(), type_) {
             (TrivialValue::String(_), SpecType::String)
@@ -142,6 +187,7 @@ impl Display for TrivialValue {
     }
 }
 
+/// Represents a file path and its content.
 #[derive(Debug, PartialEq, Default, Clone, Deserialize)]
 pub(crate) struct FilePathWithContent {
     #[serde(skip)]
@@ -151,6 +197,9 @@ pub(crate) struct FilePathWithContent {
 }
 
 impl FilePathWithContent {
+    /// Create a new `FilePathWithContent` object with the given content. The path will be empty.
+    /// 
+    /// Note that this method won't create a file anywhere in the filesystem. Only when the file is created will the [`path`] field be populated.
     pub(crate) fn new(content: String) -> Self {
         FilePathWithContent {
             content,
@@ -159,6 +208,7 @@ impl FilePathWithContent {
     }
 }
 
+/// Represents a numeric value, which can be either a positive integer, a negative integer or a float.
 #[derive(Debug, PartialEq, Clone, Deserialize)]
 #[serde(untagged)]
 pub(crate) enum N {
@@ -179,20 +229,26 @@ impl Display for N {
     }
 }
 
-type AgentSpec = Map<String, Spec>;
+/// Flexible tree-like structure that contains variables definitions, that can later be changed by the end user via [`SupervisorConfig`].
+type RawAgentSpec = Map<String, Spec>;
 
+/// The end node of the [`RawAgentSpec`] tree, which contains the actual value definition.
+/// 
+/// An object of this type is created from an [`RawEndSpec`] object, which is the result of parsing the YAML file.
 #[derive(Debug, PartialEq, Clone, Deserialize)]
-#[serde(try_from = "IntermediateEndSpec")]
+#[serde(try_from = "RawEndSpec")]
 pub(crate) struct EndSpec {
     description: String,
     #[serde(rename = "type")]
     pub(crate) type_: SpecType,
     pub(crate) required: bool,
     pub(crate) default: Option<TrivialValue>,
+    /// The actual value that will be used by the agent. This will be either the user-provided value or, if not provided and not marked as [`required`], the default value.
     #[serde(skip)]
     pub(crate) final_value: Option<TrivialValue>,
 }
 
+/// Types supported as possible config values
 #[derive(Debug, PartialEq, Clone, Copy, Deserialize)]
 pub(crate) enum SpecType {
     #[serde(rename = "string")]
@@ -212,7 +268,7 @@ pub(crate) enum SpecType {
 }
 
 #[derive(Debug, Deserialize)]
-struct IntermediateEndSpec {
+struct RawEndSpec {
     description: String,
     #[serde(rename = "type")]
     type_: SpecType,
@@ -220,10 +276,13 @@ struct IntermediateEndSpec {
     default: Option<TrivialValue>,
 }
 
-impl TryFrom<IntermediateEndSpec> for EndSpec {
+impl TryFrom<RawEndSpec> for EndSpec {
     type Error = AgentTypeError;
 
-    fn try_from(ies: IntermediateEndSpec) -> Result<Self, Self::Error> {
+    /// Convert a [`RawEndSpec`] into an [`EndSpec`].
+    /// 
+    /// This conversion will fail if there is no default value and the spec is not marked as [`required`], as there will be no value to use. Also, the type for the provided default value will be checked against the [`SpecType`], failing if it does not match.
+    fn try_from(ies: RawEndSpec) -> Result<Self, Self::Error> {
         if ies.default.is_none() && !ies.required {
             return Err(AgentTypeError::MissingDefault);
         }
@@ -237,8 +296,11 @@ impl TryFrom<IntermediateEndSpec> for EndSpec {
     }
 }
 
+/// Strict structure that describes how to start a given agent with all needed binaries, arguments, env, etc.
+/// 
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 struct Meta {
+    /// Deployment definition for the supervisor.
     deployment: Deployment,
 }
 
@@ -286,6 +348,10 @@ impl Templateable for Deployment {
     }
 }
 
+
+/// The definition for an on-host supervisor.
+/// 
+/// It contains the instructions of what are the agent binaries, command-line arguments, what are the environment variables passed to it, restart.
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 struct OnHost {
     executables: Vec<Executable>,
@@ -405,9 +471,35 @@ enum Spec {
     SpecMapping(Map<String, Spec>),
 }
 
+/// The normalized version of the [`RawAgentSpec`] tree.
+/// 
+/// Example of the end node in the tree:
+/// 
+/// ```yaml
+/// name:
+///   description: "Name of the agent"
+///   type: string
+///   required: false
+///   default: nrdot
+/// ```
+/// 
+/// The path to the end node is converted to the string with `.` as a join symbol.
+///
+/// ```yaml
+/// spec:
+///   system:
+///     logging:
+///       level:
+///         description: "Logging level"
+///         type: string
+///         required: false
+///         default: info
+/// ```
+/// 
+/// Will be converted to `system.logging.level` and can be used later in the AgentType_Meta part as `${system.logging.level}`.
 type NormalizedSpec = Map<String, EndSpec>;
 
-fn normalize_agent_spec(spec: AgentSpec) -> Result<NormalizedSpec, AgentTypeError> {
+fn normalize_agent_spec(spec: RawAgentSpec) -> Result<NormalizedSpec, AgentTypeError> {
     spec.into_iter().try_fold(Map::new(), |r, (k, v)| {
         let n_spec = inner_normalize(k, v);
         n_spec.iter().try_for_each(|(k, v)| {
@@ -512,7 +604,7 @@ meta:
 
     #[test]
     fn test_normalize_agent_spec() {
-        // create AgentSpec
+        // create RawAgentSpec
 
         let given_agent: Agent = serde_yaml::from_str(AGENT_GIVEN_YAML).unwrap();
 
