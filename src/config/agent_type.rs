@@ -22,7 +22,7 @@ use super::supervisor_config::{
 /// ```
 /// use regex::Regex;
 ///
-/// const TEMPLATE_RE: &str = r"\$\{([a-zA-Z0-9\.\-_/]+)\}";///
+/// const TEMPLATE_RE: &str = r"\$\{([a-zA-Z0-9\.\-_/]+)\}";
 /// let re = Regex::new(TEMPLATE_RE).unwrap();
 /// let content = "Hello ${name.value}!";
 ///
