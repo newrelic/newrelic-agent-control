@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use thiserror::Error;
 
-use super::agent_type::{Agent, AgentName};
+use super::agent_type::Agent;
 
 #[derive(Error, Debug)]
 pub enum AgentRepositoryError {
@@ -13,30 +13,38 @@ pub enum AgentRepositoryError {
 }
 
 /// AgentRegistry stores and loads Agent types.
-trait AgentRepository {
+pub trait AgentRepository {
     // get returns an Agent type given a definition.
-    fn get(&self, name: &AgentName) -> Result<&Agent, AgentRepositoryError>;
+    fn get(&self, name: &str) -> Result<&Agent, AgentRepositoryError>;
 
     // stores a given Agent type.
-    fn store(&mut self, agent: Agent) -> Result<(), AgentRepositoryError>;
+    fn store_from_yaml(&mut self, agent_bytes: &[u8]) -> Result<(), AgentRepositoryError>;
+
+    fn store_with_key(&mut self, key: String, agent: Agent) -> Result<(), AgentRepositoryError>;
 }
 
-struct LocalRepository(HashMap<String, Agent>);
+#[derive(Debug, Default, Clone)]
+pub struct LocalRepository(HashMap<String, Agent>);
 
 impl AgentRepository for LocalRepository {
-    fn get(&self, name: &AgentName) -> Result<&Agent, AgentRepositoryError> {
+    fn get(&self, name: &str) -> Result<&Agent, AgentRepositoryError> {
         self.0.get(name).ok_or(AgentRepositoryError::NotFound)
     }
 
-    fn store(&mut self, agent: Agent) -> Result<(), AgentRepositoryError> {
-        self.0.insert(agent.name.clone(), agent);
+    fn store_from_yaml(&mut self, agent_bytes: &[u8]) -> Result<(), AgentRepositoryError> {
+        let agent: Agent = serde_yaml::from_reader(agent_bytes).unwrap();
+        self.0.insert(agent.metadata.to_string(), agent);
         Ok(())
+    }
+
+    fn store_with_key(&mut self, key: String, agent: Agent) -> Result<(), AgentRepositoryError> {
+        Ok(_ = self.0.insert(key, agent))
     }
 }
 
 impl LocalRepository {
-    pub(crate) fn new() -> Self {
-        LocalRepository(HashMap::new())
+    pub fn new() -> Self {
+        LocalRepository::default()
     }
 }
 
@@ -58,10 +66,17 @@ mod tests {
         let mut repository = LocalRepository::new();
 
         assert!(repository
-            .store(retrieve_agent(AGENT_GIVEN_YAML.as_bytes()))
+            .store_from_yaml(AGENT_GIVEN_YAML.as_bytes())
             .is_ok());
 
-        assert_eq!(repository.get(&"nrdot".to_string()).unwrap().name, "nrdot");
+        assert_eq!(
+            repository
+                .get(&"newrelic/nrdot:0.1.0".to_string())
+                .unwrap()
+                .metadata
+                .to_string(),
+            "newrelic/nrdot:0.1.0"
+        );
 
         let invalid_lookup = repository.get(&"not_an_agent".to_string());
         assert!(invalid_lookup.is_err());

@@ -22,6 +22,7 @@ serde_with = "3.3.0"
 serde_yaml = "0.9.25"
 regex = "1.9.3"
 tempfile = "3.8.0"
+uuid = { version = "1.4.1", features = ["v4"] }
 
 [dev-dependencies]
 assert_cmd = "2.0.12"
