@@ -65,8 +65,8 @@ impl LocalRepository {
                                 OnHost { executables: vec![
                                     Executable{
                                         path: NRDOT_PATH.to_string(),
-                                        args: NRDOT_ARGS.join(ARGS_DELIMITER),
-                                        env: "".to_string(),
+                                        args: Vec::default(),
+                                        env: HashMap::default(),
                                     }
                                 ]}
                             )
@@ -84,8 +84,8 @@ impl LocalRepository {
                                 OnHost { executables: vec![
                                     Executable{
                                         path: NEWRELIC_INFRA_PATH.to_string(),
-                                        args: NEWRELIC_INFRA_ARGS.join(ARGS_DELIMITER),
-                                        env: "".to_string(),
+                                        args: Vec::default(),
+                                        env: HashMap::default(),
                                     }
                                 ]}
                             )

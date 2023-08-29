@@ -7,6 +7,7 @@ use std::{
     sync::{Arc, Mutex},
     thread::{self, JoinHandle},
 };
+use std::collections::HashMap;
 
 use crate::command::error::CommandError;
 use crate::command::processrunner::Unstarted;
@@ -30,7 +31,7 @@ use tracing::{error, info};
 pub struct Stopped {
     bin: String,
     args: Vec<String>,
-    env: Vec<String>,
+    env: HashMap<String, String>,
     ctx: Context<bool>,
     snd: Sender<Event>,
     restart: RestartPolicy,
@@ -83,7 +84,7 @@ impl Runner for SupervisorRunner<Stopped> {
 
 impl From<&SupervisorRunner<Stopped>> for ProcessRunner {
     fn from(value: &SupervisorRunner<Stopped>) -> Self {
-        ProcessRunner::new(&value.bin, &value.args)
+        ProcessRunner::new(&value.bin, &value.args, &value.env)
     }
 }
 
@@ -220,7 +221,7 @@ impl Handle for SupervisorRunner<Running> {
 }
 
 impl SupervisorRunner<Stopped> {
-    pub fn new(ctx: Context<bool>, bin: String, args: Vec<String>, env: Vec<String>, snd: Sender<Event>) -> Self {
+    pub fn new(ctx: Context<bool>, bin: String, args: Vec<String>, env: HashMap<String, String>, snd: Sender<Event>) -> Self {
         SupervisorRunner {
             state: Stopped {
                 ctx,
@@ -246,6 +247,7 @@ impl SupervisorRunner<Stopped> {
 
 #[cfg(test)]
 pub(crate) mod sleep_supervisor_tests {
+    use std::collections::HashMap;
     use std::sync::mpsc::Sender;
 
     use crate::{command::stream::Event, context::Context};
@@ -260,7 +262,7 @@ pub(crate) mod sleep_supervisor_tests {
             Context::new(),
             "sh".to_owned(),
             vec!["-c".to_string(), format!("sleep {}", seconds)],
-            Vec::new(),
+            HashMap::new(),
             tx.clone(),
         )
     }
@@ -286,7 +288,7 @@ mod tests {
             Context::new(),
             "wrong-command".to_owned(),
             vec!["x".to_owned()],
-            Vec::new(),
+            HashMap::new(),
             tx,
         )
         .with_restart_policy(vec![0], BackoffStrategy::Fixed(backoff));
@@ -314,7 +316,7 @@ mod tests {
             Context::new(),
             "wrong-command".to_owned(),
             vec!["x".to_owned()],
-            Vec::new(),
+            HashMap::new(),
             tx,
         )
         .with_restart_policy(vec![0], BackoffStrategy::Fixed(backoff));
@@ -342,7 +344,7 @@ mod tests {
             Context::new(),
             "echo".to_owned(),
             vec!["hello!".to_owned()],
-            Vec::new(),
+            HashMap::new(),
             tx,
         )
         .with_restart_policy(vec![0], BackoffStrategy::Fixed(backoff));

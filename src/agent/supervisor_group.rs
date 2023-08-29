@@ -86,9 +86,12 @@ impl<R: AgentRepository> From<&SupervisorGroupBuilder<R>> for SupervisorGroup<St
             .map(|(agent_t, agent_cfg)| {
                 let agent = builder.agent_repository.get(agent_t);
                 if let Some(on_host) = &agent.unwrap().meta.deployment.on_host {
-                    if let Some(host_runners) = Self::build_on_host_runners(&builder.tx, agent_t, agent_cfg.clone().unwrap_or_default(), on_host.executables.clone()) {
-                        return host_runners;
-                    }
+                    return Self::build_on_host_runners(
+                        &builder.tx,
+                        agent_t,
+                        agent_cfg.clone().unwrap_or_default(),
+                        on_host.executables.clone()
+                    );
                 }
                 (agent_t.clone(), Vec::new())
             })
@@ -100,7 +103,12 @@ impl<R: AgentRepository> From<&SupervisorGroupBuilder<R>> for SupervisorGroup<St
 }
 
 impl SupervisorGroup<Stopped> {
-    fn build_on_host_runners(tx: &Sender<Event>, agent_t: &String, agent_cfg: AgentConfig, execs: Vec<Executable>) -> Option<(String, Vec<SupervisorRunner>)> {
+    fn build_on_host_runners(
+        tx: &Sender<Event>,
+        agent_t: &String,
+        agent_cfg: AgentConfig,
+        execs: Vec<Executable>,
+    ) -> (String, Vec<SupervisorRunner>) {
         let mut runners = Vec::new();
         for exec in execs {
             let runner = SupervisorRunner::from(
@@ -114,7 +122,7 @@ impl SupervisorGroup<Stopped> {
             );
             runners.push(runner);
         }
-        Some((agent_t.clone(), runners))
+        (agent_t.clone(), runners)
     }
 }
 
@@ -124,13 +132,17 @@ pub(crate) mod tests {
 
     use crate::{
         command::stream::Event,
-        config::agent_type_registry::AgentRepository,
         supervisor::runner::{
             sleep_supervisor_tests::new_sleep_supervisor, Stopped, SupervisorRunner,
         },
     };
+    use crate::config::agent_configs::SuperAgentConfig;
+    use crate::config::agent_type_registry::LocalRepository;
 
-    use super::SupervisorGroup;
+    use super::{
+        SupervisorGroup,
+        SupervisorGroupBuilder
+    };
 
     // new_sleep_supervisor_group returns a stopped supervisor group with 2 runners with
     // generic agents one with one exec and the other with 2
@@ -149,5 +161,32 @@ pub(crate) mod tests {
             ),
         ]);
         SupervisorGroup(group)
+    }
+
+    #[test]
+    fn new_supervisor_group_from()  {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let agent_config = SuperAgentConfig {
+            agents: [
+                ("nr_infra_agent".to_string(), None),
+                ("nr_otel_collector".to_string(), None),
+            ]
+                .iter()
+                .cloned()
+                .collect(),
+        };
+
+        let builder = SupervisorGroupBuilder {
+            tx,
+            cfg: agent_config.clone(),
+            agent_repository: LocalRepository::new(),
+        };
+
+        let supervisor_group = SupervisorGroup::from(&builder);
+        assert_eq!(
+            supervisor_group.0.iter().count(),
+            2
+        )
+
     }
 }
