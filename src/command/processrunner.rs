@@ -27,13 +27,18 @@ pub struct ProcessRunner<State = Unstarted> {
 }
 
 impl ProcessRunner {
-    pub fn new<I, S>(binary_path: S, args: I) -> Self
+    pub fn new<I, E, K, S>(binary_path: S, args: I, envs: E) -> Self
     where
         I: IntoIterator<Item = S>,
+        E: IntoIterator<Item = (K, S)>,
+        K: AsRef<OsStr>,
         S: AsRef<OsStr>,
     {
         let mut cmd = Command::new(binary_path);
-        cmd.args(args).stdout(Stdio::piped()).stderr(Stdio::piped());
+        cmd.args(args)
+            .envs(envs)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
 
         Self {
             state: Unstarted { cmd },

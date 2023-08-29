@@ -1,11 +1,15 @@
 use regex::Regex;
 use serde::Deserialize;
+use serde_with::serde_as;
 use std::{
     collections::HashMap as Map,
     fmt::{Display, Formatter},
     io,
+    time::Duration,
 };
 use thiserror::Error;
+
+use crate::supervisor::restart::{Backoff, BackoffStrategy};
 
 use super::supervisor_config::{
     validate_with_agent_type, NormalizedSupervisorConfig, SupervisorConfig,
@@ -14,10 +18,10 @@ use super::supervisor_config::{
 const TEMPLATE_RE: &str = r"\$\{([a-zA-Z0-9\.\-_/]+)\}";
 const TEMPLATE_BEGIN: &str = "${";
 const TEMPLATE_END: char = '}';
-pub(crate) const TEMPLATE_KEY_SEPARATOR: &str = ".";
+pub const TEMPLATE_KEY_SEPARATOR: &str = ".";
 
 #[derive(Error, Debug)]
-pub(crate) enum AgentTypeError {
+pub enum AgentTypeError {
     #[error("`{0}`")]
     SerdeYaml(#[from] serde_yaml::Error),
     #[error("Missing required key in config: `{0}`")]
@@ -50,30 +54,41 @@ pub(super) type AgentName = String;
 
 #[derive(Debug, Deserialize)]
 struct RawAgent {
-    name: AgentName,
-    namespace: String,
-    version: String,
+    #[serde(flatten)]
+    metadata: AgentMetadata,
     spec: AgentSpec,
     #[serde(default)]
     meta: Meta,
 }
 
-#[derive(Debug, PartialEq, Clone, Default, Deserialize)]
-#[serde(try_from = "RawAgent")]
-pub(crate) struct Agent {
-    pub(crate) name: AgentName,
+#[derive(Debug, Deserialize, PartialEq, Clone, Default)]
+pub struct AgentMetadata {
+    pub name: AgentName,
     namespace: String,
     version: String,
-    pub(crate) spec: NormalizedSpec,
-    meta: Meta,
+}
+
+impl Display for AgentMetadata {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}/{}:{}", self.namespace, self.name, self.version)
+    }
+}
+
+#[derive(Debug, PartialEq, Clone, Default, Deserialize)]
+#[serde(try_from = "RawAgent")]
+pub struct Agent {
+    #[serde(flatten)]
+    pub metadata: AgentMetadata,
+    pub spec: NormalizedSpec,
+    pub meta: Meta,
 }
 
 impl Agent {
-    fn get_spec(self, path: String) -> Option<EndSpec> {
+    pub fn get_spec(self, path: String) -> Option<EndSpec> {
         self.spec.get(&path).cloned()
     }
 
-    fn populate(self, config: SupervisorConfig) -> Result<Self, AgentTypeError> {
+    pub fn populate(self, config: SupervisorConfig) -> Result<Self, AgentTypeError> {
         let normalized_config = NormalizedSupervisorConfig::from(config);
         let validated_conf = validate_with_agent_type(normalized_config, &self)?;
 
@@ -96,9 +111,7 @@ impl TryFrom<RawAgent> for Agent {
     fn try_from(raw_agent: RawAgent) -> Result<Self, Self::Error> {
         Ok(Agent {
             spec: normalize_agent_spec(raw_agent.spec)?,
-            name: raw_agent.name,
-            namespace: raw_agent.namespace,
-            version: raw_agent.version,
+            metadata: raw_agent.metadata,
             meta: raw_agent.meta,
         })
     }
@@ -106,7 +119,7 @@ impl TryFrom<RawAgent> for Agent {
 
 #[derive(Debug, PartialEq, Clone, Deserialize)]
 #[serde(untagged)]
-pub(crate) enum TrivialValue {
+pub enum TrivialValue {
     String(String),
     #[serde(skip)]
     File(FilePathWithContent),
@@ -115,7 +128,7 @@ pub(crate) enum TrivialValue {
 }
 
 impl TrivialValue {
-    pub(crate) fn check_type(self, type_: SpecType) -> Result<Self, AgentTypeError> {
+    pub fn check_type(self, type_: SpecType) -> Result<Self, AgentTypeError> {
         match (self.clone(), type_) {
             (TrivialValue::String(_), SpecType::String)
             | (TrivialValue::Bool(_), SpecType::Bool)
@@ -143,15 +156,15 @@ impl Display for TrivialValue {
 }
 
 #[derive(Debug, PartialEq, Default, Clone, Deserialize)]
-pub(crate) struct FilePathWithContent {
+pub struct FilePathWithContent {
     #[serde(skip)]
-    pub(crate) path: String,
+    pub path: String,
     #[serde(flatten)]
-    pub(crate) content: String,
+    pub content: String,
 }
 
 impl FilePathWithContent {
-    pub(crate) fn new(content: String) -> Self {
+    pub fn new(content: String) -> Self {
         FilePathWithContent {
             content,
             ..Default::default()
@@ -161,7 +174,7 @@ impl FilePathWithContent {
 
 #[derive(Debug, PartialEq, Clone, Deserialize)]
 #[serde(untagged)]
-pub(crate) enum N {
+pub enum N {
     PosInt(u64),
     /// Always less than zero.
     NegInt(i64),
@@ -183,18 +196,18 @@ type AgentSpec = Map<String, Spec>;
 
 #[derive(Debug, PartialEq, Clone, Deserialize)]
 #[serde(try_from = "IntermediateEndSpec")]
-pub(crate) struct EndSpec {
+pub struct EndSpec {
     description: String,
     #[serde(rename = "type")]
-    pub(crate) type_: SpecType,
-    pub(crate) required: bool,
-    pub(crate) default: Option<TrivialValue>,
+    pub type_: SpecType,
+    pub required: bool,
+    pub default: Option<TrivialValue>,
     #[serde(skip)]
-    pub(crate) final_value: Option<TrivialValue>,
+    pub final_value: Option<TrivialValue>,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy, Deserialize)]
-pub(crate) enum SpecType {
+pub enum SpecType {
     #[serde(rename = "string")]
     String,
     #[serde(rename = "bool")]
@@ -238,8 +251,8 @@ impl TryFrom<IntermediateEndSpec> for EndSpec {
 }
 
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
-struct Meta {
-    deployment: Deployment,
+pub struct Meta {
+    pub deployment: Deployment,
 }
 
 impl Templateable for Meta {
@@ -251,8 +264,8 @@ impl Templateable for Meta {
 }
 
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
-struct Deployment {
-    on_host: Option<OnHost>,
+pub struct Deployment {
+    pub on_host: Option<OnHost>,
 }
 
 impl Templateable for Deployment {
@@ -287,8 +300,10 @@ impl Templateable for Deployment {
 }
 
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
-struct OnHost {
-    executables: Vec<Executable>,
+pub struct OnHost {
+    pub executables: Vec<Executable>,
+    #[serde(default)]
+    pub restart_policy: RestartPolicyConfig,
 }
 
 impl Templateable for OnHost {
@@ -299,23 +314,105 @@ impl Templateable for OnHost {
                 .into_iter()
                 .map(|e| e.template_with(kv.clone()))
                 .collect::<Result<Vec<Executable>, AgentTypeError>>()?,
+            ..Default::default()
         })
     }
 }
 
-#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
-struct Executable {
-    path: String,
-    args: Args,
-    env: Env,
+#[derive(Debug, Deserialize, PartialEq, Clone, Default)]
+pub struct RestartPolicyConfig {
+    #[serde(default)]
+    pub backoff_strategy: BackoffStrategyConfig,
+    #[serde(default)]
+    pub restart_exit_codes: Vec<i32>,
 }
 
-trait IntoVector<T> {
-    fn into_vector(self) -> Vec<T>;
+#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[serde(rename_all = "lowercase", tag = "type")]
+pub enum BackoffStrategyConfig {
+    None,
+    Fixed(BackoffStrategyInner),
+    Linear(BackoffStrategyInner),
+    Exponential(BackoffStrategyInner),
+}
+
+/* FIXME: This is not TEMPLATEABLE for the moment, we need to think what would be the strategy here and clarify:
+
+1. If we perform replacement with the template but the values are not of the expected type, what happens?
+2. Should we use an intermediate type with all the end nodes as `String` so we can perform the replacement?
+  - Add a sanitize or a fallible conversion from the raw intermediate type into into the end type?
+
+
+*/
+
+/*
+Default values for supervisor restarts
+TODO: refine values with real executions
+*/
+const BACKOFF_DELAY: Duration = Duration::from_secs(2);
+const BACKOFF_MAX_RETRIES: usize = 20;
+const BACKOFF_LAST_RETRY_INTERVAL: Duration = Duration::from_secs(600);
+
+#[serde_as]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[serde(default)]
+pub struct BackoffStrategyInner {
+    #[serde_as(as = "serde_with::DurationSeconds<u64>")]
+    pub backoff_delay_seconds: Duration,
+    pub max_retries: usize,
+    #[serde_as(as = "serde_with::DurationSeconds<u64>")]
+    pub last_retry_interval_seconds: Duration,
+}
+
+impl From<&BackoffStrategyConfig> for BackoffStrategy {
+    fn from(value: &BackoffStrategyConfig) -> Self {
+        match value {
+            BackoffStrategyConfig::Fixed(inner) => {
+                BackoffStrategy::Fixed(realize_backoff_config(inner))
+            }
+            BackoffStrategyConfig::Linear(inner) => {
+                BackoffStrategy::Linear(realize_backoff_config(inner))
+            }
+            BackoffStrategyConfig::Exponential(inner) => {
+                BackoffStrategy::Exponential(realize_backoff_config(inner))
+            }
+            BackoffStrategyConfig::None => BackoffStrategy::None,
+        }
+    }
+}
+
+impl Default for BackoffStrategyConfig {
+    fn default() -> Self {
+        Self::Linear(BackoffStrategyInner::default())
+    }
+}
+
+impl Default for BackoffStrategyInner {
+    fn default() -> Self {
+        Self {
+            backoff_delay_seconds: BACKOFF_DELAY,
+            max_retries: BACKOFF_MAX_RETRIES,
+            last_retry_interval_seconds: BACKOFF_LAST_RETRY_INTERVAL,
+        }
+    }
+}
+
+fn realize_backoff_config(i: &BackoffStrategyInner) -> Backoff {
+    Backoff::new()
+        .with_initial_delay(i.backoff_delay_seconds)
+        .with_max_retries(i.max_retries)
+        .with_last_retry_interval(i.last_retry_interval_seconds)
+}
+
+#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+pub struct Executable {
+    pub path: String,
+    pub args: Args,
+    pub env: Env,
 }
 
 #[derive(Debug, Default, Deserialize, Clone, PartialEq)]
-struct Args(String);
+pub struct Args(String);
 
 impl Templateable for Args {
     fn template_with(self, kv: Map<String, TrivialValue>) -> Result<Self, AgentTypeError> {
@@ -323,14 +420,14 @@ impl Templateable for Args {
     }
 }
 
-impl IntoVector<String> for Args {
-    fn into_vector(self) -> Vec<String> {
+impl Args {
+    pub fn into_vector(self) -> Vec<String> {
         self.0.split_whitespace().map(|s| s.to_string()).collect()
     }
 }
 
 #[derive(Debug, Default, Deserialize, Clone, PartialEq)]
-struct Env(String);
+pub struct Env(String);
 
 impl Templateable for Env {
     fn template_with(self, kv: Map<String, TrivialValue>) -> Result<Self, AgentTypeError> {
@@ -338,8 +435,8 @@ impl Templateable for Env {
     }
 }
 
-impl IntoVector<(String, String)> for Env {
-    fn into_vector(self) -> Vec<(String, String)> {
+impl Env {
+    pub fn into_map(self) -> Map<String, String> {
         self.0
             .split_whitespace()
             .map(|s| {
@@ -372,10 +469,9 @@ impl Templateable for Executable {
 impl Templateable for String {
     fn template_with(self, kv: Map<String, TrivialValue>) -> Result<String, AgentTypeError> {
         let re = Regex::new(TEMPLATE_RE).unwrap();
-        let content = &self.clone();
 
         let result = re
-            .find_iter(content)
+            .find_iter(&self.clone())
             .map(|i| i.as_str())
             .try_fold(self, |r, i| {
                 let trimmed_s = i
@@ -438,14 +534,14 @@ fn inner_normalize(key: String, spec: Spec) -> NormalizedSpec {
 }
 
 #[cfg(test)]
-pub(crate) mod tests {
+pub mod tests {
     use crate::config::supervisor_config::SupervisorConfig;
 
     use super::*;
     use serde_yaml::Error;
     use std::collections::HashMap as Map;
 
-    pub(crate) const AGENT_GIVEN_YAML: &str = r#"
+    pub const AGENT_GIVEN_YAML: &str = r#"
 name: nrdot
 namespace: newrelic
 version: 0.1.0
@@ -463,6 +559,12 @@ meta:
         - path: ${bin}/otelcol
           args: "-c ${deployment.k8s.image}"
           env: ""
+      restart_policy:
+            backoff_strategy:
+                type: fixed
+                backoff_delay_seconds: 1
+                max_retries: 3
+                last_retry_interval_seconds: 30
 "#;
 
     const AGENT_GIVEN_BAD_YAML: &str = r#"
@@ -485,17 +587,26 @@ meta:
     fn test_basic_parsing() {
         let agent: Agent = serde_yaml::from_str(AGENT_GIVEN_YAML).unwrap();
 
-        assert_eq!("nrdot", agent.name);
-        assert_eq!("newrelic", agent.namespace);
-        assert_eq!("0.1.0", agent.version);
+        assert_eq!("nrdot", agent.metadata.name);
+        assert_eq!("newrelic", agent.metadata.namespace);
+        assert_eq!("0.1.0", agent.metadata.version);
 
-        assert_eq!(
-            "${bin}/otelcol",
-            agent.meta.deployment.on_host.clone().unwrap().executables[0].path
-        );
+        let on_host = agent.meta.deployment.on_host.clone().unwrap();
+
+        assert_eq!("${bin}/otelcol", on_host.executables[0].path);
         assert_eq!(
             Args("-c ${deployment.k8s.image}".to_string()),
-            agent.meta.deployment.on_host.unwrap().executables[0].args
+            on_host.executables[0].args
+        );
+
+        // Resrtart restart policy values
+        assert_eq!(
+            BackoffStrategyConfig::Fixed(BackoffStrategyInner {
+                backoff_delay_seconds: Duration::from_secs(1),
+                max_retries: 3,
+                last_retry_interval_seconds: Duration::from_secs(30),
+            }),
+            on_host.restart_policy.backoff_strategy
         );
     }
 

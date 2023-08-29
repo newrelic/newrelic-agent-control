@@ -1,21 +1,22 @@
 use serde::Deserialize;
-use std::collections::HashMap as Map;
 use std::io::Write;
+use std::{collections::HashMap as Map, fs::File};
 use tempfile::NamedTempFile;
+use uuid::Uuid;
 
 use super::agent_type::{Agent, AgentTypeError, TrivialValue, TEMPLATE_KEY_SEPARATOR};
 
 #[derive(Debug, PartialEq, Deserialize)]
-pub(crate) struct SupervisorConfig(Map<String, SupervisorConfigInner>);
+pub struct SupervisorConfig(Map<String, SupervisorConfigInner>);
 
 #[derive(Debug, PartialEq, Deserialize)]
 #[serde(untagged)]
-pub(crate) enum SupervisorConfigInner {
+pub enum SupervisorConfigInner {
     NestedConfig(Map<String, SupervisorConfigInner>),
     EndValue(TrivialValue),
 }
 
-pub(crate) type NormalizedSupervisorConfig = Map<String, TrivialValue>;
+pub type NormalizedSupervisorConfig = Map<String, TrivialValue>;
 
 impl From<SupervisorConfig> for NormalizedSupervisorConfig {
     fn from(config: SupervisorConfig) -> Self {
@@ -43,7 +44,7 @@ fn inner_normalize(key: String, config: SupervisorConfigInner) -> NormalizedSupe
     }
 }
 
-pub(crate) fn validate_with_agent_type(
+pub fn validate_with_agent_type(
     config: NormalizedSupervisorConfig,
     agent_type: &Agent,
 ) -> Result<NormalizedSupervisorConfig, AgentTypeError> {
@@ -98,13 +99,17 @@ fn write_files(config: &mut NormalizedSupervisorConfig) -> Result<(), AgentTypeE
         .try_for_each(|v| -> Result<(), AgentTypeError> {
             if let TrivialValue::File(f) = v {
                 // FIXME: What happens when early removal of the temp file while the SuperAgent is still running?
-                let mut file = NamedTempFile::new()?;
+                let uuid = Uuid::new_v4().to_string();
+                let path = format!("/<SOME_PATH>/agentconfigs/{}-config.yaml", uuid); // FIXME: PATH
+                let mut file = File::create(&path)?;
+
                 writeln!(file, "{}", f.content)?;
-                f.path = file
-                    .path()
-                    .to_str()
-                    .ok_or(AgentTypeError::InvalidFilePath)?
-                    .to_string();
+                f.path = path;
+                // f.path = file
+                //     .path()
+                //     .to_str()
+                //     .ok_or(AgentTypeError::InvalidFilePath)?
+                //     .to_string();
             }
             Ok(())
         })

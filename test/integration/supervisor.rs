@@ -1,4 +1,4 @@
-use std::{sync::mpsc::Sender, thread, time::Duration};
+use std::{collections::HashMap, sync::mpsc::Sender, thread, time::Duration};
 
 use newrelic_super_agent::{
     command::{stream::Event, EventLogger, StdEventReceiver},
@@ -17,6 +17,7 @@ impl From<&Config> for SupervisorRunner {
             "sh".to_string(),
             vec!["-c".to_string(), "sleep 2".to_string()],
             Context::new(),
+            HashMap::default(),
             value.tx.clone(),
         )
     }

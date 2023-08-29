@@ -1,7 +1,6 @@
-pub(crate) mod agent_configs;
-pub(crate) mod agent_definition;
-pub(crate) mod agent_type;
-pub(crate) mod agent_type_registry;
-pub(crate) mod error;
-pub(crate) mod resolver;
-pub(crate) mod supervisor_config;
+pub mod agent_configs;
+pub mod agent_type;
+pub mod agent_type_registry;
+pub mod error;
+pub mod resolver;
+pub mod supervisor_config;

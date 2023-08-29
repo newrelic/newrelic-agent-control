@@ -29,7 +29,7 @@ pub struct Event {
 }
 
 impl Event {
-    pub(crate) fn new(output: OutputEvent, metadata: Metadata) -> Self {
+    pub fn new(output: OutputEvent, metadata: Metadata) -> Self {
         Self { output, metadata }
     }
 }
