@@ -740,7 +740,7 @@ meta:
 
     const GIVEN_NEWRELIC_INFRA_USER_CONFIG_YAML: &str = r#"
 config: | 
-    license: abc123
+    license_key: abc123
     staging: true
 "#;
 

@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use std::fs;
 use std::io::Write;
 use std::{collections::HashMap as Map, fs::File};
 use tempfile::NamedTempFile;
@@ -98,10 +99,20 @@ fn write_files(config: &mut NormalizedSupervisorConfig) -> Result<(), AgentTypeE
         .values_mut()
         .try_for_each(|v| -> Result<(), AgentTypeError> {
             if let TrivialValue::File(f) = v {
-                // FIXME: What happens when early removal of the temp file while the SuperAgent is still running?
+                const CONF_DIR: &str = "agentconfigs";
+                // get current path
+                let wd = std::env::current_dir()?;
+                let dir = wd.join(CONF_DIR);
+                if !dir.exists() {
+                    fs::create_dir(dir.as_path())?;
+                }
                 let uuid = Uuid::new_v4().to_string();
-                let path = format!("/<SOME_PATH>/agentconfigs/{}-config.yaml", uuid); // FIXME: PATH
-                let mut file = File::create(&path)?;
+                let path = format!("{}/{}-config.yaml", dir.to_string_lossy(), uuid); // FIXME: PATH?
+                println!("path: {}", path);
+                let mut file = fs::OpenOptions::new()
+                    .create(true)
+                    .write(true)
+                    .open(&path)?;
 
                 writeln!(file, "{}", f.content)?;
                 f.path = path;
