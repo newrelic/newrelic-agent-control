@@ -71,14 +71,14 @@ mod tests {
 
         assert_eq!(
             repository
-                .get(&"newrelic/nrdot:0.1.0".to_string())
+                .get("newrelic/nrdot:0.1.0")
                 .unwrap()
                 .metadata
                 .to_string(),
             "newrelic/nrdot:0.1.0"
         );
 
-        let invalid_lookup = repository.get(&"not_an_agent".to_string());
+        let invalid_lookup = repository.get("not_an_agent");
         assert!(invalid_lookup.is_err());
 
         assert_eq!(

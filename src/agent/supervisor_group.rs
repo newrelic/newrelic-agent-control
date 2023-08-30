@@ -11,7 +11,7 @@ use crate::{
     supervisor::{
         error::ProcessError,
         runner::{Running, Stopped, SupervisorRunner},
-        supervisor::Config,
+        supervisor_config::Config,
         Handle, Runner,
     },
 };
@@ -89,8 +89,8 @@ impl From<&SupervisorGroupBuilder> for SupervisorGroup<Stopped> {
         let agent_runners = builder
             .cfg
             .agents
-            .iter()
-            .map(|(agent_t, agent_cfg)| {
+            .keys()
+            .map(|agent_t| {
                 let agent = builder
                     .effective_agent_repository
                     .get(&agent_t.clone().get());
@@ -130,8 +130,6 @@ impl SupervisorGroup<Stopped> {
 pub mod tests {
     use std::{collections::HashMap, sync::mpsc::Sender};
 
-    use crate::config::agent_configs::SuperAgentConfig;
-    use crate::config::agent_type_registry::LocalRepository;
     use crate::{
         command::stream::Event,
         config::agent_configs::AgentID,
@@ -140,7 +138,7 @@ pub mod tests {
         },
     };
 
-    use super::{SupervisorGroup, SupervisorGroupBuilder};
+    use super::SupervisorGroup;
 
     // new_sleep_supervisor_group returns a stopped supervisor group with 2 runners with
     // generic agents one with one exec and the other with 2

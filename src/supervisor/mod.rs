@@ -1,7 +1,7 @@
 pub mod error;
 pub mod restart;
 pub mod runner;
-pub mod supervisor;
+pub mod supervisor_config;
 
 /// ID represents the identity for a runner. The trait might be used for structured logs.
 pub trait ID {

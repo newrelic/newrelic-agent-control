@@ -1,5 +1,4 @@
 use std::{
-    collections::HashMap,
     fs,
     path::Path,
     sync::mpsc::{self, Sender},
@@ -8,7 +7,7 @@ use std::{
 use tracing::{error, info};
 
 use crate::{
-    agent::{self, supervisor_group::SupervisorGroup},
+    agent::supervisor_group::SupervisorGroup,
     command::{stream::Event, EventLogger, StdEventReceiver},
     config::{
         agent_configs::{AgentID, SuperAgentConfig},
@@ -196,24 +195,17 @@ fn load_agent_cfgs<Repo: AgentRepository>(
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        thread::{sleep, spawn},
-        time::Duration,
-    };
 
-    use crate::{config::agent_type_registry::LocalRepository, context::Context};
+    use crate::config::agent_type_registry::LocalRepository;
 
-    use super::{
-        supervisor_group::tests::new_sleep_supervisor_group, Agent, AgentEvent,
-        SupervisorGroupResolver,
-    };
+    use super::{supervisor_group::tests::new_sleep_supervisor_group, SupervisorGroupResolver};
 
     struct MockedSleepGroupResolver;
     impl SupervisorGroupResolver for MockedSleepGroupResolver {
         fn retrieve_group(
             &self,
             tx: std::sync::mpsc::Sender<crate::command::stream::Event>,
-            effective_agent_repository: LocalRepository,
+            _effective_agent_repository: LocalRepository,
         ) -> super::supervisor_group::SupervisorGroup<crate::supervisor::runner::Stopped> {
             new_sleep_supervisor_group(tx)
         }

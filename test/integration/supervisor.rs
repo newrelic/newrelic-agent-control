@@ -75,11 +75,7 @@ fn test_supervisors() {
 
     // Check that all the processes have finished correctly
     assert_eq!(
-        results
-            .into_iter()
-            .map(|handle| handle.join())
-            .flatten()
-            .count(),
+        results.into_iter().flat_map(|handle| handle.join()).count(),
         10
     );
 

@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::hash::Hash;
+
 use std::sync::mpsc::Sender;
 
 use crate::{command::stream::Event, config::agent_type::RestartPolicyConfig, context::Context};
