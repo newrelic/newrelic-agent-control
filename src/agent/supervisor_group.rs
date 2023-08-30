@@ -94,7 +94,7 @@ impl From<&SupervisorGroupBuilder> for SupervisorGroup<Stopped> {
                 let agent = builder
                     .effective_agent_repository
                     .get(&agent_t.clone().get());
-                if let Some(on_host) = &agent.unwrap().meta.deployment.on_host {
+                if let Some(on_host) = &agent.unwrap().runtime_config.deployment.on_host {
                     return Self::build_on_host_runners(&builder.tx, agent_t, on_host.clone());
                 }
                 (agent_t.clone(), Vec::new())

@@ -32,7 +32,7 @@ impl AgentRepository for LocalRepository {
     }
 
     fn store_from_yaml(&mut self, agent_bytes: &[u8]) -> Result<(), AgentRepositoryError> {
-        let agent: Agent = serde_yaml::from_reader(agent_bytes).unwrap();
+        let agent: Agent = serde_yaml::from_reader(agent_bytes)?;
         self.0.insert(agent.metadata.to_string(), agent);
         Ok(())
     }

@@ -56,9 +56,9 @@ pub(super) type AgentName = String;
 struct RawAgent {
     #[serde(flatten)]
     metadata: AgentMetadata,
-    spec: AgentSpec,
-    #[serde(default)]
-    meta: Meta,
+    variables: AgentVariables,
+    #[serde(default, flatten)]
+    runtime_config: RuntimeConfig,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone, Default)]
@@ -79,21 +79,21 @@ impl Display for AgentMetadata {
 pub struct Agent {
     #[serde(flatten)]
     pub metadata: AgentMetadata,
-    pub spec: NormalizedSpec,
-    pub meta: Meta,
+    pub variables: NormalizedVariables,
+    pub runtime_config: RuntimeConfig,
 }
 
 impl Agent {
-    pub fn get_spec(self, path: String) -> Option<EndSpec> {
-        self.spec.get(&path).cloned()
+    pub fn get_variables(self, path: String) -> Option<EndSpec> {
+        self.variables.get(&path).cloned()
     }
 
     pub fn populate(self, config: SupervisorConfig) -> Result<Self, AgentTypeError> {
         let normalized_config = NormalizedSupervisorConfig::from(config);
         let validated_conf = validate_with_agent_type(normalized_config, &self)?;
 
-        let meta = self.meta.template_with(validated_conf.clone())?;
-        let mut spec = self.spec;
+        let runtime_conf = self.runtime_config.template_with(validated_conf.clone())?;
+        let mut spec = self.variables;
 
         validated_conf.into_iter().for_each(|(k, v)| {
             spec.entry(k).and_modify(|s| {
@@ -101,7 +101,11 @@ impl Agent {
             });
         });
 
-        Ok(Agent { meta, spec, ..self })
+        Ok(Agent {
+            runtime_config: runtime_conf,
+            variables: spec,
+            ..self
+        })
     }
 }
 
@@ -110,9 +114,9 @@ impl TryFrom<RawAgent> for Agent {
 
     fn try_from(raw_agent: RawAgent) -> Result<Self, Self::Error> {
         Ok(Agent {
-            spec: normalize_agent_spec(raw_agent.spec)?,
+            variables: normalize_agent_spec(raw_agent.variables)?,
             metadata: raw_agent.metadata,
-            meta: raw_agent.meta,
+            runtime_config: raw_agent.runtime_config,
         })
     }
 }
@@ -192,7 +196,7 @@ impl Display for N {
     }
 }
 
-type AgentSpec = Map<String, Spec>;
+type AgentVariables = Map<String, Spec>;
 
 #[derive(Debug, PartialEq, Clone, Deserialize)]
 #[serde(try_from = "IntermediateEndSpec")]
@@ -251,13 +255,13 @@ impl TryFrom<IntermediateEndSpec> for EndSpec {
 }
 
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
-pub struct Meta {
+pub struct RuntimeConfig {
     pub deployment: Deployment,
 }
 
-impl Templateable for Meta {
+impl Templateable for RuntimeConfig {
     fn template_with(self, kv: NormalizedSupervisorConfig) -> Result<Self, AgentTypeError> {
-        Ok(Meta {
+        Ok(RuntimeConfig {
             deployment: self.deployment.template_with(kv)?,
         })
     }
@@ -407,7 +411,9 @@ fn realize_backoff_config(i: &BackoffStrategyInner) -> Backoff {
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub struct Executable {
     pub path: String,
+    #[serde(default)]
     pub args: Args,
+    #[serde(default)]
     pub env: Env,
 }
 
@@ -501,9 +507,9 @@ enum Spec {
     SpecMapping(Map<String, Spec>),
 }
 
-type NormalizedSpec = Map<String, EndSpec>;
+type NormalizedVariables = Map<String, EndSpec>;
 
-fn normalize_agent_spec(spec: AgentSpec) -> Result<NormalizedSpec, AgentTypeError> {
+fn normalize_agent_spec(spec: AgentVariables) -> Result<NormalizedVariables, AgentTypeError> {
     spec.into_iter().try_fold(Map::new(), |r, (k, v)| {
         let n_spec = inner_normalize(k, v);
         n_spec.iter().try_for_each(|(k, v)| {
@@ -519,7 +525,7 @@ fn normalize_agent_spec(spec: AgentSpec) -> Result<NormalizedSpec, AgentTypeErro
     })
 }
 
-fn inner_normalize(key: String, spec: Spec) -> NormalizedSpec {
+fn inner_normalize(key: String, spec: Spec) -> NormalizedVariables {
     let mut result = Map::new();
     match spec {
         Spec::SpecEnd(s) => _ = result.insert(key, s),
@@ -545,26 +551,25 @@ pub mod tests {
 name: nrdot
 namespace: newrelic
 version: 0.1.0
-spec:
+variables:
   description:
     name:
       description: "Name of the agent"
       type: string
       required: false
       default: nrdot
-meta:
-  deployment:
-    on_host:
-      executables:
-        - path: ${bin}/otelcol
-          args: "-c ${deployment.k8s.image}"
-          env: ""
-      restart_policy:
-            backoff_strategy:
-                type: fixed
-                backoff_delay_seconds: 1
-                max_retries: 3
-                last_retry_interval_seconds: 30
+deployment:
+  on_host:
+    executables:
+      - path: ${bin}/otelcol
+        args: "-c ${deployment.k8s.image}"
+        env: ""
+    restart_policy:
+        backoff_strategy:
+            type: fixed
+            backoff_delay_seconds: 1
+            max_retries: 3
+            last_retry_interval_seconds: 30
 "#;
 
     const AGENT_GIVEN_BAD_YAML: &str = r#"
@@ -574,13 +579,12 @@ version: 0.1.0
 spec:
   description:
     name:
-meta:
-  deployment:
-    on_host:
-      executables:
-        - path: ${bin}/otelcol
-          args: "-c ${deployment.k8s.image}"
-          env: ""
+deployment:
+  on_host:
+    executables:
+      - path: ${bin}/otelcol
+        args: "-c ${deployment.k8s.image}"
+        env: ""
 "#;
 
     #[test]
@@ -591,7 +595,7 @@ meta:
         assert_eq!("newrelic", agent.metadata.namespace);
         assert_eq!("0.1.0", agent.metadata.version);
 
-        let on_host = agent.meta.deployment.on_host.clone().unwrap();
+        let on_host = agent.runtime_config.deployment.on_host.clone().unwrap();
 
         assert_eq!("${bin}/otelcol", on_host.executables[0].path);
         assert_eq!(
@@ -615,9 +619,10 @@ meta:
         let raw_agent_err: Result<RawAgent, Error> = serde_yaml::from_str(AGENT_GIVEN_BAD_YAML);
 
         assert!(raw_agent_err.is_err());
+        println!("{:?}", raw_agent_err);
         assert_eq!(
             raw_agent_err.unwrap_err().to_string(),
-            "spec: data did not match any variant of untagged enum Spec at line 6 column 3"
+            "missing field `variables` at line 2 column 1"
         );
     }
 
@@ -640,7 +645,7 @@ meta:
 
         // expect output to be the map
 
-        assert_eq!(expected_map, given_agent.spec);
+        assert_eq!(expected_map, given_agent.variables);
 
         let expected_spec = EndSpec {
             description: "Name of the agent".to_string(),
@@ -653,7 +658,7 @@ meta:
         assert_eq!(
             expected_spec,
             given_agent
-                .get_spec("description.name".to_string())
+                .get_variables("description.name".to_string())
                 .unwrap()
         );
     }
@@ -724,18 +729,17 @@ meta:
 name: newrelic-infra
 namespace: newrelic
 version: 1.39.1
-spec:
+variables:
   config:
     description: "Newrelic infra configuration yaml"
     type: file
     required: true
-meta:
-  deployment:
-    on_host:
-      executables:
-        - path: /usr/bin/newrelic-infra
-          args: "--config ${config}"
-          env: ""
+deployment:
+  on_host:
+    executables:
+      - path: /usr/bin/newrelic-infra
+        args: "--config ${config}"
+        env: ""
 "#;
 
     const GIVEN_NEWRELIC_INFRA_USER_CONFIG_YAML: &str = r#"
@@ -745,7 +749,7 @@ config: |
 "#;
 
     #[test]
-    fn test_populate_meta_field() {
+    fn test_populate_runtime_field() {
         let input_agent_type = serde_yaml::from_str::<Agent>(GIVEN_NEWRELIC_INFRA_YAML).unwrap();
         println!("Input: {:#?}", input_agent_type);
 
@@ -756,7 +760,7 @@ config: |
 
         let actual = input_agent_type
             .populate(input_user_config)
-            .expect("Failed to populate the AgentType's Meta field");
+            .expect("Failed to populate the AgentType's runtime_config field");
 
         println!("Output: {:#?}", actual);
     }

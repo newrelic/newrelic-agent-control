@@ -184,7 +184,7 @@ fn load_agent_cfgs<Repo: AgentRepository>(
     for (k, agent_cfg) in agent_cfgs.agents {
         let agent_type = agent_type_repository.get(&agent_cfg.agent_type)?;
 
-        let contents = fs::read_to_string(agent_cfg.config_path)?;
+        let contents = fs::read_to_string(agent_cfg.values_file)?;
         let agent_config: SupervisorConfig = serde_yaml::from_str(&contents)?;
 
         let populated_agent = agent_type.clone().populate(agent_config)?;

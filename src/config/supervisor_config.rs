@@ -2,6 +2,7 @@ use serde::Deserialize;
 use std::collections::HashMap as Map;
 use std::fs;
 use std::io::Write;
+use tracing::error;
 
 use uuid::Uuid;
 
@@ -55,7 +56,7 @@ pub fn validate_with_agent_type(
     let mut result = Map::new();
     let mut tmp_config = config.clone();
 
-    for (k, v) in agent_type.spec.iter() {
+    for (k, v) in agent_type.variables.iter() {
         if !tmp_config.contains_key(k) && v.required {
             return Err(AgentTypeError::MissingAgentKey(k.clone()));
         }
@@ -95,6 +96,7 @@ pub fn validate_with_agent_type(
 }
 
 fn write_files(config: &mut NormalizedSupervisorConfig) -> Result<(), AgentTypeError> {
+    error!("Reached write_files");
     config
         .values_mut()
         .try_for_each(|v| -> Result<(), AgentTypeError> {
@@ -108,7 +110,7 @@ fn write_files(config: &mut NormalizedSupervisorConfig) -> Result<(), AgentTypeE
                 }
                 let uuid = Uuid::new_v4().to_string();
                 let path = format!("{}/{}-config.yaml", dir.to_string_lossy(), uuid); // FIXME: PATH?
-                println!("path: {}", path);
+                error!("path: {}", path);
                 let mut file = fs::OpenOptions::new()
                     .create(true)
                     .write(true)
@@ -214,7 +216,7 @@ deployment:
 name: nrdot
 namespace: newrelic
 version: 0.1.0
-spec:
+variables:
   deployment:
     on_host:
       path:
@@ -225,13 +227,12 @@ spec:
         description: "Args passed to the agent"
         type: string
         required: true
-meta:
-  deployment:
-    on_host:
-      executables:
-        - path: ${deployment.on_host.path}/otelcol
-          args: "-c ${deployment.on_host.args}"
-          env: ""
+deployment:
+  on_host:
+    executables:
+      - path: ${deployment.on_host.path}/otelcol
+        args: "-c ${deployment.on_host.args}"
+        env: ""
 "#;
 
     #[test]
@@ -282,7 +283,7 @@ deployment:
 name: nrdot
 namespace: newrelic
 version: 0.1.0
-spec:
+variables:
   deployment:
     on_host:
       path:
@@ -294,13 +295,12 @@ spec:
         description: "Args passed to the agent"
         type: string
         required: true
-meta:
-  deployment:
-    on_host:
-      executables:
-        - path: ${deployment.on_host.args}/otelcol
-          args: "-c ${deployment.on_host.args}"
-          env: ""
+deployment:
+  on_host:
+    executables:
+      - path: ${deployment.on_host.args}/otelcol
+        args: "-c ${deployment.on_host.args}"
+        env: ""
 "#;
 
     #[test]
