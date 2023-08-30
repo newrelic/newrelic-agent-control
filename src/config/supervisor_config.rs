@@ -2,7 +2,6 @@ use serde::Deserialize;
 use std::collections::HashMap as Map;
 use std::fs;
 use std::io::Write;
-use tracing::error;
 
 use uuid::Uuid;
 
