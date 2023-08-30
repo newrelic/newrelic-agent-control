@@ -8,6 +8,75 @@ use uuid::Uuid;
 
 use super::agent_type::{Agent, AgentTypeError, TrivialValue, TEMPLATE_KEY_SEPARATOR};
 
+/// User-provided config.
+///
+/// User-provided configuration (normally via a YAML file) that must follow the tree-like structure of [`Agent`]'s [`NormalizedSpec`] and will be used to populate the [`Agent`]'s [ `Meta`] field to totally define a deployable supervisor.
+///
+/// The below example in YAML format:
+///
+/// ```yaml
+/// system:
+///  logging:
+///    level: debug
+/// ```
+///
+/// Coupled with a specification of an agent type like this one:
+///
+/// ```yaml
+/// name: nrdot
+/// namespace: newrelic
+/// version: 0.1.0
+///
+/// variables:
+///  system:
+///   logging:
+///     level:
+///      description: "Logging level"
+///      type: string
+///      required: true
+///
+/// deployment:
+///   on_host:
+///     executables:
+///       - path: "/etc/otelcol"
+///         args: "--log-level debug"
+///     # the health of nrdot is determined by whether the agent process
+///     # is up and alive
+///     health:
+///       strategy: process
+/// ```
+///
+/// Will produce the following end result:
+///
+/// ```yaml
+/// name: nrdot
+/// namespace: newrelic
+/// version: 0.1.0
+///
+/// variables:
+///   system:
+///     logging:
+///       level:
+///         description: "Logging level"
+///         type: string
+///         required: true
+///         default:
+///         final_value: debug
+///
+/// deployment:
+///   on_host:
+///     executables:
+///       - path: "/etc/otelcol"
+///         args: "--log-level debug"
+///     # the health of nrdot is determined by whether the agent process
+///     # is up and alive
+///     health:
+///       strategy: process
+/// ```
+///
+/// Please see the tests in the sources for more examples.
+///
+/// [agent_type]: crate::config::agent_type
 #[derive(Debug, PartialEq, Deserialize)]
 pub struct SupervisorConfig(Map<String, SupervisorConfigInner>);
 
@@ -52,7 +121,7 @@ pub fn validate_with_agent_type(
 ) -> Result<NormalizedSupervisorConfig, AgentTypeError> {
     // What do we need to do?
     // Check that all the keys in the agent_type are present in the config
-    // Also, check that all the values of the config are of the type declared in the config's NormalizedSpec
+    // Also, check that all the values of the config are of the type declared in the config's NormalizedVariables
     let mut result = Map::new();
     let mut tmp_config = config.clone();
 
