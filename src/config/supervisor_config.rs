@@ -165,7 +165,6 @@ pub fn validate_with_agent_type(
 }
 
 fn write_files(config: &mut NormalizedSupervisorConfig) -> Result<(), AgentTypeError> {
-    error!("Reached write_files");
     config
         .values_mut()
         .try_for_each(|v| -> Result<(), AgentTypeError> {
@@ -179,7 +178,6 @@ fn write_files(config: &mut NormalizedSupervisorConfig) -> Result<(), AgentTypeE
                 }
                 let uuid = Uuid::new_v4().to_string();
                 let path = format!("{}/{}-config.yaml", dir.to_string_lossy(), uuid); // FIXME: PATH?
-                error!("path: {}", path);
                 let mut file = fs::OpenOptions::new()
                     .create(true)
                     .write(true)
