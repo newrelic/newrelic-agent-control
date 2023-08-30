@@ -932,6 +932,14 @@ Distributed under the following license(s):
 
 
 
+## uuid (https://crates.io/crates/uuid)
+
+Distributed under the following license(s):
+* Apache-2.0
+* MIT
+
+
+
 ## valuable (https://crates.io/crates/valuable)
 
 Distributed under the following license(s):
