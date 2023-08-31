@@ -67,8 +67,7 @@ where
     pub fn new(cfg_path: &Path, agent_type_repository: Repo) -> Result<Self, AgentError> {
         let cfg = Resolver::retrieve_config(cfg_path)?;
 
-        let effective_agent_repository =
-            load_agent_cfgs(agent_type_repository.clone(), cfg.clone())?;
+        let effective_agent_repository = load_agent_cfgs(&agent_type_repository, &cfg)?;
 
         Ok(Self {
             resolver: cfg,
@@ -142,13 +141,13 @@ where
                                             |_err| {
                                                 // let error: &dyn std::error::Error = &err;
                                                 error!(
-                                                    supervisor = String::from(&agent_id.get()),
+                                                    supervisor = agent_id.get(),
                                                     msg = "stopped with error",
                                                 )
                                             },
                                             |_| {
                                                 info!(
-                                                    supervisor = String::from(&agent_id1.get()),
+                                                    supervisor = agent_id1.get(),
                                                     msg = "stopped successfully"
                                                 )
                                             },
@@ -177,14 +176,14 @@ where
 }
 
 fn load_agent_cfgs<Repo: AgentRepository>(
-    agent_type_repository: Repo,
-    agent_cfgs: SuperAgentConfig,
+    agent_type_repository: &Repo,
+    agent_cfgs: &SuperAgentConfig,
 ) -> Result<LocalRepository, AgentError> {
     let mut effective_agent_repository = LocalRepository::default();
-    for (k, agent_cfg) in agent_cfgs.agents {
+    for (k, agent_cfg) in agent_cfgs.agents.iter() {
         let agent_type = agent_type_repository.get(&agent_cfg.agent_type)?;
 
-        let contents = fs::read_to_string(agent_cfg.values_file)?;
+        let contents = fs::read_to_string(&agent_cfg.values_file)?;
         let agent_config: SupervisorConfig = serde_yaml::from_str(&contents)?;
 
         let populated_agent = agent_type.clone().populate(agent_config)?;

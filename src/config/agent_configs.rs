@@ -6,8 +6,8 @@ use serde::Deserialize;
 pub struct AgentID(pub String);
 
 impl AgentID {
-    pub fn get(self) -> String {
-        self.0
+    pub fn get(&self) -> String {
+        String::from(&self.0)
     }
 }
 
