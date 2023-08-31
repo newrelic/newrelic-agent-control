@@ -70,8 +70,6 @@ pub enum AgentTypeError {
     InvalidDefaultForSpec { key: String, type_: VariableType },
 }
 
-pub(super) type AgentName = String;
-
 #[derive(Debug, Deserialize)]
 struct RawAgent {
     #[serde(flatten)]
@@ -83,7 +81,7 @@ struct RawAgent {
 
 #[derive(Debug, Deserialize, PartialEq, Clone, Default)]
 pub struct AgentMetadata {
-    pub name: AgentName,
+    pub name: String,
     namespace: String,
     version: String,
 }
