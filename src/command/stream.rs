@@ -27,9 +27,3 @@ pub struct Event {
     pub output: OutputEvent,
     pub metadata: Metadata,
 }
-
-impl Event {
-    pub fn new(output: OutputEvent, metadata: Metadata) -> Self {
-        Self { output, metadata }
-    }
-}

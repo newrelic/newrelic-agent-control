@@ -91,10 +91,10 @@ mod tests {
 
         let logger_handle = logger.log(rx);
 
-        tx.send(Event::new(
-            OutputEvent::Stderr(send_message.to_owned()),
-            Metadata::new(metadata),
-        ))
+        tx.send(Event {
+            output: OutputEvent::Stderr(send_message.to_owned()),
+            metadata: Metadata::new(metadata),
+        })
         .unwrap();
 
         drop(tx);

@@ -117,7 +117,10 @@ impl EventStreamer for ProcessRunner<Started> {
             let snd = snd.clone();
             move || {
                 process_events(stdout, |line| {
-                    snd.send(Event::new(OutputEvent::Stdout(line), fields.clone()))
+                    snd.send(Event {
+                        metadata: fields.clone(),
+                        output: OutputEvent::Stdout(line),
+                    })
                 })
                 .map_err(|e| error!("stdout stream error: {}", e))
             }
@@ -126,7 +129,10 @@ impl EventStreamer for ProcessRunner<Started> {
         // Read stderr and send to the channel
         std::thread::spawn(move || {
             process_events(stderr, |line| {
-                snd.send(Event::new(OutputEvent::Stderr(line), fields.clone()))
+                snd.send(Event {
+                    output: OutputEvent::Stderr(line),
+                    metadata: fields.clone(),
+                })
             })
             .map_err(|e| error!("stderr stream error: {}", e))
         });
@@ -216,17 +222,17 @@ mod tests {
 
         fn stream(self, snd: Sender<Event>) -> Result<Self, Self::Error> {
             (0..9).for_each(|i| {
-                snd.send(Event::new(
-                    OutputEvent::Stdout(format!("This is line {}", i)),
-                    Metadata::from(&self),
-                ))
+                snd.send(Event {
+                    output: OutputEvent::Stdout(format!("This is line {}", i)),
+                    metadata: Metadata::from(&self),
+                })
                 .unwrap()
             });
             (0..9).for_each(|i| {
-                snd.send(Event::new(
-                    OutputEvent::Stderr(format!("This is error {}", i)),
-                    Metadata::from(&self),
-                ))
+                snd.send(Event {
+                    output: OutputEvent::Stderr(format!("This is error {}", i)),
+                    metadata: Metadata::from(&self),
+                })
                 .unwrap()
             });
 
