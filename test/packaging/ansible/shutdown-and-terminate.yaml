@@ -1,12 +1,11 @@
 ---
-
 - name: test agent behaviour on host shutdown
   hosts: testing_hosts_linux
   become: true
   gather_facts: yes
   vars:
     process_user: "root"
-    nr_infra_agent_version: "1.45.0"
+    nr_infra_agent_version: "1.47.0"
     nr_otel_collector_version: "0.3.0"
 
   pre_tasks:
@@ -22,7 +21,6 @@
       vars:
 
       block:
-
         - name: Newrelic Super Agent
           include_role:
             name: newrelic-super-agent
@@ -122,5 +120,3 @@
       always:
         - name: Final cleanup # Only required for shared infra.
           include_tasks: ./custom_tasks/cleanup.yml
-
-...

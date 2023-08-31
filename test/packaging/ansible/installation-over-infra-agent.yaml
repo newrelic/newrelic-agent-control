@@ -1,12 +1,11 @@
 ---
-
 - name: installation-over-infra-agent
   hosts: testing_hosts_linux
   become: true
   gather_facts: yes
   vars:
     process_user: "root"
-    nr_infra_agent_version: "1.45.0"
+    nr_infra_agent_version: "1.47.0"
     nr_otel_collector_version: "0.3.0"
 
   pre_tasks:
@@ -130,4 +129,3 @@
       always:
         - name: Final cleanup # Only required for shared infra.
           include_tasks: ./custom_tasks/cleanup.yml
-...
