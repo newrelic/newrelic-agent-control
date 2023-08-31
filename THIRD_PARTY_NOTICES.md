@@ -412,13 +412,6 @@ Distributed under the following license(s):
 
 
 
-## is-terminal (https://crates.io/crates/is-terminal)
-
-Distributed under the following license(s):
-* MIT
-
-
-
 ## itertools (https://crates.io/crates/itertools)
 
 Distributed under the following license(s):
