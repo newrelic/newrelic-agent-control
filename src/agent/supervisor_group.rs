@@ -114,9 +114,9 @@ impl SupervisorGroup<Stopped> {
         let mut runners = Vec::new();
         for exec in on_host.executables {
             let runner = SupervisorRunner::from(&Config::new(
-                exec.path.clone(),
-                exec.args.into_vector().clone(),
-                exec.env.into_map().clone(),
+                exec.path,
+                exec.args.into_vector(),
+                exec.env.into_map(),
                 tx.clone(),
                 on_host.restart_policy.clone(),
             ));
