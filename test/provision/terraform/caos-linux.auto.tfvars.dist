@@ -24,7 +24,7 @@ ec2_super_agents = {
     }
   }
   "super_agent-TAG_OR_UNIQUE_NAME-amd64:centos-stream" = {
-    ami             = "ami-0d97ef13c06b05a19"
+    ami             = "ami-013f9ee48907190f5"
     subnet          = "subnet-09b64de757828cdd4"
     security_groups = ["sg-044ef7bc34691164a"]
     key_name        = "caos-dev-arm"
@@ -36,7 +36,7 @@ ec2_super_agents = {
     }
   }
   "super_agent-TAG_OR_UNIQUE_NAME-arm64:centos-stream" = {
-    ami             = "ami-0deb895048c4f105b"
+    ami             = "ami-00c2c04322134aa50"
     subnet          = "subnet-09b64de757828cdd4"
     security_groups = ["sg-044ef7bc34691164a"]
     key_name        = "caos-dev-arm"
