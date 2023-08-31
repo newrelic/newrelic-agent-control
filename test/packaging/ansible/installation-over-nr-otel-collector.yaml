@@ -22,7 +22,7 @@
       vars:
 
       block:
-        - name: Setup NR Repo
+        - name: Setup Newrelic Repo
           include_role:
             name: caos.ansible_roles.nr_repo_setup
 
@@ -57,7 +57,7 @@
         - name:
           include_tasks: ./custom_tasks/assert-nr-otel-collector-sending-data.yml
 
-        - name: install NR Meta Agent
+        - name: install Newrelic Super Agent
           include_role:
             name: newrelic-super-agent
             apply:

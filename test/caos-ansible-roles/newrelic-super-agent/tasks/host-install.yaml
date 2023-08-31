@@ -1,6 +1,6 @@
 ---
 
-- name: setup NR repository
+- name: setup Newrelic repository
   include_role:
     name: caos.ansible_roles.nr_repo_setup # TODO : remove `caos.ansible_roles.` prefix when moved to caos_ansible_roles repo
 

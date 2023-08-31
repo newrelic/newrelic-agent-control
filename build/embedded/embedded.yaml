@@ -1,7 +1,7 @@
 # default destination for downloaded artifacts. Template.
 destination: ./artifacts/{{.Arch}}
 
-# Used as defaults for all NR binaries below, can be overridden. Template.
+# Used as defaults for all Newrelic binaries below, can be overridden. Template.
 url: https://download.newrelic.com/infrastructure_agent/binaries/linux/{{.Arch}}/{{.Name}}_linux_{{.Version | trimv}}_{{.Arch}}.tar.gz
 
 # stagingUrl will be used if the download is invoked with -staging. Template.

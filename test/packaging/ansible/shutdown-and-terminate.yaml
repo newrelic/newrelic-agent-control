@@ -23,7 +23,7 @@
 
       block:
 
-        - name: NR Super Agent
+        - name: Newrelic Super Agent
           include_role:
             name: newrelic-super-agent
             apply:
