@@ -4,9 +4,7 @@ use crate::{
     command::stream::Event,
     config::agent_configs::AgentID,
     config::{
-        agent_configs::SuperAgentConfig,
-        agent_type::OnHost,
-        agent_type_registry::{AgentRepository, LocalRepository},
+        agent_configs::SuperAgentConfig, agent_type::OnHost, agent_type_registry::AgentRepository,
     },
     supervisor::{
         error::ProcessError,
@@ -20,10 +18,10 @@ use crate::{
 pub struct SupervisorGroup<S>(HashMap<AgentID, Vec<SupervisorRunner<S>>>);
 
 impl SupervisorGroup<Stopped> {
-    pub fn new(
+    pub fn new<Repo: AgentRepository>(
         tx: Sender<Event>,
         cfg: &SuperAgentConfig,
-        effective_agent_repository: LocalRepository,
+        effective_agent_repository: Repo,
     ) -> Self {
         let builder = SupervisorGroupBuilder {
             tx,
@@ -78,14 +76,17 @@ impl SupervisorGroup<Running> {
     }
 }
 
-struct SupervisorGroupBuilder {
+struct SupervisorGroupBuilder<Repo> {
     tx: Sender<Event>,
     cfg: SuperAgentConfig,
-    effective_agent_repository: LocalRepository,
+    effective_agent_repository: Repo,
 }
 
-impl From<&SupervisorGroupBuilder> for SupervisorGroup<Stopped> {
-    fn from(builder: &SupervisorGroupBuilder) -> Self {
+impl<Repo> From<&SupervisorGroupBuilder<Repo>> for SupervisorGroup<Stopped>
+where
+    Repo: AgentRepository,
+{
+    fn from(builder: &SupervisorGroupBuilder<Repo>) -> Self {
         let agent_runners = builder
             .cfg
             .agents

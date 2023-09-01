@@ -32,32 +32,39 @@ pub enum AgentEvent {
     Stop,
 }
 
-pub trait SupervisorGroupResolver {
+pub trait SupervisorGroupResolver<Repo>
+where
+    Repo: AgentRepository,
+{
     fn retrieve_group(
         &self,
         tx: Sender<Event>,
-        effective_agent_repository: LocalRepository,
+        effective_agent_repository: Repo,
     ) -> SupervisorGroup<Stopped>;
 }
 
-impl SupervisorGroupResolver for SuperAgentConfig {
+impl<Repo> SupervisorGroupResolver<Repo> for SuperAgentConfig
+where
+    Repo: AgentRepository,
+{
     fn retrieve_group(
         &self,
         tx: Sender<Event>,
-        effective_agent_repository: LocalRepository,
+        effective_agent_repository: Repo,
     ) -> SupervisorGroup<Stopped> {
         SupervisorGroup::new(tx, self, effective_agent_repository)
     }
 }
 
-pub struct Agent<Repo, R = SuperAgentConfig>
+pub struct Agent<Repo, EffectiveRepo = LocalRepository, R = SuperAgentConfig>
 where
-    R: SupervisorGroupResolver,
+    R: SupervisorGroupResolver<EffectiveRepo>,
     Repo: AgentRepository,
+    EffectiveRepo: AgentRepository,
 {
     resolver: R,
     agent_type_repository: Repo,
-    effective_agent_repository: LocalRepository,
+    effective_agent_repository: EffectiveRepo,
 }
 
 impl<Repo> Agent<Repo>
@@ -77,9 +84,9 @@ where
     }
 
     #[cfg(test)]
-    fn new_custom_resolver<R>(resolver: R) -> Agent<LocalRepository, R>
+    fn new_custom_resolver<R>(resolver: R) -> Agent<LocalRepository, LocalRepository, R>
     where
-        R: SupervisorGroupResolver,
+        R: SupervisorGroupResolver<LocalRepository>,
     {
         Agent {
             resolver,
@@ -89,10 +96,11 @@ where
     }
 }
 
-impl<Repo, R> Agent<Repo, R>
+impl<Repo, EffectiveRepo, R> Agent<Repo, EffectiveRepo, R>
 where
-    R: SupervisorGroupResolver,
+    R: SupervisorGroupResolver<EffectiveRepo>,
     Repo: AgentRepository,
+    EffectiveRepo: AgentRepository,
 {
     pub fn run(self, ctx: Context<Option<AgentEvent>>) -> Result<(), AgentError> {
         info!("Creating agent's communication channels");
@@ -195,16 +203,19 @@ fn load_agent_cfgs<Repo: AgentRepository>(
 #[cfg(test)]
 mod tests {
 
-    use crate::config::agent_type_registry::LocalRepository;
+    use crate::config::agent_type_registry::AgentRepository;
 
     use super::{supervisor_group::tests::new_sleep_supervisor_group, SupervisorGroupResolver};
 
     struct MockedSleepGroupResolver;
-    impl SupervisorGroupResolver for MockedSleepGroupResolver {
+    impl<Repo> SupervisorGroupResolver<Repo> for MockedSleepGroupResolver
+    where
+        Repo: AgentRepository,
+    {
         fn retrieve_group(
             &self,
             tx: std::sync::mpsc::Sender<crate::command::stream::Event>,
-            _effective_agent_repository: LocalRepository,
+            _effective_agent_repository: Repo,
         ) -> super::supervisor_group::SupervisorGroup<crate::supervisor::runner::Stopped> {
             new_sleep_supervisor_group(tx)
         }
