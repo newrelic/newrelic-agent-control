@@ -125,6 +125,14 @@ Distributed under the following license(s):
 
 
 
+## bitflags (https://crates.io/crates/bitflags)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+
 ## block-buffer (https://crates.io/crates/block-buffer)
 
 Distributed under the following license(s):
@@ -491,19 +499,19 @@ Distributed under the following license(s):
 
 
 
-## memoffset (https://crates.io/crates/memoffset)
-
-Distributed under the following license(s):
-* MIT
-
-
-
 ## minimal-lexical (https://crates.io/crates/minimal-lexical)
 
 Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
+
+
+
+## nix (https://crates.io/crates/nix)
+
+Distributed under the following license(s):
+* MIT
 
 
 
@@ -610,14 +618,6 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 * Apache-2.0
 * MIT
-
-
-
-## pin-utils (https://crates.io/crates/pin-utils)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
 
 
 
@@ -804,14 +804,6 @@ Distributed under the following license(s):
 
 
 ## smallvec (https://crates.io/crates/smallvec)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
-## static_assertions (https://crates.io/crates/static_assertions)
 
 Distributed under the following license(s):
 * MIT
