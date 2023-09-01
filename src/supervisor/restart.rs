@@ -80,8 +80,9 @@ pub struct Backoff {
     max_retries: usize,
     last_retry_interval: Duration,
 }
-impl Backoff {
-    pub(crate) fn new() -> Self {
+
+impl Default for Backoff {
+    fn default() -> Self {
         Self {
             last_retry: Instant::now(),
             tries: 0,
@@ -90,18 +91,23 @@ impl Backoff {
             last_retry_interval: LAST_RETRY_INTERVAL,
         }
     }
+}
+impl Backoff {
+    pub fn new() -> Self {
+        Self::default()
+    }
 
-    pub(crate) fn with_initial_delay(mut self, initial_delay: Duration) -> Self {
+    pub fn with_initial_delay(mut self, initial_delay: Duration) -> Self {
         self.initial_delay = initial_delay;
         self
     }
 
-    pub(crate) fn with_max_retries(mut self, max_retries: usize) -> Self {
+    pub fn with_max_retries(mut self, max_retries: usize) -> Self {
         self.max_retries = max_retries;
         self
     }
 
-    pub(crate) fn with_last_retry_interval(mut self, last_retry_interval: Duration) -> Self {
+    pub fn with_last_retry_interval(mut self, last_retry_interval: Duration) -> Self {
         self.last_retry_interval = last_retry_interval;
         self
     }

@@ -15,11 +15,13 @@ where
 #[cfg(unix)]
 #[test]
 fn non_blocking_runner() {
+    use std::collections::HashMap;
+
     let mut sleep_cmd = Command::new("sleep");
     sleep_cmd.arg("5");
 
     let agent = NonSupervisor {
-        cmd: ProcessRunner::new("sleep", ["5"]),
+        cmd: ProcessRunner::new("sleep", ["5"], HashMap::from([("TEST", "TEST")])),
     };
 
     let started_cmd = agent.cmd.start().unwrap();

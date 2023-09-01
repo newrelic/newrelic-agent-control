@@ -1,21 +1,92 @@
 use serde::Deserialize;
 use std::collections::HashMap as Map;
+use std::fs;
 use std::io::Write;
-use tempfile::NamedTempFile;
+
+use uuid::Uuid;
 
 use super::agent_type::{Agent, AgentTypeError, TrivialValue, TEMPLATE_KEY_SEPARATOR};
 
+/// User-provided config.
+///
+/// User-provided configuration (normally via a YAML file) that must follow the tree-like structure of [`Agent`]'s [`NormalizedSpec`] and will be used to populate the [`Agent`]'s [ `Meta`] field to totally define a deployable supervisor.
+///
+/// The below example in YAML format:
+///
+/// ```yaml
+/// system:
+///  logging:
+///    level: debug
+/// ```
+///
+/// Coupled with a specification of an agent type like this one:
+///
+/// ```yaml
+/// name: nrdot
+/// namespace: newrelic
+/// version: 0.1.0
+///
+/// variables:
+///  system:
+///   logging:
+///     level:
+///      description: "Logging level"
+///      type: string
+///      required: true
+///
+/// deployment:
+///   on_host:
+///     executables:
+///       - path: "/etc/otelcol"
+///         args: "--log-level debug"
+///     # the health of nrdot is determined by whether the agent process
+///     # is up and alive
+///     health:
+///       strategy: process
+/// ```
+///
+/// Will produce the following end result:
+///
+/// ```yaml
+/// name: nrdot
+/// namespace: newrelic
+/// version: 0.1.0
+///
+/// variables:
+///   system:
+///     logging:
+///       level:
+///         description: "Logging level"
+///         type: string
+///         required: true
+///         default:
+///         final_value: debug
+///
+/// deployment:
+///   on_host:
+///     executables:
+///       - path: "/etc/otelcol"
+///         args: "--log-level debug"
+///     # the health of nrdot is determined by whether the agent process
+///     # is up and alive
+///     health:
+///       strategy: process
+/// ```
+///
+/// Please see the tests in the sources for more examples.
+///
+/// [agent_type]: crate::config::agent_type
 #[derive(Debug, PartialEq, Deserialize)]
-pub(crate) struct SupervisorConfig(Map<String, SupervisorConfigInner>);
+pub struct SupervisorConfig(Map<String, SupervisorConfigInner>);
 
 #[derive(Debug, PartialEq, Deserialize)]
 #[serde(untagged)]
-pub(crate) enum SupervisorConfigInner {
+pub enum SupervisorConfigInner {
     NestedConfig(Map<String, SupervisorConfigInner>),
     EndValue(TrivialValue),
 }
 
-pub(crate) type NormalizedSupervisorConfig = Map<String, TrivialValue>;
+pub type NormalizedSupervisorConfig = Map<String, TrivialValue>;
 
 impl From<SupervisorConfig> for NormalizedSupervisorConfig {
     fn from(config: SupervisorConfig) -> Self {
@@ -43,17 +114,17 @@ fn inner_normalize(key: String, config: SupervisorConfigInner) -> NormalizedSupe
     }
 }
 
-pub(crate) fn validate_with_agent_type(
+pub fn validate_with_agent_type(
     config: NormalizedSupervisorConfig,
     agent_type: &Agent,
 ) -> Result<NormalizedSupervisorConfig, AgentTypeError> {
     // What do we need to do?
     // Check that all the keys in the agent_type are present in the config
-    // Also, check that all the values of the config are of the type declared in the config's NormalizedSpec
+    // Also, check that all the values of the config are of the type declared in the config's NormalizedVariables
     let mut result = Map::new();
     let mut tmp_config = config.clone();
 
-    for (k, v) in agent_type.spec.iter() {
+    for (k, v) in agent_type.variables.iter() {
         if !tmp_config.contains_key(k) && v.required {
             return Err(AgentTypeError::MissingAgentKey(k.clone()));
         }
@@ -97,14 +168,27 @@ fn write_files(config: &mut NormalizedSupervisorConfig) -> Result<(), AgentTypeE
         .values_mut()
         .try_for_each(|v| -> Result<(), AgentTypeError> {
             if let TrivialValue::File(f) = v {
-                // FIXME: What happens when early removal of the temp file while the SuperAgent is still running?
-                let mut file = NamedTempFile::new()?;
+                const CONF_DIR: &str = "agentconfigs";
+                // get current path
+                let wd = std::env::current_dir()?;
+                let dir = wd.join(CONF_DIR);
+                if !dir.exists() {
+                    fs::create_dir(dir.as_path())?;
+                }
+                let uuid = Uuid::new_v4().to_string();
+                let path = format!("{}/{}-config.yaml", dir.to_string_lossy(), uuid); // FIXME: PATH?
+                let mut file = fs::OpenOptions::new()
+                    .create(true)
+                    .write(true)
+                    .open(&path)?;
+
                 writeln!(file, "{}", f.content)?;
-                f.path = file
-                    .path()
-                    .to_str()
-                    .ok_or(AgentTypeError::InvalidFilePath)?
-                    .to_string();
+                f.path = path;
+                // f.path = file
+                //     .path()
+                //     .to_str()
+                //     .ok_or(AgentTypeError::InvalidFilePath)?
+                //     .to_string();
             }
             Ok(())
         })
@@ -198,7 +282,7 @@ deployment:
 name: nrdot
 namespace: newrelic
 version: 0.1.0
-spec:
+variables:
   deployment:
     on_host:
       path:
@@ -209,13 +293,12 @@ spec:
         description: "Args passed to the agent"
         type: string
         required: true
-meta:
-  deployment:
-    on_host:
-      executables:
-        - path: ${deployment.on_host.path}/otelcol
-          args: "-c ${deployment.on_host.args}"
-          env: ""
+deployment:
+  on_host:
+    executables:
+      - path: ${deployment.on_host.path}/otelcol
+        args: "-c ${deployment.on_host.args}"
+        env: ""
 "#;
 
     #[test]
@@ -266,7 +349,7 @@ deployment:
 name: nrdot
 namespace: newrelic
 version: 0.1.0
-spec:
+variables:
   deployment:
     on_host:
       path:
@@ -278,13 +361,12 @@ spec:
         description: "Args passed to the agent"
         type: string
         required: true
-meta:
-  deployment:
-    on_host:
-      executables:
-        - path: ${deployment.on_host.args}/otelcol
-          args: "-c ${deployment.on_host.args}"
-          env: ""
+deployment:
+  on_host:
+    executables:
+      - path: ${deployment.on_host.args}/otelcol
+        args: "-c ${deployment.on_host.args}"
+        env: ""
 "#;
 
     #[test]

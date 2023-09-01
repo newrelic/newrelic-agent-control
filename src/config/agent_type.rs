@@ -1,23 +1,47 @@
+//! This module contains the definitions of the Supervisor's Agent Type, which is the type of agent that the Supervisor will be running.
+//!
+//! The reasoning behind this is that the Supervisor will be able to run different types of agents, and each type of agent will have its own configuration. Supporting generic agent functionalities, the user can both define its own agent types and provide a config that implement this agent type, and the New Relic Super Agent will spawn a Supervisor which will be able to run it.
+//!
+//! See [`Agent::populate`] for a flowchart of the dataflow that ends in the final, enriched structure.
 use regex::Regex;
 use serde::Deserialize;
+use serde_with::serde_as;
 use std::{
     collections::HashMap as Map,
     fmt::{Display, Formatter},
     io,
+    time::Duration,
 };
 use thiserror::Error;
+
+use crate::supervisor::restart::{Backoff, BackoffStrategy};
 
 use super::supervisor_config::{
     validate_with_agent_type, NormalizedSupervisorConfig, SupervisorConfig,
 };
 
+/// Regex that extracts the template values from a string.
+///
+/// Example:
+///
+/// ```
+/// use regex::Regex;
+///
+/// const TEMPLATE_RE: &str = r"\$\{([a-zA-Z0-9\.\-_/]+)\}";
+/// let re = Regex::new(TEMPLATE_RE).unwrap();
+/// let content = "Hello ${name.value}!";
+///
+/// let result = re.find_iter(content).map(|i| i.as_str()).collect::<Vec<_>>();
+///
+/// assert_eq!(result, vec!["${name.value}"]);
 const TEMPLATE_RE: &str = r"\$\{([a-zA-Z0-9\.\-_/]+)\}";
 const TEMPLATE_BEGIN: &str = "${";
 const TEMPLATE_END: char = '}';
-pub(crate) const TEMPLATE_KEY_SEPARATOR: &str = ".";
+pub const TEMPLATE_KEY_SEPARATOR: &str = ".";
 
+/// The different error types to be returned by operations involving the [`Agent`] type.
 #[derive(Error, Debug)]
-pub(crate) enum AgentTypeError {
+pub enum AgentTypeError {
     #[error("`{0}`")]
     SerdeYaml(#[from] serde_yaml::Error),
     #[error("Missing required key in config: `{0}`")]
@@ -26,7 +50,7 @@ pub(crate) enum AgentTypeError {
         "Type mismatch while parsing. Expected type {expected_type:?}, got value {actual_value:?}"
     )]
     TypeMismatch {
-        expected_type: SpecType,
+        expected_type: VariableType,
         actual_value: TrivialValue,
     },
     #[error("Found unexpected keys in config: {0:?}")]
@@ -43,42 +67,94 @@ pub(crate) enum AgentTypeError {
     #[error("Missing default value for spec key `{0}`")]
     MissingDefaultWithKey(String),
     #[error("Invalid default value for spec key `{key}`: expected a {type_:?}")]
-    InvalidDefaultForSpec { key: String, type_: SpecType },
+    InvalidDefaultForSpec { key: String, type_: VariableType },
 }
-
-pub(super) type AgentName = String;
 
 #[derive(Debug, Deserialize)]
 struct RawAgent {
-    name: AgentName,
-    namespace: String,
-    version: String,
-    spec: AgentSpec,
-    #[serde(default)]
-    meta: Meta,
+    #[serde(flatten)]
+    metadata: AgentMetadata,
+    variables: AgentVariables,
+    #[serde(default, flatten)]
+    runtime_config: RuntimeConfig,
 }
 
-#[derive(Debug, PartialEq, Clone, Default, Deserialize)]
-#[serde(try_from = "RawAgent")]
-pub(crate) struct Agent {
-    pub(crate) name: AgentName,
+#[derive(Debug, Deserialize, PartialEq, Clone, Default)]
+pub struct AgentMetadata {
+    pub name: String,
     namespace: String,
     version: String,
-    pub(crate) spec: NormalizedSpec,
-    meta: Meta,
+}
+
+impl Display for AgentMetadata {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}/{}:{}", self.namespace, self.name, self.version)
+    }
+}
+
+/// Configuration of the Agent Type, contains identification metadata, a set of variables that can be adjusted, and rules of how to start given agent binaries.
+///
+/// This is the final representation of the agent type once it has been parsed (first into a [`RawAgent`]) having the spec field normalized.
+///
+/// See also [`RawAgent`] and its [`Agent::try_from`] implementation.
+#[derive(Debug, PartialEq, Clone, Default, Deserialize)]
+#[serde(try_from = "RawAgent")]
+pub struct Agent {
+    #[serde(flatten)]
+    pub metadata: AgentMetadata,
+    pub variables: NormalizedVariables,
+    pub runtime_config: RuntimeConfig,
 }
 
 impl Agent {
-    fn get_spec(self, path: String) -> Option<EndSpec> {
-        self.spec.get(&path).cloned()
+    /// Retrieve the `variables` field of the agent type at the specified key, if any.
+    pub fn get_variables(self, path: String) -> Option<EndSpec> {
+        self.variables.get(&path).cloned()
     }
 
-    fn populate(self, config: SupervisorConfig) -> Result<Self, AgentTypeError> {
+    #[cfg_attr(doc, aquamarine::aquamarine)]
+    /// Populate the [`RuntimeConfig`] object field of the [`Agent`] type with the user-provided config, which must abide by the agent type's defined [`AgentVariables`].
+    ///
+    /// This method will return an error if the user-provided config does not conform to the agent type's spec.
+    ///
+    /// The expected overall dataflow ending in `populate`, with the functions involved, is the following:
+    ///
+    /// ```mermaid
+    /// flowchart
+    ///     subgraph main
+    ///     A[User] --> |provides| B["Agent Type (YAML)"]
+    ///     B --> |"parses into (serde)"| C[RawAgent]
+    ///     C --> |"normalize_agent_spec()"| D[Agent]
+    ///     D --> G{"Agent::populate()"}
+    ///     A --> |provides| E["Agent Config (YAML)"]
+    ///     E --> |"parses into (serde)"| F[SupervisorConfig]
+    ///     F --> G{"Agent::populate()"}
+    ///     end
+    ///     subgraph "Agent::populate()"
+    ///     G -.-> H[SupervisorConfig]
+    ///     G -.-> I[Agent]
+    ///     H -->|"::from()"| J[NormalizedSupervisorConfig]
+    ///     J --> K{"validate_with_agent_type()"}
+    ///     I --> K
+    ///     K --> L{{valid and type-checked config with all final values}}
+    ///     end
+    ///     subgraph templating
+    ///     L -->|"::template_with(valid_config)"| M[updated Meta]
+    ///     L --> N[updated Spec]
+    ///     end
+    ///     subgraph "Final Agent Supervisor"
+    ///     M --> O{Agent}
+    ///     N --> O
+    ///     O --> |creates| P[Supervisor]
+    ///     P --> Q(((RUN)))
+    ///     end
+    /// ```
+    pub fn populate(self, config: SupervisorConfig) -> Result<Self, AgentTypeError> {
         let normalized_config = NormalizedSupervisorConfig::from(config);
         let validated_conf = validate_with_agent_type(normalized_config, &self)?;
 
-        let meta = self.meta.template_with(validated_conf.clone())?;
-        let mut spec = self.spec;
+        let runtime_conf = self.runtime_config.template_with(validated_conf.clone())?;
+        let mut spec = self.variables;
 
         validated_conf.into_iter().for_each(|(k, v)| {
             spec.entry(k).and_modify(|s| {
@@ -86,27 +162,32 @@ impl Agent {
             });
         });
 
-        Ok(Agent { meta, spec, ..self })
+        Ok(Agent {
+            runtime_config: runtime_conf,
+            variables: spec,
+            ..self
+        })
     }
 }
 
 impl TryFrom<RawAgent> for Agent {
     type Error = AgentTypeError;
-
+    /// Convert a [`RawAgent`] into an [`Agent`].
+    ///
+    /// This is where the `variables` field of the [`RawAgent`] is normalized into a [`NormalizedVariables`].
     fn try_from(raw_agent: RawAgent) -> Result<Self, Self::Error> {
         Ok(Agent {
-            spec: normalize_agent_spec(raw_agent.spec)?,
-            name: raw_agent.name,
-            namespace: raw_agent.namespace,
-            version: raw_agent.version,
-            meta: raw_agent.meta,
+            variables: normalize_agent_spec(raw_agent.variables)?,
+            metadata: raw_agent.metadata,
+            runtime_config: raw_agent.runtime_config,
         })
     }
 }
 
+/// Represents all the allowed types for a configuration defined in the spec value.
 #[derive(Debug, PartialEq, Clone, Deserialize)]
 #[serde(untagged)]
-pub(crate) enum TrivialValue {
+pub enum TrivialValue {
     String(String),
     #[serde(skip)]
     File(FilePathWithContent),
@@ -115,12 +196,15 @@ pub(crate) enum TrivialValue {
 }
 
 impl TrivialValue {
-    pub(crate) fn check_type(self, type_: SpecType) -> Result<Self, AgentTypeError> {
+    /// Checks the `TrivialValue` against the given [`VariableType`], erroring if they do not match.
+    ///
+    /// This is also in charge of converting a `TrivialValue::String` into a `TrivialValue::File`, using the actual string as the file content, if the given [`VariableType`] is `VariableType::File`.
+    pub fn check_type(self, type_: VariableType) -> Result<Self, AgentTypeError> {
         match (self.clone(), type_) {
-            (TrivialValue::String(_), SpecType::String)
-            | (TrivialValue::Bool(_), SpecType::Bool)
-            | (TrivialValue::Number(_), SpecType::Number) => Ok(self),
-            (TrivialValue::String(s), SpecType::File) => {
+            (TrivialValue::String(_), VariableType::String)
+            | (TrivialValue::Bool(_), VariableType::Bool)
+            | (TrivialValue::Number(_), VariableType::Number) => Ok(self),
+            (TrivialValue::String(s), VariableType::File) => {
                 Ok(TrivialValue::File(FilePathWithContent::new(s)))
             }
             (v, t) => Err(AgentTypeError::TypeMismatch {
@@ -142,16 +226,17 @@ impl Display for TrivialValue {
     }
 }
 
+/// Represents a file path and its content.
 #[derive(Debug, PartialEq, Default, Clone, Deserialize)]
-pub(crate) struct FilePathWithContent {
+pub struct FilePathWithContent {
     #[serde(skip)]
-    pub(crate) path: String,
+    pub path: String,
     #[serde(flatten)]
-    pub(crate) content: String,
+    pub content: String,
 }
 
 impl FilePathWithContent {
-    pub(crate) fn new(content: String) -> Self {
+    pub fn new(content: String) -> Self {
         FilePathWithContent {
             content,
             ..Default::default()
@@ -159,9 +244,10 @@ impl FilePathWithContent {
     }
 }
 
+/// Represents a numeric value, which can be either a positive integer, a negative integer or a float.
 #[derive(Debug, PartialEq, Clone, Deserialize)]
 #[serde(untagged)]
-pub(crate) enum N {
+pub enum N {
     PosInt(u64),
     /// Always less than zero.
     NegInt(i64),
@@ -179,22 +265,24 @@ impl Display for N {
     }
 }
 
-type AgentSpec = Map<String, Spec>;
+/// Flexible tree-like structure that contains variables definitions, that can later be changed by the end user via [`SupervisorConfig`].
+type AgentVariables = Map<String, Spec>;
 
 #[derive(Debug, PartialEq, Clone, Deserialize)]
 #[serde(try_from = "IntermediateEndSpec")]
-pub(crate) struct EndSpec {
+pub struct EndSpec {
     description: String,
     #[serde(rename = "type")]
-    pub(crate) type_: SpecType,
-    pub(crate) required: bool,
-    pub(crate) default: Option<TrivialValue>,
+    pub type_: VariableType,
+    pub required: bool,
+    pub default: Option<TrivialValue>,
+    /// The actual value that will be used by the agent. This will be either the user-provided value or, if not provided and not marked as [`required`], the default value.
     #[serde(skip)]
-    pub(crate) final_value: Option<TrivialValue>,
+    pub final_value: Option<TrivialValue>,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy, Deserialize)]
-pub(crate) enum SpecType {
+pub enum VariableType {
     #[serde(rename = "string")]
     String,
     #[serde(rename = "bool")]
@@ -215,7 +303,7 @@ pub(crate) enum SpecType {
 struct IntermediateEndSpec {
     description: String,
     #[serde(rename = "type")]
-    type_: SpecType,
+    type_: VariableType,
     required: bool,
     default: Option<TrivialValue>,
 }
@@ -223,6 +311,9 @@ struct IntermediateEndSpec {
 impl TryFrom<IntermediateEndSpec> for EndSpec {
     type Error = AgentTypeError;
 
+    /// Convert a [`IntermediateEndSpec`] into an [`EndSpec`].
+    ///
+    /// This conversion will fail if there is no default value and the spec is not marked as [`required`], as there will be no value to use. Also, the type for the provided default value will be checked against the [`VariableType`], failing if it does not match.
     fn try_from(ies: IntermediateEndSpec) -> Result<Self, Self::Error> {
         if ies.default.is_none() && !ies.required {
             return Err(AgentTypeError::MissingDefault);
@@ -237,22 +328,23 @@ impl TryFrom<IntermediateEndSpec> for EndSpec {
     }
 }
 
+/// Strict structure that describes how to start a given agent with all needed binaries, arguments, env, etc.
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
-struct Meta {
-    deployment: Deployment,
+pub struct RuntimeConfig {
+    pub deployment: Deployment,
 }
 
-impl Templateable for Meta {
+impl Templateable for RuntimeConfig {
     fn template_with(self, kv: NormalizedSupervisorConfig) -> Result<Self, AgentTypeError> {
-        Ok(Meta {
+        Ok(RuntimeConfig {
             deployment: self.deployment.template_with(kv)?,
         })
     }
 }
 
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
-struct Deployment {
-    on_host: Option<OnHost>,
+pub struct Deployment {
+    pub on_host: Option<OnHost>,
 }
 
 impl Templateable for Deployment {
@@ -286,9 +378,14 @@ impl Templateable for Deployment {
     }
 }
 
+/// The definition for an on-host supervisor.
+///
+/// It contains the instructions of what are the agent binaries, command-line arguments, the environment variables passed to it and the restart policy of the supervisor.
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
-struct OnHost {
-    executables: Vec<Executable>,
+pub struct OnHost {
+    pub executables: Vec<Executable>,
+    #[serde(default)]
+    pub restart_policy: RestartPolicyConfig,
 }
 
 impl Templateable for OnHost {
@@ -299,23 +396,107 @@ impl Templateable for OnHost {
                 .into_iter()
                 .map(|e| e.template_with(kv.clone()))
                 .collect::<Result<Vec<Executable>, AgentTypeError>>()?,
+            ..Default::default()
         })
     }
 }
 
-#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
-struct Executable {
-    path: String,
-    args: Args,
-    env: Env,
+#[derive(Debug, Deserialize, PartialEq, Clone, Default)]
+pub struct RestartPolicyConfig {
+    #[serde(default)]
+    pub backoff_strategy: BackoffStrategyConfig,
+    #[serde(default)]
+    pub restart_exit_codes: Vec<i32>,
 }
 
-trait IntoVector<T> {
-    fn into_vector(self) -> Vec<T>;
+#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[serde(rename_all = "lowercase", tag = "type")]
+pub enum BackoffStrategyConfig {
+    None,
+    Fixed(BackoffStrategyInner),
+    Linear(BackoffStrategyInner),
+    Exponential(BackoffStrategyInner),
+}
+
+/* FIXME: This is not TEMPLATEABLE for the moment, we need to think what would be the strategy here and clarify:
+
+1. If we perform replacement with the template but the values are not of the expected type, what happens?
+2. Should we use an intermediate type with all the end nodes as `String` so we can perform the replacement?
+  - Add a sanitize or a fallible conversion from the raw intermediate type into into the end type?
+
+
+*/
+
+/*
+Default values for supervisor restarts
+TODO: refine values with real executions
+*/
+const BACKOFF_DELAY: Duration = Duration::from_secs(2);
+const BACKOFF_MAX_RETRIES: usize = 20;
+const BACKOFF_LAST_RETRY_INTERVAL: Duration = Duration::from_secs(600);
+
+#[serde_as]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[serde(default)]
+pub struct BackoffStrategyInner {
+    #[serde_as(as = "serde_with::DurationSeconds<u64>")]
+    pub backoff_delay_seconds: Duration,
+    pub max_retries: usize,
+    #[serde_as(as = "serde_with::DurationSeconds<u64>")]
+    pub last_retry_interval_seconds: Duration,
+}
+
+impl From<&BackoffStrategyConfig> for BackoffStrategy {
+    fn from(value: &BackoffStrategyConfig) -> Self {
+        match value {
+            BackoffStrategyConfig::Fixed(inner) => {
+                BackoffStrategy::Fixed(realize_backoff_config(inner))
+            }
+            BackoffStrategyConfig::Linear(inner) => {
+                BackoffStrategy::Linear(realize_backoff_config(inner))
+            }
+            BackoffStrategyConfig::Exponential(inner) => {
+                BackoffStrategy::Exponential(realize_backoff_config(inner))
+            }
+            BackoffStrategyConfig::None => BackoffStrategy::None,
+        }
+    }
+}
+
+impl Default for BackoffStrategyConfig {
+    fn default() -> Self {
+        Self::Linear(BackoffStrategyInner::default())
+    }
+}
+
+impl Default for BackoffStrategyInner {
+    fn default() -> Self {
+        Self {
+            backoff_delay_seconds: BACKOFF_DELAY,
+            max_retries: BACKOFF_MAX_RETRIES,
+            last_retry_interval_seconds: BACKOFF_LAST_RETRY_INTERVAL,
+        }
+    }
+}
+
+fn realize_backoff_config(i: &BackoffStrategyInner) -> Backoff {
+    Backoff::new()
+        .with_initial_delay(i.backoff_delay_seconds)
+        .with_max_retries(i.max_retries)
+        .with_last_retry_interval(i.last_retry_interval_seconds)
+}
+
+#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+pub struct Executable {
+    pub path: String,
+    #[serde(default)]
+    pub args: Args,
+    #[serde(default)]
+    pub env: Env,
 }
 
 #[derive(Debug, Default, Deserialize, Clone, PartialEq)]
-struct Args(String);
+pub struct Args(String);
 
 impl Templateable for Args {
     fn template_with(self, kv: Map<String, TrivialValue>) -> Result<Self, AgentTypeError> {
@@ -323,14 +504,14 @@ impl Templateable for Args {
     }
 }
 
-impl IntoVector<String> for Args {
-    fn into_vector(self) -> Vec<String> {
+impl Args {
+    pub fn into_vector(self) -> Vec<String> {
         self.0.split_whitespace().map(|s| s.to_string()).collect()
     }
 }
 
 #[derive(Debug, Default, Deserialize, Clone, PartialEq)]
-struct Env(String);
+pub struct Env(String);
 
 impl Templateable for Env {
     fn template_with(self, kv: Map<String, TrivialValue>) -> Result<Self, AgentTypeError> {
@@ -338,8 +519,8 @@ impl Templateable for Env {
     }
 }
 
-impl IntoVector<(String, String)> for Env {
-    fn into_vector(self) -> Vec<(String, String)> {
+impl Env {
+    pub fn into_map(self) -> Map<String, String> {
         self.0
             .split_whitespace()
             .map(|s| {
@@ -372,10 +553,9 @@ impl Templateable for Executable {
 impl Templateable for String {
     fn template_with(self, kv: Map<String, TrivialValue>) -> Result<String, AgentTypeError> {
         let re = Regex::new(TEMPLATE_RE).unwrap();
-        let content = &self.clone();
 
         let result = re
-            .find_iter(content)
+            .find_iter(&self.clone())
             .map(|i| i.as_str())
             .try_fold(self, |r, i| {
                 let trimmed_s = i
@@ -405,9 +585,35 @@ enum Spec {
     SpecMapping(Map<String, Spec>),
 }
 
-type NormalizedSpec = Map<String, EndSpec>;
+/// The normalized version of the [`AgentVariables`] tree.
+///
+/// Example of the end node in the tree:
+///
+/// ```yaml
+/// name:
+///   description: "Name of the agent"
+///   type: string
+///   required: false
+///   default: nrdot
+/// ```
+///
+/// The path to the end node is converted to the string with `.` as a join symbol.
+///
+/// ```yaml
+/// variables:
+///   system:
+///     logging:
+///       level:
+///         description: "Logging level"
+///         type: string
+///         required: false
+///         default: info
+/// ```
+///
+/// Will be converted to `system.logging.level` and can be used later in the AgentType_Meta part as `${system.logging.level}`.
+type NormalizedVariables = Map<String, EndSpec>;
 
-fn normalize_agent_spec(spec: AgentSpec) -> Result<NormalizedSpec, AgentTypeError> {
+fn normalize_agent_spec(spec: AgentVariables) -> Result<NormalizedVariables, AgentTypeError> {
     spec.into_iter().try_fold(Map::new(), |r, (k, v)| {
         let n_spec = inner_normalize(k, v);
         n_spec.iter().try_for_each(|(k, v)| {
@@ -423,7 +629,7 @@ fn normalize_agent_spec(spec: AgentSpec) -> Result<NormalizedSpec, AgentTypeErro
     })
 }
 
-fn inner_normalize(key: String, spec: Spec) -> NormalizedSpec {
+fn inner_normalize(key: String, spec: Spec) -> NormalizedVariables {
     let mut result = Map::new();
     match spec {
         Spec::SpecEnd(s) => _ = result.insert(key, s),
@@ -438,31 +644,36 @@ fn inner_normalize(key: String, spec: Spec) -> NormalizedSpec {
 }
 
 #[cfg(test)]
-pub(crate) mod tests {
+pub mod tests {
     use crate::config::supervisor_config::SupervisorConfig;
 
     use super::*;
     use serde_yaml::Error;
     use std::collections::HashMap as Map;
 
-    pub(crate) const AGENT_GIVEN_YAML: &str = r#"
+    pub const AGENT_GIVEN_YAML: &str = r#"
 name: nrdot
 namespace: newrelic
 version: 0.1.0
-spec:
+variables:
   description:
     name:
       description: "Name of the agent"
       type: string
       required: false
       default: nrdot
-meta:
-  deployment:
-    on_host:
-      executables:
-        - path: ${bin}/otelcol
-          args: "-c ${deployment.k8s.image}"
-          env: ""
+deployment:
+  on_host:
+    executables:
+      - path: ${bin}/otelcol
+        args: "-c ${deployment.k8s.image}"
+        env: ""
+    restart_policy:
+        backoff_strategy:
+            type: fixed
+            backoff_delay_seconds: 1
+            max_retries: 3
+            last_retry_interval_seconds: 30
 "#;
 
     const AGENT_GIVEN_BAD_YAML: &str = r#"
@@ -472,30 +683,38 @@ version: 0.1.0
 spec:
   description:
     name:
-meta:
-  deployment:
-    on_host:
-      executables:
-        - path: ${bin}/otelcol
-          args: "-c ${deployment.k8s.image}"
-          env: ""
+deployment:
+  on_host:
+    executables:
+      - path: ${bin}/otelcol
+        args: "-c ${deployment.k8s.image}"
+        env: ""
 "#;
 
     #[test]
     fn test_basic_parsing() {
         let agent: Agent = serde_yaml::from_str(AGENT_GIVEN_YAML).unwrap();
 
-        assert_eq!("nrdot", agent.name);
-        assert_eq!("newrelic", agent.namespace);
-        assert_eq!("0.1.0", agent.version);
+        assert_eq!("nrdot", agent.metadata.name);
+        assert_eq!("newrelic", agent.metadata.namespace);
+        assert_eq!("0.1.0", agent.metadata.version);
 
-        assert_eq!(
-            "${bin}/otelcol",
-            agent.meta.deployment.on_host.clone().unwrap().executables[0].path
-        );
+        let on_host = agent.runtime_config.deployment.on_host.clone().unwrap();
+
+        assert_eq!("${bin}/otelcol", on_host.executables[0].path);
         assert_eq!(
             Args("-c ${deployment.k8s.image}".to_string()),
-            agent.meta.deployment.on_host.unwrap().executables[0].args
+            on_host.executables[0].args
+        );
+
+        // Resrtart restart policy values
+        assert_eq!(
+            BackoffStrategyConfig::Fixed(BackoffStrategyInner {
+                backoff_delay_seconds: Duration::from_secs(1),
+                max_retries: 3,
+                last_retry_interval_seconds: Duration::from_secs(30),
+            }),
+            on_host.restart_policy.backoff_strategy
         );
     }
 
@@ -504,9 +723,10 @@ meta:
         let raw_agent_err: Result<RawAgent, Error> = serde_yaml::from_str(AGENT_GIVEN_BAD_YAML);
 
         assert!(raw_agent_err.is_err());
+        println!("{:?}", raw_agent_err);
         assert_eq!(
             raw_agent_err.unwrap_err().to_string(),
-            "spec: data did not match any variant of untagged enum Spec at line 6 column 3"
+            "missing field `variables` at line 2 column 1"
         );
     }
 
@@ -520,7 +740,7 @@ meta:
             "description.name".to_string(),
             EndSpec {
                 description: "Name of the agent".to_string(),
-                type_: SpecType::String,
+                type_: VariableType::String,
                 required: false,
                 default: Some(TrivialValue::String("nrdot".to_string())),
                 final_value: None,
@@ -529,11 +749,11 @@ meta:
 
         // expect output to be the map
 
-        assert_eq!(expected_map, given_agent.spec);
+        assert_eq!(expected_map, given_agent.variables);
 
         let expected_spec = EndSpec {
             description: "Name of the agent".to_string(),
-            type_: SpecType::String,
+            type_: VariableType::String,
             required: false,
             default: Some(TrivialValue::String("nrdot".to_string())),
             final_value: None,
@@ -542,7 +762,7 @@ meta:
         assert_eq!(
             expected_spec,
             given_agent
-                .get_spec("description.name".to_string())
+                .get_variables("description.name".to_string())
                 .unwrap()
         );
     }
@@ -613,28 +833,27 @@ meta:
 name: newrelic-infra
 namespace: newrelic
 version: 1.39.1
-spec:
+variables:
   config:
     description: "Newrelic infra configuration yaml"
     type: file
     required: true
-meta:
-  deployment:
-    on_host:
-      executables:
-        - path: /usr/bin/newrelic-infra
-          args: "--config ${config}"
-          env: ""
+deployment:
+  on_host:
+    executables:
+      - path: /usr/bin/newrelic-infra
+        args: "--config ${config}"
+        env: ""
 "#;
 
     const GIVEN_NEWRELIC_INFRA_USER_CONFIG_YAML: &str = r#"
 config: | 
-    license: abc123
+    license_key: abc123
     staging: true
 "#;
 
     #[test]
-    fn test_populate_meta_field() {
+    fn test_populate_runtime_field() {
         let input_agent_type = serde_yaml::from_str::<Agent>(GIVEN_NEWRELIC_INFRA_YAML).unwrap();
         println!("Input: {:#?}", input_agent_type);
 
@@ -645,7 +864,7 @@ config: |
 
         let actual = input_agent_type
             .populate(input_user_config)
-            .expect("Failed to populate the AgentType's Meta field");
+            .expect("Failed to populate the AgentType's runtime_config field");
 
         println!("Output: {:#?}", actual);
     }

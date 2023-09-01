@@ -3,10 +3,10 @@ extern crate tera;
 extern crate lazy_static;
 
 use serde_json::{Map, Value};
-use tera::{Context, Tera};
 use std::error::Error;
 use std::fs::File;
 use std::io::Write;
+use tera::{Context, Tera};
 
 use clap::Parser;
 
@@ -39,7 +39,7 @@ lazy_static! {
     };
 }
 
-fn main() -> Result<(), Box<dyn Error>>  {
+fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
     let mut f = File::create(args.output_file)?;
     let markdown = render_markdown(args.dependencies);
@@ -57,7 +57,7 @@ fn main() -> Result<(), Box<dyn Error>>  {
     }
 }
 
-fn render_markdown(data:String) -> Result<String, Box<dyn Error>> {
+fn render_markdown(data: String) -> Result<String, Box<dyn Error>> {
     let serialized = serde_json::from_str::<Map<String, Value>>(data.as_str()).unwrap();
 
     let mut context = Context::new();
