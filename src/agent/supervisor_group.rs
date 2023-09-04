@@ -91,12 +91,12 @@ impl From<&SupervisorGroupBuilder> for SupervisorGroup<Stopped> {
             .cfg
             .agents
             .iter()
-            .map(|(agent_t, agent_cfg)| {
+            .map(|(agent_t, _)| {
                 let agent = builder
                     .effective_agent_repository
                     .get(&agent_t.clone().get());
                 match agent {
-                    Ok(mut agent) => loop {
+                    Ok(agent) => loop {
                         if let Some(on_host) = &agent.meta.deployment.on_host {
                             return Self::build_on_host_runners(&builder.tx, agent_t, on_host.clone());
                         }
@@ -143,7 +143,7 @@ pub mod tests {
         command::stream::Event,
         config::agent_configs::{AgentID, AgentSupervisorConfig, SuperAgentConfig},
         config::agent_type::{Agent, Deployment, Executable, Meta, OnHost},
-        config::agent_type_registry::{AgentRepository, LocalRepository, AgentRepositoryError},
+        config::agent_type_registry::{AgentRepository, LocalRepository},
         supervisor::runner::{
             sleep_supervisor_tests::new_sleep_supervisor, Stopped, SupervisorRunner,
         },
@@ -171,7 +171,7 @@ pub mod tests {
 
     #[test]
     fn new_supervisor_group_from()  {
-        let (tx, rx) = std::sync::mpsc::channel();
+        let (tx, _) = std::sync::mpsc::channel();
         let agent_config = SuperAgentConfig {
             agents: HashMap::from([
                     (
