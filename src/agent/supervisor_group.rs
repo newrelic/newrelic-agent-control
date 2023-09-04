@@ -143,12 +143,13 @@ pub mod tests {
     use crate::{
         command::stream::Event,
         config::agent_configs::{AgentID, AgentSupervisorConfig, SuperAgentConfig},
-        config::agent_type::{Agent, Deployment, Executable, Meta, OnHost},
+        config::agent_type::{Agent, Deployment, Executable, OnHost},
         config::agent_type_registry::{AgentRepository, LocalRepository},
         supervisor::runner::{
             sleep_supervisor_tests::new_sleep_supervisor, Stopped, SupervisorRunner,
         },
     };
+    use crate::config::agent_type::RuntimeConfig;
     use super::{SupervisorGroup, SupervisorGroupBuilder};
 
     // new_sleep_supervisor_group returns a stopped supervisor group with 2 runners with
@@ -177,15 +178,15 @@ pub mod tests {
             agents: HashMap::from([
                     (
                         AgentID("no_repository_key".to_string()),
-                        AgentSupervisorConfig{ agent_type: "".to_string(), config_path: "".to_string() }
+                        AgentSupervisorConfig{ agent_type: "".to_string(), values_file: "".to_string() }
                     ),
                     (
                         AgentID("no_data".to_string()),
-                        AgentSupervisorConfig{ agent_type: "".to_string(), config_path: "".to_string() }
+                        AgentSupervisorConfig{ agent_type: "".to_string(), values_file: "".to_string() }
                     ),
                     (
                         AgentID("full_data".to_string()),
-                        AgentSupervisorConfig{ agent_type: "".to_string(), config_path: "".to_string() }
+                        AgentSupervisorConfig{ agent_type: "".to_string(), values_file: "".to_string() }
                     ),
                 ],
             ),
@@ -198,13 +199,13 @@ pub mod tests {
         };
         _ = builder.effective_agent_repository.store_with_key("no_data".to_string(), Agent{
             metadata: Default::default(),
-            spec: Default::default(),
-            meta: Default::default(),
+            variables: Default::default(),
+            runtime_config: Default::default(),
         });
         _ = builder.effective_agent_repository.store_with_key("full_data".to_string(), Agent{
             metadata: Default::default(),
-            spec: Default::default(),
-            meta: Meta{
+            variables: Default::default(),
+            runtime_config: RuntimeConfig{
                 deployment: Deployment{
                     on_host: Some(OnHost{
                         executables: vec![Executable{

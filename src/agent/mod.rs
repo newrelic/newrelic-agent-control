@@ -202,8 +202,12 @@ fn load_agent_cfgs<Repo: AgentRepository>(
 
 #[cfg(test)]
 mod tests {
-
-    use crate::config::agent_type_registry::AgentRepository;
+    use std::task::Context;
+    use std::thread::{sleep, spawn};
+    use std::time::Duration;
+    use crate::agent::AgentEvent;
+    use crate::config::agent_type::Agent;
+    use crate::config::agent_type_registry::{AgentRepository, LocalRepository};
 
     use super::{supervisor_group::tests::new_sleep_supervisor_group, SupervisorGroupResolver};
 
@@ -223,8 +227,8 @@ mod tests {
 
     #[test]
     fn run_and_stop_supervisors() {
-        let agent: Agent<LocalRepository, MockedSleepGroupResolver> = Agent::new_custom_resolver(MockedSleepGroupResolver, LocalRepository::default());
-        let ctx: Context<Option<AgentEvent>> = Context::new();
+        let agent: Agent = Agent::new_custom_resolver(MockedSleepGroupResolver, LocalRepository::default());
+        let ctx: Context = Context::new();
       // stop all agents after 3 seconds
         spawn({
             let ctx = ctx.clone();
