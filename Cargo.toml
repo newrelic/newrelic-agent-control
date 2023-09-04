@@ -17,7 +17,7 @@ nix = { version = "0.27.1", features = ["signal", "user"] }
 log = { version = "0.4.20", features = ["kv_unstable"] }
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 tracing = "0.1.37"
-ctrlc = { version = "3.4.0", features = ["termination"] }
+ctrlc = { version = "3.4.1", features = ["termination"] }
 serde_with = "3.3.0"
 
 
