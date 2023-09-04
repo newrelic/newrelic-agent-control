@@ -105,7 +105,7 @@ where
                                 on_host.clone(),
                             );
                         }
-                        return (agent_t.clone(), Vec::new());
+                        (agent_t.clone(), Vec::new())
                     }
                     Err(error) => {
                         debug!("repository error: {}", error);
