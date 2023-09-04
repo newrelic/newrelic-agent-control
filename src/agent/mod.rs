@@ -1,5 +1,4 @@
 use std::{
-    collections::HashMap,
     fs,
     path::Path,
     sync::mpsc::{self, Sender},
@@ -8,7 +7,7 @@ use std::{
 use tracing::{error, info};
 
 use crate::{
-    agent::{self, supervisor_group::SupervisorGroup},
+    agent::{supervisor_group::SupervisorGroup},
     command::{stream::Event, EventLogger, StdEventReceiver},
     config::{
         agent_configs::{AgentID, SuperAgentConfig},
@@ -79,13 +78,13 @@ where
     }
 
     #[cfg(test)]
-    fn new_custom_resolver<R>(resolver: R) -> Agent<LocalRepository, R>
+    fn new_custom_resolver<R>(resolver: R, local_repo: Repo) -> Agent<Repo, R>
     where
         R: SupervisorGroupResolver,
     {
         Agent {
             resolver,
-            agent_type_repository: LocalRepository::default(),
+            agent_type_repository: local_repo,
             effective_agent_repository: LocalRepository::default(),
         }
     }
@@ -219,20 +218,18 @@ mod tests {
         }
     }
 
-    // #[test]
-    // fn run_and_stop_supervisors() {
-    //     let agent: Agent<LocalRepository, MockedSleepGroupResolver> = Agent::new_custom_resolver(MockedSleepGroupResolver);
-    //     let ctx: Context<Option<AgentEvent>> = Context::new();
-
-    //     // stop all agents after 3 seconds
-    //     spawn({
-    //         let ctx = ctx.clone();
-    //         move || {
-    //             sleep(Duration::from_secs(3));
-    //             ctx.cancel_all(Some(AgentEvent::Stop)).unwrap();
-    //         }
-    //     });
-
-    //     assert!(agent.run(ctx).is_ok())
-    // }
+    #[test]
+    fn run_and_stop_supervisors() {
+        let agent: Agent<LocalRepository, MockedSleepGroupResolver> = Agent::new_custom_resolver(MockedSleepGroupResolver, LocalRepository::default());
+        let ctx: Context<Option<AgentEvent>> = Context::new();
+      // stop all agents after 3 seconds
+        spawn({
+            let ctx = ctx.clone();
+            move || {
+                sleep(Duration::from_secs(3));
+                ctx.cancel_all(Some(AgentEvent::Stop)).unwrap();
+            }
+        });
+      assert!(agent.run(ctx).is_ok())
+    }
 }

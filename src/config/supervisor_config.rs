@@ -1,7 +1,6 @@
 use serde::Deserialize;
 use std::io::Write;
 use std::{collections::HashMap as Map, fs::File};
-use tempfile::NamedTempFile;
 use uuid::Uuid;
 
 use super::agent_type::{Agent, AgentTypeError, TrivialValue, TEMPLATE_KEY_SEPARATOR};

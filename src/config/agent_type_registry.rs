@@ -54,7 +54,7 @@ mod tests {
 
     use super::*;
 
-    fn retrieve_agent<R>(reader: R) -> super::Agent
+    fn retrieve_agent<R>(reader: R) -> Agent
     where
         R: std::io::Read,
     {
