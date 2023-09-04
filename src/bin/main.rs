@@ -21,6 +21,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         return Ok(());
     }
 
+    // Program must run as root, but should accept simple behaviors such as --version, --help, etc
+    #[cfg(unix)]
+    if !nix::unistd::Uid::effective().is_root() {
+        return Err("Program must run as root".into());
+    }
+
     info!("Creating the global context");
     let ctx: Context<Option<AgentEvent>> = Context::new();
 
