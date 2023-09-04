@@ -1,5 +1,5 @@
 use std::{collections::HashMap, sync::mpsc::Sender, thread::JoinHandle};
-use log::debug;
+use tracing::debug;
 
 use crate::{
     command::stream::Event,
