@@ -21,7 +21,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         return Ok(());
     }
 
-
     info!("Creating the global context");
     let ctx: Context<Option<AgentEvent>> = Context::new();
 
@@ -43,9 +42,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let agent = Agent::new(&cli.get_config_path(), local_agent_type_repository);
 
     match agent {
-        Ok(agent) => {
-            Ok(agent.run(ctx)?)
-        }
+        Ok(agent) => Ok(agent.run(ctx)?),
         Err(e) => {
             error!("agent error: {}", e);
             process::exit(1);
