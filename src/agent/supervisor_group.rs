@@ -98,7 +98,7 @@ where
                     .get(&agent_t.clone().get());
                 match agent {
                     Ok(agent) => loop {
-                        if let Some(on_host) = &agent.meta.deployment.on_host {
+                        if let Some(on_host) = &agent.runtime_config.deployment.on_host {
                             return Self::build_on_host_runners(&builder.tx, agent_t, on_host.clone());
                         }
                         return (agent_t.clone(), Vec::new())
