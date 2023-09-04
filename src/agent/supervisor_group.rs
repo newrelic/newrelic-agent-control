@@ -97,12 +97,16 @@ where
                     .effective_agent_repository
                     .get(&agent_t.clone().get());
                 match agent {
-                    Ok(agent) => loop {
+                    Ok(agent) => {
                         if let Some(on_host) = &agent.runtime_config.deployment.on_host {
-                            return Self::build_on_host_runners(&builder.tx, agent_t, on_host.clone());
+                            return Self::build_on_host_runners(
+                                &builder.tx,
+                                agent_t,
+                                on_host.clone(),
+                            );
                         }
-                        return (agent_t.clone(), Vec::new())
-                    },
+                        return (agent_t.clone(), Vec::new());
+                    }
                     Err(error) => {
                         debug!("repository error: {}", error);
                         (agent_t.clone(), Vec::new())
@@ -140,6 +144,8 @@ impl SupervisorGroup<Stopped> {
 pub mod tests {
     use std::{collections::HashMap, sync::mpsc::Sender};
 
+    use super::{SupervisorGroup, SupervisorGroupBuilder};
+    use crate::config::agent_type::RuntimeConfig;
     use crate::{
         command::stream::Event,
         config::agent_configs::{AgentID, AgentSupervisorConfig, SuperAgentConfig},
@@ -149,8 +155,6 @@ pub mod tests {
             sleep_supervisor_tests::new_sleep_supervisor, Stopped, SupervisorRunner,
         },
     };
-    use crate::config::agent_type::RuntimeConfig;
-    use super::{SupervisorGroup, SupervisorGroupBuilder};
 
     // new_sleep_supervisor_group returns a stopped supervisor group with 2 runners with
     // generic agents one with one exec and the other with 2
@@ -172,24 +176,32 @@ pub mod tests {
     }
 
     #[test]
-    fn new_supervisor_group_from()  {
+    fn new_supervisor_group_from() {
         let (tx, _) = std::sync::mpsc::channel();
         let agent_config = SuperAgentConfig {
             agents: HashMap::from([
-                    (
-                        AgentID("no_repository_key".to_string()),
-                        AgentSupervisorConfig{ agent_type: "".to_string(), values_file: "".to_string() }
-                    ),
-                    (
-                        AgentID("no_data".to_string()),
-                        AgentSupervisorConfig{ agent_type: "".to_string(), values_file: "".to_string() }
-                    ),
-                    (
-                        AgentID("full_data".to_string()),
-                        AgentSupervisorConfig{ agent_type: "".to_string(), values_file: "".to_string() }
-                    ),
-                ],
-            ),
+                (
+                    AgentID("no_repository_key".to_string()),
+                    AgentSupervisorConfig {
+                        agent_type: "".to_string(),
+                        values_file: "".to_string(),
+                    },
+                ),
+                (
+                    AgentID("no_data".to_string()),
+                    AgentSupervisorConfig {
+                        agent_type: "".to_string(),
+                        values_file: "".to_string(),
+                    },
+                ),
+                (
+                    AgentID("full_data".to_string()),
+                    AgentSupervisorConfig {
+                        agent_type: "".to_string(),
+                        values_file: "".to_string(),
+                    },
+                ),
+            ]),
         };
 
         let mut builder = SupervisorGroupBuilder {
@@ -197,32 +209,35 @@ pub mod tests {
             cfg: agent_config.clone(),
             effective_agent_repository: LocalRepository::default(),
         };
-        _ = builder.effective_agent_repository.store_with_key("no_data".to_string(), Agent{
-            metadata: Default::default(),
-            variables: Default::default(),
-            runtime_config: Default::default(),
-        });
-        _ = builder.effective_agent_repository.store_with_key("full_data".to_string(), Agent{
-            metadata: Default::default(),
-            variables: Default::default(),
-            runtime_config: RuntimeConfig{
-                deployment: Deployment{
-                    on_host: Some(OnHost{
-                        executables: vec![Executable{
-                            path: "a-path".to_string(),
-                            args: Default::default(),
-                            env: Default::default(),
-                        }],
-                        restart_policy: Default::default()
-                    }),
-                }
+        _ = builder.effective_agent_repository.store_with_key(
+            "no_data".to_string(),
+            Agent {
+                metadata: Default::default(),
+                variables: Default::default(),
+                runtime_config: Default::default(),
             },
-        });
+        );
+        _ = builder.effective_agent_repository.store_with_key(
+            "full_data".to_string(),
+            Agent {
+                metadata: Default::default(),
+                variables: Default::default(),
+                runtime_config: RuntimeConfig {
+                    deployment: Deployment {
+                        on_host: Some(OnHost {
+                            executables: vec![Executable {
+                                path: "a-path".to_string(),
+                                args: Default::default(),
+                                env: Default::default(),
+                            }],
+                            restart_policy: Default::default(),
+                        }),
+                    },
+                },
+            },
+        );
 
         let supervisor_group = SupervisorGroup::from(&builder);
-        assert_eq!(
-            supervisor_group.0.iter().count(),
-            3
-        )
+        assert_eq!(supervisor_group.0.iter().count(), 3)
     }
 }
