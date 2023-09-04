@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::process::Command;
 
 use newrelic_super_agent::command::{
@@ -18,8 +19,9 @@ fn non_blocking_runner() {
     let mut sleep_cmd = Command::new("sleep");
     sleep_cmd.arg("5");
 
+    let envs = HashMap::from([("","")]);
     let agent = NonSupervisor {
-        cmd: ProcessRunner::new("sleep", ["5"]),
+        cmd: ProcessRunner::new("sleep", ["5"], envs),
     };
 
     let started_cmd = agent.cmd.start().unwrap();

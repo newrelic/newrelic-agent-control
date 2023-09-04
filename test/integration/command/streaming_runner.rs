@@ -1,4 +1,5 @@
 use std::{sync::mpsc::Receiver, thread};
+use std::collections::HashMap;
 
 use newrelic_super_agent::command::{
     stream::{Event, OutputEvent},
@@ -47,8 +48,9 @@ fn get_n_outputs(rx: Receiver<Event>, times: usize) -> (Vec<String>, Vec<String>
 
 #[test]
 fn actual_command_streaming() {
+    let envs = HashMap::from([("","")]);
     let agent = NonSupervisor {
-        cmd: ProcessRunner::new("sh", [TICKER]),
+        cmd: ProcessRunner::new("sh", [TICKER], envs),
     };
 
     let (tx, rx) = std::sync::mpsc::channel();
@@ -77,8 +79,9 @@ fn actual_command_streaming() {
 
 #[test]
 fn actual_command_streaming_only_stderr() {
+    let envs = HashMap::from([("","")]);
     let agent = NonSupervisor {
-        cmd: ProcessRunner::new("sh", [TICKER_STDERR]),
+        cmd: ProcessRunner::new("sh", [TICKER_STDERR], envs),
     };
 
     let (tx, rx) = std::sync::mpsc::channel();
@@ -106,9 +109,10 @@ fn actual_command_streaming_only_stderr() {
 
 #[test]
 fn actual_command_exiting_closes_channel() {
+    let envs = HashMap::from([("","")]);
     let agent = NonSupervisor {
         // TICKER_10 actually exits when it has ticked 10 times both on stdout and stderr
-        cmd: ProcessRunner::new("sh", [TICKER_10]),
+        cmd: ProcessRunner::new("sh", [TICKER_10], envs),
     };
     let (tx, rx) = std::sync::mpsc::channel();
     // Start streaming (NOTE the use of handle on the last line)
@@ -140,9 +144,10 @@ fn env_vars_are_inherited() {
     std::env::set_var("FOO", "bar");
     std::env::set_var("BAR", "baz");
 
+    let envs = HashMap::from([("","")]);
     // Child processes will inherit environment variables from their parent process by default
     let agent = NonSupervisor {
-        cmd: ProcessRunner::new("sh", ["-c", "echo $FOO; echo $BAR"]),
+        cmd: ProcessRunner::new("sh", ["-c", "echo $FOO; echo $BAR"], envs),
     };
 
     let (tx, rx) = std::sync::mpsc::channel();

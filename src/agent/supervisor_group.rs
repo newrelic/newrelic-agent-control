@@ -1,4 +1,5 @@
 use std::{collections::HashMap, sync::mpsc::Sender, thread::JoinHandle};
+use log::debug;
 
 use crate::{
     command::stream::Event,
@@ -94,10 +95,18 @@ impl From<&SupervisorGroupBuilder> for SupervisorGroup<Stopped> {
                 let agent = builder
                     .effective_agent_repository
                     .get(&agent_t.clone().get());
-                if let Some(on_host) = &agent.unwrap().meta.deployment.on_host {
-                    return Self::build_on_host_runners(&builder.tx, agent_t, on_host.clone());
+                match agent {
+                    Ok(mut agent) => loop {
+                        if let Some(on_host) = &agent.meta.deployment.on_host {
+                            return Self::build_on_host_runners(&builder.tx, agent_t, on_host.clone());
+                        }
+                        return (agent_t.clone(), Vec::new())
+                    },
+                    Err(error) => {
+                        debug!("repository error: {}", error);
+                        (agent_t.clone(), Vec::new())
+                    }
                 }
-                (agent_t.clone(), Vec::new())
             })
             .collect();
 
@@ -130,16 +139,15 @@ impl SupervisorGroup<Stopped> {
 pub mod tests {
     use std::{collections::HashMap, sync::mpsc::Sender};
 
-    use crate::config::agent_configs::SuperAgentConfig;
-    use crate::config::agent_type_registry::LocalRepository;
     use crate::{
         command::stream::Event,
-        config::agent_configs::AgentID,
+        config::agent_configs::{AgentID, AgentSupervisorConfig, SuperAgentConfig},
+        config::agent_type::{Agent, Deployment, Executable, Meta, OnHost},
+        config::agent_type_registry::{AgentRepository, LocalRepository, AgentRepositoryError},
         supervisor::runner::{
             sleep_supervisor_tests::new_sleep_supervisor, Stopped, SupervisorRunner,
         },
     };
-
     use super::{SupervisorGroup, SupervisorGroupBuilder};
 
     // new_sleep_supervisor_group returns a stopped supervisor group with 2 runners with
@@ -159,5 +167,60 @@ pub mod tests {
             ),
         ]);
         SupervisorGroup(group)
+    }
+
+    #[test]
+    fn new_supervisor_group_from()  {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let agent_config = SuperAgentConfig {
+            agents: HashMap::from([
+                    (
+                        AgentID("no_repository_key".to_string()),
+                        AgentSupervisorConfig{ agent_type: "".to_string(), config_path: "".to_string() }
+                    ),
+                    (
+                        AgentID("no_data".to_string()),
+                        AgentSupervisorConfig{ agent_type: "".to_string(), config_path: "".to_string() }
+                    ),
+                    (
+                        AgentID("full_data".to_string()),
+                        AgentSupervisorConfig{ agent_type: "".to_string(), config_path: "".to_string() }
+                    ),
+                ],
+            ),
+        };
+
+        let mut builder = SupervisorGroupBuilder {
+            tx,
+            cfg: agent_config.clone(),
+            effective_agent_repository: LocalRepository::default(),
+        };
+        _ = builder.effective_agent_repository.store_with_key("no_data".to_string(), Agent{
+            metadata: Default::default(),
+            spec: Default::default(),
+            meta: Default::default(),
+        });
+        _ = builder.effective_agent_repository.store_with_key("full_data".to_string(), Agent{
+            metadata: Default::default(),
+            spec: Default::default(),
+            meta: Meta{
+                deployment: Deployment{
+                    on_host: Some(OnHost{
+                        executables: vec![Executable{
+                            path: "a-path".to_string(),
+                            args: Default::default(),
+                            env: Default::default(),
+                        }],
+                        restart_policy: Default::default()
+                    }),
+                }
+            },
+        });
+
+        let supervisor_group = SupervisorGroup::from(&builder);
+        assert_eq!(
+            supervisor_group.0.iter().count(),
+            3
+        )
     }
 }
