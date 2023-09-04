@@ -84,14 +84,14 @@ where
     }
 
     #[cfg(test)]
-    fn new_custom_resolver<R>(resolver: R, local_repo: Repo) -> Agent<Repo, R>
+    pub fn new_custom_resolver<R, EffectiveRepo: AgentRepository>(resolver: R, local_repo: Repo, effective_repo: EffectiveRepo) -> Agent<Repo, EffectiveRepo, R>
     where
-        R: SupervisorGroupResolver<LocalRepository>,
+        R: SupervisorGroupResolver<EffectiveRepo>,
     {
         Agent {
             resolver,
             agent_type_repository: local_repo,
-            effective_agent_repository: LocalRepository::default(),
+            effective_agent_repository: effective_repo,
         }
     }
 }
@@ -202,12 +202,11 @@ fn load_agent_cfgs<Repo: AgentRepository>(
 
 #[cfg(test)]
 mod tests {
-    use std::task::Context;
     use std::thread::{sleep, spawn};
     use std::time::Duration;
-    use crate::agent::AgentEvent;
-    use crate::config::agent_type::Agent;
+    use crate::agent::{Agent, AgentEvent};
     use crate::config::agent_type_registry::{AgentRepository, LocalRepository};
+    use crate::context::Context;
 
     use super::{supervisor_group::tests::new_sleep_supervisor_group, SupervisorGroupResolver};
 
@@ -227,8 +226,8 @@ mod tests {
 
     #[test]
     fn run_and_stop_supervisors() {
-        let agent: Agent = Agent::new_custom_resolver(MockedSleepGroupResolver, LocalRepository::default());
-        let ctx: Context = Context::new();
+        let agent: Agent<LocalRepository, LocalRepository, MockedSleepGroupResolver> = Agent ::new_custom_resolver(MockedSleepGroupResolver, LocalRepository::default(), LocalRepository::default());
+        let ctx = Context::new();
       // stop all agents after 3 seconds
         spawn({
             let ctx = ctx.clone();
