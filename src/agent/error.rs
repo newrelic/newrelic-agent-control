@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+
 use thiserror::Error;
 
 use crate::config::{
@@ -25,4 +26,7 @@ pub enum AgentError {
 
     #[error("agent type error `{0}`")]
     AgentTypeError(#[from] AgentTypeError),
+
+    #[error("agent runner config error")]
+    SupervisorGroupError,
 }

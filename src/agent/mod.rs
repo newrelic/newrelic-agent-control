@@ -40,7 +40,7 @@ where
         &self,
         tx: Sender<Event>,
         effective_agent_repository: Repo,
-    ) -> SupervisorGroup<Stopped>;
+    ) -> Result<SupervisorGroup<Stopped>, AgentError>;
 }
 
 impl<Repo> SupervisorGroupResolver<Repo> for SuperAgentConfig
@@ -51,7 +51,7 @@ where
         &self,
         tx: Sender<Event>,
         effective_agent_repository: Repo,
-    ) -> SupervisorGroup<Stopped> {
+    ) -> Result<SupervisorGroup<Stopped>, AgentError> {
         SupervisorGroup::new(tx, self, effective_agent_repository)
     }
 }
@@ -114,7 +114,7 @@ where
 
         let supervisor_group = self
             .resolver
-            .retrieve_group(tx, self.effective_agent_repository);
+            .retrieve_group(tx, self.effective_agent_repository)?;
         /*
             TODO: We should first compare the current config with the one in the super agent config.
             In a future situation, it might have changed due to updates from OpAMP, etc.
@@ -206,6 +206,7 @@ fn load_agent_cfgs<Repo: AgentRepository>(
 
 #[cfg(test)]
 mod tests {
+    use crate::agent::error::AgentError;
     use crate::agent::{Agent, AgentEvent};
     use crate::config::agent_type_registry::{AgentRepository, LocalRepository};
     use crate::context::Context;
@@ -223,7 +224,10 @@ mod tests {
             &self,
             tx: std::sync::mpsc::Sender<crate::command::stream::Event>,
             _effective_agent_repository: Repo,
-        ) -> super::supervisor_group::SupervisorGroup<crate::supervisor::runner::Stopped> {
+        ) -> Result<
+            super::supervisor_group::SupervisorGroup<crate::supervisor::runner::Stopped>,
+            AgentError,
+        > {
             new_sleep_supervisor_group(tx)
         }
     }
