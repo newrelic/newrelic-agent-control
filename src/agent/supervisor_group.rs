@@ -96,19 +96,18 @@ where
             .agents
             .keys()
             .map(|agent_t| {
-                let agent = self.effective_agent_repository.get(&agent_t.clone().get());
-                match agent {
-                    Ok(agent) => {
-                        if let Some(on_host) = &agent.runtime_config.deployment.on_host {
-                            return Ok(build_on_host_runners(&self.tx, agent_t, on_host.clone()));
-                        }
-                        Err(AgentError::SupervisorGroupError)
-                    }
-                    Err(error) => {
-                        debug!("repository error: {}", error);
-                        Err(AgentError::SupervisorGroupError)
-                    }
-                }
+                let agent = self
+                    .effective_agent_repository
+                    .get(&agent_t.clone().get())?;
+
+                let on_host = agent
+                    .runtime_config
+                    .deployment
+                    .on_host
+                    .clone()
+                    .ok_or(AgentError::SupervisorGroupError)?;
+
+                Ok(build_on_host_runners(&self.tx, agent_t, on_host))
             })
             .collect();
 
