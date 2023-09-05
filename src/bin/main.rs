@@ -6,6 +6,7 @@ use newrelic_super_agent::{
     logging::Logging,
 };
 use std::error::Error;
+use std::process;
 use tracing::{error, info};
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -44,7 +45,15 @@ fn main() -> Result<(), Box<dyn Error>> {
     local_agent_type_repository.store_from_yaml(RANDOM_CMDS_TYPE.as_bytes())?;
 
     info!("Starting the super agent");
-    Ok(Agent::new(&cli.get_config_path(), local_agent_type_repository)?.run(ctx)?)
+    let agent = Agent::new(&cli.get_config_path(), local_agent_type_repository);
+
+    match agent {
+        Ok(agent) => Ok(agent.run(ctx)?),
+        Err(e) => {
+            error!("agent error: {}", e);
+            process::exit(1);
+        }
+    }
 }
 
 const NEWRELIC_INFRA_TYPE: &str = r#"

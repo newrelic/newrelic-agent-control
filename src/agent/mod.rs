@@ -40,7 +40,7 @@ where
         &self,
         tx: Sender<Event>,
         effective_agent_repository: Repo,
-    ) -> SupervisorGroup<Stopped>;
+    ) -> Result<SupervisorGroup<Stopped>, AgentError>;
 }
 
 impl<Repo> SupervisorGroupResolver<Repo> for SuperAgentConfig
@@ -51,7 +51,7 @@ where
         &self,
         tx: Sender<Event>,
         effective_agent_repository: Repo,
-    ) -> SupervisorGroup<Stopped> {
+    ) -> Result<SupervisorGroup<Stopped>, AgentError> {
         SupervisorGroup::new(tx, self, effective_agent_repository)
     }
 }
@@ -84,14 +84,18 @@ where
     }
 
     #[cfg(test)]
-    fn new_custom_resolver<R>(resolver: R) -> Agent<LocalRepository, LocalRepository, R>
+    pub fn new_custom_resolver<R, EffectiveRepo: AgentRepository>(
+        resolver: R,
+        local_repo: Repo,
+        effective_repo: EffectiveRepo,
+    ) -> Agent<Repo, EffectiveRepo, R>
     where
-        R: SupervisorGroupResolver<LocalRepository>,
+        R: SupervisorGroupResolver<EffectiveRepo>,
     {
         Agent {
             resolver,
-            agent_type_repository: LocalRepository::default(),
-            effective_agent_repository: LocalRepository::default(),
+            agent_type_repository: local_repo,
+            effective_agent_repository: effective_repo,
         }
     }
 }
@@ -110,7 +114,7 @@ where
 
         let supervisor_group = self
             .resolver
-            .retrieve_group(tx, self.effective_agent_repository);
+            .retrieve_group(tx, self.effective_agent_repository)?;
         /*
             TODO: We should first compare the current config with the one in the super agent config.
             In a future situation, it might have changed due to updates from OpAMP, etc.
@@ -202,8 +206,12 @@ fn load_agent_cfgs<Repo: AgentRepository>(
 
 #[cfg(test)]
 mod tests {
-
-    use crate::config::agent_type_registry::AgentRepository;
+    use crate::agent::error::AgentError;
+    use crate::agent::{Agent, AgentEvent};
+    use crate::config::agent_type_registry::{AgentRepository, LocalRepository};
+    use crate::context::Context;
+    use std::thread::{sleep, spawn};
+    use std::time::Duration;
 
     use super::{supervisor_group::tests::new_sleep_supervisor_group, SupervisorGroupResolver};
 
@@ -216,25 +224,31 @@ mod tests {
             &self,
             tx: std::sync::mpsc::Sender<crate::command::stream::Event>,
             _effective_agent_repository: Repo,
-        ) -> super::supervisor_group::SupervisorGroup<crate::supervisor::runner::Stopped> {
+        ) -> Result<
+            super::supervisor_group::SupervisorGroup<crate::supervisor::runner::Stopped>,
+            AgentError,
+        > {
             new_sleep_supervisor_group(tx)
         }
     }
 
-    // #[test]
-    // fn run_and_stop_supervisors() {
-    //     let agent: Agent<LocalRepository, MockedSleepGroupResolver> = Agent::new_custom_resolver(MockedSleepGroupResolver);
-    //     let ctx: Context<Option<AgentEvent>> = Context::new();
-
-    //     // stop all agents after 3 seconds
-    //     spawn({
-    //         let ctx = ctx.clone();
-    //         move || {
-    //             sleep(Duration::from_secs(3));
-    //             ctx.cancel_all(Some(AgentEvent::Stop)).unwrap();
-    //         }
-    //     });
-
-    //     assert!(agent.run(ctx).is_ok())
-    // }
+    #[test]
+    fn run_and_stop_supervisors() {
+        let agent: Agent<LocalRepository, LocalRepository, MockedSleepGroupResolver> =
+            Agent::new_custom_resolver(
+                MockedSleepGroupResolver,
+                LocalRepository::default(),
+                LocalRepository::default(),
+            );
+        let ctx = Context::new();
+        // stop all agents after 3 seconds
+        spawn({
+            let ctx = ctx.clone();
+            move || {
+                sleep(Duration::from_secs(3));
+                ctx.cancel_all(Some(AgentEvent::Stop)).unwrap();
+            }
+        });
+        assert!(agent.run(ctx).is_ok())
+    }
 }
