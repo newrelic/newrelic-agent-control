@@ -76,35 +76,11 @@ Distributed under the following license(s):
 
 
 
-## assert_cmd (https://crates.io/crates/assert_cmd)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
-## assert_fs (https://crates.io/crates/assert_fs)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
 ## async-trait (https://crates.io/crates/async-trait)
 
 Distributed under the following license(s):
 * MIT
 * Apache-2.0
-
-
-
-## autocfg (https://crates.io/crates/autocfg)
-
-Distributed under the following license(s):
-* Apache-2.0
-* MIT
 
 
 
@@ -133,14 +109,6 @@ Distributed under the following license(s):
 
 
 ## block-buffer (https://crates.io/crates/block-buffer)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
-## bstr (https://crates.io/crates/bstr)
 
 Distributed under the following license(s):
 * MIT
@@ -249,13 +217,6 @@ Distributed under the following license(s):
 
 
 
-## difflib (https://crates.io/crates/difflib)
-
-Distributed under the following license(s):
-* MIT
-
-
-
 ## digest (https://crates.io/crates/digest)
 
 Distributed under the following license(s):
@@ -265,13 +226,6 @@ Distributed under the following license(s):
 
 
 ## dlv-list (https://crates.io/crates/dlv-list)
-
-Distributed under the following license(s):
-* MIT
-
-
-
-## doc-comment (https://crates.io/crates/doc-comment)
 
 Distributed under the following license(s):
 * MIT
@@ -302,13 +256,6 @@ Distributed under the following license(s):
 
 
 
-## float-cmp (https://crates.io/crates/float-cmp)
-
-Distributed under the following license(s):
-* MIT
-
-
-
 ## fnv (https://crates.io/crates/fnv)
 
 Distributed under the following license(s):
@@ -329,21 +276,6 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 * MIT
 * Apache-2.0
-
-
-
-## globset (https://crates.io/crates/globset)
-
-Distributed under the following license(s):
-* Unlicense
-* MIT
-
-
-
-## globwalk (https://crates.io/crates/globwalk)
-
-Distributed under the following license(s):
-* MIT
 
 
 
@@ -376,14 +308,6 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 * MIT
 * Apache-2.0
-
-
-
-## ignore (https://crates.io/crates/ignore)
-
-Distributed under the following license(s):
-* Unlicense
-* MIT
 
 
 
@@ -511,25 +435,10 @@ Distributed under the following license(s):
 
 
 
-## normalize-line-endings (https://crates.io/crates/normalize-line-endings)
-
-Distributed under the following license(s):
-* Apache-2.0
-
-
-
 ## nu-ansi-term (https://crates.io/crates/nu-ansi-term)
 
 Distributed under the following license(s):
 * MIT
-
-
-
-## num-traits (https://crates.io/crates/num-traits)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
 
 
 
@@ -600,30 +509,6 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 * Apache-2.0
 * MIT
-
-
-
-## predicates (https://crates.io/crates/predicates)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
-## predicates-core (https://crates.io/crates/predicates-core)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
-## predicates-tree (https://crates.io/crates/predicates-tree)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
 
 
 
@@ -738,14 +623,6 @@ Distributed under the following license(s):
 
 
 
-## same-file (https://crates.io/crates/same-file)
-
-Distributed under the following license(s):
-* Unlicense
-* MIT
-
-
-
 ## serde (https://crates.io/crates/serde)
 
 Distributed under the following license(s):
@@ -845,13 +722,6 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 * MIT
 * Apache-2.0
-
-
-
-## termtree (https://crates.io/crates/termtree)
-
-Distributed under the following license(s):
-* MIT
 
 
 
@@ -993,22 +863,6 @@ Distributed under the following license(s):
 
 
 
-## wait-timeout (https://crates.io/crates/wait-timeout)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
-## walkdir (https://crates.io/crates/walkdir)
-
-Distributed under the following license(s):
-* Unlicense
-* MIT
-
-
-
 ## wasi (https://crates.io/crates/wasi)
 
 Distributed under the following license(s):
@@ -1031,14 +885,6 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 * MIT
 * Apache-2.0
-
-
-
-## winapi-util (https://crates.io/crates/winapi-util)
-
-Distributed under the following license(s):
-* Unlicense
-* MIT
 
 
 
