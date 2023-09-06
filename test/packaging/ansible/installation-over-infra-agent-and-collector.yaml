@@ -1,12 +1,11 @@
 ---
-
 - name: installation-over-infra-agent-and-collector
   hosts: testing_hosts_linux
   become: true
   gather_facts: yes
   vars:
     process_user: "root"
-    nr_infra_agent_version: "1.45.0"
+    nr_infra_agent_version: "1.47.0"
     nr_otel_collector_version: "0.3.0"
     nr_super_agent_repo: "http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview"
 
@@ -80,7 +79,7 @@
 
         - name: Setup NR Otel Collector config
           include_role:
-            name:  nr-otel-collector-config
+            name: nr-otel-collector-config
 
         - name: restart nr-otel-collector service
           include_role:
@@ -169,4 +168,3 @@
       always:
         - name: Final cleanup # Only required for shared infra.
           include_tasks: ./custom_tasks/cleanup.yml
-...

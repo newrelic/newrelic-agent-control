@@ -1,12 +1,11 @@
 ---
-
 - name: installation-over-nr-otel-collector
   hosts: testing_hosts_linux
   become: true
   gather_facts: yes
   vars:
     process_user: "root"
-    nr_infra_agent_version: "1.45.0"
+    nr_infra_agent_version: "1.47.0"
     nr_otel_collector_version: "0.3.0"
 
   pre_tasks:
@@ -22,7 +21,7 @@
       vars:
 
       block:
-        - name: Setup NR Repo
+        - name: Setup Newrelic Repo
           include_role:
             name: caos.ansible_roles.nr_repo_setup
 
@@ -34,7 +33,7 @@
 
         - name: Setup NR Otel Collector config
           include_role:
-            name:  nr-otel-collector-config
+            name: nr-otel-collector-config
 
         - name: restart nr-otel-collector service
           include_role:
@@ -57,7 +56,7 @@
         - name:
           include_tasks: ./custom_tasks/assert-nr-otel-collector-sending-data.yml
 
-        - name: install NR Meta Agent
+        - name: install Newrelic Super Agent
           include_role:
             name: newrelic-super-agent
             apply:
@@ -102,4 +101,3 @@
       always:
         - name: Final cleanup # Only required for shared infra.
           include_tasks: ./custom_tasks/cleanup.yml
-...

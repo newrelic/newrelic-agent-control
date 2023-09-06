@@ -1,7 +1,7 @@
 # default destination for downloaded artifacts. Template.
 destination: ./artifacts/{{.Arch}}
 
-# Used as defaults for all NR binaries below, can be overridden. Template.
+# Used as defaults for all Newrelic binaries below, can be overridden. Template.
 url: https://download.newrelic.com/infrastructure_agent/binaries/linux/{{.Arch}}/{{.Name}}_linux_{{.Version | trimv}}_{{.Arch}}.tar.gz
 
 # stagingUrl will be used if the download is invoked with -staging. Template.
@@ -11,7 +11,7 @@ staging_url: https://nr-downloads-ohai-staging.s3.amazonaws.com/infrastructure_a
 # Individual entries may override any of the values defined above.
 artifacts:
   - name: newrelic-infra
-    version: 1.45.0
+    version: 1.47.0
     url: https://github.com/newrelic/infrastructure-agent/releases/download/{{.Version | trimv}}/newrelic-infra_systemd_{{.Version | trimv}}_{{.Arch}}.deb
     files:
       # infra-agent

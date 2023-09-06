@@ -38,7 +38,7 @@ nfpms:
       {{- if not (eq .Amd64 "v1") }}{{ .Amd64 }}{{- end }}
 
     contents:
-      # NR Super Agent
+      # Newrelic Super Agent
       - src: build/package/config.yaml
         dst: /etc/newrelic-super-agent/config.yaml
         type: config
