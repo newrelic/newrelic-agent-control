@@ -4,3 +4,4 @@ pub mod agent_type_registry;
 pub mod error;
 pub mod resolver;
 pub mod supervisor_config;
+pub mod effective_config;

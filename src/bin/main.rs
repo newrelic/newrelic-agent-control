@@ -1,3 +1,13 @@
+use std::error::Error;
+use std::process;
+
+use opamp_client::{capabilities, OpAMPClient};
+use opamp_client::error::ClientError;
+use opamp_client::httpclient::HttpClient;
+use opamp_client::opamp::proto::AgentCapabilities;
+use opamp_client::operation::settings::StartSettings;
+use tracing::{error, info};
+
 use newrelic_super_agent::{
     agent::{Agent, AgentEvent},
     cli::Cli,
@@ -5,9 +15,9 @@ use newrelic_super_agent::{
     context::Context,
     logging::Logging,
 };
-use std::error::Error;
-use std::process;
-use tracing::{error, info};
+use newrelic_super_agent::agent::opamp_callbacks::OpampCallbacks;
+use newrelic_super_agent::config::effective_config::EffectiveConfigRetriever;
+use newrelic_super_agent::config::resolver::Resolver;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -36,17 +46,24 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let ctx = ctx.clone();
         move || ctx.cancel_all(Some(AgentEvent::Stop)).unwrap()
     })
-    .map_err(|e| {
-        error!("Could not set signal handler: {}", e);
-        e
-    })?;
+        .map_err(|e| {
+            error!("Could not set signal handler: {}", e);
+            e
+        })?;
 
     let mut local_agent_type_repository = LocalRepository::new();
     local_agent_type_repository.store_from_yaml(NEWRELIC_INFRA_TYPE.as_bytes())?;
     local_agent_type_repository.store_from_yaml(RANDOM_CMDS_TYPE.as_bytes())?;
 
+    // load effective config
+    let cfg_path = &cli.get_config_path();
+    let cfg = Resolver::retrieve_config(cfg_path)?;
+    let retriever = EffectiveConfigRetriever::new(cfg_path.to_str().unwrap().to_string());
+
+    // Create OpAMP Client
+    let opamp_client = create_http_opamp_client(retriever)?;
     info!("Starting the super agent");
-    let agent = Agent::new(&cli.get_config_path(), local_agent_type_repository);
+    let agent = Agent::new(cfg, local_agent_type_repository, opamp_client);
 
     match agent {
         Ok(agent) => Ok(agent.run(ctx)?),
@@ -55,6 +72,26 @@ async fn main() -> Result<(), Box<dyn Error>> {
             process::exit(1);
         }
     }
+}
+
+fn create_http_opamp_client(effective_config_resolver: EffectiveConfigRetriever) -> Result<HttpClient<EffectiveConfigRetriever, OpampCallbacks>, ClientError>
+{
+    let headers = [("api-key", "NRAK-S2MU0VB859I72GP646RY73NTR2Q")];
+    let url = "https://opamp.staging-service.newrelic.com/v1/opamp";
+    let start_settings = StartSettings {
+        instance_id: "3Q38XWW0Q98GMAD3NHWZM2PZWZ".to_string(),
+        capabilities: capabilities!(AgentCapabilities::ReportsStatus),
+    };
+    let callbacks = OpampCallbacks::new();
+
+
+    HttpClient::new(
+        effective_config_resolver,
+        url,
+        headers,
+        start_settings,
+        callbacks,
+    )
 }
 
 const NEWRELIC_INFRA_TYPE: &str = r#"

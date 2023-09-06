@@ -31,7 +31,7 @@ pub struct SuperAgentConfig {
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct AgentSupervisorConfig {
     pub agent_type: String, // FQN of the agent type, ex: newrelic/nrdot:0.1.0
-    pub values_file: String,
+    pub values_file: String, // path to the values file
 }
 
 #[derive(Debug, Default, Deserialize, PartialEq, Clone)]

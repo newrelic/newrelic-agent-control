@@ -4,6 +4,8 @@ use std::{
     sync::mpsc::{self, Sender},
 };
 
+use futures::executor::block_on;
+use opamp_client::{OpAMPClient, OpAMPClientHandle};
 use tracing::{error, info};
 
 use crate::{
@@ -28,6 +30,7 @@ pub mod callbacks;
 pub mod error;
 pub(super) mod opamp_builder;
 pub mod supervisor_group;
+pub mod opamp_callbacks;
 
 #[derive(Clone)]
 pub enum AgentEvent {
@@ -169,7 +172,16 @@ where
         // Run all the agents in the supervisor group
         let running_supervisors = supervisor_group.run();
 
-        // watch for supervisors restart requests
+
+        let mut opamp_client_handle = block_on(self.opamp_client.start()).unwrap();
+        let health = opamp_client::opamp::proto::AgentHealth {
+            healthy: true,
+            last_error: "".to_string(),
+            start_time_unix_nano: 0,
+        };
+
+        block_on(opamp_client_handle.set_health(&health)).unwrap();
+
         {
             loop {
                 // blocking wait until context is woken up
@@ -210,6 +222,10 @@ where
                 // spurious condvar wake up, loop should continue
             }
         }
+
+
+        info!("Stopping OpAMP Client");
+        opamp_client_handle.stop();
 
         info!("Waiting for the output manager to finish");
         output_manager.join().unwrap();

@@ -5,3 +5,4 @@ pub mod config;
 pub mod context;
 pub mod logging;
 pub mod supervisor;
+pub mod opamp;
