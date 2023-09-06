@@ -35,7 +35,7 @@ where
         Ok(current)
     }
 
-    pub(crate) fn get_lock_cvar(&self) -> &(Mutex<T>, Condvar) {
+    pub fn get_lock_cvar(&self) -> &(Mutex<T>, Condvar) {
         &self.0
     }
 

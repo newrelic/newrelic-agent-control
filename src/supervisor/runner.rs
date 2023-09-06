@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::process::ExitStatus;
 use std::{
     ffi::OsStr,
@@ -30,6 +31,7 @@ use tracing::{error, info};
 pub struct Stopped {
     bin: String,
     args: Vec<String>,
+    env: HashMap<String, String>,
     ctx: Context<bool>,
     snd: Sender<Event>,
     restart: RestartPolicy,
@@ -82,7 +84,7 @@ impl Runner for SupervisorRunner<Stopped> {
 
 impl From<&SupervisorRunner<Stopped>> for ProcessRunner {
     fn from(value: &SupervisorRunner<Stopped>) -> Self {
-        ProcessRunner::new(&value.bin, &value.args)
+        ProcessRunner::new(&value.bin, &value.args, &value.env)
     }
 }
 
@@ -219,11 +221,18 @@ impl Handle for SupervisorRunner<Running> {
 }
 
 impl SupervisorRunner<Stopped> {
-    pub fn new(bin: String, args: Vec<String>, ctx: Context<bool>, snd: Sender<Event>) -> Self {
+    pub fn new(
+        bin: String,
+        args: Vec<String>,
+        ctx: Context<bool>,
+        env: HashMap<String, String>,
+        snd: Sender<Event>,
+    ) -> Self {
         SupervisorRunner {
             state: Stopped {
                 bin,
                 args,
+                env,
                 ctx,
                 snd,
                 // default restart policy to prevent automatic restarts
@@ -243,21 +252,20 @@ impl SupervisorRunner<Stopped> {
 }
 
 #[cfg(test)]
-pub(crate) mod sleep_supervisor_tests {
+pub mod sleep_supervisor_tests {
+    use std::collections::HashMap;
     use std::sync::mpsc::Sender;
 
     use crate::{command::stream::Event, context::Context};
 
     use super::{Stopped, SupervisorRunner};
 
-    pub(crate) fn new_sleep_supervisor(
-        tx: Sender<Event>,
-        seconds: u32,
-    ) -> SupervisorRunner<Stopped> {
+    pub fn new_sleep_supervisor(tx: Sender<Event>, seconds: u32) -> SupervisorRunner<Stopped> {
         SupervisorRunner::new(
             "sh".to_owned(),
             vec!["-c".to_string(), format!("sleep {}", seconds)],
             Context::new(),
+            HashMap::new(),
             tx.clone(),
         )
     }
@@ -283,6 +291,7 @@ mod tests {
             "wrong-command".to_owned(),
             vec!["x".to_owned()],
             Context::new(),
+            HashMap::new(),
             tx,
         )
         .with_restart_policy(vec![0], BackoffStrategy::Fixed(backoff));
@@ -310,6 +319,7 @@ mod tests {
             "wrong-command".to_owned(),
             vec!["x".to_owned()],
             Context::new(),
+            HashMap::new(),
             tx,
         )
         .with_restart_policy(vec![0], BackoffStrategy::Fixed(backoff));
@@ -337,6 +347,7 @@ mod tests {
             "echo".to_owned(),
             vec!["hello!".to_owned()],
             Context::new(),
+            HashMap::new(),
             tx,
         )
         .with_restart_policy(vec![0], BackoffStrategy::Fixed(backoff));
@@ -366,6 +377,6 @@ mod tests {
         let stdout = stream.join().unwrap();
 
         // 1 base execution + 3 retries
-        assert_eq!(4, stdout.iter().count());
+        assert_eq!(4, stdout.len());
     }
 }

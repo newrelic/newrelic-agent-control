@@ -1,117 +1,32 @@
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, fmt::Display};
 
-use config::Value;
 use serde::Deserialize;
-use serde_with::serde_as;
 
-use crate::supervisor::restart::{Backoff, BackoffStrategy};
+#[derive(Debug, Deserialize, PartialEq, Clone, Hash, Eq)]
+pub struct AgentID(pub String);
 
-use super::agent_type::AgentType;
+impl AgentID {
+    pub fn get(&self) -> String {
+        String::from(&self.0)
+    }
+}
 
-/*
-The structures below assume a config similar to the following:
-
-```yaml
-agents:
-    nr_infra_agent:
-        restart_policy:
-            backoff_strategy:
-                type: fixed
-                backoff_delay_seconds: 1
-                max_retries: 3
-                last_retry_interval_seconds: 30
-        config: {} # Some arbitrary values passed to the agent itself.
-        # TODO: What should we do with `bin'/`args` for custom agents?
-```
- */
-
-/*
-Default values for supervisor restarts
-TODO: refine values with real executions
-*/
-const BACKOFF_DELAY: Duration = Duration::from_secs(2);
-const BACKOFF_MAX_RETRIES: usize = 20;
-const BACKOFF_LAST_RETRY_INTERVAL: Duration = Duration::from_secs(600);
+impl Display for AgentID {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0.as_str())
+    }
+}
 
 /// SuperAgentConfig represents the configuration for the super agent.
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct SuperAgentConfig {
     /// agents is a map of agent types to their specific configuration (if any).
-    pub agents: HashMap<AgentType, Option<AgentConfig>>,
-}
-
-#[derive(Debug, Deserialize, PartialEq, Clone, Default)]
-pub struct AgentConfig {
-    #[serde(default)]
-    pub restart_policy: RestartPolicyConfig,
-    pub config: Option<HashMap<String, Value>>,
-}
-
-#[derive(Debug, Deserialize, PartialEq, Clone, Default)]
-pub struct RestartPolicyConfig {
-    #[serde(default)]
-    pub backoff_strategy: BackoffStrategyConfig,
-    #[serde(default)]
-    pub restart_exit_codes: Vec<i32>,
+    pub agents: HashMap<AgentID, AgentSupervisorConfig>,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
-#[serde(rename_all = "lowercase", tag = "type")]
-pub enum BackoffStrategyConfig {
-    None,
-    Fixed(BackoffStrategyInner),
-    Linear(BackoffStrategyInner),
-    Exponential(BackoffStrategyInner),
-}
-
-#[serde_as]
-#[derive(Debug, Deserialize, PartialEq, Clone)]
-#[serde(default)]
-pub struct BackoffStrategyInner {
-    #[serde_as(as = "serde_with::DurationSeconds<u64>")]
-    pub backoff_delay_seconds: Duration,
-    pub max_retries: usize,
-    #[serde_as(as = "serde_with::DurationSeconds<u64>")]
-    pub last_retry_interval_seconds: Duration,
-}
-
-impl From<&BackoffStrategyConfig> for BackoffStrategy {
-    fn from(value: &BackoffStrategyConfig) -> Self {
-        match value {
-            BackoffStrategyConfig::Fixed(inner) => {
-                BackoffStrategy::Fixed(realize_backoff_config(inner))
-            }
-            BackoffStrategyConfig::Linear(inner) => {
-                BackoffStrategy::Linear(realize_backoff_config(inner))
-            }
-            BackoffStrategyConfig::Exponential(inner) => {
-                BackoffStrategy::Exponential(realize_backoff_config(inner))
-            }
-            BackoffStrategyConfig::None => BackoffStrategy::None,
-        }
-    }
-}
-
-impl Default for BackoffStrategyConfig {
-    fn default() -> Self {
-        Self::Linear(BackoffStrategyInner::default())
-    }
-}
-
-impl Default for BackoffStrategyInner {
-    fn default() -> Self {
-        Self {
-            backoff_delay_seconds: BACKOFF_DELAY,
-            max_retries: BACKOFF_MAX_RETRIES,
-            last_retry_interval_seconds: BACKOFF_LAST_RETRY_INTERVAL,
-        }
-    }
-}
-
-fn realize_backoff_config(i: &BackoffStrategyInner) -> Backoff {
-    Backoff::new()
-        .with_initial_delay(i.backoff_delay_seconds)
-        .with_max_retries(i.max_retries)
-        .with_last_retry_interval(i.last_retry_interval_seconds)
+pub struct AgentSupervisorConfig {
+    pub agent_type: String, // FQN of the agent type, ex: newrelic/nrdot:0.1.0
+    pub values_file: String,
 }

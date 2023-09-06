@@ -80,8 +80,9 @@ pub struct Backoff {
     max_retries: usize,
     last_retry_interval: Duration,
 }
-impl Backoff {
-    pub(crate) fn new() -> Self {
+
+impl Default for Backoff {
+    fn default() -> Self {
         Self {
             last_retry: Instant::now(),
             tries: 0,
@@ -90,18 +91,23 @@ impl Backoff {
             last_retry_interval: LAST_RETRY_INTERVAL,
         }
     }
+}
+impl Backoff {
+    pub fn new() -> Self {
+        Self::default()
+    }
 
-    pub(crate) fn with_initial_delay(mut self, initial_delay: Duration) -> Self {
+    pub fn with_initial_delay(mut self, initial_delay: Duration) -> Self {
         self.initial_delay = initial_delay;
         self
     }
 
-    pub(crate) fn with_max_retries(mut self, max_retries: usize) -> Self {
+    pub fn with_max_retries(mut self, max_retries: usize) -> Self {
         self.max_retries = max_retries;
         self
     }
 
-    pub(crate) fn with_last_retry_interval(mut self, last_retry_interval: Duration) -> Self {
+    pub fn with_last_retry_interval(mut self, last_retry_interval: Duration) -> Self {
         self.last_retry_interval = last_retry_interval;
         self
     }
@@ -163,9 +169,10 @@ mod tests {
         let mut rb = RestartPolicy::new(BackoffStrategy::None, vec![1, 3]);
         let results = vec![false, true, false, true];
 
-        for n in 0..results.len() {
-            assert_eq!(results[n], rb.should_retry(Some(n as i32)));
-        }
+        results
+            .into_iter()
+            .enumerate()
+            .for_each(|(n, result)| assert_eq!(result, rb.should_retry(Some(n as i32))));
     }
 
     #[test]
@@ -176,13 +183,13 @@ mod tests {
         let mut b = Backoff::new().with_max_retries(3);
         let results = vec![true, true, true, false];
 
-        for n in 0..results.len() {
+        results.into_iter().for_each(|result| {
             let should_backoff = b.should_backoff();
-            assert_eq!(results[n], should_backoff);
+            assert_eq!(result, should_backoff);
             if should_backoff {
                 b.backoff(linear, &mut sleep_mock);
             }
-        }
+        });
         assert_eq!(Duration::from_secs(3), slept);
     }
 
@@ -198,15 +205,15 @@ mod tests {
             .with_last_retry_interval(Duration::from_micros(1));
         let results = vec![true, true, true, true];
 
-        for n in 0..results.len() {
+        results.into_iter().for_each(|result| {
             let should_backoff = b.should_backoff();
-            assert_eq!(results[n], should_backoff);
+            assert_eq!(result, should_backoff);
             if should_backoff {
                 b.backoff(linear, &mut sleep_mock);
             }
             //It will be reset every interval causing backoff to always be 1 second
             sleep(Duration::from_micros(2))
-        }
+        });
         assert_eq!(Duration::from_secs(0), slept)
     }
 
@@ -218,13 +225,13 @@ mod tests {
         let mut b = Backoff::new().with_initial_delay(Duration::from_secs(6));
         let results = vec![true, true, true, true];
 
-        for n in 0..results.len() {
+        results.into_iter().for_each(|result| {
             let should_backoff = b.should_backoff();
-            assert_eq!(results[n], should_backoff);
+            assert_eq!(result, should_backoff);
             if should_backoff {
                 b.backoff(linear, &mut sleep_mock);
             }
-        }
+        });
         assert_eq!(Duration::from_secs(36), slept)
     }
 
@@ -236,13 +243,13 @@ mod tests {
         let mut b = Backoff::new();
         let results = vec![true, true, true, true, true];
 
-        for n in 0..results.len() {
+        results.into_iter().for_each(|result| {
             let should_backoff = b.should_backoff();
-            assert_eq!(results[n], should_backoff);
+            assert_eq!(result, should_backoff);
             if should_backoff {
                 b.backoff(fixed, &mut sleep_mock);
             }
-        }
+        });
         assert_eq!(Duration::from_secs(5), slept)
     }
 
@@ -254,13 +261,13 @@ mod tests {
         let mut b = Backoff::new();
         let results = vec![true, true, true, true, true];
 
-        for n in 0..results.len() {
+        results.into_iter().for_each(|result| {
             let should_backoff = b.should_backoff();
-            assert_eq!(results[n], should_backoff);
+            assert_eq!(result, should_backoff);
             if should_backoff {
                 b.backoff(exponential, &mut sleep_mock);
             }
-        }
+        });
         assert_eq!(Duration::from_secs(16), slept)
     }
 }

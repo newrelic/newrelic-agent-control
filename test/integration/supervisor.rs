@@ -1,4 +1,4 @@
-use std::{sync::mpsc::Sender, thread, time::Duration};
+use std::{collections::HashMap, sync::mpsc::Sender, thread, time::Duration};
 
 use newrelic_super_agent::{
     command::{stream::Event, EventLogger, StdEventReceiver},
@@ -17,6 +17,7 @@ impl From<&Config> for SupervisorRunner {
             "sh".to_string(),
             vec!["-c".to_string(), "sleep 2".to_string()],
             Context::new(),
+            HashMap::default(),
             value.tx.clone(),
         )
     }
@@ -74,11 +75,7 @@ fn test_supervisors() {
 
     // Check that all the processes have finished correctly
     assert_eq!(
-        results
-            .into_iter()
-            .map(|handle| handle.join())
-            .flatten()
-            .count(),
+        results.into_iter().flat_map(|handle| handle.join()).count(),
         10
     );
 
