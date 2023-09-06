@@ -21,27 +21,27 @@ impl Callbacks for OpampCallbacks {
         todo!()
     }
 
-    fn on_connect_failed(&self, err: Self::Error) {
+    fn on_connect_failed(&self, _err: Self::Error) {
         todo!()
     }
 
-    fn on_error(&self, err: ServerErrorResponse) {
+    fn on_error(&self, _err: ServerErrorResponse) {
         todo!()
     }
 
-    fn on_message(&self, msg: MessageData) {
+    fn on_message(&self, _msg: MessageData) {
         todo!()
     }
 
-    fn on_opamp_connection_settings(&self, settings: &OpAmpConnectionSettings) -> Result<(), Self::Error> {
+    fn on_opamp_connection_settings(&self, _settings: &OpAmpConnectionSettings) -> Result<(), Self::Error> {
         todo!()
     }
 
-    fn on_opamp_connection_settings_accepted(&self, settings: &OpAmpConnectionSettings) {
+    fn on_opamp_connection_settings_accepted(&self, _settings: &OpAmpConnectionSettings) {
         todo!()
     }
 
-    fn on_command(&self, command: &ServerToAgentCommand) -> Result<(), Self::Error> {
+    fn on_command(&self, _: &ServerToAgentCommand) -> Result<(), Self::Error> {
         todo!()
     }
 

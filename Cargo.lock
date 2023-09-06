@@ -1228,7 +1228,6 @@ dependencies = [
  "aquamarine",
  "assert_cmd",
  "assert_fs",
- "async-trait",
  "clap",
  "config",
  "ctrlc",
@@ -1244,10 +1243,8 @@ dependencies = [
  "serde_yaml",
  "tempfile",
  "thiserror",
- "tokio",
  "tracing",
  "tracing-subscriber",
- "ulid",
  "uuid",
 ]
 

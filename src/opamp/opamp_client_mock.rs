@@ -1,8 +1,14 @@
-#[cfg(test)]
+
+
 pub(crate) mod test {
     use mockall::mock;
+    use async_trait::async_trait;
     use opamp_client::{OpAMPClient, OpAMPClientHandle};
     use thiserror::Error;
+    use opamp_client::opamp::proto::{
+        AgentHealth,
+        AgentDescription
+    };
 
     #[derive(Error, Debug)]
     #[error("callback error mock")]
@@ -15,18 +21,19 @@ pub(crate) mod test {
     mock! {
       pub(crate) OpampClientHandleMockall {}
 
+      #[async_trait]
       impl OpAMPClientHandle for OpampClientHandleMockall {
-            type Error = OpampClientHandleMockError;
+        type Error = OpampClientHandleMockError;
 
-         async fn stop(self) -> Result<(), Self::Error>;
+        async fn stop(self) -> Result<(), <Self as OpAMPClientHandle>::Error>;
         async fn set_agent_description(
             &mut self,
             description: &AgentDescription,
-        ) -> Result<(), Self::Error>;
+        ) -> Result<(), <Self as OpAMPClientHandle>::Error>;
 
-        fn agent_description(&self) -> Result<AgentDescription, Self::Error>;
-        async fn set_health(&mut self, health: &AgentHealth) -> Result<(), Self::Error>;
-        async fn update_effective_config(&mut self) -> Result<(), Self::Error>;
+        fn agent_description(&self) -> Result<AgentDescription, <Self as OpAMPClientHandle>::Error>;
+        async fn set_health(&mut self, health: &AgentHealth) -> Result<(), <Self as OpAMPClientHandle>::Error>;
+        async fn update_effective_config(&mut self) -> Result<(), <Self as OpAMPClientHandle>::Error>;
       }
     }
 
@@ -34,10 +41,11 @@ pub(crate) mod test {
     mock! {
       pub(crate) OpampClientMockall {}
 
+      #[async_trait]
       impl OpAMPClient for OpampClientMockall {
             type Error = OpampClientMockError;
             type Handle = MockOpampClientHandleMockall;
-            async fn start(self) -> Result<Self::Handle, Self::Error>;
+            async fn start(self) -> Result<<Self as OpAMPClient>::Handle, <Self as OpAMPClient>::Error>;
       }
     }
 

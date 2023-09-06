@@ -1,11 +1,13 @@
 use std::error::Error;
 use std::process;
 
-use opamp_client::{capabilities, OpAMPClient};
-use opamp_client::error::ClientError;
-use opamp_client::httpclient::HttpClient;
-use opamp_client::opamp::proto::AgentCapabilities;
-use opamp_client::operation::settings::StartSettings;
+use opamp_client::{
+    capabilities,
+    error::ClientError,
+    httpclient::HttpClient,
+    opamp::proto::AgentCapabilities,
+    operation::settings::StartSettings,
+};
 use tracing::{error, info};
 
 use newrelic_super_agent::{

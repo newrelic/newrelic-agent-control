@@ -225,7 +225,7 @@ where
 
 
         info!("Stopping OpAMP Client");
-        opamp_client_handle.stop();
+        let _ = opamp_client_handle.stop();
 
         info!("Waiting for the output manager to finish");
         output_manager.join().unwrap();
