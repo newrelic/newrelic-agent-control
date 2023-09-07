@@ -180,7 +180,7 @@ pub mod tests {
     use std::{collections::HashMap, sync::mpsc::Sender};
 
     use crate::agent::error::AgentError;
-    use crate::agent::opamp_builder::test::OpAMPClientBuilderMock;
+    use crate::agent::opamp_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock};
     use crate::config::agent_type::RuntimeConfig;
     use crate::{
         command::stream::Event,
@@ -244,11 +244,17 @@ pub mod tests {
             opamp: crate::config::agent_configs::OpAMPClientConfig::default(),
         };
 
+        let mut opamp_builder = MockOpAMPClientBuilderMock::new();
+        opamp_builder
+            .expect_build()
+            .once()
+            .return_once(|_| Ok(MockOpAMPClientMock::new()));
+
         let mut builder = SupervisorGroupBuilder {
             tx,
             cfg: agent_config.clone(),
             effective_agent_repository: LocalRepository::default(),
-            opamp_builder: OpAMPClientBuilderMock,
+            opamp_builder: opamp_builder,
         };
 
         // Case with no valid key

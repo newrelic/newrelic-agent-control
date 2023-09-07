@@ -49,10 +49,9 @@ impl OpAMPClientBuilder for OpAMPHttpBuilder {
 
 #[cfg(test)]
 pub(crate) mod test {
-    pub struct OpAMPClientMock;
-    pub struct OpAMPClientBuilderMock;
-
+    use super::*;
     use async_trait::async_trait;
+    use mockall::mock;
     use opamp_client::{
         opamp::proto::{AgentDescription, AgentHealth},
         OpAMPClient, OpAMPClientHandle,
@@ -60,57 +59,43 @@ pub(crate) mod test {
 
     use crate::agent::error::AgentError;
 
-    use super::OpAMPClientBuilder;
+    mock! {
+        pub OpAMPClientMock {}
 
-    #[async_trait]
-    impl OpAMPClient for OpAMPClientMock {
-        type Handle = OpAMPClientMock;
-        type Error = AgentError;
-        async fn start(self) -> Result<Self::Handle, Self::Error> {
-            Ok(OpAMPClientMock)
-        }
-    }
-    #[async_trait]
-    impl OpAMPClientHandle for OpAMPClientMock {
-        type Error = AgentError;
-
-        async fn stop(self) -> Result<(), Self::Error> {
-            Ok(())
+        #[async_trait]
+        impl OpAMPClient for OpAMPClientMock {
+            type Handle = MockOpAMPClientMock;
+            type Error = AgentError;
+            // add code here
+            async fn start(self) -> Result<<Self as OpAMPClient>::Handle, <Self as OpAMPClient>::Error>;
         }
 
-        /// set_agent_description sets attributes of the Agent. The attributes will be included
-        /// in the next status report sent to the Server.
-        async fn set_agent_description(
-            &mut self,
-            _description: &AgentDescription,
-        ) -> Result<(), Self::Error> {
-            Ok(())
-        }
+        #[async_trait]
+        impl OpAMPClientHandle for OpAMPClientMock {
+            type Error = AgentError;
 
-        /// agent_description returns the last value successfully set by set_agent_description().
-        fn agent_description(&self) -> Result<AgentDescription, Self::Error> {
-            Ok(AgentDescription::default())
-        }
+            async fn stop(self) -> Result<(), <Self as OpAMPClientHandle>::Error>;
 
-        /// set_health sets the health status of the Agent. The AgentHealth will be included
-        async fn set_health(&mut self, _health: &AgentHealth) -> Result<(), Self::Error> {
-            Ok(())
-        }
+            async fn set_agent_description(
+                &mut self,
+                description: &AgentDescription,
+            ) -> Result<(), <Self as OpAMPClientHandle>::Error>;
 
-        // update_effective_config fetches the current local effective config using
-        // get_effective_config callback and sends it to the Server.
-        async fn update_effective_config(&mut self) -> Result<(), Self::Error> {
-            Ok(())
+            fn agent_description(&self) -> Result<AgentDescription, <Self as OpAMPClientHandle>::Error>;
+
+            async fn set_health(&mut self, health: &AgentHealth) -> Result<(), <Self as OpAMPClientHandle>::Error>;
+
+            async fn update_effective_config(&mut self) -> Result<(), <Self as OpAMPClientHandle>::Error>;
         }
     }
 
-    impl OpAMPClientBuilder for OpAMPClientBuilderMock {
-        type Client = OpAMPClientMock;
-        fn build(
-            &self,
-            _start_settings: opamp_client::operation::settings::StartSettings,
-        ) -> Result<Self::Client, AgentError> {
-            Ok(OpAMPClientMock)
+    mock! {
+        pub OpAMPClientBuilderMock {}
+
+        impl OpAMPClientBuilder for OpAMPClientBuilderMock {
+            type Client = MockOpAMPClientMock;
+
+            fn build(&self, start_settings: opamp_client::operation::settings::StartSettings) -> Result<<Self as OpAMPClientBuilder>::Client, AgentError>;
         }
     }
 }

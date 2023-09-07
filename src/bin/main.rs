@@ -9,7 +9,8 @@ use std::error::Error;
 use std::process;
 use tracing::{error, info};
 
-fn main() -> Result<(), Box<dyn Error>> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
     // init logging singleton
     Logging::try_init()?;
 
@@ -85,7 +86,7 @@ namespace: davidsanchez
 name: random-commands
 version: 0.0.1
 variables:
-  ip:
+  sleep:
     description: "Destination IP to make pings"
     type: string
     required: true
@@ -97,10 +98,8 @@ variables:
 deployment:
   on_host:
     executables:
-      - path: /Users/davidsanchez/.nix-profile/bin/ping
-        args: "${ip}"
-      - path: echo
-        args: "Hello ${message}"
+      - path: /bin/sleep
+        args: "${sleep}"
     restart_policy:
       backoff_strategy:
         type: fixed

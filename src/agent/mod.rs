@@ -239,7 +239,7 @@ fn load_agent_cfgs<Repo: AgentRepository>(
 #[cfg(test)]
 mod tests {
     use crate::agent::error::AgentError;
-    use crate::agent::opamp_builder::test::OpAMPClientBuilderMock;
+    use crate::agent::opamp_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock};
     use crate::agent::{Agent, AgentEvent};
     use crate::config::agent_type_registry::{AgentRepository, LocalRepository};
     use crate::context::Context;
@@ -273,16 +273,29 @@ mod tests {
 
     #[test]
     fn run_and_stop_supervisors() {
+        let mut opamp_builder = MockOpAMPClientBuilderMock::new();
+        // two agents in the supervisor group
+        opamp_builder.expect_build().times(2).returning(|_| {
+            let mut opamp_client = MockOpAMPClientMock::new();
+            opamp_client.expect_start().once().returning(|| {
+                let mut started_client = MockOpAMPClientMock::new();
+                started_client.expect_stop().once().returning(|| Ok(()));
+                Ok(started_client)
+            });
+
+            Ok(opamp_client)
+        });
+
         let agent: Agent<
             LocalRepository,
             LocalRepository,
-            OpAMPClientBuilderMock,
+            MockOpAMPClientBuilderMock,
             MockedSleepGroupResolver,
         > = Agent::new_custom_resolver(
             MockedSleepGroupResolver,
             LocalRepository::default(),
             LocalRepository::default(),
-            OpAMPClientBuilderMock,
+            opamp_builder,
         );
         let ctx = Context::new();
         // stop all agents after 3 seconds
