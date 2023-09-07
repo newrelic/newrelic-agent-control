@@ -1,12 +1,14 @@
+use std::time::SystemTime;
 use std::{collections::HashMap, sync::mpsc::Sender, thread::JoinHandle};
 
 use futures::executor::block_on;
-use opamp_client::opamp::proto::AgentCapabilities;
+use opamp_client::opamp::proto::{AgentCapabilities, AgentHealth};
 use opamp_client::operation::settings::StartSettings;
 use opamp_client::{capabilities, OpAMPClient, OpAMPClientHandle};
+use thiserror::Error;
 use ulid::Ulid;
 
-use crate::agent::error::AgentError;
+use crate::config::agent_type_registry::AgentRepositoryError;
 use crate::{
     command::stream::Event,
     config::agent_configs::AgentID,
@@ -21,10 +23,27 @@ use crate::{
     },
 };
 
-use super::opamp_builder::OpAMPClientBuilder;
+use super::opamp_builder::{OpAMPClientBuilder, OpAMPClientBuilderError};
 
 #[derive(Default)]
 pub struct SupervisorGroup<C, S>(HashMap<AgentID, (C, Vec<SupervisorRunner<S>>)>);
+
+#[derive(Debug, Error)]
+pub enum SupervisorGroupError {
+    #[error("{0}")]
+    RepositoryError(#[from] AgentRepositoryError),
+    #[error("{0}")]
+    BuilderError(#[from] OpAMPClientBuilderError),
+    #[error("no onhost configuration found")]
+    NoOnHost,
+}
+
+fn get_sys_time_nano() -> u64 {
+    SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos() as u64
+}
 
 impl<C> SupervisorGroup<C, Stopped>
 where
@@ -35,7 +54,7 @@ where
         cfg: &SuperAgentConfig,
         effective_agent_repository: Repo,
         opamp_client_builder: OpAMPBuilder,
-    ) -> Result<SupervisorGroup<OpAMPBuilder::Client, Stopped>, AgentError> {
+    ) -> Result<SupervisorGroup<OpAMPBuilder::Client, Stopped>, SupervisorGroupError> {
         let builder = SupervisorGroupBuilder {
             tx,
             cfg: cfg.clone(),
@@ -50,7 +69,15 @@ where
             .0
             .into_iter()
             .map(|(t, (opamp, runners))| {
-                let client = block_on(opamp.start()).unwrap();
+                let mut client = block_on(opamp.start()).unwrap();
+
+                // set healthy status
+                let _ = block_on(client.set_health(&AgentHealth {
+                    healthy: true,
+                    start_time_unix_nano: get_sys_time_nano(),
+                    last_error: "".to_string(),
+                }));
+
                 let mut running_runners = Vec::new();
 
                 for runner in runners {
@@ -73,9 +100,14 @@ where
         // collect runners wait result
         self.0
             .into_iter()
-            .map(|(t, (opamp, runners))| {
+            .map(|(t, (mut opamp, runners))| {
                 // stop the OpAMP client
-                // TODO: propagate error?
+                // set healthy status
+                let _ = block_on(opamp.set_health(&AgentHealth {
+                    healthy: false,
+                    start_time_unix_nano: get_sys_time_nano(),
+                    last_error: "stopped".to_string(),
+                }));
                 block_on(opamp.stop()).unwrap();
                 let mut waiting_runners = Vec::new();
                 for runner in runners {
@@ -89,7 +121,14 @@ where
     pub fn stop(self) -> HashMap<AgentID, Vec<JoinHandle<()>>> {
         self.0
             .into_iter()
-            .map(|(t, (opamp, runners))| {
+            .map(|(t, (mut opamp, runners))| {
+                // set healthy status
+                let _ = block_on(opamp.set_health(&AgentHealth {
+                    healthy: false,
+                    start_time_unix_nano: get_sys_time_nano(),
+                    last_error: "stopped".to_string(),
+                }));
+
                 // stop the OpAMP client
                 block_on(opamp.stop()).unwrap();
                 let mut stopped_runners = Vec::new();
@@ -114,7 +153,9 @@ where
     Repo: AgentRepository,
     OpAMPBuilder: OpAMPClientBuilder,
 {
-    fn build(&self) -> Result<SupervisorGroup<OpAMPBuilder::Client, Stopped>, AgentError> {
+    fn build(
+        &self,
+    ) -> Result<SupervisorGroup<OpAMPBuilder::Client, Stopped>, SupervisorGroupError> {
         let agent_runners = self
             .cfg
             .agents
@@ -129,7 +170,7 @@ where
                     .deployment
                     .on_host
                     .clone()
-                    .ok_or(AgentError::SupervisorGroupError)?;
+                    .ok_or(SupervisorGroupError::NoOnHost)?;
 
                 let (id, runner) = build_on_host_runners(&self.tx, agent_t, on_host);
                 Ok((

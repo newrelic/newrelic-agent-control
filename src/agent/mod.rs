@@ -61,12 +61,12 @@ where
         effective_agent_repository: Repo,
         opamp_client_builder: OpAMPBuilder,
     ) -> Result<SupervisorGroup<OpAMPBuilder::Client, Stopped>, AgentError> {
-        SupervisorGroup::<OpAMPBuilder::Client, Stopped>::new(
+        Ok(SupervisorGroup::<OpAMPBuilder::Client, Stopped>::new(
             tx,
             self,
             effective_agent_repository,
             opamp_client_builder,
-        )
+        )?)
     }
 }
 
@@ -280,6 +280,13 @@ mod tests {
             opamp_client.expect_start().once().returning(|| {
                 let mut started_client = MockOpAMPClientMock::new();
                 started_client.expect_stop().once().returning(|| Ok(()));
+
+                // set_health on start and stop
+                started_client
+                    .expect_set_health()
+                    .times(2)
+                    .returning(|_| Ok(()));
+
                 Ok(started_client)
             });
 

@@ -7,6 +7,8 @@ use crate::config::{
     error::SuperAgentConfigError,
 };
 
+use super::supervisor_group::SupervisorGroupError;
+
 #[derive(Error, Debug)]
 pub enum AgentError {
     #[error("channel is not present in the agent initializer")]
@@ -27,6 +29,6 @@ pub enum AgentError {
     #[error("agent type error `{0}`")]
     AgentTypeError(#[from] AgentTypeError),
 
-    #[error("agent runner config error")]
-    SupervisorGroupError,
+    #[error("{0}")]
+    SupervisorGroupError(#[from] SupervisorGroupError),
 }

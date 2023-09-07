@@ -1,15 +1,22 @@
-use opamp_client::{httpclient::HttpClient, operation::settings::StartSettings, OpAMPClient};
+use opamp_client::{
+    error::ClientError, httpclient::HttpClient, operation::settings::StartSettings, OpAMPClient,
+};
+use thiserror::Error;
 
 use crate::config::agent_configs::OpAMPClientConfig;
 
-use super::{
-    callbacks::{AgentCallbacks, AgentEffectiveConfig},
-    error::AgentError,
-};
+use super::callbacks::{AgentCallbacks, AgentEffectiveConfig};
+
+#[derive(Debug, Error)]
+pub enum OpAMPClientBuilderError {
+    #[error("{0}")]
+    Client(#[from] ClientError),
+}
 
 pub trait OpAMPClientBuilder {
     type Client: OpAMPClient;
-    fn build(&self, start_settings: StartSettings) -> Result<Self::Client, AgentError>;
+    fn build(&self, start_settings: StartSettings)
+        -> Result<Self::Client, OpAMPClientBuilderError>;
 }
 
 /// OpAMPBuilderCfg
@@ -28,7 +35,7 @@ impl OpAMPClientBuilder for OpAMPHttpBuilder {
     fn build(
         &self,
         start_settings: StartSettings,
-    ) -> Result<Self::Client, super::error::AgentError> {
+    ) -> Result<Self::Client, OpAMPClientBuilderError> {
         // TODO: cleanup
         let headers = self.config.headers.clone().unwrap_or_default();
         let headers: Vec<(&str, &str)> = headers
@@ -42,8 +49,7 @@ impl OpAMPClientBuilder for OpAMPHttpBuilder {
             headers,
             start_settings,
             AgentCallbacks,
-        )
-        .unwrap())
+        )?)
     }
 }
 
@@ -57,22 +63,20 @@ pub(crate) mod test {
         OpAMPClient, OpAMPClientHandle,
     };
 
-    use crate::agent::error::AgentError;
-
     mock! {
         pub OpAMPClientMock {}
 
         #[async_trait]
         impl OpAMPClient for OpAMPClientMock {
             type Handle = MockOpAMPClientMock;
-            type Error = AgentError;
+            type Error = OpAMPClientBuilderError;
             // add code here
             async fn start(self) -> Result<<Self as OpAMPClient>::Handle, <Self as OpAMPClient>::Error>;
         }
 
         #[async_trait]
         impl OpAMPClientHandle for OpAMPClientMock {
-            type Error = AgentError;
+            type Error = OpAMPClientBuilderError;
 
             async fn stop(self) -> Result<(), <Self as OpAMPClientHandle>::Error>;
 
@@ -95,7 +99,7 @@ pub(crate) mod test {
         impl OpAMPClientBuilder for OpAMPClientBuilderMock {
             type Client = MockOpAMPClientMock;
 
-            fn build(&self, start_settings: opamp_client::operation::settings::StartSettings) -> Result<<Self as OpAMPClientBuilder>::Client, AgentError>;
+            fn build(&self, start_settings: opamp_client::operation::settings::StartSettings) -> Result<<Self as OpAMPClientBuilder>::Client, OpAMPClientBuilderError>;
         }
     }
 }
