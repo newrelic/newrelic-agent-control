@@ -8,6 +8,12 @@ pub struct Cli {
     #[arg(short, long, default_value_t = String::from("/etc/newrelic-super-agent/config.yaml"))]
     config: String,
 
+    #[arg(short, long, default_value_t = String::from("https://opamp.staging-service.newrelic.com/v1/opamp"))]
+    opamp_url: String,
+
+    #[arg(short, long)]
+    license_key: String,
+
     #[arg(long)]
     print_debug_info: bool,
 }
@@ -21,6 +27,14 @@ impl Cli {
 
     pub fn get_config_path(&self) -> PathBuf {
         PathBuf::from(&self.config)
+    }
+
+    pub fn get_license_key(&self) -> String {
+        self.license_key.clone()
+    }
+
+    pub fn get_opamp_url(&self) -> String {
+        self.opamp_url.clone()
     }
 
     pub fn print_debug_info(&self) -> bool {

@@ -1,6 +1,7 @@
 use opamp_client::opamp::proto::{EffectiveConfig, OpAmpConnectionSettings, ServerErrorResponse, ServerToAgentCommand};
 use opamp_client::operation::callbacks::{Callbacks, MessageData};
 use thiserror::Error;
+use tracing::debug;
 
 pub struct OpampCallbacks {}
 
@@ -18,7 +19,7 @@ impl Callbacks for OpampCallbacks {
     type Error = CallbacksError;
 
     fn on_connect(&self) {
-        todo!()
+        debug!("opamp connected");
     }
 
     fn on_connect_failed(&self, _err: Self::Error) {
@@ -30,7 +31,7 @@ impl Callbacks for OpampCallbacks {
     }
 
     fn on_message(&self, _msg: MessageData) {
-        todo!()
+        debug!("opamp message received");
     }
 
     fn on_opamp_connection_settings(&self, _settings: &OpAmpConnectionSettings) -> Result<(), Self::Error> {
