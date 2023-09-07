@@ -167,7 +167,7 @@ where
 
         info!("Starting the supervisor group.");
         // Run all the agents in the supervisor group
-        let running_supervisors = supervisor_group.run();
+        let running_supervisors = supervisor_group.run()?;
 
         // watch for supervisors restart requests
         {
@@ -176,7 +176,7 @@ where
                 if let Some(event) = ctx.wait_condvar().unwrap() {
                     match event {
                         AgentEvent::Stop => {
-                            break running_supervisors.stop().into_iter().for_each(
+                            break running_supervisors.stop()?.into_iter().for_each(
                                 |(agent_id, handles)| {
                                     for handle in handles {
                                         let agent_id = agent_id.clone();
