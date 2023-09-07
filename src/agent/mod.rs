@@ -1,36 +1,33 @@
 use std::{
     fs,
-    path::Path,
     sync::mpsc::{self, Sender},
 };
 
 use futures::executor::block_on;
-use opamp_client::{OpAMPClient, OpAMPClientHandle};
+use opamp_client::{capabilities, OpAMPClient, OpAMPClientHandle};
+use opamp_client::opamp::proto::AgentCapabilities;
+use opamp_client::operation::settings::StartSettings;
 use tracing::{error, info};
+use ulid::Ulid;
 
 use crate::{
     agent::supervisor_group::SupervisorGroup,
-    command::{stream::Event, EventLogger, StdEventReceiver},
+    command::{EventLogger, StdEventReceiver, stream::Event},
     config::{
         agent_configs::{AgentID, SuperAgentConfig},
         agent_type_registry::{AgentRepository, LocalRepository},
-        resolver::Resolver,
         supervisor_config::SupervisorConfig,
     },
     context::Context,
     supervisor::runner::Stopped,
 };
+use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPHttpBuilder};
 
-use self::{
-    error::AgentError,
-    opamp_builder::{OpAMPClientBuilder, OpAMPHttpBuilder},
-};
+use self::error::AgentError;
 
 pub mod callbacks;
 pub mod error;
-pub(super) mod opamp_builder;
 pub mod supervisor_group;
-pub mod opamp_callbacks;
 
 #[derive(Clone)]
 pub enum AgentEvent {
@@ -75,13 +72,13 @@ where
 
 pub struct Agent<
     Repo,
-    EffectiveRepo = LocalRepository,
     OpAMPBuilder = OpAMPHttpBuilder,
+    EffectiveRepo = LocalRepository,
     R = SuperAgentConfig,
 > where
     Repo: AgentRepository,
-    EffectiveRepo: AgentRepository,
     OpAMPBuilder: OpAMPClientBuilder,
+    EffectiveRepo: AgentRepository,
     R: SupervisorGroupResolver<EffectiveRepo, OpAMPBuilder>,
 {
     resolver: R,
@@ -90,16 +87,13 @@ pub struct Agent<
     opamp_client_builder: OpAMPBuilder,
 }
 
-impl<Repo> Agent<Repo>
+impl<Repo, OpAMPBuilder> Agent<Repo, OpAMPBuilder>
 where
     Repo: AgentRepository + Clone,
+    OpAMPBuilder: OpAMPClientBuilder,
 {
-    pub fn new(cfg_path: &Path, agent_type_repository: Repo) -> Result<Self, AgentError> {
-        let cfg = Resolver::retrieve_config(cfg_path)?;
-
+    pub fn new(cfg: SuperAgentConfig, agent_type_repository: Repo, opamp_client_builder: OpAMPBuilder) -> Result<Self, AgentError> {
         let effective_agent_repository = load_agent_cfgs(&agent_type_repository, &cfg)?;
-
-        let opamp_client_builder = OpAMPHttpBuilder::new(cfg.opamp.clone());
 
         Ok(Self {
             resolver: cfg,
@@ -132,12 +126,12 @@ where
     }
 }
 
-impl<Repo, EffectiveRepo, OpAMPBuilder, R> Agent<Repo, EffectiveRepo, OpAMPBuilder, R>
+impl<Repo, OpAMPBuilder, EffectiveRepo, R> Agent<Repo, OpAMPBuilder, EffectiveRepo, R>
 where
-    OpAMPBuilder: OpAMPClientBuilder,
-    R: SupervisorGroupResolver<EffectiveRepo, OpAMPBuilder>,
     Repo: AgentRepository,
+    OpAMPBuilder: OpAMPClientBuilder,
     EffectiveRepo: AgentRepository,
+    R: SupervisorGroupResolver<EffectiveRepo, OpAMPBuilder>,
 {
     pub fn run(self, ctx: Context<Option<AgentEvent>>) -> Result<(), AgentError> {
         info!("Creating agent's communication channels");
@@ -145,6 +139,22 @@ where
 
         let output_manager = StdEventReceiver::default().log(rx);
 
+        info!("Starting superagent's OpAMP Client.");
+        // Run all the agents in the supervisor group
+        let opamp_client = self.opamp_client_builder.build(StartSettings {
+            instance_id: Ulid::new().to_string(),
+            capabilities: capabilities!(AgentCapabilities::ReportsHealth),
+        })?;
+        let mut opamp_client_handle = block_on(opamp_client.start()).unwrap();
+
+        let health = opamp_client::opamp::proto::AgentHealth {
+            healthy: true,
+            last_error: "".to_string(),
+            start_time_unix_nano: 0,
+        };
+        block_on(opamp_client_handle.set_health(&health)).unwrap();
+
+        info!("Starting the supervisor group.");
         let supervisor_group = self.resolver.retrieve_group(
             tx,
             self.effective_agent_repository,
@@ -168,19 +178,8 @@ where
             The "merge" operation can only be done if the agents are of the same type! Supervisor<Running>. If they are not started we won't be able to merge them to the running group, as they are different types.
         */
 
-        info!("Starting the supervisor group.");
         // Run all the agents in the supervisor group
         let running_supervisors = supervisor_group.run();
-
-
-        let mut opamp_client_handle = block_on(self.opamp_client.start()).unwrap();
-        let health = opamp_client::opamp::proto::AgentHealth {
-            healthy: true,
-            last_error: "".to_string(),
-            start_time_unix_nano: 0,
-        };
-
-        block_on(opamp_client_handle.set_health(&health)).unwrap();
 
         {
             loop {
@@ -255,14 +254,14 @@ fn load_agent_cfgs<Repo: AgentRepository>(
 #[cfg(test)]
 mod tests {
     use crate::agent::error::AgentError;
-    use crate::agent::opamp_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock};
+    use crate::opamp::client_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock};
     use crate::agent::{Agent, AgentEvent};
     use crate::config::agent_type_registry::{AgentRepository, LocalRepository};
     use crate::context::Context;
     use std::thread::{sleep, spawn};
     use std::time::Duration;
 
-    use super::opamp_builder::OpAMPClientBuilder;
+    use crate::opamp::client_builder::OpAMPClientBuilder;
     use super::{supervisor_group::tests::new_sleep_supervisor_group, SupervisorGroupResolver};
 
     struct MockedSleepGroupResolver;

@@ -21,7 +21,7 @@ use crate::{
     },
 };
 
-use super::opamp_builder::OpAMPClientBuilder;
+use crate::opamp::client_builder::OpAMPClientBuilder;
 
 #[derive(Default)]
 pub struct SupervisorGroup<C, S>(HashMap<AgentID, (C, Vec<SupervisorRunner<S>>)>);
@@ -180,7 +180,7 @@ pub mod tests {
     use std::{collections::HashMap, sync::mpsc::Sender};
 
     use crate::agent::error::AgentError;
-    use crate::agent::opamp_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock};
+    use crate::opamp::client_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock};
     use crate::config::agent_type::RuntimeConfig;
     use crate::{
         command::stream::Event,

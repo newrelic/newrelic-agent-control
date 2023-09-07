@@ -17,9 +17,8 @@ use newrelic_super_agent::{
     context::Context,
     logging::Logging,
 };
-use newrelic_super_agent::agent::opamp_callbacks::OpampCallbacks;
-use newrelic_super_agent::config::effective_config::EffectiveConfigRetriever;
 use newrelic_super_agent::config::resolver::Resolver;
+use newrelic_super_agent::opamp::client_builder::OpAMPHttpBuilder;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -58,16 +57,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
     local_agent_type_repository.store_from_yaml(RANDOM_CMDS_TYPE.as_bytes())?;
 
     // load effective config
-    let opamp_url = &cli.get_opamp_url();
-    let license_key = &cli.get_license_key();
     let cfg_path = &cli.get_config_path();
     let cfg = Resolver::retrieve_config(cfg_path)?;
-    let retriever = EffectiveConfigRetriever::new(cfg_path.to_str().unwrap().to_string());
 
-    // Create OpAMP Client
-    let opamp_client = create_http_opamp_client(retriever, opamp_url, license_key)?;
+    let opamp_client_builder = OpAMPHttpBuilder::new(cfg.opamp.clone());
+
     info!("Starting the super agent");
-    let agent = Agent::new(cfg, local_agent_type_repository, opamp_client);
+    let agent = Agent::new(cfg, local_agent_type_repository, opamp_client_builder);
 
     match agent {
         Ok(agent) => Ok(agent.run(ctx)?),
@@ -76,30 +72,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
             process::exit(1);
         }
     }
-}
-
-fn create_http_opamp_client(
-    effective_config_resolver: EffectiveConfigRetriever,
-    opamp_url: &String,
-    license_key: &String,
-) -> Result<HttpClient<EffectiveConfigRetriever, OpampCallbacks>, ClientError>
-{
-    let headers = [("api-key", license_key.as_str())];
-    let url = opamp_url.as_str();
-    let start_settings = StartSettings {
-        instance_id: "7738XWW0Q98GMAD3NHWZM2PZWZ".to_string(),
-        capabilities: capabilities!(AgentCapabilities::ReportsStatus),
-    };
-    let callbacks = OpampCallbacks::new();
-
-
-    HttpClient::new(
-        effective_config_resolver,
-        url,
-        headers,
-        start_settings,
-        callbacks,
-    )
 }
 
 const NEWRELIC_INFRA_TYPE: &str = r#"
