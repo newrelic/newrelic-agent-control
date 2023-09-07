@@ -1228,6 +1228,7 @@ dependencies = [
  "aquamarine",
  "assert_cmd",
  "assert_fs",
+ "async-trait",
  "clap",
  "config",
  "ctrlc",
