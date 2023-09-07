@@ -37,29 +37,31 @@ pub enum AgentEvent {
     Stop,
 }
 
-pub trait SupervisorGroupResolver<Repo>
+pub trait SupervisorGroupResolver<Repo, OpAMPBuilder>
 where
     Repo: AgentRepository,
+    OpAMPBuilder: OpAMPClientBuilder,
 {
-    fn retrieve_group<B: OpAMPClientBuilder>(
+    fn retrieve_group(
         &self,
         tx: Sender<Event>,
         effective_agent_repository: Repo,
-        opamp_client_builder: B,
-    ) -> Result<SupervisorGroup<B::Client, Stopped>, AgentError>;
+        opamp_client_builder: OpAMPBuilder,
+    ) -> Result<SupervisorGroup<OpAMPBuilder::Client, Stopped>, AgentError>;
 }
 
-impl<Repo> SupervisorGroupResolver<Repo> for SuperAgentConfig
+impl<Repo, OpAMPBuilder> SupervisorGroupResolver<Repo, OpAMPBuilder> for SuperAgentConfig
 where
     Repo: AgentRepository,
+    OpAMPBuilder: OpAMPClientBuilder,
 {
-    fn retrieve_group<B: OpAMPClientBuilder>(
+    fn retrieve_group(
         &self,
         tx: Sender<Event>,
         effective_agent_repository: Repo,
-        opamp_client_builder: B,
-    ) -> Result<SupervisorGroup<B::Client, Stopped>, AgentError> {
-        SupervisorGroup::<B::Client, Stopped>::new(
+        opamp_client_builder: OpAMPBuilder,
+    ) -> Result<SupervisorGroup<OpAMPBuilder::Client, Stopped>, AgentError> {
+        SupervisorGroup::<OpAMPBuilder::Client, Stopped>::new(
             tx,
             self,
             effective_agent_repository,
@@ -77,7 +79,7 @@ pub struct Agent<
     Repo: AgentRepository,
     EffectiveRepo: AgentRepository,
     OpAMPBuilder: OpAMPClientBuilder,
-    R: SupervisorGroupResolver<EffectiveRepo>,
+    R: SupervisorGroupResolver<EffectiveRepo, OpAMPBuilder>,
 {
     resolver: R,
     agent_type_repository: Repo,
@@ -94,7 +96,7 @@ where
 
         let effective_agent_repository = load_agent_cfgs(&agent_type_repository, &cfg)?;
 
-        let opamp_client_builder = OpAMPHttpBuilder::new();
+        let opamp_client_builder = OpAMPHttpBuilder::new(cfg.opamp.clone());
 
         Ok(Self {
             resolver: cfg,
@@ -116,7 +118,7 @@ where
         opamp_client_builder: OpAMPBuilder,
     ) -> Agent<Repo, EffectiveRepo, OpAMPBuilder, R>
     where
-        R: SupervisorGroupResolver<EffectiveRepo>,
+        R: SupervisorGroupResolver<EffectiveRepo, OpAMPBuilder>,
     {
         Agent {
             resolver,
@@ -130,7 +132,7 @@ where
 impl<Repo, EffectiveRepo, OpAMPBuilder, R> Agent<Repo, EffectiveRepo, OpAMPBuilder, R>
 where
     OpAMPBuilder: OpAMPClientBuilder,
-    R: SupervisorGroupResolver<EffectiveRepo>,
+    R: SupervisorGroupResolver<EffectiveRepo, OpAMPBuilder>,
     Repo: AgentRepository,
     EffectiveRepo: AgentRepository,
 {
@@ -234,53 +236,63 @@ fn load_agent_cfgs<Repo: AgentRepository>(
     Ok(effective_agent_repository)
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use crate::agent::error::AgentError;
-//     use crate::agent::{Agent, AgentEvent};
-//     use crate::config::agent_type_registry::{AgentRepository, LocalRepository};
-//     use crate::context::Context;
-//     use std::thread::{sleep, spawn};
-//     use std::time::Duration;
-//
-//     use super::opamp_builder::OpAMPClientBuilder;
-//     use super::{supervisor_group::tests::new_sleep_supervisor_group, SupervisorGroupResolver};
-//
-//     struct MockedSleepGroupResolver;
-//     impl<Repo> SupervisorGroupResolver<Repo> for MockedSleepGroupResolver
-//     where
-//         Repo: AgentRepository,
-//     {
-//         fn retrieve_group<B: OpAMPClientBuilder>(
-//             &self,
-//             tx: std::sync::mpsc::Sender<crate::command::stream::Event>,
-//             _effective_agent_repository: Repo,
-//             opamp_client_builder: B,
-//         ) -> Result<
-//             super::supervisor_group::SupervisorGroup<B::Client, crate::supervisor::runner::Stopped>,
-//             AgentError,
-//         > {
-//             new_sleep_supervisor_group(tx)
-//         }
-//     }
-//
-//     #[test]
-//     fn run_and_stop_supervisors() {
-//         let agent: Agent<LocalRepository, LocalRepository, MockedSleepGroupResolver> =
-//             Agent::new_custom_resolver(
-//                 MockedSleepGroupResolver,
-//                 LocalRepository::default(),
-//                 LocalRepository::default(),
-//             );
-//         let ctx = Context::new();
-//         // stop all agents after 3 seconds
-//         spawn({
-//             let ctx = ctx.clone();
-//             move || {
-//                 sleep(Duration::from_secs(3));
-//                 ctx.cancel_all(Some(AgentEvent::Stop)).unwrap();
-//             }
-//         });
-//         assert!(agent.run(ctx).is_ok())
-//     }
-// }
+#[cfg(test)]
+mod tests {
+    use crate::agent::error::AgentError;
+    use crate::agent::opamp_builder::test::OpAMPClientBuilderMock;
+    use crate::agent::{Agent, AgentEvent};
+    use crate::config::agent_type_registry::{AgentRepository, LocalRepository};
+    use crate::context::Context;
+    use std::thread::{sleep, spawn};
+    use std::time::Duration;
+
+    use super::opamp_builder::OpAMPClientBuilder;
+    use super::{supervisor_group::tests::new_sleep_supervisor_group, SupervisorGroupResolver};
+
+    struct MockedSleepGroupResolver;
+    impl<Repo, OpAMPBuilder> SupervisorGroupResolver<Repo, OpAMPBuilder> for MockedSleepGroupResolver
+    where
+        Repo: AgentRepository,
+        OpAMPBuilder: OpAMPClientBuilder,
+    {
+        fn retrieve_group(
+            &self,
+            tx: std::sync::mpsc::Sender<crate::command::stream::Event>,
+            _effective_agent_repository: Repo,
+            opamp_client_builder: OpAMPBuilder,
+        ) -> Result<
+            super::supervisor_group::SupervisorGroup<
+                OpAMPBuilder::Client,
+                crate::supervisor::runner::Stopped,
+            >,
+            AgentError,
+        > {
+            new_sleep_supervisor_group(tx, opamp_client_builder)
+        }
+    }
+
+    #[test]
+    fn run_and_stop_supervisors() {
+        let agent: Agent<
+            LocalRepository,
+            LocalRepository,
+            OpAMPClientBuilderMock,
+            MockedSleepGroupResolver,
+        > = Agent::new_custom_resolver(
+            MockedSleepGroupResolver,
+            LocalRepository::default(),
+            LocalRepository::default(),
+            OpAMPClientBuilderMock,
+        );
+        let ctx = Context::new();
+        // stop all agents after 3 seconds
+        spawn({
+            let ctx = ctx.clone();
+            move || {
+                sleep(Duration::from_secs(3));
+                ctx.cancel_all(Some(AgentEvent::Stop)).unwrap();
+            }
+        });
+        assert!(agent.run(ctx).is_ok())
+    }
+}
