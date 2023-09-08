@@ -21,6 +21,7 @@ use crate::{
     context::Context,
     supervisor::runner::Stopped,
 };
+use crate::agent::supervisor_group::SupervisorGroupBuilder;
 use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPHttpBuilder};
 
 use self::error::AgentError;
@@ -61,12 +62,13 @@ where
         effective_agent_repository: Repo,
         opamp_client_builder: OpAMPBuilder,
     ) -> Result<SupervisorGroup<OpAMPBuilder::Client, Stopped>, AgentError> {
-        SupervisorGroup::<OpAMPBuilder::Client, Stopped>::new(
+        let builder = SupervisorGroupBuilder {
             tx,
-            self,
+            cfg: self.clone(),
             effective_agent_repository,
-            opamp_client_builder,
-        )
+            opamp_builder: opamp_client_builder,
+        };
+        builder.build()
     }
 }
 

@@ -30,21 +30,6 @@ impl<C> SupervisorGroup<C, Stopped>
 where
     C: OpAMPClient,
 {
-    pub fn new<Repo: AgentRepository, OpAMPBuilder: OpAMPClientBuilder>(
-        tx: Sender<Event>,
-        cfg: &SuperAgentConfig,
-        effective_agent_repository: Repo,
-        opamp_client_builder: OpAMPBuilder,
-    ) -> Result<SupervisorGroup<OpAMPBuilder::Client, Stopped>, AgentError> {
-        let builder = SupervisorGroupBuilder {
-            tx,
-            cfg: cfg.clone(),
-            effective_agent_repository,
-            opamp_builder: opamp_client_builder,
-        };
-        builder.build()
-    }
-
     pub fn run(self) -> SupervisorGroup<C::Handle, Running> {
         let running = self
             .0
@@ -102,11 +87,11 @@ where
     }
 }
 
-struct SupervisorGroupBuilder<Repo, OpAMPBuilder> {
-    tx: Sender<Event>,
-    cfg: SuperAgentConfig,
-    effective_agent_repository: Repo,
-    opamp_builder: OpAMPBuilder,
+pub struct SupervisorGroupBuilder<Repo, OpAMPBuilder> {
+    pub tx: Sender<Event>,
+    pub cfg: SuperAgentConfig,
+    pub effective_agent_repository: Repo,
+    pub opamp_builder: OpAMPBuilder,
 }
 
 impl<Repo, OpAMPBuilder> SupervisorGroupBuilder<Repo, OpAMPBuilder>
@@ -114,7 +99,7 @@ where
     Repo: AgentRepository,
     OpAMPBuilder: OpAMPClientBuilder,
 {
-    fn build(&self) -> Result<SupervisorGroup<OpAMPBuilder::Client, Stopped>, AgentError> {
+    pub fn build(&self) -> Result<SupervisorGroup<OpAMPBuilder::Client, Stopped>, AgentError> {
         let agent_runners = self
             .cfg
             .agents
