@@ -17,6 +17,7 @@ use newrelic_super_agent::{
     context::Context,
     logging::Logging,
 };
+use newrelic_super_agent::agent::instance_id::ULIDInstanceIDGetter;
 use newrelic_super_agent::config::resolver::Resolver;
 use newrelic_super_agent::opamp::client_builder::OpAMPHttpBuilder;
 
@@ -61,9 +62,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let cfg = Resolver::retrieve_config(cfg_path)?;
 
     let opamp_client_builder = OpAMPHttpBuilder::new(cfg.opamp.clone());
+    let instance_id_getter = ULIDInstanceIDGetter::default();
 
     info!("Starting the super agent");
-    let agent = Agent::new(cfg, local_agent_type_repository, opamp_client_builder);
+    let agent = Agent::new(cfg, local_agent_type_repository, opamp_client_builder, instance_id_getter);
 
     match agent {
         Ok(agent) => Ok(agent.run(ctx)?),

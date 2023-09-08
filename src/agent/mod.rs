@@ -2,6 +2,7 @@ use std::{
     fs,
     sync::mpsc::{self, Sender},
 };
+use std::string::ToString;
 
 use futures::executor::block_on;
 use opamp_client::{capabilities, OpAMPClient, OpAMPClientHandle};
@@ -21,6 +22,7 @@ use crate::{
     context::Context,
     supervisor::runner::Stopped,
 };
+use crate::agent::instance_id::{InstanceIDGetter, ULIDInstanceIDGetter};
 use crate::agent::supervisor_group::SupervisorGroupBuilder;
 use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPHttpBuilder};
 
@@ -29,6 +31,9 @@ use self::error::AgentError;
 pub mod callbacks;
 pub mod error;
 pub mod supervisor_group;
+pub mod instance_id;
+
+const SUPER_AGENT_ID:&str = "super-agent";
 
 #[derive(Clone)]
 pub enum AgentEvent {
@@ -38,102 +43,114 @@ pub enum AgentEvent {
     Stop,
 }
 
-pub trait SupervisorGroupResolver<Repo, OpAMPBuilder>
+pub trait SupervisorGroupResolver<Repo, OpAMPBuilder, ID>
 where
     Repo: AgentRepository,
     OpAMPBuilder: OpAMPClientBuilder,
+    ID: InstanceIDGetter,
 {
     fn retrieve_group(
         &self,
         tx: Sender<Event>,
         effective_agent_repository: Repo,
         opamp_client_builder: OpAMPBuilder,
+        instance_id_getter: ID,
     ) -> Result<SupervisorGroup<OpAMPBuilder::Client, Stopped>, AgentError>;
 }
 
-impl<Repo, OpAMPBuilder> SupervisorGroupResolver<Repo, OpAMPBuilder> for SuperAgentConfig
+pub struct Agent<
+    Repo,
+    OpAMPBuilder = OpAMPHttpBuilder,
+    ID = ULIDInstanceIDGetter,
+    EffectiveRepo = LocalRepository,
+    R = SuperAgentConfig,
+> where
+    Repo: AgentRepository,
+    OpAMPBuilder: OpAMPClientBuilder,
+    ID: InstanceIDGetter,
+    EffectiveRepo: AgentRepository,
+    R: SupervisorGroupResolver<EffectiveRepo, OpAMPBuilder, ID>,
+{
+    resolver: R,
+    agent_type_repository: Repo,
+    instance_id_getter: ID,
+    effective_agent_repository: EffectiveRepo,
+    opamp_client_builder: OpAMPBuilder,
+}
+
+impl<Repo, OpAMPBuilder, ID> SupervisorGroupResolver<Repo, OpAMPBuilder, ID> for SuperAgentConfig
 where
     Repo: AgentRepository,
     OpAMPBuilder: OpAMPClientBuilder,
+    ID: InstanceIDGetter,
 {
     fn retrieve_group(
         &self,
         tx: Sender<Event>,
         effective_agent_repository: Repo,
         opamp_client_builder: OpAMPBuilder,
+        instance_id_getter: ID,
     ) -> Result<SupervisorGroup<OpAMPBuilder::Client, Stopped>, AgentError> {
         let builder = SupervisorGroupBuilder {
             tx,
             cfg: self.clone(),
             effective_agent_repository,
             opamp_builder: opamp_client_builder,
+            instance_id_getter,
         };
         builder.build()
     }
 }
 
-pub struct Agent<
-    Repo,
-    OpAMPBuilder = OpAMPHttpBuilder,
-    EffectiveRepo = LocalRepository,
-    R = SuperAgentConfig,
-> where
-    Repo: AgentRepository,
-    OpAMPBuilder: OpAMPClientBuilder,
-    EffectiveRepo: AgentRepository,
-    R: SupervisorGroupResolver<EffectiveRepo, OpAMPBuilder>,
-{
-    resolver: R,
-    agent_type_repository: Repo,
-    effective_agent_repository: EffectiveRepo,
-    opamp_client_builder: OpAMPBuilder,
-}
-
-impl<Repo, OpAMPBuilder> Agent<Repo, OpAMPBuilder>
+impl<Repo, OpAMPBuilder, ID> Agent<Repo, OpAMPBuilder, ID>
 where
     Repo: AgentRepository + Clone,
     OpAMPBuilder: OpAMPClientBuilder,
+    ID: InstanceIDGetter,
 {
-    pub fn new(cfg: SuperAgentConfig, agent_type_repository: Repo, opamp_client_builder: OpAMPBuilder) -> Result<Self, AgentError> {
+    pub fn new(cfg: SuperAgentConfig, agent_type_repository: Repo, opamp_client_builder: OpAMPBuilder, instance_id_getter: ID) -> Result<Self, AgentError> {
         let effective_agent_repository = load_agent_cfgs(&agent_type_repository, &cfg)?;
 
         Ok(Self {
             resolver: cfg,
             agent_type_repository,
+            instance_id_getter,
             effective_agent_repository,
             opamp_client_builder,
         })
     }
 
     #[cfg(test)]
-    pub fn new_custom_resolver<
+    pub fn new_custom<
         R,
         EffectiveRepo: AgentRepository,
-        OpAMPBuilder: OpAMPClientBuilder,
     >(
         resolver: R,
         local_repo: Repo,
+        instance_id_getter: ID,
         effective_repo: EffectiveRepo,
         opamp_client_builder: OpAMPBuilder,
-    ) -> Agent<Repo, EffectiveRepo, OpAMPBuilder, R>
+    ) -> Agent<Repo, OpAMPBuilder, ID, EffectiveRepo, R>
     where
-        R: SupervisorGroupResolver<EffectiveRepo, OpAMPBuilder>,
+        R: SupervisorGroupResolver<EffectiveRepo, OpAMPBuilder, ID>,
     {
         Agent {
             resolver,
             agent_type_repository: local_repo,
             effective_agent_repository: effective_repo,
             opamp_client_builder,
+            instance_id_getter,
         }
     }
 }
 
-impl<Repo, OpAMPBuilder, EffectiveRepo, R> Agent<Repo, OpAMPBuilder, EffectiveRepo, R>
+impl<Repo, OpAMPBuilder, EffectiveRepo, R, ID> Agent<Repo, OpAMPBuilder, ID, EffectiveRepo, R>
 where
     Repo: AgentRepository,
     OpAMPBuilder: OpAMPClientBuilder,
+    ID: InstanceIDGetter,
     EffectiveRepo: AgentRepository,
-    R: SupervisorGroupResolver<EffectiveRepo, OpAMPBuilder>,
+    R: SupervisorGroupResolver<EffectiveRepo, OpAMPBuilder, ID>,
 {
     pub fn run(self, ctx: Context<Option<AgentEvent>>) -> Result<(), AgentError> {
         info!("Creating agent's communication channels");
@@ -144,7 +161,7 @@ where
         info!("Starting superagent's OpAMP Client.");
         // Run all the agents in the supervisor group
         let opamp_client = self.opamp_client_builder.build(StartSettings {
-            instance_id: Ulid::new().to_string(),
+            instance_id: self.instance_id_getter.get(SUPER_AGENT_ID.to_string()),
             capabilities: capabilities!(AgentCapabilities::ReportsHealth),
         })?;
         let mut opamp_client_handle = block_on(opamp_client.start()).unwrap();
@@ -161,6 +178,7 @@ where
             tx,
             self.effective_agent_repository,
             self.opamp_client_builder,
+            self.instance_id_getter
         )?;
         /*
             TODO: We should first compare the current config with the one in the super agent config.
@@ -257,26 +275,35 @@ fn load_agent_cfgs<Repo: AgentRepository>(
 mod tests {
     use crate::agent::error::AgentError;
     use crate::opamp::client_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock};
-    use crate::agent::{Agent, AgentEvent};
+    use crate::agent::{Agent, AgentEvent, SUPER_AGENT_ID};
     use crate::config::agent_type_registry::{AgentRepository, LocalRepository};
     use crate::context::Context;
+    use crate::agent::instance_id::InstanceIDGetter;
+    use crate::opamp::client_builder::OpAMPClientBuilder;
     use std::thread::{sleep, spawn};
     use std::time::Duration;
+    use mockall::predicate;
+    use opamp_client::{capabilities, OpAMPClient};
+    use opamp_client::opamp::proto::AgentCapabilities;
+    use opamp_client::operation::capabilities::Capabilities;
+    use opamp_client::operation::settings::StartSettings;
+    use crate::agent::instance_id::test::MockInstanceIDGetterMock;
 
-    use crate::opamp::client_builder::OpAMPClientBuilder;
     use super::{supervisor_group::tests::new_sleep_supervisor_group, SupervisorGroupResolver};
 
     struct MockedSleepGroupResolver;
-    impl<Repo, OpAMPBuilder> SupervisorGroupResolver<Repo, OpAMPBuilder> for MockedSleepGroupResolver
+    impl<Repo, OpAMPBuilder, ID> SupervisorGroupResolver<Repo, OpAMPBuilder, ID> for MockedSleepGroupResolver
     where
         Repo: AgentRepository,
         OpAMPBuilder: OpAMPClientBuilder,
+        ID: InstanceIDGetter,
     {
         fn retrieve_group(
             &self,
             tx: std::sync::mpsc::Sender<crate::command::stream::Event>,
             _effective_agent_repository: Repo,
             opamp_client_builder: OpAMPBuilder,
+            instance_id_getter: ID,
         ) -> Result<
             super::supervisor_group::SupervisorGroup<
                 OpAMPBuilder::Client,
@@ -291,29 +318,58 @@ mod tests {
     #[test]
     fn run_and_stop_supervisors() {
         let mut opamp_builder = MockOpAMPClientBuilderMock::new();
-        // two agents in the supervisor group
-        opamp_builder.expect_build().times(2).returning(|_| {
+
+        let start_settings = StartSettings {
+            instance_id: SUPER_AGENT_ID.to_string(),
+            capabilities: capabilities!(AgentCapabilities::ReportsHealth),
+        };
+
+        opamp_builder.expect_build().with(predicate::eq(start_settings)).times(1).returning(|_| {
             let mut opamp_client = MockOpAMPClientMock::new();
-            opamp_client.expect_start().once().returning(|| {
+            opamp_client.expect_start().with().once().returning(|| {
                 let mut started_client = MockOpAMPClientMock::new();
-                started_client.expect_stop().once().returning(|| Ok(()));
+                started_client.expect_set_health().once().returning(|_| Ok(()));
                 Ok(started_client)
             });
 
             Ok(opamp_client)
         });
 
+        let start_settings = StartSettings {
+            instance_id: "testing".to_string(),
+            capabilities: Capabilities::default(),
+        };
+
+        opamp_builder.expect_build().with(predicate::eq(start_settings)).times(2).returning(|_| {
+            let mut opamp_client = MockOpAMPClientMock::new();
+            opamp_client.expect_start().with().once().returning(|| {
+                let mut started_client = MockOpAMPClientMock::new();
+                started_client.expect_stop().once().returning(|| Ok(()));
+                started_client.expect_set_health().never();
+                Ok(started_client)
+            });
+
+            Ok(opamp_client)
+        });
+
+        let mut instance_id_getter = MockInstanceIDGetterMock::new();
+        instance_id_getter.expect_get().times(1).returning(|name| {name});
+
+        // two agents in the supervisor group
         let agent: Agent<
             LocalRepository,
-            LocalRepository,
             MockOpAMPClientBuilderMock,
+            MockInstanceIDGetterMock,
+            LocalRepository,
             MockedSleepGroupResolver,
-        > = Agent::new_custom_resolver(
+        > = Agent::new_custom(
             MockedSleepGroupResolver,
             LocalRepository::default(),
+            instance_id_getter,
             LocalRepository::default(),
             opamp_builder,
         );
+
         let ctx = Context::new();
         // stop all agents after 3 seconds
         spawn({
