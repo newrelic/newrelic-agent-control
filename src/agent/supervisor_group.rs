@@ -4,7 +4,6 @@ use futures::executor::block_on;
 use opamp_client::opamp::proto::AgentCapabilities;
 use opamp_client::operation::settings::StartSettings;
 use opamp_client::{capabilities, OpAMPClient, OpAMPClientHandle};
-use ulid::Ulid;
 
 use crate::agent::error::AgentError;
 use crate::{
@@ -20,8 +19,9 @@ use crate::{
         Handle, Runner,
     },
 };
+use crate::agent::instance_id::InstanceIDGetter;
 
-use super::opamp_builder::OpAMPClientBuilder;
+use crate::opamp::client_builder::OpAMPClientBuilder;
 
 #[derive(Default)]
 pub struct SupervisorGroup<C, S>(HashMap<AgentID, (C, Vec<SupervisorRunner<S>>)>);
@@ -30,21 +30,6 @@ impl<C> SupervisorGroup<C, Stopped>
 where
     C: OpAMPClient,
 {
-    pub fn new<Repo: AgentRepository, OpAMPBuilder: OpAMPClientBuilder>(
-        tx: Sender<Event>,
-        cfg: &SuperAgentConfig,
-        effective_agent_repository: Repo,
-        opamp_client_builder: OpAMPBuilder,
-    ) -> Result<SupervisorGroup<OpAMPBuilder::Client, Stopped>, AgentError> {
-        let builder = SupervisorGroupBuilder {
-            tx,
-            cfg: cfg.clone(),
-            effective_agent_repository,
-            opamp_builder: opamp_client_builder,
-        };
-        builder.build()
-    }
-
     pub fn run(self) -> SupervisorGroup<C::Handle, Running> {
         let running = self
             .0
@@ -102,19 +87,21 @@ where
     }
 }
 
-struct SupervisorGroupBuilder<Repo, OpAMPBuilder> {
-    tx: Sender<Event>,
-    cfg: SuperAgentConfig,
-    effective_agent_repository: Repo,
-    opamp_builder: OpAMPBuilder,
+pub struct SupervisorGroupBuilder<Repo, OpAMPBuilder, ID> {
+    pub tx: Sender<Event>,
+    pub cfg: SuperAgentConfig,
+    pub effective_agent_repository: Repo,
+    pub opamp_builder: OpAMPBuilder,
+    pub instance_id_getter: ID,
 }
 
-impl<Repo, OpAMPBuilder> SupervisorGroupBuilder<Repo, OpAMPBuilder>
+impl<Repo, OpAMPBuilder, ID> SupervisorGroupBuilder<Repo, OpAMPBuilder, ID>
 where
     Repo: AgentRepository,
     OpAMPBuilder: OpAMPClientBuilder,
+    ID: InstanceIDGetter,
 {
-    fn build(&self) -> Result<SupervisorGroup<OpAMPBuilder::Client, Stopped>, AgentError> {
+    pub fn build(&self) -> Result<SupervisorGroup<OpAMPBuilder::Client, Stopped>, AgentError> {
         let agent_runners = self
             .cfg
             .agents
@@ -133,10 +120,10 @@ where
 
                 let (id, runner) = build_on_host_runners(&self.tx, agent_t, on_host);
                 Ok((
-                    id,
+                    id.clone(),
                     (
                         self.opamp_builder.build(StartSettings {
-                            instance_id: Ulid::new().to_string(),
+                            instance_id: self.instance_id_getter.get(id.clone().get()),
                             capabilities: capabilities!(AgentCapabilities::ReportsHealth),
                         })?,
                         runner,
@@ -180,7 +167,7 @@ pub mod tests {
     use std::{collections::HashMap, sync::mpsc::Sender};
 
     use crate::agent::error::AgentError;
-    use crate::agent::opamp_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock};
+    use crate::opamp::client_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock};
     use crate::config::agent_type::RuntimeConfig;
     use crate::{
         command::stream::Event,
@@ -191,6 +178,7 @@ pub mod tests {
             sleep_supervisor_tests::new_sleep_supervisor, Stopped, SupervisorRunner,
         },
     };
+    use crate::agent::instance_id::test::MockInstanceIDGetterMock;
 
     // new_sleep_supervisor_group returns a stopped supervisor group with 2 runners with
     // generic agents one with one exec and the other with 2
@@ -231,7 +219,7 @@ pub mod tests {
     }
 
     #[test]
-    fn new_supervisor_group_from() {
+    fn new_supervisor_group_build() {
         let (tx, _) = std::sync::mpsc::channel();
         let agent_config = SuperAgentConfig {
             agents: HashMap::from([(
@@ -250,11 +238,15 @@ pub mod tests {
             .once()
             .return_once(|_| Ok(MockOpAMPClientMock::new()));
 
+        let mut instance_id_getter = MockInstanceIDGetterMock::new();
+        instance_id_getter.expect_get().times(1).returning(|name| {name});
+
         let mut builder = SupervisorGroupBuilder {
             tx,
             cfg: agent_config.clone(),
             effective_agent_repository: LocalRepository::default(),
-            opamp_builder: opamp_builder,
+            opamp_builder,
+            instance_id_getter
         };
 
         // Case with no valid key
