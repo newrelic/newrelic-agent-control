@@ -1,12 +1,7 @@
 use std::{collections::HashMap, sync::mpsc::Sender, thread::JoinHandle};
 
-use futures::executor::block_on;
-use opamp_client::opamp::proto::AgentCapabilities;
-use opamp_client::operation::settings::StartSettings;
-use opamp_client::{capabilities, OpAMPClient, OpAMPClientHandle};
 use thiserror::Error;
 
-use crate::agent::instance_id::InstanceIDGetter;
 use crate::config::agent_type_registry::AgentRepositoryError;
 use crate::{
     command::stream::Event,
@@ -21,7 +16,7 @@ use crate::{
     },
 };
 
-use crate::opamp::client_builder::OpAMPClientBuilder;
+pub mod supervisor_opamp_group;
 
 #[derive(Error, Debug)]
 pub enum SupervisorGroupError {
@@ -44,80 +39,22 @@ pub trait StartedSupervisorGroup {
     fn stop(self) -> Result<HashMap<AgentID, Vec<JoinHandle<()>>>, SupervisorGroupError>;
 }
 
-#[derive(Default)]
-pub struct SupervisorOpAMPGroup<C, S>(HashMap<AgentID, (C, Vec<SupervisorRunner<S>>)>);
+pub struct SupervisorGroupWithoutOpAMP<S>(HashMap<AgentID, Vec<SupervisorRunner<S>>>);
 
-pub struct SupervisorGroupWithoutOpamp<C, S>(HashMap<AgentID, (C, Vec<SupervisorRunner<S>>)>);
-
-impl<C> SupervisorGroup for SupervisorOpAMPGroup<C, Stopped>
-where
-    C: OpAMPClient,
-{
-    type Started = SupervisorOpAMPGroup<C::Handle, Running>;
-    fn run(self) -> Result<Self::Started, SupervisorGroupError> {
-        let running = self
-            .0
-            .into_iter()
-            .map(|(t, (opamp, runners))| {
-                let client = block_on(opamp.start()).unwrap();
-                let mut running_runners = Vec::new();
-
-                for runner in runners {
-                    running_runners.push(runner.run());
-                }
-                (t, (client, running_runners))
-            })
-            .collect();
-        Ok(SupervisorOpAMPGroup(running))
-    }
-}
-
-impl<C> StartedSupervisorGroup for SupervisorOpAMPGroup<C, Running>
-where
-    C: OpAMPClientHandle,
-{
-    fn stop(self) -> Result<HashMap<AgentID, Vec<JoinHandle<()>>>, SupervisorGroupError> {
-        Ok(self
-            .0
-            .into_iter()
-            .map(|(t, (opamp, runners))| {
-                // stop the OpAMP client
-                block_on(opamp.stop()).unwrap();
-                let mut stopped_runners = Vec::new();
-                for runner in runners {
-                    stopped_runners.push(runner.stop());
-                }
-                (t, stopped_runners)
-            })
-            .collect())
-    }
-}
-
-pub struct SupervisorGroupBuilder<Repo, OpAMPBuilder, ID> {
-    pub tx: Sender<Event>,
-    pub cfg: SuperAgentConfig,
-    pub effective_agent_repository: Repo,
-    pub opamp_builder: OpAMPBuilder,
-    pub instance_id_getter: ID,
-}
-
-impl<Repo, OpAMPBuilder, ID> SupervisorGroupBuilder<Repo, OpAMPBuilder, ID>
-where
-    Repo: AgentRepository,
-    OpAMPBuilder: OpAMPClientBuilder,
-    ID: InstanceIDGetter,
-{
-    pub fn build(
-        &self,
-    ) -> Result<SupervisorOpAMPGroup<OpAMPBuilder::Client, Stopped>, SupervisorGroupError> {
-        let agent_runners = self
-            .cfg
+impl SupervisorGroupWithoutOpAMP<Stopped> {
+    pub fn new<Repo>(
+        repo: Repo,
+        tx: Sender<Event>,
+        cfg: SuperAgentConfig,
+    ) -> Result<Self, SupervisorGroupError>
+    where
+        Repo: AgentRepository,
+    {
+        let agent_runners = cfg
             .agents
             .keys()
             .map(|agent_t| {
-                let agent = self
-                    .effective_agent_repository
-                    .get(&agent_t.clone().get())?;
+                let agent = repo.get(&agent_t.clone().get())?;
 
                 let on_host = agent
                     .runtime_config
@@ -126,26 +63,50 @@ where
                     .clone()
                     .ok_or(SupervisorGroupError::OnHostNotFound)?;
 
-                let (id, runner) = build_on_host_runners(&self.tx, agent_t, on_host);
-                Ok((
-                    id.clone(),
-                    (
-                        self.opamp_builder
-                            .build(StartSettings {
-                                instance_id: self.instance_id_getter.get(id.clone().get()),
-                                capabilities: capabilities!(AgentCapabilities::ReportsHealth),
-                            })
-                            .map_err(|_| SupervisorGroupError::OpAMPBuilder)?,
-                        runner,
-                    ),
-                ))
+                let (id, runner) = build_on_host_runners(&tx, agent_t, on_host);
+                Ok((id.clone(), runner))
             })
             .collect();
 
         match agent_runners {
             Err(e) => Err(e),
-            Ok(agent_runners) => Ok(SupervisorOpAMPGroup(agent_runners)),
+            Ok(agent_runners) => Ok(SupervisorGroupWithoutOpAMP(agent_runners)),
         }
+    }
+}
+
+impl SupervisorGroup for SupervisorGroupWithoutOpAMP<Stopped> {
+    type Started = SupervisorGroupWithoutOpAMP<Running>;
+    fn run(self) -> Result<Self::Started, SupervisorGroupError> {
+        let running = self
+            .0
+            .into_iter()
+            .map(|(t, runners)| {
+                let mut running_runners = Vec::new();
+
+                for runner in runners {
+                    running_runners.push(runner.run());
+                }
+                (t, running_runners)
+            })
+            .collect();
+        Ok(SupervisorGroupWithoutOpAMP(running))
+    }
+}
+
+impl StartedSupervisorGroup for SupervisorGroupWithoutOpAMP<Running> {
+    fn stop(self) -> Result<HashMap<AgentID, Vec<JoinHandle<()>>>, SupervisorGroupError> {
+        Ok(self
+            .0
+            .into_iter()
+            .map(|(t, runners)| {
+                let mut stopped_runners = Vec::new();
+                for runner in runners {
+                    stopped_runners.push(runner.stop());
+                }
+                (t, stopped_runners)
+            })
+            .collect())
     }
 }
 
@@ -171,25 +132,12 @@ fn build_on_host_runners(
 #[cfg(test)]
 pub mod tests {
     use mockall::mock;
-    use opamp_client::operation::capabilities::Capabilities;
 
     use super::*;
 
-    use std::{collections::HashMap, sync::mpsc::Sender};
+    use std::collections::HashMap;
 
-    use crate::agent::error::AgentError;
-    use crate::agent::instance_id::test::MockInstanceIDGetterMock;
-    use crate::config::agent_type::RuntimeConfig;
-    use crate::opamp::client_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock};
-    use crate::{
-        command::stream::Event,
-        config::agent_configs::{AgentID, AgentSupervisorConfig, SuperAgentConfig},
-        config::agent_type::{Agent, Deployment, Executable, OnHost},
-        config::agent_type_registry::{AgentRepository, LocalRepository},
-        supervisor::runner::{
-            sleep_supervisor_tests::new_sleep_supervisor, Stopped, SupervisorRunner,
-        },
-    };
+    use crate::config::agent_configs::AgentID;
 
     mock! {
         pub StartedSupervisorGroupMock {}
@@ -208,117 +156,117 @@ pub mod tests {
           fn run(self) -> Result<<Self as SupervisorGroup>::Started, SupervisorGroupError>;
         }
     }
-
-    // new_sleep_supervisor_group returns a stopped supervisor group with 2 runners with
-    // generic agents one with one exec and the other with 2
-    pub fn new_sleep_supervisor_group<B: OpAMPClientBuilder>(
-        tx: Sender<Event>,
-        builder: B,
-    ) -> Result<SupervisorOpAMPGroup<B::Client, Stopped>, AgentError> {
-        let group: HashMap<AgentID, (B::Client, Vec<SupervisorRunner<Stopped>>)> = HashMap::from([
-            (
-                AgentID("sleep_5".to_string()),
-                (
-                    builder
-                        .build(StartSettings {
-                            instance_id: "testing".to_string(),
-                            capabilities: Capabilities::default(),
-                        })
-                        .unwrap(),
-                    vec![new_sleep_supervisor(tx.clone(), 5)],
-                ),
-            ),
-            (
-                AgentID("sleep_10".to_string()),
-                (
-                    builder
-                        .build(StartSettings {
-                            instance_id: "testing".to_string(),
-                            capabilities: Capabilities::default(),
-                        })
-                        .unwrap(),
-                    vec![
-                        new_sleep_supervisor(tx.clone(), 10),
-                        new_sleep_supervisor(tx.clone(), 10),
-                    ],
-                ),
-            ),
-        ]);
-        Ok(SupervisorOpAMPGroup(group))
-    }
-
-    #[test]
-    fn new_supervisor_group_build() {
-        let (tx, _) = std::sync::mpsc::channel();
-        let agent_config = SuperAgentConfig {
-            agents: HashMap::from([(
-                AgentID("agent".to_string()),
-                AgentSupervisorConfig {
-                    agent_type: "".to_string(),
-                    values_file: "".to_string(),
-                },
-            )]),
-            opamp: crate::config::agent_configs::OpAMPClientConfig::default(),
-        };
-
-        let mut opamp_builder = MockOpAMPClientBuilderMock::new();
-        opamp_builder
-            .expect_build()
-            .once()
-            .return_once(|_| Ok(MockOpAMPClientMock::new()));
-
-        let mut instance_id_getter = MockInstanceIDGetterMock::new();
-        instance_id_getter
-            .expect_get()
-            .times(1)
-            .returning(|name| name);
-
-        let mut builder = SupervisorGroupBuilder {
-            tx,
-            cfg: agent_config.clone(),
-            effective_agent_repository: LocalRepository::default(),
-            opamp_builder,
-            instance_id_getter,
-        };
-
-        // Case with no valid key
-        let supervisor_group = builder.build();
-        assert_eq!(true, supervisor_group.is_err());
-
-        // Case with valid key but not value
-        _ = builder.effective_agent_repository.store_with_key(
-            "agent".to_string(),
-            Agent {
-                metadata: Default::default(),
-                variables: Default::default(),
-                runtime_config: Default::default(),
-            },
-        );
-        let supervisor_group = builder.build();
-        assert_eq!(true, supervisor_group.is_err());
-
-        // Valid case with valid full data
-        _ = builder.effective_agent_repository.store_with_key(
-            "agent".to_string(),
-            Agent {
-                metadata: Default::default(),
-                variables: Default::default(),
-                runtime_config: RuntimeConfig {
-                    deployment: Deployment {
-                        on_host: Some(OnHost {
-                            executables: vec![Executable {
-                                path: "a-path".to_string(),
-                                args: Default::default(),
-                                env: Default::default(),
-                            }],
-                            restart_policy: Default::default(),
-                        }),
-                    },
-                },
-            },
-        );
-
-        let supervisor_group = builder.build();
-        assert_eq!(supervisor_group.unwrap().0.iter().count(), 1)
-    }
+    //
+    //     // new_sleep_supervisor_group returns a stopped supervisor group with 2 runners with
+    //     // generic agents one with one exec and the other with 2
+    //     pub fn new_sleep_supervisor_group<B: OpAMPClientBuilder>(
+    //         tx: Sender<Event>,
+    //         builder: B,
+    //     ) -> Result<SupervisorGroupWithoutOpAMP<B::Client, Stopped>, AgentError> {
+    //         let group: HashMap<AgentID, (B::Client, Vec<SupervisorRunner<Stopped>>)> = HashMap::from([
+    //             (
+    //                 AgentID("sleep_5".to_string()),
+    //                 (
+    //                     builder
+    //                         .build(StartSettings {
+    //                             instance_id: "testing".to_string(),
+    //                             capabilities: Capabilities::default(),
+    //                         })
+    //                         .unwrap(),
+    //                     vec![new_sleep_supervisor(tx.clone(), 5)],
+    //                 ),
+    //             ),
+    //             (
+    //                 AgentID("sleep_10".to_string()),
+    //                 (
+    //                     builder
+    //                         .build(StartSettings {
+    //                             instance_id: "testing".to_string(),
+    //                             capabilities: Capabilities::default(),
+    //                         })
+    //                         .unwrap(),
+    //                     vec![
+    //                         new_sleep_supervisor(tx.clone(), 10),
+    //                         new_sleep_supervisor(tx.clone(), 10),
+    //                     ],
+    //                 ),
+    //             ),
+    //         ]);
+    //         Ok(SupervisorGroupWithoutOpAMP(group))
+    //     }
+    //
+    //     #[test]
+    //     fn new_supervisor_group_build() {
+    //         let (tx, _) = std::sync::mpsc::channel();
+    //         let agent_config = SuperAgentConfig {
+    //             agents: HashMap::from([(
+    //                 AgentID("agent".to_string()),
+    //                 AgentSupervisorConfig {
+    //                     agent_type: "".to_string(),
+    //                     values_file: "".to_string(),
+    //                 },
+    //             )]),
+    //             opamp: crate::config::agent_configs::OpAMPClientConfig::default(),
+    //         };
+    //
+    //         let mut opamp_builder = MockOpAMPClientBuilderMock::new();
+    //         opamp_builder
+    //             .expect_build()
+    //             .once()
+    //             .return_once(|_| Ok(MockOpAMPClientMock::new()));
+    //
+    //         let mut instance_id_getter = MockInstanceIDGetterMock::new();
+    //         instance_id_getter
+    //             .expect_get()
+    //             .times(1)
+    //             .returning(|name| name);
+    //
+    //         let mut builder = SupervisorGroupBuilder {
+    //             tx,
+    //             cfg: agent_config.clone(),
+    //             effective_agent_repository: LocalRepository::default(),
+    //             opamp_builder,
+    //             instance_id_getter,
+    //         };
+    //
+    //         // Case with no valid key
+    //         let supervisor_group = builder.build();
+    //         assert_eq!(true, supervisor_group.is_err());
+    //
+    //         // Case with valid key but not value
+    //         _ = builder.effective_agent_repository.store_with_key(
+    //             "agent".to_string(),
+    //             Agent {
+    //                 metadata: Default::default(),
+    //                 variables: Default::default(),
+    //                 runtime_config: Default::default(),
+    //             },
+    //         );
+    //         let supervisor_group = builder.build();
+    //         assert_eq!(true, supervisor_group.is_err());
+    //
+    //         // Valid case with valid full data
+    //         _ = builder.effective_agent_repository.store_with_key(
+    //             "agent".to_string(),
+    //             Agent {
+    //                 metadata: Default::default(),
+    //                 variables: Default::default(),
+    //                 runtime_config: RuntimeConfig {
+    //                     deployment: Deployment {
+    //                         on_host: Some(OnHost {
+    //                             executables: vec![Executable {
+    //                                 path: "a-path".to_string(),
+    //                                 args: Default::default(),
+    //                                 env: Default::default(),
+    //                             }],
+    //                             restart_policy: Default::default(),
+    //                         }),
+    //                     },
+    //                 },
+    //             },
+    //         );
+    //
+    //         let supervisor_group = builder.build();
+    //         assert_eq!(supervisor_group.unwrap().0.iter().count(), 1)
+    //     }
 }

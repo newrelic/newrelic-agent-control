@@ -11,7 +11,6 @@ use opamp_client::{capabilities, OpAMPClient, OpAMPClientHandle};
 use tracing::{error, info};
 
 use crate::agent::instance_id::{InstanceIDGetter, ULIDInstanceIDGetter};
-use crate::agent::supervisor_group::SupervisorGroupBuilder;
 use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPHttpBuilder};
 use crate::supervisor::runner::Stopped;
 use crate::{
@@ -26,7 +25,8 @@ use crate::{
 };
 
 use self::error::AgentError;
-use self::supervisor_group::{StartedSupervisorGroup, SupervisorOpAMPGroup};
+use self::supervisor_group::supervisor_opamp_group::SupervisorOpAMPGroup;
+use self::supervisor_group::StartedSupervisorGroup;
 
 pub mod callbacks;
 pub mod error;
@@ -95,14 +95,15 @@ where
         opamp_client_builder: OpAMPBuilder,
         instance_id_getter: ID,
     ) -> Result<Self::SupervisorWithOpAMP, AgentError> {
-        let builder = SupervisorGroupBuilder {
-            tx,
-            cfg: self.clone(),
-            effective_agent_repository,
-            opamp_builder: opamp_client_builder,
-            instance_id_getter,
-        };
-        Ok(builder.build()?)
+        Ok(
+            SupervisorOpAMPGroup::<OpAMPBuilder::Client, Stopped>::new::<Repo, OpAMPBuilder, ID>(
+                effective_agent_repository,
+                tx,
+                self.clone(),
+                opamp_client_builder,
+                instance_id_getter,
+            )?,
+        )
     }
 }
 
