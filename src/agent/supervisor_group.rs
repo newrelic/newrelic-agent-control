@@ -4,8 +4,11 @@ use futures::executor::block_on;
 use opamp_client::opamp::proto::AgentCapabilities;
 use opamp_client::operation::settings::StartSettings;
 use opamp_client::{capabilities, OpAMPClient, OpAMPClientHandle};
+use thiserror::Error;
 
 use crate::agent::error::AgentError;
+use crate::agent::instance_id::InstanceIDGetter;
+use crate::config::agent_type_registry::AgentRepositoryError;
 use crate::{
     command::stream::Event,
     config::agent_configs::AgentID,
@@ -13,24 +16,46 @@ use crate::{
         agent_configs::SuperAgentConfig, agent_type::OnHost, agent_type_registry::AgentRepository,
     },
     supervisor::{
-        error::ProcessError,
         runner::{Running, Stopped, SupervisorRunner},
         supervisor_config::Config,
         Handle, Runner,
     },
 };
-use crate::agent::instance_id::InstanceIDGetter;
 
 use crate::opamp::client_builder::OpAMPClientBuilder;
 
-#[derive(Default)]
-pub struct SupervisorGroup<C, S>(HashMap<AgentID, (C, Vec<SupervisorRunner<S>>)>);
+#[derive(Error, Debug)]
+pub enum SupervisorGroupError {
+    #[error("agent repository error: `{0}`")]
+    AgentRepositoryError(#[from] AgentRepositoryError),
 
-impl<C> SupervisorGroup<C, Stopped>
+    #[error("no on_host deployment configuration not found")]
+    OnHostNotFound,
+
+    #[error("could create OpAMP builder")]
+    OpAMPBuilder,
+}
+
+pub trait SupervisorGroup {
+    type Started: StartedSupervisorGroup;
+    fn run(self) -> Result<Self::Started, SupervisorGroupError>;
+}
+
+pub trait StartedSupervisorGroup {
+    fn stop(self) -> Result<HashMap<AgentID, Vec<JoinHandle<()>>>, SupervisorGroupError>;
+}
+
+#[derive(Default)]
+pub struct SupervisorOpAMPGroup<C, S>(HashMap<AgentID, (C, Vec<SupervisorRunner<S>>)>);
+
+pub struct SupervisorGroupWithoutOpamp<C, S>(HashMap<AgentID, (C, Vec<SupervisorRunner<S>>)>);
+
+impl<C> SupervisorGroup for SupervisorOpAMPGroup<C, Stopped>
 where
     C: OpAMPClient,
 {
-    pub fn run(self) -> SupervisorGroup<C::Handle, Running> {
+    type Started = SupervisorOpAMPGroup<C::Handle, Running>;
+    fn run(self) -> Result<Self::Started, SupervisorGroupError> {
         let running = self
             .0
             .into_iter()
@@ -44,35 +69,17 @@ where
                 (t, (client, running_runners))
             })
             .collect();
-        SupervisorGroup(running)
+        Ok(SupervisorOpAMPGroup(running))
     }
 }
 
-type WaitResult = Result<(), ProcessError>;
-
-impl<C> SupervisorGroup<C, Running>
+impl<C> StartedSupervisorGroup for SupervisorOpAMPGroup<C, Running>
 where
     C: OpAMPClientHandle,
 {
-    pub fn wait(self) -> HashMap<AgentID, Vec<WaitResult>> {
-        // collect runners wait result
-        self.0
-            .into_iter()
-            .map(|(t, (opamp, runners))| {
-                // stop the OpAMP client
-                // TODO: propagate error?
-                block_on(opamp.stop()).unwrap();
-                let mut waiting_runners = Vec::new();
-                for runner in runners {
-                    waiting_runners.push(runner.wait());
-                }
-                (t, waiting_runners)
-            })
-            .collect()
-    }
-
-    pub fn stop(self) -> HashMap<AgentID, Vec<JoinHandle<()>>> {
-        self.0
+    fn stop(self) -> Result<HashMap<AgentID, Vec<JoinHandle<()>>>, SupervisorGroupError> {
+        Ok(self
+            .0
             .into_iter()
             .map(|(t, (opamp, runners))| {
                 // stop the OpAMP client
@@ -83,7 +90,7 @@ where
                 }
                 (t, stopped_runners)
             })
-            .collect()
+            .collect())
     }
 }
 
@@ -101,7 +108,9 @@ where
     OpAMPBuilder: OpAMPClientBuilder,
     ID: InstanceIDGetter,
 {
-    pub fn build(&self) -> Result<SupervisorGroup<OpAMPBuilder::Client, Stopped>, AgentError> {
+    pub fn build(
+        &self,
+    ) -> Result<SupervisorOpAMPGroup<OpAMPBuilder::Client, Stopped>, SupervisorGroupError> {
         let agent_runners = self
             .cfg
             .agents
@@ -116,16 +125,18 @@ where
                     .deployment
                     .on_host
                     .clone()
-                    .ok_or(AgentError::SupervisorGroupError)?;
+                    .ok_or(SupervisorGroupError::OnHostNotFound)?;
 
                 let (id, runner) = build_on_host_runners(&self.tx, agent_t, on_host);
                 Ok((
                     id.clone(),
                     (
-                        self.opamp_builder.build(StartSettings {
-                            instance_id: self.instance_id_getter.get(id.clone().get()),
-                            capabilities: capabilities!(AgentCapabilities::ReportsHealth),
-                        })?,
+                        self.opamp_builder
+                            .build(StartSettings {
+                                instance_id: self.instance_id_getter.get(id.clone().get()),
+                                capabilities: capabilities!(AgentCapabilities::ReportsHealth),
+                            })
+                            .map_err(|_| SupervisorGroupError::OpAMPBuilder)?,
                         runner,
                     ),
                 ))
@@ -134,7 +145,7 @@ where
 
         match agent_runners {
             Err(e) => Err(e),
-            Ok(agent_runners) => Ok(SupervisorGroup(agent_runners)),
+            Ok(agent_runners) => Ok(SupervisorOpAMPGroup(agent_runners)),
         }
     }
 }
@@ -160,6 +171,7 @@ fn build_on_host_runners(
 
 #[cfg(test)]
 pub mod tests {
+    use mockall::mock;
     use opamp_client::operation::capabilities::Capabilities;
 
     use super::*;
@@ -167,8 +179,9 @@ pub mod tests {
     use std::{collections::HashMap, sync::mpsc::Sender};
 
     use crate::agent::error::AgentError;
-    use crate::opamp::client_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock};
+    use crate::agent::instance_id::test::MockInstanceIDGetterMock;
     use crate::config::agent_type::RuntimeConfig;
+    use crate::opamp::client_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock};
     use crate::{
         command::stream::Event,
         config::agent_configs::{AgentID, AgentSupervisorConfig, SuperAgentConfig},
@@ -178,14 +191,31 @@ pub mod tests {
             sleep_supervisor_tests::new_sleep_supervisor, Stopped, SupervisorRunner,
         },
     };
-    use crate::agent::instance_id::test::MockInstanceIDGetterMock;
+
+    mock! {
+        pub StartedSupervisorGroupMock {}
+
+        impl StartedSupervisorGroup for StartedSupervisorGroupMock {
+            fn stop(self) -> Result<HashMap<AgentID, Vec<JoinHandle<()>>>, SupervisorGroupError>;
+        }
+    }
+
+    mock! {
+        pub SupervisorGroupMock {}
+
+        impl SupervisorGroup for SupervisorGroupMock {
+         type Started = MockStartedSupervisorGroupMock;
+
+          fn run(self) -> Result<<Self as SupervisorGroup>::Started, SupervisorGroupError>;
+        }
+    }
 
     // new_sleep_supervisor_group returns a stopped supervisor group with 2 runners with
     // generic agents one with one exec and the other with 2
     pub fn new_sleep_supervisor_group<B: OpAMPClientBuilder>(
         tx: Sender<Event>,
         builder: B,
-    ) -> Result<SupervisorGroup<B::Client, Stopped>, AgentError> {
+    ) -> Result<SupervisorOpAMPGroup<B::Client, Stopped>, AgentError> {
         let group: HashMap<AgentID, (B::Client, Vec<SupervisorRunner<Stopped>>)> = HashMap::from([
             (
                 AgentID("sleep_5".to_string()),
@@ -215,7 +245,7 @@ pub mod tests {
                 ),
             ),
         ]);
-        Ok(SupervisorGroup(group))
+        Ok(SupervisorOpAMPGroup(group))
     }
 
     #[test]
@@ -239,14 +269,17 @@ pub mod tests {
             .return_once(|_| Ok(MockOpAMPClientMock::new()));
 
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
-        instance_id_getter.expect_get().times(1).returning(|name| {name});
+        instance_id_getter
+            .expect_get()
+            .times(1)
+            .returning(|name| name);
 
         let mut builder = SupervisorGroupBuilder {
             tx,
             cfg: agent_config.clone(),
             effective_agent_repository: LocalRepository::default(),
             opamp_builder,
-            instance_id_getter
+            instance_id_getter,
         };
 
         // Case with no valid key
