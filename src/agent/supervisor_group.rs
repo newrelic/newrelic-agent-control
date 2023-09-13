@@ -5,6 +5,7 @@ use futures::executor::block_on;
 use opamp_client::opamp::proto::{AgentCapabilities, AgentHealth};
 use opamp_client::operation::settings::StartSettings;
 use opamp_client::{capabilities, OpAMPClient, OpAMPClientHandle};
+use std::time::SystemTimeError;
 use thiserror::Error;
 use ulid::Ulid;
 
@@ -16,7 +17,6 @@ use crate::{
         agent_configs::SuperAgentConfig, agent_type::OnHost, agent_type_registry::AgentRepository,
     },
     supervisor::{
-        error::ProcessError,
         runner::{Running, Stopped, SupervisorRunner},
         supervisor_config::Config,
         Handle, Runner,
@@ -25,8 +25,29 @@ use crate::{
 
 use super::opamp_builder::{OpAMPClientBuilder, OpAMPClientBuilderError};
 
+struct SupervisorRunners<S>(Vec<SupervisorRunner<S>>);
+
+pub struct SupervisedAgent<S> {
+    runners: SupervisorRunners<S>,
+}
+
+pub struct SupervisedOpAMPAgent<C, S> {
+    connection: C,
+    runners: SupervisorRunners<S>,
+}
+
 #[derive(Default)]
-pub struct SupervisorGroup<C, S>(HashMap<AgentID, (C, Vec<SupervisorRunner<S>>)>);
+// C is an optional generic for the OpAMPClient, and OpAMPClientHandle.
+pub struct SupervisorGroup<Supervisor>(HashMap<AgentID, Supervisor>);
+
+trait SupervisorGroupRunner {
+    type Handle: SupervisorGroupHandle;
+    fn run(self) -> Result<Self::Handle, SupervisorGroupError>;
+}
+
+trait SupervisorGroupHandle {
+    fn stop(self) -> Result<(), SupervisorGroupError>;
+}
 
 #[derive(Debug, Error)]
 pub enum SupervisorGroupError {
@@ -38,25 +59,29 @@ pub enum SupervisorGroupError {
     NoOnHost,
     #[error("internal OpAMP client error")]
     OpAMPClientError,
+    #[error("{0}")]
+    TimeError(#[from] SystemTimeError),
 }
 
-fn get_sys_time_nano() -> u64 {
-    SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap()
-        .as_nanos() as u64
+fn get_sys_time_nano() -> Result<u64, SystemTimeError> {
+    Ok(SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)?
+        .as_nanos() as u64)
 }
 
-impl<C> SupervisorGroup<C, Stopped>
+impl<C> SupervisorGroup<SupervisedOpAMPAgent<C, Stopped>>
 where
     C: OpAMPClient,
 {
-    pub fn new<Repo: AgentRepository, OpAMPBuilder: OpAMPClientBuilder>(
+    pub fn new_supervisor_with_opamp<Repo: AgentRepository, OpAMPBuilder: OpAMPClientBuilder>(
         tx: Sender<Event>,
         cfg: &SuperAgentConfig,
         effective_agent_repository: Repo,
         opamp_client_builder: OpAMPBuilder,
-    ) -> Result<SupervisorGroup<OpAMPBuilder::Client, Stopped>, SupervisorGroupError> {
+    ) -> Result<
+        SupervisorGroup<SupervisedOpAMPAgent<OpAMPBuilder::Client, Stopped>>,
+        SupervisorGroupError,
+    > {
         let builder = SupervisorGroupBuilder {
             tx,
             cfg: cfg.clone(),
@@ -66,30 +91,36 @@ where
         builder.build()
     }
 
-    pub fn run(self) -> Result<SupervisorGroup<C::Handle, Running>, SupervisorGroupError> {
+    pub fn run(
+        self,
+    ) -> Result<SupervisorGroup<SupervisedOpAMPAgent<C::Handle, Running>>, SupervisorGroupError>
+    {
         let running: Result<
-            HashMap<AgentID, (C::Handle, Vec<SupervisorRunner<Running>>)>,
+            HashMap<AgentID, SupervisedOpAMPAgent<C::Handle, Running>>,
             SupervisorGroupError,
         > = self
             .0
             .into_iter()
-            .map(|(t, (opamp, runners))| {
-                let mut client =
-                    block_on(opamp.start()).map_err(|_| SupervisorGroupError::OpAMPClientError)?;
+            .map(|(t, supervised)| {
+                let mut running_runners: SupervisorRunners<Running> = supervised.runners.run();
 
-                // set healthy status
-                let _ = block_on(client.set_health(&AgentHealth {
+                let mut client = block_on(supervised.connection.start())
+                    .map_err(|_| SupervisorGroupError::OpAMPClientError)?;
+
+                block_on(client.set_health(&AgentHealth {
                     healthy: true,
-                    start_time_unix_nano: get_sys_time_nano(),
+                    start_time_unix_nano: get_sys_time_nano()?,
                     last_error: "".to_string(),
-                }));
+                }))
+                .map_err(|_| SupervisorGroupError::OpAMPClientError)?;
 
-                let mut running_runners = Vec::new();
-
-                for runner in runners {
-                    running_runners.push(runner.run());
-                }
-                Ok((t, (client, running_runners)))
+                Ok((
+                    t,
+                    SupervisedOpAMPAgent {
+                        connection: client,
+                        runners: running_runners,
+                    },
+                ))
             })
             .collect();
 
@@ -97,31 +128,54 @@ where
     }
 }
 
-type WaitResult = Result<(), ProcessError>;
+impl<C> SupervisorGroupRunner for SupervisorGroup<SupervisedOpAMPAgent<C, Stopped>>
+where
+    C: OpAMPClient,
+{
+    fn run(self) -> Result<Self::Handle, SupervisorGroupError> {}
+}
 
-impl<C> SupervisorGroup<C, Running>
+impl SupervisorRunners<Stopped> {
+    fn run(self) -> SupervisorRunners<Running> {
+        let mut running_runners = Vec::new();
+        for runner in self.0 {
+            running_runners.push(runner.run())
+        }
+        SupervisorRunners(running_runners)
+    }
+}
+
+impl SupervisorRunners<Running> {
+    fn stop(self) -> Vec<JoinHandle<()>> {
+        let mut handles = Vec::new();
+        for runner in self.0 {
+            handles.push(runner.stop())
+        }
+        handles
+    }
+}
+
+impl<C> SupervisorGroup<SupervisedOpAMPAgent<C, Running>>
 where
     C: OpAMPClientHandle,
 {
     pub fn stop(self) -> Result<HashMap<AgentID, Vec<JoinHandle<()>>>, SupervisorGroupError> {
         self.0
             .into_iter()
-            .map(|(t, (mut opamp, runners))| {
+            .map(|(t, mut supervised)| {
                 // set healthy status
-                block_on(opamp.set_health(&AgentHealth {
+                block_on(supervised.connection.set_health(&AgentHealth {
                     healthy: false,
-                    start_time_unix_nano: get_sys_time_nano(),
+                    start_time_unix_nano: get_sys_time_nano()?,
                     last_error: "stopped".to_string(),
                 }))
                 .map_err(|_| SupervisorGroupError::OpAMPClientError)?;
 
                 // stop the OpAMP client
-                block_on(opamp.stop()).unwrap();
-                let mut stopped_runners = Vec::new();
-                for runner in runners {
-                    stopped_runners.push(runner.stop());
-                }
-                Ok((t, stopped_runners))
+                block_on(supervised.connection.stop())
+                    .map_err(|_| SupervisorGroupError::OpAMPClientError)?;
+
+                Ok((t, supervised.runners.stop()))
             })
             .collect()
     }
@@ -141,7 +195,10 @@ where
 {
     fn build(
         &self,
-    ) -> Result<SupervisorGroup<OpAMPBuilder::Client, Stopped>, SupervisorGroupError> {
+    ) -> Result<
+        SupervisorGroup<SupervisedOpAMPAgent<OpAMPBuilder::Client, Stopped>>,
+        SupervisorGroupError,
+    > {
         let agent_runners = self
             .cfg
             .agents
@@ -224,7 +281,7 @@ pub mod tests {
     pub fn new_sleep_supervisor_group<B: OpAMPClientBuilder>(
         tx: Sender<Event>,
         builder: B,
-    ) -> Result<SupervisorGroup<B::Client, Stopped>, AgentError> {
+    ) -> Result<SupervisedOpAMPAgent<B::Client, Stopped>, AgentError> {
         let group: HashMap<AgentID, (B::Client, Vec<SupervisorRunner<Stopped>>)> = HashMap::from([
             (
                 AgentID("sleep_5".to_string()),
