@@ -89,13 +89,13 @@ where
         opamp_client_builder: &Option<OpAMPBuilder>,
         instance_id_getter: &ID,
     ) -> Result<SupervisorGroup<OpAMPBuilder::Client, Stopped>, AgentError> {
-        SupervisorGroup::<OpAMPBuilder::Client, Stopped>::new(
+        Ok(SupervisorGroup::<OpAMPBuilder::Client, Stopped>::new(
             effective_agent_repository,
             tx,
             self.clone(),
             opamp_client_builder.as_ref(),
             instance_id_getter,
-        )
+        )?)
     }
 }
 
@@ -204,7 +204,7 @@ where
         */
 
         // Run all the agents in the supervisor group
-        let running_supervisors = supervisor_group.run();
+        let running_supervisors = supervisor_group.run()?;
 
         {
             loop {
@@ -212,7 +212,7 @@ where
                 if let Some(event) = ctx.wait_condvar().unwrap() {
                     match event {
                         AgentEvent::Stop => {
-                            break running_supervisors.stop().into_iter().for_each(
+                            break running_supervisors.stop()?.into_iter().for_each(
                                 |(agent_id, handles)| {
                                     for handle in handles {
                                         let agent_id = agent_id.clone();

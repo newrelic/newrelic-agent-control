@@ -4,9 +4,12 @@ use futures::executor::block_on;
 use opamp_client::opamp::proto::AgentCapabilities;
 use opamp_client::operation::settings::StartSettings;
 use opamp_client::{capabilities, OpAMPClient, OpAMPClientHandle};
+use thiserror::Error;
+use tracing::info;
 
 use crate::agent::error::AgentError;
 use crate::agent::instance_id::InstanceIDGetter;
+use crate::config::agent_type_registry::AgentRepositoryError;
 use crate::{
     command::stream::Event,
     config::agent_configs::AgentID,
@@ -20,7 +23,19 @@ use crate::{
     },
 };
 
-use crate::opamp::client_builder::OpAMPClientBuilder;
+use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPClientBuilderError};
+
+#[derive(Error, Debug)]
+pub enum SupervisorGroupError {
+    #[error("`{0}`")]
+    AgentRepositoryError(#[from] AgentRepositoryError),
+    #[error("no on_host deployment configuration provided")]
+    OnHostDeploymentNotFound,
+    #[error("`{0}`")]
+    OpAMPBuilderError(#[from] OpAMPClientBuilderError),
+    #[error("`{0}`")]
+    OpAMPClientError(String),
+}
 
 #[derive(Default)]
 pub struct SupervisorGroup<C, S>(HashMap<AgentID, (Option<C>, Vec<SupervisorRunner<S>>)>);
@@ -35,7 +50,7 @@ where
         cfg: SuperAgentConfig,
         opamp_builder: Option<&OpAMPBuilder>,
         instance_id_getter: &ID,
-    ) -> Result<SupervisorGroup<OpAMPBuilder::Client, Stopped>, AgentError>
+    ) -> Result<SupervisorGroup<OpAMPBuilder::Client, Stopped>, SupervisorGroupError>
     where
         Repo: AgentRepository,
         OpAMPBuilder: OpAMPClientBuilder,
@@ -52,7 +67,7 @@ where
                     .deployment
                     .on_host
                     .clone()
-                    .ok_or(AgentError::SupervisorGroupError)?;
+                    .ok_or(SupervisorGroupError::OnHostDeploymentNotFound)?;
 
                 let (id, runner) = build_on_host_runners(&tx, agent_t, on_host);
                 let opamp_client = match &opamp_builder {
@@ -72,13 +87,24 @@ where
         }
     }
 
-    pub fn run(self) -> SupervisorGroup<C::Handle, Running> {
-        let running = self
+    pub fn run(self) -> Result<SupervisorGroup<C::Handle, Running>, SupervisorGroupError> {
+        let running: Result<
+            HashMap<AgentID, (Option<C::Handle>, Vec<SupervisorRunner<Running>>)>,
+            SupervisorGroupError,
+        > = self
             .0
             .into_iter()
             .map(|(t, (opamp, runners))| {
                 let client = match opamp {
-                    Some(client) => Some(block_on(client.start()).unwrap()),
+                    Some(client) => {
+                        info!(
+                            "Starting OpAMP client for supervised agent type: Running{}",
+                            t
+                        );
+                        Some(block_on(client.start()).map_err(|err| {
+                            SupervisorGroupError::OpAMPClientError(err.to_string())
+                        })?)
+                    }
                     None => None,
                 };
 
@@ -87,10 +113,10 @@ where
                 for runner in runners {
                     running_runners.push(runner.run());
                 }
-                (t, (client, running_runners))
+                Ok((t, (client, running_runners)))
             })
             .collect();
-        SupervisorGroup(running)
+        Ok(SupervisorGroup(running?))
     }
 }
 
@@ -98,13 +124,18 @@ impl<C> SupervisorGroup<C, Running>
 where
     C: OpAMPClientHandle,
 {
-    pub fn stop(self) -> HashMap<AgentID, Vec<JoinHandle<()>>> {
+    pub fn stop(self) -> Result<HashMap<AgentID, Vec<JoinHandle<()>>>, SupervisorGroupError> {
         self.0
             .into_iter()
             .map(|(t, (opamp, runners))| {
                 // stop the OpAMP client
                 let _client = match opamp {
-                    Some(client) => Some(block_on(client.stop()).unwrap()),
+                    Some(client) => {
+                        info!("Stopping OpAMP client for supervised agent type: {}", t);
+                        Some(block_on(client.stop()).map_err(|err| {
+                            SupervisorGroupError::OpAMPClientError(err.to_string())
+                        })?)
+                    }
                     None => None,
                 };
 
@@ -112,7 +143,7 @@ where
                 for runner in runners {
                     stopped_runners.push(runner.stop());
                 }
-                (t, stopped_runners)
+                Ok((t, stopped_runners))
             })
             .collect()
     }
