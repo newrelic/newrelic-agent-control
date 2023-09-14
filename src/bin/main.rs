@@ -58,14 +58,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let cfg_path = &cli.get_config_path();
     let cfg = Resolver::retrieve_config(cfg_path)?;
 
-    let opamp_client_builder = OpAMPHttpBuilder::new(cfg.opamp.clone());
+    let opamp_client_builder = cfg
+        .opamp
+        .as_ref()
+        .and_then(|opamp_config| Some(OpAMPHttpBuilder::new(opamp_config.clone())));
+
     let instance_id_getter = ULIDInstanceIDGetter::default();
 
     info!("Starting the super agent");
     let agent = Agent::new(
         cfg,
         local_agent_type_repository,
-        Some(opamp_client_builder),
+        opamp_client_builder,
         instance_id_getter,
     );
 

@@ -50,9 +50,9 @@ where
     fn retrieve_group(
         &self,
         tx: Sender<Event>,
-        effective_agent_repository: Repo,
-        opamp_client_builder: Option<OpAMPBuilder>,
-        instance_id_getter: ID,
+        effective_agent_repository: &Repo,
+        opamp_client_builder: &Option<OpAMPBuilder>,
+        instance_id_getter: &ID,
     ) -> Result<SupervisorGroup<OpAMPBuilder::Client, Stopped>, AgentError>;
 }
 
@@ -85,15 +85,15 @@ where
     fn retrieve_group(
         &self,
         tx: Sender<Event>,
-        effective_agent_repository: Repo,
-        opamp_client_builder: Option<OpAMPBuilder>,
-        instance_id_getter: ID,
+        effective_agent_repository: &Repo,
+        opamp_client_builder: &Option<OpAMPBuilder>,
+        instance_id_getter: &ID,
     ) -> Result<SupervisorGroup<OpAMPBuilder::Client, Stopped>, AgentError> {
         SupervisorGroup::<OpAMPBuilder::Client, Stopped>::new(
             effective_agent_repository,
             tx,
             self.clone(),
-            opamp_client_builder,
+            opamp_client_builder.as_ref(),
             instance_id_getter,
         )
     }
@@ -181,9 +181,9 @@ where
         info!("Starting the supervisor group.");
         let supervisor_group = self.resolver.retrieve_group(
             tx,
-            self.effective_agent_repository,
-            self.opamp_client_builder,
-            self.instance_id_getter,
+            &self.effective_agent_repository,
+            &self.opamp_client_builder,
+            &self.instance_id_getter,
         )?;
         /*
             TODO: We should first compare the current config with the one in the super agent config.

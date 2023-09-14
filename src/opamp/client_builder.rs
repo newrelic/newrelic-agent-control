@@ -1,4 +1,4 @@
-use opamp_client::{httpclient::HttpClient, OpAMPClient, operation::settings::StartSettings};
+use opamp_client::{httpclient::HttpClient, operation::settings::StartSettings, OpAMPClient};
 
 use crate::config::agent_configs::OpAMPClientConfig;
 
@@ -25,10 +25,7 @@ impl OpAMPHttpBuilder {
 
 impl OpAMPClientBuilder for OpAMPHttpBuilder {
     type Client = HttpClient<AgentEffectiveConfig, AgentCallbacks>;
-    fn build(
-        &self,
-        start_settings: StartSettings,
-    ) -> Result<Self::Client, AgentError> {
+    fn build(&self, start_settings: StartSettings) -> Result<Self::Client, AgentError> {
         // TODO: cleanup
         let headers = self.config.headers.clone().unwrap_or_default();
         let headers: Vec<(&str, &str)> = headers
