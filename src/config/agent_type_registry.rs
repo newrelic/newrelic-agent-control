@@ -54,13 +54,6 @@ mod tests {
 
     use super::*;
 
-    fn retrieve_agent<R>(reader: R) -> Agent
-    where
-        R: std::io::Read,
-    {
-        serde_yaml::from_reader(reader).unwrap()
-    }
-
     #[test]
     fn add_multiple_agents() {
         let mut repository = LocalRepository::new();

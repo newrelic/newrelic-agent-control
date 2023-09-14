@@ -1,10 +1,6 @@
 use std::error::Error;
 use std::process;
 
-use opamp_client::{
-    capabilities, error::ClientError, httpclient::HttpClient, opamp::proto::AgentCapabilities,
-    operation::settings::StartSettings,
-};
 use tracing::{error, info};
 
 use newrelic_super_agent::agent::instance_id::ULIDInstanceIDGetter;

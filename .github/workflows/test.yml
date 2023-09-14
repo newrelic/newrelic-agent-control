@@ -81,6 +81,9 @@ jobs:
         run: cargo generate-lockfile
       - name: cargo test
         run: cargo test --locked --all-features --all-targets -- --skip as_root
+        env:
+          # See: https://github.com/webfactory/ssh-agent#cargos-rust-private-dependencies-on-windows
+          CARGO_NET_GIT_FETCH_WITH_CLI: true
 
   embedded:
     name: Unit test for embedded downloader
