@@ -46,8 +46,22 @@ pub enum SupervisorGroupError {
     SystemTimeError(#[from] SystemTimeError),
 }
 
+struct AgentRunner<C, S> {
+    opamp_connection: Option<C>,
+    runners: Vec<SupervisorRunner<S>>,
+}
+
 #[derive(Default)]
-pub struct SupervisorGroup<C, S>(HashMap<AgentID, (Option<C>, Vec<SupervisorRunner<S>>)>);
+pub struct SupervisorGroup<C, S>(HashMap<AgentID, AgentRunner<C, S>>);
+
+impl<C, S> AgentRunner<C, S> {
+    fn new(opamp_connection: Option<C>, runners: Vec<SupervisorRunner<S>>) -> Self {
+        Self {
+            opamp_connection,
+            runners,
+        }
+    }
+}
 
 impl<C> SupervisorGroup<C, Stopped>
 where
@@ -86,7 +100,7 @@ where
                     })?),
                     None => None,
                 };
-                Ok((id.clone(), (opamp_client, runner)))
+                Ok((id.clone(), AgentRunner::new(opamp_client, runner)))
             })
             .collect();
 
@@ -98,13 +112,13 @@ where
 
     pub fn run(self) -> Result<SupervisorGroup<C::Handle, Running>, SupervisorGroupError> {
         let running: Result<
-            HashMap<AgentID, (Option<C::Handle>, Vec<SupervisorRunner<Running>>)>,
+            HashMap<AgentID, AgentRunner<C::Handle, Running>>,
             SupervisorGroupError,
         > = self
             .0
             .into_iter()
-            .map(|(t, (opamp, runners))| {
-                let client = match opamp {
+            .map(|(t, agent)| {
+                let client = match agent.opamp_connection {
                     Some(client) => {
                         info!(
                             "Starting OpAMP client for supervised agent type: Running{}",
@@ -128,10 +142,10 @@ where
 
                 let mut running_runners = Vec::new();
 
-                for runner in runners {
+                for runner in agent.runners {
                     running_runners.push(runner.run());
                 }
-                Ok((t, (client, running_runners)))
+                Ok((t, AgentRunner::new(client, running_runners)))
             })
             .collect();
         Ok(SupervisorGroup(running?))
@@ -145,9 +159,9 @@ where
     pub fn stop(self) -> Result<HashMap<AgentID, Vec<JoinHandle<()>>>, SupervisorGroupError> {
         self.0
             .into_iter()
-            .map(|(t, (opamp, runners))| {
+            .map(|(t, agent)| {
                 // stop the OpAMP client
-                let _client = match opamp {
+                let _client = match agent.opamp_connection {
                     Some(mut client) => {
                         info!("Stopping OpAMP client for supervised agent type: {}", t);
                         // set OpAMP health
@@ -166,7 +180,7 @@ where
                 };
 
                 let mut stopped_runners = Vec::new();
-                for runner in runners {
+                for runner in agent.runners {
                     stopped_runners.push(runner.stop());
                 }
                 Ok((t, stopped_runners))
@@ -211,9 +225,7 @@ pub mod tests {
         config::agent_configs::{AgentID, AgentSupervisorConfig, SuperAgentConfig},
         config::agent_type::{Agent, Deployment, Executable, OnHost},
         config::agent_type_registry::{AgentRepository, LocalRepository},
-        supervisor::runner::{
-            sleep_supervisor_tests::new_sleep_supervisor, Stopped, SupervisorRunner,
-        },
+        supervisor::runner::{sleep_supervisor_tests::new_sleep_supervisor, Stopped},
     };
 
     // new_sleep_supervisor_group returns a stopped supervisor group with 2 runners with
@@ -222,40 +234,39 @@ pub mod tests {
         tx: Sender<Event>,
         builder: &B,
     ) -> Result<SupervisorGroup<B::Client, Stopped>, AgentError> {
-        let group: HashMap<AgentID, (Option<B::Client>, Vec<SupervisorRunner<Stopped>>)> =
-            HashMap::from([
-                (
-                    AgentID("sleep_5".to_string()),
-                    (
-                        Some(
-                            builder
-                                .build(StartSettings {
-                                    instance_id: "testing".to_string(),
-                                    capabilities: Capabilities::default(),
-                                })
-                                .unwrap(),
-                        ),
-                        vec![new_sleep_supervisor(tx.clone(), 5)],
+        let group: HashMap<AgentID, AgentRunner<B::Client, Stopped>> = HashMap::from([
+            (
+                AgentID("sleep_5".to_string()),
+                AgentRunner::new(
+                    Some(
+                        builder
+                            .build(StartSettings {
+                                instance_id: "testing".to_string(),
+                                capabilities: Capabilities::default(),
+                            })
+                            .unwrap(),
                     ),
+                    vec![new_sleep_supervisor(tx.clone(), 5)],
                 ),
-                (
-                    AgentID("sleep_10".to_string()),
-                    (
-                        Some(
-                            builder
-                                .build(StartSettings {
-                                    instance_id: "testing".to_string(),
-                                    capabilities: Capabilities::default(),
-                                })
-                                .unwrap(),
-                        ),
-                        vec![
-                            new_sleep_supervisor(tx.clone(), 10),
-                            new_sleep_supervisor(tx.clone(), 10),
-                        ],
+            ),
+            (
+                AgentID("sleep_10".to_string()),
+                AgentRunner::new(
+                    Some(
+                        builder
+                            .build(StartSettings {
+                                instance_id: "testing".to_string(),
+                                capabilities: Capabilities::default(),
+                            })
+                            .unwrap(),
                     ),
+                    vec![
+                        new_sleep_supervisor(tx.clone(), 10),
+                        new_sleep_supervisor(tx.clone(), 10),
+                    ],
                 ),
-            ]);
+            ),
+        ]);
         Ok(SupervisorGroup(group))
     }
 

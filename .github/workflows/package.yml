@@ -20,6 +20,14 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Give GitHub Actions access to private crates
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
+
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v2
+
       - uses: actions/setup-go@v3
         with:
           go-version: '~1.20'

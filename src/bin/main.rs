@@ -61,7 +61,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let opamp_client_builder = cfg
         .opamp
         .as_ref()
-        .and_then(|opamp_config| Some(OpAMPHttpBuilder::new(opamp_config.clone())));
+        .map(|opamp_config| OpAMPHttpBuilder::new(opamp_config.clone()));
 
     let instance_id_getter = ULIDInstanceIDGetter::default();
 
