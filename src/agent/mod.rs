@@ -364,7 +364,10 @@ mod tests {
                 opamp_client.expect_start().with().once().returning(|| {
                     let mut started_client = MockOpAMPClientMock::new();
                     started_client.expect_stop().once().returning(|| Ok(()));
-                    started_client.expect_set_health().never();
+                    started_client
+                        .expect_set_health()
+                        .times(2)
+                        .returning(|_| Ok(()));
                     Ok(started_client)
                 });
 

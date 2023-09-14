@@ -1,7 +1,8 @@
+use std::time::{SystemTime, SystemTimeError};
 use std::{collections::HashMap, sync::mpsc::Sender, thread::JoinHandle};
 
 use futures::executor::block_on;
-use opamp_client::opamp::proto::AgentCapabilities;
+use opamp_client::opamp::proto::{AgentCapabilities, AgentHealth};
 use opamp_client::operation::settings::StartSettings;
 use opamp_client::{capabilities, OpAMPClient, OpAMPClientHandle};
 use thiserror::Error;
@@ -25,6 +26,12 @@ use crate::{
 
 use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPClientBuilderError};
 
+fn get_sys_time_nano() -> Result<u64, SystemTimeError> {
+    Ok(SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)?
+        .as_nanos() as u64)
+}
+
 #[derive(Error, Debug)]
 pub enum SupervisorGroupError {
     #[error("`{0}`")]
@@ -35,6 +42,8 @@ pub enum SupervisorGroupError {
     OpAMPBuilderError(#[from] OpAMPClientBuilderError),
     #[error("`{0}`")]
     OpAMPClientError(String),
+    #[error("`{0}`")]
+    SystemTimeError(#[from] SystemTimeError),
 }
 
 #[derive(Default)]
@@ -101,9 +110,18 @@ where
                             "Starting OpAMP client for supervised agent type: Running{}",
                             t
                         );
-                        Some(block_on(client.start()).map_err(|err| {
+                        // start the OpAMP client
+                        let mut handle = block_on(client.start()).map_err(|err| {
                             SupervisorGroupError::OpAMPClientError(err.to_string())
-                        })?)
+                        })?;
+                        // set OpAMP health
+                        block_on(handle.set_health(&AgentHealth {
+                            healthy: true,
+                            start_time_unix_nano: get_sys_time_nano()?,
+                            last_error: "".to_string(),
+                        }))
+                        .map_err(|err| SupervisorGroupError::OpAMPClientError(err.to_string()))?;
+                        Some(handle)
                     }
                     None => None,
                 };
@@ -130,8 +148,16 @@ where
             .map(|(t, (opamp, runners))| {
                 // stop the OpAMP client
                 let _client = match opamp {
-                    Some(client) => {
+                    Some(mut client) => {
                         info!("Stopping OpAMP client for supervised agent type: {}", t);
+                        // set OpAMP health
+                        block_on(client.set_health(&AgentHealth {
+                            healthy: false,
+                            start_time_unix_nano: get_sys_time_nano()?,
+                            last_error: "".to_string(),
+                        }))
+                        .map_err(|err| SupervisorGroupError::OpAMPClientError(err.to_string()))?;
+
                         Some(block_on(client.stop()).map_err(|err| {
                             SupervisorGroupError::OpAMPClientError(err.to_string())
                         })?)
