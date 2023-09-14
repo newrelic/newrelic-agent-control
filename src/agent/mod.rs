@@ -26,7 +26,7 @@ use crate::{
 
 use self::error::AgentError;
 use self::supervisor_group::supervisor_opamp_group::SupervisorOpAMPGroup;
-use self::supervisor_group::StartedSupervisorGroup;
+use self::supervisor_group::{StartedSupervisorGroup, SupervisorGroupWithoutOpAMP};
 
 pub mod callbacks;
 pub mod error;
@@ -50,14 +50,21 @@ where
     ID: InstanceIDGetter,
 {
     type SupervisorWithOpAMP: SupervisorGroup;
+    type SupervisorWithoutOpAMP: SupervisorGroup;
 
-    fn retrieve_group(
+    fn retrieve_opamp_group(
         &self,
         tx: Sender<Event>,
         effective_agent_repository: Repo,
         opamp_client_builder: OpAMPBuilder,
         instance_id_getter: ID,
     ) -> Result<Self::SupervisorWithOpAMP, AgentError>;
+
+    fn retrieve_group(
+        &self,
+        tx: Sender<Event>,
+        effective_agent_repository: Repo,
+    ) -> Result<Self::SupervisorWithoutOpAMP, AgentError>;
 }
 
 pub struct Agent<
@@ -87,23 +94,34 @@ where
     ID: InstanceIDGetter,
 {
     type SupervisorWithOpAMP = SupervisorOpAMPGroup<OpAMPBuilder::Client, Stopped>;
+    type SupervisorWithoutOpAMP = SupervisorGroupWithoutOpAMP<Stopped>;
 
-    fn retrieve_group(
+    fn retrieve_opamp_group(
         &self,
         tx: Sender<Event>,
         effective_agent_repository: Repo,
         opamp_client_builder: OpAMPBuilder,
         instance_id_getter: ID,
     ) -> Result<Self::SupervisorWithOpAMP, AgentError> {
-        Ok(
-            SupervisorOpAMPGroup::<OpAMPBuilder::Client, Stopped>::new::<Repo, OpAMPBuilder, ID>(
-                effective_agent_repository,
-                tx,
-                self.clone(),
-                opamp_client_builder,
-                instance_id_getter,
-            )?,
-        )
+        Ok(SupervisorOpAMPGroup::<OpAMPBuilder::Client, Stopped>::new(
+            effective_agent_repository,
+            tx,
+            self.clone(),
+            opamp_client_builder,
+            instance_id_getter,
+        )?)
+    }
+
+    fn retrieve_group(
+        &self,
+        tx: Sender<Event>,
+        effective_agent_repository: Repo,
+    ) -> Result<Self::SupervisorWithoutOpAMP, AgentError> {
+        Ok(SupervisorGroupWithoutOpAMP::new(
+            effective_agent_repository,
+            tx,
+            self.clone(),
+        )?)
     }
 }
 
@@ -181,12 +199,18 @@ where
         block_on(opamp_client_handle.set_health(&health)).unwrap();
 
         info!("Starting the supervisor group.");
-        let supervisors = self.resolver.retrieve_group(
-            tx,
-            self.effective_agent_repository,
-            self.opamp_client_builder,
-            self.instance_id_getter,
-        )?;
+        let x = 1;
+        let supervisors = match x {
+            1 => self.resolver.retrieve_opamp_group(
+                tx,
+                self.effective_agent_repository,
+                self.opamp_client_builder,
+                self.instance_id_getter,
+            )?,
+            _ => self
+                .resolver
+                .retrieve_group(tx, self.effective_agent_repository)?,
+        };
         /*
             TODO: We should first compare the current config with the one in the super agent config.
             In a future situation, it might have changed due to updates from OpAMP, etc.
@@ -307,13 +331,32 @@ mod tests {
         ID: InstanceIDGetter,
     {
         type SupervisorWithOpAMP = MockSupervisorGroupMock;
-        fn retrieve_group(
+        type SupervisorWithoutOpAMP = MockSupervisorGroupMock;
+
+        fn retrieve_opamp_group(
             &self,
             _tx: std::sync::mpsc::Sender<crate::command::stream::Event>,
             _effective_agent_repository: Repo,
             _opamp_client_builder: OpAMPBuilder,
             _instance_id_getter: ID,
         ) -> Result<Self::SupervisorWithOpAMP, AgentError> {
+            let mut mock_group = MockSupervisorGroupMock::new();
+            mock_group.expect_run().once().returning(|| {
+                let mut started_group = MockStartedSupervisorGroupMock::new();
+                started_group.expect_stop().once().returning(|| {
+                    let handle = spawn(|| ());
+                    Ok(HashMap::from([(AgentID("test".to_string()), vec![handle])]))
+                });
+                Ok(started_group)
+            });
+            Ok(mock_group)
+        }
+
+        fn retrieve_group(
+            &self,
+            _tx: std::sync::mpsc::Sender<crate::command::stream::Event>,
+            _effective_agent_repository: Repo,
+        ) -> Result<Self::SupervisorWithoutOpAMP, AgentError> {
             let mut mock_group = MockSupervisorGroupMock::new();
             mock_group.expect_run().once().returning(|| {
                 let mut started_group = MockStartedSupervisorGroupMock::new();
