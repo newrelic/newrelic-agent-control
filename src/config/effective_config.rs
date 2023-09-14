@@ -18,7 +18,6 @@ impl EffectiveConfigRetriever {
 pub enum EffectiveConfigRetrieverError {
     #[error("cannot retrieve effective config")]
     EffectiveConfigRetrieveError(#[from] SuperAgentConfigError),
-
 }
 
 impl Agent for EffectiveConfigRetriever {
