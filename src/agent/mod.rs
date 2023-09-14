@@ -277,114 +277,130 @@ fn load_agent_cfgs<Repo: AgentRepository>(
     Ok(effective_agent_repository)
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use crate::agent::error::AgentError;
-//     use crate::opamp::client_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock};
-//     use crate::agent::{Agent, AgentEvent, SUPER_AGENT_ID};
-//     use crate::config::agent_type_registry::{AgentRepository, LocalRepository};
-//     use crate::context::Context;
-//     use crate::agent::instance_id::InstanceIDGetter;
-//     use crate::opamp::client_builder::OpAMPClientBuilder;
-//     use std::thread::{sleep, spawn};
-//     use std::time::Duration;
-//     use mockall::predicate;
-//     use opamp_client::{capabilities, OpAMPClient};
-//     use opamp_client::opamp::proto::AgentCapabilities;
-//     use opamp_client::operation::capabilities::Capabilities;
-//     use opamp_client::operation::settings::StartSettings;
-//     use crate::agent::instance_id::test::MockInstanceIDGetterMock;
-//
-//     use super::{supervisor_group::tests::new_sleep_supervisor_group, SupervisorGroupResolver};
-//
-//     struct MockedSleepGroupResolver;
-//     impl<Repo, OpAMPBuilder, ID> SupervisorGroupResolver<Repo, OpAMPBuilder, ID> for MockedSleepGroupResolver
-//     where
-//         Repo: AgentRepository,
-//         OpAMPBuilder: OpAMPClientBuilder,
-//         ID: InstanceIDGetter,
-//     {
-//         fn retrieve_group(
-//             &self,
-//             tx: std::sync::mpsc::Sender<crate::command::stream::Event>,
-//             _effective_agent_repository: Repo,
-//             opamp_client_builder: OpAMPBuilder,
-//             instance_id_getter: ID,
-//         ) -> Result<
-//             super::supervisor_group::SupervisorGroup<
-//                 OpAMPBuilder::Client,
-//                 crate::supervisor::runner::Stopped,
-//             >,
-//             AgentError,
-//         > {
-//             new_sleep_supervisor_group(tx, opamp_client_builder)
-//         }
-//     }
-//
-//     #[test]
-//     fn run_and_stop_supervisors() {
-//         let mut opamp_builder = MockOpAMPClientBuilderMock::new();
-//
-//         let start_settings = StartSettings {
-//             instance_id: SUPER_AGENT_ID.to_string(),
-//             capabilities: capabilities!(AgentCapabilities::ReportsHealth),
-//         };
-//
-//         opamp_builder.expect_build().with(predicate::eq(start_settings)).times(1).returning(|_| {
-//             let mut opamp_client = MockOpAMPClientMock::new();
-//             opamp_client.expect_start().with().once().returning(|| {
-//                 let mut started_client = MockOpAMPClientMock::new();
-//                 started_client.expect_set_health().once().returning(|_| Ok(()));
-//                 Ok(started_client)
-//             });
-//
-//             Ok(opamp_client)
-//         });
-//
-//         let start_settings = StartSettings {
-//             instance_id: "testing".to_string(),
-//             capabilities: Capabilities::default(),
-//         };
-//
-//         opamp_builder.expect_build().with(predicate::eq(start_settings)).times(2).returning(|_| {
-//             let mut opamp_client = MockOpAMPClientMock::new();
-//             opamp_client.expect_start().with().once().returning(|| {
-//                 let mut started_client = MockOpAMPClientMock::new();
-//                 started_client.expect_stop().once().returning(|| Ok(()));
-//                 started_client.expect_set_health().never();
-//                 Ok(started_client)
-//             });
-//
-//             Ok(opamp_client)
-//         });
-//
-//         let mut instance_id_getter = MockInstanceIDGetterMock::new();
-//         instance_id_getter.expect_get().times(1).returning(|name| {name});
-//
-//         // two agents in the supervisor group
-//         let agent: Agent<
-//             LocalRepository,
-//             MockOpAMPClientBuilderMock,
-//             MockInstanceIDGetterMock,
-//             LocalRepository,
-//             MockedSleepGroupResolver,
-//         > = Agent::new_custom(
-//             MockedSleepGroupResolver,
-//             LocalRepository::default(),
-//             instance_id_getter,
-//             LocalRepository::default(),
-//             opamp_builder,
-//         );
-//
-//         let ctx = Context::new();
-//         // stop all agents after 3 seconds
-//         spawn({
-//             let ctx = ctx.clone();
-//             move || {
-//                 sleep(Duration::from_secs(3));
-//                 ctx.cancel_all(Some(AgentEvent::Stop)).unwrap();
-//             }
-//         });
-//         assert!(agent.run(ctx).is_ok())
-//     }
-// }
+#[cfg(test)]
+mod tests {
+    use crate::agent::error::AgentError;
+    use crate::agent::instance_id::test::MockInstanceIDGetterMock;
+    use crate::agent::instance_id::InstanceIDGetter;
+    use crate::agent::{Agent, AgentEvent, SUPER_AGENT_ID};
+    use crate::config::agent_type_registry::{AgentRepository, LocalRepository};
+    use crate::context::Context;
+    use crate::opamp::client_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock};
+    use crate::opamp::client_builder::OpAMPClientBuilder;
+    use mockall::predicate;
+    use opamp_client::capabilities;
+    use opamp_client::opamp::proto::AgentCapabilities;
+    use opamp_client::operation::capabilities::Capabilities;
+    use opamp_client::operation::settings::StartSettings;
+    use std::thread::{sleep, spawn};
+    use std::time::Duration;
+
+    use super::{supervisor_group::tests::new_sleep_supervisor_group, SupervisorGroupResolver};
+
+    struct MockedSleepGroupResolver;
+    impl<Repo, OpAMPBuilder, ID> SupervisorGroupResolver<Repo, OpAMPBuilder, ID>
+        for MockedSleepGroupResolver
+    where
+        Repo: AgentRepository,
+        OpAMPBuilder: OpAMPClientBuilder,
+        ID: InstanceIDGetter,
+    {
+        fn retrieve_group(
+            &self,
+            tx: std::sync::mpsc::Sender<crate::command::stream::Event>,
+            _effective_agent_repository: &Repo,
+            opamp_client_builder: &Option<OpAMPBuilder>,
+            _instance_id_getter: &ID,
+        ) -> Result<
+            super::supervisor_group::SupervisorGroup<
+                OpAMPBuilder::Client,
+                crate::supervisor::runner::Stopped,
+            >,
+            AgentError,
+        > {
+            new_sleep_supervisor_group(tx, opamp_client_builder.as_ref().unwrap())
+        }
+    }
+
+    #[test]
+    fn run_and_stop_supervisors() {
+        let mut opamp_builder = MockOpAMPClientBuilderMock::new();
+
+        let start_settings = StartSettings {
+            instance_id: SUPER_AGENT_ID.to_string(),
+            capabilities: capabilities!(AgentCapabilities::ReportsHealth),
+        };
+
+        opamp_builder
+            .expect_build()
+            .with(predicate::eq(start_settings))
+            .times(1)
+            .returning(|_| {
+                let mut opamp_client = MockOpAMPClientMock::new();
+                opamp_client.expect_start().with().once().returning(|| {
+                    let mut started_client = MockOpAMPClientMock::new();
+                    started_client.expect_stop().once().returning(|| Ok(()));
+                    started_client
+                        .expect_set_health()
+                        .once()
+                        .returning(|_| Ok(()));
+                    Ok(started_client)
+                });
+
+                Ok(opamp_client)
+            });
+
+        let start_settings = StartSettings {
+            instance_id: "testing".to_string(),
+            capabilities: Capabilities::default(),
+        };
+
+        opamp_builder
+            .expect_build()
+            .with(predicate::eq(start_settings))
+            .times(2)
+            .returning(|_| {
+                let mut opamp_client = MockOpAMPClientMock::new();
+                opamp_client.expect_start().with().once().returning(|| {
+                    let mut started_client = MockOpAMPClientMock::new();
+                    started_client.expect_stop().once().returning(|| Ok(()));
+                    started_client.expect_set_health().never();
+                    Ok(started_client)
+                });
+
+                Ok(opamp_client)
+            });
+
+        let mut instance_id_getter = MockInstanceIDGetterMock::new();
+        instance_id_getter
+            .expect_get()
+            .times(1)
+            .returning(|name| name);
+
+        // two agents in the supervisor group
+        let agent: Agent<
+            LocalRepository,
+            MockOpAMPClientBuilderMock,
+            MockInstanceIDGetterMock,
+            LocalRepository,
+            MockedSleepGroupResolver,
+        > = Agent::new_custom(
+            MockedSleepGroupResolver,
+            LocalRepository::default(),
+            instance_id_getter,
+            LocalRepository::default(),
+            Some(opamp_builder),
+        );
+
+        let ctx = Context::new();
+        // stop all agents after 3 seconds
+        spawn({
+            let ctx = ctx.clone();
+            move || {
+                sleep(Duration::from_secs(3));
+                ctx.cancel_all(Some(AgentEvent::Stop)).unwrap();
+            }
+        });
+        assert!(agent.run(ctx).is_ok())
+    }
+}

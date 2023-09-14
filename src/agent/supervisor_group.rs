@@ -192,44 +192,46 @@ pub mod tests {
 
     // new_sleep_supervisor_group returns a stopped supervisor group with 2 runners with
     // generic agents one with one exec and the other with 2
-    // pub fn new_sleep_supervisor_group<B: OpAMPClientBuilder>(
-    //     tx: Sender<Event>,
-    //     builder: B,
-    // ) -> Result<SupervisorGroup<Option<B::Client>, Stopped>, AgentError> {
-    //     let group: HashMap<AgentID, (Option<B::Client>, Vec<SupervisorRunner<Stopped>>)> =
-    //         HashMap::from([
-    //             (
-    //                 AgentID("sleep_5".to_string()),
-    //                 (
-    //                     builder
-    //                         .build(StartSettings {
-    //                             instance_id: "testing".to_string(),
-    //                             capabilities: Capabilities::default(),
-    //                         })
-    //                         .unwrap(),
-    //                     vec![new_sleep_supervisor(tx.clone(), 5)],
-    //                 ),
-    //             ),
-    //             (
-    //                 AgentID("sleep_10".to_string()),
-    //                 (
-    //                     Some(
-    //                         builder
-    //                             .build(StartSettings {
-    //                                 instance_id: "testing".to_string(),
-    //                                 capabilities: Capabilities::default(),
-    //                             })
-    //                             .unwrap(),
-    //                     ),
-    //                     vec![
-    //                         new_sleep_supervisor(tx.clone(), 10),
-    //                         new_sleep_supervisor(tx.clone(), 10),
-    //                     ],
-    //                 ),
-    //             ),
-    //         ]);
-    //     Ok(SupervisorGroup(group))
-    // }
+    pub fn new_sleep_supervisor_group<B: OpAMPClientBuilder>(
+        tx: Sender<Event>,
+        builder: &B,
+    ) -> Result<SupervisorGroup<B::Client, Stopped>, AgentError> {
+        let group: HashMap<AgentID, (Option<B::Client>, Vec<SupervisorRunner<Stopped>>)> =
+            HashMap::from([
+                (
+                    AgentID("sleep_5".to_string()),
+                    (
+                        Some(
+                            builder
+                                .build(StartSettings {
+                                    instance_id: "testing".to_string(),
+                                    capabilities: Capabilities::default(),
+                                })
+                                .unwrap(),
+                        ),
+                        vec![new_sleep_supervisor(tx.clone(), 5)],
+                    ),
+                ),
+                (
+                    AgentID("sleep_10".to_string()),
+                    (
+                        Some(
+                            builder
+                                .build(StartSettings {
+                                    instance_id: "testing".to_string(),
+                                    capabilities: Capabilities::default(),
+                                })
+                                .unwrap(),
+                        ),
+                        vec![
+                            new_sleep_supervisor(tx.clone(), 10),
+                            new_sleep_supervisor(tx.clone(), 10),
+                        ],
+                    ),
+                ),
+            ]);
+        Ok(SupervisorGroup(group))
+    }
 
     #[test]
     fn new_supervisor_group_with_opamp_builder() {
