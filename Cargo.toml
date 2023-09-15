@@ -13,7 +13,7 @@ clap = { version = "4.4.3", features = ["derive"] }
 config = "0.13.1"
 serde = { version = "1.0.188", features = ["derive"] }
 thiserror = "1.0.47"
-nix = { version = "0.27.1", features = ["signal", "user"] }
+nix = { version = "0.27.1", features = ["signal", "user", "hostname"] }
 log = { version = "0.4.20", features = ["kv_unstable"] }
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 tracing = "0.1.37"
@@ -24,13 +24,13 @@ regex = "1.9.3"
 tempfile = "3.8.0"
 uuid = { version = "1.4.1", features = ["v4"] }
 aquamarine = "0.3.2"
-opamp-client = { git = "ssh://git@github.com/newrelic/opamp-rs.git", rev = "411b85a" }
+opamp-client = { git = "ssh://git@github.com/newrelic/opamp-rs.git", rev = "ba8226a" }
 futures = "0.3.28"
 mockall = "0.11.4"
 async-trait = "0.1.71"
 tokio = "1.32.0"
 ulid = "1.0.1"
-openssl = { version = "0.10.57", features = ["vendored"]}
+openssl = { version = "0.10.57", features = ["vendored"] }
 
 [dev-dependencies]
 assert_cmd = "2.0.12"

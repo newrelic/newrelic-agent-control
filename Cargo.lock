@@ -1326,7 +1326,7 @@ checksum = "dd8b5dd2ae5ed71462c540258bedcb51965123ad7e7ccf4b9a8cafaa4a63576d"
 [[package]]
 name = "opamp-client"
 version = "0.1.0"
-source = "git+ssh://git@github.com/newrelic/opamp-rs.git?rev=411b85a#411b85ae6a4bfbff94fb4bb2955454d8c4aaeca3"
+source = "git+ssh://git@github.com/newrelic/opamp-rs.git?rev=ba8226a#ba8226afb32cf7956d87b3e57bce3fa6bd8b3e24"
 dependencies = [
  "async-trait",
  "env_logger",

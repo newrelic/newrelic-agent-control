@@ -2,6 +2,7 @@ use std::time::{SystemTime, SystemTimeError};
 use std::{collections::HashMap, sync::mpsc::Sender, thread::JoinHandle};
 
 use futures::executor::block_on;
+use nix::unistd::gethostname;
 use opamp_client::opamp::proto::{AgentCapabilities, AgentHealth};
 use opamp_client::operation::settings::{AgentDescription, StartSettings};
 use opamp_client::{capabilities, OpAMPClient, OpAMPClientHandle};
@@ -9,6 +10,7 @@ use thiserror::Error;
 use tracing::info;
 
 use crate::agent::instance_id::InstanceIDGetter;
+use crate::config::agent_configs::AgentTypeFQN;
 use crate::config::agent_type_registry::AgentRepositoryError;
 use crate::{
     command::stream::Event,
@@ -63,8 +65,8 @@ impl<C, S> AgentRunner<C, S> {
 }
 
 impl<C> SupervisorGroup<C, Stopped>
-    where
-        C: OpAMPClient,
+where
+    C: OpAMPClient,
 {
     pub fn new<Repo, OpAMPBuilder, ID>(
         effective_agent_repository: &Repo,
@@ -73,15 +75,15 @@ impl<C> SupervisorGroup<C, Stopped>
         opamp_builder: Option<&OpAMPBuilder>,
         instance_id_getter: &ID,
     ) -> Result<SupervisorGroup<OpAMPBuilder::Client, Stopped>, SupervisorGroupError>
-        where
-            Repo: AgentRepository,
-            OpAMPBuilder: OpAMPClientBuilder,
-            ID: InstanceIDGetter,
+    where
+        Repo: AgentRepository,
+        OpAMPBuilder: OpAMPClientBuilder,
+        ID: InstanceIDGetter,
     {
         let agent_runners = cfg
             .agents
             .iter()
-            .map(|(agent_t,agent_supervisor_config)| {
+            .map(|(agent_t, agent_supervisor_config)| {
                 let agent = effective_agent_repository.get(&agent_t.clone().get())?;
 
                 let on_host = agent
@@ -93,14 +95,10 @@ impl<C> SupervisorGroup<C, Stopped>
 
                 let (id, runner) = build_on_host_runners(&tx, agent_t, on_host);
                 let opamp_client = match &opamp_builder {
-                    Some(builder) => Some(builder.build(StartSettings {
-                        instance_id: instance_id_getter.get(id.clone().get()),
-                        capabilities: capabilities!(AgentCapabilities::ReportsHealth),
-                        agent_description: AgentDescription {
-                            identifying_attributes: HashMap::new(),
-                            non_identifying_attributes: HashMap::new(),
-                        },
-                    })?),
+                    Some(builder) => Some(builder.build(start_settings(
+                        instance_id_getter.get(id.clone().get()),
+                        &agent_supervisor_config.agent_type,
+                    ))?),
                     None => None,
                 };
                 Ok((id.clone(), AgentRunner::new(opamp_client, runner)))
@@ -137,7 +135,7 @@ impl<C> SupervisorGroup<C, Stopped>
                             start_time_unix_nano: get_sys_time_nano()?,
                             last_error: "".to_string(),
                         }))
-                            .map_err(|err| SupervisorGroupError::OpAMPClientError(err.to_string()))?;
+                        .map_err(|err| SupervisorGroupError::OpAMPClientError(err.to_string()))?;
                         Some(handle)
                     }
                     None => None,
@@ -155,9 +153,34 @@ impl<C> SupervisorGroup<C, Stopped>
     }
 }
 
+fn start_settings(instance_id: String, agent_fqn: &AgentTypeFQN) -> StartSettings {
+    StartSettings {
+        instance_id,
+        capabilities: capabilities!(AgentCapabilities::ReportsHealth),
+        agent_description: AgentDescription {
+            identifying_attributes: HashMap::from([
+                ("service.name".to_string(), agent_fqn.name().into()),
+                (
+                    "service.namespace".to_string(),
+                    agent_fqn.namespace().into(),
+                ),
+                ("service.version".to_string(), agent_fqn.version().into()),
+            ]),
+            non_identifying_attributes: HashMap::from([(
+                "hostname".to_string(),
+                gethostname()
+                    .unwrap_or_default()
+                    .into_string()
+                    .unwrap()
+                    .into(),
+            )]),
+        },
+    }
+}
+
 impl<C> SupervisorGroup<C, Running>
-    where
-        C: OpAMPClientHandle,
+where
+    C: OpAMPClientHandle,
 {
     pub fn stop(self) -> Result<HashMap<AgentID, Vec<JoinHandle<()>>>, SupervisorGroupError> {
         self.0
@@ -173,7 +196,7 @@ impl<C> SupervisorGroup<C, Running>
                             start_time_unix_nano: get_sys_time_nano()?,
                             last_error: "".to_string(),
                         }))
-                            .map_err(|err| SupervisorGroupError::OpAMPClientError(err.to_string()))?;
+                        .map_err(|err| SupervisorGroupError::OpAMPClientError(err.to_string()))?;
 
                         Some(block_on(client.stop()).map_err(|err| {
                             SupervisorGroupError::OpAMPClientError(err.to_string())
@@ -213,7 +236,6 @@ fn build_on_host_runners(
 
 #[cfg(test)]
 pub mod tests {
-    use opamp_client::operation::capabilities::Capabilities;
 
     use super::*;
 
@@ -245,7 +267,7 @@ pub mod tests {
                         builder
                             .build(StartSettings {
                                 instance_id: "testing".to_string(),
-                                capabilities: Capabilities::default(),
+                                ..Default::default()
                             })
                             .unwrap(),
                     ),
@@ -259,7 +281,7 @@ pub mod tests {
                         builder
                             .build(StartSettings {
                                 instance_id: "testing".to_string(),
-                                capabilities: Capabilities::default(),
+                                ..Default::default()
                             })
                             .unwrap(),
                     ),
@@ -280,7 +302,7 @@ pub mod tests {
             agents: HashMap::from([(
                 AgentID("agent".to_string()),
                 AgentSupervisorConfig {
-                    agent_type: "".to_string(),
+                    agent_type: "".into(),
                     values_file: "".to_string(),
                 },
             )]),
@@ -313,10 +335,10 @@ pub mod tests {
         );
 
         // Case with no valid key
-        assert_eq!(true, supervisor_group.is_err());
+        assert!(supervisor_group.is_err());
 
         // Case with valid key but not value
-        _ = repository
+        repository
             .store_with_key(
                 "agent".to_string(),
                 Agent {
@@ -337,7 +359,7 @@ pub mod tests {
             &instance_id_getter,
         );
 
-        assert_eq!(true, supervisor_group.is_err());
+        assert!(supervisor_group.is_err());
 
         // Valid case with valid full data
         let mut repository = LocalRepository::default();
@@ -371,6 +393,6 @@ pub mod tests {
             Some(&opamp_builder),
             &instance_id_getter,
         );
-        assert_eq!(supervisor_group.unwrap().0.iter().count(), 1)
+        assert_eq!(supervisor_group.unwrap().0.len(), 1)
     }
 }

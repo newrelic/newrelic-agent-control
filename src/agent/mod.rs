@@ -1,9 +1,9 @@
+use std::collections::HashMap;
 use std::string::ToString;
 use std::{
     fs,
     sync::mpsc::{self, Sender},
 };
-use std::collections::HashMap;
 
 use futures::executor::block_on;
 use opamp_client::opamp::proto::AgentCapabilities;
@@ -33,6 +33,9 @@ pub mod instance_id;
 pub mod supervisor_group;
 
 const SUPER_AGENT_ID: &str = "super-agent";
+const SUPER_AGENT_TYPE: &str = "com.newrelic.meta_agent";
+const SUPER_AGENT_NAMESPACE: &str = "newrelic";
+const SUPER_AGENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Clone)]
 pub enum AgentEvent {
@@ -43,10 +46,10 @@ pub enum AgentEvent {
 }
 
 pub trait SupervisorGroupResolver<Repo, OpAMPBuilder, ID>
-    where
-        Repo: AgentRepository,
-        OpAMPBuilder: OpAMPClientBuilder,
-        ID: InstanceIDGetter,
+where
+    Repo: AgentRepository,
+    OpAMPBuilder: OpAMPClientBuilder,
+    ID: InstanceIDGetter,
 {
     fn retrieve_group(
         &self,
@@ -78,10 +81,10 @@ pub struct Agent<
 }
 
 impl<Repo, OpAMPBuilder, ID> SupervisorGroupResolver<Repo, OpAMPBuilder, ID> for SuperAgentConfig
-    where
-        Repo: AgentRepository,
-        OpAMPBuilder: OpAMPClientBuilder,
-        ID: InstanceIDGetter,
+where
+    Repo: AgentRepository,
+    OpAMPBuilder: OpAMPClientBuilder,
+    ID: InstanceIDGetter,
 {
     fn retrieve_group(
         &self,
@@ -101,10 +104,10 @@ impl<Repo, OpAMPBuilder, ID> SupervisorGroupResolver<Repo, OpAMPBuilder, ID> for
 }
 
 impl<Repo, OpAMPBuilder, ID> Agent<Repo, OpAMPBuilder, ID>
-    where
-        Repo: AgentRepository + Clone,
-        OpAMPBuilder: OpAMPClientBuilder,
-        ID: InstanceIDGetter,
+where
+    Repo: AgentRepository + Clone,
+    OpAMPBuilder: OpAMPClientBuilder,
+    ID: InstanceIDGetter,
 {
     pub fn new(
         cfg: SuperAgentConfig,
@@ -131,8 +134,8 @@ impl<Repo, OpAMPBuilder, ID> Agent<Repo, OpAMPBuilder, ID>
         effective_repo: EffectiveRepo,
         opamp_client_builder: Option<OpAMPBuilder>,
     ) -> Agent<Repo, OpAMPBuilder, ID, EffectiveRepo, R>
-        where
-            R: SupervisorGroupResolver<EffectiveRepo, OpAMPBuilder, ID>,
+    where
+        R: SupervisorGroupResolver<EffectiveRepo, OpAMPBuilder, ID>,
     {
         Agent {
             resolver,
@@ -145,12 +148,12 @@ impl<Repo, OpAMPBuilder, ID> Agent<Repo, OpAMPBuilder, ID>
 }
 
 impl<Repo, OpAMPBuilder, EffectiveRepo, R, ID> Agent<Repo, OpAMPBuilder, ID, EffectiveRepo, R>
-    where
-        Repo: AgentRepository,
-        OpAMPBuilder: OpAMPClientBuilder,
-        ID: InstanceIDGetter,
-        EffectiveRepo: AgentRepository,
-        R: SupervisorGroupResolver<EffectiveRepo, OpAMPBuilder, ID>,
+where
+    Repo: AgentRepository,
+    OpAMPBuilder: OpAMPClientBuilder,
+    ID: InstanceIDGetter,
+    EffectiveRepo: AgentRepository,
+    R: SupervisorGroupResolver<EffectiveRepo, OpAMPBuilder, ID>,
 {
     pub fn run(self, ctx: Context<Option<AgentEvent>>) -> Result<(), AgentError> {
         info!("Creating agent's communication channels");
@@ -166,10 +169,13 @@ impl<Repo, OpAMPBuilder, EffectiveRepo, R, ID> Agent<Repo, OpAMPBuilder, ID, Eff
                     instance_id: self.instance_id_getter.get(SUPER_AGENT_ID.to_string()),
                     capabilities: capabilities!(AgentCapabilities::ReportsHealth),
                     agent_description: AgentDescription {
-                        identifying_attributes: HashMap::from([
-                            ("service.name".to_string(), DescriptionValueType::from("com.newrelic.meta_agent"), ),
-                            ("service.namespace".to_string(), DescriptionValueType::from("newrelic")),
-                            ("service.version".to_string(), DescriptionValueType::from("0.2.0")),
+                        identifying_attributes: HashMap::<String, DescriptionValueType>::from([
+                            ("service.name".to_string(), SUPER_AGENT_TYPE.into()),
+                            (
+                                "service.namespace".to_string(),
+                                SUPER_AGENT_NAMESPACE.into(),
+                            ),
+                            ("service.version".to_string(), SUPER_AGENT_VERSION.into()),
                         ]),
                         non_identifying_attributes: HashMap::new(),
                     },
@@ -275,7 +281,7 @@ fn load_agent_cfgs<Repo: AgentRepository>(
 ) -> Result<LocalRepository, AgentError> {
     let mut effective_agent_repository = LocalRepository::default();
     for (k, agent_cfg) in agent_cfgs.agents.iter() {
-        let agent_type = agent_type_repository.get(&agent_cfg.agent_type)?;
+        let agent_type = agent_type_repository.get(&agent_cfg.agent_type.to_string())?;
 
         let contents = fs::read_to_string(&agent_cfg.values_file)?;
         let agent_config: SupervisorConfig = serde_yaml::from_str(&contents)?;
@@ -309,11 +315,11 @@ mod tests {
     struct MockedSleepGroupResolver;
 
     impl<Repo, OpAMPBuilder, ID> SupervisorGroupResolver<Repo, OpAMPBuilder, ID>
-    for MockedSleepGroupResolver
-        where
-            Repo: AgentRepository,
-            OpAMPBuilder: OpAMPClientBuilder,
-            ID: InstanceIDGetter,
+        for MockedSleepGroupResolver
+    where
+        Repo: AgentRepository,
+        OpAMPBuilder: OpAMPClientBuilder,
+        ID: InstanceIDGetter,
     {
         fn retrieve_group(
             &self,
@@ -339,6 +345,7 @@ mod tests {
         let start_settings = StartSettings {
             instance_id: SUPER_AGENT_ID.to_string(),
             capabilities: capabilities!(AgentCapabilities::ReportsHealth),
+            ..Default::default()
         };
 
         opamp_builder
@@ -363,6 +370,7 @@ mod tests {
         let start_settings = StartSettings {
             instance_id: "testing".to_string(),
             capabilities: Capabilities::default(),
+            ..Default::default()
         };
 
         opamp_builder

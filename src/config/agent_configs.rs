@@ -28,24 +28,60 @@ pub struct SuperAgentConfig {
     pub opamp: Option<OpAMPClientConfig>,
 }
 
+#[derive(Debug, PartialEq, Deserialize, Clone)]
+pub struct AgentTypeFQN(String);
 
-struct AgentTypeFQN(String);
+impl AgentTypeFQN {
+    pub fn namespace(&self) -> String {
+        self.0.chars().take_while(|&i| i != '/').collect()
+    }
 
-impl AgentTypeFQN{
-    fn namespace(&self)->String{
-        self.0.split("/").collect()
+    pub fn name(&self) -> String {
+        self.0
+            .chars()
+            .skip_while(|&i| i != '/')
+            .skip(1)
+            .take_while(|&i| i != ':')
+            .collect()
+    }
+
+    pub fn version(&self) -> String {
+        self.0.chars().skip_while(|&i| i != ':').skip(1).collect()
     }
 }
 
+impl Display for AgentTypeFQN {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0.as_str())
+    }
+}
+
+impl From<&str> for AgentTypeFQN {
+    fn from(value: &str) -> Self {
+        AgentTypeFQN(value.to_string())
+    }
+}
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct AgentSupervisorConfig {
-    pub agent_type: AgentTypeFQN,  // FQN of the agent type, ex: newrelic/nrdot:0.1.0
-    pub values_file: String, // path to the values file
+    pub agent_type: AgentTypeFQN, // FQN of the agent type, ex: newrelic/nrdot:0.1.0
+    pub values_file: String,      // path to the values file
 }
 
 #[derive(Debug, Default, Deserialize, PartialEq, Clone)]
 pub struct OpAMPClientConfig {
     pub endpoint: String,
     pub headers: Option<HashMap<String, String>>,
+}
+
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_agent_type_fqn() {
+        let fqn: AgentTypeFQN = "newrelic/nrdot:0.1.0".into();
+        assert_eq!(fqn.namespace(), "newrelic");
+        assert_eq!(fqn.name(), "nrdot");
+        assert_eq!(fqn.version(), "0.1.0");
+    }
 }

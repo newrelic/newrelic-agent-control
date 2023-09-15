@@ -44,8 +44,6 @@ pub const TEMPLATE_KEY_SEPARATOR: &str = ".";
 pub enum AgentTypeError {
     #[error("`{0}`")]
     SerdeYaml(#[from] serde_yaml::Error),
-    #[error("`{0}`")]
-    DeserialisationError(#[from] serde::de::Error),
     #[error("Missing required key in config: `{0}`")]
     MissingAgentKey(String),
     #[error(
