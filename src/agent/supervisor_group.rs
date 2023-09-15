@@ -8,7 +8,6 @@ use opamp_client::{capabilities, OpAMPClient, OpAMPClientHandle};
 use thiserror::Error;
 use tracing::info;
 
-use crate::agent::error::AgentError;
 use crate::agent::instance_id::InstanceIDGetter;
 use crate::config::agent_type_registry::AgentRepositoryError;
 use crate::{
