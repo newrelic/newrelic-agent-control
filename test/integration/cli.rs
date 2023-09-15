@@ -2,9 +2,11 @@ use std::{fs::File, io::Write, path::PathBuf};
 
 use assert_cmd::Command;
 use predicates::prelude::predicate;
+use tempfile::TempDir;
 
-fn create_simple_config() -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let dir = assert_fs::TempDir::new()?;
+// when the TempDir is dropped, the temporal directory is removed, thus, the its
+// ownership must remain on the parent function.
+fn create_simple_config(dir: &TempDir) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let file_path = dir.path().join("static.yml");
     let mut file = File::create(&file_path)?;
     writeln!(file, "agents: {{}}")?;
@@ -13,7 +15,8 @@ fn create_simple_config() -> Result<PathBuf, Box<dyn std::error::Error>> {
 
 #[test]
 fn print_debug_info() -> Result<(), Box<dyn std::error::Error>> {
-    let file_path = create_simple_config()?;
+    let dir = TempDir::new()?;
+    let file_path = create_simple_config(&dir)?;
     let mut cmd = Command::cargo_bin("main")?;
     cmd.arg("--config").arg(file_path).arg("--print-debug-info");
     cmd.assert().success();
@@ -23,7 +26,8 @@ fn print_debug_info() -> Result<(), Box<dyn std::error::Error>> {
 #[cfg(unix)]
 #[test]
 fn does_not_run_if_no_root() -> Result<(), Box<dyn std::error::Error>> {
-    let file_path = create_simple_config()?;
+    let dir = TempDir::new()?;
+    let file_path = create_simple_config(&dir)?;
     let mut cmd = Command::cargo_bin("main")?;
     cmd.arg("--config").arg(file_path);
     cmd.assert()
@@ -37,7 +41,9 @@ fn does_not_run_if_no_root() -> Result<(), Box<dyn std::error::Error>> {
 fn runs_as_root() -> Result<(), Box<dyn std::error::Error>> {
     use std::time::Duration;
 
-    let file_path = create_simple_config()?;
+    let dir = TempDir::new()?;
+    let file_path = create_simple_config(&dir)?;
+
     let mut cmd = Command::cargo_bin("main")?;
     cmd.arg("--config").arg(file_path);
     // cmd_assert is not made for long running programs, so we kill it anyway after 1 second
