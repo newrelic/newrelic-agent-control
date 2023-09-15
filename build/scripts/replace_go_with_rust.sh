@@ -20,8 +20,14 @@ fi
 
 #rm "${BINARY_PATH}"
 
-docker build --ssh default=${SSH_AUTH_SOCK} -t "rust-cross-${ARCH_NAME}" -f ./build/rust.Dockerfile --build-arg ARCH_NAME="${ARCH_NAME}" .
-docker run --rm --user "$(id -u)":"$(id -g)" -v "$PWD":/usr/src/app rust-cross-"${ARCH_NAME}"
+docker build -t "rust-cross-${ARCH_NAME}" -f ./build/rust.Dockerfile --build-arg ARCH_NAME="${ARCH_NAME}" .
+
+if [ "x${CI}" = "xtrue" ]; then
+    CARGO_HOME=/tmp/.cargo cargo fetch
+    docker run --rm --user "$(id -u)":"$(id -g)" -v "$PWD":/usr/src/app -v /tmp/.cargo:/usr/src/app/.cargo rust-cross-"${ARCH_NAME}"
+else
+    docker run --rm --user "$(id -u)":"$(id -g)" -v "$PWD":/usr/src/app rust-cross-"${ARCH_NAME}"
+fi
 
 # move rust compiled files into goreleaser generated locations
 cp "./target/${ARCH_NAME}-unknown-linux-gnu/release/main" "${BINARY_PATH}"
