@@ -453,14 +453,6 @@ Distributed under the following license(s):
 
 
 
-## fixedbitset (https://crates.io/crates/fixedbitset)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
 ## flate2 (https://crates.io/crates/flate2)
 
 Distributed under the following license(s):
@@ -665,14 +657,6 @@ Distributed under the following license(s):
 
 
 ## hermit-abi (https://crates.io/crates/hermit-abi)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
-## home (https://crates.io/crates/home)
 
 Distributed under the following license(s):
 * MIT
@@ -952,14 +936,6 @@ Distributed under the following license(s):
 
 
 
-## multimap (https://crates.io/crates/multimap)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
 ## native-tls (https://crates.io/crates/native-tls)
 
 Distributed under the following license(s):
@@ -1029,7 +1005,7 @@ Distributed under the following license(s):
 
 
 
-## opamp-client (git+ssh://git@github.com/newrelic/opamp-rs.git?branch=main#31de87fe901b851906d7e6df7745b1266f66742f)
+## opamp-client (git+ssh://git@github.com/newrelic/opamp-rs.git?branch=main#106669bfdcd0853a7c913517b2e11735f186e8f7)
 
 Distributed under the following license(s):
 * Apache-2.0
@@ -1136,14 +1112,6 @@ Distributed under the following license(s):
 
 
 
-## petgraph (https://crates.io/crates/petgraph)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
 ## pin-project-lite (https://crates.io/crates/pin-project-lite)
 
 Distributed under the following license(s):
@@ -1208,14 +1176,6 @@ Distributed under the following license(s):
 
 
 
-## prettyplease (https://crates.io/crates/prettyplease)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
 ## proc-macro-error (https://crates.io/crates/proc-macro-error)
 
 Distributed under the following license(s):
@@ -1247,21 +1207,7 @@ Distributed under the following license(s):
 
 
 
-## prost-build (https://crates.io/crates/prost-build)
-
-Distributed under the following license(s):
-* Apache-2.0
-
-
-
 ## prost-derive (https://crates.io/crates/prost-derive)
-
-Distributed under the following license(s):
-* Apache-2.0
-
-
-
-## prost-types (https://crates.io/crates/prost-types)
 
 Distributed under the following license(s):
 * Apache-2.0
@@ -1918,13 +1864,6 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 * MIT
 * Apache-2.0
-
-
-
-## which (https://crates.io/crates/which)
-
-Distributed under the following license(s):
-* MIT
 
 
 

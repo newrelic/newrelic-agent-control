@@ -30,8 +30,6 @@ jobs:
         uses: webfactory/ssh-agent@v0.8.0
         with:
           ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v2
       - name: Install stable
         uses: dtolnay/rust-toolchain@4f366e621dc8fa63f557ca04b8f4361824a35a45
         with:
@@ -56,8 +54,6 @@ jobs:
         uses: webfactory/ssh-agent@v0.8.0
         with:
           ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v2
       - name: Install ${{ matrix.toolchain }}
         uses: dtolnay/rust-toolchain@4f366e621dc8fa63f557ca04b8f4361824a35a45
         with:
@@ -79,8 +75,6 @@ jobs:
         uses: webfactory/ssh-agent@v0.8.0
         with:
           ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v2
       - name: Install nightly
         uses: dtolnay/rust-toolchain@4f366e621dc8fa63f557ca04b8f4361824a35a45
       - name: cargo doc
@@ -101,8 +95,6 @@ jobs:
         uses: webfactory/ssh-agent@v0.8.0
         with:
           ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v2
       - name: Install ${{ matrix.msrv }}
         uses: dtolnay/rust-toolchain@4f366e621dc8fa63f557ca04b8f4361824a35a45
         with:
@@ -122,8 +114,6 @@ jobs:
         uses: webfactory/ssh-agent@v0.8.0
         with:
           ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v2
       - name: cargo deny check
         run: cargo install --locked cargo-deny && cargo deny check
       - name: Ensure that third party notices is up to date
