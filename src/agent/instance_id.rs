@@ -1,14 +1,14 @@
 use ulid::Ulid;
 
 pub trait InstanceIDGetter {
-    fn get(&self, name:String) -> String;
+    fn get(&self, name: String) -> String;
 }
 
 #[derive(Default)]
 pub struct ULIDInstanceIDGetter {}
 
 impl InstanceIDGetter for ULIDInstanceIDGetter {
-    fn get(&self, _:String) -> String {
+    fn get(&self, _: String) -> String {
         Ulid::new().to_string()
     }
 }

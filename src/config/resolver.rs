@@ -80,10 +80,10 @@ opamp:
 
         let expected = SuperAgentConfig {
             agents: HashMap::new(),
-            opamp: OpAMPClientConfig {
+            opamp: Some(OpAMPClientConfig {
                 endpoint: "http://127.0.0.1/v1/opamp".to_string(),
                 headers: None,
-            },
+            }),
         };
 
         assert!(actual.is_ok());

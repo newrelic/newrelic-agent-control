@@ -1,15 +1,11 @@
 use std::error::Error;
 use std::process;
 
-use opamp_client::{
-    capabilities,
-    error::ClientError,
-    httpclient::HttpClient,
-    opamp::proto::AgentCapabilities,
-    operation::settings::StartSettings,
-};
 use tracing::{error, info};
 
+use newrelic_super_agent::agent::instance_id::ULIDInstanceIDGetter;
+use newrelic_super_agent::config::resolver::Resolver;
+use newrelic_super_agent::opamp::client_builder::OpAMPHttpBuilder;
 use newrelic_super_agent::{
     agent::{Agent, AgentEvent},
     cli::Cli,
@@ -17,9 +13,6 @@ use newrelic_super_agent::{
     context::Context,
     logging::Logging,
 };
-use newrelic_super_agent::agent::instance_id::ULIDInstanceIDGetter;
-use newrelic_super_agent::config::resolver::Resolver;
-use newrelic_super_agent::opamp::client_builder::OpAMPHttpBuilder;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -48,10 +41,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let ctx = ctx.clone();
         move || ctx.cancel_all(Some(AgentEvent::Stop)).unwrap()
     })
-        .map_err(|e| {
-            error!("Could not set signal handler: {}", e);
-            e
-        })?;
+    .map_err(|e| {
+        error!("Could not set signal handler: {}", e);
+        e
+    })?;
 
     let mut local_agent_type_repository = LocalRepository::new();
     local_agent_type_repository.store_from_yaml(NEWRELIC_INFRA_TYPE.as_bytes())?;
@@ -61,11 +54,20 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let cfg_path = &cli.get_config_path();
     let cfg = Resolver::retrieve_config(cfg_path)?;
 
-    let opamp_client_builder = OpAMPHttpBuilder::new(cfg.opamp.clone());
+    let opamp_client_builder = cfg
+        .opamp
+        .as_ref()
+        .map(|opamp_config| OpAMPHttpBuilder::new(opamp_config.clone()));
+
     let instance_id_getter = ULIDInstanceIDGetter::default();
 
     info!("Starting the super agent");
-    let agent = Agent::new(cfg, local_agent_type_repository, opamp_client_builder, instance_id_getter);
+    let agent = Agent::new(
+        cfg,
+        local_agent_type_repository,
+        opamp_client_builder,
+        instance_id_getter,
+    );
 
     match agent {
         Ok(agent) => Ok(agent.run(ctx)?),

@@ -1,15 +1,21 @@
-use opamp_client::{httpclient::HttpClient, OpAMPClient, operation::settings::StartSettings};
+use opamp_client::{httpclient::HttpClient, operation::settings::StartSettings, OpAMPClient};
+use thiserror::Error;
+use tracing::error;
 
 use crate::config::agent_configs::OpAMPClientConfig;
 
-use crate::agent::{
-    callbacks::{AgentCallbacks, AgentEffectiveConfig},
-    error::AgentError,
-};
+use crate::agent::callbacks::{AgentCallbacks, AgentEffectiveConfig};
+
+#[derive(Error, Debug)]
+pub enum OpAMPClientBuilderError {
+    #[error("unable to create OpAMP client: `{0}`")]
+    ClientError(String),
+}
 
 pub trait OpAMPClientBuilder {
     type Client: OpAMPClient;
-    fn build(&self, start_settings: StartSettings) -> Result<Self::Client, AgentError>;
+    fn build(&self, start_settings: StartSettings)
+        -> Result<Self::Client, OpAMPClientBuilderError>;
 }
 
 /// OpAMPBuilderCfg
@@ -28,7 +34,7 @@ impl OpAMPClientBuilder for OpAMPHttpBuilder {
     fn build(
         &self,
         start_settings: StartSettings,
-    ) -> Result<Self::Client, AgentError> {
+    ) -> Result<Self::Client, OpAMPClientBuilderError> {
         // TODO: cleanup
         let headers = self.config.headers.clone().unwrap_or_default();
         let headers: Vec<(&str, &str)> = headers
@@ -36,14 +42,14 @@ impl OpAMPClientBuilder for OpAMPHttpBuilder {
             .map(|header| (header.0.as_str(), header.1.as_str()))
             .collect();
 
-        Ok(HttpClient::new(
+        HttpClient::new(
             AgentEffectiveConfig,
             self.config.endpoint.as_str(),
             headers,
             start_settings,
             AgentCallbacks,
         )
-        .unwrap())
+        .map_err(|err| OpAMPClientBuilderError::ClientError(err.to_string()))
     }
 }
 
@@ -95,7 +101,7 @@ pub(crate) mod test {
         impl OpAMPClientBuilder for OpAMPClientBuilderMock {
             type Client = MockOpAMPClientMock;
 
-            fn build(&self, start_settings: opamp_client::operation::settings::StartSettings) -> Result<<Self as OpAMPClientBuilder>::Client, AgentError>;
+            fn build(&self, start_settings: opamp_client::operation::settings::StartSettings) -> Result<<Self as OpAMPClientBuilder>::Client, OpAMPClientBuilderError>;
         }
     }
 }
