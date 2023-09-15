@@ -4,7 +4,7 @@ set -e
 RUST_VERSION="1.71.1"
 
 # remove go generated files
-rm -rf ./target/**
+# rm -rf ./target/**
 
 # compile production version of rust agent
 
@@ -18,9 +18,9 @@ if [ "$ARCH" = "amd64" ];then
   ARCH_NAME="x86_64"
 fi
 
-rm "${BINARY_PATH}"
+#rm "${BINARY_PATH}"
 
-docker build -t "rust-cross-${ARCH_NAME}" -f ./build/rust.Dockerfile --build-arg ARCH_NAME="${ARCH_NAME}" .
+docker build --ssh default=${SSH_AUTH_SOCK} -t "rust-cross-${ARCH_NAME}" -f ./build/rust.Dockerfile --build-arg ARCH_NAME="${ARCH_NAME}" .
 docker run --rm --user "$(id -u)":"$(id -g)" -v "$PWD":/usr/src/app rust-cross-"${ARCH_NAME}"
 
 # move rust compiled files into goreleaser generated locations
