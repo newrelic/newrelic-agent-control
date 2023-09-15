@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::mpsc::Sender, thread::JoinHandle};
 
 use futures::executor::block_on;
 use opamp_client::opamp::proto::{AgentCapabilities, AgentHealth};
-use opamp_client::operation::settings::StartSettings;
+use opamp_client::operation::settings::{AgentDescription, StartSettings};
 use opamp_client::{capabilities, OpAMPClient, OpAMPClientHandle};
 use thiserror::Error;
 use tracing::info;
@@ -63,8 +63,8 @@ impl<C, S> AgentRunner<C, S> {
 }
 
 impl<C> SupervisorGroup<C, Stopped>
-where
-    C: OpAMPClient,
+    where
+        C: OpAMPClient,
 {
     pub fn new<Repo, OpAMPBuilder, ID>(
         effective_agent_repository: &Repo,
@@ -73,15 +73,15 @@ where
         opamp_builder: Option<&OpAMPBuilder>,
         instance_id_getter: &ID,
     ) -> Result<SupervisorGroup<OpAMPBuilder::Client, Stopped>, SupervisorGroupError>
-    where
-        Repo: AgentRepository,
-        OpAMPBuilder: OpAMPClientBuilder,
-        ID: InstanceIDGetter,
+        where
+            Repo: AgentRepository,
+            OpAMPBuilder: OpAMPClientBuilder,
+            ID: InstanceIDGetter,
     {
         let agent_runners = cfg
             .agents
-            .keys()
-            .map(|agent_t| {
+            .iter()
+            .map(|(agent_t,agent_supervisor_config)| {
                 let agent = effective_agent_repository.get(&agent_t.clone().get())?;
 
                 let on_host = agent
@@ -96,6 +96,10 @@ where
                     Some(builder) => Some(builder.build(StartSettings {
                         instance_id: instance_id_getter.get(id.clone().get()),
                         capabilities: capabilities!(AgentCapabilities::ReportsHealth),
+                        agent_description: AgentDescription {
+                            identifying_attributes: HashMap::new(),
+                            non_identifying_attributes: HashMap::new(),
+                        },
                     })?),
                     None => None,
                 };
@@ -133,7 +137,7 @@ where
                             start_time_unix_nano: get_sys_time_nano()?,
                             last_error: "".to_string(),
                         }))
-                        .map_err(|err| SupervisorGroupError::OpAMPClientError(err.to_string()))?;
+                            .map_err(|err| SupervisorGroupError::OpAMPClientError(err.to_string()))?;
                         Some(handle)
                     }
                     None => None,
@@ -152,8 +156,8 @@ where
 }
 
 impl<C> SupervisorGroup<C, Running>
-where
-    C: OpAMPClientHandle,
+    where
+        C: OpAMPClientHandle,
 {
     pub fn stop(self) -> Result<HashMap<AgentID, Vec<JoinHandle<()>>>, SupervisorGroupError> {
         self.0
@@ -169,7 +173,7 @@ where
                             start_time_unix_nano: get_sys_time_nano()?,
                             last_error: "".to_string(),
                         }))
-                        .map_err(|err| SupervisorGroupError::OpAMPClientError(err.to_string()))?;
+                            .map_err(|err| SupervisorGroupError::OpAMPClientError(err.to_string()))?;
 
                         Some(block_on(client.stop()).map_err(|err| {
                             SupervisorGroupError::OpAMPClientError(err.to_string())

@@ -3,10 +3,11 @@ use std::{
     fs,
     sync::mpsc::{self, Sender},
 };
+use std::collections::HashMap;
 
 use futures::executor::block_on;
 use opamp_client::opamp::proto::AgentCapabilities;
-use opamp_client::operation::settings::StartSettings;
+use opamp_client::operation::settings::{AgentDescription, DescriptionValueType, StartSettings};
 use opamp_client::{capabilities, OpAMPClient, OpAMPClientHandle};
 use tracing::{error, info};
 
@@ -42,10 +43,10 @@ pub enum AgentEvent {
 }
 
 pub trait SupervisorGroupResolver<Repo, OpAMPBuilder, ID>
-where
-    Repo: AgentRepository,
-    OpAMPBuilder: OpAMPClientBuilder,
-    ID: InstanceIDGetter,
+    where
+        Repo: AgentRepository,
+        OpAMPBuilder: OpAMPClientBuilder,
+        ID: InstanceIDGetter,
 {
     fn retrieve_group(
         &self,
@@ -77,10 +78,10 @@ pub struct Agent<
 }
 
 impl<Repo, OpAMPBuilder, ID> SupervisorGroupResolver<Repo, OpAMPBuilder, ID> for SuperAgentConfig
-where
-    Repo: AgentRepository,
-    OpAMPBuilder: OpAMPClientBuilder,
-    ID: InstanceIDGetter,
+    where
+        Repo: AgentRepository,
+        OpAMPBuilder: OpAMPClientBuilder,
+        ID: InstanceIDGetter,
 {
     fn retrieve_group(
         &self,
@@ -100,10 +101,10 @@ where
 }
 
 impl<Repo, OpAMPBuilder, ID> Agent<Repo, OpAMPBuilder, ID>
-where
-    Repo: AgentRepository + Clone,
-    OpAMPBuilder: OpAMPClientBuilder,
-    ID: InstanceIDGetter,
+    where
+        Repo: AgentRepository + Clone,
+        OpAMPBuilder: OpAMPClientBuilder,
+        ID: InstanceIDGetter,
 {
     pub fn new(
         cfg: SuperAgentConfig,
@@ -130,8 +131,8 @@ where
         effective_repo: EffectiveRepo,
         opamp_client_builder: Option<OpAMPBuilder>,
     ) -> Agent<Repo, OpAMPBuilder, ID, EffectiveRepo, R>
-    where
-        R: SupervisorGroupResolver<EffectiveRepo, OpAMPBuilder, ID>,
+        where
+            R: SupervisorGroupResolver<EffectiveRepo, OpAMPBuilder, ID>,
     {
         Agent {
             resolver,
@@ -144,12 +145,12 @@ where
 }
 
 impl<Repo, OpAMPBuilder, EffectiveRepo, R, ID> Agent<Repo, OpAMPBuilder, ID, EffectiveRepo, R>
-where
-    Repo: AgentRepository,
-    OpAMPBuilder: OpAMPClientBuilder,
-    ID: InstanceIDGetter,
-    EffectiveRepo: AgentRepository,
-    R: SupervisorGroupResolver<EffectiveRepo, OpAMPBuilder, ID>,
+    where
+        Repo: AgentRepository,
+        OpAMPBuilder: OpAMPClientBuilder,
+        ID: InstanceIDGetter,
+        EffectiveRepo: AgentRepository,
+        R: SupervisorGroupResolver<EffectiveRepo, OpAMPBuilder, ID>,
 {
     pub fn run(self, ctx: Context<Option<AgentEvent>>) -> Result<(), AgentError> {
         info!("Creating agent's communication channels");
@@ -164,6 +165,14 @@ where
                 let opamp_client = builder.build(StartSettings {
                     instance_id: self.instance_id_getter.get(SUPER_AGENT_ID.to_string()),
                     capabilities: capabilities!(AgentCapabilities::ReportsHealth),
+                    agent_description: AgentDescription {
+                        identifying_attributes: HashMap::from([
+                            ("service.name".to_string(), DescriptionValueType::from("com.newrelic.meta_agent"), ),
+                            ("service.namespace".to_string(), DescriptionValueType::from("newrelic")),
+                            ("service.version".to_string(), DescriptionValueType::from("0.2.0")),
+                        ]),
+                        non_identifying_attributes: HashMap::new(),
+                    },
                 })?;
                 let mut opamp_client_handle = block_on(opamp_client.start()).unwrap();
 
@@ -298,12 +307,13 @@ mod tests {
     use super::{supervisor_group::tests::new_sleep_supervisor_group, SupervisorGroupResolver};
 
     struct MockedSleepGroupResolver;
+
     impl<Repo, OpAMPBuilder, ID> SupervisorGroupResolver<Repo, OpAMPBuilder, ID>
-        for MockedSleepGroupResolver
-    where
-        Repo: AgentRepository,
-        OpAMPBuilder: OpAMPClientBuilder,
-        ID: InstanceIDGetter,
+    for MockedSleepGroupResolver
+        where
+            Repo: AgentRepository,
+            OpAMPBuilder: OpAMPClientBuilder,
+            ID: InstanceIDGetter,
     {
         fn retrieve_group(
             &self,

@@ -28,9 +28,19 @@ pub struct SuperAgentConfig {
     pub opamp: Option<OpAMPClientConfig>,
 }
 
+
+struct AgentTypeFQN(String);
+
+impl AgentTypeFQN{
+    fn namespace(&self)->String{
+        self.0.split("/").collect()
+    }
+}
+
+
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct AgentSupervisorConfig {
-    pub agent_type: String,  // FQN of the agent type, ex: newrelic/nrdot:0.1.0
+    pub agent_type: AgentTypeFQN,  // FQN of the agent type, ex: newrelic/nrdot:0.1.0
     pub values_file: String, // path to the values file
 }
 
