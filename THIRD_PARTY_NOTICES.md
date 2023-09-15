@@ -116,22 +116,6 @@ Distributed under the following license(s):
 
 
 
-## assert_cmd (https://crates.io/crates/assert_cmd)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
-## assert_fs (https://crates.io/crates/assert_fs)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
 ## async-compression (https://crates.io/crates/async-compression)
 
 Distributed under the following license(s):
@@ -197,14 +181,6 @@ Distributed under the following license(s):
 
 
 ## block-buffer (https://crates.io/crates/block-buffer)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
-## bstr (https://crates.io/crates/bstr)
 
 Distributed under the following license(s):
 * MIT
@@ -392,13 +368,6 @@ Distributed under the following license(s):
 
 
 ## dlv-list (https://crates.io/crates/dlv-list)
-
-Distributed under the following license(s):
-* MIT
-
-
-
-## doc-comment (https://crates.io/crates/doc-comment)
 
 Distributed under the following license(s):
 * MIT
@@ -602,21 +571,6 @@ Distributed under the following license(s):
 
 
 
-## globset (https://crates.io/crates/globset)
-
-Distributed under the following license(s):
-* Unlicense
-* MIT
-
-
-
-## globwalk (https://crates.io/crates/globwalk)
-
-Distributed under the following license(s):
-* MIT
-
-
-
 ## h2 (https://crates.io/crates/h2)
 
 Distributed under the following license(s):
@@ -731,14 +685,6 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 * MIT
 * Apache-2.0
-
-
-
-## ignore (https://crates.io/crates/ignore)
-
-Distributed under the following license(s):
-* Unlicense
-* MIT
 
 
 
@@ -1152,14 +1098,6 @@ Distributed under the following license(s):
 
 
 
-## predicates (https://crates.io/crates/predicates)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
 ## predicates-core (https://crates.io/crates/predicates-core)
 
 Distributed under the following license(s):
@@ -1346,14 +1284,6 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 * Apache-2.0
 * BSL-1.0
-
-
-
-## same-file (https://crates.io/crates/same-file)
-
-Distributed under the following license(s):
-* Unlicense
-* MIT
 
 
 
@@ -1776,22 +1706,6 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 * MIT
 * Apache-2.0
-
-
-
-## wait-timeout (https://crates.io/crates/wait-timeout)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
-## walkdir (https://crates.io/crates/walkdir)
-
-Distributed under the following license(s):
-* Unlicense
-* MIT
 
 
 
