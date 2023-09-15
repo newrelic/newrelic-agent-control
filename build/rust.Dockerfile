@@ -7,7 +7,7 @@ ARG ARCH_NAME
 RUN if [ "${ARCH_NAME}" = "aarch64" ]; then \
       # We assume the docker image's arch is x86_64, so cross-compiling for aarch64
       apt install -y g++-aarch64-linux-gnu libc6-dev-arm64-cross \
-      protobuf-compiler libssl-dev pkg-config && \
+      libssl-dev pkg-config && \
       rustup toolchain install stable-aarch64-unknown-linux-gnu --force-non-host; \
     fi
 RUN rustup target add "${ARCH_NAME}-unknown-linux-gnu"
