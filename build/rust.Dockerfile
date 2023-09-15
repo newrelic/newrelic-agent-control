@@ -21,4 +21,4 @@ ENV ARCH_NAME=${ARCH_NAME} \
     CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
     CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++
 
-CMD cargo build --release --target "${ARCH_NAME}-unknown-linux-gnu"
+RUN --mount=type=ssh cargo build --release --target "${ARCH_NAME}-unknown-linux-gnu"
