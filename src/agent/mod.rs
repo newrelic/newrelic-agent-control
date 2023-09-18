@@ -6,6 +6,7 @@ use std::{
 };
 
 use futures::executor::block_on;
+use nix::unistd::gethostname;
 use opamp_client::opamp::proto::AgentCapabilities;
 use opamp_client::operation::settings::{AgentDescription, DescriptionValueType, StartSettings};
 use opamp_client::{capabilities, OpAMPClient, OpAMPClientHandle};
@@ -177,7 +178,14 @@ where
                             ),
                             ("service.version".to_string(), SUPER_AGENT_VERSION.into()),
                         ]),
-                        non_identifying_attributes: HashMap::new(),
+                        non_identifying_attributes: HashMap::from([(
+                            "hostname".to_string(),
+                            gethostname()
+                                .unwrap_or_default()
+                                .into_string()
+                                .unwrap()
+                                .into(),
+                        )]),
                     },
                 })?;
                 let mut opamp_client_handle = block_on(opamp_client.start()).unwrap();
@@ -306,6 +314,7 @@ mod tests {
     use crate::opamp::client_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock};
     use crate::opamp::client_builder::OpAMPClientBuilder;
     use mockall::predicate;
+    use nix::unistd::gethostname;
     use opamp_client::capabilities;
     use opamp_client::opamp::proto::AgentCapabilities;
     use opamp_client::operation::capabilities::Capabilities;
@@ -360,7 +369,14 @@ mod tests {
                     ),
                     ("service.version".to_string(), SUPER_AGENT_VERSION.into()),
                 ]),
-                non_identifying_attributes: HashMap::new(),
+                non_identifying_attributes: HashMap::from([(
+                    "hostname".to_string(),
+                    gethostname()
+                        .unwrap_or_default()
+                        .into_string()
+                        .unwrap()
+                        .into(),
+                )]),
             },
         };
 
