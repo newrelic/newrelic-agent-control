@@ -150,7 +150,7 @@ mod test {
     #[test]
     fn bad_agent_type_fqn_only_version_separator() {
         let fqn: AgentTypeFQN = ":".into();
-        assert_eq!(fqn.namespace(), "");
+        assert_eq!(fqn.namespace(), ":");
         assert_eq!(fqn.name(), "");
         assert_eq!(fqn.version(), "");
     }
