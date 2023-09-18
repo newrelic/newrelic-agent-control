@@ -74,6 +74,7 @@ pub struct OpAMPClientConfig {
     pub headers: Option<HashMap<String, String>>,
 }
 
+#[cfg(test)]
 mod test {
     use super::*;
 
@@ -83,5 +84,82 @@ mod test {
         assert_eq!(fqn.namespace(), "newrelic");
         assert_eq!(fqn.name(), "nrdot");
         assert_eq!(fqn.version(), "0.1.0");
+    }
+
+    #[test]
+    fn bad_agent_type_fqn_no_version() {
+        let fqn: AgentTypeFQN = "newrelic/nrdot".into();
+        assert_eq!(fqn.namespace(), "newrelic");
+        assert_eq!(fqn.name(), "nrdot");
+        assert_eq!(fqn.version(), "");
+
+        let fqn: AgentTypeFQN = "newrelic/nrdot:".into();
+        assert_eq!(fqn.namespace(), "newrelic");
+        assert_eq!(fqn.name(), "nrdot");
+        assert_eq!(fqn.version(), "");
+    }
+
+    #[test]
+    fn bad_agent_type_fqn_no_name() {
+        let fqn: AgentTypeFQN = "newrelic/:0.1.0".into();
+        assert_eq!(fqn.namespace(), "newrelic");
+        assert_eq!(fqn.name(), "");
+        assert_eq!(fqn.version(), "0.1.0");
+    }
+
+    #[test]
+    fn bad_agent_type_fqn_no_namespace() {
+        let fqn: AgentTypeFQN = "/nrdot:0.1.0".into();
+        assert_eq!(fqn.namespace(), "");
+        assert_eq!(fqn.name(), "nrdot");
+        assert_eq!(fqn.version(), "0.1.0");
+    }
+
+    #[test]
+    fn bad_agent_type_fqn_no_namespace_no_version() {
+        let fqn: AgentTypeFQN = "/nrdot".into();
+        assert_eq!(fqn.namespace(), "");
+        assert_eq!(fqn.name(), "nrdot");
+        assert_eq!(fqn.version(), "");
+    }
+
+    #[test]
+    fn bad_agent_type_fqn_no_namespace_no_name() {
+        let fqn: AgentTypeFQN = "/:0.1.0".into();
+        assert_eq!(fqn.namespace(), "");
+        assert_eq!(fqn.name(), "");
+        assert_eq!(fqn.version(), "0.1.0");
+    }
+
+    #[test]
+    fn bad_agent_type_fqn_namespace_separator() {
+        let fqn: AgentTypeFQN = "/".into();
+        assert_eq!(fqn.namespace(), "");
+        assert_eq!(fqn.name(), "");
+        assert_eq!(fqn.version(), "");
+    }
+
+    #[test]
+    fn bad_agent_type_fqn_empty_string() {
+        let fqn: AgentTypeFQN = "".into();
+        assert_eq!(fqn.namespace(), "");
+        assert_eq!(fqn.name(), "");
+        assert_eq!(fqn.version(), "");
+    }
+
+    #[test]
+    fn bad_agent_type_fqn_only_version_separator() {
+        let fqn: AgentTypeFQN = ":".into();
+        assert_eq!(fqn.namespace(), "");
+        assert_eq!(fqn.name(), "");
+        assert_eq!(fqn.version(), "");
+    }
+
+    #[test]
+    fn bad_agent_type_fqn_only_word() {
+        let fqn: AgentTypeFQN = "only_namespace".into();
+        assert_eq!(fqn.namespace(), "only_namespace");
+        assert_eq!(fqn.name(), "");
+        assert_eq!(fqn.version(), "");
     }
 }
