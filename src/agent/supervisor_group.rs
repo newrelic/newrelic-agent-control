@@ -168,14 +168,18 @@ fn start_settings(instance_id: String, agent_fqn: &AgentTypeFQN) -> StartSetting
             ]),
             non_identifying_attributes: HashMap::from([(
                 "hostname".to_string(),
-                gethostname()
-                    .unwrap_or_default()
-                    .into_string()
-                    .unwrap()
-                    .into(),
+                get_hostname().into(),
             )]),
         },
     }
+}
+
+fn get_hostname() -> String {
+    #[cfg(unix)]
+    return gethostname().unwrap_or_default().into_string().unwrap();
+
+    #[cfg(not(unix))]
+    return unimplemented!();
 }
 
 impl<C> SupervisorGroup<C, Running>
@@ -402,11 +406,7 @@ pub mod tests {
         let agent_fqn = AgentTypeFQN::from("test-namespace/test-agent-type:1.0.0");
 
         let settings = start_settings(instance_id.clone(), &agent_fqn);
-        let hostname = gethostname()
-            .unwrap_or_default()
-            .into_string()
-            .unwrap()
-            .into();
+        let hostname = get_hostname().into();
 
         assert_eq!(settings.instance_id, instance_id);
         assert_eq!(
