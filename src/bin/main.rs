@@ -1,3 +1,11 @@
+use std::error::Error;
+use std::process;
+
+use tracing::{error, info};
+
+use newrelic_super_agent::agent::instance_id::ULIDInstanceIDGetter;
+use newrelic_super_agent::config::resolver::Resolver;
+use newrelic_super_agent::opamp::client_builder::OpAMPHttpBuilder;
 use newrelic_super_agent::{
     agent::{Agent, AgentEvent},
     cli::Cli,
@@ -5,11 +13,9 @@ use newrelic_super_agent::{
     context::Context,
     logging::Logging,
 };
-use std::error::Error;
-use std::process;
-use tracing::{error, info};
 
-fn main() -> Result<(), Box<dyn Error>> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
     // init logging singleton
     Logging::try_init()?;
 
@@ -44,8 +50,24 @@ fn main() -> Result<(), Box<dyn Error>> {
     local_agent_type_repository.store_from_yaml(NEWRELIC_INFRA_TYPE.as_bytes())?;
     local_agent_type_repository.store_from_yaml(RANDOM_CMDS_TYPE.as_bytes())?;
 
+    // load effective config
+    let cfg_path = &cli.get_config_path();
+    let cfg = Resolver::retrieve_config(cfg_path)?;
+
+    let opamp_client_builder = cfg
+        .opamp
+        .as_ref()
+        .map(|opamp_config| OpAMPHttpBuilder::new(opamp_config.clone()));
+
+    let instance_id_getter = ULIDInstanceIDGetter::default();
+
     info!("Starting the super agent");
-    let agent = Agent::new(&cli.get_config_path(), local_agent_type_repository);
+    let agent = Agent::new(
+        cfg,
+        local_agent_type_repository,
+        opamp_client_builder,
+        instance_id_getter,
+    );
 
     match agent {
         Ok(agent) => Ok(agent.run(ctx)?),
@@ -85,7 +107,7 @@ namespace: davidsanchez
 name: random-commands
 version: 0.0.1
 variables:
-  ip:
+  sleep:
     description: "Destination IP to make pings"
     type: string
     required: true
@@ -97,10 +119,8 @@ variables:
 deployment:
   on_host:
     executables:
-      - path: /Users/davidsanchez/.nix-profile/bin/ping
-        args: "${ip}"
-      - path: echo
-        args: "Hello ${message}"
+      - path: /bin/sleep
+        args: "${sleep}"
     restart_policy:
       backoff_strategy:
         type: fixed

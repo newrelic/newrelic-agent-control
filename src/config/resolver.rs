@@ -49,7 +49,10 @@ mod tests {
     use std::collections::HashMap;
 
     use super::*;
-    use crate::config::{agent_configs::SuperAgentConfig, resolver::Resolver};
+    use crate::config::{
+        agent_configs::{OpAMPClientConfig, SuperAgentConfig},
+        resolver::Resolver,
+    };
 
     #[test]
     fn resolve_empty_agents_field_should_fail_without_empty_map() {
@@ -68,6 +71,8 @@ agents:
         let actual = Resolver::new(File::from_str(
             r"
 agents: {}
+opamp:
+  endpoint: http://127.0.0.1/v1/opamp
 ",
             FileFormat::Yaml,
         ))
@@ -75,6 +80,10 @@ agents: {}
 
         let expected = SuperAgentConfig {
             agents: HashMap::new(),
+            opamp: Some(OpAMPClientConfig {
+                endpoint: "http://127.0.0.1/v1/opamp".to_string(),
+                headers: None,
+            }),
         };
 
         assert!(actual.is_ok());
