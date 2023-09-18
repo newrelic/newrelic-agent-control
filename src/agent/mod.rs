@@ -297,7 +297,10 @@ mod tests {
     use crate::agent::error::AgentError;
     use crate::agent::instance_id::test::MockInstanceIDGetterMock;
     use crate::agent::instance_id::InstanceIDGetter;
-    use crate::agent::{Agent, AgentEvent, SUPER_AGENT_ID};
+    use crate::agent::{
+        Agent, AgentEvent, SUPER_AGENT_ID, SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE,
+        SUPER_AGENT_VERSION,
+    };
     use crate::config::agent_type_registry::{AgentRepository, LocalRepository};
     use crate::context::Context;
     use crate::opamp::client_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock};
@@ -306,7 +309,10 @@ mod tests {
     use opamp_client::capabilities;
     use opamp_client::opamp::proto::AgentCapabilities;
     use opamp_client::operation::capabilities::Capabilities;
-    use opamp_client::operation::settings::StartSettings;
+    use opamp_client::operation::settings::{
+        AgentDescription, DescriptionValueType, StartSettings,
+    };
+    use std::collections::HashMap;
     use std::thread::{sleep, spawn};
     use std::time::Duration;
 
@@ -345,7 +351,17 @@ mod tests {
         let start_settings = StartSettings {
             instance_id: SUPER_AGENT_ID.to_string(),
             capabilities: capabilities!(AgentCapabilities::ReportsHealth),
-            ..Default::default()
+            agent_description: AgentDescription {
+                identifying_attributes: HashMap::<String, DescriptionValueType>::from([
+                    ("service.name".to_string(), SUPER_AGENT_TYPE.into()),
+                    (
+                        "service.namespace".to_string(),
+                        SUPER_AGENT_NAMESPACE.into(),
+                    ),
+                    ("service.version".to_string(), SUPER_AGENT_VERSION.into()),
+                ]),
+                non_identifying_attributes: HashMap::new(),
+            },
         };
 
         opamp_builder
