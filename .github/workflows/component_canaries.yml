@@ -42,7 +42,7 @@ jobs:
           GIT_BRANCH=${GIT_BRANCH#refs/tags/}
           echo "GIT_BRANCH=$GIT_BRANCH" >> $GITHUB_ENV
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
