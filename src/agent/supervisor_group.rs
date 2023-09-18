@@ -395,4 +395,35 @@ pub mod tests {
         );
         assert_eq!(supervisor_group.unwrap().0.len(), 1)
     }
+
+    #[test]
+    fn test_start_settings() {
+        let instance_id = "test-instance".to_string();
+        let agent_fqn = AgentTypeFQN::from("test-namespace/test-agent-type:1.0.0");
+
+        let settings = start_settings(instance_id.clone(), &agent_fqn);
+        let hostname = gethostname()
+            .unwrap_or_default()
+            .into_string()
+            .unwrap()
+            .into();
+
+        assert_eq!(settings.instance_id, instance_id);
+        assert_eq!(
+            settings.capabilities,
+            capabilities!(AgentCapabilities::ReportsHealth)
+        );
+        assert_eq!(
+            settings.agent_description.identifying_attributes,
+            HashMap::from([
+                ("service.name".to_string(), "test-agent-type".into()),
+                ("service.namespace".to_string(), "test-namespace".into()),
+                ("service.version".to_string(), "1.0.0".into())
+            ])
+        );
+        assert_eq!(
+            settings.agent_description.non_identifying_attributes,
+            HashMap::from([("hostname".to_string(), hostname)])
+        );
+    }
 }
