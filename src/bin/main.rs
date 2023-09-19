@@ -80,8 +80,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
 const NEWRELIC_INFRA_TYPE: &str = r#"
 namespace: newrelic
-name: newrelic-infra
-version: 1.39.1
+name: com.newrelic.infrastructure_agent
+version: 1.47.1
 variables:
   config:
     description: "Newrelic infra configuration yaml"
