@@ -48,7 +48,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let mut local_agent_type_repository = LocalRepository::new();
     local_agent_type_repository.store_from_yaml(NEWRELIC_INFRA_TYPE.as_bytes())?;
-    local_agent_type_repository.store_from_yaml(RANDOM_CMDS_TYPE.as_bytes())?;
 
     // load effective config
     let cfg_path = &cli.get_config_path();
@@ -100,33 +99,6 @@ deployment:
         max_retries: 5
         last_retry_interval_seconds: 60
       restart_exit_codes: [1, 2]
-"#;
-
-const RANDOM_CMDS_TYPE: &str = r#"
-namespace: davidsanchez
-name: random-commands
-version: 0.0.1
-variables:
-  sleep:
-    description: "Destination IP to make pings"
-    type: string
-    required: true
-  message:
-    description: "Content to output with 'echo'"
-    type: string
-    required: false
-    default: "Supervisor!"
-deployment:
-  on_host:
-    executables:
-      - path: /bin/sleep
-        args: "${sleep}"
-    restart_policy:
-      backoff_strategy:
-        type: fixed
-        backoff_delay_seconds: 1
-        max_retries: 0
-        last_retry_interval_seconds: 60
 "#;
 
 const _NRDOT_TYPE: &str = r#"
