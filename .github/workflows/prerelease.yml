@@ -22,6 +22,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Give GitHub Actions access to private crates
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
+
       - name: Verify version matches tag
         run: |
           NEWRELIC_SUPER_AGENT_VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml)
