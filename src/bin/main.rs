@@ -48,7 +48,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let mut local_agent_type_repository = LocalRepository::new();
     local_agent_type_repository.store_from_yaml(NEWRELIC_INFRA_TYPE.as_bytes())?;
-    local_agent_type_repository.store_from_yaml(RANDOM_CMDS_TYPE.as_bytes())?;
+    local_agent_type_repository.store_from_yaml(NRDOT_TYPE.as_bytes())?;
 
     // load effective config
     let cfg_path = &cli.get_config_path();
@@ -81,73 +81,52 @@ async fn main() -> Result<(), Box<dyn Error>> {
 const NEWRELIC_INFRA_TYPE: &str = r#"
 namespace: newrelic
 name: com.newrelic.infrastructure_agent
-version: 1.47.1
+version: 0.0.1
 variables:
-  config:
-    description: "Newrelic infra configuration yaml"
-    type: file
-    required: true
+  config_file:
+    description: "Newrelic infra configuration path"
+    type: string
+    required: false
+    default: /etc/newrelic-infra.yml
 deployment:
   on_host:
     executables:
-      - path: /opt/homebrew/bin/newrelic-infra
-        args: "--config ${config}"
-        env: "NRIA_DISPLAY_NAME=infra_agent_1_1"
+      - path: /usr/bin/newrelic-infra
+        args: "--config=${config_file}"
     restart_policy:
       backoff_strategy:
         type: fixed
         backoff_delay_seconds: 5
-        max_retries: 5
-        last_retry_interval_seconds: 60
-      restart_exit_codes: [1, 2]
 "#;
 
-const RANDOM_CMDS_TYPE: &str = r#"
-namespace: davidsanchez
-name: random-commands
+const NRDOT_TYPE: &str = r#"
+namespace: newrelic
+name: io.opentelemetry.collector
 version: 0.0.1
 variables:
-  sleep:
-    description: "Destination IP to make pings"
-    type: string
-    required: true
-  message:
-    description: "Content to output with 'echo'"
+  config_file:
+    description: "Newrelic otel collector configuration path"
     type: string
     required: false
-    default: "Supervisor!"
+    default: /etc/nr-otel-collector/config.yaml
+  otel_exporter_otlp_endpoint:
+    description: "Endpoint where NRDOT will send data"
+    type: string
+    required: false
+    default: "otlp.nr-data.net:4317"
+  new_relic_memory_limit_mib:
+    description: "Memory limit for the NRDOT process"
+    type: number
+    required: false
+    default: 100
 deployment:
   on_host:
     executables:
-      - path: /bin/sleep
-        args: "${sleep}"
+      - path: /usr/bin/nr-otel-collector
+        args: "--config=${config_file} --feature-gates=-pkg.translator.prometheus.NormalizeName"
+        env: "OTEL_EXPORTER_OTLP_ENDPOINT=${otel_exporter_otlp_endpoint} NEW_RELIC_MEMORY_LIMIT_MIB=${new_relic_memory_limit_mib}"
     restart_policy:
       backoff_strategy:
         type: fixed
-        backoff_delay_seconds: 1
-        max_retries: 0
-        last_retry_interval_seconds: 60
-"#;
-
-const _NRDOT_TYPE: &str = r#"
-namespace: newrelic
-name: nrdot
-version: 0.1.0
-variables:
-  deployment:
-    on_host:
-      path:
-        description: "Path to the agent"
-        type: string
-        required: true
-      args:
-        description: "Args passed to the agent"
-        type: string
-        required: true
-deployment:
-  on_host:
-    executables:
-      - path: ${deployment.on_host.path}/otelcol
-        args: "-c ${deployment.on_host.args}"
-        env: ""
+        backoff_delay_seconds: 5
 "#;
