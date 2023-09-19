@@ -318,7 +318,7 @@ mod tests {
             >,
             AgentError,
         > {
-            new_sleep_supervisor_group(tx, opamp_client_builder.as_ref().unwrap())
+            new_sleep_supervisor_group(tx, Some(opamp_client_builder.as_ref().unwrap()))
         }
     }
 
