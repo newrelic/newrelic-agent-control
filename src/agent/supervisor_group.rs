@@ -167,7 +167,7 @@ fn start_settings(instance_id: String, agent_fqn: &AgentTypeFQN) -> StartSetting
                 ("service.version".to_string(), agent_fqn.version().into()),
             ]),
             non_identifying_attributes: HashMap::from([(
-                "hostname".to_string(),
+                "host.name".to_string(),
                 get_hostname().into(),
             )]),
         },
@@ -474,7 +474,7 @@ pub mod tests {
         );
         assert_eq!(
             settings.agent_description.non_identifying_attributes,
-            HashMap::from([("hostname".to_string(), hostname)])
+            HashMap::from([("host.name".to_string(), hostname)])
         );
     }
 }

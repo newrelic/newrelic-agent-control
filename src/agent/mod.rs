@@ -179,7 +179,7 @@ where
                             ("service.version".to_string(), SUPER_AGENT_VERSION.into()),
                         ]),
                         non_identifying_attributes: HashMap::from([(
-                            "hostname".to_string(),
+                            "host.name".to_string(),
                             gethostname()
                                 .unwrap_or_default()
                                 .into_string()
@@ -370,7 +370,7 @@ mod tests {
                     ("service.version".to_string(), SUPER_AGENT_VERSION.into()),
                 ]),
                 non_identifying_attributes: HashMap::from([(
-                    "hostname".to_string(),
+                    "host.name".to_string(),
                     gethostname()
                         .unwrap_or_default()
                         .into_string()
