@@ -5,9 +5,9 @@
 
 agents:
 #  nr_infra_agent:
-#    agent_type: "newrelic/newrelic-infra:0.0.1"
+#    agent_type: "newrelic/com.newrelic.infrastructure_agent:0.0.1"
 #    values_file: "/home/username/newrelic/super_agent/nr_infra_agent.yml"
 #  nr_otel_collector:
-#    agent_type: "newrelic/nrdot:0.0.1"
+#    agent_type: "newrelic/io.opentelemetry.collector:0.0.1"
 #    values_file: "/home/username/newrelic/super_agent/nr_otel_collector.yml"
 
