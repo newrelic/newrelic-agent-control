@@ -24,7 +24,7 @@ regex = "1.9.3"
 tempfile = "3.8.0"
 uuid = { version = "1.4.1", features = ["v4"] }
 aquamarine = "0.3.2"
-opamp-client = { git = "ssh://git@github.com/newrelic/opamp-rs.git", rev = "feb1a02f3fdb5e1b7d604f36cd00fae5b779c0af" }
+opamp-client = { git = "ssh://git@github.com/newrelic/opamp-rs.git" }
 futures = "0.3.28"
 mockall = "0.11.4"
 async-trait = "0.1.71"

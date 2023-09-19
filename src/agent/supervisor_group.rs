@@ -261,34 +261,32 @@ pub mod tests {
     // generic agents one with one exec and the other with 2
     pub fn new_sleep_supervisor_group<B: OpAMPClientBuilder>(
         tx: Sender<Event>,
-        builder: &B,
+        builder: Option<&B>,
     ) -> Result<SupervisorGroup<B::Client, Stopped>, AgentError> {
         let group: HashMap<AgentID, AgentRunner<B::Client, Stopped>> = HashMap::from([
             (
                 AgentID("sleep_5".to_string()),
                 AgentRunner::new(
-                    Some(
-                        builder
-                            .build(StartSettings {
-                                instance_id: "testing".to_string(),
-                                ..Default::default()
-                            })
-                            .unwrap(),
-                    ),
+                    builder.map(|b| {
+                        b.build(StartSettings {
+                            instance_id: "testing".to_string(),
+                            ..Default::default()
+                        })
+                        .unwrap()
+                    }),
                     vec![new_sleep_supervisor(tx.clone(), 5)],
                 ),
             ),
             (
                 AgentID("sleep_10".to_string()),
                 AgentRunner::new(
-                    Some(
-                        builder
-                            .build(StartSettings {
-                                instance_id: "testing".to_string(),
-                                ..Default::default()
-                            })
-                            .unwrap(),
-                    ),
+                    builder.map(|b| {
+                        b.build(StartSettings {
+                            instance_id: "testing".to_string(),
+                            ..Default::default()
+                        })
+                        .unwrap()
+                    }),
                     vec![
                         new_sleep_supervisor(tx.clone(), 10),
                         new_sleep_supervisor(tx.clone(), 10),
@@ -297,6 +295,59 @@ pub mod tests {
             ),
         ]);
         Ok(SupervisorGroup(group))
+    }
+
+    #[test]
+    fn run_stop_without_opamp() {
+        let (tx, _) = std::sync::mpsc::channel();
+        let supervisor_group =
+            new_sleep_supervisor_group::<MockOpAMPClientBuilderMock>(tx, None).unwrap();
+        let running_supervisor_group = supervisor_group.run();
+        assert!(
+            running_supervisor_group.is_ok(),
+            "unable to run supervisor_group without opamp"
+        );
+        assert!(
+            running_supervisor_group.unwrap().stop().is_ok(),
+            "unable to stop supervisor_group without opamp"
+        );
+    }
+
+    #[test]
+    fn run_stop_with_opamp() {
+        let mut opamp_builder = MockOpAMPClientBuilderMock::new();
+
+        // the sleep supervisor group contains two agents running, each one should do the following
+        // OpAMP client calls in the supervisor_group methods:
+        // - run: start + set_health
+        // - stop: stop + set_health
+        opamp_builder.expect_build().times(2).returning(|_| {
+            let mut opamp_client = MockOpAMPClientMock::new();
+            opamp_client.expect_start().with().once().returning(|| {
+                let mut started_client = MockOpAMPClientMock::new();
+                started_client.expect_stop().once().returning(|| Ok(()));
+                started_client
+                    .expect_set_health()
+                    .times(2)
+                    .returning(|_| Ok(()));
+                Ok(started_client)
+            });
+
+            Ok(opamp_client)
+        });
+
+        let (tx, _) = std::sync::mpsc::channel();
+
+        let supervisor_group = new_sleep_supervisor_group(tx, Some(&opamp_builder)).unwrap();
+        let running_supervisor_group = supervisor_group.run();
+        assert!(
+            running_supervisor_group.is_ok(),
+            "unable to run supervisor_group with opamp"
+        );
+        assert!(
+            running_supervisor_group.unwrap().stop().is_ok(),
+            "unable to stop supervisor_group with opamp"
+        );
     }
 
     #[test]
