@@ -13,6 +13,7 @@ builds:
         - cmd: sh ./build/scripts/replace_go_with_rust.sh
           env:
             - ARCH={{ .Arch }}
+            - SSH_KEY_RUST_CRATES={{  .Env.SSH_KEY_RUST_CRATES }}
         - cmd: sh ./build/scripts/download_embedded.sh
           env:
             - ARCH={{ .Arch }}

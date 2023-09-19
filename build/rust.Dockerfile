@@ -24,4 +24,11 @@ ENV ARCH_NAME=${ARCH_NAME} \
     CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
     CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++
 
+RUN mkdir ~/.ssh/
+
+ARG SSH_KEY_RUST_CRATES
+
+RUN echo "$SSH_KEY_RUST_CRATES" > ~/.ssh/ida_rsa
+RUN chmod 600  ~/.ssh/ida_rsa
+
 CMD cargo build --release --target "${ARCH_NAME}-unknown-linux-gnu"

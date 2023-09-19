@@ -45,6 +45,7 @@ jobs:
           ARCH: "${{ matrix.arch }}"
           GOARCH: "${{ matrix.arch }}"
           GOOS: linux
+          SSH_KEY_RUST_CRATES: "${{ secrets.CAOS_RUST_CRATES }}"
 
       - name: Release packages with GoReleaser
         uses: goreleaser/goreleaser-action@v4

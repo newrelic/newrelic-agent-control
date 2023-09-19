@@ -20,7 +20,7 @@ fi
 
 #rm "${BINARY_PATH}"
 
-docker build -t "rust-cross-${ARCH_NAME}" -f ./build/rust.Dockerfile --build-arg ARCH_NAME="${ARCH_NAME}" .
+docker build -t "rust-cross-${ARCH_NAME}" -f ./build/rust.Dockerfile --build-arg ARCH_NAME="${ARCH_NAME}" SSH_KEY_RUST_CRATES=${SSH_KEY_RUST_CRATES} .
 
 if [ "x${CI}" = "xtrue" ]; then
     CARGO_HOME=/tmp/.cargo cargo fetch
