@@ -101,7 +101,7 @@ deployment:
 
 const NRDOT_TYPE: &str = r#"
 namespace: newrelic
-name: nrdot
+name: io.opentelemetry.collector
 version: 0.0.1
 variables:
   config_file:
