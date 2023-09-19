@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::string::ToString;
 use std::{
     fs,
@@ -5,8 +6,9 @@ use std::{
 };
 
 use futures::executor::block_on;
+use nix::unistd::gethostname;
 use opamp_client::opamp::proto::AgentCapabilities;
-use opamp_client::operation::settings::StartSettings;
+use opamp_client::operation::settings::{AgentDescription, DescriptionValueType, StartSettings};
 use opamp_client::{capabilities, OpAMPClient, OpAMPClientHandle};
 use tracing::{error, info};
 
@@ -32,6 +34,9 @@ pub mod instance_id;
 pub mod supervisor_group;
 
 const SUPER_AGENT_ID: &str = "super-agent";
+const SUPER_AGENT_TYPE: &str = "com.newrelic.meta_agent";
+const SUPER_AGENT_NAMESPACE: &str = "newrelic";
+const SUPER_AGENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Clone)]
 pub enum AgentEvent {
@@ -164,6 +169,24 @@ where
                 let opamp_client = builder.build(StartSettings {
                     instance_id: self.instance_id_getter.get(SUPER_AGENT_ID.to_string()),
                     capabilities: capabilities!(AgentCapabilities::ReportsHealth),
+                    agent_description: AgentDescription {
+                        identifying_attributes: HashMap::<String, DescriptionValueType>::from([
+                            ("service.name".to_string(), SUPER_AGENT_TYPE.into()),
+                            (
+                                "service.namespace".to_string(),
+                                SUPER_AGENT_NAMESPACE.into(),
+                            ),
+                            ("service.version".to_string(), SUPER_AGENT_VERSION.into()),
+                        ]),
+                        non_identifying_attributes: HashMap::from([(
+                            "host.name".to_string(),
+                            gethostname()
+                                .unwrap_or_default()
+                                .into_string()
+                                .unwrap()
+                                .into(),
+                        )]),
+                    },
                 })?;
                 let mut opamp_client_handle = block_on(opamp_client.start()).unwrap();
 
@@ -266,7 +289,7 @@ fn load_agent_cfgs<Repo: AgentRepository>(
 ) -> Result<LocalRepository, AgentError> {
     let mut effective_agent_repository = LocalRepository::default();
     for (k, agent_cfg) in agent_cfgs.agents.iter() {
-        let agent_type = agent_type_repository.get(&agent_cfg.agent_type)?;
+        let agent_type = agent_type_repository.get(&agent_cfg.agent_type.to_string())?;
 
         let contents = fs::read_to_string(&agent_cfg.values_file)?;
         let agent_config: SupervisorConfig = serde_yaml::from_str(&contents)?;
@@ -282,22 +305,30 @@ mod tests {
     use crate::agent::error::AgentError;
     use crate::agent::instance_id::test::MockInstanceIDGetterMock;
     use crate::agent::instance_id::InstanceIDGetter;
-    use crate::agent::{Agent, AgentEvent, SUPER_AGENT_ID};
+    use crate::agent::{
+        Agent, AgentEvent, SUPER_AGENT_ID, SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE,
+        SUPER_AGENT_VERSION,
+    };
     use crate::config::agent_type_registry::{AgentRepository, LocalRepository};
     use crate::context::Context;
     use crate::opamp::client_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock};
     use crate::opamp::client_builder::OpAMPClientBuilder;
     use mockall::predicate;
+    use nix::unistd::gethostname;
     use opamp_client::capabilities;
     use opamp_client::opamp::proto::AgentCapabilities;
     use opamp_client::operation::capabilities::Capabilities;
-    use opamp_client::operation::settings::StartSettings;
+    use opamp_client::operation::settings::{
+        AgentDescription, DescriptionValueType, StartSettings,
+    };
+    use std::collections::HashMap;
     use std::thread::{sleep, spawn};
     use std::time::Duration;
 
     use super::{supervisor_group::tests::new_sleep_supervisor_group, SupervisorGroupResolver};
 
     struct MockedSleepGroupResolver;
+
     impl<Repo, OpAMPBuilder, ID> SupervisorGroupResolver<Repo, OpAMPBuilder, ID>
         for MockedSleepGroupResolver
     where
@@ -318,7 +349,7 @@ mod tests {
             >,
             AgentError,
         > {
-            new_sleep_supervisor_group(tx, opamp_client_builder.as_ref().unwrap())
+            new_sleep_supervisor_group(tx, Some(opamp_client_builder.as_ref().unwrap()))
         }
     }
 
@@ -329,6 +360,24 @@ mod tests {
         let start_settings = StartSettings {
             instance_id: SUPER_AGENT_ID.to_string(),
             capabilities: capabilities!(AgentCapabilities::ReportsHealth),
+            agent_description: AgentDescription {
+                identifying_attributes: HashMap::<String, DescriptionValueType>::from([
+                    ("service.name".to_string(), SUPER_AGENT_TYPE.into()),
+                    (
+                        "service.namespace".to_string(),
+                        SUPER_AGENT_NAMESPACE.into(),
+                    ),
+                    ("service.version".to_string(), SUPER_AGENT_VERSION.into()),
+                ]),
+                non_identifying_attributes: HashMap::from([(
+                    "host.name".to_string(),
+                    gethostname()
+                        .unwrap_or_default()
+                        .into_string()
+                        .unwrap()
+                        .into(),
+                )]),
+            },
         };
 
         opamp_builder
@@ -353,6 +402,7 @@ mod tests {
         let start_settings = StartSettings {
             instance_id: "testing".to_string(),
             capabilities: Capabilities::default(),
+            ..Default::default()
         };
 
         opamp_builder

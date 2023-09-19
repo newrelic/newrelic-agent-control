@@ -2,13 +2,15 @@ use std::time::{SystemTime, SystemTimeError};
 use std::{collections::HashMap, sync::mpsc::Sender, thread::JoinHandle};
 
 use futures::executor::block_on;
+use nix::unistd::gethostname;
 use opamp_client::opamp::proto::{AgentCapabilities, AgentHealth};
-use opamp_client::operation::settings::StartSettings;
+use opamp_client::operation::settings::{AgentDescription, StartSettings};
 use opamp_client::{capabilities, OpAMPClient, OpAMPClientHandle};
 use thiserror::Error;
 use tracing::info;
 
 use crate::agent::instance_id::InstanceIDGetter;
+use crate::config::agent_configs::AgentTypeFQN;
 use crate::config::agent_type_registry::AgentRepositoryError;
 use crate::{
     command::stream::Event,
@@ -80,8 +82,8 @@ where
     {
         let agent_runners = cfg
             .agents
-            .keys()
-            .map(|agent_t| {
+            .iter()
+            .map(|(agent_t, agent_supervisor_config)| {
                 let agent = effective_agent_repository.get(&agent_t.clone().get())?;
 
                 let on_host = agent
@@ -93,10 +95,10 @@ where
 
                 let (id, runner) = build_on_host_runners(&tx, agent_t, on_host);
                 let opamp_client = match &opamp_builder {
-                    Some(builder) => Some(builder.build(StartSettings {
-                        instance_id: instance_id_getter.get(id.clone().get()),
-                        capabilities: capabilities!(AgentCapabilities::ReportsHealth),
-                    })?),
+                    Some(builder) => Some(builder.build(start_settings(
+                        instance_id_getter.get(id.clone().get()),
+                        &agent_supervisor_config.agent_type,
+                    ))?),
                     None => None,
                 };
                 Ok((id.clone(), AgentRunner::new(opamp_client, runner)))
@@ -149,6 +151,35 @@ where
             .collect();
         Ok(SupervisorGroup(running?))
     }
+}
+
+fn start_settings(instance_id: String, agent_fqn: &AgentTypeFQN) -> StartSettings {
+    StartSettings {
+        instance_id,
+        capabilities: capabilities!(AgentCapabilities::ReportsHealth),
+        agent_description: AgentDescription {
+            identifying_attributes: HashMap::from([
+                ("service.name".to_string(), agent_fqn.name().into()),
+                (
+                    "service.namespace".to_string(),
+                    agent_fqn.namespace().into(),
+                ),
+                ("service.version".to_string(), agent_fqn.version().into()),
+            ]),
+            non_identifying_attributes: HashMap::from([(
+                "host.name".to_string(),
+                get_hostname().into(),
+            )]),
+        },
+    }
+}
+
+fn get_hostname() -> String {
+    #[cfg(unix)]
+    return gethostname().unwrap_or_default().into_string().unwrap();
+
+    #[cfg(not(unix))]
+    return unimplemented!();
 }
 
 impl<C> SupervisorGroup<C, Running>
@@ -209,7 +240,6 @@ fn build_on_host_runners(
 
 #[cfg(test)]
 pub mod tests {
-    use opamp_client::operation::capabilities::Capabilities;
 
     use super::*;
 
@@ -231,34 +261,32 @@ pub mod tests {
     // generic agents one with one exec and the other with 2
     pub fn new_sleep_supervisor_group<B: OpAMPClientBuilder>(
         tx: Sender<Event>,
-        builder: &B,
+        builder: Option<&B>,
     ) -> Result<SupervisorGroup<B::Client, Stopped>, AgentError> {
         let group: HashMap<AgentID, AgentRunner<B::Client, Stopped>> = HashMap::from([
             (
                 AgentID("sleep_5".to_string()),
                 AgentRunner::new(
-                    Some(
-                        builder
-                            .build(StartSettings {
-                                instance_id: "testing".to_string(),
-                                capabilities: Capabilities::default(),
-                            })
-                            .unwrap(),
-                    ),
+                    builder.map(|b| {
+                        b.build(StartSettings {
+                            instance_id: "testing".to_string(),
+                            ..Default::default()
+                        })
+                        .unwrap()
+                    }),
                     vec![new_sleep_supervisor(tx.clone(), 5)],
                 ),
             ),
             (
                 AgentID("sleep_10".to_string()),
                 AgentRunner::new(
-                    Some(
-                        builder
-                            .build(StartSettings {
-                                instance_id: "testing".to_string(),
-                                capabilities: Capabilities::default(),
-                            })
-                            .unwrap(),
-                    ),
+                    builder.map(|b| {
+                        b.build(StartSettings {
+                            instance_id: "testing".to_string(),
+                            ..Default::default()
+                        })
+                        .unwrap()
+                    }),
                     vec![
                         new_sleep_supervisor(tx.clone(), 10),
                         new_sleep_supervisor(tx.clone(), 10),
@@ -270,13 +298,66 @@ pub mod tests {
     }
 
     #[test]
+    fn run_stop_without_opamp() {
+        let (tx, _) = std::sync::mpsc::channel();
+        let supervisor_group =
+            new_sleep_supervisor_group::<MockOpAMPClientBuilderMock>(tx, None).unwrap();
+        let running_supervisor_group = supervisor_group.run();
+        assert!(
+            running_supervisor_group.is_ok(),
+            "unable to run supervisor_group without opamp"
+        );
+        assert!(
+            running_supervisor_group.unwrap().stop().is_ok(),
+            "unable to stop supervisor_group without opamp"
+        );
+    }
+
+    #[test]
+    fn run_stop_with_opamp() {
+        let mut opamp_builder = MockOpAMPClientBuilderMock::new();
+
+        // the sleep supervisor group contains two agents running, each one should do the following
+        // OpAMP client calls in the supervisor_group methods:
+        // - run: start + set_health
+        // - stop: stop + set_health
+        opamp_builder.expect_build().times(2).returning(|_| {
+            let mut opamp_client = MockOpAMPClientMock::new();
+            opamp_client.expect_start().with().once().returning(|| {
+                let mut started_client = MockOpAMPClientMock::new();
+                started_client.expect_stop().once().returning(|| Ok(()));
+                started_client
+                    .expect_set_health()
+                    .times(2)
+                    .returning(|_| Ok(()));
+                Ok(started_client)
+            });
+
+            Ok(opamp_client)
+        });
+
+        let (tx, _) = std::sync::mpsc::channel();
+
+        let supervisor_group = new_sleep_supervisor_group(tx, Some(&opamp_builder)).unwrap();
+        let running_supervisor_group = supervisor_group.run();
+        assert!(
+            running_supervisor_group.is_ok(),
+            "unable to run supervisor_group with opamp"
+        );
+        assert!(
+            running_supervisor_group.unwrap().stop().is_ok(),
+            "unable to stop supervisor_group with opamp"
+        );
+    }
+
+    #[test]
     fn new_supervisor_group_with_opamp_builder() {
         let (tx, _) = std::sync::mpsc::channel();
         let agent_config = SuperAgentConfig {
             agents: HashMap::from([(
                 AgentID("agent".to_string()),
                 AgentSupervisorConfig {
-                    agent_type: "".to_string(),
+                    agent_type: "".into(),
                     values_file: "".to_string(),
                 },
             )]),
@@ -309,10 +390,10 @@ pub mod tests {
         );
 
         // Case with no valid key
-        assert_eq!(true, supervisor_group.is_err());
+        assert!(supervisor_group.is_err());
 
         // Case with valid key but not value
-        _ = repository
+        repository
             .store_with_key(
                 "agent".to_string(),
                 Agent {
@@ -333,7 +414,7 @@ pub mod tests {
             &instance_id_getter,
         );
 
-        assert_eq!(true, supervisor_group.is_err());
+        assert!(supervisor_group.is_err());
 
         // Valid case with valid full data
         let mut repository = LocalRepository::default();
@@ -367,6 +448,33 @@ pub mod tests {
             Some(&opamp_builder),
             &instance_id_getter,
         );
-        assert_eq!(supervisor_group.unwrap().0.iter().count(), 1)
+        assert_eq!(supervisor_group.unwrap().0.len(), 1)
+    }
+
+    #[test]
+    fn test_start_settings() {
+        let instance_id = "test-instance".to_string();
+        let agent_fqn = AgentTypeFQN::from("test-namespace/test-agent-type:1.0.0");
+
+        let settings = start_settings(instance_id.clone(), &agent_fqn);
+        let hostname = get_hostname().into();
+
+        assert_eq!(settings.instance_id, instance_id);
+        assert_eq!(
+            settings.capabilities,
+            capabilities!(AgentCapabilities::ReportsHealth)
+        );
+        assert_eq!(
+            settings.agent_description.identifying_attributes,
+            HashMap::from([
+                ("service.name".to_string(), "test-agent-type".into()),
+                ("service.namespace".to_string(), "test-namespace".into()),
+                ("service.version".to_string(), "1.0.0".into())
+            ])
+        );
+        assert_eq!(
+            settings.agent_description.non_identifying_attributes,
+            HashMap::from([("host.name".to_string(), hostname)])
+        );
     }
 }
