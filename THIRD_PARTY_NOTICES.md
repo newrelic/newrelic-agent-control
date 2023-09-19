@@ -951,7 +951,7 @@ Distributed under the following license(s):
 
 
 
-## opamp-client (git+ssh://git@github.com/newrelic/opamp-rs.git?rev=532f9f5#532f9f5410a18a58b572c184cae5f5ec602bac08)
+## opamp-client (git+ssh://git@github.com/newrelic/opamp-rs.git#0ea1c104a08af53dd6c919b6e8264383c10962b8)
 
 Distributed under the following license(s):
 * Apache-2.0
