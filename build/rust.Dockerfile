@@ -1,5 +1,5 @@
 ARG RUST_VERSION=1.71.1
-FROM rust:${RUST_VERSION}
+FROM rust:${RUST_VERSION}-buster
 
 RUN apt update && apt upgrade -y
 
