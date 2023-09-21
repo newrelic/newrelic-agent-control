@@ -358,7 +358,7 @@ pub mod tests {
                 AgentID("agent".to_string()),
                 AgentSupervisorConfig {
                     agent_type: "".into(),
-                    values_file: "".to_string(),
+                    values_file: None,
                 },
             )]),
             opamp: Some(crate::config::agent_configs::OpAMPClientConfig::default()),

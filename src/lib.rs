@@ -6,3 +6,4 @@ pub mod context;
 pub mod logging;
 pub mod opamp;
 pub mod supervisor;
+pub mod file_reader;

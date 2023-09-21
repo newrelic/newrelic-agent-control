@@ -9,6 +9,7 @@ use crate::{
     },
     opamp::client_builder::OpAMPClientBuilderError,
 };
+use crate::file_reader::FileReaderError;
 
 use super::supervisor_group::SupervisorGroupError;
 
@@ -37,4 +38,7 @@ pub enum AgentError {
 
     #[error("`{0}`")]
     SupervisorGroupError(#[from] SupervisorGroupError),
+
+    #[error("file reader error: `{0}`")]
+    FileReaderError(#[from] FileReaderError),
 }

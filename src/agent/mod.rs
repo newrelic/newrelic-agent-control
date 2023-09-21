@@ -1,9 +1,7 @@
 use std::collections::HashMap;
 use std::string::ToString;
-use std::{
-    fs,
-    sync::mpsc::{self, Sender},
-};
+use std::sync::mpsc::{self, Sender};
+use std::error::Error;
 
 use futures::executor::block_on;
 use nix::unistd::gethostname;
@@ -14,17 +12,12 @@ use tracing::{error, info};
 
 use crate::agent::instance_id::{InstanceIDGetter, ULIDInstanceIDGetter};
 use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPHttpBuilder};
-use crate::{
-    agent::supervisor_group::SupervisorGroup,
-    command::{stream::Event, EventLogger, StdEventReceiver},
-    config::{
-        agent_configs::{AgentID, SuperAgentConfig},
-        agent_type_registry::{AgentRepository, LocalRepository},
-        supervisor_config::SupervisorConfig,
-    },
-    context::Context,
-    supervisor::runner::Stopped,
-};
+use crate::{agent::supervisor_group::SupervisorGroup, command::{stream::Event, EventLogger, StdEventReceiver}, config::{
+    agent_configs::{AgentID, SuperAgentConfig},
+    agent_type_registry::{AgentRepository, LocalRepository},
+    supervisor_config::SupervisorConfig,
+}, context::Context, supervisor::runner::Stopped};
+use crate::file_reader::{FileReader, FSFileReader};
 
 use self::error::AgentError;
 
@@ -116,7 +109,8 @@ where
         opamp_client_builder: Option<OpAMPBuilder>,
         instance_id_getter: ID,
     ) -> Result<Self, AgentError> {
-        let effective_agent_repository = load_agent_cfgs(&agent_type_repository, &cfg)?;
+        let reader = FSFileReader::new();
+        let effective_agent_repository = load_agent_cfgs(&agent_type_repository, &reader, &cfg)?;
 
         Ok(Self {
             resolver: cfg,
@@ -283,18 +277,20 @@ where
     }
 }
 
-fn load_agent_cfgs<Repo: AgentRepository>(
+fn load_agent_cfgs<Repo: AgentRepository, Reader: FileReader>(
     agent_type_repository: &Repo,
+    reader: &Reader,
     agent_cfgs: &SuperAgentConfig,
 ) -> Result<LocalRepository, AgentError> {
     let mut effective_agent_repository = LocalRepository::default();
     for (k, agent_cfg) in agent_cfgs.agents.iter() {
         let agent_type = agent_type_repository.get(&agent_cfg.agent_type.to_string())?;
-
-        let contents = fs::read_to_string(&agent_cfg.values_file)?;
+        let mut contents= String::default();
+        if let Some(path) = &agent_cfg.values_file {
+            contents = reader.read(path)?;
+        }
         let agent_config: SupervisorConfig = serde_yaml::from_str(&contents)?;
-
-        let populated_agent = agent_type.clone().populate(agent_config)?;
+        let populated_agent = agent_type.clone().populate(agent_config).unwrap();
         effective_agent_repository.store_with_key(k.get(), populated_agent)?;
     }
     Ok(effective_agent_repository)
@@ -305,10 +301,7 @@ mod tests {
     use crate::agent::error::AgentError;
     use crate::agent::instance_id::test::MockInstanceIDGetterMock;
     use crate::agent::instance_id::InstanceIDGetter;
-    use crate::agent::{
-        Agent, AgentEvent, SUPER_AGENT_ID, SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE,
-        SUPER_AGENT_VERSION,
-    };
+    use crate::agent::{Agent, AgentEvent, load_agent_cfgs, SUPER_AGENT_ID, SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION};
     use crate::config::agent_type_registry::{AgentRepository, LocalRepository};
     use crate::context::Context;
     use crate::opamp::client_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock};
@@ -324,6 +317,9 @@ mod tests {
     use std::collections::HashMap;
     use std::thread::{sleep, spawn};
     use std::time::Duration;
+    use crate::config::agent_configs::{AgentID, AgentSupervisorConfig, SuperAgentConfig};
+    use crate::config::agent_type::{TrivialValue, VariableType};
+    use crate::file_reader::test::MockFileReaderMock;
 
     use super::{supervisor_group::tests::new_sleep_supervisor_group, SupervisorGroupResolver};
 
@@ -455,5 +451,98 @@ mod tests {
             }
         });
         assert!(agent.run(ctx).is_ok())
+    }
+
+    const FIRST_TYPE: &str = r#"
+namespace: newrelic
+name: first
+version: 0.1.0
+variables:
+  config:
+    description: "config file"
+    type: file
+    required: false
+    default: |
+        license_key: abc123
+        staging: true
+deployment:
+  on_host:
+    executables:
+      - path: /opt/first
+        args: "--config ${config}"
+        env: ""
+"#;
+
+    const SECOND_TYPE: &str = r#"
+namespace: newrelic
+name: second
+version: 0.1.0
+variables:
+  deployment:
+    on_host:
+      path:
+        description: "Path to the agent"
+        type: string
+        required: true
+      args:
+        description: "Args passed to the agent"
+        type: string
+        required: false
+        default: "an-arg"
+deployment:
+  on_host:
+    executables:
+      - path: ${deployment.on_host.path}/otelcol
+        args: "-c ${deployment.on_host.args}"
+        env: ""
+"#;
+
+    #[test]
+    fn load_agent_cfgs_test() {
+        let mut local_agent_type_repository = LocalRepository::new();
+        _ = local_agent_type_repository.store_from_yaml(FIRST_TYPE.as_bytes());
+        _ = local_agent_type_repository.store_from_yaml(SECOND_TYPE.as_bytes());
+
+        let mut file_reader_mock = MockFileReaderMock::new();
+
+        file_reader_mock
+            .expect_read()
+            .with(predicate::eq("second.yaml".to_string()))
+            .times(1)
+            .returning(|_| {
+                Ok("deployment.on_host.path: another-path".to_string())
+            });
+
+        let agent_config = SuperAgentConfig {
+            agents: HashMap::from([
+                (
+                    AgentID("first".to_string()),
+                    AgentSupervisorConfig {
+                        agent_type: "newrelic/first:0.1.0".into(),
+                        values_file: None,
+                    },
+                ),
+                (
+                    AgentID("second".to_string()),
+                    AgentSupervisorConfig {
+                        agent_type: "newrelic/second:0.1.0".into(),
+                        values_file: Some("second.yaml".to_string()),
+                    },
+                ),
+            ]),
+            opamp: None,
+        };
+
+        let effective_agent_repository = load_agent_cfgs(
+            &local_agent_type_repository,
+            &file_reader_mock,
+            &agent_config
+        ).unwrap();
+
+
+        let first_agent = effective_agent_repository.get("first").unwrap();
+        let file = first_agent.variables.get("config").unwrap().final_value.clone().unwrap();
+        let TrivialValue::File(f) = file else { todo!() };
+        assert_eq!("license_key: abc123\nstaging: true\n", f.content);
     }
 }
