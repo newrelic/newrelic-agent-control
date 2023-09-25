@@ -2,6 +2,7 @@ use std::fmt::Debug;
 
 use thiserror::Error;
 
+use crate::file_reader::FileReaderError;
 use crate::{
     config::{
         agent_type::AgentTypeError, agent_type_registry::AgentRepositoryError,
@@ -9,7 +10,6 @@ use crate::{
     },
     opamp::client_builder::OpAMPClientBuilderError,
 };
-use crate::file_reader::FileReaderError;
 
 use super::supervisor_group::SupervisorGroupError;
 

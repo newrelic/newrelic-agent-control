@@ -1,7 +1,6 @@
-
-use thiserror::Error;
 use std::fs::read_to_string;
 use std::io::Error as ioError;
+use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum FileReaderError {
@@ -10,7 +9,7 @@ pub enum FileReaderError {
 }
 
 pub trait FileReader {
-    fn read(&self, path:&String) -> Result<String, FileReaderError>;
+    fn read(&self, path: &String) -> Result<String, FileReaderError>;
 }
 
 #[derive(Default)]
@@ -22,7 +21,7 @@ impl FSFileReader {
     }
 }
 impl FileReader for FSFileReader {
-    fn read(&self, path:&String) -> Result<String, FileReaderError> {
+    fn read(&self, path: &String) -> Result<String, FileReaderError> {
         match read_to_string(path) {
             Err(e) => Err(FileReaderError::Read(e)),
             Ok(content) => Ok(content),

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
+use std::error::Error;
 use std::string::ToString;
 use std::sync::mpsc::{self, Sender};
-use std::error::Error;
 
 use futures::executor::block_on;
 use nix::unistd::gethostname;
@@ -11,13 +11,19 @@ use opamp_client::{capabilities, OpAMPClient, OpAMPClientHandle};
 use tracing::{error, info};
 
 use crate::agent::instance_id::{InstanceIDGetter, ULIDInstanceIDGetter};
+use crate::file_reader::{FSFileReader, FileReader};
 use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPHttpBuilder};
-use crate::{agent::supervisor_group::SupervisorGroup, command::{stream::Event, EventLogger, StdEventReceiver}, config::{
-    agent_configs::{AgentID, SuperAgentConfig},
-    agent_type_registry::{AgentRepository, LocalRepository},
-    supervisor_config::SupervisorConfig,
-}, context::Context, supervisor::runner::Stopped};
-use crate::file_reader::{FileReader, FSFileReader};
+use crate::{
+    agent::supervisor_group::SupervisorGroup,
+    command::{stream::Event, EventLogger, StdEventReceiver},
+    config::{
+        agent_configs::{AgentID, SuperAgentConfig},
+        agent_type_registry::{AgentRepository, LocalRepository},
+        supervisor_config::SupervisorConfig,
+    },
+    context::Context,
+    supervisor::runner::Stopped,
+};
 
 use self::error::AgentError;
 
@@ -285,7 +291,7 @@ fn load_agent_cfgs<Repo: AgentRepository, Reader: FileReader>(
     let mut effective_agent_repository = LocalRepository::default();
     for (k, agent_cfg) in agent_cfgs.agents.iter() {
         let agent_type = agent_type_repository.get(&agent_cfg.agent_type.to_string())?;
-        let mut contents= String::default();
+        let mut contents = String::default();
         if let Some(path) = &agent_cfg.values_file {
             contents = reader.read(path)?;
         }
@@ -301,9 +307,15 @@ mod tests {
     use crate::agent::error::AgentError;
     use crate::agent::instance_id::test::MockInstanceIDGetterMock;
     use crate::agent::instance_id::InstanceIDGetter;
-    use crate::agent::{Agent, AgentEvent, load_agent_cfgs, SUPER_AGENT_ID, SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION};
+    use crate::agent::{
+        load_agent_cfgs, Agent, AgentEvent, SUPER_AGENT_ID, SUPER_AGENT_NAMESPACE,
+        SUPER_AGENT_TYPE, SUPER_AGENT_VERSION,
+    };
+    use crate::config::agent_configs::{AgentID, AgentSupervisorConfig, SuperAgentConfig};
+    use crate::config::agent_type::{TrivialValue, VariableType};
     use crate::config::agent_type_registry::{AgentRepository, LocalRepository};
     use crate::context::Context;
+    use crate::file_reader::test::MockFileReaderMock;
     use crate::opamp::client_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock};
     use crate::opamp::client_builder::OpAMPClientBuilder;
     use mockall::predicate;
@@ -317,9 +329,6 @@ mod tests {
     use std::collections::HashMap;
     use std::thread::{sleep, spawn};
     use std::time::Duration;
-    use crate::config::agent_configs::{AgentID, AgentSupervisorConfig, SuperAgentConfig};
-    use crate::config::agent_type::{TrivialValue, VariableType};
-    use crate::file_reader::test::MockFileReaderMock;
 
     use super::{supervisor_group::tests::new_sleep_supervisor_group, SupervisorGroupResolver};
 
@@ -509,9 +518,7 @@ deployment:
             .expect_read()
             .with(predicate::eq("second.yaml".to_string()))
             .times(1)
-            .returning(|_| {
-                Ok("deployment.on_host.path: another-path".to_string())
-            });
+            .returning(|_| Ok("deployment.on_host.path: another-path".to_string()));
 
         let agent_config = SuperAgentConfig {
             agents: HashMap::from([
@@ -536,12 +543,18 @@ deployment:
         let effective_agent_repository = load_agent_cfgs(
             &local_agent_type_repository,
             &file_reader_mock,
-            &agent_config
-        ).unwrap();
-
+            &agent_config,
+        )
+        .unwrap();
 
         let first_agent = effective_agent_repository.get("first").unwrap();
-        let file = first_agent.variables.get("config").unwrap().final_value.clone().unwrap();
+        let file = first_agent
+            .variables
+            .get("config")
+            .unwrap()
+            .final_value
+            .clone()
+            .unwrap();
         let TrivialValue::File(f) = file else { todo!() };
         assert_eq!("license_key: abc123\nstaging: true\n", f.content);
     }
