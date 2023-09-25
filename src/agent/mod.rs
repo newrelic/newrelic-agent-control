@@ -290,7 +290,7 @@ fn load_agent_cfgs<Repo: AgentRepository, Reader: FileReader>(
             contents = reader.read(path)?;
         }
         let agent_config: SupervisorConfig = serde_yaml::from_str(&contents)?;
-        let populated_agent = agent_type.clone().populate(agent_config).unwrap();
+        let populated_agent = agent_type.clone().populate(agent_config)?;
         effective_agent_repository.store_with_key(k.get(), populated_agent)?;
     }
     Ok(effective_agent_repository)
