@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::error::Error;
 use std::string::ToString;
 use std::sync::mpsc::{self, Sender};
 
@@ -115,7 +114,7 @@ where
         opamp_client_builder: Option<OpAMPBuilder>,
         instance_id_getter: ID,
     ) -> Result<Self, AgentError> {
-        let reader = FSFileReader::new();
+        let reader = FSFileReader;
         let effective_agent_repository = load_agent_cfgs(&agent_type_repository, &reader, &cfg)?;
 
         Ok(Self {
@@ -293,7 +292,7 @@ fn load_agent_cfgs<Repo: AgentRepository, Reader: FileReader>(
         let agent_type = agent_type_repository.get(&agent_cfg.agent_type.to_string())?;
         let mut contents = String::default();
         if let Some(path) = &agent_cfg.values_file {
-            contents = reader.read(path)?;
+            contents = reader.read(path.as_str())?;
         }
         let agent_config: SupervisorConfig = serde_yaml::from_str(&contents)?;
         let populated_agent = agent_type.clone().populate(agent_config)?;

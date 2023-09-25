@@ -9,19 +9,14 @@ pub enum FileReaderError {
 }
 
 pub trait FileReader {
-    fn read(&self, path: &String) -> Result<String, FileReaderError>;
+    fn read(&self, path: &str) -> Result<String, FileReaderError>;
 }
 
 #[derive(Default)]
 pub struct FSFileReader;
 
-impl FSFileReader {
-    pub fn new() -> Self {
-        Self::default()
-    }
-}
 impl FileReader for FSFileReader {
-    fn read(&self, path: &String) -> Result<String, FileReaderError> {
+    fn read(&self, path: &str) -> Result<String, FileReaderError> {
         match read_to_string(path) {
             Err(e) => Err(FileReaderError::Read(e)),
             Ok(content) => Ok(content),
@@ -38,7 +33,7 @@ pub mod test {
         pub FileReaderMock {}
 
         impl FileReader for FileReaderMock {
-            fn read(&self, path:&String) -> Result<String, FileReaderError>;
+            fn read(&self, path:&str) -> Result<String, FileReaderError>;
         }
     }
 }
