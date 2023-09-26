@@ -76,7 +76,7 @@ use super::agent_type::{Agent, AgentTypeError, TrivialValue, TEMPLATE_KEY_SEPARA
 /// Please see the tests in the sources for more examples.
 ///
 /// [agent_type]: crate::config::agent_type
-#[derive(Debug, PartialEq, Deserialize)]
+#[derive(Debug, PartialEq, Deserialize, Default)]
 pub struct SupervisorConfig(Map<String, SupervisorConfigInner>);
 
 #[derive(Debug, PartialEq, Deserialize)]

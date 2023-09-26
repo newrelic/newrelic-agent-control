@@ -290,11 +290,11 @@ fn load_agent_cfgs<Repo: AgentRepository, Reader: FileReader>(
     let mut effective_agent_repository = LocalRepository::default();
     for (k, agent_cfg) in agent_cfgs.agents.iter() {
         let agent_type = agent_type_repository.get(&agent_cfg.agent_type.to_string())?;
-        let mut contents = String::default();
+        let mut agent_config: SupervisorConfig = SupervisorConfig::default();
         if let Some(path) = &agent_cfg.values_file {
-            contents = reader.read(path.as_str())?;
+            let contents = reader.read(path.as_str())?;
+            agent_config = serde_yaml::from_str(&contents)?;
         }
-        let agent_config: SupervisorConfig = serde_yaml::from_str(&contents)?;
         let populated_agent = agent_type.clone().populate(agent_config)?;
         effective_agent_repository.store_with_key(k.get(), populated_agent)?;
     }
@@ -554,7 +554,9 @@ deployment:
             .final_value
             .clone()
             .unwrap();
-        let TrivialValue::File(f) = file else { unreachable!("Not a file") };
+        let TrivialValue::File(f) = file else {
+            unreachable!("Not a file")
+        };
         assert_eq!("license_key: abc123\nstaging: true\n", f.content);
     }
 }
