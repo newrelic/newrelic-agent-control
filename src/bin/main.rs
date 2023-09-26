@@ -83,15 +83,16 @@ namespace: newrelic
 name: com.newrelic.infrastructure_agent
 version: 0.0.1
 variables:
-  config:
-    description: "Newrelic infra configuration yaml"
-    type: file
-    required: true
+  config_file:
+    description: "Newrelic infra configuration path"
+    type: string
+    required: false
+    default: /etc/newrelic-infra.yml
 deployment:
   on_host:
     executables:
       - path: /usr/bin/newrelic-infra
-        args: "--config=${config}"
+        args: "--config=${config_file}"
     restart_policy:
       backoff_strategy:
         type: fixed
@@ -127,30 +128,5 @@ deployment:
     restart_policy:
       backoff_strategy:
         type: fixed
-        backoff_delay_seconds: 1
-        max_retries: 0
-        last_retry_interval_seconds: 60
-"#;
-
-const _NRDOT_TYPE: &str = r#"
-namespace: newrelic
-name: nrdot
-version: 0.1.0
-variables:
-  deployment:
-    on_host:
-      path:
-        description: "Path to the agent"
-        type: string
-        required: true
-      args:
-        description: "Args passed to the agent"
-        type: string
-        required: true
-deployment:
-  on_host:
-    executables:
-      - path: ${deployment.on_host.path}/otelcol
-        args: "-c ${deployment.on_host.args}"
-        env: ""
+        backoff_delay_seconds: 5
 "#;
