@@ -554,7 +554,7 @@ deployment:
             .final_value
             .clone()
             .unwrap();
-        let TrivialValue::File(f) = file else { todo!() };
+        let TrivialValue::File(f) = file else { unreachable!("Not a file") };
         assert_eq!("license_key: abc123\nstaging: true\n", f.content);
     }
 }
