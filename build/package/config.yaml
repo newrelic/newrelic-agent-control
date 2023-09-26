@@ -1,5 +1,5 @@
 #opamp:
-#  endpoint: https://opamp.staging-service.newrelic.com/v1/opamp
+#  endpoint: https://opamp.service.newrelic.com/v1/opamp
 #  headers:
 #    api-key: API_KEY_HERE
 
