@@ -76,7 +76,7 @@ struct RawAgent {
     metadata: AgentMetadata,
     variables: AgentVariables,
     #[serde(default, flatten)]
-    runtime_config: RuntimeConfig,
+    runtime_config: RuntimeConfigTemplateable,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone, Default)]
@@ -179,7 +179,7 @@ impl TryFrom<RawAgent> for Agent {
         Ok(Agent {
             variables: normalize_agent_spec(raw_agent.variables)?,
             metadata: raw_agent.metadata,
-            runtime_config: raw_agent.runtime_config,
+            runtime_config: RuntimeConfig::default(), // FIXME: make it actual implementaiton
         })
     }
 }
@@ -334,6 +334,11 @@ pub struct RuntimeConfig {
     pub deployment: Deployment,
 }
 
+#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+pub struct RuntimeConfigTemplateable {
+    pub deployment: DeploymentTemplateable,
+}
+
 impl Templateable for RuntimeConfig {
     fn template_with(self, kv: NormalizedSupervisorConfig) -> Result<Self, AgentTypeError> {
         Ok(RuntimeConfig {
@@ -345,6 +350,11 @@ impl Templateable for RuntimeConfig {
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub struct Deployment {
     pub on_host: Option<OnHost>,
+}
+
+#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+pub struct DeploymentTemplateable {
+    pub on_host: Option<OnHostTemplateable>,
 }
 
 impl Templateable for Deployment {
@@ -388,6 +398,13 @@ pub struct OnHost {
     pub restart_policy: RestartPolicyConfig,
 }
 
+#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+pub struct OnHostTemplateable {
+    pub executables: Vec<Executable>,
+    #[serde(default)]
+    pub restart_policy: RestartPolicyConfigTemplateable,
+}
+
 impl Templateable for OnHost {
     fn template_with(self, kv: NormalizedSupervisorConfig) -> Result<Self, AgentTypeError> {
         Ok(OnHost {
@@ -409,6 +426,14 @@ pub struct RestartPolicyConfig {
     pub restart_exit_codes: Vec<i32>,
 }
 
+#[derive(Debug, Deserialize, Default, PartialEq, Clone)]
+pub struct RestartPolicyConfigTemplateable {
+    #[serde(default)]
+    pub backoff_strategy: BackoffStrategyConfigTemplateable,
+    #[serde(default)]
+    pub restart_exit_codes: String,
+}
+
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(rename_all = "lowercase", tag = "type")]
 pub enum BackoffStrategyConfig {
@@ -416,6 +441,16 @@ pub enum BackoffStrategyConfig {
     Fixed(BackoffStrategyInner),
     Linear(BackoffStrategyInner),
     Exponential(BackoffStrategyInner),
+}
+
+#[derive(Debug, Deserialize, Default, PartialEq, Clone)]
+#[serde(rename_all = "lowercase", tag = "type")]
+pub enum BackoffStrategyConfigTemplateable {
+    #[default]
+    None,
+    Fixed(BackoffStrategyInnerTemplateable),
+    Linear(BackoffStrategyInnerTemplateable),
+    Exponential(BackoffStrategyInnerTemplateable),
 }
 
 /* FIXME: This is not TEMPLATEABLE for the moment, we need to think what would be the strategy here and clarify:
@@ -444,6 +479,15 @@ pub struct BackoffStrategyInner {
     pub max_retries: usize,
     #[serde_as(as = "serde_with::DurationSeconds<u64>")]
     pub last_retry_interval_seconds: Duration,
+}
+
+#[serde_as]
+#[derive(Debug, Deserialize, Default, PartialEq, Clone)]
+#[serde(default)]
+pub struct BackoffStrategyInnerTemplateable {
+    pub backoff_delay_seconds: String,
+    pub max_retries: String,
+    pub last_retry_interval_seconds: String,
 }
 
 impl From<&BackoffStrategyConfig> for BackoffStrategy {
@@ -488,11 +532,11 @@ fn realize_backoff_config(i: &BackoffStrategyInner) -> Backoff {
 
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub struct Executable {
-    pub path: String,
+    pub path: String, // make it templatable
     #[serde(default)]
-    pub args: Args,
+    pub args: Args, // make it templatable, it should be aware of the value type, if templated with array, should be expanded
     #[serde(default)]
-    pub env: Env,
+    pub env: Env, // make it templatable, it should be aware of the value type, if templated with array, should be expanded "STAGING=true ${variable_1}" variable_1 : VERBOSE=1
 }
 
 #[derive(Debug, Default, Deserialize, Clone, PartialEq)]
@@ -707,12 +751,39 @@ deployment:
             on_host.executables[0].args
         );
 
-        // Resrtart restart policy values
+        // Restart restart policy values
         assert_eq!(
             BackoffStrategyConfig::Fixed(BackoffStrategyInner {
                 backoff_delay_seconds: Duration::from_secs(1),
                 max_retries: 3,
                 last_retry_interval_seconds: Duration::from_secs(30),
+            }),
+            on_host.restart_policy.backoff_strategy
+        );
+    }
+
+    #[test]
+    fn test_basic_raw_agent_parsing() {
+        let agent: RawAgent = serde_yaml::from_str(AGENT_GIVEN_YAML).unwrap();
+
+        assert_eq!("nrdot", agent.metadata.name);
+        assert_eq!("newrelic", agent.metadata.namespace);
+        assert_eq!("0.1.0", agent.metadata.version);
+
+        let on_host = agent.runtime_config.deployment.on_host.clone().unwrap();
+
+        assert_eq!("${bin}/otelcol", on_host.executables[0].path);
+        assert_eq!(
+            Args("-c ${deployment.k8s.image}".to_string()),
+            on_host.executables[0].args
+        );
+
+        // Restart restart policy values
+        assert_eq!(
+            BackoffStrategyConfigTemplateable::Fixed(BackoffStrategyInnerTemplateable {
+                backoff_delay_seconds: "1".to_string(),
+                max_retries: "3".to_string(),
+                last_retry_interval_seconds: "30".to_string(),
             }),
             on_host.restart_policy.backoff_strategy
         );
