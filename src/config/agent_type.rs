@@ -203,6 +203,7 @@ impl TrivialValue {
         match (self.clone(), type_) {
             (TrivialValue::String(_), VariableType::String)
             | (TrivialValue::Bool(_), VariableType::Bool)
+            | (TrivialValue::File(_), VariableType::File)
             | (TrivialValue::Number(_), VariableType::Number) => Ok(self),
             (TrivialValue::String(s), VariableType::File) => {
                 Ok(TrivialValue::File(FilePathWithContent::new(s)))
@@ -838,11 +839,18 @@ variables:
     description: "Newrelic infra configuration yaml"
     type: file
     required: true
+  config2:
+    description: "Newrelic infra configuration yaml"
+    type: file
+    required: false
+    default: |
+        license_key: abc123
+        staging: true
 deployment:
   on_host:
     executables:
       - path: /usr/bin/newrelic-infra
-        args: "--config ${config}"
+        args: "--config ${config} --config2 ${config2}"
         env: ""
 "#;
 
