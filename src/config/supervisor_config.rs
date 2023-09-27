@@ -5,7 +5,10 @@ use std::io::Write;
 
 use uuid::Uuid;
 
-use super::agent_type::{Agent, AgentTypeError, TrivialValue, TEMPLATE_KEY_SEPARATOR};
+use super::agent_type::agent_types::FinalAgent;
+use super::agent_type::error::AgentTypeError;
+use super::agent_type::runtime_config_templates::TEMPLATE_KEY_SEPARATOR;
+use super::agent_type::trivial_value::TrivialValue;
 
 /// User-provided config.
 ///
@@ -116,7 +119,7 @@ fn inner_normalize(key: String, config: SupervisorConfigInner) -> NormalizedSupe
 
 pub fn validate_with_agent_type(
     config: NormalizedSupervisorConfig,
-    agent_type: &Agent,
+    agent_type: &FinalAgent,
 ) -> Result<NormalizedSupervisorConfig, AgentTypeError> {
     // What do we need to do?
     // Check that all the keys in the agent_type are present in the config
@@ -196,7 +199,8 @@ fn write_files(config: &mut NormalizedSupervisorConfig) -> Result<(), AgentTypeE
 
 #[cfg(test)]
 mod tests {
-    use crate::config::agent_type::N;
+
+    use crate::config::agent_type::trivial_value::N;
 
     use super::*;
 
@@ -306,7 +310,7 @@ deployment:
         let input_structure =
             serde_yaml::from_str::<SupervisorConfig>(EXAMPLE_CONFIG_REPLACE).unwrap();
         let normalized = normalize_supervisor_config(input_structure);
-        let agent_type = serde_yaml::from_str::<Agent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
+        let agent_type = serde_yaml::from_str::<FinalAgent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
 
         let expected = Map::from([
             (
@@ -334,7 +338,7 @@ deployment:
         let input_structure =
             serde_yaml::from_str::<SupervisorConfig>(EXAMPLE_CONFIG_REPLACE_NOPATH).unwrap();
         let normalized = normalize_supervisor_config(input_structure);
-        let agent_type = serde_yaml::from_str::<Agent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
+        let agent_type = serde_yaml::from_str::<FinalAgent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
 
         let actual = validate_with_agent_type(normalized, &agent_type);
 
@@ -375,7 +379,7 @@ deployment:
             serde_yaml::from_str::<SupervisorConfig>(EXAMPLE_CONFIG_REPLACE_NOPATH).unwrap();
         let normalized = normalize_supervisor_config(input_structure);
         let agent_type =
-            serde_yaml::from_str::<Agent>(EXAMPLE_AGENT_YAML_REPLACE_WITH_DEFAULT).unwrap();
+            serde_yaml::from_str::<FinalAgent>(EXAMPLE_AGENT_YAML_REPLACE_WITH_DEFAULT).unwrap();
 
         let expected = Map::from([
             (

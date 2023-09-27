@@ -4,7 +4,7 @@ use thiserror::Error;
 
 use crate::{
     config::{
-        agent_type::AgentTypeError, agent_type_registry::AgentRepositoryError,
+        agent_type::error::AgentTypeError, agent_type_registry::AgentRepositoryError,
         error::SuperAgentConfigError,
     },
     opamp::client_builder::OpAMPClientBuilderError,

@@ -2,7 +2,10 @@ use std::collections::HashMap;
 
 use std::sync::mpsc::Sender;
 
-use crate::{command::stream::Event, config::agent_type::RestartPolicyConfig, context::Context};
+use crate::{
+    command::stream::Event, config::agent_type::restart_policy::RestartPolicyConfig,
+    context::Context,
+};
 
 use super::{restart::BackoffStrategy, runner::SupervisorRunner};
 
