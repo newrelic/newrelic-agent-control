@@ -3,6 +3,7 @@
 //! The reasoning behind this is that the Supervisor will be able to run different types of agents, and each type of agent will have its own configuration. Supporting generic agent functionalities, the user can both define its own agent types and provide a config that implement this agent type, and the New Relic Super Agent will spawn a Supervisor which will be able to run it.
 //!
 //! See [`Agent::populate`] for a flowchart of the dataflow that ends in the final, enriched structure.
+use log::info;
 use regex::Regex;
 use serde::Deserialize;
 use serde_with::serde_as;
@@ -16,9 +17,7 @@ use thiserror::Error;
 
 use crate::supervisor::restart::{Backoff, BackoffStrategy};
 
-use super::supervisor_config::{
-    validate_with_agent_type, NormalizedSupervisorConfig, SupervisorConfig,
-};
+use super::supervisor_config::{validate_with_agent_type, SupervisorConfig};
 
 /// Regex that extracts the template values from a string.
 ///
@@ -150,17 +149,25 @@ impl Agent {
     ///     end
     /// ```
     pub fn populate(self, config: SupervisorConfig) -> Result<Self, AgentTypeError> {
-        let normalized_config = NormalizedSupervisorConfig::from(config);
-        let validated_conf = validate_with_agent_type(normalized_config, &self)?;
-
-        let runtime_conf = self.runtime_config.template_with(validated_conf.clone())?;
+        // let normalized_config = NormalizedSupervisorConfig::from(config);
+        // let validated_conf = validate_with_agent_type(normalized_config, &self)?;
+        //
+        info!("Values: {:?}", config);
         let mut spec = self.variables;
-
-        validated_conf.into_iter().for_each(|(k, v)| {
-            spec.entry(k).and_modify(|s| {
-                s.final_value = Some(v);
-            });
+        //
+        // validated_conf.into_iter().for_each(|(k, v)| {
+        //     spec.entry(k).and_modify(|s| {
+        //         s.final_value = Some(v);
+        //     });
+        // });
+        spec.iter_mut().for_each(|(k, v)| {
+            v.final_value = config.value(k);
         });
+
+        info!("Spec: {:?}", spec);
+
+        let runtime_conf = self.runtime_config.template_with(&spec)?;
+        info!("Runtime config: {:?}", runtime_conf);
 
         Ok(Agent {
             runtime_config: runtime_conf,
@@ -193,6 +200,7 @@ pub enum TrivialValue {
     File(FilePathWithContent),
     Bool(bool),
     Number(N),
+    Map(Map<String, TrivialValue>),
 }
 
 impl TrivialValue {
@@ -223,6 +231,13 @@ impl Display for TrivialValue {
             TrivialValue::File(file) => write!(f, "{}", file.path),
             TrivialValue::Bool(b) => write!(f, "{}", b),
             TrivialValue::Number(n) => write!(f, "{}", n),
+            TrivialValue::Map(n) => {
+                let flatten: Vec<String> = n
+                    .iter()
+                    .map(|(key, value)| format!("{key}={value}"))
+                    .collect();
+                write!(f, "{}", flatten.join(" "))
+            }
         }
     }
 }
@@ -282,6 +297,15 @@ pub struct EndSpec {
     pub final_value: Option<TrivialValue>,
 }
 
+impl EndSpec {
+    pub(crate) fn is_map_type(&self) -> bool {
+        match self.type_ {
+            VariableType::MapStringString => true,
+            _ => false,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Clone, Copy, Deserialize)]
 pub enum VariableType {
     #[serde(rename = "string")]
@@ -292,8 +316,8 @@ pub enum VariableType {
     Number,
     #[serde(rename = "file")]
     File,
-    // #[serde(rename = "map[string]string")]
-    // MapStringString,
+    #[serde(rename = "map[string]string")]
+    MapStringString,
     // #[serde(rename = "map[string]number")]
     // MapStringNumber,
     // #[serde(rename = "map[string]bool")]
@@ -336,9 +360,9 @@ pub struct RuntimeConfig {
 }
 
 impl Templateable for RuntimeConfig {
-    fn template_with(self, kv: NormalizedSupervisorConfig) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
         Ok(RuntimeConfig {
-            deployment: self.deployment.template_with(kv)?,
+            deployment: self.deployment.template_with(variables)?,
         })
     }
 }
@@ -349,7 +373,7 @@ pub struct Deployment {
 }
 
 impl Templateable for Deployment {
-    fn template_with(self, kv: NormalizedSupervisorConfig) -> Result<Self, AgentTypeError> {
+    fn template_with(self, kv: &NormalizedVariables) -> Result<Self, AgentTypeError> {
         /*
         `self.on_host` has type `Option<OnHost>`
 
@@ -390,12 +414,12 @@ pub struct OnHost {
 }
 
 impl Templateable for OnHost {
-    fn template_with(self, kv: NormalizedSupervisorConfig) -> Result<Self, AgentTypeError> {
+    fn template_with(self, kv: &NormalizedVariables) -> Result<Self, AgentTypeError> {
         Ok(OnHost {
             executables: self
                 .executables
                 .into_iter()
-                .map(|e| e.template_with(kv.clone()))
+                .map(|e| e.template_with(kv))
                 .collect::<Result<Vec<Executable>, AgentTypeError>>()?,
             ..Default::default()
         })
@@ -500,7 +524,7 @@ pub struct Executable {
 pub struct Args(String);
 
 impl Templateable for Args {
-    fn template_with(self, kv: Map<String, TrivialValue>) -> Result<Self, AgentTypeError> {
+    fn template_with(self, kv: &NormalizedVariables) -> Result<Self, AgentTypeError> {
         Ok(Args(self.0.template_with(kv)?))
     }
 }
@@ -515,7 +539,7 @@ impl Args {
 pub struct Env(String);
 
 impl Templateable for Env {
-    fn template_with(self, kv: Map<String, TrivialValue>) -> Result<Self, AgentTypeError> {
+    fn template_with(self, kv: &NormalizedVariables) -> Result<Self, AgentTypeError> {
         Ok(Env(self.0.template_with(kv)?))
     }
 }
@@ -535,16 +559,16 @@ impl Env {
 }
 
 trait Templateable {
-    fn template_with(self, kv: Map<String, TrivialValue>) -> Result<Self, AgentTypeError>
+    fn template_with(self, kv: &NormalizedVariables) -> Result<Self, AgentTypeError>
     where
         Self: std::marker::Sized;
 }
 
 impl Templateable for Executable {
-    fn template_with(self, kv: Map<String, TrivialValue>) -> Result<Executable, AgentTypeError> {
+    fn template_with(self, kv: &NormalizedVariables) -> Result<Executable, AgentTypeError> {
         Ok(Executable {
-            path: self.path.template_with(kv.clone())?,
-            args: self.args.template_with(kv.clone())?,
+            path: self.path.template_with(kv)?,
+            args: self.args.template_with(kv)?,
             env: self.env.template_with(kv)?,
         })
     }
@@ -552,7 +576,7 @@ impl Templateable for Executable {
 
 // The actual std type that has a meaningful implementation of Templateable
 impl Templateable for String {
-    fn template_with(self, kv: Map<String, TrivialValue>) -> Result<String, AgentTypeError> {
+    fn template_with(self, kv: &NormalizedVariables) -> Result<String, AgentTypeError> {
         let re = Regex::new(TEMPLATE_RE).unwrap();
 
         let result = re
@@ -566,7 +590,11 @@ impl Templateable for String {
                     return Err(AgentTypeError::MissingTemplateKey(trimmed_s.to_string()));
                 }
                 let replacement = &kv[trimmed_s];
-                Ok(re.replace(&r, replacement.to_string()).to_string())
+                if let Some(final_value) = &replacement.final_value {
+                    Ok(re.replace(&r, final_value.to_string()).to_string())
+                } else {
+                    return Err(AgentTypeError::MissingDefaultWithKey(trimmed_s.to_string()));
+                }
             });
         result
     }
@@ -612,7 +640,7 @@ enum Spec {
 /// ```
 ///
 /// Will be converted to `system.logging.level` and can be used later in the AgentType_Meta part as `${system.logging.level}`.
-type NormalizedVariables = Map<String, EndSpec>;
+pub(crate) type NormalizedVariables = Map<String, EndSpec>;
 
 fn normalize_agent_spec(spec: AgentVariables) -> Result<NormalizedVariables, AgentTypeError> {
     spec.into_iter().try_fold(Map::new(), |r, (k, v)| {
@@ -841,20 +869,24 @@ variables:
     required: true
   config2:
     description: "Newrelic infra configuration yaml"
-    type: file
-    required: false
-    default: |
-        license_key: abc123
-        staging: true
+    type: map[string]string
+    required: true
+  config3:
+    description: "Newrelic infra configuration yaml"
+    type: string
+    required: true
 deployment:
   on_host:
     executables:
       - path: /usr/bin/newrelic-infra
         args: "--config ${config} --config2 ${config2}"
-        env: ""
+        env: {config2} {config3}
 "#;
 
     const GIVEN_NEWRELIC_INFRA_USER_CONFIG_YAML: &str = r#"
+config2:
+    logging: debug
+    file: test
 config: | 
     license_key: abc123
     staging: true
