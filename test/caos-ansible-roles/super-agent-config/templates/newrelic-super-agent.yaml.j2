@@ -9,7 +9,8 @@
 
 opamp:
   endpoint: https://opamp.staging-service.newrelic.com/v1/opamp
-  api-key: {{ nr_license_key }}
+  headers:
+    api-key: {{ nr_license_key }}
 
 agents:
   nr_infra_agent:
