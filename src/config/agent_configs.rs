@@ -22,6 +22,7 @@ impl Display for AgentID {
 #[serde(deny_unknown_fields)]
 pub struct SuperAgentConfig {
     /// agents is a map of agent types to their specific configuration (if any).
+    #[serde(default)]
     pub agents: HashMap<AgentID, AgentSupervisorConfig>,
 
     /// opamp contains the OpAMP client configuration

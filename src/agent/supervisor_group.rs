@@ -298,6 +298,21 @@ pub mod tests {
     }
 
     #[test]
+    fn run_stop_without_opamp_nor_agents() {
+        let supervisor_group: SupervisorGroup<MockOpAMPClientMock, Stopped> =
+            SupervisorGroup(HashMap::new());
+        let running_supervisor_group = supervisor_group.run();
+        assert!(
+            running_supervisor_group.is_ok(),
+            "unable to run supervisor_group without opamp"
+        );
+        assert!(
+            running_supervisor_group.unwrap().stop().is_ok(),
+            "unable to stop supervisor_group without opamp"
+        );
+    }
+
+    #[test]
     fn run_stop_without_opamp() {
         let (tx, _) = std::sync::mpsc::channel();
         let supervisor_group =
