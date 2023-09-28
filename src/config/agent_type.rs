@@ -17,7 +17,12 @@ use thiserror::Error;
 
 use crate::supervisor::restart::{Backoff, BackoffStrategy};
 
-use super::supervisor_config::{validate_with_agent_type, SupervisorConfig};
+use super::supervisor_config::SupervisorConfig;
+
+use std::fs;
+use std::io::Write;
+
+use uuid::Uuid;
 
 /// Regex that extracts the template values from a string.
 ///
@@ -60,6 +65,8 @@ pub enum AgentTypeError {
     InvalidFilePath,
     #[error("Missing required template key: `{0}`")]
     MissingTemplateKey(String),
+    #[error("Map values must be of the same type")]
+    InvalidMap,
 
     #[error("Missing default value for a non-required spec key")]
     MissingDefault,
@@ -149,19 +156,15 @@ impl Agent {
     ///     end
     /// ```
     pub fn populate(self, config: SupervisorConfig) -> Result<Self, AgentTypeError> {
-        // let normalized_config = NormalizedSupervisorConfig::from(config);
-        // let validated_conf = validate_with_agent_type(normalized_config, &self)?;
-        //
-        info!("Values: {:?}", config);
+        let mut config = config.normalize_with_agent_type(&self)?;
+
+        // info!("Values: {:?}", config);
         let mut spec = self.variables;
-        //
-        // validated_conf.into_iter().for_each(|(k, v)| {
-        //     spec.entry(k).and_modify(|s| {
-        //         s.final_value = Some(v);
-        //     });
-        // });
+
+        // modifies variables final value with the one defined in the SupervisorConfig
         spec.iter_mut().for_each(|(k, v)| {
-            v.final_value = config.value(k);
+            let defined_value = config.get_from_normalized(k);
+            v.final_value = defined_value.or(v.default.clone());
         });
 
         info!("Spec: {:?}", spec);
@@ -169,11 +172,44 @@ impl Agent {
         let runtime_conf = self.runtime_config.template_with(&spec)?;
         info!("Runtime config: {:?}", runtime_conf);
 
-        Ok(Agent {
+        let mut populated_agent = Agent {
             runtime_config: runtime_conf,
             variables: spec,
             ..self
-        })
+        };
+        populated_agent.write_files()?;
+        Ok(populated_agent)
+    }
+
+    fn write_files(&mut self) -> Result<(), AgentTypeError> {
+        self.variables
+            .values_mut()
+            .try_for_each(|v| -> Result<(), AgentTypeError> {
+                if let Some(TrivialValue::File(f)) = &mut v.final_value {
+                    const CONF_DIR: &str = "agentconfigs";
+                    // get current path
+                    let wd = std::env::current_dir()?;
+                    let dir = wd.join(CONF_DIR);
+                    if !dir.exists() {
+                        fs::create_dir(dir.as_path())?;
+                    }
+                    let uuid = Uuid::new_v4().to_string();
+                    let path = format!("{}/{}-config.yaml", dir.to_string_lossy(), uuid); // FIXME: PATH?
+                    let mut file = fs::OpenOptions::new()
+                        .create(true)
+                        .write(true)
+                        .open(&path)?;
+
+                    writeln!(file, "{}", f.content)?;
+                    f.path = path;
+                    // f.path = file
+                    //     .path()
+                    //     .to_str()
+                    //     .ok_or(AgentTypeError::InvalidFilePath)?
+                    //     .to_string();
+                }
+                Ok(())
+            })
     }
 }
 
@@ -213,6 +249,12 @@ impl TrivialValue {
             | (TrivialValue::Bool(_), VariableType::Bool)
             | (TrivialValue::File(_), VariableType::File)
             | (TrivialValue::Number(_), VariableType::Number) => Ok(self),
+            (TrivialValue::Map(m), VariableType::MapStringString) => {
+                if !m.iter().all(|(_, v)| matches!(v, TrivialValue::String(_))) {
+                    return Err(AgentTypeError::InvalidMap);
+                }
+                Ok(self)
+            }
             (TrivialValue::String(s), VariableType::File) => {
                 Ok(TrivialValue::File(FilePathWithContent::new(s)))
             }
@@ -590,11 +632,17 @@ impl Templateable for String {
                     return Err(AgentTypeError::MissingTemplateKey(trimmed_s.to_string()));
                 }
                 let replacement = &kv[trimmed_s];
-                if let Some(final_value) = &replacement.final_value {
-                    Ok(re.replace(&r, final_value.to_string()).to_string())
-                } else {
-                    return Err(AgentTypeError::MissingDefaultWithKey(trimmed_s.to_string()));
-                }
+                Ok(re
+                    .replace(
+                        &r,
+                        replacement
+                            .final_value
+                            .as_ref()
+                            .or(replacement.default.as_ref())
+                            .ok_or(AgentTypeError::MissingTemplateKey(trimmed_s.to_string()))?
+                            .to_string(),
+                    )
+                    .to_string())
             });
         result
     }
@@ -807,19 +855,40 @@ deployment:
             env: Env("".to_string()),
         };
 
-        let user_values = Map::from([
-            ("bin".to_string(), TrivialValue::String("/etc".to_string())),
+        let normalized_values = Map::from([
+            (
+                "bin".to_string(),
+                EndSpec {
+                    default: None,
+                    description: "binary".to_string(),
+                    type_: VariableType::String,
+                    required: true,
+                    final_value: Some(TrivialValue::String("/etc".to_string())),
+                },
+            ),
             (
                 "deployment.on_host.verbose".to_string(),
-                TrivialValue::String("true".to_string()),
+                EndSpec {
+                    default: None,
+                    description: "verbosity".to_string(),
+                    type_: VariableType::String,
+                    required: true,
+                    final_value: Some(TrivialValue::String("true".to_string())),
+                },
             ),
             (
                 "deployment.on_host.log_level".to_string(),
-                TrivialValue::String("trace".to_string()),
+                EndSpec {
+                    default: None,
+                    description: "log_level".to_string(),
+                    type_: VariableType::String,
+                    required: true,
+                    final_value: Some(TrivialValue::String("trace".to_string())),
+                },
             ),
         ]);
 
-        let exec_actual = exec.template_with(user_values).unwrap();
+        let exec_actual = exec.template_with(&normalized_values).unwrap();
 
         let exec_expected = Executable {
             path: "/etc/otelcol".to_string(),
@@ -839,15 +908,30 @@ deployment:
             env: Env("".to_string()),
         };
 
-        let user_values = Map::from([
-            ("bin".to_string(), TrivialValue::String("/etc".to_string())),
+        let normalized_values = Map::from([
+            (
+                "bin".to_string(),
+                EndSpec {
+                    default: None,
+                    description: "binary".to_string(),
+                    type_: VariableType::String,
+                    required: true,
+                    final_value: Some(TrivialValue::String("/etc".to_string())),
+                },
+            ),
             (
                 "deployment.on_host.verbose".to_string(),
-                TrivialValue::String("true".to_string()),
+                EndSpec {
+                    default: None,
+                    description: "verbosity".to_string(),
+                    type_: VariableType::String,
+                    required: true,
+                    final_value: Some(TrivialValue::String("true".to_string())),
+                },
             ),
         ]);
 
-        let exec_actual = exec.template_with(user_values).unwrap();
+        let exec_actual = exec.template_with(&normalized_values).unwrap();
 
         let exec_expected = Executable {
             path: "/etc/otelcol".to_string(),
@@ -869,24 +953,27 @@ variables:
     required: true
   config2:
     description: "Newrelic infra configuration yaml"
-    type: map[string]string
-    required: true
+    type: file
+    required: false
+    default: |
+        license_key: abc123
+        staging: true
   config3:
     description: "Newrelic infra configuration yaml"
-    type: string
+    type: map[string]string
     required: true
 deployment:
   on_host:
     executables:
       - path: /usr/bin/newrelic-infra
         args: "--config ${config} --config2 ${config2}"
-        env: {config2} {config3}
+        env: ""
 "#;
 
     const GIVEN_NEWRELIC_INFRA_USER_CONFIG_YAML: &str = r#"
-config2:
-    logging: debug
-    file: test
+config3:
+  log_level: trace
+  forward: "true"
 config: | 
     license_key: abc123
     staging: true
@@ -895,6 +982,7 @@ config: |
     #[test]
     fn test_populate_runtime_field() {
         let input_agent_type = serde_yaml::from_str::<Agent>(GIVEN_NEWRELIC_INFRA_YAML).unwrap();
+
         println!("Input: {:#?}", input_agent_type);
 
         let input_user_config =

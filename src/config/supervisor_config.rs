@@ -1,13 +1,8 @@
-use serde::Deserialize;
-use std::collections::HashMap as Map;
-use std::fs;
-use std::io::Write;
-
-use uuid::Uuid;
-
 use super::agent_type::{
     Agent, AgentTypeError, EndSpec, NormalizedVariables, TrivialValue, TEMPLATE_KEY_SEPARATOR,
 };
+use serde::Deserialize;
+use std::collections::HashMap as Map;
 
 /// User-provided config.
 ///
@@ -91,106 +86,50 @@ use super::agent_type::{
 pub struct SupervisorConfig(Map<String, TrivialValue>);
 
 impl SupervisorConfig {
-    pub(crate) fn value<'a>(&'a self, normalized_prefix: &'a str) -> Option<TrivialValue> {
-        inner_value(&self.0, normalized_prefix)
+    pub(crate) fn get_from_normalized<'a>(
+        &'a mut self,
+        normalized_prefix: &'a str,
+    ) -> Option<TrivialValue> {
+        get_from_normalized(&mut self.0, normalized_prefix).cloned()
+    }
+
+    pub(crate) fn normalize_with_agent_type(
+        mut self,
+        agent_type: &Agent,
+    ) -> Result<Self, AgentTypeError> {
+        for (k, v) in agent_type.variables.iter() {
+            let value = get_from_normalized(&mut self.0, k);
+
+            // required value but not defined in SupervisorConfig
+            if value.is_none() && v.required {
+                return Err(AgentTypeError::MissingAgentKey(k.clone()));
+            }
+
+            // check type matches agent one and apply transformations
+            value
+                .map(|inner| inner.clone().check_type(v.type_))
+                .transpose()?;
+        }
+
+        Ok(self)
     }
 }
-fn inner_value<'a>(
-    inner: &'a Map<String, TrivialValue>,
+
+fn get_from_normalized<'a>(
+    inner: &'a mut Map<String, TrivialValue>,
     normalized_prefix: &'a str,
-) -> Option<TrivialValue> {
+) -> Option<&'a mut TrivialValue> {
     let prefix = normalized_prefix.split_once(TEMPLATE_KEY_SEPARATOR);
     if let Some((key, suffix)) = prefix {
-        if let Some(trivial) = inner.get(key) {
+        if let Some(trivial) = inner.get_mut(key) {
             if let TrivialValue::Map(inner_map) = trivial {
-                return inner_value(inner_map, suffix);
+                return get_from_normalized(inner_map, suffix);
             }
         }
     } else {
-        return inner.get(normalized_prefix).map(|val| val.clone());
+        return inner.get_mut(normalized_prefix);
     }
     None
-}
-
-pub fn validate_with_agent_type(
-    config: SupervisorConfig,
-    agent_type: &Agent,
-) -> Result<SupervisorConfig, AgentTypeError> {
-    // What do we need to do?
-    // Check that all the keys in the agent_type are present in the config
-    // Also, check that all the values of the config are of the type declared in the config's NormalizedVariables
-    let mut result = Map::new();
-    let mut tmp_config = config.clone();
-
-    for (k, v) in agent_type.variables.iter() {
-        if !tmp_config.0.contains_key(k) && v.required {
-            return Err(AgentTypeError::MissingAgentKey(k.clone()));
-        }
-
-        if !tmp_config.0.contains_key(k) {
-            // We have validated earlier that for a not `required` value, a default will be provided
-            // so we could just unwrap. Panicking with a certain message here to catch a potential edge case.
-            result.insert(
-                k.clone(),
-                v.default
-                    .clone()
-                    .expect("Failed to retrieve default for a non-required value"),
-            );
-            continue;
-        }
-
-        // Get the key and its value
-        tmp_config
-            .0
-            .get(k)
-            .map(|tv| tv.clone().check_type(v.type_))
-            .transpose()?
-            .map(|tv| _ = result.insert(k.clone(), tv))
-            .ok_or(AgentTypeError::MissingAgentKey(k.clone()))?;
-
-        tmp_config.0.remove(k);
-    }
-
-    if !tmp_config.0.is_empty() {
-        return Err(AgentTypeError::UnexpectedKeysInConfig(
-            tmp_config.0.into_keys().collect::<Vec<String>>(),
-        ));
-    }
-
-    write_files(&mut result)?;
-
-    Ok(SupervisorConfig(result))
-}
-
-fn write_files(config: &mut Map<String, TrivialValue>) -> Result<(), AgentTypeError> {
-    config
-        .values_mut()
-        .try_for_each(|v| -> Result<(), AgentTypeError> {
-            if let TrivialValue::File(f) = v {
-                const CONF_DIR: &str = "agentconfigs";
-                // get current path
-                let wd = std::env::current_dir()?;
-                let dir = wd.join(CONF_DIR);
-                if !dir.exists() {
-                    fs::create_dir(dir.as_path())?;
-                }
-                let uuid = Uuid::new_v4().to_string();
-                let path = format!("{}/{}-config.yaml", dir.to_string_lossy(), uuid); // FIXME: PATH?
-                let mut file = fs::OpenOptions::new()
-                    .create(true)
-                    .write(true)
-                    .open(&path)?;
-
-                writeln!(file, "{}", f.content)?;
-                f.path = path;
-                // f.path = file
-                //     .path()
-                //     .to_str()
-                //     .ok_or(AgentTypeError::InvalidFilePath)?
-                //     .to_string();
-            }
-            Ok(())
-        })
 }
 
 #[cfg(test)]
@@ -305,94 +244,98 @@ deployment:
         env: ""
 "#;
 
-    //     #[test]
-    //     fn test_validate_with_agent_type() {
-    //         let input_structure =
-    //             serde_yaml::from_str::<SupervisorConfig>(EXAMPLE_CONFIG_REPLACE).unwrap();
-    //         let normalized = normalize_supervisor_config(input_structure);
-    //         let agent_type = serde_yaml::from_str::<Agent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
-    //
-    //         let expected = Map::from([
-    //             (
-    //                 "deployment.on_host.args".to_string(),
-    //                 TrivialValue::String("--verbose true".to_string()),
-    //             ),
-    //             (
-    //                 "deployment.on_host.path".to_string(),
-    //                 TrivialValue::String("/etc".to_string()),
-    //             ),
-    //         ]);
-    //         let actual = validate_with_agent_type(normalized, &agent_type).unwrap();
-    //
-    //         assert_eq!(expected, actual);
-    //     }
-    //
-    //     const EXAMPLE_CONFIG_REPLACE_NOPATH: &str = r#"
-    // deployment:
-    //   on_host:
-    //     args: --verbose true
-    // "#;
-    //
-    //     #[test]
-    //     fn test_validate_with_agent_type_missing_required() {
-    //         let input_structure =
-    //             serde_yaml::from_str::<SupervisorConfig>(EXAMPLE_CONFIG_REPLACE_NOPATH).unwrap();
-    //         let normalized = normalize_supervisor_config(input_structure);
-    //         let agent_type = serde_yaml::from_str::<Agent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
-    //
-    //         let actual = validate_with_agent_type(normalized, &agent_type);
-    //
-    //         assert!(actual.is_err());
-    //         assert_eq!(
-    //             format!("{}", actual.unwrap_err()),
-    //             "Missing required key in config: `deployment.on_host.path`"
-    //         );
-    //     }
-    //
-    //     const EXAMPLE_AGENT_YAML_REPLACE_WITH_DEFAULT: &str = r#"
-    // name: nrdot
-    // namespace: newrelic
-    // version: 0.1.0
-    // variables:
-    //   deployment:
-    //     on_host:
-    //       path:
-    //         description: "Path to the agent"
-    //         type: string
-    //         required: false
-    //         default: "/default_path"
-    //       args:
-    //         description: "Args passed to the agent"
-    //         type: string
-    //         required: true
-    // deployment:
-    //   on_host:
-    //     executables:
-    //       - path: ${deployment.on_host.args}/otelcol
-    //         args: "-c ${deployment.on_host.args}"
-    //         env: ""
-    // "#;
-    //
-    //     #[test]
-    //     fn test_validate_with_default() {
-    //         let input_structure =
-    //             serde_yaml::from_str::<SupervisorConfig>(EXAMPLE_CONFIG_REPLACE_NOPATH).unwrap();
-    //         let normalized = normalize_supervisor_config(input_structure);
-    //         let agent_type =
-    //             serde_yaml::from_str::<Agent>(EXAMPLE_AGENT_YAML_REPLACE_WITH_DEFAULT).unwrap();
-    //
-    //         let expected = Map::from([
-    //             (
-    //                 "deployment.on_host.args".to_string(),
-    //                 TrivialValue::String("--verbose true".to_string()),
-    //             ),
-    //             (
-    //                 "deployment.on_host.path".to_string(),
-    //                 TrivialValue::String("/default_path".to_string()),
-    //             ),
-    //         ]);
-    //         let actual = validate_with_agent_type(normalized, &agent_type).unwrap();
-    //
-    //         assert_eq!(expected, actual);
-    //     }
+    #[test]
+    fn test_validate_with_agent_type() {
+        let input_structure =
+            serde_yaml::from_str::<SupervisorConfig>(EXAMPLE_CONFIG_REPLACE).unwrap();
+        let agent_type = serde_yaml::from_str::<Agent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
+
+        let expected = Map::from([(
+            "deployment".to_string(),
+            TrivialValue::Map(Map::from([(
+                "on_host".to_string(),
+                TrivialValue::Map(Map::from([
+                    (
+                        "args".to_string(),
+                        TrivialValue::String("--verbose true".to_string()),
+                    ),
+                    ("path".to_string(), TrivialValue::String("/etc".to_string())),
+                ])),
+            )])),
+        )]);
+        let actual = input_structure
+            .normalize_with_agent_type(&agent_type)
+            .unwrap();
+
+        assert_eq!(expected, actual.0);
+    }
+
+    const EXAMPLE_CONFIG_REPLACE_NOPATH: &str = r#"
+    deployment:
+      on_host:
+        args: --verbose true
+    "#;
+
+    #[test]
+    fn test_validate_with_agent_type_missing_required() {
+        let input_structure =
+            serde_yaml::from_str::<SupervisorConfig>(EXAMPLE_CONFIG_REPLACE_NOPATH).unwrap();
+        let agent_type = serde_yaml::from_str::<Agent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
+
+        let actual = input_structure.normalize_with_agent_type(&agent_type);
+
+        assert!(actual.is_err());
+        assert_eq!(
+            format!("{}", actual.unwrap_err()),
+            "Missing required key in config: `deployment.on_host.path`"
+        );
+    }
+
+    const EXAMPLE_AGENT_YAML_REPLACE_WITH_DEFAULT: &str = r#"
+    name: nrdot
+    namespace: newrelic
+    version: 0.1.0
+    variables:
+      deployment:
+        on_host:
+          path:
+            description: "Path to the agent"
+            type: string
+            required: false
+            default: "/default_path"
+          args:
+            description: "Args passed to the agent"
+            type: string
+            required: true
+    deployment:
+      on_host:
+        executables:
+          - path: ${deployment.on_host.args}/otelcol
+            args: "-c ${deployment.on_host.args}"
+            env: ""
+    "#;
+
+    #[test]
+    fn test_validate_with_default() {
+        let input_structure =
+            serde_yaml::from_str::<SupervisorConfig>(EXAMPLE_CONFIG_REPLACE_NOPATH).unwrap();
+        let agent_type =
+            serde_yaml::from_str::<Agent>(EXAMPLE_AGENT_YAML_REPLACE_WITH_DEFAULT).unwrap();
+
+        let expected = Map::from([(
+            "deployment".to_string(),
+            TrivialValue::Map(Map::from([(
+                "on_host".to_string(),
+                TrivialValue::Map(Map::from([(
+                    "args".to_string(),
+                    TrivialValue::String("--verbose true".to_string()),
+                )])),
+            )])),
+        )]);
+        let actual = input_structure
+            .normalize_with_agent_type(&agent_type)
+            .unwrap();
+
+        assert_eq!(expected, actual.0);
+    }
 }
