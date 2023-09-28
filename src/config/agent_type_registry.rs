@@ -23,7 +23,7 @@ pub trait AgentRepository {
     fn store_with_key(&mut self, key: String, agent: Agent) -> Result<(), AgentRepositoryError>;
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct LocalRepository(HashMap<String, Agent>);
 
 impl AgentRepository for LocalRepository {

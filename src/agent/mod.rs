@@ -559,4 +559,23 @@ deployment:
         };
         assert_eq!("license_key: abc123\nstaging: true\n", f.content);
     }
+
+    #[test]
+    fn empty_load_agent_cfgs_test() {
+        let local_agent_type_repository = LocalRepository::new();
+        let file_reader_mock = MockFileReaderMock::new();
+        let agent_config = SuperAgentConfig {
+            agents: Default::default(),
+            opamp: None,
+        };
+
+        let effective_agent_repository = load_agent_cfgs(
+            &local_agent_type_repository,
+            &file_reader_mock,
+            &agent_config,
+        )
+        .unwrap();
+
+        assert_eq!(local_agent_type_repository, effective_agent_repository);
+    }
 }
