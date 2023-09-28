@@ -1,0 +1,5 @@
+---
+# config path
+super_agent_config_path_linux: "/etc/newrelic-super-agent/config.yaml"
+
+...

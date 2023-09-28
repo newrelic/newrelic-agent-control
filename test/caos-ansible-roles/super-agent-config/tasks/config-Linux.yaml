@@ -1,0 +1,12 @@
+---
+
+- name: install super-agent configuration file
+  template:
+    src: newrelic-super-agent.yml.j2
+    dest: "{{ super_agent_config_path_linux }}"
+    owner: root
+    group: root
+    mode: 0644
+  no_log: true
+
+...
