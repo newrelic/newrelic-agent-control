@@ -84,6 +84,10 @@ use std::collections::HashMap as Map;
 pub struct SupervisorConfig(Map<String, TrivialValue>);
 
 impl SupervisorConfig {
+    /// get_from_normalized recursively searches for a TrivialValue given a normalized prefix.  A
+    /// normalized prefix flattens a Map path in a single string in which each indirection is
+    /// denoted with the TEMPLATE_KEY_SEPARATOR.
+    /// If found, an owned value will be returned.
     pub(crate) fn get_from_normalized<'a>(
         &'a mut self,
         normalized_prefix: &'a str,
@@ -91,6 +95,8 @@ impl SupervisorConfig {
         get_from_normalized(&mut self.0, normalized_prefix).cloned()
     }
 
+    /// normalize_with_agent_type verifies that all required Agent variables are defined in the
+    /// SupervisorConfig and transforms the types with check_type
     pub(crate) fn normalize_with_agent_type(
         mut self,
         agent_type: &Agent,
@@ -113,6 +119,7 @@ impl SupervisorConfig {
     }
 }
 
+/// get_from_normalized recursively searches for a TrivialValue given a normalized prefix.
 fn get_from_normalized<'a>(
     inner: &'a mut Map<String, TrivialValue>,
     normalized_prefix: &'a str,
