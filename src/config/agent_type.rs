@@ -3,7 +3,6 @@
 //! The reasoning behind this is that the Supervisor will be able to run different types of agents, and each type of agent will have its own configuration. Supporting generic agent functionalities, the user can both define its own agent types and provide a config that implement this agent type, and the New Relic Super Agent will spawn a Supervisor which will be able to run it.
 //!
 //! See [`Agent::populate`] for a flowchart of the dataflow that ends in the final, enriched structure.
-use log::info;
 use regex::Regex;
 use serde::Deserialize;
 use serde_with::serde_as;
@@ -158,7 +157,6 @@ impl Agent {
     pub fn populate(self, config: SupervisorConfig) -> Result<Self, AgentTypeError> {
         let mut config = config.normalize_with_agent_type(&self)?;
 
-        // info!("Values: {:?}", config);
         let mut spec = self.variables;
 
         // modifies variables final value with the one defined in the SupervisorConfig
@@ -167,10 +165,7 @@ impl Agent {
             v.final_value = defined_value.or(v.default.clone());
         });
 
-        info!("Spec: {:?}", spec);
-
         let runtime_conf = self.runtime_config.template_with(&spec)?;
-        info!("Runtime config: {:?}", runtime_conf);
 
         let mut populated_agent = Agent {
             runtime_config: runtime_conf,
@@ -181,6 +176,7 @@ impl Agent {
         Ok(populated_agent)
     }
 
+    // write_files stores the content of each TrivialValue::File into the corresponding file
     fn write_files(&mut self) -> Result<(), AgentTypeError> {
         self.variables
             .values_mut()
@@ -337,15 +333,6 @@ pub struct EndSpec {
     /// The actual value that will be used by the agent. This will be either the user-provided value or, if not provided and not marked as [`required`], the default value.
     #[serde(skip)]
     pub final_value: Option<TrivialValue>,
-}
-
-impl EndSpec {
-    pub(crate) fn is_map_type(&self) -> bool {
-        match self.type_ {
-            VariableType::MapStringString => true,
-            _ => false,
-        }
-    }
 }
 
 #[derive(Debug, PartialEq, Clone, Copy, Deserialize)]

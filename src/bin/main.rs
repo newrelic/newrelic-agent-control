@@ -83,21 +83,16 @@ namespace: newrelic
 name: com.newrelic.infrastructure_agent
 version: 0.0.1
 variables:
-  time:
-    seconds:
-      description: "Newrelic infra configuration path"
-      type: number
-      required: true
-    envs:
-      description: "sleep envs"
-      type: map[string]string
-      required: true
+  config_file:
+    description: "Newrelic infra configuration path"
+    type: string
+    required: false
+    default: /etc/newrelic-infra.yml
 deployment:
   on_host:
     executables:
-      - path: /bin/sleep
-        args: ${time.seconds}
-        env: "${time.envs}"
+      - path: /usr/bin/newrelic-infra
+        args: "--config=${config_file}"
     restart_policy:
       backoff_strategy:
         type: fixed

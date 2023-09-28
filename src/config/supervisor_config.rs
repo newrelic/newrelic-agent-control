@@ -1,6 +1,4 @@
-use super::agent_type::{
-    Agent, AgentTypeError, EndSpec, NormalizedVariables, TrivialValue, TEMPLATE_KEY_SEPARATOR,
-};
+use super::agent_type::{Agent, AgentTypeError, TrivialValue, TEMPLATE_KEY_SEPARATOR};
 use serde::Deserialize;
 use std::collections::HashMap as Map;
 
@@ -121,10 +119,8 @@ fn get_from_normalized<'a>(
 ) -> Option<&'a mut TrivialValue> {
     let prefix = normalized_prefix.split_once(TEMPLATE_KEY_SEPARATOR);
     if let Some((key, suffix)) = prefix {
-        if let Some(trivial) = inner.get_mut(key) {
-            if let TrivialValue::Map(inner_map) = trivial {
-                return get_from_normalized(inner_map, suffix);
-            }
+        if let Some(TrivialValue::Map(inner_map)) = inner.get_mut(key) {
+            return get_from_normalized(inner_map, suffix);
         }
     } else {
         return inner.get_mut(normalized_prefix);
