@@ -80,35 +80,38 @@ where
         OpAMPBuilder: OpAMPClientBuilder,
         ID: InstanceIDGetter,
     {
-        let agent_runners = cfg
-            .agents
-            .iter()
-            .map(|(agent_t, agent_supervisor_config)| {
-                let agent = effective_agent_repository.get(&agent_t.clone().get())?;
+        if let Some(agents) = cfg.agents {
+            let agent_runners = agents
+                .iter()
+                .map(|(agent_t, agent_supervisor_config)| {
+                    let agent = effective_agent_repository.get(&agent_t.clone().get())?;
 
-                let on_host = agent
-                    .runtime_config
-                    .deployment
-                    .on_host
-                    .clone()
-                    .ok_or(SupervisorGroupError::OnHostDeploymentNotFound)?;
+                    let on_host = agent
+                        .runtime_config
+                        .deployment
+                        .on_host
+                        .clone()
+                        .ok_or(SupervisorGroupError::OnHostDeploymentNotFound)?;
 
-                let (id, runner) = build_on_host_runners(&tx, agent_t, on_host);
-                let opamp_client = match &opamp_builder {
-                    Some(builder) => Some(builder.build(start_settings(
-                        instance_id_getter.get(id.clone().get()),
-                        &agent_supervisor_config.agent_type,
-                    ))?),
-                    None => None,
-                };
-                Ok((id.clone(), AgentRunner::new(opamp_client, runner)))
-            })
-            .collect();
+                    let (id, runner) = build_on_host_runners(&tx, agent_t, on_host);
+                    let opamp_client = match &opamp_builder {
+                        Some(builder) => Some(builder.build(start_settings(
+                            instance_id_getter.get(id.clone().get()),
+                            &agent_supervisor_config.agent_type,
+                        ))?),
+                        None => None,
+                    };
+                    Ok((id.clone(), AgentRunner::new(opamp_client, runner)))
+                })
+                .collect();
 
-        match agent_runners {
-            Err(e) => Err(e),
-            Ok(agent_runners) => Ok(SupervisorGroup(agent_runners)),
+            match agent_runners {
+                Err(e) => return Err(e),
+                Ok(agent_runners) => return Ok(SupervisorGroup(agent_runners)),
+            }
         }
+
+        Ok(SupervisorGroup(HashMap::new()))
     }
 
     pub fn run(self) -> Result<SupervisorGroup<C::Handle, Running>, SupervisorGroupError> {
@@ -298,6 +301,19 @@ pub mod tests {
     }
 
     #[test]
+    fn run_stop_without_opamp_nor_agents() {
+        let supervisor_group: SupervisorGroup<MockOpAMPClientMock, Stopped> = SupervisorGroup(HashMap::new());
+        let running_supervisor_group = supervisor_group.run();
+        assert!(
+            running_supervisor_group.is_ok(),
+            "unable to run supervisor_group without opamp"
+        );
+        assert!(
+            running_supervisor_group.unwrap().stop().is_ok(),
+            "unable to stop supervisor_group without opamp"
+        );
+    }
+
     fn run_stop_without_opamp() {
         let (tx, _) = std::sync::mpsc::channel();
         let supervisor_group =
@@ -354,13 +370,13 @@ pub mod tests {
     fn new_supervisor_group_with_opamp_builder() {
         let (tx, _) = std::sync::mpsc::channel();
         let agent_config = SuperAgentConfig {
-            agents: HashMap::from([(
+            agents: Some(HashMap::from([(
                 AgentID("agent".to_string()),
                 AgentSupervisorConfig {
                     agent_type: "".into(),
                     values_file: None,
                 },
-            )]),
+            )])),
             opamp: Some(crate::config::agent_configs::OpAMPClientConfig::default()),
         };
 

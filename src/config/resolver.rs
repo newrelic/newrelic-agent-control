@@ -45,9 +45,6 @@ impl Default for Resolver {
 
 #[cfg(test)]
 mod tests {
-
-    use std::collections::HashMap;
-
     use super::*;
     use crate::config::{
         agent_configs::{OpAMPClientConfig, SuperAgentConfig},
@@ -79,7 +76,7 @@ opamp:
         .build_config();
 
         let expected = SuperAgentConfig {
-            agents: HashMap::new(),
+            agents: None,
             opamp: Some(OpAMPClientConfig {
                 endpoint: "http://127.0.0.1/v1/opamp".to_string(),
                 headers: None,

@@ -288,15 +288,17 @@ fn load_agent_cfgs<Repo: AgentRepository, Reader: FileReader>(
     agent_cfgs: &SuperAgentConfig,
 ) -> Result<LocalRepository, AgentError> {
     let mut effective_agent_repository = LocalRepository::default();
-    for (k, agent_cfg) in agent_cfgs.agents.iter() {
-        let agent_type = agent_type_repository.get(&agent_cfg.agent_type.to_string())?;
-        let mut agent_config: SupervisorConfig = SupervisorConfig::default();
-        if let Some(path) = &agent_cfg.values_file {
-            let contents = reader.read(path.as_str())?;
-            agent_config = serde_yaml::from_str(&contents)?;
+    if let Some(agents) = agent_cfgs.clone().agents {
+        for (k, agent_cfg) in agents.iter() {
+            let agent_type = agent_type_repository.get(&agent_cfg.agent_type.to_string())?;
+            let mut agent_config: SupervisorConfig = SupervisorConfig::default();
+            if let Some(path) = &agent_cfg.values_file {
+                let contents = reader.read(path.as_str())?;
+                agent_config = serde_yaml::from_str(&contents)?;
+            }
+            let populated_agent = agent_type.clone().populate(agent_config)?;
+            effective_agent_repository.store_with_key(k.get(), populated_agent)?;
         }
-        let populated_agent = agent_type.clone().populate(agent_config)?;
-        effective_agent_repository.store_with_key(k.get(), populated_agent)?;
     }
     Ok(effective_agent_repository)
 }
@@ -311,7 +313,7 @@ mod tests {
         SUPER_AGENT_TYPE, SUPER_AGENT_VERSION,
     };
     use crate::config::agent_configs::{AgentID, AgentSupervisorConfig, SuperAgentConfig};
-    use crate::config::agent_type::{TrivialValue, VariableType};
+    use crate::config::agent_type::TrivialValue;
     use crate::config::agent_type_registry::{AgentRepository, LocalRepository};
     use crate::context::Context;
     use crate::file_reader::test::MockFileReaderMock;
@@ -520,7 +522,7 @@ deployment:
             .returning(|_| Ok("deployment.on_host.path: another-path".to_string()));
 
         let agent_config = SuperAgentConfig {
-            agents: HashMap::from([
+            agents: Some(HashMap::from([
                 (
                     AgentID("first".to_string()),
                     AgentSupervisorConfig {
@@ -535,7 +537,7 @@ deployment:
                         values_file: Some("second.yaml".to_string()),
                     },
                 ),
-            ]),
+            ])),
             opamp: None,
         };
 
@@ -558,5 +560,24 @@ deployment:
             unreachable!("Not a file")
         };
         assert_eq!("license_key: abc123\nstaging: true\n", f.content);
+        assert_ne!(local_agent_type_repository, effective_agent_repository);
+    }
+    #[test]
+    fn empty_load_agent_cfgs_test() {
+        let local_agent_type_repository = LocalRepository::new();
+        let file_reader_mock = MockFileReaderMock::new();
+        let agent_config = SuperAgentConfig {
+            agents: None,
+            opamp: None,
+        };
+
+        let effective_agent_repository = load_agent_cfgs(
+            &local_agent_type_repository,
+            &file_reader_mock,
+            &agent_config,
+        )
+        .unwrap();
+
+        assert_eq!(local_agent_type_repository, effective_agent_repository);
     }
 }
