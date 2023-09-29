@@ -18,7 +18,7 @@ impl Display for AgentID {
 }
 
 /// SuperAgentConfig represents the configuration for the super agent.
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, Default, PartialEq, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct SuperAgentConfig {
     /// agents is a map of agent types to their specific configuration (if any).
@@ -80,6 +80,59 @@ pub struct OpAMPClientConfig {
 #[cfg(test)]
 mod test {
     use super::*;
+
+    const EXAMPLE_SUPERAGENT_CONFIG: &str = r#"
+opamp:
+  endpoint: http://localhost:8080/some/path
+  headers:
+    some-key: some-value
+agents:
+  agent_1:
+    agent_type: namespace/agent_type:0.0.1
+"#;
+
+    const SUPERAGENT_CONFIG_UNKNOWN_FIELDS: &str = r#"
+# opamp:
+# agents:
+random_field: random_value
+"#;
+
+    const SUPERAGENT_CONFIG_UNKNOWN_OPAMP_FIELDS: &str = r#"
+opamp:
+  endpoint: http://localhost:8080/some/path
+  some-key: some-value
+agents:
+  agent_1:
+    agent_type: namespace/agent_type:0.0.1
+"#;
+
+    const SUPERAGENT_CONFIG_UNKNOWN_AGENT_FIELDS: &str = r#"
+opamp:
+  endpoint: http://localhost:8080/some/path
+  some-key: some-value
+agents:
+  agent_1:
+    agent_type: namespace/agent_type:0.0.1
+    agent_random: true
+"#;
+
+    #[test]
+    fn basic_parse() {
+        let actual = serde_yaml::from_str::<SuperAgentConfig>(EXAMPLE_SUPERAGENT_CONFIG);
+        assert!(actual.is_ok());
+    }
+
+    #[test]
+    fn parse_with_unknown_fields() {
+        let actual = serde_yaml::from_str::<SuperAgentConfig>(SUPERAGENT_CONFIG_UNKNOWN_FIELDS);
+        assert!(actual.is_err());
+        let actual =
+            serde_yaml::from_str::<SuperAgentConfig>(SUPERAGENT_CONFIG_UNKNOWN_OPAMP_FIELDS);
+        assert!(actual.is_err());
+        let actual =
+            serde_yaml::from_str::<SuperAgentConfig>(SUPERAGENT_CONFIG_UNKNOWN_AGENT_FIELDS);
+        assert!(actual.is_err());
+    }
 
     #[test]
     fn test_agent_type_fqn() {
