@@ -76,16 +76,16 @@ impl Default for BackoffStrategyConfig {
 impl Default for BackoffStrategyInner {
     fn default() -> Self {
         Self {
-            backoff_delay_seconds: BACKOFF_DELAY,
-            max_retries: BACKOFF_MAX_RETRIES,
-            last_retry_interval_seconds: BACKOFF_LAST_RETRY_INTERVAL,
+            backoff_delay_seconds: TemplateableValue::new(BACKOFF_DELAY),
+            max_retries: TemplateableValue::new(BACKOFF_MAX_RETRIES),
+            last_retry_interval_seconds: TemplateableValue::new(BACKOFF_LAST_RETRY_INTERVAL),
         }
     }
 }
 
 fn realize_backoff_config(i: &BackoffStrategyInner) -> Backoff {
     Backoff::new()
-        .with_initial_delay(i.backoff_delay_seconds)
-        .with_max_retries(i.max_retries)
-        .with_last_retry_interval(i.last_retry_interval_seconds)
+        .with_initial_delay(i.backoff_delay_seconds.clone().get().unwrap())
+        .with_max_retries(i.max_retries.clone().get().unwrap())
+        .with_last_retry_interval(i.last_retry_interval_seconds.clone().get().unwrap())
 }

@@ -294,7 +294,7 @@ fn load_agent_cfgs<Repo: AgentRepository>(
         let contents = fs::read_to_string(&agent_cfg.values_file)?;
         let agent_config: SupervisorConfig = serde_yaml::from_str(&contents)?;
 
-        let populated_agent = agent_type.clone().populate(agent_config)?;
+        let populated_agent = agent_type.clone().template_with(agent_config)?;
         effective_agent_repository.store_with_key(k.get(), populated_agent)?;
     }
     Ok(effective_agent_repository)

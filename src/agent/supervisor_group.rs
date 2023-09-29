@@ -226,9 +226,9 @@ fn build_on_host_runners(
     let mut runners = Vec::new();
     for exec in on_host.executables {
         let runner = SupervisorRunner::from(&Config::new(
-            exec.path,
-            exec.args.into_vector(),
-            exec.env.into_map(),
+            exec.path.get().unwrap(),
+            exec.args.get().unwrap().into_vector(),
+            exec.env.get().unwrap().into_map(),
             tx.clone(),
             on_host.restart_policy.clone(),
         ));
@@ -246,7 +246,7 @@ pub mod tests {
 
     use crate::agent::error::AgentError;
     use crate::agent::instance_id::test::MockInstanceIDGetterMock;
-    use crate::config::agent_type::agent_types::FinalAgent;
+    use crate::config::agent_type::agent_types::{FinalAgent, TemplateableValue};
     use crate::config::agent_type::runtime_config::{Deployment, Executable, RuntimeConfig};
     use crate::opamp::client_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock};
     use crate::{
@@ -426,7 +426,7 @@ pub mod tests {
                     deployment: Deployment {
                         on_host: Some(OnHost {
                             executables: vec![Executable {
-                                path: "a-path".to_string(),
+                                path: TemplateableValue::new("a-path".to_string()),
                                 args: Default::default(),
                                 env: Default::default(),
                             }],
