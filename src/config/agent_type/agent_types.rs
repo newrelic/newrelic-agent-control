@@ -407,6 +407,7 @@ deployment:
         env: ""
 "#;
 
+    // FIXME: Adapt new structure
     // #[test]
     // fn test_basic_parsing() {
     //     let agent: AgentTemplateable = serde_yaml::from_str(AGENT_GIVEN_YAML).unwrap();
@@ -513,67 +514,63 @@ deployment:
         );
     }
 
-    // #[test]
-    // fn test_replacer() {
-    //     let exec = Executable {
-    //         path: "${bin}/otelcol".to_string(),
-    //         args: Args(
-    //             "--verbose ${deployment.on_host.verbose} --logs ${deployment.on_host.log_level}"
-    //                 .to_string(),
-    //         ),
-    //         env: Env("".to_string()),
-    //     };
+    #[test]
+    fn test_replacer() {
+        let exec = Executable {
+            path: TemplateableValue::from_template("${bin}/otelcol".to_string()),
+            args: TemplateableValue::from_template("--verbose ${deployment.on_host.verbose} --logs ${deployment.on_host.log_level}".to_string()),
+            env: TemplateableValue::from_template("".to_string()),
+        };
 
-    //     let user_values = Map::from([
-    //         ("bin".to_string(), TrivialValue::String("/etc".to_string())),
-    //         (
-    //             "deployment.on_host.verbose".to_string(),
-    //             TrivialValue::String("true".to_string()),
-    //         ),
-    //         (
-    //             "deployment.on_host.log_level".to_string(),
-    //             TrivialValue::String("trace".to_string()),
-    //         ),
-    //     ]);
+        let user_values = Map::from([
+            ("bin".to_string(), TrivialValue::String("/etc".to_string())),
+            (
+                "deployment.on_host.verbose".to_string(),
+                TrivialValue::String("true".to_string()),
+            ),
+            (
+                "deployment.on_host.log_level".to_string(),
+                TrivialValue::String("trace".to_string()),
+            ),
+        ]);
 
-    //     let exec_actual = exec.template_with(user_values).unwrap();
+        let exec_actual = exec.template_with(user_values).unwrap();
 
-    //     let exec_expected = Executable {
-    //         path: "/etc/otelcol".to_string(),
-    //         args: Args("--verbose true --logs trace".to_string()),
-    //         env: Env("".to_string()),
-    //     };
+        let exec_expected = Executable {
+            path: TemplateableValue{value: Some("/etc/otelcol".to_string()), template: "${bin}/otelcol".to_string()},
+            args: TemplateableValue{value: Some(Args("--verbose true --logs trace".to_string())), template: "--verbose ${deployment.on_host.verbose} --logs ${deployment.on_host.log_level}".to_string()},
+            env: TemplateableValue{value: Some(Env("".to_string())), template: "".to_string()},
+        };
 
-    //     assert_eq!(exec_actual, exec_expected);
-    // }
+        assert_eq!(exec_actual, exec_expected);
+    }
 
-    // #[test]
-    // fn test_replacer_two_same() {
-    //     let exec = Executable {
-    //         path: "${bin}/otelcol".to_string(),
-    //         args: Args("--verbose ${deployment.on_host.verbose} --verbose_again ${deployment.on_host.verbose}"
-    //             .to_string()),
-    //         env: Env("".to_string()),
-    //     };
+    #[test]
+    fn test_replacer_two_same() {
+        let exec = Executable {
+            path: TemplateableValue::from_template("${bin}/otelcol".to_string()),
+            args: TemplateableValue::from_template("--verbose ${deployment.on_host.verbose} --verbose_again ${deployment.on_host.verbose}".to_string()),
+            env: TemplateableValue::from_template("".to_string()),
+        };
 
-    //     let user_values = Map::from([
-    //         ("bin".to_string(), TrivialValue::String("/etc".to_string())),
-    //         (
-    //             "deployment.on_host.verbose".to_string(),
-    //             TrivialValue::String("true".to_string()),
-    //         ),
-    //     ]);
+        let user_values = Map::from([
+            ("bin".to_string(), TrivialValue::String("/etc".to_string())),
+            (
+                "deployment.on_host.verbose".to_string(),
+                TrivialValue::String("true".to_string()),
+            ),
+        ]);
 
-    //     let exec_actual = exec.template_with(user_values).unwrap();
+        let exec_actual = exec.template_with(user_values).unwrap();
 
-    //     let exec_expected = Executable {
-    //         path: "/etc/otelcol".to_string(),
-    //         args: Args("--verbose true --verbose_again true".to_string()),
-    //         env: Env("".to_string()),
-    //     };
+        let exec_expected = Executable {
+            path: TemplateableValue{value: Some("/etc/otelcol".to_string()), template: "${bin}/otelcol".to_string()},
+            args: TemplateableValue{value: Some(Args("--verbose true --verbose_again true".to_string())), template: "--verbose ${deployment.on_host.verbose} --verbose_again ${deployment.on_host.verbose}".to_string()},
+            env: TemplateableValue{value: Some(Env("".to_string())), template: "".to_string()},
+        };
 
-    //     assert_eq!(exec_actual, exec_expected);
-    // }
+        assert_eq!(exec_actual, exec_expected);
+    }
 
     const GIVEN_NEWRELIC_INFRA_YAML: &str = r#"
 name: newrelic-infra
