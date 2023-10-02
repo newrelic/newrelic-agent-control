@@ -12,9 +12,7 @@ use serde::{Deserialize, Deserializer};
 use serde_with::DeserializeFromStr;
 use uuid::Uuid;
 
-use crate::config::supervisor_config::{
-    validate_with_agent_type, NormalizedSupervisorConfig, SupervisorConfig,
-};
+use crate::config::supervisor_config::SupervisorConfig;
 
 use super::{
     agent_metadata::AgentMetadata,
@@ -110,8 +108,8 @@ impl<S> Templateable for TemplateableValue<S>
 where
     S: FromStr,
 {
-    fn template_with(self, kv: HashMap<String, TrivialValue>) -> Result<Self, AgentTypeError> {
-        let templated_string = self.template.clone().template_with(kv)?;
+    fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
+        let templated_string = self.template.clone().template_with(variables)?;
         let value = templated_string
             .parse()
             .map_err(|_| AgentTypeError::ValueNotParseableFromString)?;
@@ -123,8 +121,8 @@ where
 }
 
 impl Templateable for TemplateableValue<Env> {
-    fn template_with(self, kv: HashMap<String, TrivialValue>) -> Result<Self, AgentTypeError> {
-        let templated_string = self.template.clone().template_with(kv)?;
+    fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
+        let templated_string = self.template.clone().template_with(variables)?;
         Ok(Self {
             template: self.template,
             value: Some(Env(templated_string)),
@@ -133,8 +131,8 @@ impl Templateable for TemplateableValue<Env> {
 }
 
 impl Templateable for TemplateableValue<Args> {
-    fn template_with(self, kv: HashMap<String, TrivialValue>) -> Result<Self, AgentTypeError> {
-        let templated_string = self.template.clone().template_with(kv)?;
+    fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
+        let templated_string = self.template.clone().template_with(variables)?;
         Ok(Self {
             template: self.template,
             value: Some(Args(templated_string)),

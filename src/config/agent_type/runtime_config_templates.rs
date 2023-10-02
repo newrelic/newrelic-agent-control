@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use regex::Regex;
 
-use crate::config::supervisor_config::NormalizedSupervisorConfig;
 
 use super::{
     agent_types::NormalizedVariables,
