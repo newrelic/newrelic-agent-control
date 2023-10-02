@@ -37,4 +37,13 @@
           include_role:
             name:  nr-otel-collector-config
 
+        - name: Setup NR Super Agent config
+          include_role:
+            name: super-agent-config
+
+        - name: Restart New Relic Super Agent
+          ansible.builtin.service:
+            name: newrelic-super-agent
+            state: restarted
+
 ...

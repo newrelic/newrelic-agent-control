@@ -518,7 +518,10 @@ deployment:
     fn test_replacer() {
         let exec = Executable {
             path: TemplateableValue::from_template("${bin}/otelcol".to_string()),
-            args: TemplateableValue::from_template("--verbose ${deployment.on_host.verbose} --logs ${deployment.on_host.log_level}".to_string()),
+            args: TemplateableValue::from_template(
+                "--verbose ${deployment.on_host.verbose} --logs ${deployment.on_host.log_level}"
+                    .to_string(),
+            ),
             env: TemplateableValue::from_template("".to_string()),
         };
 
@@ -537,9 +540,20 @@ deployment:
         let exec_actual = exec.template_with(user_values).unwrap();
 
         let exec_expected = Executable {
-            path: TemplateableValue{value: Some("/etc/otelcol".to_string()), template: "${bin}/otelcol".to_string()},
-            args: TemplateableValue{value: Some(Args("--verbose true --logs trace".to_string())), template: "--verbose ${deployment.on_host.verbose} --logs ${deployment.on_host.log_level}".to_string()},
-            env: TemplateableValue{value: Some(Env("".to_string())), template: "".to_string()},
+            path: TemplateableValue {
+                value: Some("/etc/otelcol".to_string()),
+                template: "${bin}/otelcol".to_string(),
+            },
+            args: TemplateableValue {
+                value: Some(Args("--verbose true --logs trace".to_string())),
+                template:
+                    "--verbose ${deployment.on_host.verbose} --logs ${deployment.on_host.log_level}"
+                        .to_string(),
+            },
+            env: TemplateableValue {
+                value: Some(Env("".to_string())),
+                template: "".to_string(),
+            },
         };
 
         assert_eq!(exec_actual, exec_expected);
@@ -581,11 +595,18 @@ variables:
     description: "Newrelic infra configuration yaml"
     type: file
     required: true
+  config2:
+    description: "Newrelic infra configuration yaml"
+    type: file
+    required: false
+    default: |
+        license_key: abc123
+        staging: true
 deployment:
   on_host:
     executables:
       - path: /usr/bin/newrelic-infra
-        args: "--config ${config}"
+        args: "--config ${config} --config2 ${config2}"
         env: ""
 "#;
 

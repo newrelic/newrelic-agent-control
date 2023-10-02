@@ -2,6 +2,7 @@ use std::fmt::Debug;
 
 use thiserror::Error;
 
+use crate::file_reader::FileReaderError;
 use crate::{
     config::{
         agent_type::error::AgentTypeError, agent_type_registry::AgentRepositoryError,
@@ -37,4 +38,7 @@ pub enum AgentError {
 
     #[error("`{0}`")]
     SupervisorGroupError(#[from] SupervisorGroupError),
+
+    #[error("file reader error: `{0}`")]
+    FileReaderError(#[from] FileReaderError),
 }

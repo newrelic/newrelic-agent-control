@@ -23,6 +23,7 @@ impl TrivialValue {
         match (self.clone(), type_) {
             (TrivialValue::String(_), VariableType::String)
             | (TrivialValue::Bool(_), VariableType::Bool)
+            | (TrivialValue::File(_), VariableType::File)
             | (TrivialValue::Number(_), VariableType::Number) => Ok(self),
             (TrivialValue::String(s), VariableType::File) => {
                 Ok(TrivialValue::File(FilePathWithContent::new(s)))

@@ -36,12 +36,12 @@ ec2_super_agents = {
     }
   }
   "super_agent-TAG_OR_UNIQUE_NAME-arm64:centos-stream" = {
-    ami             = "ami-00c2c04322134aa50"
+    ami             = "ami-0dce27ea07b1afb8f"
     subnet          = "subnet-09b64de757828cdd4"
     security_groups = ["sg-044ef7bc34691164a"]
     key_name        = "caos-dev-arm"
     instance_type   = "t4g.small"
-    username        = "centos"
+    username        = "cloud-user"
     python          = "/usr/bin/python3"
     tags            = {
       "otel_role" = "agent"

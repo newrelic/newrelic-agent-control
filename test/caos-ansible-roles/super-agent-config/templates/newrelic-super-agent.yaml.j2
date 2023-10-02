@@ -1,0 +1,19 @@
+#
+# New Relic Super Agent configuration file.
+#
+# Lines that begin with a # are comment lines and are ignored by the server
+# monitor. For those options that have command line equivalents, if the
+# option is specified on the command line it will over-ride any value set
+# in this file.
+#
+
+opamp:
+  endpoint: https://opamp.staging-service.newrelic.com/v1/opamp
+  headers:
+    api-key: {{ nr_license_key }}
+
+agents:
+  nr_infra_agent:
+    agent_type: "newrelic/com.newrelic.infrastructure_agent:0.0.1"
+  nr_otel_collector:
+    agent_type: "newrelic/io.opentelemetry.collector:0.0.1"

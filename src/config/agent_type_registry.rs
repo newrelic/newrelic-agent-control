@@ -27,7 +27,7 @@ pub trait AgentRepository {
     ) -> Result<(), AgentRepositoryError>;
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct LocalRepository(HashMap<String, FinalAgent>);
 
 impl AgentRepository for LocalRepository {
