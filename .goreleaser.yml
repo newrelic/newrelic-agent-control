@@ -89,6 +89,12 @@ nfpms:
         type: config
       - dst: /var/log/newrelic-infra
         type: dir
+      - dst: /var/run/newrelic-infra
+        type: dir
+      - dst: /var/db/newrelic-infra/custom-integrations
+        type: dir
+      - dst: /var/db/newrelic-infra/integrations.d
+        type: dir
       # NR Otel Collector
       - src: build/embedded/artifacts/{{- .Arch }}/nr-otel-collector/nr-otel-collector
         dst: /usr/bin/nr-otel-collector
