@@ -87,6 +87,8 @@ nfpms:
       - src: build/embedded/artifacts/{{- .Arch }}/fluent-bit/tcp.yml.example
         dst: /etc/newrelic-infra/logging.d/tcp.yml.example
         type: config
+      - dst: /var/log/newrelic-infra
+        type: dir
       # NR Otel Collector
       - src: build/embedded/artifacts/{{- .Arch }}/nr-otel-collector/nr-otel-collector
         dst: /usr/bin/nr-otel-collector
