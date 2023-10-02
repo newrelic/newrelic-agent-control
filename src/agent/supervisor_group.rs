@@ -247,7 +247,9 @@ pub mod tests {
     use crate::agent::error::AgentError;
     use crate::agent::instance_id::test::MockInstanceIDGetterMock;
     use crate::config::agent_type::agent_types::{FinalAgent, TemplateableValue};
-    use crate::config::agent_type::runtime_config::{Deployment, Executable, RuntimeConfig};
+    use crate::config::agent_type::runtime_config::{
+        Args, Deployment, Env, Executable, RuntimeConfig,
+    };
     use crate::opamp::client_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock};
     use crate::{
         command::stream::Event,
@@ -427,8 +429,8 @@ pub mod tests {
                         on_host: Some(OnHost {
                             executables: vec![Executable {
                                 path: TemplateableValue::new("a-path".to_string()),
-                                args: Default::default(),
-                                env: Default::default(),
+                                args: TemplateableValue::new(Args("--arg".to_string())),
+                                env: TemplateableValue::new(Env("ENV=env".to_string())),
                             }],
                             restart_policy: Default::default(),
                         }),
