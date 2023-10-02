@@ -1,19 +1,24 @@
-use opamp_client::{httpclient::HttpClient, operation::settings::StartSettings, OpAMPClient};
+use opamp_client::error::NotStartedClientError;
+use opamp_client::http::{HttpClientError, HttpClientReqwest, HttpConfig, NotStartedHttpClient};
+use opamp_client::operation::settings::StartSettings;
+use opamp_client::NotStartedClient;
 use thiserror::Error;
 use tracing::error;
 
 use crate::config::agent_configs::OpAMPClientConfig;
 
-use crate::agent::callbacks::{AgentCallbacks, AgentEffectiveConfig};
+use crate::agent::callbacks::AgentCallbacks;
 
 #[derive(Error, Debug)]
 pub enum OpAMPClientBuilderError {
-    #[error("unable to create OpAMP client: `{0}`")]
-    ClientError(String),
+    #[error("unable to create OpAMP HTTP client: `{0}`")]
+    HttpClientError(#[from] HttpClientError),
+    #[error("`{0}`")]
+    ClientError(#[from] NotStartedClientError),
 }
 
 pub trait OpAMPClientBuilder {
-    type Client: OpAMPClient;
+    type Client: NotStartedClient;
     fn build(&self, start_settings: StartSettings)
         -> Result<Self::Client, OpAMPClientBuilderError>;
 }
@@ -30,7 +35,7 @@ impl OpAMPHttpBuilder {
 }
 
 impl OpAMPClientBuilder for OpAMPHttpBuilder {
-    type Client = HttpClient<AgentEffectiveConfig, AgentCallbacks>;
+    type Client = NotStartedHttpClient<AgentCallbacks, HttpClientReqwest>;
     fn build(
         &self,
         start_settings: StartSettings,
@@ -42,14 +47,15 @@ impl OpAMPClientBuilder for OpAMPHttpBuilder {
             .map(|header| (header.0.as_str(), header.1.as_str()))
             .collect();
 
-        HttpClient::new(
-            AgentEffectiveConfig,
-            self.config.endpoint.as_str(),
-            headers,
-            start_settings,
+        let http_client = HttpClientReqwest::new(
+            HttpConfig::new(self.config.endpoint.as_str())?.with_headers(headers)?,
+        )?;
+
+        Ok(NotStartedHttpClient::new(
             AgentCallbacks,
-        )
-        .map_err(|err| OpAMPClientBuilderError::ClientError(err.to_string()))
+            start_settings,
+            http_client,
+        )?)
     }
 }
 
@@ -59,39 +65,38 @@ pub(crate) mod test {
     use async_trait::async_trait;
     use mockall::mock;
     use opamp_client::{
+        error::{ClientResult, NotStartedClientResult, StartedClientResult},
         opamp::proto::{AgentDescription, AgentHealth},
-        OpAMPClient, OpAMPClientHandle,
+        Client, NotStartedClient, StartedClient,
     };
-
-    use crate::agent::error::AgentError;
 
     mock! {
         pub OpAMPClientMock {}
 
         #[async_trait]
-        impl OpAMPClient for OpAMPClientMock {
-            type Handle = MockOpAMPClientMock;
-            type Error = AgentError;
+        impl NotStartedClient for OpAMPClientMock {
+            type StartedClient = MockOpAMPClientMock;
             // add code here
-            async fn start(self) -> Result<<Self as OpAMPClient>::Handle, <Self as OpAMPClient>::Error>;
+            async fn start(self) -> NotStartedClientResult<<Self as NotStartedClient>::StartedClient>;
         }
 
         #[async_trait]
-        impl OpAMPClientHandle for OpAMPClientMock {
-            type Error = AgentError;
+        impl StartedClient for OpAMPClientMock {
 
-            async fn stop(self) -> Result<(), <Self as OpAMPClientHandle>::Error>;
+            async fn stop(self) -> StartedClientResult<()>;
+        }
+
+        #[async_trait]
+        impl Client for OpAMPClientMock {
 
             async fn set_agent_description(
-                &mut self,
-                description: &AgentDescription,
-            ) -> Result<(), <Self as OpAMPClientHandle>::Error>;
+                &self,
+                description: AgentDescription,
+            ) -> ClientResult<()>;
 
-            fn agent_description(&self) -> Result<AgentDescription, <Self as OpAMPClientHandle>::Error>;
+            async fn set_health(&self, health: AgentHealth) -> ClientResult<()>;
 
-            async fn set_health(&mut self, health: &AgentHealth) -> Result<(), <Self as OpAMPClientHandle>::Error>;
-
-            async fn update_effective_config(&mut self) -> Result<(), <Self as OpAMPClientHandle>::Error>;
+            async fn update_effective_config(&self) -> ClientResult<()>;
         }
     }
 

@@ -6,7 +6,8 @@ use futures::executor::block_on;
 use nix::unistd::gethostname;
 use opamp_client::opamp::proto::AgentCapabilities;
 use opamp_client::operation::settings::{AgentDescription, DescriptionValueType, StartSettings};
-use opamp_client::{capabilities, OpAMPClient, OpAMPClientHandle};
+use opamp_client::{capabilities, Client};
+use opamp_client::{NotStartedClient, StartedClient};
 use tracing::{error, info};
 
 use crate::agent::instance_id::{InstanceIDGetter, ULIDInstanceIDGetter};
@@ -187,14 +188,14 @@ where
                         )]),
                     },
                 })?;
-                let mut opamp_client_handle = block_on(opamp_client.start()).unwrap();
+                let opamp_client_handle = block_on(opamp_client.start()).unwrap();
 
                 let health = opamp_client::opamp::proto::AgentHealth {
                     healthy: true,
                     last_error: "".to_string(),
                     start_time_unix_nano: 0,
                 };
-                block_on(opamp_client_handle.set_health(&health)).unwrap();
+                block_on(opamp_client_handle.set_health(health)).unwrap();
                 Some(opamp_client_handle)
             }
             None => None,
@@ -311,7 +312,7 @@ mod tests {
         SUPER_AGENT_TYPE, SUPER_AGENT_VERSION,
     };
     use crate::config::agent_configs::{AgentID, AgentSupervisorConfig, SuperAgentConfig};
-    use crate::config::agent_type::{TrivialValue, VariableType};
+    use crate::config::agent_type::TrivialValue;
     use crate::config::agent_type_registry::{AgentRepository, LocalRepository};
     use crate::context::Context;
     use crate::file_reader::test::MockFileReaderMock;
