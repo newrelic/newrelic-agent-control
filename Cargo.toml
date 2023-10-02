@@ -1,5 +1,5 @@
 [package]
-name = "newrelic-super-agent"
+name = "newrelic_super_agent"
 description = "New Relic Super Agent Limited Preview"
 version = "0.4.1"
 edition = "2021"
