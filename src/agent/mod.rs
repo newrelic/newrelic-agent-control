@@ -311,7 +311,7 @@ mod tests {
         SUPER_AGENT_TYPE, SUPER_AGENT_VERSION,
     };
     use crate::config::agent_configs::{AgentID, AgentSupervisorConfig, SuperAgentConfig};
-    use crate::config::agent_type::{TrivialValue, VariableType};
+    use crate::config::agent_type::trivial_value::TrivialValue;
     use crate::config::agent_type_registry::{AgentRepository, LocalRepository};
     use crate::context::Context;
     use crate::file_reader::test::MockFileReaderMock;
@@ -505,6 +505,12 @@ deployment:
         env: ""
 "#;
 
+    const SECOND_TYPE_VALUES: &str = r#"
+deployment:
+  on_host:
+    path: another-path
+"#;
+
     #[test]
     fn load_agent_cfgs_test() {
         let mut local_agent_type_repository = LocalRepository::new();
@@ -517,7 +523,7 @@ deployment:
             .expect_read()
             .with(predicate::eq("second.yaml".to_string()))
             .times(1)
-            .returning(|_| Ok("deployment.on_host.path: another-path".to_string()));
+            .returning(|_| Ok(SECOND_TYPE_VALUES.to_string()));
 
         let agent_config = SuperAgentConfig {
             agents: HashMap::from([

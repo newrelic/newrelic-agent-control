@@ -1,4 +1,4 @@
-use std::{io, str::FromStr};
+use std::io;
 
 use thiserror::Error;
 
@@ -26,6 +26,9 @@ pub enum AgentTypeError {
     InvalidFilePath,
     #[error("Missing required template key: `{0}`")]
     MissingTemplateKey(String),
+
+    #[error("Map values must be of the same type")]
+    InvalidMap,
 
     #[error("Missing default value for a non-required spec key")]
     MissingDefault,

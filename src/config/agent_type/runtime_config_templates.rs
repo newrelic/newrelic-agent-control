@@ -5,6 +5,7 @@ use regex::Regex;
 use crate::config::supervisor_config::NormalizedSupervisorConfig;
 
 use super::{
+    agent_types::NormalizedVariables,
     error::AgentTypeError,
     runtime_config::{Args, Deployment, Env, Executable, OnHost, RuntimeConfig},
     trivial_value::TrivialValue,
@@ -30,24 +31,24 @@ const TEMPLATE_END: char = '}';
 pub const TEMPLATE_KEY_SEPARATOR: &str = ".";
 
 pub trait Templateable {
-    fn template_with(self, kv: HashMap<String, TrivialValue>) -> Result<Self, AgentTypeError>
+    fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError>
     where
         Self: std::marker::Sized;
 }
 
 impl Templateable for Executable {
-    fn template_with(self, kv: HashMap<String, TrivialValue>) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
         Ok(Self {
-            path: self.path.template_with(kv.clone())?,
-            args: self.args.template_with(kv.clone())?,
-            env: self.env.template_with(kv)?,
+            path: self.path.template_with(variables)?,
+            args: self.args.template_with(variables)?,
+            env: self.env.template_with(variables)?,
         })
     }
 }
 
 // The actual std type that has a meaningful implementation of Templateable
 impl Templateable for String {
-    fn template_with(self, kv: HashMap<String, TrivialValue>) -> Result<String, AgentTypeError> {
+    fn template_with(self, variables: &NormalizedVariables) -> Result<String, AgentTypeError> {
         let re = Regex::new(TEMPLATE_RE).unwrap();
 
         let result = re
@@ -57,23 +58,33 @@ impl Templateable for String {
                 let trimmed_s = i
                     .trim_start_matches(TEMPLATE_BEGIN)
                     .trim_end_matches(TEMPLATE_END);
-                if !kv.contains_key(trimmed_s) {
+                if !variables.contains_key(trimmed_s) {
                     return Err(AgentTypeError::MissingTemplateKey(trimmed_s.to_string()));
                 }
-                let replacement = &kv[trimmed_s];
-                Ok(re.replace(&r, replacement.to_string()).to_string())
+                let replacement = &variables[trimmed_s];
+                Ok(re
+                    .replace(
+                        &r,
+                        replacement
+                            .final_value
+                            .as_ref()
+                            .or(replacement.default.as_ref())
+                            .ok_or(AgentTypeError::MissingTemplateKey(trimmed_s.to_string()))?
+                            .to_string(),
+                    )
+                    .to_string())
             });
         result
     }
 }
 
 impl Templateable for OnHost {
-    fn template_with(self, kv: NormalizedSupervisorConfig) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
         Ok(Self {
             executables: self
                 .executables
                 .into_iter()
-                .map(|e| e.template_with(kv.clone()))
+                .map(|e| e.template_with(variables))
                 .collect::<Result<Vec<Executable>, AgentTypeError>>()?,
             ..Default::default()
         })
@@ -81,22 +92,22 @@ impl Templateable for OnHost {
 }
 
 // impl Templateable<Args> for Args {
-//     fn template_with(self, kv: HashMap<String, TrivialValue>) -> Result<Self, AgentTypeError> {
-//         Ok(Self(self.0.template_with(kv)?))
+//     fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
+//         Ok(Self(self.0.template_with(variables)?))
 //     }
 // }
 // impl Templateable<Env> for Env {
-//     fn template_with(self, kv: HashMap<String, TrivialValue>) -> Result<Self, AgentTypeError> {
-//         Ok(Self(self.0.template_with(kv)?))
+//     fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
+//         Ok(Self(self.0.template_with(variables)?))
 //     }
 // }
 
 impl Templateable for Deployment {
-    fn template_with(self, kv: NormalizedSupervisorConfig) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
         /*
         `self.on_host` has type `Option<OnHost>`
 
-        let t = self.on_host.map(|o| o.template_with(kv)); `t` has type `Option<Result<OnHost, AgentTypeError>>`
+        let t = self.on_host.map(|o| o.template_with(variables)); `t` has type `Option<Result<OnHost, AgentTypeError>>`
 
         Let's visit all the possibilities of `t`.
         When I do `t.transpose()`, which takes an Option<Result<_,_>> and returns a Result<Option<_>,_>, this is what happens:
@@ -117,15 +128,18 @@ impl Templateable for Deployment {
         With `?` I get rid of the original Result<_,_> wrapper type and get the Option<_> (or else the error bubbles up if it contained the Err(_) variant). Then I am able to store that Option<_>, be it None or Some(_), back into the Deployment object which contains the Option<_> field.
          */
 
-        let oh = self.on_host.map(|oh| oh.template_with(kv)).transpose()?;
+        let oh = self
+            .on_host
+            .map(|oh| oh.template_with(variables))
+            .transpose()?;
         Ok(Self { on_host: oh })
     }
 }
 
 impl Templateable for RuntimeConfig {
-    fn template_with(self, kv: NormalizedSupervisorConfig) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
         Ok(Self {
-            deployment: self.deployment.template_with(kv)?,
+            deployment: self.deployment.template_with(variables)?,
         })
     }
 }

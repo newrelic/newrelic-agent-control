@@ -13,6 +13,7 @@ pub enum TrivialValue {
     File(FilePathWithContent),
     Bool(bool),
     Number(N),
+    Map(Map<String, TrivialValue>),
 }
 
 impl TrivialValue {
@@ -25,6 +26,12 @@ impl TrivialValue {
             | (TrivialValue::Bool(_), VariableType::Bool)
             | (TrivialValue::File(_), VariableType::File)
             | (TrivialValue::Number(_), VariableType::Number) => Ok(self),
+            (TrivialValue::Map(m), VariableType::MapStringString) => {
+                if !m.iter().all(|(_, v)| matches!(v, TrivialValue::String(_))) {
+                    return Err(AgentTypeError::InvalidMap);
+                }
+                Ok(self)
+            }
             (TrivialValue::String(s), VariableType::File) => {
                 Ok(TrivialValue::File(FilePathWithContent::new(s)))
             }
@@ -43,6 +50,13 @@ impl Display for TrivialValue {
             TrivialValue::File(file) => write!(f, "{}", file.path),
             TrivialValue::Bool(b) => write!(f, "{}", b),
             TrivialValue::Number(n) => write!(f, "{}", n),
+            TrivialValue::Map(n) => {
+                let flatten: Vec<String> = n
+                    .iter()
+                    .map(|(key, value)| format!("{key}={value}"))
+                    .collect();
+                write!(f, "{}", flatten.join(" "))
+            }
         }
     }
 }

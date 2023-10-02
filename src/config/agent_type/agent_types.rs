@@ -4,11 +4,13 @@
 //!
 //! See [`Agent::template_with`] for a flowchart of the dataflow that ends in the final, enriched structure.
 
-use std::{collections::HashMap, str::FromStr, time::Duration};
+use std::io::Write;
+use std::{collections::HashMap, fs, str::FromStr, time::Duration};
 
 use duration_string::DurationString;
 use serde::{Deserialize, Deserializer};
 use serde_with::DeserializeFromStr;
+use uuid::Uuid;
 
 use crate::config::supervisor_config::{
     validate_with_agent_type, NormalizedSupervisorConfig, SupervisorConfig,
@@ -184,23 +186,60 @@ impl FinalAgent {
     ///     end
     /// ```
     pub fn template_with(self, config: SupervisorConfig) -> Result<FinalAgent, AgentTypeError> {
-        let normalized_config = NormalizedSupervisorConfig::from(config);
-        let validated_conf = validate_with_agent_type(normalized_config, &self)?;
+        // let normalized_config = NormalizedSupervisorConfig::from(config);
+        // let validated_conf = validate_with_agent_type(normalized_config, &self)?;
+        let mut config = config.normalize_with_agent_type(&self)?;
 
-        let runtime_conf = self.runtime_config.template_with(validated_conf.clone())?;
+        // let runtime_conf = self.runtime_config.template_with(validated_conf.clone())?;
         let mut spec = self.variables;
 
-        validated_conf.into_iter().for_each(|(k, v)| {
-            spec.entry(k).and_modify(|s| {
-                s.final_value = Some(v);
-            });
+        // modifies variables final value with the one defined in the SupervisorConfig
+        spec.iter_mut().for_each(|(k, v)| {
+            let defined_value = config.get_from_normalized(k);
+            v.final_value = defined_value.or(v.default.clone());
         });
 
-        Ok(FinalAgent {
-            metadata: self.metadata,
-            variables: spec,
+        let runtime_conf = self.runtime_config.template_with(&spec)?;
+
+        let mut populated_agent = FinalAgent {
             runtime_config: runtime_conf,
-        })
+            variables: spec,
+            ..self
+        };
+        populated_agent.write_files()?;
+        Ok(populated_agent)
+    }
+
+    // write_files stores the content of each TrivialValue::File into the corresponding file
+    fn write_files(&mut self) -> Result<(), AgentTypeError> {
+        self.variables
+            .values_mut()
+            .try_for_each(|v| -> Result<(), AgentTypeError> {
+                if let Some(TrivialValue::File(f)) = &mut v.final_value {
+                    const CONF_DIR: &str = "agentconfigs";
+                    // get current path
+                    let wd = std::env::current_dir()?;
+                    let dir = wd.join(CONF_DIR);
+                    if !dir.exists() {
+                        fs::create_dir(dir.as_path())?;
+                    }
+                    let uuid = Uuid::new_v4().to_string();
+                    let path = format!("{}/{}-config.yaml", dir.to_string_lossy(), uuid); // FIXME: PATH?
+                    let mut file = fs::OpenOptions::new()
+                        .create(true)
+                        .write(true)
+                        .open(&path)?;
+
+                    writeln!(file, "{}", f.content)?;
+                    f.path = path;
+                    // f.path = file
+                    //     .path()
+                    //     .to_str()
+                    //     .ok_or(AgentTypeError::InvalidFilePath)?
+                    //     .to_string();
+                }
+                Ok(())
+            })
     }
 }
 
@@ -244,8 +283,8 @@ pub enum VariableType {
     Number,
     #[serde(rename = "file")]
     File,
-    // #[serde(rename = "map[string]string")]
-    // MapStringString,
+    #[serde(rename = "map[string]string")]
+    MapStringString,
     // #[serde(rename = "map[string]number")]
     // MapStringNumber,
     // #[serde(rename = "map[string]bool")]
@@ -321,7 +360,7 @@ enum Spec {
 /// ```
 ///
 /// Will be converted to `system.logging.level` and can be used later in the AgentType_Meta part as `${system.logging.level}`.
-type NormalizedVariables = HashMap<String, EndSpec>;
+pub(crate) type NormalizedVariables = HashMap<String, EndSpec>;
 
 fn normalize_agent_spec(spec: AgentVariables) -> Result<NormalizedVariables, AgentTypeError> {
     spec.into_iter().try_fold(HashMap::new(), |r, (k, v)| {
@@ -525,19 +564,40 @@ deployment:
             env: TemplateableValue::from_template("".to_string()),
         };
 
-        let user_values = Map::from([
-            ("bin".to_string(), TrivialValue::String("/etc".to_string())),
+        let normalized_values = Map::from([
+            (
+                "bin".to_string(),
+                EndSpec {
+                    default: None,
+                    description: "binary".to_string(),
+                    type_: VariableType::String,
+                    required: true,
+                    final_value: Some(TrivialValue::String("/etc".to_string())),
+                },
+            ),
             (
                 "deployment.on_host.verbose".to_string(),
-                TrivialValue::String("true".to_string()),
+                EndSpec {
+                    default: None,
+                    description: "verbosity".to_string(),
+                    type_: VariableType::String,
+                    required: true,
+                    final_value: Some(TrivialValue::String("true".to_string())),
+                },
             ),
             (
                 "deployment.on_host.log_level".to_string(),
-                TrivialValue::String("trace".to_string()),
+                EndSpec {
+                    default: None,
+                    description: "log_level".to_string(),
+                    type_: VariableType::String,
+                    required: true,
+                    final_value: Some(TrivialValue::String("trace".to_string())),
+                },
             ),
         ]);
 
-        let exec_actual = exec.template_with(user_values).unwrap();
+        let exec_actual = exec.template_with(&normalized_values).unwrap();
 
         let exec_expected = Executable {
             path: TemplateableValue {
@@ -567,15 +627,30 @@ deployment:
             env: TemplateableValue::from_template("".to_string()),
         };
 
-        let user_values = Map::from([
-            ("bin".to_string(), TrivialValue::String("/etc".to_string())),
+        let normalized_values = Map::from([
+            (
+                "bin".to_string(),
+                EndSpec {
+                    default: None,
+                    description: "binary".to_string(),
+                    type_: VariableType::String,
+                    required: true,
+                    final_value: Some(TrivialValue::String("/etc".to_string())),
+                },
+            ),
             (
                 "deployment.on_host.verbose".to_string(),
-                TrivialValue::String("true".to_string()),
+                EndSpec {
+                    default: None,
+                    description: "verbosity".to_string(),
+                    type_: VariableType::String,
+                    required: true,
+                    final_value: Some(TrivialValue::String("true".to_string())),
+                },
             ),
         ]);
 
-        let exec_actual = exec.template_with(user_values).unwrap();
+        let exec_actual = exec.template_with(&normalized_values).unwrap();
 
         let exec_expected = Executable {
             path: TemplateableValue{value: Some("/etc/otelcol".to_string()), template: "${bin}/otelcol".to_string()},
@@ -602,6 +677,10 @@ variables:
     default: |
         license_key: abc123
         staging: true
+  config3:
+    description: "Newrelic infra configuration yaml"
+    type: map[string]string
+    required: true
 deployment:
   on_host:
     executables:
@@ -611,6 +690,9 @@ deployment:
 "#;
 
     const GIVEN_NEWRELIC_INFRA_USER_CONFIG_YAML: &str = r#"
+config3:
+  log_level: trace
+  forward: "true"
 config: | 
     license_key: abc123
     staging: true
