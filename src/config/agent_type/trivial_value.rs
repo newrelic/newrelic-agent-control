@@ -1,4 +1,7 @@
-use std::{fmt::{Display, Formatter}, collections::HashMap as Map};
+use std::{
+    collections::HashMap as Map,
+    fmt::{Display, Formatter},
+};
 
 use serde::Deserialize;
 

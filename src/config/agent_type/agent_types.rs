@@ -5,11 +5,10 @@
 //! See [`Agent::template_with`] for a flowchart of the dataflow that ends in the final, enriched structure.
 
 use std::io::Write;
-use std::{collections::HashMap, fs, str::FromStr, time::Duration};
+use std::{collections::HashMap, fs, str::FromStr};
 
-use duration_string::DurationString;
 use serde::{Deserialize, Deserializer};
-use serde_with::DeserializeFromStr;
+
 use uuid::Uuid;
 
 use crate::config::supervisor_config::SupervisorConfig;
@@ -402,7 +401,7 @@ pub mod tests {
 
     use super::*;
     use serde_yaml::Error;
-    use std::{collections::HashMap as Map, time::Duration};
+    use std::collections::HashMap as Map;
 
     pub const AGENT_GIVEN_YAML: &str = r#"
 name: nrdot

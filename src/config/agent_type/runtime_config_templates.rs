@@ -1,13 +1,9 @@
-use std::collections::HashMap;
-
 use regex::Regex;
-
 
 use super::{
     agent_types::NormalizedVariables,
     error::AgentTypeError,
-    runtime_config::{Args, Deployment, Env, Executable, OnHost, RuntimeConfig},
-    trivial_value::TrivialValue,
+    runtime_config::{Deployment, Executable, OnHost, RuntimeConfig},
 };
 
 /// Regex that extracts the template values from a string.
