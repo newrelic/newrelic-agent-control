@@ -890,6 +890,11 @@ Distributed under the following license(s):
 
 
 
+## newrelic-super-agent (https://github.com/newrelic/newrelic-supervisor)
+
+Distributed under the following license(s):
+
+
 
 ## nix (https://crates.io/crates/nix)
 
