@@ -227,7 +227,7 @@ fn build_on_host_runners(
     for exec in on_host.executables {
         let runner = SupervisorRunner::from(&Config::new(
             exec.path.get().unwrap(),
-            exec.args.get().unwrap().into_vector(),
+            exec.args.get().unwrap().into_vector(), // FIXME: unpopulated value!
             exec.env.get().unwrap().into_map(),
             tx.clone(),
             on_host.restart_policy.clone(),
