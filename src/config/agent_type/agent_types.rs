@@ -249,7 +249,7 @@ impl TryFrom<RawAgent> for FinalAgent {
         Ok(Self {
             variables: normalize_agent_spec(raw_agent.variables)?,
             metadata: raw_agent.metadata,
-            runtime_config: raw_agent.runtime_config, // FIXME: make it actual implementaiton
+            runtime_config: raw_agent.runtime_config, // FIXME: make it actual implementation
         })
     }
 }
