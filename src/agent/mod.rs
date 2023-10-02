@@ -195,7 +195,7 @@ where
                     last_error: "".to_string(),
                     start_time_unix_nano: 0,
                 };
-                block_on(opamp_client_handle.set_health(health)).unwrap();
+                block_on(opamp_client_handle.set_health(health))?;
                 Some(opamp_client_handle)
             }
             None => None,
@@ -272,7 +272,7 @@ where
 
         if let Some(handle) = opamp_client_handle {
             info!("Stopping OpAMP Client");
-            block_on(handle.stop()).unwrap();
+            block_on(handle.stop())?;
         }
 
         info!("Waiting for the output manager to finish");

@@ -124,6 +124,14 @@ Distributed under the following license(s):
 
 
 
+## async-recursion (https://crates.io/crates/async-recursion)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+
 ## async-trait (https://crates.io/crates/async-trait)
 
 Distributed under the following license(s):
@@ -398,14 +406,6 @@ Distributed under the following license(s):
 
 
 
-## env_logger (https://crates.io/crates/env_logger)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
 ## equivalent (https://crates.io/crates/equivalent)
 
 Distributed under the following license(s):
@@ -649,14 +649,6 @@ Distributed under the following license(s):
 
 
 
-## humantime (https://crates.io/crates/humantime)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
 ## hyper (https://crates.io/crates/hyper)
 
 Distributed under the following license(s):
@@ -723,13 +715,6 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 * MIT
 * Apache-2.0
-
-
-
-## is-terminal (https://crates.io/crates/is-terminal)
-
-Distributed under the following license(s):
-* MIT
 
 
 
@@ -951,7 +936,7 @@ Distributed under the following license(s):
 
 
 
-## opamp-client (git+ssh://git@github.com/newrelic/opamp-rs.git#0ea1c104a08af53dd6c919b6e8264383c10962b8)
+## opamp-client (git+ssh://git@github.com/newrelic/opamp-rs.git?branch=refactor_connection#a25c3361515f3d2aaba9905b86ffe04986b9a154)
 
 Distributed under the following license(s):
 * Apache-2.0
@@ -1443,14 +1428,6 @@ Distributed under the following license(s):
 
 
 
-## termcolor (https://crates.io/crates/termcolor)
-
-Distributed under the following license(s):
-* Unlicense
-* MIT
-
-
-
 ## termtree (https://crates.io/crates/termtree)
 
 Distributed under the following license(s):
@@ -1794,14 +1771,6 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 * MIT
 * Apache-2.0
-
-
-
-## winapi-util (https://crates.io/crates/winapi-util)
-
-Distributed under the following license(s):
-* Unlicense
-* MIT
 
 
 
