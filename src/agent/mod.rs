@@ -271,7 +271,13 @@ where
         }
 
         if let Some(handle) = opamp_client_handle {
-            info!("Stopping OpAMP Client");
+            info!("Stopping and setting to unhealthy the OpAMP Client");
+            let health = opamp_client::opamp::proto::AgentHealth {
+                healthy: false,
+                last_error: "".to_string(),
+                start_time_unix_nano: 0,
+            };
+            block_on(handle.set_health(health))?;
             block_on(handle.stop())?;
         }
 
@@ -396,7 +402,7 @@ mod tests {
                     started_client.expect_stop().once().returning(|| Ok(()));
                     started_client
                         .expect_set_health()
-                        .once()
+                        .times(2)
                         .returning(|_| Ok(()));
                     Ok(started_client)
                 });
