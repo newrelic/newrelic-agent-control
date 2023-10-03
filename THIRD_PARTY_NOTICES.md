@@ -10,7 +10,7 @@ either by [opening an issue](https://github.com/newrelic/newrelic-supervisor/iss
 or by e-mailing [open-source@newrelic.com](mailto:open-source@newrelic.com).
 
 For any licenses that require the disclosure of source code, the source code
-can be found at https://github.com/newrelic/infrastructure-agent.
+can be found at https://github.com/newrelic/newrelic-supervisor.
 
 
 ## addr2line (https://crates.io/crates/addr2line)
@@ -888,11 +888,6 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
-
-
-## newrelic-super-agent (https://github.com/newrelic/newrelic-supervisor)
-
-Distributed under the following license(s):
 
 
 
