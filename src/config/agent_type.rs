@@ -16,9 +16,12 @@ use thiserror::Error;
 
 use crate::supervisor::restart::{Backoff, BackoffStrategy};
 
-use super::supervisor_config::{
-    validate_with_agent_type, NormalizedSupervisorConfig, SupervisorConfig,
-};
+use super::supervisor_config::SupervisorConfig;
+
+use std::fs;
+use std::io::Write;
+
+use uuid::Uuid;
 
 /// Regex that extracts the template values from a string.
 ///
@@ -61,6 +64,8 @@ pub enum AgentTypeError {
     InvalidFilePath,
     #[error("Missing required template key: `{0}`")]
     MissingTemplateKey(String),
+    #[error("Map values must be of the same type")]
+    InvalidMap,
 
     #[error("Missing default value for a non-required spec key")]
     MissingDefault,
@@ -150,23 +155,57 @@ impl Agent {
     ///     end
     /// ```
     pub fn populate(self, config: SupervisorConfig) -> Result<Self, AgentTypeError> {
-        let normalized_config = NormalizedSupervisorConfig::from(config);
-        let validated_conf = validate_with_agent_type(normalized_config, &self)?;
+        let mut config = config.normalize_with_agent_type(&self)?;
 
-        let runtime_conf = self.runtime_config.template_with(validated_conf.clone())?;
         let mut spec = self.variables;
 
-        validated_conf.into_iter().for_each(|(k, v)| {
-            spec.entry(k).and_modify(|s| {
-                s.final_value = Some(v);
-            });
+        // modifies variables final value with the one defined in the SupervisorConfig
+        spec.iter_mut().for_each(|(k, v)| {
+            let defined_value = config.get_from_normalized(k);
+            v.final_value = defined_value.or(v.default.clone());
         });
 
-        Ok(Agent {
+        let runtime_conf = self.runtime_config.template_with(&spec)?;
+
+        let mut populated_agent = Agent {
             runtime_config: runtime_conf,
             variables: spec,
             ..self
-        })
+        };
+        populated_agent.write_files()?;
+        Ok(populated_agent)
+    }
+
+    // write_files stores the content of each TrivialValue::File into the corresponding file
+    fn write_files(&mut self) -> Result<(), AgentTypeError> {
+        self.variables
+            .values_mut()
+            .try_for_each(|v| -> Result<(), AgentTypeError> {
+                if let Some(TrivialValue::File(f)) = &mut v.final_value {
+                    const CONF_DIR: &str = "agentconfigs";
+                    // get current path
+                    let wd = std::env::current_dir()?;
+                    let dir = wd.join(CONF_DIR);
+                    if !dir.exists() {
+                        fs::create_dir(dir.as_path())?;
+                    }
+                    let uuid = Uuid::new_v4().to_string();
+                    let path = format!("{}/{}-config.yaml", dir.to_string_lossy(), uuid); // FIXME: PATH?
+                    let mut file = fs::OpenOptions::new()
+                        .create(true)
+                        .write(true)
+                        .open(&path)?;
+
+                    writeln!(file, "{}", f.content)?;
+                    f.path = path;
+                    // f.path = file
+                    //     .path()
+                    //     .to_str()
+                    //     .ok_or(AgentTypeError::InvalidFilePath)?
+                    //     .to_string();
+                }
+                Ok(())
+            })
     }
 }
 
@@ -193,6 +232,7 @@ pub enum TrivialValue {
     File(FilePathWithContent),
     Bool(bool),
     Number(N),
+    Map(Map<String, TrivialValue>),
 }
 
 impl TrivialValue {
@@ -205,6 +245,12 @@ impl TrivialValue {
             | (TrivialValue::Bool(_), VariableType::Bool)
             | (TrivialValue::File(_), VariableType::File)
             | (TrivialValue::Number(_), VariableType::Number) => Ok(self),
+            (TrivialValue::Map(m), VariableType::MapStringString) => {
+                if !m.iter().all(|(_, v)| matches!(v, TrivialValue::String(_))) {
+                    return Err(AgentTypeError::InvalidMap);
+                }
+                Ok(self)
+            }
             (TrivialValue::String(s), VariableType::File) => {
                 Ok(TrivialValue::File(FilePathWithContent::new(s)))
             }
@@ -223,6 +269,13 @@ impl Display for TrivialValue {
             TrivialValue::File(file) => write!(f, "{}", file.path),
             TrivialValue::Bool(b) => write!(f, "{}", b),
             TrivialValue::Number(n) => write!(f, "{}", n),
+            TrivialValue::Map(n) => {
+                let flatten: Vec<String> = n
+                    .iter()
+                    .map(|(key, value)| format!("{key}={value}"))
+                    .collect();
+                write!(f, "{}", flatten.join(" "))
+            }
         }
     }
 }
@@ -292,8 +345,8 @@ pub enum VariableType {
     Number,
     #[serde(rename = "file")]
     File,
-    // #[serde(rename = "map[string]string")]
-    // MapStringString,
+    #[serde(rename = "map[string]string")]
+    MapStringString,
     // #[serde(rename = "map[string]number")]
     // MapStringNumber,
     // #[serde(rename = "map[string]bool")]
@@ -336,9 +389,9 @@ pub struct RuntimeConfig {
 }
 
 impl Templateable for RuntimeConfig {
-    fn template_with(self, kv: NormalizedSupervisorConfig) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
         Ok(RuntimeConfig {
-            deployment: self.deployment.template_with(kv)?,
+            deployment: self.deployment.template_with(variables)?,
         })
     }
 }
@@ -349,7 +402,7 @@ pub struct Deployment {
 }
 
 impl Templateable for Deployment {
-    fn template_with(self, kv: NormalizedSupervisorConfig) -> Result<Self, AgentTypeError> {
+    fn template_with(self, kv: &NormalizedVariables) -> Result<Self, AgentTypeError> {
         /*
         `self.on_host` has type `Option<OnHost>`
 
@@ -390,12 +443,12 @@ pub struct OnHost {
 }
 
 impl Templateable for OnHost {
-    fn template_with(self, kv: NormalizedSupervisorConfig) -> Result<Self, AgentTypeError> {
+    fn template_with(self, kv: &NormalizedVariables) -> Result<Self, AgentTypeError> {
         Ok(OnHost {
             executables: self
                 .executables
                 .into_iter()
-                .map(|e| e.template_with(kv.clone()))
+                .map(|e| e.template_with(kv))
                 .collect::<Result<Vec<Executable>, AgentTypeError>>()?,
             ..Default::default()
         })
@@ -500,7 +553,7 @@ pub struct Executable {
 pub struct Args(String);
 
 impl Templateable for Args {
-    fn template_with(self, kv: Map<String, TrivialValue>) -> Result<Self, AgentTypeError> {
+    fn template_with(self, kv: &NormalizedVariables) -> Result<Self, AgentTypeError> {
         Ok(Args(self.0.template_with(kv)?))
     }
 }
@@ -515,7 +568,7 @@ impl Args {
 pub struct Env(String);
 
 impl Templateable for Env {
-    fn template_with(self, kv: Map<String, TrivialValue>) -> Result<Self, AgentTypeError> {
+    fn template_with(self, kv: &NormalizedVariables) -> Result<Self, AgentTypeError> {
         Ok(Env(self.0.template_with(kv)?))
     }
 }
@@ -535,16 +588,16 @@ impl Env {
 }
 
 trait Templateable {
-    fn template_with(self, kv: Map<String, TrivialValue>) -> Result<Self, AgentTypeError>
+    fn template_with(self, kv: &NormalizedVariables) -> Result<Self, AgentTypeError>
     where
         Self: std::marker::Sized;
 }
 
 impl Templateable for Executable {
-    fn template_with(self, kv: Map<String, TrivialValue>) -> Result<Executable, AgentTypeError> {
+    fn template_with(self, kv: &NormalizedVariables) -> Result<Executable, AgentTypeError> {
         Ok(Executable {
-            path: self.path.template_with(kv.clone())?,
-            args: self.args.template_with(kv.clone())?,
+            path: self.path.template_with(kv)?,
+            args: self.args.template_with(kv)?,
             env: self.env.template_with(kv)?,
         })
     }
@@ -552,7 +605,7 @@ impl Templateable for Executable {
 
 // The actual std type that has a meaningful implementation of Templateable
 impl Templateable for String {
-    fn template_with(self, kv: Map<String, TrivialValue>) -> Result<String, AgentTypeError> {
+    fn template_with(self, kv: &NormalizedVariables) -> Result<String, AgentTypeError> {
         let re = Regex::new(TEMPLATE_RE).unwrap();
 
         let result = re
@@ -566,7 +619,17 @@ impl Templateable for String {
                     return Err(AgentTypeError::MissingTemplateKey(trimmed_s.to_string()));
                 }
                 let replacement = &kv[trimmed_s];
-                Ok(re.replace(&r, replacement.to_string()).to_string())
+                Ok(re
+                    .replace(
+                        &r,
+                        replacement
+                            .final_value
+                            .as_ref()
+                            .or(replacement.default.as_ref())
+                            .ok_or(AgentTypeError::MissingTemplateKey(trimmed_s.to_string()))?
+                            .to_string(),
+                    )
+                    .to_string())
             });
         result
     }
@@ -612,7 +675,7 @@ enum Spec {
 /// ```
 ///
 /// Will be converted to `system.logging.level` and can be used later in the AgentType_Meta part as `${system.logging.level}`.
-type NormalizedVariables = Map<String, EndSpec>;
+pub(crate) type NormalizedVariables = Map<String, EndSpec>;
 
 fn normalize_agent_spec(spec: AgentVariables) -> Result<NormalizedVariables, AgentTypeError> {
     spec.into_iter().try_fold(Map::new(), |r, (k, v)| {
@@ -779,19 +842,40 @@ deployment:
             env: Env("".to_string()),
         };
 
-        let user_values = Map::from([
-            ("bin".to_string(), TrivialValue::String("/etc".to_string())),
+        let normalized_values = Map::from([
+            (
+                "bin".to_string(),
+                EndSpec {
+                    default: None,
+                    description: "binary".to_string(),
+                    type_: VariableType::String,
+                    required: true,
+                    final_value: Some(TrivialValue::String("/etc".to_string())),
+                },
+            ),
             (
                 "deployment.on_host.verbose".to_string(),
-                TrivialValue::String("true".to_string()),
+                EndSpec {
+                    default: None,
+                    description: "verbosity".to_string(),
+                    type_: VariableType::String,
+                    required: true,
+                    final_value: Some(TrivialValue::String("true".to_string())),
+                },
             ),
             (
                 "deployment.on_host.log_level".to_string(),
-                TrivialValue::String("trace".to_string()),
+                EndSpec {
+                    default: None,
+                    description: "log_level".to_string(),
+                    type_: VariableType::String,
+                    required: true,
+                    final_value: Some(TrivialValue::String("trace".to_string())),
+                },
             ),
         ]);
 
-        let exec_actual = exec.template_with(user_values).unwrap();
+        let exec_actual = exec.template_with(&normalized_values).unwrap();
 
         let exec_expected = Executable {
             path: "/etc/otelcol".to_string(),
@@ -811,15 +895,30 @@ deployment:
             env: Env("".to_string()),
         };
 
-        let user_values = Map::from([
-            ("bin".to_string(), TrivialValue::String("/etc".to_string())),
+        let normalized_values = Map::from([
+            (
+                "bin".to_string(),
+                EndSpec {
+                    default: None,
+                    description: "binary".to_string(),
+                    type_: VariableType::String,
+                    required: true,
+                    final_value: Some(TrivialValue::String("/etc".to_string())),
+                },
+            ),
             (
                 "deployment.on_host.verbose".to_string(),
-                TrivialValue::String("true".to_string()),
+                EndSpec {
+                    default: None,
+                    description: "verbosity".to_string(),
+                    type_: VariableType::String,
+                    required: true,
+                    final_value: Some(TrivialValue::String("true".to_string())),
+                },
             ),
         ]);
 
-        let exec_actual = exec.template_with(user_values).unwrap();
+        let exec_actual = exec.template_with(&normalized_values).unwrap();
 
         let exec_expected = Executable {
             path: "/etc/otelcol".to_string(),
@@ -846,6 +945,10 @@ variables:
     default: |
         license_key: abc123
         staging: true
+  config3:
+    description: "Newrelic infra configuration yaml"
+    type: map[string]string
+    required: true
 deployment:
   on_host:
     executables:
@@ -855,6 +958,9 @@ deployment:
 "#;
 
     const GIVEN_NEWRELIC_INFRA_USER_CONFIG_YAML: &str = r#"
+config3:
+  log_level: trace
+  forward: "true"
 config: | 
     license_key: abc123
     staging: true
@@ -863,6 +969,7 @@ config: |
     #[test]
     fn test_populate_runtime_field() {
         let input_agent_type = serde_yaml::from_str::<Agent>(GIVEN_NEWRELIC_INFRA_YAML).unwrap();
+
         println!("Input: {:#?}", input_agent_type);
 
         let input_user_config =
