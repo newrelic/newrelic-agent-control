@@ -188,7 +188,7 @@ where
                         )]),
                     },
                 })?;
-                let opamp_client_handle = block_on(opamp_client.start()).unwrap();
+                let opamp_client_handle = block_on(opamp_client.start())?;
 
                 let health = opamp_client::opamp::proto::AgentHealth {
                     healthy: true,

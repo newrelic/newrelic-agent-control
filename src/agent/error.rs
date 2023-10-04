@@ -1,4 +1,4 @@
-use opamp_client::error::{ClientError, StartedClientError};
+use opamp_client::error::{ClientError, NotStartedClientError, StartedClientError};
 use std::fmt::Debug;
 
 use thiserror::Error;
@@ -45,6 +45,9 @@ pub enum AgentError {
 
     #[error("`{0}`")]
     OpAMPClientError(#[from] ClientError),
+
+    #[error("`{0}`")]
+    OpAMPNotStartedClientError(#[from] NotStartedClientError),
 
     #[error("`{0}`")]
     OpAMPStartedClientError(#[from] StartedClientError),
