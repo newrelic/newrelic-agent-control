@@ -33,7 +33,7 @@ pub mod instance_id;
 pub mod supervisor_group;
 
 const SUPER_AGENT_ID: &str = "super-agent";
-const SUPER_AGENT_TYPE: &str = "com.newrelic.meta_agent";
+const SUPER_AGENT_TYPE: &str = "com.newrelic.super_agent";
 const SUPER_AGENT_NAMESPACE: &str = "newrelic";
 const SUPER_AGENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
