@@ -1,3 +1,4 @@
+use opamp_client::error::{ClientError, NotStartedClientError, StartedClientError};
 use std::fmt::Debug;
 
 use thiserror::Error;
@@ -41,4 +42,13 @@ pub enum AgentError {
 
     #[error("file reader error: `{0}`")]
     FileReaderError(#[from] FileReaderError),
+
+    #[error("`{0}`")]
+    OpAMPClientError(#[from] ClientError),
+
+    #[error("`{0}`")]
+    OpAMPNotStartedClientError(#[from] NotStartedClientError),
+
+    #[error("`{0}`")]
+    OpAMPStartedClientError(#[from] StartedClientError),
 }
