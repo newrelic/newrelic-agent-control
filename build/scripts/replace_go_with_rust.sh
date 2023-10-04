@@ -30,7 +30,7 @@ else
 fi
 
 # move rust compiled files into goreleaser generated locations
-cp "./target/${ARCH_NAME}-unknown-linux-gnu/release/main" "${BINARY_PATH}"
+cp "./target/${ARCH_NAME}-unknown-linux-gnu/release/newrelic-super-agent" "${BINARY_PATH}"
 
 # validate
 docker run --rm -v "$PWD":/usr/src/app -w /usr/src/app ubuntu /bin/bash -c "apt-get update && apt-get install tree -y && tree ./"

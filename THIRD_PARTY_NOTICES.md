@@ -10,7 +10,7 @@ either by [opening an issue](https://github.com/newrelic/newrelic-supervisor/iss
 or by e-mailing [open-source@newrelic.com](mailto:open-source@newrelic.com).
 
 For any licenses that require the disclosure of source code, the source code
-can be found at https://github.com/newrelic/infrastructure-agent.
+can be found at https://github.com/newrelic/newrelic-supervisor.
 
 
 ## addr2line (https://crates.io/crates/addr2line)
@@ -117,6 +117,14 @@ Distributed under the following license(s):
 
 
 ## async-compression (https://crates.io/crates/async-compression)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+
+## async-recursion (https://crates.io/crates/async-recursion)
 
 Distributed under the following license(s):
 * MIT
@@ -398,14 +406,6 @@ Distributed under the following license(s):
 
 
 
-## env_logger (https://crates.io/crates/env_logger)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
 ## equivalent (https://crates.io/crates/equivalent)
 
 Distributed under the following license(s):
@@ -649,14 +649,6 @@ Distributed under the following license(s):
 
 
 
-## humantime (https://crates.io/crates/humantime)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
 ## hyper (https://crates.io/crates/hyper)
 
 Distributed under the following license(s):
@@ -723,13 +715,6 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 * MIT
 * Apache-2.0
-
-
-
-## is-terminal (https://crates.io/crates/is-terminal)
-
-Distributed under the following license(s):
-* MIT
 
 
 
@@ -951,7 +936,7 @@ Distributed under the following license(s):
 
 
 
-## opamp-client (git+ssh://git@github.com/newrelic/opamp-rs.git#0ea1c104a08af53dd6c919b6e8264383c10962b8)
+## opamp-client (git+ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.2#4a234d5db8147c44cbd50a711e536c83b5b19ac0)
 
 Distributed under the following license(s):
 * Apache-2.0
@@ -1443,14 +1428,6 @@ Distributed under the following license(s):
 
 
 
-## termcolor (https://crates.io/crates/termcolor)
-
-Distributed under the following license(s):
-* Unlicense
-* MIT
-
-
-
 ## termtree (https://crates.io/crates/termtree)
 
 Distributed under the following license(s):
@@ -1794,14 +1771,6 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 * MIT
 * Apache-2.0
-
-
-
-## winapi-util (https://crates.io/crates/winapi-util)
-
-Distributed under the following license(s):
-* Unlicense
-* MIT
 
 
 

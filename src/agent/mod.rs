@@ -6,7 +6,8 @@ use futures::executor::block_on;
 use nix::unistd::gethostname;
 use opamp_client::opamp::proto::AgentCapabilities;
 use opamp_client::operation::settings::{AgentDescription, DescriptionValueType, StartSettings};
-use opamp_client::{capabilities, OpAMPClient, OpAMPClientHandle};
+use opamp_client::{capabilities, Client};
+use opamp_client::{NotStartedClient, StartedClient};
 use tracing::{error, info};
 
 use crate::agent::instance_id::{InstanceIDGetter, ULIDInstanceIDGetter};
@@ -187,14 +188,14 @@ where
                         )]),
                     },
                 })?;
-                let mut opamp_client_handle = block_on(opamp_client.start()).unwrap();
+                let opamp_client_handle = block_on(opamp_client.start())?;
 
                 let health = opamp_client::opamp::proto::AgentHealth {
                     healthy: true,
                     last_error: "".to_string(),
                     start_time_unix_nano: 0,
                 };
-                block_on(opamp_client_handle.set_health(&health)).unwrap();
+                block_on(opamp_client_handle.set_health(health))?;
                 Some(opamp_client_handle)
             }
             None => None,
@@ -270,8 +271,14 @@ where
         }
 
         if let Some(handle) = opamp_client_handle {
-            info!("Stopping OpAMP Client");
-            block_on(handle.stop()).unwrap();
+            info!("Stopping and setting to unhealthy the OpAMP Client");
+            let health = opamp_client::opamp::proto::AgentHealth {
+                healthy: false,
+                last_error: "".to_string(),
+                start_time_unix_nano: 0,
+            };
+            block_on(handle.set_health(health))?;
+            block_on(handle.stop())?;
         }
 
         info!("Waiting for the output manager to finish");
@@ -395,7 +402,7 @@ mod tests {
                     started_client.expect_stop().once().returning(|| Ok(()));
                     started_client
                         .expect_set_health()
-                        .once()
+                        .times(2)
                         .returning(|_| Ok(()));
                     Ok(started_client)
                 });

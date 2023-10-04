@@ -17,7 +17,7 @@ fn create_simple_config(dir: &TempDir) -> Result<PathBuf, Box<dyn std::error::Er
 fn print_debug_info() -> Result<(), Box<dyn std::error::Error>> {
     let dir = TempDir::new()?;
     let file_path = create_simple_config(&dir)?;
-    let mut cmd = Command::cargo_bin("main")?;
+    let mut cmd = Command::cargo_bin("newrelic-super-agent")?;
     cmd.arg("--config").arg(file_path).arg("--print-debug-info");
     cmd.assert().success();
     Ok(())
@@ -28,7 +28,7 @@ fn print_debug_info() -> Result<(), Box<dyn std::error::Error>> {
 fn does_not_run_if_no_root() -> Result<(), Box<dyn std::error::Error>> {
     let dir = TempDir::new()?;
     let file_path = create_simple_config(&dir)?;
-    let mut cmd = Command::cargo_bin("main")?;
+    let mut cmd = Command::cargo_bin("newrelic-super-agent")?;
     cmd.arg("--config").arg(file_path);
     cmd.assert()
         .failure()
@@ -44,7 +44,7 @@ fn runs_as_root() -> Result<(), Box<dyn std::error::Error>> {
     let dir = TempDir::new()?;
     let file_path = create_simple_config(&dir)?;
 
-    let mut cmd = Command::cargo_bin("main")?;
+    let mut cmd = Command::cargo_bin("newrelic-super-agent")?;
     cmd.arg("--config").arg(file_path);
     // cmd_assert is not made for long running programs, so we kill it anyway after 1 second
     cmd.timeout(Duration::from_secs(1));

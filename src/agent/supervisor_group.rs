@@ -3,9 +3,10 @@ use std::{collections::HashMap, sync::mpsc::Sender, thread::JoinHandle};
 
 use futures::executor::block_on;
 use nix::unistd::gethostname;
+use opamp_client::error::{ClientError, NotStartedClientError, StartedClientError};
 use opamp_client::opamp::proto::{AgentCapabilities, AgentHealth};
 use opamp_client::operation::settings::{AgentDescription, StartSettings};
-use opamp_client::{capabilities, OpAMPClient, OpAMPClientHandle};
+use opamp_client::{capabilities, Client, NotStartedClient, StartedClient};
 use thiserror::Error;
 use tracing::info;
 
@@ -41,7 +42,11 @@ pub enum SupervisorGroupError {
     #[error("`{0}`")]
     OpAMPBuilderError(#[from] OpAMPClientBuilderError),
     #[error("`{0}`")]
-    OpAMPClientError(String),
+    OpAMPNotStartedClientError(#[from] NotStartedClientError),
+    #[error("`{0}`")]
+    OpAMPStartedClientError(#[from] StartedClientError),
+    #[error("`{0}`")]
+    OpAMPClientError(#[from] ClientError),
     #[error("`{0}`")]
     SystemTimeError(#[from] SystemTimeError),
 }
@@ -65,7 +70,7 @@ impl<C, S> AgentRunner<C, S> {
 
 impl<C> SupervisorGroup<C, Stopped>
 where
-    C: OpAMPClient,
+    C: NotStartedClient,
 {
     pub fn new<Repo, OpAMPBuilder, ID>(
         effective_agent_repository: &Repo,
@@ -110,9 +115,9 @@ where
         }
     }
 
-    pub fn run(self) -> Result<SupervisorGroup<C::Handle, Running>, SupervisorGroupError> {
+    pub fn run(self) -> Result<SupervisorGroup<C::StartedClient, Running>, SupervisorGroupError> {
         let running: Result<
-            HashMap<AgentID, AgentRunner<C::Handle, Running>>,
+            HashMap<AgentID, AgentRunner<C::StartedClient, Running>>,
             SupervisorGroupError,
         > = self
             .0
@@ -125,16 +130,13 @@ where
                             t
                         );
                         // start the OpAMP client
-                        let mut handle = block_on(client.start()).map_err(|err| {
-                            SupervisorGroupError::OpAMPClientError(err.to_string())
-                        })?;
+                        let handle = block_on(client.start())?;
                         // set OpAMP health
-                        block_on(handle.set_health(&AgentHealth {
+                        block_on(handle.set_health(AgentHealth {
                             healthy: true,
                             start_time_unix_nano: get_sys_time_nano()?,
                             last_error: "".to_string(),
-                        }))
-                        .map_err(|err| SupervisorGroupError::OpAMPClientError(err.to_string()))?;
+                        }))?;
                         Some(handle)
                     }
                     None => None,
@@ -183,7 +185,7 @@ fn get_hostname() -> String {
 
 impl<C> SupervisorGroup<C, Running>
 where
-    C: OpAMPClientHandle,
+    C: StartedClient,
 {
     pub fn stop(self) -> Result<HashMap<AgentID, Vec<JoinHandle<()>>>, SupervisorGroupError> {
         self.0
@@ -191,19 +193,16 @@ where
             .map(|(t, agent)| {
                 // stop the OpAMP client
                 let _client = match agent.opamp_connection {
-                    Some(mut client) => {
+                    Some(client) => {
                         info!("Stopping OpAMP client for supervised agent type: {}", t);
                         // set OpAMP health
-                        block_on(client.set_health(&AgentHealth {
+                        block_on(client.set_health(AgentHealth {
                             healthy: false,
                             start_time_unix_nano: get_sys_time_nano()?,
                             last_error: "".to_string(),
-                        }))
-                        .map_err(|err| SupervisorGroupError::OpAMPClientError(err.to_string()))?;
+                        }))?;
 
-                        Some(block_on(client.stop()).map_err(|err| {
-                            SupervisorGroupError::OpAMPClientError(err.to_string())
-                        })?)
+                        Some(block_on(client.stop())?)
                     }
                     None => None,
                 };
