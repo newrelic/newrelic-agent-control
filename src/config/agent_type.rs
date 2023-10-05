@@ -264,7 +264,9 @@ impl TrivialValue {
                 Ok(self)
             }
             (TrivialValue::Map(m), VariableType::MapStringFile) => {
-                if !m.iter().all(|(_, v)| matches!(v, TrivialValue::String(_))) {
+                if !m.iter().all(|(_, v)| {
+                    matches!(v, TrivialValue::String(_)) || matches!(v, TrivialValue::File(_))
+                } ) {
                     return Err(AgentTypeError::InvalidMap);
                 }
 
@@ -983,6 +985,9 @@ variables:
     description: "Newrelic integrations configuration yamls"
     type: map[string]file
     required: true
+    default:
+      kafka: |
+        bootstrap: zookeeper
 deployment:
   on_host:
     executables:
@@ -1021,5 +1026,95 @@ config: |
             .expect("Failed to populate the AgentType's runtime_config field");
 
         println!("Output: {:#?}", actual);
+    }
+
+
+    const EXAMPLE_AGENT_YAML_REPLACE_WITH_DEFAULT: &str = r#"
+    name: nrdot
+    namespace: newrelic
+    version: 0.1.0
+    variables:
+      config:
+        description: "Path to the agent"
+        type: file
+        required: false
+        default: "test"
+      deployment:
+        on_host:
+          path:
+            description: "Path to the agent"
+            type: string
+            required: false
+            default: "/default_path"
+          args:
+            description: "Args passed to the agent"
+            type: string
+            required: false
+            default: "--verbose true"
+      integrations:
+        description: "Newrelic integrations configuration yamls"
+        type: map[string]file
+        required: false
+        default:
+          kafka: |
+            bootstrap: zookeeper
+    deployment:
+      on_host:
+        executables:
+          - path: ${deployment.on_host.args}/otelcol
+            args: "-c ${deployment.on_host.args}"
+            env: ""
+    "#;
+
+    #[test]
+    fn test_validate_with_default() {
+        let input_structure =
+            serde_yaml::from_str::<SupervisorConfig>("").unwrap();
+        let agent_type =
+            serde_yaml::from_str::<Agent>(EXAMPLE_AGENT_YAML_REPLACE_WITH_DEFAULT).unwrap();
+
+        let expected = Map::from([
+            (
+                "deployment.on_host.args".to_string(),
+                TrivialValue::String("--verbose true".to_string()),
+            ),
+            (
+                "deployment.on_host.path".to_string(),
+                TrivialValue::String("/default_path".to_string()),
+            ),
+            (
+                "config".to_string(),
+                TrivialValue::File(FilePathWithContent::new("test".to_string())),
+            ),
+            (
+                "integrations".to_string(),
+                TrivialValue::Map(Map::from([(
+                    "kafka".to_string(),
+                    TrivialValue::File(FilePathWithContent::new(
+                        "bootstrap: zookeeper\n".to_string(),
+                    )),
+                )])),
+            ),
+        ]);
+        let actual = agent_type
+            .populate(input_structure)
+            .expect("Failed to populate the AgentType's runtime_config field");
+
+        expected.iter().for_each(|(key, expected_value)|{
+            let actual_value = actual.clone().get_variables(key.to_string()).unwrap().final_value;
+            if let Some(TrivialValue::File(actual_file)) = actual_value {
+                let TrivialValue::File(expected_file) = expected_value else { unreachable!() };
+                assert_eq!(expected_file.content, actual_file.content);
+            } else if let Some(TrivialValue::Map(actual_map)) = actual_value {
+                actual_map.iter().for_each(|(a,actual_map)|{
+                    let TrivialValue::File(actual_file) = actual_map else { unreachable!() };
+                    let TrivialValue::Map(expected_map) = expected_value else { unreachable!() };
+                    let TrivialValue::File(expected_file) = expected_map.get(a).unwrap() else { unreachable!() };
+                    assert_eq!(expected_file.content, actual_file.content);
+                });
+            } else {
+                assert_eq!(*expected_value, actual_value.unwrap())
+            }
+        });
     }
 }
