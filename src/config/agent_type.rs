@@ -184,10 +184,9 @@ impl Agent {
                 if let Some(TrivialValue::File(f)) = &mut v.final_value {
                     write_file(f)?
                 } else if let Some(TrivialValue::Map(m)) = &mut v.final_value {
-                    return m.clone().iter_mut().try_for_each(|(key, mut file)| {
+                    return m.iter_mut().try_for_each(|(_, mut file)| {
                         if let TrivialValue::File(f) = &mut file {
                             write_file(f)?;
-                            m.insert(key.to_string(), file.clone());
                         }
                         Ok(())
                     });
