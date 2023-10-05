@@ -182,31 +182,44 @@ impl Agent {
             .values_mut()
             .try_for_each(|v| -> Result<(), AgentTypeError> {
                 if let Some(TrivialValue::File(f)) = &mut v.final_value {
-                    const CONF_DIR: &str = "agentconfigs";
-                    // get current path
-                    let wd = std::env::current_dir()?;
-                    let dir = wd.join(CONF_DIR);
-                    if !dir.exists() {
-                        fs::create_dir(dir.as_path())?;
-                    }
-                    let uuid = Uuid::new_v4().to_string();
-                    let path = format!("{}/{}-config.yaml", dir.to_string_lossy(), uuid); // FIXME: PATH?
-                    let mut file = fs::OpenOptions::new()
-                        .create(true)
-                        .write(true)
-                        .open(&path)?;
-
-                    writeln!(file, "{}", f.content)?;
-                    f.path = path;
-                    // f.path = file
-                    //     .path()
-                    //     .to_str()
-                    //     .ok_or(AgentTypeError::InvalidFilePath)?
-                    //     .to_string();
+                    write_file(f)?
+                } else if let Some(TrivialValue::Map(m)) = &mut v.final_value {
+                    return m.clone().iter_mut().try_for_each(|(key, mut file)| {
+                        if let TrivialValue::File(f) = &mut file {
+                            write_file(f)?;
+                            m.insert(key.to_string(),file.clone());
+                        }
+                        Ok(())
+                    })
                 }
                 Ok(())
             })
     }
+}
+
+fn write_file(file: &mut FilePathWithContent) -> Result<(), io::Error> {
+    const CONF_DIR: &str = "agentconfigs";
+    // get current path
+    let wd = std::env::current_dir()?;
+    let dir = wd.join(CONF_DIR);
+    if !dir.exists() {
+        fs::create_dir(dir.as_path())?;
+    }
+    let uuid = Uuid::new_v4().to_string();
+    let path = format!("{}/{}-config.yaml", dir.to_string_lossy(), uuid); // FIXME: PATH?
+    let mut fs_file = fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(&path)?;
+
+    writeln!(fs_file, "{}", file.content)?;
+    file.path = path;
+    // f.path = file
+    //     .path()
+    //     .to_str()
+    //     .ok_or(AgentTypeError::InvalidFilePath)?
+    //     .to_string();
+    Ok(())
 }
 
 impl TryFrom<RawAgent> for Agent {
@@ -250,6 +263,19 @@ impl TrivialValue {
                     return Err(AgentTypeError::InvalidMap);
                 }
                 Ok(self)
+            }
+            (TrivialValue::Map(m), VariableType::MapStringFile) => {
+                if !m.iter().all(|(_, v)|
+                    matches!(v, TrivialValue::String(_))
+                ) {
+                    return Err(AgentTypeError::InvalidMap);
+                }
+
+                let mut final_map = Map::new();
+                m.iter().for_each(|(k, mut v)| {
+                    final_map.insert(k.clone(), TrivialValue::File(FilePathWithContent::new(v.to_string())));
+                });
+                Ok(TrivialValue::Map(final_map))
             }
             (TrivialValue::String(s), VariableType::File) => {
                 Ok(TrivialValue::File(FilePathWithContent::new(s)))
@@ -347,6 +373,8 @@ pub enum VariableType {
     File,
     #[serde(rename = "map[string]string")]
     MapStringString,
+    #[serde(rename = "map[string]file")]
+    MapStringFile,
     // #[serde(rename = "map[string]number")]
     // MapStringNumber,
     // #[serde(rename = "map[string]bool")]
@@ -949,6 +977,10 @@ variables:
     description: "Newrelic infra configuration yaml"
     type: map[string]string
     required: true
+  integrations:
+    description: "Newrelic integrations configuration yamls"
+    type: map[string]file
+    required: true
 deployment:
   on_host:
     executables:
@@ -961,6 +993,11 @@ deployment:
 config3:
   log_level: trace
   forward: "true"
+integrations:
+  kafka: |
+    strategy: bootstrap
+  redis: |
+    user: redis
 config: | 
     license_key: abc123
     staging: true
