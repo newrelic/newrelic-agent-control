@@ -187,10 +187,10 @@ impl Agent {
                     return m.clone().iter_mut().try_for_each(|(key, mut file)| {
                         if let TrivialValue::File(f) = &mut file {
                             write_file(f)?;
-                            m.insert(key.to_string(),file.clone());
+                            m.insert(key.to_string(), file.clone());
                         }
                         Ok(())
-                    })
+                    });
                 }
                 Ok(())
             })
@@ -265,15 +265,16 @@ impl TrivialValue {
                 Ok(self)
             }
             (TrivialValue::Map(m), VariableType::MapStringFile) => {
-                if !m.iter().all(|(_, v)|
-                    matches!(v, TrivialValue::String(_))
-                ) {
+                if !m.iter().all(|(_, v)| matches!(v, TrivialValue::String(_))) {
                     return Err(AgentTypeError::InvalidMap);
                 }
 
                 let mut final_map = Map::new();
                 m.iter().for_each(|(k, mut v)| {
-                    final_map.insert(k.clone(), TrivialValue::File(FilePathWithContent::new(v.to_string())));
+                    final_map.insert(
+                        k.clone(),
+                        TrivialValue::File(FilePathWithContent::new(v.to_string())),
+                    );
                 });
                 Ok(TrivialValue::Map(final_map))
             }
