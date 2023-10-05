@@ -99,7 +99,7 @@ impl SupervisorConfig {
         agent_type: &Agent,
     ) -> Result<Self, AgentTypeError> {
         for (k, v) in agent_type.variables.iter() {
-            let value = get_from_normalized(&mut self.0, k);
+            let value = get_from_normalized(&self.0, k);
 
             // required value but not defined in SupervisorConfig
             if value.is_none() && v.required {
@@ -127,12 +127,12 @@ fn get_from_normalized(
             return get_from_normalized(inner_map, suffix);
         }
     } else {
-        return inner.get(normalized_prefix).map(|val| val.clone());
+        return inner.get(normalized_prefix).cloned();
     }
     None
 }
 
-/// get_from_normalized recursively searches for a TrivialValue given a normalized prefix.
+/// update_from_normalized updates a TrivialValue given a normalized prefix.
 fn update_from_normalized(
     inner: &mut Map<String, TrivialValue>,
     normalized_prefix: &str,
