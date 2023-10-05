@@ -238,6 +238,9 @@ deployment:
     path: "/etc"
     args: --verbose true
 config: test
+integrations:
+  kafka: |
+    strategy: bootstrap
 "#;
     const EXAMPLE_AGENT_YAML_REPLACE: &str = r#"
 name: nrdot
@@ -258,6 +261,10 @@ variables:
         description: "Args passed to the agent"
         type: string
         required: true
+  integrations:
+    description: "Newrelic integrations configuration yamls"
+    type: map[string]file
+    required: true
 deployment:
   on_host:
     executables:
@@ -289,6 +296,15 @@ deployment:
             (
                 "config".to_string(),
                 TrivialValue::File(FilePathWithContent::new("test".to_string())),
+            ),
+            (
+                "integrations".to_string(),
+                TrivialValue::Map(Map::from([(
+                    "kafka".to_string(),
+                    TrivialValue::File(FilePathWithContent::new(
+                        "strategy: bootstrap\n".to_string(),
+                    )),
+                )])),
             ),
         ]);
         let actual = input_structure
