@@ -30,20 +30,6 @@ struct RawAgent {
     runtime_config: RuntimeConfig,
 }
 
-/// Configuration of the Agent Type, contains identification metadata, a set of variables that can be adjusted, and rules of how to start given agent binaries.
-///
-/// This is the final representation of the agent type once it has been parsed (first into a [`RawAgent`]) having the spec field normalized.
-///
-/// See also [`RawAgent`] and its [`Agent::try_from`] implementation.
-#[derive(Debug, PartialEq, Clone, Default, Deserialize)]
-#[serde(try_from = "RawAgent")]
-pub struct FinalAgent {
-    #[serde(flatten)]
-    pub metadata: AgentMetadata,
-    pub variables: NormalizedVariables,
-    pub runtime_config: RuntimeConfig,
-}
-
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct TemplateableValue<T> {
     value: Option<T>,
@@ -137,6 +123,20 @@ impl Templateable for TemplateableValue<Args> {
             value: Some(Args(templated_string)),
         })
     }
+}
+
+/// Configuration of the Agent Type, contains identification metadata, a set of variables that can be adjusted, and rules of how to start given agent binaries.
+///
+/// This is the final representation of the agent type once it has been parsed (first into a [`RawAgent`]) having the spec field normalized.
+///
+/// See also [`RawAgent`] and the [`FinalAgent::try_from`] implementation.
+#[derive(Debug, PartialEq, Clone, Default, Deserialize)]
+#[serde(try_from = "RawAgent")]
+pub struct FinalAgent {
+    #[serde(flatten)]
+    pub metadata: AgentMetadata,
+    pub variables: NormalizedVariables,
+    pub runtime_config: RuntimeConfig,
 }
 
 impl FinalAgent {

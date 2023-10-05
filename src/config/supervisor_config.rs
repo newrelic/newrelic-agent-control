@@ -324,6 +324,29 @@ deployment:
         );
     }
 
+    const EXAMPLE_CONFIG_REPLACE_WRONG_TYPE: &str = r#"
+    config: test
+    deployment:
+      on_host:
+        path: true
+        args: --verbose true
+    "#;
+
+    #[test]
+    fn test_validate_with_agent_type_wrong_value_type() {
+        let input_structure =
+            serde_yaml::from_str::<SupervisorConfig>(EXAMPLE_CONFIG_REPLACE_WRONG_TYPE).unwrap();
+        let agent_type = serde_yaml::from_str::<FinalAgent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
+
+        let actual = input_structure.normalize_with_agent_type(&agent_type);
+
+        assert!(actual.is_err());
+        assert_eq!(
+            format!("{}", actual.unwrap_err()),
+            "Type mismatch while parsing. Expected type String, got value Bool(true)"
+        );
+    }
+
     const EXAMPLE_AGENT_YAML_REPLACE_WITH_DEFAULT: &str = r#"
     name: nrdot
     namespace: newrelic
