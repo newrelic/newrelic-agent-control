@@ -155,7 +155,7 @@ impl Agent {
     ///     end
     /// ```
     pub fn populate(self, config: SupervisorConfig) -> Result<Self, AgentTypeError> {
-        let mut config = config.normalize_with_agent_type(&self)?;
+        let config = config.normalize_with_agent_type(&self)?;
 
         let mut spec = self.variables;
 
