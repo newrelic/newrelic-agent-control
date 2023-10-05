@@ -185,7 +185,7 @@ impl FinalAgent {
     pub fn template_with(self, config: SupervisorConfig) -> Result<FinalAgent, AgentTypeError> {
         // let normalized_config = NormalizedSupervisorConfig::from(config);
         // let validated_conf = validate_with_agent_type(normalized_config, &self)?;
-        let mut config = config.normalize_with_agent_type(&self)?;
+        let config = config.normalize_with_agent_type(&self)?;
 
         // let runtime_conf = self.runtime_config.template_with(validated_conf.clone())?;
         let mut spec = self.variables;

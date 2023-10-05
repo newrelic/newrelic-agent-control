@@ -92,11 +92,8 @@ impl SupervisorConfig {
     /// normalized prefix flattens a Map path in a single string in which each indirection is
     /// denoted with the TEMPLATE_KEY_SEPARATOR.
     /// If found, an owned value will be returned.
-    pub(crate) fn get_from_normalized<'a>(
-        &'a mut self,
-        normalized_prefix: &'a str,
-    ) -> Option<TrivialValue> {
-        get_from_normalized(&mut self.0, normalized_prefix).cloned()
+    pub(crate) fn get_from_normalized(&self, normalized_prefix: &str) -> Option<TrivialValue> {
+        get_from_normalized(&self.0, normalized_prefix)
     }
 
     /// normalize_with_agent_type verifies that all required Agent variables are defined in the
@@ -106,7 +103,7 @@ impl SupervisorConfig {
         agent_type: &FinalAgent,
     ) -> Result<Self, AgentTypeError> {
         for (k, v) in agent_type.variables.iter() {
-            let value = get_from_normalized(&mut self.0, k);
+            let value = get_from_normalized(&self.0, k);
 
             // required value but not defined in SupervisorConfig
             if value.is_none() && v.required {
@@ -114,9 +111,9 @@ impl SupervisorConfig {
             }
 
             // check type matches agent one and apply transformations
-            value
-                .map(|inner| inner.clone().check_type(v.type_))
-                .transpose()?;
+            if let Some(inner) = value {
+                let _ = update_from_normalized(&mut self.0, k, inner.clone().check_type(v.type_)?);
+            }
         }
 
         Ok(self)
@@ -124,24 +121,41 @@ impl SupervisorConfig {
 }
 
 /// get_from_normalized recursively searches for a TrivialValue given a normalized prefix.
-fn get_from_normalized<'a>(
-    inner: &'a mut Map<String, TrivialValue>,
-    normalized_prefix: &'a str,
-) -> Option<&'a mut TrivialValue> {
+fn get_from_normalized(
+    inner: &Map<String, TrivialValue>,
+    normalized_prefix: &str,
+) -> Option<TrivialValue> {
     let prefix = normalized_prefix.split_once(TEMPLATE_KEY_SEPARATOR);
     if let Some((key, suffix)) = prefix {
-        if let Some(TrivialValue::Map(inner_map)) = inner.get_mut(key) {
+        if let Some(TrivialValue::Map(inner_map)) = inner.get(key) {
             return get_from_normalized(inner_map, suffix);
         }
     } else {
-        return inner.get_mut(normalized_prefix);
+        return inner.get(normalized_prefix).cloned();
+    }
+    None
+}
+
+/// update_from_normalized updates a TrivialValue given a normalized prefix.
+fn update_from_normalized(
+    inner: &mut Map<String, TrivialValue>,
+    normalized_prefix: &str,
+    value: TrivialValue,
+) -> Option<TrivialValue> {
+    let prefix = normalized_prefix.split_once(TEMPLATE_KEY_SEPARATOR);
+    if let Some((key, suffix)) = prefix {
+        if let Some(TrivialValue::Map(inner_map)) = inner.get_mut(key) {
+            return update_from_normalized(inner_map, suffix, value);
+        }
+    } else {
+        return inner.insert(normalized_prefix.to_string(), value);
     }
     None
 }
 #[cfg(test)]
 mod tests {
 
-    use crate::config::agent_type::trivial_value::N;
+    use crate::config::agent_type::trivial_value::{FilePathWithContent, N};
 
     use super::*;
 
@@ -227,12 +241,17 @@ deployment:
   on_host:
     path: "/etc"
     args: --verbose true
+config: test
 "#;
     const EXAMPLE_AGENT_YAML_REPLACE: &str = r#"
 name: nrdot
 namespace: newrelic
 version: 0.1.0
 variables:
+  config:
+    description: "Path to the agent"
+    type: file
+    required: true
   deployment:
     on_host:
       path:
@@ -257,19 +276,25 @@ deployment:
             serde_yaml::from_str::<SupervisorConfig>(EXAMPLE_CONFIG_REPLACE).unwrap();
         let agent_type = serde_yaml::from_str::<FinalAgent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
 
-        let expected = Map::from([(
-            "deployment".to_string(),
-            TrivialValue::Map(Map::from([(
-                "on_host".to_string(),
-                TrivialValue::Map(Map::from([
-                    (
-                        "args".to_string(),
-                        TrivialValue::String("--verbose true".to_string()),
-                    ),
-                    ("path".to_string(), TrivialValue::String("/etc".to_string())),
-                ])),
-            )])),
-        )]);
+        let expected = Map::from([
+            (
+                "deployment".to_string(),
+                TrivialValue::Map(Map::from([(
+                    "on_host".to_string(),
+                    TrivialValue::Map(Map::from([
+                        (
+                            "args".to_string(),
+                            TrivialValue::String("--verbose true".to_string()),
+                        ),
+                        ("path".to_string(), TrivialValue::String("/etc".to_string())),
+                    ])),
+                )])),
+            ),
+            (
+                "config".to_string(),
+                TrivialValue::File(FilePathWithContent::new("test".to_string())),
+            ),
+        ]);
         let actual = input_structure
             .normalize_with_agent_type(&agent_type)
             .unwrap();
@@ -278,6 +303,7 @@ deployment:
     }
 
     const EXAMPLE_CONFIG_REPLACE_NOPATH: &str = r#"
+    config: test
     deployment:
       on_host:
         args: --verbose true
@@ -303,6 +329,11 @@ deployment:
     namespace: newrelic
     version: 0.1.0
     variables:
+      config:
+        description: "Path to the agent"
+        type: file
+        required: true
+        default: "test"
       deployment:
         on_host:
           path:
@@ -329,16 +360,22 @@ deployment:
         let agent_type =
             serde_yaml::from_str::<FinalAgent>(EXAMPLE_AGENT_YAML_REPLACE_WITH_DEFAULT).unwrap();
 
-        let expected = Map::from([(
-            "deployment".to_string(),
-            TrivialValue::Map(Map::from([(
-                "on_host".to_string(),
+        let expected = Map::from([
+            (
+                "deployment".to_string(),
                 TrivialValue::Map(Map::from([(
-                    "args".to_string(),
-                    TrivialValue::String("--verbose true".to_string()),
+                    "on_host".to_string(),
+                    TrivialValue::Map(Map::from([(
+                        "args".to_string(),
+                        TrivialValue::String("--verbose true".to_string()),
+                    )])),
                 )])),
-            )])),
-        )]);
+            ),
+            (
+                "config".to_string(),
+                TrivialValue::File(FilePathWithContent::new("test".to_string())),
+            ),
+        ]);
         let actual = input_structure
             .normalize_with_agent_type(&agent_type)
             .unwrap();
