@@ -269,14 +269,16 @@ impl TrivialValue {
                     return Err(AgentTypeError::InvalidMap);
                 }
 
-                let mut final_map = Map::new();
-                m.iter().for_each(|(k, v)| {
-                    final_map.insert(
-                        k.clone(),
-                        TrivialValue::File(FilePathWithContent::new(v.to_string())),
-                    );
-                });
-                Ok(TrivialValue::Map(final_map))
+                Ok(TrivialValue::Map(
+                    m.into_iter()
+                        .map(|(k, v)| {
+                            (
+                                k,
+                                TrivialValue::File(FilePathWithContent::new(v.to_string())),
+                            )
+                        })
+                        .collect(),
+                ))
             }
             (TrivialValue::String(s), VariableType::File) => {
                 Ok(TrivialValue::File(FilePathWithContent::new(s)))
