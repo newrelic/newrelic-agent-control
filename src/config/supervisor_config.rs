@@ -8,7 +8,7 @@ use super::agent_type::trivial_value::TrivialValue;
 
 /// User-provided config.
 ///
-/// User-provided configuration (normally via a YAML file) that must follow the tree-like structure of [`Agent`]'s [`NormalizedSpec`] and will be used to populate the [`Agent`]'s [ `Meta`] field to totally define a deployable supervisor.
+/// User-provided configuration (normally via a YAML file) that must follow the tree-like structure of [`Agent`]'s [`variables`] and will be used to populate the [`Agent`]'s [ `runtime_config`] field to totally define a deployable supervisor.
 ///
 /// The below example in YAML format:
 ///

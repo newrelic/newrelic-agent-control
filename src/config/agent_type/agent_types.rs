@@ -149,39 +149,6 @@ impl FinalAgent {
     /// template_with the [`RuntimeConfig`] object field of the [`Agent`] type with the user-provided config, which must abide by the agent type's defined [`AgentVariables`].
     ///
     /// This method will return an error if the user-provided config does not conform to the agent type's spec.
-    ///
-    /// The expected overall dataflow ending in `template_with`, with the functions involved, is the following:
-    ///
-    /// ```mermaid
-    /// flowchart
-    ///     subgraph main
-    ///     A[User] --> |provides| B["Agent Type (YAML)"]
-    ///     B --> |"parses into (serde)"| C[RawAgent]
-    ///     C --> |"normalize_agent_spec()"| D[Agent]
-    ///     D --> G{"Agent::template_with()"}
-    ///     A --> |provides| E["Agent Config (YAML)"]
-    ///     E --> |"parses into (serde)"| F[SupervisorConfig]
-    ///     F --> G{"Agent::template_with()"}
-    ///     end
-    ///     subgraph "Agent::template_with()"
-    ///     G -.-> H[SupervisorConfig]
-    ///     G -.-> I[Agent]
-    ///     H -->|"::from()"| J[NormalizedSupervisorConfig]
-    ///     J --> K{"validate_with_agent_type()"}
-    ///     I --> K
-    ///     K --> L{{valid and type-checked config with all final values}}
-    ///     end
-    ///     subgraph templating
-    ///     L -->|"::template_with(valid_config)"| M[updated Meta]
-    ///     L --> N[updated Spec]
-    ///     end
-    ///     subgraph "Final Agent Supervisor"
-    ///     M --> O{Agent}
-    ///     N --> O
-    ///     O --> |creates| P[Supervisor]
-    ///     P --> Q(((RUN)))
-    ///     end
-    /// ```
     pub fn template_with(self, config: SupervisorConfig) -> Result<FinalAgent, AgentTypeError> {
         // let normalized_config = NormalizedSupervisorConfig::from(config);
         // let validated_conf = validate_with_agent_type(normalized_config, &self)?;
