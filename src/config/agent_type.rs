@@ -270,7 +270,7 @@ impl TrivialValue {
                 }
 
                 let mut final_map = Map::new();
-                m.iter().for_each(|(k, mut v)| {
+                m.iter().for_each(|(k, v)| {
                     final_map.insert(
                         k.clone(),
                         TrivialValue::File(FilePathWithContent::new(v.to_string())),
