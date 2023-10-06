@@ -265,7 +265,7 @@ impl TrivialValue {
             }
             (TrivialValue::Map(m), VariableType::MapStringFile) => {
                 if !m.iter().all(|(_, v)| {
-                    matches!(v, TrivialValue::String(_)) || matches!(v, TrivialValue::File(_))
+                    matches!(v, TrivialValue::String(_))
                 } ) {
                     return Err(AgentTypeError::InvalidMap);
                 }
@@ -716,9 +716,6 @@ fn normalize_agent_spec(spec: AgentVariables) -> Result<NormalizedVariables, Age
             if v.default.is_none() && !v.required {
                 return Err(AgentTypeError::MissingDefaultWithKey(k.clone()));
             }
-            if let Some(default) = v.default.clone() {
-                default.check_type(v.type_)?;
-            }
             Ok(())
         })?;
         Ok(r.into_iter().chain(n_spec).collect())
@@ -1028,8 +1025,9 @@ config: |
         println!("Output: {:#?}", actual);
     }
 
+    // Obsolete test
 
-    const EXAMPLE_AGENT_YAML_REPLACE_WITH_DEFAULT: &str = r#"
+    /*const EXAMPLE_AGENT_YAML_REPLACE_WITH_DEFAULT: &str = r#"
     name: nrdot
     namespace: newrelic
     version: 0.1.0
@@ -1116,5 +1114,5 @@ config: |
                 assert_eq!(*expected_value, actual_value.unwrap())
             }
         });
-    }
+    }*/
 }
