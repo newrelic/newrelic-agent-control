@@ -319,6 +319,7 @@ deployment:
       on_host:
         args: --verbose true
     integrations: {}
+    config: test
     "#;
 
     #[test]
