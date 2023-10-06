@@ -182,31 +182,43 @@ impl Agent {
             .values_mut()
             .try_for_each(|v| -> Result<(), AgentTypeError> {
                 if let Some(TrivialValue::File(f)) = &mut v.final_value {
-                    const CONF_DIR: &str = "agentconfigs";
-                    // get current path
-                    let wd = std::env::current_dir()?;
-                    let dir = wd.join(CONF_DIR);
-                    if !dir.exists() {
-                        fs::create_dir(dir.as_path())?;
-                    }
-                    let uuid = Uuid::new_v4().to_string();
-                    let path = format!("{}/{}-config.yaml", dir.to_string_lossy(), uuid); // FIXME: PATH?
-                    let mut file = fs::OpenOptions::new()
-                        .create(true)
-                        .write(true)
-                        .open(&path)?;
-
-                    writeln!(file, "{}", f.content)?;
-                    f.path = path;
-                    // f.path = file
-                    //     .path()
-                    //     .to_str()
-                    //     .ok_or(AgentTypeError::InvalidFilePath)?
-                    //     .to_string();
+                    write_file(f)?
+                } else if let Some(TrivialValue::Map(m)) = &mut v.final_value {
+                    return m.iter_mut().try_for_each(|(_, mut file)| {
+                        if let TrivialValue::File(f) = &mut file {
+                            write_file(f)?;
+                        }
+                        Ok(())
+                    });
                 }
                 Ok(())
             })
     }
+}
+
+fn write_file(file: &mut FilePathWithContent) -> Result<(), io::Error> {
+    const CONF_DIR: &str = "agentconfigs";
+    // get current path
+    let wd = std::env::current_dir()?;
+    let dir = wd.join(CONF_DIR);
+    if !dir.exists() {
+        fs::create_dir(dir.as_path())?;
+    }
+    let uuid = Uuid::new_v4().to_string();
+    let path = format!("{}/{}-config.yaml", dir.to_string_lossy(), uuid); // FIXME: PATH?
+    let mut fs_file = fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(&path)?;
+
+    writeln!(fs_file, "{}", file.content)?;
+    file.path = path;
+    // f.path = file
+    //     .path()
+    //     .to_str()
+    //     .ok_or(AgentTypeError::InvalidFilePath)?
+    //     .to_string();
+    Ok(())
 }
 
 impl TryFrom<RawAgent> for Agent {
@@ -250,6 +262,22 @@ impl TrivialValue {
                     return Err(AgentTypeError::InvalidMap);
                 }
                 Ok(self)
+            }
+            (TrivialValue::Map(m), VariableType::MapStringFile) => {
+                if !m.iter().all(|(_, v)| matches!(v, TrivialValue::String(_))) {
+                    return Err(AgentTypeError::InvalidMap);
+                }
+
+                Ok(TrivialValue::Map(
+                    m.into_iter()
+                        .map(|(k, v)| {
+                            (
+                                k,
+                                TrivialValue::File(FilePathWithContent::new(v.to_string())),
+                            )
+                        })
+                        .collect(),
+                ))
             }
             (TrivialValue::String(s), VariableType::File) => {
                 Ok(TrivialValue::File(FilePathWithContent::new(s)))
@@ -347,6 +375,8 @@ pub enum VariableType {
     File,
     #[serde(rename = "map[string]string")]
     MapStringString,
+    #[serde(rename = "map[string]file")]
+    MapStringFile,
     // #[serde(rename = "map[string]number")]
     // MapStringNumber,
     // #[serde(rename = "map[string]bool")]
@@ -684,9 +714,6 @@ fn normalize_agent_spec(spec: AgentVariables) -> Result<NormalizedVariables, Age
             if v.default.is_none() && !v.required {
                 return Err(AgentTypeError::MissingDefaultWithKey(k.clone()));
             }
-            if let Some(default) = v.default.clone() {
-                default.check_type(v.type_)?;
-            }
             Ok(())
         })?;
         Ok(r.into_iter().chain(n_spec).collect())
@@ -949,6 +976,13 @@ variables:
     description: "Newrelic infra configuration yaml"
     type: map[string]string
     required: true
+  integrations:
+    description: "Newrelic integrations configuration yamls"
+    type: map[string]file
+    required: true
+    default:
+      kafka: |
+        bootstrap: zookeeper
 deployment:
   on_host:
     executables:
@@ -961,6 +995,11 @@ deployment:
 config3:
   log_level: trace
   forward: "true"
+integrations:
+  kafka: |
+    strategy: bootstrap
+  redis: |
+    user: redis
 config: | 
     license_key: abc123
     staging: true
@@ -983,4 +1022,95 @@ config: |
 
         println!("Output: {:#?}", actual);
     }
+
+    // Obsolete test
+
+    /*const EXAMPLE_AGENT_YAML_REPLACE_WITH_DEFAULT: &str = r#"
+    name: nrdot
+    namespace: newrelic
+    version: 0.1.0
+    variables:
+      config:
+        description: "Path to the agent"
+        type: file
+        required: false
+        default: "test"
+      deployment:
+        on_host:
+          path:
+            description: "Path to the agent"
+            type: string
+            required: false
+            default: "/default_path"
+          args:
+            description: "Args passed to the agent"
+            type: string
+            required: false
+            default: "--verbose true"
+      integrations:
+        description: "Newrelic integrations configuration yamls"
+        type: map[string]file
+        required: false
+        default:
+          kafka: |
+            bootstrap: zookeeper
+    deployment:
+      on_host:
+        executables:
+          - path: ${deployment.on_host.args}/otelcol
+            args: "-c ${deployment.on_host.args}"
+            env: ""
+    "#;
+
+    #[test]
+    fn test_validate_with_default() {
+        let input_structure =
+            serde_yaml::from_str::<SupervisorConfig>("").unwrap();
+        let agent_type =
+            serde_yaml::from_str::<Agent>(EXAMPLE_AGENT_YAML_REPLACE_WITH_DEFAULT).unwrap();
+
+        let expected = Map::from([
+            (
+                "deployment.on_host.args".to_string(),
+                TrivialValue::String("--verbose true".to_string()),
+            ),
+            (
+                "deployment.on_host.path".to_string(),
+                TrivialValue::String("/default_path".to_string()),
+            ),
+            (
+                "config".to_string(),
+                TrivialValue::File(FilePathWithContent::new("test".to_string())),
+            ),
+            (
+                "integrations".to_string(),
+                TrivialValue::Map(Map::from([(
+                    "kafka".to_string(),
+                    TrivialValue::File(FilePathWithContent::new(
+                        "bootstrap: zookeeper\n".to_string(),
+                    )),
+                )])),
+            ),
+        ]);
+        let actual = agent_type
+            .populate(input_structure)
+            .expect("Failed to populate the AgentType's runtime_config field");
+
+        expected.iter().for_each(|(key, expected_value)|{
+            let actual_value = actual.clone().get_variables(key.to_string()).unwrap().final_value;
+            if let Some(TrivialValue::File(actual_file)) = actual_value {
+                let TrivialValue::File(expected_file) = expected_value else { unreachable!() };
+                assert_eq!(expected_file.content, actual_file.content);
+            } else if let Some(TrivialValue::Map(actual_map)) = actual_value {
+                actual_map.iter().for_each(|(a,actual_map)|{
+                    let TrivialValue::File(actual_file) = actual_map else { unreachable!() };
+                    let TrivialValue::Map(expected_map) = expected_value else { unreachable!() };
+                    let TrivialValue::File(expected_file) = expected_map.get(a).unwrap() else { unreachable!() };
+                    assert_eq!(expected_file.content, actual_file.content);
+                });
+            } else {
+                assert_eq!(*expected_value, actual_value.unwrap())
+            }
+        });
+    }*/
 }

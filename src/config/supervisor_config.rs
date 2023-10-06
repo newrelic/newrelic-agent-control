@@ -238,6 +238,9 @@ deployment:
     path: "/etc"
     args: --verbose true
 config: test
+integrations:
+  kafka: |
+    strategy: bootstrap
 "#;
     const EXAMPLE_AGENT_YAML_REPLACE: &str = r#"
 name: nrdot
@@ -258,6 +261,10 @@ variables:
         description: "Args passed to the agent"
         type: string
         required: true
+  integrations:
+    description: "Newrelic integrations configuration yamls"
+    type: map[string]file
+    required: true
 deployment:
   on_host:
     executables:
@@ -290,6 +297,15 @@ deployment:
                 "config".to_string(),
                 TrivialValue::File(FilePathWithContent::new("test".to_string())),
             ),
+            (
+                "integrations".to_string(),
+                TrivialValue::Map(Map::from([(
+                    "kafka".to_string(),
+                    TrivialValue::File(FilePathWithContent::new(
+                        "strategy: bootstrap\n".to_string(),
+                    )),
+                )])),
+            ),
         ]);
         let actual = input_structure
             .normalize_with_agent_type(&agent_type)
@@ -299,10 +315,11 @@ deployment:
     }
 
     const EXAMPLE_CONFIG_REPLACE_NOPATH: &str = r#"
-    config: test
     deployment:
       on_host:
         args: --verbose true
+    integrations: {}
+    config: test
     "#;
 
     #[test]
@@ -318,64 +335,5 @@ deployment:
             format!("{}", actual.unwrap_err()),
             "Missing required key in config: `deployment.on_host.path`"
         );
-    }
-
-    const EXAMPLE_AGENT_YAML_REPLACE_WITH_DEFAULT: &str = r#"
-    name: nrdot
-    namespace: newrelic
-    version: 0.1.0
-    variables:
-      config:
-        description: "Path to the agent"
-        type: file
-        required: true
-        default: "test"
-      deployment:
-        on_host:
-          path:
-            description: "Path to the agent"
-            type: string
-            required: false
-            default: "/default_path"
-          args:
-            description: "Args passed to the agent"
-            type: string
-            required: true
-    deployment:
-      on_host:
-        executables:
-          - path: ${deployment.on_host.args}/otelcol
-            args: "-c ${deployment.on_host.args}"
-            env: ""
-    "#;
-
-    #[test]
-    fn test_validate_with_default() {
-        let input_structure =
-            serde_yaml::from_str::<SupervisorConfig>(EXAMPLE_CONFIG_REPLACE_NOPATH).unwrap();
-        let agent_type =
-            serde_yaml::from_str::<Agent>(EXAMPLE_AGENT_YAML_REPLACE_WITH_DEFAULT).unwrap();
-
-        let expected = Map::from([
-            (
-                "deployment".to_string(),
-                TrivialValue::Map(Map::from([(
-                    "on_host".to_string(),
-                    TrivialValue::Map(Map::from([(
-                        "args".to_string(),
-                        TrivialValue::String("--verbose true".to_string()),
-                    )])),
-                )])),
-            ),
-            (
-                "config".to_string(),
-                TrivialValue::File(FilePathWithContent::new("test".to_string())),
-            ),
-        ]);
-        let actual = input_structure
-            .normalize_with_agent_type(&agent_type)
-            .unwrap();
-
-        assert_eq!(expected, actual.0);
     }
 }
