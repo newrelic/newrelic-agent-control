@@ -39,14 +39,6 @@ pub struct BackoffStrategyInner {
     pub last_retry_interval_seconds: TemplateableValue<Duration>,
 }
 
-#[derive(Debug, Deserialize, Default, PartialEq, Clone)]
-#[serde(default)]
-pub struct BackoffStrategyInnerTemplateable {
-    pub backoff_delay_seconds: String,
-    pub max_retries: String,
-    pub last_retry_interval_seconds: String,
-}
-
 impl From<&BackoffStrategyConfig> for BackoffStrategy {
     fn from(value: &BackoffStrategyConfig) -> Self {
         match value {
