@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use serde::Deserialize;
-use serde_with::serde_as;
 
 use crate::supervisor::restart::{Backoff, BackoffStrategy};
 
@@ -18,7 +17,7 @@ pub struct RestartPolicyConfig {
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(rename_all = "lowercase", tag = "type")]
 pub enum BackoffStrategyConfig {
-    None,
+    None, // TODO: make it templateable somehow
     Fixed(BackoffStrategyInner),
     Linear(BackoffStrategyInner),
     Exponential(BackoffStrategyInner),
@@ -32,7 +31,6 @@ const BACKOFF_DELAY: Duration = Duration::from_secs(2);
 const BACKOFF_MAX_RETRIES: usize = 0;
 const BACKOFF_LAST_RETRY_INTERVAL: Duration = Duration::from_secs(600);
 
-#[serde_as]
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(default)]
 pub struct BackoffStrategyInner {
@@ -41,7 +39,6 @@ pub struct BackoffStrategyInner {
     pub last_retry_interval_seconds: TemplateableValue<Duration>,
 }
 
-#[serde_as]
 #[derive(Debug, Deserialize, Default, PartialEq, Clone)]
 #[serde(default)]
 pub struct BackoffStrategyInnerTemplateable {
