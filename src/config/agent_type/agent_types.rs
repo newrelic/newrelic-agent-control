@@ -60,7 +60,7 @@ impl<'de, T> Deserialize<'de> for TemplateableValue<T> {
         };
         Ok(TemplateableValue {
             value: None,
-            template: result.to_string(),
+            template: result,
         })
     }
 }
