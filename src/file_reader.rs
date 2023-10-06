@@ -27,13 +27,29 @@ impl FileReader for FSFileReader {
 #[cfg(test)]
 pub mod test {
     use super::*;
-    use mockall::mock;
+    use mockall::{mock, predicate};
 
     mock! {
         pub FileReaderMock {}
 
         impl FileReader for FileReaderMock {
             fn read(&self, path:&str) -> Result<String, FileReaderError>;
+        }
+    }
+
+    impl MockFileReaderMock {
+        pub fn should_read(&mut self, path: String, content: String) {
+            self.expect_read()
+                .with(predicate::eq(path.clone()))
+                .times(1)
+                .returning(move |_| Ok(content.clone()));
+        }
+
+        // the test is not idempotent as it iterates hashmap. For now let's use this
+        pub fn could_read(&mut self, path: String, content: String) {
+            self.expect_read()
+                .with(predicate::eq(path.clone()))
+                .returning(move |_| Ok(content.clone()));
         }
     }
 }

@@ -6,6 +6,7 @@
 use regex::Regex;
 use serde::Deserialize;
 use serde_with::serde_as;
+use std::collections::HashMap;
 use std::{
     collections::HashMap as Map,
     fmt::{Display, Formatter},
@@ -17,11 +18,6 @@ use thiserror::Error;
 use crate::supervisor::restart::{Backoff, BackoffStrategy};
 
 use super::supervisor_config::SupervisorConfig;
-
-use std::fs;
-use std::io::Write;
-
-use uuid::Uuid;
 
 /// Regex that extracts the template values from a string.
 ///
@@ -112,9 +108,8 @@ pub struct Agent {
 }
 
 impl Agent {
-    /// Retrieve the `variables` field of the agent type at the specified key, if any.
-    pub fn get_variables(self, path: String) -> Option<EndSpec> {
-        self.variables.get(&path).cloned()
+    pub fn get_variables(&self) -> &NormalizedVariables {
+        &self.variables
     }
 
     #[cfg_attr(doc, aquamarine::aquamarine)]
@@ -167,58 +162,14 @@ impl Agent {
 
         let runtime_conf = self.runtime_config.template_with(&spec)?;
 
-        let mut populated_agent = Agent {
+        let populated_agent = Agent {
             runtime_config: runtime_conf,
             variables: spec,
             ..self
         };
-        populated_agent.write_files()?;
+
         Ok(populated_agent)
     }
-
-    // write_files stores the content of each TrivialValue::File into the corresponding file
-    fn write_files(&mut self) -> Result<(), AgentTypeError> {
-        self.variables
-            .values_mut()
-            .try_for_each(|v| -> Result<(), AgentTypeError> {
-                if let Some(TrivialValue::File(f)) = &mut v.final_value {
-                    write_file(f)?
-                } else if let Some(TrivialValue::Map(m)) = &mut v.final_value {
-                    return m.iter_mut().try_for_each(|(_, mut file)| {
-                        if let TrivialValue::File(f) = &mut file {
-                            write_file(f)?;
-                        }
-                        Ok(())
-                    });
-                }
-                Ok(())
-            })
-    }
-}
-
-fn write_file(file: &mut FilePathWithContent) -> Result<(), io::Error> {
-    const CONF_DIR: &str = "agentconfigs";
-    // get current path
-    let wd = std::env::current_dir()?;
-    let dir = wd.join(CONF_DIR);
-    if !dir.exists() {
-        fs::create_dir(dir.as_path())?;
-    }
-    let uuid = Uuid::new_v4().to_string();
-    let path = format!("{}/{}-config.yaml", dir.to_string_lossy(), uuid); // FIXME: PATH?
-    let mut fs_file = fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .open(&path)?;
-
-    writeln!(fs_file, "{}", file.content)?;
-    file.path = path;
-    // f.path = file
-    //     .path()
-    //     .to_str()
-    //     .ok_or(AgentTypeError::InvalidFilePath)?
-    //     .to_string();
-    Ok(())
 }
 
 impl TryFrom<RawAgent> for Agent {
@@ -251,8 +202,11 @@ impl TrivialValue {
     /// Checks the `TrivialValue` against the given [`VariableType`], erroring if they do not match.
     ///
     /// This is also in charge of converting a `TrivialValue::String` into a `TrivialValue::File`, using the actual string as the file content, if the given [`VariableType`] is `VariableType::File`.
-    pub fn check_type(self, type_: VariableType) -> Result<Self, AgentTypeError> {
-        match (self.clone(), type_) {
+    pub fn check_type<T>(self, end_spec: &T) -> Result<Self, AgentTypeError>
+    where
+        T: AgentTypeEndSpec,
+    {
+        match (self.clone(), end_spec.variable_type()) {
             (TrivialValue::String(_), VariableType::String)
             | (TrivialValue::Bool(_), VariableType::Bool)
             | (TrivialValue::File(_), VariableType::File)
@@ -268,20 +222,31 @@ impl TrivialValue {
                     return Err(AgentTypeError::InvalidMap);
                 }
 
+                if end_spec.file_path().is_none() {
+                    return Err(AgentTypeError::InvalidFilePath);
+                }
+
                 Ok(TrivialValue::Map(
                     m.into_iter()
                         .map(|(k, v)| {
                             (
                                 k,
-                                TrivialValue::File(FilePathWithContent::new(v.to_string())),
+                                // it's safe to make unwrap() as we previously checked is not none
+                                TrivialValue::File(FilePathWithContent::new(
+                                    end_spec.file_path().unwrap(),
+                                    v.to_string(),
+                                )),
                             )
                         })
                         .collect(),
                 ))
             }
-            (TrivialValue::String(s), VariableType::File) => {
-                Ok(TrivialValue::File(FilePathWithContent::new(s)))
-            }
+            (TrivialValue::String(content), VariableType::File) => match end_spec.file_path() {
+                None => Err(AgentTypeError::InvalidFilePath),
+                Some(file_path) => Ok(TrivialValue::File(FilePathWithContent::new(
+                    file_path, content,
+                ))),
+            },
             (v, t) => Err(AgentTypeError::TypeMismatch {
                 expected_type: t,
                 actual_value: v,
@@ -318,11 +283,8 @@ pub struct FilePathWithContent {
 }
 
 impl FilePathWithContent {
-    pub fn new(content: String) -> Self {
-        FilePathWithContent {
-            content,
-            ..Default::default()
-        }
+    pub fn new(path: String, content: String) -> Self {
+        FilePathWithContent { path, content }
     }
 }
 
@@ -350,6 +312,11 @@ impl Display for N {
 /// Flexible tree-like structure that contains variables definitions, that can later be changed by the end user via [`SupervisorConfig`].
 type AgentVariables = Map<String, Spec>;
 
+pub trait AgentTypeEndSpec {
+    fn variable_type(&self) -> VariableType;
+    fn file_path(&self) -> Option<String>;
+}
+
 #[derive(Debug, PartialEq, Clone, Deserialize)]
 #[serde(try_from = "IntermediateEndSpec")]
 pub struct EndSpec {
@@ -358,9 +325,20 @@ pub struct EndSpec {
     pub type_: VariableType,
     pub required: bool,
     pub default: Option<TrivialValue>,
+    pub file_path: Option<String>,
     /// The actual value that will be used by the agent. This will be either the user-provided value or, if not provided and not marked as [`required`], the default value.
     #[serde(skip)]
     pub final_value: Option<TrivialValue>,
+}
+
+impl AgentTypeEndSpec for EndSpec {
+    fn variable_type(&self) -> VariableType {
+        self.type_
+    }
+
+    fn file_path(&self) -> Option<String> {
+        self.file_path.as_ref().cloned()
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Copy, Deserialize)]
@@ -390,6 +368,17 @@ struct IntermediateEndSpec {
     type_: VariableType,
     required: bool,
     default: Option<TrivialValue>,
+    file_path: Option<String>,
+}
+
+impl AgentTypeEndSpec for IntermediateEndSpec {
+    fn variable_type(&self) -> VariableType {
+        self.type_
+    }
+
+    fn file_path(&self) -> Option<String> {
+        self.file_path.as_ref().cloned()
+    }
 }
 
 impl TryFrom<IntermediateEndSpec> for EndSpec {
@@ -402,9 +391,15 @@ impl TryFrom<IntermediateEndSpec> for EndSpec {
         if ies.default.is_none() && !ies.required {
             return Err(AgentTypeError::MissingDefault);
         }
+        let def_val = ies
+            .default
+            .clone()
+            .map(|d| d.check_type(&ies))
+            .transpose()?;
         Ok(EndSpec {
-            default: ies.default.map(|d| d.check_type(ies.type_)).transpose()?,
+            default: def_val,
             final_value: None,
+            file_path: ies.file_path,
             description: ies.description,
             type_: ies.type_,
             required: ies.required,
@@ -710,8 +705,8 @@ pub(crate) type NormalizedVariables = Map<String, EndSpec>;
 fn normalize_agent_spec(spec: AgentVariables) -> Result<NormalizedVariables, AgentTypeError> {
     spec.into_iter().try_fold(Map::new(), |r, (k, v)| {
         let n_spec = inner_normalize(k, v);
-        n_spec.iter().try_for_each(|(k, v)| {
-            if v.default.is_none() && !v.required {
+        n_spec.iter().try_for_each(|(k, end_spec)| {
+            if end_spec.default.is_none() && !end_spec.required {
                 return Err(AgentTypeError::MissingDefaultWithKey(k.clone()));
             }
             Ok(())
@@ -732,6 +727,14 @@ fn inner_normalize(key: String, spec: Spec) -> NormalizedVariables {
         }),
     }
     result
+}
+
+#[cfg(test)]
+impl Agent {
+    /// Retrieve the `variables` field of the agent type at the specified key, if any.
+    fn get_variable(self, path: String) -> Option<EndSpec> {
+        self.variables.get(&path).cloned()
+    }
 }
 
 #[cfg(test)]
@@ -835,6 +838,7 @@ deployment:
                 required: false,
                 default: Some(TrivialValue::String("nrdot".to_string())),
                 final_value: None,
+                file_path: None,
             },
         )]);
 
@@ -848,12 +852,13 @@ deployment:
             required: false,
             default: Some(TrivialValue::String("nrdot".to_string())),
             final_value: None,
+            file_path: None,
         };
 
         assert_eq!(
             expected_spec,
             given_agent
-                .get_variables("description.name".to_string())
+                .get_variable("description.name".to_string())
                 .unwrap()
         );
     }
@@ -878,6 +883,7 @@ deployment:
                     type_: VariableType::String,
                     required: true,
                     final_value: Some(TrivialValue::String("/etc".to_string())),
+                    file_path: None,
                 },
             ),
             (
@@ -888,6 +894,7 @@ deployment:
                     type_: VariableType::String,
                     required: true,
                     final_value: Some(TrivialValue::String("true".to_string())),
+                    file_path: None,
                 },
             ),
             (
@@ -898,6 +905,7 @@ deployment:
                     type_: VariableType::String,
                     required: true,
                     final_value: Some(TrivialValue::String("trace".to_string())),
+                    file_path: None,
                 },
             ),
         ]);
@@ -931,6 +939,7 @@ deployment:
                     type_: VariableType::String,
                     required: true,
                     final_value: Some(TrivialValue::String("/etc".to_string())),
+                    file_path: None,
                 },
             ),
             (
@@ -941,6 +950,7 @@ deployment:
                     type_: VariableType::String,
                     required: true,
                     final_value: Some(TrivialValue::String("true".to_string())),
+                    file_path: None,
                 },
             ),
         ]);
@@ -965,6 +975,7 @@ variables:
     description: "Newrelic infra configuration yaml"
     type: file
     required: true
+    file_path: "config.yml"
   config2:
     description: "Newrelic infra configuration yaml"
     type: file
@@ -972,6 +983,7 @@ variables:
     default: |
         license_key: abc123
         staging: true
+    file_path: "config2.yml"
   config3:
     description: "Newrelic infra configuration yaml"
     type: map[string]string
@@ -983,6 +995,7 @@ variables:
     default:
       kafka: |
         bootstrap: zookeeper
+    file_path: "integrations.d"
 deployment:
   on_host:
     executables:
@@ -996,121 +1009,114 @@ config3:
   log_level: trace
   forward: "true"
 integrations:
-  kafka: |
+  kafka.conf: |
     strategy: bootstrap
-  redis: |
+  redis.yml: |
     user: redis
 config: | 
-    license_key: abc123
-    staging: true
+    license_key: abc124
+    staging: false
 "#;
 
     #[test]
     fn test_populate_runtime_field() {
+        // Having Agent Type
         let input_agent_type = serde_yaml::from_str::<Agent>(GIVEN_NEWRELIC_INFRA_YAML).unwrap();
 
-        println!("Input: {:#?}", input_agent_type);
-
+        // And Agent Values
         let input_user_config =
             serde_yaml::from_str::<SupervisorConfig>(GIVEN_NEWRELIC_INFRA_USER_CONFIG_YAML)
                 .unwrap();
         println!("Input: {:#?}", input_user_config);
 
+        // When populating values
         let actual = input_agent_type
             .populate(input_user_config)
             .expect("Failed to populate the AgentType's runtime_config field");
 
-        println!("Output: {:#?}", actual);
+        // Then we expected final values
+        // MapStringString
+        let expected_config_3 = TrivialValue::Map(HashMap::from([
+            (
+                "log_level".to_string(),
+                TrivialValue::String("trace".to_string()),
+            ),
+            (
+                "forward".to_string(),
+                TrivialValue::String("true".to_string()),
+            ),
+        ]));
+        // File with default
+        let expected_config_2 = TrivialValue::File(FilePathWithContent::new(
+            "config2.yml".to_string(),
+            "license_key: abc123\nstaging: true\n".to_string(),
+        ));
+        // File with values
+        let expected_config = TrivialValue::File(FilePathWithContent::new(
+            "config.yml".to_string(),
+            "license_key: abc124\nstaging: false\n".to_string(),
+        ));
+        // MapStringFile
+        let expected_integrations = TrivialValue::Map(HashMap::from([
+            (
+                "kafka.conf".to_string(),
+                TrivialValue::File(FilePathWithContent::new(
+                    "integrations.d".to_string(),
+                    "strategy: bootstrap\n".to_string(),
+                )),
+            ),
+            (
+                "redis.yml".to_string(),
+                TrivialValue::File(FilePathWithContent::new(
+                    "integrations.d".to_string(),
+                    "user: redis\n".to_string(),
+                )),
+            ),
+        ]));
+
+        assert_eq!(
+            expected_config_3,
+            actual
+                .get_variables()
+                .get("config3")
+                .unwrap()
+                .final_value
+                .as_ref()
+                .unwrap()
+                .clone()
+        );
+        assert_eq!(
+            expected_config_2,
+            actual
+                .get_variables()
+                .get("config2")
+                .unwrap()
+                .final_value
+                .as_ref()
+                .unwrap()
+                .clone()
+        );
+        assert_eq!(
+            expected_config,
+            actual
+                .get_variables()
+                .get("config")
+                .unwrap()
+                .final_value
+                .as_ref()
+                .unwrap()
+                .clone()
+        );
+        assert_eq!(
+            expected_integrations,
+            actual
+                .get_variables()
+                .get("integrations")
+                .unwrap()
+                .final_value
+                .as_ref()
+                .unwrap()
+                .clone()
+        );
     }
-
-    // Obsolete test
-
-    /*const EXAMPLE_AGENT_YAML_REPLACE_WITH_DEFAULT: &str = r#"
-    name: nrdot
-    namespace: newrelic
-    version: 0.1.0
-    variables:
-      config:
-        description: "Path to the agent"
-        type: file
-        required: false
-        default: "test"
-      deployment:
-        on_host:
-          path:
-            description: "Path to the agent"
-            type: string
-            required: false
-            default: "/default_path"
-          args:
-            description: "Args passed to the agent"
-            type: string
-            required: false
-            default: "--verbose true"
-      integrations:
-        description: "Newrelic integrations configuration yamls"
-        type: map[string]file
-        required: false
-        default:
-          kafka: |
-            bootstrap: zookeeper
-    deployment:
-      on_host:
-        executables:
-          - path: ${deployment.on_host.args}/otelcol
-            args: "-c ${deployment.on_host.args}"
-            env: ""
-    "#;
-
-    #[test]
-    fn test_validate_with_default() {
-        let input_structure =
-            serde_yaml::from_str::<SupervisorConfig>("").unwrap();
-        let agent_type =
-            serde_yaml::from_str::<Agent>(EXAMPLE_AGENT_YAML_REPLACE_WITH_DEFAULT).unwrap();
-
-        let expected = Map::from([
-            (
-                "deployment.on_host.args".to_string(),
-                TrivialValue::String("--verbose true".to_string()),
-            ),
-            (
-                "deployment.on_host.path".to_string(),
-                TrivialValue::String("/default_path".to_string()),
-            ),
-            (
-                "config".to_string(),
-                TrivialValue::File(FilePathWithContent::new("test".to_string())),
-            ),
-            (
-                "integrations".to_string(),
-                TrivialValue::Map(Map::from([(
-                    "kafka".to_string(),
-                    TrivialValue::File(FilePathWithContent::new(
-                        "bootstrap: zookeeper\n".to_string(),
-                    )),
-                )])),
-            ),
-        ]);
-        let actual = agent_type
-            .populate(input_structure)
-            .expect("Failed to populate the AgentType's runtime_config field");
-
-        expected.iter().for_each(|(key, expected_value)|{
-            let actual_value = actual.clone().get_variables(key.to_string()).unwrap().final_value;
-            if let Some(TrivialValue::File(actual_file)) = actual_value {
-                let TrivialValue::File(expected_file) = expected_value else { unreachable!() };
-                assert_eq!(expected_file.content, actual_file.content);
-            } else if let Some(TrivialValue::Map(actual_map)) = actual_value {
-                actual_map.iter().for_each(|(a,actual_map)|{
-                    let TrivialValue::File(actual_file) = actual_map else { unreachable!() };
-                    let TrivialValue::Map(expected_map) = expected_value else { unreachable!() };
-                    let TrivialValue::File(expected_file) = expected_map.get(a).unwrap() else { unreachable!() };
-                    assert_eq!(expected_file.content, actual_file.content);
-                });
-            } else {
-                assert_eq!(*expected_value, actual_value.unwrap())
-            }
-        });
-    }*/
 }

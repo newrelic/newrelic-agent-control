@@ -49,6 +49,14 @@ nfpms:
         type: config|noreplace
       - src: LICENSE.md
         dst: /usr/share/doc/newrelic/newrelic-super-agent/LICENSE.md
+      - dst: /var/lib/newrelic-super-agent
+        type: dir
+        file_info:
+          mode: 0700
+      - dst: /var/lib/newrelic-super-agent/auto-generated
+        type: dir
+        file_info:
+          mode: 0700
       # Infra Agent
       - src: build/embedded/artifacts/{{- .Arch }}/newrelic-infra/newrelic-infra
         dst: /usr/bin/newrelic-infra

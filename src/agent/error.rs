@@ -3,6 +3,8 @@ use std::fmt::Debug;
 
 use thiserror::Error;
 
+use super::supervisor_group::SupervisorGroupError;
+use crate::config::persister::config_persister::PersistError;
 use crate::file_reader::FileReaderError;
 use crate::{
     config::{
@@ -11,8 +13,6 @@ use crate::{
     },
     opamp::client_builder::OpAMPClientBuilderError,
 };
-
-use super::supervisor_group::SupervisorGroupError;
 
 #[derive(Error, Debug)]
 pub enum AgentError {
@@ -51,4 +51,7 @@ pub enum AgentError {
 
     #[error("`{0}`")]
     OpAMPStartedClientError(#[from] StartedClientError),
+
+    #[error("error persisting agent config: `{0}`")]
+    PersistError(#[from] PersistError),
 }
