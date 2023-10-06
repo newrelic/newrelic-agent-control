@@ -264,9 +264,7 @@ impl TrivialValue {
                 Ok(self)
             }
             (TrivialValue::Map(m), VariableType::MapStringFile) => {
-                if !m.iter().all(|(_, v)| {
-                    matches!(v, TrivialValue::String(_))
-                } ) {
+                if !m.iter().all(|(_, v)| matches!(v, TrivialValue::String(_))) {
                     return Err(AgentTypeError::InvalidMap);
                 }
 
