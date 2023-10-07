@@ -368,7 +368,7 @@ pub mod tests {
 
     use super::*;
     use serde_yaml::Error;
-    use std::collections::HashMap as Map;
+    use std::{collections::HashMap as Map, time::Duration};
 
     pub const AGENT_GIVEN_YAML: &str = r#"
 name: nrdot
@@ -678,5 +678,80 @@ config: |
             .expect("Failed to template_with the AgentType's runtime_config field");
 
         println!("Output: {:#?}", actual);
+    }
+
+    const AGENT_BACKOFF_TEMPLATE_YAML: &str = r#"
+name: nrdot
+namespace: newrelic
+version: 0.1.0
+variables:
+  backoff:
+    delay:
+      description: "Backoff delay"
+      type: number
+      required: false
+      default: 1
+    retries:
+      description: "Backoff retries"
+      type: number
+      required: false
+      default: 3
+    interval:
+      description: "Backoff interval"
+      type: number
+      required: false
+      default: 30
+deployment:
+  on_host:
+    executables:
+      - path: /bin/otelcol
+        args: "-c some-arg"
+        env: ""
+    restart_policy:
+        backoff_strategy:
+            type: fixed
+            backoff_delay_seconds: ${backoff.delay} # 1
+            max_retries: ${backoff.retries} # 3
+            last_retry_interval_seconds: ${backoff.interval} # 30
+"#;
+
+    const BACKOFF_CONFIG_YAML: &str = r#"
+backoff:
+  delay: 10
+  forward: 30
+  interval: 300
+"#;
+
+    #[test]
+    fn test_backoff_config() {
+        let input_agent_type =
+            serde_yaml::from_str::<FinalAgent>(AGENT_BACKOFF_TEMPLATE_YAML).unwrap();
+        // println!("Input: {:#?}", input_agent_type);
+
+        let input_user_config =
+            serde_yaml::from_str::<SupervisorConfig>(BACKOFF_CONFIG_YAML).unwrap();
+        // println!("Input: {:#?}", input_user_config);
+
+        let actual = input_agent_type
+            .template_with(input_user_config)
+            .expect("Failed to template_with the AgentType's runtime_config field");
+
+        let expected_backoff = BackoffStrategyConfig::Fixed(BackoffStrategyInner {
+            backoff_delay_seconds: TemplateableValue::new(Duration::from_secs(10)),
+            max_retries: TemplateableValue::new(30),
+            last_retry_interval_seconds: TemplateableValue::new(Duration::from_secs(300)),
+        });
+
+        println!("Output: {:#?}", actual);
+        assert_eq!(
+            expected_backoff,
+            actual
+                .runtime_config
+                .deployment
+                .on_host
+                .unwrap()
+                .restart_policy
+                .backoff_strategy
+        );
     }
 }
