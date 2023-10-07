@@ -32,11 +32,36 @@ const BACKOFF_MAX_RETRIES: usize = 0;
 const BACKOFF_LAST_RETRY_INTERVAL: Duration = Duration::from_secs(600);
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
+pub struct BackoffDuration(Duration);
+
+impl BackoffDuration {
+    pub fn new(value: Duration) -> Self {
+        Self(value)
+    }
+
+    pub fn from_secs(value: u64) -> Self {
+        Self(Duration::from_secs(value))
+    }
+}
+
+impl From<Duration> for BackoffDuration {
+    fn from(value: Duration) -> Self {
+        Self(value)
+    }
+}
+
+impl From<BackoffDuration> for Duration {
+    fn from(value: BackoffDuration) -> Self {
+        value.0
+    }
+}
+
+#[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(default)]
 pub struct BackoffStrategyInner {
-    pub backoff_delay_seconds: TemplateableValue<Duration>,
+    pub backoff_delay_seconds: TemplateableValue<BackoffDuration>,
     pub max_retries: TemplateableValue<usize>,
-    pub last_retry_interval_seconds: TemplateableValue<Duration>,
+    pub last_retry_interval_seconds: TemplateableValue<BackoffDuration>,
 }
 
 impl From<&BackoffStrategyConfig> for BackoffStrategy {
@@ -65,16 +90,16 @@ impl Default for BackoffStrategyConfig {
 impl Default for BackoffStrategyInner {
     fn default() -> Self {
         Self {
-            backoff_delay_seconds: TemplateableValue::new(BACKOFF_DELAY),
+            backoff_delay_seconds: TemplateableValue::new(BACKOFF_DELAY.into()),
             max_retries: TemplateableValue::new(BACKOFF_MAX_RETRIES),
-            last_retry_interval_seconds: TemplateableValue::new(BACKOFF_LAST_RETRY_INTERVAL),
+            last_retry_interval_seconds: TemplateableValue::new(BACKOFF_LAST_RETRY_INTERVAL.into()),
         }
     }
 }
 
 fn realize_backoff_config(i: &BackoffStrategyInner) -> Backoff {
     Backoff::new()
-        .with_initial_delay(i.backoff_delay_seconds.clone().get().unwrap())
+        .with_initial_delay(i.backoff_delay_seconds.clone().get().unwrap().into())
         .with_max_retries(i.max_retries.clone().get().unwrap())
-        .with_last_retry_interval(i.last_retry_interval_seconds.clone().get().unwrap())
+        .with_last_retry_interval(i.last_retry_interval_seconds.clone().get().unwrap().into())
 }

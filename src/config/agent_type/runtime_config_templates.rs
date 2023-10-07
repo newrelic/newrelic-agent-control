@@ -3,6 +3,7 @@ use regex::Regex;
 use super::{
     agent_types::NormalizedVariables,
     error::AgentTypeError,
+    restart_policy::{BackoffStrategyConfig, BackoffStrategyInner, RestartPolicyConfig},
     runtime_config::{Deployment, Executable, OnHost, RuntimeConfig},
 };
 
@@ -81,21 +82,48 @@ impl Templateable for OnHost {
                 .into_iter()
                 .map(|e| e.template_with(variables))
                 .collect::<Result<Vec<Executable>, AgentTypeError>>()?,
-            ..Default::default()
+            restart_policy: self.restart_policy.template_with(variables)?,
         })
     }
 }
 
-// impl Templateable<Args> for Args {
-//     fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
-//         Ok(Self(self.0.template_with(variables)?))
-//     }
-// }
-// impl Templateable<Env> for Env {
-//     fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
-//         Ok(Self(self.0.template_with(variables)?))
-//     }
-// }
+impl Templateable for RestartPolicyConfig {
+    fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
+        Ok(Self {
+            backoff_strategy: self.backoff_strategy.template_with(variables)?,
+            restart_exit_codes: self.restart_exit_codes, // TODO Not templating this for now!
+        })
+    }
+}
+
+impl Templateable for BackoffStrategyConfig {
+    fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
+        Ok(match self {
+            BackoffStrategyConfig::None => BackoffStrategyConfig::None,
+            BackoffStrategyConfig::Fixed(inner) => {
+                BackoffStrategyConfig::Fixed(inner.template_with(variables)?)
+            }
+            BackoffStrategyConfig::Linear(inner) => {
+                BackoffStrategyConfig::Linear(inner.template_with(variables)?)
+            }
+            BackoffStrategyConfig::Exponential(inner) => {
+                BackoffStrategyConfig::Exponential(inner.template_with(variables)?)
+            }
+        })
+    }
+}
+
+impl Templateable for BackoffStrategyInner {
+    fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
+        Ok(Self {
+            backoff_delay_seconds: self.backoff_delay_seconds.template_with(variables)?,
+            max_retries: self.max_retries.template_with(variables)?,
+            last_retry_interval_seconds: self
+                .last_retry_interval_seconds
+                .template_with(variables)?,
+        })
+    }
+}
 
 impl Templateable for Deployment {
     fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {

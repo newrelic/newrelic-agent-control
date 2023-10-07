@@ -40,6 +40,6 @@ pub enum AgentTypeError {
     #[error("Value was not populated")]
     ValueNotPopulated,
 
-    #[error("Template value not parseable from a String")]
-    ValueNotParseableFromString,
+    #[error("Template value not parseable from the string `{0}")]
+    ValueNotParseableFromString(String),
 }

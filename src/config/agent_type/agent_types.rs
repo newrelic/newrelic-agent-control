@@ -13,6 +13,7 @@ use uuid::Uuid;
 
 use crate::config::supervisor_config::SupervisorConfig;
 
+use super::restart_policy::BackoffDuration;
 use super::{
     agent_metadata::AgentMetadata,
     error::AgentTypeError,
@@ -97,7 +98,7 @@ where
         let templated_string = self.template.clone().template_with(variables)?;
         let value = templated_string
             .parse()
-            .map_err(|_| AgentTypeError::ValueNotParseableFromString)?;
+            .map_err(|_| AgentTypeError::ValueNotParseableFromString(templated_string))?;
         Ok(Self {
             template: self.template,
             value: Some(value),
@@ -121,6 +122,20 @@ impl Templateable for TemplateableValue<Args> {
         Ok(Self {
             template: self.template,
             value: Some(Args(templated_string)),
+        })
+    }
+}
+
+impl Templateable for TemplateableValue<BackoffDuration> {
+    fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
+        let templated_string = self.template.clone().template_with(variables)?;
+        Ok(Self {
+            template: self.template,
+            value: Some(BackoffDuration::from_secs(
+                templated_string.parse().map_err(|_| {
+                    AgentTypeError::ValueNotParseableFromString(templated_string.clone())
+                })?,
+            )),
         })
     }
 }
@@ -368,7 +383,7 @@ pub mod tests {
 
     use super::*;
     use serde_yaml::Error;
-    use std::{collections::HashMap as Map, time::Duration};
+    use std::collections::HashMap as Map;
 
     pub const AGENT_GIVEN_YAML: &str = r#"
 name: nrdot
@@ -718,7 +733,7 @@ deployment:
     const BACKOFF_CONFIG_YAML: &str = r#"
 backoff:
   delay: 10
-  forward: 30
+  retries: 30
   interval: 300
 "#;
 
@@ -732,17 +747,26 @@ backoff:
             serde_yaml::from_str::<SupervisorConfig>(BACKOFF_CONFIG_YAML).unwrap();
         // println!("Input: {:#?}", input_user_config);
 
+        let expected_backoff = BackoffStrategyConfig::Fixed(BackoffStrategyInner {
+            backoff_delay_seconds: TemplateableValue {
+                value: Some(BackoffDuration::from_secs(10)),
+                template: "${backoff.delay}".to_string(),
+            },
+            max_retries: TemplateableValue {
+                value: Some(30),
+                template: "${backoff.retries}".to_string(),
+            },
+            last_retry_interval_seconds: TemplateableValue {
+                value: Some(BackoffDuration::from_secs(300)),
+                template: "${backoff.interval}".to_string(),
+            },
+        });
+
         let actual = input_agent_type
             .template_with(input_user_config)
             .expect("Failed to template_with the AgentType's runtime_config field");
 
-        let expected_backoff = BackoffStrategyConfig::Fixed(BackoffStrategyInner {
-            backoff_delay_seconds: TemplateableValue::new(Duration::from_secs(10)),
-            max_retries: TemplateableValue::new(30),
-            last_retry_interval_seconds: TemplateableValue::new(Duration::from_secs(300)),
-        });
-
-        println!("Output: {:#?}", actual);
+        // println!("Output: {:#?}", actual);
         assert_eq!(
             expected_backoff,
             actual
