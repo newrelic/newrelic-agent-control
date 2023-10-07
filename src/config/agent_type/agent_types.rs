@@ -778,4 +778,46 @@ backoff:
                 .backoff_strategy
         );
     }
+
+    const WRONG_RETRIES_BACKOFF_CONFIG_YAML: &str = r#"
+backoff:
+  delay: 10
+  retries: -30
+  interval: 300
+"#;
+
+    const WRONG_DELAY_BACKOFF_CONFIG_YAML: &str = r#"
+backoff:
+  delay: -10
+  retries: 30
+  interval: 300
+"#;
+    const WRONG_INTERVAL_BACKOFF_CONFIG_YAML: &str = r#"
+backoff:
+  delay: 10
+  retries: 30
+  interval: -300
+"#;
+
+    #[test]
+    fn test_negative_backoff_configs() {
+        let input_agent_type =
+            serde_yaml::from_str::<FinalAgent>(AGENT_BACKOFF_TEMPLATE_YAML).unwrap();
+
+        let wrong_retries =
+            serde_yaml::from_str::<SupervisorConfig>(WRONG_RETRIES_BACKOFF_CONFIG_YAML).unwrap();
+        let wrong_delay =
+            serde_yaml::from_str::<SupervisorConfig>(WRONG_DELAY_BACKOFF_CONFIG_YAML).unwrap();
+        let wrong_interval =
+            serde_yaml::from_str::<SupervisorConfig>(WRONG_INTERVAL_BACKOFF_CONFIG_YAML).unwrap();
+
+        let actual = input_agent_type.clone().template_with(wrong_retries);
+        assert!(actual.is_err());
+
+        let actual = input_agent_type.clone().template_with(wrong_delay);
+        assert!(actual.is_err());
+
+        let actual = input_agent_type.template_with(wrong_interval);
+        assert!(actual.is_err());
+    }
 }
