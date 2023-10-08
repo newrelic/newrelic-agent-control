@@ -31,7 +31,7 @@ const BACKOFF_DELAY: Duration = Duration::from_secs(2);
 const BACKOFF_MAX_RETRIES: usize = 0;
 const BACKOFF_LAST_RETRY_INTERVAL: Duration = Duration::from_secs(600);
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Default, Deserialize, PartialEq, Clone)]
 pub struct BackoffDuration(Duration);
 
 impl BackoffDuration {

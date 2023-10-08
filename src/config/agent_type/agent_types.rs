@@ -92,13 +92,17 @@ impl<T> TemplateableValue<T> {
 
 impl<S> Templateable for TemplateableValue<S>
 where
-    S: FromStr,
+    S: FromStr + Default,
 {
     fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
         let templated_string = self.template.clone().template_with(variables)?;
-        let value = templated_string
-            .parse()
-            .map_err(|_| AgentTypeError::ValueNotParseableFromString(templated_string))?;
+        let value = if templated_string.is_empty() {
+            S::default()
+        } else {
+            templated_string
+                .parse()
+                .map_err(|_| AgentTypeError::ValueNotParseableFromString(templated_string))?
+        };
         Ok(Self {
             template: self.template,
             value: Some(value),
@@ -129,13 +133,18 @@ impl Templateable for TemplateableValue<Args> {
 impl Templateable for TemplateableValue<BackoffDuration> {
     fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
         let templated_string = self.template.clone().template_with(variables)?;
+        let value = if templated_string.is_empty() {
+            BackoffDuration::default()
+        } else {
+            BackoffDuration::from_secs(
+                templated_string
+                    .parse()
+                    .map_err(|_| AgentTypeError::ValueNotParseableFromString(templated_string))?,
+            )
+        };
         Ok(Self {
             template: self.template,
-            value: Some(BackoffDuration::from_secs(
-                templated_string.parse().map_err(|_| {
-                    AgentTypeError::ValueNotParseableFromString(templated_string.clone())
-                })?,
-            )),
+            value: Some(value),
         })
     }
 }
