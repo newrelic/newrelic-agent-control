@@ -1,9 +1,10 @@
 use regex::Regex;
+use tracing::warn;
 
 use super::{
     agent_types::NormalizedVariables,
     error::AgentTypeError,
-    restart_policy::{BackoffStrategyConfig, BackoffStrategyInner, RestartPolicyConfig},
+    restart_policy::{BackoffStrategyConfig, BackoffStrategyType, RestartPolicyConfig},
     runtime_config::{Deployment, Executable, OnHost, RuntimeConfig},
 };
 
@@ -45,33 +46,36 @@ impl Templateable for Executable {
 // The actual std type that has a meaningful implementation of Templateable
 impl Templateable for String {
     fn template_with(self, variables: &NormalizedVariables) -> Result<String, AgentTypeError> {
-        let re = Regex::new(TEMPLATE_RE).unwrap();
-
-        let result = re
-            .find_iter(&self.clone())
-            .map(|i| i.as_str())
-            .try_fold(self, |r, i| {
-                let trimmed_s = i
-                    .trim_start_matches(TEMPLATE_BEGIN)
-                    .trim_end_matches(TEMPLATE_END);
-                if !variables.contains_key(trimmed_s) {
-                    return Err(AgentTypeError::MissingTemplateKey(trimmed_s.to_string()));
-                }
-                let replacement = &variables[trimmed_s];
-                Ok(re
-                    .replace(
-                        &r,
-                        replacement
-                            .final_value
-                            .as_ref()
-                            .or(replacement.default.as_ref())
-                            .ok_or(AgentTypeError::MissingTemplateKey(trimmed_s.to_string()))?
-                            .to_string(),
-                    )
-                    .to_string())
-            });
-        result
+        template_string(self, variables)
     }
+}
+
+fn template_string(s: String, variables: &NormalizedVariables) -> Result<String, AgentTypeError> {
+    let re = Regex::new(TEMPLATE_RE).unwrap();
+
+    let result = re
+        .find_iter(&s)
+        .map(|i| i.as_str())
+        .try_fold(s.clone(), |r, i| {
+            let trimmed_s = i
+                .trim_start_matches(TEMPLATE_BEGIN)
+                .trim_end_matches(TEMPLATE_END);
+            if !variables.contains_key(trimmed_s) {
+                return Err(AgentTypeError::MissingTemplateKey(trimmed_s.to_string()));
+            }
+            let replacement = variables[trimmed_s].clone();
+            Ok(re
+                .replace(
+                    &r,
+                    replacement
+                        .final_value
+                        .or(replacement.default)
+                        .ok_or(AgentTypeError::MissingTemplateKey(trimmed_s.to_string()))?
+                        .to_string(),
+                )
+                .to_string())
+        });
+    result
 }
 
 impl Templateable for OnHost {
@@ -98,29 +102,25 @@ impl Templateable for RestartPolicyConfig {
 
 impl Templateable for BackoffStrategyConfig {
     fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
-        Ok(match self {
-            BackoffStrategyConfig::None => BackoffStrategyConfig::None,
-            BackoffStrategyConfig::Fixed(inner) => {
-                BackoffStrategyConfig::Fixed(inner.template_with(variables)?)
-            }
-            BackoffStrategyConfig::Linear(inner) => {
-                BackoffStrategyConfig::Linear(inner.template_with(variables)?)
-            }
-            BackoffStrategyConfig::Exponential(inner) => {
-                BackoffStrategyConfig::Exponential(inner.template_with(variables)?)
-            }
-        })
-    }
-}
+        let backoff_type = self.backoff_type.template_with(variables)?;
+        let backoff_delay_seconds = self.backoff_delay_seconds.template_with(variables)?;
+        let max_retries = self.max_retries.template_with(variables)?;
+        let last_retry_interval_seconds =
+            self.last_retry_interval_seconds.template_with(variables)?;
 
-impl Templateable for BackoffStrategyInner {
-    fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
+        if backoff_type.clone().get() == BackoffStrategyType::None
+            && !(backoff_delay_seconds.is_template_empty()
+                && max_retries.is_template_empty()
+                && last_retry_interval_seconds.is_template_empty())
+        {
+            warn!("Backoff strategy type is set to `none`, but some of the backoff strategy fields are set. They will be ignored.");
+        }
+
         Ok(Self {
-            backoff_delay_seconds: self.backoff_delay_seconds.template_with(variables)?,
-            max_retries: self.max_retries.template_with(variables)?,
-            last_retry_interval_seconds: self
-                .last_retry_interval_seconds
-                .template_with(variables)?,
+            backoff_type,
+            backoff_delay_seconds,
+            max_retries,
+            last_retry_interval_seconds,
         })
     }
 }
@@ -164,5 +164,99 @@ impl Templateable for RuntimeConfig {
         Ok(Self {
             deployment: self.deployment.template_with(variables)?,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::config::agent_type::{
+        agent_types::{EndSpec, TemplateableValue, VariableType},
+        runtime_config::{Args, Env},
+        trivial_value::{TrivialValue, N},
+    };
+
+    use super::*;
+
+    #[test]
+    fn test_template_string() {
+        let variables = NormalizedVariables::from([
+            (
+                "name".to_string(),
+                EndSpec {
+                    final_value: Some(TrivialValue::String("Alice".to_string())),
+                    default: None,
+                    type_: VariableType::String,
+                    description: String::default(),
+                    required: true,
+                },
+            ),
+            (
+                "age".to_string(),
+                EndSpec {
+                    final_value: None,
+                    default: Some(TrivialValue::Number(N::PosInt(30))),
+                    type_: VariableType::Number,
+                    description: String::default(),
+                    required: false,
+                },
+            ),
+        ]);
+
+        let input = "Hello ${name}! You are ${age} years old.".to_string();
+        let expected_output = "Hello Alice! You are 30 years old.".to_string();
+        let actual_output = template_string(input, &variables).unwrap();
+        assert_eq!(actual_output, expected_output);
+    }
+
+    #[test]
+    fn test_template_executable() {
+        let variables = NormalizedVariables::from([
+            (
+                "path".to_string(),
+                EndSpec {
+                    final_value: Some(TrivialValue::String("/usr/bin/myapp".to_string())),
+                    default: None,
+                    description: String::default(),
+                    required: true,
+                    type_: VariableType::String,
+                },
+            ),
+            (
+                "args".to_string(),
+                EndSpec {
+                    final_value: Some(TrivialValue::String("--config /etc/myapp.conf".to_string())),
+                    default: None,
+                    description: String::default(),
+                    required: true,
+                    type_: VariableType::String,
+                },
+            ),
+            (
+                "env.MYAPP_PORT".to_string(),
+                EndSpec {
+                    final_value: Some(TrivialValue::Number(N::PosInt(8080))),
+                    default: None,
+                    description: String::default(),
+                    required: true,
+                    type_: VariableType::Number,
+                },
+            ),
+        ]);
+
+        let input = Executable {
+            path: TemplateableValue::from_template("${path}".to_string()),
+            args: TemplateableValue::from_template("${args}".to_string()),
+            env: TemplateableValue::from_template("MYAPP_PORT=${env.MYAPP_PORT}".to_string()),
+        };
+        let expected_output = Executable {
+            path: TemplateableValue::new("/usr/bin/myapp".to_string())
+                .with_template("${path}".to_string()),
+            args: TemplateableValue::new(Args("--config /etc/myapp.conf".to_string()))
+                .with_template("${args}".to_string()),
+            env: TemplateableValue::new(Env("MYAPP_PORT=8080".to_string()))
+                .with_template("MYAPP_PORT=${env.MYAPP_PORT}".to_string()),
+        };
+        let actual_output = input.template_with(&variables).unwrap();
+        assert_eq!(actual_output, expected_output);
     }
 }

@@ -42,4 +42,7 @@ pub enum AgentTypeError {
 
     #[error("Template value not parseable from the string `{0}")]
     ValueNotParseableFromString(String),
+
+    #[error("Unknown backoff strategy type: `{0}`")]
+    UnknownBackoffStrategyType(String),
 }

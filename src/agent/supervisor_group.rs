@@ -225,9 +225,9 @@ fn build_on_host_runners(
     let mut runners = Vec::new();
     for exec in on_host.executables {
         let runner = SupervisorRunner::from(&Config::new(
-            exec.path.get().unwrap(),
-            exec.args.get().unwrap().into_vector(), // FIXME: unpopulated value!
-            exec.env.get().unwrap().into_map(),
+            exec.path.get(),
+            exec.args.get().into_vector(),
+            exec.env.get().into_map(),
             tx.clone(),
             on_host.restart_policy.clone(),
         ));

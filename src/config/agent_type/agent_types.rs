@@ -68,13 +68,18 @@ impl<'de, T> Deserialize<'de> for TemplateableValue<T> {
 }
 
 impl<T> TemplateableValue<T> {
-    // FIXME: make it take a reference
-    pub fn get(self) -> Result<T, AgentTypeError> {
-        self.value.ok_or(AgentTypeError::ValueNotPopulated)
+    pub fn get(self) -> T {
+        self.value
+            .unwrap_or_else(|| unreachable!("Values must be populated at this point"))
     }
-    #[cfg(test)]
-    pub fn template(self) -> String {
-        self.template
+    pub fn new(value: T) -> Self {
+        Self {
+            value: Some(value),
+            template: "".to_string(),
+        }
+    }
+    pub fn is_template_empty(&self) -> bool {
+        self.template.is_empty()
     }
     #[cfg(test)]
     pub fn from_template(s: String) -> Self {
@@ -83,10 +88,11 @@ impl<T> TemplateableValue<T> {
             template: s,
         }
     }
-    pub fn new(value: T) -> Self {
+    #[cfg(test)]
+    pub fn with_template(self, s: String) -> Self {
         Self {
-            value: Some(value),
-            template: "".to_string(),
+            template: s,
+            ..self
         }
     }
 }
@@ -264,7 +270,7 @@ type AgentVariables = HashMap<String, Spec>;
 #[derive(Debug, PartialEq, Clone, Deserialize)]
 #[serde(try_from = "IntermediateEndSpec")]
 pub struct EndSpec {
-    description: String,
+    pub(crate) description: String,
     #[serde(rename = "type")]
     pub type_: VariableType,
     pub required: bool,
@@ -396,7 +402,7 @@ fn inner_normalize(key: String, spec: Spec) -> NormalizedVariables {
 pub mod tests {
     use crate::config::{
         agent_type::{
-            restart_policy::{BackoffStrategyConfig, BackoffStrategyInner},
+            restart_policy::{BackoffStrategyConfig, BackoffStrategyType},
             runtime_config::{Args, Env, Executable},
         },
         supervisor_config::SupervisorConfig,
@@ -486,20 +492,21 @@ deployment:
 
         assert_eq!(
             "${bin}/otelcol",
-            on_host.executables[0].clone().path.template()
+            on_host.executables[0].clone().path.template
         );
         assert_eq!(
             "-c ${deployment.k8s.image}".to_string(),
-            on_host.executables[0].clone().args.template()
+            on_host.executables[0].clone().args.template
         );
 
         // Restart restart policy values
         assert_eq!(
-            BackoffStrategyConfig::Fixed(BackoffStrategyInner {
+            BackoffStrategyConfig {
+                backoff_type: TemplateableValue::from_template("fixed".to_string()),
                 backoff_delay_seconds: TemplateableValue::from_template("1".to_string()),
                 max_retries: TemplateableValue::from_template("3".to_string()),
                 last_retry_interval_seconds: TemplateableValue::from_template("30".to_string()),
-            }),
+            },
             on_host.restart_policy.backoff_strategy
         );
     }
@@ -780,7 +787,11 @@ backoff:
             serde_yaml::from_str::<SupervisorConfig>(BACKOFF_CONFIG_YAML).unwrap();
         // println!("Input: {:#?}", input_user_config);
 
-        let expected_backoff = BackoffStrategyConfig::Fixed(BackoffStrategyInner {
+        let expected_backoff = BackoffStrategyConfig {
+            backoff_type: TemplateableValue {
+                value: Some(BackoffStrategyType::Fixed),
+                template: "fixed".to_string(),
+            },
             backoff_delay_seconds: TemplateableValue {
                 value: Some(BackoffDuration::from_secs(10)),
                 template: "${backoff.delay}".to_string(),
@@ -793,7 +804,7 @@ backoff:
                 value: Some(BackoffDuration::from_secs(300)),
                 template: "${backoff.interval}".to_string(),
             },
-        });
+        };
 
         let actual = input_agent_type
             .template_with(input_user_config)
