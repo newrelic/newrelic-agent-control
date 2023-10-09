@@ -57,6 +57,19 @@ pub struct BackoffStrategyConfig {
     pub last_retry_interval_seconds: TemplateableValue<BackoffDuration>,
 }
 
+impl BackoffStrategyConfig {
+    pub(crate) fn are_values_in_sync_with_type(&self) -> bool {
+        match self.backoff_type.clone().get() {
+            BackoffStrategyType::None => {
+                self.backoff_delay_seconds.is_template_empty()
+                    && self.max_retries.is_template_empty()
+                    && self.last_retry_interval_seconds.is_template_empty()
+            }
+            _ => true,
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, Default, PartialEq, Clone)]
 #[serde(rename_all = "lowercase", tag = "type")]
 pub enum BackoffStrategyType {
@@ -110,4 +123,45 @@ fn realize_backoff_config(i: &BackoffStrategyConfig) -> Backoff {
         .with_initial_delay(i.backoff_delay_seconds.clone().get().into())
         .with_max_retries(i.max_retries.clone().get())
         .with_last_retry_interval(i.last_retry_interval_seconds.clone().get().into())
+}
+
+#[cfg(test)]
+mod test {
+    use crate::config::agent_type::agent_types::TemplateableValue;
+
+    use super::{BackoffStrategyConfig, BackoffStrategyType};
+
+    #[test]
+    fn values_in_sync_with_type() {
+        let strategy = BackoffStrategyConfig {
+            backoff_type: TemplateableValue::new(BackoffStrategyType::None),
+            backoff_delay_seconds: TemplateableValue::from_template("".to_string()),
+            max_retries: TemplateableValue::from_template("".to_string()),
+            last_retry_interval_seconds: TemplateableValue::from_template("".to_string()),
+        };
+
+        assert!(strategy.are_values_in_sync_with_type());
+
+        let strategy = BackoffStrategyConfig {
+            backoff_type: TemplateableValue::new(BackoffStrategyType::None),
+            backoff_delay_seconds: TemplateableValue::from_template("".to_string()),
+            max_retries: TemplateableValue::from_template("".to_string()),
+            last_retry_interval_seconds: TemplateableValue::from_template(
+                "${something}".to_string(),
+            ),
+        };
+
+        assert!(!strategy.are_values_in_sync_with_type());
+
+        let strategy = BackoffStrategyConfig {
+            backoff_type: TemplateableValue::new(BackoffStrategyType::Fixed),
+            backoff_delay_seconds: TemplateableValue::from_template("".to_string()),
+            max_retries: TemplateableValue::from_template("".to_string()),
+            last_retry_interval_seconds: TemplateableValue::from_template(
+                "${something}".to_string(),
+            ),
+        };
+
+        assert!(strategy.are_values_in_sync_with_type());
+    }
 }

@@ -756,6 +756,10 @@ variables:
       type: number
       required: false
       default: 30
+    type:
+      description: "Backoff strategy type"
+      type: string
+      required: true
 deployment:
   on_host:
     executables:
@@ -764,10 +768,10 @@ deployment:
         env: ""
     restart_policy:
         backoff_strategy:
-            type: fixed
-            backoff_delay_seconds: ${backoff.delay} # 1
-            max_retries: ${backoff.retries} # 3
-            last_retry_interval_seconds: ${backoff.interval} # 30
+            type: ${backoff.type}
+            backoff_delay_seconds: ${backoff.delay}
+            max_retries: ${backoff.retries}
+            last_retry_interval_seconds: ${backoff.interval}
 "#;
 
     const BACKOFF_CONFIG_YAML: &str = r#"
@@ -775,6 +779,7 @@ backoff:
   delay: 10
   retries: 30
   interval: 300
+  type: linear
 "#;
 
     #[test]
@@ -789,8 +794,8 @@ backoff:
 
         let expected_backoff = BackoffStrategyConfig {
             backoff_type: TemplateableValue {
-                value: Some(BackoffStrategyType::Fixed),
-                template: "fixed".to_string(),
+                value: Some(BackoffStrategyType::Linear),
+                template: "${backoff.type}".to_string(),
             },
             backoff_delay_seconds: TemplateableValue {
                 value: Some(BackoffDuration::from_secs(10)),
@@ -828,6 +833,7 @@ backoff:
   delay: 10
   retries: -30
   interval: 300
+  type: linear
 "#;
 
     const WRONG_DELAY_BACKOFF_CONFIG_YAML: &str = r#"
@@ -835,12 +841,22 @@ backoff:
   delay: -10
   retries: 30
   interval: 300
+  type: linear
 "#;
     const WRONG_INTERVAL_BACKOFF_CONFIG_YAML: &str = r#"
 backoff:
   delay: 10
   retries: 30
   interval: -300
+  type: linear
+"#;
+
+    const WRONG_TYPE_BACKOFF_CONFIG_YAML: &str = r#"
+backoff:
+  delay: 10
+  retries: 30
+  interval: -300
+  type: fafafa
 "#;
 
     #[test]
@@ -854,6 +870,8 @@ backoff:
             serde_yaml::from_str::<SupervisorConfig>(WRONG_DELAY_BACKOFF_CONFIG_YAML).unwrap();
         let wrong_interval =
             serde_yaml::from_str::<SupervisorConfig>(WRONG_INTERVAL_BACKOFF_CONFIG_YAML).unwrap();
+        let wrong_type =
+            serde_yaml::from_str::<SupervisorConfig>(WRONG_TYPE_BACKOFF_CONFIG_YAML).unwrap();
 
         let actual = input_agent_type.clone().template_with(wrong_retries);
         assert!(actual.is_err());
@@ -861,7 +879,10 @@ backoff:
         let actual = input_agent_type.clone().template_with(wrong_delay);
         assert!(actual.is_err());
 
-        let actual = input_agent_type.template_with(wrong_interval);
+        let actual = input_agent_type.clone().template_with(wrong_interval);
+        assert!(actual.is_err());
+
+        let actual = input_agent_type.template_with(wrong_type);
         assert!(actual.is_err());
     }
 

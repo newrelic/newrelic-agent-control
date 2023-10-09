@@ -4,7 +4,7 @@ use tracing::warn;
 use super::{
     agent_types::NormalizedVariables,
     error::AgentTypeError,
-    restart_policy::{BackoffStrategyConfig, BackoffStrategyType, RestartPolicyConfig},
+    restart_policy::{BackoffStrategyConfig, RestartPolicyConfig},
     runtime_config::{Deployment, Executable, OnHost, RuntimeConfig},
 };
 
@@ -108,20 +108,18 @@ impl Templateable for BackoffStrategyConfig {
         let last_retry_interval_seconds =
             self.last_retry_interval_seconds.template_with(variables)?;
 
-        if backoff_type.clone().get() == BackoffStrategyType::None
-            && !(backoff_delay_seconds.is_template_empty()
-                && max_retries.is_template_empty()
-                && last_retry_interval_seconds.is_template_empty())
-        {
-            warn!("Backoff strategy type is set to `none`, but some of the backoff strategy fields are set. They will be ignored.");
-        }
-
-        Ok(Self {
+        let result = Self {
             backoff_type,
             backoff_delay_seconds,
             max_retries,
             last_retry_interval_seconds,
-        })
+        };
+
+        if !result.are_values_in_sync_with_type() {
+            warn!("Backoff strategy type is set to `none`, but some of the backoff strategy fields are set. They will be ignored.");
+        }
+
+        Ok(result)
     }
 }
 
