@@ -319,11 +319,11 @@ deployment:
     }
 
     const EXAMPLE_CONFIG_REPLACE_NOPATH: &str = r#"
-    config: test
     deployment:
       on_host:
         args: --verbose true
     integrations: {}
+    config: test
     "#;
 
     #[test]
