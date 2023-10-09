@@ -35,6 +35,22 @@ impl TrivialValue {
                 }
                 Ok(self)
             }
+            (TrivialValue::Map(m), VariableType::MapStringFile) => {
+                if !m.iter().all(|(_, v)| matches!(v, TrivialValue::String(_))) {
+                    return Err(AgentTypeError::InvalidMap);
+                }
+
+                Ok(TrivialValue::Map(
+                    m.into_iter()
+                        .map(|(k, v)| {
+                            (
+                                k,
+                                TrivialValue::File(FilePathWithContent::new(v.to_string())),
+                            )
+                        })
+                        .collect(),
+                ))
+            }
             (TrivialValue::String(s), VariableType::File) => {
                 Ok(TrivialValue::File(FilePathWithContent::new(s)))
             }
