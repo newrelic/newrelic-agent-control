@@ -409,6 +409,8 @@ pub mod tests {
     };
 
     use super::*;
+    use crate::config::agent_type::restart_policy::RestartPolicyConfig;
+    use crate::config::agent_type::trivial_value::N::PosInt;
     use serde_yaml::Error;
     use std::collections::HashMap as Map;
 
@@ -429,12 +431,21 @@ deployment:
       - path: ${bin}/otelcol
         args: "-c ${deployment.k8s.image}"
         env: ""
-    restart_policy:
-        backoff_strategy:
+        restart_policy:
+          backoff_strategy:
             type: fixed
             backoff_delay_seconds: 1
             max_retries: 3
             last_retry_interval_seconds: 30
+      - path: ${bin}/otelcol-gw
+        args: "-c ${deployment.k8s.image}"
+        env: ""
+        restart_policy:
+          backoff_strategy:
+            type: linear
+            backoff_delay_seconds: 3
+            max_retries: 8
+            last_retry_interval_seconds: 60
 "#;
 
     const AGENT_GIVEN_BAD_YAML: &str = r#"
@@ -507,7 +518,16 @@ deployment:
                 max_retries: TemplateableValue::from_template("3".to_string()),
                 last_retry_interval_seconds: TemplateableValue::from_template("30".to_string()),
             },
-            on_host.restart_policy.backoff_strategy
+            on_host.executables[0].restart_policy.backoff_strategy
+        );
+        assert_eq!(
+            BackoffStrategyConfig {
+                backoff_type: TemplateableValue::from_template("linear".to_string()),
+                backoff_delay_seconds: TemplateableValue::from_template("3".to_string()),
+                max_retries: TemplateableValue::from_template("8".to_string()),
+                last_retry_interval_seconds: TemplateableValue::from_template("60".to_string()),
+            },
+            on_host.executables[1].restart_policy.backoff_strategy
         );
     }
 
@@ -569,6 +589,19 @@ deployment:
                     .to_string(),
             ),
             env: TemplateableValue::from_template("".to_string()),
+            restart_policy: RestartPolicyConfig {
+                backoff_strategy: BackoffStrategyConfig {
+                    backoff_type: TemplateableValue::from_template("${backoff.type}".to_string()),
+                    backoff_delay_seconds: TemplateableValue::from_template(
+                        "${backoff.delay}".to_string(),
+                    ),
+                    max_retries: TemplateableValue::from_template("${backoff.retries}".to_string()),
+                    last_retry_interval_seconds: TemplateableValue::from_template(
+                        "${backoff.interval}".to_string(),
+                    ),
+                },
+                restart_exit_codes: vec![],
+            },
         };
 
         let normalized_values = Map::from([
@@ -602,6 +635,46 @@ deployment:
                     final_value: Some(TrivialValue::String("trace".to_string())),
                 },
             ),
+            (
+                "backoff.type".to_string(),
+                EndSpec {
+                    default: None,
+                    description: "backoff_type".to_string(),
+                    type_: VariableType::String,
+                    required: true,
+                    final_value: Some(TrivialValue::String("exponential".to_string())),
+                },
+            ),
+            (
+                "backoff.delay".to_string(),
+                EndSpec {
+                    default: None,
+                    description: "backoff_delay".to_string(),
+                    type_: VariableType::String,
+                    required: true,
+                    final_value: Some(TrivialValue::Number(PosInt(10))),
+                },
+            ),
+            (
+                "backoff.retries".to_string(),
+                EndSpec {
+                    default: None,
+                    description: "backoff_retries".to_string(),
+                    type_: VariableType::String,
+                    required: true,
+                    final_value: Some(TrivialValue::Number(PosInt(30))),
+                },
+            ),
+            (
+                "backoff.interval".to_string(),
+                EndSpec {
+                    default: None,
+                    description: "backoff_interval".to_string(),
+                    type_: VariableType::Number,
+                    required: true,
+                    final_value: Some(TrivialValue::Number(PosInt(300))),
+                },
+            ),
         ]);
 
         let exec_actual = exec.template_with(&normalized_values).unwrap();
@@ -621,6 +694,27 @@ deployment:
                 value: Some(Env("".to_string())),
                 template: "".to_string(),
             },
+            restart_policy: RestartPolicyConfig {
+                backoff_strategy: BackoffStrategyConfig {
+                    backoff_type: TemplateableValue {
+                        value: Some(BackoffStrategyType::Exponential),
+                        template: "${backoff.type}".to_string(),
+                    },
+                    backoff_delay_seconds: TemplateableValue {
+                        value: Some(BackoffDuration::from_secs(10)),
+                        template: "${backoff.delay}".to_string(),
+                    },
+                    max_retries: TemplateableValue {
+                        value: Some(30),
+                        template: "${backoff.retries}".to_string(),
+                    },
+                    last_retry_interval_seconds: TemplateableValue {
+                        value: Some(BackoffDuration::from_secs(300)),
+                        template: "${backoff.interval}".to_string(),
+                    },
+                },
+                restart_exit_codes: vec![],
+            },
         };
 
         assert_eq!(exec_actual, exec_expected);
@@ -632,6 +726,27 @@ deployment:
             path: TemplateableValue::from_template("${bin}/otelcol".to_string()),
             args: TemplateableValue::from_template("--verbose ${deployment.on_host.verbose} --verbose_again ${deployment.on_host.verbose}".to_string()),
             env: TemplateableValue::from_template("".to_string()),
+            restart_policy: RestartPolicyConfig{
+                backoff_strategy: BackoffStrategyConfig{
+                    backoff_type: TemplateableValue::from_template(
+                        "${backoff.type}"
+                            .to_string(),
+                    ),
+                    backoff_delay_seconds: TemplateableValue::from_template(
+                        "${backoff.delay}"
+                            .to_string(),
+                    ),
+                    max_retries: TemplateableValue::from_template(
+                        "${backoff.retries}"
+                            .to_string(),
+                    ),
+                    last_retry_interval_seconds: TemplateableValue::from_template(
+                        "${backoff.interval}"
+                            .to_string(),
+                    ),
+                },
+                restart_exit_codes: vec![],
+            },
         };
 
         let normalized_values = Map::from([
@@ -655,6 +770,46 @@ deployment:
                     final_value: Some(TrivialValue::String("true".to_string())),
                 },
             ),
+            (
+                "backoff.type".to_string(),
+                EndSpec {
+                    default: None,
+                    description: "backoff_type".to_string(),
+                    type_: VariableType::String,
+                    required: true,
+                    final_value: Some(TrivialValue::String("linear".to_string())),
+                },
+            ),
+            (
+                "backoff.delay".to_string(),
+                EndSpec {
+                    default: None,
+                    description: "backoff_delay".to_string(),
+                    type_: VariableType::String,
+                    required: true,
+                    final_value: Some(TrivialValue::Number(PosInt(10))),
+                },
+            ),
+            (
+                "backoff.retries".to_string(),
+                EndSpec {
+                    default: None,
+                    description: "backoff_retries".to_string(),
+                    type_: VariableType::String,
+                    required: true,
+                    final_value: Some(TrivialValue::Number(PosInt(30))),
+                },
+            ),
+            (
+                "backoff.interval".to_string(),
+                EndSpec {
+                    default: None,
+                    description: "backoff_interval".to_string(),
+                    type_: VariableType::Number,
+                    required: true,
+                    final_value: Some(TrivialValue::Number(PosInt(300))),
+                },
+            ),
         ]);
 
         let exec_actual = exec.template_with(&normalized_values).unwrap();
@@ -663,6 +818,27 @@ deployment:
             path: TemplateableValue{value: Some("/etc/otelcol".to_string()), template: "${bin}/otelcol".to_string()},
             args: TemplateableValue{value: Some(Args("--verbose true --verbose_again true".to_string())), template: "--verbose ${deployment.on_host.verbose} --verbose_again ${deployment.on_host.verbose}".to_string()},
             env: TemplateableValue{value: Some(Env("".to_string())), template: "".to_string()},
+            restart_policy: RestartPolicyConfig{
+                backoff_strategy: BackoffStrategyConfig{
+                    backoff_type: TemplateableValue {
+                        value: Some(BackoffStrategyType::Linear),
+                        template: "${backoff.type}".to_string(),
+                    },
+                    backoff_delay_seconds: TemplateableValue {
+                        value: Some(BackoffDuration::from_secs(10)),
+                        template: "${backoff.delay}".to_string(),
+                    },
+                    max_retries: TemplateableValue {
+                        value: Some(30),
+                        template: "${backoff.retries}".to_string(),
+                    },
+                    last_retry_interval_seconds: TemplateableValue {
+                        value: Some(BackoffDuration::from_secs(300)),
+                        template: "${backoff.interval}".to_string(),
+                    },
+                },
+                restart_exit_codes: vec![],
+            },
         };
 
         assert_eq!(exec_actual, exec_expected);
@@ -766,8 +942,8 @@ deployment:
       - path: /bin/otelcol
         args: "-c some-arg"
         env: ""
-    restart_policy:
-        backoff_strategy:
+        restart_policy:
+          backoff_strategy:
             type: ${backoff.type}
             backoff_delay_seconds: ${backoff.delay}
             max_retries: ${backoff.retries}
@@ -823,6 +999,7 @@ backoff:
                 .deployment
                 .on_host
                 .unwrap()
+                .executables[0]
                 .restart_policy
                 .backoff_strategy
         );
