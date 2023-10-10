@@ -21,8 +21,6 @@ pub struct Deployment {
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub struct OnHost {
     pub executables: Vec<Executable>,
-    #[serde(default)]
-    pub restart_policy: RestartPolicyConfig,
 }
 
 /* FIXME: This is not TEMPLATEABLE for the moment, we need to think what would be the strategy here and clarify:
@@ -38,6 +36,8 @@ pub struct Executable {
     pub args: TemplateableValue<Args>, // make it templatable, it should be aware of the value type, if templated with array, should be expanded
     #[serde(default)]
     pub env: TemplateableValue<Env>, // make it templatable, it should be aware of the value type, if templated with array, should be expanded "STAGING=true ${variable_1}" variable_1 : VERBOSE=1
+    #[serde(default)]
+    pub restart_policy: RestartPolicyConfig,
 }
 
 #[derive(Debug, Default, Deserialize, Clone, PartialEq)]

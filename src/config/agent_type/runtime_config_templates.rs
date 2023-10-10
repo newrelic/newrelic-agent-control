@@ -39,6 +39,7 @@ impl Templateable for Executable {
             path: self.path.template_with(variables)?,
             args: self.args.template_with(variables)?,
             env: self.env.template_with(variables)?,
+            restart_policy: self.restart_policy.template_with(variables)?,
         })
     }
 }
@@ -86,7 +87,6 @@ impl Templateable for OnHost {
                 .into_iter()
                 .map(|e| e.template_with(variables))
                 .collect::<Result<Vec<Executable>, AgentTypeError>>()?,
-            restart_policy: self.restart_policy.template_with(variables)?,
         })
     }
 }
@@ -167,6 +167,8 @@ impl Templateable for RuntimeConfig {
 
 #[cfg(test)]
 mod tests {
+    use crate::config::agent_type::restart_policy::{BackoffDuration, BackoffStrategyType};
+    use crate::config::agent_type::trivial_value::N::PosInt;
     use crate::config::agent_type::{
         agent_types::{EndSpec, TemplateableValue, VariableType},
         runtime_config::{Args, Env},
@@ -239,12 +241,65 @@ mod tests {
                     type_: VariableType::Number,
                 },
             ),
+            (
+                "backoff.type".to_string(),
+                EndSpec {
+                    final_value: Some(TrivialValue::String("linear".to_string())),
+                    default: None,
+                    description: "backoff_type".to_string(),
+                    type_: VariableType::String,
+                    required: true,
+                },
+            ),
+            (
+                "backoff.delay".to_string(),
+                EndSpec {
+                    final_value: Some(TrivialValue::Number(PosInt(10))),
+                    default: None,
+                    description: "backoff_delay".to_string(),
+                    type_: VariableType::String,
+                    required: true,
+                },
+            ),
+            (
+                "backoff.retries".to_string(),
+                EndSpec {
+                    final_value: Some(TrivialValue::Number(PosInt(30))),
+                    default: None,
+                    description: "backoff_retries".to_string(),
+                    type_: VariableType::String,
+                    required: true,
+                },
+            ),
+            (
+                "backoff.interval".to_string(),
+                EndSpec {
+                    final_value: Some(TrivialValue::Number(PosInt(300))),
+                    default: None,
+                    description: "backoff_interval".to_string(),
+                    type_: VariableType::Number,
+                    required: true,
+                },
+            ),
         ]);
 
         let input = Executable {
             path: TemplateableValue::from_template("${path}".to_string()),
             args: TemplateableValue::from_template("${args}".to_string()),
             env: TemplateableValue::from_template("MYAPP_PORT=${env.MYAPP_PORT}".to_string()),
+            restart_policy: RestartPolicyConfig {
+                backoff_strategy: BackoffStrategyConfig {
+                    backoff_type: TemplateableValue::from_template("${backoff.type}".to_string()),
+                    backoff_delay_seconds: TemplateableValue::from_template(
+                        "${backoff.delay}".to_string(),
+                    ),
+                    max_retries: TemplateableValue::from_template("${backoff.retries}".to_string()),
+                    last_retry_interval_seconds: TemplateableValue::from_template(
+                        "${backoff.interval}".to_string(),
+                    ),
+                },
+                restart_exit_codes: vec![],
+            },
         };
         let expected_output = Executable {
             path: TemplateableValue::new("/usr/bin/myapp".to_string())
@@ -253,6 +308,21 @@ mod tests {
                 .with_template("${args}".to_string()),
             env: TemplateableValue::new(Env("MYAPP_PORT=8080".to_string()))
                 .with_template("MYAPP_PORT=${env.MYAPP_PORT}".to_string()),
+            restart_policy: RestartPolicyConfig {
+                backoff_strategy: BackoffStrategyConfig {
+                    backoff_type: TemplateableValue::new(BackoffStrategyType::Linear)
+                        .with_template("${backoff.type}".to_string()),
+                    backoff_delay_seconds: TemplateableValue::new(BackoffDuration::from_secs(10))
+                        .with_template("${backoff.delay}".to_string()),
+                    max_retries: TemplateableValue::new(30)
+                        .with_template("${backoff.retries}".to_string()),
+                    last_retry_interval_seconds: TemplateableValue::new(
+                        BackoffDuration::from_secs(300),
+                    )
+                    .with_template("${backoff.interval}".to_string()),
+                },
+                restart_exit_codes: vec![],
+            },
         };
         let actual_output = input.template_with(&variables).unwrap();
         assert_eq!(actual_output, expected_output);

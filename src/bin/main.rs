@@ -93,10 +93,10 @@ deployment:
     executables:
       - path: /usr/bin/newrelic-infra
         args: "--config=${config_file}"
-    restart_policy:
-      backoff_strategy:
-        type: fixed
-        backoff_delay_seconds: 5
+        restart_policy:
+          backoff_strategy:
+            type: fixed
+            backoff_delay_seconds: 5
 "#;
 
 const NRDOT_TYPE: &str = r#"
@@ -125,8 +125,8 @@ deployment:
       - path: /usr/bin/nr-otel-collector
         args: "--config=${config_file} --feature-gates=-pkg.translator.prometheus.NormalizeName"
         env: "OTEL_EXPORTER_OTLP_ENDPOINT=${otel_exporter_otlp_endpoint} NEW_RELIC_MEMORY_LIMIT_MIB=${new_relic_memory_limit_mib}"
-    restart_policy:
-      backoff_strategy:
-        type: fixed
-        backoff_delay_seconds: 5
+        restart_policy:
+          backoff_strategy:
+            type: fixed
+            backoff_delay_seconds: 5
 "#;

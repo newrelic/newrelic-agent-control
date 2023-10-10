@@ -229,7 +229,7 @@ fn build_on_host_runners(
             exec.args.get().into_vector(),
             exec.env.get().into_map(),
             tx.clone(),
-            on_host.restart_policy.clone(),
+            exec.restart_policy,
         ));
         runners.push(runner);
     }
@@ -445,8 +445,8 @@ pub mod tests {
                                 path: TemplateableValue::new("a-path".to_string()),
                                 args: TemplateableValue::new(Args("--arg".to_string())),
                                 env: TemplateableValue::new(Env("ENV=env".to_string())),
+                                restart_policy: Default::default(),
                             }],
-                            restart_policy: Default::default(),
                         }),
                     },
                 },
