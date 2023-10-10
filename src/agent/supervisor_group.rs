@@ -12,13 +12,12 @@ use tracing::info;
 
 use crate::agent::instance_id::InstanceIDGetter;
 use crate::config::agent_configs::AgentTypeFQN;
+use crate::config::agent_type::runtime_config::OnHost;
 use crate::config::agent_type_registry::AgentRepositoryError;
 use crate::{
     command::stream::Event,
     config::agent_configs::AgentID,
-    config::{
-        agent_configs::SuperAgentConfig, agent_type::OnHost, agent_type_registry::AgentRepository,
-    },
+    config::{agent_configs::SuperAgentConfig, agent_type_registry::AgentRepository},
     supervisor::{
         runner::{Running, Stopped, SupervisorRunner},
         supervisor_config::Config,
@@ -226,9 +225,9 @@ fn build_on_host_runners(
     let mut runners = Vec::new();
     for exec in on_host.executables {
         let runner = SupervisorRunner::from(&Config::new(
-            exec.path,
-            exec.args.into_vector(),
-            exec.env.into_map(),
+            exec.path.get(),
+            exec.args.get().into_vector(),
+            exec.env.get().into_map(),
             tx.clone(),
             on_host.restart_policy.clone(),
         ));
@@ -246,12 +245,14 @@ pub mod tests {
 
     use crate::agent::error::AgentError;
     use crate::agent::instance_id::test::MockInstanceIDGetterMock;
-    use crate::config::agent_type::RuntimeConfig;
+    use crate::config::agent_type::agent_types::{FinalAgent, TemplateableValue};
+    use crate::config::agent_type::runtime_config::{
+        Args, Deployment, Env, Executable, RuntimeConfig,
+    };
     use crate::opamp::client_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock};
     use crate::{
         command::stream::Event,
         config::agent_configs::{AgentID, AgentSupervisorConfig, SuperAgentConfig},
-        config::agent_type::{Agent, Deployment, Executable, OnHost},
         config::agent_type_registry::{AgentRepository, LocalRepository},
         supervisor::runner::{sleep_supervisor_tests::new_sleep_supervisor, Stopped},
     };
@@ -410,7 +411,7 @@ pub mod tests {
         repository
             .store_with_key(
                 "agent".to_string(),
-                Agent {
+                FinalAgent {
                     metadata: Default::default(),
                     variables: Default::default(),
                     runtime_config: Default::default(),
@@ -434,16 +435,16 @@ pub mod tests {
         let mut repository = LocalRepository::default();
         _ = repository.store_with_key(
             "agent".to_string(),
-            Agent {
+            FinalAgent {
                 metadata: Default::default(),
                 variables: Default::default(),
                 runtime_config: RuntimeConfig {
                     deployment: Deployment {
                         on_host: Some(OnHost {
                             executables: vec![Executable {
-                                path: "a-path".to_string(),
-                                args: Default::default(),
-                                env: Default::default(),
+                                path: TemplateableValue::new("a-path".to_string()),
+                                args: TemplateableValue::new(Args("--arg".to_string())),
+                                env: TemplateableValue::new(Env("ENV=env".to_string())),
                             }],
                             restart_policy: Default::default(),
                         }),

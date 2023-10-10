@@ -331,27 +331,6 @@ Distributed under the following license(s):
 
 
 
-## darling (https://crates.io/crates/darling)
-
-Distributed under the following license(s):
-* MIT
-
-
-
-## darling_core (https://crates.io/crates/darling_core)
-
-Distributed under the following license(s):
-* MIT
-
-
-
-## darling_macro (https://crates.io/crates/darling_macro)
-
-Distributed under the following license(s):
-* MIT
-
-
-
 ## dary_heap (https://crates.io/crates/dary_heap)
 
 Distributed under the following license(s):
@@ -657,14 +636,6 @@ Distributed under the following license(s):
 
 
 ## hyper-tls (https://crates.io/crates/hyper-tls)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
-## ident_case (https://crates.io/crates/ident_case)
 
 Distributed under the following license(s):
 * MIT
@@ -1320,22 +1291,6 @@ Distributed under the following license(s):
 
 
 ## serde_urlencoded (https://crates.io/crates/serde_urlencoded)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
-## serde_with (https://crates.io/crates/serde_with)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
-## serde_with_macros (https://crates.io/crates/serde_with_macros)
 
 Distributed under the following license(s):
 * MIT

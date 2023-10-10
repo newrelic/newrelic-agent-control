@@ -1,10 +1,14 @@
-use super::agent_type::{Agent, AgentTypeError, TrivialValue, TEMPLATE_KEY_SEPARATOR};
 use serde::Deserialize;
 use std::collections::HashMap as Map;
 
+use super::agent_type::agent_types::FinalAgent;
+use super::agent_type::error::AgentTypeError;
+use super::agent_type::runtime_config_templates::TEMPLATE_KEY_SEPARATOR;
+use super::agent_type::trivial_value::TrivialValue;
+
 /// User-provided config.
 ///
-/// User-provided configuration (normally via a YAML file) that must follow the tree-like structure of [`Agent`]'s [`NormalizedSpec`] and will be used to populate the [`Agent`]'s [ `Meta`] field to totally define a deployable supervisor.
+/// User-provided configuration (normally via a YAML file) that must follow the tree-like structure of [`Agent`]'s [`variables`] and will be used to populate the [`Agent`]'s [ `runtime_config`] field to totally define a deployable supervisor.
 ///
 /// The below example in YAML format:
 ///
@@ -96,7 +100,7 @@ impl SupervisorConfig {
     /// SupervisorConfig and transforms the types with check_type
     pub(crate) fn normalize_with_agent_type(
         mut self,
-        agent_type: &Agent,
+        agent_type: &FinalAgent,
     ) -> Result<Self, AgentTypeError> {
         for (k, v) in agent_type.variables.iter() {
             let value = get_from_normalized(&self.0, k);
@@ -148,10 +152,10 @@ fn update_from_normalized(
     }
     None
 }
-
 #[cfg(test)]
 mod tests {
-    use crate::config::agent_type::{FilePathWithContent, N};
+
+    use crate::config::agent_type::trivial_value::{FilePathWithContent, N};
 
     use super::*;
 
@@ -277,7 +281,7 @@ deployment:
     fn test_validate_with_agent_type() {
         let input_structure =
             serde_yaml::from_str::<SupervisorConfig>(EXAMPLE_CONFIG_REPLACE).unwrap();
-        let agent_type = serde_yaml::from_str::<Agent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
+        let agent_type = serde_yaml::from_str::<FinalAgent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
 
         let expected = Map::from([
             (
@@ -326,7 +330,7 @@ deployment:
     fn test_validate_with_agent_type_missing_required() {
         let input_structure =
             serde_yaml::from_str::<SupervisorConfig>(EXAMPLE_CONFIG_REPLACE_NOPATH).unwrap();
-        let agent_type = serde_yaml::from_str::<Agent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
+        let agent_type = serde_yaml::from_str::<FinalAgent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
 
         let actual = input_structure.normalize_with_agent_type(&agent_type);
 
@@ -334,6 +338,30 @@ deployment:
         assert_eq!(
             format!("{}", actual.unwrap_err()),
             "Missing required key in config: `deployment.on_host.path`"
+        );
+    }
+
+    const EXAMPLE_CONFIG_REPLACE_WRONG_TYPE: &str = r#"
+    config: test
+    deployment:
+      on_host:
+        path: true
+        args: --verbose true
+    integrations: {}
+    "#;
+
+    #[test]
+    fn test_validate_with_agent_type_wrong_value_type() {
+        let input_structure =
+            serde_yaml::from_str::<SupervisorConfig>(EXAMPLE_CONFIG_REPLACE_WRONG_TYPE).unwrap();
+        let agent_type = serde_yaml::from_str::<FinalAgent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
+
+        let actual = input_structure.normalize_with_agent_type(&agent_type);
+
+        assert!(actual.is_err());
+        assert_eq!(
+            format!("{}", actual.unwrap_err()),
+            "Type mismatch while parsing. Expected type String, got value Bool(true)"
         );
     }
 }

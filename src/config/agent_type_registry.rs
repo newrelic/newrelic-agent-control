@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use thiserror::Error;
 
-use super::agent_type::Agent;
+use super::agent_type::agent_types::FinalAgent;
 
 #[derive(Error, Debug)]
 pub enum AgentRepositoryError {
@@ -15,29 +15,37 @@ pub enum AgentRepositoryError {
 /// AgentRegistry stores and loads Agent types.
 pub trait AgentRepository {
     // get returns an Agent type given a definition.
-    fn get(&self, name: &str) -> Result<&Agent, AgentRepositoryError>;
+    fn get(&self, name: &str) -> Result<&FinalAgent, AgentRepositoryError>;
 
     // stores a given Agent type.
     fn store_from_yaml(&mut self, agent_bytes: &[u8]) -> Result<(), AgentRepositoryError>;
 
-    fn store_with_key(&mut self, key: String, agent: Agent) -> Result<(), AgentRepositoryError>;
+    fn store_with_key(
+        &mut self,
+        key: String,
+        agent: FinalAgent,
+    ) -> Result<(), AgentRepositoryError>;
 }
 
 #[derive(Debug, Default, Clone, PartialEq)]
-pub struct LocalRepository(HashMap<String, Agent>);
+pub struct LocalRepository(HashMap<String, FinalAgent>);
 
 impl AgentRepository for LocalRepository {
-    fn get(&self, name: &str) -> Result<&Agent, AgentRepositoryError> {
+    fn get(&self, name: &str) -> Result<&FinalAgent, AgentRepositoryError> {
         self.0.get(name).ok_or(AgentRepositoryError::NotFound)
     }
 
     fn store_from_yaml(&mut self, agent_bytes: &[u8]) -> Result<(), AgentRepositoryError> {
-        let agent: Agent = serde_yaml::from_reader(agent_bytes)?;
+        let agent: FinalAgent = serde_yaml::from_reader(agent_bytes)?;
         self.0.insert(agent.metadata.to_string(), agent);
         Ok(())
     }
 
-    fn store_with_key(&mut self, key: String, agent: Agent) -> Result<(), AgentRepositoryError> {
+    fn store_with_key(
+        &mut self,
+        key: String,
+        agent: FinalAgent,
+    ) -> Result<(), AgentRepositoryError> {
         Ok(_ = self.0.insert(key, agent))
     }
 }
@@ -50,7 +58,8 @@ impl LocalRepository {
 
 #[cfg(test)]
 mod tests {
-    use crate::config::agent_type::tests::AGENT_GIVEN_YAML;
+
+    use crate::config::agent_type::agent_types::tests::AGENT_GIVEN_YAML;
 
     use super::*;
 
