@@ -22,7 +22,7 @@ serde_yaml = "0.9.25"
 regex = "1.9.3"
 tempfile = "3.8.0"
 uuid = { version = "1.4.1", features = ["v4"] }
-opamp-client = { git = "ssh://git@github.com/newrelic/opamp-rs.git", tag = "0.0.2" }
+opamp-client = { git = "ssh://git@github.com/newrelic/opamp-rs.git", tag = "0.0.3" }
 futures = "0.3.28"
 mockall = "0.11.4"
 async-trait = "0.1.71"
