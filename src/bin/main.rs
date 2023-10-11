@@ -109,22 +109,11 @@ variables:
     type: string
     required: false
     default: /etc/nr-otel-collector/config.yaml
-  otel_exporter_otlp_endpoint:
-    description: "Endpoint where NRDOT will send data"
-    type: string
-    required: false
-    default: "otlp.nr-data.net:4317"
-  new_relic_memory_limit_mib:
-    description: "Memory limit for the NRDOT process"
-    type: number
-    required: false
-    default: 100
 deployment:
   on_host:
     executables:
       - path: /usr/bin/nr-otel-collector
         args: "--config=${config_file} --feature-gates=-pkg.translator.prometheus.NormalizeName"
-        env: "OTEL_EXPORTER_OTLP_ENDPOINT=${otel_exporter_otlp_endpoint} NEW_RELIC_MEMORY_LIMIT_MIB=${new_relic_memory_limit_mib}"
         restart_policy:
           backoff_strategy:
             type: fixed
