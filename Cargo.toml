@@ -10,7 +10,6 @@ publish = false
 
 [dependencies]
 clap = { version = "4.4.3", features = ["derive"] }
-config = "0.13.1"
 serde = { version = "1.0.188", features = ["derive"] }
 thiserror = "1.0.47"
 nix = { version = "0.27.1", features = ["signal", "user", "hostname"] }
