@@ -39,3 +39,39 @@ impl SuperAgentConfigLoaderFile {
         Ok(d)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::{collections::HashMap, io::Write};
+
+    use tempfile::NamedTempFile;
+
+    use crate::config::{
+        agent_configs::{OpAMPClientConfig, SuperAgentConfig},
+        config_loader::{SuperAgentConfigLoader, SuperAgentConfigLoaderFile},
+    };
+
+    #[test]
+    fn load_empty_agents_field_good() {
+        let mut tmp_file = NamedTempFile::new().unwrap();
+        let sample_config = r#"
+agents: {}
+opamp:
+  endpoint: http://127.0.0.1/v1/opamp
+"#;
+        write!(tmp_file, "{}", sample_config).unwrap();
+
+        let actual = SuperAgentConfigLoaderFile::new(tmp_file.path()).load_config();
+
+        let expected = SuperAgentConfig {
+            agents: HashMap::new(),
+            opamp: Some(OpAMPClientConfig {
+                endpoint: "http://127.0.0.1/v1/opamp".to_string(),
+                headers: None,
+            }),
+        };
+
+        assert!(actual.is_ok());
+        assert_eq!(actual.unwrap(), expected);
+    }
+}
