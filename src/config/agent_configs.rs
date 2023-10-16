@@ -9,6 +9,10 @@ impl AgentID {
     pub fn get(&self) -> String {
         String::from(&self.0)
     }
+
+    pub fn new(agent_id: String) -> Self {
+        Self(agent_id)
+    }
 }
 
 impl Display for AgentID {
@@ -66,7 +70,8 @@ impl From<&str> for AgentTypeFQN {
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct AgentSupervisorConfig {
-    pub agent_type: AgentTypeFQN, // FQN of the agent type, ex: newrelic/nrdot:0.1.0
+    pub agent_type: AgentTypeFQN,
+    // FQN of the agent type, ex: newrelic/nrdot:0.1.0
     pub values_file: Option<String>, // path to the values file
 }
 

@@ -4,17 +4,11 @@
 //!
 //! See [`Agent::template_with`] for a flowchart of the dataflow that ends in the final, enriched structure.
 
-use std::io::{self, Write};
-use std::{collections::HashMap, fs, str::FromStr};
+use std::{collections::HashMap, str::FromStr};
 
 use serde::{Deserialize, Deserializer};
 
-use uuid::Uuid;
-
-use crate::config::supervisor_config::SupervisorConfig;
-
 use super::restart_policy::BackoffDuration;
-use super::trivial_value::FilePathWithContent;
 use super::{
     agent_metadata::AgentMetadata,
     error::AgentTypeError,
@@ -22,6 +16,7 @@ use super::{
     runtime_config_templates::{Templateable, TEMPLATE_KEY_SEPARATOR},
     trivial_value::TrivialValue,
 };
+use crate::config::supervisor_config::SupervisorConfig;
 
 #[derive(Debug, Deserialize)]
 struct RawAgent {
@@ -171,9 +166,8 @@ pub struct FinalAgent {
 }
 
 impl FinalAgent {
-    /// Retrieve the `variables` field of the agent type at the specified key, if any.
-    pub fn get_variables(self, path: String) -> Option<EndSpec> {
-        self.variables.get(&path).cloned()
+    pub fn get_variables(&self) -> &NormalizedVariables {
+        &self.variables
     }
 
     #[cfg_attr(doc, aquamarine::aquamarine)]
@@ -196,58 +190,14 @@ impl FinalAgent {
 
         let runtime_conf = self.runtime_config.template_with(&spec)?;
 
-        let mut populated_agent = FinalAgent {
+        let populated_agent = FinalAgent {
             runtime_config: runtime_conf,
             variables: spec,
             ..self
         };
-        populated_agent.write_files()?;
+
         Ok(populated_agent)
     }
-
-    // write_files stores the content of each TrivialValue::File into the corresponding file
-    fn write_files(&mut self) -> Result<(), AgentTypeError> {
-        self.variables
-            .values_mut()
-            .try_for_each(|v| -> Result<(), AgentTypeError> {
-                if let Some(TrivialValue::File(f)) = &mut v.final_value {
-                    write_file(f)?
-                } else if let Some(TrivialValue::Map(m)) = &mut v.final_value {
-                    return m.iter_mut().try_for_each(|(_, mut file)| {
-                        if let TrivialValue::File(f) = &mut file {
-                            write_file(f)?;
-                        }
-                        Ok(())
-                    });
-                }
-                Ok(())
-            })
-    }
-}
-
-fn write_file(file: &mut FilePathWithContent) -> Result<(), io::Error> {
-    const CONF_DIR: &str = "agentconfigs";
-    // get current path
-    let wd = std::env::current_dir()?;
-    let dir = wd.join(CONF_DIR);
-    if !dir.exists() {
-        fs::create_dir(dir.as_path())?;
-    }
-    let uuid = Uuid::new_v4().to_string();
-    let path = format!("{}/{}-config.yaml", dir.to_string_lossy(), uuid); // FIXME: PATH?
-    let mut fs_file = fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .open(&path)?;
-
-    writeln!(fs_file, "{}", file.content)?;
-    file.path = path;
-    // f.path = file
-    //     .path()
-    //     .to_str()
-    //     .ok_or(AgentTypeError::InvalidFilePath)?
-    //     .to_string();
-    Ok(())
 }
 
 impl TryFrom<RawAgent> for FinalAgent {
@@ -267,6 +217,11 @@ impl TryFrom<RawAgent> for FinalAgent {
 /// Flexible tree-like structure that contains variables definitions, that can later be changed by the end user via [`SupervisorConfig`].
 type AgentVariables = HashMap<String, Spec>;
 
+pub trait AgentTypeEndSpec {
+    fn variable_type(&self) -> VariableType;
+    fn file_path(&self) -> Option<String>;
+}
+
 #[derive(Debug, PartialEq, Clone, Deserialize)]
 #[serde(try_from = "IntermediateEndSpec")]
 pub struct EndSpec {
@@ -275,9 +230,20 @@ pub struct EndSpec {
     pub type_: VariableType,
     pub required: bool,
     pub default: Option<TrivialValue>,
+    pub file_path: Option<String>,
     /// The actual value that will be used by the agent. This will be either the user-provided value or, if not provided and not marked as [`required`], the default value.
     #[serde(skip)]
     pub final_value: Option<TrivialValue>,
+}
+
+impl AgentTypeEndSpec for EndSpec {
+    fn variable_type(&self) -> VariableType {
+        self.type_
+    }
+
+    fn file_path(&self) -> Option<String> {
+        self.file_path.as_ref().cloned()
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Copy, Deserialize)]
@@ -307,6 +273,17 @@ struct IntermediateEndSpec {
     type_: VariableType,
     required: bool,
     default: Option<TrivialValue>,
+    file_path: Option<String>,
+}
+
+impl AgentTypeEndSpec for IntermediateEndSpec {
+    fn variable_type(&self) -> VariableType {
+        self.type_
+    }
+
+    fn file_path(&self) -> Option<String> {
+        self.file_path.as_ref().cloned()
+    }
 }
 
 impl TryFrom<IntermediateEndSpec> for EndSpec {
@@ -319,9 +296,15 @@ impl TryFrom<IntermediateEndSpec> for EndSpec {
         if ies.default.is_none() && !ies.required {
             return Err(AgentTypeError::MissingDefault);
         }
+        let def_val = ies
+            .default
+            .clone()
+            .map(|d| d.check_type(&ies))
+            .transpose()?;
         Ok(EndSpec {
-            default: ies.default.map(|d| d.check_type(ies.type_)).transpose()?,
+            default: def_val,
             final_value: None,
+            file_path: ies.file_path,
             description: ies.description,
             type_: ies.type_,
             required: ies.required,
@@ -374,8 +357,8 @@ pub(crate) type NormalizedVariables = HashMap<String, EndSpec>;
 fn normalize_agent_spec(spec: AgentVariables) -> Result<NormalizedVariables, AgentTypeError> {
     spec.into_iter().try_fold(HashMap::new(), |r, (k, v)| {
         let n_spec = inner_normalize(k, v);
-        n_spec.iter().try_for_each(|(k, v)| {
-            if v.default.is_none() && !v.required {
+        n_spec.iter().try_for_each(|(k, end_spec)| {
+            if end_spec.default.is_none() && !end_spec.required {
                 return Err(AgentTypeError::MissingDefaultWithKey(k.clone()));
             }
             Ok(())
@@ -399,6 +382,14 @@ fn inner_normalize(key: String, spec: Spec) -> NormalizedVariables {
 }
 
 #[cfg(test)]
+impl FinalAgent {
+    /// Retrieve the `variables` field of the agent type at the specified key, if any.
+    fn get_variable(self, path: String) -> Option<EndSpec> {
+        self.variables.get(&path).cloned()
+    }
+}
+
+#[cfg(test)]
 pub mod tests {
     use crate::config::{
         agent_type::{
@@ -410,6 +401,7 @@ pub mod tests {
 
     use super::*;
     use crate::config::agent_type::restart_policy::RestartPolicyConfig;
+    use crate::config::agent_type::trivial_value::FilePathWithContent;
     use crate::config::agent_type::trivial_value::N::PosInt;
     use serde_yaml::Error;
     use std::collections::HashMap as Map;
@@ -557,6 +549,7 @@ deployment:
                 required: false,
                 default: Some(TrivialValue::String("nrdot".to_string())),
                 final_value: None,
+                file_path: None,
             },
         )]);
 
@@ -570,12 +563,13 @@ deployment:
             required: false,
             default: Some(TrivialValue::String("nrdot".to_string())),
             final_value: None,
+            file_path: None,
         };
 
         assert_eq!(
             expected_spec,
             given_agent
-                .get_variables("description.name".to_string())
+                .get_variable("description.name".to_string())
                 .unwrap()
         );
     }
@@ -613,6 +607,7 @@ deployment:
                     type_: VariableType::String,
                     required: true,
                     final_value: Some(TrivialValue::String("/etc".to_string())),
+                    file_path: None,
                 },
             ),
             (
@@ -623,6 +618,7 @@ deployment:
                     type_: VariableType::String,
                     required: true,
                     final_value: Some(TrivialValue::String("true".to_string())),
+                    file_path: None,
                 },
             ),
             (
@@ -633,6 +629,7 @@ deployment:
                     type_: VariableType::String,
                     required: true,
                     final_value: Some(TrivialValue::String("trace".to_string())),
+                    file_path: None,
                 },
             ),
             (
@@ -643,6 +640,7 @@ deployment:
                     type_: VariableType::String,
                     required: true,
                     final_value: Some(TrivialValue::String("exponential".to_string())),
+                    file_path: Some("some_path".to_string()),
                 },
             ),
             (
@@ -653,6 +651,7 @@ deployment:
                     type_: VariableType::String,
                     required: true,
                     final_value: Some(TrivialValue::Number(PosInt(10))),
+                    file_path: Some("some_path".to_string()),
                 },
             ),
             (
@@ -663,6 +662,7 @@ deployment:
                     type_: VariableType::String,
                     required: true,
                     final_value: Some(TrivialValue::Number(PosInt(30))),
+                    file_path: Some("some_path".to_string()),
                 },
             ),
             (
@@ -673,6 +673,7 @@ deployment:
                     type_: VariableType::Number,
                     required: true,
                     final_value: Some(TrivialValue::Number(PosInt(300))),
+                    file_path: Some("some_path".to_string()),
                 },
             ),
         ]);
@@ -758,6 +759,7 @@ deployment:
                     type_: VariableType::String,
                     required: true,
                     final_value: Some(TrivialValue::String("/etc".to_string())),
+                    file_path: None,
                 },
             ),
             (
@@ -768,6 +770,7 @@ deployment:
                     type_: VariableType::String,
                     required: true,
                     final_value: Some(TrivialValue::String("true".to_string())),
+                    file_path: None,
                 },
             ),
             (
@@ -778,6 +781,7 @@ deployment:
                     type_: VariableType::String,
                     required: true,
                     final_value: Some(TrivialValue::String("linear".to_string())),
+                    file_path: Some("some_path".to_string()),
                 },
             ),
             (
@@ -788,6 +792,7 @@ deployment:
                     type_: VariableType::String,
                     required: true,
                     final_value: Some(TrivialValue::Number(PosInt(10))),
+                    file_path: Some("some_path".to_string()),
                 },
             ),
             (
@@ -798,6 +803,7 @@ deployment:
                     type_: VariableType::String,
                     required: true,
                     final_value: Some(TrivialValue::Number(PosInt(30))),
+                    file_path: Some("some_path".to_string()),
                 },
             ),
             (
@@ -808,6 +814,7 @@ deployment:
                     type_: VariableType::Number,
                     required: true,
                     final_value: Some(TrivialValue::Number(PosInt(300))),
+                    file_path: Some("some_path".to_string()),
                 },
             ),
         ]);
@@ -853,6 +860,7 @@ variables:
     description: "Newrelic infra configuration yaml"
     type: file
     required: true
+    file_path: "config.yml"
   config2:
     description: "Newrelic infra configuration yaml"
     type: file
@@ -860,6 +868,7 @@ variables:
     default: |
         license_key: abc123
         staging: true
+    file_path: "config2.yml"
   config3:
     description: "Newrelic infra configuration yaml"
     type: map[string]string
@@ -871,6 +880,7 @@ variables:
     default:
       kafka: |
         bootstrap: zookeeper
+    file_path: "integrations.d"
 deployment:
   on_host:
     executables:
@@ -884,31 +894,115 @@ config3:
   log_level: trace
   forward: "true"
 integrations:
-  kafka: |
+  kafka.conf: |
     strategy: bootstrap
-  redis: |
+  redis.yml: |
     user: redis
 config: | 
-    license_key: abc123
-    staging: true
+    license_key: abc124
+    staging: false
 "#;
 
     #[test]
     fn test_template_with_runtime_field() {
+        // Having Agent Type
         let input_agent_type =
             serde_yaml::from_str::<FinalAgent>(GIVEN_NEWRELIC_INFRA_YAML).unwrap();
-        println!("Input: {:#?}", input_agent_type);
 
+        // And Agent Values
         let input_user_config =
             serde_yaml::from_str::<SupervisorConfig>(GIVEN_NEWRELIC_INFRA_USER_CONFIG_YAML)
                 .unwrap();
-        println!("Input: {:#?}", input_user_config);
 
+        // When populating values
         let actual = input_agent_type
             .template_with(input_user_config)
             .expect("Failed to template_with the AgentType's runtime_config field");
 
-        println!("Output: {:#?}", actual);
+        // Then we expected final values
+        // MapStringString
+        let expected_config_3 = TrivialValue::Map(HashMap::from([
+            (
+                "log_level".to_string(),
+                TrivialValue::String("trace".to_string()),
+            ),
+            (
+                "forward".to_string(),
+                TrivialValue::String("true".to_string()),
+            ),
+        ]));
+        // File with default
+        let expected_config_2 = TrivialValue::File(FilePathWithContent::new(
+            "config2.yml".to_string(),
+            "license_key: abc123\nstaging: true\n".to_string(),
+        ));
+        // File with values
+        let expected_config = TrivialValue::File(FilePathWithContent::new(
+            "config.yml".to_string(),
+            "license_key: abc124\nstaging: false\n".to_string(),
+        ));
+        // MapStringFile
+        let expected_integrations = TrivialValue::Map(HashMap::from([
+            (
+                "kafka.conf".to_string(),
+                TrivialValue::File(FilePathWithContent::new(
+                    "integrations.d".to_string(),
+                    "strategy: bootstrap\n".to_string(),
+                )),
+            ),
+            (
+                "redis.yml".to_string(),
+                TrivialValue::File(FilePathWithContent::new(
+                    "integrations.d".to_string(),
+                    "user: redis\n".to_string(),
+                )),
+            ),
+        ]));
+
+        assert_eq!(
+            expected_config_3,
+            actual
+                .get_variables()
+                .get("config3")
+                .unwrap()
+                .final_value
+                .as_ref()
+                .unwrap()
+                .clone()
+        );
+        assert_eq!(
+            expected_config_2,
+            actual
+                .get_variables()
+                .get("config2")
+                .unwrap()
+                .final_value
+                .as_ref()
+                .unwrap()
+                .clone()
+        );
+        assert_eq!(
+            expected_config,
+            actual
+                .get_variables()
+                .get("config")
+                .unwrap()
+                .final_value
+                .as_ref()
+                .unwrap()
+                .clone()
+        );
+        assert_eq!(
+            expected_integrations,
+            actual
+                .get_variables()
+                .get("integrations")
+                .unwrap()
+                .final_value
+                .as_ref()
+                .unwrap()
+                .clone()
+        );
     }
 
     const AGENT_BACKOFF_TEMPLATE_YAML: &str = r#"

@@ -188,6 +188,7 @@ mod tests {
                     type_: VariableType::String,
                     description: String::default(),
                     required: true,
+                    file_path: Some("some_path".to_string()),
                 },
             ),
             (
@@ -198,6 +199,7 @@ mod tests {
                     type_: VariableType::Number,
                     description: String::default(),
                     required: false,
+                    file_path: Some("some_path".to_string()),
                 },
             ),
         ]);
@@ -219,6 +221,7 @@ mod tests {
                     description: String::default(),
                     required: true,
                     type_: VariableType::String,
+                    file_path: Some("some_path".to_string()),
                 },
             ),
             (
@@ -229,6 +232,7 @@ mod tests {
                     description: String::default(),
                     required: true,
                     type_: VariableType::String,
+                    file_path: Some("some_path".to_string()),
                 },
             ),
             (
@@ -239,6 +243,7 @@ mod tests {
                     description: String::default(),
                     required: true,
                     type_: VariableType::Number,
+                    file_path: Some("some_path".to_string()),
                 },
             ),
             (
@@ -249,6 +254,7 @@ mod tests {
                     description: "backoff_type".to_string(),
                     type_: VariableType::String,
                     required: true,
+                    file_path: Some("some_path".to_string()),
                 },
             ),
             (
@@ -259,6 +265,7 @@ mod tests {
                     description: "backoff_delay".to_string(),
                     type_: VariableType::String,
                     required: true,
+                    file_path: Some("some_path".to_string()),
                 },
             ),
             (
@@ -269,6 +276,7 @@ mod tests {
                     description: "backoff_retries".to_string(),
                     type_: VariableType::String,
                     required: true,
+                    file_path: Some("some_path".to_string()),
                 },
             ),
             (
@@ -279,6 +287,7 @@ mod tests {
                     description: "backoff_interval".to_string(),
                     type_: VariableType::Number,
                     required: true,
+                    file_path: Some("some_path".to_string()),
                 },
             ),
         ]);

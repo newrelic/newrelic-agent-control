@@ -112,7 +112,7 @@ impl SupervisorConfig {
 
             // check type matches agent one and apply transformations
             if let Some(inner) = value {
-                let _ = update_from_normalized(&mut self.0, k, inner.clone().check_type(v.type_)?);
+                let _ = update_from_normalized(&mut self.0, k, inner.clone().check_type(v)?);
             }
         }
 
@@ -255,6 +255,7 @@ variables:
     description: "Path to the agent"
     type: file
     required: true
+    file_path: "newrelic-infra.yml"
   deployment:
     on_host:
       path:
@@ -269,6 +270,7 @@ variables:
     description: "Newrelic integrations configuration yamls"
     type: map[string]file
     required: true
+    file_path: integrations.d
 deployment:
   on_host:
     executables:
@@ -299,13 +301,17 @@ deployment:
             ),
             (
                 "config".to_string(),
-                TrivialValue::File(FilePathWithContent::new("test".to_string())),
+                TrivialValue::File(FilePathWithContent::new(
+                    "newrelic-infra.yml".to_string(),
+                    "test".to_string(),
+                )),
             ),
             (
                 "integrations".to_string(),
                 TrivialValue::Map(Map::from([(
                     "kafka".to_string(),
                     TrivialValue::File(FilePathWithContent::new(
+                        "integrations.d".to_string(),
                         "strategy: bootstrap\n".to_string(),
                     )),
                 )])),

@@ -3,7 +3,9 @@ use std::process;
 
 use tracing::{error, info};
 
+use newrelic_super_agent::agent::defaults::SUPER_AGENT_DATA_DIR;
 use newrelic_super_agent::agent::instance_id::ULIDInstanceIDGetter;
+use newrelic_super_agent::config::persister::config_persister_file::ConfigurationPersisterFile;
 use newrelic_super_agent::config::resolver::Resolver;
 use newrelic_super_agent::opamp::client_builder::OpAMPHttpBuilder;
 use newrelic_super_agent::{
@@ -60,6 +62,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .map(|opamp_config| OpAMPHttpBuilder::new(opamp_config.clone()));
 
     let instance_id_getter = ULIDInstanceIDGetter::default();
+    let agent_values_configuration_persister =
+        ConfigurationPersisterFile::new(SUPER_AGENT_DATA_DIR.to_string());
 
     info!("Starting the super agent");
     let agent = Agent::new(
@@ -67,6 +71,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         local_agent_type_repository,
         opamp_client_builder,
         instance_id_getter,
+        &agent_values_configuration_persister,
     );
 
     match agent {
