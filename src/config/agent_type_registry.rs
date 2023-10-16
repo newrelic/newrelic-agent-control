@@ -13,46 +13,31 @@ pub enum AgentRepositoryError {
 }
 
 /// AgentRegistry stores and loads Agent types.
-pub trait AgentRepository {
+pub trait AgentRegistry {
     // get returns an Agent type given a definition.
     fn get(&self, name: &str) -> Result<&FinalAgent, AgentRepositoryError>;
-
-    // stores a given Agent type.
-    fn store_from_yaml(&mut self, agent_bytes: &[u8]) -> Result<(), AgentRepositoryError>;
-
-    fn store_with_key(
-        &mut self,
-        key: String,
-        agent: FinalAgent,
-    ) -> Result<(), AgentRepositoryError>;
 }
 
 #[derive(Debug, Default, Clone, PartialEq)]
-pub struct LocalRepository(HashMap<String, FinalAgent>);
+pub struct LocalRegistry(HashMap<String, FinalAgent>);
 
-impl AgentRepository for LocalRepository {
-    fn get(&self, name: &str) -> Result<&FinalAgent, AgentRepositoryError> {
-        self.0.get(name).ok_or(AgentRepositoryError::NotFound)
-    }
-
-    fn store_from_yaml(&mut self, agent_bytes: &[u8]) -> Result<(), AgentRepositoryError> {
+impl LocalRegistry {
+    pub fn store_from_yaml(&mut self, agent_bytes: &[u8]) -> Result<(), AgentRepositoryError> {
         let agent: FinalAgent = serde_yaml::from_reader(agent_bytes)?;
         self.0.insert(agent.metadata.to_string(), agent);
         Ok(())
     }
+}
 
-    fn store_with_key(
-        &mut self,
-        key: String,
-        agent: FinalAgent,
-    ) -> Result<(), AgentRepositoryError> {
-        Ok(_ = self.0.insert(key, agent))
+impl AgentRegistry for LocalRegistry {
+    fn get(&self, name: &str) -> Result<&FinalAgent, AgentRepositoryError> {
+        self.0.get(name).ok_or(AgentRepositoryError::NotFound)
     }
 }
 
-impl LocalRepository {
+impl LocalRegistry {
     pub fn new() -> Self {
-        LocalRepository::default()
+        LocalRegistry::default()
     }
 }
 
@@ -62,10 +47,19 @@ mod tests {
     use crate::config::agent_type::agent_types::tests::AGENT_GIVEN_YAML;
 
     use super::*;
+    impl LocalRegistry {
+        pub fn store_with_key(
+            &mut self,
+            key: String,
+            agent: FinalAgent,
+        ) -> Result<(), AgentRepositoryError> {
+            Ok(_ = self.0.insert(key, agent))
+        }
+    }
 
     #[test]
     fn add_multiple_agents() {
-        let mut repository = LocalRepository::new();
+        let mut repository = LocalRegistry::new();
 
         assert!(repository
             .store_from_yaml(AGENT_GIVEN_YAML.as_bytes())

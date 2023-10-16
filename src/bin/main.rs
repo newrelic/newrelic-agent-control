@@ -5,13 +5,13 @@ use tracing::{error, info};
 
 use newrelic_super_agent::agent::defaults::SUPER_AGENT_DATA_DIR;
 use newrelic_super_agent::agent::instance_id::ULIDInstanceIDGetter;
+use newrelic_super_agent::config::agent_type_registry::LocalRegistry;
 use newrelic_super_agent::config::loader::{SuperAgentConfigLoader, SuperAgentConfigLoaderFile};
 use newrelic_super_agent::config::persister::config_persister_file::ConfigurationPersisterFile;
 use newrelic_super_agent::opamp::client_builder::OpAMPHttpBuilder;
 use newrelic_super_agent::{
     agent::{Agent, AgentEvent},
     cli::Cli,
-    config::agent_type_registry::{AgentRepository, LocalRepository},
     context::Context,
     logging::Logging,
 };
@@ -48,7 +48,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         e
     })?;
 
-    let mut local_agent_type_repository = LocalRepository::new();
+    let mut local_agent_type_repository = LocalRegistry::new();
     local_agent_type_repository.store_from_yaml(NEWRELIC_INFRA_TYPE.as_bytes())?;
     local_agent_type_repository.store_from_yaml(NRDOT_TYPE.as_bytes())?;
 

@@ -237,7 +237,7 @@ mod test {
             DirectoryManagerFs::default(),
             temp_path.as_path(),
         );
-        let agent_id = AgentID::new("SomeAgentID".to_string());
+        let agent_id = AgentID::new("SomeAgentID");
 
         let mut agent_type: FinalAgent =
             serde_yaml::from_reader(AGENT_TYPE_SINGLE_FILE.as_bytes()).unwrap();
@@ -263,7 +263,7 @@ mod test {
         let mut file_writer = MockFileWriterMock::new();
         let mut directory_manager = MockDirectoryManagerMock::new();
         let file_permissions = Permissions::from_mode(FILE_PERMISSIONS);
-        let agent_id = AgentID::new("SomeAgentID".to_string());
+        let agent_id = AgentID::new("SomeAgentID");
         let mut agent_type: FinalAgent =
             serde_yaml::from_reader(AGENT_TYPE_MULTIPLE_FILES.as_bytes()).unwrap();
         let agent_values: SupervisorConfig =
@@ -329,7 +329,7 @@ mod test {
         let mut file_writer = MockFileWriterMock::new();
         let mut directory_manager = MockDirectoryManagerMock::new();
         let file_permissions = Permissions::from_mode(FILE_PERMISSIONS);
-        let agent_id = AgentID::new("SomeAgentID".to_string());
+        let agent_id = AgentID::new("SomeAgentID");
         let mut agent_type: FinalAgent =
             serde_yaml::from_reader(AGENT_TYPE_SINGLE_MAP_FILE.as_bytes()).unwrap();
         let agent_values: SupervisorConfig =
@@ -398,7 +398,7 @@ mod test {
         let mut file_writer = MockFileWriterMock::new();
         let mut directory_manager = MockDirectoryManagerMock::new();
         let file_permissions = Permissions::from_mode(FILE_PERMISSIONS);
-        let agent_id = AgentID::new("SomeAgentID".to_string());
+        let agent_id = AgentID::new("SomeAgentID");
         let mut agent_type: FinalAgent =
             serde_yaml::from_reader(AGENT_TYPE_MULTIPLE_MAP_FILE.as_bytes()).unwrap();
         let agent_values: SupervisorConfig =
@@ -475,7 +475,7 @@ mod test {
         let generated_conf_path = PathBuf::from("some/path");
         let file_writer = MockFileWriterMock::new();
         let mut directory_manager = MockDirectoryManagerMock::new();
-        let agent_id = AgentID::new("SomeAgentID".to_string());
+        let agent_id = AgentID::new("SomeAgentID");
         let mut agent_type: FinalAgent =
             serde_yaml::from_reader(AGENT_TYPE_SINGLE_FILE.as_bytes()).unwrap();
         let agent_values: SupervisorConfig =
@@ -513,7 +513,7 @@ mod test {
         let generated_conf_path = PathBuf::from("some/path");
         let file_writer = MockFileWriterMock::new();
         let mut directory_manager = MockDirectoryManagerMock::new();
-        let agent_id = AgentID::new("SomeAgentID".to_string());
+        let agent_id = AgentID::new("SomeAgentID");
         let mut agent_type: FinalAgent =
             serde_yaml::from_reader(AGENT_TYPE_SINGLE_FILE.as_bytes()).unwrap();
         let agent_values: SupervisorConfig =
@@ -561,7 +561,7 @@ mod test {
         let generated_conf_path = PathBuf::from("some/path");
         let file_writer = MockFileWriterMock::new();
         let mut directory_manager = MockDirectoryManagerMock::new();
-        let agent_id = AgentID::new("SomeAgentID".to_string());
+        let agent_id = AgentID::new("SomeAgentID");
         let mut agent_type: FinalAgent =
             serde_yaml::from_reader(AGENT_TYPE_SINGLE_FILE.as_bytes()).unwrap();
         let agent_values: SupervisorConfig =
@@ -605,7 +605,7 @@ mod test {
         let generated_conf_path = PathBuf::from("some/path");
         let mut file_writer = MockFileWriterMock::new();
         let mut directory_manager = MockDirectoryManagerMock::new();
-        let agent_id = AgentID::new("SomeAgentID".to_string());
+        let agent_id = AgentID::new("SomeAgentID");
         let mut agent_type: FinalAgent =
             serde_yaml::from_reader(AGENT_TYPE_MULTIPLE_FILES.as_bytes()).unwrap();
         let agent_values: SupervisorConfig =
@@ -653,7 +653,7 @@ mod test {
         let generated_conf_path = PathBuf::from("some/path");
         let mut file_writer = MockFileWriterMock::new();
         let mut directory_manager = MockDirectoryManagerMock::new();
-        let agent_id = AgentID::new("SomeAgentID".to_string());
+        let agent_id = AgentID::new("SomeAgentID");
         let mut agent_type: FinalAgent =
             serde_yaml::from_reader(AGENT_TYPE_SINGLE_MAP_FILE.as_bytes()).unwrap();
         let agent_values: SupervisorConfig =

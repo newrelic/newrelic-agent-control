@@ -11,13 +11,14 @@ use thiserror::Error;
 use tracing::info;
 
 use crate::agent::instance_id::InstanceIDGetter;
+use crate::agent::{EffectiveAgents, EffectiveAgentsError};
 use crate::config::agent_configs::AgentTypeFQN;
 use crate::config::agent_type::runtime_config::OnHost;
 use crate::config::agent_type_registry::AgentRepositoryError;
 use crate::{
     command::stream::Event,
     config::agent_configs::AgentID,
-    config::{agent_configs::SuperAgentConfig, agent_type_registry::AgentRepository},
+    config::agent_configs::SuperAgentConfig,
     supervisor::{
         runner::{Running, Stopped, SupervisorRunner},
         supervisor_config::Config,
@@ -49,6 +50,8 @@ pub enum SupervisorGroupError {
     OpAMPClientError(#[from] ClientError),
     #[error("`{0}`")]
     SystemTimeError(#[from] SystemTimeError),
+    #[error("`{0}`")]
+    EffectiveAgentsError(#[from] EffectiveAgentsError),
 }
 
 struct AgentRunner<C, S> {
@@ -72,23 +75,22 @@ impl<C> SupervisorGroup<C, Stopped>
 where
     C: NotStartedClient,
 {
-    pub fn new<Repo, OpAMPBuilder, ID>(
-        effective_agent_repository: &Repo,
+    pub fn new<OpAMPBuilder, ID>(
+        effective_agents: &EffectiveAgents,
         tx: Sender<Event>,
         cfg: SuperAgentConfig,
         opamp_builder: Option<&OpAMPBuilder>,
         instance_id_getter: &ID,
     ) -> Result<SupervisorGroup<OpAMPBuilder::Client, Stopped>, SupervisorGroupError>
     where
-        Repo: AgentRepository,
         OpAMPBuilder: OpAMPClientBuilder,
         ID: InstanceIDGetter,
     {
         let agent_runners = cfg
             .agents
             .iter()
-            .map(|(agent_t, agent_supervisor_config)| {
-                let agent = effective_agent_repository.get(&agent_t.clone().get())?;
+            .map(|(agent_id, agent_supervisor_config)| {
+                let agent = effective_agents.get(&agent_id)?;
 
                 let on_host = agent
                     .runtime_config
@@ -97,7 +99,7 @@ where
                     .clone()
                     .ok_or(SupervisorGroupError::OnHostDeploymentNotFound)?;
 
-                let (id, runner) = build_on_host_runners(&tx, agent_t, on_host);
+                let (id, runner) = build_on_host_runners(&tx, agent_id, on_host);
                 let opamp_client = match &opamp_builder {
                     Some(builder) => Some(builder.build(start_settings(
                         instance_id_getter.get(id.clone().get()),
@@ -253,7 +255,6 @@ pub mod tests {
     use crate::{
         command::stream::Event,
         config::agent_configs::{AgentID, AgentSupervisorConfig, SuperAgentConfig},
-        config::agent_type_registry::{AgentRepository, LocalRepository},
         supervisor::runner::{sleep_supervisor_tests::new_sleep_supervisor, Stopped},
     };
 
@@ -391,13 +392,13 @@ pub mod tests {
             .times(1)
             .returning(|name| name);
 
-        let mut repository = LocalRepository::default();
+        let mut effective_agents = EffectiveAgents::default();
 
         let supervisor_group = SupervisorGroup::<
             <MockOpAMPClientBuilderMock as OpAMPClientBuilder>::Client,
             Stopped,
         >::new(
-            &repository,
+            &effective_agents,
             tx.clone(),
             agent_config.clone(),
             Some(&opamp_builder),
@@ -408,9 +409,9 @@ pub mod tests {
         assert!(supervisor_group.is_err());
 
         // Case with valid key but not value
-        repository
-            .store_with_key(
-                "agent".to_string(),
+        effective_agents
+            .add(
+                &AgentID::new("agent"),
                 FinalAgent {
                     metadata: Default::default(),
                     variables: Default::default(),
@@ -422,7 +423,7 @@ pub mod tests {
             <MockOpAMPClientBuilderMock as OpAMPClientBuilder>::Client,
             Stopped,
         >::new(
-            &repository,
+            &effective_agents,
             tx.clone(),
             agent_config.clone(),
             Some(&opamp_builder),
@@ -432,9 +433,9 @@ pub mod tests {
         assert!(supervisor_group.is_err());
 
         // Valid case with valid full data
-        let mut repository = LocalRepository::default();
-        _ = repository.store_with_key(
-            "agent".to_string(),
+        let mut effective_agents = EffectiveAgents::default();
+        _ = effective_agents.add(
+            &AgentID::new("agent"),
             FinalAgent {
                 metadata: Default::default(),
                 variables: Default::default(),
@@ -457,7 +458,7 @@ pub mod tests {
             <MockOpAMPClientBuilderMock as OpAMPClientBuilder>::Client,
             Stopped,
         >::new(
-            &repository,
+            &effective_agents,
             tx,
             agent_config.clone(),
             Some(&opamp_builder),
