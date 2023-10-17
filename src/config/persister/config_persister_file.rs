@@ -3,6 +3,7 @@ use std::fs::Permissions;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
+use crate::agent::defaults::SUPER_AGENT_DATA_DIR;
 use crate::config::agent_configs::AgentID;
 use crate::config::agent_type::agent_types::{FinalAgent, VariableType};
 use crate::config::agent_type::trivial_value::TrivialValue;
@@ -40,6 +41,13 @@ impl ConfigurationPersisterFile<WriterFile, DirectoryManagerFs> {
             directory_manager: DirectoryManagerFs::default(),
             generated_conf_path: generated_conf_dir.as_path().to_str().unwrap().to_string(),
         }
+    }
+}
+
+impl Default for ConfigurationPersisterFile<WriterFile, DirectoryManagerFs> {
+    // default uses the default SUPER_AGENT_DATA_DIR to persist the corresponding files
+    fn default() -> Self {
+        ConfigurationPersisterFile::new(SUPER_AGENT_DATA_DIR.to_string())
     }
 }
 

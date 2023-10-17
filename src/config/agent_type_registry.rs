@@ -2,6 +2,8 @@ use std::collections::HashMap;
 
 use thiserror::Error;
 
+use crate::agent::defaults::{NEWRELIC_INFRA_TYPE, NRDOT_TYPE};
+
 use super::agent_type::agent_types::FinalAgent;
 
 #[derive(Error, Debug)]
@@ -18,8 +20,24 @@ pub trait AgentRegistry {
     fn get(&self, name: &str) -> Result<&FinalAgent, AgentRepositoryError>;
 }
 
-#[derive(Debug, Default, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct LocalRegistry(HashMap<String, FinalAgent>);
+
+impl Default for LocalRegistry {
+    // default returns the LocalRegistry loaded with the defined default agents
+    fn default() -> Self {
+        let mut local_agent_type_repository = LocalRegistry(HashMap::new());
+        // save to unwrap(), default agent cannot be changed inline
+        local_agent_type_repository
+            .store_from_yaml(NEWRELIC_INFRA_TYPE.as_bytes())
+            .unwrap();
+        local_agent_type_repository
+            .store_from_yaml(NRDOT_TYPE.as_bytes())
+            .unwrap();
+
+        local_agent_type_repository
+    }
+}
 
 impl LocalRegistry {
     pub fn store_from_yaml(&mut self, agent_bytes: &[u8]) -> Result<(), AgentRepositoryError> {
@@ -61,6 +79,12 @@ mod tests {
         ) -> Result<(), AgentRepositoryError> {
             Ok(_ = self.0.insert(key, agent))
         }
+    }
+
+    #[test]
+    fn default_local_registry() {
+        let registry = LocalRegistry::default();
+        assert_eq!(registry.0.len(), 2)
     }
 
     #[test]

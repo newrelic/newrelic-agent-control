@@ -14,7 +14,7 @@ use crate::{
     file_reader::{FSFileReader, FileReader, FileReaderError},
 };
 
-use super::{defaults::SUPER_AGENT_DATA_DIR, EffectiveAgents, EffectiveAgentsError};
+use super::{EffectiveAgents, EffectiveAgentsError};
 
 #[derive(Error, Debug)]
 pub enum EffectiveAgentsAssemblerError {
@@ -46,76 +46,13 @@ pub struct LocalEffectiveAgentsAssembler<R: AgentRegistry, C: ConfigurationPersi
     file_reader: F,
 }
 
-const NEWRELIC_INFRA_TYPE: &str = r#"
-namespace: newrelic
-name: com.newrelic.infrastructure_agent
-version: 0.0.1
-variables:
-  config_file:
-    description: "Newrelic infra configuration path"
-    type: string
-    required: false
-    default: /etc/newrelic-infra.yml
-deployment:
-  on_host:
-    executables:
-      - path: /usr/bin/newrelic-infra
-        args: "--config=${config_file}"
-        restart_policy:
-          backoff_strategy:
-            type: fixed
-            backoff_delay_seconds: 5
-"#;
-
-const NRDOT_TYPE: &str = r#"
-namespace: newrelic
-name: io.opentelemetry.collector
-version: 0.0.1
-variables:
-  config_file:
-    description: "Newrelic otel collector configuration path"
-    type: string
-    required: false
-    default: /etc/nr-otel-collector/config.yaml
-  otel_exporter_otlp_endpoint:
-    description: "Endpoint where NRDOT will send data"
-    type: string
-    required: false
-    default: "otlp.nr-data.net:4317"
-  new_relic_memory_limit_mib:
-    description: "Memory limit for the NRDOT process"
-    type: number
-    required: false
-    default: 100
-deployment:
-  on_host:
-    executables:
-      - path: /usr/bin/nr-otel-collector
-        args: "--config=${config_file} --feature-gates=-pkg.translator.prometheus.NormalizeName"
-        env: "OTEL_EXPORTER_OTLP_ENDPOINT=${otel_exporter_otlp_endpoint} NEW_RELIC_MEMORY_LIMIT_MIB=${new_relic_memory_limit_mib}"
-        restart_policy:
-          backoff_strategy:
-            type: fixed
-            backoff_delay_seconds: 5
-"#;
-
 impl Default
     for LocalEffectiveAgentsAssembler<LocalRegistry, ConfigurationPersisterFile, FSFileReader>
 {
     fn default() -> Self {
-        let mut local_agent_type_repository = LocalRegistry::default();
-        local_agent_type_repository
-            .store_from_yaml(NEWRELIC_INFRA_TYPE.as_bytes())
-            .unwrap();
-        local_agent_type_repository
-            .store_from_yaml(NRDOT_TYPE.as_bytes())
-            .unwrap();
-
-        let agent_values_configuration_persister =
-            ConfigurationPersisterFile::new(SUPER_AGENT_DATA_DIR.to_string());
         Self {
-            registry: local_agent_type_repository,
-            config_persister: agent_values_configuration_persister,
+            registry: LocalRegistry::default(),
+            config_persister: ConfigurationPersisterFile::default(),
             file_reader: FSFileReader,
         }
     }
