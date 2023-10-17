@@ -9,10 +9,6 @@ impl AgentID {
     pub fn get(&self) -> String {
         String::from(&self.0)
     }
-
-    pub fn new(agent_id: String) -> Self {
-        Self(agent_id)
-    }
 }
 
 impl Display for AgentID {
@@ -85,6 +81,12 @@ pub struct OpAMPClientConfig {
 #[cfg(test)]
 mod test {
     use super::*;
+
+    impl AgentID {
+        pub fn new(agent_id: &str) -> Self {
+            Self(agent_id.to_string())
+        }
+    }
 
     const EXAMPLE_SUPERAGENT_CONFIG: &str = r#"
 opamp:
