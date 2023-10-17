@@ -22,6 +22,7 @@ use super::{
     runtime_config_templates::{Templateable, TEMPLATE_KEY_SEPARATOR},
     trivial_value::TrivialValue,
 };
+use duration_str;
 
 #[derive(Debug, Deserialize)]
 struct RawAgent {
@@ -143,11 +144,14 @@ impl Templateable for TemplateableValue<BackoffDuration> {
         let value = if templated_string.is_empty() {
             BackoffDuration::default()
         } else {
-            BackoffDuration::from_secs(
-                templated_string
-                    .parse()
-                    .map_err(|_| AgentTypeError::ValueNotParseableFromString(templated_string))?,
-            )
+            // Attempt to parse a simple number as seconds
+            templated_string
+                .parse::<u64>()
+                .map(BackoffDuration::from_secs)
+                // If that fails, attempt to parse a duration string
+                .or(duration_str::parse(&templated_string)
+                    .map(BackoffDuration::from)
+                    .map_err(|_| AgentTypeError::ValueNotParseableFromString(templated_string)))?
         };
         Ok(Self {
             template: self.template,
@@ -434,18 +438,18 @@ deployment:
         restart_policy:
           backoff_strategy:
             type: fixed
-            backoff_delay_seconds: 1
+            backoff_delay: 1
             max_retries: 3
-            last_retry_interval_seconds: 30
+            last_retry_interval: 30
       - path: ${bin}/otelcol-gw
         args: "-c ${deployment.k8s.image}"
         env: ""
         restart_policy:
           backoff_strategy:
             type: linear
-            backoff_delay_seconds: 3
+            backoff_delay: 3
             max_retries: 8
-            last_retry_interval_seconds: 60
+            last_retry_interval: 60
 "#;
 
     const AGENT_GIVEN_BAD_YAML: &str = r#"
@@ -483,9 +487,9 @@ deployment:
     //     // Restart restart policy values
     //     assert_eq!(
     //         BackoffStrategyConfigTemplateable::Fixed(BackoffStrategyInnerTemplateable {
-    //             backoff_delay_seconds: Duration::from_secs(1),
+    //             backoff_delay: Duration::from_secs(1),
     //             max_retries: 3,
-    //             last_retry_interval_seconds: Duration::from_secs(30),
+    //             last_retry_interval: Duration::from_secs(30),
     //         }),
     //         on_host.restart_policy.backoff_strategy
     //     );
@@ -510,22 +514,22 @@ deployment:
             on_host.executables[0].clone().args.template
         );
 
-        // Restart restart policy values
+        // Restart policy values
         assert_eq!(
             BackoffStrategyConfig {
                 backoff_type: TemplateableValue::from_template("fixed".to_string()),
-                backoff_delay_seconds: TemplateableValue::from_template("1".to_string()),
+                backoff_delay: TemplateableValue::from_template("1".to_string()),
                 max_retries: TemplateableValue::from_template("3".to_string()),
-                last_retry_interval_seconds: TemplateableValue::from_template("30".to_string()),
+                last_retry_interval: TemplateableValue::from_template("30".to_string()),
             },
             on_host.executables[0].restart_policy.backoff_strategy
         );
         assert_eq!(
             BackoffStrategyConfig {
                 backoff_type: TemplateableValue::from_template("linear".to_string()),
-                backoff_delay_seconds: TemplateableValue::from_template("3".to_string()),
+                backoff_delay: TemplateableValue::from_template("3".to_string()),
                 max_retries: TemplateableValue::from_template("8".to_string()),
-                last_retry_interval_seconds: TemplateableValue::from_template("60".to_string()),
+                last_retry_interval: TemplateableValue::from_template("60".to_string()),
             },
             on_host.executables[1].restart_policy.backoff_strategy
         );
@@ -592,11 +596,9 @@ deployment:
             restart_policy: RestartPolicyConfig {
                 backoff_strategy: BackoffStrategyConfig {
                     backoff_type: TemplateableValue::from_template("${backoff.type}".to_string()),
-                    backoff_delay_seconds: TemplateableValue::from_template(
-                        "${backoff.delay}".to_string(),
-                    ),
+                    backoff_delay: TemplateableValue::from_template("${backoff.delay}".to_string()),
                     max_retries: TemplateableValue::from_template("${backoff.retries}".to_string()),
-                    last_retry_interval_seconds: TemplateableValue::from_template(
+                    last_retry_interval: TemplateableValue::from_template(
                         "${backoff.interval}".to_string(),
                     ),
                 },
@@ -700,7 +702,7 @@ deployment:
                         value: Some(BackoffStrategyType::Exponential),
                         template: "${backoff.type}".to_string(),
                     },
-                    backoff_delay_seconds: TemplateableValue {
+                    backoff_delay: TemplateableValue {
                         value: Some(BackoffDuration::from_secs(10)),
                         template: "${backoff.delay}".to_string(),
                     },
@@ -708,7 +710,7 @@ deployment:
                         value: Some(30),
                         template: "${backoff.retries}".to_string(),
                     },
-                    last_retry_interval_seconds: TemplateableValue {
+                    last_retry_interval: TemplateableValue {
                         value: Some(BackoffDuration::from_secs(300)),
                         template: "${backoff.interval}".to_string(),
                     },
@@ -732,7 +734,7 @@ deployment:
                         "${backoff.type}"
                             .to_string(),
                     ),
-                    backoff_delay_seconds: TemplateableValue::from_template(
+                    backoff_delay: TemplateableValue::from_template(
                         "${backoff.delay}"
                             .to_string(),
                     ),
@@ -740,7 +742,7 @@ deployment:
                         "${backoff.retries}"
                             .to_string(),
                     ),
-                    last_retry_interval_seconds: TemplateableValue::from_template(
+                    last_retry_interval: TemplateableValue::from_template(
                         "${backoff.interval}"
                             .to_string(),
                     ),
@@ -824,7 +826,7 @@ deployment:
                         value: Some(BackoffStrategyType::Linear),
                         template: "${backoff.type}".to_string(),
                     },
-                    backoff_delay_seconds: TemplateableValue {
+                    backoff_delay: TemplateableValue {
                         value: Some(BackoffDuration::from_secs(10)),
                         template: "${backoff.delay}".to_string(),
                     },
@@ -832,7 +834,7 @@ deployment:
                         value: Some(30),
                         template: "${backoff.retries}".to_string(),
                     },
-                    last_retry_interval_seconds: TemplateableValue {
+                    last_retry_interval: TemplateableValue {
                         value: Some(BackoffDuration::from_secs(300)),
                         template: "${backoff.interval}".to_string(),
                     },
@@ -945,9 +947,9 @@ deployment:
         restart_policy:
           backoff_strategy:
             type: ${backoff.type}
-            backoff_delay_seconds: ${backoff.delay}
+            backoff_delay: ${backoff.delay}
             max_retries: ${backoff.retries}
-            last_retry_interval_seconds: ${backoff.interval}
+            last_retry_interval: ${backoff.interval}
 "#;
 
     const BACKOFF_CONFIG_YAML: &str = r#"
@@ -973,7 +975,7 @@ backoff:
                 value: Some(BackoffStrategyType::Linear),
                 template: "${backoff.type}".to_string(),
             },
-            backoff_delay_seconds: TemplateableValue {
+            backoff_delay: TemplateableValue {
                 value: Some(BackoffDuration::from_secs(10)),
                 template: "${backoff.delay}".to_string(),
             },
@@ -981,7 +983,7 @@ backoff:
                 value: Some(30),
                 template: "${backoff.retries}".to_string(),
             },
-            last_retry_interval_seconds: TemplateableValue {
+            last_retry_interval: TemplateableValue {
                 value: Some(BackoffDuration::from_secs(300)),
                 template: "${backoff.interval}".to_string(),
             },
@@ -1152,4 +1154,95 @@ backoff:
         });
     }
     */
+    const AGENT_STRING_DURATIONS_TEMPLATE_YAML: &str = r#"
+name: nrdot
+namespace: newrelic
+version: 0.1.0
+variables:
+  backoff:
+    delay:
+      description: "Backoff delay"
+      type: string
+      required: false
+      default: 1s
+    retries:
+      description: "Backoff retries"
+      type: number
+      required: false
+      default: 3
+    interval:
+      description: "Backoff interval"
+      type: string
+      required: false
+      default: 30s
+    type:
+      description: "Backoff type"
+      type: string
+      required: true
+deployment:
+  on_host:
+    executables:
+      - path: /bin/otelcol
+        args: "-c some-arg"
+        env: ""
+        restart_policy:
+          backoff_strategy:
+            type: fixed
+            backoff_delay: ${backoff.delay}
+            max_retries: ${backoff.retries}
+            last_retry_interval: ${backoff.interval}
+"#;
+
+    const STRING_DURATIONS_CONFIG_YAML: &str = r#"
+backoff:
+  delay: 10m + 30s
+  retries: 30
+  interval: 5m
+  type: fixed
+"#;
+
+    #[test]
+    fn test_string_backoff_config() {
+        let input_agent_type =
+            serde_yaml::from_str::<FinalAgent>(AGENT_STRING_DURATIONS_TEMPLATE_YAML).unwrap();
+
+        let input_user_config =
+            serde_yaml::from_str::<SupervisorConfig>(STRING_DURATIONS_CONFIG_YAML).unwrap();
+
+        let expected_backoff = BackoffStrategyConfig {
+            backoff_type: TemplateableValue {
+                value: Some(BackoffStrategyType::Fixed),
+                template: "fixed".to_string(),
+            },
+            backoff_delay: TemplateableValue {
+                value: Some(BackoffDuration::from_secs((10 * 60) + 30)),
+                template: "${backoff.delay}".to_string(),
+            },
+            max_retries: TemplateableValue {
+                value: Some(30),
+                template: "${backoff.retries}".to_string(),
+            },
+            last_retry_interval: TemplateableValue {
+                value: Some(BackoffDuration::from_secs(300)),
+                template: "${backoff.interval}".to_string(),
+            },
+        };
+
+        let actual = input_agent_type
+            .template_with(input_user_config)
+            .expect("Failed to template_with the AgentType's runtime_config field");
+
+        // println!("Output: {:#?}", actual);
+        assert_eq!(
+            expected_backoff,
+            actual
+                .runtime_config
+                .deployment
+                .on_host
+                .unwrap()
+                .executables[0]
+                .restart_policy
+                .backoff_strategy
+        );
+    }
 }

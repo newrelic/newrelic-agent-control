@@ -103,16 +103,15 @@ impl Templateable for RestartPolicyConfig {
 impl Templateable for BackoffStrategyConfig {
     fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
         let backoff_type = self.backoff_type.template_with(variables)?;
-        let backoff_delay_seconds = self.backoff_delay_seconds.template_with(variables)?;
+        let backoff_delay = self.backoff_delay.template_with(variables)?;
         let max_retries = self.max_retries.template_with(variables)?;
-        let last_retry_interval_seconds =
-            self.last_retry_interval_seconds.template_with(variables)?;
+        let last_retry_interval = self.last_retry_interval.template_with(variables)?;
 
         let result = Self {
             backoff_type,
-            backoff_delay_seconds,
+            backoff_delay,
             max_retries,
-            last_retry_interval_seconds,
+            last_retry_interval,
         };
 
         if !result.are_values_in_sync_with_type() {
@@ -290,11 +289,9 @@ mod tests {
             restart_policy: RestartPolicyConfig {
                 backoff_strategy: BackoffStrategyConfig {
                     backoff_type: TemplateableValue::from_template("${backoff.type}".to_string()),
-                    backoff_delay_seconds: TemplateableValue::from_template(
-                        "${backoff.delay}".to_string(),
-                    ),
+                    backoff_delay: TemplateableValue::from_template("${backoff.delay}".to_string()),
                     max_retries: TemplateableValue::from_template("${backoff.retries}".to_string()),
-                    last_retry_interval_seconds: TemplateableValue::from_template(
+                    last_retry_interval: TemplateableValue::from_template(
                         "${backoff.interval}".to_string(),
                     ),
                 },
@@ -312,14 +309,12 @@ mod tests {
                 backoff_strategy: BackoffStrategyConfig {
                     backoff_type: TemplateableValue::new(BackoffStrategyType::Linear)
                         .with_template("${backoff.type}".to_string()),
-                    backoff_delay_seconds: TemplateableValue::new(BackoffDuration::from_secs(10))
+                    backoff_delay: TemplateableValue::new(BackoffDuration::from_secs(10))
                         .with_template("${backoff.delay}".to_string()),
                     max_retries: TemplateableValue::new(30)
                         .with_template("${backoff.retries}".to_string()),
-                    last_retry_interval_seconds: TemplateableValue::new(
-                        BackoffDuration::from_secs(300),
-                    )
-                    .with_template("${backoff.interval}".to_string()),
+                    last_retry_interval: TemplateableValue::new(BackoffDuration::from_secs(300))
+                        .with_template("${backoff.interval}".to_string()),
                 },
                 restart_exit_codes: vec![],
             },

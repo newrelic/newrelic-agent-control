@@ -61,6 +61,22 @@ Distributed under the following license(s):
 
 
 
+## android-tzdata (https://crates.io/crates/android-tzdata)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+
+## android_system_properties (https://crates.io/crates/android_system_properties)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+
 ## anstream (https://crates.io/crates/anstream)
 
 Distributed under the following license(s):
@@ -113,6 +129,14 @@ Distributed under the following license(s):
 
 Distributed under the following license(s):
 * MIT
+
+
+
+## arrayvec (https://crates.io/crates/arrayvec)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
 
 
 
@@ -220,6 +244,14 @@ Distributed under the following license(s):
 
 
 ## cfg-if (https://crates.io/crates/cfg-if)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+
+## chrono (https://crates.io/crates/chrono)
 
 Distributed under the following license(s):
 * MIT
@@ -339,6 +371,14 @@ Distributed under the following license(s):
 
 
 
+## deranged (https://crates.io/crates/deranged)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+
 ## difflib (https://crates.io/crates/difflib)
 
 Distributed under the following license(s):
@@ -365,6 +405,13 @@ Distributed under the following license(s):
 
 Distributed under the following license(s):
 * MIT
+
+
+
+## duration-str (https://crates.io/crates/duration-str)
+
+Distributed under the following license(s):
+* Apache-2.0
 
 
 
@@ -636,6 +683,22 @@ Distributed under the following license(s):
 
 
 ## hyper-tls (https://crates.io/crates/hyper-tls)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+
+## iana-time-zone (https://crates.io/crates/iana-time-zone)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+
+## iana-time-zone-haiku (https://crates.io/crates/iana-time-zone-haiku)
 
 Distributed under the following license(s):
 * MIT
@@ -1218,6 +1281,13 @@ Distributed under the following license(s):
 
 
 
+## rust_decimal (https://crates.io/crates/rust_decimal)
+
+Distributed under the following license(s):
+* MIT
+
+
+
 ## rustc-demangle (https://crates.io/crates/rustc-demangle)
 
 Distributed under the following license(s):
@@ -1407,6 +1477,22 @@ Distributed under the following license(s):
 
 
 ## thread_local (https://crates.io/crates/thread_local)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+
+## time (https://crates.io/crates/time)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+
+## time-core (https://crates.io/crates/time-core)
 
 Distributed under the following license(s):
 * MIT
@@ -1730,6 +1816,14 @@ Distributed under the following license(s):
 
 
 ## winapi-x86_64-pc-windows-gnu (https://crates.io/crates/winapi-x86_64-pc-windows-gnu)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+
+## windows (https://crates.io/crates/windows)
 
 Distributed under the following license(s):
 * MIT

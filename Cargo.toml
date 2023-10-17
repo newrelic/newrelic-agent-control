@@ -30,6 +30,7 @@ tokio = "1.32.0"
 ulid = "1.0.1"
 openssl = { version = "0.10.57", features = ["vendored"] }
 aquamarine = "0.3.2"
+duration-str = "0.7.0"
 
 [dev-dependencies]
 assert_cmd = "2.0.12"
