@@ -28,3 +28,16 @@ help:
 	@echo $(TARGETS)
 	@echo "## Available clean targets:"
 	@echo $(addsuffix -clean,$(TARGETS))
+
+
+ARCH:=arm64
+
+.PHONY: build-super-agent 
+# Cross-compilation only works from amd64 host.
+build-super-agent:
+	ARCH=$(ARCH) ./build/scripts/build_super_agent.sh
+
+.PHONY: build-dev-image
+build-dev-image: build-super-agent
+	docker build . -t newrelic-super-agent:dev
+

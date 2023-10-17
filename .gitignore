@@ -27,3 +27,7 @@ test/**/inventory.*
 # Automatically downloaded external collections and roles
 test/**/collections
 test/**/roles
+
+# local build
+.cargo
+bin/
