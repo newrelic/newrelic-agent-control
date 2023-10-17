@@ -7,6 +7,7 @@
 use std::{collections::HashMap, str::FromStr};
 
 use crate::config::super_agent_configs::AgentTypeFQN;
+use serde::de::Error;
 use serde::{Deserialize, Deserializer};
 
 use super::restart_policy::BackoffDuration;
@@ -20,19 +21,46 @@ use super::{
 use crate::config::sub_agent_config::SubAgentConfig;
 use duration_str;
 
-#[derive(Debug, Deserialize)]
-struct RawAgent {
-    #[serde(flatten)]
-    metadata: AgentMetadata,
-    variables: AgentVariables,
-    #[serde(default, flatten)]
-    runtime_config: RuntimeConfig,
+/// Configuration of the Agent Type, contains identification metadata, a set of variables that can be adjusted, and rules of how to start given agent binaries.
+///
+/// This is the final representation of the agent type once it has been parsed (first into a [`RawAgent`]) having the spec field normalized.
+///
+/// See also [`RawAgent`] and the [`FinalAgent::try_from`] implementation.
+#[derive(Debug, PartialEq, Clone, Default)]
+pub struct FinalAgent {
+    pub metadata: AgentMetadata,
+    pub variables: NormalizedVariables,
+    pub runtime_config: RuntimeConfig,
 }
 
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct TemplateableValue<T> {
     value: Option<T>,
     template: String,
+}
+
+impl<'de> Deserialize<'de> for FinalAgent {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        // temporal type for raw deserialization
+        #[derive(Debug, Deserialize)]
+        struct RawAgent {
+            #[serde(flatten)]
+            metadata: AgentMetadata,
+            variables: AgentVariables,
+            #[serde(default, flatten)]
+            runtime_config: RuntimeConfig,
+        }
+
+        let raw_agent = RawAgent::deserialize(deserializer)?;
+        Ok(Self {
+            variables: normalize_agent_spec(raw_agent.variables).map_err(D::Error::custom)?,
+            metadata: raw_agent.metadata,
+            runtime_config: raw_agent.runtime_config, // FIXME: make it actual implementation
+        })
+    }
 }
 
 impl<'de, T> Deserialize<'de> for TemplateableValue<T> {
@@ -152,20 +180,6 @@ impl Templateable for TemplateableValue<BackoffDuration> {
     }
 }
 
-/// Configuration of the Agent Type, contains identification metadata, a set of variables that can be adjusted, and rules of how to start given agent binaries.
-///
-/// This is the final representation of the agent type once it has been parsed (first into a [`RawAgent`]) having the spec field normalized.
-///
-/// See also [`RawAgent`] and the [`FinalAgent::try_from`] implementation.
-#[derive(Debug, PartialEq, Clone, Default, Deserialize)]
-#[serde(try_from = "RawAgent")]
-pub struct FinalAgent {
-    #[serde(flatten)]
-    pub metadata: AgentMetadata,
-    pub variables: NormalizedVariables,
-    pub runtime_config: RuntimeConfig,
-}
-
 impl FinalAgent {
     pub fn agent_type(&self) -> AgentTypeFQN {
         self.metadata.to_string().as_str().into()
@@ -205,20 +219,6 @@ impl FinalAgent {
     }
 }
 
-impl TryFrom<RawAgent> for FinalAgent {
-    type Error = AgentTypeError;
-    /// Convert a [`RawAgent`] into an [`Agent`].
-    ///
-    /// This is where the `variables` field of the [`RawAgent`] is normalized into a [`NormalizedVariables`].
-    fn try_from(raw_agent: RawAgent) -> Result<Self, Self::Error> {
-        Ok(Self {
-            variables: normalize_agent_spec(raw_agent.variables)?,
-            metadata: raw_agent.metadata,
-            runtime_config: raw_agent.runtime_config, // FIXME: make it actual implementation
-        })
-    }
-}
-
 /// Flexible tree-like structure that contains variables definitions, that can later be changed by the end user via [`SubAgentConfig`].
 type AgentVariables = HashMap<String, Spec>;
 
@@ -227,18 +227,63 @@ pub trait AgentTypeEndSpec {
     fn file_path(&self) -> Option<String>;
 }
 
-#[derive(Debug, PartialEq, Clone, Deserialize)]
-#[serde(try_from = "IntermediateEndSpec")]
+#[derive(Debug, PartialEq, Clone)]
 pub struct EndSpec {
     pub(crate) description: String,
-    #[serde(rename = "type")]
     pub type_: VariableType,
     pub required: bool,
     pub default: Option<TrivialValue>,
     pub file_path: Option<String>,
     /// The actual value that will be used by the agent. This will be either the user-provided value or, if not provided and not marked as [`required`], the default value.
-    #[serde(skip)]
     pub final_value: Option<TrivialValue>,
+}
+
+impl<'de> Deserialize<'de> for EndSpec {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        // temporal type for intermediate serialization
+        #[derive(Debug, Deserialize)]
+        struct IntermediateEndSpec {
+            description: String,
+            #[serde(rename = "type")]
+            type_: VariableType,
+            required: bool,
+            default: Option<TrivialValue>,
+            file_path: Option<String>,
+        }
+
+        impl AgentTypeEndSpec for IntermediateEndSpec {
+            fn variable_type(&self) -> VariableType {
+                self.type_
+            }
+
+            fn file_path(&self) -> Option<String> {
+                self.file_path.as_ref().cloned()
+            }
+        }
+
+        let intermediate_spec = IntermediateEndSpec::deserialize(deserializer)?;
+        if intermediate_spec.default.is_none() && !intermediate_spec.required {
+            return Err(D::Error::custom(AgentTypeError::MissingDefault));
+        }
+        let def_val = intermediate_spec
+            .default
+            .clone()
+            .map(|d| d.check_type(&intermediate_spec))
+            .transpose()
+            .map_err(D::Error::custom)?;
+
+        Ok(EndSpec {
+            default: def_val,
+            final_value: None,
+            file_path: intermediate_spec.file_path,
+            description: intermediate_spec.description,
+            type_: intermediate_spec.type_,
+            required: intermediate_spec.required,
+        })
+    }
 }
 
 impl AgentTypeEndSpec for EndSpec {
@@ -269,52 +314,6 @@ pub enum VariableType {
     // MapStringNumber,
     // #[serde(rename = "map[string]bool")]
     // MapStringBool,
-}
-
-#[derive(Debug, Deserialize)]
-struct IntermediateEndSpec {
-    description: String,
-    #[serde(rename = "type")]
-    type_: VariableType,
-    required: bool,
-    default: Option<TrivialValue>,
-    file_path: Option<String>,
-}
-
-impl AgentTypeEndSpec for IntermediateEndSpec {
-    fn variable_type(&self) -> VariableType {
-        self.type_
-    }
-
-    fn file_path(&self) -> Option<String> {
-        self.file_path.as_ref().cloned()
-    }
-}
-
-impl TryFrom<IntermediateEndSpec> for EndSpec {
-    type Error = AgentTypeError;
-
-    /// Convert a [`IntermediateEndSpec`] into an [`EndSpec`].
-    ///
-    /// This conversion will fail if there is no default value and the spec is not marked as [`required`], as there will be no value to use. Also, the type for the provided default value will be checked against the [`VariableType`], failing if it does not match.
-    fn try_from(ies: IntermediateEndSpec) -> Result<Self, Self::Error> {
-        if ies.default.is_none() && !ies.required {
-            return Err(AgentTypeError::MissingDefault);
-        }
-        let def_val = ies
-            .default
-            .clone()
-            .map(|d| d.check_type(&ies))
-            .transpose()?;
-        Ok(EndSpec {
-            default: def_val,
-            final_value: None,
-            file_path: ies.file_path,
-            description: ies.description,
-            type_: ies.type_,
-            required: ies.required,
-        })
-    }
 }
 
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
@@ -500,8 +499,8 @@ deployment:
     // }
 
     #[test]
-    fn test_basic_raw_agent_parsing() {
-        let agent: RawAgent = serde_yaml::from_str(AGENT_GIVEN_YAML).unwrap();
+    fn test_basic_agent_parsing() {
+        let agent: FinalAgent = serde_yaml::from_str(AGENT_GIVEN_YAML).unwrap();
 
         assert_eq!("nrdot", agent.metadata.name);
         assert_eq!("newrelic", agent.metadata.namespace);
@@ -541,7 +540,7 @@ deployment:
 
     #[test]
     fn test_bad_parsing() {
-        let raw_agent_err: Result<RawAgent, Error> = serde_yaml::from_str(AGENT_GIVEN_BAD_YAML);
+        let raw_agent_err: Result<FinalAgent, Error> = serde_yaml::from_str(AGENT_GIVEN_BAD_YAML);
 
         assert!(raw_agent_err.is_err());
         println!("{:?}", raw_agent_err);
