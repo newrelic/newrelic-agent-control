@@ -48,7 +48,7 @@ mod tests {
 
     use crate::config::{
         agent_configs::{OpAMPClientConfig, SuperAgentConfig},
-        config_loader::{SuperAgentConfigLoader, SuperAgentConfigLoaderFile},
+        loader::{SuperAgentConfigLoader, SuperAgentConfigLoaderFile},
     };
 
     #[test]

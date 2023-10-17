@@ -5,9 +5,7 @@ use tracing::{error, info};
 
 use newrelic_super_agent::agent::defaults::SUPER_AGENT_DATA_DIR;
 use newrelic_super_agent::agent::instance_id::ULIDInstanceIDGetter;
-use newrelic_super_agent::config::config_loader::{
-    SuperAgentConfigLoader, SuperAgentConfigLoaderFile,
-};
+use newrelic_super_agent::config::loader::{SuperAgentConfigLoader, SuperAgentConfigLoaderFile};
 use newrelic_super_agent::config::persister::config_persister_file::ConfigurationPersisterFile;
 use newrelic_super_agent::opamp::client_builder::OpAMPHttpBuilder;
 use newrelic_super_agent::{

@@ -1,4 +1,4 @@
-use crate::config::config_loader::SuperAgentConfigLoaderError;
+use crate::config::loader::SuperAgentConfigLoaderError;
 use std::fmt::Debug;
 use thiserror::Error;
 
