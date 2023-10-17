@@ -71,6 +71,32 @@ jobs:
           dest_prefix: "preview/"
           local_packages_path:  "/srv/dist/"
           apt_skip_mirror: false
+  
+  push-container-tags:
+    runs-on: ubuntu-latest
+    name: Push container release tags
+    env:
+      DOCKER_IMAGE_NAME: ghcr.io/newrelic/newrelic-super-agent
+    steps:
+      - uses: docker/setup-qemu-action@v2
+
+      - uses: docker/setup-buildx-action@v2
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      # Push multi-arch pre-released images with release tags 
+      - name: Push release tags
+        run: |
+          docker buildx imagetools create \
+            -t $DOCKER_IMAGE_NAME:${{ github.event.release.tag_name }} \
+            -t $DOCKER_IMAGE_NAME:latest \
+            $DOCKER_IMAGE_NAME:${{ github.event.release.tag_name }}-rc
+
 
   molecule-packaging-tests:
     uses: ./.github/workflows/component_molecule_packaging.yml

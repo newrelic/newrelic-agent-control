@@ -1,0 +1,16 @@
+name: Nightly release
+
+# Pushes `nightly` image tag as scheduled.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 4 * * *"
+
+jobs:
+  build-push:
+    name: Build and Push nightly image
+    uses: ./.github/workflows/component_image.yml
+    with:
+      image-tag: nightly
+    secrets: inherit
