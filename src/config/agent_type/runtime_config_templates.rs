@@ -253,7 +253,7 @@ mod tests {
             (
                 "backoff.delay".to_string(),
                 EndSpec {
-                    final_value: Some(TrivialValue::Number(PosInt(10))),
+                    final_value: Some(TrivialValue::String("10s".to_string())),
                     default: None,
                     description: "backoff_delay".to_string(),
                     type_: VariableType::String,
@@ -273,7 +273,7 @@ mod tests {
             (
                 "backoff.interval".to_string(),
                 EndSpec {
-                    final_value: Some(TrivialValue::Number(PosInt(300))),
+                    final_value: Some(TrivialValue::String("300s".to_string())),
                     default: None,
                     description: "backoff_interval".to_string(),
                     type_: VariableType::Number,

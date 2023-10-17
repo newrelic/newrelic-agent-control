@@ -145,13 +145,9 @@ impl Templateable for TemplateableValue<BackoffDuration> {
             BackoffDuration::default()
         } else {
             // Attempt to parse a simple number as seconds
-            templated_string
-                .parse::<u64>()
-                .map(BackoffDuration::from_secs)
-                // If that fails, attempt to parse a duration string
-                .or(duration_str::parse(&templated_string)
-                    .map(BackoffDuration::from)
-                    .map_err(|_| AgentTypeError::ValueNotParseableFromString(templated_string)))?
+            duration_str::parse(&templated_string)
+                .map(BackoffDuration::from)
+                .map_err(|_| AgentTypeError::ValueNotParseableFromString(templated_string))?
         };
         Ok(Self {
             template: self.template,
@@ -654,7 +650,7 @@ deployment:
                     description: "backoff_delay".to_string(),
                     type_: VariableType::String,
                     required: true,
-                    final_value: Some(TrivialValue::Number(PosInt(10))),
+                    final_value: Some(TrivialValue::String("10s".to_string())),
                 },
             ),
             (
@@ -674,7 +670,7 @@ deployment:
                     description: "backoff_interval".to_string(),
                     type_: VariableType::Number,
                     required: true,
-                    final_value: Some(TrivialValue::Number(PosInt(300))),
+                    final_value: Some(TrivialValue::String("300s".to_string())),
                 },
             ),
         ]);
@@ -789,7 +785,7 @@ deployment:
                     description: "backoff_delay".to_string(),
                     type_: VariableType::String,
                     required: true,
-                    final_value: Some(TrivialValue::Number(PosInt(10))),
+                    final_value: Some(TrivialValue::String("10s".to_string())),
                 },
             ),
             (
@@ -809,7 +805,7 @@ deployment:
                     description: "backoff_interval".to_string(),
                     type_: VariableType::Number,
                     required: true,
-                    final_value: Some(TrivialValue::Number(PosInt(300))),
+                    final_value: Some(TrivialValue::String("300s".to_string())),
                 },
             ),
         ]);
@@ -921,9 +917,9 @@ variables:
   backoff:
     delay:
       description: "Backoff delay"
-      type: number
+      type: string
       required: false
-      default: 1
+      default: 1s
     retries:
       description: "Backoff retries"
       type: number
@@ -931,9 +927,9 @@ variables:
       default: 3
     interval:
       description: "Backoff interval"
-      type: number
+      type: string
       required: false
-      default: 30
+      default: 30s
     type:
       description: "Backoff strategy type"
       type: string
@@ -954,9 +950,9 @@ deployment:
 
     const BACKOFF_CONFIG_YAML: &str = r#"
 backoff:
-  delay: 10
+  delay: 10s
   retries: 30
-  interval: 300
+  interval: 300s
   type: linear
 "#;
 
