@@ -36,8 +36,14 @@ impl AgentRegistry for LocalRegistry {
 }
 
 impl LocalRegistry {
-    pub fn new() -> Self {
-        LocalRegistry::default()
+    pub fn new<A: IntoIterator<Item = FinalAgent>>(agents: A) -> Self {
+        let mut registry = LocalRegistry::default();
+
+        for agent in agents {
+            registry.0.insert(agent.metadata.to_string(), agent);
+        }
+
+        registry
     }
 }
 
@@ -59,7 +65,7 @@ mod tests {
 
     #[test]
     fn add_multiple_agents() {
-        let mut repository = LocalRegistry::new();
+        let mut repository = LocalRegistry::default();
 
         assert!(repository
             .store_from_yaml(AGENT_GIVEN_YAML.as_bytes())

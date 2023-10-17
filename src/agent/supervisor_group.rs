@@ -90,7 +90,7 @@ where
             .agents
             .iter()
             .map(|(agent_id, agent_supervisor_config)| {
-                let agent = effective_agents.get(&agent_id)?;
+                let agent = effective_agents.get(agent_id)?;
 
                 let on_host = agent
                     .runtime_config
