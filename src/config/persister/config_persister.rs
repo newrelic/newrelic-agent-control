@@ -121,11 +121,5 @@ pub mod test {
         pub fn should_clean_all(&mut self) {
             self.expect_clean_all().once().returning(|| Ok(()));
         }
-
-        pub fn should_not_clean_all(&mut self, err: PersistError) {
-            self.expect_clean_all()
-                .once()
-                .returning(move || Err(err.clone()));
-        }
     }
 }

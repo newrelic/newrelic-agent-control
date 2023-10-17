@@ -4,6 +4,7 @@ use std::fmt::Debug;
 use thiserror::Error;
 
 use super::supervisor_group::SupervisorGroupError;
+use crate::agent::EffectiveAgentsError;
 use crate::config::persister::config_persister::PersistError;
 use crate::file_reader::FileReaderError;
 use crate::{
@@ -54,4 +55,7 @@ pub enum AgentError {
 
     #[error("error persisting agent config: `{0}`")]
     PersistError(#[from] PersistError),
+
+    #[error("`Effective agent error{0}`")]
+    EffectiveAgentsError(#[from] EffectiveAgentsError),
 }

@@ -45,14 +45,6 @@ Distributed under the following license(s):
 
 
 
-## ahash (https://crates.io/crates/ahash)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
 ## aho-corasick (https://crates.io/crates/aho-corasick)
 
 Distributed under the following license(s):
@@ -164,14 +156,6 @@ Distributed under the following license(s):
 
 
 
-## base64 (https://crates.io/crates/base64)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
 ## bitflags (https://crates.io/crates/bitflags)
 
 Distributed under the following license(s):
@@ -181,14 +165,6 @@ Distributed under the following license(s):
 
 
 ## bitflags (https://crates.io/crates/bitflags)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
-## block-buffer (https://crates.io/crates/block-buffer)
 
 Distributed under the following license(s):
 * MIT
@@ -267,14 +243,6 @@ Distributed under the following license(s):
 
 
 
-## config (https://crates.io/crates/config)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
 ## core-foundation (https://crates.io/crates/core-foundation)
 
 Distributed under the following license(s):
@@ -299,23 +267,7 @@ Distributed under the following license(s):
 
 
 
-## cpufeatures (https://crates.io/crates/cpufeatures)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
 ## crc32fast (https://crates.io/crates/crc32fast)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
-## crypto-common (https://crates.io/crates/crypto-common)
 
 Distributed under the following license(s):
 * MIT
@@ -340,21 +292,6 @@ Distributed under the following license(s):
 
 
 ## difflib (https://crates.io/crates/difflib)
-
-Distributed under the following license(s):
-* MIT
-
-
-
-## digest (https://crates.io/crates/digest)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
-## dlv-list (https://crates.io/crates/dlv-list)
 
 Distributed under the following license(s):
 * MIT
@@ -524,13 +461,6 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 * MIT
 * Apache-2.0
-
-
-
-## generic-array (https://crates.io/crates/generic-array)
-
-Distributed under the following license(s):
-* MIT
 
 
 
@@ -713,13 +643,6 @@ Distributed under the following license(s):
 
 
 
-## json5 (https://crates.io/crates/json5)
-
-Distributed under the following license(s):
-* ISC
-
-
-
 ## lazy_static (https://crates.io/crates/lazy_static)
 
 Distributed under the following license(s):
@@ -747,14 +670,6 @@ Distributed under the following license(s):
 
 Distributed under the following license(s):
 * MIT
-
-
-
-## linked-hash-map (https://crates.io/crates/linked-hash-map)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
 
 
 
@@ -791,14 +706,6 @@ Distributed under the following license(s):
 
 
 ## mime (https://crates.io/crates/mime)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
-## minimal-lexical (https://crates.io/crates/minimal-lexical)
 
 Distributed under the following license(s):
 * MIT
@@ -848,13 +755,6 @@ Distributed under the following license(s):
 
 
 ## nix (https://crates.io/crates/nix)
-
-Distributed under the following license(s):
-* MIT
-
-
-
-## nom (https://crates.io/crates/nom)
 
 Distributed under the following license(s):
 * MIT
@@ -952,13 +852,6 @@ Distributed under the following license(s):
 
 
 
-## ordered-multimap (https://crates.io/crates/ordered-multimap)
-
-Distributed under the following license(s):
-* MIT
-
-
-
 ## overload (https://crates.io/crates/overload)
 
 Distributed under the following license(s):
@@ -966,47 +859,7 @@ Distributed under the following license(s):
 
 
 
-## pathdiff (https://crates.io/crates/pathdiff)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
 ## percent-encoding (https://crates.io/crates/percent-encoding)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
-## pest (https://crates.io/crates/pest)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
-## pest_derive (https://crates.io/crates/pest_derive)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
-## pest_generator (https://crates.io/crates/pest_generator)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
-## pest_meta (https://crates.io/crates/pest_meta)
 
 Distributed under the following license(s):
 * MIT
@@ -1203,21 +1056,6 @@ Distributed under the following license(s):
 
 
 
-## ron (https://crates.io/crates/ron)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
-## rust-ini (https://crates.io/crates/rust-ini)
-
-Distributed under the following license(s):
-* MIT
-
-
-
 ## rustc-demangle (https://crates.io/crates/rustc-demangle)
 
 Distributed under the following license(s):
@@ -1282,14 +1120,6 @@ Distributed under the following license(s):
 
 
 
-## serde_json (https://crates.io/crates/serde_json)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
 ## serde_urlencoded (https://crates.io/crates/serde_urlencoded)
 
 Distributed under the following license(s):
@@ -1299,14 +1129,6 @@ Distributed under the following license(s):
 
 
 ## serde_yaml (https://crates.io/crates/serde_yaml)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
-## sha2 (https://crates.io/crates/sha2)
 
 Distributed under the following license(s):
 * MIT
@@ -1460,14 +1282,6 @@ Distributed under the following license(s):
 
 
 
-## toml (https://crates.io/crates/toml)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
 ## tower-service (https://crates.io/crates/tower-service)
 
 Distributed under the following license(s):
@@ -1528,22 +1342,6 @@ Distributed under the following license(s):
 
 Distributed under the following license(s):
 * MIT
-
-
-
-## typenum (https://crates.io/crates/typenum)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-
-## ucd-trie (https://crates.io/crates/ucd-trie)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
 
 
 
@@ -1813,14 +1611,6 @@ Distributed under the following license(s):
 
 Distributed under the following license(s):
 * MIT
-
-
-
-## yaml-rust (https://crates.io/crates/yaml-rust)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
 
 
 
