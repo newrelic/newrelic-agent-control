@@ -62,19 +62,13 @@ where
     ) -> Result<SupervisorGroup<OpAMPBuilder::Client, Stopped>, AgentError>;
 }
 
-pub struct Agent<
-    Registry,
-    OpAMPBuilder = OpAMPHttpBuilder,
-    ID = ULIDInstanceIDGetter,
-    R = SuperAgentConfig,
-> where
-    Registry: AgentRegistry,
+pub struct Agent<OpAMPBuilder = OpAMPHttpBuilder, ID = ULIDInstanceIDGetter, R = SuperAgentConfig>
+where
     OpAMPBuilder: OpAMPClientBuilder,
     ID: InstanceIDGetter,
     R: SupervisorGroupResolver<OpAMPBuilder, ID>,
 {
     resolver: R,
-    agent_type_repository: Registry,
     instance_id_getter: ID,
     effective_agents: EffectiveAgents,
     opamp_client_builder: Option<OpAMPBuilder>,
@@ -102,13 +96,12 @@ where
     }
 }
 
-impl<Registry, OpAMPBuilder, ID> Agent<Registry, OpAMPBuilder, ID>
+impl<OpAMPBuilder, ID> Agent<OpAMPBuilder, ID>
 where
-    Registry: AgentRegistry + Clone,
     OpAMPBuilder: OpAMPClientBuilder,
     ID: InstanceIDGetter,
 {
-    pub fn new<ConfigPersister: ConfigurationPersister>(
+    pub fn new<ConfigPersister: ConfigurationPersister, Registry: AgentRegistry>(
         cfg: SuperAgentConfig,
         agent_type_registry: Registry,
         opamp_client_builder: Option<OpAMPBuilder>,
@@ -121,7 +114,6 @@ where
 
         Ok(Self {
             resolver: cfg,
-            agent_type_repository: agent_type_registry,
             instance_id_getter,
             effective_agents,
             opamp_client_builder,
@@ -131,17 +123,15 @@ where
     #[cfg(test)]
     pub fn new_custom<R>(
         resolver: R,
-        local_repo: Registry,
         instance_id_getter: ID,
         effective_agents: EffectiveAgents,
         opamp_client_builder: Option<OpAMPBuilder>,
-    ) -> Agent<Registry, OpAMPBuilder, ID, R>
+    ) -> Agent<OpAMPBuilder, ID, R>
     where
         R: SupervisorGroupResolver<OpAMPBuilder, ID>,
     {
         Agent {
             resolver,
-            agent_type_repository: local_repo,
             effective_agents,
             opamp_client_builder,
             instance_id_getter,
@@ -149,9 +139,8 @@ where
     }
 }
 
-impl<Registry, OpAMPBuilder, R, ID> Agent<Registry, OpAMPBuilder, ID, R>
+impl<OpAMPBuilder, R, ID> Agent<OpAMPBuilder, ID, R>
 where
-    Registry: AgentRegistry,
     OpAMPBuilder: OpAMPClientBuilder,
     ID: InstanceIDGetter,
     R: SupervisorGroupResolver<OpAMPBuilder, ID>,
@@ -505,13 +494,11 @@ mod tests {
 
         // two agents in the supervisor group
         let agent: Agent<
-            LocalRegistry,
             MockOpAMPClientBuilderMock,
             MockInstanceIDGetterMock,
             MockedSleepGroupResolver,
         > = Agent::new_custom(
             MockedSleepGroupResolver,
-            LocalRegistry::default(),
             instance_id_getter,
             EffectiveAgents::default(),
             Some(opamp_builder),
