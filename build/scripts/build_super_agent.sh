@@ -18,4 +18,6 @@ docker build -t "rust-cross-${ARCH_NAME}" -f ./build/rust.Dockerfile --build-arg
 CARGO_HOME=/tmp/.cargo cargo fetch
 docker run --rm --user "$(id -u)":"$(id -g)" -v "$PWD":/usr/src/app -v /tmp/.cargo:/usr/src/app/.cargo rust-cross-"${ARCH_NAME}"
 
-mkdir -p "bin" && cp "./target/${ARCH_NAME}-unknown-linux-gnu/release/newrelic-super-agent" "./bin/newrelic-super-agent-${ARCH}"
+mkdir -p "bin"
+
+cp "./target/${ARCH_NAME}-unknown-linux-gnu/release/newrelic-super-agent" "./bin/newrelic-super-agent-${ARCH}"
