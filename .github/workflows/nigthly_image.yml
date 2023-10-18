@@ -15,3 +15,11 @@ jobs:
       image-tag: nightly
       push: true
     secrets: inherit
+  
+  security-scan:
+    name: Security scan
+    needs: [build-push]
+    uses: ./.github/workflows/component_image_security.yml
+    with:
+      image-tag: nightly
+    secrets: inherit
