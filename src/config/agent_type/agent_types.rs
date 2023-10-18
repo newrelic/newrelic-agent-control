@@ -434,18 +434,18 @@ deployment:
         restart_policy:
           backoff_strategy:
             type: fixed
-            backoff_delay: 1
+            backoff_delay: 1s
             max_retries: 3
-            last_retry_interval: 30
+            last_retry_interval: 30s
       - path: ${bin}/otelcol-gw
         args: "-c ${deployment.k8s.image}"
         env: ""
         restart_policy:
           backoff_strategy:
             type: linear
-            backoff_delay: 3
+            backoff_delay: 3s
             max_retries: 8
-            last_retry_interval: 60
+            last_retry_interval: 60s
 "#;
 
     const AGENT_GIVEN_BAD_YAML: &str = r#"
@@ -514,18 +514,18 @@ deployment:
         assert_eq!(
             BackoffStrategyConfig {
                 backoff_type: TemplateableValue::from_template("fixed".to_string()),
-                backoff_delay: TemplateableValue::from_template("1".to_string()),
+                backoff_delay: TemplateableValue::from_template("1s".to_string()),
                 max_retries: TemplateableValue::from_template("3".to_string()),
-                last_retry_interval: TemplateableValue::from_template("30".to_string()),
+                last_retry_interval: TemplateableValue::from_template("30s".to_string()),
             },
             on_host.executables[0].restart_policy.backoff_strategy
         );
         assert_eq!(
             BackoffStrategyConfig {
                 backoff_type: TemplateableValue::from_template("linear".to_string()),
-                backoff_delay: TemplateableValue::from_template("3".to_string()),
+                backoff_delay: TemplateableValue::from_template("3s".to_string()),
                 max_retries: TemplateableValue::from_template("8".to_string()),
-                last_retry_interval: TemplateableValue::from_template("60".to_string()),
+                last_retry_interval: TemplateableValue::from_template("60s".to_string()),
             },
             on_host.executables[1].restart_policy.backoff_strategy
         );

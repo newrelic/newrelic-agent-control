@@ -96,7 +96,7 @@ deployment:
         restart_policy:
           backoff_strategy:
             type: fixed
-            backoff_delay: 5
+            backoff_delay: 5s
 "#;
 
 const NRDOT_TYPE: &str = r#"
@@ -128,5 +128,5 @@ deployment:
         restart_policy:
           backoff_strategy:
             type: fixed
-            backoff_delay: 5
+            backoff_delay: 5s
 "#;
