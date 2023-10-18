@@ -10,6 +10,10 @@ on:
         description: 'Image tag'
         type: string
         required: true
+      push:
+        description: 'Push image'
+        type: boolean
+        required: true
 
 permissions:
   contents: read
@@ -78,7 +82,18 @@ jobs:
           password: ${{ secrets.OHAI_DOCKER_HUB_PASSWORD }}
 
       - name: Build and push image
+        if: ${{ inputs.push }}
         run: |
-          docker buildx build --push --platform=$DOCKER_PLATFORMS \
+          docker buildx build \
+            --push \
+            --platform=$DOCKER_PLATFORMS \
+            -t $DOCKER_IMAGE_NAME:${{ inputs.image-tag }} \
+            .
+
+      - name: Build image
+        if: ${{ ! inputs.push }}
+        run: |
+          docker buildx build \
+            --platform=$DOCKER_PLATFORMS \
             -t $DOCKER_IMAGE_NAME:${{ inputs.image-tag }} \
             .

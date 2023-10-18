@@ -13,4 +13,5 @@ jobs:
     uses: ./.github/workflows/component_image.yml
     with:
       image-tag: nightly
+      push: true
     secrets: inherit

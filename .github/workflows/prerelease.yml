@@ -79,6 +79,7 @@ jobs:
     uses: ./.github/workflows/component_image.yml
     with:
       image-tag: ${{ github.event.release.tag_name }}-rc
+      push: true
     secrets: inherit
 
   upload:
