@@ -6,6 +6,7 @@
 
 use std::{collections::HashMap, str::FromStr};
 
+use crate::config::agent_configs::AgentTypeFQN;
 use serde::{Deserialize, Deserializer};
 
 use super::restart_policy::BackoffDuration;
@@ -166,6 +167,10 @@ pub struct FinalAgent {
 }
 
 impl FinalAgent {
+    pub fn agent_type(&self) -> AgentTypeFQN {
+        self.metadata.to_string().as_str().into()
+    }
+
     pub fn get_variables(&self) -> &NormalizedVariables {
         &self.variables
     }
@@ -382,14 +387,6 @@ fn inner_normalize(key: String, spec: Spec) -> NormalizedVariables {
 }
 
 #[cfg(test)]
-impl FinalAgent {
-    /// Retrieve the `variables` field of the agent type at the specified key, if any.
-    fn get_variable(self, path: String) -> Option<EndSpec> {
-        self.variables.get(&path).cloned()
-    }
-}
-
-#[cfg(test)]
 pub mod tests {
     use crate::config::{
         agent_type::{
@@ -405,6 +402,25 @@ pub mod tests {
     use crate::config::agent_type::trivial_value::N::PosInt;
     use serde_yaml::Error;
     use std::collections::HashMap as Map;
+
+    impl FinalAgent {
+        pub fn new(
+            metadata: AgentMetadata,
+            variables: NormalizedVariables,
+            runtime_config: RuntimeConfig,
+        ) -> FinalAgent {
+            FinalAgent {
+                metadata,
+                variables,
+                runtime_config,
+            }
+        }
+
+        /// Retrieve the `variables` field of the agent type at the specified key, if any.
+        pub fn get_variable(self, path: String) -> Option<EndSpec> {
+            self.variables.get(&path).cloned()
+        }
+    }
 
     pub const AGENT_GIVEN_YAML: &str = r#"
 name: nrdot
@@ -727,8 +743,8 @@ deployment:
             path: TemplateableValue::from_template("${bin}/otelcol".to_string()),
             args: TemplateableValue::from_template("--verbose ${deployment.on_host.verbose} --verbose_again ${deployment.on_host.verbose}".to_string()),
             env: TemplateableValue::from_template("".to_string()),
-            restart_policy: RestartPolicyConfig{
-                backoff_strategy: BackoffStrategyConfig{
+            restart_policy: RestartPolicyConfig {
+                backoff_strategy: BackoffStrategyConfig {
                     backoff_type: TemplateableValue::from_template(
                         "${backoff.type}"
                             .to_string(),
@@ -822,11 +838,11 @@ deployment:
         let exec_actual = exec.template_with(&normalized_values).unwrap();
 
         let exec_expected = Executable {
-            path: TemplateableValue{value: Some("/etc/otelcol".to_string()), template: "${bin}/otelcol".to_string()},
-            args: TemplateableValue{value: Some(Args("--verbose true --verbose_again true".to_string())), template: "--verbose ${deployment.on_host.verbose} --verbose_again ${deployment.on_host.verbose}".to_string()},
-            env: TemplateableValue{value: Some(Env("".to_string())), template: "".to_string()},
-            restart_policy: RestartPolicyConfig{
-                backoff_strategy: BackoffStrategyConfig{
+            path: TemplateableValue { value: Some("/etc/otelcol".to_string()), template: "${bin}/otelcol".to_string() },
+            args: TemplateableValue { value: Some(Args("--verbose true --verbose_again true".to_string())), template: "--verbose ${deployment.on_host.verbose} --verbose_again ${deployment.on_host.verbose}".to_string() },
+            env: TemplateableValue { value: Some(Env("".to_string())), template: "".to_string() },
+            restart_policy: RestartPolicyConfig {
+                backoff_strategy: BackoffStrategyConfig {
                     backoff_type: TemplateableValue {
                         value: Some(BackoffStrategyType::Linear),
                         template: "${backoff.type}".to_string(),

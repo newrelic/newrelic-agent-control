@@ -1,31 +1,15 @@
-use std::{collections::HashMap, sync::mpsc::Sender, thread, time::Duration};
+use std::{collections::HashMap, thread, time::Duration};
 
-use newrelic_super_agent::{
-    command::{stream::Event, EventLogger, StdEventReceiver},
-    context::Context,
-    logging::Logging,
-    supervisor::{runner::SupervisorRunner, Handle, Runner},
-};
+use newrelic_super_agent::{context::Context, logging::Logging};
 
-struct Config {
-    tx: Sender<Event>,
-}
-
-impl From<&Config> for SupervisorRunner {
-    fn from(value: &Config) -> Self {
-        SupervisorRunner::new(
-            "sh".to_string(),
-            vec!["-c".to_string(), "sleep 2".to_string()],
-            Context::new(),
-            HashMap::default(),
-            value.tx.clone(),
-        )
-    }
-}
-
+use newrelic_super_agent::command::logger::{EventLogger, StdEventReceiver};
+use newrelic_super_agent::supervisor::command_supervisor::NotStartedSupervisorOnHost;
+use newrelic_super_agent::supervisor::command_supervisor_config::SupervisorConfigOnHost;
+use newrelic_super_agent::supervisor::restart_policy::RestartPolicy;
 use std::sync::Once;
 
 static INIT_LOGGER: Once = Once::new();
+
 pub fn init_logger() {
     INIT_LOGGER.call_once(|| {
         Logging::try_init().unwrap();
@@ -45,14 +29,20 @@ fn test_supervisors() {
 
     let logger = StdEventReceiver::default();
 
-    // Hypothetical super agent configuration
-    let conf = Config { tx };
+    let conf = SupervisorConfigOnHost::new(
+        "sh".to_string(),
+        vec!["-c".to_string(), "sleep 2".to_string()],
+        Context::new(),
+        HashMap::default(),
+        tx,
+        RestartPolicy::default(),
+    );
 
     // Create 50 supervisors
-    let agents: Vec<SupervisorRunner> = (0..10)
+    let agents: Vec<NotStartedSupervisorOnHost> = (0..10)
         .map(
             |_| {
-                SupervisorRunner::from(&conf)
+                NotStartedSupervisorOnHost::new(conf.clone())
             }, /* TODO: I guess we could call `with_restart_policy()` here. */
         )
         .collect();
@@ -60,11 +50,10 @@ fn test_supervisors() {
     // Run all the supervisors, getting handles
     let handles = agents
         .into_iter()
-        .map(|agent| agent.run())
+        .map(|agent| agent.run().unwrap())
         .collect::<Vec<_>>();
 
     // Get any outputs in the background
-    //
     let handle_logger = logger.log(rx);
 
     // Sleep for a while

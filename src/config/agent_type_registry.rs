@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use thiserror::Error;
 
-use crate::agent::defaults::{NEWRELIC_INFRA_TYPE, NRDOT_TYPE};
+use crate::super_agent::defaults::{NEWRELIC_INFRA_TYPE, NRDOT_TYPE};
 
 use super::agent_type::agent_types::FinalAgent;
 
@@ -17,7 +17,7 @@ pub enum AgentRepositoryError {
 /// AgentRegistry stores and loads Agent types.
 pub trait AgentRegistry {
     // get returns an Agent type given a definition.
-    fn get(&self, name: &str) -> Result<&FinalAgent, AgentRepositoryError>;
+    fn get(&self, name: String) -> Result<FinalAgent, AgentRepositoryError>;
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -48,8 +48,11 @@ impl LocalRegistry {
 }
 
 impl AgentRegistry for LocalRegistry {
-    fn get(&self, name: &str) -> Result<&FinalAgent, AgentRepositoryError> {
-        self.0.get(name).ok_or(AgentRepositoryError::NotFound)
+    fn get(&self, name: String) -> Result<FinalAgent, AgentRepositoryError> {
+        match self.0.get(name.as_str()) {
+            None => Err(AgentRepositoryError::NotFound),
+            Some(final_agent) => Ok(final_agent.clone()),
+        }
     }
 }
 
@@ -66,11 +69,30 @@ impl LocalRegistry {
 }
 
 #[cfg(test)]
-mod tests {
-
-    use crate::config::agent_type::agent_types::tests::AGENT_GIVEN_YAML;
-
+pub mod tests {
     use super::*;
+    use crate::config::agent_type::agent_types::tests::AGENT_GIVEN_YAML;
+    use mockall::{mock, predicate};
+
+    // Mock
+    mock! {
+        pub AgentRegistryMock {}
+
+        impl AgentRegistry for AgentRegistryMock  {
+            fn get(&self, name: String) -> Result<FinalAgent, AgentRepositoryError>;
+        }
+    }
+
+    impl MockAgentRegistryMock {
+        pub fn should_get(&mut self, name: String, final_agent: FinalAgent) {
+            let final_agent = final_agent.clone();
+            self.expect_get()
+                .with(predicate::eq(name.clone()))
+                .once()
+                .returning(move |_| Ok(final_agent.clone()));
+        }
+    }
+
     impl LocalRegistry {
         pub fn store_with_key(
             &mut self,
@@ -97,14 +119,14 @@ mod tests {
 
         assert_eq!(
             repository
-                .get("newrelic/nrdot:0.1.0")
+                .get("newrelic/nrdot:0.1.0".to_string())
                 .unwrap()
                 .metadata
                 .to_string(),
             "newrelic/nrdot:0.1.0"
         );
 
-        let invalid_lookup = repository.get("not_an_agent");
+        let invalid_lookup = repository.get("not_an_agent".to_string());
         assert!(invalid_lookup.is_err());
 
         assert_eq!(

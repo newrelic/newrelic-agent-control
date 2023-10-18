@@ -1,12 +1,13 @@
 use opamp_client::error::{ClientError, NotStartedClientError, StartedClientError};
 use std::fmt::Debug;
+use std::time::SystemTimeError;
 
 use thiserror::Error;
 
-use super::supervisor_group::SupervisorGroupError;
-use crate::agent::EffectiveAgentsError;
 use crate::config::persister::config_persister::PersistError;
 use crate::file_reader::FileReaderError;
+use crate::sub_agent::sub_agent::SubAgentError;
+use crate::super_agent::super_agent::EffectiveAgentsError;
 use crate::{
     config::{
         agent_type::error::AgentTypeError, agent_type_registry::AgentRepositoryError,
@@ -38,9 +39,6 @@ pub enum AgentError {
     #[error("`{0}`")]
     OpAMPBuilderError(#[from] OpAMPClientBuilderError),
 
-    #[error("`{0}`")]
-    SupervisorGroupError(#[from] SupervisorGroupError),
-
     #[error("file reader error: `{0}`")]
     FileReaderError(#[from] FileReaderError),
 
@@ -56,6 +54,12 @@ pub enum AgentError {
     #[error("error persisting agent config: `{0}`")]
     PersistError(#[from] PersistError),
 
-    #[error("`Effective agent error{0}`")]
+    #[error("`Effective agent error: {0}`")]
     EffectiveAgentsError(#[from] EffectiveAgentsError),
+
+    #[error("`Sub Agent error: {0}`")]
+    SubAgentError(#[from] SubAgentError),
+
+    #[error("system time error: `{0}`")]
+    SystemTimeError(#[from] SystemTimeError),
 }

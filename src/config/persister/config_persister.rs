@@ -17,7 +17,6 @@ pub enum PersistError {
 pub trait ConfigurationPersister {
     fn persist(&self, agent_id: &AgentID, agent_type: &FinalAgent) -> Result<(), PersistError>;
 
-    // TODO not sure if agent_type is/will be needed here
     fn clean(&self, agent_id: &AgentID, agent_type: &FinalAgent) -> Result<(), PersistError>;
     // clean all agents configurations
     fn clean_all(&self) -> Result<(), PersistError>;

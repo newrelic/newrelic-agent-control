@@ -3,7 +3,6 @@ use std::fs::Permissions;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
-use crate::agent::defaults::SUPER_AGENT_DATA_DIR;
 use crate::config::agent_configs::AgentID;
 use crate::config::agent_type::agent_types::{FinalAgent, VariableType};
 use crate::config::agent_type::trivial_value::TrivialValue;
@@ -12,6 +11,7 @@ use crate::config::persister::config_writer_file::{WriteError, Writer, WriterFil
 use crate::config::persister::directory_manager::{
     DirectoryManagementError, DirectoryManager, DirectoryManagerFs,
 };
+use crate::super_agent::defaults::SUPER_AGENT_DATA_DIR;
 
 const GENERATED_FOLDER_NAME: &str = "auto-generated";
 #[cfg(target_family = "unix")]
