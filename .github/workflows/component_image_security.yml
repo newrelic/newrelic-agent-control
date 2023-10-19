@@ -14,6 +14,7 @@ env:
 jobs:
   scan:
     name: Scan image
+    # Runs only when the trigger is different than a scheduled one, like pull request or push.
     if: ${{ ! github.event.schedule }}
     runs-on: ubuntu-latest
     steps:
@@ -42,11 +43,13 @@ jobs:
           ignore-unfixed: false  # Get full report when running nightly.
           severity: ${{ env.SEVERITY }}
 
-      - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v2
-        if: ${{ always() }}
-        with:
-          sarif_file: 'trivy-results.sarif'
+# To be activated when the repo gets public state.
+# more info about current limitation https://docs.github.com/en/code-security/code-scanning/troubleshooting-code-scanning/advanced-security-must-be-enabled
+      # - name: Upload Trivy scan results to GitHub Security tab
+      #   uses: github/codeql-action/upload-sarif@v2
+      #   if: ${{ always() }}
+      #   with:
+      #     sarif_file: 'trivy-results.sarif'
 
       - name: Send notification to Slack Workflow
         if: ${{ failure() }}
