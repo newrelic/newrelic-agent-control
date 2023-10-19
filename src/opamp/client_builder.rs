@@ -9,11 +9,13 @@ use opamp_client::{Client, NotStartedClient, StartedClient};
 use std::time::SystemTimeError;
 use thiserror::Error;
 use tracing::error;
+use crate::agent::AgentEvent;
 
-use crate::config::super_agent_configs::OpAMPClientConfig;
+use crate::config::super_agent_configs::{AgentID, OpAMPClientConfig};
 
 use crate::super_agent::callbacks::AgentCallbacks;
 use crate::utils::time::get_sys_time_nano;
+use crate::context::Context;
 
 #[derive(Error, Debug)]
 pub enum OpAMPClientBuilderError {
@@ -34,6 +36,8 @@ pub trait OpAMPClientBuilder {
     // type StartedClient: StartedClient;
     fn build_and_start(
         &self,
+        ctx: Context<Option<AgentEvent>>,
+        agent_id: AgentID,
         start_settings: StartSettings,
     ) -> Result<Self::Client, OpAMPClientBuilderError>;
 }
@@ -53,6 +57,8 @@ impl OpAMPClientBuilder for OpAMPHttpBuilder {
     type Client = StartedHttpClient<AgentCallbacks, HttpClientReqwest>;
     fn build_and_start(
         &self,
+        ctx: Context<Option<AgentEvent>>,
+        agent_id: AgentID,
         start_settings: StartSettings,
     ) -> Result<Self::Client, OpAMPClientBuilderError> {
         // TODO: cleanup
@@ -66,8 +72,10 @@ impl OpAMPClientBuilder for OpAMPHttpBuilder {
             HttpConfig::new(self.config.endpoint.as_str())?.with_headers(headers)?,
         )?;
 
+        let callbacks = AgentCallbacks::new(ctx, agent_id);
+
         let not_started_client =
-            NotStartedHttpClient::new(AgentCallbacks, start_settings, http_client)?;
+            NotStartedHttpClient::new(callbacks, start_settings, http_client)?;
 
         let started_client = block_on(not_started_client.start())?;
         // set OpAMP health

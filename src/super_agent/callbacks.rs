@@ -1,18 +1,37 @@
+use std::collections::HashMap;
+use std::str;
 use opamp_client::{
     error::ConnectionError,
     http::HttpClientError,
     opamp::proto::{
-        EffectiveConfig, OpAmpConnectionSettings, ServerErrorResponse, ServerToAgentCommand,
+        EffectiveConfig,
+        OpAmpConnectionSettings,
+        ServerErrorResponse, ServerToAgentCommand,
     },
     operation::callbacks::{Callbacks, MessageData},
 };
 use thiserror::Error;
+use crate::agent::AgentEvent;
+use crate::config::agent_configs::AgentID;
+use crate::config::remote_config::{RemoteConfig, RemoteConfigError};
+use crate::context::Context;
 use tracing::error;
 
-pub struct AgentCallbacks;
+pub struct AgentCallbacks {
+    agent_id: AgentID,
+    ctx: Context<Option<AgentEvent>>,
+}
 
 #[derive(Debug, Error)]
-pub enum AgentCallbacksError {}
+pub enum AgentCallbacksError {
+
+}
+
+impl AgentCallbacks {
+    pub fn new(ctx: Context<Option<AgentEvent>>, agent_id: AgentID) -> Self {
+        Self{ ctx, agent_id }
+    }
+}
 
 impl Callbacks for AgentCallbacks {
     type Error = AgentCallbacksError;
@@ -21,7 +40,40 @@ impl Callbacks for AgentCallbacks {
 
     fn on_connect(&self) {}
 
-    fn on_message(&self, _msg: MessageData) {}
+    fn on_message(&self, msg: MessageData) {
+        let agent_id = self.agent_id.clone();
+        if let Some(msg_remote_config) = msg.remote_config {
+            if let Some(msg_config_map) = msg_remote_config.config {
+                let config = msg_config_map.config_map.into_iter().try_fold(
+                    HashMap::new(),
+                    |mut result, (key, value)| {
+                        let body = match str::from_utf8(&value.body) {
+                            Ok(parsed_body) => {
+                                result.insert(key, parsed_body.to_string());
+                                Ok(result)
+                            },
+                            Err(e) => Err(e),
+                        };
+                        body
+                    },
+                );
+
+                match config {
+                    Err(e) => {
+                        self.ctx.cancel_all(Some(AgentEvent::RemoteConfig(Err(RemoteConfigError::UTF8(e))))).unwrap();
+                    },
+                    Ok(config) => {
+                        let remote_config = RemoteConfig{
+                            agent_id,
+                            hash: str::from_utf8(&msg_remote_config.config_hash).unwrap().to_string(),
+                            config_map: config,
+                        };
+                        self.ctx.cancel_all(Some(AgentEvent::RemoteConfig(Ok(remote_config)))).unwrap();
+                    },
+                }
+            }
+        }
+    }
 
     fn on_command(&self, _command: &ServerToAgentCommand) -> Result<(), Self::Error> {
         Ok(())
