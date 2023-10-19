@@ -1,11 +1,14 @@
 use std::fs::read_to_string;
 use std::io::Error as ioError;
+use std::path::Path;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum FileReaderError {
     #[error("error reading contents: `{0}`")]
     Read(#[from] ioError),
+    #[error("file not found: `{0}`")]
+    FileNotFound(String),
 }
 
 pub trait FileReader {
@@ -17,6 +20,10 @@ pub struct FSFileReader;
 
 impl FileReader for FSFileReader {
     fn read(&self, path: &str) -> Result<String, FileReaderError> {
+        let file_path = Path::new(&path);
+        if !file_path.is_file() {
+            return Err(FileReaderError::FileNotFound(path.to_string()));
+        }
         match read_to_string(path) {
             Err(e) => Err(FileReaderError::Read(e)),
             Ok(content) => Ok(content),
