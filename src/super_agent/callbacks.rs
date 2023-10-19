@@ -23,9 +23,7 @@ pub struct AgentCallbacks {
 }
 
 #[derive(Debug, Error)]
-pub enum AgentCallbacksError {
-
-}
+pub enum AgentCallbacksError {}
 
 impl AgentCallbacks {
     pub fn new(ctx: Context<Option<AgentEvent>>, agent_id: AgentID) -> Self {
@@ -113,5 +111,62 @@ fn log_on_http_status_code(err: &ConnectionError) {
             500 => error!("{STATUS_CODE_MSG} {code} ({reason}). Server-side problem."),
             _ => error!("{STATUS_CODE_MSG} {code} ({reason}). Reasons unknown"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::thread::spawn;
+    use log::debug;
+    use opamp_client::opamp::proto::{AgentConfigFile, AgentConfigMap, AgentRemoteConfig};
+    use tracing::info;
+    use super::*;
+
+    #[test]
+    fn on_message() {
+        let ctx: Context<Option<AgentEvent>> = Context::new();
+        let agent_id= AgentID::new("an-agent-id".to_string());
+
+        spawn({
+            let ctx = ctx.clone();
+            move || {
+                let callbacks = AgentCallbacks::new(ctx, agent_id);
+                let msg = MessageData{
+                    remote_config: Option::from(AgentRemoteConfig {
+                        config: Option::from(AgentConfigMap {
+                            config_map: HashMap::from(
+                                [(
+                                    "my-config".to_string(),
+                                    AgentConfigFile {
+                                        body: "enable_proces_metrics: true".as_bytes().to_vec(),
+                                        content_type: "".to_string(),
+                                    },
+                                )],
+                            ),
+                        }),
+                        config_hash: "cool-hash".as_bytes().to_vec(),
+                    }),
+                    own_metrics: None,
+                    own_traces: None,
+                    own_logs: None,
+                    other_connection_settings: None,
+                    agent_identification: None,
+                };
+
+                callbacks.on_message(msg);
+            }
+        });
+
+        let Some(event) = ctx.wait_condvar().unwrap() else { unreachable!() };
+
+        let AgentEvent::RemoteConfig(remote_config) = event else { unreachable!() };
+        let result = remote_config.unwrap();
+
+        assert_eq!(AgentID::new("an-agent-id".to_string()), result.agent_id);
+        assert_eq!("cool-hash".to_string(), result.hash);
+        assert_eq!(
+            &"enable_proces_metrics: true".to_string(),
+            result.config_map.get(&"my-config".to_string()).unwrap(),
+        );
     }
 }
