@@ -27,7 +27,7 @@ impl Cli {
         PathBuf::from(&self.config)
     }
 
-    pub fn get_running_mode(&self) -> running_mode::AgentRunningMode {
+    pub fn running_mode(&self) -> running_mode::AgentRunningMode {
         self.running_mode
     }
 

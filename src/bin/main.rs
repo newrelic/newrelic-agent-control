@@ -28,11 +28,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
         return Ok(());
     }
 
-    // Program must run as root, but should accept simple behaviors such as --version, --help, etc
+    // Program must run as root if running_mode=OnHost, but should accept simple behaviors such as --version, --help, etc
     #[cfg(unix)]
-    if !nix::unistd::Uid::effective().is_root()
-        && cli.get_running_mode() == AgentRunningMode::OnHost
-    {
+    if !nix::unistd::Uid::effective().is_root() && cli.running_mode() == AgentRunningMode::OnHost {
         return Err("Program must run as root".into());
     }
 
