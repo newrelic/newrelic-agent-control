@@ -15,12 +15,6 @@ on:
         type: boolean
         required: true
 
-permissions:
-  contents: read
-  # Required to push images to GH registry
-  packages: write
-
-
 jobs:
   build-binaries:
     runs-on: ubuntu-latest
