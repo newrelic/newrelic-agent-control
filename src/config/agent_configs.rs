@@ -1,13 +1,25 @@
+use std::path::Path;
 use std::{collections::HashMap, fmt::Display};
+
+use std::ops::Deref;
 
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize, PartialEq, Clone, Hash, Eq)]
 pub struct AgentID(pub String);
 
-impl AgentID {
-    pub fn get(&self) -> String {
-        String::from(&self.0)
+impl Deref for AgentID {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl AsRef<Path> for AgentID {
+    fn as_ref(&self) -> &Path {
+        // TODO: define how AgentID should be converted to a Path here.
+        Path::new(&self.0)
     }
 }
 
@@ -31,6 +43,14 @@ pub struct SuperAgentConfig {
 
 #[derive(Debug, PartialEq, Deserialize, Clone)]
 pub struct AgentTypeFQN(String);
+
+impl Deref for AgentTypeFQN {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 impl AgentTypeFQN {
     pub fn namespace(&self) -> String {

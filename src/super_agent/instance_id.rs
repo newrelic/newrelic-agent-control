@@ -1,6 +1,7 @@
 use ulid::Ulid;
 
 pub trait InstanceIDGetter {
+    // TODO: does name need to be owned?
     fn get(&self, name: String) -> String;
 }
 

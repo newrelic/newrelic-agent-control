@@ -17,7 +17,8 @@ pub enum AgentRepositoryError {
 /// AgentRegistry stores and loads Agent types.
 pub trait AgentRegistry {
     // get returns an Agent type given a definition.
-    fn get(&self, name: String) -> Result<FinalAgent, AgentRepositoryError>;
+    // TODO: evaluate if retruning an owned value is needed, CoW?
+    fn get(&self, name: &str) -> Result<FinalAgent, AgentRepositoryError>;
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -48,8 +49,8 @@ impl LocalRegistry {
 }
 
 impl AgentRegistry for LocalRegistry {
-    fn get(&self, name: String) -> Result<FinalAgent, AgentRepositoryError> {
-        match self.0.get(name.as_str()) {
+    fn get(&self, name: &str) -> Result<FinalAgent, AgentRepositoryError> {
+        match self.0.get(name) {
             None => Err(AgentRepositoryError::NotFound),
             Some(final_agent) => Ok(final_agent.clone()),
         }
@@ -79,7 +80,7 @@ pub mod tests {
         pub AgentRegistryMock {}
 
         impl AgentRegistry for AgentRegistryMock  {
-            fn get(&self, name: String) -> Result<FinalAgent, AgentRepositoryError>;
+            fn get(&self, name: &str) -> Result<FinalAgent, AgentRepositoryError>;
         }
     }
 
@@ -119,14 +120,14 @@ pub mod tests {
 
         assert_eq!(
             repository
-                .get("newrelic/nrdot:0.1.0".to_string())
+                .get("newrelic/nrdot:0.1.0")
                 .unwrap()
                 .metadata
                 .to_string(),
             "newrelic/nrdot:0.1.0"
         );
 
-        let invalid_lookup = repository.get("not_an_agent".to_string());
+        let invalid_lookup = repository.get("not_an_agent");
         assert!(invalid_lookup.is_err());
 
         assert_eq!(

@@ -73,7 +73,7 @@ where
 
         for (agent_id, agent_cfg) in agent_cfgs.agents.iter() {
             //load agent type from repository and populate with values
-            let agent_type = self.registry.get(agent_cfg.agent_type.to_string())?;
+            let agent_type = self.registry.get(&agent_cfg.agent_type)?;
             let mut agent_config: SupervisorConfig = SupervisorConfig::default();
             if let Some(path) = &agent_cfg.values_file {
                 let contents = self.file_reader.read(path.as_str())?;
@@ -392,7 +392,7 @@ deployment:
                     first_agent_id.clone(),
                     AgentSupervisorConfig {
                         agent_type: populated_agent_type_repository
-                            .get(first_agent_id.get())
+                            .get(&first_agent_id)
                             .unwrap()
                             .metadata
                             .to_string()
@@ -405,7 +405,7 @@ deployment:
                     second_agent_id.clone(),
                     AgentSupervisorConfig {
                         agent_type: populated_agent_type_repository
-                            .get(second_agent_id.get())
+                            .get(&second_agent_id)
                             .unwrap()
                             .metadata
                             .to_string()

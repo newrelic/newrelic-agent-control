@@ -188,13 +188,13 @@ where
                                             |_err| {
                                                 // let error: &dyn std::error::Error = &err;
                                                 error!(
-                                                    supervisor = agent_id.get(),
+                                                    supervisor = agent_id.to_string(),
                                                     msg = "stopped with error",
                                                 )
                                             },
                                             |_| {
                                                 info!(
-                                                    supervisor = agent_id1.get(),
+                                                    supervisor = agent_id1.to_string(),
                                                     msg = "stopped successfully"
                                                 )
                                             },
@@ -232,8 +232,9 @@ pub enum EffectiveAgentsError {
 
 impl EffectiveAgents {
     pub fn get(&self, agent_id: &AgentID) -> Result<&FinalAgent, EffectiveAgentsError> {
-        match self.agents.get(agent_id.get().as_str()) {
-            None => Err(EffectiveAgentNotFound(agent_id.get())),
+        let agent_id_string = &agent_id.to_string();
+        match self.agents.get(agent_id_string) {
+            None => Err(EffectiveAgentNotFound(agent_id_string.to_owned())),
             Some(agent) => Ok(agent),
         }
     }
@@ -244,9 +245,9 @@ impl EffectiveAgents {
         agent: FinalAgent,
     ) -> Result<(), EffectiveAgentsError> {
         if self.get(agent_id).is_ok() {
-            return Err(EffectiveAgentExists(agent_id.get()));
+            return Err(EffectiveAgentExists(agent_id.to_string()));
         }
-        self.agents.insert(agent_id.get().to_string(), agent);
+        self.agents.insert(agent_id.to_string(), agent);
         Ok(())
     }
 }
