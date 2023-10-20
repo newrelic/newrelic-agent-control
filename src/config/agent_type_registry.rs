@@ -17,7 +17,7 @@ pub enum AgentRepositoryError {
 /// AgentRegistry stores and loads Agent types.
 pub trait AgentRegistry {
     // get returns an Agent type given a definition.
-    // TODO: evaluate if retruning an owned value is needed, CoW?
+    // TODO: evaluate if returning an owned value is needed, CoW?
     fn get(&self, name: &str) -> Result<FinalAgent, AgentRepositoryError>;
 }
 
