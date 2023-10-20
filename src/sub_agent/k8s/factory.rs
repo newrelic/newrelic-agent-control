@@ -1,17 +1,13 @@
 use crate::command::stream::Event;
 use crate::config::agent_configs::{AgentID, AgentTypeFQN};
 use crate::config::agent_type::agent_types::FinalAgent;
-use crate::context::Context;
 use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPClientBuilderError};
-use crate::sub_agent::on_host::sub_agent_on_host::NotStartedSubAgentOnHost;
+use crate::sub_agent::k8s::sub_agent_k8s::NotStartedSubAgentK8S;
 use crate::sub_agent::sub_agent_strategy::NotStartedSubAgentStrategy;
 use crate::sub_agent::sub_agent::SubAgentError;
 use crate::sub_agent::sub_agents::StaticNotStartedSubAgents;
 use crate::super_agent::instance_id::InstanceIDGetter;
 use crate::super_agent::super_agent::EffectiveAgents;
-use crate::supervisor::command_supervisor::NotStartedSupervisorOnHost;
-use crate::supervisor::command_supervisor_config::SupervisorConfigOnHost;
-use crate::supervisor::restart_policy::RestartPolicy;
 use nix::unistd::gethostname;
 use opamp_client::capabilities;
 use opamp_client::opamp::proto::AgentCapabilities;
@@ -42,6 +38,7 @@ where
             .agents
             .iter()
             .try_for_each(|(agent_id, final_agent)| {
+                // TODO : remove RC by &
                 let builder = opamp_builder.as_ref().cloned();
                 let agent_id = AgentID(agent_id.to_string());
                 let sub_agent = build_sub_agent(
@@ -51,10 +48,7 @@ where
                     instance_id_getter,
                     final_agent,
                 )?;
-                sub_agents.add(
-                    agent_id.clone(),
-                    NotStartedSubAgentStrategy::OnHost(sub_agent),
-                );
+                sub_agents.add(agent_id.clone(), NotStartedSubAgentStrategy::K8S(sub_agent));
                 Ok(())
             });
     match result {
@@ -68,49 +62,21 @@ where
 ////////////////////////////////////////////////////////////////////////////////////
 pub(super) fn build_sub_agent<'a, OpAMPBuilder, ID>(
     agent_id: AgentID,
-    tx: &Sender<Event>,
+    _tx: &Sender<Event>,
     opamp_builder: Option<&'a OpAMPBuilder>,
     instance_id_getter: &'a ID,
     final_agent: &FinalAgent,
-) -> Result<NotStartedSubAgentOnHost<'a, OpAMPBuilder, ID>, SubAgentError>
+) -> Result<NotStartedSubAgentK8S<'a, OpAMPBuilder, ID>, SubAgentError>
 where
     OpAMPBuilder: OpAMPClientBuilder,
     ID: InstanceIDGetter,
 {
-    let supervisors = build_supervisors(final_agent, tx)?;
-    Ok(NotStartedSubAgentOnHost::new(
+    Ok(NotStartedSubAgentK8S::new(
         agent_id.clone(),
-        supervisors,
         opamp_builder,
         instance_id_getter,
         final_agent.agent_type(),
     ))
-}
-
-fn build_supervisors(
-    agent_type: &FinalAgent,
-    tx: &Sender<Event>,
-) -> Result<Vec<NotStartedSupervisorOnHost>, SubAgentError> {
-    let on_host = agent_type.runtime_config.deployment.on_host.clone().ok_or(
-        SubAgentError::ErrorCreatingSubAgent(agent_type.agent_type().to_string()),
-    )?;
-
-    let mut supervisors = Vec::new();
-    for exec in on_host.executables {
-        let restart_policy: RestartPolicy = exec.restart_policy.into();
-        let config = SupervisorConfigOnHost::new(
-            exec.path.get(),
-            exec.args.get().into_vector(),
-            Context::new(),
-            exec.env.get().into_map(),
-            tx.clone(),
-            restart_policy,
-        );
-
-        let not_started_supervisor = NotStartedSupervisorOnHost::new(config);
-        supervisors.push(not_started_supervisor);
-    }
-    Ok(supervisors)
 }
 
 pub(super) fn build_opamp_and_start_client<OpAMPBuilder, InstanceIdGetter>(

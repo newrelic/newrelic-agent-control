@@ -1,9 +1,7 @@
 use crate::config::agent_configs::AgentID;
 use crate::opamp::client_builder::OpAMPClientBuilder;
-use crate::sub_agent::on_host::sub_agent_on_host::{
-    NotStartedSubAgentOnHost, StartedSubAgentOnHost,
-};
-use crate::sub_agent::sub_agent::{NotStartedSubAgent, StartedSubAgent, SubAgentError};
+use crate::sub_agent::sub_agent_strategy::{NotStartedSubAgentStrategy, StartedSubAgentStrategy};
+use crate::sub_agent::sub_agent::SubAgentError;
 use crate::super_agent::instance_id::InstanceIDGetter;
 use opamp_client::StartedClient;
 use std::collections::HashMap;
@@ -13,29 +11,29 @@ use std::thread::JoinHandle;
 // Not Started SubAgents On Host
 // C: OpAMP Client
 ////////////////////////////////////////////////////////////////////////////////////
-pub struct NotStartedSubAgentsOnHost<'a, OpAMPBuilder, ID>
+pub struct StaticNotStartedSubAgents<'a, OpAMPBuilder, ID>
 where
     OpAMPBuilder: OpAMPClientBuilder,
     ID: InstanceIDGetter,
 {
-    agents: HashMap<AgentID, NotStartedSubAgentOnHost<'a, OpAMPBuilder, ID>>,
+    agents: HashMap<AgentID, NotStartedSubAgentStrategy<'a, OpAMPBuilder, ID>>,
 }
 
-impl<'a, OpAMPBuilder, ID> NotStartedSubAgentsOnHost<'a, OpAMPBuilder, ID>
+impl<'a, OpAMPBuilder, ID> StaticNotStartedSubAgents<'a, OpAMPBuilder, ID>
 where
     OpAMPBuilder: OpAMPClientBuilder,
     ID: InstanceIDGetter,
 {
-    pub(super) fn add(
+    pub fn add(
         &mut self,
         agent_id: AgentID,
-        sub_agent: NotStartedSubAgentOnHost<'a, OpAMPBuilder, ID>,
+        sub_agent: NotStartedSubAgentStrategy<'a, OpAMPBuilder, ID>,
     ) {
         self.agents.insert(agent_id, sub_agent);
     }
 
-    pub fn run(self) -> Result<StartedSubAgentsOnHost<OpAMPBuilder::Client>, SubAgentError> {
-        let mut started_sub_agents = StartedSubAgentsOnHost::default();
+    pub fn run(self) -> Result<StaticStartedSubAgents<OpAMPBuilder::Client>, SubAgentError> {
+        let mut started_sub_agents = StaticStartedSubAgents::default();
         let result: Result<(), SubAgentError> =
             self.agents.into_iter().try_for_each(|(agent_id, agent)| {
                 let started_sub_agent = agent.run()?;
@@ -50,13 +48,13 @@ where
     }
 }
 
-impl<'a, OpAMPBuilder, ID> Default for NotStartedSubAgentsOnHost<'a, OpAMPBuilder, ID>
+impl<'a, OpAMPBuilder, ID> Default for StaticNotStartedSubAgents<'a, OpAMPBuilder, ID>
 where
     OpAMPBuilder: OpAMPClientBuilder,
     ID: InstanceIDGetter,
 {
     fn default() -> Self {
-        NotStartedSubAgentsOnHost {
+        Self {
             agents: HashMap::new(),
         }
     }
@@ -66,21 +64,21 @@ where
 // Started SubAgents On Host
 // C: OpAMP Client
 ////////////////////////////////////////////////////////////////////////////////////
-pub struct StartedSubAgentsOnHost<C>
+pub struct StaticStartedSubAgents<C>
 where
     C: StartedClient,
 {
-    agents: HashMap<AgentID, StartedSubAgentOnHost<C>>,
+    agents: HashMap<AgentID, StartedSubAgentStrategy<C>>,
 }
 
-impl<C> StartedSubAgentsOnHost<C>
+impl<C> StaticStartedSubAgents<C>
 where
     C: StartedClient,
 {
     pub(super) fn add(
         &mut self,
         agent_id: &AgentID,
-        sub_agent: StartedSubAgentOnHost<C>,
+        sub_agent: StartedSubAgentStrategy<C>,
     ) -> Result<(), SubAgentError> {
         if self.agents.contains_key(agent_id) {
             return Err(SubAgentError::AgentAlreadyExists(agent_id.to_string()));
@@ -106,12 +104,12 @@ where
     }
 }
 
-impl<C> Default for StartedSubAgentsOnHost<C>
+impl<C> Default for StaticStartedSubAgents<C>
 where
     C: StartedClient,
 {
     fn default() -> Self {
-        StartedSubAgentsOnHost {
+        Self {
             agents: HashMap::new(),
         }
     }

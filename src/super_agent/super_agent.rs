@@ -16,9 +16,10 @@ use crate::config::agent_configs::AgentID;
 use crate::config::agent_type::agent_types::FinalAgent;
 use crate::context::Context;
 use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPHttpBuilder};
-use crate::sub_agent::on_host::factory::build_sub_agents;
-use crate::sub_agent::on_host::sub_agents_on_host::StartedSubAgentsOnHost;
+use crate::sub_agent::k8s::factory::build_sub_agents as build_k8s_agents;
+use crate::sub_agent::on_host::factory::build_sub_agents as build_on_host_agents;
 use crate::sub_agent::sub_agent::SubAgentError;
+use crate::sub_agent::sub_agents::StaticStartedSubAgents;
 use crate::super_agent::defaults::{
     SUPER_AGENT_ID, SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION,
 };
@@ -80,12 +81,23 @@ where
 
         info!("Starting the supervisor group.");
         // create sub agents
-        let sub_agents = build_sub_agents(
-            &self.effective_agents,
-            tx,
-            self.opamp_client_builder,
-            &self.instance_id_getter,
-        )?;
+        let runnin_mode_on_host = true;
+
+        let sub_agents = if runnin_mode_on_host {
+            build_on_host_agents(
+                &self.effective_agents,
+                tx,
+                self.opamp_client_builder,
+                &self.instance_id_getter,
+            )?
+        } else {
+            build_k8s_agents(
+                &self.effective_agents,
+                tx,
+                self.opamp_client_builder,
+                &self.instance_id_getter,
+            )?
+        };
 
         /*
             TODO: We should first compare the current config with the one in the super agent config.
@@ -168,7 +180,7 @@ where
 
     fn wait_until_stop(
         ctx: Context<Option<SuperAgentEvent>>,
-        running_sub_agents: StartedSubAgentsOnHost<<OpAMPBuilder as OpAMPClientBuilder>::Client>,
+        running_sub_agents: StaticStartedSubAgents<OpAMPBuilder::Client>,
     ) -> Result<(), SubAgentError>
     where
         OpAMPBuilder: OpAMPClientBuilder,

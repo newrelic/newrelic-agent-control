@@ -1,5 +1,6 @@
 use opamp_client::error::{ClientError, NotStartedClientError, StartedClientError};
 use std::fmt::Debug;
+use std::thread::JoinHandle;
 use std::time::SystemTimeError;
 
 use crate::opamp::client_builder::OpAMPClientBuilderError;
@@ -36,8 +37,6 @@ pub trait NotStartedSubAgent {
 
 /// The Handle trait defines the interface for a supervised process' handle. Exposes a stop method that will cancel the supervised process' execution.
 pub trait StartedSubAgent {
-    type S: Send + Sync;
-
     /// Cancels the supervised process and returns its inner handle.
-    fn stop(self) -> Result<Vec<Self::S>, SubAgentError>;
+    fn stop(self) -> Result<Vec<JoinHandle<()>>, SubAgentError>;
 }
