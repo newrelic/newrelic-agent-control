@@ -5,10 +5,8 @@ FROM debian:bookworm-slim
 
 ARG TARGETARCH
 
-RUN apt update && apt install tini
-
 COPY --chmod=755 bin/newrelic-super-agent-${TARGETARCH} /bin/newrelic-super-agent
 
 USER nobody
 
-ENTRYPOINT ["/usr/bin/tini", "--", "/bin/newrelic-super-agent"]
+ENTRYPOINT ["/bin/newrelic-super-agent"]
