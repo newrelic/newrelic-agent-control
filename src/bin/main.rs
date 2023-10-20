@@ -8,6 +8,7 @@ use newrelic_super_agent::config::resolver::Resolver;
 use newrelic_super_agent::opamp::client_builder::OpAMPHttpBuilder;
 use newrelic_super_agent::{
     agent::{Agent, AgentEvent},
+    cli::running_mode::AgentRunningMode,
     cli::Cli,
     config::agent_type_registry::{AgentRepository, LocalRepository},
     context::Context,
@@ -27,9 +28,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
         return Ok(());
     }
 
-    // Program must run as root, but should accept simple behaviors such as --version, --help, etc
+    // Program must run as root if running_mode=OnHost, but should accept simple behaviors such as --version, --help, etc
     #[cfg(unix)]
-    if !nix::unistd::Uid::effective().is_root() {
+    if !nix::unistd::Uid::effective().is_root() && cli.running_mode() == AgentRunningMode::OnHost {
         return Err("Program must run as root".into());
     }
 
