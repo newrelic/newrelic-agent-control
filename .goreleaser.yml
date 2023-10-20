@@ -10,6 +10,9 @@ builds:
     binary: newrelic-super-agent
     hooks:
       post:
+        - cmd: sh ./build/scripts/build_super_agent.sh
+          env:
+            - ARCH={{ .Arch }}
         - cmd: sh ./build/scripts/replace_go_with_rust.sh
           env:
             - ARCH={{ .Arch }}
