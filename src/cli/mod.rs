@@ -1,6 +1,7 @@
-use std::path::PathBuf;
+pub mod running_mode;
 
 use clap::Parser;
+use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)] // Read from `Cargo.toml`
@@ -10,6 +11,9 @@ pub struct Cli {
 
     #[arg(long)]
     print_debug_info: bool,
+
+    #[arg(long, default_value_t = running_mode::AgentRunningMode::OnHost)]
+    running_mode: running_mode::AgentRunningMode,
 }
 
 impl Cli {
@@ -21,6 +25,10 @@ impl Cli {
 
     pub fn get_config_path(&self) -> PathBuf {
         PathBuf::from(&self.config)
+    }
+
+    pub fn running_mode(&self) -> running_mode::AgentRunningMode {
+        self.running_mode
     }
 
     pub fn print_debug_info(&self) -> bool {

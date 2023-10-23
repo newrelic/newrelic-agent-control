@@ -25,7 +25,7 @@ deployment:
         restart_policy:
           backoff_strategy:
             type: fixed
-            backoff_delay_seconds: 5
+            backoff_delay_seconds: 5s
 "#;
 
 // NRDOT AgentType
@@ -58,5 +58,5 @@ deployment:
         restart_policy:
           backoff_strategy:
             type: fixed
-            backoff_delay_seconds: 5
+            backoff_delay_seconds: 5s
 "#;

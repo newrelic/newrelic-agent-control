@@ -1,0 +1,93 @@
+name: 🐳 Build container images
+
+# This workflow compiles the super agent binary in all supported architectures
+# build the multi-arch image and push it to the repo packages registry.  
+
+on:
+  workflow_call:
+    inputs:
+      image-tag:
+        description: 'Image tag'
+        type: string
+        required: true
+      push:
+        description: 'Push image'
+        type: boolean
+        required: true
+
+jobs:
+  build-binaries:
+    runs-on: ubuntu-latest
+    name: Build Binaries
+    strategy:
+      matrix:
+        arch: [arm64, amd64]
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Give GitHub Actions access to private crates
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
+
+      - name: Build Super Agent
+        run: |
+          make build-super-agent ARCH=${{ matrix.arch }}
+      
+      - name: Upload artifact for Docker build step
+        uses: actions/upload-artifact@v3
+        with:
+          retention-days: 1
+          name: newrelic-super-agent-${{ matrix.arch }}
+          path: bin/newrelic-super-agent-${{ matrix.arch }}
+
+  build-image:
+    runs-on: ubuntu-latest
+    name: Build/Push images
+    needs: [ build-binaries ]
+    env:
+      DOCKER_IMAGE_NAME: newrelic/newrelic-super-agent
+      DOCKER_PLATFORMS: "linux/amd64,linux/arm64"
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      # Binaries are added to the expected path in the Dockerfile
+      - uses: actions/download-artifact@v3
+        with:
+          name: newrelic-super-agent-amd64
+          path: ./bin
+
+      - uses: actions/download-artifact@v3
+        with:
+          name: newrelic-super-agent-arm64
+          path: ./bin
+
+      - uses: docker/setup-qemu-action@v2
+
+      - uses: docker/setup-buildx-action@v2
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.OHAI_DOCKER_HUB_ID }}
+          password: ${{ secrets.OHAI_DOCKER_HUB_PASSWORD }}
+
+      - name: Build and push image
+        if: ${{ inputs.push }}
+        run: |
+          docker buildx build \
+            --push \
+            --platform=$DOCKER_PLATFORMS \
+            -t $DOCKER_IMAGE_NAME:${{ inputs.image-tag }} \
+            .
+
+      - name: Build image
+        if: ${{ ! inputs.push }}
+        run: |
+          docker buildx build \
+            --platform=$DOCKER_PLATFORMS \
+            -t $DOCKER_IMAGE_NAME:${{ inputs.image-tag }} \
+            .

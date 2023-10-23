@@ -73,6 +73,23 @@ jobs:
       #       exit 1
       #     fi
 
+  container:
+    name: Build and Push container image
+    needs: [build]
+    uses: ./.github/workflows/component_image.yml
+    with:
+      image-tag: ${{ github.event.release.tag_name }}-rc
+      push: true
+    secrets: inherit
+
+  security-scan:
+    name: Security scan
+    needs: [container]
+    uses: ./.github/workflows/component_image_security.yml
+    with:
+      image-tag: ${{ github.event.release.tag_name }}-rc
+    secrets: inherit
+
   upload:
     runs-on: ubuntu-latest
     name: Upload to S3

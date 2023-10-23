@@ -40,3 +40,11 @@ jobs:
           ARCH: "${{ matrix.arch }}"
           GOARCH: "${{ matrix.arch }}"
           GOOS: linux
+  
+  build-image:
+    name: Build image
+    uses: ./.github/workflows/component_image.yml
+    with:
+      image-tag: ci
+      push: false
+    secrets: inherit

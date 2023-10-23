@@ -1,0 +1,64 @@
+name: Security image scan
+on:
+  workflow_call:
+    inputs:
+      image-tag:
+        description: 'Image tag'
+        type: string
+        required: true
+
+env:
+  DOCKER_IMAGE: newrelic/newrelic-super-agent
+  SEVERITY: 'CRITICAL,HIGH'
+
+jobs:
+  scan:
+    name: Scan image
+    # Runs only when the trigger is different than a scheduled one, like pull request or push.
+    if: ${{ ! github.event.schedule }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run Trivy in table mode
+        # Table output is only useful when running on a pull request or push.
+        uses: aquasecurity/trivy-action@0.12.0
+        with:
+          image-ref: ${{ env.DOCKER_IMAGE }}:${{ inputs.image-tag }}
+          format: table
+          exit-code: 1
+          ignore-unfixed: true
+          severity: ${{ env.SEVERITY }}
+
+  scan-scheduled:
+    name: Scan image
+    if: ${{ github.event.schedule }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run Trivy in report mode
+        uses: aquasecurity/trivy-action@0.12.0
+        with:
+          image-ref: ${{ env.DOCKER_IMAGE }}:${{ inputs.image-tag }}
+          format: 'template'
+          template: '@/contrib/sarif.tpl'
+          output: 'trivy-results.sarif'
+          ignore-unfixed: false  # Get full report when running nightly.
+          severity: ${{ env.SEVERITY }}
+
+# To be activated when the repo gets public state.
+# more info about current limitation https://docs.github.com/en/code-security/code-scanning/troubleshooting-code-scanning/advanced-security-must-be-enabled
+      # - name: Upload Trivy scan results to GitHub Security tab
+      #   uses: github/codeql-action/upload-sarif@v2
+      #   if: ${{ always() }}
+      #   with:
+      #     sarif_file: 'trivy-results.sarif'
+
+      - name: Send notification to Slack Workflow
+        if: ${{ failure() }}
+        id: slack
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          payload: |
+            {
+              "text": ":rotating_light: Critical or high vulnerabilities found in the super agent, see scheduled security action. :rotating_light:"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.COREINT_SLACK_WEBHOOK_URL }}
