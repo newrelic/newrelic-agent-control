@@ -1,98 +1,59 @@
-use std::collections::HashMap;
+use std::ffi::OsStr;
+use std::path::Path;
 use std::process::ExitStatus;
 use std::{
-    ffi::OsStr,
     ops::Deref,
-    path::Path,
     sync::mpsc::Sender,
     sync::{Arc, Mutex},
     thread::{self, JoinHandle},
 };
 
-use crate::command::error::CommandError;
-use crate::command::processrunner::Unstarted;
-use crate::{
-    command::{
-        stream::{Event, Metadata},
-        wait_exit_timeout, wait_exit_timeout_default, CommandExecutor, CommandHandle,
-        CommandTerminator, EventStreamer, ProcessRunner, ProcessTerminator,
-    },
-    context::Context,
-};
+use crate::{command::stream::Event, context::Context};
 
-use super::{
-    error::ProcessError,
-    restart::{BackoffStrategy, RestartPolicy},
-    Handle, Runner, ID,
-};
+use super::error::ProcessError;
 
+use crate::command::command::{CommandError, CommandTerminator, NotStartedCommand, StartedCommand};
+use crate::command::command_os::NotStartedCommandOS;
+use crate::command::shutdown::{wait_exit_timeout, wait_exit_timeout_default, ProcessTerminator};
+use crate::command::stream::Metadata;
+use crate::supervisor::command_supervisor_config::SupervisorConfigOnHost;
+use crate::supervisor::error::SupervisorError;
 use tracing::{error, info};
 
-pub struct Stopped {
-    bin: String,
-    args: Vec<String>,
-    env: HashMap<String, String>,
-    ctx: Context<bool>,
-    snd: Sender<Event>,
-    restart: RestartPolicy,
-}
-
-pub struct Running {
-    handle: JoinHandle<()>,
-    ctx: Context<bool>,
-}
-
+////////////////////////////////////////////////////////////////////////////////////
+// NotStartedSupervisorOnHost
+////////////////////////////////////////////////////////////////////////////////////
 #[derive(Debug)]
-pub struct SupervisorRunner<State = Stopped> {
-    state: State,
+pub struct NotStartedSupervisorOnHost {
+    config: SupervisorConfigOnHost,
 }
 
-impl<T> Deref for SupervisorRunner<T> {
-    type Target = T;
-    fn deref(&self) -> &Self::Target {
-        &self.state
+impl NotStartedSupervisorOnHost {
+    pub fn new(config: SupervisorConfigOnHost) -> Self {
+        NotStartedSupervisorOnHost { config }
     }
-}
 
-// TODO: change with agent identifier (infra_agent/gateway)
-impl From<&SupervisorRunner<Stopped>> for String {
-    fn from(value: &SupervisorRunner<Stopped>) -> Self {
-        value.bin.clone()
+    pub fn id(&self) -> String {
+        self.bin.clone()
     }
-}
 
-impl ID for SupervisorRunner<Stopped> {
-    fn id(&self) -> String {
-        String::from(self)
-    }
-}
-
-impl Runner for SupervisorRunner<Stopped> {
-    type E = ProcessError;
-    type H = SupervisorRunner<Running>;
-
-    fn run(self) -> Self::H {
+    pub fn run(self) -> Result<StartedSupervisorOnHost, SupervisorError> {
         let ctx = self.ctx.clone();
-        SupervisorRunner {
-            state: Running {
-                handle: run_process_thread(self),
-                ctx,
-            },
-        }
+        //TODO: validate binary path, exec permissions...?
+        Ok(StartedSupervisorOnHost {
+            handle: start_process_thread(self),
+            ctx,
+        })
     }
-}
 
-impl From<&SupervisorRunner<Stopped>> for ProcessRunner {
-    fn from(value: &SupervisorRunner<Stopped>) -> Self {
-        ProcessRunner::new(&value.bin, &value.args, &value.env)
+    pub fn not_started_command(&self) -> NotStartedCommandOS {
+        //TODO extract to to a builder so we can mock it
+        NotStartedCommandOS::new(&self.bin, &self.args, &self.env)
     }
-}
 
-impl From<&SupervisorRunner<Stopped>> for Metadata {
-    // use binary file name as supervisor id
-    fn from(value: &SupervisorRunner<Stopped>) -> Self {
+    pub fn metadata(&self) -> Metadata {
         Metadata::new(
-            Path::new(&value.bin)
+            Path::new(&self.bin)
                 .file_name()
                 .unwrap_or(OsStr::new("not found"))
                 .to_string_lossy(),
@@ -100,15 +61,58 @@ impl From<&SupervisorRunner<Stopped>> for Metadata {
     }
 }
 
+impl Deref for NotStartedSupervisorOnHost {
+    type Target = SupervisorConfigOnHost;
+    fn deref(&self) -> &Self::Target {
+        &self.config
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////
+// StartedSupervisorOnHost
+////////////////////////////////////////////////////////////////////////////////////
+pub struct StartedSupervisorOnHost {
+    handle: JoinHandle<()>,
+    ctx: Context<bool>,
+}
+
+impl StartedSupervisorOnHost {
+    pub fn stop(self) -> JoinHandle<()> {
+        // Stop all the supervisors
+        // TODO: handle PoisonErrors (log?)
+        self.ctx.cancel_all(true).unwrap();
+        self.handle
+    }
+
+    //TODO do we really need wait?
+    #[allow(dead_code)]
+    pub fn wait(self) -> Result<(), ProcessError> {
+        self.handle.join().map_err(|_| ProcessError::ThreadError)
+    }
+
+    //TODO do we really need is_finished?
+    #[allow(dead_code)]
+    pub fn is_finished(&self) -> bool {
+        self.handle.is_finished()
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////
+// Helpers (TODO: Review and move?)
+////////////////////////////////////////////////////////////////////////////////////
+
 // launch_process starts a new process with a streamed channel and sets its current pid
 // into the provided variable. It waits until the process exits.
-fn launch_process(
-    process: ProcessRunner<Unstarted>,
+fn start_command<R>(
+    not_started_command: R,
     pid: Arc<Mutex<Option<u32>>>,
     tx: Sender<Event>,
-) -> Result<ExitStatus, CommandError> {
+) -> Result<ExitStatus, CommandError>
+where
+    R: NotStartedCommand,
+{
     // run and stream the process
-    let streaming = process.start()?.stream(tx)?;
+    let streaming = not_started_command.start()?.stream(tx)?;
 
     // set current running pid
     *pid.lock().unwrap() = Some(streaming.get_pid());
@@ -116,46 +120,52 @@ fn launch_process(
     streaming.wait()
 }
 
-fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
-    let mut restart_policy = runner.restart.clone();
+fn start_process_thread(not_started_supervisor: NotStartedSupervisorOnHost) -> JoinHandle<()> {
+    let mut restart_policy = not_started_supervisor.restart_policy.clone();
     let current_pid: Arc<Mutex<Option<u32>>> = Arc::new(Mutex::new(None));
 
     let shutdown_ctx = Context::new();
     _ = wait_for_termination(
         current_pid.clone(),
-        runner.ctx.clone(),
+        not_started_supervisor.ctx.clone(),
         shutdown_ctx.clone(),
     );
     thread::spawn({
         move || loop {
             // check if supervisor context is cancelled
-            if *Context::get_lock_cvar(&runner.ctx).0.lock().unwrap() {
+            if *Context::get_lock_cvar(&not_started_supervisor.ctx)
+                .0
+                .lock()
+                .unwrap()
+            {
                 break;
             }
 
             info!(
-                supervisor = runner.id(),
+                supervisor = not_started_supervisor.id(),
                 msg = "Starting supervisor process"
             );
 
             shutdown_ctx.reset().unwrap();
             // Signals return exit_code 0, if in the future we need to act on them we can import
             // std::os::unix::process::ExitStatusExt to get the code with the method into_raw
-            let exit_code = launch_process(
-                ProcessRunner::from(&runner).with_metadata(Metadata::from(&runner)),
+            let not_started_command = not_started_supervisor.not_started_command();
+            let id = not_started_supervisor.id();
+            let exit_code = start_command(
+                not_started_command.with_metadata(not_started_supervisor.metadata()),
                 current_pid.clone(),
-                runner.snd.clone(),
+                not_started_supervisor.snd.clone(),
             )
             .map_err(|err| {
                 error!(
-                    supervisor = runner.id(),
+                    supervisor = id,
                     "Error while launching supervisor process: {}", err
                 );
             })
             .map(|exit_code| {
                 if !exit_code.success() {
                     error!(
-                        supervisor = runner.id(),
+                        supervisor = id,
                         exit_code = exit_code.code(),
                         "Supervisor process exited unsuccessfully"
                     )
@@ -175,7 +185,7 @@ fn run_process_thread(runner: SupervisorRunner<Stopped>) -> JoinHandle<()> {
 
             restart_policy.backoff(|duration| {
                 // early exit if supervisor timeout is canceled
-                wait_exit_timeout(runner.ctx.clone(), duration);
+                wait_exit_timeout(not_started_supervisor.ctx.clone(), duration);
             });
         }
     })
@@ -197,77 +207,26 @@ fn wait_for_termination(
     })
 }
 
-impl Handle for SupervisorRunner<Running> {
-    type E = ProcessError;
-    type S = JoinHandle<()>;
-
-    fn stop(self) -> Self::S {
-        // Stop all the supervisors
-        // TODO: handle PoisonErrors (log?)
-        self.ctx.cancel_all(true).unwrap();
-        self.state.handle
-    }
-
-    fn wait(self) -> Result<(), Self::E> {
-        self.state
-            .handle
-            .join()
-            .map_err(|_| ProcessError::ThreadError)
-    }
-
-    fn is_finished(&self) -> bool {
-        self.state.handle.is_finished()
-    }
-}
-
-impl SupervisorRunner<Stopped> {
-    pub fn new(
-        bin: String,
-        args: Vec<String>,
-        ctx: Context<bool>,
-        env: HashMap<String, String>,
-        snd: Sender<Event>,
-    ) -> Self {
-        SupervisorRunner {
-            state: Stopped {
-                bin,
-                args,
-                env,
-                ctx,
-                snd,
-                // default restart policy to prevent automatic restarts
-                restart: RestartPolicy::new(BackoffStrategy::None, Vec::new()),
-            },
-        }
-    }
-
-    pub fn with_restart_policy(
-        mut self,
-        restart_exit_codes: Vec<i32>,
-        backoff_strategy: BackoffStrategy,
-    ) -> Self {
-        self.state.restart = RestartPolicy::new(backoff_strategy, restart_exit_codes);
-        self
-    }
-}
-
 #[cfg(test)]
 pub mod sleep_supervisor_tests {
     use std::collections::HashMap;
     use std::sync::mpsc::Sender;
 
+    use crate::supervisor::command_supervisor::NotStartedSupervisorOnHost;
+    use crate::supervisor::command_supervisor_config::SupervisorConfigOnHost;
+    use crate::supervisor::restart_policy::{BackoffStrategy, RestartPolicy};
     use crate::{command::stream::Event, context::Context};
 
-    use super::{Stopped, SupervisorRunner};
-
-    pub fn new_sleep_supervisor(tx: Sender<Event>, seconds: u32) -> SupervisorRunner<Stopped> {
-        SupervisorRunner::new(
+    pub fn new_sleep_supervisor(tx: Sender<Event>, seconds: u32) -> NotStartedSupervisorOnHost {
+        let config = SupervisorConfigOnHost::new(
             "sh".to_owned(),
             vec!["-c".to_string(), format!("sleep {}", seconds)],
             Context::new(),
             HashMap::new(),
             tx.clone(),
-        )
+            RestartPolicy::new(BackoffStrategy::None, Vec::new()),
+        );
+        NotStartedSupervisorOnHost::new(config)
     }
 }
 
@@ -275,7 +234,8 @@ pub mod sleep_supervisor_tests {
 mod tests {
     use super::*;
     use crate::command::stream::OutputEvent;
-    use crate::supervisor::restart::Backoff;
+    use crate::supervisor::restart_policy::{Backoff, BackoffStrategy, RestartPolicy};
+    use std::collections::HashMap;
     use std::time::{Duration, Instant};
 
     #[test]
@@ -287,16 +247,17 @@ mod tests {
             .with_max_retries(3)
             .with_last_retry_interval(Duration::new(30, 0));
 
-        let agent: SupervisorRunner = SupervisorRunner::new(
+        let config = SupervisorConfigOnHost::new(
             "wrong-command".to_owned(),
             vec!["x".to_owned()],
             Context::new(),
             HashMap::new(),
-            tx,
-        )
-        .with_restart_policy(vec![0], BackoffStrategy::Fixed(backoff));
+            tx.clone(),
+            RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]),
+        );
+        let agent: NotStartedSupervisorOnHost = NotStartedSupervisorOnHost::new(config);
 
-        let agent = agent.run();
+        let agent = agent.run().unwrap();
 
         while !agent.handle.is_finished() {
             thread::sleep(Duration::from_millis(15));
@@ -315,17 +276,18 @@ mod tests {
             .with_max_retries(3)
             .with_last_retry_interval(Duration::new(30, 0));
 
-        let agent: SupervisorRunner = SupervisorRunner::new(
+        let config = SupervisorConfigOnHost::new(
             "wrong-command".to_owned(),
             vec!["x".to_owned()],
             Context::new(),
             HashMap::new(),
-            tx,
-        )
-        .with_restart_policy(vec![0], BackoffStrategy::Fixed(backoff));
+            tx.clone(),
+            RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]),
+        );
+        let agent: NotStartedSupervisorOnHost = NotStartedSupervisorOnHost::new(config);
 
         // run the agent with wrong command so it enters in restart policy
-        let agent = agent.run();
+        let agent = agent.run().unwrap();
         // wait two seconds to ensure restart policy thread is sleeping
         thread::sleep(Duration::from_secs(2));
         assert!(agent.stop().join().is_ok());
@@ -343,16 +305,17 @@ mod tests {
             .with_max_retries(3)
             .with_last_retry_interval(Duration::new(30, 0));
 
-        let agent: SupervisorRunner = SupervisorRunner::new(
+        let config = SupervisorConfigOnHost::new(
             "echo".to_owned(),
             vec!["hello!".to_owned()],
             Context::new(),
             HashMap::new(),
             tx,
-        )
-        .with_restart_policy(vec![0], BackoffStrategy::Fixed(backoff));
+            RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]),
+        );
+        let agent: NotStartedSupervisorOnHost = NotStartedSupervisorOnHost::new(config);
 
-        let agent = agent.run();
+        let agent = agent.run().unwrap();
 
         let stream = thread::spawn(move || {
             let mut stdout_actual = Vec::new();

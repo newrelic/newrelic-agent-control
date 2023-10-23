@@ -1,13 +1,25 @@
+use std::path::Path;
 use std::{collections::HashMap, fmt::Display};
+
+use std::ops::Deref;
 
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize, PartialEq, Clone, Hash, Eq)]
 pub struct AgentID(pub String);
 
-impl AgentID {
-    pub fn get(&self) -> String {
-        String::from(&self.0)
+impl Deref for AgentID {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl AsRef<Path> for AgentID {
+    fn as_ref(&self) -> &Path {
+        // TODO: define how AgentID should be converted to a Path here.
+        Path::new(&self.0)
     }
 }
 
@@ -23,7 +35,7 @@ impl Display for AgentID {
 pub struct SuperAgentConfig {
     /// agents is a map of agent types to their specific configuration (if any).
     #[serde(default)]
-    pub agents: HashMap<AgentID, AgentSupervisorConfig>,
+    pub agents: HashMap<AgentID, SuperAgentSubAgentConfig>,
 
     /// opamp contains the OpAMP client configuration
     pub opamp: Option<OpAMPClientConfig>,
@@ -31,6 +43,14 @@ pub struct SuperAgentConfig {
 
 #[derive(Debug, PartialEq, Deserialize, Clone)]
 pub struct AgentTypeFQN(String);
+
+impl Deref for AgentTypeFQN {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 impl AgentTypeFQN {
     pub fn namespace(&self) -> String {
@@ -65,7 +85,7 @@ impl From<&str> for AgentTypeFQN {
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(deny_unknown_fields)]
-pub struct AgentSupervisorConfig {
+pub struct SuperAgentSubAgentConfig {
     pub agent_type: AgentTypeFQN,
     // FQN of the agent type, ex: newrelic/nrdot:0.1.0
     pub values_file: Option<String>, // path to the values file

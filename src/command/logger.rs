@@ -1,10 +1,18 @@
+use std::thread::JoinHandle;
 use std::{sync::mpsc::Receiver, thread::spawn};
 
 use crate::command::stream::OutputEvent;
 
-use super::{stream::Event, EventLogger};
+use super::stream::Event;
 
 use tracing::debug;
+
+/// This trait represents the capability of an Event Receiver to log its output.
+/// The trait consumes itself as the logging is done in a separate thread,
+/// the thread handle is returned.
+pub trait EventLogger {
+    fn log(self, rcv: Receiver<Event>) -> JoinHandle<()>;
+}
 
 // TODO: add configuration filters or additional fields for logging
 #[derive(Default)]
@@ -34,12 +42,9 @@ mod tests {
 
     use log::Log;
 
-    use crate::command::{
-        stream::{Event, Metadata, OutputEvent},
-        EventLogger,
-    };
+    use crate::command::stream::{Event, Metadata, OutputEvent};
 
-    use super::StdEventReceiver;
+    use super::{EventLogger, StdEventReceiver};
 
     // mocked implementation of logger to assert key/values and messages
     #[derive(Clone, Debug)]

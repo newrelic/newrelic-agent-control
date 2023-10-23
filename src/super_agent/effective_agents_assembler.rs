@@ -1,20 +1,19 @@
 use thiserror::Error;
 
+use crate::super_agent::super_agent::{EffectiveAgents, EffectiveAgentsError};
 use crate::{
     config::{
-        agent_configs::SuperAgentConfig,
         agent_type::error::AgentTypeError,
         agent_type_registry::{AgentRegistry, AgentRepositoryError, LocalRegistry},
         persister::{
             config_persister::{ConfigurationPersister, PersistError},
             config_persister_file::ConfigurationPersisterFile,
         },
-        supervisor_config::SupervisorConfig,
+        sub_agent_config::SubAgentConfig,
+        super_agent_configs::SuperAgentConfig,
     },
     file_reader::{FSFileReader, FileReader, FileReaderError},
 };
-
-use super::{EffectiveAgents, EffectiveAgentsError};
 
 #[derive(Error, Debug)]
 pub enum EffectiveAgentsAssemblerError {
@@ -74,8 +73,8 @@ where
 
         for (agent_id, agent_cfg) in agent_cfgs.agents.iter() {
             //load agent type from repository and populate with values
-            let agent_type = self.registry.get(&agent_cfg.agent_type.to_string())?;
-            let mut agent_config: SupervisorConfig = SupervisorConfig::default();
+            let agent_type = self.registry.get(&agent_cfg.agent_type)?;
+            let mut agent_config: SubAgentConfig = SubAgentConfig::default();
             if let Some(path) = &agent_cfg.values_file {
                 let contents = self.file_reader.read(path.as_str())?;
                 agent_config = serde_yaml::from_str(&contents)?;
@@ -107,7 +106,6 @@ mod tests {
 
     use crate::{
         config::{
-            agent_configs::{AgentID, AgentSupervisorConfig, SuperAgentConfig},
             agent_type::{agent_types::FinalAgent, trivial_value::TrivialValue},
             agent_type_registry::{AgentRegistry, LocalRegistry},
             persister::{
@@ -115,7 +113,8 @@ mod tests {
                 config_writer_file::WriteError,
                 directory_manager::DirectoryManagementError,
             },
-            supervisor_config::SupervisorConfig,
+            sub_agent_config::SubAgentConfig,
+            super_agent_configs::{AgentID, SuperAgentConfig, SuperAgentSubAgentConfig},
         },
         file_reader::{test::MockFileReaderMock, FileReader},
     };
@@ -128,7 +127,7 @@ mod tests {
         C: ConfigurationPersister,
         F: FileReader,
     {
-        fn new(registry: R, config_persister: C, file_reader: F) -> Self {
+        pub fn new(registry: R, config_persister: C, file_reader: F) -> Self {
             Self {
                 registry,
                 config_persister,
@@ -378,7 +377,7 @@ deployment:
             .for_each(|(agent_id, agent_type, agent_values)| {
                 let mut agent_type: FinalAgent =
                     serde_yaml::from_reader(agent_type.as_bytes()).unwrap();
-                let agent_values: SupervisorConfig =
+                let agent_values: SubAgentConfig =
                     serde_yaml::from_reader(agent_values.as_bytes()).unwrap();
                 agent_type = agent_type.template_with(agent_values).unwrap();
                 let res = populated_agent_type_repository
@@ -391,9 +390,9 @@ deployment:
             agents: HashMap::from([
                 (
                     first_agent_id.clone(),
-                    AgentSupervisorConfig {
+                    SuperAgentSubAgentConfig {
                         agent_type: populated_agent_type_repository
-                            .get(first_agent_id.get().as_str())
+                            .get(&first_agent_id)
                             .unwrap()
                             .metadata
                             .to_string()
@@ -404,9 +403,9 @@ deployment:
                 ),
                 (
                     second_agent_id.clone(),
-                    AgentSupervisorConfig {
+                    SuperAgentSubAgentConfig {
                         agent_type: populated_agent_type_repository
-                            .get(second_agent_id.get().as_str())
+                            .get(&second_agent_id)
                             .unwrap()
                             .metadata
                             .to_string()
@@ -419,12 +418,12 @@ deployment:
             opamp: None,
         };
 
-        return (
+        (
             first_agent_id,
             second_agent_id,
             local_agent_type_repository,
             populated_agent_type_repository,
             agent_config,
-        );
+        )
     }
 }

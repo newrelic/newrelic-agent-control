@@ -1,8 +1,7 @@
 use std::{str::FromStr, time::Duration};
 
+use crate::supervisor::restart_policy::{Backoff, BackoffStrategy, RestartPolicy};
 use serde::Deserialize;
-
-use crate::supervisor::restart::{Backoff, BackoffStrategy};
 
 use super::{agent_types::TemplateableValue, error::AgentTypeError};
 
@@ -91,6 +90,12 @@ impl FromStr for BackoffStrategyType {
             "exponential" => Ok(Self::Exponential),
             _ => Err(AgentTypeError::UnknownBackoffStrategyType(s.to_string())),
         }
+    }
+}
+
+impl From<RestartPolicyConfig> for RestartPolicy {
+    fn from(value: RestartPolicyConfig) -> Self {
+        RestartPolicy::new((&value.backoff_strategy).into(), value.restart_exit_codes)
     }
 }
 

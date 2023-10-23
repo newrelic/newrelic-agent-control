@@ -1,11 +1,12 @@
-//! This module contains the definitions of the Supervisor's Agent Type, which is the type of agent that the Supervisor will be running.
+//! This module contains the definitions of the SubAgent's Agent Type, which is the type of agent that the Super Agent will be running.
 //!
-//! The reasoning behind this is that the Supervisor will be able to run different types of agents, and each type of agent will have its own configuration. Supporting generic agent functionalities, the user can both define its own agent types and provide a config that implement this agent type, and the New Relic Super Agent will spawn a Supervisor which will be able to run it.
+//! The reasoning behind this is that the Super Agent will be able to run different types of agents, and each type of agent will have its own configuration. Supporting generic agent functionalities, the user can both define its own agent types and provide a config that implement this agent type, and the New Relic Super Agent will spawn a Supervisor which will be able to run it.
 //!
 //! See [`Agent::template_with`] for a flowchart of the dataflow that ends in the final, enriched structure.
 
 use std::{collections::HashMap, str::FromStr};
 
+use crate::config::super_agent_configs::AgentTypeFQN;
 use serde::{Deserialize, Deserializer};
 
 use super::restart_policy::BackoffDuration;
@@ -16,7 +17,7 @@ use super::{
     runtime_config_templates::{Templateable, TEMPLATE_KEY_SEPARATOR},
     trivial_value::TrivialValue,
 };
-use crate::config::supervisor_config::SupervisorConfig;
+use crate::config::sub_agent_config::SubAgentConfig;
 
 #[derive(Debug, Deserialize)]
 struct RawAgent {
@@ -166,6 +167,10 @@ pub struct FinalAgent {
 }
 
 impl FinalAgent {
+    pub fn agent_type(&self) -> AgentTypeFQN {
+        self.metadata.to_string().as_str().into()
+    }
+
     pub fn get_variables(&self) -> &NormalizedVariables {
         &self.variables
     }
@@ -174,7 +179,7 @@ impl FinalAgent {
     /// template_with the [`RuntimeConfig`] object field of the [`Agent`] type with the user-provided config, which must abide by the agent type's defined [`AgentVariables`].
     ///
     /// This method will return an error if the user-provided config does not conform to the agent type's spec.
-    pub fn template_with(self, config: SupervisorConfig) -> Result<FinalAgent, AgentTypeError> {
+    pub fn template_with(self, config: SubAgentConfig) -> Result<FinalAgent, AgentTypeError> {
         // let normalized_config = NormalizedSupervisorConfig::from(config);
         // let validated_conf = validate_with_agent_type(normalized_config, &self)?;
         let config = config.normalize_with_agent_type(&self)?;
@@ -214,7 +219,7 @@ impl TryFrom<RawAgent> for FinalAgent {
     }
 }
 
-/// Flexible tree-like structure that contains variables definitions, that can later be changed by the end user via [`SupervisorConfig`].
+/// Flexible tree-like structure that contains variables definitions, that can later be changed by the end user via [`SubAgentConfig`].
 type AgentVariables = HashMap<String, Spec>;
 
 pub trait AgentTypeEndSpec {
@@ -382,21 +387,13 @@ fn inner_normalize(key: String, spec: Spec) -> NormalizedVariables {
 }
 
 #[cfg(test)]
-impl FinalAgent {
-    /// Retrieve the `variables` field of the agent type at the specified key, if any.
-    fn get_variable(self, path: String) -> Option<EndSpec> {
-        self.variables.get(&path).cloned()
-    }
-}
-
-#[cfg(test)]
 pub mod tests {
     use crate::config::{
         agent_type::{
             restart_policy::{BackoffStrategyConfig, BackoffStrategyType},
             runtime_config::{Args, Env, Executable},
         },
-        supervisor_config::SupervisorConfig,
+        sub_agent_config::SubAgentConfig,
     };
 
     use super::*;
@@ -405,6 +402,25 @@ pub mod tests {
     use crate::config::agent_type::trivial_value::N::PosInt;
     use serde_yaml::Error;
     use std::collections::HashMap as Map;
+
+    impl FinalAgent {
+        pub fn new(
+            metadata: AgentMetadata,
+            variables: NormalizedVariables,
+            runtime_config: RuntimeConfig,
+        ) -> FinalAgent {
+            FinalAgent {
+                metadata,
+                variables,
+                runtime_config,
+            }
+        }
+
+        /// Retrieve the `variables` field of the agent type at the specified key, if any.
+        pub fn get_variable(self, path: String) -> Option<EndSpec> {
+            self.variables.get(&path).cloned()
+        }
+    }
 
     pub const AGENT_GIVEN_YAML: &str = r#"
 name: nrdot
@@ -727,8 +743,8 @@ deployment:
             path: TemplateableValue::from_template("${bin}/otelcol".to_string()),
             args: TemplateableValue::from_template("--verbose ${deployment.on_host.verbose} --verbose_again ${deployment.on_host.verbose}".to_string()),
             env: TemplateableValue::from_template("".to_string()),
-            restart_policy: RestartPolicyConfig{
-                backoff_strategy: BackoffStrategyConfig{
+            restart_policy: RestartPolicyConfig {
+                backoff_strategy: BackoffStrategyConfig {
                     backoff_type: TemplateableValue::from_template(
                         "${backoff.type}"
                             .to_string(),
@@ -822,11 +838,11 @@ deployment:
         let exec_actual = exec.template_with(&normalized_values).unwrap();
 
         let exec_expected = Executable {
-            path: TemplateableValue{value: Some("/etc/otelcol".to_string()), template: "${bin}/otelcol".to_string()},
-            args: TemplateableValue{value: Some(Args("--verbose true --verbose_again true".to_string())), template: "--verbose ${deployment.on_host.verbose} --verbose_again ${deployment.on_host.verbose}".to_string()},
-            env: TemplateableValue{value: Some(Env("".to_string())), template: "".to_string()},
-            restart_policy: RestartPolicyConfig{
-                backoff_strategy: BackoffStrategyConfig{
+            path: TemplateableValue { value: Some("/etc/otelcol".to_string()), template: "${bin}/otelcol".to_string() },
+            args: TemplateableValue { value: Some(Args("--verbose true --verbose_again true".to_string())), template: "--verbose ${deployment.on_host.verbose} --verbose_again ${deployment.on_host.verbose}".to_string() },
+            env: TemplateableValue { value: Some(Env("".to_string())), template: "".to_string() },
+            restart_policy: RestartPolicyConfig {
+                backoff_strategy: BackoffStrategyConfig {
                     backoff_type: TemplateableValue {
                         value: Some(BackoffStrategyType::Linear),
                         template: "${backoff.type}".to_string(),
@@ -911,8 +927,7 @@ config: |
 
         // And Agent Values
         let input_user_config =
-            serde_yaml::from_str::<SupervisorConfig>(GIVEN_NEWRELIC_INFRA_USER_CONFIG_YAML)
-                .unwrap();
+            serde_yaml::from_str::<SubAgentConfig>(GIVEN_NEWRELIC_INFRA_USER_CONFIG_YAML).unwrap();
 
         // When populating values
         let actual = input_agent_type
@@ -1059,7 +1074,7 @@ backoff:
         // println!("Input: {:#?}", input_agent_type);
 
         let input_user_config =
-            serde_yaml::from_str::<SupervisorConfig>(BACKOFF_CONFIG_YAML).unwrap();
+            serde_yaml::from_str::<SubAgentConfig>(BACKOFF_CONFIG_YAML).unwrap();
         // println!("Input: {:#?}", input_user_config);
 
         let expected_backoff = BackoffStrategyConfig {
@@ -1136,13 +1151,13 @@ backoff:
             serde_yaml::from_str::<FinalAgent>(AGENT_BACKOFF_TEMPLATE_YAML).unwrap();
 
         let wrong_retries =
-            serde_yaml::from_str::<SupervisorConfig>(WRONG_RETRIES_BACKOFF_CONFIG_YAML).unwrap();
+            serde_yaml::from_str::<SubAgentConfig>(WRONG_RETRIES_BACKOFF_CONFIG_YAML).unwrap();
         let wrong_delay =
-            serde_yaml::from_str::<SupervisorConfig>(WRONG_DELAY_BACKOFF_CONFIG_YAML).unwrap();
+            serde_yaml::from_str::<SubAgentConfig>(WRONG_DELAY_BACKOFF_CONFIG_YAML).unwrap();
         let wrong_interval =
-            serde_yaml::from_str::<SupervisorConfig>(WRONG_INTERVAL_BACKOFF_CONFIG_YAML).unwrap();
+            serde_yaml::from_str::<SubAgentConfig>(WRONG_INTERVAL_BACKOFF_CONFIG_YAML).unwrap();
         let wrong_type =
-            serde_yaml::from_str::<SupervisorConfig>(WRONG_TYPE_BACKOFF_CONFIG_YAML).unwrap();
+            serde_yaml::from_str::<SubAgentConfig>(WRONG_TYPE_BACKOFF_CONFIG_YAML).unwrap();
 
         let actual = input_agent_type.clone().template_with(wrong_retries);
         assert!(actual.is_err());
