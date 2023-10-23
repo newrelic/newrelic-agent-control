@@ -40,23 +40,21 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let super_agent_config =
         SuperAgentConfigLoaderFile::new(&cli.get_config_path()).load_config()?;
 
-    let opamp_client_builder: Option<&OpAMPHttpBuilder>;
-    let builder: OpAMPHttpBuilder;
-
     let effective_agents =
         LocalEffectiveAgentsAssembler::default().assemble_agents(&super_agent_config)?;
 
-    if let Some(opamp_config) = super_agent_config.opamp {
-        builder = OpAMPHttpBuilder::new(opamp_config.clone());
-        opamp_client_builder = Some(&builder);
-    } else {
-        opamp_client_builder = None;
-    }
-
-    let instance_id_getter = ULIDInstanceIDGetter::default();
+    let opamp_client_builder: Option<OpAMPHttpBuilder> = super_agent_config
+        .opamp
+        .as_ref()
+        .map(|opamp_config| OpAMPHttpBuilder::new(opamp_config.clone()));
 
     info!("Starting the super agent");
-    Ok(SuperAgent::new(effective_agents, opamp_client_builder, instance_id_getter).run(ctx)?)
+    Ok(SuperAgent::new(
+        effective_agents,
+        opamp_client_builder.as_ref(),
+        ULIDInstanceIDGetter::default(),
+    )
+    .run(ctx)?)
 }
 
 fn create_shutdown_signal_handler(

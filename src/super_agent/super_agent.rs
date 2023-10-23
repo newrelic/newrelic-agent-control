@@ -12,8 +12,8 @@ use thiserror::Error;
 use tracing::{error, info};
 
 use crate::command::logger::{EventLogger, StdEventReceiver};
-use crate::config::agent_configs::AgentID;
 use crate::config::agent_type::agent_types::FinalAgent;
+use crate::config::super_agent_configs::AgentID;
 use crate::context::Context;
 use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPHttpBuilder};
 use crate::sub_agent::on_host::factory::build_sub_agents;
@@ -105,9 +105,9 @@ where
             The "merge" operation can only be done if the agents are of the same type! Supervisor<Running>. If they are not started we won't be able to merge them to the running group, as they are different types.
         */
 
-        // Run all the agents in the supervisor group
+        // Run all the Sub Agents
         let running_sub_agents = sub_agents.run()?;
-        Self::wait_until_stop(ctx, running_sub_agents)?;
+        Self::process_event(ctx, running_sub_agents)?;
 
         if let Some(handle) = opamp_client {
             info!("Stopping and setting to unhealthy the OpAMP Client");
@@ -166,7 +166,7 @@ where
         }
     }
 
-    fn wait_until_stop(
+    fn process_event(
         ctx: Context<Option<SuperAgentEvent>>,
         running_sub_agents: StartedSubAgentsOnHost<<OpAMPBuilder as OpAMPClientBuilder>::Client>,
     ) -> Result<(), SubAgentError>
@@ -188,13 +188,13 @@ where
                                             |_err| {
                                                 // let error: &dyn std::error::Error = &err;
                                                 error!(
-                                                    supervisor = agent_id.get(),
+                                                    supervisor = agent_id.to_string(),
                                                     msg = "stopped with error",
                                                 )
                                             },
                                             |_| {
                                                 info!(
-                                                    supervisor = agent_id1.get(),
+                                                    supervisor = agent_id1.to_string(),
                                                     msg = "stopped successfully"
                                                 )
                                             },
@@ -232,8 +232,9 @@ pub enum EffectiveAgentsError {
 
 impl EffectiveAgents {
     pub fn get(&self, agent_id: &AgentID) -> Result<&FinalAgent, EffectiveAgentsError> {
-        match self.agents.get(agent_id.get().as_str()) {
-            None => Err(EffectiveAgentNotFound(agent_id.get())),
+        let agent_id_string = &agent_id.to_string();
+        match self.agents.get(agent_id_string) {
+            None => Err(EffectiveAgentNotFound(agent_id_string.to_owned())),
             Some(agent) => Ok(agent),
         }
     }
@@ -244,9 +245,9 @@ impl EffectiveAgents {
         agent: FinalAgent,
     ) -> Result<(), EffectiveAgentsError> {
         if self.get(agent_id).is_ok() {
-            return Err(EffectiveAgentExists(agent_id.get()));
+            return Err(EffectiveAgentExists(agent_id.to_string()));
         }
-        self.agents.insert(agent_id.get().to_string(), agent);
+        self.agents.insert(agent_id.to_string(), agent);
         Ok(())
     }
 }
@@ -257,13 +258,13 @@ impl EffectiveAgents {
 
 #[cfg(test)]
 mod tests {
-    use crate::config::agent_configs::{
-        AgentID, AgentSupervisorConfig, AgentTypeFQN, SuperAgentConfig,
-    };
     use crate::config::agent_type::agent_types::FinalAgent;
     use crate::config::agent_type::runtime_config::OnHost;
     use crate::config::agent_type_registry::tests::MockAgentRegistryMock;
     use crate::config::persister::config_persister::test::MockConfigurationPersisterMock;
+    use crate::config::super_agent_configs::{
+        AgentID, AgentTypeFQN, SuperAgentConfig, SuperAgentSubAgentConfig,
+    };
     use crate::context::Context;
     use crate::file_reader::test::MockFileReaderMock;
     use crate::opamp::client_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock};
@@ -498,7 +499,7 @@ mod tests {
             agents: HashMap::from([
                 (
                     AgentID("infra_agent".to_string()),
-                    AgentSupervisorConfig {
+                    SuperAgentSubAgentConfig {
                         agent_type: AgentTypeFQN::from(
                             "newrelic/com.newrelic.infrastructure_agent:0.0.1",
                         ),
@@ -507,7 +508,7 @@ mod tests {
                 ),
                 (
                     AgentID("nrdot".to_string()),
-                    AgentSupervisorConfig {
+                    SuperAgentSubAgentConfig {
                         agent_type: AgentTypeFQN::from("newrelic/io.opentelemetry.collector:0.0.1"),
                         values_file: None,
                     },

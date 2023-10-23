@@ -5,7 +5,7 @@ use opamp_client::opamp::proto::AgentHealth;
 use opamp_client::StartedClient;
 use tracing::info;
 
-use crate::config::agent_configs::{AgentID, AgentTypeFQN};
+use crate::config::super_agent_configs::{AgentID, AgentTypeFQN};
 use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPClientBuilderError};
 use crate::sub_agent::on_host::factory::build_opamp_and_start_client;
 use crate::sub_agent::sub_agent::{NotStartedSubAgent, StartedSubAgent, SubAgentError};
