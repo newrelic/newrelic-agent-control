@@ -7,6 +7,10 @@ ARG TARGETARCH
 
 COPY --chmod=755 bin/newrelic-super-agent-${TARGETARCH} /bin/newrelic-super-agent
 
+RUN apt-get update && \
+    apt-get install -y ca-certificates && \
+    apt-get clean
+
 USER nobody
 
 ENTRYPOINT ["/bin/newrelic-super-agent"]
