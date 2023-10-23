@@ -42,6 +42,7 @@ impl Callbacks for AgentCallbacks {
         let agent_id = self.agent_id.clone();
         if let Some(msg_remote_config) = msg.remote_config {
             if let Some(msg_config_map) = msg_remote_config.config {
+                //Check if hash is empty
                 let config = msg_config_map.config_map.into_iter().try_fold(
                     HashMap::new(),
                     |mut result, (key, value)| {
@@ -123,7 +124,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn on_message() {
+    fn on_message_send_correct_config() {
         let ctx: Context<Option<AgentEvent>> = Context::new();
         let agent_id= AgentID::new("an-agent-id".to_string());
 

@@ -100,6 +100,7 @@ pub(crate) mod test {
         opamp::proto::{AgentDescription, AgentHealth},
         Client, NotStartedClient, StartedClient,
     };
+    use opamp_client::opamp::proto::RemoteConfigStatus;
 
     mock! {
         pub OpAMPClientMock {}
@@ -128,6 +129,8 @@ pub(crate) mod test {
             async fn set_health(&self, health: AgentHealth) -> ClientResult<()>;
 
             async fn update_effective_config(&self) -> ClientResult<()>;
+
+            async fn set_remote_config_status(&self, status: RemoteConfigStatus) -> ClientResult<()>;
         }
     }
 
