@@ -1,7 +1,7 @@
 use std::cmp::max;
 use std::time::{Duration, Instant};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RestartPolicy {
     backoff: BackoffStrategy,
     // If empty all codes trigger restart if populated, only the existing codes will.
@@ -37,7 +37,13 @@ impl RestartPolicy {
     }
 }
 
-#[derive(Clone)]
+impl Default for RestartPolicy {
+    fn default() -> Self {
+        RestartPolicy::new(BackoffStrategy::None, Vec::new())
+    }
+}
+
+#[derive(Clone, Debug)]
 pub enum BackoffStrategy {
     Fixed(Backoff),
     Linear(Backoff),
@@ -72,7 +78,7 @@ impl BackoffStrategy {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Backoff {
     last_retry: Instant,
     tries: usize,
@@ -92,6 +98,7 @@ impl Default for Backoff {
         }
     }
 }
+
 impl Backoff {
     pub fn new() -> Self {
         Self::default()

@@ -3,6 +3,7 @@ use std::{
     fmt::{Display, Formatter},
 };
 
+use crate::config::agent_type::agent_types::AgentTypeEndSpec;
 use serde::Deserialize;
 
 use super::{agent_types::VariableType, error::AgentTypeError};
@@ -23,8 +24,11 @@ impl TrivialValue {
     /// Checks the `TrivialValue` against the given [`VariableType`], erroring if they do not match.
     ///
     /// This is also in charge of converting a `TrivialValue::String` into a `TrivialValue::File`, using the actual string as the file content, if the given [`VariableType`] is `VariableType::File`.
-    pub fn check_type(self, type_: VariableType) -> Result<Self, AgentTypeError> {
-        match (self.clone(), type_) {
+    pub fn check_type<T>(self, end_spec: &T) -> Result<Self, AgentTypeError>
+    where
+        T: AgentTypeEndSpec,
+    {
+        match (self.clone(), end_spec.variable_type()) {
             (TrivialValue::String(_), VariableType::String)
             | (TrivialValue::Bool(_), VariableType::Bool)
             | (TrivialValue::File(_), VariableType::File)
@@ -40,20 +44,31 @@ impl TrivialValue {
                     return Err(AgentTypeError::InvalidMap);
                 }
 
+                if end_spec.file_path().is_none() {
+                    return Err(AgentTypeError::InvalidFilePath);
+                }
+
                 Ok(TrivialValue::Map(
                     m.into_iter()
                         .map(|(k, v)| {
                             (
                                 k,
-                                TrivialValue::File(FilePathWithContent::new(v.to_string())),
+                                // it's safe to make unwrap() as we previously checked is not none
+                                TrivialValue::File(FilePathWithContent::new(
+                                    end_spec.file_path().unwrap(),
+                                    v.to_string(),
+                                )),
                             )
                         })
                         .collect(),
                 ))
             }
-            (TrivialValue::String(s), VariableType::File) => {
-                Ok(TrivialValue::File(FilePathWithContent::new(s)))
-            }
+            (TrivialValue::String(content), VariableType::File) => match end_spec.file_path() {
+                None => Err(AgentTypeError::InvalidFilePath),
+                Some(file_path) => Ok(TrivialValue::File(FilePathWithContent::new(
+                    file_path, content,
+                ))),
+            },
             (v, t) => Err(AgentTypeError::TypeMismatch {
                 expected_type: t,
                 actual_value: v,
@@ -90,11 +105,8 @@ pub struct FilePathWithContent {
 }
 
 impl FilePathWithContent {
-    pub fn new(content: String) -> Self {
-        FilePathWithContent {
-            content,
-            ..Default::default()
-        }
+    pub fn new(path: String, content: String) -> Self {
+        FilePathWithContent { path, content }
     }
 }
 

@@ -1,4 +1,5 @@
-use newrelic_super_agent::command::{CommandRunner, ProcessRunner};
+use newrelic_super_agent::command::command::SyncCommandRunner;
+use newrelic_super_agent::command::command_os::SyncCommandOS;
 use std::collections::HashMap;
 
 // blocking supervisor
@@ -8,9 +9,9 @@ struct BlockingSupervisor {
     agent_env: HashMap<String, String>,
 }
 
-impl From<&BlockingSupervisor> for ProcessRunner {
+impl From<&BlockingSupervisor> for SyncCommandOS {
     fn from(value: &BlockingSupervisor) -> Self {
-        ProcessRunner::new(&value.agent_bin, &value.agent_args, &value.agent_env)
+        SyncCommandOS::new(&value.agent_bin, &value.agent_args, &value.agent_env)
     }
 }
 
@@ -23,15 +24,15 @@ fn blocking_stop_runner() {
         agent_env: HashMap::default(),
     };
 
-    let mut proc: ProcessRunner = ProcessRunner::from(&agent);
+    let mut command: SyncCommandOS = SyncCommandOS::from(&agent);
 
     // run the process with wrong parameter
-    assert!(!proc.run().unwrap().success());
+    assert!(!command.run().unwrap().success());
 
     agent.agent_args = vec!["0.1".to_string()];
 
-    proc = ProcessRunner::from(&agent);
+    command = SyncCommandOS::from(&agent);
 
     // run the process with correct parameter
-    assert!(proc.run().unwrap().success());
+    assert!(command.run().unwrap().success());
 }

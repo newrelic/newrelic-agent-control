@@ -1,18 +1,16 @@
 use std::error::Error;
-use std::process;
 
+use newrelic_super_agent::super_agent::effective_agents_assembler::{
+    EffectiveAgentsAssembler, LocalEffectiveAgentsAssembler,
+};
 use tracing::{error, info};
 
-use newrelic_super_agent::agent::instance_id::ULIDInstanceIDGetter;
-use newrelic_super_agent::config::resolver::Resolver;
+use newrelic_super_agent::config::loader::{SuperAgentConfigLoader, SuperAgentConfigLoaderFile};
 use newrelic_super_agent::opamp::client_builder::OpAMPHttpBuilder;
+use newrelic_super_agent::super_agent::instance_id::ULIDInstanceIDGetter;
+use newrelic_super_agent::super_agent::super_agent::{SuperAgent, SuperAgentEvent};
 use newrelic_super_agent::{
-    agent::{Agent, AgentEvent},
-    cli::running_mode::AgentRunningMode,
-    cli::Cli,
-    config::agent_type_registry::{AgentRepository, LocalRepository},
-    context::Context,
-    logging::Logging,
+    cli::running_mode::AgentRunningMode, cli::Cli, context::Context, logging::Logging,
 };
 
 #[tokio::main]
@@ -35,99 +33,41 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 
     info!("Creating the global context");
-    let ctx: Context<Option<AgentEvent>> = Context::new();
+    let ctx: Context<Option<SuperAgentEvent>> = Context::new();
 
     info!("Creating the signal handler");
-    ctrlc::set_handler({
-        let ctx = ctx.clone();
-        move || ctx.cancel_all(Some(AgentEvent::Stop)).unwrap()
-    })
-    .map_err(|e| {
-        error!("Could not set signal handler: {}", e);
-        e
-    })?;
-
-    let mut local_agent_type_repository = LocalRepository::new();
-    local_agent_type_repository.store_from_yaml(NEWRELIC_INFRA_TYPE.as_bytes())?;
-    local_agent_type_repository.store_from_yaml(NRDOT_TYPE.as_bytes())?;
+    create_shutdown_signal_handler(ctx.clone())?;
 
     // load effective config
-    let cfg_path = &cli.get_config_path();
-    let cfg = Resolver::retrieve_config(cfg_path)?;
+    let super_agent_config =
+        SuperAgentConfigLoaderFile::new(&cli.get_config_path()).load_config()?;
 
-    let opamp_client_builder = cfg
+    let effective_agents =
+        LocalEffectiveAgentsAssembler::default().assemble_agents(&super_agent_config)?;
+
+    let opamp_client_builder: Option<OpAMPHttpBuilder> = super_agent_config
         .opamp
         .as_ref()
         .map(|opamp_config| OpAMPHttpBuilder::new(opamp_config.clone()));
 
-    let instance_id_getter = ULIDInstanceIDGetter::default();
-
     info!("Starting the super agent");
-    let agent = Agent::new(
-        cfg,
-        local_agent_type_repository,
-        opamp_client_builder,
-        instance_id_getter,
-    );
-
-    match agent {
-        Ok(agent) => Ok(agent.run(ctx)?),
-        Err(e) => {
-            error!("agent error: {}", e);
-            process::exit(1);
-        }
-    }
+    Ok(SuperAgent::new(
+        effective_agents,
+        opamp_client_builder.as_ref(),
+        ULIDInstanceIDGetter::default(),
+    )
+    .run(ctx)?)
 }
 
-const NEWRELIC_INFRA_TYPE: &str = r#"
-namespace: newrelic
-name: com.newrelic.infrastructure_agent
-version: 0.0.1
-variables:
-  config_file:
-    description: "Newrelic infra configuration path"
-    type: string
-    required: false
-    default: /etc/newrelic-infra.yml
-deployment:
-  on_host:
-    executables:
-      - path: /usr/bin/newrelic-infra
-        args: "--config=${config_file}"
-        restart_policy:
-          backoff_strategy:
-            type: fixed
-            backoff_delay: 5s
-"#;
+fn create_shutdown_signal_handler(
+    ctx: Context<Option<SuperAgentEvent>>,
+) -> Result<(), ctrlc::Error> {
+    ctrlc::set_handler(move || ctx.cancel_all(Some(SuperAgentEvent::Stop)).unwrap()).map_err(
+        |e| {
+            error!("Could not set signal handler: {}", e);
+            e
+        },
+    )?;
 
-const NRDOT_TYPE: &str = r#"
-namespace: newrelic
-name: io.opentelemetry.collector
-version: 0.0.1
-variables:
-  config_file:
-    description: "Newrelic otel collector configuration path"
-    type: string
-    required: false
-    default: /etc/nr-otel-collector/config.yaml
-  otel_exporter_otlp_endpoint:
-    description: "Endpoint where NRDOT will send data"
-    type: string
-    required: false
-    default: "otlp.nr-data.net:4317"
-  new_relic_memory_limit_mib:
-    description: "Memory limit for the NRDOT process"
-    type: number
-    required: false
-    default: 100
-deployment:
-  on_host:
-    executables:
-      - path: /usr/bin/nr-otel-collector
-        args: "--config=${config_file} --feature-gates=-pkg.translator.prometheus.NormalizeName"
-        env: "OTEL_EXPORTER_OTLP_ENDPOINT=${otel_exporter_otlp_endpoint} NEW_RELIC_MEMORY_LIMIT_MIB=${new_relic_memory_limit_mib}"
-        restart_policy:
-          backoff_strategy:
-            type: fixed
-            backoff_delay: 5s
-"#;
+    Ok(())
+}

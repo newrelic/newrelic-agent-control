@@ -1,20 +1,16 @@
-//! This module contains the definitions of the Supervisor's Agent Type, which is the type of agent that the Supervisor will be running.
+//! This module contains the definitions of the SubAgent's Agent Type, which is the type of agent that the Super Agent will be running.
 //!
-//! The reasoning behind this is that the Supervisor will be able to run different types of agents, and each type of agent will have its own configuration. Supporting generic agent functionalities, the user can both define its own agent types and provide a config that implement this agent type, and the New Relic Super Agent will spawn a Supervisor which will be able to run it.
+//! The reasoning behind this is that the Super Agent will be able to run different types of agents, and each type of agent will have its own configuration. Supporting generic agent functionalities, the user can both define its own agent types and provide a config that implement this agent type, and the New Relic Super Agent will spawn a Supervisor which will be able to run it.
 //!
 //! See [`Agent::template_with`] for a flowchart of the dataflow that ends in the final, enriched structure.
 
-use std::io::{self, Write};
-use std::{collections::HashMap, fs, str::FromStr};
+use std::{collections::HashMap, str::FromStr};
 
+use crate::config::super_agent_configs::AgentTypeFQN;
+use serde::de::Error;
 use serde::{Deserialize, Deserializer};
 
-use uuid::Uuid;
-
-use crate::config::supervisor_config::SupervisorConfig;
-
 use super::restart_policy::BackoffDuration;
-use super::trivial_value::FilePathWithContent;
 use super::{
     agent_metadata::AgentMetadata,
     error::AgentTypeError,
@@ -22,21 +18,49 @@ use super::{
     runtime_config_templates::{Templateable, TEMPLATE_KEY_SEPARATOR},
     trivial_value::TrivialValue,
 };
+use crate::config::sub_agent_config::SubAgentConfig;
 use duration_str;
 
-#[derive(Debug, Deserialize)]
-struct RawAgent {
-    #[serde(flatten)]
-    metadata: AgentMetadata,
-    variables: AgentVariables,
-    #[serde(default, flatten)]
-    runtime_config: RuntimeConfig,
+/// Configuration of the Agent Type, contains identification metadata, a set of variables that can be adjusted, and rules of how to start given agent binaries.
+///
+/// This is the final representation of the agent type once it has been parsed (first into a [`RawAgent`]) having the spec field normalized.
+///
+/// See also [`RawAgent`] and the [`FinalAgent::try_from`] implementation.
+#[derive(Debug, PartialEq, Clone, Default)]
+pub struct FinalAgent {
+    pub metadata: AgentMetadata,
+    pub variables: NormalizedVariables,
+    pub runtime_config: RuntimeConfig,
 }
 
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct TemplateableValue<T> {
     value: Option<T>,
     template: String,
+}
+
+impl<'de> Deserialize<'de> for FinalAgent {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        // temporal type for raw deserialization
+        #[derive(Debug, Deserialize)]
+        struct RawAgent {
+            #[serde(flatten)]
+            metadata: AgentMetadata,
+            variables: AgentVariables,
+            #[serde(default, flatten)]
+            runtime_config: RuntimeConfig,
+        }
+
+        let raw_agent = RawAgent::deserialize(deserializer)?;
+        Ok(Self {
+            variables: normalize_agent_spec(raw_agent.variables).map_err(D::Error::custom)?,
+            metadata: raw_agent.metadata,
+            runtime_config: raw_agent.runtime_config, // FIXME: make it actual implementation
+        })
+    }
 }
 
 impl<'de, T> Deserialize<'de> for TemplateableValue<T> {
@@ -156,31 +180,20 @@ impl Templateable for TemplateableValue<BackoffDuration> {
     }
 }
 
-/// Configuration of the Agent Type, contains identification metadata, a set of variables that can be adjusted, and rules of how to start given agent binaries.
-///
-/// This is the final representation of the agent type once it has been parsed (first into a [`RawAgent`]) having the spec field normalized.
-///
-/// See also [`RawAgent`] and the [`FinalAgent::try_from`] implementation.
-#[derive(Debug, PartialEq, Clone, Default, Deserialize)]
-#[serde(try_from = "RawAgent")]
-pub struct FinalAgent {
-    #[serde(flatten)]
-    pub metadata: AgentMetadata,
-    pub variables: NormalizedVariables,
-    pub runtime_config: RuntimeConfig,
-}
-
 impl FinalAgent {
-    /// Retrieve the `variables` field of the agent type at the specified key, if any.
-    pub fn get_variables(self, path: String) -> Option<EndSpec> {
-        self.variables.get(&path).cloned()
+    pub fn agent_type(&self) -> AgentTypeFQN {
+        self.metadata.to_string().as_str().into()
+    }
+
+    pub fn get_variables(&self) -> &NormalizedVariables {
+        &self.variables
     }
 
     #[cfg_attr(doc, aquamarine::aquamarine)]
     /// template_with the [`RuntimeConfig`] object field of the [`Agent`] type with the user-provided config, which must abide by the agent type's defined [`AgentVariables`].
     ///
     /// This method will return an error if the user-provided config does not conform to the agent type's spec.
-    pub fn template_with(self, config: SupervisorConfig) -> Result<FinalAgent, AgentTypeError> {
+    pub fn template_with(self, config: SubAgentConfig) -> Result<FinalAgent, AgentTypeError> {
         // let normalized_config = NormalizedSupervisorConfig::from(config);
         // let validated_conf = validate_with_agent_type(normalized_config, &self)?;
         let config = config.normalize_with_agent_type(&self)?;
@@ -196,88 +209,91 @@ impl FinalAgent {
 
         let runtime_conf = self.runtime_config.template_with(&spec)?;
 
-        let mut populated_agent = FinalAgent {
+        let populated_agent = FinalAgent {
             runtime_config: runtime_conf,
             variables: spec,
             ..self
         };
-        populated_agent.write_files()?;
+
         Ok(populated_agent)
     }
-
-    // write_files stores the content of each TrivialValue::File into the corresponding file
-    fn write_files(&mut self) -> Result<(), AgentTypeError> {
-        self.variables
-            .values_mut()
-            .try_for_each(|v| -> Result<(), AgentTypeError> {
-                if let Some(TrivialValue::File(f)) = &mut v.final_value {
-                    write_file(f)?
-                } else if let Some(TrivialValue::Map(m)) = &mut v.final_value {
-                    return m.iter_mut().try_for_each(|(_, mut file)| {
-                        if let TrivialValue::File(f) = &mut file {
-                            write_file(f)?;
-                        }
-                        Ok(())
-                    });
-                }
-                Ok(())
-            })
-    }
 }
 
-fn write_file(file: &mut FilePathWithContent) -> Result<(), io::Error> {
-    const CONF_DIR: &str = "agentconfigs";
-    // get current path
-    let wd = std::env::current_dir()?;
-    let dir = wd.join(CONF_DIR);
-    if !dir.exists() {
-        fs::create_dir(dir.as_path())?;
-    }
-    let uuid = Uuid::new_v4().to_string();
-    let path = format!("{}/{}-config.yaml", dir.to_string_lossy(), uuid); // FIXME: PATH?
-    let mut fs_file = fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .open(&path)?;
+/// Flexible tree-like structure that contains variables definitions, that can later be changed by the end user via [`SubAgentConfig`].
+type AgentVariables = HashMap<String, Spec>;
 
-    writeln!(fs_file, "{}", file.content)?;
-    file.path = path;
-    // f.path = file
-    //     .path()
-    //     .to_str()
-    //     .ok_or(AgentTypeError::InvalidFilePath)?
-    //     .to_string();
-    Ok(())
+pub trait AgentTypeEndSpec {
+    fn variable_type(&self) -> VariableType;
+    fn file_path(&self) -> Option<String>;
 }
 
-impl TryFrom<RawAgent> for FinalAgent {
-    type Error = AgentTypeError;
-    /// Convert a [`RawAgent`] into an [`Agent`].
-    ///
-    /// This is where the `variables` field of the [`RawAgent`] is normalized into a [`NormalizedVariables`].
-    fn try_from(raw_agent: RawAgent) -> Result<Self, Self::Error> {
-        Ok(Self {
-            variables: normalize_agent_spec(raw_agent.variables)?,
-            metadata: raw_agent.metadata,
-            runtime_config: raw_agent.runtime_config, // FIXME: make it actual implementation
+#[derive(Debug, PartialEq, Clone)]
+pub struct EndSpec {
+    pub(crate) description: String,
+    pub type_: VariableType,
+    pub required: bool,
+    pub default: Option<TrivialValue>,
+    pub file_path: Option<String>,
+    /// The actual value that will be used by the agent. This will be either the user-provided value or, if not provided and not marked as [`required`], the default value.
+    pub final_value: Option<TrivialValue>,
+}
+
+impl<'de> Deserialize<'de> for EndSpec {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        // temporal type for intermediate serialization
+        #[derive(Debug, Deserialize)]
+        struct IntermediateEndSpec {
+            description: String,
+            #[serde(rename = "type")]
+            type_: VariableType,
+            required: bool,
+            default: Option<TrivialValue>,
+            file_path: Option<String>,
+        }
+
+        impl AgentTypeEndSpec for IntermediateEndSpec {
+            fn variable_type(&self) -> VariableType {
+                self.type_
+            }
+
+            fn file_path(&self) -> Option<String> {
+                self.file_path.as_ref().cloned()
+            }
+        }
+
+        let intermediate_spec = IntermediateEndSpec::deserialize(deserializer)?;
+        if intermediate_spec.default.is_none() && !intermediate_spec.required {
+            return Err(D::Error::custom(AgentTypeError::MissingDefault));
+        }
+        let def_val = intermediate_spec
+            .default
+            .clone()
+            .map(|d| d.check_type(&intermediate_spec))
+            .transpose()
+            .map_err(D::Error::custom)?;
+
+        Ok(EndSpec {
+            default: def_val,
+            final_value: None,
+            file_path: intermediate_spec.file_path,
+            description: intermediate_spec.description,
+            type_: intermediate_spec.type_,
+            required: intermediate_spec.required,
         })
     }
 }
 
-/// Flexible tree-like structure that contains variables definitions, that can later be changed by the end user via [`SupervisorConfig`].
-type AgentVariables = HashMap<String, Spec>;
+impl AgentTypeEndSpec for EndSpec {
+    fn variable_type(&self) -> VariableType {
+        self.type_
+    }
 
-#[derive(Debug, PartialEq, Clone, Deserialize)]
-#[serde(try_from = "IntermediateEndSpec")]
-pub struct EndSpec {
-    pub(crate) description: String,
-    #[serde(rename = "type")]
-    pub type_: VariableType,
-    pub required: bool,
-    pub default: Option<TrivialValue>,
-    /// The actual value that will be used by the agent. This will be either the user-provided value or, if not provided and not marked as [`required`], the default value.
-    #[serde(skip)]
-    pub final_value: Option<TrivialValue>,
+    fn file_path(&self) -> Option<String> {
+        self.file_path.as_ref().cloned()
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Copy, Deserialize)]
@@ -298,35 +314,6 @@ pub enum VariableType {
     // MapStringNumber,
     // #[serde(rename = "map[string]bool")]
     // MapStringBool,
-}
-
-#[derive(Debug, Deserialize)]
-struct IntermediateEndSpec {
-    description: String,
-    #[serde(rename = "type")]
-    type_: VariableType,
-    required: bool,
-    default: Option<TrivialValue>,
-}
-
-impl TryFrom<IntermediateEndSpec> for EndSpec {
-    type Error = AgentTypeError;
-
-    /// Convert a [`IntermediateEndSpec`] into an [`EndSpec`].
-    ///
-    /// This conversion will fail if there is no default value and the spec is not marked as [`required`], as there will be no value to use. Also, the type for the provided default value will be checked against the [`VariableType`], failing if it does not match.
-    fn try_from(ies: IntermediateEndSpec) -> Result<Self, Self::Error> {
-        if ies.default.is_none() && !ies.required {
-            return Err(AgentTypeError::MissingDefault);
-        }
-        Ok(EndSpec {
-            default: ies.default.map(|d| d.check_type(ies.type_)).transpose()?,
-            final_value: None,
-            description: ies.description,
-            type_: ies.type_,
-            required: ies.required,
-        })
-    }
 }
 
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
@@ -374,8 +361,8 @@ pub(crate) type NormalizedVariables = HashMap<String, EndSpec>;
 fn normalize_agent_spec(spec: AgentVariables) -> Result<NormalizedVariables, AgentTypeError> {
     spec.into_iter().try_fold(HashMap::new(), |r, (k, v)| {
         let n_spec = inner_normalize(k, v);
-        n_spec.iter().try_for_each(|(k, v)| {
-            if v.default.is_none() && !v.required {
+        n_spec.iter().try_for_each(|(k, end_spec)| {
+            if end_spec.default.is_none() && !end_spec.required {
                 return Err(AgentTypeError::MissingDefaultWithKey(k.clone()));
             }
             Ok(())
@@ -405,14 +392,34 @@ pub mod tests {
             restart_policy::{BackoffStrategyConfig, BackoffStrategyType},
             runtime_config::{Args, Env, Executable},
         },
-        supervisor_config::SupervisorConfig,
+        sub_agent_config::SubAgentConfig,
     };
 
     use super::*;
     use crate::config::agent_type::restart_policy::RestartPolicyConfig;
+    use crate::config::agent_type::trivial_value::FilePathWithContent;
     use crate::config::agent_type::trivial_value::N::PosInt;
     use serde_yaml::Error;
     use std::collections::HashMap as Map;
+
+    impl FinalAgent {
+        pub fn new(
+            metadata: AgentMetadata,
+            variables: NormalizedVariables,
+            runtime_config: RuntimeConfig,
+        ) -> FinalAgent {
+            FinalAgent {
+                metadata,
+                variables,
+                runtime_config,
+            }
+        }
+
+        /// Retrieve the `variables` field of the agent type at the specified key, if any.
+        pub fn get_variable(self, path: String) -> Option<EndSpec> {
+            self.variables.get(&path).cloned()
+        }
+    }
 
     pub const AGENT_GIVEN_YAML: &str = r#"
 name: nrdot
@@ -492,8 +499,8 @@ deployment:
     // }
 
     #[test]
-    fn test_basic_raw_agent_parsing() {
-        let agent: RawAgent = serde_yaml::from_str(AGENT_GIVEN_YAML).unwrap();
+    fn test_basic_agent_parsing() {
+        let agent: FinalAgent = serde_yaml::from_str(AGENT_GIVEN_YAML).unwrap();
 
         assert_eq!("nrdot", agent.metadata.name);
         assert_eq!("newrelic", agent.metadata.namespace);
@@ -533,7 +540,7 @@ deployment:
 
     #[test]
     fn test_bad_parsing() {
-        let raw_agent_err: Result<RawAgent, Error> = serde_yaml::from_str(AGENT_GIVEN_BAD_YAML);
+        let raw_agent_err: Result<FinalAgent, Error> = serde_yaml::from_str(AGENT_GIVEN_BAD_YAML);
 
         assert!(raw_agent_err.is_err());
         println!("{:?}", raw_agent_err);
@@ -557,6 +564,7 @@ deployment:
                 required: false,
                 default: Some(TrivialValue::String("nrdot".to_string())),
                 final_value: None,
+                file_path: None,
             },
         )]);
 
@@ -570,12 +578,13 @@ deployment:
             required: false,
             default: Some(TrivialValue::String("nrdot".to_string())),
             final_value: None,
+            file_path: None,
         };
 
         assert_eq!(
             expected_spec,
             given_agent
-                .get_variables("description.name".to_string())
+                .get_variable("description.name".to_string())
                 .unwrap()
         );
     }
@@ -611,6 +620,7 @@ deployment:
                     type_: VariableType::String,
                     required: true,
                     final_value: Some(TrivialValue::String("/etc".to_string())),
+                    file_path: None,
                 },
             ),
             (
@@ -621,6 +631,7 @@ deployment:
                     type_: VariableType::String,
                     required: true,
                     final_value: Some(TrivialValue::String("true".to_string())),
+                    file_path: None,
                 },
             ),
             (
@@ -631,6 +642,7 @@ deployment:
                     type_: VariableType::String,
                     required: true,
                     final_value: Some(TrivialValue::String("trace".to_string())),
+                    file_path: None,
                 },
             ),
             (
@@ -641,6 +653,7 @@ deployment:
                     type_: VariableType::String,
                     required: true,
                     final_value: Some(TrivialValue::String("exponential".to_string())),
+                    file_path: Some("some_path".to_string()),
                 },
             ),
             (
@@ -651,6 +664,7 @@ deployment:
                     type_: VariableType::String,
                     required: true,
                     final_value: Some(TrivialValue::String("10s".to_string())),
+                    file_path: Some("some_path".to_string()),
                 },
             ),
             (
@@ -661,6 +675,7 @@ deployment:
                     type_: VariableType::String,
                     required: true,
                     final_value: Some(TrivialValue::Number(PosInt(30))),
+                    file_path: Some("some_path".to_string()),
                 },
             ),
             (
@@ -671,6 +686,7 @@ deployment:
                     type_: VariableType::Number,
                     required: true,
                     final_value: Some(TrivialValue::String("300s".to_string())),
+                    file_path: Some("some_path".to_string()),
                 },
             ),
         ]);
@@ -724,8 +740,8 @@ deployment:
             path: TemplateableValue::from_template("${bin}/otelcol".to_string()),
             args: TemplateableValue::from_template("--verbose ${deployment.on_host.verbose} --verbose_again ${deployment.on_host.verbose}".to_string()),
             env: TemplateableValue::from_template("".to_string()),
-            restart_policy: RestartPolicyConfig{
-                backoff_strategy: BackoffStrategyConfig{
+            restart_policy: RestartPolicyConfig {
+                backoff_strategy: BackoffStrategyConfig {
                     backoff_type: TemplateableValue::from_template(
                         "${backoff.type}"
                             .to_string(),
@@ -756,6 +772,7 @@ deployment:
                     type_: VariableType::String,
                     required: true,
                     final_value: Some(TrivialValue::String("/etc".to_string())),
+                    file_path: None,
                 },
             ),
             (
@@ -766,6 +783,7 @@ deployment:
                     type_: VariableType::String,
                     required: true,
                     final_value: Some(TrivialValue::String("true".to_string())),
+                    file_path: None,
                 },
             ),
             (
@@ -776,6 +794,7 @@ deployment:
                     type_: VariableType::String,
                     required: true,
                     final_value: Some(TrivialValue::String("linear".to_string())),
+                    file_path: Some("some_path".to_string()),
                 },
             ),
             (
@@ -786,6 +805,7 @@ deployment:
                     type_: VariableType::String,
                     required: true,
                     final_value: Some(TrivialValue::String("10s".to_string())),
+                    file_path: Some("some_path".to_string()),
                 },
             ),
             (
@@ -796,6 +816,7 @@ deployment:
                     type_: VariableType::String,
                     required: true,
                     final_value: Some(TrivialValue::Number(PosInt(30))),
+                    file_path: Some("some_path".to_string()),
                 },
             ),
             (
@@ -806,6 +827,7 @@ deployment:
                     type_: VariableType::Number,
                     required: true,
                     final_value: Some(TrivialValue::String("300s".to_string())),
+                    file_path: Some("some_path".to_string()),
                 },
             ),
         ]);
@@ -813,11 +835,11 @@ deployment:
         let exec_actual = exec.template_with(&normalized_values).unwrap();
 
         let exec_expected = Executable {
-            path: TemplateableValue{value: Some("/etc/otelcol".to_string()), template: "${bin}/otelcol".to_string()},
-            args: TemplateableValue{value: Some(Args("--verbose true --verbose_again true".to_string())), template: "--verbose ${deployment.on_host.verbose} --verbose_again ${deployment.on_host.verbose}".to_string()},
-            env: TemplateableValue{value: Some(Env("".to_string())), template: "".to_string()},
-            restart_policy: RestartPolicyConfig{
-                backoff_strategy: BackoffStrategyConfig{
+            path: TemplateableValue { value: Some("/etc/otelcol".to_string()), template: "${bin}/otelcol".to_string() },
+            args: TemplateableValue { value: Some(Args("--verbose true --verbose_again true".to_string())), template: "--verbose ${deployment.on_host.verbose} --verbose_again ${deployment.on_host.verbose}".to_string() },
+            env: TemplateableValue { value: Some(Env("".to_string())), template: "".to_string() },
+            restart_policy: RestartPolicyConfig {
+                backoff_strategy: BackoffStrategyConfig {
                     backoff_type: TemplateableValue {
                         value: Some(BackoffStrategyType::Linear),
                         template: "${backoff.type}".to_string(),
@@ -851,6 +873,7 @@ variables:
     description: "Newrelic infra configuration yaml"
     type: file
     required: true
+    file_path: "config.yml"
   config2:
     description: "Newrelic infra configuration yaml"
     type: file
@@ -858,6 +881,7 @@ variables:
     default: |
         license_key: abc123
         staging: true
+    file_path: "config2.yml"
   config3:
     description: "Newrelic infra configuration yaml"
     type: map[string]string
@@ -869,6 +893,7 @@ variables:
     default:
       kafka: |
         bootstrap: zookeeper
+    file_path: "integrations.d"
 deployment:
   on_host:
     executables:
@@ -882,31 +907,114 @@ config3:
   log_level: trace
   forward: "true"
 integrations:
-  kafka: |
+  kafka.conf: |
     strategy: bootstrap
-  redis: |
+  redis.yml: |
     user: redis
 config: | 
-    license_key: abc123
-    staging: true
+    license_key: abc124
+    staging: false
 "#;
 
     #[test]
     fn test_template_with_runtime_field() {
+        // Having Agent Type
         let input_agent_type =
             serde_yaml::from_str::<FinalAgent>(GIVEN_NEWRELIC_INFRA_YAML).unwrap();
-        println!("Input: {:#?}", input_agent_type);
 
+        // And Agent Values
         let input_user_config =
-            serde_yaml::from_str::<SupervisorConfig>(GIVEN_NEWRELIC_INFRA_USER_CONFIG_YAML)
-                .unwrap();
-        println!("Input: {:#?}", input_user_config);
+            serde_yaml::from_str::<SubAgentConfig>(GIVEN_NEWRELIC_INFRA_USER_CONFIG_YAML).unwrap();
 
+        // When populating values
         let actual = input_agent_type
             .template_with(input_user_config)
             .expect("Failed to template_with the AgentType's runtime_config field");
 
-        println!("Output: {:#?}", actual);
+        // Then we expected final values
+        // MapStringString
+        let expected_config_3 = TrivialValue::Map(HashMap::from([
+            (
+                "log_level".to_string(),
+                TrivialValue::String("trace".to_string()),
+            ),
+            (
+                "forward".to_string(),
+                TrivialValue::String("true".to_string()),
+            ),
+        ]));
+        // File with default
+        let expected_config_2 = TrivialValue::File(FilePathWithContent::new(
+            "config2.yml".to_string(),
+            "license_key: abc123\nstaging: true\n".to_string(),
+        ));
+        // File with values
+        let expected_config = TrivialValue::File(FilePathWithContent::new(
+            "config.yml".to_string(),
+            "license_key: abc124\nstaging: false\n".to_string(),
+        ));
+        // MapStringFile
+        let expected_integrations = TrivialValue::Map(HashMap::from([
+            (
+                "kafka.conf".to_string(),
+                TrivialValue::File(FilePathWithContent::new(
+                    "integrations.d".to_string(),
+                    "strategy: bootstrap\n".to_string(),
+                )),
+            ),
+            (
+                "redis.yml".to_string(),
+                TrivialValue::File(FilePathWithContent::new(
+                    "integrations.d".to_string(),
+                    "user: redis\n".to_string(),
+                )),
+            ),
+        ]));
+
+        assert_eq!(
+            expected_config_3,
+            actual
+                .get_variables()
+                .get("config3")
+                .unwrap()
+                .final_value
+                .as_ref()
+                .unwrap()
+                .clone()
+        );
+        assert_eq!(
+            expected_config_2,
+            actual
+                .get_variables()
+                .get("config2")
+                .unwrap()
+                .final_value
+                .as_ref()
+                .unwrap()
+                .clone()
+        );
+        assert_eq!(
+            expected_config,
+            actual
+                .get_variables()
+                .get("config")
+                .unwrap()
+                .final_value
+                .as_ref()
+                .unwrap()
+                .clone()
+        );
+        assert_eq!(
+            expected_integrations,
+            actual
+                .get_variables()
+                .get("integrations")
+                .unwrap()
+                .final_value
+                .as_ref()
+                .unwrap()
+                .clone()
+        );
     }
 
     const AGENT_BACKOFF_TEMPLATE_YAML: &str = r#"
@@ -963,7 +1071,7 @@ backoff:
         // println!("Input: {:#?}", input_agent_type);
 
         let input_user_config =
-            serde_yaml::from_str::<SupervisorConfig>(BACKOFF_CONFIG_YAML).unwrap();
+            serde_yaml::from_str::<SubAgentConfig>(BACKOFF_CONFIG_YAML).unwrap();
         // println!("Input: {:#?}", input_user_config);
 
         let expected_backoff = BackoffStrategyConfig {
@@ -1040,13 +1148,13 @@ backoff:
             serde_yaml::from_str::<FinalAgent>(AGENT_BACKOFF_TEMPLATE_YAML).unwrap();
 
         let wrong_retries =
-            serde_yaml::from_str::<SupervisorConfig>(WRONG_RETRIES_BACKOFF_CONFIG_YAML).unwrap();
+            serde_yaml::from_str::<SubAgentConfig>(WRONG_RETRIES_BACKOFF_CONFIG_YAML).unwrap();
         let wrong_delay =
-            serde_yaml::from_str::<SupervisorConfig>(WRONG_DELAY_BACKOFF_CONFIG_YAML).unwrap();
+            serde_yaml::from_str::<SubAgentConfig>(WRONG_DELAY_BACKOFF_CONFIG_YAML).unwrap();
         let wrong_interval =
-            serde_yaml::from_str::<SupervisorConfig>(WRONG_INTERVAL_BACKOFF_CONFIG_YAML).unwrap();
+            serde_yaml::from_str::<SubAgentConfig>(WRONG_INTERVAL_BACKOFF_CONFIG_YAML).unwrap();
         let wrong_type =
-            serde_yaml::from_str::<SupervisorConfig>(WRONG_TYPE_BACKOFF_CONFIG_YAML).unwrap();
+            serde_yaml::from_str::<SubAgentConfig>(WRONG_TYPE_BACKOFF_CONFIG_YAML).unwrap();
 
         let actual = input_agent_type.clone().template_with(wrong_retries);
         assert!(actual.is_err());
@@ -1203,7 +1311,7 @@ backoff:
             serde_yaml::from_str::<FinalAgent>(AGENT_STRING_DURATIONS_TEMPLATE_YAML).unwrap();
 
         let input_user_config =
-            serde_yaml::from_str::<SupervisorConfig>(STRING_DURATIONS_CONFIG_YAML).unwrap();
+            serde_yaml::from_str::<SubAgentConfig>(STRING_DURATIONS_CONFIG_YAML).unwrap();
 
         let expected_backoff = BackoffStrategyConfig {
             backoff_type: TemplateableValue {

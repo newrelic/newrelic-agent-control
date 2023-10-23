@@ -85,9 +85,9 @@ use super::agent_type::trivial_value::TrivialValue;
 ///
 /// [agent_type]: crate::config::agent_type
 #[derive(Debug, PartialEq, Deserialize, Default, Clone)]
-pub struct SupervisorConfig(Map<String, TrivialValue>);
+pub struct SubAgentConfig(Map<String, TrivialValue>);
 
-impl SupervisorConfig {
+impl SubAgentConfig {
     /// get_from_normalized recursively searches for a TrivialValue given a normalized prefix.  A
     /// normalized prefix flattens a Map path in a single string in which each indirection is
     /// denoted with the TEMPLATE_KEY_SEPARATOR.
@@ -97,7 +97,7 @@ impl SupervisorConfig {
     }
 
     /// normalize_with_agent_type verifies that all required Agent variables are defined in the
-    /// SupervisorConfig and transforms the types with check_type
+    /// SubAgentConfig and transforms the types with check_type
     pub(crate) fn normalize_with_agent_type(
         mut self,
         agent_type: &FinalAgent,
@@ -105,14 +105,14 @@ impl SupervisorConfig {
         for (k, v) in agent_type.variables.iter() {
             let value = get_from_normalized(&self.0, k);
 
-            // required value but not defined in SupervisorConfig
+            // required value but not defined in SubAgentConfig
             if value.is_none() && v.required {
                 return Err(AgentTypeError::MissingAgentKey(k.clone()));
             }
 
             // check type matches agent one and apply transformations
             if let Some(inner) = value {
-                let _ = update_from_normalized(&mut self.0, k, inner.clone().check_type(v.type_)?);
+                let _ = update_from_normalized(&mut self.0, k, inner.clone().check_type(v)?);
             }
         }
 
@@ -179,14 +179,14 @@ verbose: true
 
     #[test]
     fn example_config() {
-        let actual = serde_yaml::from_str::<SupervisorConfig>(EXAMPLE_CONFIG);
+        let actual = serde_yaml::from_str::<SubAgentConfig>(EXAMPLE_CONFIG);
 
         assert!(actual.is_ok());
     }
 
     #[test]
     fn test_supervisor_config() {
-        let actual = serde_yaml::from_str::<SupervisorConfig>(EXAMPLE_CONFIG).unwrap();
+        let actual = serde_yaml::from_str::<SubAgentConfig>(EXAMPLE_CONFIG).unwrap();
         let expected: Map<String, TrivialValue> = Map::from([
             (
                 "description".to_string(),
@@ -255,6 +255,7 @@ variables:
     description: "Path to the agent"
     type: file
     required: true
+    file_path: "newrelic-infra.yml"
   deployment:
     on_host:
       path:
@@ -269,6 +270,7 @@ variables:
     description: "Newrelic integrations configuration yamls"
     type: map[string]file
     required: true
+    file_path: integrations.d
 deployment:
   on_host:
     executables:
@@ -280,7 +282,7 @@ deployment:
     #[test]
     fn test_validate_with_agent_type() {
         let input_structure =
-            serde_yaml::from_str::<SupervisorConfig>(EXAMPLE_CONFIG_REPLACE).unwrap();
+            serde_yaml::from_str::<SubAgentConfig>(EXAMPLE_CONFIG_REPLACE).unwrap();
         let agent_type = serde_yaml::from_str::<FinalAgent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
 
         let expected = Map::from([
@@ -299,13 +301,17 @@ deployment:
             ),
             (
                 "config".to_string(),
-                TrivialValue::File(FilePathWithContent::new("test".to_string())),
+                TrivialValue::File(FilePathWithContent::new(
+                    "newrelic-infra.yml".to_string(),
+                    "test".to_string(),
+                )),
             ),
             (
                 "integrations".to_string(),
                 TrivialValue::Map(Map::from([(
                     "kafka".to_string(),
                     TrivialValue::File(FilePathWithContent::new(
+                        "integrations.d".to_string(),
                         "strategy: bootstrap\n".to_string(),
                     )),
                 )])),
@@ -329,7 +335,7 @@ deployment:
     #[test]
     fn test_validate_with_agent_type_missing_required() {
         let input_structure =
-            serde_yaml::from_str::<SupervisorConfig>(EXAMPLE_CONFIG_REPLACE_NOPATH).unwrap();
+            serde_yaml::from_str::<SubAgentConfig>(EXAMPLE_CONFIG_REPLACE_NOPATH).unwrap();
         let agent_type = serde_yaml::from_str::<FinalAgent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
 
         let actual = input_structure.normalize_with_agent_type(&agent_type);
@@ -353,7 +359,7 @@ deployment:
     #[test]
     fn test_validate_with_agent_type_wrong_value_type() {
         let input_structure =
-            serde_yaml::from_str::<SupervisorConfig>(EXAMPLE_CONFIG_REPLACE_WRONG_TYPE).unwrap();
+            serde_yaml::from_str::<SubAgentConfig>(EXAMPLE_CONFIG_REPLACE_WRONG_TYPE).unwrap();
         let agent_type = serde_yaml::from_str::<FinalAgent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
 
         let actual = input_structure.normalize_with_agent_type(&agent_type);

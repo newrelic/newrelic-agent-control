@@ -1,19 +1,20 @@
 use std::{collections::HashMap, sync::mpsc::Receiver, thread};
 
-use newrelic_super_agent::command::{
-    stream::{Event, OutputEvent},
-    CommandExecutor, CommandHandle, CommandTerminator, EventStreamer, ProcessRunner,
-    ProcessTerminator,
+use newrelic_super_agent::command::command::{
+    CommandTerminator, NotStartedCommand, StartedCommand,
 };
+use newrelic_super_agent::command::command_os::NotStartedCommandOS;
+use newrelic_super_agent::command::shutdown::ProcessTerminator;
+use newrelic_super_agent::command::stream::{Event, OutputEvent};
 
 const TICKER: &str = "test/integration/command/scripts/ticker.sh";
 const TICKER_STDERR: &str = "test/integration/command/scripts/ticker_stderr.sh";
 const TICKER_10: &str = "test/integration/command/scripts/ticker_10.sh";
 
 // non blocking supervisor
-struct NonSupervisor<C = ProcessRunner>
+struct NonSupervisor<C = NotStartedCommandOS>
 where
-    C: CommandExecutor,
+    C: NotStartedCommand,
 {
     cmd: C,
 }
@@ -48,7 +49,7 @@ fn get_n_outputs(rx: Receiver<Event>, times: usize) -> (Vec<String>, Vec<String>
 #[test]
 fn actual_command_streaming() {
     let agent = NonSupervisor {
-        cmd: ProcessRunner::new("sh", [TICKER], HashMap::from([("TEST", "TEST")])),
+        cmd: NotStartedCommandOS::new("sh", [TICKER], HashMap::from([("TEST", "TEST")])),
     };
 
     let (tx, rx) = std::sync::mpsc::channel();
@@ -78,7 +79,7 @@ fn actual_command_streaming() {
 #[test]
 fn actual_command_streaming_only_stderr() {
     let agent = NonSupervisor {
-        cmd: ProcessRunner::new("sh", [TICKER_STDERR], HashMap::from([("TEST", "TEST")])),
+        cmd: NotStartedCommandOS::new("sh", [TICKER_STDERR], HashMap::from([("TEST", "TEST")])),
     };
 
     let (tx, rx) = std::sync::mpsc::channel();
@@ -108,7 +109,7 @@ fn actual_command_streaming_only_stderr() {
 fn actual_command_exiting_closes_channel() {
     let agent = NonSupervisor {
         // TICKER_10 actually exits when it has ticked 10 times both on stdout and stderr
-        cmd: ProcessRunner::new("sh", [TICKER_10], HashMap::from([("TEST", "TEST")])),
+        cmd: NotStartedCommandOS::new("sh", [TICKER_10], HashMap::from([("TEST", "TEST")])),
     };
     let (tx, rx) = std::sync::mpsc::channel();
     // Start streaming (NOTE the use of handle on the last line)
@@ -142,7 +143,7 @@ fn env_vars_are_inherited() {
 
     // Child processes will inherit environment variables from their parent process by default
     let agent = NonSupervisor {
-        cmd: ProcessRunner::new(
+        cmd: NotStartedCommandOS::new(
             "sh",
             ["-c", "echo $FOO; echo $BAR"],
             HashMap::from([("TEST", "TEST")]),
