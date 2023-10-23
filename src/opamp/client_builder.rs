@@ -10,7 +10,7 @@ use std::time::SystemTimeError;
 use thiserror::Error;
 use tracing::error;
 
-use crate::config::agent_configs::OpAMPClientConfig;
+use crate::config::super_agent_configs::OpAMPClientConfig;
 
 use crate::super_agent::callbacks::AgentCallbacks;
 use crate::utils::time::get_sys_time_nano;

@@ -1,4 +1,4 @@
-use crate::config::agent_configs::AgentID;
+use crate::config::super_agent_configs::AgentID;
 use crate::opamp::client_builder::OpAMPClientBuilder;
 use crate::sub_agent::on_host::sub_agent_on_host::{
     NotStartedSubAgentOnHost, StartedSubAgentOnHost,

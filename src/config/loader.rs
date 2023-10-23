@@ -1,5 +1,5 @@
-use crate::config::agent_configs::SuperAgentConfig;
 use crate::config::error::SuperAgentConfigError;
+use crate::config::super_agent_configs::SuperAgentConfig;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
@@ -47,8 +47,8 @@ mod tests {
     use tempfile::NamedTempFile;
 
     use crate::config::{
-        agent_configs::{OpAMPClientConfig, SuperAgentConfig},
         loader::{SuperAgentConfigLoader, SuperAgentConfigLoaderFile},
+        super_agent_configs::{OpAMPClientConfig, SuperAgentConfig},
     };
 
     #[test]

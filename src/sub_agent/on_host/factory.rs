@@ -1,6 +1,6 @@
 use crate::command::stream::Event;
-use crate::config::agent_configs::{AgentID, AgentTypeFQN};
 use crate::config::agent_type::agent_types::FinalAgent;
+use crate::config::super_agent_configs::{AgentID, AgentTypeFQN};
 use crate::context::Context;
 use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPClientBuilderError};
 use crate::sub_agent::on_host::sub_agent_on_host::NotStartedSubAgentOnHost;

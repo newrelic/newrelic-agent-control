@@ -35,7 +35,7 @@ impl Display for AgentID {
 pub struct SuperAgentConfig {
     /// agents is a map of agent types to their specific configuration (if any).
     #[serde(default)]
-    pub agents: HashMap<AgentID, AgentSupervisorConfig>,
+    pub agents: HashMap<AgentID, SuperAgentSubAgentConfig>,
 
     /// opamp contains the OpAMP client configuration
     pub opamp: Option<OpAMPClientConfig>,
@@ -85,7 +85,7 @@ impl From<&str> for AgentTypeFQN {
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(deny_unknown_fields)]
-pub struct AgentSupervisorConfig {
+pub struct SuperAgentSubAgentConfig {
     pub agent_type: AgentTypeFQN,
     // FQN of the agent type, ex: newrelic/nrdot:0.1.0
     pub values_file: Option<String>, // path to the values file
