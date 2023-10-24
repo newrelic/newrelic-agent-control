@@ -30,6 +30,8 @@ ulid = "1.0.1"
 openssl = { version = "0.10.57", features = ["vendored"] }
 aquamarine = "0.3.2"
 duration-str = "0.7.0"
+k8s-openapi = { version = "0.20.0", features = ["v1_28"] }
+kube = { version = "0.86.0", default-features = false, features = ["client", "openssl-tls"] }
 
 [dev-dependencies]
 assert_cmd = "2.0.12"
