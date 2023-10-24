@@ -95,12 +95,12 @@ pub(crate) mod test {
     use async_trait::async_trait;
     use mockall::mock;
     use opamp_client::operation::settings::StartSettings;
+    use opamp_client::opamp::proto::RemoteConfigStatus;
     use opamp_client::{
         error::{ClientResult, NotStartedClientResult, StartedClientResult},
-        opamp::proto::{AgentDescription, AgentHealth},
+        opamp::proto::{AgentDescription, AgentHealth, RemoteConfigStatus},
         Client, NotStartedClient, StartedClient,
     };
-    use opamp_client::opamp::proto::RemoteConfigStatus;
 
     mock! {
         pub OpAMPClientMock {}

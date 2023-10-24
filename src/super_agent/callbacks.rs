@@ -16,6 +16,15 @@ use crate::config::agent_configs::AgentID;
 use crate::config::remote_config::{RemoteConfig, RemoteConfigError};
 use crate::context::Context;
 use tracing::error;
+use opamp_client::{
+    opamp::proto::{
+        EffectiveConfig, OpAmpConnectionSettings, ServerErrorResponse, ServerToAgentCommand,
+    },
+    operation::callbacks::{Callbacks, MessageData},
+};
+use std::collections::HashMap;
+use std::str;
+use thiserror::Error;
 
 pub struct AgentCallbacks {
     agent_id: AgentID,
@@ -27,7 +36,7 @@ pub enum AgentCallbacksError {}
 
 impl AgentCallbacks {
     pub fn new(ctx: Context<Option<AgentEvent>>, agent_id: AgentID) -> Self {
-        Self{ ctx, agent_id }
+        Self { ctx, agent_id }
     }
 }
 
@@ -50,25 +59,35 @@ impl Callbacks for AgentCallbacks {
                             Ok(parsed_body) => {
                                 result.insert(key, parsed_body.to_string());
                                 Ok(result)
-                            },
+                            }
                             Err(e) => Err(e),
                         };
                         body
                     },
                 );
 
+                let current_hash = str::from_utf8(&msg_remote_config.config_hash)
+                    .unwrap()
+                    .to_string();
+
                 match config {
                     Err(e) => {
-                        self.ctx.cancel_all(Some(AgentEvent::RemoteConfig(Err(RemoteConfigError::UTF8(e))))).unwrap();
-                    },
+                        self.ctx
+                            .cancel_all(Some(AgentEvent::RemoteConfig(Err(
+                                RemoteConfigError::UTF8(current_hash, e.to_string()),
+                            ))))
+                            .unwrap();
+                    }
                     Ok(config) => {
-                        let remote_config = RemoteConfig{
+                        let remote_config = RemoteConfig {
                             agent_id,
-                            hash: str::from_utf8(&msg_remote_config.config_hash).unwrap().to_string(),
+                            hash: current_hash,
                             config_map: config,
                         };
-                        self.ctx.cancel_all(Some(AgentEvent::RemoteConfig(Ok(remote_config)))).unwrap();
-                    },
+                        self.ctx
+                            .cancel_all(Some(AgentEvent::RemoteConfig(Ok(remote_config))))
+                            .unwrap();
+                    }
                 }
             }
         }
@@ -117,33 +136,31 @@ fn log_on_http_status_code(err: &ConnectionError) {
 
 #[cfg(test)]
 mod tests {
-    use std::thread::spawn;
+    use super::*;
     use log::debug;
     use opamp_client::opamp::proto::{AgentConfigFile, AgentConfigMap, AgentRemoteConfig};
+    use std::thread::spawn;
     use tracing::info;
-    use super::*;
 
     #[test]
     fn on_message_send_correct_config() {
         let ctx: Context<Option<AgentEvent>> = Context::new();
-        let agent_id= AgentID::new("an-agent-id".to_string());
+        let agent_id = AgentID::new("an-agent-id".to_string());
 
         spawn({
             let ctx = ctx.clone();
             move || {
                 let callbacks = AgentCallbacks::new(ctx, agent_id);
-                let msg = MessageData{
+                let msg = MessageData {
                     remote_config: Option::from(AgentRemoteConfig {
                         config: Option::from(AgentConfigMap {
-                            config_map: HashMap::from(
-                                [(
-                                    "my-config".to_string(),
-                                    AgentConfigFile {
-                                        body: "enable_proces_metrics: true".as_bytes().to_vec(),
-                                        content_type: "".to_string(),
-                                    },
-                                )],
-                            ),
+                            config_map: HashMap::from([(
+                                "my-config".to_string(),
+                                AgentConfigFile {
+                                    body: "enable_proces_metrics: true".as_bytes().to_vec(),
+                                    content_type: "".to_string(),
+                                },
+                            )]),
                         }),
                         config_hash: "cool-hash".as_bytes().to_vec(),
                     }),
@@ -158,9 +175,13 @@ mod tests {
             }
         });
 
-        let Some(event) = ctx.wait_condvar().unwrap() else { unreachable!() };
+        let Some(event) = ctx.wait_condvar().unwrap() else {
+            unreachable!()
+        };
 
-        let AgentEvent::RemoteConfig(remote_config) = event else { unreachable!() };
+        let AgentEvent::RemoteConfig(remote_config) = event else {
+            unreachable!()
+        };
         let result = remote_config.unwrap();
 
         assert_eq!(AgentID::new("an-agent-id".to_string()), result.agent_id);

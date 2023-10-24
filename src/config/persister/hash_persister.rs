@@ -5,6 +5,4 @@ pub trait HashPersister {
 }
 
 #[cfg(test)]
-pub mod test {
-
-}
+pub mod test {}

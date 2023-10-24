@@ -1,7 +1,6 @@
-use std::collections::HashMap;
-use std::str::Utf8Error;
-use thiserror::Error;
 use crate::config::agent_configs::AgentID;
+use std::collections::HashMap;
+use thiserror::Error;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct RemoteConfig {
@@ -12,6 +11,6 @@ pub struct RemoteConfig {
 
 #[derive(Error, Debug, Clone)]
 pub enum RemoteConfigError {
-    #[error("Invalid UTF-8 sequence: `{0}`")]
-    UTF8(#[from] Utf8Error),
+    #[error("Config hash: `{0}` Invalid UTF-8 sequence: `{1}`")]
+    UTF8(String, String),
 }
