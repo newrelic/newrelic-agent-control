@@ -12,10 +12,10 @@ use tracing::error;
 
 use crate::config::super_agent_configs::{AgentID, OpAMPClientConfig};
 
-use crate::super_agent::callbacks::AgentCallbacks;
-use crate::utils::time::get_sys_time_nano;
 use crate::context::Context;
+use crate::super_agent::callbacks::AgentCallbacks;
 use crate::super_agent::super_agent::SuperAgentEvent;
+use crate::utils::time::get_sys_time_nano;
 
 #[derive(Error, Debug)]
 pub enum OpAMPClientBuilderError {
@@ -74,8 +74,7 @@ impl OpAMPClientBuilder for OpAMPHttpBuilder {
 
         let callbacks = AgentCallbacks::new(ctx, agent_id);
 
-        let not_started_client =
-            NotStartedHttpClient::new(callbacks, start_settings, http_client)?;
+        let not_started_client = NotStartedHttpClient::new(callbacks, start_settings, http_client)?;
 
         let started_client = block_on(not_started_client.start())?;
         // set OpAMP health
@@ -95,7 +94,6 @@ pub(crate) mod test {
     use async_trait::async_trait;
     use mockall::mock;
     use opamp_client::operation::settings::StartSettings;
-    use opamp_client::opamp::proto::RemoteConfigStatus;
     use opamp_client::{
         error::{ClientResult, NotStartedClientResult, StartedClientResult},
         opamp::proto::{AgentDescription, AgentHealth, RemoteConfigStatus},

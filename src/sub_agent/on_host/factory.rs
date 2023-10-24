@@ -126,7 +126,11 @@ where
                 start_settings(instance_id_getter.get(agent_id.to_string()), agent_type);
 
             println!("{:?}", start_settings);
-            Ok(Some(builder.build_and_start(ctx, agent_id, start_settings)?))
+            Ok(Some(builder.build_and_start(
+                ctx,
+                agent_id,
+                start_settings,
+            )?))
         }
         None => Ok(None),
     }

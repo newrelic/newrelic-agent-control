@@ -14,8 +14,10 @@ use thiserror::Error;
 use crate::agent::AgentEvent;
 use crate::config::agent_configs::AgentID;
 use crate::config::remote_config::{RemoteConfig, RemoteConfigError};
+use crate::config::super_agent_configs::AgentID;
 use crate::context::Context;
 use tracing::error;
+use crate::super_agent::super_agent::SuperAgentEvent;
 use opamp_client::{
     opamp::proto::{
         EffectiveConfig, OpAmpConnectionSettings, ServerErrorResponse, ServerToAgentCommand,
@@ -28,14 +30,14 @@ use thiserror::Error;
 
 pub struct AgentCallbacks {
     agent_id: AgentID,
-    ctx: Context<Option<AgentEvent>>,
+    ctx: Context<Option<SuperAgentEvent>>,
 }
 
 #[derive(Debug, Error)]
 pub enum AgentCallbacksError {}
 
 impl AgentCallbacks {
-    pub fn new(ctx: Context<Option<AgentEvent>>, agent_id: AgentID) -> Self {
+    pub fn new(ctx: Context<Option<SuperAgentEvent>>, agent_id: AgentID) -> Self {
         Self { ctx, agent_id }
     }
 }
@@ -73,7 +75,7 @@ impl Callbacks for AgentCallbacks {
                 match config {
                     Err(e) => {
                         self.ctx
-                            .cancel_all(Some(AgentEvent::RemoteConfig(Err(
+                            .cancel_all(Some(SuperAgentEvent::RemoteConfig(Err(
                                 RemoteConfigError::UTF8(current_hash, e.to_string()),
                             ))))
                             .unwrap();
@@ -85,7 +87,7 @@ impl Callbacks for AgentCallbacks {
                             config_map: config,
                         };
                         self.ctx
-                            .cancel_all(Some(AgentEvent::RemoteConfig(Ok(remote_config))))
+                            .cancel_all(Some(SuperAgentEvent::RemoteConfig(Ok(remote_config))))
                             .unwrap();
                     }
                 }
@@ -137,15 +139,13 @@ fn log_on_http_status_code(err: &ConnectionError) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use log::debug;
     use opamp_client::opamp::proto::{AgentConfigFile, AgentConfigMap, AgentRemoteConfig};
     use std::thread::spawn;
-    use tracing::info;
 
     #[test]
     fn on_message_send_correct_config() {
-        let ctx: Context<Option<AgentEvent>> = Context::new();
-        let agent_id = AgentID::new("an-agent-id".to_string());
+        let ctx: Context<Option<SuperAgentEvent>> = Context::new();
+        let agent_id = AgentID::new("an-agent-id");
 
         spawn({
             let ctx = ctx.clone();
@@ -179,12 +179,12 @@ mod tests {
             unreachable!()
         };
 
-        let AgentEvent::RemoteConfig(remote_config) = event else {
+        let SuperAgentEvent::RemoteConfig(remote_config) = event else {
             unreachable!()
         };
         let result = remote_config.unwrap();
 
-        assert_eq!(AgentID::new("an-agent-id".to_string()), result.agent_id);
+        assert_eq!(AgentID::new("an-agent-id"), result.agent_id);
         assert_eq!("cool-hash".to_string(), result.hash);
         assert_eq!(
             &"enable_proces_metrics: true".to_string(),
