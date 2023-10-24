@@ -13,6 +13,7 @@ use tracing::{error, info};
 
 use crate::command::logger::{EventLogger, StdEventReceiver};
 use crate::config::agent_type::agent_types::FinalAgent;
+use crate::config::remote_config::{RemoteConfig,RemoteConfigError};
 use crate::config::super_agent_configs::AgentID;
 use crate::context::Context;
 use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPHttpBuilder};
@@ -30,6 +31,7 @@ use crate::super_agent::super_agent::EffectiveAgentsError::{
 
 #[derive(Clone)]
 pub enum SuperAgentEvent {
+    RemoteConfig(Result<RemoteConfig, RemoteConfigError>),
     // this should be a list of agentTypes
     Restart(AgentID),
     // stop all supervisors
@@ -76,7 +78,7 @@ where
         let output_manager = StdEventReceiver::default().log(rx);
 
         // build and start the Agent's OpAMP client if a builder is provided
-        let opamp_client = self.start_super_agent_opamp_client()?;
+        let opamp_client = self.start_super_agent_opamp_client(ctx)?;
 
         info!("Starting the supervisor group.");
         // create sub agents
@@ -107,7 +109,7 @@ where
 
         // Run all the Sub Agents
         let running_sub_agents = sub_agents.run()?;
-        Self::process_event(ctx, running_sub_agents)?;
+        Self::process_event(ctx.clone(), running_sub_agents)?;
 
         if let Some(handle) = opamp_client {
             info!("Stopping and setting to unhealthy the OpAMP Client");
@@ -127,12 +129,12 @@ where
         Ok(())
     }
 
-    fn start_super_agent_opamp_client(&self) -> Result<Option<OpAMPBuilder::Client>, AgentError> {
+    fn start_super_agent_opamp_client(&self, ctx: Context<Option<SuperAgentEvent>>) -> Result<Option<OpAMPBuilder::Client>, AgentError> {
         // build and start the Agent's OpAMP client if a builder is provided
         let opamp_client_handle = match self.opamp_client_builder {
             Some(builder) => {
                 info!("Starting superagent's OpAMP Client.");
-                let opamp_client = builder.build_and_start(self.super_agent_start_settings())?;
+                let opamp_client = builder.build_and_start(ctx, AgentID(SUPER_AGENT_ID.to_string()),self.super_agent_start_settings())?;
                 Some(opamp_client)
             }
             None => None,
@@ -202,6 +204,10 @@ where
                                     }
                                 },
                             );
+                        }
+
+                        SuperAgentEvent::RemoteConfig(remote_config) => {
+                            info!("{:?}", remote_config);
                         }
 
                         SuperAgentEvent::Restart(_agent_type) => {
@@ -329,7 +335,7 @@ mod tests {
         // Super Agent OpAMP
         opamp_builder
             .expect_build_and_start()
-            .with(predicate::eq(super_agent_start_settings))
+            .with(predicate::always(),  predicate::eq(SUPER_AGENT_ID.to_string()), predicate::eq(super_agent_start_settings))
             .times(1)
             .returning(|_| {
                 let mut started_client = MockOpAMPClientMock::new();
@@ -400,7 +406,7 @@ mod tests {
         // Super Agent OpAMP
         opamp_builder
             .expect_build_and_start()
-            .with(predicate::eq(super_agent_start_settings))
+            .with(predicate::always(),  predicate::eq(SUPER_AGENT_ID.to_string()), predicate::eq(super_agent_start_settings))
             .times(1)
             .returning(|_| {
                 let mut started_client = MockOpAMPClientMock::new();
@@ -452,7 +458,7 @@ mod tests {
 
         opamp_builder
             .expect_build_and_start()
-            .with(predicate::eq(start_settings_infra))
+            .with(predicate::always(), predicate::eq(SUPER_AGENT_ID.to_string()), predicate::eq(start_settings_infra))
             .times(1)
             .returning(|_| {
                 let mut started_client = MockOpAMPClientMock::new();
@@ -466,7 +472,7 @@ mod tests {
 
         opamp_builder
             .expect_build_and_start()
-            .with(predicate::eq(start_settings_nrdot))
+            .with(predicate::always(), predicate::eq(SUPER_AGENT_ID.to_string()), predicate::eq(start_settings_nrdot))
             .times(1)
             .returning(|_| {
                 let mut started_client = MockOpAMPClientMock::new();

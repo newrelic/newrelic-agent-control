@@ -9,13 +9,13 @@ use opamp_client::{Client, NotStartedClient, StartedClient};
 use std::time::SystemTimeError;
 use thiserror::Error;
 use tracing::error;
-use crate::agent::AgentEvent;
 
 use crate::config::super_agent_configs::{AgentID, OpAMPClientConfig};
 
 use crate::super_agent::callbacks::AgentCallbacks;
 use crate::utils::time::get_sys_time_nano;
 use crate::context::Context;
+use crate::super_agent::super_agent::SuperAgentEvent;
 
 #[derive(Error, Debug)]
 pub enum OpAMPClientBuilderError {
@@ -36,7 +36,7 @@ pub trait OpAMPClientBuilder {
     // type StartedClient: StartedClient;
     fn build_and_start(
         &self,
-        ctx: Context<Option<AgentEvent>>,
+        ctx: Context<Option<SuperAgentEvent>>,
         agent_id: AgentID,
         start_settings: StartSettings,
     ) -> Result<Self::Client, OpAMPClientBuilderError>;
@@ -57,7 +57,7 @@ impl OpAMPClientBuilder for OpAMPHttpBuilder {
     type Client = StartedHttpClient<AgentCallbacks, HttpClientReqwest>;
     fn build_and_start(
         &self,
-        ctx: Context<Option<AgentEvent>>,
+        ctx: Context<Option<SuperAgentEvent>>,
         agent_id: AgentID,
         start_settings: StartSettings,
     ) -> Result<Self::Client, OpAMPClientBuilderError> {
@@ -136,7 +136,7 @@ pub(crate) mod test {
 
         impl OpAMPClientBuilder for OpAMPClientBuilderMock {
             type Client = MockOpAMPClientMock;
-            fn build_and_start(&self, start_settings: StartSettings) -> Result<<Self as OpAMPClientBuilder>::Client, OpAMPClientBuilderError>;
+            fn build_and_start(&self, ctx: Context<Option<SuperAgentEvent>>, agent_id: AgentID, start_settings: StartSettings) -> Result<<Self as OpAMPClientBuilder>::Client, OpAMPClientBuilderError>;
         }
     }
 }

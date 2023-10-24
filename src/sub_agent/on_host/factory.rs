@@ -7,7 +7,7 @@ use crate::sub_agent::on_host::sub_agent_on_host::NotStartedSubAgentOnHost;
 use crate::sub_agent::on_host::sub_agents_on_host::NotStartedSubAgentsOnHost;
 use crate::sub_agent::sub_agent::SubAgentError;
 use crate::super_agent::instance_id::InstanceIDGetter;
-use crate::super_agent::super_agent::EffectiveAgents;
+use crate::super_agent::super_agent::{EffectiveAgents, SuperAgentEvent};
 use crate::supervisor::command_supervisor::NotStartedSupervisorOnHost;
 use crate::supervisor::command_supervisor_config::SupervisorConfigOnHost;
 use crate::supervisor::restart_policy::RestartPolicy;
@@ -110,6 +110,7 @@ fn build_supervisors(
 }
 
 pub(super) fn build_opamp_and_start_client<OpAMPBuilder, InstanceIdGetter>(
+    ctx: Context<Option<SuperAgentEvent>>,
     opamp_builder: Option<&OpAMPBuilder>,
     instance_id_getter: &InstanceIdGetter,
     agent_id: AgentID,
@@ -125,7 +126,7 @@ where
                 start_settings(instance_id_getter.get(agent_id.to_string()), agent_type);
 
             println!("{:?}", start_settings);
-            Ok(Some(builder.build_and_start(start_settings)?))
+            Ok(Some(builder.build_and_start(ctx, agent_id, start_settings)?))
         }
         None => Ok(None),
     }
