@@ -161,20 +161,14 @@ where
         mut hash: Hash,
     ) -> Result<(), AgentError> {
         if let Some(opamp_handle) = &opamp_client {
-            let opamp_result =
-                block_on(opamp_handle.set_remote_config_status(RemoteConfigStatus {
-                    last_remote_config_hash: hash.get().into_bytes(),
-                    status: RemoteConfigStatuses::Applied as i32,
-                    error_message: "".to_string(),
-                }));
-            match opamp_result {
-                Ok(_) => {
-                    hash.apply();
-                    self.remote_config_hash_repository
-                        .save(AgentID(SUPER_AGENT_ID.to_string()), hash.clone())?
-                }
-                Err(e) => return Err(AgentError::from(e)),
-            }
+            let _ = block_on(opamp_handle.set_remote_config_status(RemoteConfigStatus {
+                last_remote_config_hash: hash.get().into_bytes(),
+                status: RemoteConfigStatuses::Applied as i32,
+                error_message: "".to_string(),
+            }))?;
+            hash.apply();
+            self.remote_config_hash_repository
+                .save(AgentID(SUPER_AGENT_ID.to_string()), hash.clone())?;
         }
         Ok(())
     }
