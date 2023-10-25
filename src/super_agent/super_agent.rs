@@ -14,7 +14,7 @@ use tracing::{error, info};
 use crate::command::logger::{EventLogger, StdEventReceiver};
 use crate::config::agent_type::agent_types::FinalAgent;
 use crate::config::remote_config::{RemoteConfig, RemoteConfigError};
-use crate::config::remote_config_hash::{HashRepository, HashRepositoryFile};
+use crate::config::remote_config_hash::{Hash, HashRepository, HashRepositoryFile};
 use crate::config::super_agent_configs::AgentID;
 use crate::context::Context;
 use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPHttpBuilder};
@@ -96,32 +96,15 @@ where
             .get(AgentID(SUPER_AGENT_ID.to_string()));
 
         match remote_config_hash {
-            Ok(mut hash) => {
+            Ok(hash) => {
                 if !hash.is_applied() {
-                    if let Some(opamp_handle) = &opamp_client {
-                        let opamp_result =
-                            block_on(opamp_handle.set_remote_config_status(RemoteConfigStatus {
-                                last_remote_config_hash: hash.get().into_bytes(),
-                                status: RemoteConfigStatuses::Applied as i32,
-                                error_message: "".to_string(),
-                            }));
-                        match opamp_result {
-                            Ok(_) => {
-                                hash.apply();
-                                self.remote_config_hash_repository
-                                    .save(AgentID(SUPER_AGENT_ID.to_string()), hash)?;
-                            }
-                            Err(e) => return Err(AgentError::from(e)),
-                        }
-                    }
+                    self.set_config_hash_as_applied(&opamp_client, hash)?;
                 }
             }
-            Err(e) =>{
+            Err(e) => {
                 error!("hash repository error: {}", e);
             }
         }
-
-
 
         info!("Starting the supervisor group.");
         // create sub agents
@@ -169,6 +152,30 @@ where
         output_manager.join().unwrap();
 
         info!("SuperAgent finished");
+        Ok(())
+    }
+
+    fn set_config_hash_as_applied(
+        &self,
+        opamp_client: &Option<OpAMPBuilder::Client>,
+        mut hash: Hash,
+    ) -> Result<(), AgentError> {
+        if let Some(opamp_handle) = &opamp_client {
+            let opamp_result =
+                block_on(opamp_handle.set_remote_config_status(RemoteConfigStatus {
+                    last_remote_config_hash: hash.get().into_bytes(),
+                    status: RemoteConfigStatuses::Applied as i32,
+                    error_message: "".to_string(),
+                }));
+            match opamp_result {
+                Ok(_) => {
+                    hash.apply();
+                    self.remote_config_hash_repository
+                        .save(AgentID(SUPER_AGENT_ID.to_string()), hash.clone())?
+                }
+                Err(e) => return Err(AgentError::from(e)),
+            }
+        }
         Ok(())
     }
 
