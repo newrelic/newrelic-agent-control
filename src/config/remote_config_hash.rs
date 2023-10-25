@@ -32,7 +32,10 @@ pub enum HashRepositoryError {
 
 impl Hash {
     pub fn new(hash: String) -> Self {
-        Self { hash, applied: false }
+        Self {
+            hash,
+            applied: false,
+        }
     }
     pub fn get(&self) -> String {
         self.hash.clone()

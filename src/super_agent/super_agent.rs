@@ -89,22 +89,29 @@ where
         let output_manager = StdEventReceiver::default().log(rx);
 
         // build and start the Agent's OpAMP client if a builder is provided
-
         let opamp_client = self.start_super_agent_opamp_client(ctx.clone())?;
 
-        let mut remote_config_hash = self.remote_config_hash_repository
+        let mut remote_config_hash = self
+            .remote_config_hash_repository
             .get(AgentID(SUPER_AGENT_ID.to_string()))?;
 
-        //Check if opamp
         if !remote_config_hash.is_applied() {
-            remote_config_hash.apply();
-            self.remote_config_hash_repository.save(AgentID(SUPER_AGENT_ID.to_string()), remote_config_hash);
-            let mut remote_config_status = RemoteConfigStatus{
-                last_remote_config_hash: remote_config_hash.get().into_bytes(),
-                status: RemoteConfigStatuses::Applied as i32,
-                error_message: "".to_string(),
-            };
-            block_on(opamp_client.unwrap().set_remote_config_status(remote_config_status))?;
+            if let Some(opamp_handle) = &opamp_client {
+                let opamp_result =
+                    block_on(opamp_handle.set_remote_config_status(RemoteConfigStatus {
+                        last_remote_config_hash: remote_config_hash.get().into_bytes(),
+                        status: RemoteConfigStatuses::Applied as i32,
+                        error_message: "".to_string(),
+                    }));
+                match opamp_result {
+                    Ok(_) => {
+                        remote_config_hash.apply();
+                        self.remote_config_hash_repository
+                            .save(AgentID(SUPER_AGENT_ID.to_string()), remote_config_hash)?;
+                    }
+                    Err(e) => return Err(AgentError::from(e)),
+                }
+            }
         }
 
         info!("Starting the supervisor group.");
