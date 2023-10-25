@@ -91,28 +91,37 @@ where
         // build and start the Agent's OpAMP client if a builder is provided
         let opamp_client = self.start_super_agent_opamp_client(ctx.clone())?;
 
-        let mut remote_config_hash = self
+        let remote_config_hash = self
             .remote_config_hash_repository
-            .get(AgentID(SUPER_AGENT_ID.to_string()))?;
+            .get(AgentID(SUPER_AGENT_ID.to_string()));
 
-        if !remote_config_hash.is_applied() {
-            if let Some(opamp_handle) = &opamp_client {
-                let opamp_result =
-                    block_on(opamp_handle.set_remote_config_status(RemoteConfigStatus {
-                        last_remote_config_hash: remote_config_hash.get().into_bytes(),
-                        status: RemoteConfigStatuses::Applied as i32,
-                        error_message: "".to_string(),
-                    }));
-                match opamp_result {
-                    Ok(_) => {
-                        remote_config_hash.apply();
-                        self.remote_config_hash_repository
-                            .save(AgentID(SUPER_AGENT_ID.to_string()), remote_config_hash)?;
+        match remote_config_hash {
+            Ok(mut hash) => {
+                if !hash.is_applied() {
+                    if let Some(opamp_handle) = &opamp_client {
+                        let opamp_result =
+                            block_on(opamp_handle.set_remote_config_status(RemoteConfigStatus {
+                                last_remote_config_hash: hash.get().into_bytes(),
+                                status: RemoteConfigStatuses::Applied as i32,
+                                error_message: "".to_string(),
+                            }));
+                        match opamp_result {
+                            Ok(_) => {
+                                hash.apply();
+                                self.remote_config_hash_repository
+                                    .save(AgentID(SUPER_AGENT_ID.to_string()), hash)?;
+                            }
+                            Err(e) => return Err(AgentError::from(e)),
+                        }
                     }
-                    Err(e) => return Err(AgentError::from(e)),
                 }
             }
+            Err(e) =>{
+                error!("hash repository error: {}", e);
+            }
         }
+
+
 
         info!("Starting the supervisor group.");
         // create sub agents
