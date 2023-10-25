@@ -1,0 +1,5 @@
+image:
+  registry: ci.local
+  repository: super-agent-dev
+  tag: ""
+  imagePullPolicy: Always

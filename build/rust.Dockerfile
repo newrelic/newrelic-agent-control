@@ -24,4 +24,6 @@ ENV ARCH_NAME=${ARCH_NAME} \
     CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
     CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++
 
-CMD cargo build --release --target "${ARCH_NAME}-unknown-linux-gnu"
+ARG BUILD_FLAGS="--release"
+
+CMD cargo build $BUILD_FLAGS --target "${ARCH_NAME}-unknown-linux-gnu"

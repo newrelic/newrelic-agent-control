@@ -35,9 +35,12 @@ ARCH:=arm64
 .PHONY: build-super-agent 
 # Cross-compilation only works from amd64 host.
 build-super-agent:
-	ARCH=$(ARCH) ./build/scripts/build_super_agent.sh
+	ARCH=$(ARCH) BUILD_MODE=debug ./build/scripts/build_super_agent.sh
 
 .PHONY: build-dev-image
 build-dev-image: build-super-agent
 	docker build . -t newrelic-super-agent:dev
 
+.PHONY: tilt-up
+tilt-up:
+	tilt up ; tilt down

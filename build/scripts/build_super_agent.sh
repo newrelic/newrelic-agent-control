@@ -13,11 +13,18 @@ if [ "$ARCH" = "amd64" ];then
   ARCH_NAME="x86_64"
 fi
 
-docker build -t "rust-cross-${ARCH_NAME}" -f ./build/rust.Dockerfile --build-arg ARCH_NAME="${ARCH_NAME}" .
+: "${BUILD_MODE:=release}"
+if [ "$BUILD_MODE" = "debug" ]; then
+    BUILD_FLAGS=""
+else
+    BUILD_FLAGS="--release"
+fi
+
+docker build -t "rust-cross-${ARCH_NAME}" -f ./build/rust.Dockerfile --build-arg ARCH_NAME="${ARCH_NAME}" --build-arg BUILD_FLAGS="${BUILD_FLAGS}" .
 
 CARGO_HOME=/tmp/.cargo cargo fetch
 docker run --rm --user "$(id -u)":"$(id -g)" -v "$PWD":/usr/src/app -v /tmp/.cargo:/usr/src/app/.cargo rust-cross-"${ARCH_NAME}"
 
 mkdir -p "bin"
 
-cp "./target/${ARCH_NAME}-unknown-linux-gnu/release/newrelic-super-agent" "./bin/newrelic-super-agent-${ARCH}"
+cp "./target/${ARCH_NAME}-unknown-linux-gnu/${BUILD_MODE}/newrelic-super-agent" "./bin/newrelic-super-agent-${ARCH}"
