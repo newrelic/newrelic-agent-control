@@ -14,6 +14,7 @@ use tracing::{error, info};
 use crate::command::logger::{EventLogger, StdEventReceiver};
 use crate::config::agent_type::agent_types::FinalAgent;
 use crate::config::remote_config::{RemoteConfig, RemoteConfigError};
+use crate::config::remote_config_hash::{HashRepository, HashRepositoryFile};
 use crate::config::super_agent_configs::AgentID;
 use crate::context::Context;
 use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPHttpBuilder};
@@ -38,38 +39,48 @@ pub enum SuperAgentEvent {
     Stop,
 }
 
-pub struct SuperAgent<'a, OpAMPBuilder = OpAMPHttpBuilder, ID = ULIDInstanceIDGetter>
-where
+pub struct SuperAgent<
+    'a,
+    OpAMPBuilder = OpAMPHttpBuilder,
+    ID = ULIDInstanceIDGetter,
+    HR = HashRepositoryFile,
+> where
     OpAMPBuilder: OpAMPClientBuilder,
     ID: InstanceIDGetter,
+    HR: HashRepository,
 {
     instance_id_getter: ID,
     effective_agents: EffectiveAgents,
     opamp_client_builder: Option<&'a OpAMPBuilder>,
+    remote_config_hash_repository: HR,
 }
 
-impl<'a, OpAMPBuilder, ID> SuperAgent<'a, OpAMPBuilder, ID>
+impl<'a, OpAMPBuilder, ID, HR> SuperAgent<'a, OpAMPBuilder, ID, HR>
 where
     OpAMPBuilder: OpAMPClientBuilder,
     ID: InstanceIDGetter,
+    HR: HashRepository,
 {
     pub fn new(
         effective_agents: EffectiveAgents,
         opamp_client_builder: Option<&'a OpAMPBuilder>,
         instance_id_getter: ID,
+        remote_config_hash_repository: HR,
     ) -> Self {
         Self {
             instance_id_getter,
             effective_agents,
             opamp_client_builder,
+            remote_config_hash_repository,
         }
     }
 }
 
-impl<'a, OpAMPBuilder, ID> SuperAgent<'a, OpAMPBuilder, ID>
+impl<'a, OpAMPBuilder, ID, HR> SuperAgent<'a, OpAMPBuilder, ID, HR>
 where
     OpAMPBuilder: OpAMPClientBuilder,
     ID: InstanceIDGetter,
+    HR: HashRepository,
 {
     pub fn run(self, ctx: Context<Option<SuperAgentEvent>>) -> Result<(), AgentError> {
         info!("Creating agent's communication channels");
@@ -79,6 +90,9 @@ where
 
         // build and start the Agent's OpAMP client if a builder is provided
         let opamp_client = self.start_super_agent_opamp_client(ctx.clone())?;
+
+        self.remote_config_hash_repository
+            .get(AgentID(SUPER_AGENT_ID.to_string()))?;
 
         info!("Starting the supervisor group.");
         // create sub agents
@@ -109,7 +123,7 @@ where
 
         // Run all the Sub Agents
         let running_sub_agents = sub_agents.run()?;
-        Self::process_event(ctx.clone(), running_sub_agents, &opamp_client)?;
+        self.process_event(ctx.clone(), running_sub_agents, &opamp_client)?;
 
         if let Some(handle) = opamp_client {
             info!("Stopping and setting to unhealthy the OpAMP Client");
@@ -176,6 +190,7 @@ where
     }
 
     fn process_event(
+        &self,
         ctx: Context<Option<SuperAgentEvent>>,
         running_sub_agents: StartedSubAgentsOnHost<<OpAMPBuilder as OpAMPClientBuilder>::Client>,
         opamp_client: &Option<OpAMPBuilder::Client>,
@@ -219,8 +234,11 @@ where
                                 let mut remote_config_status = RemoteConfigStatus::default();
                                 match remote_config {
                                     Ok(config) => {
+                                        self.remote_config_hash_repository
+                                            .save(config.agent_id, config.hash.clone())?;
+
                                         remote_config_status.last_remote_config_hash =
-                                            config.hash.into_bytes();
+                                            config.hash.get().into_bytes();
                                         remote_config_status.status =
                                             RemoteConfigStatuses::Applying as i32;
                                     }
@@ -297,6 +315,8 @@ mod tests {
     use crate::config::agent_type_registry::tests::MockAgentRegistryMock;
     use crate::config::persister::config_persister::test::MockConfigurationPersisterMock;
     use crate::config::remote_config::RemoteConfig;
+    use crate::config::remote_config_hash::test::MockHashRepositoryMock;
+    use crate::config::remote_config_hash::{Hash, HashRepository};
     use crate::config::super_agent_configs::{
         AgentID, AgentTypeFQN, SuperAgentConfig, SuperAgentSubAgentConfig,
     };
@@ -328,20 +348,23 @@ mod tests {
     ////////////////////////////////////////////////////////////////////////////////////
     // Custom Agent constructor for tests
     ////////////////////////////////////////////////////////////////////////////////////
-    impl<'a, OpAMPBuilder, ID> SuperAgent<'a, OpAMPBuilder, ID>
+    impl<'a, OpAMPBuilder, ID, HR> SuperAgent<'a, OpAMPBuilder, ID, HR>
     where
         OpAMPBuilder: OpAMPClientBuilder,
         ID: InstanceIDGetter,
+        HR: HashRepository,
     {
         pub fn new_custom(
             instance_id_getter: ID,
             effective_agents: EffectiveAgents,
             opamp_client_builder: Option<&'a OpAMPBuilder>,
-        ) -> SuperAgent<OpAMPBuilder, ID> {
+            remote_config_hash_repository: HR,
+        ) -> SuperAgent<OpAMPBuilder, ID, HR> {
             SuperAgent {
                 effective_agents,
                 opamp_client_builder,
                 instance_id_getter,
+                remote_config_hash_repository,
             }
         }
     }
@@ -405,9 +428,19 @@ mod tests {
             .assemble_agents(&super_agent_config)
             .unwrap();
 
+        let hash_repository_mock = MockHashRepositoryMock::new();
+
         // no agents in the supervisor group
-        let agent: SuperAgent<MockOpAMPClientBuilderMock, MockInstanceIDGetterMock> =
-            SuperAgent::new_custom(instance_id_getter, effective_agents, Some(&opamp_builder));
+        let agent: SuperAgent<
+            MockOpAMPClientBuilderMock,
+            MockInstanceIDGetterMock,
+            MockHashRepositoryMock,
+        > = SuperAgent::new_custom(
+            instance_id_getter,
+            effective_agents,
+            Some(&opamp_builder),
+            hash_repository_mock,
+        );
 
         let ctx = Context::new();
         // stop all agents after 3 seconds
@@ -571,9 +604,19 @@ mod tests {
             .assemble_agents(&super_agent_config)
             .unwrap();
 
-        // two agents in the supervisor group
-        let agent: SuperAgent<MockOpAMPClientBuilderMock, MockInstanceIDGetterMock> =
-            SuperAgent::new_custom(instance_id_getter, effective_agents, Some(&opamp_builder));
+        let hash_repository_mock = MockHashRepositoryMock::new();
+
+        // no agents in the supervisor group
+        let agent: SuperAgent<
+            MockOpAMPClientBuilderMock,
+            MockInstanceIDGetterMock,
+            MockHashRepositoryMock,
+        > = SuperAgent::new_custom(
+            instance_id_getter,
+            effective_agents,
+            Some(&opamp_builder),
+            hash_repository_mock,
+        );
 
         let ctx = Context::new();
         // stop all agents after 3 seconds
@@ -631,13 +674,19 @@ mod tests {
             .times(1)
             .returning(|name| name);
 
+        let hash_repository_mock = MockHashRepositoryMock::new();
+
         // two agents in the supervisor group
-        let agent: SuperAgent<MockOpAMPClientBuilderMock, MockInstanceIDGetterMock> =
-            SuperAgent::new_custom(
-                instance_id_getter,
-                EffectiveAgents::default(),
-                Some(&opamp_builder),
-            );
+        let agent: SuperAgent<
+            MockOpAMPClientBuilderMock,
+            MockInstanceIDGetterMock,
+            MockHashRepositoryMock,
+        > = SuperAgent::new_custom(
+            instance_id_getter,
+            EffectiveAgents::default(),
+            Some(&opamp_builder),
+            hash_repository_mock,
+        );
 
         let ctx = Context::new();
         // stop all agents after 3 seconds
@@ -657,7 +706,7 @@ mod tests {
             move || {
                 let remote_config = RemoteConfig {
                     agent_id,
-                    hash: "a-hash".to_string(),
+                    hash: Hash::new("a-hash".to_string()),
                     config_map: HashMap::from([(
                         "my-config".to_string(),
                         "enable_process_metrics:true".to_string(),

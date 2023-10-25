@@ -1,3 +1,4 @@
+use crate::config::remote_config_hash::Hash;
 use crate::config::super_agent_configs::AgentID;
 use std::collections::HashMap;
 use thiserror::Error;
@@ -5,7 +6,7 @@ use thiserror::Error;
 #[derive(Debug, PartialEq, Clone)]
 pub struct RemoteConfig {
     pub agent_id: AgentID,
-    pub hash: String,
+    pub hash: Hash,
     pub config_map: HashMap<String, String>,
 }
 

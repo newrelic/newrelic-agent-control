@@ -2,6 +2,7 @@ use opamp_client::error::{ClientError, NotStartedClientError, StartedClientError
 use std::fmt::Debug;
 use std::time::SystemTimeError;
 
+use crate::config::remote_config_hash::HashRepositoryError;
 use crate::opamp::client_builder::OpAMPClientBuilderError;
 use crate::supervisor::error::SupervisorError;
 use thiserror::Error;
@@ -24,6 +25,8 @@ pub enum SubAgentError {
     NotStartedOpampClientError(#[from] NotStartedClientError),
     #[error("not started opamp client error: `{0}`")]
     SupervisorError(#[from] SupervisorError),
+    #[error("remote config hash error: `{0}`")]
+    RemoteConfigHashError(#[from] HashRepositoryError),
 }
 
 /// The Runner trait defines the entry-point interface for a supervisor. Exposes a run method that will start the supervised process' execution.

@@ -6,6 +6,7 @@ use newrelic_super_agent::super_agent::effective_agents_assembler::{
 use tracing::{error, info};
 
 use newrelic_super_agent::config::loader::{SuperAgentConfigLoader, SuperAgentConfigLoaderFile};
+use newrelic_super_agent::config::remote_config_hash::HashRepositoryFile;
 use newrelic_super_agent::opamp::client_builder::OpAMPHttpBuilder;
 use newrelic_super_agent::super_agent::instance_id::ULIDInstanceIDGetter;
 use newrelic_super_agent::super_agent::super_agent::{SuperAgent, SuperAgentEvent};
@@ -55,6 +56,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         effective_agents,
         opamp_client_builder.as_ref(),
         ULIDInstanceIDGetter::default(),
+        HashRepositoryFile::default(),
     )
     .run(ctx)?)
 }

@@ -14,10 +14,12 @@ use thiserror::Error;
 use crate::agent::AgentEvent;
 use crate::config::agent_configs::AgentID;
 use crate::config::remote_config::{RemoteConfig, RemoteConfigError};
+use crate::config::remote_config_hash::Hash;
 use crate::config::super_agent_configs::AgentID;
 use crate::context::Context;
 use tracing::error;
 use crate::super_agent::super_agent::SuperAgentEvent;
+use opamp_client::opamp::proto::AgentRemoteConfig;
 use opamp_client::{
     opamp::proto::{
         EffectiveConfig, OpAmpConnectionSettings, ServerErrorResponse, ServerToAgentCommand,
@@ -40,6 +42,49 @@ impl AgentCallbacks {
     pub fn new(ctx: Context<Option<SuperAgentEvent>>, agent_id: AgentID) -> Self {
         Self { ctx, agent_id }
     }
+
+    fn get_remote_config(&self, agent_id: AgentID, msg_remote_config: &AgentRemoteConfig) {
+        if let Some(msg_config_map) = &msg_remote_config.config {
+            //Check if hash is empty
+            let config = msg_config_map.config_map.iter().try_fold(
+                HashMap::new(),
+                |mut result, (key, value)| {
+                    let body = match str::from_utf8(&value.body) {
+                        Ok(parsed_body) => {
+                            result.insert(key.clone(), parsed_body.to_string());
+                            Ok(result)
+                        }
+                        Err(e) => Err(e),
+                    };
+                    body
+                },
+            );
+
+            let current_hash = str::from_utf8(&msg_remote_config.config_hash)
+                .unwrap()
+                .to_string();
+
+            match config {
+                Err(e) => {
+                    self.ctx
+                        .cancel_all(Some(SuperAgentEvent::RemoteConfig(Err(
+                            RemoteConfigError::UTF8(current_hash, e.to_string()),
+                        ))))
+                        .unwrap();
+                }
+                Ok(config) => {
+                    let remote_config = RemoteConfig {
+                        agent_id,
+                        hash: Hash::new(current_hash),
+                        config_map: config,
+                    };
+                    self.ctx
+                        .cancel_all(Some(SuperAgentEvent::RemoteConfig(Ok(remote_config))))
+                        .unwrap();
+                }
+            }
+        }
+    }
 }
 
 impl Callbacks for AgentCallbacks {
@@ -52,46 +97,7 @@ impl Callbacks for AgentCallbacks {
     fn on_message(&self, msg: MessageData) {
         let agent_id = self.agent_id.clone();
         if let Some(msg_remote_config) = msg.remote_config {
-            if let Some(msg_config_map) = msg_remote_config.config {
-                //Check if hash is empty
-                let config = msg_config_map.config_map.into_iter().try_fold(
-                    HashMap::new(),
-                    |mut result, (key, value)| {
-                        let body = match str::from_utf8(&value.body) {
-                            Ok(parsed_body) => {
-                                result.insert(key, parsed_body.to_string());
-                                Ok(result)
-                            }
-                            Err(e) => Err(e),
-                        };
-                        body
-                    },
-                );
-
-                let current_hash = str::from_utf8(&msg_remote_config.config_hash)
-                    .unwrap()
-                    .to_string();
-
-                match config {
-                    Err(e) => {
-                        self.ctx
-                            .cancel_all(Some(SuperAgentEvent::RemoteConfig(Err(
-                                RemoteConfigError::UTF8(current_hash, e.to_string()),
-                            ))))
-                            .unwrap();
-                    }
-                    Ok(config) => {
-                        let remote_config = RemoteConfig {
-                            agent_id,
-                            hash: current_hash,
-                            config_map: config,
-                        };
-                        self.ctx
-                            .cancel_all(Some(SuperAgentEvent::RemoteConfig(Ok(remote_config))))
-                            .unwrap();
-                    }
-                }
-            }
+            self.get_remote_config(agent_id, &msg_remote_config);
         }
     }
 
@@ -185,7 +191,7 @@ mod tests {
         let result = remote_config.unwrap();
 
         assert_eq!(AgentID::new("an-agent-id"), result.agent_id);
-        assert_eq!("cool-hash".to_string(), result.hash);
+        assert_eq!("cool-hash".to_string(), result.hash.get());
         assert_eq!(
             &"enable_proces_metrics: true".to_string(),
             result.config_map.get(&"my-config".to_string()).unwrap(),
