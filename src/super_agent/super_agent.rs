@@ -161,7 +161,7 @@ where
         mut hash: Hash,
     ) -> Result<(), AgentError> {
         if let Some(opamp_handle) = &opamp_client {
-            let _ = block_on(opamp_handle.set_remote_config_status(RemoteConfigStatus {
+            block_on(opamp_handle.set_remote_config_status(RemoteConfigStatus {
                 last_remote_config_hash: hash.get().into_bytes(),
                 status: RemoteConfigStatuses::Applied as i32,
                 error_message: "".to_string(),

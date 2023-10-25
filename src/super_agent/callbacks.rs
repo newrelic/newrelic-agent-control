@@ -49,6 +49,7 @@ impl AgentCallbacks {
 
             let current_hash = str::from_utf8(&msg_remote_config.config_hash)
                 .map_err(|e| error!("current hash from UTF8 : {}", e))
+                .expect("REASON")
                 .to_string();
 
             match config {
