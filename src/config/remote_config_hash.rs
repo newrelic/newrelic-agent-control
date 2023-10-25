@@ -15,6 +15,7 @@ use crate::super_agent::defaults::SUPER_AGENT_DATA_DIR;
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Hash, Eq)]
 pub struct Hash {
     hash: String,
+    applied: bool,
 }
 
 #[derive(Error, Debug)]
@@ -31,10 +32,18 @@ pub enum HashRepositoryError {
 
 impl Hash {
     pub fn new(hash: String) -> Self {
-        Self { hash }
+        Self { hash, applied: false }
     }
     pub fn get(&self) -> String {
         self.hash.clone()
+    }
+
+    pub fn is_applied(&self) -> bool {
+        self.applied
+    }
+
+    pub fn apply(&mut self) {
+        self.applied = true
     }
 }
 
