@@ -89,22 +89,15 @@ where
         let output_manager = StdEventReceiver::default().log(rx);
 
         // build and start the Agent's OpAMP client if a builder is provided
-        let opamp_client = self.start_super_agent_opamp_client(ctx.clone())?;
-
-        let remote_config_hash = self
-            .remote_config_hash_repository
-            .get(AgentID(SUPER_AGENT_ID.to_string()));
-
-        match remote_config_hash {
-            Ok(hash) => {
+        // set remote_config if not applied
+        self.remote_config_hash_repository
+            .get(AgentID(SUPER_AGENT_ID.to_string()))
+            .and_then(|hash| {
                 if !hash.is_applied() {
                     self.set_config_hash_as_applied(&opamp_client, hash)?;
                 }
-            }
-            Err(e) => {
-                error!("hash repository error: {}", e);
-            }
-        }
+                Ok(())
+            })?;
 
         info!("Starting the supervisor group.");
         // create sub agents
