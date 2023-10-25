@@ -465,7 +465,12 @@ mod tests {
             .assemble_agents(&super_agent_config)
             .unwrap();
 
-        let hash_repository_mock = MockHashRepositoryMock::new();
+        let mut hash_repository_mock = MockHashRepositoryMock::new();
+        hash_repository_mock.expect_get().times(1).returning(|_| {
+            let mut hash = Hash::new("a-hash".to_string());
+            hash.apply();
+            Ok(hash)
+        });
 
         // no agents in the supervisor group
         let agent: SuperAgent<
@@ -641,7 +646,12 @@ mod tests {
             .assemble_agents(&super_agent_config)
             .unwrap();
 
-        let hash_repository_mock = MockHashRepositoryMock::new();
+        let mut hash_repository_mock = MockHashRepositoryMock::new();
+        hash_repository_mock.expect_get().times(1).returning(|_| {
+            let mut hash = Hash::new("a-hash".to_string());
+            hash.apply();
+            Ok(hash)
+        });
 
         // no agents in the supervisor group
         let agent: SuperAgent<
@@ -711,7 +721,16 @@ mod tests {
             .times(1)
             .returning(|name| name);
 
-        let hash_repository_mock = MockHashRepositoryMock::new();
+        let mut hash_repository_mock = MockHashRepositoryMock::new();
+        hash_repository_mock.expect_get().times(1).returning(|_| {
+            let mut hash = Hash::new("a-hash".to_string());
+            hash.apply();
+            Ok(hash)
+        });
+        hash_repository_mock
+            .expect_save()
+            .times(1)
+            .returning(|_, _| Ok(()));
 
         // two agents in the supervisor group
         let agent: SuperAgent<

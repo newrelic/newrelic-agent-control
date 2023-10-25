@@ -1,26 +1,12 @@
-use std::collections::HashMap;
-use std::str;
-use opamp_client::{
-    error::ConnectionError,
-    http::HttpClientError,
-    opamp::proto::{
-        EffectiveConfig,
-        OpAmpConnectionSettings,
-        ServerErrorResponse, ServerToAgentCommand,
-    },
-    operation::callbacks::{Callbacks, MessageData},
-};
-use thiserror::Error;
-use crate::agent::AgentEvent;
-use crate::config::agent_configs::AgentID;
 use crate::config::remote_config::{RemoteConfig, RemoteConfigError};
 use crate::config::remote_config_hash::Hash;
 use crate::config::super_agent_configs::AgentID;
 use crate::context::Context;
-use tracing::error;
 use crate::super_agent::super_agent::SuperAgentEvent;
 use opamp_client::opamp::proto::AgentRemoteConfig;
 use opamp_client::{
+    error::ConnectionError,
+    http::HttpClientError,
     opamp::proto::{
         EffectiveConfig, OpAmpConnectionSettings, ServerErrorResponse, ServerToAgentCommand,
     },
@@ -29,6 +15,7 @@ use opamp_client::{
 use std::collections::HashMap;
 use std::str;
 use thiserror::Error;
+use tracing::error;
 
 pub struct AgentCallbacks {
     agent_id: AgentID,
