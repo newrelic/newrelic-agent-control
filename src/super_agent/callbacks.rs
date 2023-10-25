@@ -75,7 +75,7 @@ impl AgentCallbacks {
                 Ok(config) => {
                     let remote_config = RemoteConfig {
                         agent_id,
-                        hash: Hash::new(current_hash, ),
+                        hash: Hash::new(current_hash),
                         config_map: config,
                     };
                     self.ctx
