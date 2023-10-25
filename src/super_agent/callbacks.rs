@@ -48,7 +48,7 @@ impl AgentCallbacks {
             );
 
             let current_hash = str::from_utf8(&msg_remote_config.config_hash)
-                .unwrap()
+                .map_err(|e| error!("current hash from UTF8 : {}", e))
                 .to_string();
 
             match config {
