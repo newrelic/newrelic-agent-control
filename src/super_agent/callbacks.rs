@@ -30,7 +30,7 @@ impl AgentCallbacks {
         Self { ctx, agent_id }
     }
 
-    fn get_remote_config(&self, agent_id: AgentID, msg_remote_config: &AgentRemoteConfig) {
+    fn update_remote_config(&self, agent_id: AgentID, msg_remote_config: &AgentRemoteConfig) {
         if let Some(msg_config_map) = &msg_remote_config.config {
             //Check if hash is empty
             let config = msg_config_map.config_map.iter().try_fold(
@@ -84,7 +84,7 @@ impl Callbacks for AgentCallbacks {
     fn on_message(&self, msg: MessageData) {
         let agent_id = self.agent_id.clone();
         if let Some(msg_remote_config) = msg.remote_config {
-            self.get_remote_config(agent_id, &msg_remote_config);
+            self.update_remote_config(agent_id, &msg_remote_config);
         }
     }
 
