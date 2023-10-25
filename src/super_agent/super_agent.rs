@@ -266,31 +266,7 @@ where
                         }
 
                         SuperAgentEvent::RemoteConfig(remote_config) => {
-                            if let Some(handle) = &opamp_client {
-                                let mut remote_config_status = RemoteConfigStatus::default();
-                                match remote_config {
-                                    Ok(config) => {
-                                        //
-                                        self.remote_config_hash_repository
-                                            .save(config.agent_id, config.hash.clone())?;
-
-                                        remote_config_status.last_remote_config_hash =
-                                            config.hash.get().into_bytes();
-                                        remote_config_status.status =
-                                            RemoteConfigStatuses::Applying as i32;
-                                    }
-                                    Err(config_error) => match config_error {
-                                        RemoteConfigError::UTF8(hash, error) => {
-                                            remote_config_status.last_remote_config_hash =
-                                                hash.into_bytes();
-                                            remote_config_status.error_message = error;
-                                            remote_config_status.status =
-                                                RemoteConfigStatuses::Failed as i32;
-                                        }
-                                    },
-                                }
-                                block_on(handle.set_remote_config_status(remote_config_status))?;
-                            }
+                            self.on_remote_config(&opamp_client, remote_config)?;
                         }
 
                         SuperAgentEvent::Restart(_agent_type) => {
@@ -303,6 +279,36 @@ where
             }
             Ok(())
         }
+    }
+
+    fn on_remote_config(&self, opamp_client: &Option<<OpAMPBuilder as OpAMPClientBuilder>::Client>, remote_config: Result<RemoteConfig, RemoteConfigError>) -> Result<(), SubAgentError> {
+        if let Some(handle) = &opamp_client {
+            let mut remote_config_status = RemoteConfigStatus::default();
+            match remote_config {
+                Ok(config) => {
+                    //
+                    self.remote_config_hash_repository
+                        .save(config.agent_id, config.hash.clone())?;
+
+                    remote_config_status.last_remote_config_hash =
+                        config.hash.get().into_bytes();
+                    remote_config_status.status =
+                        RemoteConfigStatuses::Applying as i32;
+                }
+                Err(config_error) => match config_error {
+                    RemoteConfigError::UTF8(hash, error) => {
+                        remote_config_status.last_remote_config_hash =
+                            hash.into_bytes();
+                        remote_config_status.error_message = error;
+                        remote_config_status.status =
+                            RemoteConfigStatuses::Failed as i32;
+                    }
+                },
+            }
+            block_on(handle.set_remote_config_status(remote_config_status))?;
+        }
+
+        Ok(())
     }
 }
 
