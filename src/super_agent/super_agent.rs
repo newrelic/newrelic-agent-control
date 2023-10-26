@@ -723,14 +723,21 @@ mod tests {
             .returning(|name| name);
 
         let mut hash_repository_mock = MockHashRepositoryMock::new();
-        hash_repository_mock.expect_get().with(predicate::eq(AgentID::new(SUPER_AGENT_ID))).times(1).returning(|_| {
-            let mut hash = Hash::new("a-hash".to_string());
-            hash.apply();
-            Ok(hash)
-        });
+        hash_repository_mock
+            .expect_get()
+            .with(predicate::eq(AgentID::new(SUPER_AGENT_ID)))
+            .times(1)
+            .returning(|_| {
+                let mut hash = Hash::new("a-hash".to_string());
+                hash.apply();
+                Ok(hash)
+            });
         hash_repository_mock
             .expect_save()
-            .with(predicate::eq(AgentID::new(SUPER_AGENT_ID)), predicate::eq(Hash::new("a-hash".to_string())))
+            .with(
+                predicate::eq(AgentID::new(SUPER_AGENT_ID)),
+                predicate::eq(Hash::new("a-hash".to_string())),
+            )
             .times(1)
             .returning(|_, _| Ok(()));
 

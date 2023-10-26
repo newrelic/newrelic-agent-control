@@ -140,16 +140,18 @@ pub mod test {
     #[cfg(target_family = "unix")]
     use std::os::unix::fs::PermissionsExt;
 
-    use mockall::mock;
-    use std::fs::Permissions;
-    use std::path::PathBuf;
-    use crate::config::super_agent_configs::AgentID;
+    use super::{
+        Hash, HashRepository, HashRepositoryError, HashRepositoryFile, HASH_FILE_EXTENSION,
+    };
     use crate::config::persister::config_persister_file::FILE_PERMISSIONS;
     use crate::config::persister::config_writer_file::test::MockFileWriterMock;
     use crate::config::persister::config_writer_file::Writer;
-    use crate::file_reader::FileReader;
+    use crate::config::super_agent_configs::AgentID;
     use crate::file_reader::test::MockFileReaderMock;
-    use super::{Hash, HASH_FILE_EXTENSION, HashRepository, HashRepositoryError, HashRepositoryFile};
+    use crate::file_reader::FileReader;
+    use mockall::mock;
+    use std::fs::Permissions;
+    use std::path::PathBuf;
     ////////////////////////////////////////////////////////////////////////////////////
     // Mock
     ////////////////////////////////////////////////////////////////////////////////////
@@ -165,15 +167,11 @@ pub mod test {
     }
 
     impl<R, W> HashRepositoryFile<R, W>
-        where
-            R: FileReader,
-            W: Writer,
+    where
+        R: FileReader,
+        W: Writer,
     {
-        pub fn with_mocks(
-            file_reader: R,
-            file_writer: W,
-            conf_path: PathBuf,
-        ) -> Self {
+        pub fn with_mocks(file_reader: R, file_writer: W, conf_path: PathBuf) -> Self {
             HashRepositoryFile {
                 file_reader,
                 file_writer,
@@ -189,11 +187,11 @@ pub mod test {
         let mut file_reader_mock = MockFileReaderMock::new();
         let file_permissions = Permissions::from_mode(FILE_PERMISSIONS);
         let agent_id = AgentID::new("SomeAgentID");
-        let mut hash = Hash::new( "123456789".to_string());
+        let mut hash = Hash::new("123456789".to_string());
         hash.apply();
 
         // This indentation and the single quotes is to match serde yaml
-        let content= r#"hash: '123456789'
+        let content = r#"hash: '123456789'
 applied: true
 "#;
 
@@ -210,16 +208,10 @@ applied: true
             file_permissions,
         );
 
-        let hash_repository = HashRepositoryFile::with_mocks(
-            file_reader_mock,
-            file_writer_mock,
-            some_path,
-        );
+        let hash_repository =
+            HashRepositoryFile::with_mocks(file_reader_mock, file_writer_mock, some_path);
 
-        let result = hash_repository.save(
-            agent_id.clone(),
-            hash.clone(),
-        );
+        let result = hash_repository.save(agent_id.clone(), hash.clone());
         assert_eq!((), result.unwrap());
 
         let result = hash_repository.get(agent_id.clone());
