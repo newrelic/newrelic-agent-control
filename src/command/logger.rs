@@ -48,27 +48,13 @@ mod tests {
 
     // mocked implementation of logger to assert key/values and messages
     #[derive(Clone, Debug)]
-    struct MockedLogger {
-        expected_command_value: String,
-        expected_msg: String,
-    }
+    struct MockedLogger {}
 
     impl Log for MockedLogger {
         fn enabled(&self, _metadata: &log::Metadata) -> bool {
             true
         }
-        fn log(&self, record: &log::Record) {
-            // TODO This snippet is not compatible with the Tower dependency
-            // assert_eq!(
-            //     self.expected_command_value,
-            //     record
-            //         .key_values()
-            //         .get("command".into())
-            //         .unwrap()
-            //         .to_string()
-            // );
-            // assert_eq!(self.expected_msg, record.args().to_string());
-        }
+        fn log(&self, _record: &log::Record) {}
 
         fn flush(&self) {}
     }
@@ -85,10 +71,7 @@ mod tests {
     fn std_logged_data_and_finish() {
         let metadata = "testbin";
         let send_message = "this is a test";
-        let mocked_logger = Box::new(MockedLogger {
-            expected_command_value: metadata.to_owned(),
-            expected_msg: send_message.to_string(),
-        });
+        let mocked_logger = Box::new(MockedLogger {});
         init_logger(mocked_logger);
 
         let logger = StdEventReceiver::default();
