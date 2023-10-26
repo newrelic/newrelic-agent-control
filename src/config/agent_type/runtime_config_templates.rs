@@ -167,11 +167,11 @@ impl Templateable for RuntimeConfig {
 #[cfg(test)]
 mod tests {
     use crate::config::agent_type::restart_policy::{BackoffDuration, BackoffStrategyType};
-    use crate::config::agent_type::trivial_value::N::PosInt;
+    use crate::config::agent_type::trivial_value::Number::PosInt;
     use crate::config::agent_type::{
         agent_types::{EndSpec, TemplateableValue, VariableType},
         runtime_config::{Args, Env},
-        trivial_value::{TrivialValue, N},
+        trivial_value::{Number, TrivialValue},
     };
 
     use super::*;
@@ -194,7 +194,7 @@ mod tests {
                 "age".to_string(),
                 EndSpec {
                     final_value: None,
-                    default: Some(TrivialValue::Number(N::PosInt(30))),
+                    default: Some(TrivialValue::Number(Number::PosInt(30))),
                     type_: VariableType::Number,
                     description: String::default(),
                     required: false,
@@ -237,7 +237,7 @@ mod tests {
             (
                 "env.MYAPP_PORT".to_string(),
                 EndSpec {
-                    final_value: Some(TrivialValue::Number(N::PosInt(8080))),
+                    final_value: Some(TrivialValue::Number(Number::PosInt(8080))),
                     default: None,
                     description: String::default(),
                     required: true,

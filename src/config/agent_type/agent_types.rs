@@ -11,6 +11,7 @@ use serde::de::Error;
 use serde::{Deserialize, Deserializer};
 
 use super::restart_policy::BackoffDuration;
+use super::trivial_value::Number;
 use super::{
     agent_metadata::AgentMetadata,
     error::AgentTypeError,
@@ -202,10 +203,12 @@ impl FinalAgent {
         let mut spec = self.variables;
 
         // modifies variables final value with the one defined in the SupervisorConfig
-        spec.iter_mut().for_each(|(k, v)| {
-            let defined_value = config.get_from_normalized(k);
-            v.final_value = defined_value.or(v.default.clone());
-        });
+        spec.iter_mut()
+            .try_for_each(|(k, v)| -> Result<(), AgentTypeError> {
+                let defined_value = config.get_from_normalized(k);
+                v.kind.set_final_value(defined_value)?;
+                Ok(())
+            });
 
         let runtime_conf = self.runtime_config.template_with(&spec)?;
 
@@ -223,97 +226,111 @@ impl FinalAgent {
 type AgentVariables = HashMap<String, Spec>;
 
 pub trait AgentTypeEndSpec {
-    fn variable_type(&self) -> VariableType;
+    // fn variable_type(&self) -> VariableType;
     fn file_path(&self) -> Option<String>;
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Deserialize)]
 pub struct EndSpec {
     pub(crate) description: String,
-    pub type_: VariableType,
-    pub required: bool,
-    pub default: Option<TrivialValue>,
-    pub file_path: Option<String>,
-    /// The actual value that will be used by the agent. This will be either the user-provided value or, if not provided and not marked as [`required`], the default value.
-    pub final_value: Option<TrivialValue>,
+    pub kind: Kind,
+    file_path: Option<String>,
 }
 
-impl<'de> Deserialize<'de> for EndSpec {
+#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[serde(tag = "type")]
+pub enum Kind {
+    String(KindValue<String>),
+    Bool(KindValue<bool>),
+    Number(KindValue<Number>),
+    // File(ValueKind<FilePathWithContent>),
+    // #[serde(rename = "map[string]string")
+    // MapStringString(ValueKind<Map<String, String>>),
+    // #[serde(rename = "map[string]file")
+    // MapStringFile(ValueKind<Map<String, FilePathWithContent>>),
+}
+
+impl Kind {
+    fn kind_str(&self) -> &str {
+        match self {
+            Kind::String(_) => "string",
+            Kind::Bool(_) => "bool",
+            Kind::Number(_) => "number",
+        }
+    }
+
+    fn required_without_default(&self) -> bool {
+        match self {
+            Kind::String(v) => v.default.is_none() && v.required,
+            Kind::Bool(v) => v.default.is_none() && v.required,
+            Kind::Number(v) => v.default.is_none() && v.required,
+        }
+    }
+
+    fn set_final_value(&mut self, value: Option<TrivialValue>) -> Result<(), AgentTypeError> {
+        if let Some(v) = value {
+            match (self, v) {
+                (Kind::String(v), TrivialValue::String(s)) => v.final_value = Some(s),
+                (Kind::Bool(v), TrivialValue::Bool(b)) => v.final_value = Some(b),
+                (Kind::Number(v), TrivialValue::Number(n)) => v.final_value = Some(n),
+                _ => {
+                    return Err(AgentTypeError::TypeMismatch {
+                        expected_type: self.kind_str().to_string(),
+                        actual_value: v,
+                    })
+                }
+            }
+        } else {
+            self.set_default_as_final_value();
+        }
+        Ok(())
+    }
+
+    fn set_default_as_final_value(&mut self) {
+        match self {
+            Kind::String(v) => v.final_value = v.default.take(),
+            Kind::Bool(v) => v.final_value = v.default.take(),
+            Kind::Number(v) => v.final_value = v.default.take(),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct KindValue<T> {
+    default: Option<T>,
+    final_value: Option<T>,
+    pub required: bool,
+    variants: Option<Vec<T>>,
+}
+
+impl<'de, T> Deserialize<'de> for KindValue<T>
+where
+    T: Deserialize<'de>,
+{
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
         // temporal type for intermediate serialization
         #[derive(Debug, Deserialize)]
-        struct IntermediateEndSpec {
-            description: String,
-            #[serde(rename = "type")]
-            type_: VariableType,
+        struct IntermediateValueKind<T> {
+            default: Option<T>,
+            variants: Option<Vec<T>>,
             required: bool,
-            default: Option<TrivialValue>,
-            file_path: Option<String>,
         }
 
-        impl AgentTypeEndSpec for IntermediateEndSpec {
-            fn variable_type(&self) -> VariableType {
-                self.type_
-            }
-
-            fn file_path(&self) -> Option<String> {
-                self.file_path.as_ref().cloned()
-            }
-        }
-
-        let intermediate_spec = IntermediateEndSpec::deserialize(deserializer)?;
+        let intermediate_spec = IntermediateValueKind::deserialize(deserializer)?;
         if intermediate_spec.default.is_none() && !intermediate_spec.required {
             return Err(D::Error::custom(AgentTypeError::MissingDefault));
         }
-        let def_val = intermediate_spec
-            .default
-            .clone()
-            .map(|d| d.check_type(&intermediate_spec))
-            .transpose()
-            .map_err(D::Error::custom)?;
 
-        Ok(EndSpec {
-            default: def_val,
-            final_value: None,
-            file_path: intermediate_spec.file_path,
-            description: intermediate_spec.description,
-            type_: intermediate_spec.type_,
+        Ok(KindValue {
+            default: intermediate_spec.default,
             required: intermediate_spec.required,
+            final_value: None,
+            variants: intermediate_spec.variants,
         })
     }
-}
-
-impl AgentTypeEndSpec for EndSpec {
-    fn variable_type(&self) -> VariableType {
-        self.type_
-    }
-
-    fn file_path(&self) -> Option<String> {
-        self.file_path.as_ref().cloned()
-    }
-}
-
-#[derive(Debug, PartialEq, Clone, Copy, Deserialize)]
-pub enum VariableType {
-    #[serde(rename = "string")]
-    String,
-    #[serde(rename = "bool")]
-    Bool,
-    #[serde(rename = "number")]
-    Number,
-    #[serde(rename = "file")]
-    File,
-    #[serde(rename = "map[string]string")]
-    MapStringString,
-    #[serde(rename = "map[string]file")]
-    MapStringFile,
-    // #[serde(rename = "map[string]number")]
-    // MapStringNumber,
-    // #[serde(rename = "map[string]bool")]
-    // MapStringBool,
 }
 
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
@@ -362,7 +379,7 @@ fn normalize_agent_spec(spec: AgentVariables) -> Result<NormalizedVariables, Age
     spec.into_iter().try_fold(HashMap::new(), |r, (k, v)| {
         let n_spec = inner_normalize(k, v);
         n_spec.iter().try_for_each(|(k, end_spec)| {
-            if end_spec.default.is_none() && !end_spec.required {
+            if end_spec.kind.required_without_default() {
                 return Err(AgentTypeError::MissingDefaultWithKey(k.clone()));
             }
             Ok(())
@@ -398,7 +415,7 @@ pub mod tests {
     use super::*;
     use crate::config::agent_type::restart_policy::RestartPolicyConfig;
     use crate::config::agent_type::trivial_value::FilePathWithContent;
-    use crate::config::agent_type::trivial_value::N::PosInt;
+    use crate::config::agent_type::trivial_value::Number::PosInt;
     use serde_yaml::Error;
     use std::collections::HashMap as Map;
 
@@ -558,28 +575,28 @@ deployment:
 
         let expected_map: Map<String, EndSpec> = Map::from([(
             "description.name".to_string(),
-            EndSpec {
+            EndSpec::String(KindValue {
                 description: "Name of the agent".to_string(),
-                type_: VariableType::String,
                 required: false,
-                default: Some(TrivialValue::String("nrdot".to_string())),
+                default: Some("nrdot".to_string()),
                 final_value: None,
                 file_path: None,
-            },
+                variants: None,
+            }),
         )]);
 
         // expect output to be the map
 
         assert_eq!(expected_map, given_agent.variables);
 
-        let expected_spec = EndSpec {
+        let expected_spec = EndSpec::String(KindValue {
             description: "Name of the agent".to_string(),
-            type_: VariableType::String,
             required: false,
-            default: Some(TrivialValue::String("nrdot".to_string())),
+            default: Some("nrdot".to_string()),
             final_value: None,
             file_path: None,
-        };
+            variants: None,
+        });
 
         assert_eq!(
             expected_spec,

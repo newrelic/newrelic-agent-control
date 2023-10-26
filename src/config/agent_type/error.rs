@@ -2,7 +2,7 @@ use std::io;
 
 use thiserror::Error;
 
-use super::{agent_types::VariableType, trivial_value::TrivialValue};
+use super::trivial_value::TrivialValue;
 
 /// The different error types to be returned by operations involving the [`Agent`] type.
 #[derive(Error, Debug)]
@@ -12,10 +12,10 @@ pub enum AgentTypeError {
     #[error("Missing required key in config: `{0}`")]
     MissingAgentKey(String),
     #[error(
-        "Type mismatch while parsing. Expected type {expected_type:?}, got value {actual_value:?}"
+        "Type mismatch while parsing. Expected type {expected_type}, got value {actual_value:?}"
     )]
     TypeMismatch {
-        expected_type: VariableType,
+        expected_type: String,
         actual_value: TrivialValue,
     },
     #[error("Found unexpected keys in config: {0:?}")]
@@ -34,8 +34,8 @@ pub enum AgentTypeError {
     MissingDefault,
     #[error("Missing default value for spec key `{0}`")]
     MissingDefaultWithKey(String),
-    #[error("Invalid default value for spec key `{key}`: expected a {type_:?}")]
-    InvalidDefaultForSpec { key: String, type_: VariableType },
+    #[error("Invalid default value for spec key `{key}`: expected a {type_}")]
+    InvalidDefaultForSpec { key: String, type_: String },
 
     #[error("Value was not populated")]
     ValueNotPopulated,

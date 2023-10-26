@@ -16,7 +16,7 @@ pub enum TrivialValue {
     #[serde(skip)]
     File(FilePathWithContent),
     Bool(bool),
-    Number(N),
+    Number(Number),
     Map(Map<String, TrivialValue>),
 }
 
@@ -113,7 +113,7 @@ impl FilePathWithContent {
 /// Represents a numeric value, which can be either a positive integer, a negative integer or a float.
 #[derive(Debug, PartialEq, Clone, Deserialize)]
 #[serde(untagged)]
-pub enum N {
+pub enum Number {
     PosInt(u64),
     /// Always less than zero.
     NegInt(i64),
@@ -121,12 +121,12 @@ pub enum N {
     Float(f64),
 }
 
-impl Display for N {
+impl Display for Number {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            N::PosInt(n) => write!(f, "{}", n),
-            N::NegInt(n) => write!(f, "{}", n),
-            N::Float(n) => write!(f, "{}", n),
+            Number::PosInt(n) => write!(f, "{}", n),
+            Number::NegInt(n) => write!(f, "{}", n),
+            Number::Float(n) => write!(f, "{}", n),
         }
     }
 }
