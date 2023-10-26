@@ -94,10 +94,9 @@ where
     W: Writer,
 {
     fn save(&self, agent_id: AgentID, hash: Hash) -> Result<(), HashRepositoryError> {
-        let mut hash_file_path = self.conf_path.clone();
-        let hash_file = format!("{}.{}", agent_id.0.as_str(), HASH_FILE_EXTENSION);
-        hash_file_path.push(hash_file);
-        let writing_result = self.write(hash_file_path.as_path(), serde_yaml::to_string(&hash)?);
+        let mut conf_path = self.conf_path.clone();
+        let hash_path = self.hash_file_path(&agent_id, &mut conf_path);
+        let writing_result = self.write(hash_path, serde_yaml::to_string(&hash)?);
         Ok(writing_result?)
     }
 
