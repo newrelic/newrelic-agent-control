@@ -24,7 +24,6 @@ pub struct AgentCallbacks {
 
 #[derive(Debug, Error)]
 pub enum AgentCallbacksError {
-
     #[error("deserialization error: `{0}`")]
     DeserializationError(#[from] RemoteConfigError),
 
@@ -43,20 +42,22 @@ impl AgentCallbacks {
         Self { ctx, agent_id }
     }
 
-    fn update_remote_config(&self, agent_id: AgentID, msg_remote_config: &AgentRemoteConfig) -> Result<(), AgentCallbacksError> {
+    fn update_remote_config(
+        &self,
+        agent_id: AgentID,
+        msg_remote_config: &AgentRemoteConfig,
+    ) -> Result<(), AgentCallbacksError> {
         if let Some(msg_config_map) = &msg_remote_config.config {
             //Check if hash is empty
-            let config:Result<ConfigMap, RemoteConfigError> = msg_config_map.try_into();
+            let config: Result<ConfigMap, RemoteConfigError> = msg_config_map.try_into();
 
-            let current_hash = str::from_utf8(&msg_remote_config.config_hash)?
-                .to_string();
+            let current_hash = str::from_utf8(&msg_remote_config.config_hash)?.to_string();
 
             let event = match config {
-                Err(e) => {
-                    SuperAgentEvent::RemoteConfig(Err(
-                            RemoteConfigError::InvalidConfig(current_hash, e.to_string()),
-                        ))
-                }
+                Err(e) => SuperAgentEvent::RemoteConfig(Err(RemoteConfigError::InvalidConfig(
+                    current_hash,
+                    e.to_string(),
+                ))),
                 Ok(config) => {
                     let remote_config = RemoteConfig {
                         agent_id,
@@ -66,7 +67,10 @@ impl AgentCallbacks {
                     SuperAgentEvent::RemoteConfig(Ok(remote_config))
                 }
             };
-            return Ok(self.ctx.cancel_all(Some(event)).map_err(|_| AgentCallbacksError::ContextError)?);
+            return self
+                .ctx
+                .cancel_all(Some(event))
+                .map_err(|_| AgentCallbacksError::ContextError);
         }
         Err(AgentCallbacksError::EmptyRemoteConfig)
     }
@@ -82,7 +86,9 @@ impl Callbacks for AgentCallbacks {
     fn on_message(&self, msg: MessageData) {
         let agent_id = self.agent_id.clone();
         if let Some(msg_remote_config) = msg.remote_config {
-            let _ = self.update_remote_config(agent_id, &msg_remote_config).map_err(|error| error!("{}", error));
+            let _ = self
+                .update_remote_config(agent_id, &msg_remote_config)
+                .map_err(|error| error!("{}", error));
         }
     }
 

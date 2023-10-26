@@ -91,18 +91,18 @@ where
         // build and start the Agent's OpAMP client if a builder is provided
         let opamp_client = self.start_super_agent_opamp_client(ctx.clone())?;
 
-        let remote_config_hash = self
-            .remote_config_hash_repository
-            .get(AgentID(SUPER_AGENT_ID.to_string()));
+        if let Some(opamp_handle) = &opamp_client {
+            // TODO should we error on first launch with no hash file?
+            let remote_config_hash = self
+                .remote_config_hash_repository
+                .get(AgentID(SUPER_AGENT_ID.to_string()))
+                .map_err(|e| error!("hash repository error: {}", e))
+                .ok();
 
-        match remote_config_hash {
-            Ok(hash) => {
+            if let Some(hash) = remote_config_hash {
                 if !hash.is_applied() {
-                    self.set_config_hash_as_applied(&opamp_client, hash)?;
+                    self.set_config_hash_as_applied(opamp_handle, hash)?;
                 }
-            }
-            Err(e) => {
-                error!("hash repository error: {}", e);
             }
         }
 
@@ -157,19 +157,17 @@ where
 
     fn set_config_hash_as_applied(
         &self,
-        opamp_client: &Option<OpAMPBuilder::Client>,
+        opamp_client: &OpAMPBuilder::Client,
         mut hash: Hash,
     ) -> Result<(), AgentError> {
-        if let Some(opamp_handle) = &opamp_client {
-            block_on(opamp_handle.set_remote_config_status(RemoteConfigStatus {
-                last_remote_config_hash: hash.get().into_bytes(),
-                status: RemoteConfigStatuses::Applied as i32,
-                error_message: "".to_string(),
-            }))?;
-            hash.apply();
-            self.remote_config_hash_repository
-                .save(AgentID(SUPER_AGENT_ID.to_string()), hash.clone())?;
-        }
+        block_on(opamp_client.set_remote_config_status(RemoteConfigStatus {
+            last_remote_config_hash: hash.get().into_bytes(),
+            status: RemoteConfigStatuses::Applied as i32,
+            error_message: "".to_string(),
+        }))?;
+        hash.apply();
+        self.remote_config_hash_repository
+            .save(AgentID(SUPER_AGENT_ID.to_string()), hash.clone())?;
         Ok(())
     }
 
@@ -297,7 +295,9 @@ where
                         remote_config_status.error_message = error;
                         remote_config_status.status = RemoteConfigStatuses::Failed as i32;
                     }
-                    _ => { unreachable!("only errors with hash will reach this block") }
+                    _ => {
+                        unreachable!("only errors with hash will reach this block")
+                    }
                 },
             }
             block_on(handle.set_remote_config_status(remote_config_status))?;
