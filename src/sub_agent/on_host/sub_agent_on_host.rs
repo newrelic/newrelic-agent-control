@@ -6,10 +6,12 @@ use opamp_client::StartedClient;
 use tracing::info;
 
 use crate::config::super_agent_configs::{AgentID, AgentTypeFQN};
+use crate::context::Context;
 use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPClientBuilderError};
 use crate::sub_agent::on_host::factory::build_opamp_and_start_client;
 use crate::sub_agent::sub_agent::{NotStartedSubAgent, StartedSubAgent, SubAgentError};
 use crate::super_agent::instance_id::InstanceIDGetter;
+use crate::super_agent::super_agent::SuperAgentEvent;
 use crate::supervisor::command_supervisor::{NotStartedSupervisorOnHost, StartedSupervisorOnHost};
 use crate::utils::time::get_sys_time_nano;
 
@@ -50,8 +52,12 @@ where
         }
     }
 
-    fn run_opamp_client(&self) -> Result<Option<OpAMPBuilder::Client>, OpAMPClientBuilderError> {
+    fn run_opamp_client(
+        &self,
+        ctx: Context<Option<SuperAgentEvent>>,
+    ) -> Result<Option<OpAMPBuilder::Client>, OpAMPClientBuilderError> {
         build_opamp_and_start_client(
+            ctx,
             self.opamp_builder,
             self.instance_id_getter,
             self.agent_id.clone(),
@@ -69,7 +75,7 @@ where
 
     fn run(self) -> Result<Self::StartedSubAgent, SubAgentError> {
         let agent_id = self.agent_id.clone();
-        let started_opamp_client = self.run_opamp_client()?;
+        let started_opamp_client = self.run_opamp_client(Context::new())?;
         let mut supervisors = Vec::new();
         for supervisor in self.supervisors {
             supervisors.push(supervisor.run()?);

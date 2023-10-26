@@ -10,9 +10,11 @@ use std::time::SystemTimeError;
 use thiserror::Error;
 use tracing::error;
 
-use crate::config::super_agent_configs::OpAMPClientConfig;
+use crate::config::super_agent_configs::{AgentID, OpAMPClientConfig};
 
+use crate::context::Context;
 use crate::super_agent::callbacks::AgentCallbacks;
+use crate::super_agent::super_agent::SuperAgentEvent;
 use crate::utils::time::get_sys_time_nano;
 
 #[derive(Error, Debug)]
@@ -34,6 +36,8 @@ pub trait OpAMPClientBuilder {
     // type StartedClient: StartedClient;
     fn build_and_start(
         &self,
+        ctx: Context<Option<SuperAgentEvent>>,
+        agent_id: AgentID,
         start_settings: StartSettings,
     ) -> Result<Self::Client, OpAMPClientBuilderError>;
 }
@@ -53,6 +57,8 @@ impl OpAMPClientBuilder for OpAMPHttpBuilder {
     type Client = StartedHttpClient<AgentCallbacks, HttpClientReqwest>;
     fn build_and_start(
         &self,
+        ctx: Context<Option<SuperAgentEvent>>,
+        agent_id: AgentID,
         start_settings: StartSettings,
     ) -> Result<Self::Client, OpAMPClientBuilderError> {
         // TODO: cleanup
@@ -66,8 +72,9 @@ impl OpAMPClientBuilder for OpAMPHttpBuilder {
             HttpConfig::new(self.config.endpoint.as_str())?.with_headers(headers)?,
         )?;
 
-        let not_started_client =
-            NotStartedHttpClient::new(AgentCallbacks, start_settings, http_client)?;
+        let callbacks = AgentCallbacks::new(ctx, agent_id);
+
+        let not_started_client = NotStartedHttpClient::new(callbacks, start_settings, http_client)?;
 
         let started_client = block_on(not_started_client.start())?;
         // set OpAMP health
@@ -89,7 +96,7 @@ pub(crate) mod test {
     use opamp_client::operation::settings::StartSettings;
     use opamp_client::{
         error::{ClientResult, NotStartedClientResult, StartedClientResult},
-        opamp::proto::{AgentDescription, AgentHealth},
+        opamp::proto::{AgentDescription, AgentHealth, RemoteConfigStatus},
         Client, NotStartedClient, StartedClient,
     };
 
@@ -120,6 +127,8 @@ pub(crate) mod test {
             async fn set_health(&self, health: AgentHealth) -> ClientResult<()>;
 
             async fn update_effective_config(&self) -> ClientResult<()>;
+
+            async fn set_remote_config_status(&self, status: RemoteConfigStatus) -> ClientResult<()>;
         }
     }
 
@@ -128,7 +137,7 @@ pub(crate) mod test {
 
         impl OpAMPClientBuilder for OpAMPClientBuilderMock {
             type Client = MockOpAMPClientMock;
-            fn build_and_start(&self, start_settings: StartSettings) -> Result<<Self as OpAMPClientBuilder>::Client, OpAMPClientBuilderError>;
+            fn build_and_start(&self, ctx: Context<Option<SuperAgentEvent>>, agent_id: AgentID, start_settings: StartSettings) -> Result<<Self as OpAMPClientBuilder>::Client, OpAMPClientBuilderError>;
         }
     }
 }

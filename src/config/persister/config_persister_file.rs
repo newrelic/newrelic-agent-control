@@ -15,7 +15,7 @@ use crate::super_agent::defaults::SUPER_AGENT_DATA_DIR;
 
 const GENERATED_FOLDER_NAME: &str = "auto-generated";
 #[cfg(target_family = "unix")]
-const FILE_PERMISSIONS: u32 = 0o600;
+pub(crate) const FILE_PERMISSIONS: u32 = 0o600;
 #[cfg(target_family = "unix")]
 const DIRECTORY_PERMISSIONS: u32 = 0o700;
 
