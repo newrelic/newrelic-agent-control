@@ -73,7 +73,7 @@ where
 impl HashRepositoryFile<FSFileReader, WriterFile> {
     // HashGetterPersisterFile with default writer and reader
     // and config path
-    pub fn new(data_dir: String) -> Self {
+    fn new(data_dir: String) -> Self {
         HashRepositoryFile {
             file_reader: FSFileReader,
             file_writer: WriterFile::default(),
