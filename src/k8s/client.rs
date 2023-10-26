@@ -1,8 +1,6 @@
-use kube::client::ConfigExt;
-use kube::config::KubeConfigOptions;
+use kube::config::{KubeConfigOptions, KubeconfigError};
 use kube::{Client, Config, Error};
-use tower::ServiceBuilder;
-use tracing::{debug, info};
+use tracing::debug;
 
 #[derive(thiserror::Error, Debug)]
 pub enum K8sClientConfigError {
@@ -11,6 +9,9 @@ pub enum K8sClientConfigError {
 
     #[error("it is not possible to create a k8s client due to ssl: `{0}`")]
     UnableToSetupClientSSL(#[from] Error),
+
+    #[error("it is not possible to read kubeconfig: `{0}`")]
+    UnableToSetupClientKubeconfig(#[from] KubeconfigError),
 }
 /// Constructs a new Kubernetes client.
 ///
@@ -20,41 +21,16 @@ pub enum K8sClientConfigError {
 ///
 pub async fn create_client() -> Result<Client, K8sClientConfigError> {
     debug!("trying inClusterConfig for k8s client");
-    let in_cluster_config = Config::incluster();
-    if let Ok(config) = in_cluster_config {
-        let c = create_client_from_config(config)?;
-        debug!("inClusterConfig client creation succeeded");
-        return Ok(c);
-    } else {
-        debug!("inClusterConfig failed since we are not running in a cluster")
-    }
+    let config = Config::incluster().unwrap_or({
+        debug!("inClusterConfig failed, trying kubeconfig for k8s client");
+        let c = KubeConfigOptions {
+            ..Default::default()
+        };
 
-    debug!("trying kubeconfig for k8s client");
-    let c = KubeConfigOptions {
-        ..Default::default()
-    };
-    let config = Config::from_kubeconfig(&c).await.map_err(|| {
-        return Err(K8sClientConfigError::UnableToSetupClient);
-    })?;
-    let c = create_client_from_config(config)?;
-    debug!("kubeconfig client creation succeeded");
-    return Ok(c);
-}
+        Config::from_kubeconfig(&c).await?
+    });
 
-///
-/// Using a custom function and not https://docs.rs/kube/0.86.0/kube/struct.Client.html#method.try_from
-/// to add the openssl implementation.
-///
-fn create_client_from_config(config: Config) -> Result<Client, K8sClientConfigError> {
-    let https = config.openssl_https_connector().map_err(|err| {
-        return Err(K8sClientConfigError::UnableToSetupClientSSL(err));
-    })?;
-    let service = ServiceBuilder::new()
-        .layer(config.base_uri_layer())
-        .service(hyper::Client::builder().build(https));
-    info!(
-        "Configured cluster url={}, namespace={}",
-        config.cluster_url, config.default_namespace
-    );
-    Ok(Client::new(service, config.default_namespace))
+    let c = Client::try_from(config)?;
+    debug!("client creation succeeded");
+    Ok(c)
 }

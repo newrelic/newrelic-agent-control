@@ -1,6 +1,5 @@
 #[cfg(test)]
 mod tests {
-    use http::Method;
     use k8s_openapi::api::core::v1::Pod;
     use k8s_openapi::serde_json;
     use kube::{api::ListParams, Api, Client};
@@ -61,7 +60,6 @@ mod tests {
                     Scenario::ListPods => {
                         let (request, send) =
                             self.0.next_request().await.expect("service not called");
-
                         let response =
                             serde_json::to_vec(&ApiServerVerifier::get_list_pod_data()).unwrap();
 
