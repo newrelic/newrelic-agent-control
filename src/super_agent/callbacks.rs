@@ -1,4 +1,4 @@
-use crate::config::remote_config::{RemoteConfig, RemoteConfigError};
+use crate::config::remote_config::{ConfigMap, RemoteConfig, RemoteConfigError};
 use crate::config::remote_config_hash::Hash;
 use crate::config::super_agent_configs::AgentID;
 use crate::context::Context;
@@ -12,8 +12,8 @@ use opamp_client::{
     },
     operation::callbacks::{Callbacks, MessageData},
 };
-use std::collections::HashMap;
 use std::str;
+use std::str::Utf8Error;
 use thiserror::Error;
 use tracing::error;
 
@@ -23,42 +23,39 @@ pub struct AgentCallbacks {
 }
 
 #[derive(Debug, Error)]
-pub enum AgentCallbacksError {}
+pub enum AgentCallbacksError {
+
+    #[error("deserialization error: `{0}`")]
+    DeserializationError(#[from] RemoteConfigError),
+
+    #[error("Invalid UTF-8 sequence: `{0}`")]
+    UTF8(#[from] Utf8Error),
+
+    #[error("agent remote config with empty config body")]
+    EmptyRemoteConfig,
+
+    #[error("unable to send event through context")]
+    ContextError,
+}
 
 impl AgentCallbacks {
     pub fn new(ctx: Context<Option<SuperAgentEvent>>, agent_id: AgentID) -> Self {
         Self { ctx, agent_id }
     }
 
-    fn update_remote_config(&self, agent_id: AgentID, msg_remote_config: &AgentRemoteConfig) {
+    fn update_remote_config(&self, agent_id: AgentID, msg_remote_config: &AgentRemoteConfig) -> Result<(), AgentCallbacksError> {
         if let Some(msg_config_map) = &msg_remote_config.config {
             //Check if hash is empty
-            let config = msg_config_map.config_map.iter().try_fold(
-                HashMap::new(),
-                |mut result, (key, value)| {
-                    let body = match str::from_utf8(&value.body) {
-                        Ok(parsed_body) => {
-                            result.insert(key.clone(), parsed_body.to_string());
-                            Ok(result)
-                        }
-                        Err(e) => Err(e),
-                    };
-                    body
-                },
-            );
+            let config:Result<ConfigMap, RemoteConfigError> = msg_config_map.try_into();
 
-            let current_hash = str::from_utf8(&msg_remote_config.config_hash)
-                .map_err(|e| error!("current hash from UTF8 : {}", e))
-                .expect("REASON")
+            let current_hash = str::from_utf8(&msg_remote_config.config_hash)?
                 .to_string();
 
-            match config {
+            let event = match config {
                 Err(e) => {
-                    self.ctx
-                        .cancel_all(Some(SuperAgentEvent::RemoteConfig(Err(
-                            RemoteConfigError::UTF8(current_hash, e.to_string()),
-                        ))))
-                        .unwrap();
+                    SuperAgentEvent::RemoteConfig(Err(
+                            RemoteConfigError::InvalidConfig(current_hash, e.to_string()),
+                        ))
                 }
                 Ok(config) => {
                     let remote_config = RemoteConfig {
@@ -66,12 +63,12 @@ impl AgentCallbacks {
                         hash: Hash::new(current_hash),
                         config_map: config,
                     };
-                    self.ctx
-                        .cancel_all(Some(SuperAgentEvent::RemoteConfig(Ok(remote_config))))
-                        .unwrap();
+                    SuperAgentEvent::RemoteConfig(Ok(remote_config))
                 }
-            }
+            };
+            return Ok(self.ctx.cancel_all(Some(event)).map_err(|_| AgentCallbacksError::ContextError)?);
         }
+        Err(AgentCallbacksError::EmptyRemoteConfig)
     }
 }
 
@@ -85,7 +82,7 @@ impl Callbacks for AgentCallbacks {
     fn on_message(&self, msg: MessageData) {
         let agent_id = self.agent_id.clone();
         if let Some(msg_remote_config) = msg.remote_config {
-            self.update_remote_config(agent_id, &msg_remote_config);
+            let _ = self.update_remote_config(agent_id, &msg_remote_config).map_err(|error| error!("{}", error));
         }
     }
 
@@ -134,6 +131,7 @@ fn log_on_http_status_code(err: &ConnectionError) {
 mod tests {
     use super::*;
     use opamp_client::opamp::proto::{AgentConfigFile, AgentConfigMap, AgentRemoteConfig};
+    use std::collections::HashMap;
     use std::thread::spawn;
 
     #[test]

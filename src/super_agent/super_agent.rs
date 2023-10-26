@@ -292,11 +292,12 @@ where
                     remote_config_status.status = RemoteConfigStatuses::Applying as i32;
                 }
                 Err(config_error) => match config_error {
-                    RemoteConfigError::UTF8(hash, error) => {
+                    RemoteConfigError::InvalidConfig(hash, error) => {
                         remote_config_status.last_remote_config_hash = hash.into_bytes();
                         remote_config_status.error_message = error;
                         remote_config_status.status = RemoteConfigStatuses::Failed as i32;
                     }
+                    _ => { unreachable!("only errors with hash will reach this block") }
                 },
             }
             block_on(handle.set_remote_config_status(remote_config_status))?;
@@ -351,7 +352,7 @@ mod tests {
     use crate::config::agent_type::runtime_config::OnHost;
     use crate::config::agent_type_registry::tests::MockAgentRegistryMock;
     use crate::config::persister::config_persister::test::MockConfigurationPersisterMock;
-    use crate::config::remote_config::RemoteConfig;
+    use crate::config::remote_config::{ConfigMap, RemoteConfig};
     use crate::config::remote_config_hash::test::MockHashRepositoryMock;
     use crate::config::remote_config_hash::{Hash, HashRepository};
     use crate::config::super_agent_configs::{
@@ -763,10 +764,10 @@ mod tests {
                 let remote_config = RemoteConfig {
                     agent_id,
                     hash: Hash::new("a-hash".to_string()),
-                    config_map: HashMap::from([(
+                    config_map: ConfigMap::new(HashMap::from([(
                         "my-config".to_string(),
                         "enable_process_metrics:true".to_string(),
-                    )]),
+                    )])),
                 };
                 sleep(Duration::from_secs(3));
                 ctx.cancel_all(Some(SuperAgentEvent::RemoteConfig(Ok(remote_config))))
