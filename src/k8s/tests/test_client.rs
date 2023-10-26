@@ -1,30 +1,43 @@
 #[cfg(test)]
 mod tests {
-    use k8s_openapi::api::core::v1::Pod;
+    use crate::k8s::client::K8sExecutor;
     use k8s_openapi::serde_json;
-    use kube::{api::ListParams, Api, Client};
+    use kube::Client;
     use tower_test::mock;
 
+    // #[tokio::test]
+    // async fn test_version() {
+    //     let k = K8sExecutor::new().await.unwrap();
+    //     let version = k.get_minor_version().await;
+    //
+    //     assert_eq!(true, version.is_ok());
+    //     let v = version.unwrap();
+    //     assert_eq!(v, "24");
+    // }
+
+    ///
+    /// The following tests are just an example to show how the client can be mocked
+    /// at a HTTP level
+    ///
+
     #[tokio::test]
-    async fn version_with_http_mock() {
-        let mock_client = get_mocked_client(Scenario::Version);
-        let version = mock_client.apiserver_version().await;
+    async fn test_version_with_http_mock() {
+        let k = get_mocked_client(Scenario::Version);
+        let version = k.get_minor_version().await;
 
         assert_eq!(true, version.is_ok());
-        let v = version.unwrap();
-        assert_eq!(v.platform, "linux/amd64");
-        assert_eq!(v.minor, "24");
+        let version = version.unwrap();
+        assert_eq!(version, "24");
     }
 
     #[tokio::test]
-    async fn get_pods_with_http_mock() {
-        let mock_client = get_mocked_client(Scenario::ListPods);
-        let pod_client: Api<Pod> = Api::default_namespaced(mock_client);
-        let pods = pod_client.list(&ListParams::default()).await;
+    async fn test_get_pods_with_http_mock() {
+        let k = get_mocked_client(Scenario::ListPods);
+        let list_pods = k.get_pods().await;
 
-        assert_eq!(true, pods.is_ok());
-        let pods = pods.unwrap();
-        assert_eq!(pods.items.len(), 1);
+        assert_eq!(true, list_pods.is_ok());
+        let pods = list_pods.unwrap();
+        assert_eq!(pods.len(), 1);
         pods.iter().for_each(|pod| {
             if pod.metadata.name.as_ref().unwrap() == "test" {
                 assert_eq!(
@@ -38,11 +51,12 @@ mod tests {
         })
     }
 
-    fn get_mocked_client(scenario: Scenario) -> Client {
+    fn get_mocked_client(scenario: Scenario) -> K8sExecutor {
         let (mock_service, handle) =
             mock::pair::<http::Request<hyper::Body>, http::Response<hyper::Body>>();
         ApiServerVerifier(handle).run(scenario);
-        Client::new(mock_service, "default")
+        let custom_client = Client::new(mock_service, "default");
+        K8sExecutor::new_with_custom_client(custom_client)
     }
 
     type ApiServerHandle = mock::Handle<http::Request<hyper::Body>, http::Response<hyper::Body>>;
@@ -58,8 +72,7 @@ mod tests {
             tokio::spawn(async move {
                 match scenario {
                     Scenario::ListPods => {
-                        let (request, send) =
-                            self.0.next_request().await.expect("service not called");
+                        let (_, send) = self.0.next_request().await.expect("service not called");
                         let response =
                             serde_json::to_vec(&ApiServerVerifier::get_list_pod_data()).unwrap();
 
@@ -70,8 +83,7 @@ mod tests {
                         );
                     }
                     Scenario::Version => {
-                        let (request, send) =
-                            self.0.next_request().await.expect("service not called");
+                        let (_, send) = self.0.next_request().await.expect("service not called");
 
                         let response =
                             serde_json::to_vec(&ApiServerVerifier::get_version_data()).unwrap();
