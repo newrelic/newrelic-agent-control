@@ -723,13 +723,14 @@ mod tests {
             .returning(|name| name);
 
         let mut hash_repository_mock = MockHashRepositoryMock::new();
-        hash_repository_mock.expect_get().times(1).returning(|_| {
+        hash_repository_mock.expect_get().with(predicate::eq(AgentID::new(SUPER_AGENT_ID))).times(1).returning(|_| {
             let mut hash = Hash::new("a-hash".to_string());
             hash.apply();
             Ok(hash)
         });
         hash_repository_mock
             .expect_save()
+            .with(predicate::eq(AgentID::new(SUPER_AGENT_ID)), predicate::eq(Hash::new("a-hash".to_string())))
             .times(1)
             .returning(|_, _| Ok(()));
 
@@ -749,16 +750,6 @@ mod tests {
         // stop all agents after 3 seconds
         spawn({
             let ctx = ctx.clone();
-            move || {
-                sleep(Duration::from_secs(1));
-                ctx.cancel_all(Some(SuperAgentEvent::Stop)).unwrap();
-            }
-        });
-
-        let ctx = Context::new();
-        // stop all agents after 3 seconds
-        spawn({
-            let ctx = ctx.clone();
             let agent_id = AgentID::new(SUPER_AGENT_ID);
             move || {
                 let remote_config = RemoteConfig {
@@ -769,10 +760,10 @@ mod tests {
                         "enable_process_metrics:true".to_string(),
                     )])),
                 };
-                sleep(Duration::from_secs(3));
+                sleep(Duration::from_millis(100));
                 ctx.cancel_all(Some(SuperAgentEvent::RemoteConfig(Ok(remote_config))))
                     .unwrap();
-                sleep(Duration::from_secs(1));
+                sleep(Duration::from_millis(50));
                 ctx.cancel_all(Some(SuperAgentEvent::Stop)).unwrap();
             }
         });
