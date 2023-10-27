@@ -33,7 +33,7 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: us-east-2
           
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Set branch name
         run: |

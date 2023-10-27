@@ -16,7 +16,7 @@ jobs:
       matrix:
         toolchain: [stable, beta]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: true
       - name: Give GitHub Actions access to private crates
@@ -41,7 +41,7 @@ jobs:
     container: rust:latest
     name: tests as root
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: true
       - name: Give GitHub Actions access to private crates
@@ -63,7 +63,7 @@ jobs:
   #     matrix:
   #       os: [macos-latest, windows-latest]
   #   steps:
-  #     - uses: actions/checkout@v3
+  #     - uses: actions/checkout@v4
   #       with:
   #         submodules: true
   #     - name: Give GitHub Actions access to private crates
@@ -85,7 +85,7 @@ jobs:
     name: Unit test for embedded downloader
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Give GitHub Actions access to private crates
         uses: webfactory/ssh-agent@v0.8.0
         with:
