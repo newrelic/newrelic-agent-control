@@ -1,6 +1,7 @@
 use k8s_openapi::api::core::v1::Pod;
 use kube::config::{KubeConfigOptions, KubeconfigError};
 use kube::{api::ListParams, Api, Client, Config, Error};
+use mockall::*;
 use tracing::debug;
 
 #[derive(thiserror::Error, Debug)]
@@ -26,6 +27,7 @@ pub struct K8sExecutor {
     client: Client,
 }
 
+#[automock]
 impl K8sExecutor {
     /// Constructs a new Kubernetes client.
     ///
@@ -33,7 +35,7 @@ impl K8sExecutor {
     /// This will respect the `$KUBECONFIG` envvar, but otherwise default to `~/.kube/config`.
     /// Not leveraging infer() to check inClusterConfig first
     ///
-    pub async fn new() -> Result<K8sExecutor, K8sClientConfigError> {
+    pub async fn try_default() -> Result<K8sExecutor, K8sClientConfigError> {
         debug!("trying inClusterConfig for k8s client");
         let config = Config::incluster().unwrap_or({
             debug!("inClusterConfig failed, trying kubeconfig for k8s client");
@@ -46,10 +48,10 @@ impl K8sExecutor {
 
         let c = Client::try_from(config)?;
         debug!("client creation succeeded");
-        Ok(K8sExecutor { client: c })
+        Ok(K8sExecutor::new(c))
     }
 
-    pub fn new_with_custom_client(c: Client) -> K8sExecutor {
+    pub fn new(c: Client) -> K8sExecutor {
         K8sExecutor { client: c }
     }
 
@@ -60,7 +62,6 @@ impl K8sExecutor {
 
     pub async fn get_pods(&self) -> Result<Vec<Pod>, K8sClientRequestError> {
         let pod_client: Api<Pod> = Api::default_namespaced(self.client.clone());
-
         let pod_list = pod_client.list(&ListParams::default()).await?;
         Ok(pod_list.items)
     }

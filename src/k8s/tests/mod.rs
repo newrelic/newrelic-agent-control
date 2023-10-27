@@ -1,1 +1,1 @@
-mod test_client;
+mod k8s_test;

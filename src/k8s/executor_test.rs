@@ -1,19 +1,9 @@
 #[cfg(test)]
-mod tests {
-    use crate::k8s::client::K8sExecutor;
+mod tests_mocked_http_client {
+    use crate::k8s::executor::K8sExecutor;
     use k8s_openapi::serde_json;
     use kube::Client;
     use tower_test::mock;
-
-    // #[tokio::test]
-    // async fn test_version() {
-    //     let k = K8sExecutor::new().await.unwrap();
-    //     let version = k.get_minor_version().await;
-    //
-    //     assert_eq!(true, version.is_ok());
-    //     let v = version.unwrap();
-    //     assert_eq!(v, "24");
-    // }
 
     ///
     /// The following tests are just an example to show how the client can be mocked
@@ -56,7 +46,7 @@ mod tests {
             mock::pair::<http::Request<hyper::Body>, http::Response<hyper::Body>>();
         ApiServerVerifier(handle).run(scenario);
         let custom_client = Client::new(mock_service, "default");
-        K8sExecutor::new_with_custom_client(custom_client)
+        K8sExecutor::new(custom_client)
     }
 
     type ApiServerHandle = mock::Handle<http::Request<hyper::Body>, http::Response<hyper::Body>>;

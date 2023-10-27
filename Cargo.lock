@@ -1218,6 +1218,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "mockall_double"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ae71c7bb287375187c775cf82e2dcf1bef3388aaf58f0789a77f9c7ab28466f6"
+dependencies = [
+ "cfg-if",
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "native-tls"
 version = "0.2.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1253,6 +1265,7 @@ dependencies = [
  "kube",
  "log",
  "mockall",
+ "mockall_double",
  "nix",
  "opamp-client",
  "openssl",
