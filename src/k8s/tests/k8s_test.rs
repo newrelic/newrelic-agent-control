@@ -4,6 +4,10 @@ mod tests_mocked_executor {
     use kube::error::ErrorResponse;
     use kube::Error;
 
+    ///
+    /// The following tests are just an example to show how the K8sExecutor con be mocked completely
+    ///
+
     #[double]
     use crate::k8s::executor::K8sExecutor;
     use mockall_double::double;
