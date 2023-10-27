@@ -78,7 +78,7 @@ jobs:
     env:
       DOCKER_IMAGE_NAME: newrelic/newrelic-super-agent
     steps:
-      - uses: docker/setup-qemu-action@v2
+      - uses: docker/setup-qemu-action@v3
 
       - uses: docker/setup-buildx-action@v3
 
