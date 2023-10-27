@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests_mocked_executor {
-    use crate::k8s::executor::K8sClientRequestError;
+    use crate::k8s::executor::K8sExecutorError::Generic;
     use kube::error::ErrorResponse;
     use kube::Error;
 
@@ -28,14 +28,12 @@ mod tests_mocked_executor {
     async fn test_get_pods_with_whole_mock() {
         let mut mock = K8sExecutor::default();
         mock.expect_get_pods().returning(|| {
-            Err(K8sClientRequestError::UnableToFetchData(Error::Api(
-                ErrorResponse {
-                    status: "test".to_string(),
-                    message: "test".to_string(),
-                    reason: "test".to_string(),
-                    code: 404,
-                },
-            )))
+            Err(Generic(Error::Api(ErrorResponse {
+                status: "test".to_string(),
+                message: "test".to_string(),
+                reason: "test".to_string(),
+                code: 404,
+            })))
         });
 
         let list_pods = mock.get_pods().await;
