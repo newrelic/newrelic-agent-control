@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::string::ToString;
 use std::sync::mpsc::{self, Sender};
-use std::thread::JoinHandle;
 
 use futures::executor::block_on;
 use nix::unistd::gethostname;
@@ -20,8 +19,11 @@ use crate::config::remote_config_hash::{Hash, HashRepository, HashRepositoryFile
 use crate::config::super_agent_configs::{AgentID, SuperAgentConfig};
 use crate::context::Context;
 use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPHttpBuilder};
-use crate::sub_agent::on_host::factory::{build_sub_agent, build_sub_agents};
+use crate::sub_agent::collection::NotStartedSubAgents;
+use crate::sub_agent::error::SubAgentBuilderError;
+use crate::sub_agent::on_host::factory::build_sub_agent;
 use crate::sub_agent::on_host::sub_agents_on_host::StartedSubAgentsOnHost;
+use crate::sub_agent::SubAgentBuilder;
 use crate::sub_agent::{error::SubAgentError, NotStartedSubAgent, StartedSubAgent};
 use crate::super_agent::defaults::{
     SUPER_AGENT_ID, SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION,
@@ -47,6 +49,7 @@ pub enum SuperAgentEvent {
 pub struct SuperAgent<
     'a,
     Assembler,
+    S,
     OpAMPBuilder = OpAMPHttpBuilder,
     ID = ULIDInstanceIDGetter,
     HR = HashRepositoryFile,
@@ -55,41 +58,47 @@ pub struct SuperAgent<
     OpAMPBuilder: OpAMPClientBuilder,
     ID: InstanceIDGetter,
     HR: HashRepository,
+    S: SubAgentBuilder,
 {
     instance_id_getter: ID,
     effective_agents_asssembler: Assembler,
     opamp_client_builder: Option<&'a OpAMPBuilder>,
+    sub_agent_builder: S,
     remote_config_hash_repository: HR,
 }
 
-impl<'a, Assembler, OpAMPBuilder, ID, HR> SuperAgent<'a, Assembler, OpAMPBuilder, ID, HR>
+impl<'a, Assembler, S, OpAMPBuilder, ID, HR> SuperAgent<'a, Assembler, S, OpAMPBuilder, ID, HR>
 where
     Assembler: EffectiveAgentsAssembler,
     OpAMPBuilder: OpAMPClientBuilder,
     ID: InstanceIDGetter,
     HR: HashRepository,
+    S: SubAgentBuilder,
 {
     pub fn new(
         effective_agents_asssembler: Assembler,
         opamp_client_builder: Option<&'a OpAMPBuilder>,
         instance_id_getter: ID,
         remote_config_hash_repository: HR,
+        sub_agent_builder: S,
     ) -> Self {
         Self {
             instance_id_getter,
             effective_agents_asssembler,
             opamp_client_builder,
             remote_config_hash_repository,
+            sub_agent_builder,
         }
     }
 }
 
-impl<'a, Assembler, OpAMPBuilder, ID, HR> SuperAgent<'a, Assembler, OpAMPBuilder, ID, HR>
+impl<'a, Assembler, S, OpAMPBuilder, ID, HR> SuperAgent<'a, Assembler, S, OpAMPBuilder, ID, HR>
 where
     Assembler: EffectiveAgentsAssembler,
     OpAMPBuilder: OpAMPClientBuilder,
     ID: InstanceIDGetter,
     HR: HashRepository,
+    S: SubAgentBuilder,
 {
     pub fn run(
         self,
@@ -123,12 +132,29 @@ where
         info!("Starting the supervisor group.");
         let effective_agents = self.load_effective_agents(super_agent_config)?;
         // create sub agents
-        let sub_agents = build_sub_agents(
-            effective_agents,
-            &tx,
-            self.opamp_client_builder,
-            &self.instance_id_getter,
-        )?;
+        // let sub_agents = build_sub_agents(
+        //     effective_agents,
+        //     &tx,
+        //     self.opamp_client_builder,
+        //     &self.instance_id_getter,
+        // )?;
+
+        let sub_agents = NotStartedSubAgents::new(
+            effective_agents
+                .agents
+                .into_iter()
+                .map(|(id, agent)| {
+                    let not_started_agent = self.sub_agent_builder.build(
+                        agent,
+                        tx.clone(),
+                        self.opamp_client_builder,
+                        &self.instance_id_getter,
+                    )?;
+                    Ok((id, not_started_agent))
+                })
+                .collect::<Result<HashMap<AgentID, S::NotStartedSubAgent>, SubAgentBuilderError>>(
+                )?,
+        );
 
         /*
             TODO: We should first compare the current config with the one in the super agent config.
@@ -149,14 +175,45 @@ where
         */
 
         // Run all the Sub Agents
-        let running_sub_agents = sub_agents.run()?;
-        self.process_event(
-            ctx.clone(),
-            &opamp_client,
-            tx,
-            running_sub_agents,
-            super_agent_config,
-        )?;
+        let mut running_sub_agents = sub_agents.run()?;
+        {
+            loop {
+                // blocking wait until context is woken up
+                if let Some(event) = ctx.wait_condvar().unwrap() {
+                    match event {
+                        SuperAgentEvent::Stop => {
+                            drop(tx); //drop the main channel sender to stop listener
+                            break running_sub_agents.stop()?;
+                        }
+                        SuperAgentEvent::RemoteConfig(remote_config) => {
+                            self.on_remote_config(&opamp_client, remote_config)?;
+                        }
+                        SuperAgentEvent::RestartSubAgent(agent_id) => {
+                            running_sub_agents.stop_remove(&agent_id)?;
+
+                            let sub_agent_config =
+                                super_agent_config.sub_agent_config(&agent_id)?;
+                            let final_agent = self
+                                .effective_agents_asssembler
+                                .assemble_agent(&agent_id, sub_agent_config)?;
+
+                            running_sub_agents.insert(
+                                agent_id,
+                                self.sub_agent_builder
+                                    .build(
+                                        final_agent,
+                                        tx.clone(),
+                                        self.opamp_client_builder,
+                                        &self.instance_id_getter,
+                                    )?
+                                    .run()?,
+                            );
+                        }
+                    };
+                }
+                // spurious condvar wake up, loop should continue
+            }
+        }
 
         if let Some(handle) = opamp_client {
             info!("Stopping and setting to unhealthy the OpAMP Client");
@@ -238,47 +295,6 @@ where
         }
     }
 
-    fn process_event(
-        &self,
-        ctx: Context<Option<SuperAgentEvent>>,
-        opamp_client: &Option<OpAMPBuilder::Client>,
-        tx: Sender<Event>,
-        mut running_sub_agents: StartedSubAgentsOnHost<
-            <OpAMPBuilder as OpAMPClientBuilder>::Client,
-        >,
-        super_agent_config: &SuperAgentConfig,
-    ) -> Result<(), SubAgentError>
-    where
-        OpAMPBuilder: OpAMPClientBuilder,
-    {
-        {
-            loop {
-                // blocking wait until context is woken up
-                if let Some(event) = ctx.wait_condvar().unwrap() {
-                    match event {
-                        SuperAgentEvent::Stop => {
-                            drop(tx); //drop the main channel sender to stop listener
-                            break stop_sub_agents::<OpAMPBuilder>(running_sub_agents)?;
-                        }
-                        SuperAgentEvent::RemoteConfig(remote_config) => {
-                            self.on_remote_config(opamp_client, remote_config)?;
-                        }
-                        SuperAgentEvent::RestartSubAgent(agent_id) => {
-                            self.recreate_sub_agent(
-                                agent_id,
-                                super_agent_config,
-                                &mut running_sub_agents,
-                                tx.clone(),
-                            )?;
-                        }
-                    };
-                }
-                // spurious condvar wake up, loop should continue
-            }
-            Ok(())
-        }
-    }
-
     fn load_effective_agents(
         &self,
         super_agent_config: &SuperAgentConfig,
@@ -318,77 +334,6 @@ where
         }
 
         Ok(())
-    }
-
-    // Recreates a Sub Agent by its agent_id meaning:
-    //  * Remove and stop the existing running Sub Agent from the Running Sub Agents
-    //  * Recreate the Final Agent using the Agent Type and the latest persisted config
-    //  * Build a Stopped Sub Agent
-    //  * Run the Sub Agent and add it to the Running Sub Agents
-    fn recreate_sub_agent(
-        &self,
-        agent_id: AgentID,
-        super_agent_config: &SuperAgentConfig,
-        running_sub_agents: &mut StartedSubAgentsOnHost<
-            <OpAMPBuilder as OpAMPClientBuilder>::Client,
-        >,
-        tx: Sender<Event>,
-    ) -> Result<(), SubAgentError>
-    where
-        OpAMPBuilder: OpAMPClientBuilder,
-    {
-        let sub_agent = running_sub_agents.remove(&agent_id)?;
-        sub_agent.stop()?;
-
-        let sub_agent_config = super_agent_config.sub_agent_config(&agent_id)?;
-        let final_agent = self
-            .effective_agents_asssembler
-            .assemble_agent(&agent_id, sub_agent_config)?;
-
-        let sub_agent = build_sub_agent(
-            agent_id,
-            tx.clone(),
-            self.opamp_client_builder,
-            &self.instance_id_getter,
-            final_agent,
-        )?;
-
-        running_sub_agents.add(sub_agent.run()?)
-    }
-}
-
-fn stop_sub_agents<OpAMPBuilder>(
-    running_sub_agents: StartedSubAgentsOnHost<<OpAMPBuilder as OpAMPClientBuilder>::Client>,
-) -> Result<(), SubAgentError>
-where
-    OpAMPBuilder: OpAMPClientBuilder,
-{
-    running_sub_agents
-        .stop()?
-        .into_iter()
-        .for_each(|(agent_id, handles)| {
-            handle_sub_agent_stop(&agent_id, handles);
-        });
-    Ok(())
-}
-
-fn handle_sub_agent_stop(agent_id: &AgentID, handles: Vec<JoinHandle<()>>) {
-    for handle in handles {
-        handle.join().map_or_else(
-            |_err| {
-                // let error: &dyn std::error::Error = &err;
-                error!(
-                    supervisor = agent_id.to_string(),
-                    msg = "stopped with error",
-                )
-            },
-            |_| {
-                info!(
-                    supervisor = agent_id.to_string(),
-                    msg = "stopped successfully"
-                )
-            },
-        )
     }
 }
 
@@ -449,6 +394,7 @@ mod tests {
     use crate::opamp::client_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock};
     use crate::opamp::client_builder::OpAMPClientBuilder;
     use crate::sub_agent::on_host::factory::build_sub_agents;
+    use crate::sub_agent::{MockSubAgentBuilder, SubAgentBuilder};
     use crate::super_agent::defaults::{
         SUPER_AGENT_ID, SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION,
     };
@@ -475,24 +421,27 @@ mod tests {
     ////////////////////////////////////////////////////////////////////////////////////
     // Custom Agent constructor for tests
     ////////////////////////////////////////////////////////////////////////////////////
-    impl<'a, Assembler, OpAMPBuilder, ID, HR> SuperAgent<'a, Assembler, OpAMPBuilder, ID, HR>
+    impl<'a, Assembler, S, OpAMPBuilder, ID, HR> SuperAgent<'a, Assembler, S, OpAMPBuilder, ID, HR>
     where
         Assembler: EffectiveAgentsAssembler,
         OpAMPBuilder: OpAMPClientBuilder,
         ID: InstanceIDGetter,
         HR: HashRepository,
+        S: SubAgentBuilder,
     {
         pub fn new_custom(
             instance_id_getter: ID,
             effective_agents_asssembler: Assembler,
             opamp_client_builder: Option<&'a OpAMPBuilder>,
             remote_config_hash_repository: HR,
+            sub_agent_builder: S,
         ) -> Self {
             SuperAgent {
                 effective_agents_asssembler,
                 opamp_client_builder,
                 instance_id_getter,
                 remote_config_hash_repository,
+                sub_agent_builder,
             }
         }
     }
@@ -548,6 +497,7 @@ mod tests {
             local_assembler,
             Some(&opamp_builder),
             hash_repository_mock,
+            MockSubAgentBuilder::new(),
         );
 
         let ctx = Context::new();
@@ -664,6 +614,7 @@ mod tests {
             local_assembler,
             Some(&opamp_builder),
             hash_repository_mock,
+            MockSubAgentBuilder::new(),
         );
 
         let ctx = Context::new();
@@ -794,6 +745,7 @@ mod tests {
             local_assembler,
             Some(&opamp_builder),
             hash_repository_mock,
+            MockSubAgentBuilder::new(),
         );
 
         let ctx = Context::new();
@@ -947,6 +899,7 @@ mod tests {
             local_assembler,
             Some(&opamp_builder),
             hash_repository_mock,
+            MockSubAgentBuilder::new(),
         );
 
         let ctx = Context::new();
@@ -1076,6 +1029,7 @@ mod tests {
             local_assembler,
             Some(&opamp_builder),
             hash_repository_mock,
+            MockSubAgentBuilder::new(),
         );
 
         let ctx = Context::new();
@@ -1207,6 +1161,7 @@ mod tests {
             local_assembler,
             Some(&opamp_builder),
             hash_repository_mock,
+            MockSubAgentBuilder::new(),
         );
 
         let (tx, _) = mpsc::channel();
@@ -1335,6 +1290,7 @@ mod tests {
             local_assembler,
             Some(&opamp_builder),
             hash_repository_mock,
+            MockSubAgentBuilder::new(),
         );
 
         let (tx, _) = mpsc::channel();
@@ -1448,6 +1404,7 @@ mod tests {
             local_assembler,
             Some(&opamp_builder),
             hash_repository_mock,
+            MockSubAgentBuilder::new(),
         );
 
         let (tx, _) = mpsc::channel();

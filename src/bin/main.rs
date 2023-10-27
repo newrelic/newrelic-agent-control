@@ -1,5 +1,6 @@
 use std::error::Error;
 
+use newrelic_super_agent::sub_agent::MockSubAgentBuilder;
 use tracing::{error, info};
 
 use newrelic_super_agent::config::loader::{SuperAgentConfigLoader, SuperAgentConfigLoaderFile};
@@ -54,6 +55,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         opamp_client_builder.as_ref(),
         ULIDInstanceIDGetter::default(),
         HashRepositoryFile::default(),
+        MockSubAgentBuilder::new(),
     )
     .run(ctx, &super_agent_config)?)
 }

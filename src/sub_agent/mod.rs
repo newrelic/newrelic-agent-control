@@ -2,9 +2,18 @@ pub mod collection;
 pub mod error;
 pub mod on_host;
 
+use std::thread::JoinHandle;
+
 // CRATE TRAITS
+use mockall::automock;
+
+use crate::{
+    command::stream::Event, config::agent_type::agent_types::FinalAgent,
+    opamp::client_builder::OpAMPClientBuilder, super_agent::instance_id::InstanceIDGetter,
+};
 
 /// The Runner trait defines the entry-point interface for a supervisor. Exposes a run method that will start the supervised process' execution.
+#[automock(type StartedSubAgent = MockStartedSubAgent;)]
 pub trait NotStartedSubAgent {
     type StartedSubAgent: StartedSubAgent;
 
@@ -13,14 +22,47 @@ pub trait NotStartedSubAgent {
 }
 
 /// The Handle trait defines the interface for a supervised process' handle. Exposes a stop method that will cancel the supervised process' execution.
+#[automock(type S =  ();)]
 pub trait StartedSubAgent {
-    type S: Send + Sync;
-
     /// Cancels the supervised process and returns its inner handle.
-    fn stop(self) -> Result<Vec<Self::S>, error::SubAgentError>;
+    fn stop(self) -> Result<Vec<JoinHandle<()>>, error::SubAgentError>;
 }
 
 pub trait SubAgentBuilder {
-    type S: NotStartedSubAgent;
-    fn build(&self) -> Result<Self::S, error::SubAgentBuilderError>;
+    type NotStartedSubAgent: NotStartedSubAgent;
+    fn build<OpAMPBuilder, ID>(
+        &self,
+        agent: FinalAgent,
+        tx: std::sync::mpsc::Sender<Event>,
+        opamp_builder: Option<&OpAMPBuilder>,
+        instance_id_getter: &ID,
+    ) -> Result<Self::NotStartedSubAgent, error::SubAgentBuilderError>
+    where
+        OpAMPBuilder: OpAMPClientBuilder,
+        ID: InstanceIDGetter;
+}
+
+pub struct MockSubAgentBuilder;
+
+impl MockSubAgentBuilder {
+    pub fn new() -> Self {
+        MockSubAgentBuilder
+    }
+}
+
+impl SubAgentBuilder for MockSubAgentBuilder {
+    type NotStartedSubAgent = MockNotStartedSubAgent;
+    fn build<OpAMPBuilder, ID>(
+        &self,
+        _agent: FinalAgent,
+        _tx: std::sync::mpsc::Sender<Event>,
+        _opamp_builder: Option<&OpAMPBuilder>,
+        _instance_id_getter: &ID,
+    ) -> Result<Self::NotStartedSubAgent, error::SubAgentBuilderError>
+    where
+        OpAMPBuilder: OpAMPClientBuilder,
+        ID: InstanceIDGetter,
+    {
+        Ok(MockNotStartedSubAgent::new())
+    }
 }

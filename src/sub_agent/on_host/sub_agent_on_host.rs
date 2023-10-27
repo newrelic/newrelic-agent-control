@@ -134,9 +134,7 @@ impl<C> StartedSubAgent for StartedSubAgentOnHost<C>
 where
     C: StartedClient,
 {
-    type S = JoinHandle<()>;
-
-    fn stop(self) -> Result<Vec<Self::S>, SubAgentError> {
+    fn stop(self) -> Result<Vec<JoinHandle<()>>, SubAgentError> {
         let _client = match self.opamp_client {
             Some(client) => {
                 info!(
