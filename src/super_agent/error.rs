@@ -7,7 +7,7 @@ use thiserror::Error;
 use crate::config::persister::config_persister::PersistError;
 use crate::config::remote_config_hash::HashRepositoryError;
 use crate::file_reader::FileReaderError;
-use crate::sub_agent::sub_agent::SubAgentError;
+use crate::sub_agent::error::SubAgentError;
 use crate::super_agent::effective_agents_assembler::EffectiveAgentsAssemblerError;
 use crate::super_agent::super_agent::EffectiveAgentsError;
 use crate::{

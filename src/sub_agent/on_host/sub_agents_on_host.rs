@@ -3,7 +3,7 @@ use crate::opamp::client_builder::OpAMPClientBuilder;
 use crate::sub_agent::on_host::sub_agent_on_host::{
     NotStartedSubAgentOnHost, StartedSubAgentOnHost,
 };
-use crate::sub_agent::sub_agent::{NotStartedSubAgent, StartedSubAgent, SubAgentError};
+use crate::sub_agent::{error::SubAgentError, NotStartedSubAgent, StartedSubAgent};
 use crate::super_agent::instance_id::InstanceIDGetter;
 use opamp_client::StartedClient;
 use std::collections::HashMap;
