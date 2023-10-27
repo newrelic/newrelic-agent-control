@@ -1,6 +1,9 @@
 use std::error::Error;
+use std::path::PathBuf;
 
+use newrelic_super_agent::sub_agent::on_host::builder::OnHostSubAgentBuilder;
 use newrelic_super_agent::sub_agent::MockSubAgentBuilder;
+use newrelic_super_agent::super_agent::error::AgentError;
 use tracing::{error, info};
 
 use newrelic_super_agent::config::loader::{SuperAgentConfigLoader, SuperAgentConfigLoaderFile};
@@ -38,9 +41,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
     info!("Creating the signal handler");
     create_shutdown_signal_handler(ctx.clone())?;
 
+    Ok(run_super_agent(cli.get_config_path(), ctx)?)
+}
+
+#[cfg(not(feature = "k8s"))]
+fn run_super_agent(
+    config_path: PathBuf,
+    ctx: Context<Option<SuperAgentEvent>>,
+) -> Result<(), AgentError> {
     // load effective config
-    let super_agent_config =
-        SuperAgentConfigLoaderFile::new(&cli.get_config_path()).load_config()?;
+    let super_agent_config = SuperAgentConfigLoaderFile::new(&config_path).load_config()?;
 
     let effective_agents_asssembler = LocalEffectiveAgentsAssembler::default();
 
@@ -49,13 +59,43 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .as_ref()
         .map(|opamp_config| OpAMPHttpBuilder::new(opamp_config.clone()));
 
+    let instance_id_getter = ULIDInstanceIDGetter::default();
+
     info!("Starting the super agent");
     Ok(SuperAgent::new(
         effective_agents_asssembler,
         opamp_client_builder.as_ref(),
         ULIDInstanceIDGetter::default(),
         HashRepositoryFile::default(),
-        MockSubAgentBuilder::new(),
+        OnHostSubAgentBuilder::new(opamp_client_builder.as_ref(), &instance_id_getter),
+    )
+    .run(ctx, &super_agent_config)?)
+}
+
+#[cfg(feature = "k8s")]
+fn run_super_agent(
+    config_path: PathBuf,
+    ctx: Context<Option<SuperAgentEvent>>,
+) -> Result<(), AgentError> {
+    // load effective config
+    let super_agent_config = SuperAgentConfigLoaderFile::new(&config_path).load_config()?;
+
+    let effective_agents_asssembler = LocalEffectiveAgentsAssembler::default();
+
+    let opamp_client_builder: Option<OpAMPHttpBuilder> = super_agent_config
+        .opamp
+        .as_ref()
+        .map(|opamp_config| OpAMPHttpBuilder::new(opamp_config.clone()));
+
+    let instance_id_getter = ULIDInstanceIDGetter::default();
+
+    info!("Starting the super agent");
+    Ok(SuperAgent::new(
+        effective_agents_asssembler,
+        opamp_client_builder.as_ref(),
+        ULIDInstanceIDGetter::default(),
+        HashRepositoryFile::default(),
+        OnHostSubAgentBuilder::new(opamp_client_builder.as_ref(), &instance_id_getter),
     )
     .run(ctx, &super_agent_config)?)
 }

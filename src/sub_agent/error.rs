@@ -37,4 +37,7 @@ pub enum SubAgentError {
 }
 
 #[derive(Error, Debug)]
-pub enum SubAgentBuilderError {}
+pub enum SubAgentBuilderError {
+    #[error("`{0}`")]
+    SubAgent(#[from] SubAgentError),
+}

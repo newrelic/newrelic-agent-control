@@ -7,10 +7,7 @@ use std::thread::JoinHandle;
 // CRATE TRAITS
 use mockall::automock;
 
-use crate::{
-    command::stream::Event, config::agent_type::agent_types::FinalAgent,
-    opamp::client_builder::OpAMPClientBuilder, super_agent::instance_id::InstanceIDGetter,
-};
+use crate::{command::stream::Event, config::agent_type::agent_types::FinalAgent};
 
 /// The Runner trait defines the entry-point interface for a supervisor. Exposes a run method that will start the supervised process' execution.
 #[automock(type StartedSubAgent = MockStartedSubAgent;)]
@@ -30,16 +27,11 @@ pub trait StartedSubAgent {
 
 pub trait SubAgentBuilder {
     type NotStartedSubAgent: NotStartedSubAgent;
-    fn build<OpAMPBuilder, ID>(
+    fn build(
         &self,
         agent: FinalAgent,
         tx: std::sync::mpsc::Sender<Event>,
-        opamp_builder: Option<&OpAMPBuilder>,
-        instance_id_getter: &ID,
-    ) -> Result<Self::NotStartedSubAgent, error::SubAgentBuilderError>
-    where
-        OpAMPBuilder: OpAMPClientBuilder,
-        ID: InstanceIDGetter;
+    ) -> Result<Self::NotStartedSubAgent, error::SubAgentBuilderError>;
 }
 
 pub struct MockSubAgentBuilder;
@@ -52,17 +44,11 @@ impl MockSubAgentBuilder {
 
 impl SubAgentBuilder for MockSubAgentBuilder {
     type NotStartedSubAgent = MockNotStartedSubAgent;
-    fn build<OpAMPBuilder, ID>(
+    fn build(
         &self,
         _agent: FinalAgent,
         _tx: std::sync::mpsc::Sender<Event>,
-        _opamp_builder: Option<&OpAMPBuilder>,
-        _instance_id_getter: &ID,
-    ) -> Result<Self::NotStartedSubAgent, error::SubAgentBuilderError>
-    where
-        OpAMPBuilder: OpAMPClientBuilder,
-        ID: InstanceIDGetter,
-    {
+    ) -> Result<Self::NotStartedSubAgent, error::SubAgentBuilderError> {
         Ok(MockNotStartedSubAgent::new())
     }
 }

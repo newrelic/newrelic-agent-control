@@ -51,3 +51,7 @@ path = "test/integration/mod.rs"
 [[bin]]
 name = "newrelic-super-agent"
 path = "src/bin/main.rs"
+
+
+[features]
+k8s = []
