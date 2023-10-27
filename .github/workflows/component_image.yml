@@ -23,7 +23,7 @@ jobs:
       matrix:
         arch: [arm64, amd64]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -51,7 +51,7 @@ jobs:
       DOCKER_IMAGE_NAME: newrelic/newrelic-super-agent
       DOCKER_PLATFORMS: "linux/amd64,linux/arm64"
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
