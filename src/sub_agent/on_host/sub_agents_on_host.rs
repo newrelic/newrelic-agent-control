@@ -13,13 +13,12 @@ use std::thread::JoinHandle;
 // Not Started SubAgents On Host
 // C: OpAMP Client
 ////////////////////////////////////////////////////////////////////////////////////
-pub struct NotStartedSubAgentsOnHost<'a, OpAMPBuilder, ID>
+pub struct NotStartedSubAgentsOnHost<'a, OpAMPBuilder, ID>(
+    HashMap<AgentID, NotStartedSubAgentOnHost<'a, OpAMPBuilder, ID>>,
+)
 where
     OpAMPBuilder: OpAMPClientBuilder,
-    ID: InstanceIDGetter,
-{
-    agents: HashMap<AgentID, NotStartedSubAgentOnHost<'a, OpAMPBuilder, ID>>,
-}
+    ID: InstanceIDGetter;
 
 impl<'a, OpAMPBuilder, ID> NotStartedSubAgentsOnHost<'a, OpAMPBuilder, ID>
 where
@@ -27,13 +26,13 @@ where
     ID: InstanceIDGetter,
 {
     pub(super) fn add(&mut self, sub_agent: NotStartedSubAgentOnHost<'a, OpAMPBuilder, ID>) {
-        self.agents.insert(sub_agent.agent_id().clone(), sub_agent);
+        self.0.insert(sub_agent.agent_id().clone(), sub_agent);
     }
 
     pub fn run(self) -> Result<StartedSubAgentsOnHost<OpAMPBuilder::Client>, SubAgentError> {
         let mut started_sub_agents = StartedSubAgentsOnHost::default();
         let result: Result<(), SubAgentError> =
-            self.agents.into_iter().try_for_each(|(_agent_id, agent)| {
+            self.0.into_iter().try_for_each(|(_agent_id, agent)| {
                 let started_sub_agent = agent.run()?;
                 started_sub_agents.add(started_sub_agent)?;
                 Ok(())
@@ -52,9 +51,7 @@ where
     ID: InstanceIDGetter,
 {
     fn default() -> Self {
-        NotStartedSubAgentsOnHost {
-            agents: HashMap::new(),
-        }
+        NotStartedSubAgentsOnHost(HashMap::new())
     }
 }
 

@@ -37,6 +37,9 @@ pub enum SubAgentError {
     ConfigAssemblerError(#[from] EffectiveAgentsAssemblerError),
 }
 
+#[derive(Error, Debug)]
+pub enum SubAgentBuilderError {}
+
 /// The Runner trait defines the entry-point interface for a supervisor. Exposes a run method that will start the supervised process' execution.
 pub trait NotStartedSubAgent {
     type StartedSubAgent: StartedSubAgent;
@@ -51,4 +54,9 @@ pub trait StartedSubAgent {
 
     /// Cancels the supervised process and returns its inner handle.
     fn stop(self) -> Result<Vec<Self::S>, SubAgentError>;
+}
+
+pub trait SubAgentBuilder {
+    type S: NotStartedSubAgent;
+    fn build(&self) -> Result<Self::S, SubAgentBuilderError>;
 }
