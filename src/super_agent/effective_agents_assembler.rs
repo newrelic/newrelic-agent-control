@@ -1,5 +1,7 @@
 use thiserror::Error;
 
+use crate::config::agent_type::agent_types::FinalAgent;
+use crate::config::super_agent_configs::{AgentID, SuperAgentSubAgentConfig};
 use crate::super_agent::super_agent::{EffectiveAgents, EffectiveAgentsError};
 use crate::{
     config::{
@@ -36,6 +38,12 @@ pub trait EffectiveAgentsAssembler {
         &self,
         agent_cfgs: &SuperAgentConfig,
     ) -> Result<EffectiveAgents, EffectiveAgentsAssemblerError>;
+
+    fn assemble_agent(
+        &self,
+        agent_id: &AgentID,
+        agent_cfg: &SuperAgentSubAgentConfig,
+    ) -> Result<FinalAgent, EffectiveAgentsAssemblerError>;
 }
 
 pub struct LocalEffectiveAgentsAssembler<R: AgentRegistry, C: ConfigurationPersister, F: FileReader>
@@ -72,25 +80,34 @@ where
         let mut effective_agents = EffectiveAgents::default();
 
         for (agent_id, agent_cfg) in agent_cfgs.agents.iter() {
-            //load agent type from repository and populate with values
-            let agent_type = self.registry.get(&agent_cfg.agent_type)?;
-            let mut agent_config: SubAgentConfig = SubAgentConfig::default();
-            if let Some(path) = &agent_cfg.values_file {
-                let contents = self.file_reader.read(path.as_str())?;
-                agent_config = serde_yaml::from_str(&contents)?;
-            }
-            // populate with values
-            let populated_agent = agent_type.clone().template_with(agent_config)?;
-
-            // clean existing config files if any
-            self.config_persister.clean(agent_id, &populated_agent)?;
-
-            // persist config if agent requires it
-            self.config_persister.persist(agent_id, &populated_agent)?;
-
-            effective_agents.add(agent_id, populated_agent)?;
+            let effective_agent = self.assemble_agent(agent_id, agent_cfg)?;
+            effective_agents.add(agent_id.clone(), effective_agent)?;
         }
         Ok(effective_agents)
+    }
+
+    fn assemble_agent(
+        &self,
+        agent_id: &AgentID,
+        agent_cfg: &SuperAgentSubAgentConfig,
+    ) -> Result<FinalAgent, EffectiveAgentsAssemblerError> {
+        //load agent type from repository and populate with values
+        let agent_type = self.registry.get(&agent_cfg.agent_type)?;
+        let mut agent_config: SubAgentConfig = SubAgentConfig::default();
+        if let Some(path) = &agent_cfg.values_file {
+            let contents = self.file_reader.read(path.as_str())?;
+            agent_config = serde_yaml::from_str(&contents)?;
+        }
+        // populate with values
+        let populated_agent = agent_type.clone().template_with(agent_config)?;
+
+        // clean existing config files if any
+        self.config_persister.clean(agent_id, &populated_agent)?;
+
+        // persist config if agent requires it
+        self.config_persister.persist(agent_id, &populated_agent)?;
+
+        Ok(populated_agent)
     }
 }
 

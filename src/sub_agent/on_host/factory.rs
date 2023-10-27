@@ -23,8 +23,8 @@ use std::sync::mpsc::Sender;
 ////////////////////////////////////////////////////////////////////////////////////
 
 pub fn build_sub_agents<'a, OpAMPBuilder, ID>(
-    effective_agents: &EffectiveAgents,
-    tx: Sender<Event>,
+    effective_agents: EffectiveAgents,
+    tx: &'a Sender<Event>,
     opamp_builder: Option<&'a OpAMPBuilder>,
     instance_id_getter: &'a ID,
 ) -> Result<NotStartedSubAgentsOnHost<'a, OpAMPBuilder, ID>, SubAgentError>
@@ -39,18 +39,17 @@ where
     let result: Result<(), SubAgentError> =
         effective_agents
             .agents
-            .iter()
+            .into_iter()
             .try_for_each(|(agent_id, final_agent)| {
                 let builder = opamp_builder.as_ref().cloned();
-                let agent_id = AgentID(agent_id.to_string());
                 let sub_agent = build_sub_agent(
-                    agent_id.clone(),
-                    &tx,
+                    agent_id,
+                    tx.clone(),
                     builder,
                     instance_id_getter,
                     final_agent,
                 )?;
-                sub_agents.add(agent_id.clone(), sub_agent);
+                sub_agents.add(sub_agent);
                 Ok(())
             });
     match result {
@@ -62,34 +61,40 @@ where
 ////////////////////////////////////////////////////////////////////////////////////
 // Build SubAgent On Host
 ////////////////////////////////////////////////////////////////////////////////////
-pub(super) fn build_sub_agent<'a, OpAMPBuilder, ID>(
+pub fn build_sub_agent<'a, OpAMPBuilder, ID>(
     agent_id: AgentID,
-    tx: &Sender<Event>,
+    tx: Sender<Event>,
     opamp_builder: Option<&'a OpAMPBuilder>,
     instance_id_getter: &'a ID,
-    final_agent: &FinalAgent,
+    final_agent: FinalAgent,
 ) -> Result<NotStartedSubAgentOnHost<'a, OpAMPBuilder, ID>, SubAgentError>
 where
     OpAMPBuilder: OpAMPClientBuilder,
     ID: InstanceIDGetter,
 {
+    let agent_type = final_agent.agent_type().clone();
     let supervisors = build_supervisors(final_agent, tx)?;
     Ok(NotStartedSubAgentOnHost::new(
-        agent_id.clone(),
+        agent_id,
         supervisors,
         opamp_builder,
         instance_id_getter,
-        final_agent.agent_type(),
+        agent_type,
     ))
 }
 
 fn build_supervisors(
-    agent_type: &FinalAgent,
-    tx: &Sender<Event>,
+    final_agent: FinalAgent,
+    tx: Sender<Event>,
 ) -> Result<Vec<NotStartedSupervisorOnHost>, SubAgentError> {
-    let on_host = agent_type.runtime_config.deployment.on_host.clone().ok_or(
-        SubAgentError::ErrorCreatingSubAgent(agent_type.agent_type().to_string()),
-    )?;
+    let on_host = final_agent
+        .runtime_config
+        .deployment
+        .on_host
+        .clone()
+        .ok_or(SubAgentError::ErrorCreatingSubAgent(
+            final_agent.agent_type().to_string(),
+        ))?;
 
     let mut supervisors = Vec::new();
     for exec in on_host.executables {
@@ -125,7 +130,6 @@ where
             let start_settings =
                 start_settings(instance_id_getter.get(agent_id.to_string()), agent_type);
 
-            println!("{:?}", start_settings);
             Ok(Some(builder.build_and_start(
                 ctx,
                 agent_id,

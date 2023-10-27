@@ -36,7 +36,7 @@ pub mod test {
     };
     use crate::config::persister::fs_utils::FsError;
     use crate::config::super_agent_configs::AgentID;
-    use mockall::mock;
+    use mockall::{mock, predicate};
     use std::io::{Error, ErrorKind};
 
     use super::{ConfigurationPersister, PersistError};
@@ -97,6 +97,21 @@ pub mod test {
     }
 
     impl MockConfigurationPersisterMock {
+        pub fn should_persist(
+            &mut self,
+            times: usize,
+            agent_id: &AgentID,
+            agent_type: &FinalAgent,
+        ) {
+            self.expect_persist()
+                .times(times)
+                .with(
+                    predicate::eq(agent_id.clone()),
+                    predicate::eq(agent_type.clone()),
+                )
+                .returning(|_, _| Ok(()));
+        }
+
         pub fn should_persist_any(&mut self, times: usize) {
             self.expect_persist().times(times).returning(|_, _| Ok(()));
         }
@@ -106,6 +121,16 @@ pub mod test {
                 .once()
                 .returning(move |_, _| Err(err.clone()));
         }
+        pub fn should_clean(&mut self, times: usize, agent_id: &AgentID, agent_type: &FinalAgent) {
+            self.expect_clean()
+                .times(times)
+                .with(
+                    predicate::eq(agent_id.clone()),
+                    predicate::eq(agent_type.clone()),
+                )
+                .returning(|_, _| Ok(()));
+        }
+
         pub fn should_clean_any(&mut self, times: usize) {
             self.expect_clean().times(times).returning(|_, _| Ok(()));
         }

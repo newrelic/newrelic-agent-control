@@ -6,4 +6,7 @@ use thiserror::Error;
 pub enum SuperAgentConfigError {
     #[error("error loading config: `{0}`")]
     LoadConfigError(#[from] SuperAgentConfigLoaderError),
+
+    #[error("cannot find config for agent: `{0}`")]
+    SubAgentNotFound(String),
 }
