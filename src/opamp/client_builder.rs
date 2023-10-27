@@ -92,7 +92,8 @@ impl OpAMPClientBuilder for OpAMPHttpBuilder {
 pub(crate) mod test {
     use super::*;
     use async_trait::async_trait;
-    use mockall::mock;
+    use mockall::{mock, predicate};
+    use opamp_client::error::ClientError;
     use opamp_client::operation::settings::StartSettings;
     use opamp_client::{
         error::{ClientResult, NotStartedClientResult, StartedClientResult},
@@ -132,12 +133,61 @@ pub(crate) mod test {
         }
     }
 
+    impl MockOpAMPClientMock {
+        pub fn should_set_health(&mut self, times: usize) {
+            self.expect_set_health().times(times).returning(|_| Ok(()));
+        }
+        pub fn should_not_set_health(&mut self, times: usize, status_code: u16, error_msg: String) {
+            self.expect_set_health().times(times).returning(move |_| {
+                Err(ClientError::SenderError(
+                    HttpClientError::UnsuccessfulResponse(status_code, error_msg.clone()),
+                ))
+            });
+        }
+        pub fn should_stop(&mut self, times: usize) {
+            self.expect_stop().times(times).returning(|| Ok(()));
+        }
+        pub fn should_not_stop(&mut self, times: usize, status_code: u16, error_msg: String) {
+            self.expect_stop().times(times).returning(move || {
+                Err(StartedClientError::SenderError(
+                    HttpClientError::UnsuccessfulResponse(status_code, error_msg.clone()),
+                ))
+            });
+        }
+    }
+
     mock! {
         pub OpAMPClientBuilderMock {}
 
         impl OpAMPClientBuilder for OpAMPClientBuilderMock {
             type Client = MockOpAMPClientMock;
             fn build_and_start(&self, ctx: Context<Option<SuperAgentEvent>>, agent_id: AgentID, start_settings: StartSettings) -> Result<<Self as OpAMPClientBuilder>::Client, OpAMPClientBuilderError>;
+        }
+    }
+
+    impl MockOpAMPClientBuilderMock {
+        pub fn should_build_and_start<F>(
+            &mut self,
+            agent_id: AgentID,
+            start_settings: StartSettings,
+            returning: F,
+        ) where
+            F: FnMut(
+                    Context<Option<SuperAgentEvent>>,
+                    AgentID,
+                    StartSettings,
+                ) -> Result<MockOpAMPClientMock, OpAMPClientBuilderError>
+                + Send
+                + 'static,
+        {
+            self.expect_build_and_start()
+                .with(
+                    predicate::always(),
+                    predicate::eq(agent_id),
+                    predicate::eq(start_settings),
+                )
+                .once()
+                .returning(returning);
         }
     }
 }
