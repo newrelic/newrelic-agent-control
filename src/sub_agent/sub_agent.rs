@@ -2,8 +2,10 @@ use opamp_client::error::{ClientError, NotStartedClientError, StartedClientError
 use std::fmt::Debug;
 use std::time::SystemTimeError;
 
+use crate::config::error::SuperAgentConfigError;
 use crate::config::remote_config_hash::HashRepositoryError;
 use crate::opamp::client_builder::OpAMPClientBuilderError;
+use crate::super_agent::effective_agents_assembler::EffectiveAgentsAssemblerError;
 use crate::supervisor::error::SupervisorError;
 use thiserror::Error;
 
@@ -13,6 +15,8 @@ pub enum SubAgentError {
     ErrorCreatingSubAgent(String),
     #[error("Sub Agent `{0}` already exists")]
     AgentAlreadyExists(String),
+    #[error("Sub Agent `{0}` not found")]
+    AgentNotFound(String),
     #[error("system time error: `{0}`")]
     SystemTimeError(#[from] SystemTimeError),
     #[error("OpAMP client error error: `{0}`")]
@@ -27,6 +31,10 @@ pub enum SubAgentError {
     SupervisorError(#[from] SupervisorError),
     #[error("remote config hash error: `{0}`")]
     RemoteConfigHashError(#[from] HashRepositoryError),
+    #[error("super agent config error: `{0}`")]
+    SuperAgentConfigError(#[from] SuperAgentConfigError),
+    #[error("config assembler error: `{0}`")]
+    ConfigAssemblerError(#[from] EffectiveAgentsAssemblerError),
 }
 
 /// The Runner trait defines the entry-point interface for a supervisor. Exposes a run method that will start the supervised process' execution.

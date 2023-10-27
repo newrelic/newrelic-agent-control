@@ -1,5 +1,7 @@
 use thiserror::Error;
 
+use crate::config::agent_type::agent_types::FinalAgent;
+use crate::config::super_agent_configs::{AgentID, SuperAgentSubAgentConfig};
 use crate::super_agent::super_agent::{EffectiveAgents, EffectiveAgentsError};
 use crate::{
     config::{
@@ -33,9 +35,15 @@ pub enum EffectiveAgentsAssemblerError {
 
 pub trait EffectiveAgentsAssembler {
     fn assemble_agents(
-        &mut self,
+        &self,
         agent_cfgs: &SuperAgentConfig,
     ) -> Result<EffectiveAgents, EffectiveAgentsAssemblerError>;
+
+    fn assemble_agent(
+        &self,
+        agent_id: &AgentID,
+        agent_cfg: &SuperAgentSubAgentConfig,
+    ) -> Result<FinalAgent, EffectiveAgentsAssemblerError>;
 }
 
 pub struct LocalEffectiveAgentsAssembler<R: AgentRegistry, C: ConfigurationPersister, F: FileReader>
@@ -64,33 +72,44 @@ where
     F: FileReader,
 {
     fn assemble_agents(
-        &mut self,
+        &self,
         agent_cfgs: &SuperAgentConfig,
     ) -> Result<EffectiveAgents, EffectiveAgentsAssemblerError> {
         //clean all temporary configurations
-        self.config_persister.clean_all()?;
+        self.config_persister.delete_all_configs()?;
         let mut effective_agents = EffectiveAgents::default();
 
         for (agent_id, agent_cfg) in agent_cfgs.agents.iter() {
-            //load agent type from repository and populate with values
-            let agent_type = self.registry.get(&agent_cfg.agent_type)?;
-            let mut agent_config: SubAgentConfig = SubAgentConfig::default();
-            if let Some(path) = &agent_cfg.values_file {
-                let contents = self.file_reader.read(path.as_str())?;
-                agent_config = serde_yaml::from_str(&contents)?;
-            }
-            // populate with values
-            let populated_agent = agent_type.clone().template_with(agent_config)?;
-
-            // clean existing config files if any
-            self.config_persister.clean(agent_id, &populated_agent)?;
-
-            // persist config if agent requires it
-            self.config_persister.persist(agent_id, &populated_agent)?;
-
-            effective_agents.add(agent_id, populated_agent)?;
+            let effective_agent = self.assemble_agent(agent_id, agent_cfg)?;
+            effective_agents.add(agent_id.clone(), effective_agent)?;
         }
         Ok(effective_agents)
+    }
+
+    fn assemble_agent(
+        &self,
+        agent_id: &AgentID,
+        agent_cfg: &SuperAgentSubAgentConfig,
+    ) -> Result<FinalAgent, EffectiveAgentsAssemblerError> {
+        //load agent type from repository and populate with values
+        let agent_type = self.registry.get(&agent_cfg.agent_type)?;
+        let mut agent_config: SubAgentConfig = SubAgentConfig::default();
+        if let Some(path) = &agent_cfg.values_file {
+            let contents = self.file_reader.read(path.as_str())?;
+            agent_config = serde_yaml::from_str(&contents)?;
+        }
+        // populate with values
+        let populated_agent = agent_type.clone().template_with(agent_config)?;
+
+        // clean existing config files if any
+        self.config_persister
+            .delete_agent_config(agent_id, &populated_agent)?;
+
+        // persist config if agent requires it
+        self.config_persister
+            .persist_agent_config(agent_id, &populated_agent)?;
+
+        Ok(populated_agent)
     }
 }
 
@@ -156,11 +175,11 @@ mod tests {
             .returning(|_| Ok(SECOND_TYPE_VALUES.to_string()));
 
         let mut config_persister = MockConfigurationPersisterMock::new();
-        config_persister.should_clean_all();
+        config_persister.should_delete_all_configs();
 
         // cannot assert on agent types as it's iterating a hashmap
-        config_persister.should_clean_any(2);
-        config_persister.should_persist_any(2);
+        config_persister.should_delete_any_agent_config(2);
+        config_persister.should_persist_any_agent_config(2);
 
         let effective_agents = LocalEffectiveAgentsAssembler::new(
             local_agent_type_repository,
@@ -200,13 +219,13 @@ mod tests {
         file_reader_mock.could_read("second.yaml".to_string(), SECOND_TYPE_VALUES.to_string());
 
         let mut config_persister = MockConfigurationPersisterMock::new();
-        config_persister.should_clean_all();
+        config_persister.should_delete_all_configs();
 
         let err = PersistError::DirectoryError(DirectoryManagementError::ErrorDeletingDirectory(
             "unauthorized".to_string(),
         ));
         // we cannot assert on the agent as the order of a hashmap is random
-        config_persister.should_not_clean_any(err);
+        config_persister.should_not_delete_any_agent_config(err);
 
         let result = LocalEffectiveAgentsAssembler::new(
             local_agent_type_repository,
@@ -238,14 +257,14 @@ mod tests {
         file_reader_mock.could_read("second.yaml".to_string(), SECOND_TYPE_VALUES.to_string());
 
         let mut config_persister = MockConfigurationPersisterMock::new();
-        config_persister.should_clean_all();
+        config_persister.should_delete_all_configs();
 
-        config_persister.should_clean_any(1);
+        config_persister.should_delete_any_agent_config(1);
         let err = PersistError::FileError(WriteError::ErrorCreatingFile(Error::from(
             ErrorKind::PermissionDenied,
         )));
         // we cannot assert on the agent as the order of a hashmap is random
-        config_persister.should_not_persist_any(err);
+        config_persister.should_not_persist_any_agent_config(err);
 
         let result = LocalEffectiveAgentsAssembler::new(
             local_agent_type_repository,
@@ -272,7 +291,7 @@ mod tests {
         };
 
         let mut config_persister = MockConfigurationPersisterMock::new();
-        config_persister.should_clean_all();
+        config_persister.should_delete_all_configs();
 
         let effective_agents = LocalEffectiveAgentsAssembler::new(
             agent_type_registry,

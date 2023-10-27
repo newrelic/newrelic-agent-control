@@ -100,7 +100,7 @@ mod tests {
             .spawn();
 
         let pid = trap_cmd.as_mut().unwrap().id();
-        let one_second = Duration::from_secs(1);
+        let one_second = Duration::from_millis(100);
         sleep(one_second);
 
         let terminator = ProcessTerminator::new(pid);
@@ -109,7 +109,8 @@ mod tests {
         let context_child = context.clone();
 
         thread::spawn(|| {
-            _ = terminator.shutdown(|| wait_exit_timeout(context_child, Duration::new(3, 0)));
+            _ = terminator
+                .shutdown(|| wait_exit_timeout(context_child, Duration::from_millis(300)));
         });
 
         // Wait for process to exit
