@@ -3,6 +3,7 @@ use std::{collections::HashMap, fmt::Display};
 
 use std::ops::Deref;
 
+use crate::config::error::SuperAgentConfigError;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize, PartialEq, Clone, Hash, Eq)]
@@ -39,6 +40,19 @@ pub struct SuperAgentConfig {
 
     /// opamp contains the OpAMP client configuration
     pub opamp: Option<OpAMPClientConfig>,
+}
+
+impl SuperAgentConfig {
+    pub fn sub_agent_config(
+        &self,
+        agent_id: &AgentID,
+    ) -> Result<&SuperAgentSubAgentConfig, SuperAgentConfigError> {
+        self.agents
+            .get(agent_id)
+            .ok_or(SuperAgentConfigError::SubAgentNotFound(
+                agent_id.to_string(),
+            ))
+    }
 }
 
 #[derive(Debug, PartialEq, Deserialize, Clone)]

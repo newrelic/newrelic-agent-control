@@ -19,7 +19,7 @@ use crate::utils::time::get_sys_time_nano;
 // Not Started SubAgent On Host
 // C: OpAMP Client
 ////////////////////////////////////////////////////////////////////////////////////
-pub(super) struct NotStartedSubAgentOnHost<'a, OpAMPBuilder, ID>
+pub struct NotStartedSubAgentOnHost<'a, OpAMPBuilder, ID>
 where
     OpAMPBuilder: OpAMPClientBuilder,
     ID: InstanceIDGetter,
@@ -50,6 +50,10 @@ where
             agent_id,
             agent_type,
         }
+    }
+
+    pub fn agent_id(&self) -> &AgentID {
+        &self.agent_id
     }
 
     fn run_opamp_client(
@@ -92,7 +96,7 @@ where
 // Started SubAgent On Host
 // C: OpAMP Client
 ////////////////////////////////////////////////////////////////////////////////////
-pub(super) struct StartedSubAgentOnHost<C>
+pub struct StartedSubAgentOnHost<C>
 where
     C: StartedClient,
 {
@@ -118,6 +122,10 @@ where
             supervisors,
             agent_id,
         }
+    }
+
+    pub fn agent_id(&self) -> &AgentID {
+        &self.agent_id
     }
 }
 

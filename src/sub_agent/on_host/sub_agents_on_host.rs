@@ -26,20 +26,16 @@ where
     OpAMPBuilder: OpAMPClientBuilder,
     ID: InstanceIDGetter,
 {
-    pub(super) fn add(
-        &mut self,
-        agent_id: AgentID,
-        sub_agent: NotStartedSubAgentOnHost<'a, OpAMPBuilder, ID>,
-    ) {
-        self.agents.insert(agent_id, sub_agent);
+    pub(super) fn add(&mut self, sub_agent: NotStartedSubAgentOnHost<'a, OpAMPBuilder, ID>) {
+        self.agents.insert(sub_agent.agent_id().clone(), sub_agent);
     }
 
     pub fn run(self) -> Result<StartedSubAgentsOnHost<OpAMPBuilder::Client>, SubAgentError> {
         let mut started_sub_agents = StartedSubAgentsOnHost::default();
         let result: Result<(), SubAgentError> =
-            self.agents.into_iter().try_for_each(|(agent_id, agent)| {
+            self.agents.into_iter().try_for_each(|(_agent_id, agent)| {
                 let started_sub_agent = agent.run()?;
-                started_sub_agents.add(&agent_id, started_sub_agent)?;
+                started_sub_agents.add(started_sub_agent)?;
                 Ok(())
             });
 
@@ -77,16 +73,24 @@ impl<C> StartedSubAgentsOnHost<C>
 where
     C: StartedClient,
 {
-    pub(super) fn add(
+    pub fn add(&mut self, sub_agent: StartedSubAgentOnHost<C>) -> Result<(), SubAgentError> {
+        if self.agents.contains_key(sub_agent.agent_id()) {
+            return Err(SubAgentError::AgentAlreadyExists(
+                sub_agent.agent_id().to_string(),
+            ));
+        }
+        self.agents.insert(sub_agent.agent_id().clone(), sub_agent);
+        Ok(())
+    }
+
+    pub fn remove(
         &mut self,
         agent_id: &AgentID,
-        sub_agent: StartedSubAgentOnHost<C>,
-    ) -> Result<(), SubAgentError> {
-        if self.agents.contains_key(agent_id) {
-            return Err(SubAgentError::AgentAlreadyExists(agent_id.to_string()));
+    ) -> Result<StartedSubAgentOnHost<C>, SubAgentError> {
+        if !self.agents.contains_key(agent_id) {
+            return Err(SubAgentError::AgentNotFound(agent_id.to_string()));
         }
-        self.agents.insert(agent_id.clone(), sub_agent);
-        Ok(())
+        Ok(self.agents.remove(agent_id).unwrap())
     }
 
     pub fn stop(self) -> Result<HashMap<AgentID, Vec<JoinHandle<()>>>, SubAgentError> {
