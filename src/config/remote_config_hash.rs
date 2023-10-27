@@ -148,7 +148,7 @@ pub mod test {
     use crate::config::super_agent_configs::AgentID;
     use crate::file_reader::test::MockFileReaderMock;
     use crate::file_reader::FileReader;
-    use mockall::mock;
+    use mockall::{mock, predicate};
     use std::fs::Permissions;
     use std::path::PathBuf;
     ////////////////////////////////////////////////////////////////////////////////////
@@ -162,6 +162,19 @@ pub mod test {
             fn save(&self, agent_id: AgentID, hash:Hash) -> Result<(), HashRepositoryError>;
 
             fn get(&self, agent_id: AgentID) -> Result<Hash, HashRepositoryError>;
+        }
+    }
+
+    impl MockHashRepositoryMock {
+        pub fn should_get_applied_hash(&mut self, agent_id: AgentID, hash: Hash) {
+            self.expect_get()
+                .with(predicate::eq(agent_id))
+                .once()
+                .returning(move |_| {
+                    let mut hash = hash.clone();
+                    hash.apply();
+                    Ok(hash)
+                });
         }
     }
 
