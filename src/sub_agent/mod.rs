@@ -1,5 +1,6 @@
 pub mod collection;
 pub mod error;
+pub mod k8s;
 pub mod on_host;
 
 use std::thread::JoinHandle;

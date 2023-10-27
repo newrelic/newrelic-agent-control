@@ -1,8 +1,8 @@
 use std::error::Error;
 use std::path::PathBuf;
 
+use newrelic_super_agent::sub_agent::k8s::builder::K8sSubAgentBuilder;
 use newrelic_super_agent::sub_agent::on_host::builder::OnHostSubAgentBuilder;
-use newrelic_super_agent::sub_agent::MockSubAgentBuilder;
 use newrelic_super_agent::super_agent::error::AgentError;
 use tracing::{error, info};
 
@@ -95,7 +95,7 @@ fn run_super_agent(
         opamp_client_builder.as_ref(),
         ULIDInstanceIDGetter::default(),
         HashRepositoryFile::default(),
-        OnHostSubAgentBuilder::new(opamp_client_builder.as_ref(), &instance_id_getter),
+        K8sSubAgentBuilder::new(opamp_client_builder.as_ref(), &instance_id_getter),
     )
     .run(ctx, &super_agent_config)?)
 }
