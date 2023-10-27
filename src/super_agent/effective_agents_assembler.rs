@@ -33,7 +33,7 @@ pub enum EffectiveAgentsAssemblerError {
 
 pub trait EffectiveAgentsAssembler {
     fn assemble_agents(
-        &mut self,
+        &self,
         agent_cfgs: &SuperAgentConfig,
     ) -> Result<EffectiveAgents, EffectiveAgentsAssemblerError>;
 }
@@ -64,7 +64,7 @@ where
     F: FileReader,
 {
     fn assemble_agents(
-        &mut self,
+        &self,
         agent_cfgs: &SuperAgentConfig,
     ) -> Result<EffectiveAgents, EffectiveAgentsAssemblerError> {
         //clean all temporary configurations

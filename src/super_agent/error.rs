@@ -8,6 +8,7 @@ use crate::config::persister::config_persister::PersistError;
 use crate::config::remote_config_hash::HashRepositoryError;
 use crate::file_reader::FileReaderError;
 use crate::sub_agent::sub_agent::SubAgentError;
+use crate::super_agent::effective_agents_assembler::EffectiveAgentsAssemblerError;
 use crate::super_agent::super_agent::EffectiveAgentsError;
 use crate::{
     config::{
@@ -66,4 +67,7 @@ pub enum AgentError {
 
     #[error("remote config hash error: `{0}`")]
     RemoteConfigHashError(#[from] HashRepositoryError),
+
+    #[error("effective agents assembler error: `{0}`")]
+    EffectiveAgentsAssemblerError(#[from] EffectiveAgentsAssemblerError),
 }

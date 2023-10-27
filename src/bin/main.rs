@@ -1,13 +1,11 @@
 use std::error::Error;
 
-use newrelic_super_agent::super_agent::effective_agents_assembler::{
-    EffectiveAgentsAssembler, LocalEffectiveAgentsAssembler,
-};
 use tracing::{error, info};
 
 use newrelic_super_agent::config::loader::{SuperAgentConfigLoader, SuperAgentConfigLoaderFile};
 use newrelic_super_agent::config::remote_config_hash::HashRepositoryFile;
 use newrelic_super_agent::opamp::client_builder::OpAMPHttpBuilder;
+use newrelic_super_agent::super_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use newrelic_super_agent::super_agent::instance_id::ULIDInstanceIDGetter;
 use newrelic_super_agent::super_agent::super_agent::{SuperAgent, SuperAgentEvent};
 use newrelic_super_agent::{
@@ -43,8 +41,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let super_agent_config =
         SuperAgentConfigLoaderFile::new(&cli.get_config_path()).load_config()?;
 
-    let effective_agents =
-        LocalEffectiveAgentsAssembler::default().assemble_agents(&super_agent_config)?;
+    let effective_agents_asssembler = LocalEffectiveAgentsAssembler::default();
 
     let opamp_client_builder: Option<OpAMPHttpBuilder> = super_agent_config
         .opamp
@@ -53,12 +50,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     info!("Starting the super agent");
     Ok(SuperAgent::new(
-        effective_agents,
+        effective_agents_asssembler,
         opamp_client_builder.as_ref(),
         ULIDInstanceIDGetter::default(),
         HashRepositoryFile::default(),
     )
-    .run(ctx)?)
+    .run(ctx, &super_agent_config)?)
 }
 
 fn create_shutdown_signal_handler(

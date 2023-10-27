@@ -15,7 +15,7 @@ use crate::command::logger::{EventLogger, StdEventReceiver};
 use crate::config::agent_type::agent_types::FinalAgent;
 use crate::config::remote_config::{RemoteConfig, RemoteConfigError};
 use crate::config::remote_config_hash::{Hash, HashRepository, HashRepositoryFile};
-use crate::config::super_agent_configs::AgentID;
+use crate::config::super_agent_configs::{AgentID, SuperAgentConfig};
 use crate::context::Context;
 use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPHttpBuilder};
 use crate::sub_agent::on_host::factory::build_sub_agents;
@@ -23,6 +23,9 @@ use crate::sub_agent::on_host::sub_agents_on_host::StartedSubAgentsOnHost;
 use crate::sub_agent::sub_agent::SubAgentError;
 use crate::super_agent::defaults::{
     SUPER_AGENT_ID, SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION,
+};
+use crate::super_agent::effective_agents_assembler::{
+    EffectiveAgentsAssembler, EffectiveAgentsAssemblerError,
 };
 use crate::super_agent::error::AgentError;
 use crate::super_agent::instance_id::{InstanceIDGetter, ULIDInstanceIDGetter};
@@ -41,48 +44,56 @@ pub enum SuperAgentEvent {
 
 pub struct SuperAgent<
     'a,
+    Assembler,
     OpAMPBuilder = OpAMPHttpBuilder,
     ID = ULIDInstanceIDGetter,
     HR = HashRepositoryFile,
 > where
+    Assembler: EffectiveAgentsAssembler,
     OpAMPBuilder: OpAMPClientBuilder,
     ID: InstanceIDGetter,
     HR: HashRepository,
 {
     instance_id_getter: ID,
-    effective_agents: EffectiveAgents,
+    effective_agents_asssembler: Assembler,
     opamp_client_builder: Option<&'a OpAMPBuilder>,
     remote_config_hash_repository: HR,
 }
 
-impl<'a, OpAMPBuilder, ID, HR> SuperAgent<'a, OpAMPBuilder, ID, HR>
+impl<'a, Assembler, OpAMPBuilder, ID, HR> SuperAgent<'a, Assembler, OpAMPBuilder, ID, HR>
 where
+    Assembler: EffectiveAgentsAssembler,
     OpAMPBuilder: OpAMPClientBuilder,
     ID: InstanceIDGetter,
     HR: HashRepository,
 {
     pub fn new(
-        effective_agents: EffectiveAgents,
+        effective_agents_asssembler: Assembler,
         opamp_client_builder: Option<&'a OpAMPBuilder>,
         instance_id_getter: ID,
         remote_config_hash_repository: HR,
     ) -> Self {
         Self {
             instance_id_getter,
-            effective_agents,
+            effective_agents_asssembler,
             opamp_client_builder,
             remote_config_hash_repository,
         }
     }
 }
 
-impl<'a, OpAMPBuilder, ID, HR> SuperAgent<'a, OpAMPBuilder, ID, HR>
+impl<'a, Assembler, OpAMPBuilder, ID, HR> SuperAgent<'a, Assembler, OpAMPBuilder, ID, HR>
 where
+    Assembler: EffectiveAgentsAssembler,
     OpAMPBuilder: OpAMPClientBuilder,
     ID: InstanceIDGetter,
     HR: HashRepository,
 {
-    pub fn run(self, ctx: Context<Option<SuperAgentEvent>>) -> Result<(), AgentError> {
+    pub fn run(
+        self,
+        ctx: Context<Option<SuperAgentEvent>>,
+        super_agent_config: &SuperAgentConfig,
+    ) -> Result<(), AgentError> {
         info!("Creating agent's communication channels");
         let (tx, rx) = mpsc::channel();
 
@@ -107,9 +118,10 @@ where
         }
 
         info!("Starting the supervisor group.");
+        let effective_agents = self.load_effective_agents(super_agent_config)?;
         // create sub agents
         let sub_agents = build_sub_agents(
-            &self.effective_agents,
+            &effective_agents,
             tx,
             self.opamp_client_builder,
             &self.instance_id_getter,
@@ -273,6 +285,14 @@ where
         }
     }
 
+    fn load_effective_agents(
+        &self,
+        super_agent_config: &SuperAgentConfig,
+    ) -> Result<EffectiveAgents, EffectiveAgentsAssemblerError> {
+        self.effective_agents_asssembler
+            .assemble_agents(super_agent_config)
+    }
+
     fn on_remote_config(
         &self,
         opamp_client: &Option<<OpAMPBuilder as OpAMPClientBuilder>::Client>,
@@ -370,7 +390,7 @@ mod tests {
     };
     use crate::super_agent::instance_id::test::MockInstanceIDGetterMock;
     use crate::super_agent::instance_id::InstanceIDGetter;
-    use crate::super_agent::super_agent::{EffectiveAgents, SuperAgent, SuperAgentEvent};
+    use crate::super_agent::super_agent::{SuperAgent, SuperAgentEvent};
     use mockall::predicate;
     use nix::unistd::gethostname;
     use opamp_client::capabilities;
@@ -386,20 +406,21 @@ mod tests {
     ////////////////////////////////////////////////////////////////////////////////////
     // Custom Agent constructor for tests
     ////////////////////////////////////////////////////////////////////////////////////
-    impl<'a, OpAMPBuilder, ID, HR> SuperAgent<'a, OpAMPBuilder, ID, HR>
+    impl<'a, Assembler, OpAMPBuilder, ID, HR> SuperAgent<'a, Assembler, OpAMPBuilder, ID, HR>
     where
+        Assembler: EffectiveAgentsAssembler,
         OpAMPBuilder: OpAMPClientBuilder,
         ID: InstanceIDGetter,
         HR: HashRepository,
     {
         pub fn new_custom(
             instance_id_getter: ID,
-            effective_agents: EffectiveAgents,
+            effective_agents_asssembler: Assembler,
             opamp_client_builder: Option<&'a OpAMPBuilder>,
             remote_config_hash_repository: HR,
-        ) -> SuperAgent<OpAMPBuilder, ID, HR> {
+        ) -> Self {
             SuperAgent {
-                effective_agents,
+                effective_agents_asssembler,
                 opamp_client_builder,
                 instance_id_getter,
                 remote_config_hash_repository,
@@ -454,17 +475,13 @@ mod tests {
         let mut conf_persister = MockConfigurationPersisterMock::new();
         conf_persister.should_clean_all();
 
-        let mut local_assembler =
+        let local_assembler =
             LocalEffectiveAgentsAssembler::new(registry, conf_persister, file_reader);
 
         let super_agent_config = SuperAgentConfig {
             opamp: None,
             agents: HashMap::new(),
         };
-
-        let effective_agents = local_assembler
-            .assemble_agents(&super_agent_config)
-            .unwrap();
 
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         hash_repository_mock.expect_get().times(1).returning(|_| {
@@ -474,13 +491,9 @@ mod tests {
         });
 
         // no agents in the supervisor group
-        let agent: SuperAgent<
-            MockOpAMPClientBuilderMock,
-            MockInstanceIDGetterMock,
-            MockHashRepositoryMock,
-        > = SuperAgent::new_custom(
+        let agent = SuperAgent::new_custom(
             instance_id_getter,
-            effective_agents,
+            local_assembler,
             Some(&opamp_builder),
             hash_repository_mock,
         );
@@ -494,7 +507,7 @@ mod tests {
                 ctx.cancel_all(Some(SuperAgentEvent::Stop)).unwrap();
             }
         });
-        assert!(agent.run(ctx).is_ok())
+        assert!(agent.run(ctx, &super_agent_config).is_ok())
     }
 
     #[test]
@@ -618,7 +631,7 @@ mod tests {
         conf_persister.should_clean_any(2);
         conf_persister.should_persist_any(2);
 
-        let mut local_assembler =
+        let local_assembler =
             LocalEffectiveAgentsAssembler::new(registry, conf_persister, file_reader);
 
         let super_agent_config = SuperAgentConfig {
@@ -643,10 +656,6 @@ mod tests {
             ]),
         };
 
-        let effective_agents = local_assembler
-            .assemble_agents(&super_agent_config)
-            .unwrap();
-
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         hash_repository_mock.expect_get().times(1).returning(|_| {
             let mut hash = Hash::new("a-hash".to_string());
@@ -654,14 +663,10 @@ mod tests {
             Ok(hash)
         });
 
-        // no agents in the supervisor group
-        let agent: SuperAgent<
-            MockOpAMPClientBuilderMock,
-            MockInstanceIDGetterMock,
-            MockHashRepositoryMock,
-        > = SuperAgent::new_custom(
+        // two agents in the supervisor group
+        let agent = SuperAgent::new_custom(
             instance_id_getter,
-            effective_agents,
+            local_assembler,
             Some(&opamp_builder),
             hash_repository_mock,
         );
@@ -675,7 +680,7 @@ mod tests {
                 ctx.cancel_all(Some(SuperAgentEvent::Stop)).unwrap();
             }
         });
-        assert!(agent.run(ctx).is_ok())
+        assert!(agent.run(ctx, &super_agent_config).is_ok())
     }
 
     #[test]
@@ -716,11 +721,117 @@ mod tests {
                 Ok(started_client)
             });
 
+        // Sub Agents
+        let mut final_nrdot: FinalAgent = FinalAgent::default();
+        final_nrdot.runtime_config.deployment.on_host = Some(OnHost {
+            executables: Vec::new(),
+        });
+        let mut final_infra_agent: FinalAgent = FinalAgent::default();
+        final_infra_agent.runtime_config.deployment.on_host = Some(OnHost {
+            executables: Vec::new(),
+        });
+
+        let mut registry = MockAgentRegistryMock::new();
+        registry.should_get(
+            "newrelic/io.opentelemetry.collector:0.0.1".to_string(),
+            final_nrdot,
+        );
+        registry.should_get(
+            "newrelic/com.newrelic.infrastructure_agent:0.0.1".to_string(),
+            final_infra_agent,
+        );
+
+        let start_settings_infra = start_settings(
+            "infra_agent".to_string(),
+            capabilities!(AgentCapabilities::ReportsHealth),
+            "".to_string(),
+            "".to_string(),
+            "".to_string(),
+            hostname.to_string(),
+        );
+
+        let start_settings_nrdot = start_settings(
+            "nrdot".to_string(),
+            capabilities!(AgentCapabilities::ReportsHealth),
+            "".to_string(),
+            "".to_string(),
+            "".to_string(),
+            hostname.to_string(),
+        );
+
+        opamp_builder
+            .expect_build_and_start()
+            .with(
+                predicate::always(),
+                predicate::eq(AgentID::new("infra_agent")),
+                predicate::eq(start_settings_infra),
+            )
+            .times(1)
+            .returning(|_, _, _| {
+                let mut started_client = MockOpAMPClientMock::new();
+                started_client.expect_stop().once().returning(|| Ok(()));
+                started_client
+                    .expect_set_health()
+                    .times(1)
+                    .returning(|_| Ok(()));
+                Ok(started_client)
+            });
+
+        opamp_builder
+            .expect_build_and_start()
+            .with(
+                predicate::always(),
+                predicate::eq(AgentID::new("nrdot")),
+                predicate::eq(start_settings_nrdot),
+            )
+            .times(1)
+            .returning(|_, _, _| {
+                let mut started_client = MockOpAMPClientMock::new();
+                started_client.expect_stop().once().returning(|| Ok(()));
+                started_client
+                    .expect_set_health()
+                    .times(1)
+                    .returning(|_| Ok(()));
+                Ok(started_client)
+            });
+
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
         instance_id_getter
             .expect_get()
-            .times(1)
+            .times(3)
             .returning(|name| name);
+
+        let file_reader = MockFileReaderMock::new();
+        let mut conf_persister = MockConfigurationPersisterMock::new();
+
+        conf_persister.should_clean_all();
+        conf_persister.should_clean_any(2);
+        conf_persister.should_persist_any(2);
+
+        let local_assembler =
+            LocalEffectiveAgentsAssembler::new(registry, conf_persister, file_reader);
+
+        let super_agent_config = SuperAgentConfig {
+            opamp: None,
+            agents: HashMap::from([
+                (
+                    AgentID::new("infra_agent"),
+                    SuperAgentSubAgentConfig {
+                        agent_type: AgentTypeFQN::from(
+                            "newrelic/com.newrelic.infrastructure_agent:0.0.1",
+                        ),
+                        values_file: None,
+                    },
+                ),
+                (
+                    AgentID::new("nrdot"),
+                    SuperAgentSubAgentConfig {
+                        agent_type: AgentTypeFQN::from("newrelic/io.opentelemetry.collector:0.0.1"),
+                        values_file: None,
+                    },
+                ),
+            ]),
+        };
 
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         hash_repository_mock
@@ -742,13 +853,9 @@ mod tests {
             .returning(|_, _| Ok(()));
 
         // two agents in the supervisor group
-        let agent: SuperAgent<
-            MockOpAMPClientBuilderMock,
-            MockInstanceIDGetterMock,
-            MockHashRepositoryMock,
-        > = SuperAgent::new_custom(
+        let agent = SuperAgent::new_custom(
             instance_id_getter,
-            EffectiveAgents::default(),
+            local_assembler,
             Some(&opamp_builder),
             hash_repository_mock,
         );
@@ -774,7 +881,7 @@ mod tests {
                 ctx.cancel_all(Some(SuperAgentEvent::Stop)).unwrap();
             }
         });
-        assert!(agent.run(ctx).is_ok())
+        assert!(agent.run(ctx, &super_agent_config).is_ok())
     }
 
     ////////////////////////////////////////////////////////////////////////////////////
