@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::string::ToString;
-use std::sync::mpsc::{self};
+use std::sync::mpsc::{self, Sender};
 
 use futures::executor::block_on;
 use nix::unistd::gethostname;
@@ -12,13 +12,14 @@ use thiserror::Error;
 use tracing::{error, info};
 
 use crate::command::logger::{EventLogger, StdEventReceiver};
+use crate::command::stream::Event;
 use crate::config::agent_type::agent_types::FinalAgent;
 use crate::config::remote_config::{RemoteConfig, RemoteConfigError};
 use crate::config::remote_config_hash::{Hash, HashRepository, HashRepositoryFile};
 use crate::config::super_agent_configs::{AgentID, SuperAgentConfig};
 use crate::context::Context;
 use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPHttpBuilder};
-use crate::sub_agent::collection::NotStartedSubAgents;
+use crate::sub_agent::collection::{NotStartedSubAgents, StartedSubAgents};
 use crate::sub_agent::error::SubAgentBuilderError;
 use crate::sub_agent::SubAgentBuilder;
 use crate::sub_agent::{error::SubAgentError, NotStartedSubAgent};
@@ -181,20 +182,12 @@ where
                             self.on_remote_config(&opamp_client, remote_config)?;
                         }
                         SuperAgentEvent::RestartSubAgent(agent_id) => {
-                            running_sub_agents.stop_remove(&agent_id)?;
-
-                            let sub_agent_config =
-                                super_agent_config.sub_agent_config(&agent_id)?;
-                            let final_agent = self
-                                .effective_agents_asssembler
-                                .assemble_agent(&agent_id, sub_agent_config)?;
-
-                            running_sub_agents.insert(
+                            self.recreate_sub_agent(
                                 agent_id,
-                                self.sub_agent_builder
-                                    .build(final_agent, tx.clone())?
-                                    .run()?,
-                            );
+                                super_agent_config,
+                                tx.clone(),
+                                &mut running_sub_agents,
+                            )?;
                         }
                     };
                 }
@@ -234,6 +227,33 @@ where
         self.remote_config_hash_repository
             .save(AgentID(SUPER_AGENT_ID.to_string()), hash.clone())?;
         Ok(())
+    }
+
+    // Recreates a Sub Agent by its agent_id meaning:
+    //  * Remove and stop the existing running Sub Agent from the Running Sub Agents
+    //  * Recreate the Final Agent using the Agent Type and the latest persisted config
+    //  * Build a Stopped Sub Agent
+    //  * Run the Sub Agent and add it to the Running Sub Agents
+    fn recreate_sub_agent(
+        &self,
+        agent_id: AgentID,
+        super_agent_config: &SuperAgentConfig,
+        tx: Sender<Event>,
+        running_sub_agents: &mut StartedSubAgents<
+            <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
+        >,
+    ) -> Result<(), AgentError> {
+        running_sub_agents.stop_remove(&agent_id)?;
+
+        let sub_agent_config = super_agent_config.sub_agent_config(&agent_id)?;
+        let final_agent = self
+            .effective_agents_asssembler
+            .assemble_agent(&agent_id, sub_agent_config)?;
+
+        Ok(running_sub_agents.insert(
+            agent_id,
+            self.sub_agent_builder.build(final_agent, tx)?.run()?,
+        ))
     }
 
     fn start_super_agent_opamp_client(
