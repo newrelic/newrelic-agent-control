@@ -209,7 +209,7 @@ impl FinalAgent {
                 let defined_value = config.get_from_normalized(k);
                 v.kind.set_final_value(defined_value)?;
                 Ok(())
-            });
+            })?;
 
         let runtime_conf = self.runtime_config.template_with(&spec)?;
 
@@ -355,7 +355,7 @@ impl Kind {
     pub(crate) fn get_final_value(&self) -> Option<TrivialValue> {
         match self {
             Kind::String(v) => v.final_value.clone().map(TrivialValue::String),
-            Kind::Bool(v) => v.final_value.clone().map(TrivialValue::Bool),
+            Kind::Bool(v) => v.final_value.map(TrivialValue::Bool),
             Kind::Number(v) => v.final_value.clone().map(TrivialValue::Number),
         }
     }
@@ -363,7 +363,7 @@ impl Kind {
     pub(crate) fn get_default(&self) -> Option<TrivialValue> {
         match self {
             Kind::String(v) => v.default.clone().map(TrivialValue::String),
-            Kind::Bool(v) => v.default.clone().map(TrivialValue::Bool),
+            Kind::Bool(v) => v.default.map(TrivialValue::Bool),
             Kind::Number(v) => v.default.clone().map(TrivialValue::Number),
         }
     }
