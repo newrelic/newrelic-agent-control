@@ -4,6 +4,7 @@
 //!
 //! See [`Agent::template_with`] for a flowchart of the dataflow that ends in the final, enriched structure.
 
+use std::fmt::{Display, Formatter};
 use std::{collections::HashMap, str::FromStr};
 
 use crate::config::super_agent_configs::AgentTypeFQN;
@@ -225,8 +226,43 @@ impl FinalAgent {
 /// Flexible tree-like structure that contains variables definitions, that can later be changed by the end user via [`AgentValues`].
 type AgentVariables = HashMap<String, Spec>;
 
+#[derive(Debug, PartialEq, Clone, Copy, Deserialize)]
+pub enum VariableType {
+    #[serde(rename = "string")]
+    String,
+    #[serde(rename = "bool")]
+    Bool,
+    #[serde(rename = "number")]
+    Number,
+    #[serde(rename = "file")]
+    File,
+    #[serde(rename = "map[string]string")]
+    MapStringString,
+    #[serde(rename = "map[string]file")]
+    MapStringFile,
+    // #[serde(rename = "map[string]number")]
+    // MapStringNumber,
+    // #[serde(rename = "map[string]bool")]
+    // MapStringBool,
+}
+
+impl Display for VariableType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            VariableType::String => write!(f, "string"),
+            VariableType::Bool => write!(f, "bool"),
+            VariableType::Number => write!(f, "number"),
+            VariableType::File => write!(f, "file"),
+            VariableType::MapStringString => write!(f, "map[string]string"),
+            VariableType::MapStringFile => write!(f, "map[string]file"),
+            // VariableType::MapStringNumber => write!(f, "map[string]number"),
+            // VariableType::MapStringBool => write!(f, "map[string]bool"),
+        }
+    }
+}
+
 pub trait AgentTypeEndSpec {
-    // fn variable_type(&self) -> VariableType;
+    fn variable_type(&self) -> VariableType;
     fn file_path(&self) -> Option<String>;
 }
 
@@ -235,6 +271,20 @@ pub struct EndSpec {
     pub(crate) description: String,
     pub kind: Kind,
     file_path: Option<String>,
+}
+
+impl AgentTypeEndSpec for EndSpec {
+    fn variable_type(&self) -> VariableType {
+        match self.kind {
+            Kind::String(_) => VariableType::String,
+            Kind::Bool(_) => VariableType::Bool,
+            Kind::Number(_) => VariableType::Number,
+        }
+    }
+
+    fn file_path(&self) -> Option<String> {
+        self.file_path.clone()
+    }
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
@@ -267,15 +317,23 @@ impl Kind {
         }
     }
 
+    pub(crate) fn required(&self) -> bool {
+        match self {
+            Kind::String(v) => v.required,
+            Kind::Bool(v) => v.required,
+            Kind::Number(v) => v.required,
+        }
+    }
+
     fn set_final_value(&mut self, value: Option<TrivialValue>) -> Result<(), AgentTypeError> {
         if let Some(v) = value {
             match (self, v) {
                 (Kind::String(v), TrivialValue::String(s)) => v.final_value = Some(s),
                 (Kind::Bool(v), TrivialValue::Bool(b)) => v.final_value = Some(b),
                 (Kind::Number(v), TrivialValue::Number(n)) => v.final_value = Some(n),
-                _ => {
+                (k, v) => {
                     return Err(AgentTypeError::TypeMismatch {
-                        expected_type: self.kind_str().to_string(),
+                        expected_type: k.kind_str().to_string(),
                         actual_value: v,
                     })
                 }
@@ -291,6 +349,22 @@ impl Kind {
             Kind::String(v) => v.final_value = v.default.take(),
             Kind::Bool(v) => v.final_value = v.default.take(),
             Kind::Number(v) => v.final_value = v.default.take(),
+        }
+    }
+
+    pub(crate) fn get_final_value(&self) -> Option<TrivialValue> {
+        match self {
+            Kind::String(v) => v.final_value.clone().map(TrivialValue::String),
+            Kind::Bool(v) => v.final_value.clone().map(TrivialValue::Bool),
+            Kind::Number(v) => v.final_value.clone().map(TrivialValue::Number),
+        }
+    }
+
+    pub(crate) fn get_default(&self) -> Option<TrivialValue> {
+        match self {
+            Kind::String(v) => v.default.clone().map(TrivialValue::String),
+            Kind::Bool(v) => v.default.clone().map(TrivialValue::Bool),
+            Kind::Number(v) => v.default.clone().map(TrivialValue::Number),
         }
     }
 }

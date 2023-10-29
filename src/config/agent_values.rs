@@ -106,7 +106,7 @@ impl AgentValues {
             let value = get_from_normalized(&self.0, k);
 
             // required value but not defined in SubAgentConfig
-            if value.is_none() && v.required() {
+            if value.is_none() && v.kind.required() {
                 return Err(AgentTypeError::MissingAgentKey(k.clone()));
             }
 

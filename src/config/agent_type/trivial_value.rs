@@ -70,7 +70,7 @@ impl TrivialValue {
                 ))),
             },
             (v, t) => Err(AgentTypeError::TypeMismatch {
-                expected_type: t,
+                expected_type: t.to_string(),
                 actual_value: v,
             }),
         }

@@ -213,7 +213,8 @@ mod tests {
             .variables
             .get("config")
             .unwrap()
-            .final_value
+            .kind
+            .get_final_value()
             .clone()
             .unwrap();
         let TrivialValue::File(f) = file else {

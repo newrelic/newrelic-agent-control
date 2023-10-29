@@ -69,8 +69,9 @@ fn template_string(s: String, variables: &NormalizedVariables) -> Result<String,
                 .replace(
                     &r,
                     replacement
-                        .final_value
-                        .or(replacement.default)
+                        .kind
+                        .get_final_value()
+                        .or(replacement.kind.get_default())
                         .ok_or(AgentTypeError::MissingTemplateKey(trimmed_s.to_string()))?
                         .to_string(),
                 )

@@ -3,7 +3,7 @@ use std::fs::Permissions;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
-use crate::config::agent_type::agent_types::{FinalAgent, VariableType};
+use crate::config::agent_type::agent_types::{AgentTypeEndSpec, FinalAgent, VariableType};
 use crate::config::agent_type::trivial_value::TrivialValue;
 use crate::config::persister::config_persister::{ConfigurationPersister, PersistError};
 use crate::config::persister::config_writer_file::{WriteError, Writer, WriterFile};
@@ -82,8 +82,8 @@ where
             .try_for_each(|(_fqn, end_spec)| {
                 self.write_file_values_to_file(
                     dest_path.as_path(),
-                    &end_spec.type_,
-                    &end_spec.final_value,
+                    &end_spec.variable_type(),
+                    &end_spec.kind.get_final_value(),
                 )
             });
 
