@@ -9,9 +9,7 @@ use tracing::{error, info};
 use newrelic_super_agent::config::loader::{SuperAgentConfigLoader, SuperAgentConfigLoaderFile};
 use newrelic_super_agent::config::remote_config_hash::HashRepositoryFile;
 use newrelic_super_agent::opamp::client_builder::OpAMPHttpBuilder;
-use newrelic_super_agent::super_agent::effective_agents_assembler::{
-    self, LocalEffectiveAgentsAssembler,
-};
+use newrelic_super_agent::super_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use newrelic_super_agent::super_agent::instance_id::ULIDInstanceIDGetter;
 use newrelic_super_agent::super_agent::super_agent::{SuperAgent, SuperAgentEvent};
 use newrelic_super_agent::{
@@ -69,29 +67,20 @@ fn run_super_agent(
 ) -> Result<(), AgentError> {
     cfg_if! {
      if #[cfg(feature = "k8s")] {
-            info!("Starting the K8S SuperAgent");
-            SuperAgent::new(
-                LocalEffectiveAgentsAssembler::default(),
-                opamp_client_builder.as_ref(),
-                &instance_id_getter,
-                HashRepositoryFile::default(),
-                newrelic_super_agent::sub_agent::k8s::builder::K8sSubAgentBuilder::new(opamp_client_builder.as_ref(), &instance_id_getter),
-            )
-            .run(ctx, &config)?;
-            Ok(())
+            let sub_agent_builder = newrelic_super_agent::sub_agent::k8s::builder::K8sSubAgentBuilder::new(opamp_client_builder.as_ref(), &instance_id_getter);
         } else if #[cfg(feature = "onhost")] {
-            info!("Starting the OnHost SuperAgent");
-            SuperAgent::new(
-                LocalEffectiveAgentsAssembler::default(),
-                opamp_client_builder.as_ref(),
-                &instance_id_getter,
-                HashRepositoryFile::default(),
-                OnHostSubAgentBuilder::new(opamp_client_builder.as_ref(), &instance_id_getter),
-            )
-            .run(ctx, &config)?;
-            Ok(())
+           let sub_agent_builder = OnHostSubAgentBuilder::new(opamp_client_builder.as_ref(), &instance_id_getter);
         }
-    }
+    };
+
+    SuperAgent::new(
+        LocalEffectiveAgentsAssembler::default(),
+        opamp_client_builder.as_ref(),
+        &instance_id_getter,
+        HashRepositoryFile::default(),
+        sub_agent_builder,
+    )
+    .run(ctx, &config)
 }
 
 fn create_shutdown_signal_handler(
