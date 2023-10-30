@@ -53,4 +53,35 @@ pub(crate) mod test {
             ) -> Result<<Self as SubAgentBuilder>::NotStartedSubAgent, error::SubAgentBuilderError>;
         }
     }
+
+    impl MockSubAgentBuilderMock {
+        // should_build provides a helper method to create a subagent which runs and stops
+        // successfully
+        pub(crate) fn should_build(&mut self, times: usize) {
+            self.expect_build().times(times).returning(|_, _| {
+                let mut not_started_agent = MockNotStartedSubAgent::new();
+                not_started_agent.expect_run().times(1).returning(|| {
+                    let mut started_agent = MockStartedSubAgent::new();
+                    started_agent
+                        .expect_stop()
+                        .times(1)
+                        .returning(|| Ok(Vec::new()));
+                    Ok(started_agent)
+                });
+                Ok(not_started_agent)
+            });
+        }
+
+        // should_build provides a helper method to create a subagent which runs but doesn't stop
+        pub(crate) fn should_build_and_run(&mut self, times: usize) {
+            self.expect_build().times(times).returning(|_, _| {
+                let mut not_started_agent = MockNotStartedSubAgent::new();
+                not_started_agent
+                    .expect_run()
+                    .times(1)
+                    .returning(|| Ok(MockStartedSubAgent::new()));
+                Ok(not_started_agent)
+            });
+        }
+    }
 }
