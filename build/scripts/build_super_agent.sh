@@ -14,13 +14,7 @@ if [ "$ARCH" = "amd64" ];then
 fi
 
 : "${BUILD_MODE:=release}"
-if [ "$BUILD_MODE" = "debug" ]; then
-    BUILD_FLAGS=""
-else
-    BUILD_FLAGS="--release"
-fi
-
-docker build -t "rust-cross-${ARCH_NAME}" -f ./build/rust.Dockerfile --build-arg ARCH_NAME="${ARCH_NAME}" --build-arg BUILD_FLAGS="${BUILD_FLAGS}" .
+docker build -t "rust-cross-${ARCH_NAME}" -f ./build/rust.Dockerfile --build-arg ARCH_NAME="${ARCH_NAME}" --build-arg BUILD_MODE="${BUILD_MODE}" .
 
 CARGO_HOME=/tmp/.cargo cargo fetch
 docker run --rm --user "$(id -u)":"$(id -g)" -v "$PWD":/usr/src/app -v /tmp/.cargo:/usr/src/app/.cargo rust-cross-"${ARCH_NAME}"

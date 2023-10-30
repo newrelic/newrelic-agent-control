@@ -24,6 +24,13 @@ ENV ARCH_NAME=${ARCH_NAME} \
     CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
     CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++
 
-ARG BUILD_FLAGS="--release"
+# Persist the ARG value into an ENV so it's available at runtime
+ENV BUILD_MODE_ENV=${BUILD_MODE}
 
-CMD cargo build $BUILD_FLAGS --target "${ARCH_NAME}-unknown-linux-gnu"
+# Execute the command dynamically at runtime
+CMD [ "sh", "-c", "\
+     CMD_STRING='cargo build'; \
+     [ \"$BUILD_MODE_ENV\" != 'debug' ] && CMD_STRING='cargo build --release'; \
+     CMD_STRING=\"$CMD_STRING --target $ARCH_NAME-unknown-linux-gnu\"; \
+     $CMD_STRING \
+"]
