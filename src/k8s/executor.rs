@@ -33,10 +33,7 @@ impl K8sExecutor {
         debug!("trying inClusterConfig for k8s client");
         let config = Config::incluster().unwrap_or({
             debug!("inClusterConfig failed, trying kubeconfig for k8s client");
-            let c = KubeConfigOptions {
-                ..Default::default()
-            };
-
+            let c = KubeConfigOptions::default();
             Config::from_kubeconfig(&c).await?
         });
 
