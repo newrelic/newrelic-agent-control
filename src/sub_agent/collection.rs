@@ -23,15 +23,6 @@ impl<S> NotStartedSubAgents<S>
 where
     S: NotStartedSubAgent,
 {
-    pub fn new(value: HashMap<AgentID, S>) -> Self {
-        Self(value)
-    }
-}
-
-impl<S> NotStartedSubAgents<S>
-where
-    S: NotStartedSubAgent,
-{
     pub(crate) fn run(self) -> Result<StartedSubAgents<S::StartedSubAgent>, SubAgentError> {
         let started_sub_agents: Result<HashMap<AgentID, S::StartedSubAgent>, SubAgentError> = self
             .0
