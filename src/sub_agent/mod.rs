@@ -35,21 +35,22 @@ pub trait SubAgentBuilder {
     ) -> Result<Self::NotStartedSubAgent, error::SubAgentBuilderError>;
 }
 
-pub struct MockSubAgentBuilder;
+#[cfg(test)]
+pub(crate) mod test {
+    use super::*;
+    use mockall::mock;
 
-impl MockSubAgentBuilder {
-    pub fn new() -> Self {
-        MockSubAgentBuilder
-    }
-}
+    mock! {
+        pub SubAgentBuilderMock {}
 
-impl SubAgentBuilder for MockSubAgentBuilder {
-    type NotStartedSubAgent = MockNotStartedSubAgent;
-    fn build(
-        &self,
-        _agent: FinalAgent,
-        _tx: std::sync::mpsc::Sender<Event>,
-    ) -> Result<Self::NotStartedSubAgent, error::SubAgentBuilderError> {
-        Ok(MockNotStartedSubAgent::new())
+        impl SubAgentBuilder for SubAgentBuilderMock {
+            type NotStartedSubAgent = MockNotStartedSubAgent;
+
+            fn build(
+                &self,
+                _agent: FinalAgent,
+                _tx: std::sync::mpsc::Sender<Event>,
+            ) -> Result<<Self as SubAgentBuilder>::NotStartedSubAgent, error::SubAgentBuilderError>;
+        }
     }
 }

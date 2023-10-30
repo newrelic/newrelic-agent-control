@@ -88,14 +88,9 @@ where
     }
 
     pub(crate) fn stop(self) -> Result<(), SubAgentError> {
-        let stop_result: Result<(), SubAgentError> = self
-            .0
-            .into_iter()
-            .map(|(agent_id, sub_agent)| {
-                Self::stop_agent(&agent_id, sub_agent)?;
-                Ok(())
-            })
-            .collect();
-        Ok(stop_result?)
+        self.0.into_iter().try_for_each(|(agent_id, sub_agent)| {
+            Self::stop_agent(&agent_id, sub_agent)?;
+            Ok(())
+        })
     }
 }

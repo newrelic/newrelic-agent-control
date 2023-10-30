@@ -250,10 +250,12 @@ where
             .effective_agents_asssembler
             .assemble_agent(&agent_id, sub_agent_config)?;
 
-        Ok(running_sub_agents.insert(
+        running_sub_agents.insert(
             agent_id,
             self.sub_agent_builder.build(final_agent, tx)?.run()?,
-        ))
+        );
+
+        Ok(())
     }
 
     fn start_super_agent_opamp_client(
@@ -401,7 +403,7 @@ mod tests {
     use crate::opamp::client_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock};
     use crate::opamp::client_builder::OpAMPClientBuilder;
     use crate::sub_agent::on_host::factory::build_sub_agents;
-    use crate::sub_agent::{MockSubAgentBuilder, SubAgentBuilder};
+    use crate::sub_agent::{test::MockSubAgentBuilderMock, SubAgentBuilder};
     use crate::super_agent::defaults::{
         SUPER_AGENT_ID, SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION,
     };
@@ -504,7 +506,7 @@ mod tests {
             local_assembler,
             Some(&opamp_builder),
             hash_repository_mock,
-            MockSubAgentBuilder::new(),
+            MockSubAgentBuilderMock::new(),
         );
 
         let ctx = Context::new();
@@ -621,7 +623,7 @@ mod tests {
             local_assembler,
             Some(&opamp_builder),
             hash_repository_mock,
-            MockSubAgentBuilder::new(),
+            MockSubAgentBuilderMock::new(),
         );
 
         let ctx = Context::new();
@@ -752,7 +754,7 @@ mod tests {
             local_assembler,
             Some(&opamp_builder),
             hash_repository_mock,
-            MockSubAgentBuilder::new(),
+            MockSubAgentBuilderMock::new(),
         );
 
         let ctx = Context::new();
@@ -906,7 +908,7 @@ mod tests {
             local_assembler,
             Some(&opamp_builder),
             hash_repository_mock,
-            MockSubAgentBuilder::new(),
+            MockSubAgentBuilderMock::new(),
         );
 
         let ctx = Context::new();
@@ -1036,7 +1038,7 @@ mod tests {
             local_assembler,
             Some(&opamp_builder),
             hash_repository_mock,
-            MockSubAgentBuilder::new(),
+            MockSubAgentBuilderMock::new(),
         );
 
         let ctx = Context::new();
@@ -1168,7 +1170,7 @@ mod tests {
             local_assembler,
             Some(&opamp_builder),
             hash_repository_mock,
-            MockSubAgentBuilder::new(),
+            MockSubAgentBuilderMock::new(),
         );
 
         let (tx, _) = mpsc::channel();
@@ -1297,7 +1299,7 @@ mod tests {
             local_assembler,
             Some(&opamp_builder),
             hash_repository_mock,
-            MockSubAgentBuilder::new(),
+            MockSubAgentBuilderMock::new(),
         );
 
         let (tx, _) = mpsc::channel();
@@ -1403,7 +1405,7 @@ mod tests {
         let local_assembler =
             LocalEffectiveAgentsAssembler::new(registry, conf_persister, file_reader);
 
-        let mut hash_repository_mock = MockHashRepositoryMock::new();
+        let hash_repository_mock = MockHashRepositoryMock::new();
 
         // Create the Super Agent and run Sub Agents
         let super_agent = SuperAgent::new_custom(
@@ -1411,7 +1413,7 @@ mod tests {
             local_assembler,
             Some(&opamp_builder),
             hash_repository_mock,
-            MockSubAgentBuilder::new(),
+            MockSubAgentBuilderMock::new(),
         );
 
         let (tx, _) = mpsc::channel();
