@@ -14,7 +14,7 @@ use crate::{
     },
 };
 
-use super::sub_agent_on_host::NotStartedSubAgentOnHost;
+use super::sub_agent::NotStartedSubAgentOnHost;
 
 pub struct OnHostSubAgentBuilder<'a, O, I>
 where

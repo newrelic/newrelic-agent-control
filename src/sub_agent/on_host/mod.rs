@@ -1,4 +1,6 @@
 pub mod builder;
-pub mod sub_agent_on_host;
+
+// Module implementing the SubAgent traits.
+pub mod sub_agent;
 
 mod opamp;
