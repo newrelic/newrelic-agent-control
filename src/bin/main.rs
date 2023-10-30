@@ -79,7 +79,7 @@ fn run_super_agent(
             )
             .run(ctx, &config)?;
             Ok(())
-        } else {
+        } else if #[cfg(feature = "onhost")] {
             info!("Starting the OnHost SuperAgent");
             SuperAgent::new(
                 LocalEffectiveAgentsAssembler::default(),
