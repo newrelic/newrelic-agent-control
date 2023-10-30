@@ -41,3 +41,11 @@ pub enum SubAgentBuilderError {
     #[error("`{0}`")]
     SubAgent(#[from] SubAgentError),
 }
+
+#[derive(Error, Debug)]
+pub enum SubAgentCollectionError {
+    #[error("`{0}`")]
+    SubAgent(#[from] SubAgentError),
+    #[error("Sub Agent `{0}` not found in the collection")]
+    SubAgentNotFound(String),
+}

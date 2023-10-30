@@ -7,7 +7,7 @@ use thiserror::Error;
 use crate::config::persister::config_persister::PersistError;
 use crate::config::remote_config_hash::HashRepositoryError;
 use crate::file_reader::FileReaderError;
-use crate::sub_agent::error::{SubAgentBuilderError, SubAgentError};
+use crate::sub_agent::error::{SubAgentBuilderError, SubAgentCollectionError, SubAgentError};
 use crate::super_agent::effective_agents_assembler::EffectiveAgentsAssemblerError;
 use crate::super_agent::super_agent::EffectiveAgentsError;
 use crate::{
@@ -64,6 +64,9 @@ pub enum AgentError {
 
     #[error("`{0}`")]
     SubAgentBuilder(#[from] SubAgentBuilderError),
+
+    #[error("`{0}`")]
+    SubAgentCollectionError(#[from] SubAgentCollectionError),
 
     #[error("system time error: `{0}`")]
     SystemTimeError(#[from] SystemTimeError),
