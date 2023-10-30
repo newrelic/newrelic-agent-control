@@ -9,7 +9,7 @@ use crate::config::super_agent_configs::{AgentID, AgentTypeFQN};
 use crate::context::Context;
 use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPClientBuilderError};
 use crate::sub_agent::error::SubAgentError;
-use crate::sub_agent::on_host::factory::build_opamp_and_start_client;
+use crate::sub_agent::on_host::opamp::build_opamp_and_start_client;
 use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
 use crate::super_agent::instance_id::InstanceIDGetter;
 use crate::super_agent::super_agent::SuperAgentEvent;

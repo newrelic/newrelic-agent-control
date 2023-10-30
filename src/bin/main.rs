@@ -51,6 +51,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let instance_id_getter = ULIDInstanceIDGetter::default();
 
+    info!("Starting the super agent");
     Ok(run_super_agent(
         super_agent_config,
         ctx,

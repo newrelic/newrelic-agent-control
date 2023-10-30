@@ -412,9 +412,7 @@ mod tests {
     use crate::file_reader::test::MockFileReaderMock;
     use crate::opamp::client_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock};
     use crate::opamp::client_builder::OpAMPClientBuilder;
-    use crate::sub_agent::on_host::factory::build_sub_agents;
     use crate::sub_agent::{test::MockSubAgentBuilderMock, SubAgentBuilder};
-    use crate::sub_agent::{MockNotStartedSubAgent, MockStartedSubAgent};
     use crate::super_agent::defaults::{
         SUPER_AGENT_ID, SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION,
     };
@@ -1141,120 +1139,6 @@ mod tests {
         assert!(running_sub_agents.stop().is_ok());
     }
 
-    #[test]
-    fn recreate_agent_error_on_opamp() {
-        let hostname = gethostname().unwrap_or_default().into_string().unwrap();
-        let agent_id_to_restart = AgentID("infra_agent".to_string());
-
-        // Mocked services
-        let mut opamp_builder = MockOpAMPClientBuilderMock::new();
-        let mut conf_persister = MockConfigurationPersisterMock::new();
-        let mut registry = MockAgentRegistryMock::new();
-        let mut instance_id_getter = MockInstanceIDGetterMock::new();
-        let file_reader = MockFileReaderMock::new();
-
-        // Expectations for loading agents
-        let mut final_nrdot: FinalAgent = FinalAgent::default();
-        final_nrdot.runtime_config.deployment.on_host = Some(OnHost {
-            executables: Vec::new(),
-        });
-        registry.should_get(
-            "newrelic/io.opentelemetry.collector:0.0.1".to_string(),
-            final_nrdot,
-        );
-        let mut final_infra_agent: FinalAgent = FinalAgent::default();
-        final_infra_agent.runtime_config.deployment.on_host = Some(OnHost {
-            executables: Vec::new(),
-        });
-
-        registry.should_get(
-            "newrelic/com.newrelic.infrastructure_agent:0.0.1".to_string(),
-            final_infra_agent.clone(),
-        );
-
-        conf_persister.should_delete_all_configs();
-        conf_persister.should_delete_any_agent_config(2);
-        conf_persister.should_persist_any_agent_config(2);
-
-        let start_settings_nrdot = nrdot_default_start_settings(&hostname);
-        //expectation for stopping agents on test end
-        opamp_builder.should_build_and_start(
-            AgentID::new("nrdot"),
-            start_settings_nrdot,
-            |_, _, _| {
-                let mut started_client = MockOpAMPClientMock::new();
-                started_client.should_set_health(1);
-                started_client.should_stop(1);
-                Ok(started_client)
-            },
-        );
-
-        instance_id_getter.should_get(
-            "infra_agent".to_string(),
-            "infra_agent_instance_id".to_string(),
-        );
-
-        instance_id_getter.should_get("nrdot".to_string(), "nrdot_instance_id".to_string());
-
-        // Expectations for recreating agent
-        // Infra Agent OpAMP will report health and fail when stopped (above)
-        let start_settings_infra = infra_agent_default_start_settings(&hostname);
-        opamp_builder.should_build_and_start(
-            AgentID::new("infra_agent"),
-            start_settings_infra,
-            |_, _, _| {
-                let mut started_client = MockOpAMPClientMock::new();
-                started_client.should_set_health(1);
-                started_client.should_not_stop(1, 401, "server error".to_string());
-                Ok(started_client)
-            },
-        );
-
-        // Assemble services and Super Agent
-        let local_assembler =
-            LocalEffectiveAgentsAssembler::new(registry, conf_persister, file_reader);
-
-        let hash_repository_mock = MockHashRepositoryMock::new();
-
-        // Create the Super Agent and run Sub Agents
-        let super_agent = SuperAgent::new_custom(
-            &instance_id_getter,
-            local_assembler,
-            Some(&opamp_builder),
-            hash_repository_mock,
-            MockSubAgentBuilderMock::new(),
-        );
-
-        let (tx, _) = mpsc::channel();
-        let super_agent_config = super_agent_default_config();
-        let effective_agents = super_agent
-            .load_effective_agents(&super_agent_config)
-            .unwrap();
-
-        let sub_agents = build_sub_agents(
-            effective_agents,
-            &tx,
-            super_agent.opamp_client_builder,
-            super_agent.instance_id_getter,
-        );
-        let mut _running_sub_agents = sub_agents.unwrap().run().unwrap();
-
-        // //Recreate Sub Agent
-        // let result = super_agent.recreate_sub_agent(
-        //     agent_id_to_restart,
-        //     &super_agent_config,
-        //     &mut running_sub_agents,
-        //     tx,
-        // );
-        // assert!(result.is_err());
-        // assert_eq!(
-        //     "started opamp client error: ``Status code: `401` Canonical reason: `server error```"
-        //         .to_string(),
-        //     result.err().unwrap().to_string()
-        // );
-        // assert!(running_sub_agents.stop().is_ok());
-    }
-
     ////////////////////////////////////////////////////////////////////////////////////
     // Test helpers
     ////////////////////////////////////////////////////////////////////////////////////
@@ -1265,28 +1149,6 @@ mod tests {
             SUPER_AGENT_TYPE.to_string(),
             SUPER_AGENT_VERSION.to_string(),
             SUPER_AGENT_NAMESPACE.to_string(),
-            hostname,
-        )
-    }
-
-    fn infra_agent_default_start_settings(hostname: &String) -> StartSettings {
-        start_settings(
-            "infra_agent_instance_id".to_string(),
-            capabilities!(AgentCapabilities::ReportsHealth),
-            "".to_string(),
-            "".to_string(),
-            "".to_string(),
-            hostname,
-        )
-    }
-
-    fn nrdot_default_start_settings(hostname: &String) -> StartSettings {
-        start_settings(
-            "nrdot_instance_id".to_string(),
-            capabilities!(AgentCapabilities::ReportsHealth),
-            "".to_string(),
-            "".to_string(),
-            "".to_string(),
             hostname,
         )
     }
