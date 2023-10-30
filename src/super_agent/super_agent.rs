@@ -58,7 +58,7 @@ pub struct SuperAgent<
     HR: HashRepository,
     S: SubAgentBuilder,
 {
-    instance_id_getter: ID,
+    instance_id_getter: &'a ID,
     effective_agents_asssembler: Assembler,
     opamp_client_builder: Option<&'a OpAMPBuilder>,
     sub_agent_builder: S,
@@ -76,7 +76,7 @@ where
     pub fn new(
         effective_agents_asssembler: Assembler,
         opamp_client_builder: Option<&'a OpAMPBuilder>,
-        instance_id_getter: ID,
+        instance_id_getter: &'a ID,
         remote_config_hash_repository: HR,
         sub_agent_builder: S,
     ) -> Self {
@@ -439,7 +439,7 @@ mod tests {
         S: SubAgentBuilder,
     {
         pub fn new_custom(
-            instance_id_getter: ID,
+            instance_id_getter: &'a ID,
             effective_agents_asssembler: Assembler,
             opamp_client_builder: Option<&'a OpAMPBuilder>,
             remote_config_hash_repository: HR,
@@ -502,7 +502,7 @@ mod tests {
 
         // no agents in the supervisor group
         let agent = SuperAgent::new_custom(
-            instance_id_getter,
+            &instance_id_getter,
             local_assembler,
             Some(&opamp_builder),
             hash_repository_mock,
@@ -619,7 +619,7 @@ mod tests {
         let super_agent_config = super_agent_default_config();
 
         let agent = SuperAgent::new_custom(
-            instance_id_getter,
+            &instance_id_getter,
             local_assembler,
             Some(&opamp_builder),
             hash_repository_mock,
@@ -750,7 +750,7 @@ mod tests {
 
         // two agents in the supervisor group
         let agent = SuperAgent::new_custom(
-            instance_id_getter,
+            &instance_id_getter,
             local_assembler,
             Some(&opamp_builder),
             hash_repository_mock,
@@ -904,7 +904,7 @@ mod tests {
 
         // two agents in the supervisor group
         let agent = SuperAgent::new_custom(
-            instance_id_getter,
+            &instance_id_getter,
             local_assembler,
             Some(&opamp_builder),
             hash_repository_mock,
@@ -1034,7 +1034,7 @@ mod tests {
 
         // two agents in the supervisor group
         let agent = SuperAgent::new_custom(
-            instance_id_getter,
+            &instance_id_getter,
             local_assembler,
             Some(&opamp_builder),
             hash_repository_mock,
@@ -1166,7 +1166,7 @@ mod tests {
 
         // Create the Super Agent and rub Sub Agents
         let super_agent = SuperAgent::new_custom(
-            instance_id_getter,
+            &instance_id_getter,
             local_assembler,
             Some(&opamp_builder),
             hash_repository_mock,
@@ -1183,7 +1183,7 @@ mod tests {
             effective_agents,
             &tx,
             super_agent.opamp_client_builder,
-            &super_agent.instance_id_getter,
+            super_agent.instance_id_getter,
         );
         let mut _running_sub_agents = sub_agents.unwrap().run().unwrap();
 
@@ -1295,7 +1295,7 @@ mod tests {
 
         // Create the Super Agent and rub Sub Agents
         let super_agent = SuperAgent::new_custom(
-            instance_id_getter,
+            &instance_id_getter,
             local_assembler,
             Some(&opamp_builder),
             hash_repository_mock,
@@ -1312,7 +1312,7 @@ mod tests {
             effective_agents,
             &tx,
             super_agent.opamp_client_builder,
-            &super_agent.instance_id_getter,
+            super_agent.instance_id_getter,
         );
         let mut _running_sub_agents = sub_agents.unwrap().run().unwrap();
 
@@ -1409,7 +1409,7 @@ mod tests {
 
         // Create the Super Agent and run Sub Agents
         let super_agent = SuperAgent::new_custom(
-            instance_id_getter,
+            &instance_id_getter,
             local_assembler,
             Some(&opamp_builder),
             hash_repository_mock,
@@ -1426,7 +1426,7 @@ mod tests {
             effective_agents,
             &tx,
             super_agent.opamp_client_builder,
-            &super_agent.instance_id_getter,
+            super_agent.instance_id_getter,
         );
         let mut _running_sub_agents = sub_agents.unwrap().run().unwrap();
 

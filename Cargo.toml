@@ -34,6 +34,7 @@ kube = { version="0.86.0", default-features = false, features = ["client", "open
 k8s-openapi = { version= "0.20.0", features = ["latest"]}
 tower = { version = "0.4.13", features = [] }
 hyper = "0.14.27"
+cfg-if = "1.0.0"
 
 [dev-dependencies]
 assert_cmd = "2.0.12"
