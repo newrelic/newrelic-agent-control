@@ -3,6 +3,7 @@ pub mod command;
 pub mod config;
 pub mod context;
 pub mod file_reader;
+pub mod k8s;
 pub mod logging;
 pub mod opamp;
 pub mod sub_agent;

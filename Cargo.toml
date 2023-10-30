@@ -30,11 +30,19 @@ ulid = "1.0.1"
 openssl = { version = "0.10.57", features = ["vendored"] }
 aquamarine = "0.3.2"
 duration-str = "0.7.0"
+kube = { version="0.86.0", default-features = false, features = ["client", "openssl-tls"]}
+k8s-openapi = { version= "0.20.0", features = ["latest"]}
+tower = { version = "0.4.13", features = [] }
+hyper = "0.14.27"
 
 [dev-dependencies]
 assert_cmd = "2.0.12"
 assert_fs = "1.0.13"
 predicates = "3.0.3"
+tower-test = "0.4.0"
+http = "0.2.9"
+mockall_double = "0.3.0"
+
 
 [[test]]
 name = "integration"
