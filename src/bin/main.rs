@@ -12,9 +12,7 @@ use newrelic_super_agent::opamp::client_builder::OpAMPHttpBuilder;
 use newrelic_super_agent::super_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use newrelic_super_agent::super_agent::instance_id::ULIDInstanceIDGetter;
 use newrelic_super_agent::super_agent::super_agent::{SuperAgent, SuperAgentEvent};
-use newrelic_super_agent::{
-    cli::running_mode::AgentRunningMode, cli::Cli, context::Context, logging::Logging,
-};
+use newrelic_super_agent::{cli::Cli, context::Context, logging::Logging};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -27,12 +25,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         println!("Printing debug info");
         println!("CLI: {:#?}", cli);
         return Ok(());
-    }
-
-    // Program must run as root if running_mode=OnHost, but should accept simple behaviors such as --version, --help, etc
-    #[cfg(unix)]
-    if !nix::unistd::Uid::effective().is_root() && cli.running_mode() == AgentRunningMode::OnHost {
-        return Err("Program must run as root".into());
     }
 
     info!("Creating the global context");
@@ -51,7 +43,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let instance_id_getter = ULIDInstanceIDGetter::default();
 
-    info!("Starting the super agent");
     Ok(run_super_agent(
         super_agent_config,
         ctx,
@@ -70,10 +61,16 @@ fn run_super_agent(
      if #[cfg(feature = "k8s")] {
             let sub_agent_builder = newrelic_super_agent::sub_agent::k8s::builder::K8sSubAgentBuilder::new(opamp_client_builder.as_ref(), &instance_id_getter);
         } else if #[cfg(feature = "onhost")] {
+            // Program must run as root if onhost execution
+            #[cfg(unix)]
+            if !nix::unistd::Uid::effective().is_root() {
+                panic!("Program must run as root");
+            }
            let sub_agent_builder = OnHostSubAgentBuilder::new(opamp_client_builder.as_ref(), &instance_id_getter);
         }
     };
 
+    info!("Starting the super agent");
     SuperAgent::new(
         LocalEffectiveAgentsAssembler::default(),
         opamp_client_builder.as_ref(),
