@@ -31,11 +31,13 @@ help:
 
 
 ARCH:=arm64
+BUILD_MODE:=release
 
 .PHONY: build-super-agent 
 # Cross-compilation only works from amd64 host.
 build-super-agent:
-	ARCH=$(ARCH) BUILD_MODE=debug ./build/scripts/build_super_agent.sh
+	@echo "Building with mode: $(BUILD_MODE) and arch: $(ARCH)"
+	ARCH=$(ARCH) BUILD_MODE=$(BUILD_MODE) ./build/scripts/build_super_agent.sh
 
 .PHONY: build-dev-image
 build-dev-image: build-super-agent
