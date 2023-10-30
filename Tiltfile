@@ -1,11 +1,15 @@
 # -*- mode: Python -*-
 
 # Settings and defaults.
-project_name = 'newrelic-super-agent'
-cluster_context = 'minikube'
+settings = {
+  'project_name': 'newrelic-super-agent',
+  'cluster_context': 'minikube',
+}
+
+settings.update(read_json('local/tilt_option.json', default={}))
 
 # Use explicitly allowed kubeconfigs as a safety measure.
-allow_k8s_contexts(cluster_context)
+allow_k8s_contexts(settings.get('cluster_context'))
 
 local_resource(
     'build-rust-binary',
@@ -33,7 +37,22 @@ helm_remote(
     release_name='super-agent-deployment',
     namespace='default',
     version='0.0.0-beta',
-    values=['tilt-dev-values.yaml'],
+    set=[
+      "image.registry=ci.local",
+      "image.repository=super-agent-dev",
+      "image.imagePullPolicy=Always"
+    ]
+)
+
+helm_remote(
+    chart='super-agent',
+    repo_url='https://helm-charts.newrelic.com',
+    release_name='super-agent',
+    namespace='default',
+    version='0.0.0-beta',
+    set=[
+      "helm.create=false",
+    ]
 )
 
 # To make sure your binary is built before deploying.
