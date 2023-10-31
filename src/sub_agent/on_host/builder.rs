@@ -4,6 +4,7 @@ use crate::{
     opamp::client_builder::OpAMPClientBuilder,
     sub_agent::{
         error::{SubAgentBuilderError, SubAgentError},
+        restart_policy::RestartPolicy,
         SubAgentBuilder,
     },
     super_agent::instance_id::InstanceIDGetter,
@@ -13,7 +14,7 @@ use super::command::stream::Event;
 use super::sub_agent::NotStartedSubAgentOnHost;
 use super::supervisor::{
     command_supervisor::NotStartedSupervisorOnHost,
-    command_supervisor_config::SupervisorConfigOnHost, restart_policy::RestartPolicy,
+    command_supervisor_config::SupervisorConfigOnHost,
 };
 
 pub struct OnHostSubAgentBuilder<'a, O, I>

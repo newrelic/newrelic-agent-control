@@ -219,7 +219,7 @@ pub mod sleep_supervisor_tests {
 
     use super::NotStartedSupervisorOnHost;
     use super::SupervisorConfigOnHost;
-    use crate::sub_agent::on_host::supervisor::restart_policy::{BackoffStrategy, RestartPolicy};
+    use crate::sub_agent::restart_policy::{BackoffStrategy, RestartPolicy};
     use crate::{context::Context, sub_agent::on_host::command::stream::Event};
 
     pub fn new_sleep_supervisor(tx: Sender<Event>, seconds: u32) -> NotStartedSupervisorOnHost {
@@ -239,9 +239,7 @@ pub mod sleep_supervisor_tests {
 mod tests {
     use super::*;
     use crate::sub_agent::on_host::command::stream::OutputEvent;
-    use crate::sub_agent::on_host::supervisor::restart_policy::{
-        Backoff, BackoffStrategy, RestartPolicy,
-    };
+    use crate::sub_agent::restart_policy::{Backoff, BackoffStrategy, RestartPolicy};
     use std::collections::HashMap;
     use std::time::{Duration, Instant};
 

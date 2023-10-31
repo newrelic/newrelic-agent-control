@@ -1,20 +1,20 @@
 pub mod collection;
 pub mod error;
 pub mod k8s;
+pub mod restart_policy;
+
+#[cfg(feature = "onhost")]
 pub mod on_host;
 
 use std::thread::JoinHandle;
 
 // CRATE TRAITS
-use mockall::automock;
-
 use crate::{
     config::{agent_type::agent_types::FinalAgent, super_agent_configs::AgentID},
     sub_agent::on_host::command::stream::Event,
 };
 
 /// The Runner trait defines the entry-point interface for a supervisor. Exposes a run method that will start the supervised process' execution.
-#[automock(type StartedSubAgent = MockStartedSubAgent;)]
 pub trait NotStartedSubAgent {
     type StartedSubAgent: StartedSubAgent;
 
@@ -23,7 +23,6 @@ pub trait NotStartedSubAgent {
 }
 
 /// The Handle trait defines the interface for a supervised process' handle. Exposes a stop method that will cancel the supervised process' execution.
-#[automock(type S =  ();)]
 pub trait StartedSubAgent {
     /// Cancels the supervised process and returns its inner handle.
     fn stop(self) -> Result<Vec<JoinHandle<()>>, error::SubAgentError>;
@@ -43,6 +42,27 @@ pub trait SubAgentBuilder {
 pub(crate) mod test {
     use super::*;
     use mockall::mock;
+
+    mock! {
+        pub StartedSubAgent {}
+
+        impl StartedSubAgent for StartedSubAgent {
+
+            fn stop(self) -> Result<Vec<JoinHandle<()>>, error::SubAgentError>;
+        }
+    }
+
+    mock! {
+        pub NotStartedSubAgent {}
+
+        impl NotStartedSubAgent for NotStartedSubAgent {
+            type StartedSubAgent = MockStartedSubAgent;
+
+            fn run(
+                self
+            ) -> Result<<Self as NotStartedSubAgent>::StartedSubAgent, error::SubAgentError>;
+        }
+    }
 
     mock! {
         pub SubAgentBuilderMock {}
