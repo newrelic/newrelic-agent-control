@@ -22,8 +22,7 @@ where
 {
     match opamp_builder {
         Some(builder) => {
-            let start_settings =
-                start_settings(instance_id_getter.get(agent_id.to_string()), agent_type);
+            let start_settings = start_settings(instance_id_getter.get(&agent_id), agent_type);
 
             Ok(Some(builder.build_and_start(
                 ctx,
