@@ -39,7 +39,7 @@ where
         &self,
         _agent: FinalAgent,
         _agent_id: AgentID,
-        _tx: std::sync::mpsc::Sender<crate::command::stream::Event>,
+        _tx: std::sync::mpsc::Sender<crate::sub_agent::on_host::command::stream::Event>,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
         unimplemented!()
     }

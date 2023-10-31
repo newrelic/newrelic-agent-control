@@ -1,7 +1,7 @@
 use std::thread::JoinHandle;
 use std::{sync::mpsc::Receiver, thread::spawn};
 
-use crate::command::stream::OutputEvent;
+use super::stream::OutputEvent;
 
 use super::stream::Event;
 
@@ -42,7 +42,7 @@ mod tests {
 
     use log::Log;
 
-    use crate::command::stream::{Event, Metadata, OutputEvent};
+    use crate::sub_agent::on_host::command::stream::{Event, Metadata, OutputEvent};
 
     use super::{EventLogger, StdEventReceiver};
 

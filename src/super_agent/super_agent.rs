@@ -11,8 +11,6 @@ use opamp_client::{capabilities, Client};
 use thiserror::Error;
 use tracing::{error, info};
 
-use crate::command::logger::{EventLogger, StdEventReceiver};
-use crate::command::stream::Event;
 use crate::config::agent_type::agent_types::FinalAgent;
 use crate::config::remote_config::{RemoteConfig, RemoteConfigError};
 use crate::config::remote_config_hash::{Hash, HashRepository, HashRepositoryFile};
@@ -21,6 +19,8 @@ use crate::context::Context;
 use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPHttpBuilder};
 use crate::sub_agent::collection::{NotStartedSubAgents, StartedSubAgents};
 use crate::sub_agent::error::SubAgentBuilderError;
+use crate::sub_agent::on_host::command::logger::{EventLogger, StdEventReceiver};
+use crate::sub_agent::on_host::command::stream::Event;
 use crate::sub_agent::SubAgentBuilder;
 use crate::sub_agent::{error::SubAgentError, NotStartedSubAgent};
 use crate::super_agent::defaults::{

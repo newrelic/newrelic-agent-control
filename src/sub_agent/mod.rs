@@ -9,8 +9,8 @@ use std::thread::JoinHandle;
 use mockall::automock;
 
 use crate::{
-    command::stream::Event,
     config::{agent_type::agent_types::FinalAgent, super_agent_configs::AgentID},
+    sub_agent::on_host::command::stream::Event,
 };
 
 /// The Runner trait defines the entry-point interface for a supervisor. Exposes a run method that will start the supervised process' execution.
