@@ -8,7 +8,10 @@ use std::thread::JoinHandle;
 // CRATE TRAITS
 use mockall::automock;
 
-use crate::{command::stream::Event, config::agent_type::agent_types::FinalAgent};
+use crate::{
+    command::stream::Event,
+    config::{agent_type::agent_types::FinalAgent, super_agent_configs::AgentID},
+};
 
 /// The Runner trait defines the entry-point interface for a supervisor. Exposes a run method that will start the supervised process' execution.
 #[automock(type StartedSubAgent = MockStartedSubAgent;)]
@@ -31,6 +34,7 @@ pub trait SubAgentBuilder {
     fn build(
         &self,
         agent: FinalAgent,
+        agent_id: AgentID,
         tx: std::sync::mpsc::Sender<Event>,
     ) -> Result<Self::NotStartedSubAgent, error::SubAgentBuilderError>;
 }
@@ -49,6 +53,7 @@ pub(crate) mod test {
             fn build(
                 &self,
                 _agent: FinalAgent,
+                _agent_id: AgentID,
                 _tx: std::sync::mpsc::Sender<Event>,
             ) -> Result<<Self as SubAgentBuilder>::NotStartedSubAgent, error::SubAgentBuilderError>;
         }
@@ -58,7 +63,7 @@ pub(crate) mod test {
         // should_build provides a helper method to create a subagent which runs and stops
         // successfully
         pub(crate) fn should_build(&mut self, times: usize) {
-            self.expect_build().times(times).returning(|_, _| {
+            self.expect_build().times(times).returning(|_, _, _| {
                 let mut not_started_agent = MockNotStartedSubAgent::new();
                 not_started_agent.expect_run().times(1).returning(|| {
                     let mut started_agent = MockStartedSubAgent::new();
@@ -68,18 +73,6 @@ pub(crate) mod test {
                         .returning(|| Ok(Vec::new()));
                     Ok(started_agent)
                 });
-                Ok(not_started_agent)
-            });
-        }
-
-        // should_build provides a helper method to create a subagent which runs but doesn't stop
-        pub(crate) fn should_build_and_run(&mut self, times: usize) {
-            self.expect_build().times(times).returning(|_, _| {
-                let mut not_started_agent = MockNotStartedSubAgent::new();
-                not_started_agent
-                    .expect_run()
-                    .times(1)
-                    .returning(|| Ok(MockStartedSubAgent::new()));
                 Ok(not_started_agent)
             });
         }

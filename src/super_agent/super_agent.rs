@@ -231,7 +231,9 @@ where
                 .agents
                 .into_iter()
                 .map(|(id, agent)| {
-                    let not_started_agent = self.sub_agent_builder.build(agent, tx.clone())?;
+                    let not_started_agent =
+                        self.sub_agent_builder
+                            .build(agent, id.clone(), tx.clone())?;
                     Ok((id, not_started_agent))
                 })
                 .collect::<Result<HashMap<AgentID, S::NotStartedSubAgent>, SubAgentBuilderError>>(
@@ -261,8 +263,10 @@ where
             .assemble_agent(&agent_id, sub_agent_config)?;
 
         running_sub_agents.insert(
-            agent_id,
-            self.sub_agent_builder.build(final_agent, tx)?.run()?,
+            agent_id.clone(),
+            self.sub_agent_builder
+                .build(final_agent, agent_id, tx)?
+                .run()?,
         );
 
         Ok(())

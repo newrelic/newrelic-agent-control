@@ -1,5 +1,5 @@
 use crate::{
-    config::agent_type::agent_types::FinalAgent,
+    config::{agent_type::agent_types::FinalAgent, super_agent_configs::AgentID},
     opamp::client_builder::OpAMPClientBuilder,
     sub_agent::{
         error::SubAgentBuilderError, on_host::sub_agent::NotStartedSubAgentOnHost, SubAgentBuilder,
@@ -38,6 +38,7 @@ where
     fn build(
         &self,
         _agent: FinalAgent,
+        _agent_id: AgentID,
         _tx: std::sync::mpsc::Sender<crate::command::stream::Event>,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
         unimplemented!()
