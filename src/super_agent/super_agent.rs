@@ -12,9 +12,10 @@ use thiserror::Error;
 use tracing::{error, info};
 
 use crate::config::agent_type::agent_types::FinalAgent;
+use crate::config::loader::{SubAgentsConfigLoader, SuperAgentConfigLoaderFile};
 use crate::config::remote_config::{RemoteConfig, RemoteConfigError};
 use crate::config::remote_config_hash::{Hash, HashRepository, HashRepositoryFile};
-use crate::config::super_agent_configs::{AgentID, SuperAgentConfig};
+use crate::config::super_agent_configs::{AgentID, SubAgentsConfig};
 use crate::context::Context;
 use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPHttpBuilder};
 use crate::sub_agent::collection::{NotStartedSubAgents, StartedSubAgents};
@@ -48,12 +49,14 @@ pub struct SuperAgent<
     OpAMPBuilder = OpAMPHttpBuilder,
     ID = ULIDInstanceIDGetter,
     HR = HashRepositoryFile,
+    SL = SuperAgentConfigLoaderFile,
 > where
     Assembler: EffectiveAgentsAssembler,
     OpAMPBuilder: OpAMPClientBuilder,
     ID: InstanceIDGetter,
     HR: HashRepository,
     S: SubAgentBuilder,
+    SL: SubAgentsConfigLoader,
 {
     instance_id_getter: &'a ID,
     effective_agents_asssembler: Assembler,
@@ -61,15 +64,18 @@ pub struct SuperAgent<
     sub_agent_builder: S,
     remote_config_hash_repository: HR,
     agent_id: AgentID,
+    sub_agents_config_loader: SL,
 }
 
-impl<'a, Assembler, S, OpAMPBuilder, ID, HR> SuperAgent<'a, Assembler, S, OpAMPBuilder, ID, HR>
+impl<'a, Assembler, S, OpAMPBuilder, ID, HR, SL>
+    SuperAgent<'a, Assembler, S, OpAMPBuilder, ID, HR, SL>
 where
     Assembler: EffectiveAgentsAssembler,
     OpAMPBuilder: OpAMPClientBuilder,
     ID: InstanceIDGetter,
     HR: HashRepository,
     S: SubAgentBuilder,
+    SL: SubAgentsConfigLoader,
 {
     pub fn new(
         effective_agents_asssembler: Assembler,
@@ -77,6 +83,7 @@ where
         instance_id_getter: &'a ID,
         remote_config_hash_repository: HR,
         sub_agent_builder: S,
+        sub_agents_config_loader: SL,
     ) -> Self {
         Self {
             instance_id_getter,
@@ -86,6 +93,7 @@ where
             sub_agent_builder,
             // unwrap as we control content of the SUPER_AGENT_ID constant
             agent_id: AgentID::new_super_agent_id(),
+            sub_agents_config_loader,
         }
     }
 
@@ -94,19 +102,17 @@ where
     }
 }
 
-impl<'a, Assembler, S, OpAMPBuilder, ID, HR> SuperAgent<'a, Assembler, S, OpAMPBuilder, ID, HR>
+impl<'a, Assembler, S, OpAMPBuilder, ID, HR, SL>
+    SuperAgent<'a, Assembler, S, OpAMPBuilder, ID, HR, SL>
 where
     Assembler: EffectiveAgentsAssembler,
     OpAMPBuilder: OpAMPClientBuilder,
     ID: InstanceIDGetter,
     HR: HashRepository,
     S: SubAgentBuilder,
+    SL: SubAgentsConfigLoader,
 {
-    pub fn run(
-        self,
-        ctx: Context<Option<SuperAgentEvent>>,
-        super_agent_config: &SuperAgentConfig,
-    ) -> Result<(), AgentError> {
+    pub fn run(self, ctx: Context<Option<SuperAgentEvent>>) -> Result<(), AgentError> {
         info!("Creating agent's communication channels");
         // Channel will be closed when tx is dropped and no reference to it is alive
         let (tx, rx) = mpsc::channel();
@@ -132,7 +138,8 @@ where
         }
 
         info!("Starting the supervisor group.");
-        let effective_agents = self.load_effective_agents(super_agent_config)?;
+        let effective_agents =
+            self.load_effective_agents(&self.sub_agents_config_loader.load_config()?)?;
 
         let not_started_sub_agents = self.load_sub_agents(effective_agents, &tx)?;
 
@@ -171,7 +178,7 @@ where
                         SuperAgentEvent::RestartSubAgent(agent_id) => {
                             self.recreate_sub_agent(
                                 agent_id,
-                                super_agent_config,
+                                &self.sub_agents_config_loader.load_config()?,
                                 tx.clone(),
                                 &mut running_sub_agents,
                             )?;
@@ -246,7 +253,7 @@ where
     fn recreate_sub_agent(
         &self,
         agent_id: AgentID,
-        super_agent_config: &SuperAgentConfig,
+        sub_agents_config: &SubAgentsConfig,
         tx: Sender<Event>,
         running_sub_agents: &mut StartedSubAgents<
             <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
@@ -254,7 +261,7 @@ where
     ) -> Result<(), AgentError> {
         running_sub_agents.stop_remove(&agent_id)?;
 
-        let sub_agent_config = super_agent_config.sub_agent_config(&agent_id)?;
+        let sub_agent_config = sub_agents_config.get(&agent_id)?;
         let final_agent = self
             .effective_agents_asssembler
             .assemble_agent(&agent_id, sub_agent_config)?;
@@ -317,7 +324,7 @@ where
 
     fn load_effective_agents(
         &self,
-        super_agent_config: &SuperAgentConfig,
+        super_agent_config: &SubAgentsConfig,
     ) -> Result<EffectiveAgents, EffectiveAgentsAssemblerError> {
         self.effective_agents_asssembler
             .assemble_agents(super_agent_config)
@@ -401,6 +408,8 @@ mod tests {
     use crate::config::agent_type::agent_types::FinalAgent;
     use crate::config::agent_type::runtime_config::OnHost;
     use crate::config::agent_type_registry::tests::MockAgentRegistryMock;
+    use crate::config::loader::tests::MockSubAgentsConfigLoader;
+    use crate::config::loader::SubAgentsConfigLoader;
     use crate::config::persister::config_persister::test::MockConfigurationPersisterMock;
     use crate::config::persister::config_persister::PersistError::FileError;
     use crate::config::persister::config_writer_file::WriteError;
@@ -408,7 +417,7 @@ mod tests {
     use crate::config::remote_config_hash::test::MockHashRepositoryMock;
     use crate::config::remote_config_hash::{Hash, HashRepository};
     use crate::config::super_agent_configs::{
-        AgentID, AgentTypeFQN, SubAgentConfig, SuperAgentConfig,
+        AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig, SuperAgentConfig,
     };
     use crate::context::Context;
     use crate::file_reader::test::MockFileReaderMock;
@@ -441,13 +450,15 @@ mod tests {
     ////////////////////////////////////////////////////////////////////////////////////
     // Custom Agent constructor for tests
     ////////////////////////////////////////////////////////////////////////////////////
-    impl<'a, Assembler, S, OpAMPBuilder, ID, HR> SuperAgent<'a, Assembler, S, OpAMPBuilder, ID, HR>
+    impl<'a, Assembler, S, OpAMPBuilder, ID, HR, SL>
+        SuperAgent<'a, Assembler, S, OpAMPBuilder, ID, HR, SL>
     where
         Assembler: EffectiveAgentsAssembler,
         OpAMPBuilder: OpAMPClientBuilder,
         ID: InstanceIDGetter,
         HR: HashRepository,
         S: SubAgentBuilder,
+        SL: SubAgentsConfigLoader,
     {
         pub fn new_custom(
             instance_id_getter: &'a ID,
@@ -455,6 +466,7 @@ mod tests {
             opamp_client_builder: Option<&'a OpAMPBuilder>,
             remote_config_hash_repository: HR,
             sub_agent_builder: S,
+            sub_agents_config_loader: SL,
         ) -> Self {
             SuperAgent {
                 effective_agents_asssembler,
@@ -463,6 +475,7 @@ mod tests {
                 remote_config_hash_repository,
                 sub_agent_builder,
                 agent_id: AgentID::new_super_agent_id(),
+                sub_agents_config_loader,
             }
         }
     }
@@ -500,10 +513,10 @@ mod tests {
         let local_assembler =
             LocalEffectiveAgentsAssembler::new(registry, conf_persister, file_reader);
 
-        let super_agent_config = SuperAgentConfig {
-            opamp: None,
-            agents: HashMap::new().into(),
-        };
+        let mut sub_agents_config_loader = MockSubAgentsConfigLoader::new();
+        sub_agents_config_loader
+            .expect_load_config()
+            .returning(|| Ok(HashMap::new().into()));
 
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         hash_repository_mock.expect_get().times(1).returning(|_| {
@@ -519,6 +532,7 @@ mod tests {
             Some(&opamp_builder),
             hash_repository_mock,
             MockSubAgentBuilderMock::new(),
+            sub_agents_config_loader,
         );
 
         let ctx = Context::new();
@@ -530,7 +544,7 @@ mod tests {
             Duration::from_millis(50),
         );
 
-        assert!(agent.run(ctx, &super_agent_config).is_ok())
+        assert!(agent.run(ctx).is_ok())
     }
 
     #[test]
@@ -616,7 +630,10 @@ mod tests {
         // it should build two subagents: nrdot + infra_agent
         sub_agent_builder.should_build(2);
 
-        let super_agent_config = super_agent_default_config();
+        let mut sub_agents_config_loader = MockSubAgentsConfigLoader::new();
+        sub_agents_config_loader
+            .expect_load_config()
+            .returning(|| Ok(super_agent_default_config()));
 
         let agent = SuperAgent::new_custom(
             &instance_id_getter,
@@ -624,6 +641,7 @@ mod tests {
             Some(&opamp_builder),
             hash_repository_mock,
             sub_agent_builder,
+            sub_agents_config_loader,
         );
 
         let ctx = Context::new();
@@ -633,7 +651,7 @@ mod tests {
             SuperAgentEvent::Stop,
             Duration::from_millis(50),
         );
-        assert!(agent.run(ctx, &super_agent_config).is_ok())
+        assert!(agent.run(ctx).is_ok())
     }
 
     #[test]
@@ -711,7 +729,10 @@ mod tests {
         let local_assembler =
             LocalEffectiveAgentsAssembler::new(registry, conf_persister, file_reader_mock);
 
-        let super_agent_config = super_agent_default_config();
+        let mut sub_agents_config_loader = MockSubAgentsConfigLoader::new();
+        sub_agents_config_loader
+            .expect_load_config()
+            .returning(|| Ok(super_agent_default_config()));
 
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         hash_repository_mock
@@ -744,6 +765,7 @@ mod tests {
             Some(&opamp_builder),
             hash_repository_mock,
             sub_agent_builder,
+            sub_agents_config_loader,
         );
 
         let ctx = Context::new();
@@ -766,7 +788,7 @@ mod tests {
                 ctx.cancel_all(Some(SuperAgentEvent::Stop)).unwrap();
             }
         });
-        assert!(agent.run(ctx, &super_agent_config).is_ok())
+        assert!(agent.run(ctx).is_ok())
     }
 
     #[test]
@@ -849,7 +871,10 @@ mod tests {
         let local_assembler =
             LocalEffectiveAgentsAssembler::new(registry, conf_persister, file_reader_mock);
 
-        let super_agent_config = super_agent_default_config();
+        let mut sub_agents_config_loader = MockSubAgentsConfigLoader::new();
+        sub_agents_config_loader
+            .expect_load_config()
+            .returning(|| Ok(super_agent_default_config()));
 
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         hash_repository_mock.expect_get().times(1).returning(|_| {
@@ -869,6 +894,7 @@ mod tests {
             Some(&opamp_builder),
             hash_repository_mock,
             sub_agent_builder,
+            sub_agents_config_loader,
         );
 
         let ctx = Context::new();
@@ -884,7 +910,7 @@ mod tests {
             SuperAgentEvent::Stop,
             Duration::from_millis(100),
         );
-        assert!(agent.run(ctx, &super_agent_config).is_ok())
+        assert!(agent.run(ctx).is_ok())
     }
 
     #[test]
@@ -958,7 +984,11 @@ mod tests {
         let local_assembler =
             LocalEffectiveAgentsAssembler::new(registry, conf_persister, file_reader_mock);
 
-        let super_agent_config = super_agent_single_agent();
+        let mut sub_agents_config_loader = MockSubAgentsConfigLoader::new();
+        sub_agents_config_loader
+            .expect_load_config()
+            .times(2)
+            .returning(|| Ok(super_agent_default_config()));
 
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         hash_repository_mock.should_get_applied_hash(
@@ -977,6 +1007,7 @@ mod tests {
             Some(&opamp_builder),
             hash_repository_mock,
             sub_agent_builder,
+            sub_agents_config_loader,
         );
 
         let ctx = Context::new();
@@ -993,7 +1024,7 @@ mod tests {
             Duration::from_millis(100),
         );
 
-        let result = agent.run(ctx, &super_agent_config);
+        let result = agent.run(ctx);
         assert_eq!("effective agents assembler error: `error assembling agents: `file error: `error creating file: `permission denied````".to_string(), result.err().unwrap().to_string());
     }
 
@@ -1093,6 +1124,11 @@ mod tests {
             Hash::new("a-hash".to_string()),
         );
 
+        let mut sub_agents_config_loader = MockSubAgentsConfigLoader::new();
+        sub_agents_config_loader
+            .expect_load_config()
+            .returning(|| Ok(super_agent_default_config()));
+
         // Create the Super Agent and rub Sub Agents
         let super_agent = SuperAgent::new_custom(
             &instance_id_getter,
@@ -1100,6 +1136,7 @@ mod tests {
             Some(&opamp_builder),
             hash_repository_mock,
             sub_agent_builder,
+            sub_agents_config_loader,
         );
 
         let ctx = Context::new();
@@ -1116,7 +1153,7 @@ mod tests {
             Duration::from_millis(100),
         );
 
-        assert!(super_agent.run(ctx, &super_agent_default_config()).is_ok());
+        assert!(super_agent.run(ctx).is_ok());
     }
 
     #[test]
@@ -1199,6 +1236,11 @@ mod tests {
         // it should build two sub_agents (2 + 0 error)
         sub_agent_builder.should_build(2);
 
+        let mut sub_agents_config_loader = MockSubAgentsConfigLoader::new();
+        sub_agents_config_loader
+            .expect_load_config()
+            .returning(|| Ok(super_agent_default_config()));
+
         // Create the Super Agent and rub Sub Agents
         let super_agent = SuperAgent::new_custom(
             &instance_id_getter,
@@ -1206,12 +1248,13 @@ mod tests {
             None::<&MockOpAMPClientBuilderMock>,
             MockHashRepositoryMock::new(),
             sub_agent_builder,
+            sub_agents_config_loader,
         );
 
         let (tx, _) = mpsc::channel();
-        let super_agent_config = super_agent_default_config();
+
         let effective_agents = super_agent
-            .load_effective_agents(&super_agent_config)
+            .load_effective_agents(&super_agent.sub_agents_config_loader.load_config().unwrap())
             .unwrap();
 
         let sub_agents = super_agent.load_sub_agents(effective_agents, &tx);
@@ -1220,7 +1263,7 @@ mod tests {
 
         let result = super_agent.recreate_sub_agent(
             agent_id_to_restart,
-            &super_agent_config,
+            &super_agent.sub_agents_config_loader.load_config().unwrap(),
             tx,
             &mut running_sub_agents,
         );
@@ -1272,27 +1315,24 @@ mod tests {
         }
     }
 
-    fn super_agent_default_config() -> SuperAgentConfig {
-        SuperAgentConfig {
-            opamp: None,
-            agents: HashMap::from([
-                (
-                    AgentID::new("infra_agent").unwrap(),
-                    SubAgentConfig {
-                        agent_type: AgentTypeFQN::from(
-                            "newrelic/com.newrelic.infrastructure_agent:0.0.1",
-                        ),
-                    },
-                ),
-                (
-                    AgentID::new("nrdot").unwrap(),
-                    SubAgentConfig {
-                        agent_type: AgentTypeFQN::from("newrelic/io.opentelemetry.collector:0.0.1"),
-                    },
-                ),
-            ])
-            .into(),
-        }
+    fn super_agent_default_config() -> SubAgentsConfig {
+        HashMap::from([
+            (
+                AgentID::new("infra_agent").unwrap(),
+                SubAgentConfig {
+                    agent_type: AgentTypeFQN::from(
+                        "newrelic/com.newrelic.infrastructure_agent:0.0.1",
+                    ),
+                },
+            ),
+            (
+                AgentID::new("nrdot").unwrap(),
+                SubAgentConfig {
+                    agent_type: AgentTypeFQN::from("newrelic/io.opentelemetry.collector:0.0.1"),
+                },
+            ),
+        ])
+        .into()
     }
 
     fn super_agent_single_agent() -> SuperAgentConfig {

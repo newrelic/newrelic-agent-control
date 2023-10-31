@@ -103,12 +103,9 @@ pub struct SuperAgentConfig {
     pub opamp: Option<OpAMPClientConfig>,
 }
 
-impl SuperAgentConfig {
-    pub fn sub_agent_config(
-        &self,
-        agent_id: &AgentID,
-    ) -> Result<&SubAgentConfig, SuperAgentConfigError> {
-        self.agents
+impl SubAgentsConfig {
+    pub fn get(&self, agent_id: &AgentID) -> Result<&SubAgentConfig, SuperAgentConfigError> {
+        self.0
             .get(agent_id)
             .ok_or(SuperAgentConfigError::SubAgentNotFound(
                 agent_id.to_string(),

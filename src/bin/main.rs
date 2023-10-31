@@ -33,10 +33,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     create_shutdown_signal_handler(ctx.clone())?;
 
     let super_agent_config =
-        SuperAgentConfigLoaderFile::new(&cli.get_config_path(), &cli.get_config_path())
-            .load_config()?;
+        SuperAgentConfigLoaderFile::new(&cli.get_config_path(), &cli.get_config_path());
 
     let opamp_client_builder: Option<OpAMPHttpBuilder> = super_agent_config
+        .load_config()?
         .opamp
         .as_ref()
         .map(|opamp_config| OpAMPHttpBuilder::new(opamp_config.clone()));
@@ -52,7 +52,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 }
 
 fn run_super_agent(
-    config: SuperAgentConfig,
+    config: SuperAgentConfigLoaderFile,
     ctx: Context<Option<SuperAgentEvent>>,
     opamp_client_builder: Option<OpAMPHttpBuilder>,
     instance_id_getter: ULIDInstanceIDGetter,
@@ -79,8 +79,9 @@ fn run_super_agent(
         &instance_id_getter,
         HashRepositoryFile::default(),
         sub_agent_builder,
+        config,
     )
-    .run(ctx, &config)
+    .run(ctx)
 }
 
 fn create_shutdown_signal_handler(

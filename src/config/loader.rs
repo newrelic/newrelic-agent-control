@@ -64,17 +64,30 @@ impl SuperAgentConfigLoaderFile {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use std::{collections::HashMap, io::Write};
 
     use tempfile::NamedTempFile;
 
     use crate::config::{
-        loader::{SuperAgentConfigLoader, SuperAgentConfigLoaderFile},
+        loader::SuperAgentConfigLoaderFile,
         super_agent_configs::{
             AgentID, AgentTypeFQN, OpAMPClientConfig, SubAgentConfig, SuperAgentConfig,
         },
     };
+
+    use mockall::mock;
+
+    mock! {
+        pub SubAgentsConfigLoader {}
+
+        impl super::SubAgentsConfigLoader for SubAgentsConfigLoader {
+
+            fn load_config(&self) -> Result<super::SubAgentsConfig, super::SuperAgentConfigError>;
+        }
+    }
+
+    use super::SuperAgentConfigLoader;
 
     #[test]
     fn load_empty_agents_field_good() {
@@ -102,7 +115,6 @@ agents:
                 AgentID::new("rolldice"),
                 SubAgentConfig {
                     agent_type: AgentTypeFQN("com.newrelic.infrastructure_agent:0.0.2".to_string()),
-                    values_file: None,
                 },
             )])
             .into(),
