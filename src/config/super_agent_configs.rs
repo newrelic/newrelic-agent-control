@@ -36,7 +36,7 @@ impl Display for AgentID {
 pub struct SuperAgentConfig {
     /// agents is a map of agent types to their specific configuration (if any).
     #[serde(default)]
-    pub agents: HashMap<AgentID, SuperAgentSubAgentConfig>,
+    pub agents: HashMap<AgentID, SubAgentConfig>,
 
     /// opamp contains the OpAMP client configuration
     pub opamp: Option<OpAMPClientConfig>,
@@ -46,7 +46,7 @@ impl SuperAgentConfig {
     pub fn sub_agent_config(
         &self,
         agent_id: &AgentID,
-    ) -> Result<&SuperAgentSubAgentConfig, SuperAgentConfigError> {
+    ) -> Result<&SubAgentConfig, SuperAgentConfigError> {
         self.agents
             .get(agent_id)
             .ok_or(SuperAgentConfigError::SubAgentNotFound(
@@ -99,7 +99,7 @@ impl From<&str> for AgentTypeFQN {
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(deny_unknown_fields)]
-pub struct SuperAgentSubAgentConfig {
+pub struct SubAgentConfig {
     pub agent_type: AgentTypeFQN,
     // FQN of the agent type, ex: newrelic/nrdot:0.1.0
     pub values_file: Option<String>, // path to the values file
