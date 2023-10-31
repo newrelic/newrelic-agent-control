@@ -403,7 +403,7 @@ mod tests {
     use crate::config::remote_config_hash::test::MockHashRepositoryMock;
     use crate::config::remote_config_hash::{Hash, HashRepository};
     use crate::config::super_agent_configs::{
-        AgentID, AgentTypeFQN, SuperAgentConfig, SuperAgentSubAgentConfig,
+        AgentID, AgentTypeFQN, SubAgentConfig, SuperAgentConfig,
     };
     use crate::context::Context;
     use crate::file_reader::test::MockFileReaderMock;
@@ -1181,7 +1181,7 @@ mod tests {
             agents: HashMap::from([
                 (
                     AgentID("infra_agent".to_string()),
-                    SuperAgentSubAgentConfig {
+                    SubAgentConfig {
                         agent_type: AgentTypeFQN::from(
                             "newrelic/com.newrelic.infrastructure_agent:0.0.1",
                         ),
@@ -1190,7 +1190,7 @@ mod tests {
                 ),
                 (
                     AgentID("nrdot".to_string()),
-                    SuperAgentSubAgentConfig {
+                    SubAgentConfig {
                         agent_type: AgentTypeFQN::from("newrelic/io.opentelemetry.collector:0.0.1"),
                         values_file: None,
                     },
@@ -1204,7 +1204,7 @@ mod tests {
             opamp: None,
             agents: HashMap::from([(
                 AgentID("infra_agent".to_string()),
-                SuperAgentSubAgentConfig {
+                SubAgentConfig {
                     agent_type: AgentTypeFQN::from(
                         "newrelic/com.newrelic.infrastructure_agent:0.0.1",
                     ),

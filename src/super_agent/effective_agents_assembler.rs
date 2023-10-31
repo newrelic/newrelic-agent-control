@@ -1,17 +1,17 @@
 use thiserror::Error;
 
 use crate::config::agent_type::agent_types::FinalAgent;
-use crate::config::super_agent_configs::{AgentID, SuperAgentSubAgentConfig};
+use crate::config::super_agent_configs::{AgentID, SubAgentConfig};
 use crate::super_agent::super_agent::{EffectiveAgents, EffectiveAgentsError};
 use crate::{
     config::{
         agent_type::error::AgentTypeError,
         agent_type_registry::{AgentRegistry, AgentRepositoryError, LocalRegistry},
+        agent_values::AgentValues,
         persister::{
             config_persister::{ConfigurationPersister, PersistError},
             config_persister_file::ConfigurationPersisterFile,
         },
-        sub_agent_config::SubAgentConfig,
         super_agent_configs::SuperAgentConfig,
     },
     file_reader::{FSFileReader, FileReader, FileReaderError},
@@ -42,7 +42,7 @@ pub trait EffectiveAgentsAssembler {
     fn assemble_agent(
         &self,
         agent_id: &AgentID,
-        agent_cfg: &SuperAgentSubAgentConfig,
+        agent_cfg: &SubAgentConfig,
     ) -> Result<FinalAgent, EffectiveAgentsAssemblerError>;
 }
 
@@ -89,11 +89,11 @@ where
     fn assemble_agent(
         &self,
         agent_id: &AgentID,
-        agent_cfg: &SuperAgentSubAgentConfig,
+        agent_cfg: &SubAgentConfig,
     ) -> Result<FinalAgent, EffectiveAgentsAssemblerError> {
         //load agent type from repository and populate with values
         let agent_type = self.registry.get(&agent_cfg.agent_type)?;
-        let mut agent_config: SubAgentConfig = SubAgentConfig::default();
+        let mut agent_config: AgentValues = AgentValues::default();
         if let Some(path) = &agent_cfg.values_file {
             let contents = self.file_reader.read(path.as_str())?;
             agent_config = serde_yaml::from_str(&contents)?;
@@ -127,13 +127,13 @@ mod tests {
         config::{
             agent_type::{agent_types::FinalAgent, trivial_value::TrivialValue},
             agent_type_registry::{AgentRegistry, LocalRegistry},
+            agent_values::AgentValues,
             persister::{
                 config_persister::{test::MockConfigurationPersisterMock, ConfigurationPersister},
                 config_writer_file::WriteError,
                 directory_manager::DirectoryManagementError,
             },
-            sub_agent_config::SubAgentConfig,
-            super_agent_configs::{AgentID, SuperAgentConfig, SuperAgentSubAgentConfig},
+            super_agent_configs::{AgentID, SubAgentConfig, SuperAgentConfig},
         },
         file_reader::{test::MockFileReaderMock, FileReader},
     };
@@ -396,7 +396,7 @@ deployment:
             .for_each(|(agent_id, agent_type, agent_values)| {
                 let mut agent_type: FinalAgent =
                     serde_yaml::from_reader(agent_type.as_bytes()).unwrap();
-                let agent_values: SubAgentConfig =
+                let agent_values: AgentValues =
                     serde_yaml::from_reader(agent_values.as_bytes()).unwrap();
                 agent_type = agent_type.template_with(agent_values).unwrap();
                 let res = populated_agent_type_repository
@@ -409,7 +409,7 @@ deployment:
             agents: HashMap::from([
                 (
                     first_agent_id.clone(),
-                    SuperAgentSubAgentConfig {
+                    SubAgentConfig {
                         agent_type: populated_agent_type_repository
                             .get(&first_agent_id)
                             .unwrap()
@@ -422,7 +422,7 @@ deployment:
                 ),
                 (
                     second_agent_id.clone(),
-                    SuperAgentSubAgentConfig {
+                    SubAgentConfig {
                         agent_type: populated_agent_type_repository
                             .get(&second_agent_id)
                             .unwrap()
