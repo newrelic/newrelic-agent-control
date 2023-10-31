@@ -25,6 +25,7 @@ ENV ARCH_NAME=${ARCH_NAME} \
     CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++
 
 # Persist the ARG value into an ENV so it's available at runtime
+ARG BUILD_MODE
 ENV BUILD_MODE_ENV=${BUILD_MODE}
 
 # Execute the command dynamically at runtime
