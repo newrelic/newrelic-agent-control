@@ -8,13 +8,13 @@ use crate::{
         SubAgentBuilder,
     },
     super_agent::instance_id::InstanceIDGetter,
-    supervisor::{
-        command_supervisor::NotStartedSupervisorOnHost,
-        command_supervisor_config::SupervisorConfigOnHost, restart_policy::RestartPolicy,
-    },
 };
 
 use super::sub_agent::NotStartedSubAgentOnHost;
+use super::supervisor::{
+    command_supervisor::NotStartedSupervisorOnHost,
+    command_supervisor_config::SupervisorConfigOnHost, restart_policy::RestartPolicy,
+};
 
 pub struct OnHostSubAgentBuilder<'a, O, I>
 where

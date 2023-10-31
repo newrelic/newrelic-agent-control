@@ -5,6 +5,7 @@ use opamp_client::opamp::proto::AgentHealth;
 use opamp_client::StartedClient;
 use tracing::info;
 
+use super::supervisor::command_supervisor::{NotStartedSupervisorOnHost, StartedSupervisorOnHost};
 use crate::config::super_agent_configs::{AgentID, AgentTypeFQN};
 use crate::context::Context;
 use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPClientBuilderError};
@@ -13,7 +14,6 @@ use crate::sub_agent::on_host::opamp::build_opamp_and_start_client;
 use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
 use crate::super_agent::instance_id::InstanceIDGetter;
 use crate::super_agent::super_agent::SuperAgentEvent;
-use crate::supervisor::command_supervisor::{NotStartedSupervisorOnHost, StartedSupervisorOnHost};
 use crate::utils::time::get_sys_time_nano;
 
 ////////////////////////////////////////////////////////////////////////////////////

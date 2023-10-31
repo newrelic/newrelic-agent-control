@@ -1,6 +1,8 @@
 use std::{str::FromStr, time::Duration};
 
-use crate::supervisor::restart_policy::{Backoff, BackoffStrategy, RestartPolicy};
+use crate::sub_agent::on_host::supervisor::restart_policy::{
+    Backoff, BackoffStrategy, RestartPolicy,
+};
 use duration_str::deserialize_duration;
 use serde::Deserialize;
 
