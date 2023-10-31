@@ -464,7 +464,8 @@ deployment:
                             .into(),
                     },
                 ),
-            ]),
+            ])
+            .into(),
             opamp: None,
         };
 

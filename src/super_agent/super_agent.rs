@@ -502,7 +502,7 @@ mod tests {
 
         let super_agent_config = SuperAgentConfig {
             opamp: None,
-            agents: HashMap::new(),
+            agents: HashMap::new().into(),
         };
 
         let mut hash_repository_mock = MockHashRepositoryMock::new();
@@ -1290,7 +1290,8 @@ mod tests {
                         agent_type: AgentTypeFQN::from("newrelic/io.opentelemetry.collector:0.0.1"),
                     },
                 ),
-            ]),
+            ])
+            .into(),
         }
     }
 
@@ -1304,7 +1305,8 @@ mod tests {
                         "newrelic/com.newrelic.infrastructure_agent:0.0.1",
                     ),
                 },
-            )]),
+            )])
+            .into(),
         }
     }
 

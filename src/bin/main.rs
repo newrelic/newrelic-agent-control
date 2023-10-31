@@ -33,7 +33,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     create_shutdown_signal_handler(ctx.clone())?;
 
     let super_agent_config =
-        SuperAgentConfigLoaderFile::new(&cli.get_config_path()).load_config()?;
+        SuperAgentConfigLoaderFile::new(&cli.get_config_path(), &cli.get_config_path())
+            .load_config()?;
 
     let opamp_client_builder: Option<OpAMPHttpBuilder> = super_agent_config
         .opamp

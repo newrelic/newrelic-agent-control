@@ -74,13 +74,30 @@ impl Display for AgentID {
     }
 }
 
+/// SubAgentsConfig represents the configuration for the sub agents.
+#[derive(Debug, Deserialize, Default, PartialEq, Clone)]
+pub struct SubAgentsConfig(pub(crate) HashMap<AgentID, SubAgentConfig>);
+
+impl Deref for SubAgentsConfig {
+    type Target = HashMap<AgentID, SubAgentConfig>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl From<HashMap<AgentID, SubAgentConfig>> for SubAgentsConfig {
+    fn from(value: HashMap<AgentID, SubAgentConfig>) -> Self {
+        Self(value)
+    }
+}
+
 /// SuperAgentConfig represents the configuration for the super agent.
 #[derive(Debug, Deserialize, Default, PartialEq, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct SuperAgentConfig {
     /// agents is a map of agent types to their specific configuration (if any).
     #[serde(default)]
-    pub agents: HashMap<AgentID, SubAgentConfig>,
+    pub agents: SubAgentsConfig,
 
     /// opamp contains the OpAMP client configuration
     pub opamp: Option<OpAMPClientConfig>,
@@ -100,7 +117,7 @@ impl SuperAgentConfig {
 }
 
 #[derive(Debug, PartialEq, Deserialize, Clone)]
-pub struct AgentTypeFQN(String);
+pub struct AgentTypeFQN(pub String);
 
 impl Deref for AgentTypeFQN {
     type Target = str;
