@@ -1,15 +1,14 @@
 use ulid::Ulid;
 
 pub trait InstanceIDGetter {
-    // TODO: does name need to be owned?
-    fn get(&self, name: String) -> String;
+    fn get(&self, name: &str) -> String;
 }
 
 #[derive(Default)]
 pub struct ULIDInstanceIDGetter {}
 
 impl InstanceIDGetter for ULIDInstanceIDGetter {
-    fn get(&self, _: String) -> String {
+    fn get(&self, _: &str) -> String {
         Ulid::new().to_string()
     }
 }
@@ -23,7 +22,7 @@ pub(crate) mod test {
         pub InstanceIDGetterMock {}
 
         impl InstanceIDGetter for InstanceIDGetterMock {
-            fn get(&self, name:String) -> String;
+            fn get(&self, name:&str) -> String;
         }
     }
 
@@ -31,7 +30,7 @@ pub(crate) mod test {
         pub fn should_get(&mut self, name: String, instance_id: String) {
             self.expect_get()
                 .once()
-                .with(predicate::eq(name))
+                .with(predicate::eq(name.clone()))
                 .returning(move |_| instance_id.clone());
         }
     }

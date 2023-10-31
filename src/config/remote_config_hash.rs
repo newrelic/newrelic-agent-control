@@ -54,8 +54,8 @@ impl Hash {
 }
 
 pub trait HashRepository {
-    fn save(&self, agent_id: AgentID, hash: Hash) -> Result<(), HashRepositoryError>;
-    fn get(&self, agent_id: AgentID) -> Result<Hash, HashRepositoryError>;
+    fn save(&self, agent_id: &AgentID, hash: &Hash) -> Result<(), HashRepositoryError>;
+    fn get(&self, agent_id: &AgentID) -> Result<Hash, HashRepositoryError>;
 }
 
 const HASH_FILE_EXTENSION: &str = "yaml";
@@ -93,16 +93,16 @@ where
     R: FileReader,
     W: Writer,
 {
-    fn save(&self, agent_id: AgentID, hash: Hash) -> Result<(), HashRepositoryError> {
+    fn save(&self, agent_id: &AgentID, hash: &Hash) -> Result<(), HashRepositoryError> {
         let mut conf_path = self.conf_path.clone();
-        let hash_path = self.hash_file_path(&agent_id, &mut conf_path);
-        let writing_result = self.write(hash_path, serde_yaml::to_string(&hash)?);
+        let hash_path = self.hash_file_path(agent_id, &mut conf_path);
+        let writing_result = self.write(hash_path, serde_yaml::to_string(hash)?);
         Ok(writing_result?)
     }
 
-    fn get(&self, agent_id: AgentID) -> Result<Hash, HashRepositoryError> {
+    fn get(&self, agent_id: &AgentID) -> Result<Hash, HashRepositoryError> {
         let mut conf_path = self.conf_path.clone();
-        let hash_path = self.hash_file_path(&agent_id, &mut conf_path).to_str();
+        let hash_path = self.hash_file_path(agent_id, &mut conf_path).to_str();
         if let Some(path) = hash_path {
             let contents = self.file_reader.read(path)?;
             let result = serde_yaml::from_str(&contents);
@@ -159,9 +159,9 @@ pub mod test {
 
         impl HashRepository for HashRepositoryMock {
 
-            fn save(&self, agent_id: AgentID, hash:Hash) -> Result<(), HashRepositoryError>;
+            fn save(&self, agent_id: &AgentID, hash:&Hash) -> Result<(), HashRepositoryError>;
 
-            fn get(&self, agent_id: AgentID) -> Result<Hash, HashRepositoryError>;
+            fn get(&self, agent_id: &AgentID) -> Result<Hash, HashRepositoryError>;
         }
     }
 
@@ -223,10 +223,10 @@ applied: true
         let hash_repository =
             HashRepositoryFile::with_mocks(file_reader_mock, file_writer_mock, some_path);
 
-        let result = hash_repository.save(agent_id.clone(), hash.clone());
-        assert_eq!((), result.unwrap());
+        let result = hash_repository.save(&agent_id, &hash);
+        assert!(result.is_ok());
 
-        let result = hash_repository.get(agent_id.clone());
+        let result = hash_repository.get(&agent_id);
         assert_eq!(hash, result.unwrap());
     }
 }

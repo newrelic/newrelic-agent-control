@@ -63,6 +63,7 @@ pub struct SuperAgent<
     opamp_client_builder: Option<&'a OpAMPBuilder>,
     sub_agent_builder: S,
     remote_config_hash_repository: HR,
+    agent_id: AgentID,
 }
 
 impl<'a, Assembler, S, OpAMPBuilder, ID, HR> SuperAgent<'a, Assembler, S, OpAMPBuilder, ID, HR>
@@ -86,7 +87,12 @@ where
             opamp_client_builder,
             remote_config_hash_repository,
             sub_agent_builder,
+            agent_id: AgentID(SUPER_AGENT_ID.to_string()),
         }
+    }
+
+    fn agent_id(&self) -> &AgentID {
+        &self.agent_id
     }
 }
 
@@ -116,7 +122,7 @@ where
             // TODO should we error on first launch with no hash file?
             let remote_config_hash = self
                 .remote_config_hash_repository
-                .get(AgentID(SUPER_AGENT_ID.to_string()))
+                .get(self.agent_id())
                 .map_err(|e| error!("hash repository error: {}", e))
                 .ok();
 
@@ -208,7 +214,7 @@ where
         }))?;
         hash.apply();
         self.remote_config_hash_repository
-            .save(AgentID(SUPER_AGENT_ID.to_string()), hash.clone())?;
+            .save(self.agent_id(), &hash)?;
         Ok(())
     }
 
@@ -275,7 +281,7 @@ where
                 info!("Starting superagent's OpAMP Client.");
                 let opamp_client = builder.build_and_start(
                     ctx,
-                    AgentID(SUPER_AGENT_ID.to_string()),
+                    self.agent_id().clone(),
                     self.super_agent_start_settings(),
                 )?;
                 Some(opamp_client)
@@ -288,7 +294,7 @@ where
 
     fn super_agent_start_settings(&self) -> StartSettings {
         StartSettings {
-            instance_id: self.instance_id_getter.get(SUPER_AGENT_ID.to_string()),
+            instance_id: self.instance_id_getter.get(self.agent_id()),
             capabilities: capabilities!(AgentCapabilities::ReportsHealth),
             agent_description: AgentDescription {
                 identifying_attributes: HashMap::<String, DescriptionValueType>::from([
@@ -319,6 +325,7 @@ where
             .assemble_agents(super_agent_config)
     }
 
+    // Super Agent on remote config
     fn on_remote_config(
         &self,
         opamp_client: &Option<<OpAMPBuilder as OpAMPClientBuilder>::Client>,
@@ -330,7 +337,7 @@ where
                 Ok(config) => {
                     //
                     self.remote_config_hash_repository
-                        .save(config.agent_id, config.hash.clone())?;
+                        .save(self.agent_id(), &config.hash)?;
 
                     remote_config_status.last_remote_config_hash = config.hash.get().into_bytes();
                     remote_config_status.status = RemoteConfigStatuses::Applying as i32;
@@ -457,6 +464,7 @@ mod tests {
                 instance_id_getter,
                 remote_config_hash_repository,
                 sub_agent_builder,
+                agent_id: AgentID(SUPER_AGENT_ID.to_string()),
             }
         }
     }
