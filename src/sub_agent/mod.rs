@@ -1,18 +1,21 @@
+// Common subagent modules
 pub mod collection;
 pub mod error;
-pub mod k8s;
+pub mod logger;
 pub mod restart_policy;
 
 #[cfg(feature = "onhost")]
 pub mod on_host;
 
+#[cfg(feature = "k8s")]
+pub mod k8s;
+
 use std::thread::JoinHandle;
 
 // CRATE TRAITS
-use crate::{
-    config::{agent_type::agent_types::FinalAgent, super_agent_configs::AgentID},
-    sub_agent::on_host::command::stream::Event,
-};
+use crate::config::{agent_type::agent_types::FinalAgent, super_agent_configs::AgentID};
+
+use self::logger::Event;
 
 /// The Runner trait defines the entry-point interface for a supervisor. Exposes a run method that will start the supervised process' execution.
 pub trait NotStartedSubAgent {
@@ -39,7 +42,7 @@ pub trait SubAgentBuilder {
 }
 
 #[cfg(test)]
-pub(crate) mod test {
+pub mod test {
     use super::*;
     use mockall::mock;
 

@@ -19,8 +19,7 @@ use crate::context::Context;
 use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPHttpBuilder};
 use crate::sub_agent::collection::{NotStartedSubAgents, StartedSubAgents};
 use crate::sub_agent::error::SubAgentBuilderError;
-use crate::sub_agent::on_host::command::logger::{EventLogger, StdEventReceiver};
-use crate::sub_agent::on_host::command::stream::Event;
+use crate::sub_agent::logger::{Event, EventLogger, StdEventReceiver};
 use crate::sub_agent::SubAgentBuilder;
 use crate::sub_agent::{error::SubAgentError, NotStartedSubAgent};
 use crate::super_agent::defaults::{

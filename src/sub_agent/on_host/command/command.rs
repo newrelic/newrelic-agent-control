@@ -3,7 +3,7 @@ use std::{fmt::Debug, process::ExitStatus, sync::mpsc::SendError};
 
 use thiserror::Error;
 
-use super::stream::Event;
+use crate::sub_agent::logger::Event;
 
 #[derive(Error, Debug)]
 pub enum CommandError {
@@ -68,6 +68,8 @@ pub(crate) mod test {
     use mockall::mock;
     #[cfg(target_family = "windows")]
     use std::os::windows::process::ExitStatusExt;
+
+    use crate::sub_agent::logger::Event;
 
     mock! {
         pub StartedCommandMock {}

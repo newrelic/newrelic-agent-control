@@ -4,13 +4,13 @@ use crate::{
     opamp::client_builder::OpAMPClientBuilder,
     sub_agent::{
         error::{SubAgentBuilderError, SubAgentError},
+        logger::Event,
         restart_policy::RestartPolicy,
         SubAgentBuilder,
     },
     super_agent::instance_id::InstanceIDGetter,
 };
 
-use super::command::stream::Event;
 use super::sub_agent::NotStartedSubAgentOnHost;
 use super::supervisor::{
     command_supervisor::NotStartedSupervisorOnHost,
@@ -49,7 +49,7 @@ where
         &self,
         agent: FinalAgent,
         agent_id: AgentID,
-        tx: std::sync::mpsc::Sender<crate::sub_agent::on_host::command::stream::Event>,
+        tx: std::sync::mpsc::Sender<Event>,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
         let agent_type = agent.agent_type().clone();
         Ok(NotStartedSubAgentOnHost::new(

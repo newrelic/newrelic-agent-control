@@ -9,7 +9,7 @@ use std::{
 };
 
 use crate::context::Context;
-use crate::sub_agent::on_host::command::stream::Event;
+use crate::sub_agent::logger::{Event, Metadata};
 
 use super::error::ProcessError;
 
@@ -20,7 +20,6 @@ use crate::sub_agent::on_host::command::command::{
 use crate::sub_agent::on_host::command::shutdown::{
     wait_exit_timeout, wait_exit_timeout_default, ProcessTerminator,
 };
-use crate::sub_agent::on_host::command::stream::Metadata;
 use crate::sub_agent::on_host::supervisor::command_supervisor_config::SupervisorConfigOnHost;
 use crate::sub_agent::on_host::supervisor::error::SupervisorError;
 use tracing::{error, info};
@@ -220,7 +219,7 @@ pub mod sleep_supervisor_tests {
     use super::NotStartedSupervisorOnHost;
     use super::SupervisorConfigOnHost;
     use crate::sub_agent::restart_policy::{BackoffStrategy, RestartPolicy};
-    use crate::{context::Context, sub_agent::on_host::command::stream::Event};
+    use crate::{context::Context, sub_agent::logger::Event};
 
     pub fn new_sleep_supervisor(tx: Sender<Event>, seconds: u32) -> NotStartedSupervisorOnHost {
         let config = SupervisorConfigOnHost::new(
@@ -238,7 +237,7 @@ pub mod sleep_supervisor_tests {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sub_agent::on_host::command::stream::OutputEvent;
+    use crate::sub_agent::logger::OutputEvent;
     use crate::sub_agent::restart_policy::{Backoff, BackoffStrategy, RestartPolicy};
     use std::collections::HashMap;
     use std::time::{Duration, Instant};

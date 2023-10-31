@@ -4,7 +4,6 @@ use std::time::SystemTimeError;
 use crate::config::error::SuperAgentConfigError;
 use crate::config::remote_config_hash::HashRepositoryError;
 use crate::opamp::client_builder::OpAMPClientBuilderError;
-use crate::sub_agent::on_host::supervisor::error::SupervisorError;
 use crate::super_agent::effective_agents_assembler::EffectiveAgentsAssemblerError;
 use thiserror::Error;
 
@@ -26,8 +25,11 @@ pub enum SubAgentError {
     StartedOpampClientError(#[from] StartedClientError),
     #[error("not started opamp client error: `{0}`")]
     NotStartedOpampClientError(#[from] NotStartedClientError),
+
+    #[cfg(feature = "onhost")]
     #[error("not started opamp client error: `{0}`")]
-    SupervisorError(#[from] SupervisorError),
+    SupervisorError(#[from] crate::sub_agent::on_host::supervisor::error::SupervisorError),
+
     #[error("remote config hash error: `{0}`")]
     RemoteConfigHashError(#[from] HashRepositoryError),
     #[error("super agent config error: `{0}`")]
