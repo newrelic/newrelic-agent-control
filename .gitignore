@@ -31,3 +31,6 @@ test/**/roles
 # local build
 .cargo
 bin/
+
+# local directory for testing purposes
+local/
