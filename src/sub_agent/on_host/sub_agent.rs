@@ -8,8 +8,9 @@ use tracing::info;
 use crate::config::super_agent_configs::{AgentID, AgentTypeFQN};
 use crate::context::Context;
 use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPClientBuilderError};
-use crate::sub_agent::on_host::factory::build_opamp_and_start_client;
-use crate::sub_agent::sub_agent::{NotStartedSubAgent, StartedSubAgent, SubAgentError};
+use crate::sub_agent::error::SubAgentError;
+use crate::sub_agent::on_host::opamp::build_opamp_and_start_client;
+use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
 use crate::super_agent::instance_id::InstanceIDGetter;
 use crate::super_agent::super_agent::SuperAgentEvent;
 use crate::supervisor::command_supervisor::{NotStartedSupervisorOnHost, StartedSupervisorOnHost};
@@ -133,9 +134,7 @@ impl<C> StartedSubAgent for StartedSubAgentOnHost<C>
 where
     C: StartedClient,
 {
-    type S = JoinHandle<()>;
-
-    fn stop(self) -> Result<Vec<Self::S>, SubAgentError> {
+    fn stop(self) -> Result<Vec<JoinHandle<()>>, SubAgentError> {
         let _client = match self.opamp_client {
             Some(client) => {
                 info!(

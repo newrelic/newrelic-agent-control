@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::string::ToString;
 use std::sync::mpsc::{self, Sender};
-use std::thread::JoinHandle;
 
 use futures::executor::block_on;
 use nix::unistd::gethostname;
@@ -20,9 +19,10 @@ use crate::config::remote_config_hash::{Hash, HashRepository, HashRepositoryFile
 use crate::config::super_agent_configs::{AgentID, SuperAgentConfig};
 use crate::context::Context;
 use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPHttpBuilder};
-use crate::sub_agent::on_host::factory::{build_sub_agent, build_sub_agents};
-use crate::sub_agent::on_host::sub_agents_on_host::StartedSubAgentsOnHost;
-use crate::sub_agent::sub_agent::{NotStartedSubAgent, StartedSubAgent, SubAgentError};
+use crate::sub_agent::collection::{NotStartedSubAgents, StartedSubAgents};
+use crate::sub_agent::error::SubAgentBuilderError;
+use crate::sub_agent::SubAgentBuilder;
+use crate::sub_agent::{error::SubAgentError, NotStartedSubAgent};
 use crate::super_agent::defaults::{
     SUPER_AGENT_ID, SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION,
 };
@@ -47,6 +47,7 @@ pub enum SuperAgentEvent {
 pub struct SuperAgent<
     'a,
     Assembler,
+    S,
     OpAMPBuilder = OpAMPHttpBuilder,
     ID = ULIDInstanceIDGetter,
     HR = HashRepositoryFile,
@@ -55,41 +56,47 @@ pub struct SuperAgent<
     OpAMPBuilder: OpAMPClientBuilder,
     ID: InstanceIDGetter,
     HR: HashRepository,
+    S: SubAgentBuilder,
 {
-    instance_id_getter: ID,
+    instance_id_getter: &'a ID,
     effective_agents_asssembler: Assembler,
     opamp_client_builder: Option<&'a OpAMPBuilder>,
+    sub_agent_builder: S,
     remote_config_hash_repository: HR,
 }
 
-impl<'a, Assembler, OpAMPBuilder, ID, HR> SuperAgent<'a, Assembler, OpAMPBuilder, ID, HR>
+impl<'a, Assembler, S, OpAMPBuilder, ID, HR> SuperAgent<'a, Assembler, S, OpAMPBuilder, ID, HR>
 where
     Assembler: EffectiveAgentsAssembler,
     OpAMPBuilder: OpAMPClientBuilder,
     ID: InstanceIDGetter,
     HR: HashRepository,
+    S: SubAgentBuilder,
 {
     pub fn new(
         effective_agents_asssembler: Assembler,
         opamp_client_builder: Option<&'a OpAMPBuilder>,
-        instance_id_getter: ID,
+        instance_id_getter: &'a ID,
         remote_config_hash_repository: HR,
+        sub_agent_builder: S,
     ) -> Self {
         Self {
             instance_id_getter,
             effective_agents_asssembler,
             opamp_client_builder,
             remote_config_hash_repository,
+            sub_agent_builder,
         }
     }
 }
 
-impl<'a, Assembler, OpAMPBuilder, ID, HR> SuperAgent<'a, Assembler, OpAMPBuilder, ID, HR>
+impl<'a, Assembler, S, OpAMPBuilder, ID, HR> SuperAgent<'a, Assembler, S, OpAMPBuilder, ID, HR>
 where
     Assembler: EffectiveAgentsAssembler,
     OpAMPBuilder: OpAMPClientBuilder,
     ID: InstanceIDGetter,
     HR: HashRepository,
+    S: SubAgentBuilder,
 {
     pub fn run(
         self,
@@ -122,13 +129,8 @@ where
 
         info!("Starting the supervisor group.");
         let effective_agents = self.load_effective_agents(super_agent_config)?;
-        // create sub agents
-        let sub_agents = build_sub_agents(
-            effective_agents,
-            &tx,
-            self.opamp_client_builder,
-            &self.instance_id_getter,
-        )?;
+
+        let not_started_sub_agents = self.load_sub_agents(effective_agents, &tx)?;
 
         /*
             TODO: We should first compare the current config with the one in the super agent config.
@@ -149,14 +151,32 @@ where
         */
 
         // Run all the Sub Agents
-        let running_sub_agents = sub_agents.run()?;
-        self.process_event(
-            ctx.clone(),
-            &opamp_client,
-            tx,
-            running_sub_agents,
-            super_agent_config,
-        )?;
+        let mut running_sub_agents = not_started_sub_agents.run()?;
+        {
+            loop {
+                // blocking wait until context is woken up
+                if let Some(event) = ctx.wait_condvar().unwrap() {
+                    match event {
+                        SuperAgentEvent::Stop => {
+                            drop(tx); //drop the main channel sender to stop listener
+                            break running_sub_agents.stop()?;
+                        }
+                        SuperAgentEvent::RemoteConfig(remote_config) => {
+                            self.on_remote_config(&opamp_client, remote_config)?;
+                        }
+                        SuperAgentEvent::RestartSubAgent(agent_id) => {
+                            self.recreate_sub_agent(
+                                agent_id,
+                                super_agent_config,
+                                tx.clone(),
+                                &mut running_sub_agents,
+                            )?;
+                        }
+                    };
+                }
+                // spurious condvar wake up, loop should continue
+            }
+        }
 
         if let Some(handle) = opamp_client {
             info!("Stopping and setting to unhealthy the OpAMP Client");
@@ -189,6 +209,59 @@ where
         hash.apply();
         self.remote_config_hash_repository
             .save(AgentID(SUPER_AGENT_ID.to_string()), hash.clone())?;
+        Ok(())
+    }
+
+    // load_sub_agents returns a collection of not started sub agents given the corresponding
+    // EffectiveAgents
+    fn load_sub_agents(
+        &self,
+        effective_agents: EffectiveAgents,
+        tx: &Sender<Event>,
+    ) -> Result<NotStartedSubAgents<S::NotStartedSubAgent>, AgentError> {
+        Ok(NotStartedSubAgents::from(
+            effective_agents
+                .agents
+                .into_iter()
+                .map(|(id, agent)| {
+                    let not_started_agent =
+                        self.sub_agent_builder
+                            .build(agent, id.clone(), tx.clone())?;
+                    Ok((id, not_started_agent))
+                })
+                .collect::<Result<HashMap<AgentID, S::NotStartedSubAgent>, SubAgentBuilderError>>(
+                )?,
+        ))
+    }
+
+    // Recreates a Sub Agent by its agent_id meaning:
+    //  * Remove and stop the existing running Sub Agent from the Running Sub Agents
+    //  * Recreate the Final Agent using the Agent Type and the latest persisted config
+    //  * Build a Stopped Sub Agent
+    //  * Run the Sub Agent and add it to the Running Sub Agents
+    fn recreate_sub_agent(
+        &self,
+        agent_id: AgentID,
+        super_agent_config: &SuperAgentConfig,
+        tx: Sender<Event>,
+        running_sub_agents: &mut StartedSubAgents<
+            <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
+        >,
+    ) -> Result<(), AgentError> {
+        running_sub_agents.stop_remove(&agent_id)?;
+
+        let sub_agent_config = super_agent_config.sub_agent_config(&agent_id)?;
+        let final_agent = self
+            .effective_agents_asssembler
+            .assemble_agent(&agent_id, sub_agent_config)?;
+
+        running_sub_agents.insert(
+            agent_id.clone(),
+            self.sub_agent_builder
+                .build(final_agent, agent_id, tx)?
+                .run()?,
+        );
+
         Ok(())
     }
 
@@ -238,47 +311,6 @@ where
         }
     }
 
-    fn process_event(
-        &self,
-        ctx: Context<Option<SuperAgentEvent>>,
-        opamp_client: &Option<OpAMPBuilder::Client>,
-        tx: Sender<Event>,
-        mut running_sub_agents: StartedSubAgentsOnHost<
-            <OpAMPBuilder as OpAMPClientBuilder>::Client,
-        >,
-        super_agent_config: &SuperAgentConfig,
-    ) -> Result<(), SubAgentError>
-    where
-        OpAMPBuilder: OpAMPClientBuilder,
-    {
-        {
-            loop {
-                // blocking wait until context is woken up
-                if let Some(event) = ctx.wait_condvar().unwrap() {
-                    match event {
-                        SuperAgentEvent::Stop => {
-                            drop(tx); //drop the main channel sender to stop listener
-                            break stop_sub_agents::<OpAMPBuilder>(running_sub_agents)?;
-                        }
-                        SuperAgentEvent::RemoteConfig(remote_config) => {
-                            self.on_remote_config(opamp_client, remote_config)?;
-                        }
-                        SuperAgentEvent::RestartSubAgent(agent_id) => {
-                            self.recreate_sub_agent(
-                                agent_id,
-                                super_agent_config,
-                                &mut running_sub_agents,
-                                tx.clone(),
-                            )?;
-                        }
-                    };
-                }
-                // spurious condvar wake up, loop should continue
-            }
-            Ok(())
-        }
-    }
-
     fn load_effective_agents(
         &self,
         super_agent_config: &SuperAgentConfig,
@@ -318,77 +350,6 @@ where
         }
 
         Ok(())
-    }
-
-    // Recreates a Sub Agent by its agent_id meaning:
-    //  * Remove and stop the existing running Sub Agent from the Running Sub Agents
-    //  * Recreate the Final Agent using the Agent Type and the latest persisted config
-    //  * Build a Stopped Sub Agent
-    //  * Run the Sub Agent and add it to the Running Sub Agents
-    fn recreate_sub_agent(
-        &self,
-        agent_id: AgentID,
-        super_agent_config: &SuperAgentConfig,
-        running_sub_agents: &mut StartedSubAgentsOnHost<
-            <OpAMPBuilder as OpAMPClientBuilder>::Client,
-        >,
-        tx: Sender<Event>,
-    ) -> Result<(), SubAgentError>
-    where
-        OpAMPBuilder: OpAMPClientBuilder,
-    {
-        let sub_agent = running_sub_agents.remove(&agent_id)?;
-        sub_agent.stop()?;
-
-        let sub_agent_config = super_agent_config.sub_agent_config(&agent_id)?;
-        let final_agent = self
-            .effective_agents_asssembler
-            .assemble_agent(&agent_id, sub_agent_config)?;
-
-        let sub_agent = build_sub_agent(
-            agent_id,
-            tx.clone(),
-            self.opamp_client_builder,
-            &self.instance_id_getter,
-            final_agent,
-        )?;
-
-        running_sub_agents.add(sub_agent.run()?)
-    }
-}
-
-fn stop_sub_agents<OpAMPBuilder>(
-    running_sub_agents: StartedSubAgentsOnHost<<OpAMPBuilder as OpAMPClientBuilder>::Client>,
-) -> Result<(), SubAgentError>
-where
-    OpAMPBuilder: OpAMPClientBuilder,
-{
-    running_sub_agents
-        .stop()?
-        .into_iter()
-        .for_each(|(agent_id, handles)| {
-            handle_sub_agent_stop(&agent_id, handles);
-        });
-    Ok(())
-}
-
-fn handle_sub_agent_stop(agent_id: &AgentID, handles: Vec<JoinHandle<()>>) {
-    for handle in handles {
-        handle.join().map_or_else(
-            |_err| {
-                // let error: &dyn std::error::Error = &err;
-                error!(
-                    supervisor = agent_id.to_string(),
-                    msg = "stopped with error",
-                )
-            },
-            |_| {
-                info!(
-                    supervisor = agent_id.to_string(),
-                    msg = "stopped successfully"
-                )
-            },
-        )
     }
 }
 
@@ -448,7 +409,7 @@ mod tests {
     use crate::file_reader::test::MockFileReaderMock;
     use crate::opamp::client_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock};
     use crate::opamp::client_builder::OpAMPClientBuilder;
-    use crate::sub_agent::on_host::factory::build_sub_agents;
+    use crate::sub_agent::{test::MockSubAgentBuilderMock, SubAgentBuilder};
     use crate::super_agent::defaults::{
         SUPER_AGENT_ID, SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION,
     };
@@ -475,24 +436,27 @@ mod tests {
     ////////////////////////////////////////////////////////////////////////////////////
     // Custom Agent constructor for tests
     ////////////////////////////////////////////////////////////////////////////////////
-    impl<'a, Assembler, OpAMPBuilder, ID, HR> SuperAgent<'a, Assembler, OpAMPBuilder, ID, HR>
+    impl<'a, Assembler, S, OpAMPBuilder, ID, HR> SuperAgent<'a, Assembler, S, OpAMPBuilder, ID, HR>
     where
         Assembler: EffectiveAgentsAssembler,
         OpAMPBuilder: OpAMPClientBuilder,
         ID: InstanceIDGetter,
         HR: HashRepository,
+        S: SubAgentBuilder,
     {
         pub fn new_custom(
-            instance_id_getter: ID,
+            instance_id_getter: &'a ID,
             effective_agents_asssembler: Assembler,
             opamp_client_builder: Option<&'a OpAMPBuilder>,
             remote_config_hash_repository: HR,
+            sub_agent_builder: S,
         ) -> Self {
             SuperAgent {
                 effective_agents_asssembler,
                 opamp_client_builder,
                 instance_id_getter,
                 remote_config_hash_repository,
+                sub_agent_builder,
             }
         }
     }
@@ -544,10 +508,11 @@ mod tests {
 
         // no agents in the supervisor group
         let agent = SuperAgent::new_custom(
-            instance_id_getter,
+            &instance_id_getter,
             local_assembler,
             Some(&opamp_builder),
             hash_repository_mock,
+            MockSubAgentBuilderMock::new(),
         );
 
         let ctx = Context::new();
@@ -602,43 +567,11 @@ mod tests {
             final_infra_agent,
         );
 
-        let start_settings_infra = infra_agent_default_start_settings(&hostname);
-        let start_settings_nrdot = nrdot_default_start_settings(&hostname);
-
-        // Infra Agent OpAMP
-        opamp_builder.should_build_and_start(
-            AgentID::new("infra_agent"),
-            start_settings_infra,
-            |_, _, _| {
-                let mut started_client = MockOpAMPClientMock::new();
-                started_client.should_set_health(1);
-                started_client.should_stop(1);
-                Ok(started_client)
-            },
-        );
-
-        // NRDOT OpAMP
-        opamp_builder.should_build_and_start(
-            AgentID::new("nrdot"),
-            start_settings_nrdot,
-            |_, _, _| {
-                let mut started_client = MockOpAMPClientMock::new();
-                started_client.should_set_health(1);
-                started_client.should_stop(1);
-                Ok(started_client)
-            },
-        );
-
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
         instance_id_getter.should_get(
             "super-agent".to_string(),
             "super_agent_instance_id".to_string(),
         );
-        instance_id_getter.should_get(
-            "infra_agent".to_string(),
-            "infra_agent_instance_id".to_string(),
-        );
-        instance_id_getter.should_get("nrdot".to_string(), "nrdot_instance_id".to_string());
 
         let file_reader = MockFileReaderMock::new();
         let mut conf_persister = MockConfigurationPersisterMock::new();
@@ -657,13 +590,18 @@ mod tests {
             Ok(hash)
         });
 
+        let mut sub_agent_builder = MockSubAgentBuilderMock::new();
+        // it should build two subagents: nrdot + infra_agent
+        sub_agent_builder.should_build(2);
+
         let super_agent_config = super_agent_default_config();
 
         let agent = SuperAgent::new_custom(
-            instance_id_getter,
+            &instance_id_getter,
             local_assembler,
             Some(&opamp_builder),
             hash_repository_mock,
+            sub_agent_builder,
         );
 
         let ctx = Context::new();
@@ -718,43 +656,11 @@ mod tests {
             final_infra_agent,
         );
 
-        let start_settings_infra = infra_agent_default_start_settings(&hostname);
-        let start_settings_nrdot = nrdot_default_start_settings(&hostname);
-
-        // Infra Agent OpAMP
-        opamp_builder.should_build_and_start(
-            AgentID::new("infra_agent"),
-            start_settings_infra,
-            |_, _, _| {
-                let mut started_client = MockOpAMPClientMock::new();
-                started_client.should_set_health(1);
-                started_client.should_stop(1);
-                Ok(started_client)
-            },
-        );
-
-        // NRDOT OpAMP
-        opamp_builder.should_build_and_start(
-            AgentID::new("nrdot"),
-            start_settings_nrdot,
-            |_, _, _| {
-                let mut started_client = MockOpAMPClientMock::new();
-                started_client.should_set_health(1);
-                started_client.should_stop(1);
-                Ok(started_client)
-            },
-        );
-
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
         instance_id_getter.should_get(
             "super-agent".to_string(),
             "super_agent_instance_id".to_string(),
         );
-        instance_id_getter.should_get(
-            "infra_agent".to_string(),
-            "infra_agent_instance_id".to_string(),
-        );
-        instance_id_getter.should_get("nrdot".to_string(), "nrdot_instance_id".to_string());
 
         let file_reader = MockFileReaderMock::new();
         let mut conf_persister = MockConfigurationPersisterMock::new();
@@ -788,12 +694,17 @@ mod tests {
             .times(1)
             .returning(|_, _| Ok(()));
 
+        let mut sub_agent_builder = MockSubAgentBuilderMock::new();
+        // it should build two subagents: nrdot + infra_agent
+        sub_agent_builder.should_build(2);
+
         // two agents in the supervisor group
         let agent = SuperAgent::new_custom(
-            instance_id_getter,
+            &instance_id_getter,
             local_assembler,
             Some(&opamp_builder),
             hash_repository_mock,
+            sub_agent_builder,
         );
 
         let ctx = Context::new();
@@ -857,42 +768,10 @@ mod tests {
             final_infra_agent.clone(),
         );
 
-        let start_settings_infra = infra_agent_default_start_settings(&hostname);
-        let start_settings_nrdot = nrdot_default_start_settings(&hostname);
-
-        // Infra Agent OpAMP
-        opamp_builder.should_build_and_start(
-            AgentID::new("infra_agent"),
-            start_settings_infra,
-            |_, _, _| {
-                let mut started_client = MockOpAMPClientMock::new();
-                started_client.should_set_health(1);
-                started_client.should_stop(1);
-                Ok(started_client)
-            },
-        );
-
-        // NRDOT OpAMP
-        opamp_builder.should_build_and_start(
-            AgentID::new("nrdot"),
-            start_settings_nrdot,
-            |_, _, _| {
-                let mut started_client = MockOpAMPClientMock::new();
-                started_client.should_set_health(1);
-                started_client.should_stop(1);
-                Ok(started_client)
-            },
-        );
-
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
         instance_id_getter.should_get(
             "super-agent".to_string(),
             "super_agent_instance_id".to_string(),
-        );
-        instance_id_getter.should_get("nrdot".to_string(), "nrdot_instance_id".to_string());
-        instance_id_getter.should_get(
-            "infra_agent".to_string(),
-            "infra_agent_instance_id".to_string(),
         );
 
         let file_reader = MockFileReaderMock::new();
@@ -910,24 +789,6 @@ mod tests {
         );
         conf_persister.should_delete_agent_config(1, &agent_id_to_restart, &final_infra_agent);
         conf_persister.should_persist_agent_config(1, &agent_id_to_restart, &final_infra_agent);
-        instance_id_getter.should_get(
-            agent_id_to_restart.to_string(),
-            "infra_agent_instance_id".to_string(),
-        );
-
-        let start_settings_infra = infra_agent_default_start_settings(&hostname);
-
-        // After reloading, once it's stopped it will report health and stop
-        opamp_builder.should_build_and_start(
-            AgentID::new("infra_agent"),
-            start_settings_infra,
-            |_, _, _| {
-                let mut started_client = MockOpAMPClientMock::new();
-                started_client.should_set_health(1);
-                started_client.should_stop(1);
-                Ok(started_client)
-            },
-        );
 
         let local_assembler =
             LocalEffectiveAgentsAssembler::new(registry, conf_persister, file_reader);
@@ -941,12 +802,17 @@ mod tests {
             Ok(hash)
         });
 
+        let mut sub_agent_builder = MockSubAgentBuilderMock::new();
+        // it should build three subagents (2 + 1 recreation)
+        sub_agent_builder.should_build(3);
+
         // two agents in the supervisor group
         let agent = SuperAgent::new_custom(
-            instance_id_getter,
+            &instance_id_getter,
             local_assembler,
             Some(&opamp_builder),
             hash_repository_mock,
+            sub_agent_builder,
         );
 
         let ctx = Context::new();
@@ -979,10 +845,6 @@ mod tests {
         );
 
         // Sub Agents
-        let mut final_nrdot: FinalAgent = FinalAgent::default();
-        final_nrdot.runtime_config.deployment.on_host = Some(OnHost {
-            executables: Vec::new(),
-        });
         let mut final_infra_agent: FinalAgent = FinalAgent::default();
         final_infra_agent.runtime_config.deployment.on_host = Some(OnHost {
             executables: Vec::new(),
@@ -990,34 +852,8 @@ mod tests {
 
         let mut registry = MockAgentRegistryMock::new();
         registry.should_get(
-            "newrelic/io.opentelemetry.collector:0.0.1".to_string(),
-            final_nrdot,
-        );
-        registry.should_get(
             "newrelic/com.newrelic.infrastructure_agent:0.0.1".to_string(),
             final_infra_agent.clone(),
-        );
-
-        let start_settings_infra = infra_agent_default_start_settings(&hostname);
-        let start_settings_nrdot = nrdot_default_start_settings(&hostname);
-
-        // Infra Agent OpAMP no final stop nor health, just after stopping on reload
-        opamp_builder.should_build_and_start(
-            AgentID::new("infra_agent"),
-            start_settings_infra,
-            |_, _, _| {
-                let mut started_client = MockOpAMPClientMock::new();
-                started_client.should_set_health(1);
-                started_client.should_stop(1);
-                Ok(started_client)
-            },
-        );
-
-        // NRDOT OpAMP no final stop nor health
-        opamp_builder.should_build_and_start(
-            AgentID::new("nrdot"),
-            start_settings_nrdot,
-            |_, _, _| Ok(MockOpAMPClientMock::new()),
         );
 
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
@@ -1025,18 +861,13 @@ mod tests {
             "super-agent".to_string(),
             "super_agent_instance_id".to_string(),
         );
-        instance_id_getter.should_get("nrdot".to_string(), "nrdot_instance_id".to_string());
-        instance_id_getter.should_get(
-            "infra_agent".to_string(),
-            "infra_agent_instance_id".to_string(),
-        );
 
         let file_reader = MockFileReaderMock::new();
         let mut conf_persister = MockConfigurationPersisterMock::new();
 
         conf_persister.should_delete_all_configs();
-        conf_persister.should_delete_any_agent_config(2);
-        conf_persister.should_persist_any_agent_config(2);
+        conf_persister.should_delete_any_agent_config(1);
+        conf_persister.should_persist_any_agent_config(1);
 
         //Sub Agent reload expectations
         let agent_id_to_restart = AgentID("infra_agent".to_string());
@@ -1062,7 +893,7 @@ mod tests {
         let local_assembler =
             LocalEffectiveAgentsAssembler::new(registry, conf_persister, file_reader);
 
-        let super_agent_config = super_agent_default_config();
+        let super_agent_config = super_agent_single_agent();
 
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         hash_repository_mock.should_get_applied_hash(
@@ -1070,12 +901,17 @@ mod tests {
             Hash::new("a-hash".to_string()),
         );
 
+        let mut sub_agent_builder = MockSubAgentBuilderMock::new();
+        // it should build one subagent: infra_agent
+        sub_agent_builder.should_build(1);
+
         // two agents in the supervisor group
         let agent = SuperAgent::new_custom(
-            instance_id_getter,
+            &instance_id_getter,
             local_assembler,
             Some(&opamp_builder),
             hash_repository_mock,
+            sub_agent_builder,
         );
 
         let ctx = Context::new();
@@ -1093,19 +929,37 @@ mod tests {
         );
 
         let result = agent.run(ctx, &super_agent_config);
-        assert_eq!("`Sub Agent error: config assembler error: `error assembling agents: `file error: `error creating file: `permission denied`````".to_string(), result.err().unwrap().to_string());
+        assert_eq!("effective agents assembler error: `error assembling agents: `file error: `error creating file: `permission denied````".to_string(), result.err().unwrap().to_string());
     }
 
     #[test]
     fn recreate_agent_no_errors() {
-        let hostname = gethostname().unwrap_or_default().into_string().unwrap();
         let agent_id_to_restart = AgentID("infra_agent".to_string());
 
-        // Mocked services
         let mut opamp_builder = MockOpAMPClientBuilderMock::new();
+        let hostname = gethostname().unwrap_or_default().into_string().unwrap();
+        let super_agent_start_settings = super_agent_default_start_settings(&hostname);
+
+        // Super Agent OpAMP
+        opamp_builder.should_build_and_start(
+            AgentID::new(SUPER_AGENT_ID),
+            super_agent_start_settings,
+            |_, _, _| {
+                let mut started_client = MockOpAMPClientMock::new();
+                started_client.should_set_health(1);
+                started_client.should_stop(1);
+                Ok(started_client)
+            },
+        );
+
         let mut conf_persister = MockConfigurationPersisterMock::new();
         let mut registry = MockAgentRegistryMock::new();
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
+        instance_id_getter.should_get(
+            "super-agent".to_string(),
+            "super_agent_instance_id".to_string(),
+        );
+
         let file_reader = MockFileReaderMock::new();
 
         // Expectations for loading agents
@@ -1131,51 +985,6 @@ mod tests {
         conf_persister.should_delete_any_agent_config(2);
         conf_persister.should_persist_any_agent_config(2);
 
-        let start_settings_infra = infra_agent_default_start_settings(&hostname);
-        opamp_builder.should_build_and_start(
-            AgentID::new("infra_agent"),
-            start_settings_infra,
-            |_, _, _| {
-                let mut started_client = MockOpAMPClientMock::new();
-                started_client.should_set_health(1);
-                started_client.should_stop(1);
-                Ok(started_client)
-            },
-        );
-
-        let start_settings_nrdot = nrdot_default_start_settings(&hostname);
-        opamp_builder.should_build_and_start(
-            AgentID::new("nrdot"),
-            start_settings_nrdot,
-            |_, _, _| {
-                let mut started_client = MockOpAMPClientMock::new();
-                started_client.should_set_health(1);
-                started_client.should_stop(1);
-                Ok(started_client)
-            },
-        );
-
-        instance_id_getter.should_get(
-            "infra_agent".to_string(),
-            "infra_agent_instance_id".to_string(),
-        );
-
-        instance_id_getter.should_get("nrdot".to_string(), "nrdot_instance_id".to_string());
-
-        // Expectations for recreating agent
-        // Infra Agent OpAMP will be created and run
-        // It will report health and stopped on recreating agent
-        let start_settings_infra = infra_agent_default_start_settings(&hostname);
-        opamp_builder.should_build_and_start(
-            AgentID::new("infra_agent"),
-            start_settings_infra,
-            |_, _, _| {
-                let mut started_client = MockOpAMPClientMock::new();
-                started_client.should_set_health(1);
-                started_client.should_stop(1);
-                Ok(started_client)
-            },
-        );
         // Get Infra Agent from registry
         let mut final_infra_agent: FinalAgent = FinalAgent::default();
         final_infra_agent.runtime_config.deployment.on_host = Some(OnHost {
@@ -1189,61 +998,54 @@ mod tests {
         conf_persister.should_delete_agent_config(1, &agent_id_to_restart, &final_infra_agent);
         conf_persister.should_persist_agent_config(1, &agent_id_to_restart, &final_infra_agent);
 
-        // Get instance id for OpAMP
-        instance_id_getter.should_get(
-            agent_id_to_restart.to_string(),
-            "infra_agent_instance_id".to_string(),
-        );
-
         // Assemble services and Super Agent
         let local_assembler =
             LocalEffectiveAgentsAssembler::new(registry, conf_persister, file_reader);
 
+        let mut sub_agent_builder = MockSubAgentBuilderMock::new();
+        // it should build three sub_agents (2 + 1)
+        sub_agent_builder.should_build(3);
+
         let mut hash_repository_mock = MockHashRepositoryMock::new();
+        hash_repository_mock.should_get_applied_hash(
+            AgentID::new(SUPER_AGENT_ID),
+            Hash::new("a-hash".to_string()),
+        );
 
         // Create the Super Agent and rub Sub Agents
         let super_agent = SuperAgent::new_custom(
-            instance_id_getter,
+            &instance_id_getter,
             local_assembler,
             Some(&opamp_builder),
             hash_repository_mock,
+            sub_agent_builder,
         );
 
-        let (tx, _) = mpsc::channel();
-        let super_agent_config = super_agent_default_config();
-        let effective_agents = super_agent
-            .load_effective_agents(&super_agent_config)
-            .unwrap();
-
-        let sub_agents = build_sub_agents(
-            effective_agents,
-            &tx,
-            super_agent.opamp_client_builder,
-            &super_agent.instance_id_getter,
+        let ctx = Context::new();
+        // restart agent after 50 milliseconds
+        send_event_after(
+            ctx.clone(),
+            SuperAgentEvent::RestartSubAgent(agent_id_to_restart.clone()),
+            Duration::from_millis(50),
         );
-        let mut running_sub_agents = sub_agents.unwrap().run().unwrap();
-
-        //Recreate Sub Agent
-        let result = super_agent.recreate_sub_agent(
-            agent_id_to_restart,
-            &super_agent_config,
-            &mut running_sub_agents,
-            tx,
+        // stop all agents after 100 milliseconds
+        send_event_after(
+            ctx.clone(),
+            SuperAgentEvent::Stop,
+            Duration::from_millis(100),
         );
-        assert!(result.is_ok());
-        assert!(running_sub_agents.stop().is_ok());
+
+        assert!(super_agent.run(ctx, &super_agent_default_config()).is_ok());
     }
 
     #[test]
     fn recreate_agent_error_on_persister() {
-        let hostname = gethostname().unwrap_or_default().into_string().unwrap();
         let agent_id_to_restart = AgentID("infra_agent".to_string());
 
         // Mocked services
-        let mut opamp_builder = MockOpAMPClientBuilderMock::new();
         let mut conf_persister = MockConfigurationPersisterMock::new();
         let mut registry = MockAgentRegistryMock::new();
-        let mut instance_id_getter = MockInstanceIDGetterMock::new();
+        let instance_id_getter = MockInstanceIDGetterMock::new();
         let file_reader = MockFileReaderMock::new();
 
         // Expectations for loading agents
@@ -1268,37 +1070,6 @@ mod tests {
         conf_persister.should_delete_all_configs();
         conf_persister.should_delete_any_agent_config(2);
         conf_persister.should_persist_any_agent_config(2);
-
-        let start_settings_infra = infra_agent_default_start_settings(&hostname);
-        opamp_builder.should_build_and_start(
-            AgentID::new("infra_agent"),
-            start_settings_infra,
-            |_, _, _| {
-                let mut started_client = MockOpAMPClientMock::new();
-                started_client.should_set_health(1);
-                started_client.should_stop(1);
-                Ok(started_client)
-            },
-        );
-
-        let start_settings_nrdot = nrdot_default_start_settings(&hostname);
-        opamp_builder.should_build_and_start(
-            AgentID::new("nrdot"),
-            start_settings_nrdot,
-            |_, _, _| {
-                let mut started_client = MockOpAMPClientMock::new();
-                started_client.should_set_health(1);
-                started_client.should_stop(1);
-                Ok(started_client)
-            },
-        );
-
-        instance_id_getter.should_get(
-            "infra_agent".to_string(),
-            "infra_agent_instance_id".to_string(),
-        );
-
-        instance_id_getter.should_get("nrdot".to_string(), "nrdot_instance_id".to_string());
 
         // Expectations for recreating agent
         // Get Infra Agent from registry
@@ -1327,14 +1098,17 @@ mod tests {
         let local_assembler =
             LocalEffectiveAgentsAssembler::new(registry, conf_persister, file_reader);
 
-        let mut hash_repository_mock = MockHashRepositoryMock::new();
+        let mut sub_agent_builder = MockSubAgentBuilderMock::new();
+        // it should build two sub_agents (2 + 0 error)
+        sub_agent_builder.should_build(2);
 
         // Create the Super Agent and rub Sub Agents
         let super_agent = SuperAgent::new_custom(
-            instance_id_getter,
+            &instance_id_getter,
             local_assembler,
-            Some(&opamp_builder),
-            hash_repository_mock,
+            None::<&MockOpAMPClientBuilderMock>,
+            MockHashRepositoryMock::new(),
+            sub_agent_builder,
         );
 
         let (tx, _) = mpsc::channel();
@@ -1343,137 +1117,19 @@ mod tests {
             .load_effective_agents(&super_agent_config)
             .unwrap();
 
-        let sub_agents = build_sub_agents(
-            effective_agents,
-            &tx,
-            super_agent.opamp_client_builder,
-            &super_agent.instance_id_getter,
-        );
+        let sub_agents = super_agent.load_sub_agents(effective_agents, &tx);
+
         let mut running_sub_agents = sub_agents.unwrap().run().unwrap();
 
-        //Recreate Sub Agent
         let result = super_agent.recreate_sub_agent(
             agent_id_to_restart,
             &super_agent_config,
-            &mut running_sub_agents,
             tx,
+            &mut running_sub_agents,
         );
         assert!(result.is_err());
         assert_eq!(
-            "config assembler error: `error assembling agents: `file error: `error creating file: `permission denied````"
-                .to_string(),
-            result.err().unwrap().to_string()
-        );
-        assert!(running_sub_agents.stop().is_ok());
-    }
-
-    #[test]
-    fn recreate_agent_error_on_opamp() {
-        let hostname = gethostname().unwrap_or_default().into_string().unwrap();
-        let agent_id_to_restart = AgentID("infra_agent".to_string());
-
-        // Mocked services
-        let mut opamp_builder = MockOpAMPClientBuilderMock::new();
-        let mut conf_persister = MockConfigurationPersisterMock::new();
-        let mut registry = MockAgentRegistryMock::new();
-        let mut instance_id_getter = MockInstanceIDGetterMock::new();
-        let file_reader = MockFileReaderMock::new();
-
-        // Expectations for loading agents
-        let mut final_nrdot: FinalAgent = FinalAgent::default();
-        final_nrdot.runtime_config.deployment.on_host = Some(OnHost {
-            executables: Vec::new(),
-        });
-        registry.should_get(
-            "newrelic/io.opentelemetry.collector:0.0.1".to_string(),
-            final_nrdot,
-        );
-        let mut final_infra_agent: FinalAgent = FinalAgent::default();
-        final_infra_agent.runtime_config.deployment.on_host = Some(OnHost {
-            executables: Vec::new(),
-        });
-
-        registry.should_get(
-            "newrelic/com.newrelic.infrastructure_agent:0.0.1".to_string(),
-            final_infra_agent.clone(),
-        );
-
-        conf_persister.should_delete_all_configs();
-        conf_persister.should_delete_any_agent_config(2);
-        conf_persister.should_persist_any_agent_config(2);
-
-        let start_settings_nrdot = nrdot_default_start_settings(&hostname);
-        //expectation for stopping agents on test end
-        opamp_builder.should_build_and_start(
-            AgentID::new("nrdot"),
-            start_settings_nrdot,
-            |_, _, _| {
-                let mut started_client = MockOpAMPClientMock::new();
-                started_client.should_set_health(1);
-                started_client.should_stop(1);
-                Ok(started_client)
-            },
-        );
-
-        instance_id_getter.should_get(
-            "infra_agent".to_string(),
-            "infra_agent_instance_id".to_string(),
-        );
-
-        instance_id_getter.should_get("nrdot".to_string(), "nrdot_instance_id".to_string());
-
-        // Expectations for recreating agent
-        // Infra Agent OpAMP will report health and fail when stopped (above)
-        let start_settings_infra = infra_agent_default_start_settings(&hostname);
-        opamp_builder.should_build_and_start(
-            AgentID::new("infra_agent"),
-            start_settings_infra,
-            |_, _, _| {
-                let mut started_client = MockOpAMPClientMock::new();
-                started_client.should_set_health(1);
-                started_client.should_not_stop(1, 401, "server error".to_string());
-                Ok(started_client)
-            },
-        );
-
-        // Assemble services and Super Agent
-        let local_assembler =
-            LocalEffectiveAgentsAssembler::new(registry, conf_persister, file_reader);
-
-        let mut hash_repository_mock = MockHashRepositoryMock::new();
-
-        // Create the Super Agent and run Sub Agents
-        let super_agent = SuperAgent::new_custom(
-            instance_id_getter,
-            local_assembler,
-            Some(&opamp_builder),
-            hash_repository_mock,
-        );
-
-        let (tx, _) = mpsc::channel();
-        let super_agent_config = super_agent_default_config();
-        let effective_agents = super_agent
-            .load_effective_agents(&super_agent_config)
-            .unwrap();
-
-        let sub_agents = build_sub_agents(
-            effective_agents,
-            &tx,
-            super_agent.opamp_client_builder,
-            &super_agent.instance_id_getter,
-        );
-        let mut running_sub_agents = sub_agents.unwrap().run().unwrap();
-
-        //Recreate Sub Agent
-        let result = super_agent.recreate_sub_agent(
-            agent_id_to_restart,
-            &super_agent_config,
-            &mut running_sub_agents,
-            tx,
-        );
-        assert!(result.is_err());
-        assert_eq!(
-            "started opamp client error: ``Status code: `401` Canonical reason: `server error```"
+            "effective agents assembler error: `error assembling agents: `file error: `error creating file: `permission denied````"
                 .to_string(),
             result.err().unwrap().to_string()
         );
@@ -1490,28 +1146,6 @@ mod tests {
             SUPER_AGENT_TYPE.to_string(),
             SUPER_AGENT_VERSION.to_string(),
             SUPER_AGENT_NAMESPACE.to_string(),
-            hostname,
-        )
-    }
-
-    fn infra_agent_default_start_settings(hostname: &String) -> StartSettings {
-        start_settings(
-            "infra_agent_instance_id".to_string(),
-            capabilities!(AgentCapabilities::ReportsHealth),
-            "".to_string(),
-            "".to_string(),
-            "".to_string(),
-            hostname,
-        )
-    }
-
-    fn nrdot_default_start_settings(hostname: &String) -> StartSettings {
-        start_settings(
-            "nrdot_instance_id".to_string(),
-            capabilities!(AgentCapabilities::ReportsHealth),
-            "".to_string(),
-            "".to_string(),
-            "".to_string(),
             hostname,
         )
     }
@@ -1562,6 +1196,21 @@ mod tests {
                     },
                 ),
             ]),
+        }
+    }
+
+    fn super_agent_single_agent() -> SuperAgentConfig {
+        SuperAgentConfig {
+            opamp: None,
+            agents: HashMap::from([(
+                AgentID("infra_agent".to_string()),
+                SuperAgentSubAgentConfig {
+                    agent_type: AgentTypeFQN::from(
+                        "newrelic/com.newrelic.infrastructure_agent:0.0.1",
+                    ),
+                    values_file: None,
+                },
+            )]),
         }
     }
 

@@ -30,10 +30,15 @@ ulid = "1.0.1"
 openssl = { version = "0.10.57", features = ["vendored"] }
 aquamarine = "0.3.2"
 duration-str = "0.7.0"
-kube = { version="0.86.0", default-features = false, features = ["client", "openssl-tls"]}
-k8s-openapi = { version= "0.20.0", features = ["latest"]}
-tower = { version = "0.4.13", features = [] }
-hyper = "0.14.27"
+cfg-if = "1.0.0"
+
+# K8S subagent dependencies
+# IMPORTANT: All k8s only deps needs to be `optional = true` so they won't be compiled by default
+kube = { version="0.86.0", default-features = false, features = ["client",
+"openssl-tls"], optional = true }
+k8s-openapi = { version= "0.20.0", features = ["latest"], optional = true }
+tower = { version = "0.4.13", features = [], optional = true }
+hyper = { version = "0.14.27", optional = true }
 
 [dev-dependencies]
 assert_cmd = "2.0.12"
@@ -51,3 +56,9 @@ path = "test/integration/mod.rs"
 [[bin]]
 name = "newrelic-super-agent"
 path = "src/bin/main.rs"
+
+
+[features]
+default = ["onhost"]
+onhost = []
+k8s = ["dep:kube", "dep:k8s-openapi", "dep:tower", "dep:hyper"]

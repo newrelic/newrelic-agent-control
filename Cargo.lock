@@ -1255,6 +1255,7 @@ dependencies = [
  "assert_cmd",
  "assert_fs",
  "async-trait",
+ "cfg-if",
  "clap",
  "ctrlc",
  "duration-str",
