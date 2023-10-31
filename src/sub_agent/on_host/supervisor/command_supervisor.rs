@@ -16,8 +16,8 @@ use crate::command::command::{CommandError, CommandTerminator, NotStartedCommand
 use crate::command::command_os::NotStartedCommandOS;
 use crate::command::shutdown::{wait_exit_timeout, wait_exit_timeout_default, ProcessTerminator};
 use crate::command::stream::Metadata;
-use crate::supervisor::command_supervisor_config::SupervisorConfigOnHost;
-use crate::supervisor::error::SupervisorError;
+use crate::sub_agent::on_host::supervisor::command_supervisor_config::SupervisorConfigOnHost;
+use crate::sub_agent::on_host::supervisor::error::SupervisorError;
 use tracing::{error, info};
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -212,9 +212,9 @@ pub mod sleep_supervisor_tests {
     use std::collections::HashMap;
     use std::sync::mpsc::Sender;
 
-    use crate::supervisor::command_supervisor::NotStartedSupervisorOnHost;
-    use crate::supervisor::command_supervisor_config::SupervisorConfigOnHost;
-    use crate::supervisor::restart_policy::{BackoffStrategy, RestartPolicy};
+    use super::NotStartedSupervisorOnHost;
+    use super::SupervisorConfigOnHost;
+    use crate::sub_agent::on_host::supervisor::restart_policy::{BackoffStrategy, RestartPolicy};
     use crate::{command::stream::Event, context::Context};
 
     pub fn new_sleep_supervisor(tx: Sender<Event>, seconds: u32) -> NotStartedSupervisorOnHost {
@@ -234,7 +234,9 @@ pub mod sleep_supervisor_tests {
 mod tests {
     use super::*;
     use crate::command::stream::OutputEvent;
-    use crate::supervisor::restart_policy::{Backoff, BackoffStrategy, RestartPolicy};
+    use crate::sub_agent::on_host::supervisor::restart_policy::{
+        Backoff, BackoffStrategy, RestartPolicy,
+    };
     use std::collections::HashMap;
     use std::time::{Duration, Instant};
 
