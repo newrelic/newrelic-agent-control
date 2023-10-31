@@ -1,5 +1,4 @@
 pub mod cli;
-pub mod command;
 pub mod config;
 pub mod context;
 pub mod file_reader;

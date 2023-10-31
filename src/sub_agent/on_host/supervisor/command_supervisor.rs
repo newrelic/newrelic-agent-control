@@ -8,14 +8,19 @@ use std::{
     thread::{self, JoinHandle},
 };
 
-use crate::{command::stream::Event, context::Context};
+use crate::context::Context;
+use crate::sub_agent::on_host::command::stream::Event;
 
 use super::error::ProcessError;
 
-use crate::command::command::{CommandError, CommandTerminator, NotStartedCommand, StartedCommand};
-use crate::command::command_os::NotStartedCommandOS;
-use crate::command::shutdown::{wait_exit_timeout, wait_exit_timeout_default, ProcessTerminator};
-use crate::command::stream::Metadata;
+use super::super::command::command_os::NotStartedCommandOS;
+use crate::sub_agent::on_host::command::command::{
+    CommandError, CommandTerminator, NotStartedCommand, StartedCommand,
+};
+use crate::sub_agent::on_host::command::shutdown::{
+    wait_exit_timeout, wait_exit_timeout_default, ProcessTerminator,
+};
+use crate::sub_agent::on_host::command::stream::Metadata;
 use crate::sub_agent::on_host::supervisor::command_supervisor_config::SupervisorConfigOnHost;
 use crate::sub_agent::on_host::supervisor::error::SupervisorError;
 use tracing::{error, info};
@@ -215,7 +220,7 @@ pub mod sleep_supervisor_tests {
     use super::NotStartedSupervisorOnHost;
     use super::SupervisorConfigOnHost;
     use crate::sub_agent::on_host::supervisor::restart_policy::{BackoffStrategy, RestartPolicy};
-    use crate::{command::stream::Event, context::Context};
+    use crate::{context::Context, sub_agent::on_host::command::stream::Event};
 
     pub fn new_sleep_supervisor(tx: Sender<Event>, seconds: u32) -> NotStartedSupervisorOnHost {
         let config = SupervisorConfigOnHost::new(
@@ -233,7 +238,7 @@ pub mod sleep_supervisor_tests {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::command::stream::OutputEvent;
+    use crate::sub_agent::on_host::command::stream::OutputEvent;
     use crate::sub_agent::on_host::supervisor::restart_policy::{
         Backoff, BackoffStrategy, RestartPolicy,
     };

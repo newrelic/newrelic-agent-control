@@ -1,5 +1,5 @@
-use newrelic_super_agent::command::command::SyncCommandRunner;
-use newrelic_super_agent::command::command_os::SyncCommandOS;
+use newrelic_super_agent::sub_agent::on_host::command::command::SyncCommandRunner;
+use newrelic_super_agent::sub_agent::on_host::command::command_os::SyncCommandOS;
 use std::collections::HashMap;
 
 // blocking supervisor

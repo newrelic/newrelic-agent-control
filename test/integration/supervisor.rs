@@ -2,7 +2,7 @@ use std::{collections::HashMap, thread, time::Duration};
 
 use newrelic_super_agent::{context::Context, logging::Logging};
 
-use newrelic_super_agent::command::logger::{EventLogger, StdEventReceiver};
+use newrelic_super_agent::sub_agent::on_host::command::logger::{EventLogger, StdEventReceiver};
 use newrelic_super_agent::sub_agent::on_host::supervisor::command_supervisor::NotStartedSupervisorOnHost;
 use newrelic_super_agent::sub_agent::on_host::supervisor::command_supervisor_config::SupervisorConfigOnHost;
 use newrelic_super_agent::sub_agent::on_host::supervisor::restart_policy::RestartPolicy;
