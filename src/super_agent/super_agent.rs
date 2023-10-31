@@ -129,13 +129,6 @@ where
 
         info!("Starting the supervisor group.");
         let effective_agents = self.load_effective_agents(super_agent_config)?;
-        // create sub agents
-        // let sub_agents = build_sub_agents(
-        //     effective_agents,
-        //     &tx,
-        //     self.opamp_client_builder,
-        //     &self.instance_id_getter,
-        // )?;
 
         let not_started_sub_agents = self.load_sub_agents(effective_agents, &tx)?;
 
