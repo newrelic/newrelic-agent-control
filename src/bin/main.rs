@@ -57,16 +57,17 @@ fn run_super_agent(
     opamp_client_builder: Option<OpAMPHttpBuilder>,
     instance_id_getter: ULIDInstanceIDGetter,
 ) -> Result<(), AgentError> {
+    // TODO: first matching feature will be used if --all-features is specified
     cfg_if! {
-     if #[cfg(feature = "k8s")] {
-            let sub_agent_builder = newrelic_super_agent::sub_agent::k8s::builder::K8sSubAgentBuilder::new(opamp_client_builder.as_ref(), &instance_id_getter);
-        } else if #[cfg(feature = "onhost")] {
+     if #[cfg(feature = "onhost")] {
             // Program must run as root if onhost execution
             #[cfg(unix)]
             if !nix::unistd::Uid::effective().is_root() {
                 panic!("Program must run as root");
             }
            let sub_agent_builder = OnHostSubAgentBuilder::new(opamp_client_builder.as_ref(), &instance_id_getter);
+        } else if #[cfg(feature = "k8s")] {
+            let sub_agent_builder = newrelic_super_agent::sub_agent::k8s::builder::K8sSubAgentBuilder::new(opamp_client_builder.as_ref(), &instance_id_getter);
         }
     };
 
