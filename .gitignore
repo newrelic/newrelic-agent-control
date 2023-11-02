@@ -29,7 +29,7 @@ test/**/collections
 test/**/roles
 
 # kubernetes integration test.
-.kubeconfig-dev
+test/k8s/.kubeconfig-dev
 
 # local build
 .cargo
