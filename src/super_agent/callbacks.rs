@@ -186,7 +186,7 @@ mod tests {
         assert_eq!("cool-hash".to_string(), result.hash.get());
         assert_eq!(
             &"enable_proces_metrics: true".to_string(),
-            result.config_map.get(&"my-config".to_string()).unwrap(),
+            result.config_map.get("my-config").unwrap(),
         );
     }
 }

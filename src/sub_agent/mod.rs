@@ -99,5 +99,17 @@ pub mod test {
                 Ok(not_started_agent)
             });
         }
+
+        // should_build provides a helper method to create a subagent which runs but doesn't stop
+        pub(crate) fn should_build_and_run(&mut self, times: usize) {
+            self.expect_build().times(times).returning(|_, _, _| {
+                let mut not_started_agent = MockNotStartedSubAgent::new();
+                not_started_agent
+                    .expect_run()
+                    .times(1)
+                    .returning(|| Ok(MockStartedSubAgent::new()));
+                Ok(not_started_agent)
+            });
+        }
     }
 }
