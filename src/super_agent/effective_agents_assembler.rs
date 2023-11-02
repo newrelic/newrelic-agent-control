@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use thiserror::Error;
 use tracing::debug;
 
@@ -108,12 +110,13 @@ where
 
         let remote_values_path = get_remote_data_path(agent_id).join("values.yml");
         self.clean_if_remote_disabled(has_opamp, agent_cfg)?;
-        let values_result = self.get_values(agent_id, remote_values_path)?;
+        let values_result = self.get_values(agent_id, remote_values_path);
 
         match values_result {
             Ok(contents) => agent_config = serde_yaml::from_str(&contents)?,
-            Err(FileReaderError::FileNotFound(_)) => { /* do nothing if no file */ }
-            Err(error) => return Err(error.into()),
+            Err(EffectiveAgentsAssemblerError::FileError(FileReaderError::FileNotFound(_))) => { /* do nothing if no file */
+            }
+            Err(error) => return Err(error),
         }
 
         // populate with values
@@ -137,8 +140,8 @@ impl<R: AgentRegistry, C: ConfigurationPersister, F: FileReader>
     fn get_values(
         &self,
         agent_id: &AgentID,
-        remote_values_path: std::path::PathBuf,
-    ) -> Result<Result<String, FileReaderError>, EffectiveAgentsAssemblerError> {
+        remote_values_path: PathBuf,
+    ) -> Result<String, EffectiveAgentsAssemblerError> {
         let remote_values_path = remote_values_path
             .to_str()
             .ok_or(EffectiveAgentsAssemblerError::BadPath)?;
@@ -146,7 +149,7 @@ impl<R: AgentRegistry, C: ConfigurationPersister, F: FileReader>
             debug!("remote config not present, using local");
             let local_values_path = get_values_file_path(agent_id);
             self.file_reader.read(local_values_path.as_str())
-        });
+        })?;
         Ok(values)
     }
 
@@ -505,12 +508,11 @@ pub(crate) mod tests {
 
         let mut config_persister = MockConfigurationPersisterMock::new();
         config_persister.should_delete_all_configs();
-        let mut remote_config_persister = MockConfigurationPersisterMock::new();
 
         let effective_agents = LocalEffectiveAgentsAssembler::new(
             agent_type_registry,
             config_persister,
-            remote_config_persister,
+            MockConfigurationPersisterMock::new(),
             file_reader_mock,
         )
         .assemble_agents(&agent_config)
