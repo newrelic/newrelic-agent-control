@@ -1237,12 +1237,30 @@ agents:
         conf_persister.should_delete_any_agent_config(2);
         conf_persister.should_persist_any_agent_config(2);
 
+        let mut file_reader_mock = MockFileReaderMock::new();
+
+        file_reader_mock
+            .expect_read()
+            .with(predicate::eq(
+                "/etc/newrelic-super-agent/agents.d/infra_agent/values.yml".to_string(),
+            ))
+            .times(1)
+            .returning(|_| Ok("".to_string()));
+
+        file_reader_mock
+            .expect_read()
+            .with(predicate::eq(
+                "/etc/newrelic-super-agent/agents.d/nrdot/values.yml".to_string(),
+            ))
+            .times(1)
+            .returning(|_| Ok("".to_string()));
+
         // Clean and persist new config
         // conf_persister.should_delete_any_agent_config(2);
 
         // Assemble services and Super Agent
         let local_assembler =
-            LocalEffectiveAgentsAssembler::new(registry, conf_persister, MockFileReaderMock::new());
+            LocalEffectiveAgentsAssembler::new(registry, conf_persister, file_reader_mock);
 
         let mut sub_agent_builder = MockSubAgentBuilderMock::new();
         // it should build two sub_agents (2 + 0 error)
