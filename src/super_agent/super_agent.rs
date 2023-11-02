@@ -12,6 +12,7 @@ use thiserror::Error;
 use tracing::{error, info};
 
 use crate::config::agent_type::agent_types::FinalAgent;
+use crate::config::error::SuperAgentConfigError;
 use crate::config::loader::{SubAgentsConfigStore, SuperAgentConfigLoaderFile};
 use crate::config::remote_config::{RemoteConfig, RemoteConfigError};
 use crate::config::remote_config_hash::{Hash, HashRepository, HashRepositoryFile};
@@ -378,12 +379,13 @@ where
                 old_sub_agents_config
                     .iter()
                     .try_for_each(|(agent_id, _agent_config)| {
-                        if let Err(_) = sub_agents.get(agent_id) {
+                        if let Err(SuperAgentConfigError::SubAgentNotFound(_)) =
+                            sub_agents.get(agent_id)
+                        {
                             info!("Stopping SubAgent {}", agent_id);
-                            running_sub_agents.stop_remove(&agent_id)
-                        } else {
-                            Ok(())
+                            return running_sub_agents.stop_remove(agent_id);
                         }
+                        Ok(())
                     })?;
 
                 self.sub_agents_config_loader.store(&sub_agents)?;
