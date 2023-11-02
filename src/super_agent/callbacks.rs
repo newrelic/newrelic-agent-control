@@ -143,7 +143,7 @@ mod tests {
     #[test]
     fn on_message_send_correct_config() {
         let ctx: Context<Option<SuperAgentEvent>> = Context::new();
-        let agent_id = AgentID::new("an-agent-id");
+        let agent_id = AgentID::new("an-agent-id").unwrap();
 
         spawn({
             let ctx = ctx.clone();
@@ -182,7 +182,7 @@ mod tests {
         };
         let result = remote_config.unwrap();
 
-        assert_eq!(AgentID::new("an-agent-id"), result.agent_id);
+        assert_eq!(AgentID::new("an-agent-id").unwrap(), result.agent_id);
         assert_eq!("cool-hash".to_string(), result.hash.get());
         assert_eq!(
             &"enable_proces_metrics: true".to_string(),

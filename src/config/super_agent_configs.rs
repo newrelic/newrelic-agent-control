@@ -4,14 +4,51 @@ use std::{collections::HashMap, fmt::Display};
 use std::ops::Deref;
 
 use crate::config::error::SuperAgentConfigError;
+use crate::sub_agent::restart_policy::RestartPolicy;
+use crate::super_agent::defaults::SUPER_AGENT_ID;
 use serde::Deserialize;
 use thiserror::Error;
 
 #[derive(Debug, Deserialize, PartialEq, Clone, Hash, Eq)]
 #[serde(try_from = "String")]
-pub struct AgentID(pub String);
+pub struct AgentID(String);
+
+#[derive(Error, Debug)]
+pub enum AgentTypeError {
+    #[error("AgentID allows only a-zA-Z0-9_-")]
+    InvalidAgentID,
+    #[error("AgentID '{0}' is reserved")]
+    InvalidAgentIDUsesReservedOne(String),
+}
+
+impl TryFrom<String> for AgentID {
+    type Error = AgentTypeError;
+    fn try_from(str: String) -> Result<Self, Self::Error> {
+        if str.eq(SUPER_AGENT_ID) {
+            return Err(AgentTypeError::InvalidAgentIDUsesReservedOne(
+                SUPER_AGENT_ID.to_string(),
+            ));
+        }
+
+        if str
+            .chars()
+            .all(|x| x.is_alphanumeric() || x.eq(&'_') || x.eq(&'-'))
+        {
+            Ok(AgentID(str))
+        } else {
+            Err(AgentTypeError::InvalidAgentID)
+        }
+    }
+}
 
 impl AgentID {
+    pub fn new(str: &str) -> Result<Self, AgentTypeError> {
+        Self::try_from(str.to_string())
+    }
+    // For super agent ID we need to skip validation
+    pub fn new_super_agent_id() -> Self {
+        Self(SUPER_AGENT_ID.to_string())
+    }
     pub fn get(&self) -> String {
         String::from(&self.0)
     }
@@ -29,27 +66,6 @@ impl AsRef<Path> for AgentID {
     fn as_ref(&self) -> &Path {
         // TODO: define how AgentID should be converted to a Path here.
         Path::new(&self.0)
-    }
-}
-
-#[derive(Error, Debug)]
-pub enum AgentTypeError {
-    #[error("AgentID allows only a-zA-Z0-9_-")]
-    InvalidAgentID,
-}
-
-impl TryFrom<String> for AgentID {
-    type Error = AgentTypeError;
-    fn try_from(str: String) -> Result<Self, Self::Error> {
-        //
-        if str
-            .chars()
-            .all(|x| x.is_alphanumeric() || x.eq(&'_') || x.eq(&'-'))
-        {
-            Ok(AgentID(str))
-        } else {
-            Err(AgentTypeError::InvalidAgentID)
-        }
     }
 }
 
@@ -147,12 +163,6 @@ pub struct OpAMPClientConfig {
 mod test {
     use super::*;
 
-    impl AgentID {
-        pub fn new(agent_id: &str) -> Self {
-            Self(agent_id.to_string())
-        }
-    }
-
     const EXAMPLE_SUPERAGENT_CONFIG: &str = r#"
 opamp:
   endpoint: http://localhost:8080/some/path
@@ -188,6 +198,18 @@ agents:
     agent_random: true
 "#;
 
+    const SUPERAGENT_CONFIG_WRONG_AGENT_ID: &str = r#"
+agents:
+  agent/1:
+    agent_type: namespace/agent_type:0.0.1
+"#;
+
+    const SUPERAGENT_CONFIG_RESERVED_AGENT_ID: &str = r#"
+agents:
+  super-agent:
+    agent_type: namespace/agent_type:0.0.1
+"#;
+
     #[test]
     fn agent_id_validator() {
         assert!(AgentID::try_from("abc012_-".to_string()).is_ok());
@@ -214,6 +236,26 @@ agents:
         let actual =
             serde_yaml::from_str::<SuperAgentConfig>(SUPERAGENT_CONFIG_UNKNOWN_AGENT_FIELDS);
         assert!(actual.is_err());
+    }
+
+    #[test]
+    fn parse_with_wrong_agent_id() {
+        let actual = serde_yaml::from_str::<SuperAgentConfig>(SUPERAGENT_CONFIG_WRONG_AGENT_ID);
+        assert!(actual.is_err());
+        assert_eq!(
+            actual.unwrap_err().to_string(),
+            "agents: AgentID allows only a-zA-Z0-9_- at line 3 column 3"
+        )
+    }
+
+    #[test]
+    fn parse_with_reserved_agent_id() {
+        let actual = serde_yaml::from_str::<SuperAgentConfig>(SUPERAGENT_CONFIG_RESERVED_AGENT_ID);
+        assert!(actual.is_err());
+        assert_eq!(
+            actual.unwrap_err().to_string(),
+            "agents: AgentID 'super-agent' is reserved at line 3 column 3"
+        )
     }
 
     #[test]
