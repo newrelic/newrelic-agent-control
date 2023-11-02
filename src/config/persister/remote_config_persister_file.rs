@@ -1,0 +1,478 @@
+use std::fs::Permissions;
+#[cfg(target_family = "unix")]
+use std::os::unix::fs::PermissionsExt;
+use std::path::{Path, PathBuf};
+
+use crate::config::agent_type::agent_types::{FinalAgent, VariableType};
+use crate::config::agent_type::trivial_value::TrivialValue;
+use crate::config::persister::config_persister::{ConfigurationPersister, PersistError};
+use crate::config::persister::config_writer_file::{WriteError, Writer, WriterFile};
+use crate::config::persister::directory_manager::{
+    DirectoryManagementError, DirectoryManager, DirectoryManagerFs,
+};
+use crate::config::super_agent_configs::AgentID;
+use crate::super_agent::defaults::SUPER_AGENT_DATA_DIR;
+
+const REMOTE_FOLDER_NAME: &str = "fleet";
+#[cfg(target_family = "unix")]
+const FILE_PERMISSIONS: u32 = 0o600;
+#[cfg(target_family = "unix")]
+const DIRECTORY_PERMISSIONS: u32 = 0o700;
+
+pub struct RemoteConfigurationPersisterFile<W = WriterFile, C = DirectoryManagerFs>
+where
+    W: Writer,
+    C: DirectoryManager,
+{
+    file_writer: W,
+    directory_manager: C,
+    remote_conf_path: String,
+}
+
+impl RemoteConfigurationPersisterFile<WriterFile, DirectoryManagerFs> {
+    // PersisterFile with defaults writer and directory manager
+    // and custom data_dir path
+    pub fn new(data_dir: String) -> Self {
+        let mut remote_conf_dir = PathBuf::from(data_dir);
+        remote_conf_dir.push(REMOTE_FOLDER_NAME);
+
+        RemoteConfigurationPersisterFile {
+            file_writer: WriterFile::default(),
+            directory_manager: DirectoryManagerFs::default(),
+            remote_conf_path: remote_conf_dir.as_path().to_str().unwrap().to_string(),
+        }
+    }
+}
+
+impl Default for RemoteConfigurationPersisterFile<WriterFile, DirectoryManagerFs> {
+    // default uses the default SUPER_AGENT_DATA_DIR to persist the corresponding files
+    fn default() -> Self {
+        RemoteConfigurationPersisterFile::new(SUPER_AGENT_DATA_DIR.to_string())
+    }
+}
+
+impl<W, C> ConfigurationPersister for RemoteConfigurationPersisterFile<W, C>
+where
+    W: Writer,
+    C: DirectoryManager,
+{
+    fn persist_agent_config(
+        &self,
+        agent_id: &AgentID,
+        agent_type: &FinalAgent,
+    ) -> Result<(), PersistError> {
+        // Clean the existing remote configuration
+        let remote_path = Path::new(&self.remote_conf_path);
+        self.directory_manager.delete(remote_path)?;
+
+        // Ensure the remote path exists
+        self.directory_manager.create(
+            Path::new(&self.remote_conf_path),
+            Permissions::from_mode(DIRECTORY_PERMISSIONS),
+        )?;
+
+        // Create path for agent
+        let dest_path = self.remote_path(agent_id);
+        self.create_directory(dest_path.as_path())?;
+
+        // iterate all fields in agent type and persist file ones
+        let writing_result: Result<(), WriteError> = agent_type
+            .get_variables()
+            .iter()
+            .try_for_each(|(_fqn, end_spec)| {
+                self.write_file_values_to_file(
+                    dest_path.as_path(),
+                    &end_spec.type_,
+                    &end_spec.final_value,
+                )
+            });
+
+        Ok(writing_result?)
+    }
+
+    fn delete_agent_config(
+        &self,
+        agent_id: &AgentID,
+        _agent_type: &FinalAgent,
+    ) -> Result<(), PersistError> {
+        let dest_path = self.remote_path(agent_id);
+        Ok(self.directory_manager.delete(dest_path.as_path())?)
+    }
+
+    fn delete_all_configs(&self) -> Result<(), PersistError> {
+        let dest_path = Path::new(&self.remote_conf_path);
+        Ok(self.directory_manager.delete(dest_path)?)
+    }
+}
+
+impl<W, C> RemoteConfigurationPersisterFile<W, C>
+where
+    W: Writer,
+    C: DirectoryManager,
+{
+    // return the full path for remote data for an Agent
+    pub(crate) fn remote_path(&self, agent_id: &AgentID) -> PathBuf {
+        let mut path = PathBuf::from(&self.remote_conf_path);
+        path.push(agent_id);
+        path
+    }
+
+    // Write Agent Values Files to files
+    // if variable type is File             -> persist to file
+    // if variable type is MapStringFile    -> iterate all elements and persist to files
+    // any writing error will stop execution and propagate the error
+    fn write_file_values_to_file(
+        &self,
+        dest_path: &Path,
+        variable_type: &VariableType,
+        final_value: &Option<TrivialValue>,
+    ) -> Result<(), WriteError> {
+        match (&variable_type, &final_value) {
+            (VariableType::File, Some(TrivialValue::File(file_path_with_content))) => {
+                // append file name to destination path and write the contents
+                let mut file_dest_path = PathBuf::from(dest_path);
+                file_dest_path.push(Path::new(file_path_with_content.path.as_str()));
+                self.write(
+                    file_dest_path.as_path(),
+                    file_path_with_content.content.as_str(),
+                )
+            }
+            (VariableType::MapStringFile, Some(TrivialValue::Map(files))) => {
+                // iterate all the files inside the map, append them the folder name, append them the file name
+                files.iter().try_for_each(|(filename, value)| {
+                    match value {
+                        TrivialValue::File(file_path_with_content) => {
+                            let mut file_dest_path = PathBuf::from(dest_path);
+                            file_dest_path.push(Path::new(file_path_with_content.path.as_str()));
+                            file_dest_path.push(filename);
+                            self.write(
+                                file_dest_path.as_path(),
+                                file_path_with_content.content.as_str(),
+                            )?
+                        }
+                        _ => {
+                            unreachable!(
+                                "there should not be a map[string]file which content is not a file"
+                            );
+                        }
+                    }
+                    Ok(())
+                })
+            }
+            _ => Ok(()), // Not a file
+        }
+    }
+
+    // Wrapper for linux with unix specific permissions
+    #[cfg(target_family = "unix")]
+    fn write(&self, path: &Path, content: &str) -> Result<(), WriteError> {
+        self.file_writer.write(
+            path,
+            content.to_string(),
+            Permissions::from_mode(FILE_PERMISSIONS),
+        )
+    }
+
+    // Wrapper for linux with unix specific permissions
+    #[cfg(target_family = "unix")]
+    fn create_directory(&self, path: &Path) -> Result<(), DirectoryManagementError> {
+        self.directory_manager
+            .create(path, Permissions::from_mode(DIRECTORY_PERMISSIONS))
+    }
+
+    #[cfg(target_family = "windows")]
+    fn write(&self, path: &Path, content: &str) -> Result<(), WriteError> {
+        todo!()
+    }
+
+    #[cfg(target_family = "windows")]
+    fn create_directory(&self, path: &Path) -> Result<(), WriteError> {
+        todo!()
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////
+// TESTS
+////////////////////////////////////////////////////////////////////////////////////
+
+#[cfg(test)]
+mod test {
+    use crate::config::agent_values::AgentValues;
+    use crate::config::persister::config_persister::ConfigurationPersister;
+    use crate::config::persister::config_writer_file::test::MockFileWriterMock;
+    use crate::config::persister::config_writer_file::{Writer, WriterFile};
+    use crate::config::persister::directory_manager::test::MockDirectoryManagerMock;
+    use crate::config::persister::directory_manager::{DirectoryManager, DirectoryManagerFs};
+    use crate::config::super_agent_configs::AgentID;
+    use std::fs;
+    use std::fs::Permissions;
+    use std::path::{Path, PathBuf};
+
+    use crate::config::agent_type::agent_types::FinalAgent;
+    use crate::config::persister::directory_manager::DirectoryManagementError::ErrorDeletingDirectory;
+    #[cfg(target_family = "unix")]
+    use std::os::unix::fs::PermissionsExt;
+
+    use super::RemoteConfigurationPersisterFile;
+
+    impl<W, C> RemoteConfigurationPersisterFile<W, C>
+    where
+        W: Writer,
+        C: DirectoryManager,
+    {
+        pub fn with_mocks(file_writer: W, directory_manager: C, remote_conf_path: &Path) -> Self {
+            RemoteConfigurationPersisterFile {
+                file_writer,
+                directory_manager,
+                remote_conf_path: remote_conf_path.to_str().unwrap().to_string(),
+            }
+        }
+    }
+
+    #[test]
+    // This test is the only one that writes to an actual file in the FS
+    fn test_configuration_persister_single_file() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let mut temp_path = PathBuf::from(&tempdir.path());
+        temp_path.push("test_configuration_persister_single_file");
+
+        let dir_manager = DirectoryManagerFs::default();
+        let res = dir_manager.create(temp_path.as_path(), Permissions::from_mode(0o700));
+
+        assert!(res.is_ok());
+        let persister = RemoteConfigurationPersisterFile::with_mocks(
+            WriterFile::default(),
+            DirectoryManagerFs::default(),
+            temp_path.as_path(),
+        );
+        let agent_id = AgentID::new("SomeAgentID");
+
+        let mut agent_type: FinalAgent =
+            serde_yaml::from_reader(AGENT_TYPE_SINGLE_FILE.as_bytes()).unwrap();
+        let agent_values: AgentValues =
+            serde_yaml::from_reader(AGENT_VALUES_SINGLE_FILE.as_bytes()).unwrap();
+        agent_type = agent_type.template_with(agent_values).unwrap();
+
+        assert!(persister
+            .persist_agent_config(&agent_id.clone(), &agent_type)
+            .is_ok());
+        temp_path.push(agent_id);
+        temp_path.push("newrelic-infra.yml");
+        assert_eq!(
+            EXPECTED_CONTENT_SINGLE_FILE,
+            fs::read_to_string(temp_path.as_path()).unwrap()
+        );
+    }
+
+    #[test]
+    fn test_error_deleting_directory() {
+        let generated_conf_path = PathBuf::from("some/path");
+        let file_writer = MockFileWriterMock::new();
+        let mut directory_manager = MockDirectoryManagerMock::new();
+        let agent_id = AgentID::new("SomeAgentID");
+        let mut agent_type: FinalAgent =
+            serde_yaml::from_reader(AGENT_TYPE_SINGLE_FILE.as_bytes()).unwrap();
+        let agent_values: AgentValues =
+            serde_yaml::from_reader(AGENT_VALUES_SINGLE_FILE.as_bytes()).unwrap();
+
+        let mut agent_files_path = generated_conf_path.clone();
+        agent_files_path.push(&agent_id);
+
+        // populate agent type
+        agent_type = agent_type.template_with(agent_values).unwrap();
+
+        // Expectations
+        directory_manager.should_not_delete(
+            generated_conf_path.as_path(),
+            ErrorDeletingDirectory("oh now...".to_string()),
+        );
+
+        // Create persister
+        let persister = RemoteConfigurationPersisterFile::with_mocks(
+            file_writer,
+            directory_manager,
+            generated_conf_path.as_path(),
+        );
+
+        let result = persister.persist_agent_config(&agent_id, &agent_type);
+        assert!(result.is_err());
+        assert_eq!(
+            "directory error: `cannot delete directory: `oh now...``".to_string(),
+            result.err().unwrap().to_string()
+        );
+    }
+
+    //////////////////////////////////////////////////
+    // Fixtures
+    //////////////////////////////////////////////////
+
+    const AGENT_TYPE_SINGLE_FILE: &str = r#"
+namespace: newrelic
+name: com.newrelic.infrastructure_agent
+version: 0.0.1
+variables:
+  config_file:
+    description: "Newrelic infra configuration path"
+    type: file
+    required: true
+    file_path: newrelic-infra.yml
+deployment:
+  on_host:
+    executables:
+      - path: /usr/bin/newrelic-infra
+        args: "--config=${config_file}"
+    restart_policy:
+      backoff_strategy:
+        type: fixed
+        backoff_delay_seconds: 5
+"#;
+
+    const AGENT_VALUES_SINGLE_FILE: &str = r#"
+config_file: |
+  license_key: 1234567890987654321
+  log:
+    level: debug
+"#;
+
+    const EXPECTED_CONTENT_SINGLE_FILE: &str = r#"license_key: 1234567890987654321
+log:
+  level: debug
+"#;
+
+    const AGENT_TYPE_MULTIPLE_FILES: &str = r#"
+
+namespace: newrelic
+name: com.newrelic.infrastructure_agent
+version: 0.0.1
+variables:
+  config_file1:
+    description: "Newrelic infra configuration path"
+    type: file
+    required: true
+    file_path: newrelic-infra-1.yml
+  config_file2:
+    description: "Newrelic infra configuration path"
+    type: file
+    required: true
+    file_path: newrelic-infra-2.yml
+  config_file3:
+    description: "Newrelic infra configuration path"
+    type: file
+    required: false
+    file_path: newrelic-infra-3.yml
+    default: |
+      license_key: 33333333333333333
+      log:
+        level: trace
+deployment:
+  on_host:
+    executables:
+      - path: /usr/bin/newrelic-infra
+        args: "--config=${config_file1} --config=${config_file2} --config=${config_file3}"
+    restart_policy:
+      backoff_strategy:
+        type: fixed
+        backoff_delay_seconds: 5
+"#;
+
+    const AGENT_VALUES_MULTIPLE_FILES: &str = r#"
+config_file1: |
+  license_key: 11111111111111111
+  log:
+    level: info
+
+config_file2: |
+  license_key: 22222222222222222
+  log:
+    level: debug
+"#;
+
+    const AGENT_TYPE_SINGLE_MAP_FILE: &str = r#"
+namespace: newrelic
+name: com.newrelic.infrastructure_agent
+version: 0.0.1
+variables:
+  integrations:
+    description: "Newrelic infra configuration path"
+    type: map[string]file
+    required: true
+    file_path: integrations.d
+deployment:
+  on_host:
+    executables:
+      - path: /usr/bin/newrelic-infra
+        args: "--config=${integrations}"
+    restart_policy:
+      backoff_strategy:
+        type: fixed
+        backoff_delay_seconds: 5
+"#;
+
+    const AGENT_VALUES_SINGLE_MAP_FILE: &str = r#"
+integrations:
+  redis.yml: |
+    redis: true
+    log:
+      level: info
+  mysql.yml: |
+    mysql: true
+    log:
+      level: trace
+  kafka.yml: |
+    kafka: true
+    log:
+      level: debug
+"#;
+
+    const AGENT_TYPE_MULTIPLE_MAP_FILE: &str = r#"
+namespace: newrelic
+name: com.newrelic.infrastructure_agent
+version: 0.0.1
+variables:
+  integrations:
+    description: "Newrelic infra configuration path"
+    type: map[string]file
+    required: true
+    file_path: integrations.d
+  logging:
+    description: "Newrelic infra configuration path"
+    type: map[string]file
+    required: true
+    file_path: logging.d
+  config3:
+    description: "some config map"
+    type: map[string]string
+    required: true
+deployment:
+  on_host:
+    executables:
+      - path: /usr/bin/newrelic-infra
+        args: "--config=${integrations} --logging=${logging}"
+    restart_policy:
+      backoff_strategy:
+        type: fixed
+        backoff_delay_seconds: 5
+"#;
+
+    const AGENT_VALUES_MULTIPLE_MAP_FILE: &str = r#"
+integrations:
+  redis.yml: |
+    redis: true
+    log:
+      level: info
+  kafka.yml: |
+    kafka: true
+    log:
+      level: debug
+logging:
+  file: |
+    some logging conf
+  systemctl.yml: |
+    systemctl: true
+    log:
+      level: debug
+config3:
+  log_level: trace
+  forward: "true"
+"#;
+}

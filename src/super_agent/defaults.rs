@@ -4,6 +4,7 @@ pub const SUPER_AGENT_NAMESPACE: &str = "newrelic";
 pub const SUPER_AGENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 // Paths
+pub const SUPER_AGENT_LOCAL_DATA_DIR: &str = "/etc/newrelic-super-agent";
 pub const SUPER_AGENT_DATA_DIR: &str = "/var/lib/newrelic-super-agent";
 
 // Infrastructure_agent AgentType

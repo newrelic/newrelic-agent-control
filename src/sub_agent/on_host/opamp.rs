@@ -4,8 +4,6 @@ use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPClientBuilderError};
 use crate::super_agent::instance_id::InstanceIDGetter;
 use crate::super_agent::super_agent::SuperAgentEvent;
 use nix::unistd::gethostname;
-use opamp_client::capabilities;
-use opamp_client::opamp::proto::AgentCapabilities;
 use opamp_client::operation::settings::{AgentDescription, StartSettings};
 use std::collections::HashMap;
 
@@ -37,7 +35,7 @@ where
 fn start_settings(instance_id: String, agent_fqn: &AgentTypeFQN) -> StartSettings {
     StartSettings {
         instance_id,
-        capabilities: capabilities!(AgentCapabilities::ReportsHealth),
+        capabilities: agent_fqn.get_capabilities(),
         agent_description: AgentDescription {
             identifying_attributes: HashMap::from([
                 ("service.name".to_string(), agent_fqn.name().into()),

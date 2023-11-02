@@ -1,9 +1,13 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::{collections::HashMap, fmt::Display};
 
 use std::ops::Deref;
 
 use crate::config::error::SuperAgentConfigError;
+use crate::super_agent::defaults::{SUPER_AGENT_DATA_DIR, SUPER_AGENT_LOCAL_DATA_DIR};
+use opamp_client::capabilities;
+use opamp_client::opamp::proto::AgentCapabilities;
+use opamp_client::operation::capabilities::Capabilities;
 use serde::Deserialize;
 use thiserror::Error;
 
@@ -112,6 +116,13 @@ impl AgentTypeFQN {
     pub fn version(&self) -> String {
         self.0.chars().skip_while(|&i| i != ':').skip(1).collect()
     }
+
+    pub(crate) fn get_capabilities(&self) -> Capabilities {
+        capabilities!(
+            AgentCapabilities::ReportsHealth,
+            AgentCapabilities::AcceptsRemoteConfig
+        )
+    }
 }
 
 impl Display for AgentTypeFQN {
@@ -133,7 +144,11 @@ pub struct SubAgentConfig {
 }
 
 pub fn get_values_file_path(agent_id: &AgentID) -> String {
-    format!("/etc/newrelic-super-agent/agents.d/{}/values.yml", agent_id)
+    format!("{SUPER_AGENT_LOCAL_DATA_DIR}/agents.d/{agent_id}/values.yml")
+}
+
+pub fn get_remote_data_path(agent_id: &AgentID) -> PathBuf {
+    PathBuf::from(format!("{SUPER_AGENT_DATA_DIR}/fleet/agents.d/{agent_id}"))
 }
 
 #[derive(Debug, Default, Deserialize, PartialEq, Clone)]

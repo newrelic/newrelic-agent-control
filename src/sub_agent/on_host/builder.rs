@@ -1,5 +1,8 @@
 use crate::{
-    config::{agent_type::agent_types::FinalAgent, super_agent_configs::AgentID},
+    config::{
+        agent_type::agent_types::FinalAgent, remote_config_hash::HashRepositoryFile,
+        super_agent_configs::AgentID,
+    },
     context::Context,
     opamp::client_builder::OpAMPClientBuilder,
     sub_agent::{
@@ -58,6 +61,7 @@ where
             self.opamp_builder,
             self.instance_id_getter,
             agent_type,
+            HashRepositoryFile::default(),
         ))
     }
     // add code here
@@ -168,7 +172,10 @@ mod test {
     fn infra_agent_default_start_settings(hostname: &str) -> StartSettings {
         start_settings(
             "infra_agent_instance_id".to_string(),
-            capabilities!(AgentCapabilities::ReportsHealth),
+            capabilities!(
+                AgentCapabilities::ReportsHealth,
+                AgentCapabilities::AcceptsRemoteConfig
+            ),
             "".to_string(),
             "".to_string(),
             "".to_string(),
