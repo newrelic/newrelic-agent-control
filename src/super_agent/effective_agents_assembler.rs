@@ -1,7 +1,7 @@
 use thiserror::Error;
 
 use crate::config::agent_type::agent_types::FinalAgent;
-use crate::config::super_agent_configs::{AgentID, SubAgentConfig};
+use crate::config::super_agent_configs::{get_values_file_path, AgentID, SubAgentConfig};
 use crate::super_agent::super_agent::{EffectiveAgents, EffectiveAgentsError};
 use crate::{
     config::{
@@ -94,10 +94,16 @@ where
         //load agent type from repository and populate with values
         let agent_type = self.registry.get(&agent_cfg.agent_type)?;
         let mut agent_config: AgentValues = AgentValues::default();
-        if let Some(path) = &agent_cfg.values_file {
-            let contents = self.file_reader.read(path.as_str())?;
-            agent_config = serde_yaml::from_str(&contents)?;
+
+        let values_file_path = get_values_file_path(agent_id);
+        let values_result = self.file_reader.read(values_file_path.as_str());
+
+        match values_result {
+            Ok(contents) => agent_config = serde_yaml::from_str(&contents)?,
+            Err(FileReaderError::FileNotFound(_)) => { /* do nothing if no file */ }
+            Err(error) => return Err(error.into()),
         }
+
         // populate with values
         let populated_agent = agent_type.clone().template_with(agent_config)?;
 
@@ -170,7 +176,17 @@ mod tests {
 
         file_reader_mock
             .expect_read()
-            .with(predicate::eq("second.yaml".to_string()))
+            .with(predicate::eq(
+                "/etc/newrelic-super-agent/agents.d/first/values.yml".to_string(),
+            ))
+            .times(1)
+            .returning(|_| Ok(SECOND_TYPE_VALUES.to_string()));
+
+        file_reader_mock
+            .expect_read()
+            .with(predicate::eq(
+                "/etc/newrelic-super-agent/agents.d/second/values.yml".to_string(),
+            ))
             .times(1)
             .returning(|_| Ok(SECOND_TYPE_VALUES.to_string()));
 
@@ -216,7 +232,14 @@ mod tests {
 
         let mut file_reader_mock = MockFileReaderMock::new();
         //not idempotent test as the order of a hashmap is random
-        file_reader_mock.could_read("second.yaml".to_string(), SECOND_TYPE_VALUES.to_string());
+        file_reader_mock.could_read(
+            "/etc/newrelic-super-agent/agents.d/first/values.yml".to_string(),
+            SECOND_TYPE_VALUES.to_string(),
+        );
+        file_reader_mock.could_read(
+            "/etc/newrelic-super-agent/agents.d/second/values.yml".to_string(),
+            SECOND_TYPE_VALUES.to_string(),
+        );
 
         let mut config_persister = MockConfigurationPersisterMock::new();
         config_persister.should_delete_all_configs();
@@ -254,7 +277,15 @@ mod tests {
         ) = load_agents_cnf_setup();
 
         let mut file_reader_mock = MockFileReaderMock::new();
-        file_reader_mock.could_read("second.yaml".to_string(), SECOND_TYPE_VALUES.to_string());
+        file_reader_mock.could_read(
+            "/etc/newrelic-super-agent/agents.d/first/values.yml".to_string(),
+            SECOND_TYPE_VALUES.to_string(),
+        );
+
+        file_reader_mock.could_read(
+            "/etc/newrelic-super-agent/agents.d/second/values.yml".to_string(),
+            SECOND_TYPE_VALUES.to_string(),
+        );
 
         let mut config_persister = MockConfigurationPersisterMock::new();
         config_persister.should_delete_all_configs();
@@ -417,7 +448,6 @@ deployment:
                             .to_string()
                             .as_str()
                             .into(),
-                        values_file: None,
                     },
                 ),
                 (
@@ -430,7 +460,6 @@ deployment:
                             .to_string()
                             .as_str()
                             .into(),
-                        values_file: Some("second.yaml".to_string()),
                     },
                 ),
             ]),

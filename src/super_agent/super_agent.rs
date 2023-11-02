@@ -580,7 +580,23 @@ mod tests {
             "super_agent_instance_id".to_string(),
         );
 
-        let file_reader = MockFileReaderMock::new();
+        let mut file_reader_mock = MockFileReaderMock::new();
+
+        file_reader_mock
+            .expect_read()
+            .with(predicate::eq(
+                "/etc/newrelic-super-agent/agents.d/infra_agent/values.yml".to_string(),
+            ))
+            .times(1)
+            .returning(|_| Ok("".to_string()));
+
+        file_reader_mock
+            .expect_read()
+            .with(predicate::eq(
+                "/etc/newrelic-super-agent/agents.d/nrdot/values.yml".to_string(),
+            ))
+            .times(1)
+            .returning(|_| Ok("".to_string()));
         let mut conf_persister = MockConfigurationPersisterMock::new();
 
         conf_persister.should_delete_all_configs();
@@ -588,7 +604,7 @@ mod tests {
         conf_persister.should_persist_any_agent_config(2);
 
         let local_assembler =
-            LocalEffectiveAgentsAssembler::new(registry, conf_persister, file_reader);
+            LocalEffectiveAgentsAssembler::new(registry, conf_persister, file_reader_mock);
 
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         hash_repository_mock.expect_get().times(1).returning(|_| {
@@ -669,7 +685,24 @@ mod tests {
             "super_agent_instance_id".to_string(),
         );
 
-        let file_reader = MockFileReaderMock::new();
+        let mut file_reader_mock = MockFileReaderMock::new();
+
+        file_reader_mock
+            .expect_read()
+            .with(predicate::eq(
+                "/etc/newrelic-super-agent/agents.d/nrdot/values.yml".to_string(),
+            ))
+            .times(1)
+            .returning(|_| Ok("".to_string()));
+
+        file_reader_mock
+            .expect_read()
+            .with(predicate::eq(
+                "/etc/newrelic-super-agent/agents.d/infra_agent/values.yml".to_string(),
+            ))
+            .times(1)
+            .returning(|_| Ok("".to_string()));
+
         let mut conf_persister = MockConfigurationPersisterMock::new();
 
         conf_persister.should_delete_all_configs();
@@ -677,7 +710,7 @@ mod tests {
         conf_persister.should_persist_any_agent_config(2);
 
         let local_assembler =
-            LocalEffectiveAgentsAssembler::new(registry, conf_persister, file_reader);
+            LocalEffectiveAgentsAssembler::new(registry, conf_persister, file_reader_mock);
 
         let super_agent_config = super_agent_default_config();
 
@@ -781,7 +814,24 @@ mod tests {
             "super_agent_instance_id".to_string(),
         );
 
-        let file_reader = MockFileReaderMock::new();
+        let mut file_reader_mock = MockFileReaderMock::new();
+
+        file_reader_mock
+            .expect_read()
+            .with(predicate::eq(
+                "/etc/newrelic-super-agent/agents.d/infra_agent/values.yml".to_string(),
+            ))
+            .times(2)
+            .returning(|_| Ok("".to_string()));
+
+        file_reader_mock
+            .expect_read()
+            .with(predicate::eq(
+                "/etc/newrelic-super-agent/agents.d/nrdot/values.yml".to_string(),
+            ))
+            .times(1)
+            .returning(|_| Ok("".to_string()));
+
         let mut conf_persister = MockConfigurationPersisterMock::new();
 
         conf_persister.should_delete_all_configs();
@@ -798,7 +848,7 @@ mod tests {
         conf_persister.should_persist_agent_config(1, &agent_id_to_restart, &final_infra_agent);
 
         let local_assembler =
-            LocalEffectiveAgentsAssembler::new(registry, conf_persister, file_reader);
+            LocalEffectiveAgentsAssembler::new(registry, conf_persister, file_reader_mock);
 
         let super_agent_config = super_agent_default_config();
 
@@ -869,7 +919,16 @@ mod tests {
             "super_agent_instance_id".to_string(),
         );
 
-        let file_reader = MockFileReaderMock::new();
+        let mut file_reader_mock = MockFileReaderMock::new();
+
+        file_reader_mock
+            .expect_read()
+            .with(predicate::eq(
+                "/etc/newrelic-super-agent/agents.d/infra_agent/values.yml".to_string(),
+            ))
+            .times(2)
+            .returning(|_| Ok("".to_string()));
+
         let mut conf_persister = MockConfigurationPersisterMock::new();
 
         conf_persister.should_delete_all_configs();
@@ -898,7 +957,7 @@ mod tests {
         );
 
         let local_assembler =
-            LocalEffectiveAgentsAssembler::new(registry, conf_persister, file_reader);
+            LocalEffectiveAgentsAssembler::new(registry, conf_persister, file_reader_mock);
 
         let super_agent_config = super_agent_single_agent();
 
@@ -967,7 +1026,23 @@ mod tests {
             "super_agent_instance_id".to_string(),
         );
 
-        let file_reader = MockFileReaderMock::new();
+        let mut file_reader_mock = MockFileReaderMock::new();
+
+        file_reader_mock
+            .expect_read()
+            .with(predicate::eq(
+                "/etc/newrelic-super-agent/agents.d/infra_agent/values.yml".to_string(),
+            ))
+            .times(2)
+            .returning(|_| Ok("".to_string()));
+
+        file_reader_mock
+            .expect_read()
+            .with(predicate::eq(
+                "/etc/newrelic-super-agent/agents.d/nrdot/values.yml".to_string(),
+            ))
+            .times(1)
+            .returning(|_| Ok("".to_string()));
 
         // Expectations for loading agents
         let mut final_nrdot: FinalAgent = FinalAgent::default();
@@ -1007,7 +1082,7 @@ mod tests {
 
         // Assemble services and Super Agent
         let local_assembler =
-            LocalEffectiveAgentsAssembler::new(registry, conf_persister, file_reader);
+            LocalEffectiveAgentsAssembler::new(registry, conf_persister, file_reader_mock);
 
         let mut sub_agent_builder = MockSubAgentBuilderMock::new();
         // it should build three sub_agents (2 + 1)
@@ -1053,7 +1128,23 @@ mod tests {
         let mut conf_persister = MockConfigurationPersisterMock::new();
         let mut registry = MockAgentRegistryMock::new();
         let instance_id_getter = MockInstanceIDGetterMock::new();
-        let file_reader = MockFileReaderMock::new();
+        let mut file_reader_mock = MockFileReaderMock::new();
+
+        file_reader_mock
+            .expect_read()
+            .with(predicate::eq(
+                "/etc/newrelic-super-agent/agents.d/infra_agent/values.yml".to_string(),
+            ))
+            .times(2)
+            .returning(|_| Ok("".to_string()));
+
+        file_reader_mock
+            .expect_read()
+            .with(predicate::eq(
+                "/etc/newrelic-super-agent/agents.d/nrdot/values.yml".to_string(),
+            ))
+            .times(1)
+            .returning(|_| Ok("".to_string()));
 
         // Expectations for loading agents
         let mut final_nrdot: FinalAgent = FinalAgent::default();
@@ -1103,7 +1194,7 @@ mod tests {
 
         // Assemble services and Super Agent
         let local_assembler =
-            LocalEffectiveAgentsAssembler::new(registry, conf_persister, file_reader);
+            LocalEffectiveAgentsAssembler::new(registry, conf_persister, file_reader_mock);
 
         let mut sub_agent_builder = MockSubAgentBuilderMock::new();
         // it should build two sub_agents (2 + 0 error)
@@ -1192,14 +1283,12 @@ mod tests {
                         agent_type: AgentTypeFQN::from(
                             "newrelic/com.newrelic.infrastructure_agent:0.0.1",
                         ),
-                        values_file: None,
                     },
                 ),
                 (
                     AgentID("nrdot".to_string()),
                     SubAgentConfig {
                         agent_type: AgentTypeFQN::from("newrelic/io.opentelemetry.collector:0.0.1"),
-                        values_file: None,
                     },
                 ),
             ]),
@@ -1215,7 +1304,6 @@ mod tests {
                     agent_type: AgentTypeFQN::from(
                         "newrelic/com.newrelic.infrastructure_agent:0.0.1",
                     ),
-                    values_file: None,
                 },
             )]),
         }
