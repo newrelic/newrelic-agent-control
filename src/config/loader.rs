@@ -135,7 +135,7 @@ agents:
 
         let expected = SuperAgentConfig {
             agents: HashMap::from([(
-                AgentID::new("rolldice"),
+                AgentID::new("rolldice").unwrap(),
                 SubAgentConfig {
                     agent_type: AgentTypeFQN("com.newrelic.infrastructure_agent:0.0.2".to_string()),
                 },

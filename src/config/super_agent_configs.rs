@@ -9,6 +9,8 @@ use thiserror::Error;
 
 use serde::{Deserialize, Serialize};
 
+use super::remote_config::RemoteConfig;
+
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Hash, Eq)]
 #[serde(try_from = "String")]
 pub struct AgentID(String);
@@ -77,18 +79,30 @@ impl Display for AgentID {
 
 /// SubAgentsConfig represents the configuration for the sub agents.
 #[derive(Debug, Deserialize, Serialize, Default, PartialEq, Clone)]
-pub struct SubAgentsConfig(pub(crate) HashMap<AgentID, SubAgentConfig>);
+pub struct SubAgentsConfig {
+    pub(crate) agents: HashMap<AgentID, SubAgentConfig>,
+}
 
 impl Deref for SubAgentsConfig {
     type Target = HashMap<AgentID, SubAgentConfig>;
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.agents
     }
 }
 
 impl From<HashMap<AgentID, SubAgentConfig>> for SubAgentsConfig {
     fn from(value: HashMap<AgentID, SubAgentConfig>) -> Self {
-        Self(value)
+        Self { agents: value }
+    }
+}
+
+impl TryFrom<&RemoteConfig> for SubAgentsConfig {
+    type Error = SuperAgentConfigError;
+    fn try_from(value: &RemoteConfig) -> Result<Self, Self::Error> {
+        // YAML format
+        // simple config is provided as empty string filename: https://github.com/open-telemetry/opamp-spec/blob/main/proto/opamp.proto#L837
+        let config: SubAgentsConfig = serde_yaml::from_str(value.config_map.get("").unwrap())?;
+        Ok(config)
     }
 }
 
@@ -97,7 +111,7 @@ impl From<HashMap<AgentID, SubAgentConfig>> for SubAgentsConfig {
 #[serde(deny_unknown_fields)]
 pub struct SuperAgentConfig {
     /// agents is a map of agent types to their specific configuration (if any).
-    #[serde(default)]
+    #[serde(default, flatten)]
     pub agents: SubAgentsConfig,
 
     /// opamp contains the OpAMP client configuration
@@ -106,7 +120,7 @@ pub struct SuperAgentConfig {
 
 impl SubAgentsConfig {
     pub fn get(&self, agent_id: &AgentID) -> Result<&SubAgentConfig, SuperAgentConfigError> {
-        self.0
+        self.agents
             .get(agent_id)
             .ok_or(SuperAgentConfigError::SubAgentNotFound(
                 agent_id.to_string(),
@@ -187,6 +201,12 @@ agents:
     agent_type: namespace/agent_type:0.0.1
 "#;
 
+    const EXAMPLE_SUBAGENTS_CONFIG: &str = r#"
+agents:
+  agent_1:
+    agent_type: namespace/agent_type:0.0.1
+"#;
+
     const SUPERAGENT_CONFIG_UNKNOWN_FIELDS: &str = r#"
 # opamp:
 # agents:
@@ -236,8 +256,8 @@ agents:
 
     #[test]
     fn basic_parse() {
-        let actual = serde_yaml::from_str::<SuperAgentConfig>(EXAMPLE_SUPERAGENT_CONFIG);
-        assert!(actual.is_ok());
+        assert!(serde_yaml::from_str::<SuperAgentConfig>(EXAMPLE_SUPERAGENT_CONFIG).is_ok());
+        assert!(serde_yaml::from_str::<SubAgentsConfig>(EXAMPLE_SUBAGENTS_CONFIG).is_ok())
     }
 
     #[test]

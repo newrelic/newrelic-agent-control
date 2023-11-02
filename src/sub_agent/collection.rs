@@ -95,4 +95,9 @@ where
             Ok(())
         })
     }
+
+    #[cfg(test)]
+    pub(crate) fn len(&self) -> usize {
+        self.0.len()
+    }
 }
