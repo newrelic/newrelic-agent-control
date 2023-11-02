@@ -5,10 +5,9 @@ use std::{
     sync::mpsc::{SendError, Sender},
 };
 
-use super::stream::{Event, Metadata};
+use crate::sub_agent::logger::{Event, Metadata, OutputEvent};
 
 use super::command::{CommandError, NotStartedCommand, StartedCommand, SyncCommandRunner};
-use super::stream::OutputEvent;
 use tracing::error;
 
 ////////////////////////////////////////////////////////////////////////////////////

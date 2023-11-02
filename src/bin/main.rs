@@ -2,7 +2,6 @@ use std::error::Error;
 
 use cfg_if::cfg_if;
 use newrelic_super_agent::config::super_agent_configs::SuperAgentConfig;
-use newrelic_super_agent::sub_agent::on_host::builder::OnHostSubAgentBuilder;
 use newrelic_super_agent::super_agent::error::AgentError;
 use tracing::{error, info};
 
@@ -65,9 +64,10 @@ fn run_super_agent(
             if !nix::unistd::Uid::effective().is_root() {
                 panic!("Program must run as root");
             }
-           let sub_agent_builder = OnHostSubAgentBuilder::new(opamp_client_builder.as_ref(), &instance_id_getter);
+           let sub_agent_builder = newrelic_super_agent::sub_agent::on_host::builder::OnHostSubAgentBuilder::new(opamp_client_builder.as_ref(), &instance_id_getter);
         } else if #[cfg(feature = "k8s")] {
-            let sub_agent_builder = newrelic_super_agent::sub_agent::k8s::builder::K8sSubAgentBuilder::new(opamp_client_builder.as_ref(), &instance_id_getter);
+           let sub_agent_builder = newrelic_super_agent::sub_agent::k8s::builder::K8sSubAgentBuilder::default();
+                panic!("K8S still not implemented");
         }
     };
 

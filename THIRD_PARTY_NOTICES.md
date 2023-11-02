@@ -1112,6 +1112,14 @@ Distributed under the following license(s):
 
 
 
+## powerfmt (https://crates.io/crates/powerfmt)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+
 ## ppv-lite86 (https://crates.io/crates/ppv-lite86)
 
 Distributed under the following license(s):
@@ -1720,14 +1728,6 @@ Distributed under the following license(s):
 
 
 ## utf8parse (https://crates.io/crates/utf8parse)
-
-Distributed under the following license(s):
-* Apache-2.0
-* MIT
-
-
-
-## uuid (https://crates.io/crates/uuid)
 
 Distributed under the following license(s):
 * Apache-2.0

@@ -1,46 +1,45 @@
 use crate::{
     config::{agent_type::agent_types::FinalAgent, super_agent_configs::AgentID},
+    context::Context,
     opamp::client_builder::OpAMPClientBuilder,
     sub_agent::{
-        error::SubAgentBuilderError, on_host::sub_agent::NotStartedSubAgentOnHost, SubAgentBuilder,
+        error::{SubAgentBuilderError, SubAgentError},
+        logger::Event,
+        restart_policy::RestartPolicy,
+        SubAgentBuilder,
     },
     super_agent::instance_id::InstanceIDGetter,
 };
 
-pub struct K8sSubAgentBuilder<'a, O, I>
-where
-    O: OpAMPClientBuilder,
-    I: InstanceIDGetter,
-{
-    _opamp_builder: Option<&'a O>,
-    _instance_id_getter: &'a I,
-}
+#[derive(Default)]
+pub struct K8sSubAgentBuilder;
 
-impl<'a, O, I> K8sSubAgentBuilder<'a, O, I>
-where
-    O: OpAMPClientBuilder,
-    I: InstanceIDGetter,
-{
-    pub fn new(opamp_builder: Option<&'a O>, instance_id_getter: &'a I) -> Self {
-        Self {
-            _opamp_builder: opamp_builder,
-            _instance_id_getter: instance_id_getter,
-        }
+impl SubAgentBuilder for K8sSubAgentBuilder {
+    type NotStartedSubAgent = K8sSubAgent;
+    fn build(
+        &self,
+        agent: FinalAgent,
+        agent_id: AgentID,
+        tx: std::sync::mpsc::Sender<Event>,
+    ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
+        unimplemented!()
     }
 }
 
-impl<'a, O, I> SubAgentBuilder for K8sSubAgentBuilder<'a, O, I>
-where
-    O: OpAMPClientBuilder,
-    I: InstanceIDGetter,
-{
-    type NotStartedSubAgent = NotStartedSubAgentOnHost<'a, O, I>;
-    fn build(
-        &self,
-        _agent: FinalAgent,
-        _agent_id: AgentID,
-        _tx: std::sync::mpsc::Sender<crate::sub_agent::on_host::command::stream::Event>,
-    ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
+use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
+use std::thread::JoinHandle;
+pub struct K8sSubAgent;
+
+impl NotStartedSubAgent for K8sSubAgent {
+    type StartedSubAgent = K8sSubAgent;
+
+    fn run(self) -> Result<Self::StartedSubAgent, SubAgentError> {
+        unimplemented!()
+    }
+}
+
+impl StartedSubAgent for K8sSubAgent {
+    fn stop(self) -> Result<Vec<JoinHandle<()>>, SubAgentError> {
         unimplemented!()
     }
 }

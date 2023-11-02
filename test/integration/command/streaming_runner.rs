@@ -1,11 +1,11 @@
 use std::{collections::HashMap, sync::mpsc::Receiver, thread};
 
+use newrelic_super_agent::sub_agent::logger::{Event, OutputEvent};
 use newrelic_super_agent::sub_agent::on_host::command::command::{
     CommandTerminator, NotStartedCommand, StartedCommand,
 };
 use newrelic_super_agent::sub_agent::on_host::command::command_os::NotStartedCommandOS;
 use newrelic_super_agent::sub_agent::on_host::command::shutdown::ProcessTerminator;
-use newrelic_super_agent::sub_agent::on_host::command::stream::{Event, OutputEvent};
 
 const TICKER: &str = "test/integration/command/scripts/ticker.sh";
 const TICKER_STDERR: &str = "test/integration/command/scripts/ticker_stderr.sh";

@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use std::sync::mpsc::Sender;
 
-use super::restart_policy::RestartPolicy;
-use crate::{context::Context, sub_agent::on_host::command::stream::Event};
+use crate::sub_agent::restart_policy::RestartPolicy;
+use crate::{context::Context, sub_agent::logger::Event};
 
 #[derive(Debug, Clone)]
 pub struct SupervisorConfigOnHost {
