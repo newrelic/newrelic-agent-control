@@ -1,11 +1,13 @@
 use std::error::Error;
+use std::path::PathBuf;
 
 use cfg_if::cfg_if;
+use newrelic_super_agent::super_agent::defaults::SUPER_AGENT_DATA_DIR;
 use newrelic_super_agent::super_agent::error::AgentError;
 use tracing::{error, info};
 
-use newrelic_super_agent::config::loader::{SuperAgentConfigLoader, SuperAgentConfigLoaderFile};
 use newrelic_super_agent::config::remote_config_hash::HashRepositoryFile;
+use newrelic_super_agent::config::store::{SuperAgentConfigStore, SuperAgentConfigStoreFile};
 use newrelic_super_agent::opamp::client_builder::OpAMPHttpBuilder;
 use newrelic_super_agent::super_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use newrelic_super_agent::super_agent::instance_id::ULIDInstanceIDGetter;
@@ -31,14 +33,21 @@ async fn main() -> Result<(), Box<dyn Error>> {
     info!("Creating the signal handler");
     create_shutdown_signal_handler(ctx.clone())?;
 
-    let super_agent_config =
-        SuperAgentConfigLoaderFile::new(&cli.get_config_path(), &cli.get_config_path());
+    let mut super_agent_config = SuperAgentConfigStoreFile::new(&cli.get_config_path());
 
     let opamp_client_builder: Option<OpAMPHttpBuilder> = super_agent_config
-        .load_config()?
+        .load()?
         .opamp
         .as_ref()
         .map(|opamp_config| OpAMPHttpBuilder::new(opamp_config.clone()));
+
+    // enable remote config store
+    if opamp_client_builder.is_some() {
+        super_agent_config = super_agent_config.with_remote(&PathBuf::from(format!(
+            "{}/{}",
+            SUPER_AGENT_DATA_DIR, "config.yaml"
+        )));
+    }
 
     let instance_id_getter = ULIDInstanceIDGetter::default();
 
@@ -51,7 +60,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 }
 
 fn run_super_agent(
-    config: SuperAgentConfigLoaderFile,
+    config: SuperAgentConfigStoreFile,
     ctx: Context<Option<SuperAgentEvent>>,
     opamp_client_builder: Option<OpAMPHttpBuilder>,
     instance_id_getter: ULIDInstanceIDGetter,

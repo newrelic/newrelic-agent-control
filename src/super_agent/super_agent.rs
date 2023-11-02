@@ -13,9 +13,9 @@ use tracing::{error, info};
 
 use crate::config::agent_type::agent_types::FinalAgent;
 use crate::config::error::SuperAgentConfigError;
-use crate::config::loader::{SubAgentsConfigStore, SuperAgentConfigLoaderFile};
 use crate::config::remote_config::{RemoteConfig, RemoteConfigError};
 use crate::config::remote_config_hash::{Hash, HashRepository, HashRepositoryFile};
+use crate::config::store::{SubAgentsConfigStore, SuperAgentConfigStoreFile};
 use crate::config::super_agent_configs::{AgentID, SubAgentConfig, SubAgentsConfig};
 use crate::context::Context;
 use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPHttpBuilder};
@@ -50,7 +50,7 @@ pub struct SuperAgent<
     OpAMPBuilder = OpAMPHttpBuilder,
     ID = ULIDInstanceIDGetter,
     HR = HashRepositoryFile,
-    SL = SuperAgentConfigLoaderFile,
+    SL = SuperAgentConfigStoreFile,
 > where
     Assembler: EffectiveAgentsAssembler,
     OpAMPBuilder: OpAMPClientBuilder,
@@ -65,7 +65,7 @@ pub struct SuperAgent<
     sub_agent_builder: S,
     remote_config_hash_repository: HR,
     agent_id: AgentID,
-    sub_agents_config_loader: SL,
+    sub_agents_config_store: SL,
 }
 
 impl<'a, Assembler, S, OpAMPBuilder, ID, HR, SL>
@@ -84,7 +84,7 @@ where
         instance_id_getter: &'a ID,
         remote_config_hash_repository: HR,
         sub_agent_builder: S,
-        sub_agents_config_loader: SL,
+        sub_agents_config_store: SL,
     ) -> Self {
         Self {
             instance_id_getter,
@@ -94,7 +94,7 @@ where
             sub_agent_builder,
             // unwrap as we control content of the SUPER_AGENT_ID constant
             agent_id: AgentID::new_super_agent_id(),
-            sub_agents_config_loader,
+            sub_agents_config_store,
         }
     }
 
@@ -139,8 +139,7 @@ where
         }
 
         info!("Starting the supervisor group.");
-        let effective_agents =
-            self.load_effective_agents(&self.sub_agents_config_loader.load()?)?;
+        let effective_agents = self.load_effective_agents(&self.sub_agents_config_store.load()?)?;
 
         let not_started_sub_agents = self.load_sub_agents(effective_agents, &tx)?;
 
@@ -186,7 +185,7 @@ where
                             }
                         }
                         SuperAgentEvent::RestartSubAgent(agent_id) => {
-                            let config = self.sub_agents_config_loader.load()?;
+                            let config = self.sub_agents_config_store.load()?;
                             let config = config.get(&agent_id)?;
                             self.recreate_sub_agent(
                                 agent_id,
@@ -355,7 +354,7 @@ where
             Ok(config) => {
                 let sub_agents = SubAgentsConfig::try_from(&config)?;
 
-                let old_sub_agents_config = self.sub_agents_config_loader.load()?;
+                let old_sub_agents_config = self.sub_agents_config_store.load()?;
 
                 // recreate from new configuration
                 sub_agents.iter().try_for_each(|(agent_id, agent_config)| {
@@ -388,7 +387,7 @@ where
                         Ok(())
                     })?;
 
-                self.sub_agents_config_loader.store(&sub_agents)?;
+                self.sub_agents_config_store.store(&sub_agents)?;
                 //
                 self.remote_config_hash_repository
                     .save(self.agent_id(), &config.hash)?;
@@ -455,14 +454,14 @@ mod tests {
     use crate::config::agent_type::agent_types::FinalAgent;
     use crate::config::agent_type::runtime_config::OnHost;
     use crate::config::agent_type_registry::tests::MockAgentRegistryMock;
-    use crate::config::loader::tests::MockSubAgentsConfigStore;
-    use crate::config::loader::SubAgentsConfigStore;
     use crate::config::persister::config_persister::test::MockConfigurationPersisterMock;
     use crate::config::persister::config_persister::PersistError::FileError;
     use crate::config::persister::config_writer_file::WriteError;
     use crate::config::remote_config::{ConfigMap, RemoteConfig};
     use crate::config::remote_config_hash::test::MockHashRepositoryMock;
     use crate::config::remote_config_hash::{Hash, HashRepository};
+    use crate::config::store::tests::MockSubAgentsConfigStore;
+    use crate::config::store::SubAgentsConfigStore;
     use crate::config::super_agent_configs::{
         AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig,
     };
@@ -513,7 +512,7 @@ mod tests {
             opamp_client_builder: Option<&'a OpAMPBuilder>,
             remote_config_hash_repository: HR,
             sub_agent_builder: S,
-            sub_agents_config_loader: SL,
+            sub_agents_config_store: SL,
         ) -> Self {
             SuperAgent {
                 effective_agents_asssembler,
@@ -522,7 +521,7 @@ mod tests {
                 remote_config_hash_repository,
                 sub_agent_builder,
                 agent_id: AgentID::new_super_agent_id(),
-                sub_agents_config_loader,
+                sub_agents_config_store,
             }
         }
     }
@@ -560,8 +559,8 @@ mod tests {
         let local_assembler =
             LocalEffectiveAgentsAssembler::new(registry, conf_persister, file_reader);
 
-        let mut sub_agents_config_loader = MockSubAgentsConfigStore::new();
-        sub_agents_config_loader
+        let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
+        sub_agents_config_store
             .expect_load()
             .returning(|| Ok(HashMap::new().into()));
 
@@ -579,7 +578,7 @@ mod tests {
             Some(&opamp_builder),
             hash_repository_mock,
             MockSubAgentBuilderMock::new(),
-            sub_agents_config_loader,
+            sub_agents_config_store,
         );
 
         let ctx = Context::new();
@@ -677,8 +676,8 @@ mod tests {
         // it should build two subagents: nrdot + infra_agent
         sub_agent_builder.should_build(2);
 
-        let mut sub_agents_config_loader = MockSubAgentsConfigStore::new();
-        sub_agents_config_loader
+        let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
+        sub_agents_config_store
             .expect_load()
             .returning(|| Ok(super_agent_default_config()));
 
@@ -688,7 +687,7 @@ mod tests {
             Some(&opamp_builder),
             hash_repository_mock,
             sub_agent_builder,
-            sub_agents_config_loader,
+            sub_agents_config_store,
         );
 
         let ctx = Context::new();
@@ -776,12 +775,12 @@ mod tests {
         let local_assembler =
             LocalEffectiveAgentsAssembler::new(registry, conf_persister, file_reader_mock);
 
-        let mut sub_agents_config_loader = MockSubAgentsConfigStore::new();
-        sub_agents_config_loader
+        let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
+        sub_agents_config_store
             .expect_load()
             .returning(|| Ok(super_agent_default_config()));
         // updated agent
-        sub_agents_config_loader
+        sub_agents_config_store
             .expect_store()
             .once()
             .returning(|_| Ok(()));
@@ -822,7 +821,7 @@ mod tests {
                     Some(&opamp_builder),
                     hash_repository_mock,
                     sub_agent_builder,
-                    sub_agents_config_loader,
+                    sub_agents_config_store,
                 );
                 agent.run(ctx)
             }
@@ -931,8 +930,8 @@ agents:
         let local_assembler =
             LocalEffectiveAgentsAssembler::new(registry, conf_persister, file_reader_mock);
 
-        let mut sub_agents_config_loader = MockSubAgentsConfigStore::new();
-        sub_agents_config_loader
+        let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
+        sub_agents_config_store
             .expect_load()
             .returning(|| Ok(super_agent_default_config()));
 
@@ -954,7 +953,7 @@ agents:
             Some(&opamp_builder),
             hash_repository_mock,
             sub_agent_builder,
-            sub_agents_config_loader,
+            sub_agents_config_store,
         );
 
         let ctx = Context::new();
@@ -1044,8 +1043,8 @@ agents:
         let local_assembler =
             LocalEffectiveAgentsAssembler::new(registry, conf_persister, file_reader_mock);
 
-        let mut sub_agents_config_loader = MockSubAgentsConfigStore::new();
-        sub_agents_config_loader
+        let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
+        sub_agents_config_store
             .expect_load()
             .times(2)
             .returning(|| Ok(super_agent_single_agent()));
@@ -1067,7 +1066,7 @@ agents:
             Some(&opamp_builder),
             hash_repository_mock,
             sub_agent_builder,
-            sub_agents_config_loader,
+            sub_agents_config_store,
         );
 
         let ctx = Context::new();
@@ -1184,8 +1183,8 @@ agents:
             Hash::new("a-hash".to_string()),
         );
 
-        let mut sub_agents_config_loader = MockSubAgentsConfigStore::new();
-        sub_agents_config_loader
+        let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
+        sub_agents_config_store
             .expect_load()
             .returning(|| Ok(super_agent_default_config()));
 
@@ -1196,7 +1195,7 @@ agents:
             Some(&opamp_builder),
             hash_repository_mock,
             sub_agent_builder,
-            sub_agents_config_loader,
+            sub_agents_config_store,
         );
 
         let ctx = Context::new();
@@ -1268,14 +1267,14 @@ agents:
         // it should build two sub_agents (2 + 0 error)
         sub_agent_builder.should_build(2);
 
-        let mut sub_agents_config_loader = MockSubAgentsConfigStore::new();
+        let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
         // all agents on first load
-        sub_agents_config_loader
+        sub_agents_config_store
             .expect_load()
             .times(2)
             .returning(|| Ok(super_agent_default_config()));
         // just nrdot in second load
-        sub_agents_config_loader
+        sub_agents_config_store
             .expect_load()
             .once()
             .return_once(|| {
@@ -1287,7 +1286,7 @@ agents:
                 )])
                 .into())
             });
-        sub_agents_config_loader
+        sub_agents_config_store
             .expect_store()
             .times(2)
             .returning(|_| Ok(()));
@@ -1309,13 +1308,13 @@ agents:
             None::<&MockOpAMPClientBuilderMock>,
             hash_repository_mock,
             sub_agent_builder,
-            sub_agents_config_loader,
+            sub_agents_config_store,
         );
 
         let (tx, _) = mpsc::channel();
 
         let effective_agents = super_agent
-            .load_effective_agents(&super_agent.sub_agents_config_loader.load().unwrap())
+            .load_effective_agents(&super_agent.sub_agents_config_store.load().unwrap())
             .unwrap();
 
         let sub_agents = super_agent.load_sub_agents(effective_agents, &tx);
@@ -1445,8 +1444,8 @@ agents:
         // it should build two sub_agents (2 + 0 error)
         sub_agent_builder.should_build(2);
 
-        let mut sub_agents_config_loader = MockSubAgentsConfigStore::new();
-        sub_agents_config_loader
+        let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
+        sub_agents_config_store
             .expect_load()
             .returning(|| Ok(super_agent_default_config()));
 
@@ -1457,19 +1456,19 @@ agents:
             None::<&MockOpAMPClientBuilderMock>,
             MockHashRepositoryMock::new(),
             sub_agent_builder,
-            sub_agents_config_loader,
+            sub_agents_config_store,
         );
 
         let (tx, _) = mpsc::channel();
 
         let effective_agents = super_agent
-            .load_effective_agents(&super_agent.sub_agents_config_loader.load().unwrap())
+            .load_effective_agents(&super_agent.sub_agents_config_store.load().unwrap())
             .unwrap();
 
         let sub_agents = super_agent.load_sub_agents(effective_agents, &tx);
 
         let mut running_sub_agents = sub_agents.unwrap().run().unwrap();
-        let agent_restart_config = super_agent.sub_agents_config_loader.load().unwrap();
+        let agent_restart_config = super_agent.sub_agents_config_store.load().unwrap();
         let agent_restart_config = agent_restart_config.get(&agent_id_to_restart).unwrap();
 
         let result = super_agent.recreate_sub_agent(

@@ -6,7 +6,7 @@ use thiserror::Error;
 use super::super_agent_configs::SubAgentsConfig;
 
 #[derive(Error, Debug)]
-pub enum SuperAgentConfigLoaderError {
+pub enum SuperAgentConfigStoreError {
     #[error("error loading config: `{0}`")]
     IOError(#[from] std::io::Error),
 
@@ -23,8 +23,9 @@ pub enum SubAgentsConfigStoreError {
     SerdeYamlError(#[from] serde_yaml::Error),
 }
 
-pub trait SuperAgentConfigLoader: SubAgentsConfigStore {
-    fn load_config(&self) -> Result<SuperAgentConfig, SuperAgentConfigError>;
+pub trait SuperAgentConfigStore: SubAgentsConfigStore {
+    fn load(&self) -> Result<SuperAgentConfig, SuperAgentConfigError>;
+    fn store(&self, config: SuperAgentConfig) -> Result<SuperAgentConfig, SuperAgentConfigError>;
 }
 
 pub trait SubAgentsConfigStore {
@@ -32,18 +33,21 @@ pub trait SubAgentsConfigStore {
     fn store(&self, config: &SubAgentsConfig) -> Result<(), SuperAgentConfigError>;
 }
 
-pub struct SuperAgentConfigLoaderFile {
+pub struct SuperAgentConfigStoreFile {
     local_path: PathBuf,
-    remote_path: PathBuf,
+    remote_path: Option<PathBuf>,
 }
 
-impl SuperAgentConfigLoader for SuperAgentConfigLoaderFile {
-    fn load_config(&self) -> Result<SuperAgentConfig, SuperAgentConfigError> {
+impl SuperAgentConfigStore for SuperAgentConfigStoreFile {
+    fn load(&self) -> Result<SuperAgentConfig, SuperAgentConfigError> {
         Ok(self._load_config()?) //wrapper to encapsulate error
+    }
+    fn store(&self, _config: SuperAgentConfig) -> Result<SuperAgentConfig, SuperAgentConfigError> {
+        unimplemented!()
     }
 }
 
-impl SubAgentsConfigStore for SuperAgentConfigLoaderFile {
+impl SubAgentsConfigStore for SuperAgentConfigStoreFile {
     fn load(&self) -> Result<SubAgentsConfig, SuperAgentConfigError> {
         Ok(self._load_config()?.agents)
     }
@@ -52,24 +56,33 @@ impl SubAgentsConfigStore for SuperAgentConfigLoaderFile {
     }
 }
 
-impl SuperAgentConfigLoaderFile {
-    pub fn new(file_path: &Path, remote_path: &Path) -> Self {
+impl SuperAgentConfigStoreFile {
+    pub fn new(file_path: &Path) -> Self {
         Self {
             local_path: file_path.to_path_buf(),
-            remote_path: remote_path.to_path_buf(),
+            remote_path: None,
         }
     }
 
-    fn _load_config(&self) -> Result<SuperAgentConfig, SuperAgentConfigLoaderError> {
+    pub fn with_remote(self, remote_path: &Path) -> Self {
+        Self {
+            local_path: self.local_path,
+            remote_path: Some(remote_path.to_path_buf()),
+        }
+    }
+
+    fn _load_config(&self) -> Result<SuperAgentConfig, SuperAgentConfigStoreError> {
         let local_config_file = std::fs::File::open(&self.local_path)?;
         let mut local_config: SuperAgentConfig = serde_yaml::from_reader(local_config_file)?;
 
-        let remote_config_file = std::fs::File::open(&self.remote_path)?;
-        let remote_config: SuperAgentConfig = serde_yaml::from_reader(remote_config_file)?;
+        if let Some(remote_path_file) = &self.remote_path {
+            let remote_config_file = std::fs::File::open(remote_path_file)?;
+            let remote_config: SuperAgentConfig = serde_yaml::from_reader(remote_config_file)?;
 
-        // replace local agents with remote ones
-        if !remote_config.agents.is_empty() {
-            local_config.agents = remote_config.agents;
+            // replace local agents with remote ones
+            if !remote_config.agents.is_empty() {
+                local_config.agents = remote_config.agents;
+            }
         }
 
         Ok(local_config)
@@ -78,9 +91,18 @@ impl SuperAgentConfigLoaderFile {
     fn _store_sub_agents_config(
         &self,
         sub_agents: &SubAgentsConfig,
-    ) -> Result<(), SuperAgentConfigLoaderError> {
-        serde_yaml::to_writer(std::fs::File::open(&self.remote_path)?, sub_agents)?;
-        Ok(())
+    ) -> Result<(), SuperAgentConfigStoreError> {
+        if let Some(remote_path_file) = &self.remote_path {
+            Ok(serde_yaml::to_writer(
+                std::fs::File::open(remote_path_file)?,
+                sub_agents,
+            )?)
+        } else {
+            Ok(serde_yaml::to_writer(
+                std::fs::File::open(&self.local_path)?,
+                sub_agents,
+            )?)
+        }
     }
 }
 
@@ -91,7 +113,7 @@ pub(crate) mod tests {
     use tempfile::NamedTempFile;
 
     use crate::config::{
-        loader::SuperAgentConfigLoaderFile,
+        store::SuperAgentConfigStoreFile,
         super_agent_configs::{
             AgentID, AgentTypeFQN, OpAMPClientConfig, SubAgentConfig, SubAgentsConfig,
             SuperAgentConfig,
@@ -110,7 +132,7 @@ pub(crate) mod tests {
         }
     }
 
-    use super::SuperAgentConfigLoader;
+    use super::SuperAgentConfigStore;
 
     #[test]
     fn load_empty_agents_field_good() {
@@ -130,8 +152,9 @@ agents:
 "#;
         write!(remote_file, "{}", remote_config).unwrap();
 
-        let actual =
-            SuperAgentConfigLoaderFile::new(local_file.path(), remote_file.path()).load_config();
+        let actual = SuperAgentConfigStoreFile::new(local_file.path())
+            .with_remote(remote_file.path())
+            .load();
 
         let expected = SuperAgentConfig {
             agents: HashMap::from([(
