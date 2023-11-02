@@ -14,12 +14,22 @@ pub enum SuperAgentConfigLoaderError {
     SerdeYamlError(#[from] serde_yaml::Error),
 }
 
-pub trait SuperAgentConfigLoader: SubAgentsConfigLoader {
+#[derive(Error, Debug)]
+pub enum SubAgentsConfigStoreError {
+    #[error("error loading config: `{0}`")]
+    IOError(#[from] std::io::Error),
+
+    #[error("error loading config: `{0}`")]
+    SerdeYamlError(#[from] serde_yaml::Error),
+}
+
+pub trait SuperAgentConfigLoader: SubAgentsConfigStore {
     fn load_config(&self) -> Result<SuperAgentConfig, SuperAgentConfigError>;
 }
 
-pub trait SubAgentsConfigLoader {
-    fn load_config(&self) -> Result<SubAgentsConfig, SuperAgentConfigError>;
+pub trait SubAgentsConfigStore {
+    fn load(&self) -> Result<SubAgentsConfig, SuperAgentConfigError>;
+    fn store(&self, config: &SubAgentsConfig) -> Result<(), SuperAgentConfigError>;
 }
 
 pub struct SuperAgentConfigLoaderFile {
@@ -33,9 +43,12 @@ impl SuperAgentConfigLoader for SuperAgentConfigLoaderFile {
     }
 }
 
-impl SubAgentsConfigLoader for SuperAgentConfigLoaderFile {
-    fn load_config(&self) -> Result<SubAgentsConfig, SuperAgentConfigError> {
+impl SubAgentsConfigStore for SuperAgentConfigLoaderFile {
+    fn load(&self) -> Result<SubAgentsConfig, SuperAgentConfigError> {
         Ok(self._load_config()?.agents)
+    }
+    fn store(&self, config: &SubAgentsConfig) -> Result<(), SuperAgentConfigError> {
+        Ok(self._store_sub_agents_config(config)?)
     }
 }
 
@@ -61,6 +74,14 @@ impl SuperAgentConfigLoaderFile {
 
         Ok(local_config)
     }
+
+    fn _store_sub_agents_config(
+        &self,
+        sub_agents: &SubAgentsConfig,
+    ) -> Result<(), SuperAgentConfigLoaderError> {
+        serde_yaml::to_writer(std::fs::File::open(&self.remote_path)?, sub_agents)?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -72,18 +93,20 @@ pub(crate) mod tests {
     use crate::config::{
         loader::SuperAgentConfigLoaderFile,
         super_agent_configs::{
-            AgentID, AgentTypeFQN, OpAMPClientConfig, SubAgentConfig, SuperAgentConfig,
+            AgentID, AgentTypeFQN, OpAMPClientConfig, SubAgentConfig, SubAgentsConfig,
+            SuperAgentConfig,
         },
     };
 
     use mockall::mock;
 
     mock! {
-        pub SubAgentsConfigLoader {}
+        pub SubAgentsConfigStore {}
 
-        impl super::SubAgentsConfigLoader for SubAgentsConfigLoader {
+        impl super::SubAgentsConfigStore for SubAgentsConfigStore {
 
-            fn load_config(&self) -> Result<super::SubAgentsConfig, super::SuperAgentConfigError>;
+            fn load(&self) -> Result<super::SubAgentsConfig, super::SuperAgentConfigError>;
+            fn store(&self, config: &SubAgentsConfig) -> Result<(), super::SuperAgentConfigError>;
         }
     }
 

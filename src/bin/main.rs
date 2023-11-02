@@ -1,7 +1,6 @@
 use std::error::Error;
 
 use cfg_if::cfg_if;
-use newrelic_super_agent::config::super_agent_configs::SuperAgentConfig;
 use newrelic_super_agent::super_agent::error::AgentError;
 use tracing::{error, info};
 

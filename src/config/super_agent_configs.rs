@@ -5,10 +5,11 @@ use std::ops::Deref;
 
 use crate::config::error::SuperAgentConfigError;
 use crate::super_agent::defaults::SUPER_AGENT_ID;
-use serde::Deserialize;
 use thiserror::Error;
 
-#[derive(Debug, Deserialize, PartialEq, Clone, Hash, Eq)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Hash, Eq)]
 #[serde(try_from = "String")]
 pub struct AgentID(String);
 
@@ -75,7 +76,7 @@ impl Display for AgentID {
 }
 
 /// SubAgentsConfig represents the configuration for the sub agents.
-#[derive(Debug, Deserialize, Default, PartialEq, Clone)]
+#[derive(Debug, Deserialize, Serialize, Default, PartialEq, Clone)]
 pub struct SubAgentsConfig(pub(crate) HashMap<AgentID, SubAgentConfig>);
 
 impl Deref for SubAgentsConfig {
@@ -113,7 +114,7 @@ impl SubAgentsConfig {
     }
 }
 
-#[derive(Debug, PartialEq, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Deserialize, Serialize, Clone)]
 pub struct AgentTypeFQN(pub String);
 
 impl Deref for AgentTypeFQN {
@@ -155,7 +156,7 @@ impl From<&str> for AgentTypeFQN {
     }
 }
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct SubAgentConfig {
     pub agent_type: AgentTypeFQN, // FQN of the agent type, ex: newrelic/nrdot:0.1.0
