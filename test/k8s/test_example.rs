@@ -1,8 +1,6 @@
-use k8s_openapi::api::core::v1::Pod;
-use kube::Client;
-
 use crate::common::{K8sCluster, K8sEnv};
 
+use k8s_openapi::api::core::v1::Pod;
 use kube::api::Api;
 
 // tokio test runs with 1 thread by default causing deadlock when executing `block_on` code during test helper drop.
@@ -33,6 +31,7 @@ async fn k3s_spawning_container_k3s() {
 // Just a test example that should be removed.
 async fn fake_binary_run_example(namespace: &str) {
     use kube::api::PostParams;
+    use kube::Client;
 
     let client = Client::try_default().await.unwrap();
 
