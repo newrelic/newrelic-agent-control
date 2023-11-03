@@ -1,8 +1,6 @@
 use std::error::Error;
-use std::path::PathBuf;
 
 use cfg_if::cfg_if;
-use newrelic_super_agent::super_agent::defaults::SUPER_AGENT_DATA_DIR;
 use newrelic_super_agent::super_agent::error::AgentError;
 use tracing::{error, info};
 
@@ -43,10 +41,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // enable remote config store
     if opamp_client_builder.is_some() {
-        super_agent_config = super_agent_config.with_remote(&PathBuf::from(format!(
-            "{}/{}",
-            SUPER_AGENT_DATA_DIR, "config.yaml"
-        )));
+        super_agent_config = super_agent_config.with_remote();
     }
 
     let instance_id_getter = ULIDInstanceIDGetter::default();

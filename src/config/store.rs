@@ -1,5 +1,5 @@
-use crate::config::error::SuperAgentConfigError;
 use crate::config::super_agent_configs::SuperAgentConfig;
+use crate::{config::error::SuperAgentConfigError, super_agent::defaults::SUPER_AGENT_DATA_DIR};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
@@ -64,10 +64,12 @@ impl SuperAgentConfigStoreFile {
         }
     }
 
-    pub fn with_remote(self, remote_path: &Path) -> Self {
+    pub fn with_remote(self) -> Self {
         Self {
             local_path: self.local_path,
-            remote_path: Some(remote_path.to_path_buf()),
+            remote_path: Some(
+                PathBuf::from(&format!("{}/{}", SUPER_AGENT_DATA_DIR, "config.yaml")).to_path_buf(),
+            ),
         }
     }
 
@@ -135,7 +137,7 @@ pub(crate) mod tests {
     use super::SuperAgentConfigStore;
 
     #[test]
-    fn load_empty_agents_field_good() {
+    fn load_agents_local_remote() {
         let mut local_file = NamedTempFile::new().unwrap();
         let local_config = r#"
 agents: {}
@@ -152,9 +154,10 @@ agents:
 "#;
         write!(remote_file, "{}", remote_config).unwrap();
 
-        let actual = SuperAgentConfigStoreFile::new(local_file.path())
-            .with_remote(remote_file.path())
-            .load();
+        let mut store = SuperAgentConfigStoreFile::new(local_file.path());
+        store.remote_path = Some(remote_file.path().into());
+
+        let actual = store.load();
 
         let expected = SuperAgentConfig {
             agents: HashMap::from([(
