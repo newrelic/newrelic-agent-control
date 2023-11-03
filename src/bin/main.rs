@@ -73,7 +73,7 @@ fn run_super_agent(
 
     info!("Starting the super agent");
     SuperAgent::new(
-        LocalEffectiveAgentsAssembler::default(),
+        LocalEffectiveAgentsAssembler::with_remote_management(opamp_client_builder.is_some()),
         opamp_client_builder.as_ref(),
         &instance_id_getter,
         HashRepositoryFile::default(),

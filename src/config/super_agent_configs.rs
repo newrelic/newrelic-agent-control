@@ -116,13 +116,6 @@ impl AgentTypeFQN {
     pub fn version(&self) -> String {
         self.0.chars().skip_while(|&i| i != ':').skip(1).collect()
     }
-
-    pub(crate) fn get_capabilities(&self) -> Capabilities {
-        capabilities!(
-            AgentCapabilities::ReportsHealth,
-            AgentCapabilities::AcceptsRemoteConfig
-        )
-    }
 }
 
 impl Display for AgentTypeFQN {
@@ -158,8 +151,24 @@ pub struct OpAMPClientConfig {
     pub headers: Option<HashMap<String, String>>,
 }
 
+pub trait CapabilityGetter {
+    fn get_capabilities(&self) -> Capabilities;
+}
+
+impl CapabilityGetter for AgentTypeFQN {
+    fn get_capabilities(&self) -> Capabilities {
+        capabilities!(
+            AgentCapabilities::ReportsHealth,
+            AgentCapabilities::AcceptsRemoteConfig
+        )
+    }
+}
+
 #[cfg(test)]
-mod test {
+pub(crate) mod test {
+
+    use mockall::mock;
+
     use super::*;
 
     impl AgentID {
@@ -167,6 +176,14 @@ mod test {
             Self(agent_id.to_string())
         }
     }
+
+    mock!(
+        pub MockAgentTypeFQN {}
+
+        impl CapabilityGetter for MockAgentTypeFQN {
+            fn get_capabilities(&self) -> Capabilities;
+        }
+    );
 
     const EXAMPLE_SUPERAGENT_CONFIG: &str = r#"
 opamp:

@@ -239,11 +239,9 @@ where
         running_sub_agents.stop_remove(&agent_id)?;
 
         let sub_agent_config = super_agent_config.sub_agent_config(&agent_id)?;
-        let final_agent = self.effective_agents_asssembler.assemble_agent(
-            &agent_id,
-            sub_agent_config,
-            super_agent_config.opamp.is_some(),
-        )?;
+        let final_agent = self
+            .effective_agents_asssembler
+            .assemble_agent(&agent_id, sub_agent_config)?;
 
         running_sub_agents.insert(
             agent_id.clone(),
@@ -394,7 +392,7 @@ mod tests {
     use crate::config::remote_config_hash::test::MockHashRepositoryMock;
     use crate::config::remote_config_hash::{Hash, HashRepository};
     use crate::config::super_agent_configs::{
-        AgentID, AgentTypeFQN, SubAgentConfig, SuperAgentConfig,
+        AgentID, AgentTypeFQN, OpAMPClientConfig, SubAgentConfig, SuperAgentConfig,
     };
     use crate::context::Context;
     use crate::file_reader::test::MockFileReaderMock;
@@ -454,6 +452,14 @@ mod tests {
         }
     }
 
+    impl FinalAgent {
+        fn set_remote_capabilities(&mut self) {
+            self.set_capabilities(Capabilities::new(vec![
+                AgentCapabilities::AcceptsRemoteConfig,
+            ]));
+        }
+    }
+
     #[test]
     fn run_and_stop_supervisors_no_agents() {
         let mut opamp_builder = MockOpAMPClientBuilderMock::new();
@@ -484,11 +490,15 @@ mod tests {
         let mut conf_persister = MockConfigurationPersisterMock::new();
         conf_persister.should_delete_all_configs();
 
+        let mut remote_conf_persister = MockConfigurationPersisterMock::new();
+        remote_conf_persister.should_delete_all_configs();
+
         let local_assembler = LocalEffectiveAgentsAssembler::new(
             registry,
             conf_persister,
-            MockConfigurationPersisterMock::new(),
+            remote_conf_persister,
             file_reader,
+            false,
         );
 
         let super_agent_config = SuperAgentConfig {
@@ -549,10 +559,12 @@ mod tests {
         final_nrdot.runtime_config.deployment.on_host = Some(OnHost {
             executables: Vec::new(),
         });
+        final_nrdot.set_remote_capabilities();
         let mut final_infra_agent: FinalAgent = FinalAgent::default();
         final_infra_agent.runtime_config.deployment.on_host = Some(OnHost {
             executables: Vec::new(),
         });
+        final_infra_agent.set_remote_capabilities();
 
         let mut registry = MockAgentRegistryMock::new();
         registry.should_get(
@@ -587,14 +599,14 @@ mod tests {
         conf_persister.should_delete_any_agent_config(2);
         conf_persister.should_persist_any_agent_config(2);
 
-        let mut remote_config_persister = MockConfigurationPersisterMock::new();
-        remote_config_persister.should_delete_all_configs_times(2);
+        let remote_config_persister = MockConfigurationPersisterMock::new();
 
         let local_assembler = LocalEffectiveAgentsAssembler::new(
             registry,
             conf_persister,
             remote_config_persister,
             file_reader_mock,
+            true,
         );
 
         let mut hash_repository_mock = MockHashRepositoryMock::new();
@@ -608,7 +620,8 @@ mod tests {
         // it should build two subagents: nrdot + infra_agent
         sub_agent_builder.should_build(2);
 
-        let super_agent_config = super_agent_default_config();
+        let mut super_agent_config = super_agent_default_config();
+        super_agent_config.opamp = Some(OpAMPClientConfig::default());
 
         let agent = SuperAgent::new_custom(
             &instance_id_getter,
@@ -655,10 +668,12 @@ mod tests {
         final_nrdot.runtime_config.deployment.on_host = Some(OnHost {
             executables: Vec::new(),
         });
+        final_nrdot.set_remote_capabilities();
         let mut final_infra_agent: FinalAgent = FinalAgent::default();
         final_infra_agent.runtime_config.deployment.on_host = Some(OnHost {
             executables: Vec::new(),
         });
+        final_infra_agent.set_remote_capabilities();
 
         let mut registry = MockAgentRegistryMock::new();
         registry.should_get(
@@ -695,13 +710,14 @@ mod tests {
         conf_persister.should_persist_any_agent_config(2);
 
         let mut remote_config_persister = MockConfigurationPersisterMock::new();
-        remote_config_persister.should_delete_all_configs_times(2);
+        remote_config_persister.should_delete_all_configs();
 
         let local_assembler = LocalEffectiveAgentsAssembler::new(
             registry,
             conf_persister,
             remote_config_persister,
             file_reader_mock,
+            true,
         );
 
         let super_agent_config = super_agent_default_config();
@@ -785,10 +801,12 @@ mod tests {
         final_nrdot.runtime_config.deployment.on_host = Some(OnHost {
             executables: Vec::new(),
         });
+        final_nrdot.set_remote_capabilities();
         let mut final_infra_agent: FinalAgent = FinalAgent::default();
         final_infra_agent.runtime_config.deployment.on_host = Some(OnHost {
             executables: Vec::new(),
         });
+        final_infra_agent.set_remote_capabilities();
 
         let mut registry = MockAgentRegistryMock::new();
         registry.should_get(
@@ -833,13 +851,14 @@ mod tests {
         conf_persister.should_persist_agent_config(1, &agent_id_to_restart, &final_infra_agent);
 
         let mut remote_config_persister = MockConfigurationPersisterMock::new();
-        remote_config_persister.should_delete_all_configs_times(3);
+        remote_config_persister.should_delete_all_configs();
 
         let local_assembler = LocalEffectiveAgentsAssembler::new(
             registry,
             conf_persister,
             remote_config_persister,
             file_reader_mock,
+            true,
         );
 
         let super_agent_config = super_agent_default_config();
@@ -898,6 +917,7 @@ mod tests {
         final_infra_agent.runtime_config.deployment.on_host = Some(OnHost {
             executables: Vec::new(),
         });
+        final_infra_agent.set_remote_capabilities();
 
         let mut registry = MockAgentRegistryMock::new();
         registry.should_get(
@@ -946,13 +966,14 @@ mod tests {
         );
 
         let mut remote_config_persister = MockConfigurationPersisterMock::new();
-        remote_config_persister.should_delete_all_configs_times(2);
+        remote_config_persister.should_delete_all_configs();
 
         let local_assembler = LocalEffectiveAgentsAssembler::new(
             registry,
             conf_persister,
             remote_config_persister,
             file_reader_mock,
+            true,
         );
 
         let super_agent_config = super_agent_single_agent();
@@ -1039,6 +1060,8 @@ mod tests {
         final_nrdot.runtime_config.deployment.on_host = Some(OnHost {
             executables: Vec::new(),
         });
+        final_nrdot.set_remote_capabilities();
+
         registry.should_get(
             "newrelic/io.opentelemetry.collector:0.0.1".to_string(),
             final_nrdot,
@@ -1047,6 +1070,7 @@ mod tests {
         final_infra_agent.runtime_config.deployment.on_host = Some(OnHost {
             executables: Vec::new(),
         });
+        final_infra_agent.set_remote_capabilities();
 
         registry.should_get(
             "newrelic/com.newrelic.infrastructure_agent:0.0.1".to_string(),
@@ -1062,6 +1086,8 @@ mod tests {
         final_infra_agent.runtime_config.deployment.on_host = Some(OnHost {
             executables: Vec::new(),
         });
+        final_infra_agent.set_remote_capabilities();
+
         registry.should_get(
             "newrelic/com.newrelic.infrastructure_agent:0.0.1".to_string(),
             final_infra_agent.clone(),
@@ -1070,8 +1096,7 @@ mod tests {
         conf_persister.should_delete_agent_config(1, &agent_id_to_restart, &final_infra_agent);
         conf_persister.should_persist_agent_config(1, &agent_id_to_restart, &final_infra_agent);
 
-        let mut remote_config_persister = MockConfigurationPersisterMock::new();
-        remote_config_persister.should_delete_all_configs_times(3);
+        let remote_config_persister = MockConfigurationPersisterMock::new();
 
         // Assemble services and Super Agent
         let local_assembler = LocalEffectiveAgentsAssembler::new(
@@ -1079,6 +1104,7 @@ mod tests {
             conf_persister,
             remote_config_persister,
             file_reader_mock,
+            true,
         );
 
         let mut sub_agent_builder = MockSubAgentBuilderMock::new();
@@ -1114,7 +1140,10 @@ mod tests {
             Duration::from_millis(100),
         );
 
-        assert!(super_agent.run(ctx, &super_agent_default_config()).is_ok());
+        let mut super_agent_conf = super_agent_default_config();
+        super_agent_conf.opamp = Some(OpAMPClientConfig::default());
+
+        assert!(super_agent.run(ctx, &super_agent_conf).is_ok());
     }
 
     #[test]
@@ -1142,6 +1171,8 @@ mod tests {
         final_nrdot.runtime_config.deployment.on_host = Some(OnHost {
             executables: Vec::new(),
         });
+        final_nrdot.set_remote_capabilities();
+
         registry.should_get(
             "newrelic/io.opentelemetry.collector:0.0.1".to_string(),
             final_nrdot,
@@ -1150,6 +1181,7 @@ mod tests {
         final_infra_agent.runtime_config.deployment.on_host = Some(OnHost {
             executables: Vec::new(),
         });
+        final_infra_agent.set_remote_capabilities();
 
         registry.should_get(
             "newrelic/com.newrelic.infrastructure_agent:0.0.1".to_string(),
@@ -1166,6 +1198,8 @@ mod tests {
         final_infra_agent.runtime_config.deployment.on_host = Some(OnHost {
             executables: Vec::new(),
         });
+        final_infra_agent.set_remote_capabilities();
+
         registry.should_get(
             "newrelic/com.newrelic.infrastructure_agent:0.0.1".to_string(),
             final_infra_agent.clone(),
@@ -1183,8 +1217,7 @@ mod tests {
             err,
         );
 
-        let mut remote_config_persister = MockConfigurationPersisterMock::new();
-        remote_config_persister.should_delete_all_configs_times(3);
+        let remote_config_persister = MockConfigurationPersisterMock::new();
 
         // Assemble services and Super Agent
         let local_assembler = LocalEffectiveAgentsAssembler::new(
@@ -1192,6 +1225,7 @@ mod tests {
             conf_persister,
             remote_config_persister,
             file_reader_mock,
+            true,
         );
 
         let mut sub_agent_builder = MockSubAgentBuilderMock::new();
@@ -1208,7 +1242,9 @@ mod tests {
         );
 
         let (tx, _) = mpsc::channel();
-        let super_agent_config = super_agent_default_config();
+        let mut super_agent_config = super_agent_default_config();
+        super_agent_config.opamp = Some(OpAMPClientConfig::default());
+
         let effective_agents = super_agent
             .load_effective_agents(&super_agent_config)
             .unwrap();
@@ -1235,7 +1271,7 @@ mod tests {
     ////////////////////////////////////////////////////////////////////////////////////
     // Test helpers
     ////////////////////////////////////////////////////////////////////////////////////
-    fn super_agent_default_start_settings(hostname: &String) -> StartSettings {
+    fn super_agent_default_start_settings(hostname: &str) -> StartSettings {
         start_settings(
             "super_agent_instance_id".to_string(),
             capabilities!(AgentCapabilities::ReportsHealth),
@@ -1252,7 +1288,7 @@ mod tests {
         agent_type: String,
         agent_version: String,
         agent_namespace: String,
-        hostname: &String,
+        hostname: &str,
     ) -> StartSettings {
         StartSettings {
             instance_id,
@@ -1265,7 +1301,7 @@ mod tests {
                 ]),
                 non_identifying_attributes: HashMap::from([(
                     "host.name".to_string(),
-                    DescriptionValueType::String(hostname.clone()),
+                    DescriptionValueType::String(hostname.to_string()),
                 )]),
             },
         }
