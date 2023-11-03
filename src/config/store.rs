@@ -1,7 +1,9 @@
 use crate::config::super_agent_configs::SuperAgentConfig;
 use crate::{config::error::SuperAgentConfigError, super_agent::defaults::SUPER_AGENT_DATA_DIR};
+use std::fs::OpenOptions;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
+use tracing::warn;
 
 use super::super_agent_configs::SubAgentsConfig;
 
@@ -64,26 +66,34 @@ impl SuperAgentConfigStoreFile {
         }
     }
 
-    pub fn with_remote(self) -> Self {
-        Self {
+    pub fn with_remote(self) -> Result<Self, SuperAgentConfigStoreError> {
+        let remote_path = format!("{}/{}", SUPER_AGENT_DATA_DIR, "config.yaml");
+        // create and open the file in read-write mode even if does not exists
+        let _ = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(&remote_path)?;
+
+        Ok(Self {
             local_path: self.local_path,
-            remote_path: Some(
-                PathBuf::from(&format!("{}/{}", SUPER_AGENT_DATA_DIR, "config.yaml")).to_path_buf(),
-            ),
-        }
+            remote_path: Some(Path::new(&remote_path).to_path_buf()),
+        })
     }
 
     fn _load_config(&self) -> Result<SuperAgentConfig, SuperAgentConfigStoreError> {
         let local_config_file = std::fs::File::open(&self.local_path)?;
         let mut local_config: SuperAgentConfig = serde_yaml::from_reader(local_config_file)?;
 
-        if let Some(remote_path_file) = &self.remote_path {
-            let remote_config_file = std::fs::File::open(remote_path_file)?;
-            let remote_config: SuperAgentConfig = serde_yaml::from_reader(remote_config_file)?;
+        if let Some(remote_config_file) = &self.remote_path {
+            let remote_config_file = std::fs::File::open(remote_config_file)?;
+            let remote_config = serde_yaml::from_reader(remote_config_file)
+                .map_err(|err| warn!("Unable to parse remote config: {}", err))
+                .ok();
 
-            // replace local agents with remote ones
-            if !remote_config.agents.is_empty() {
-                local_config.agents = remote_config.agents;
+            if let Some(remote_config) = remote_config {
+                // replace local agents with remote ones
+                local_config.agents = remote_config;
             }
         }
 
@@ -147,6 +157,7 @@ opamp:
         write!(local_file, "{}", local_config).unwrap();
 
         let mut remote_file = NamedTempFile::new().unwrap();
+
         let remote_config = r#"
 agents:
   rolldice:
@@ -155,7 +166,8 @@ agents:
         write!(remote_file, "{}", remote_config).unwrap();
 
         let mut store = SuperAgentConfigStoreFile::new(local_file.path());
-        store.remote_path = Some(remote_file.path().into());
+
+        store.remote_path = Some(remote_file.path().to_path_buf());
 
         let actual = store.load();
 

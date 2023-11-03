@@ -41,7 +41,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // enable remote config store
     if opamp_client_builder.is_some() {
-        super_agent_config = super_agent_config.with_remote();
+        super_agent_config = super_agent_config.with_remote()?;
     }
 
     let instance_id_getter = ULIDInstanceIDGetter::default();
