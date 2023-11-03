@@ -1,22 +1,11 @@
 use k8s_openapi::api::core::v1::Pod;
-use kube::config::{KubeConfigOptions, KubeconfigError};
+use kube::config::KubeConfigOptions;
 use kube::core::DynamicObject;
-use kube::{api::ListParams, core::GroupVersionKind, Api, Client, Config, Error};
+use kube::{api::ListParams, core::GroupVersionKind, Api, Client, Config};
 use mockall::*;
 // use std::collections::HashMap;
+use super::error::K8sError;
 use tracing::debug;
-
-#[derive(thiserror::Error, Debug)]
-pub enum K8sExecutorError {
-    #[error("it is not possible to create a k8s client")]
-    UnableToSetupClient,
-
-    #[error("the kube client returned an error: `{0}`")]
-    Generic(#[from] Error),
-
-    #[error("it is not possible to read kubeconfig: `{0}`")]
-    UnableToSetupClientKubeconfig(#[from] KubeconfigError),
-}
 
 #[derive(Clone)]
 pub struct K8sExecutor {
@@ -32,7 +21,7 @@ impl K8sExecutor {
     /// This will respect the `$KUBECONFIG` envvar, but otherwise default to `~/.kube/config`.
     /// Not leveraging infer() to check inClusterConfig first
     ///
-    pub async fn try_default() -> Result<K8sExecutor, K8sExecutorError> {
+    pub async fn try_default() -> Result<K8sExecutor, K8sError> {
         debug!("trying inClusterConfig for k8s client");
         let config = Config::incluster().unwrap_or({
             debug!("inClusterConfig failed, trying kubeconfig for k8s client");
@@ -55,21 +44,21 @@ impl K8sExecutor {
         &self,
         gvk: GroupVersionKind,
         spec: &str,
-    ) -> Result<(), K8sExecutorError> {
+    ) -> Result<(), K8sError> {
         unimplemented!();
     }
     pub async fn modify_dynamic_object(
         &self,
         gvk: GroupVersionKind,
         spec: &str,
-    ) -> Result<(), K8sExecutorError> {
+    ) -> Result<(), K8sError> {
         unimplemented!();
     }
     pub async fn delete_dynamic_object(
         &self,
         gvk: GroupVersionKind,
         name: &str,
-    ) -> Result<(), K8sExecutorError> {
+    ) -> Result<(), K8sError> {
         unimplemented!();
     }
 
@@ -78,7 +67,7 @@ impl K8sExecutor {
         &self,
         gvk: GroupVersionKind,
         name: &str,
-    ) -> Result<DynamicObject, K8sExecutorError> {
+    ) -> Result<DynamicObject, K8sError> {
         // get the right reflector from self.reflectors and get the object.
         // let r = self.get_reflector(gvk)
         unimplemented!();
@@ -88,12 +77,12 @@ impl K8sExecutor {
     //     // get from reflectors_cache or create new one and add it to the cache.
     // }
 
-    pub async fn get_minor_version(&self) -> Result<String, K8sExecutorError> {
+    pub async fn get_minor_version(&self) -> Result<String, K8sError> {
         let version = self.client.apiserver_version().await?;
         Ok(version.minor)
     }
 
-    pub async fn get_pods(&self) -> Result<Vec<Pod>, K8sExecutorError> {
+    pub async fn get_pods(&self) -> Result<Vec<Pod>, K8sError> {
         let pod_client: Api<Pod> = Api::default_namespaced(self.client.clone());
         let pod_list = pod_client.list(&ListParams::default()).await?;
         Ok(pod_list.items)
