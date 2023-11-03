@@ -433,12 +433,12 @@ where
                 }
             }
             info!("Creating SubAgent {}", agent_id);
-            return self.create_sub_agent(
+            self.create_sub_agent(
                 agent_id.clone(),
                 agent_config,
                 tx.clone(),
                 running_sub_agents,
-            );
+            )
         })?;
 
         // remove sub agents not used anymore
