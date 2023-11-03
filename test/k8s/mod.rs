@@ -1,3 +1,3 @@
-mod test_example;
+mod executor;
 
 mod common;
