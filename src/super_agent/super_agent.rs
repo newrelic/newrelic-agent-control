@@ -9,7 +9,7 @@ use opamp_client::operation::settings::{AgentDescription, DescriptionValueType, 
 use opamp_client::StartedClient;
 use opamp_client::{capabilities, Client};
 use thiserror::Error;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use crate::config::agent_type::agent_types::FinalAgent;
 use crate::config::error::SuperAgentConfigError;
@@ -128,7 +128,12 @@ where
             let remote_config_hash = self
                 .remote_config_hash_repository
                 .get(self.agent_id())
-                .map_err(|e| error!("hash repository error: {}", e))
+                .map_err(|e| {
+                    warn!(
+                        "OpAMP enabled but no previous remote configuration found: {}",
+                        e
+                    )
+                })
                 .ok();
 
             if let Some(hash) = remote_config_hash {
