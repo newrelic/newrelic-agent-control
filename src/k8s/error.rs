@@ -10,4 +10,7 @@ pub enum K8sError {
 
     #[error("it is not possible to read kubeconfig: `{0}`")]
     UnableToSetupClientKubeconfig(#[from] KubeconfigError),
+
+    #[error("cannot start a k8s reader `{0}`")]
+    ReflectorWriterDropped(#[from] kube::runtime::reflector::store::WriterDropped),
 }
