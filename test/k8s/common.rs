@@ -64,7 +64,7 @@ impl K8sEnv {
             namespaces
                 .delete(ns.as_str(), &DeleteParams::default())
                 .await
-                .expect("failt to remove namespace");
+                .expect("fail to remove namespace");
         }
     }
 }
@@ -106,7 +106,7 @@ impl K8sCluster {
                 container_config(String::from(K3S_CLUSTER_PORT)),
             )
             .await
-            .expect("failt to create container")
+            .expect("fail to create container")
             .id;
 
         docker
@@ -129,7 +129,7 @@ impl K8sCluster {
             k8s_cluster.wait_log("Node controller sync successful"),
         )
         .await
-        .expect("timout waiting for k3s to be ready");
+        .expect("timeout waiting for k3s to be ready");
 
         println!("#### K3S Ready ####");
 
