@@ -1,7 +1,9 @@
 use k8s_openapi::api::core::v1::Pod;
 use kube::config::{KubeConfigOptions, KubeconfigError};
-use kube::{api::ListParams, Api, Client, Config, Error};
+use kube::core::DynamicObject;
+use kube::{api::ListParams, core::GroupVersionKind, Api, Client, Config, Error};
 use mockall::*;
+// use std::collections::HashMap;
 use tracing::debug;
 
 #[derive(thiserror::Error, Debug)]
@@ -19,6 +21,7 @@ pub enum K8sExecutorError {
 #[derive(Clone)]
 pub struct K8sExecutor {
     client: Client,
+    // reflectors_cache: HashMap<GroupVersionKind, K8sReflector>,
 }
 
 #[automock]
@@ -45,6 +48,45 @@ impl K8sExecutor {
     pub fn new(c: Client) -> K8sExecutor {
         K8sExecutor { client: c }
     }
+    // We forsee that persistant module in k8s will need some helpers here.
+    // pub async fn persits_config(String)
+
+    pub async fn create_dynamic_object(
+        &self,
+        gvk: GroupVersionKind,
+        spec: &str,
+    ) -> Result<(), K8sExecutorError> {
+        unimplemented!();
+    }
+    pub async fn modify_dynamic_object(
+        &self,
+        gvk: GroupVersionKind,
+        spec: &str,
+    ) -> Result<(), K8sExecutorError> {
+        unimplemented!();
+    }
+    pub async fn delete_dynamic_object(
+        &self,
+        gvk: GroupVersionKind,
+        name: &str,
+    ) -> Result<(), K8sExecutorError> {
+        unimplemented!();
+    }
+
+    // Depends on K8sReflector implementation
+    pub async fn get_dynamic_object(
+        &self,
+        gvk: GroupVersionKind,
+        name: &str,
+    ) -> Result<DynamicObject, K8sExecutorError> {
+        // get the right reflector from self.reflectors and get the object.
+        // let r = self.get_reflector(gvk)
+        unimplemented!();
+    }
+
+    // async fn get_reflector(&self, gvk: GroupVersionKind) -> K8sReflector {
+    //     // get from reflectors_cache or create new one and add it to the cache.
+    // }
 
     pub async fn get_minor_version(&self) -> Result<String, K8sExecutorError> {
         let version = self.client.apiserver_version().await?;
