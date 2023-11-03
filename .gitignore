@@ -28,6 +28,9 @@ test/**/inventory.*
 test/**/collections
 test/**/roles
 
+# kubernetes integration test.
+test/k8s/.kubeconfig-dev
+
 # local build
 .cargo
 bin/
