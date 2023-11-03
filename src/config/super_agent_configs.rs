@@ -5,9 +5,17 @@ use std::ops::Deref;
 
 use crate::config::error::SuperAgentConfigError;
 use serde::Deserialize;
+use thiserror::Error;
 
 #[derive(Debug, Deserialize, PartialEq, Clone, Hash, Eq)]
+#[serde(try_from = "String")]
 pub struct AgentID(pub String);
+
+impl AgentID {
+    pub fn get(&self) -> String {
+        String::from(&self.0)
+    }
+}
 
 impl Deref for AgentID {
     type Target = str;
@@ -24,6 +32,27 @@ impl AsRef<Path> for AgentID {
     }
 }
 
+#[derive(Error, Debug)]
+pub enum AgentTypeError {
+    #[error("AgentID allows only a-zA-Z0-9_-")]
+    InvalidAgentID,
+}
+
+impl TryFrom<String> for AgentID {
+    type Error = AgentTypeError;
+    fn try_from(str: String) -> Result<Self, Self::Error> {
+        //
+        if str
+            .chars()
+            .all(|x| x.is_alphanumeric() || x.eq(&'_') || x.eq(&'-'))
+        {
+            Ok(AgentID(str))
+        } else {
+            Err(AgentTypeError::InvalidAgentID)
+        }
+    }
+}
+
 impl Display for AgentID {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0.as_str())
@@ -36,7 +65,7 @@ impl Display for AgentID {
 pub struct SuperAgentConfig {
     /// agents is a map of agent types to their specific configuration (if any).
     #[serde(default)]
-    pub agents: HashMap<AgentID, SuperAgentSubAgentConfig>,
+    pub agents: HashMap<AgentID, SubAgentConfig>,
 
     /// opamp contains the OpAMP client configuration
     pub opamp: Option<OpAMPClientConfig>,
@@ -46,7 +75,7 @@ impl SuperAgentConfig {
     pub fn sub_agent_config(
         &self,
         agent_id: &AgentID,
-    ) -> Result<&SuperAgentSubAgentConfig, SuperAgentConfigError> {
+    ) -> Result<&SubAgentConfig, SuperAgentConfigError> {
         self.agents
             .get(agent_id)
             .ok_or(SuperAgentConfigError::SubAgentNotFound(
@@ -99,10 +128,12 @@ impl From<&str> for AgentTypeFQN {
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(deny_unknown_fields)]
-pub struct SuperAgentSubAgentConfig {
-    pub agent_type: AgentTypeFQN,
-    // FQN of the agent type, ex: newrelic/nrdot:0.1.0
-    pub values_file: Option<String>, // path to the values file
+pub struct SubAgentConfig {
+    pub agent_type: AgentTypeFQN, // FQN of the agent type, ex: newrelic/nrdot:0.1.0
+}
+
+pub fn get_values_file_path(agent_id: &AgentID) -> String {
+    format!("/etc/newrelic-super-agent/agents.d/{}/values.yml", agent_id)
 }
 
 #[derive(Debug, Default, Deserialize, PartialEq, Clone)]
@@ -156,6 +187,16 @@ agents:
     agent_type: namespace/agent_type:0.0.1
     agent_random: true
 "#;
+
+    #[test]
+    fn agent_id_validator() {
+        assert!(AgentID::try_from("abc012_-".to_string()).is_ok());
+        assert!(AgentID::try_from("ab".to_string()).is_ok());
+        assert!(AgentID::try_from("01".to_string()).is_ok());
+        assert!(AgentID::try_from("-".to_string()).is_ok());
+        assert!(AgentID::try_from("abc012/".to_string()).is_err());
+        assert!(AgentID::try_from("abc012.".to_string()).is_err());
+    }
 
     #[test]
     fn basic_parse() {

@@ -2,7 +2,7 @@
 use nix::{sys::signal, unistd::Pid};
 use std::time::Duration;
 
-use crate::command::command::{CommandError, CommandTerminator};
+use super::command::{CommandError, CommandTerminator};
 use crate::context::Context;
 use tracing::error;
 

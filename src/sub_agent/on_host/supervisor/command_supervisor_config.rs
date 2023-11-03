@@ -2,17 +2,17 @@ use std::collections::HashMap;
 
 use std::sync::mpsc::Sender;
 
-use crate::supervisor::restart_policy::RestartPolicy;
-use crate::{command::stream::Event, context::Context};
+use crate::sub_agent::restart_policy::RestartPolicy;
+use crate::{context::Context, sub_agent::logger::Event};
 
 #[derive(Debug, Clone)]
 pub struct SupervisorConfigOnHost {
-    pub(in crate::supervisor) ctx: Context<bool>,
-    pub(in crate::supervisor) bin: String,
-    pub(in crate::supervisor) args: Vec<String>,
-    pub(in crate::supervisor) env: HashMap<String, String>,
-    pub(in crate::supervisor) snd: Sender<Event>,
-    pub(in crate::supervisor) restart_policy: RestartPolicy,
+    pub(super) ctx: Context<bool>,
+    pub(super) bin: String,
+    pub(super) args: Vec<String>,
+    pub(super) env: HashMap<String, String>,
+    pub(super) snd: Sender<Event>,
+    pub(super) restart_policy: RestartPolicy,
 }
 
 impl SupervisorConfigOnHost {

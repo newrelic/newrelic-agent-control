@@ -5,10 +5,9 @@ use std::{
     sync::mpsc::{SendError, Sender},
 };
 
-use super::stream::{Event, Metadata};
+use crate::sub_agent::logger::{Event, Metadata, OutputEvent};
 
-use crate::command::command::{CommandError, NotStartedCommand, StartedCommand, SyncCommandRunner};
-use crate::command::stream::OutputEvent;
+use super::command::{CommandError, NotStartedCommand, StartedCommand, SyncCommandRunner};
 use tracing::error;
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -174,11 +173,11 @@ mod tests {
     #[cfg(target_family = "windows")]
     use std::os::windows::process::ExitStatusExt;
 
-    use crate::command::command::{CommandError, NotStartedCommand, StartedCommand};
+    use super::{CommandError, NotStartedCommand, StartedCommand};
     use std::process::ExitStatus;
     use std::sync::mpsc::Sender;
 
-    use crate::command::stream::{Event, Metadata};
+    use super::{Event, Metadata};
 
     use super::OutputEvent;
 

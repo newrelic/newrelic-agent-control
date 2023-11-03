@@ -197,6 +197,7 @@ where
 
 #[cfg(test)]
 mod test {
+    use crate::config::agent_values::AgentValues;
     use crate::config::persister::config_persister::ConfigurationPersister;
     use crate::config::persister::config_persister_file::{
         ConfigurationPersisterFile, DIRECTORY_PERMISSIONS, FILE_PERMISSIONS, GENERATED_FOLDER_NAME,
@@ -205,7 +206,6 @@ mod test {
     use crate::config::persister::config_writer_file::{Writer, WriterFile};
     use crate::config::persister::directory_manager::test::MockDirectoryManagerMock;
     use crate::config::persister::directory_manager::{DirectoryManager, DirectoryManagerFs};
-    use crate::config::sub_agent_config::SubAgentConfig;
     use crate::config::super_agent_configs::AgentID;
     use std::fs;
     use std::fs::Permissions;
@@ -257,7 +257,7 @@ mod test {
 
         let mut agent_type: FinalAgent =
             serde_yaml::from_reader(AGENT_TYPE_SINGLE_FILE.as_bytes()).unwrap();
-        let agent_values: SubAgentConfig =
+        let agent_values: AgentValues =
             serde_yaml::from_reader(AGENT_VALUES_SINGLE_FILE.as_bytes()).unwrap();
         agent_type = agent_type.template_with(agent_values).unwrap();
 
@@ -284,7 +284,7 @@ mod test {
         let agent_id = AgentID::new("SomeAgentID");
         let mut agent_type: FinalAgent =
             serde_yaml::from_reader(AGENT_TYPE_MULTIPLE_FILES.as_bytes()).unwrap();
-        let agent_values: SubAgentConfig =
+        let agent_values: AgentValues =
             serde_yaml::from_reader(AGENT_VALUES_MULTIPLE_FILES.as_bytes()).unwrap();
 
         let mut agent_files_path = generated_conf_path.clone();
@@ -352,7 +352,7 @@ mod test {
         let agent_id = AgentID::new("SomeAgentID");
         let mut agent_type: FinalAgent =
             serde_yaml::from_reader(AGENT_TYPE_SINGLE_MAP_FILE.as_bytes()).unwrap();
-        let agent_values: SubAgentConfig =
+        let agent_values: AgentValues =
             serde_yaml::from_reader(AGENT_VALUES_SINGLE_MAP_FILE.as_bytes()).unwrap();
 
         let mut agent_files_path = generated_conf_path.clone();
@@ -423,7 +423,7 @@ mod test {
         let agent_id = AgentID::new("SomeAgentID");
         let mut agent_type: FinalAgent =
             serde_yaml::from_reader(AGENT_TYPE_MULTIPLE_MAP_FILE.as_bytes()).unwrap();
-        let agent_values: SubAgentConfig =
+        let agent_values: AgentValues =
             serde_yaml::from_reader(AGENT_VALUES_MULTIPLE_MAP_FILE.as_bytes()).unwrap();
 
         let mut agent_files_path = generated_conf_path.clone();
@@ -502,7 +502,7 @@ mod test {
         let agent_id = AgentID::new("SomeAgentID");
         let mut agent_type: FinalAgent =
             serde_yaml::from_reader(AGENT_TYPE_SINGLE_FILE.as_bytes()).unwrap();
-        let agent_values: SubAgentConfig =
+        let agent_values: AgentValues =
             serde_yaml::from_reader(AGENT_VALUES_SINGLE_FILE.as_bytes()).unwrap();
 
         let mut agent_files_path = generated_conf_path.clone();
@@ -540,7 +540,7 @@ mod test {
         let agent_id = AgentID::new("SomeAgentID");
         let mut agent_type: FinalAgent =
             serde_yaml::from_reader(AGENT_TYPE_SINGLE_FILE.as_bytes()).unwrap();
-        let agent_values: SubAgentConfig =
+        let agent_values: AgentValues =
             serde_yaml::from_reader(AGENT_VALUES_SINGLE_FILE.as_bytes()).unwrap();
 
         let mut agent_files_path = generated_conf_path.clone();
@@ -588,7 +588,7 @@ mod test {
         let agent_id = AgentID::new("SomeAgentID");
         let mut agent_type: FinalAgent =
             serde_yaml::from_reader(AGENT_TYPE_SINGLE_FILE.as_bytes()).unwrap();
-        let agent_values: SubAgentConfig =
+        let agent_values: AgentValues =
             serde_yaml::from_reader(AGENT_VALUES_SINGLE_FILE.as_bytes()).unwrap();
 
         let mut agent_files_path = generated_conf_path.clone();
@@ -632,7 +632,7 @@ mod test {
         let agent_id = AgentID::new("SomeAgentID");
         let mut agent_type: FinalAgent =
             serde_yaml::from_reader(AGENT_TYPE_MULTIPLE_FILES.as_bytes()).unwrap();
-        let agent_values: SubAgentConfig =
+        let agent_values: AgentValues =
             serde_yaml::from_reader(AGENT_VALUES_MULTIPLE_FILES.as_bytes()).unwrap();
 
         let mut agent_files_path = generated_conf_path.clone();
@@ -680,7 +680,7 @@ mod test {
         let agent_id = AgentID::new("SomeAgentID");
         let mut agent_type: FinalAgent =
             serde_yaml::from_reader(AGENT_TYPE_SINGLE_MAP_FILE.as_bytes()).unwrap();
-        let agent_values: SubAgentConfig =
+        let agent_values: AgentValues =
             serde_yaml::from_reader(AGENT_VALUES_SINGLE_MAP_FILE.as_bytes()).unwrap();
 
         let mut agent_files_path = generated_conf_path.clone();

@@ -1,17 +1,17 @@
 use thiserror::Error;
 
 use crate::config::agent_type::agent_types::FinalAgent;
-use crate::config::super_agent_configs::{AgentID, SuperAgentSubAgentConfig};
+use crate::config::super_agent_configs::{get_values_file_path, AgentID, SubAgentConfig};
 use crate::super_agent::super_agent::{EffectiveAgents, EffectiveAgentsError};
 use crate::{
     config::{
         agent_type::error::AgentTypeError,
         agent_type_registry::{AgentRegistry, AgentRepositoryError, LocalRegistry},
+        agent_values::AgentValues,
         persister::{
             config_persister::{ConfigurationPersister, PersistError},
             config_persister_file::ConfigurationPersisterFile,
         },
-        sub_agent_config::SubAgentConfig,
         super_agent_configs::SuperAgentConfig,
     },
     file_reader::{FSFileReader, FileReader, FileReaderError},
@@ -42,7 +42,7 @@ pub trait EffectiveAgentsAssembler {
     fn assemble_agent(
         &self,
         agent_id: &AgentID,
-        agent_cfg: &SuperAgentSubAgentConfig,
+        agent_cfg: &SubAgentConfig,
     ) -> Result<FinalAgent, EffectiveAgentsAssemblerError>;
 }
 
@@ -89,15 +89,21 @@ where
     fn assemble_agent(
         &self,
         agent_id: &AgentID,
-        agent_cfg: &SuperAgentSubAgentConfig,
+        agent_cfg: &SubAgentConfig,
     ) -> Result<FinalAgent, EffectiveAgentsAssemblerError> {
         //load agent type from repository and populate with values
         let agent_type = self.registry.get(&agent_cfg.agent_type)?;
-        let mut agent_config: SubAgentConfig = SubAgentConfig::default();
-        if let Some(path) = &agent_cfg.values_file {
-            let contents = self.file_reader.read(path.as_str())?;
-            agent_config = serde_yaml::from_str(&contents)?;
+        let mut agent_config: AgentValues = AgentValues::default();
+
+        let values_file_path = get_values_file_path(agent_id);
+        let values_result = self.file_reader.read(values_file_path.as_str());
+
+        match values_result {
+            Ok(contents) => agent_config = serde_yaml::from_str(&contents)?,
+            Err(FileReaderError::FileNotFound(_)) => { /* do nothing if no file */ }
+            Err(error) => return Err(error.into()),
         }
+
         // populate with values
         let populated_agent = agent_type.clone().template_with(agent_config)?;
 
@@ -127,13 +133,13 @@ mod tests {
         config::{
             agent_type::{agent_types::FinalAgent, trivial_value::TrivialValue},
             agent_type_registry::{AgentRegistry, LocalRegistry},
+            agent_values::AgentValues,
             persister::{
                 config_persister::{test::MockConfigurationPersisterMock, ConfigurationPersister},
                 config_writer_file::WriteError,
                 directory_manager::DirectoryManagementError,
             },
-            sub_agent_config::SubAgentConfig,
-            super_agent_configs::{AgentID, SuperAgentConfig, SuperAgentSubAgentConfig},
+            super_agent_configs::{AgentID, SubAgentConfig, SuperAgentConfig},
         },
         file_reader::{test::MockFileReaderMock, FileReader},
     };
@@ -170,7 +176,17 @@ mod tests {
 
         file_reader_mock
             .expect_read()
-            .with(predicate::eq("second.yaml".to_string()))
+            .with(predicate::eq(
+                "/etc/newrelic-super-agent/agents.d/first/values.yml".to_string(),
+            ))
+            .times(1)
+            .returning(|_| Ok(SECOND_TYPE_VALUES.to_string()));
+
+        file_reader_mock
+            .expect_read()
+            .with(predicate::eq(
+                "/etc/newrelic-super-agent/agents.d/second/values.yml".to_string(),
+            ))
             .times(1)
             .returning(|_| Ok(SECOND_TYPE_VALUES.to_string()));
 
@@ -216,7 +232,14 @@ mod tests {
 
         let mut file_reader_mock = MockFileReaderMock::new();
         //not idempotent test as the order of a hashmap is random
-        file_reader_mock.could_read("second.yaml".to_string(), SECOND_TYPE_VALUES.to_string());
+        file_reader_mock.could_read(
+            "/etc/newrelic-super-agent/agents.d/first/values.yml".to_string(),
+            SECOND_TYPE_VALUES.to_string(),
+        );
+        file_reader_mock.could_read(
+            "/etc/newrelic-super-agent/agents.d/second/values.yml".to_string(),
+            SECOND_TYPE_VALUES.to_string(),
+        );
 
         let mut config_persister = MockConfigurationPersisterMock::new();
         config_persister.should_delete_all_configs();
@@ -254,7 +277,15 @@ mod tests {
         ) = load_agents_cnf_setup();
 
         let mut file_reader_mock = MockFileReaderMock::new();
-        file_reader_mock.could_read("second.yaml".to_string(), SECOND_TYPE_VALUES.to_string());
+        file_reader_mock.could_read(
+            "/etc/newrelic-super-agent/agents.d/first/values.yml".to_string(),
+            SECOND_TYPE_VALUES.to_string(),
+        );
+
+        file_reader_mock.could_read(
+            "/etc/newrelic-super-agent/agents.d/second/values.yml".to_string(),
+            SECOND_TYPE_VALUES.to_string(),
+        );
 
         let mut config_persister = MockConfigurationPersisterMock::new();
         config_persister.should_delete_all_configs();
@@ -396,7 +427,7 @@ deployment:
             .for_each(|(agent_id, agent_type, agent_values)| {
                 let mut agent_type: FinalAgent =
                     serde_yaml::from_reader(agent_type.as_bytes()).unwrap();
-                let agent_values: SubAgentConfig =
+                let agent_values: AgentValues =
                     serde_yaml::from_reader(agent_values.as_bytes()).unwrap();
                 agent_type = agent_type.template_with(agent_values).unwrap();
                 let res = populated_agent_type_repository
@@ -409,7 +440,7 @@ deployment:
             agents: HashMap::from([
                 (
                     first_agent_id.clone(),
-                    SuperAgentSubAgentConfig {
+                    SubAgentConfig {
                         agent_type: populated_agent_type_repository
                             .get(&first_agent_id)
                             .unwrap()
@@ -417,12 +448,11 @@ deployment:
                             .to_string()
                             .as_str()
                             .into(),
-                        values_file: None,
                     },
                 ),
                 (
                     second_agent_id.clone(),
-                    SuperAgentSubAgentConfig {
+                    SubAgentConfig {
                         agent_type: populated_agent_type_repository
                             .get(&second_agent_id)
                             .unwrap()
@@ -430,7 +460,6 @@ deployment:
                             .to_string()
                             .as_str()
                             .into(),
-                        values_file: Some("second.yaml".to_string()),
                     },
                 ),
             ]),

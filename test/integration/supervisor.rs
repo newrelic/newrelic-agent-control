@@ -2,10 +2,10 @@ use std::{collections::HashMap, thread, time::Duration};
 
 use newrelic_super_agent::{context::Context, logging::Logging};
 
-use newrelic_super_agent::command::logger::{EventLogger, StdEventReceiver};
-use newrelic_super_agent::supervisor::command_supervisor::NotStartedSupervisorOnHost;
-use newrelic_super_agent::supervisor::command_supervisor_config::SupervisorConfigOnHost;
-use newrelic_super_agent::supervisor::restart_policy::RestartPolicy;
+use newrelic_super_agent::sub_agent::logger::{EventLogger, StdEventReceiver};
+use newrelic_super_agent::sub_agent::on_host::supervisor::command_supervisor::NotStartedSupervisorOnHost;
+use newrelic_super_agent::sub_agent::on_host::supervisor::command_supervisor_config::SupervisorConfigOnHost;
+use newrelic_super_agent::sub_agent::restart_policy::RestartPolicy;
 use std::sync::Once;
 
 static INIT_LOGGER: Once = Once::new();

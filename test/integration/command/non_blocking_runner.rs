@@ -1,10 +1,10 @@
 use std::process::Command;
 
-use newrelic_super_agent::command::command::{
+use newrelic_super_agent::sub_agent::on_host::command::command::{
     CommandTerminator, NotStartedCommand, StartedCommand,
 };
-use newrelic_super_agent::command::command_os::NotStartedCommandOS;
-use newrelic_super_agent::command::shutdown::ProcessTerminator;
+use newrelic_super_agent::sub_agent::on_host::command::command_os::NotStartedCommandOS;
+use newrelic_super_agent::sub_agent::on_host::command::shutdown::ProcessTerminator;
 
 // non blocking supervisor
 struct NonSupervisor<C = NotStartedCommandOS>

@@ -8,7 +8,7 @@ use super::agent_type::trivial_value::TrivialValue;
 
 /// User-provided config.
 ///
-/// User-provided configuration (normally via a YAML file) that must follow the tree-like structure of [`Agent`]'s [`variables`] and will be used to populate the [`Agent`]'s [ `runtime_config`] field to totally define a deployable supervisor.
+/// User-provided configuration (normally via a YAML file) that must follow the tree-like structure of [`Agent`]'s [`variables`] and will be used to populate the [`Agent`]'s [ `runtime_config`] field to totally define a deployable Sub Agent.
 ///
 /// The below example in YAML format:
 ///
@@ -85,9 +85,9 @@ use super::agent_type::trivial_value::TrivialValue;
 ///
 /// [agent_type]: crate::config::agent_type
 #[derive(Debug, PartialEq, Deserialize, Default, Clone)]
-pub struct SubAgentConfig(Map<String, TrivialValue>);
+pub struct AgentValues(Map<String, TrivialValue>);
 
-impl SubAgentConfig {
+impl AgentValues {
     /// get_from_normalized recursively searches for a TrivialValue given a normalized prefix.  A
     /// normalized prefix flattens a Map path in a single string in which each indirection is
     /// denoted with the TEMPLATE_KEY_SEPARATOR.
@@ -179,14 +179,14 @@ verbose: true
 
     #[test]
     fn example_config() {
-        let actual = serde_yaml::from_str::<SubAgentConfig>(EXAMPLE_CONFIG);
+        let actual = serde_yaml::from_str::<AgentValues>(EXAMPLE_CONFIG);
 
         assert!(actual.is_ok());
     }
 
     #[test]
-    fn test_supervisor_config() {
-        let actual = serde_yaml::from_str::<SubAgentConfig>(EXAMPLE_CONFIG).unwrap();
+    fn test_agent_values() {
+        let actual = serde_yaml::from_str::<AgentValues>(EXAMPLE_CONFIG).unwrap();
         let expected: Map<String, TrivialValue> = Map::from([
             (
                 "description".to_string(),
@@ -281,8 +281,7 @@ deployment:
 
     #[test]
     fn test_validate_with_agent_type() {
-        let input_structure =
-            serde_yaml::from_str::<SubAgentConfig>(EXAMPLE_CONFIG_REPLACE).unwrap();
+        let input_structure = serde_yaml::from_str::<AgentValues>(EXAMPLE_CONFIG_REPLACE).unwrap();
         let agent_type = serde_yaml::from_str::<FinalAgent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
 
         let expected = Map::from([
@@ -335,7 +334,7 @@ deployment:
     #[test]
     fn test_validate_with_agent_type_missing_required() {
         let input_structure =
-            serde_yaml::from_str::<SubAgentConfig>(EXAMPLE_CONFIG_REPLACE_NOPATH).unwrap();
+            serde_yaml::from_str::<AgentValues>(EXAMPLE_CONFIG_REPLACE_NOPATH).unwrap();
         let agent_type = serde_yaml::from_str::<FinalAgent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
 
         let actual = input_structure.normalize_with_agent_type(&agent_type);
@@ -359,7 +358,7 @@ deployment:
     #[test]
     fn test_validate_with_agent_type_wrong_value_type() {
         let input_structure =
-            serde_yaml::from_str::<SubAgentConfig>(EXAMPLE_CONFIG_REPLACE_WRONG_TYPE).unwrap();
+            serde_yaml::from_str::<AgentValues>(EXAMPLE_CONFIG_REPLACE_WRONG_TYPE).unwrap();
         let agent_type = serde_yaml::from_str::<FinalAgent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
 
         let actual = input_structure.normalize_with_agent_type(&agent_type);

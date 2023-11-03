@@ -23,7 +23,7 @@ fn print_debug_info() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-#[cfg(unix)]
+#[cfg(all(unix, feature = "onhost"))]
 #[test]
 fn does_not_run_if_no_root() -> Result<(), Box<dyn std::error::Error>> {
     let dir = TempDir::new()?;
@@ -36,7 +36,7 @@ fn does_not_run_if_no_root() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-#[cfg(unix)]
+#[cfg(all(unix, feature = "onhost"))]
 #[test]
 fn runs_as_root() -> Result<(), Box<dyn std::error::Error>> {
     use std::time::Duration;

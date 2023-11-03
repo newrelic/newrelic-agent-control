@@ -1,3 +1,8 @@
-pub mod factory;
-pub mod sub_agent_on_host;
-pub mod sub_agents_on_host;
+pub mod builder;
+pub mod command;
+pub mod supervisor;
+
+// Module implementing the SubAgent traits.
+pub mod sub_agent;
+
+mod opamp;

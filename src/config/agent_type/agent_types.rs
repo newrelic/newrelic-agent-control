@@ -18,7 +18,7 @@ use super::{
     runtime_config_templates::{Templateable, TEMPLATE_KEY_SEPARATOR},
     trivial_value::TrivialValue,
 };
-use crate::config::sub_agent_config::SubAgentConfig;
+use crate::config::agent_values::AgentValues;
 use duration_str;
 
 /// Configuration of the Agent Type, contains identification metadata, a set of variables that can be adjusted, and rules of how to start given agent binaries.
@@ -193,7 +193,7 @@ impl FinalAgent {
     /// template_with the [`RuntimeConfig`] object field of the [`Agent`] type with the user-provided config, which must abide by the agent type's defined [`AgentVariables`].
     ///
     /// This method will return an error if the user-provided config does not conform to the agent type's spec.
-    pub fn template_with(self, config: SubAgentConfig) -> Result<FinalAgent, AgentTypeError> {
+    pub fn template_with(self, config: AgentValues) -> Result<FinalAgent, AgentTypeError> {
         // let normalized_config = NormalizedSupervisorConfig::from(config);
         // let validated_conf = validate_with_agent_type(normalized_config, &self)?;
         let config = config.normalize_with_agent_type(&self)?;
@@ -219,7 +219,7 @@ impl FinalAgent {
     }
 }
 
-/// Flexible tree-like structure that contains variables definitions, that can later be changed by the end user via [`SubAgentConfig`].
+/// Flexible tree-like structure that contains variables definitions, that can later be changed by the end user via [`AgentValues`].
 type AgentVariables = HashMap<String, Spec>;
 
 pub trait AgentTypeEndSpec {
@@ -392,7 +392,7 @@ pub mod tests {
             restart_policy::{BackoffStrategyConfig, BackoffStrategyType},
             runtime_config::{Args, Env, Executable},
         },
-        sub_agent_config::SubAgentConfig,
+        agent_values::AgentValues,
     };
 
     use super::*;
@@ -924,7 +924,7 @@ config: |
 
         // And Agent Values
         let input_user_config =
-            serde_yaml::from_str::<SubAgentConfig>(GIVEN_NEWRELIC_INFRA_USER_CONFIG_YAML).unwrap();
+            serde_yaml::from_str::<AgentValues>(GIVEN_NEWRELIC_INFRA_USER_CONFIG_YAML).unwrap();
 
         // When populating values
         let actual = input_agent_type
@@ -1070,8 +1070,7 @@ backoff:
             serde_yaml::from_str::<FinalAgent>(AGENT_BACKOFF_TEMPLATE_YAML).unwrap();
         // println!("Input: {:#?}", input_agent_type);
 
-        let input_user_config =
-            serde_yaml::from_str::<SubAgentConfig>(BACKOFF_CONFIG_YAML).unwrap();
+        let input_user_config = serde_yaml::from_str::<AgentValues>(BACKOFF_CONFIG_YAML).unwrap();
         // println!("Input: {:#?}", input_user_config);
 
         let expected_backoff = BackoffStrategyConfig {
@@ -1148,13 +1147,13 @@ backoff:
             serde_yaml::from_str::<FinalAgent>(AGENT_BACKOFF_TEMPLATE_YAML).unwrap();
 
         let wrong_retries =
-            serde_yaml::from_str::<SubAgentConfig>(WRONG_RETRIES_BACKOFF_CONFIG_YAML).unwrap();
+            serde_yaml::from_str::<AgentValues>(WRONG_RETRIES_BACKOFF_CONFIG_YAML).unwrap();
         let wrong_delay =
-            serde_yaml::from_str::<SubAgentConfig>(WRONG_DELAY_BACKOFF_CONFIG_YAML).unwrap();
+            serde_yaml::from_str::<AgentValues>(WRONG_DELAY_BACKOFF_CONFIG_YAML).unwrap();
         let wrong_interval =
-            serde_yaml::from_str::<SubAgentConfig>(WRONG_INTERVAL_BACKOFF_CONFIG_YAML).unwrap();
+            serde_yaml::from_str::<AgentValues>(WRONG_INTERVAL_BACKOFF_CONFIG_YAML).unwrap();
         let wrong_type =
-            serde_yaml::from_str::<SubAgentConfig>(WRONG_TYPE_BACKOFF_CONFIG_YAML).unwrap();
+            serde_yaml::from_str::<AgentValues>(WRONG_TYPE_BACKOFF_CONFIG_YAML).unwrap();
 
         let actual = input_agent_type.clone().template_with(wrong_retries);
         assert!(actual.is_err());
@@ -1311,7 +1310,7 @@ backoff:
             serde_yaml::from_str::<FinalAgent>(AGENT_STRING_DURATIONS_TEMPLATE_YAML).unwrap();
 
         let input_user_config =
-            serde_yaml::from_str::<SubAgentConfig>(STRING_DURATIONS_CONFIG_YAML).unwrap();
+            serde_yaml::from_str::<AgentValues>(STRING_DURATIONS_CONFIG_YAML).unwrap();
 
         let expected_backoff = BackoffStrategyConfig {
             backoff_type: TemplateableValue {
