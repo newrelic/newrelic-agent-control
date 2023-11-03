@@ -174,12 +174,28 @@ where
                         }
                         SuperAgentEvent::RemoteConfig(remote_config) => {
                             if let Some(handle) = &opamp_client {
-                                let remote_config_status = self.apply_remote_config(
-                                    remote_config,
-                                    tx.clone(),
-                                    &mut running_sub_agents,
-                                )?;
-                                block_on(handle.set_remote_config_status(remote_config_status))?;
+                                match remote_config {
+                                    Ok(remote_config) => self.on_remote_config(
+                                        handle,
+                                        remote_config,
+                                        tx.clone(),
+                                        &mut running_sub_agents,
+                                    )?,
+                                    Err(error) => {
+                                        if let RemoteConfigError::InvalidConfig(hash, error) = error
+                                        {
+                                            let _ = block_on(handle.set_remote_config_status(
+                                                RemoteConfigStatus {
+                                                    last_remote_config_hash: hash.into_bytes(),
+                                                    error_message: error,
+                                                    status: RemoteConfigStatuses::Failed as i32,
+                                                },
+                                            ));
+                                        } else {
+                                            unreachable!()
+                                        }
+                                    }
+                                }
                             } else {
                                 unreachable!("got remote config without OpAMP being enabled")
                             }
@@ -272,6 +288,19 @@ where
     ) -> Result<(), AgentError> {
         running_sub_agents.stop_remove(&agent_id)?;
 
+        self.create_sub_agent(agent_id, sub_agent_config, tx, running_sub_agents)
+    }
+
+    // runs and adds into the sub_agents collection the given agent
+    fn create_sub_agent(
+        &self,
+        agent_id: AgentID,
+        sub_agent_config: &SubAgentConfig,
+        tx: Sender<Event>,
+        running_sub_agents: &mut StartedSubAgents<
+            <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
+        >,
+    ) -> Result<(), AgentError> {
         let final_agent = self
             .effective_agents_asssembler
             .assemble_agent(&agent_id, sub_agent_config)?;
@@ -282,7 +311,6 @@ where
                 .build(final_agent, agent_id, tx)?
                 .run()?,
         );
-
         Ok(())
     }
 
@@ -340,74 +368,90 @@ where
             .assemble_agents(super_agent_config)
     }
 
-    // Super Agent on remote config
-    fn apply_remote_config(
+    fn on_remote_config(
         &self,
-        remote_config: Result<RemoteConfig, RemoteConfigError>,
+        opamp_client: &OpAMPBuilder::Client,
+        remote_config: RemoteConfig,
         tx: Sender<Event>,
         running_sub_agents: &mut StartedSubAgents<
             <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
-    ) -> Result<RemoteConfigStatus, AgentError> {
-        let mut remote_config_status = RemoteConfigStatus::default();
-        match remote_config {
-            Ok(config) => {
-                let sub_agents = SubAgentsConfig::try_from(&config)?;
+    ) -> Result<(), AgentError> {
+        info!("Applying SuperAgent remote config");
+        let config_hash = remote_config.hash.get().into_bytes();
 
-                let old_sub_agents_config = self.sub_agents_config_store.load()?;
+        block_on(opamp_client.set_remote_config_status(RemoteConfigStatus {
+            last_remote_config_hash: remote_config.hash.get().into_bytes(),
+            status: RemoteConfigStatuses::Applying as i32,
+            error_message: "".to_string(),
+        }))?;
 
-                // recreate from new configuration
-                sub_agents.iter().try_for_each(|(agent_id, agent_config)| {
-                    if let Ok(old_sub_agent_config) = old_sub_agents_config.get(agent_id) {
-                        if old_sub_agent_config == agent_config {
-                            // no recreation required
-                            return Ok(());
-                        }
-                    }
-                    // new agent or config changes
+        self.apply_remote_config(remote_config, tx, running_sub_agents)?;
+
+        Ok(block_on(opamp_client.set_remote_config_status(
+            RemoteConfigStatus {
+                last_remote_config_hash: config_hash,
+                status: RemoteConfigStatuses::Applied as i32,
+                error_message: "".to_string(),
+            },
+        ))?)
+    }
+
+    // apply a remote config to the running sub agents
+    fn apply_remote_config(
+        &self,
+        remote_config: RemoteConfig,
+        tx: Sender<Event>,
+        running_sub_agents: &mut StartedSubAgents<
+            <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
+        >,
+    ) -> Result<(), AgentError> {
+        let sub_agents = SubAgentsConfig::try_from(&remote_config)?;
+
+        let old_sub_agents_config = self.sub_agents_config_store.load()?;
+
+        // recreate from new configuration
+        sub_agents.iter().try_for_each(|(agent_id, agent_config)| {
+            if let Ok(old_sub_agent_config) = old_sub_agents_config.get(agent_id) {
+                if old_sub_agent_config != agent_config {
+                    // new config
                     info!("Recreating SubAgent {}", agent_id);
-                    self.recreate_sub_agent(
+                    return self.recreate_sub_agent(
                         agent_id.clone(),
                         agent_config,
                         tx.clone(),
                         running_sub_agents,
-                    )
-                })?;
-
-                // remove sub agents not used anymore
-                old_sub_agents_config
-                    .iter()
-                    .try_for_each(|(agent_id, _agent_config)| {
-                        if let Err(SuperAgentConfigError::SubAgentNotFound(_)) =
-                            sub_agents.get(agent_id)
-                        {
-                            info!("Stopping SubAgent {}", agent_id);
-                            return running_sub_agents.stop_remove(agent_id);
-                        }
-                        Ok(())
-                    })?;
-
-                self.sub_agents_config_store.store(&sub_agents)?;
-                //
-                self.remote_config_hash_repository
-                    .save(self.agent_id(), &config.hash)?;
-
-                remote_config_status.last_remote_config_hash = config.hash.get().into_bytes();
-                remote_config_status.status = RemoteConfigStatuses::Applying as i32;
+                    );
+                } else {
+                    // no changes applied
+                    return Ok(());
+                }
             }
-            Err(config_error) => match config_error {
-                RemoteConfigError::InvalidConfig(hash, error) => {
-                    remote_config_status.last_remote_config_hash = hash.into_bytes();
-                    remote_config_status.error_message = error;
-                    remote_config_status.status = RemoteConfigStatuses::Failed as i32;
-                }
-                _ => {
-                    unreachable!("only errors with hash will reach this block")
-                }
-            },
-        }
+            info!("Creating SubAgent {}", agent_id);
+            return self.create_sub_agent(
+                agent_id.clone(),
+                agent_config,
+                tx.clone(),
+                running_sub_agents,
+            );
+        })?;
 
-        Ok(remote_config_status)
+        // remove sub agents not used anymore
+        old_sub_agents_config
+            .iter()
+            .try_for_each(|(agent_id, _agent_config)| {
+                if let Err(SuperAgentConfigError::SubAgentNotFound(_)) = sub_agents.get(agent_id) {
+                    info!("Stopping SubAgent {}", agent_id);
+                    return running_sub_agents.stop_remove(agent_id);
+                }
+                Ok(())
+            })?;
+
+        self.sub_agents_config_store.store(&sub_agents)?;
+        //
+        Ok(self
+            .remote_config_hash_repository
+            .save(self.agent_id(), &remote_config.hash)?)
     }
 }
 
@@ -627,10 +671,12 @@ mod tests {
         registry.should_get(
             "newrelic/io.opentelemetry.collector:0.0.1".to_string(),
             final_nrdot,
+            1,
         );
         registry.should_get(
             "newrelic/com.newrelic.infrastructure_agent:0.0.1".to_string(),
             final_infra_agent,
+            1,
         );
 
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
@@ -713,9 +759,10 @@ mod tests {
             |_, _, _| {
                 let mut started_client = MockOpAMPClientMock::new();
                 started_client.should_set_health(1);
+                // applying and applied
                 started_client
                     .expect_set_remote_config_status()
-                    .times(1)
+                    .times(2)
                     .returning(|_| Ok(()));
                 started_client.should_stop(1);
                 Ok(started_client)
@@ -736,10 +783,12 @@ mod tests {
         registry.should_get(
             "newrelic/io.opentelemetry.collector:0.0.1".to_string(),
             final_nrdot,
+            1,
         );
         registry.should_get(
             "newrelic/com.newrelic.infrastructure_agent:0.0.1".to_string(),
             final_infra_agent,
+            1,
         );
 
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
@@ -882,10 +931,12 @@ agents:
         registry.should_get(
             "newrelic/io.opentelemetry.collector:0.0.1".to_string(),
             final_nrdot,
+            1,
         );
         registry.should_get(
             "newrelic/com.newrelic.infrastructure_agent:0.0.1".to_string(),
             final_infra_agent.clone(),
+            1,
         );
 
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
@@ -923,6 +974,7 @@ agents:
         registry.should_get(
             "newrelic/com.newrelic.infrastructure_agent:0.0.1".to_string(),
             final_infra_agent.clone(),
+            1,
         );
         conf_persister.should_delete_agent_config(1, &agent_id_to_restart, &final_infra_agent);
         conf_persister.should_persist_agent_config(1, &agent_id_to_restart, &final_infra_agent);
@@ -995,6 +1047,7 @@ agents:
         registry.should_get(
             "newrelic/com.newrelic.infrastructure_agent:0.0.1".to_string(),
             final_infra_agent.clone(),
+            1,
         );
 
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
@@ -1024,6 +1077,7 @@ agents:
         registry.should_get(
             "newrelic/com.newrelic.infrastructure_agent:0.0.1".to_string(),
             final_infra_agent.clone(),
+            1,
         );
 
         conf_persister.should_delete_agent_config(1, &agent_id_to_restart, &final_infra_agent);
@@ -1141,6 +1195,7 @@ agents:
         registry.should_get(
             "newrelic/io.opentelemetry.collector:0.0.1".to_string(),
             final_nrdot,
+            1,
         );
         let mut final_infra_agent: FinalAgent = FinalAgent::default();
         final_infra_agent.runtime_config.deployment.on_host = Some(OnHost {
@@ -1150,6 +1205,7 @@ agents:
         registry.should_get(
             "newrelic/com.newrelic.infrastructure_agent:0.0.1".to_string(),
             final_infra_agent.clone(),
+            1,
         );
 
         conf_persister.should_delete_all_configs();
@@ -1164,6 +1220,7 @@ agents:
         registry.should_get(
             "newrelic/com.newrelic.infrastructure_agent:0.0.1".to_string(),
             final_infra_agent.clone(),
+            1,
         );
         // Clean and persist new config
         conf_persister.should_delete_agent_config(1, &agent_id_to_restart, &final_infra_agent);
@@ -1226,17 +1283,19 @@ agents:
         registry.should_get(
             "newrelic/io.opentelemetry.collector:0.0.1".to_string(),
             final_nrdot.clone(),
+            1,
         );
         let final_infra_agent: FinalAgent = final_onhost_agent();
 
         registry.should_get(
             "newrelic/com.newrelic.infrastructure_agent:0.0.1".to_string(),
             final_infra_agent.clone(),
+            2,
         );
 
         conf_persister.should_delete_all_configs();
-        conf_persister.should_delete_any_agent_config(2);
-        conf_persister.should_persist_any_agent_config(2);
+        conf_persister.should_delete_any_agent_config(3);
+        conf_persister.should_persist_any_agent_config(3);
 
         let mut file_reader_mock = MockFileReaderMock::new();
 
@@ -1245,7 +1304,7 @@ agents:
             .with(predicate::eq(
                 "/etc/newrelic-super-agent/agents.d/infra_agent/values.yml".to_string(),
             ))
-            .times(1)
+            .times(2)
             .returning(|_| Ok("".to_string()));
 
         file_reader_mock
@@ -1265,7 +1324,7 @@ agents:
 
         let mut sub_agent_builder = MockSubAgentBuilderMock::new();
         // it should build two sub_agents (2 + 0 error)
-        sub_agent_builder.should_build(2);
+        sub_agent_builder.should_build(3);
 
         let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
         // all agents on first load
@@ -1321,7 +1380,7 @@ agents:
 
         let mut running_sub_agents = sub_agents.unwrap().run().unwrap();
 
-        // just one agent
+        // just one agent, it should remove the infra_agent
         let remote_config = RemoteConfig {
             agent_id: AgentID::new_super_agent_id(),
             hash: Hash::new("a-hash".to_string()),
@@ -1339,12 +1398,12 @@ agents:
         assert_eq!(running_sub_agents.len(), 2);
 
         super_agent
-            .apply_remote_config(Ok(remote_config), tx.clone(), &mut running_sub_agents)
+            .apply_remote_config(remote_config, tx.clone(), &mut running_sub_agents)
             .unwrap();
 
         assert_eq!(running_sub_agents.len(), 1);
 
-        // empty config
+        // remove nrdot and create new infra_agent sub_agent
         let remote_config = RemoteConfig {
             agent_id: AgentID::new_super_agent_id(),
             hash: Hash::new("b-hash".to_string()),
@@ -1352,16 +1411,20 @@ agents:
                 "".to_string(),
                 r#"
 agents:
+  infra_agent:
+    agent_type: newrelic/com.newrelic.infrastructure_agent:0.0.1
 "#
                 .to_string(),
             )])),
         };
 
         super_agent
-            .apply_remote_config(Ok(remote_config), tx, &mut running_sub_agents)
+            .apply_remote_config(remote_config, tx, &mut running_sub_agents)
             .unwrap();
 
-        assert_eq!(running_sub_agents.len(), 0);
+        assert_eq!(running_sub_agents.len(), 1);
+
+        assert!(running_sub_agents.stop().is_ok())
     }
 
     #[test]
@@ -1398,6 +1461,7 @@ agents:
         registry.should_get(
             "newrelic/io.opentelemetry.collector:0.0.1".to_string(),
             final_nrdot,
+            1,
         );
         let mut final_infra_agent: FinalAgent = FinalAgent::default();
         final_infra_agent.runtime_config.deployment.on_host = Some(OnHost {
@@ -1407,6 +1471,7 @@ agents:
         registry.should_get(
             "newrelic/com.newrelic.infrastructure_agent:0.0.1".to_string(),
             final_infra_agent.clone(),
+            1,
         );
 
         conf_persister.should_delete_all_configs();
@@ -1422,6 +1487,7 @@ agents:
         registry.should_get(
             "newrelic/com.newrelic.infrastructure_agent:0.0.1".to_string(),
             final_infra_agent.clone(),
+            1,
         );
         // Clean and persist new config
         conf_persister.should_delete_agent_config(1, &agent_id_to_restart, &final_infra_agent);
