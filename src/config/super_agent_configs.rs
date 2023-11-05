@@ -151,12 +151,8 @@ pub struct OpAMPClientConfig {
     pub headers: Option<HashMap<String, String>>,
 }
 
-pub trait CapabilityGetter {
-    fn get_capabilities(&self) -> Capabilities;
-}
-
-impl CapabilityGetter for AgentTypeFQN {
-    fn get_capabilities(&self) -> Capabilities {
+impl AgentTypeFQN {
+    pub(crate) fn get_capabilities(&self) -> Capabilities {
         capabilities!(
             AgentCapabilities::ReportsHealth,
             AgentCapabilities::AcceptsRemoteConfig
@@ -167,8 +163,6 @@ impl CapabilityGetter for AgentTypeFQN {
 #[cfg(test)]
 pub(crate) mod test {
 
-    use mockall::mock;
-
     use super::*;
 
     impl AgentID {
@@ -176,14 +170,6 @@ pub(crate) mod test {
             Self(agent_id.to_string())
         }
     }
-
-    mock!(
-        pub MockAgentTypeFQN {}
-
-        impl CapabilityGetter for MockAgentTypeFQN {
-            fn get_capabilities(&self) -> Capabilities;
-        }
-    );
 
     const EXAMPLE_SUPERAGENT_CONFIG: &str = r#"
 opamp:

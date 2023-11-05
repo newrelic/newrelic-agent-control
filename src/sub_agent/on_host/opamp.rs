@@ -1,4 +1,4 @@
-use crate::config::super_agent_configs::{AgentID, AgentTypeFQN, CapabilityGetter};
+use crate::config::super_agent_configs::{AgentID, AgentTypeFQN};
 use crate::context::Context;
 use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPClientBuilderError};
 use crate::super_agent::instance_id::InstanceIDGetter;
