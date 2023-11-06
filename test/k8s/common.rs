@@ -5,11 +5,17 @@ use bollard::{
     Docker,
 };
 use futures::StreamExt;
-use k8s_openapi::api::core::v1::Namespace;
-use kube::{
-    api::{Api, DeleteParams, PostParams},
-    Client,
+use k8s_openapi::{
+    api::core::v1::Namespace,
+    apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition,
 };
+
+use kube::{
+    api::{Api, DeleteParams, Patch, PatchParams, PostParams},
+    Client, CustomResource, CustomResourceExt,
+};
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, env, fs::File, io::Write, time::Duration};
 use tempfile::{tempdir, TempDir};
 use tokio::time::timeout;
@@ -251,4 +257,22 @@ fn container_config(cluster_port: String) -> Config<String> {
         ]),
         ..Default::default()
     }
+}
+
+#[derive(CustomResource, Deserialize, Serialize, Clone, Debug, JsonSchema)]
+#[kube(group = "newrelic.com", version = "v1", kind = "Foo", namespaced)]
+pub struct FooSpec {}
+
+/// Foo CRD is not cleaned on test termination (for simplicity) so all tests must expect this
+/// CRD exists.
+pub async fn create_foo_crd(client: Client) {
+    let crds: Api<CustomResourceDefinition> = Api::all(client);
+
+    crds.patch(
+        "foos.newrelic.com",
+        &PatchParams::apply("foo"),
+        &Patch::Apply(Foo::crd()),
+    )
+    .await
+    .expect("fail creating foo crd");
 }

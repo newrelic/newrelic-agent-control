@@ -1,22 +1,38 @@
-use crate::common::{K8sCluster, K8sEnv};
-
+use crate::common::{create_foo_crd, Foo, FooSpec, K8sCluster, K8sEnv};
 use k8s_openapi::api::core::v1::Pod;
-use kube::api::Api;
+use kube::{api::Api, core::GroupVersionKind};
+
+use newrelic_super_agent::k8s::executor::K8sExecutor;
 
 // tokio test runs with 1 thread by default causing deadlock when executing `block_on` code during test helper drop.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[ignore = "needs k8s cluster"]
-async fn k8s_test_using_local_minikube() {
+async fn k8s_create_dynamic_resource() {
     let mut test = K8sEnv::new().await;
-
     let test_ns = test.test_namespace().await;
 
-    fake_binary_run_example(test_ns.as_str()).await;
+    create_foo_crd(test.client.clone()).await;
 
-    let pods: Api<Pod> = Api::namespaced(test.client.to_owned(), test_ns.as_str());
-    pods.get("example").await.unwrap();
+    let executor: K8sExecutor = K8sExecutor::try_default(test_ns.to_string()).await.unwrap();
+
+    let cr_name = "test-cr";
+    let cr = Foo::new(cr_name, FooSpec {});
+
+    executor
+        .create_dynamic_object(
+            GroupVersionKind::gvk("newrelic.com", "v1", "Foo"),
+            serde_yaml::to_string(&cr).unwrap().as_str(),
+        )
+        .await
+        .unwrap();
+
+    let api: Api<Foo> = Api::namespaced(test.client.clone(), &test_ns);
+
+    // Asserts that the CR has been created in the namespace
+    api.get(cr_name).await.unwrap();
 }
 
+// Example code to replace with real test when added.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[ignore = "spawns a k8s cluster"]
 async fn k3s_spawning_container_k3s() {

@@ -1,15 +1,35 @@
 use k8s_openapi::api::core::v1::Pod;
-use kube::config::KubeConfigOptions;
+use kube::api::PostParams;
+use kube::config::{KubeConfigOptions, KubeconfigError};
 use kube::core::DynamicObject;
-use kube::{api::ListParams, core::GroupVersionKind, Api, Client, Config};
+use kube::{api::ListParams, core::GroupVersionKind, Api, Client, Config, Error};
 use mockall::*;
 // use std::collections::HashMap;
 use super::error::K8sError;
 use tracing::debug;
 
+#[derive(thiserror::Error, Debug)]
+pub enum K8sExecutorError {
+    #[error("it is not possible to create a k8s client")]
+    UnableToSetupClient,
+
+    #[error("the kube client returned an error: `{0}`")]
+    Generic(#[from] Error),
+
+    #[error("it is not possible to read kubeconfig: `{0}`")]
+    UnableToSetupClientKubeconfig(#[from] KubeconfigError),
+
+    #[error("missing resource definition: api_version: {0}, kind: {1}")]
+    MissingKind(String, String),
+
+    #[error("error serializing/deserializing yaml: `{0}`")]
+    SerdeYaml(#[from] serde_yaml::Error),
+}
+
 #[derive(Clone)]
 pub struct K8sExecutor {
     client: Client,
+    namespace: String,
     // reflectors_cache: HashMap<GroupVersionKind, K8sReflector>,
 }
 
@@ -21,7 +41,7 @@ impl K8sExecutor {
     /// This will respect the `$KUBECONFIG` envvar, but otherwise default to `~/.kube/config`.
     /// Not leveraging infer() to check inClusterConfig first
     ///
-    pub async fn try_default() -> Result<K8sExecutor, K8sError> {
+    pub async fn try_default(namespace: String) -> Result<K8sExecutor, K8sExecutorError> {
         debug!("trying inClusterConfig for k8s client");
         let config = Config::incluster().unwrap_or({
             debug!("inClusterConfig failed, trying kubeconfig for k8s client");
@@ -29,13 +49,14 @@ impl K8sExecutor {
             Config::from_kubeconfig(&c).await?
         });
 
-        let c = Client::try_from(config)?;
+        let client = Client::try_from(config)?;
         debug!("client creation succeeded");
-        Ok(K8sExecutor::new(c))
+        Ok(K8sExecutor { client, namespace })
     }
 
-    pub fn new(c: Client) -> K8sExecutor {
-        K8sExecutor { client: c }
+    #[cfg(test)]
+    pub fn new(client: Client, namespace: String) -> K8sExecutor {
+        K8sExecutor { client, namespace }
     }
     // We forsee that persistant module in k8s will need some helpers here.
     // pub async fn persits_config(String)
@@ -44,9 +65,21 @@ impl K8sExecutor {
         &self,
         gvk: GroupVersionKind,
         spec: &str,
-    ) -> Result<(), K8sError> {
-        unimplemented!();
+    ) -> Result<DynamicObject, K8sExecutorError> {
+        let (api_resource, _caps) = kube::discovery::pinned_kind(&self.client, &gvk)
+            .await
+            .map_err(|_| K8sExecutorError::MissingKind(gvk.api_version(), gvk.kind))?;
+
+        let object_spec: DynamicObject = serde_yaml::from_str(spec)?;
+
+        let api: Api<DynamicObject> =
+            Api::namespaced_with(self.client.to_owned(), &self.namespace, &api_resource);
+
+        let created_object = api.create(&PostParams::default(), &object_spec).await?;
+
+        Ok(created_object)
     }
+
     pub async fn modify_dynamic_object(
         &self,
         gvk: GroupVersionKind,
@@ -91,10 +124,59 @@ impl K8sExecutor {
 
 #[cfg(test)]
 mod test {
-    use crate::k8s::executor::K8sExecutor;
+    use super::*;
     use k8s_openapi::serde_json;
-    use kube::Client;
+    use kube::{core::GroupVersionKind, Client};
     use tower_test::mock;
+
+    #[tokio::test]
+    async fn create_dynamic_object_fail_when_missing_resource_definition() {
+        let k = get_mocked_client(Scenario::Version);
+
+        let gvk = GroupVersionKind::gvk("missing_group", "ver", "kind");
+
+        let err = k.create_dynamic_object(gvk.clone(), "").await.unwrap_err();
+
+        assert_eq!(
+            err.to_string(),
+            K8sExecutorError::MissingKind(gvk.api_version(), gvk.kind).to_string()
+        )
+    }
+
+    #[tokio::test]
+    async fn create_dynamic_object_fail_when_yaml_bad_format() {
+        // Mock must have the available gvk to not fail before.
+        let k = get_mocked_client(Scenario::APIResource);
+
+        let err = k
+            .create_dynamic_object(
+                GroupVersionKind::gvk("newrelic.com", "v1", "Foo"),
+                "bad: yaml: format",
+            )
+            .await
+            .unwrap_err();
+
+        assert!(err
+            .to_string()
+            .starts_with("error serializing/deserializing yaml:"))
+    }
+
+    #[tokio::test]
+    async fn create_dynamic_object_fails_on_creation() {
+        let k = get_mocked_client(Scenario::APIResource);
+
+        let err = k
+            .create_dynamic_object(
+                GroupVersionKind::gvk("newrelic.com", "v1", "Foo"),
+                "bad: spec",
+            )
+            .await
+            .unwrap_err();
+
+        assert!(err
+            .to_string()
+            .starts_with("the kube client returned an error:"))
+    }
 
     ///
     /// The following tests are just an example to show how the client can be mocked
@@ -136,8 +218,8 @@ mod test {
         let (mock_service, handle) =
             mock::pair::<http::Request<hyper::Body>, http::Response<hyper::Body>>();
         ApiServerVerifier(handle).run(scenario);
-        let custom_client = Client::new(mock_service, "default");
-        K8sExecutor::new(custom_client)
+        let client = Client::new(mock_service, "default");
+        K8sExecutor::new(client, String::from("default"))
     }
 
     type ApiServerHandle = mock::Handle<http::Request<hyper::Body>, http::Response<hyper::Body>>;
@@ -147,6 +229,7 @@ mod test {
     enum Scenario {
         Version,
         ListPods,
+        APIResource,
     }
     impl ApiServerVerifier {
         fn run(mut self, scenario: Scenario) -> tokio::task::JoinHandle<()> {
@@ -175,6 +258,18 @@ mod test {
                                 .unwrap(),
                         );
                     }
+                    Scenario::APIResource => {
+                        let (_, send) = self.0.next_request().await.expect("service not called");
+
+                        let response =
+                            serde_json::to_vec(&ApiServerVerifier::get_api_resource()).unwrap();
+
+                        send.send_response(
+                            http::Response::builder()
+                                .body(hyper::Body::from(response))
+                                .unwrap(),
+                        );
+                    }
                 }
             })
         }
@@ -189,6 +284,25 @@ mod test {
               "goVersion": "go1.19.10 X:boringcrypto",
               "compiler": "gc",
               "platform": "linux/amd64"
+            })
+        }
+
+        /// generated after CRD creation with kubectl get --raw /apis/newrelic.com/v1
+        fn get_api_resource() -> serde_json::Value {
+            serde_json::json!({
+              "kind": "APIResourceList",
+              "apiVersion": "v1",
+              "groupVersion": "newrelic.com/v1",
+              "resources": [
+                {
+                  "name": "foos",
+                  "singularName": "foo",
+                  "namespaced": true,
+                  "kind": "Foo",
+                  "verbs": ["delete","get","create"], // simplified
+                  "storageVersionHash": "PhxIpEAAgRo="
+                }
+              ]
             })
         }
 
