@@ -1,30 +1,12 @@
 use k8s_openapi::api::core::v1::Pod;
 use kube::api::PostParams;
-use kube::config::{KubeConfigOptions, KubeconfigError};
+use kube::config::KubeConfigOptions;
 use kube::core::DynamicObject;
-use kube::{api::ListParams, core::GroupVersionKind, Api, Client, Config, Error};
+use kube::{api::ListParams, core::GroupVersionKind, Api, Client, Config};
 use mockall::*;
 // use std::collections::HashMap;
 use super::error::K8sError;
 use tracing::debug;
-
-#[derive(thiserror::Error, Debug)]
-pub enum K8sExecutorError {
-    #[error("it is not possible to create a k8s client")]
-    UnableToSetupClient,
-
-    #[error("the kube client returned an error: `{0}`")]
-    Generic(#[from] Error),
-
-    #[error("it is not possible to read kubeconfig: `{0}`")]
-    UnableToSetupClientKubeconfig(#[from] KubeconfigError),
-
-    #[error("missing resource definition: api_version: {0}, kind: {1}")]
-    MissingKind(String, String),
-
-    #[error("error serializing/deserializing yaml: `{0}`")]
-    SerdeYaml(#[from] serde_yaml::Error),
-}
 
 #[derive(Clone)]
 pub struct K8sExecutor {
@@ -41,7 +23,7 @@ impl K8sExecutor {
     /// This will respect the `$KUBECONFIG` envvar, but otherwise default to `~/.kube/config`.
     /// Not leveraging infer() to check inClusterConfig first
     ///
-    pub async fn try_default(namespace: String) -> Result<K8sExecutor, K8sExecutorError> {
+    pub async fn try_default(namespace: String) -> Result<K8sExecutor, K8sError> {
         debug!("trying inClusterConfig for k8s client");
         let config = Config::incluster().unwrap_or({
             debug!("inClusterConfig failed, trying kubeconfig for k8s client");
@@ -65,10 +47,10 @@ impl K8sExecutor {
         &self,
         gvk: GroupVersionKind,
         spec: &str,
-    ) -> Result<DynamicObject, K8sExecutorError> {
+    ) -> Result<DynamicObject, K8sError> {
         let (api_resource, _caps) = kube::discovery::pinned_kind(&self.client, &gvk)
             .await
-            .map_err(|_| K8sExecutorError::MissingKind(gvk.api_version(), gvk.kind))?;
+            .map_err(|_| K8sError::MissingKind(gvk.api_version(), gvk.kind))?;
 
         let object_spec: DynamicObject = serde_yaml::from_str(spec)?;
 
@@ -139,7 +121,7 @@ mod test {
 
         assert_eq!(
             err.to_string(),
-            K8sExecutorError::MissingKind(gvk.api_version(), gvk.kind).to_string()
+            K8sError::MissingKind(gvk.api_version(), gvk.kind).to_string()
         )
     }
 
