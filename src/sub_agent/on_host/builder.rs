@@ -1,4 +1,3 @@
-use opamp_client::http::{HttpClientReqwest, StartedHttpClient};
 use crate::{
     config::{
         agent_type::agent_types::FinalAgent, remote_config_hash::HashRepositoryFile,
@@ -14,12 +13,13 @@ use crate::{
     },
     super_agent::instance_id::InstanceIDGetter,
 };
-use crate::sub_agent::on_host::sub_agent::SubAgentOnHost;
-use crate::super_agent::callbacks::AgentCallbacks;
 
-use super::supervisor::{
-    command_supervisor::NotStartedSupervisorOnHost,
-    command_supervisor_config::SupervisorConfigOnHost,
+use super::{
+    sub_agent::NotStartedSubAgentOnHost,
+    supervisor::{
+        command_supervisor::NotStartedSupervisorOnHost,
+        command_supervisor_config::SupervisorConfigOnHost,
+    },
 };
 
 pub struct OnHostSubAgentBuilder<'a, O, I>
@@ -50,7 +50,7 @@ where
     I: InstanceIDGetter,
 {
     // TODO: Is this lifetime needed?
-    type SubAgent = SubAgentOnHost<O, HashRepositoryFile>;
+    type SubAgent = NotStartedSubAgentOnHost<O, HashRepositoryFile>;
     fn build(
         &self,
         agent: FinalAgent,
@@ -58,7 +58,19 @@ where
         tx: std::sync::mpsc::Sender<Event>,
     ) -> Result<Self::SubAgent, SubAgentBuilderError> {
         let agent_type = agent.agent_type().clone();
-        Ok(SubAgentOnHost::new::<I>(
+
+        /* TODO
+        let opamp_client = build_opamp_and_start_client(
+            Context::new(),
+            opamp_builder,
+            instance_id_getter,
+            agent_id.clone(),
+            &agent_type,
+        )?;
+        create here the client and inject to the new so we can call on_remote_Status_failed if
+         */
+
+        Ok(NotStartedSubAgentOnHost::new::<I>(
             agent_id,
             build_supervisors(agent, tx)?,
             self.opamp_builder,
@@ -116,6 +128,7 @@ mod test {
         },
     };
 
+    use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
     use crate::{
         config::agent_type::runtime_config::OnHost,
         opamp::client_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock},
@@ -123,8 +136,6 @@ mod test {
     };
 
     use super::*;
-
-    use crate::sub_agent::SubAgent;
 
     #[test]
     fn build_start_stop() {
@@ -154,12 +165,11 @@ mod test {
 
         let (tx, _rx) = channel();
 
-        let mut on_host_agent =  on_host_builder
-            .build(on_host_final_agent(), AgentID::new("infra_agent"), tx).unwrap();
-        on_host_agent
+        assert!(on_host_builder
+            .build(on_host_final_agent(), AgentID::new("infra_agent"), tx)
+            .unwrap()
             .run()
-            .unwrap();
-        assert!(on_host_agent
+            .unwrap()
             .stop()
             .is_ok())
     }

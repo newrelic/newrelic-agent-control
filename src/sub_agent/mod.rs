@@ -17,18 +17,21 @@ use crate::config::{agent_type::agent_types::FinalAgent, super_agent_configs::Ag
 
 use self::logger::Event;
 
-/// The Runner trait defines the entry-point interface for a supervisor. Exposes a run method that will start the supervised process' execution.
-pub trait SubAgent {
-    /// The run method will execute a supervisor (non-blocking). Returns a [`SubAgent`] to manage the running process.
-    //TODO : DO WITH A GENERIC TYPE AND NOT CONSUME HIMSELF
-    fn run(&mut self) -> Result<(), error::SubAgentError>;
+/// The Runner trait defines the entry-point interface for a supervisor. Exposes a run method that will start the supervised processes' execution.
+pub trait NotStartedSubAgent {
+    type RunningSubAgent: StartedSubAgent;
+    /// The run method will execute a supervisor (non-blocking). Returns a [`Stopper`] to manage the running process.
+    fn run(self) -> Result<Self::RunningSubAgent, error::SubAgentError>;
+}
 
+// The Stopper trait defines the interface for a supervisor that is already running. Exposes a stop method that will stop the supervised processes' execution.
+pub trait StartedSubAgent {
     /// Cancels the supervised process and returns its inner handle.
     fn stop(self) -> Result<Vec<JoinHandle<()>>, error::SubAgentError>;
 }
 
 pub trait SubAgentBuilder {
-    type SubAgent: SubAgent;
+    type SubAgent: NotStartedSubAgent;
     fn build(
         &self,
         agent: FinalAgent,
@@ -43,13 +46,20 @@ pub mod test {
     use mockall::mock;
 
     mock! {
-        pub SubAgent {}
+        pub StartedSubAgent {}
 
-        impl SubAgent for SubAgent {
-
+        impl StartedSubAgent for StartedSubAgent {
             fn stop(self) -> Result<Vec<JoinHandle<()>>, error::SubAgentError>;
+        }
+    }
 
-            fn run(&mut self) -> Result<(), error::SubAgentError>;
+    mock! {
+        pub NotStartedSubAgent {}
+
+        impl NotStartedSubAgent for NotStartedSubAgent {
+            type RunningSubAgent = MockStartedSubAgent;
+
+            fn run(self) -> Result<<Self as NotStartedSubAgent>::RunningSubAgent, error::SubAgentError>;
         }
     }
 
@@ -57,7 +67,7 @@ pub mod test {
         pub SubAgentBuilderMock {}
 
         impl SubAgentBuilder for SubAgentBuilderMock {
-            type SubAgent = MockSubAgent;
+            type SubAgent = MockNotStartedSubAgent;
 
             fn build(
                 &self,
@@ -73,10 +83,16 @@ pub mod test {
         // successfully
         pub(crate) fn should_build(&mut self, times: usize) {
             self.expect_build().times(times).returning(|_, _, _| {
-                let mut sub_agent = MockSubAgent::new();
-                sub_agent.expect_run().times(1).returning(|| Ok(()));
-                sub_agent.expect_stop().times(1).returning(|| Ok(Vec::new()));
-                Ok(sub_agent)
+                let mut not_started_sub_agent = MockNotStartedSubAgent::new();
+                not_started_sub_agent.expect_run().times(1).returning(|| {
+                    let mut started_agent = MockStartedSubAgent::new();
+                    started_agent
+                        .expect_stop()
+                        .times(1)
+                        .returning(|| Ok(Vec::new()));
+                    Ok(started_agent)
+                });
+                Ok(not_started_sub_agent)
             });
         }
     }

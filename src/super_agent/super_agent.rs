@@ -17,10 +17,11 @@ use crate::config::remote_config_hash::{Hash, HashRepository, HashRepositoryFile
 use crate::config::super_agent_configs::{AgentID, SuperAgentConfig};
 use crate::context::Context;
 use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPHttpBuilder};
-use crate::sub_agent::collection::SubAgents;
+use crate::sub_agent::collection::{NotStartedSubAgents, StartedSubAgents};
 use crate::sub_agent::error::SubAgentBuilderError;
 use crate::sub_agent::logger::{Event, EventLogger, StdEventReceiver};
-use crate::sub_agent::{error::SubAgentError, SubAgent, SubAgentBuilder};
+use crate::sub_agent::NotStartedSubAgent;
+use crate::sub_agent::{error::SubAgentError, SubAgentBuilder};
 use crate::super_agent::defaults::{
     SUPER_AGENT_ID, SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION,
 };
@@ -205,19 +206,18 @@ where
         &self,
         effective_agents: EffectiveAgents,
         tx: &Sender<Event>,
-    ) -> Result<SubAgents<S::SubAgent>, AgentError> {
-        Ok(SubAgents::from(
+    ) -> Result<NotStartedSubAgents<S::SubAgent>, AgentError> {
+        Ok(NotStartedSubAgents::from(
             effective_agents
                 .agents
                 .into_iter()
                 .map(|(id, agent)| {
-                    let sub_agent =
+                    let not_started_agent =
                         self.sub_agent_builder
                             .build(agent, id.clone(), tx.clone())?;
-                    Ok((id, sub_agent))
+                    Ok((id, not_started_agent))
                 })
-                .collect::<Result<HashMap<AgentID, S::SubAgent>, SubAgentBuilderError>>(
-                )?,
+                .collect::<Result<HashMap<_, _>, SubAgentBuilderError>>()?,
         ))
     }
 
@@ -231,20 +231,23 @@ where
         agent_id: AgentID,
         super_agent_config: &SuperAgentConfig,
         tx: Sender<Event>,
-        sub_agents: &mut SubAgents<S::SubAgent>,
+        running_sub_agents: &mut StartedSubAgents<
+            <S::SubAgent as NotStartedSubAgent>::RunningSubAgent,
+        >,
     ) -> Result<(), AgentError> {
-        sub_agents.stop_remove(&agent_id)?;
+        running_sub_agents.stop_remove(&agent_id)?;
 
         let sub_agent_config = super_agent_config.sub_agent_config(&agent_id)?;
         let final_agent = self
             .effective_agents_asssembler
             .assemble_agent(&agent_id, sub_agent_config)?;
 
-        let mut sub_agent = self.sub_agent_builder
-            .build(final_agent, agent_id.clone(), tx)?;
-        sub_agent.run()?;
-
-        sub_agents.insert( agent_id, sub_agent);
+        running_sub_agents.insert(
+            agent_id.clone(),
+            self.sub_agent_builder
+                .build(final_agent, agent_id, tx)?
+                .run()?,
+        );
 
         Ok(())
     }

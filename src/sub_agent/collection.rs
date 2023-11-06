@@ -6,40 +6,46 @@ use tracing::{error, info};
 
 use super::{
     error::{SubAgentCollectionError, SubAgentError},
-    SubAgent,
+    NotStartedSubAgent, StartedSubAgent,
 };
 
-pub(crate) struct SubAgents<S>(HashMap<AgentID, S>)
+pub(crate) struct NotStartedSubAgents<S>(HashMap<AgentID, S>)
 where
-    S: SubAgent;
+    S: NotStartedSubAgent;
 
-impl<S> From<HashMap<AgentID, S>> for SubAgents<S>
+impl<S> From<HashMap<AgentID, S>> for NotStartedSubAgents<S>
 where
-    S: SubAgent,
+    S: NotStartedSubAgent,
 {
     fn from(value: HashMap<AgentID, S>) -> Self {
         Self(value)
     }
 }
 
-impl<S> SubAgents<S>
+impl<S> NotStartedSubAgents<S>
 where
-    S: SubAgent,
+    S: NotStartedSubAgent,
 {
     pub(crate) fn run(
         self,
-    ) -> Result<SubAgents<S>, SubAgentCollectionError> {
-        let sub_agents: Result<HashMap<AgentID, S>, SubAgentError> = self
+    ) -> Result<StartedSubAgents<S::RunningSubAgent>, SubAgentCollectionError> {
+        let sub_agents: Result<HashMap<AgentID, S::RunningSubAgent>, SubAgentError> = self
             .0
             .into_iter()
-            .map(|(id, mut subagent)| {
-                subagent.run()?;
-                Ok((id, subagent))
-            })
+            .map(|(id, subagent)| Ok((id, subagent.run()?)))
             .collect();
-        Ok(SubAgents(sub_agents?))
+        Ok(StartedSubAgents(sub_agents?))
     }
+}
 
+pub(crate) struct StartedSubAgents<S>(HashMap<AgentID, S>)
+where
+    S: StartedSubAgent;
+
+impl<S> StartedSubAgents<S>
+where
+    S: StartedSubAgent,
+{
     fn stop_agent(agent_id: &AgentID, sub_agent: S) -> Result<(), SubAgentCollectionError> {
         let result = sub_agent.stop()?;
         result.into_iter().for_each(|handle| {

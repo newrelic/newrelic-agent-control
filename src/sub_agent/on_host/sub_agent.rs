@@ -12,33 +12,27 @@ use crate::context::Context;
 use crate::opamp::client_builder::OpAMPClientBuilder;
 use crate::sub_agent::error::SubAgentError;
 use crate::sub_agent::on_host::opamp::build_opamp_and_start_client;
-use crate::sub_agent::SubAgent;
+use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
 use crate::super_agent::instance_id::InstanceIDGetter;
 use crate::utils::time::get_sys_time_nano;
 use opamp_client::opamp::proto::{RemoteConfigStatus, RemoteConfigStatuses};
-
-
-enum SupervisorOnHost {
-    Started(Vec<StartedSupervisorOnHost>),
-    NotStarted(Vec<NotStartedSupervisorOnHost>),
-}
 
 ////////////////////////////////////////////////////////////////////////////////////
 // Not Started SubAgent On Host
 // C: OpAMP Client
 ////////////////////////////////////////////////////////////////////////////////////
-pub struct SubAgentOnHost<B, HR = HashRepositoryFile>
+pub struct NotStartedSubAgentOnHost<B, HR = HashRepositoryFile>
 where
     B: OpAMPClientBuilder,
     HR: HashRepository,
 {
     opamp_client: Option<B::Client>,
-    supervisors: SupervisorOnHost,
+    supervisors: Vec<NotStartedSupervisorOnHost>,
     agent_id: AgentID,
     remote_config_hash_repository: HR,
 }
 
-impl<B, HR> SubAgentOnHost<B, HR>
+impl<B, HR> NotStartedSubAgentOnHost<B, HR>
 where
     B: OpAMPClientBuilder,
     HR: HashRepository,
@@ -50,7 +44,7 @@ where
         instance_id_getter: &'a ID,
         agent_type: AgentTypeFQN,
         remote_config_hash_repository: HR,
-    ) -> Result<Self, SubAgentError>  {
+    ) -> Result<Self, SubAgentError> {
         let opamp_client = build_opamp_and_start_client(
             Context::new(),
             opamp_builder,
@@ -59,9 +53,9 @@ where
             &agent_type,
         )?;
 
-        Ok(SubAgentOnHost {
+        Ok(NotStartedSubAgentOnHost {
             opamp_client,
-            supervisors: SupervisorOnHost::NotStarted(supervisors),
+            supervisors,
             agent_id,
             remote_config_hash_repository,
         })
@@ -71,10 +65,7 @@ where
         &self.agent_id
     }
 
-    fn set_config_hash_as_applied(
-        &self,
-        mut hash: Hash,
-    ) -> Result<(), SubAgentError> {
+    fn set_config_hash_as_applied(&self, mut hash: Hash) -> Result<(), SubAgentError> {
         if let Some(opamp_handle) = &self.opamp_client {
             block_on(opamp_handle.set_remote_config_status(RemoteConfigStatus {
                 last_remote_config_hash: hash.get().into_bytes(),
@@ -90,14 +81,16 @@ where
     }
 }
 
-impl<B, HR> SubAgent for SubAgentOnHost<B, HR>
+impl<B, HR> NotStartedSubAgent for NotStartedSubAgentOnHost<B, HR>
 where
     B: OpAMPClientBuilder,
     HR: HashRepository,
 {
-    fn run(&mut self) -> Result<(), SubAgentError> {
+    type RunningSubAgent = StartedSubAgentOnHost<B, HR>;
+
+    fn run(self) -> Result<Self::RunningSubAgent, SubAgentError> {
         let agent_id = self.agent_id.clone();
-        if let Some(handle) = &self.opamp_client {
+        if self.opamp_client.is_some() {
             // TODO should we error on first launch with no hash file?
             let remote_config_hash = self
                 .remote_config_hash_repository
@@ -112,18 +105,39 @@ where
             }
         }
 
-        let mut started_supervisors = Vec::new();
-        if let SupervisorOnHost::NotStarted(supervisors) = &self.supervisors {
-            for supervisor in supervisors {
-                let supervisor = supervisor.clone();
-                started_supervisors.push(supervisor.run()?);
-            }
-        }
+        let started_supervisors = self
+            .supervisors
+            .into_iter()
+            .map(|s| s.run())
+            .collect::<Result<Vec<_>, _>>()?;
 
-        self.supervisors = SupervisorOnHost::Started(started_supervisors);
-        Ok(())
+        let started_sub_agent = StartedSubAgentOnHost {
+            opamp_client: self.opamp_client,
+            supervisors: started_supervisors,
+            agent_id: self.agent_id,
+            remote_config_hash_repository: self.remote_config_hash_repository,
+        };
+
+        Ok(started_sub_agent)
     }
+}
 
+pub struct StartedSubAgentOnHost<B, HR = HashRepositoryFile>
+where
+    B: OpAMPClientBuilder,
+    HR: HashRepository,
+{
+    opamp_client: Option<B::Client>,
+    supervisors: Vec<StartedSupervisorOnHost>,
+    agent_id: AgentID,
+    remote_config_hash_repository: HR,
+}
+
+impl<B, HR> StartedSubAgent for StartedSubAgentOnHost<B, HR>
+where
+    B: OpAMPClientBuilder,
+    HR: HashRepository,
+{
     fn stop(self) -> Result<Vec<JoinHandle<()>>, SubAgentError> {
         let _client = match self.opamp_client {
             Some(client) => {
@@ -143,12 +157,7 @@ where
             None => None,
         };
 
-        let mut stopped_supervisors = Vec::new();
-        if let SupervisorOnHost::Started(supervisors) = self.supervisors {
-            for supervisor in supervisors {
-                stopped_supervisors.push(supervisor.stop());
-            }
-        }
+        let stopped_supervisors = self.supervisors.into_iter().map(|s| s.stop()).collect();
 
         Ok(stopped_supervisors)
     }
