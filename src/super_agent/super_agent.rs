@@ -22,9 +22,7 @@ use crate::sub_agent::error::SubAgentBuilderError;
 use crate::sub_agent::logger::{Event, EventLogger, StdEventReceiver};
 use crate::sub_agent::SubAgentBuilder;
 use crate::sub_agent::{error::SubAgentError, NotStartedSubAgent};
-use crate::super_agent::defaults::{
-    SUPER_AGENT_ID, SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION,
-};
+use crate::super_agent::defaults::{SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION};
 use crate::super_agent::effective_agents_assembler::{
     EffectiveAgentsAssembler, EffectiveAgentsAssemblerError,
 };

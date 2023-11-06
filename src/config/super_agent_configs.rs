@@ -4,7 +4,6 @@ use std::{collections::HashMap, fmt::Display};
 use std::ops::Deref;
 
 use crate::config::error::SuperAgentConfigError;
-use crate::sub_agent::restart_policy::RestartPolicy;
 use crate::super_agent::defaults::SUPER_AGENT_ID;
 use serde::Deserialize;
 use thiserror::Error;
