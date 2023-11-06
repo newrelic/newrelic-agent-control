@@ -16,8 +16,10 @@ use kube::{
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, env, fs::File, io::Write, time::Duration};
+
+use std::{collections::HashMap, env, fs::File, io::Write, time::Duration, u32};
 use tempfile::{tempdir, TempDir};
+use tokio::sync::OnceCell;
 use tokio::time::timeout;
 
 const KUBECONFIG_PATH: &str = "test/k8s/.kubeconfig-dev";
@@ -261,18 +263,41 @@ fn container_config(cluster_port: String) -> Config<String> {
 
 #[derive(CustomResource, Deserialize, Serialize, Clone, Debug, JsonSchema)]
 #[kube(group = "newrelic.com", version = "v1", kind = "Foo", namespaced)]
-pub struct FooSpec {}
+pub struct FooSpec {
+    pub data: String,
+}
+
+static ONCE: OnceCell<()> = OnceCell::const_new();
 
 /// Foo CRD is not cleaned on test termination (for simplicity) so all tests must expect this
 /// CRD exists.
 pub async fn create_foo_crd(client: Client) {
-    let crds: Api<CustomResourceDefinition> = Api::all(client);
+    ONCE.get_or_init(|| async {
+        let crds: Api<CustomResourceDefinition> = Api::all(client);
 
-    crds.patch(
-        "foos.newrelic.com",
-        &PatchParams::apply("foo"),
-        &Patch::Apply(Foo::crd()),
+        crds.patch(
+            "foos.newrelic.com",
+            &PatchParams::apply("foo"),
+            &Patch::Apply(Foo::crd()),
+        )
+        .await
+        .expect("fail creating foo crd");
+    })
+    .await;
+}
+
+pub async fn test_cr(client: Client, namespace: &str, name: &str) {
+    let api: Api<Foo> = Api::namespaced(client, namespace);
+    api.create(
+        &PostParams::default(),
+        &Foo::new(
+            name,
+            FooSpec {
+                data: String::from("test"),
+            },
+        ),
     )
     .await
-    .expect("fail creating foo crd");
+    .unwrap();
+    api.get(name).await.expect("fail creating the cr");
 }

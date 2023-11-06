@@ -1,8 +1,12 @@
 use k8s_openapi::api::core::v1::Pod;
-use kube::api::PostParams;
+use kube::api::{DeleteParams, PostParams};
 use kube::config::KubeConfigOptions;
 use kube::core::DynamicObject;
-use kube::{api::ListParams, core::GroupVersionKind, Api, Client, Config};
+use kube::{
+    api::{ListParams, Patch, PatchParams},
+    core::GroupVersionKind,
+    Api, Client, Config,
+};
 use mockall::*;
 // use std::collections::HashMap;
 use super::error::K8sError;
@@ -48,33 +52,56 @@ impl K8sExecutor {
         gvk: GroupVersionKind,
         spec: &str,
     ) -> Result<DynamicObject, K8sError> {
-        let (api_resource, _caps) = kube::discovery::pinned_kind(&self.client, &gvk)
-            .await
-            .map_err(|_| K8sError::MissingKind(gvk.api_version(), gvk.kind))?;
+        let api = self.namespaced_api(gvk).await?;
 
         let object_spec: DynamicObject = serde_yaml::from_str(spec)?;
-
-        let api: Api<DynamicObject> =
-            Api::namespaced_with(self.client.to_owned(), &self.namespace, &api_resource);
 
         let created_object = api.create(&PostParams::default(), &object_spec).await?;
 
         Ok(created_object)
     }
 
-    pub async fn modify_dynamic_object(
+    async fn namespaced_api(&self, gvk: GroupVersionKind) -> Result<Api<DynamicObject>, K8sError> {
+        let (api_resource, _) = kube::discovery::pinned_kind(&self.client, &gvk)
+            .await
+            .map_err(|_| K8sError::MissingKind(gvk.api_version(), gvk.kind))?;
+
+        Ok(Api::namespaced_with(
+            self.client.to_owned(),
+            &self.namespace,
+            &api_resource,
+        ))
+    }
+
+    pub async fn patch_dynamic_object(
         &self,
         gvk: GroupVersionKind,
+        name: &str,
         spec: &str,
     ) -> Result<(), K8sError> {
-        unimplemented!();
+        let api = self.namespaced_api(gvk).await?;
+
+        let object_spec: DynamicObject = serde_yaml::from_str(spec)?;
+
+        api.patch(
+            name,
+            &PatchParams::apply("super-agent-patch").force(),
+            &Patch::Apply(&object_spec),
+        )
+        .await?;
+
+        Ok(())
     }
     pub async fn delete_dynamic_object(
         &self,
         gvk: GroupVersionKind,
         name: &str,
     ) -> Result<(), K8sError> {
-        unimplemented!();
+        let api = self.namespaced_api(gvk).await?;
+
+        api.delete(name, &DeleteParams::default()).await?;
+
+        Ok(())
     }
 
     // Depends on K8sReflector implementation
