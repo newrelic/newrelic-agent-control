@@ -15,15 +15,14 @@ use tracing::warn;
 
 use super::error::K8sError;
 
-pub struct Builder {
+pub struct ReflectorBuilder {
     client: Client,
     namespace: String,
-    gvk: GroupVersionKind,
     field_selector: Option<String>,
     label_selector: Option<String>,
 }
 
-impl Builder {
+impl ReflectorBuilder {
     pub fn with_fields(mut self, field_selector: String) -> Self {
         self.field_selector = Some(field_selector);
         self
@@ -34,8 +33,11 @@ impl Builder {
         self
     }
 
-    pub async fn build(self) -> Result<Reader<DynamicObject>, K8sError> {
-        let (api_resource, _) = discovery::pinned_kind(&self.client, &self.gvk).await?;
+    pub async fn dynamic_object_reflector(
+        self,
+        gvk: GroupVersionKind,
+    ) -> Result<Reflector<DynamicObject>, K8sError> {
+        let (api_resource, _) = discovery::pinned_kind(&self.client, &gvk).await?;
         let api: Api<DynamicObject> =
             Api::namespaced_with(self.client, &self.namespace, &api_resource);
 
@@ -46,28 +48,27 @@ impl Builder {
         wc.label_selector = self.label_selector;
         wc.field_selector = self.field_selector;
 
-        let writer_task = Reader::<DynamicObject>::start_reflector(writer, api, wc);
+        let writer_task = Reflector::<DynamicObject>::start_reflector(writer, api, wc);
 
         reader.wait_until_ready().await?;
 
-        Ok(Reader {
+        Ok(Reflector {
             reader,
             writer_task,
         })
     }
 }
 
-pub fn builder(client: Client, namespace: String, gvk: GroupVersionKind) -> Builder {
-    Builder {
+pub fn reflector_builder(client: Client, namespace: String) -> ReflectorBuilder {
+    ReflectorBuilder {
         client,
         namespace,
-        gvk,
         field_selector: None,
         label_selector: None,
     }
 }
 
-pub struct Reader<K>
+pub struct Reflector<K>
 where
     K: 'static + Resource + Clone,
     K::DynamicType: Eq + std::hash::Hash,
@@ -76,7 +77,7 @@ where
     writer_task: JoinHandle<()>,
 }
 
-impl<K> Reader<K>
+impl<K> Reflector<K>
 where
     K: 'static + Resource + Clone,
     K::DynamicType: Eq + std::hash::Hash,
@@ -108,7 +109,7 @@ where
     }
 }
 
-impl<K> Drop for Reader<K>
+impl<K> Drop for Reflector<K>
 where
     K: 'static + Resource + Clone,
     K::DynamicType: Eq + std::hash::Hash,
