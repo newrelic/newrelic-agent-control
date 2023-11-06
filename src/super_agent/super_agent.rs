@@ -22,9 +22,7 @@ use crate::sub_agent::error::SubAgentBuilderError;
 use crate::sub_agent::logger::{Event, EventLogger, StdEventReceiver};
 use crate::sub_agent::SubAgentBuilder;
 use crate::sub_agent::{error::SubAgentError, NotStartedSubAgent};
-use crate::super_agent::defaults::{
-    SUPER_AGENT_ID, SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION,
-};
+use crate::super_agent::defaults::{SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION};
 use crate::super_agent::effective_agents_assembler::{
     EffectiveAgentsAssembler, EffectiveAgentsAssemblerError,
 };
@@ -86,7 +84,8 @@ where
             opamp_client_builder,
             remote_config_hash_repository,
             sub_agent_builder,
-            agent_id: AgentID(SUPER_AGENT_ID.to_string()),
+            // unwrap as we control content of the SUPER_AGENT_ID constant
+            agent_id: AgentID::new_super_agent_id(),
         }
     }
 
@@ -463,7 +462,7 @@ mod tests {
                 instance_id_getter,
                 remote_config_hash_repository,
                 sub_agent_builder,
-                agent_id: AgentID(SUPER_AGENT_ID.to_string()),
+                agent_id: AgentID::new_super_agent_id(),
             }
         }
     }
@@ -475,7 +474,7 @@ mod tests {
         let super_agent_start_settings = super_agent_default_start_settings(&hostname);
 
         opamp_builder.should_build_and_start(
-            AgentID::new(SUPER_AGENT_ID),
+            AgentID::new_super_agent_id(),
             super_agent_start_settings,
             |_, _, _| {
                 let mut started_client = MockOpAMPClientMock::new();
@@ -544,7 +543,7 @@ mod tests {
 
         // Super Agent OpAMP
         opamp_builder.should_build_and_start(
-            AgentID::new(SUPER_AGENT_ID),
+            AgentID::new_super_agent_id(),
             super_agent_start_settings,
             |_, _, _| {
                 let mut started_client = MockOpAMPClientMock::new();
@@ -645,7 +644,7 @@ mod tests {
 
         // Super Agent OpAMP
         opamp_builder.should_build_and_start(
-            AgentID::new(SUPER_AGENT_ID),
+            AgentID::new_super_agent_id(),
             super_agent_start_settings,
             |_, _, _| {
                 let mut started_client = MockOpAMPClientMock::new();
@@ -717,7 +716,7 @@ mod tests {
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         hash_repository_mock
             .expect_get()
-            .with(predicate::eq(AgentID::new(SUPER_AGENT_ID)))
+            .with(predicate::eq(AgentID::new_super_agent_id()))
             .times(1)
             .returning(|_| {
                 let mut hash = Hash::new("a-hash".to_string());
@@ -728,7 +727,7 @@ mod tests {
         hash_repository_mock
             .expect_save()
             .with(
-                predicate::eq(AgentID::new(SUPER_AGENT_ID)),
+                predicate::eq(AgentID::new_super_agent_id()),
                 predicate::eq(Hash::new("a-hash".to_string())),
             )
             .times(1)
@@ -750,7 +749,7 @@ mod tests {
         let ctx = Context::new();
         spawn({
             let ctx = ctx.clone();
-            let agent_id = AgentID::new(SUPER_AGENT_ID);
+            let agent_id = AgentID::new_super_agent_id();
             move || {
                 let remote_config = RemoteConfig {
                     agent_id,
@@ -778,7 +777,7 @@ mod tests {
 
         // Super Agent OpAMP
         opamp_builder.should_build_and_start(
-            AgentID::new(SUPER_AGENT_ID),
+            AgentID::new_super_agent_id(),
             super_agent_start_settings,
             |_, _, _| {
                 let mut started_client = MockOpAMPClientMock::new();
@@ -839,7 +838,7 @@ mod tests {
         conf_persister.should_persist_any_agent_config(2);
 
         //Sub Agent reload expectations
-        let agent_id_to_restart = AgentID("infra_agent".to_string());
+        let agent_id_to_restart = AgentID::new("infra_agent").unwrap();
         registry.should_get(
             "newrelic/com.newrelic.infrastructure_agent:0.0.1".to_string(),
             final_infra_agent.clone(),
@@ -896,7 +895,7 @@ mod tests {
 
         // Super Agent OpAMP no final stop nor health
         opamp_builder.should_build_and_start(
-            AgentID::new(SUPER_AGENT_ID),
+            AgentID::new_super_agent_id(),
             super_agent_start_settings,
             |_, _, _| Ok(MockOpAMPClientMock::new()),
         );
@@ -936,7 +935,7 @@ mod tests {
         conf_persister.should_persist_any_agent_config(1);
 
         //Sub Agent reload expectations
-        let agent_id_to_restart = AgentID("infra_agent".to_string());
+        let agent_id_to_restart = AgentID::new("infra_agent").unwrap();
         registry.should_get(
             "newrelic/com.newrelic.infrastructure_agent:0.0.1".to_string(),
             final_infra_agent.clone(),
@@ -963,7 +962,7 @@ mod tests {
 
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         hash_repository_mock.should_get_applied_hash(
-            AgentID::new(SUPER_AGENT_ID),
+            AgentID::new_super_agent_id(),
             Hash::new("a-hash".to_string()),
         );
 
@@ -1000,7 +999,7 @@ mod tests {
 
     #[test]
     fn recreate_agent_no_errors() {
-        let agent_id_to_restart = AgentID("infra_agent".to_string());
+        let agent_id_to_restart = AgentID::new("infra_agent").unwrap();
 
         let mut opamp_builder = MockOpAMPClientBuilderMock::new();
         let hostname = gethostname().unwrap_or_default().into_string().unwrap();
@@ -1008,7 +1007,7 @@ mod tests {
 
         // Super Agent OpAMP
         opamp_builder.should_build_and_start(
-            AgentID::new(SUPER_AGENT_ID),
+            AgentID::new_super_agent_id(),
             super_agent_start_settings,
             |_, _, _| {
                 let mut started_client = MockOpAMPClientMock::new();
@@ -1090,7 +1089,7 @@ mod tests {
 
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         hash_repository_mock.should_get_applied_hash(
-            AgentID::new(SUPER_AGENT_ID),
+            AgentID::new_super_agent_id(),
             Hash::new("a-hash".to_string()),
         );
 
@@ -1122,7 +1121,7 @@ mod tests {
 
     #[test]
     fn recreate_agent_error_on_persister() {
-        let agent_id_to_restart = AgentID("infra_agent".to_string());
+        let agent_id_to_restart = AgentID::new("infra_agent").unwrap();
 
         // Mocked services
         let mut conf_persister = MockConfigurationPersisterMock::new();
@@ -1278,7 +1277,7 @@ mod tests {
             opamp: None,
             agents: HashMap::from([
                 (
-                    AgentID("infra_agent".to_string()),
+                    AgentID::new("infra_agent").unwrap(),
                     SubAgentConfig {
                         agent_type: AgentTypeFQN::from(
                             "newrelic/com.newrelic.infrastructure_agent:0.0.1",
@@ -1286,7 +1285,7 @@ mod tests {
                     },
                 ),
                 (
-                    AgentID("nrdot".to_string()),
+                    AgentID::new("nrdot").unwrap(),
                     SubAgentConfig {
                         agent_type: AgentTypeFQN::from("newrelic/io.opentelemetry.collector:0.0.1"),
                     },
@@ -1299,7 +1298,7 @@ mod tests {
         SuperAgentConfig {
             opamp: None,
             agents: HashMap::from([(
-                AgentID("infra_agent".to_string()),
+                AgentID::new("infra_agent").unwrap(),
                 SubAgentConfig {
                     agent_type: AgentTypeFQN::from(
                         "newrelic/com.newrelic.infrastructure_agent:0.0.1",

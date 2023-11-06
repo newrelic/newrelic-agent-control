@@ -205,7 +205,9 @@ mod tests {
         .assemble_agents(&agent_config)
         .unwrap();
 
-        let first_agent = effective_agents.get(&AgentID::new("first")).unwrap();
+        let first_agent = effective_agents
+            .get(&AgentID::new("first").unwrap())
+            .unwrap();
         let file = first_agent
             .variables
             .get("config")
@@ -399,8 +401,8 @@ deployment:
         LocalRegistry,
         SuperAgentConfig,
     ) {
-        let first_agent_id = AgentID("first".to_string());
-        let second_agent_id = AgentID("second".to_string());
+        let first_agent_id = AgentID::new("first").unwrap();
+        let second_agent_id = AgentID::new("second").unwrap();
         let agent_types_and_values = vec![
             (first_agent_id.clone(), FIRST_TYPE, ""),
             (second_agent_id.clone(), SECOND_TYPE, SECOND_TYPE_VALUES),

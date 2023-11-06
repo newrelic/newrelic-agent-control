@@ -127,7 +127,7 @@ mod test {
 
         // Infra Agent OpAMP no final stop nor health, just after stopping on reload
         opamp_builder.should_build_and_start(
-            AgentID::new("infra_agent"),
+            AgentID::new("infra_agent").unwrap(),
             start_settings_infra,
             |_, _, _| {
                 let mut started_client = MockOpAMPClientMock::new();
@@ -148,7 +148,11 @@ mod test {
         let (tx, _rx) = channel();
 
         assert!(on_host_builder
-            .build(on_host_final_agent(), AgentID::new("infra_agent"), tx)
+            .build(
+                on_host_final_agent(),
+                AgentID::new("infra_agent").unwrap(),
+                tx
+            )
             .unwrap()
             .run()
             .unwrap()

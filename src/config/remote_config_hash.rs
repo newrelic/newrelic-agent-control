@@ -118,7 +118,7 @@ where
     W: Writer,
 {
     fn hash_file_path<'a>(&'a self, agent_id: &AgentID, path: &'a mut PathBuf) -> &Path {
-        let hash_file = format!("{}.{}", agent_id.0.as_str(), HASH_FILE_EXTENSION);
+        let hash_file = format!("{}.{}", agent_id.get(), HASH_FILE_EXTENSION);
         path.push(hash_file);
         path
     }
@@ -198,7 +198,7 @@ pub mod test {
         let mut file_writer_mock = MockFileWriterMock::new();
         let mut file_reader_mock = MockFileReaderMock::new();
         let file_permissions = Permissions::from_mode(FILE_PERMISSIONS);
-        let agent_id = AgentID::new("SomeAgentID");
+        let agent_id = AgentID::new("SomeAgentID").unwrap();
         let mut hash = Hash::new("123456789".to_string());
         hash.apply();
 
@@ -208,7 +208,7 @@ applied: true
 "#;
 
         let mut expected_path = some_path.clone();
-        expected_path.push(format!("{}.{}", agent_id.0.as_str(), HASH_FILE_EXTENSION));
+        expected_path.push(format!("{}.{}", agent_id.get(), HASH_FILE_EXTENSION));
 
         file_reader_mock.should_read(
             expected_path.to_str().unwrap().to_string(),
