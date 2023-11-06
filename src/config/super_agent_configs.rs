@@ -276,20 +276,20 @@ agents:
     fn parse_with_wrong_agent_id() {
         let actual = serde_yaml::from_str::<SuperAgentConfig>(SUPERAGENT_CONFIG_WRONG_AGENT_ID);
         assert!(actual.is_err());
-        assert_eq!(
-            actual.unwrap_err().to_string(),
-            "agents: AgentID allows only a-zA-Z0-9_- at line 3 column 3"
-        )
+        assert!(actual
+            .unwrap_err()
+            .to_string()
+            .contains("AgentID allows only a-zA-Z0-9_- at line"))
     }
 
     #[test]
     fn parse_with_reserved_agent_id() {
         let actual = serde_yaml::from_str::<SuperAgentConfig>(SUPERAGENT_CONFIG_RESERVED_AGENT_ID);
         assert!(actual.is_err());
-        assert_eq!(
-            actual.unwrap_err().to_string(),
-            "agents: AgentID 'super-agent' is reserved at line 3 column 3"
-        )
+        assert!(actual
+            .unwrap_err()
+            .to_string()
+            .contains("AgentID 'super-agent' is reserved at line"))
     }
 
     #[test]

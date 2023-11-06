@@ -31,9 +31,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     info!("Creating the signal handler");
     create_shutdown_signal_handler(ctx.clone())?;
 
-    let mut super_agent_config = SuperAgentConfigStoreFile::new(&cli.get_config_path());
+    let mut super_agent_config_storer = SuperAgentConfigStoreFile::new(&cli.get_config_path());
 
-    let opamp_client_builder: Option<OpAMPHttpBuilder> = super_agent_config
+    let opamp_client_builder: Option<OpAMPHttpBuilder> = super_agent_config_storer
         .load()?
         .opamp
         .as_ref()
@@ -41,13 +41,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // enable remote config store
     if opamp_client_builder.is_some() {
-        super_agent_config = super_agent_config.with_remote()?;
+        super_agent_config_storer = super_agent_config_storer.with_remote()?;
     }
 
     let instance_id_getter = ULIDInstanceIDGetter::default();
 
     Ok(run_super_agent(
-        super_agent_config,
+        super_agent_config_storer,
         ctx,
         opamp_client_builder,
         instance_id_getter,
@@ -55,7 +55,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 }
 
 fn run_super_agent(
-    config: SuperAgentConfigStoreFile,
+    config_storer: SuperAgentConfigStoreFile,
     ctx: Context<Option<SuperAgentEvent>>,
     opamp_client_builder: Option<OpAMPHttpBuilder>,
     instance_id_getter: ULIDInstanceIDGetter,
@@ -82,7 +82,7 @@ fn run_super_agent(
         &instance_id_getter,
         HashRepositoryFile::default(),
         sub_agent_builder,
-        config,
+        config_storer,
     )
     .run(ctx)
 }

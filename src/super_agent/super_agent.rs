@@ -343,7 +343,10 @@ where
     fn super_agent_start_settings(&self) -> StartSettings {
         StartSettings {
             instance_id: self.instance_id_getter.get(self.agent_id()),
-            capabilities: capabilities!(AgentCapabilities::ReportsHealth),
+            capabilities: capabilities!(
+                AgentCapabilities::ReportsHealth,
+                AgentCapabilities::AcceptsRemoteConfig
+            ),
             agent_description: AgentDescription {
                 identifying_attributes: HashMap::<String, DescriptionValueType>::from([
                     ("service.name".to_string(), SUPER_AGENT_TYPE.into()),
@@ -866,7 +869,6 @@ mod tests {
         let ctx = Context::new();
         let running_agent = spawn({
             let ctx = ctx.clone();
-            let agent_id = AgentID::new_super_agent_id();
             move || {
                 // two agents in the supervisor group
                 let agent = SuperAgent::new_custom(
@@ -1563,7 +1565,10 @@ agents:
     fn super_agent_default_start_settings(hostname: &String) -> StartSettings {
         start_settings(
             "super_agent_instance_id".to_string(),
-            capabilities!(AgentCapabilities::ReportsHealth),
+            capabilities!(
+                AgentCapabilities::ReportsHealth,
+                AgentCapabilities::AcceptsRemoteConfig
+            ),
             SUPER_AGENT_TYPE.to_string(),
             SUPER_AGENT_VERSION.to_string(),
             SUPER_AGENT_NAMESPACE.to_string(),
