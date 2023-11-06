@@ -1,3 +1,4 @@
+use opamp_client::http::{HttpClientReqwest, StartedHttpClient};
 use crate::{
     config::{
         agent_type::agent_types::FinalAgent, remote_config_hash::HashRepositoryFile,
@@ -13,8 +14,9 @@ use crate::{
     },
     super_agent::instance_id::InstanceIDGetter,
 };
+use crate::sub_agent::on_host::sub_agent::SubAgentOnHost;
+use crate::super_agent::callbacks::AgentCallbacks;
 
-use super::sub_agent::NotStartedSubAgentOnHost;
 use super::supervisor::{
     command_supervisor::NotStartedSupervisorOnHost,
     command_supervisor_config::SupervisorConfigOnHost,
@@ -47,22 +49,23 @@ where
     O: OpAMPClientBuilder,
     I: InstanceIDGetter,
 {
-    type NotStartedSubAgent = NotStartedSubAgentOnHost<'a, O, I>;
+    // TODO: Is this lifetime needed?
+    type SubAgent = SubAgentOnHost<O, HashRepositoryFile>;
     fn build(
         &self,
         agent: FinalAgent,
         agent_id: AgentID,
         tx: std::sync::mpsc::Sender<Event>,
-    ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
+    ) -> Result<Self::SubAgent, SubAgentBuilderError> {
         let agent_type = agent.agent_type().clone();
-        Ok(NotStartedSubAgentOnHost::new(
+        Ok(SubAgentOnHost::new::<I>(
             agent_id,
             build_supervisors(agent, tx)?,
             self.opamp_builder,
             self.instance_id_getter,
             agent_type,
             HashRepositoryFile::default(),
-        ))
+        )?)
     }
     // add code here
 }
@@ -121,7 +124,7 @@ mod test {
 
     use super::*;
 
-    use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
+    use crate::sub_agent::SubAgent;
 
     #[test]
     fn build_start_stop() {
@@ -151,11 +154,12 @@ mod test {
 
         let (tx, _rx) = channel();
 
-        assert!(on_host_builder
-            .build(on_host_final_agent(), AgentID::new("infra_agent"), tx)
-            .unwrap()
+        let mut on_host_agent =  on_host_builder
+            .build(on_host_final_agent(), AgentID::new("infra_agent"), tx).unwrap();
+        on_host_agent
             .run()
-            .unwrap()
+            .unwrap();
+        assert!(on_host_agent
             .stop()
             .is_ok())
     }
