@@ -35,17 +35,19 @@ impl ReflectorBuilder {
 
     /// Builds the DynamicObject reflector using the builder.
     pub async fn dynamic_object_reflector(
-        self,
+        &self,
         api_resource: &ApiResource,
     ) -> Result<DynamicObjectReflector, K8sError> {
         let api: Api<DynamicObject> =
-            Api::namespaced_with(self.client, &self.namespace, api_resource);
+            Api::namespaced_with(self.client.to_owned(), &self.namespace, api_resource);
 
         let writer: Writer<DynamicObject> = reflector::store::Writer::new(api_resource.to_owned());
 
-        let mut wc = watcher::Config::default();
-        wc.label_selector = self.label_selector;
-        wc.field_selector = self.field_selector;
+        let wc = watcher::Config {
+            label_selector: self.label_selector.clone(),
+            field_selector: self.field_selector.clone(),
+            ..Default::default()
+        };
 
         DynamicObjectReflector::new(api, writer, wc).await
     }
