@@ -18,10 +18,11 @@ use crate::config::remote_config_hash::{Hash, HashRepository, HashRepositoryFile
 use crate::config::store::{SubAgentsConfigStore, SuperAgentConfigStoreFile};
 use crate::config::super_agent_configs::{AgentID, SubAgentConfig, SubAgentsConfig};
 use crate::context::Context;
-use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPHttpBuilder};
+use crate::opamp::client_builder::OpAMPClientBuilder;
 use crate::sub_agent::collection::{NotStartedSubAgents, StartedSubAgents};
 use crate::sub_agent::error::SubAgentBuilderError;
 use crate::sub_agent::logger::{Event, EventLogger, StdEventReceiver};
+use crate::sub_agent::on_host::opamp::SuperAgentOpAMPHttpBuilder;
 use crate::sub_agent::NotStartedSubAgent;
 use crate::sub_agent::SubAgentBuilder;
 use crate::super_agent::defaults::{SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION};
@@ -47,7 +48,7 @@ pub struct SuperAgent<
     'a,
     Assembler,
     S,
-    OpAMPBuilder = OpAMPHttpBuilder,
+    OpAMPBuilder = SuperAgentOpAMPHttpBuilder,
     ID = ULIDInstanceIDGetter,
     HR = HashRepositoryFile,
     SL = SuperAgentConfigStoreFile,
@@ -1050,7 +1051,7 @@ agents:
         send_event_after(
             ctx.clone(),
             SuperAgentEvent::Stop,
-            Duration::from_millis(100),
+            Duration::from_millis(300),
         );
         assert!(agent.run(ctx).is_ok())
     }

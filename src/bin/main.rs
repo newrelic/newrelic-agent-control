@@ -6,7 +6,9 @@ use tracing::{error, info};
 
 use newrelic_super_agent::config::remote_config_hash::HashRepositoryFile;
 use newrelic_super_agent::config::store::{SuperAgentConfigStore, SuperAgentConfigStoreFile};
-use newrelic_super_agent::opamp::client_builder::OpAMPHttpBuilder;
+use newrelic_super_agent::sub_agent::on_host::opamp::{
+    SubAgentOpAMPHttpBuilder, SuperAgentOpAMPHttpBuilder,
+};
 use newrelic_super_agent::super_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use newrelic_super_agent::super_agent::instance_id::ULIDInstanceIDGetter;
 use newrelic_super_agent::super_agent::super_agent::{SuperAgent, SuperAgentEvent};
@@ -33,11 +35,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let mut super_agent_config_storer = SuperAgentConfigStoreFile::new(&cli.get_config_path());
 
-    let opamp_client_builder: Option<OpAMPHttpBuilder> = super_agent_config_storer
+    let opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder> = super_agent_config_storer
         .load()?
         .opamp
         .as_ref()
-        .map(|opamp_config| OpAMPHttpBuilder::new(opamp_config.clone()));
+        .map(|opamp_config| SuperAgentOpAMPHttpBuilder::new(opamp_config.clone()));
 
     // enable remote config store
     if opamp_client_builder.is_some() {
@@ -57,7 +59,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 fn run_super_agent(
     config_storer: SuperAgentConfigStoreFile,
     ctx: Context<Option<SuperAgentEvent>>,
-    opamp_client_builder: Option<OpAMPHttpBuilder>,
+    opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
     instance_id_getter: ULIDInstanceIDGetter,
 ) -> Result<(), AgentError> {
     // TODO: first matching feature will be used if --all-features is specified
@@ -69,7 +71,8 @@ fn run_super_agent(
             if !nix::unistd::Uid::effective().is_root() {
                 panic!("Program must run as root");
             }
-           let sub_agent_builder = newrelic_super_agent::sub_agent::on_host::builder::OnHostSubAgentBuilder::new(opamp_client_builder.as_ref(), &instance_id_getter, &hash_repository);
+            let sub_agent_opamp : Option<SubAgentOpAMPHttpBuilder> = opamp_client_builder.as_ref().map(Into::into);
+           let sub_agent_builder = newrelic_super_agent::sub_agent::on_host::builder::OnHostSubAgentBuilder::new(sub_agent_opamp.as_ref(), &instance_id_getter,&hash_repository);
         } else if #[cfg(feature = "k8s")] {
             //FIXME: this repository should be the concretion needed for K8s, hashRepositoryConfigMap?
             let mut hash_repository = HashRepositoryFile::default();
