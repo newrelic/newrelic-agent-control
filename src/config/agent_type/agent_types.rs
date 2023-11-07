@@ -12,7 +12,7 @@ use serde::de::Error;
 use serde::{Deserialize, Deserializer};
 
 use super::restart_policy::BackoffDuration;
-use super::trivial_value::Number;
+use super::trivial_value::{FilePathWithContent, Number};
 use super::{
     agent_metadata::AgentMetadata,
     error::AgentTypeError,
@@ -269,8 +269,9 @@ pub trait AgentTypeEndSpec {
 #[derive(Debug, PartialEq, Clone, Deserialize)]
 pub struct EndSpec {
     pub(crate) description: String,
+    #[serde(flatten)]
     pub kind: Kind,
-    file_path: Option<String>,
+    pub(crate) file_path: Option<String>,
 }
 
 impl AgentTypeEndSpec for EndSpec {
@@ -279,6 +280,9 @@ impl AgentTypeEndSpec for EndSpec {
             Kind::String(_) => VariableType::String,
             Kind::Bool(_) => VariableType::Bool,
             Kind::Number(_) => VariableType::Number,
+            Kind::File(_) => VariableType::File,
+            Kind::MapStringFile(_) => VariableType::MapStringFile,
+            Kind::MapStringString(_) => VariableType::MapStringString,
         }
     }
 
@@ -290,14 +294,20 @@ impl AgentTypeEndSpec for EndSpec {
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(tag = "type")]
 pub enum Kind {
+    #[serde(rename = "string")]
     String(KindValue<String>),
+    #[serde(rename = "bool")]
     Bool(KindValue<bool>),
+    #[serde(rename = "number")]
     Number(KindValue<Number>),
-    // File(ValueKind<FilePathWithContent>),
-    // #[serde(rename = "map[string]string")
-    // MapStringString(ValueKind<Map<String, String>>),
-    // #[serde(rename = "map[string]file")
-    // MapStringFile(ValueKind<Map<String, FilePathWithContent>>),
+    #[serde(rename = "file")]
+    File(
+        /* #[serde(try_from = "String")] */ KindValue<FilePathWithContent>,
+    ),
+    #[serde(rename = "map[string]string")]
+    MapStringString(KindValue<HashMap<String, String>>),
+    #[serde(rename = "map[string]file")]
+    MapStringFile(KindValue<HashMap<String, FilePathWithContent>>),
 }
 
 impl Kind {
@@ -306,14 +316,20 @@ impl Kind {
             Kind::String(_) => "string",
             Kind::Bool(_) => "bool",
             Kind::Number(_) => "number",
+            Kind::File(_) => "file",
+            Kind::MapStringFile(_) => "map[string]file",
+            Kind::MapStringString(_) => "map[string]string",
         }
     }
 
-    fn required_without_default(&self) -> bool {
+    fn not_required_without_default(&self) -> bool {
         match self {
-            Kind::String(v) => v.default.is_none() && v.required,
-            Kind::Bool(v) => v.default.is_none() && v.required,
-            Kind::Number(v) => v.default.is_none() && v.required,
+            Kind::String(v) => v.not_required_without_default(),
+            Kind::Bool(v) => v.not_required_without_default(),
+            Kind::Number(v) => v.not_required_without_default(),
+            Kind::File(v) => v.not_required_without_default(),
+            Kind::MapStringFile(v) => v.not_required_without_default(),
+            Kind::MapStringString(v) => v.not_required_without_default(),
         }
     }
 
@@ -322,6 +338,9 @@ impl Kind {
             Kind::String(v) => v.required,
             Kind::Bool(v) => v.required,
             Kind::Number(v) => v.required,
+            Kind::File(v) => v.required,
+            Kind::MapStringFile(v) => v.required,
+            Kind::MapStringString(v) => v.required,
         }
     }
 
@@ -331,6 +350,7 @@ impl Kind {
                 (Kind::String(v), TrivialValue::String(s)) => v.final_value = Some(s),
                 (Kind::Bool(v), TrivialValue::Bool(b)) => v.final_value = Some(b),
                 (Kind::Number(v), TrivialValue::Number(n)) => v.final_value = Some(n),
+                // FIXME
                 (k, v) => {
                     return Err(AgentTypeError::TypeMismatch {
                         expected_type: k.kind_str().to_string(),
@@ -346,9 +366,12 @@ impl Kind {
 
     fn set_default_as_final_value(&mut self) {
         match self {
-            Kind::String(v) => v.final_value = v.default.take(),
-            Kind::Bool(v) => v.final_value = v.default.take(),
-            Kind::Number(v) => v.final_value = v.default.take(),
+            Kind::String(v) => v.set_default_as_final(),
+            Kind::Bool(v) => v.set_default_as_final(),
+            Kind::Number(v) => v.set_default_as_final(),
+            Kind::File(v) => v.set_default_as_final(),
+            Kind::MapStringFile(v) => v.set_default_as_final(),
+            Kind::MapStringString(v) => v.set_default_as_final(),
         }
     }
 
@@ -357,6 +380,21 @@ impl Kind {
             Kind::String(v) => v.final_value.clone().map(TrivialValue::String),
             Kind::Bool(v) => v.final_value.map(TrivialValue::Bool),
             Kind::Number(v) => v.final_value.clone().map(TrivialValue::Number),
+            Kind::File(v) => v.final_value.clone().map(TrivialValue::File),
+            Kind::MapStringFile(v) => v.final_value.clone().map(|vv| {
+                let trivial_value_map = vv
+                    .into_iter()
+                    .map(|(k, v)| (k, TrivialValue::File(v)))
+                    .collect();
+                TrivialValue::Map(trivial_value_map)
+            }),
+            Kind::MapStringString(v) => v.final_value.clone().map(|vv| {
+                let trivial_value_map = vv
+                    .into_iter()
+                    .map(|(k, v)| (k, TrivialValue::String(v)))
+                    .collect();
+                TrivialValue::Map(trivial_value_map)
+            }),
         }
     }
 
@@ -365,16 +403,40 @@ impl Kind {
             Kind::String(v) => v.default.clone().map(TrivialValue::String),
             Kind::Bool(v) => v.default.map(TrivialValue::Bool),
             Kind::Number(v) => v.default.clone().map(TrivialValue::Number),
+            Kind::File(v) => v.default.clone().map(TrivialValue::File),
+            Kind::MapStringFile(v) => v.default.clone().map(|vv| {
+                let trivial_value_map = vv
+                    .into_iter()
+                    .map(|(k, v)| (k, TrivialValue::File(v)))
+                    .collect();
+                TrivialValue::Map(trivial_value_map)
+            }),
+            Kind::MapStringString(v) => v.default.clone().map(|vv| {
+                let trivial_value_map = vv
+                    .into_iter()
+                    .map(|(k, v)| (k, TrivialValue::String(v)))
+                    .collect();
+                TrivialValue::Map(trivial_value_map)
+            }),
         }
     }
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct KindValue<T> {
-    default: Option<T>,
-    final_value: Option<T>,
+    pub(crate) default: Option<T>,
+    pub(crate) final_value: Option<T>,
     pub required: bool,
-    variants: Option<Vec<T>>,
+    pub(crate) variants: Option<Vec<T>>,
+}
+
+impl<T> KindValue<T> {
+    pub(crate) fn not_required_without_default(&self) -> bool {
+        !self.required && self.default.is_none()
+    }
+    pub(crate) fn set_default_as_final(&mut self) {
+        self.final_value = self.default.take();
+    }
 }
 
 impl<'de, T> Deserialize<'de> for KindValue<T>
@@ -395,7 +457,8 @@ where
 
         let intermediate_spec = IntermediateValueKind::deserialize(deserializer)?;
         if intermediate_spec.default.is_none() && !intermediate_spec.required {
-            return Err(D::Error::custom(AgentTypeError::MissingDefault));
+            let err = D::Error::custom(AgentTypeError::MissingDefault);
+            return Err(err);
         }
 
         Ok(KindValue {
@@ -453,7 +516,7 @@ fn normalize_agent_spec(spec: AgentVariables) -> Result<NormalizedVariables, Age
     spec.into_iter().try_fold(HashMap::new(), |r, (k, v)| {
         let n_spec = inner_normalize(k, v);
         n_spec.iter().try_for_each(|(k, end_spec)| {
-            if end_spec.kind.required_without_default() {
+            if end_spec.kind.not_required_without_default() {
                 return Err(AgentTypeError::MissingDefaultWithKey(k.clone()));
             }
             Ok(())
@@ -489,7 +552,6 @@ pub mod tests {
     use super::*;
     use crate::config::agent_type::restart_policy::RestartPolicyConfig;
     use crate::config::agent_type::trivial_value::FilePathWithContent;
-    use crate::config::agent_type::trivial_value::Number::PosInt;
     use serde_yaml::Error;
     use std::collections::HashMap as Map;
 
@@ -645,32 +707,27 @@ deployment:
     fn test_normalize_agent_spec() {
         // create AgentSpec
 
-        let given_agent: FinalAgent = serde_yaml::from_str(AGENT_GIVEN_YAML).unwrap();
-
-        let expected_map: Map<String, EndSpec> = Map::from([(
-            "description.name".to_string(),
-            EndSpec::String(KindValue {
-                description: "Name of the agent".to_string(),
+        let endspec: EndSpec = EndSpec {
+            description: "Name of the agent".to_string(),
+            kind: Kind::String(KindValue {
+                final_value: None,
                 required: false,
                 default: Some("nrdot".to_string()),
-                final_value: None,
-                file_path: None,
                 variants: None,
             }),
-        )]);
+            file_path: None,
+        };
+
+        let given_agent: FinalAgent = serde_yaml::from_str(AGENT_GIVEN_YAML).unwrap();
+
+        let expected_map: Map<String, EndSpec> =
+            Map::from([("description.name".to_string(), endspec.clone())]);
 
         // expect output to be the map
 
         assert_eq!(expected_map, given_agent.variables);
 
-        let expected_spec = EndSpec::String(KindValue {
-            description: "Name of the agent".to_string(),
-            required: false,
-            default: Some("nrdot".to_string()),
-            final_value: None,
-            file_path: None,
-            variants: None,
-        });
+        let expected_spec = endspec;
 
         assert_eq!(
             expected_spec,
@@ -702,84 +759,85 @@ deployment:
             },
         };
 
+        let bin_endspec: EndSpec = EndSpec {
+            description: "binary".to_string(),
+            kind: Kind::String(KindValue {
+                final_value: Some("/etc".to_string()),
+                required: true,
+                default: None,
+                variants: None,
+            }),
+            file_path: None,
+        };
+        let verbosity_endspec: EndSpec = EndSpec {
+            description: "verbosity".to_string(),
+            kind: Kind::String(KindValue {
+                final_value: Some("true".to_string()),
+                required: true,
+                default: None,
+                variants: None,
+            }),
+            file_path: None,
+        };
+        let loglevel_endspec: EndSpec = EndSpec {
+            description: "log_level".to_string(),
+            kind: Kind::String(KindValue {
+                final_value: Some("trace".to_string()),
+                required: true,
+                default: None,
+                variants: None,
+            }),
+            file_path: None,
+        };
+        let backofftype_endspec: EndSpec = EndSpec {
+            description: "backoff_type".to_string(),
+            kind: Kind::String(KindValue {
+                final_value: Some("exponential".to_string()),
+                required: true,
+                default: None,
+                variants: None, // FIXME???
+            }),
+            file_path: Some("some_path".to_string()),
+        };
+        let backoffdelay_endspec: EndSpec = EndSpec {
+            description: "backoff_delay".to_string(),
+            kind: Kind::String(KindValue {
+                final_value: Some("10s".to_string()),
+                required: true,
+                default: None,
+                variants: None,
+            }),
+            file_path: Some("some_path".to_string()),
+        };
+        let backoffretries_endspec: EndSpec = EndSpec {
+            description: "backoff_retries".to_string(),
+            kind: Kind::Number(KindValue {
+                final_value: Some(Number::PosInt(30)),
+                required: true,
+                default: None,
+                variants: None,
+            }),
+            file_path: Some("some_path".to_string()),
+        };
+        let backoffinterval_endspec: EndSpec = EndSpec {
+            description: "backoff_interval".to_string(),
+            kind: Kind::String(KindValue {
+                final_value: Some("300s".to_string()),
+                required: true,
+                default: None,
+                variants: None,
+            }),
+            file_path: Some("some_path".to_string()),
+        };
+
         let normalized_values = Map::from([
-            (
-                "bin".to_string(),
-                EndSpec {
-                    default: None,
-                    description: "binary".to_string(),
-                    type_: VariableType::String,
-                    required: true,
-                    final_value: Some(TrivialValue::String("/etc".to_string())),
-                    file_path: None,
-                },
-            ),
-            (
-                "deployment.on_host.verbose".to_string(),
-                EndSpec {
-                    default: None,
-                    description: "verbosity".to_string(),
-                    type_: VariableType::String,
-                    required: true,
-                    final_value: Some(TrivialValue::String("true".to_string())),
-                    file_path: None,
-                },
-            ),
-            (
-                "deployment.on_host.log_level".to_string(),
-                EndSpec {
-                    default: None,
-                    description: "log_level".to_string(),
-                    type_: VariableType::String,
-                    required: true,
-                    final_value: Some(TrivialValue::String("trace".to_string())),
-                    file_path: None,
-                },
-            ),
-            (
-                "backoff.type".to_string(),
-                EndSpec {
-                    default: None,
-                    description: "backoff_type".to_string(),
-                    type_: VariableType::String,
-                    required: true,
-                    final_value: Some(TrivialValue::String("exponential".to_string())),
-                    file_path: Some("some_path".to_string()),
-                },
-            ),
-            (
-                "backoff.delay".to_string(),
-                EndSpec {
-                    default: None,
-                    description: "backoff_delay".to_string(),
-                    type_: VariableType::String,
-                    required: true,
-                    final_value: Some(TrivialValue::String("10s".to_string())),
-                    file_path: Some("some_path".to_string()),
-                },
-            ),
-            (
-                "backoff.retries".to_string(),
-                EndSpec {
-                    default: None,
-                    description: "backoff_retries".to_string(),
-                    type_: VariableType::String,
-                    required: true,
-                    final_value: Some(TrivialValue::Number(PosInt(30))),
-                    file_path: Some("some_path".to_string()),
-                },
-            ),
-            (
-                "backoff.interval".to_string(),
-                EndSpec {
-                    default: None,
-                    description: "backoff_interval".to_string(),
-                    type_: VariableType::Number,
-                    required: true,
-                    final_value: Some(TrivialValue::String("300s".to_string())),
-                    file_path: Some("some_path".to_string()),
-                },
-            ),
+            ("bin".to_string(), bin_endspec),
+            ("deployment.on_host.verbose".to_string(), verbosity_endspec),
+            ("deployment.on_host.log_level".to_string(), loglevel_endspec),
+            ("backoff.type".to_string(), backofftype_endspec),
+            ("backoff.delay".to_string(), backoffdelay_endspec),
+            ("backoff.retries".to_string(), backoffretries_endspec),
+            ("backoff.interval".to_string(), backoffinterval_endspec),
         ]);
 
         let exec_actual = exec.template_with(&normalized_values).unwrap();
@@ -854,73 +912,74 @@ deployment:
             },
         };
 
+        let bin_endspec: EndSpec = EndSpec {
+            description: "binary".to_string(),
+            kind: Kind::String(KindValue {
+                final_value: Some("/etc".to_string()),
+                required: true,
+                default: None,
+                variants: None,
+            }),
+            file_path: None,
+        };
+        let verbosity_endspec: EndSpec = EndSpec {
+            description: "verbosity".to_string(),
+            kind: Kind::String(KindValue {
+                final_value: Some("true".to_string()),
+                required: true,
+                default: None,
+                variants: None,
+            }),
+            file_path: None,
+        };
+        let backofftype_endspec: EndSpec = EndSpec {
+            description: "backoff_type".to_string(),
+            kind: Kind::String(KindValue {
+                final_value: Some("exponential".to_string()),
+                required: true,
+                default: None,
+                variants: None, // FIXME???
+            }),
+            file_path: Some("some_path".to_string()),
+        };
+        let backoffdelay_endspec: EndSpec = EndSpec {
+            description: "backoff_delay".to_string(),
+            kind: Kind::String(KindValue {
+                final_value: Some("10s".to_string()),
+                required: true,
+                default: None,
+                variants: None,
+            }),
+            file_path: Some("some_path".to_string()),
+        };
+        let backoffretries_endspec: EndSpec = EndSpec {
+            description: "backoff_retries".to_string(),
+            kind: Kind::Number(KindValue {
+                final_value: Some(Number::PosInt(30)),
+                required: true,
+                default: None,
+                variants: None,
+            }),
+            file_path: Some("some_path".to_string()),
+        };
+        let backoffinterval_endspec: EndSpec = EndSpec {
+            description: "backoff_interval".to_string(),
+            kind: Kind::String(KindValue {
+                final_value: Some("300s".to_string()),
+                required: true,
+                default: None,
+                variants: None,
+            }),
+            file_path: Some("some_path".to_string()),
+        };
+
         let normalized_values = Map::from([
-            (
-                "bin".to_string(),
-                EndSpec {
-                    default: None,
-                    description: "binary".to_string(),
-                    type_: VariableType::String,
-                    required: true,
-                    final_value: Some(TrivialValue::String("/etc".to_string())),
-                    file_path: None,
-                },
-            ),
-            (
-                "deployment.on_host.verbose".to_string(),
-                EndSpec {
-                    default: None,
-                    description: "verbosity".to_string(),
-                    type_: VariableType::String,
-                    required: true,
-                    final_value: Some(TrivialValue::String("true".to_string())),
-                    file_path: None,
-                },
-            ),
-            (
-                "backoff.type".to_string(),
-                EndSpec {
-                    default: None,
-                    description: "backoff_type".to_string(),
-                    type_: VariableType::String,
-                    required: true,
-                    final_value: Some(TrivialValue::String("linear".to_string())),
-                    file_path: Some("some_path".to_string()),
-                },
-            ),
-            (
-                "backoff.delay".to_string(),
-                EndSpec {
-                    default: None,
-                    description: "backoff_delay".to_string(),
-                    type_: VariableType::String,
-                    required: true,
-                    final_value: Some(TrivialValue::String("10s".to_string())),
-                    file_path: Some("some_path".to_string()),
-                },
-            ),
-            (
-                "backoff.retries".to_string(),
-                EndSpec {
-                    default: None,
-                    description: "backoff_retries".to_string(),
-                    type_: VariableType::String,
-                    required: true,
-                    final_value: Some(TrivialValue::Number(PosInt(30))),
-                    file_path: Some("some_path".to_string()),
-                },
-            ),
-            (
-                "backoff.interval".to_string(),
-                EndSpec {
-                    default: None,
-                    description: "backoff_interval".to_string(),
-                    type_: VariableType::Number,
-                    required: true,
-                    final_value: Some(TrivialValue::String("300s".to_string())),
-                    file_path: Some("some_path".to_string()),
-                },
-            ),
+            ("bin".to_string(), bin_endspec),
+            ("deployment.on_host.verbose".to_string(), verbosity_endspec),
+            ("backoff.type".to_string(), backofftype_endspec),
+            ("backoff.delay".to_string(), backoffdelay_endspec),
+            ("backoff.retries".to_string(), backoffretries_endspec),
+            ("backoff.interval".to_string(), backoffinterval_endspec),
         ]);
 
         let exec_actual = exec.template_with(&normalized_values).unwrap();
@@ -932,7 +991,7 @@ deployment:
             restart_policy: RestartPolicyConfig {
                 backoff_strategy: BackoffStrategyConfig {
                     backoff_type: TemplateableValue {
-                        value: Some(BackoffStrategyType::Linear),
+                        value: Some(BackoffStrategyType::Exponential),
                         template: "${backoff.type}".to_string(),
                     },
                     backoff_delay: TemplateableValue {
@@ -1068,7 +1127,8 @@ config: |
                 .get_variables()
                 .get("config3")
                 .unwrap()
-                .final_value
+                .kind
+                .get_final_value()
                 .as_ref()
                 .unwrap()
                 .clone()
@@ -1079,7 +1139,8 @@ config: |
                 .get_variables()
                 .get("config2")
                 .unwrap()
-                .final_value
+                .kind
+                .get_final_value()
                 .as_ref()
                 .unwrap()
                 .clone()
@@ -1090,7 +1151,8 @@ config: |
                 .get_variables()
                 .get("config")
                 .unwrap()
-                .final_value
+                .kind
+                .get_final_value()
                 .as_ref()
                 .unwrap()
                 .clone()
@@ -1101,7 +1163,8 @@ config: |
                 .get_variables()
                 .get("integrations")
                 .unwrap()
-                .final_value
+                .kind
+                .get_final_value()
                 .as_ref()
                 .unwrap()
                 .clone()

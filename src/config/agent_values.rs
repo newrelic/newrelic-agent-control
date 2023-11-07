@@ -366,7 +366,7 @@ deployment:
         assert!(actual.is_err());
         assert_eq!(
             format!("{}", actual.unwrap_err()),
-            "Type mismatch while parsing. Expected type String, got value Bool(true)"
+            "Type mismatch while parsing. Expected type string, got value Bool(true)"
         );
     }
 }

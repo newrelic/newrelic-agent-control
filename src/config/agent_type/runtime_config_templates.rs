@@ -167,41 +167,42 @@ impl Templateable for RuntimeConfig {
 
 #[cfg(test)]
 mod tests {
+    use crate::config::agent_type::agent_types::{Kind, KindValue};
     use crate::config::agent_type::restart_policy::{BackoffDuration, BackoffStrategyType};
-    use crate::config::agent_type::trivial_value::Number::PosInt;
     use crate::config::agent_type::{
-        agent_types::{EndSpec, TemplateableValue, VariableType},
+        agent_types::{EndSpec, TemplateableValue},
         runtime_config::{Args, Env},
-        trivial_value::{Number, TrivialValue},
+        trivial_value::Number,
     };
 
     use super::*;
 
     #[test]
     fn test_template_string() {
+        let name_endspec: EndSpec = EndSpec {
+            description: String::default(),
+            kind: Kind::String(KindValue {
+                final_value: Some("Alice".to_string()),
+                required: true,
+                default: None,
+                variants: None,
+            }),
+            file_path: Some("some_path".to_string()),
+        };
+        let age_endspec: EndSpec = EndSpec {
+            description: String::default(),
+            kind: Kind::Number(KindValue {
+                final_value: Some(Number::PosInt(30)),
+                required: true,
+                default: None,
+                variants: None,
+            }),
+            file_path: Some("some_path".to_string()),
+        };
+
         let variables = NormalizedVariables::from([
-            (
-                "name".to_string(),
-                EndSpec {
-                    final_value: Some(TrivialValue::String("Alice".to_string())),
-                    default: None,
-                    type_: VariableType::String,
-                    description: String::default(),
-                    required: true,
-                    file_path: Some("some_path".to_string()),
-                },
-            ),
-            (
-                "age".to_string(),
-                EndSpec {
-                    final_value: None,
-                    default: Some(TrivialValue::Number(Number::PosInt(30))),
-                    type_: VariableType::Number,
-                    description: String::default(),
-                    required: false,
-                    file_path: Some("some_path".to_string()),
-                },
-            ),
+            ("name".to_string(), name_endspec),
+            ("age".to_string(), age_endspec),
         ]);
 
         let input = "Hello ${name}! You are ${age} years old.".to_string();
@@ -212,84 +213,85 @@ mod tests {
 
     #[test]
     fn test_template_executable() {
+        let path_endspec: EndSpec = EndSpec {
+            description: String::default(),
+            kind: Kind::String(KindValue {
+                final_value: Some("/usr/bin/myapp".to_string()),
+                required: true,
+                default: None,
+                variants: None,
+            }),
+            file_path: Some("some_path".to_string()),
+        };
+        let args_endspec: EndSpec = EndSpec {
+            description: String::default(),
+            kind: Kind::String(KindValue {
+                final_value: Some("--config /etc/myapp.conf".to_string()),
+                required: true,
+                default: None,
+                variants: None,
+            }),
+            file_path: Some("some_path".to_string()),
+        };
+        let env_endspec: EndSpec = EndSpec {
+            description: String::default(),
+            kind: Kind::Number(KindValue {
+                final_value: Some(Number::PosInt(8080)),
+                required: true,
+                default: None,
+                variants: None,
+            }),
+            file_path: Some("some_path".to_string()),
+        };
+        let backofftype_endspec: EndSpec = EndSpec {
+            description: "backoff_type".to_string(),
+            kind: Kind::String(KindValue {
+                final_value: Some("exponential".to_string()),
+                required: true,
+                default: None,
+                variants: None, // FIXME???
+            }),
+            file_path: Some("some_path".to_string()),
+        };
+        let backoffdelay_endspec: EndSpec = EndSpec {
+            description: "backoff_delay".to_string(),
+            kind: Kind::String(KindValue {
+                final_value: Some("10s".to_string()),
+                required: true,
+                default: None,
+                variants: None,
+            }),
+            file_path: Some("some_path".to_string()),
+        };
+        let backoffretries_endspec: EndSpec = EndSpec {
+            description: "backoff_retries".to_string(),
+            kind: Kind::Number(KindValue {
+                final_value: Some(Number::PosInt(30)),
+                required: true,
+                default: None,
+                variants: None,
+            }),
+            file_path: Some("some_path".to_string()),
+        };
+        let backoffinterval_endspec: EndSpec = EndSpec {
+            description: "backoff_interval".to_string(),
+            kind: Kind::String(KindValue {
+                final_value: Some("300s".to_string()),
+                required: true,
+                default: None,
+                variants: None,
+            }),
+            file_path: Some("some_path".to_string()),
+        };
+
         let variables = NormalizedVariables::from([
-            (
-                "path".to_string(),
-                EndSpec {
-                    final_value: Some(TrivialValue::String("/usr/bin/myapp".to_string())),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::String,
-                    file_path: Some("some_path".to_string()),
-                },
-            ),
-            (
-                "args".to_string(),
-                EndSpec {
-                    final_value: Some(TrivialValue::String("--config /etc/myapp.conf".to_string())),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::String,
-                    file_path: Some("some_path".to_string()),
-                },
-            ),
-            (
-                "env.MYAPP_PORT".to_string(),
-                EndSpec {
-                    final_value: Some(TrivialValue::Number(Number::PosInt(8080))),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::Number,
-                    file_path: Some("some_path".to_string()),
-                },
-            ),
-            (
-                "backoff.type".to_string(),
-                EndSpec {
-                    final_value: Some(TrivialValue::String("linear".to_string())),
-                    default: None,
-                    description: "backoff_type".to_string(),
-                    type_: VariableType::String,
-                    required: true,
-                    file_path: Some("some_path".to_string()),
-                },
-            ),
-            (
-                "backoff.delay".to_string(),
-                EndSpec {
-                    final_value: Some(TrivialValue::String("10s".to_string())),
-                    default: None,
-                    description: "backoff_delay".to_string(),
-                    type_: VariableType::String,
-                    required: true,
-                    file_path: Some("some_path".to_string()),
-                },
-            ),
-            (
-                "backoff.retries".to_string(),
-                EndSpec {
-                    final_value: Some(TrivialValue::Number(PosInt(30))),
-                    default: None,
-                    description: "backoff_retries".to_string(),
-                    type_: VariableType::String,
-                    required: true,
-                    file_path: Some("some_path".to_string()),
-                },
-            ),
-            (
-                "backoff.interval".to_string(),
-                EndSpec {
-                    final_value: Some(TrivialValue::String("300s".to_string())),
-                    default: None,
-                    description: "backoff_interval".to_string(),
-                    type_: VariableType::Number,
-                    required: true,
-                    file_path: Some("some_path".to_string()),
-                },
-            ),
+            ("path".to_string(), path_endspec),
+            ("args".to_string(), args_endspec),
+            ("env.MYAPP_PORT".to_string(), env_endspec),
+            ("backoff.type".to_string(), backofftype_endspec),
+            ("backoff.delay".to_string(), backoffdelay_endspec),
+            ("backoff.retries".to_string(), backoffretries_endspec),
+            ("backoff.interval".to_string(), backoffinterval_endspec),
         ]);
 
         let input = Executable {
@@ -317,7 +319,7 @@ mod tests {
                 .with_template("MYAPP_PORT=${env.MYAPP_PORT}".to_string()),
             restart_policy: RestartPolicyConfig {
                 backoff_strategy: BackoffStrategyConfig {
-                    backoff_type: TemplateableValue::new(BackoffStrategyType::Linear)
+                    backoff_type: TemplateableValue::new(BackoffStrategyType::Exponential)
                         .with_template("${backoff.type}".to_string()),
                     backoff_delay: TemplateableValue::new(BackoffDuration::from_secs(10))
                         .with_template("${backoff.delay}".to_string()),
