@@ -136,7 +136,7 @@ impl DynamicObjectReflector {
 }
 
 impl Drop for DynamicObjectReflector {
-    // Abort the reflector's writer tasks when it drops.
+    // Abort the reflector's writer task when it drops.
     fn drop(&mut self) {
         self.writer_task.abort();
     }
