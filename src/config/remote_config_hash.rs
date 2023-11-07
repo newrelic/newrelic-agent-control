@@ -176,6 +176,12 @@ pub mod test {
                     Ok(hash)
                 });
         }
+        pub fn should_save_hash(&mut self, agent_id: AgentID, hash: Hash) {
+            self.expect_save()
+                .with(predicate::eq(agent_id), predicate::eq(hash))
+                .once()
+                .returning(move |_, _| Ok(()));
+        }
     }
 
     impl<R, W> HashRepositoryFile<R, W>

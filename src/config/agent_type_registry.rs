@@ -85,11 +85,11 @@ pub mod tests {
     }
 
     impl MockAgentRegistryMock {
-        pub fn should_get(&mut self, name: String, final_agent: FinalAgent) {
+        pub fn should_get(&mut self, name: String, final_agent: FinalAgent, times: usize) {
             let final_agent = final_agent.clone();
             self.expect_get()
                 .with(predicate::eq(name.clone()))
-                .once()
+                .times(times)
                 .returning(move |_| Ok(final_agent.clone()));
         }
     }
