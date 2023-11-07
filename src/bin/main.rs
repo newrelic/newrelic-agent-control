@@ -59,14 +59,18 @@ fn run_super_agent(
     // TODO: first matching feature will be used if --all-features is specified
     cfg_if! {
      if #[cfg(feature = "onhost")] {
+            let hash_repository = HashRepositoryFile::default();
             // Program must run as root if onhost execution
             #[cfg(unix)]
             if !nix::unistd::Uid::effective().is_root() {
                 panic!("Program must run as root");
             }
-           let sub_agent_builder = newrelic_super_agent::sub_agent::on_host::builder::OnHostSubAgentBuilder::new(opamp_client_builder.as_ref(), &instance_id_getter);
+           let sub_agent_builder = newrelic_super_agent::sub_agent::on_host::builder::OnHostSubAgentBuilder::new(opamp_client_builder.as_ref(), &instance_id_getter, &hash_repository);
         } else if #[cfg(feature = "k8s")] {
-           let sub_agent_builder = newrelic_super_agent::sub_agent::k8s::builder::K8sSubAgentBuilder::default();
+            //FIXME: this repository should be the concretion needed for K8s, hashRepositoryConfigMap?
+            let mut hash_repository = HashRepositoryFile::default();
+
+            let sub_agent_builder = newrelic_super_agent::sub_agent::k8s::builder::K8sSubAgentBuilder::default();
                 panic!("K8S still not implemented");
         }
     };
@@ -76,7 +80,7 @@ fn run_super_agent(
         LocalEffectiveAgentsAssembler::with_remote_management(opamp_client_builder.is_some()),
         opamp_client_builder.as_ref(),
         &instance_id_getter,
-        HashRepositoryFile::default(),
+        &hash_repository,
         sub_agent_builder,
     )
     .run(ctx, &config)

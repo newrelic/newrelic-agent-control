@@ -147,12 +147,19 @@ pub(crate) mod test {
         pub fn should_stop(&mut self, times: usize) {
             self.expect_stop().times(times).returning(|| Ok(()));
         }
+
         pub fn should_not_stop(&mut self, times: usize, status_code: u16, error_msg: String) {
             self.expect_stop().times(times).returning(move || {
                 Err(StartedClientError::SenderError(
                     HttpClientError::UnsuccessfulResponse(status_code, error_msg.clone()),
                 ))
             });
+        }
+
+        pub fn should_set_remote_config_status(&mut self, times: usize) {
+            self.expect_set_remote_config_status()
+                .times(times)
+                .returning(|_| Ok(()));
         }
     }
 

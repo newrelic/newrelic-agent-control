@@ -13,7 +13,9 @@ pub mod k8s;
 use std::thread::JoinHandle;
 
 // CRATE TRAITS
+use crate::config::super_agent_configs::AgentTypeFQN;
 use crate::config::{agent_type::agent_types::FinalAgent, super_agent_configs::AgentID};
+use crate::super_agent::effective_agents_assembler::EffectiveAgentsAssemblerError;
 
 use self::logger::Event;
 
@@ -34,8 +36,9 @@ pub trait SubAgentBuilder {
     type SubAgent: NotStartedSubAgent;
     fn build(
         &self,
-        agent: FinalAgent,
+        agent: Result<FinalAgent, EffectiveAgentsAssemblerError>,
         agent_id: AgentID,
+        agent_type: &AgentTypeFQN,
         tx: std::sync::mpsc::Sender<Event>,
     ) -> Result<Self::SubAgent, error::SubAgentBuilderError>;
 }
@@ -71,9 +74,10 @@ pub mod test {
 
             fn build(
                 &self,
-                _agent: FinalAgent,
-                _agent_id: AgentID,
-                _tx: std::sync::mpsc::Sender<Event>,
+                agent: Result<FinalAgent, EffectiveAgentsAssemblerError>,
+                agent_id: AgentID,
+                agent_type: &AgentTypeFQN,
+                tx: std::sync::mpsc::Sender<Event>,
             ) -> Result<<Self as SubAgentBuilder>::SubAgent, error::SubAgentBuilderError>;
         }
     }
@@ -82,7 +86,7 @@ pub mod test {
         // should_build provides a helper method to create a subagent which runs and stops
         // successfully
         pub(crate) fn should_build(&mut self, times: usize) {
-            self.expect_build().times(times).returning(|_, _, _| {
+            self.expect_build().times(times).returning(|_, _, _, _| {
                 let mut not_started_sub_agent = MockNotStartedSubAgent::new();
                 not_started_sub_agent.expect_run().times(1).returning(|| {
                     let mut started_agent = MockStartedSubAgent::new();

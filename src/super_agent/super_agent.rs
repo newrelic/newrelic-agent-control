@@ -61,7 +61,7 @@ pub struct SuperAgent<
     effective_agents_asssembler: Assembler,
     opamp_client_builder: Option<&'a OpAMPBuilder>,
     sub_agent_builder: S,
-    remote_config_hash_repository: HR,
+    remote_config_hash_repository: &'a HR,
     agent_id: AgentID,
 }
 
@@ -77,7 +77,7 @@ where
         effective_agents_asssembler: Assembler,
         opamp_client_builder: Option<&'a OpAMPBuilder>,
         instance_id_getter: &'a ID,
-        remote_config_hash_repository: HR,
+        remote_config_hash_repository: &'a HR,
         sub_agent_builder: S,
     ) -> Self {
         Self {
@@ -212,9 +212,14 @@ where
                 .agents
                 .into_iter()
                 .map(|(id, agent)| {
-                    let not_started_agent =
-                        self.sub_agent_builder
-                            .build(agent, id.clone(), tx.clone())?;
+                    // FIXME: we force OK(agent) but we need to check also agent not assembled when
+                    // on first stat because it can be a crash after a remote_config_change
+                    let not_started_agent = self.sub_agent_builder.build(
+                        Ok(agent.clone()),
+                        id.clone(),
+                        &agent.agent_type(),
+                        tx.clone(),
+                    )?;
                     Ok((id, not_started_agent))
                 })
                 .collect::<Result<HashMap<_, _>, SubAgentBuilderError>>()?,
@@ -240,12 +245,12 @@ where
         let sub_agent_config = super_agent_config.sub_agent_config(&agent_id)?;
         let final_agent = self
             .effective_agents_asssembler
-            .assemble_agent(&agent_id, sub_agent_config)?;
+            .assemble_agent(&agent_id, sub_agent_config);
 
         running_sub_agents.insert(
             agent_id.clone(),
             self.sub_agent_builder
-                .build(final_agent, agent_id, tx)?
+                .build(final_agent, agent_id, &sub_agent_config.agent_type, tx)?
                 .run()?,
         );
 
@@ -437,7 +442,7 @@ mod tests {
             instance_id_getter: &'a ID,
             effective_agents_asssembler: Assembler,
             opamp_client_builder: Option<&'a OpAMPBuilder>,
-            remote_config_hash_repository: HR,
+            remote_config_hash_repository: &'a HR,
             sub_agent_builder: S,
         ) -> Self {
             SuperAgent {
@@ -517,7 +522,7 @@ mod tests {
             &instance_id_getter,
             local_assembler,
             Some(&opamp_builder),
-            hash_repository_mock,
+            &hash_repository_mock,
             MockSubAgentBuilderMock::new(),
         );
 
@@ -626,7 +631,7 @@ mod tests {
             &instance_id_getter,
             local_assembler,
             Some(&opamp_builder),
-            hash_repository_mock,
+            &hash_repository_mock,
             sub_agent_builder,
         );
 
@@ -750,7 +755,7 @@ mod tests {
             &instance_id_getter,
             local_assembler,
             Some(&opamp_builder),
-            hash_repository_mock,
+            &hash_repository_mock,
             sub_agent_builder,
         );
 
@@ -878,7 +883,7 @@ mod tests {
             &instance_id_getter,
             local_assembler,
             Some(&opamp_builder),
-            hash_repository_mock,
+            &hash_repository_mock,
             sub_agent_builder,
         );
 
@@ -908,7 +913,12 @@ mod tests {
         opamp_builder.should_build_and_start(
             AgentID::new(SUPER_AGENT_ID),
             super_agent_start_settings,
-            |_, _, _| Ok(MockOpAMPClientMock::new()),
+            |_, _, _| {
+                let mut started_client = MockOpAMPClientMock::new();
+                started_client.should_set_health(1);
+                started_client.should_stop(1);
+                Ok(started_client)
+            },
         );
 
         // Sub Agents
@@ -984,15 +994,15 @@ mod tests {
         );
 
         let mut sub_agent_builder = MockSubAgentBuilderMock::new();
-        // it should build one subagent: infra_agent
-        sub_agent_builder.should_build(1);
+        // it should build one subagent: infra_agent and be called a second time sending the error to opamp
+        sub_agent_builder.should_build(2);
 
         // two agents in the supervisor group
         let agent = SuperAgent::new_custom(
             &instance_id_getter,
             local_assembler,
             Some(&opamp_builder),
-            hash_repository_mock,
+            &hash_repository_mock,
             sub_agent_builder,
         );
 
@@ -1011,7 +1021,8 @@ mod tests {
         );
 
         let result = agent.run(ctx, &super_agent_config);
-        assert_eq!("effective agents assembler error: `error assembling agents: `file error: `error creating file: `permission denied````".to_string(), result.err().unwrap().to_string());
+        assert!(result.is_ok());
+        //assert_eq!("effective agents assembler error: `error assembling agents: `file error: `error creating file: `permission denied````".to_string(), result.err().unwrap().to_string());
     }
 
     #[test]
@@ -1121,7 +1132,7 @@ mod tests {
             &instance_id_getter,
             local_assembler,
             Some(&opamp_builder),
-            hash_repository_mock,
+            &hash_repository_mock,
             sub_agent_builder,
         );
 
@@ -1228,15 +1239,16 @@ mod tests {
         );
 
         let mut sub_agent_builder = MockSubAgentBuilderMock::new();
-        // it should build two sub_agents (2 + 0 error)
-        sub_agent_builder.should_build(2);
+        // it should call build two sub_agents + error that sends opamp message
+        sub_agent_builder.should_build(3);
 
+        let hash_repository_mock = MockHashRepositoryMock::new();
         // Create the Super Agent and rub Sub Agents
         let super_agent = SuperAgent::new_custom(
             &instance_id_getter,
             local_assembler,
             None::<&MockOpAMPClientBuilderMock>,
-            MockHashRepositoryMock::new(),
+            &hash_repository_mock,
             sub_agent_builder,
         );
 
@@ -1258,12 +1270,7 @@ mod tests {
             tx,
             &mut running_sub_agents,
         );
-        assert!(result.is_err());
-        assert_eq!(
-            "effective agents assembler error: `error assembling agents: `file error: `error creating file: `permission denied````"
-                .to_string(),
-            result.err().unwrap().to_string()
-        );
+        assert!(result.is_ok());
         assert!(running_sub_agents.stop().is_ok());
     }
 
