@@ -53,6 +53,14 @@ Distributed under the following license(s):
 
 
 
+## allocator-api2 (https://crates.io/crates/allocator-api2)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+
 ## android-tzdata (https://crates.io/crates/android-tzdata)
 
 Distributed under the following license(s):
@@ -161,6 +169,14 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 * Apache-2.0
 * MIT
+
+
+
+## backoff (https://crates.io/crates/backoff)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
 
 
 
@@ -332,6 +348,14 @@ Distributed under the following license(s):
 
 
 ## deranged (https://crates.io/crates/deranged)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+
+## derivative (https://crates.io/crates/derivative)
 
 Distributed under the following license(s):
 * MIT
@@ -713,6 +737,13 @@ Distributed under the following license(s):
 
 
 
+## instant (https://crates.io/crates/instant)
+
+Distributed under the following license(s):
+* BSD-3-Clause
+
+
+
 ## ipnet (https://crates.io/crates/ipnet)
 
 Distributed under the following license(s):
@@ -738,6 +769,14 @@ Distributed under the following license(s):
 
 
 ## js-sys (https://crates.io/crates/js-sys)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+
+## json-patch (https://crates.io/crates/json-patch)
 
 Distributed under the following license(s):
 * MIT
@@ -774,6 +813,13 @@ Distributed under the following license(s):
 
 
 ## kube-core (https://crates.io/crates/kube-core)
+
+Distributed under the following license(s):
+* Apache-2.0
+
+
+
+## kube-runtime (https://crates.io/crates/kube-runtime)
 
 Distributed under the following license(s):
 * Apache-2.0
@@ -1670,6 +1716,14 @@ Distributed under the following license(s):
 
 Distributed under the following license(s):
 * MIT
+
+
+
+## treediff (https://crates.io/crates/treediff)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
 
 
 
