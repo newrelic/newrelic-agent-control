@@ -23,6 +23,15 @@ pub struct ReflectorBuilder {
 }
 
 impl ReflectorBuilder {
+    /// Returns a reflector builder, consuming both provided the client and the namespace.
+    pub fn new(client: Client, namespace: String) -> Self {
+        ReflectorBuilder {
+            client,
+            namespace,
+            field_selector: None,
+            label_selector: None,
+        }
+    }
     pub fn with_fields(mut self, field_selector: String) -> Self {
         self.field_selector = Some(field_selector);
         self
@@ -50,16 +59,6 @@ impl ReflectorBuilder {
         };
 
         DynamicObjectReflector::new(api, writer, wc).await
-    }
-}
-
-/// Returns reflector builder, it consumes the provided client.
-pub fn reflector_builder(client: Client, namespace: String) -> ReflectorBuilder {
-    ReflectorBuilder {
-        client,
-        namespace,
-        field_selector: None,
-        label_selector: None,
     }
 }
 
@@ -153,7 +152,7 @@ mod test {
         let (mock_service, _) = tower_test::mock::pair::<Request<Body>, Response<Body>>();
         let client = kube::Client::new(mock_service, "default");
 
-        let builder = reflector_builder(client, "builder-ns".into())
+        let builder = ReflectorBuilder::new(client, "builder-ns".into())
             .with_fields("field1==v1,field2!=value2".into())
             .with_labels("prometheus.io/scrape=true".into());
 
