@@ -301,9 +301,7 @@ pub enum Kind {
     #[serde(rename = "number")]
     Number(KindValue<Number>),
     #[serde(rename = "file")]
-    File(
-        /* #[serde(try_from = "String")] */ KindValue<FilePathWithContent>,
-    ),
+    File(KindValue<FilePathWithContent>),
     #[serde(rename = "map[string]string")]
     MapStringString(KindValue<HashMap<String, String>>),
     #[serde(rename = "map[string]file")]

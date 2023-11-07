@@ -97,6 +97,7 @@ impl Display for TrivialValue {
 
 /// Represents a file path and its content.
 #[derive(Debug, PartialEq, Default, Clone, Deserialize)]
+#[serde(from = "String")]
 pub struct FilePathWithContent {
     #[serde(skip)]
     pub path: String,
@@ -107,6 +108,15 @@ pub struct FilePathWithContent {
 impl FilePathWithContent {
     pub fn new(path: String, content: String) -> Self {
         FilePathWithContent { path, content }
+    }
+}
+
+impl From<String> for FilePathWithContent {
+    fn from(value: String) -> Self {
+        FilePathWithContent {
+            path: String::default(),
+            content: value,
+        }
     }
 }
 
