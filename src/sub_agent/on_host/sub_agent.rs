@@ -6,90 +6,65 @@ use opamp_client::StartedClient;
 use tracing::info;
 
 use super::supervisor::command_supervisor::{NotStartedSupervisorOnHost, StartedSupervisorOnHost};
-use crate::config::super_agent_configs::{AgentID, AgentTypeFQN};
-use crate::context::Context;
-use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPClientBuilderError};
+use crate::config::super_agent_configs::AgentID;
 use crate::sub_agent::error::SubAgentError;
-use crate::sub_agent::on_host::opamp::build_opamp_and_start_client;
 use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
-use crate::super_agent::instance_id::InstanceIDGetter;
-use crate::super_agent::super_agent::SuperAgentEvent;
 use crate::utils::time::get_sys_time_nano;
 
 ////////////////////////////////////////////////////////////////////////////////////
 // Not Started SubAgent On Host
 // C: OpAMP Client
 ////////////////////////////////////////////////////////////////////////////////////
-pub struct NotStartedSubAgentOnHost<'a, OpAMPBuilder, ID>
+pub struct NotStartedSubAgentOnHost<C>
 where
-    OpAMPBuilder: OpAMPClientBuilder,
-    ID: InstanceIDGetter,
+    C: StartedClient,
 {
-    opamp_builder: Option<&'a OpAMPBuilder>,
-    instance_id_getter: &'a ID,
+    opamp_client: Option<C>,
     supervisors: Vec<NotStartedSupervisorOnHost>,
     agent_id: AgentID,
-    agent_type: AgentTypeFQN,
 }
 
-impl<'a, OpAMPBuilder, ID> NotStartedSubAgentOnHost<'a, OpAMPBuilder, ID>
+impl<C> NotStartedSubAgentOnHost<C>
 where
-    OpAMPBuilder: OpAMPClientBuilder,
-    ID: InstanceIDGetter,
+    C: StartedClient,
 {
     pub fn new(
         agent_id: AgentID,
         supervisors: Vec<NotStartedSupervisorOnHost>,
-        opamp_builder: Option<&'a OpAMPBuilder>,
-        instance_id_getter: &'a ID,
-        agent_type: AgentTypeFQN,
-    ) -> Self {
-        NotStartedSubAgentOnHost {
-            opamp_builder,
-            instance_id_getter,
+        opamp_client: Option<C>,
+    ) -> Result<Self, SubAgentError> {
+        Ok(NotStartedSubAgentOnHost {
+            opamp_client,
             supervisors,
             agent_id,
-            agent_type,
-        }
+        })
     }
 
     pub fn agent_id(&self) -> &AgentID {
         &self.agent_id
     }
-
-    fn run_opamp_client(
-        &self,
-        ctx: Context<Option<SuperAgentEvent>>,
-    ) -> Result<Option<OpAMPBuilder::Client>, OpAMPClientBuilderError> {
-        build_opamp_and_start_client(
-            ctx,
-            self.opamp_builder,
-            self.instance_id_getter,
-            self.agent_id.clone(),
-            &self.agent_type,
-        )
-    }
 }
 
-impl<'a, OpAMPBuilder, ID> NotStartedSubAgent for NotStartedSubAgentOnHost<'a, OpAMPBuilder, ID>
+impl<C> NotStartedSubAgent for NotStartedSubAgentOnHost<C>
 where
-    OpAMPBuilder: OpAMPClientBuilder,
-    ID: InstanceIDGetter,
+    C: StartedClient,
 {
-    type StartedSubAgent = StartedSubAgentOnHost<OpAMPBuilder::Client>;
+    type StartedSubAgent = StartedSubAgentOnHost<C>;
 
     fn run(self) -> Result<Self::StartedSubAgent, SubAgentError> {
-        let agent_id = self.agent_id.clone();
-        let started_opamp_client = self.run_opamp_client(Context::new())?;
-        let mut supervisors = Vec::new();
-        for supervisor in self.supervisors {
-            supervisors.push(supervisor.run()?);
-        }
-        Ok(StartedSubAgentOnHost::new(
-            agent_id,
-            started_opamp_client,
-            supervisors,
-        ))
+        let started_supervisors = self
+            .supervisors
+            .into_iter()
+            .map(|s| s.run())
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let started_sub_agent = StartedSubAgentOnHost {
+            opamp_client: self.opamp_client,
+            supervisors: started_supervisors,
+            agent_id: self.agent_id,
+        };
+
+        Ok(started_sub_agent)
     }
 }
 
@@ -104,30 +79,6 @@ where
     opamp_client: Option<C>,
     supervisors: Vec<StartedSupervisorOnHost>,
     agent_id: AgentID,
-}
-
-impl<C> StartedSubAgentOnHost<C>
-where
-    C: StartedClient,
-{
-    pub fn new(
-        agent_id: AgentID,
-        opamp_client: Option<C>,
-        supervisors: Vec<StartedSupervisorOnHost>,
-    ) -> Self
-    where
-        C: StartedClient,
-    {
-        StartedSubAgentOnHost {
-            opamp_client,
-            supervisors,
-            agent_id,
-        }
-    }
-
-    pub fn agent_id(&self) -> &AgentID {
-        &self.agent_id
-    }
 }
 
 impl<C> StartedSubAgent for StartedSubAgentOnHost<C>
@@ -153,10 +104,8 @@ where
             None => None,
         };
 
-        let mut stopped_runners = Vec::new();
-        for supervisors in self.supervisors {
-            stopped_runners.push(supervisors.stop());
-        }
-        Ok(stopped_runners)
+        let stopped_supervisors = self.supervisors.into_iter().map(|s| s.stop()).collect();
+
+        Ok(stopped_supervisors)
     }
 }

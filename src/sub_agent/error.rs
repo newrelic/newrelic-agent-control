@@ -42,6 +42,15 @@ pub enum SubAgentError {
 pub enum SubAgentBuilderError {
     #[error("`{0}`")]
     SubAgent(#[from] SubAgentError),
+    #[error("config assembler error: `{0}`")]
+    ConfigAssemblerError(#[from] EffectiveAgentsAssemblerError),
+    #[error("remote config hash error: `{0}`")]
+    RemoteConfigHashError(#[from] HashRepositoryError),
+
+    #[error("OpAMP client error error: `{0}`")]
+    OpampClientBuilderError(#[from] OpAMPClientBuilderError),
+    #[error("OpAMP client error error: `{0}`")]
+    OpampClientError(#[from] ClientError),
 }
 
 #[derive(Error, Debug)]

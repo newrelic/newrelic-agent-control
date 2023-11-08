@@ -247,7 +247,7 @@ mod test {
         let dir_manager = DirectoryManagerFs::default();
         let res = dir_manager.create(temp_path.as_path(), Permissions::from_mode(0o700));
 
-        assert_eq!(true, res.is_ok());
+        assert!(res.is_ok());
         let persister = ConfigurationPersisterFile::with_mocks(
             WriterFile::default(),
             DirectoryManagerFs::default(),
@@ -261,12 +261,9 @@ mod test {
             serde_yaml::from_reader(AGENT_VALUES_SINGLE_FILE.as_bytes()).unwrap();
         agent_type = agent_type.template_with(agent_values).unwrap();
 
-        assert_eq!(
-            true,
-            persister
-                .persist_agent_config(&agent_id.clone(), &agent_type)
-                .is_ok()
-        );
+        assert!(persister
+            .persist_agent_config(&agent_id.clone(), &agent_type)
+            .is_ok());
         temp_path.push(agent_id);
         temp_path.push("newrelic-infra.yml");
         assert_eq!(
@@ -335,12 +332,9 @@ mod test {
             generated_conf_path.as_path(),
         );
 
-        assert_eq!(
-            true,
-            persister
-                .persist_agent_config(&agent_id, &agent_type)
-                .is_ok()
-        );
+        assert!(persister
+            .persist_agent_config(&agent_id, &agent_type)
+            .is_ok());
     }
 
     #[test]
@@ -406,12 +400,9 @@ mod test {
             generated_conf_path.as_path(),
         );
 
-        assert_eq!(
-            true,
-            persister
-                .persist_agent_config(&agent_id, &agent_type)
-                .is_ok()
-        );
+        assert!(persister
+            .persist_agent_config(&agent_id, &agent_type)
+            .is_ok());
     }
 
     #[test]
@@ -486,12 +477,9 @@ mod test {
             generated_conf_path.as_path(),
         );
 
-        assert_eq!(
-            true,
-            persister
-                .persist_agent_config(&agent_id, &agent_type)
-                .is_ok()
-        );
+        assert!(persister
+            .persist_agent_config(&agent_id, &agent_type)
+            .is_ok());
     }
 
     #[test]
@@ -525,7 +513,7 @@ mod test {
         );
 
         let result = persister.persist_agent_config(&agent_id, &agent_type);
-        assert_eq!(true, result.is_err());
+        assert!(result.is_err());
         assert_eq!(
             "directory error: `cannot delete directory: `oh now...``".to_string(),
             result.err().unwrap().to_string()
@@ -572,7 +560,7 @@ mod test {
         );
 
         let persist_result = persister.persist_agent_config(&agent_id, &agent_type);
-        assert_eq!(true, persist_result.is_err());
+        assert!(persist_result.is_err());
         assert_eq!(
             "directory error: `cannot create directory `some/path/SomeAgentID` : `oh now...``"
                 .to_string(),
@@ -616,7 +604,7 @@ mod test {
         );
 
         let persist_result = persister.persist_agent_config(&agent_id, &agent_type);
-        assert_eq!(true, persist_result.is_err());
+        assert!(persist_result.is_err());
         assert_eq!(
             "directory error: `cannot create directory `some/path/SomeAgentID` : `oh now...``"
                 .to_string(),
@@ -665,7 +653,7 @@ mod test {
         );
 
         let persist_result = persister.persist_agent_config(&agent_id, &agent_type);
-        assert_eq!(true, persist_result.is_err());
+        assert!(persist_result.is_err());
         assert_eq!(
             "file error: `error creating file: `permission denied``".to_string(),
             persist_result.err().unwrap().to_string()
@@ -713,7 +701,7 @@ mod test {
         );
 
         let persist_result = persister.persist_agent_config(&agent_id.clone(), &agent_type);
-        assert_eq!(true, persist_result.is_err());
+        assert!(persist_result.is_err());
         assert_eq!(
             "file error: `error creating file: `entity already exists``".to_string(),
             persist_result.err().unwrap().to_string()

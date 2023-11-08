@@ -29,15 +29,12 @@ where
     pub(crate) fn run(
         self,
     ) -> Result<StartedSubAgents<S::StartedSubAgent>, SubAgentCollectionError> {
-        let started_sub_agents: Result<HashMap<AgentID, S::StartedSubAgent>, SubAgentError> = self
+        let sub_agents: Result<HashMap<AgentID, S::StartedSubAgent>, SubAgentError> = self
             .0
             .into_iter()
-            .map(|(id, subagent)| {
-                let running_agent = subagent.run()?;
-                Ok((id, running_agent))
-            })
+            .map(|(id, subagent)| Ok((id, subagent.run()?)))
             .collect();
-        Ok(StartedSubAgents(started_sub_agents?))
+        Ok(StartedSubAgents(sub_agents?))
     }
 }
 

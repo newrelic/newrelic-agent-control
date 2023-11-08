@@ -1,10 +1,25 @@
+use opamp_client::opamp::proto::AgentCapabilities;
+use opamp_client::operation::capabilities::Capabilities;
+
 pub const SUPER_AGENT_ID: &str = "super-agent";
 pub const SUPER_AGENT_TYPE: &str = "com.newrelic.super_agent";
 pub const SUPER_AGENT_NAMESPACE: &str = "newrelic";
 pub const SUPER_AGENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 // Paths
+pub const SUPER_AGENT_LOCAL_DATA_DIR: &str = "/etc/newrelic-super-agent";
 pub const SUPER_AGENT_DATA_DIR: &str = "/var/lib/newrelic-super-agent";
+
+//TODO shall we fix this?
+pub fn default_capabilities() -> Capabilities {
+    Capabilities::new(vec![
+        AgentCapabilities::ReportsStatus,
+        AgentCapabilities::AcceptsRemoteConfig,
+        AgentCapabilities::ReportsRemoteConfig,
+        AgentCapabilities::ReportsEffectiveConfig,
+        AgentCapabilities::ReportsHealth,
+    ])
+}
 
 // Infrastructure_agent AgentType
 pub(crate) const NEWRELIC_INFRA_TYPE: &str = r#"

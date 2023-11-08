@@ -179,5 +179,11 @@ pub mod test {
         pub fn should_delete_all_configs(&mut self) {
             self.expect_delete_all_configs().once().returning(|| Ok(()));
         }
+
+        pub fn should_delete_all_configs_times(&mut self, times: usize) {
+            self.expect_delete_all_configs()
+                .times(times)
+                .returning(|| Ok(()));
+        }
     }
 }
