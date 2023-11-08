@@ -846,8 +846,7 @@ mod tests {
         conf_persister.should_delete_any_agent_config(2);
         conf_persister.should_persist_any_agent_config(2);
 
-        let mut remote_config_persister = MockConfigurationPersisterMock::new();
-        remote_config_persister.should_delete_all_configs();
+        let remote_config_persister = MockConfigurationPersisterMock::new();
 
         let local_assembler = LocalEffectiveAgentsAssembler::new(
             registry,
@@ -1006,8 +1005,7 @@ agents:
         conf_persister.should_delete_agent_config(1, &agent_id_to_restart, &final_infra_agent);
         conf_persister.should_persist_agent_config(1, &agent_id_to_restart, &final_infra_agent);
 
-        let mut remote_config_persister = MockConfigurationPersisterMock::new();
-        remote_config_persister.should_delete_all_configs();
+        let remote_config_persister = MockConfigurationPersisterMock::new();
 
         let local_assembler = LocalEffectiveAgentsAssembler::new(
             registry,
@@ -1132,8 +1130,7 @@ agents:
             err,
         );
 
-        let mut remote_config_persister = MockConfigurationPersisterMock::new();
-        remote_config_persister.should_delete_all_configs();
+        let remote_config_persister = MockConfigurationPersisterMock::new();
 
         let local_assembler = LocalEffectiveAgentsAssembler::new(
             registry,

@@ -325,7 +325,6 @@ pub(crate) mod tests {
         config_persister.should_persist_any_agent_config(2);
 
         let mut remote_config_persister = MockConfigurationPersisterMock::new();
-        remote_config_persister.should_delete_all_configs();
 
         let effective_agents = LocalEffectiveAgentsAssembler::new(
             local_agent_type_repository,
@@ -557,7 +556,6 @@ pub(crate) mod tests {
         // we cannot assert on the agent as the order of a hashmap is random
         config_persister.should_not_delete_any_agent_config(err);
         let mut remote_config_persister = MockConfigurationPersisterMock::new();
-        remote_config_persister.should_delete_all_configs();
 
         let result = LocalEffectiveAgentsAssembler::new(
             local_agent_type_repository,
@@ -616,7 +614,6 @@ pub(crate) mod tests {
         // we cannot assert on the agent as the order of a hashmap is random
         config_persister.should_not_persist_any_agent_config(err);
         let mut remote_config_persister = MockConfigurationPersisterMock::new();
-        remote_config_persister.should_delete_all_configs();
 
         let result = LocalEffectiveAgentsAssembler::new(
             local_agent_type_repository,
