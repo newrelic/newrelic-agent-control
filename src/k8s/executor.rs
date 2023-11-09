@@ -105,6 +105,8 @@ impl K8sExecutor {
         Ok(())
     }
 
+    // TODO this is not thread safe, lock mechanism need to be added to the reflector cache, will be added if needed when
+    // usage of these fn are defined.
     pub async fn get_dynamic_object(
         &mut self,
         gvk: GroupVersionKind,
