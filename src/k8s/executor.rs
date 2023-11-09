@@ -18,9 +18,10 @@ use mockall::*;
 use std::{collections::HashMap, sync::Arc};
 use tracing::debug;
 
+const SA_ACTOR: &str = "super-agent-patch";
+
 pub struct K8sExecutor {
     client: Client,
-    namespace: String,
     reflector_builder: ReflectorBuilder,
     dynamic_reflectors: HashMap<ApiResource, DynamicObjectReflector>,
 }
@@ -35,31 +36,24 @@ impl K8sExecutor {
     ///
     pub async fn try_default(namespace: String) -> Result<K8sExecutor, K8sError> {
         debug!("trying inClusterConfig for k8s client");
-        let config = Config::incluster().unwrap_or({
+        let mut config = Config::incluster().unwrap_or({
             debug!("inClusterConfig failed, trying kubeconfig for k8s client");
             let c = KubeConfigOptions::default();
             Config::from_kubeconfig(&c).await?
         });
 
+        config.default_namespace = namespace;
+
         let client = Client::try_from(config)?;
         debug!("client creation succeeded");
 
-        let reflector_builder = ReflectorBuilder::new(client.to_owned(), namespace.to_owned());
-
-        Ok(K8sExecutor {
-            client,
-            namespace,
-            reflector_builder,
-            dynamic_reflectors: HashMap::new(),
-        })
+        Ok(Self::new(client))
     }
 
-    #[cfg(test)]
-    pub fn new(client: Client, namespace: String) -> K8sExecutor {
-        let reflector_builder = ReflectorBuilder::new(client.to_owned(), namespace.to_owned());
+    pub fn new(client: Client) -> K8sExecutor {
+        let reflector_builder = ReflectorBuilder::new(client.to_owned());
         K8sExecutor {
             client,
-            namespace,
             reflector_builder,
             dynamic_reflectors: HashMap::new(),
         }
@@ -91,7 +85,7 @@ impl K8sExecutor {
 
         api.patch(
             name,
-            &PatchParams::apply("super-agent-patch").force(),
+            &PatchParams::apply(SA_ACTOR).force(),
             &Patch::Apply(&object_spec),
         )
         .await?;
@@ -139,10 +133,10 @@ impl K8sExecutor {
         Ok(pod_list.items)
     }
 
+    // TODO this can be cached, or specialized in a similar way as the reflectors, so is not called on each operation.
     async fn namespaced_api(&self, gvk: GroupVersionKind) -> Result<Api<DynamicObject>, K8sError> {
-        Ok(Api::namespaced_with(
+        Ok(Api::default_namespaced_with(
             self.client.to_owned(),
-            &self.namespace,
             &self.api_resource(gvk).await?,
         ))
     }
@@ -252,7 +246,7 @@ mod test {
             mock::pair::<http::Request<hyper::Body>, http::Response<hyper::Body>>();
         ApiServerVerifier(handle).run(scenario);
         let client = Client::new(mock_service, "default");
-        K8sExecutor::new(client, String::from("default"))
+        K8sExecutor::new(client)
     }
 
     type ApiServerHandle = mock::Handle<http::Request<hyper::Body>, http::Response<hyper::Body>>;

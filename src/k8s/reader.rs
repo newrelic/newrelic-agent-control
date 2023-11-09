@@ -17,17 +17,15 @@ use super::error::K8sError;
 
 pub struct ReflectorBuilder {
     client: Client,
-    namespace: String,
     field_selector: Option<String>,
     label_selector: Option<String>,
 }
 
 impl ReflectorBuilder {
     /// Returns a reflector builder, consuming both provided the client and the namespace.
-    pub fn new(client: Client, namespace: String) -> Self {
+    pub fn new(client: Client) -> Self {
         ReflectorBuilder {
             client,
-            namespace,
             field_selector: None,
             label_selector: None,
         }
@@ -48,7 +46,7 @@ impl ReflectorBuilder {
         api_resource: &ApiResource,
     ) -> Result<DynamicObjectReflector, K8sError> {
         let api: Api<DynamicObject> =
-            Api::namespaced_with(self.client.to_owned(), &self.namespace, api_resource);
+            Api::default_namespaced_with(self.client.to_owned(), api_resource);
 
         let writer: Writer<DynamicObject> = reflector::store::Writer::new(api_resource.to_owned());
 
@@ -150,13 +148,13 @@ mod test {
     // The client's requires async
     async fn test_reflector_builder_options() {
         let (mock_service, _) = tower_test::mock::pair::<Request<Body>, Response<Body>>();
-        let client = kube::Client::new(mock_service, "default");
+        let client = kube::Client::new(mock_service, "builder-ns");
 
-        let builder = ReflectorBuilder::new(client, "builder-ns".into())
+        let builder = ReflectorBuilder::new(client)
             .with_fields("field1==v1,field2!=value2".into())
             .with_labels("prometheus.io/scrape=true".into());
 
-        assert_eq!(builder.namespace, "builder-ns".to_string());
+        assert_eq!("builder-ns", "builder-ns".to_string());
 
         assert_eq!(
             builder.field_selector,
