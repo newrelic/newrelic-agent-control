@@ -36,8 +36,11 @@ impl K8sEnv {
         // Forces the client to use the dev kubeconfig file.
         env::set_var("KUBECONFIG", KUBECONFIG_PATH);
 
+        let client = Client::try_default().await.expect("fail to create client");
+        create_foo_crd(client.to_owned()).await;
+
         K8sEnv {
-            client: Client::try_default().await.expect("fail to create client"),
+            client,
             generated_namespaces: Vec::new(),
         }
     }
@@ -142,11 +145,13 @@ impl K8sCluster {
 
         k8s_cluster.set_kubeconfig().await;
 
-        k8s_cluster.client = Some(
-            Client::try_default()
-                .await
-                .expect("fail to create the client"),
-        );
+        let client = Client::try_default()
+            .await
+            .expect("fail to create the client");
+
+        k8s_cluster.client = Some(client.to_owned());
+
+        create_foo_crd(client).await;
 
         k8s_cluster
     }

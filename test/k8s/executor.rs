@@ -1,6 +1,6 @@
-use crate::common::{create_foo_crd, create_test_cr, foo_gvk, Foo, FooSpec, K8sCluster, K8sEnv};
+use crate::common::{create_test_cr, foo_gvk, Foo, FooSpec, K8sCluster, K8sEnv};
 use k8s_openapi::api::core::v1::Pod;
-use kube::api::Api;
+use kube::api::{Api, DeleteParams};
 
 use newrelic_super_agent::k8s::executor::K8sExecutor;
 
@@ -10,8 +10,6 @@ use newrelic_super_agent::k8s::executor::K8sExecutor;
 async fn k8s_create_dynamic_resource() {
     let mut test = K8sEnv::new().await;
     let test_ns = test.test_namespace().await;
-
-    create_foo_crd(test.client.clone()).await;
 
     let cr_name = "test-cr";
     let cr = serde_yaml::to_string(&Foo::new(
@@ -40,7 +38,6 @@ async fn k8s_get_dynamic_resource() {
     let mut test = K8sEnv::new().await;
     let test_ns = test.test_namespace().await;
 
-    create_foo_crd(test.client.clone()).await;
     let cr_name = "get-test";
 
     let mut executor: K8sExecutor = K8sExecutor::try_default(test_ns.to_string()).await.unwrap();
@@ -61,7 +58,19 @@ async fn k8s_get_dynamic_resource() {
         .unwrap()
         .unwrap();
 
-    assert_eq!(cr.metadata.to_owned().name.unwrap().as_str(), cr_name)
+    assert_eq!(cr.metadata.to_owned().name.unwrap().as_str(), cr_name);
+
+    Api::<Foo>::namespaced(test.client.to_owned(), &test_ns)
+        .delete(cr_name, &DeleteParams::default())
+        .await
+        .unwrap();
+
+    // get doesn't find any object after deletion.
+    assert!(executor
+        .get_dynamic_object(foo_gvk(), cr_name)
+        .await
+        .unwrap()
+        .is_none());
 }
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[ignore = "needs k8s cluster"]
@@ -69,7 +78,6 @@ async fn k8s_delete_dynamic_resource() {
     let mut test = K8sEnv::new().await;
     let test_ns = test.test_namespace().await;
 
-    create_foo_crd(test.client.clone()).await;
     let cr_name = "delete-test";
     create_test_cr(test.client.to_owned(), test_ns.as_str(), cr_name).await;
 
@@ -88,8 +96,6 @@ async fn k8s_delete_dynamic_resource() {
 async fn k8s_patch_dynamic_resource() {
     let mut test = K8sEnv::new().await;
     let test_ns = test.test_namespace().await;
-
-    create_foo_crd(test.client.clone()).await;
 
     let cr_name = "patch-test";
     create_test_cr(test.client.to_owned(), test_ns.as_str(), cr_name).await;
