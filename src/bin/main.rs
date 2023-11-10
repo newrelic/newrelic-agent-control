@@ -1,6 +1,5 @@
 use std::error::Error;
 
-use cfg_if::cfg_if;
 use newrelic_super_agent::super_agent::error::AgentError;
 use tracing::{error, info};
 
@@ -60,20 +59,22 @@ fn run_super_agent(
     opamp_client_builder: Option<OpAMPHttpBuilder>,
     instance_id_getter: ULIDInstanceIDGetter,
 ) -> Result<(), AgentError> {
-    // TODO: first matching feature will be used if --all-features is specified
-    cfg_if! {
-     if #[cfg(feature = "onhost")] {
-            // Program must run as root if onhost execution
-            #[cfg(unix)]
-            if !nix::unistd::Uid::effective().is_root() {
-                panic!("Program must run as root");
-            }
-           let sub_agent_builder = newrelic_super_agent::sub_agent::on_host::builder::OnHostSubAgentBuilder::new(opamp_client_builder.as_ref(), &instance_id_getter);
-        } else if #[cfg(feature = "k8s")] {
-           let sub_agent_builder = newrelic_super_agent::sub_agent::k8s::builder::K8sSubAgentBuilder::default();
-                panic!("K8S still not implemented");
-        }
-    };
+    #[cfg(all(unix, feature = "onhost"))]
+    if !nix::unistd::Uid::effective().is_root() {
+        panic!("Program must run as root");
+    }
+
+    #[cfg(feature = "onhost")]
+    let sub_agent_builder =
+        newrelic_super_agent::sub_agent::on_host::builder::OnHostSubAgentBuilder::new(
+            opamp_client_builder.as_ref(),
+            &instance_id_getter,
+        );
+
+    // Disabled when --all-features
+    #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
+    let sub_agent_builder =
+        newrelic_super_agent::sub_agent::k8s::builder::K8sSubAgentBuilder::default();
 
     info!("Starting the super agent");
     SuperAgent::new(
