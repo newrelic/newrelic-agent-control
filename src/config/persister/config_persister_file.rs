@@ -137,25 +137,13 @@ where
                     file_path_with_content.content.as_str(),
                 )
             }
-            (VariableType::MapStringFile, Some(TrivialValue::Map(files))) => {
+            (VariableType::MapStringFile, Some(TrivialValue::MapStringFile(files))) => {
                 // iterate all the files inside the map, append them the folder name, append them the file name
                 files.iter().try_for_each(|(filename, value)| {
-                    match value {
-                        TrivialValue::File(file_path_with_content) => {
-                            let mut file_dest_path = PathBuf::from(dest_path);
-                            file_dest_path.push(Path::new(file_path_with_content.path.as_str()));
-                            file_dest_path.push(filename);
-                            self.write(
-                                file_dest_path.as_path(),
-                                file_path_with_content.content.as_str(),
-                            )?
-                        }
-                        _ => {
-                            unreachable!(
-                                "there should not be a map[string]file which content is not a file"
-                            );
-                        }
-                    }
+                    let mut file_dest_path = PathBuf::from(dest_path);
+                    file_dest_path.push(Path::new(&value.path));
+                    file_dest_path.push(filename);
+                    self.write(&file_dest_path, &value.content)?;
                     Ok(())
                 })
             }

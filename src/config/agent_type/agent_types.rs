@@ -348,6 +348,10 @@ impl Kind {
                 (Kind::String(v), TrivialValue::String(s)) => v.final_value = Some(s),
                 (Kind::Bool(v), TrivialValue::Bool(b)) => v.final_value = Some(b),
                 (Kind::Number(v), TrivialValue::Number(n)) => v.final_value = Some(n),
+                (Kind::MapStringFile(v), TrivialValue::MapStringFile(m)) => v.final_value = Some(m),
+                (Kind::MapStringString(v), TrivialValue::MapStringString(m)) => {
+                    v.final_value = Some(m)
+                }
                 // FIXME
                 (k, v) => {
                     return Err(AgentTypeError::TypeMismatch {
@@ -379,20 +383,8 @@ impl Kind {
             Kind::Bool(v) => v.final_value.map(TrivialValue::Bool),
             Kind::Number(v) => v.final_value.clone().map(TrivialValue::Number),
             Kind::File(v) => v.final_value.clone().map(TrivialValue::File),
-            Kind::MapStringFile(v) => v.final_value.clone().map(|vv| {
-                let trivial_value_map = vv
-                    .into_iter()
-                    .map(|(k, v)| (k, TrivialValue::File(v)))
-                    .collect();
-                TrivialValue::Map(trivial_value_map)
-            }),
-            Kind::MapStringString(v) => v.final_value.clone().map(|vv| {
-                let trivial_value_map = vv
-                    .into_iter()
-                    .map(|(k, v)| (k, TrivialValue::String(v)))
-                    .collect();
-                TrivialValue::Map(trivial_value_map)
-            }),
+            Kind::MapStringFile(v) => v.final_value.clone().map(TrivialValue::MapStringFile),
+            Kind::MapStringString(v) => v.final_value.clone().map(TrivialValue::MapStringString),
         }
     }
 
@@ -402,20 +394,8 @@ impl Kind {
             Kind::Bool(v) => v.default.map(TrivialValue::Bool),
             Kind::Number(v) => v.default.clone().map(TrivialValue::Number),
             Kind::File(v) => v.default.clone().map(TrivialValue::File),
-            Kind::MapStringFile(v) => v.default.clone().map(|vv| {
-                let trivial_value_map = vv
-                    .into_iter()
-                    .map(|(k, v)| (k, TrivialValue::File(v)))
-                    .collect();
-                TrivialValue::Map(trivial_value_map)
-            }),
-            Kind::MapStringString(v) => v.default.clone().map(|vv| {
-                let trivial_value_map = vv
-                    .into_iter()
-                    .map(|(k, v)| (k, TrivialValue::String(v)))
-                    .collect();
-                TrivialValue::Map(trivial_value_map)
-            }),
+            Kind::MapStringFile(v) => v.default.clone().map(TrivialValue::MapStringFile),
+            Kind::MapStringString(v) => v.default.clone().map(TrivialValue::MapStringString),
         }
     }
 }
@@ -475,9 +455,9 @@ struct K8s {
 
 // Spec can be an arbitrary number of nested mappings but all node terminal leaves are EndSpec,
 // so a recursive datatype is the answer!
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(untagged)]
-enum Spec {
+pub enum Spec {
     SpecEnd(EndSpec),
     SpecMapping(HashMap<String, Spec>),
 }
@@ -1081,15 +1061,9 @@ config: |
 
         // Then we expected final values
         // MapStringString
-        let expected_config_3 = TrivialValue::Map(HashMap::from([
-            (
-                "log_level".to_string(),
-                TrivialValue::String("trace".to_string()),
-            ),
-            (
-                "forward".to_string(),
-                TrivialValue::String("true".to_string()),
-            ),
+        let expected_config_3 = TrivialValue::MapStringString(HashMap::from([
+            ("log_level".to_string(), "trace".to_string()),
+            ("forward".to_string(), "true".to_string()),
         ]));
         // File with default
         let expected_config_2 = TrivialValue::File(FilePathWithContent::new(
@@ -1102,20 +1076,17 @@ config: |
             "license_key: abc124\nstaging: false\n".to_string(),
         ));
         // MapStringFile
-        let expected_integrations = TrivialValue::Map(HashMap::from([
+        let expected_integrations = TrivialValue::MapStringFile(HashMap::from([
             (
                 "kafka.conf".to_string(),
-                TrivialValue::File(FilePathWithContent::new(
+                FilePathWithContent::new(
                     "integrations.d".to_string(),
                     "strategy: bootstrap\n".to_string(),
-                )),
+                ),
             ),
             (
                 "redis.yml".to_string(),
-                TrivialValue::File(FilePathWithContent::new(
-                    "integrations.d".to_string(),
-                    "user: redis\n".to_string(),
-                )),
+                FilePathWithContent::new("integrations.d".to_string(), "user: redis\n".to_string()),
             ),
         ]));
 

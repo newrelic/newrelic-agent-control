@@ -17,7 +17,8 @@ pub enum TrivialValue {
     File(FilePathWithContent),
     Bool(bool),
     Number(Number),
-    Map(Map<String, TrivialValue>),
+    MapStringFile(Map<String, FilePathWithContent>),
+    MapStringString(Map<String, String>),
 }
 
 impl TrivialValue {
@@ -32,43 +33,9 @@ impl TrivialValue {
             (TrivialValue::String(_), VariableType::String)
             | (TrivialValue::Bool(_), VariableType::Bool)
             | (TrivialValue::File(_), VariableType::File)
-            | (TrivialValue::Number(_), VariableType::Number) => Ok(self),
-            (TrivialValue::Map(m), VariableType::MapStringString) => {
-                if !m.iter().all(|(_, v)| matches!(v, TrivialValue::String(_))) {
-                    return Err(AgentTypeError::InvalidMap);
-                }
-                Ok(self)
-            }
-            (TrivialValue::Map(m), VariableType::MapStringFile) => {
-                if !m.iter().all(|(_, v)| matches!(v, TrivialValue::String(_))) {
-                    return Err(AgentTypeError::InvalidMap);
-                }
-
-                if end_spec.file_path().is_none() {
-                    return Err(AgentTypeError::InvalidFilePath);
-                }
-
-                Ok(TrivialValue::Map(
-                    m.into_iter()
-                        .map(|(k, v)| {
-                            (
-                                k,
-                                // it's safe to make unwrap() as we previously checked is not none
-                                TrivialValue::File(FilePathWithContent::new(
-                                    end_spec.file_path().unwrap(),
-                                    v.to_string(),
-                                )),
-                            )
-                        })
-                        .collect(),
-                ))
-            }
-            (TrivialValue::String(content), VariableType::File) => match end_spec.file_path() {
-                None => Err(AgentTypeError::InvalidFilePath),
-                Some(file_path) => Ok(TrivialValue::File(FilePathWithContent::new(
-                    file_path, content,
-                ))),
-            },
+            | (TrivialValue::Number(_), VariableType::Number)
+            | (TrivialValue::MapStringString(_), VariableType::MapStringString)
+            | (TrivialValue::MapStringFile(_), VariableType::MapStringFile) => Ok(self),
             (v, t) => Err(AgentTypeError::TypeMismatch {
                 expected_type: t.to_string(),
                 actual_value: v,
@@ -84,12 +51,17 @@ impl Display for TrivialValue {
             TrivialValue::File(file) => write!(f, "{}", file.path),
             TrivialValue::Bool(b) => write!(f, "{}", b),
             TrivialValue::Number(n) => write!(f, "{}", n),
-            TrivialValue::Map(n) => {
-                let flatten: Vec<String> = n
+            TrivialValue::MapStringFile(m) => {
+                let flatten = m
                     .iter()
-                    .map(|(key, value)| format!("{key}={value}"))
-                    .collect();
-                write!(f, "{}", flatten.join(" "))
+                    .fold(String::new(), |acc, (k, v)| format!("{acc} {k}={}", v.path));
+                write!(f, "{}", flatten)
+            }
+            TrivialValue::MapStringString(m) => {
+                let flatten = m
+                    .iter()
+                    .fold(String::new(), |acc, (k, v)| format!("{acc} {k}={v}"));
+                write!(f, "{}", flatten)
             }
         }
     }
