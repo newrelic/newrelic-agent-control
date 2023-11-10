@@ -128,8 +128,7 @@ where
                 Err(HashRepositoryError::WrongPath) => {
                     // The wrong path error occurs if there is no remote config hash yaml
                     // file available. This can occur, e.g., if no remote config has been
-                    // created. We suppress this error message here because it is an expected
-                    // condition.
+                    // created. Suppress this error message because it is an expected condition.
                     None
                 }
                 maybe_remote_config_hash => {
