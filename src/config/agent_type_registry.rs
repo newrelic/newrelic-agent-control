@@ -2,7 +2,12 @@ use std::collections::HashMap;
 
 use thiserror::Error;
 
-use crate::super_agent::defaults::{NEWRELIC_INFRA_TYPE, NRDOT_TYPE};
+use crate::super_agent::defaults::{
+    NEWRELIC_INFRA_TYPE,
+    NRDOT_TYPE,
+    NR_EBPF_AGENT_TYPE,
+    NR_EBPF_AGENT_CLIENT_TYPE,
+};
 
 use super::agent_type::agent_types::FinalAgent;
 
@@ -25,16 +30,19 @@ pub trait AgentRegistry {
 pub struct LocalRegistry(HashMap<String, FinalAgent>);
 
 impl Default for LocalRegistry {
-    // default returns the LocalRegistry loaded with the defined default agents
+    // Returns the LocalRegistry loaded with the defined default agents.
     fn default() -> Self {
         let mut local_agent_type_repository = LocalRegistry(HashMap::new());
-        // save to unwrap(), default agent cannot be changed inline
-        local_agent_type_repository
-            .store_from_yaml(NEWRELIC_INFRA_TYPE.as_bytes())
-            .unwrap();
-        local_agent_type_repository
-            .store_from_yaml(NRDOT_TYPE.as_bytes())
-            .unwrap();
+        let agent_types = [
+            NEWRELIC_INFRA_TYPE,
+            NRDOT_TYPE,
+            NR_EBPF_AGENT_TYPE,
+            NR_EBPF_AGENT_CLIENT_TYPE,
+        ];
+
+        agent_types.map(|agent_type| {
+            local_agent_type_repository.store_from_yaml(agent_type.as_bytes()).unwrap();
+        });
 
         local_agent_type_repository
     }
