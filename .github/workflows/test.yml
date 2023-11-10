@@ -30,10 +30,12 @@ jobs:
       - name: cargo generate-lockfile
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
-      - name: cargo test --locked
-        run: cargo test --locked --all-features --all-targets -- --skip as_root
+      - name:  Run on-host unit tests
+        run: cargo test --locked --features onhost --all-targets -- --skip as_root
+      - name: Run k8s unit tests
+        run: cargo test --no-default-features --features k8s -- --skip as_root
       - name: cargo test --doc
-        run: cargo test --locked --all-features --doc
+        run: cargo test --locked --features onhost --doc
   # Test using root can be troublesome to perform as usually the Rust toolchain is installed local to the user.
   # To test for root privileges, we can run from a container (disabling the test that fail if running non-root).
   test-with-root:
@@ -51,8 +53,8 @@ jobs:
       - name: cargo generate-lockfile
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
-      - name: cargo test --locked --all-features
-        run: cargo test --locked --all-features --all-targets -- --skip no_root
+      - name: cargo test --locked --features onhost
+        run: cargo test --locked --features onhost --all-targets -- --skip no_root
   # Windows and macos not required at the moment (ci failing while fetching
   # private crates)
   # os-check:
@@ -97,3 +99,26 @@ jobs:
 
       - name: run tests for embedded downloader
         run: make -C build/embedded test
+
+  k8s-integration-tests:
+    name: K8s unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Give GitHub Actions access to private crates
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
+      - name: cargo generate-lockfile
+        if: hashFiles('Cargo.lock') == ''
+        run: cargo generate-lockfile
+      - name: Setup Minikube
+        uses: manusa/actions-setup-minikube@v2.9.0
+        with:
+          minikube version: v1.32.0
+          kubernetes version: 'v1.28.1' # Should we support a specific range of versions?
+          driver: docker
+      - name: Run k8s integration tests
+        run: make -C test/k8s
