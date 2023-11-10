@@ -154,6 +154,7 @@ impl K8sExecutor {
 #[cfg(test)]
 mod test {
     use super::*;
+    use assert_matches::assert_matches;
     use k8s_openapi::serde_json;
     use kube::{core::GroupVersionKind, Client};
     use tower_test::mock;
@@ -166,10 +167,7 @@ mod test {
 
         let err = k.create_dynamic_object(gvk.clone(), "").await.unwrap_err();
 
-        assert_eq!(
-            err.to_string(),
-            K8sError::MissingKind(gvk.api_version(), gvk.kind).to_string()
-        )
+        assert_matches!(err, K8sError::MissingKind(_, _));
     }
 
     #[tokio::test]
@@ -185,9 +183,7 @@ mod test {
             .await
             .unwrap_err();
 
-        assert!(err
-            .to_string()
-            .starts_with("error serializing/deserializing yaml:"))
+        assert_matches!(err, K8sError::SerdeYaml(_));
     }
 
     #[tokio::test]
@@ -202,9 +198,7 @@ mod test {
             .await
             .unwrap_err();
 
-        assert!(err
-            .to_string()
-            .starts_with("the kube client returned an error:"))
+        assert_matches!(err, K8sError::Generic(_));
     }
 
     ///
