@@ -137,6 +137,7 @@ pub(crate) mod test {
         pub fn should_set_health(&mut self, times: usize) {
             self.expect_set_health().times(times).returning(|_| Ok(()));
         }
+        #[allow(dead_code)]
         pub fn should_not_set_health(&mut self, times: usize, status_code: u16, error_msg: String) {
             self.expect_set_health().times(times).returning(move |_| {
                 Err(ClientError::SenderError(
@@ -147,6 +148,7 @@ pub(crate) mod test {
         pub fn should_stop(&mut self, times: usize) {
             self.expect_stop().times(times).returning(|| Ok(()));
         }
+        #[allow(dead_code)]
         pub fn should_not_stop(&mut self, times: usize, status_code: u16, error_msg: String) {
             self.expect_stop().times(times).returning(move || {
                 Err(StartedClientError::SenderError(

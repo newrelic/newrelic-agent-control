@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests_mocked_executor {
-    use crate::k8s::error::K8sError::Generic;
+    use crate::k8s::Error::Generic;
     use kube::error::ErrorResponse;
     use kube::Error;
 

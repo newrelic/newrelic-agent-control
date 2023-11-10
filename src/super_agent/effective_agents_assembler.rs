@@ -1,7 +1,9 @@
 use thiserror::Error;
 
 use crate::config::agent_type::agent_types::FinalAgent;
-use crate::config::super_agent_configs::{get_values_file_path, AgentID, SubAgentConfig};
+use crate::config::super_agent_configs::{
+    get_values_file_path, AgentID, SubAgentConfig, SubAgentsConfig,
+};
 use crate::super_agent::super_agent::{EffectiveAgents, EffectiveAgentsError};
 use crate::{
     config::{
@@ -12,7 +14,6 @@ use crate::{
             config_persister::{ConfigurationPersister, PersistError},
             config_persister_file::ConfigurationPersisterFile,
         },
-        super_agent_configs::SuperAgentConfig,
     },
     file_reader::{FSFileReader, FileReader, FileReaderError},
 };
@@ -36,7 +37,7 @@ pub enum EffectiveAgentsAssemblerError {
 pub trait EffectiveAgentsAssembler {
     fn assemble_agents(
         &self,
-        agent_cfgs: &SuperAgentConfig,
+        agent_cfgs: &SubAgentsConfig,
     ) -> Result<EffectiveAgents, EffectiveAgentsAssemblerError>;
 
     fn assemble_agent(
@@ -73,13 +74,13 @@ where
 {
     fn assemble_agents(
         &self,
-        agent_cfgs: &SuperAgentConfig,
+        agent_cfgs: &SubAgentsConfig,
     ) -> Result<EffectiveAgents, EffectiveAgentsAssemblerError> {
         //clean all temporary configurations
         self.config_persister.delete_all_configs()?;
         let mut effective_agents = EffectiveAgents::default();
 
-        for (agent_id, agent_cfg) in agent_cfgs.agents.iter() {
+        for (agent_id, agent_cfg) in agent_cfgs.iter() {
             let effective_agent = self.assemble_agent(agent_id, agent_cfg)?;
             effective_agents.add(agent_id.clone(), effective_agent)?;
         }
@@ -202,7 +203,7 @@ mod tests {
             config_persister,
             file_reader_mock,
         )
-        .assemble_agents(&agent_config)
+        .assemble_agents(&agent_config.agents)
         .unwrap();
 
         let first_agent = effective_agents
@@ -257,7 +258,7 @@ mod tests {
             config_persister,
             file_reader_mock,
         )
-        .assemble_agents(&agent_config);
+        .assemble_agents(&agent_config.agents);
 
         assert_eq!(true, result.is_err());
         assert_eq!(
@@ -304,7 +305,7 @@ mod tests {
             config_persister,
             file_reader_mock,
         )
-        .assemble_agents(&agent_config);
+        .assemble_agents(&agent_config.agents);
 
         assert_eq!(true, result.is_err());
         assert_eq!(
@@ -331,7 +332,7 @@ mod tests {
             config_persister,
             file_reader_mock,
         )
-        .assemble_agents(&agent_config)
+        .assemble_agents(&agent_config.agents)
         .unwrap();
 
         let expected_effective_agents = EffectiveAgents::default();
@@ -464,7 +465,8 @@ deployment:
                             .into(),
                     },
                 ),
-            ]),
+            ])
+            .into(),
             opamp: None,
         };
 

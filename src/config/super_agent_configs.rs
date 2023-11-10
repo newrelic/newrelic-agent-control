@@ -5,10 +5,13 @@ use std::ops::Deref;
 
 use crate::config::error::SuperAgentConfigError;
 use crate::super_agent::defaults::SUPER_AGENT_ID;
-use serde::Deserialize;
 use thiserror::Error;
 
-#[derive(Debug, Deserialize, PartialEq, Clone, Hash, Eq)]
+use serde::{Deserialize, Serialize};
+
+use super::remote_config::RemoteConfig;
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Hash, Eq)]
 #[serde(try_from = "String")]
 pub struct AgentID(String);
 
@@ -74,23 +77,49 @@ impl Display for AgentID {
     }
 }
 
+/// SubAgentsConfig represents the configuration for the sub agents.
+#[derive(Debug, Deserialize, Serialize, Default, PartialEq, Clone)]
+pub struct SubAgentsConfig {
+    pub(crate) agents: HashMap<AgentID, SubAgentConfig>,
+}
+
+impl Deref for SubAgentsConfig {
+    type Target = HashMap<AgentID, SubAgentConfig>;
+    fn deref(&self) -> &Self::Target {
+        &self.agents
+    }
+}
+
+impl From<HashMap<AgentID, SubAgentConfig>> for SubAgentsConfig {
+    fn from(value: HashMap<AgentID, SubAgentConfig>) -> Self {
+        Self { agents: value }
+    }
+}
+
+impl TryFrom<&RemoteConfig> for SubAgentsConfig {
+    type Error = SuperAgentConfigError;
+    fn try_from(value: &RemoteConfig) -> Result<Self, Self::Error> {
+        // YAML format
+        // simple config is provided as empty string filename: https://github.com/open-telemetry/opamp-spec/blob/main/proto/opamp.proto#L837
+        let config: SubAgentsConfig = serde_yaml::from_str(value.config_map.get("").unwrap())?;
+        Ok(config)
+    }
+}
+
 /// SuperAgentConfig represents the configuration for the super agent.
 #[derive(Debug, Deserialize, Default, PartialEq, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct SuperAgentConfig {
     /// agents is a map of agent types to their specific configuration (if any).
-    #[serde(default)]
-    pub agents: HashMap<AgentID, SubAgentConfig>,
+    #[serde(default, flatten)]
+    pub agents: SubAgentsConfig,
 
     /// opamp contains the OpAMP client configuration
     pub opamp: Option<OpAMPClientConfig>,
 }
 
-impl SuperAgentConfig {
-    pub fn sub_agent_config(
-        &self,
-        agent_id: &AgentID,
-    ) -> Result<&SubAgentConfig, SuperAgentConfigError> {
+impl SubAgentsConfig {
+    pub fn get(&self, agent_id: &AgentID) -> Result<&SubAgentConfig, SuperAgentConfigError> {
         self.agents
             .get(agent_id)
             .ok_or(SuperAgentConfigError::SubAgentNotFound(
@@ -99,8 +128,8 @@ impl SuperAgentConfig {
     }
 }
 
-#[derive(Debug, PartialEq, Deserialize, Clone)]
-pub struct AgentTypeFQN(String);
+#[derive(Debug, PartialEq, Deserialize, Serialize, Clone)]
+pub struct AgentTypeFQN(pub String);
 
 impl Deref for AgentTypeFQN {
     type Target = str;
@@ -141,7 +170,7 @@ impl From<&str> for AgentTypeFQN {
     }
 }
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct SubAgentConfig {
     pub agent_type: AgentTypeFQN, // FQN of the agent type, ex: newrelic/nrdot:0.1.0
@@ -167,6 +196,12 @@ opamp:
   endpoint: http://localhost:8080/some/path
   headers:
     some-key: some-value
+agents:
+  agent_1:
+    agent_type: namespace/agent_type:0.0.1
+"#;
+
+    const EXAMPLE_SUBAGENTS_CONFIG: &str = r#"
 agents:
   agent_1:
     agent_type: namespace/agent_type:0.0.1
@@ -221,8 +256,8 @@ agents:
 
     #[test]
     fn basic_parse() {
-        let actual = serde_yaml::from_str::<SuperAgentConfig>(EXAMPLE_SUPERAGENT_CONFIG);
-        assert!(actual.is_ok());
+        assert!(serde_yaml::from_str::<SuperAgentConfig>(EXAMPLE_SUPERAGENT_CONFIG).is_ok());
+        assert!(serde_yaml::from_str::<SubAgentsConfig>(EXAMPLE_SUBAGENTS_CONFIG).is_ok())
     }
 
     #[test]
@@ -241,20 +276,20 @@ agents:
     fn parse_with_wrong_agent_id() {
         let actual = serde_yaml::from_str::<SuperAgentConfig>(SUPERAGENT_CONFIG_WRONG_AGENT_ID);
         assert!(actual.is_err());
-        assert_eq!(
-            actual.unwrap_err().to_string(),
-            "agents: AgentID allows only a-zA-Z0-9_- at line 3 column 3"
-        )
+        assert!(actual
+            .unwrap_err()
+            .to_string()
+            .contains("AgentID allows only a-zA-Z0-9_- at line"))
     }
 
     #[test]
     fn parse_with_reserved_agent_id() {
         let actual = serde_yaml::from_str::<SuperAgentConfig>(SUPERAGENT_CONFIG_RESERVED_AGENT_ID);
         assert!(actual.is_err());
-        assert_eq!(
-            actual.unwrap_err().to_string(),
-            "agents: AgentID 'super-agent' is reserved at line 3 column 3"
-        )
+        assert!(actual
+            .unwrap_err()
+            .to_string()
+            .contains("AgentID 'super-agent' is reserved at line"))
     }
 
     #[test]
