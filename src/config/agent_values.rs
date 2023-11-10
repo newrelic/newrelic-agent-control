@@ -84,8 +84,11 @@ use super::agent_type::trivial_value::TrivialValue;
 /// Please see the tests in the sources for more examples.
 ///
 /// [agent_type]: crate::config::agent_type
-#[derive(Debug, PartialEq, Deserialize, Default, Clone)]
-pub struct AgentValues(Map<String, TrivialValue>);
+#[derive(Debug, PartialEq, Deserialize, Clone)]
+pub enum AgentValues {
+    End(Map<String, TrivialValue>),
+    Nesting(Map<String, AgentValues>),
+}
 
 impl AgentValues {
     /// get_from_normalized recursively searches for a TrivialValue given a normalized prefix.  A
@@ -93,7 +96,20 @@ impl AgentValues {
     /// denoted with the TEMPLATE_KEY_SEPARATOR.
     /// If found, an owned value will be returned.
     pub(crate) fn get_from_normalized(&self, normalized_prefix: &str) -> Option<TrivialValue> {
-        get_from_normalized(&self.0, normalized_prefix)
+        // FIXME should we return a Result to account for unsanitized inputs? For example "some.key."
+        let prefix = normalized_prefix.split_once(TEMPLATE_KEY_SEPARATOR);
+        match (prefix, self) {
+            // Tree has only one level, getting value from here.
+            (None, AgentValues::End(v)) => v.get(normalized_prefix).cloned(),
+            // The tree goes deeper, there won't be end values at this point.
+            (None, AgentValues::Nesting(_)) => None,
+            // Caller included a separator (and suffix) in `normalized_prefix` but there are no more levels.
+            // Nothing will be found
+            (Some(_), AgentValues::End(_)) => None,
+            (Some((prefix, suffix)), AgentValues::Nesting(m)) => {
+                m.get(prefix).and_then(|n| n.get_from_normalized(suffix))
+            }
+        }
     }
 
     /// normalize_with_agent_type verifies that all required Agent variables are defined in the
@@ -103,7 +119,7 @@ impl AgentValues {
         agent_type: &FinalAgent,
     ) -> Result<Self, AgentTypeError> {
         for (k, v) in agent_type.variables.iter() {
-            let value = get_from_normalized(&self.0, k);
+            let value = self.get_from_normalized(k);
 
             // required value but not defined in SubAgentConfig
             if value.is_none() && v.kind.required() {
@@ -112,45 +128,46 @@ impl AgentValues {
 
             // check type matches agent one and apply transformations
             if let Some(inner) = value {
-                let _ = update_from_normalized(&mut self.0, k, inner.clone().check_type(v)?);
+                let _ = self.update_from_normalized(k, inner.clone().check_type(v)?);
             }
         }
 
         Ok(self)
     }
-}
 
-/// get_from_normalized recursively searches for a TrivialValue given a normalized prefix.
-fn get_from_normalized(
-    inner: &Map<String, TrivialValue>,
-    normalized_prefix: &str,
-) -> Option<TrivialValue> {
-    let prefix = normalized_prefix.split_once(TEMPLATE_KEY_SEPARATOR);
-    if let Some((key, suffix)) = prefix {
-        if let Some(TrivialValue::Map(inner_map)) = inner.get(key) {
-            return get_from_normalized(inner_map, suffix);
+    /// update_from_normalized updates a TrivialValue given a normalized prefix.
+    fn update_from_normalized(
+        &mut self, // Map<String, TrivialValue>,
+        normalized_prefix: &str,
+        value: TrivialValue,
+    ) -> Option<TrivialValue> {
+        let prefix = normalized_prefix.split_once(TEMPLATE_KEY_SEPARATOR);
+        match (prefix, self) {
+            (None, AgentValues::End(inner)) => inner.insert(normalized_prefix.to_string(), value),
+            (None, AgentValues::Nesting(_)) => None,
+            (Some(_), AgentValues::End(_)) => None,
+            (Some((prefix, suffix)), AgentValues::Nesting(inner)) => inner
+                .get_mut(prefix)
+                .and_then(|n| n.update_from_normalized(suffix, value)),
         }
-    } else {
-        return inner.get(normalized_prefix).cloned();
     }
-    None
 }
 
 /// update_from_normalized updates a TrivialValue given a normalized prefix.
 fn update_from_normalized(
-    inner: &mut Map<String, TrivialValue>,
+    inner: &mut AgentValues, // Map<String, TrivialValue>,
     normalized_prefix: &str,
     value: TrivialValue,
 ) -> Option<TrivialValue> {
     let prefix = normalized_prefix.split_once(TEMPLATE_KEY_SEPARATOR);
-    if let Some((key, suffix)) = prefix {
-        if let Some(TrivialValue::Map(inner_map)) = inner.get_mut(key) {
-            return update_from_normalized(inner_map, suffix, value);
-        }
-    } else {
-        return inner.insert(normalized_prefix.to_string(), value);
+    match (prefix, inner) {
+        (None, AgentValues::End(inner)) => inner.insert(normalized_prefix.to_string(), value),
+        (None, AgentValues::Nesting(_)) => None,
+        (Some(_), AgentValues::End(_)) => None,
+        (Some((prefix, suffix)), AgentValues::Nesting(inner)) => inner
+            .get_mut(prefix)
+            .and_then(|n| update_from_normalized(n, suffix, value)),
     }
-    None
 }
 #[cfg(test)]
 mod tests {
