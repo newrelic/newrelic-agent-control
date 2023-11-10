@@ -14,7 +14,7 @@ use tracing::{error, info, warn};
 use crate::config::agent_type::agent_types::FinalAgent;
 use crate::config::error::SuperAgentConfigError;
 use crate::config::remote_config::{RemoteConfig, RemoteConfigError};
-use crate::config::remote_config_hash::{Hash, HashRepository, HashRepositoryFile};
+use crate::config::remote_config_hash::{Hash, HashRepository, HashRepositoryFile, HashRepositoryError};
 use crate::config::store::{SubAgentsConfigStore, SuperAgentConfigStoreFile};
 use crate::config::super_agent_configs::{AgentID, SubAgentConfig, SubAgentsConfig};
 use crate::context::Context;
@@ -124,17 +124,21 @@ where
         let opamp_client = self.start_super_agent_opamp_client(ctx.clone())?;
 
         if let Some(opamp_handle) = &opamp_client {
-            // TODO should we error on first launch with no hash file?
-            let remote_config_hash = self
-                .remote_config_hash_repository
-                .get(self.agent_id())
-                .map_err(|e| {
-                    warn!(
-                        "OpAMP enabled but no previous remote configuration found: {}",
-                        e
-                    )
-                })
-                .ok();
+            let remote_config_hash = match self.remote_config_hash_repository.get(self.agent_id()) {
+                Err(HashRepositoryError::WrongPath) => {
+                    // The wrong path error occurs if there is no remote config hash yaml
+                    // file available. This can occur, e.g., if no remote config has been
+                    // created. We suppress this error message here because it is an expected
+                    // condition.
+                    None
+                }
+                maybe_remote_config_hash => {
+                    maybe_remote_config_hash.map_err(|e| {
+                        warn!("OpAMP enabled but no previous remote configuration found: {}", e)
+                    })
+                    .ok()
+                }
+            };
 
             if let Some(hash) = remote_config_hash {
                 if !hash.is_applied() {
