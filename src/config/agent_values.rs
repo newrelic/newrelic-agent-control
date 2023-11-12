@@ -100,19 +100,20 @@ impl AgentValues {
     /// denoted with the TEMPLATE_KEY_SEPARATOR.
     /// If found, an owned value will be returned.
     pub(crate) fn get_from_normalized(&self, normalized_prefix: &str) -> Option<TrivialValue> {
-        // FIXME should we return a Result to account for unsanitized inputs? For example "some.key."
-        let prefix = normalized_prefix.split_once(TEMPLATE_KEY_SEPARATOR);
-        match (prefix, self) {
-            // Tree has only one level, getting value from here.
-            (None, AgentValues::End(v)) if  => v.get(normalized_prefix).cloned(),
-            // The tree goes deeper, there won't be end values at this point.
-            (None, AgentValues::Nesting(_)) => None,
-            // Caller included a separator (and suffix) in `normalized_prefix` but there are no more levels.
-            // Nothing will be found
-            (Some(_), AgentValues::End(_)) => None,
-            (Some((prefix, suffix)), AgentValues::Nesting(m)) => {
-                m.get(prefix).and_then(|n| n.get_from_normalized(suffix))
-            }
+        // FIXME should we return a Result to account for unsanitized inputs? For example "some.key." (trailing dot)
+        let Some((prefix, suffix)) = normalized_prefix.split_once(TEMPLATE_KEY_SEPARATOR) else {
+            // if there is no TEMPLATE_KEY_SEPARATOR, we are at the end of the recursive search,
+            // we can return a value only if we are at an End of the AgentValues tree.
+            return match self.0.get(normalized_prefix) {
+                Some(AgentValuesInner::End(v)) => Some(v.clone()),
+                _ => None,
+            };
+        };
+
+        match self.0.get(prefix) {
+            None => None,
+            Some(AgentValuesInner::End(v)) => Some(v.clone()),
+            Some(AgentValuesInner::Nesting(m)) => m.get_from_normalized(suffix),
         }
     }
 
