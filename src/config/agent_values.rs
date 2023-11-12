@@ -90,6 +90,12 @@ pub enum AgentValues {
     Nesting(Map<String, AgentValues>),
 }
 
+impl Default for AgentValues {
+    fn default() -> Self {
+        AgentValues::End(Map::new())
+    }
+}
+
 impl AgentValues {
     /// get_from_normalized recursively searches for a TrivialValue given a normalized prefix.  A
     /// normalized prefix flattens a Map path in a single string in which each indirection is
