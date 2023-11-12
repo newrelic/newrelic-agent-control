@@ -84,16 +84,14 @@ use super::agent_type::trivial_value::TrivialValue;
 /// Please see the tests in the sources for more examples.
 ///
 /// [agent_type]: crate::config::agent_type
-#[derive(Debug, PartialEq, Deserialize, Clone)]
-pub enum AgentValues {
-    End(Map<String, TrivialValue>),
-    Nesting(Map<String, AgentValues>),
-}
+#[derive(Debug, PartialEq, Deserialize, Clone, Default)]
+pub struct AgentValues(Map<String, AgentValuesInner>);
 
-impl Default for AgentValues {
-    fn default() -> Self {
-        AgentValues::End(Map::new())
-    }
+#[derive(Debug, PartialEq, Deserialize, Clone)]
+#[serde(untagged)]
+enum AgentValuesInner {
+    End(TrivialValue),
+    Nesting(AgentValues),
 }
 
 impl AgentValues {
@@ -106,7 +104,7 @@ impl AgentValues {
         let prefix = normalized_prefix.split_once(TEMPLATE_KEY_SEPARATOR);
         match (prefix, self) {
             // Tree has only one level, getting value from here.
-            (None, AgentValues::End(v)) => v.get(normalized_prefix).cloned(),
+            (None, AgentValues::End(v)) if  => v.get(normalized_prefix).cloned(),
             // The tree goes deeper, there won't be end values at this point.
             (None, AgentValues::Nesting(_)) => None,
             // Caller included a separator (and suffix) in `normalized_prefix` but there are no more levels.
@@ -210,10 +208,10 @@ verbose: true
     #[test]
     fn test_agent_values() {
         let actual = serde_yaml::from_str::<AgentValues>(EXAMPLE_CONFIG).unwrap();
-        let expected: Map<String, TrivialValue> = Map::from([
+        let expected: AgentValues = AgentValues::Nesting(Map::from([
             (
                 "description".to_string(),
-                TrivialValue::Map(Map::from([
+                AgentValues::End(Map::from([
                     (
                         "name".to_string(),
                         TrivialValue::String("newrelic-infra".to_string()),
@@ -239,7 +237,7 @@ extra_list:
             ),
             (
                 "config".to_string(),
-                TrivialValue::Map(Map::from([(
+                AgentValues::Nesting(Map::from([(
                     "envs".to_string(),
                     TrivialValue::Map(Map::from([
                         (
@@ -254,7 +252,7 @@ extra_list:
                 )])),
             ),
             ("verbose".to_string(), TrivialValue::Bool(true)),
-        ]);
+        ]));
 
         assert_eq!(actual.0, expected);
     }
