@@ -15,9 +15,6 @@ fi
 
 : "${BUILD_MODE:=release}" # Default to release if not specified
 
-# Default BUILD_FEATURE to 'onhost' if not set
-echo "---- BUILD_FEATURE is: ${BUILD_FEATURE}"
-
 if [ -z "${BUILD_FEATURE}" ]; then
     BUILD_FEATURE="onhost"
     echo "BUILD_FEATURE not provided; defaulting to 'onhost'."
