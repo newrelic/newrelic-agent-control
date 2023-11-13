@@ -100,7 +100,7 @@ jobs:
         with:
           toolchain: ${{ matrix.msrv }}
       - name: cargo +${{ matrix.msrv }} check
-        run: cargo check
+        run: cargo check --all-features
 
   licenses:
     name: Validate third party libraries
