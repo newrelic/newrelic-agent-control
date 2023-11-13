@@ -30,9 +30,9 @@ jobs:
       - name: cargo generate-lockfile
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
-      - name: cargo test --locked
+      - name: Run tests excluding root-required tests
         run: cargo test --locked --all-features --all-targets -- --skip as_root
-      - name: cargo test --doc
+      - name: Run documentation tests
         run: cargo test --locked --all-features --doc
   # Test using root can be troublesome to perform as usually the Rust toolchain is installed local to the user.
   # To test for root privileges, we can run from a container (disabling the test that fail if running non-root).
@@ -48,10 +48,7 @@ jobs:
         uses: webfactory/ssh-agent@v0.8.0
         with:
           ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
-      - name: cargo generate-lockfile
-        if: hashFiles('Cargo.lock') == ''
-        run: cargo generate-lockfile
-      - name: cargo test --locked --all-features
+      - name: Run root-required tests only
         run: cargo test --locked --all-features --all-targets -- --skip no_root
   # Windows and macos not required at the moment (ci failing while fetching
   # private crates)
@@ -94,7 +91,6 @@ jobs:
         uses: actions/setup-go@v4
         with:
           go-version-file: 'build/embedded/go.mod'
-
       - name: run tests for embedded downloader
         run: make -C build/embedded test
 
@@ -109,9 +105,6 @@ jobs:
         uses: webfactory/ssh-agent@v0.8.0
         with:
           ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
-      - name: cargo generate-lockfile
-        if: hashFiles('Cargo.lock') == ''
-        run: cargo generate-lockfile
       - name: Setup Minikube
         uses: manusa/actions-setup-minikube@v2.9.0
         with:
