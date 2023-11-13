@@ -13,12 +13,14 @@ use super::{agent_types::VariableType, error::AgentTypeError};
 #[serde(untagged)]
 pub enum TrivialValue {
     String(String),
-    #[serde(skip)]
-    File(FilePathWithContent),
     Bool(bool),
     Number(Number),
-    MapStringFile(Map<String, FilePathWithContent>),
     MapStringString(Map<String, String>),
+
+    #[serde(skip)] // Can't distinguish File from String when deserializing // FIXME
+    File(FilePathWithContent),
+    #[serde(skip)] // Can't distinguish StringFile from StringString when deserializing // FIXME
+    MapStringFile(Map<String, FilePathWithContent>),
 }
 
 impl TrivialValue {
@@ -35,7 +37,7 @@ impl TrivialValue {
             | (TrivialValue::File(_), VariableType::File)
             | (TrivialValue::Number(_), VariableType::Number)
             | (TrivialValue::MapStringString(_), VariableType::MapStringString)
-            | (TrivialValue::MapStringFile(_), VariableType::MapStringFile) => Ok(self),
+            | (TrivialValue::MapStringString(_), VariableType::MapStringFile) => Ok(self),
             (v, t) => Err(AgentTypeError::TypeMismatch {
                 expected_type: t.to_string(),
                 actual_value: v,

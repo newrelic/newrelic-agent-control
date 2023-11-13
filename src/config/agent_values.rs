@@ -101,7 +101,8 @@ impl AgentValues {
     /// If found, an owned value will be returned.
     pub(crate) fn get_from_normalized(&self, normalized_prefix: &str) -> Option<TrivialValue> {
         // FIXME should we return a Result to account for unsanitized inputs? For example "some.key." (trailing dot)
-        let Some((prefix, suffix)) = normalized_prefix.split_once(TEMPLATE_KEY_SEPARATOR) else {
+        let split = normalized_prefix.split_once(TEMPLATE_KEY_SEPARATOR);
+        let Some((prefix, suffix)) = split else {
             // if there is no TEMPLATE_KEY_SEPARATOR, we are at the end of the recursive search,
             // we can return a value only if we are at an End of the AgentValues tree.
             return match self.0.get(normalized_prefix) {
@@ -133,7 +134,7 @@ impl AgentValues {
 
             // check type matches agent one and apply transformations
             if let Some(inner) = value {
-                let _ = self.update_from_normalized(k, inner.clone().check_type(v)?);
+                self.update_from_normalized(k, inner.clone().check_type(v)?);
             }
         }
 
@@ -141,39 +142,24 @@ impl AgentValues {
     }
 
     /// update_from_normalized updates a TrivialValue given a normalized prefix.
-    fn update_from_normalized(
-        &mut self, // Map<String, TrivialValue>,
-        normalized_prefix: &str,
-        value: TrivialValue,
-    ) -> Option<TrivialValue> {
-        let prefix = normalized_prefix.split_once(TEMPLATE_KEY_SEPARATOR);
-        match (prefix, self) {
-            (None, AgentValues::End(inner)) => inner.insert(normalized_prefix.to_string(), value),
-            (None, AgentValues::Nesting(_)) => None,
-            (Some(_), AgentValues::End(_)) => None,
-            (Some((prefix, suffix)), AgentValues::Nesting(inner)) => inner
-                .get_mut(prefix)
-                .and_then(|n| n.update_from_normalized(suffix, value)),
+    fn update_from_normalized(&mut self, normalized_prefix: &str, value: TrivialValue) {
+        let split = normalized_prefix.split_once(TEMPLATE_KEY_SEPARATOR);
+        let Some((prefix, suffix)) = split else {
+            // if there is no TEMPLATE_KEY_SEPARATOR, we are at the end of the recursive search,
+            // we can update a value only if we are at an End of the AgentValues tree.
+            self.0
+                .insert(normalized_prefix.to_owned(), AgentValuesInner::End(value));
+            return;
+        };
+
+        match self.0.get_mut(prefix) {
+            None => (),
+            Some(AgentValuesInner::End(v)) => *v = value,
+            Some(AgentValuesInner::Nesting(m)) => m.update_from_normalized(suffix, value),
         }
     }
 }
 
-/// update_from_normalized updates a TrivialValue given a normalized prefix.
-fn update_from_normalized(
-    inner: &mut AgentValues, // Map<String, TrivialValue>,
-    normalized_prefix: &str,
-    value: TrivialValue,
-) -> Option<TrivialValue> {
-    let prefix = normalized_prefix.split_once(TEMPLATE_KEY_SEPARATOR);
-    match (prefix, inner) {
-        (None, AgentValues::End(inner)) => inner.insert(normalized_prefix.to_string(), value),
-        (None, AgentValues::Nesting(_)) => None,
-        (Some(_), AgentValues::End(_)) => None,
-        (Some((prefix, suffix)), AgentValues::Nesting(inner)) => inner
-            .get_mut(prefix)
-            .and_then(|n| update_from_normalized(n, suffix, value)),
-    }
-}
 #[cfg(test)]
 mod tests {
 
@@ -209,51 +195,51 @@ verbose: true
     #[test]
     fn test_agent_values() {
         let actual = serde_yaml::from_str::<AgentValues>(EXAMPLE_CONFIG).unwrap();
-        let expected: AgentValues = AgentValues::Nesting(Map::from([
+        let expected: Map<String, AgentValuesInner> = Map::from([
             (
-                "description".to_string(),
-                AgentValues::End(Map::from([
+                "description".to_owned(),
+                AgentValuesInner::Nesting(AgentValues(Map::from([
                     (
-                        "name".to_string(),
-                        TrivialValue::String("newrelic-infra".to_string()),
+                        "name".to_owned(),
+                        AgentValuesInner::End(TrivialValue::String("newrelic-infra".to_owned())),
                     ),
                     (
-                        "float_val".to_string(),
-                        TrivialValue::Number(Number::Float(0.14)),
+                        "float_val".to_owned(),
+                        AgentValuesInner::End(TrivialValue::Number(Number::Float(0.14))),
                     ),
-                    ("logs".to_string(), TrivialValue::Number(Number::NegInt(-4))),
-                ])),
+                    (
+                        "logs".to_owned(),
+                        AgentValuesInner::End(TrivialValue::Number(Number::NegInt(-4))),
+                    ),
+                ]))),
             ),
             (
-                "configuration".to_string(),
-                TrivialValue::String(
+                "configuration".to_owned(),
+                AgentValuesInner::End(TrivialValue::String(
                     r#"license: abc123
 staging: true
 extra_list:
   key: value
   key2: value2
 "#
-                    .to_string(),
-                ),
+                    .to_owned(),
+                )),
             ),
             (
-                "config".to_string(),
-                AgentValues::Nesting(Map::from([(
-                    "envs".to_string(),
-                    TrivialValue::Map(Map::from([
-                        (
-                            "name".to_string(),
-                            TrivialValue::String("newrelic-infra".to_string()),
-                        ),
-                        (
-                            "name2".to_string(),
-                            TrivialValue::String("newrelic-infra2".to_string()),
-                        ),
-                    ])),
-                )])),
+                "config".to_owned(),
+                AgentValuesInner::Nesting(AgentValues(Map::from([(
+                    "envs".to_owned(),
+                    AgentValuesInner::End(TrivialValue::MapStringString(Map::from([
+                        ("name".to_string(), "newrelic-infra".to_string()),
+                        ("name2".to_string(), "newrelic-infra2".to_string()),
+                    ]))),
+                )]))),
             ),
-            ("verbose".to_string(), TrivialValue::Bool(true)),
-        ]));
+            (
+                "verbose".to_string(),
+                AgentValuesInner::End(TrivialValue::Bool(true)),
+            ),
+        ]);
 
         assert_eq!(actual.0, expected);
     }
@@ -309,33 +295,38 @@ deployment:
         let expected = Map::from([
             (
                 "deployment".to_string(),
-                TrivialValue::Map(Map::from([(
+                AgentValuesInner::Nesting(AgentValues(Map::from([(
                     "on_host".to_string(),
-                    TrivialValue::Map(Map::from([
+                    AgentValuesInner::Nesting(AgentValues(Map::from([
                         (
                             "args".to_string(),
-                            TrivialValue::String("--verbose true".to_string()),
+                            AgentValuesInner::End(TrivialValue::String(
+                                "--verbose true".to_string(),
+                            )),
                         ),
-                        ("path".to_string(), TrivialValue::String("/etc".to_string())),
-                    ])),
-                )])),
+                        (
+                            "path".to_string(),
+                            AgentValuesInner::End(TrivialValue::String("/etc".to_string())),
+                        ),
+                    ]))),
+                )]))),
             ),
             (
                 "config".to_string(),
-                TrivialValue::File(FilePathWithContent::new(
+                AgentValuesInner::End(TrivialValue::File(FilePathWithContent::new(
                     "newrelic-infra.yml".to_string(),
                     "test".to_string(),
-                )),
+                ))),
             ),
             (
                 "integrations".to_string(),
-                TrivialValue::Map(Map::from([(
+                AgentValuesInner::Nesting(AgentValues(Map::from([(
                     "kafka".to_string(),
-                    TrivialValue::File(FilePathWithContent::new(
+                    AgentValuesInner::End(TrivialValue::File(FilePathWithContent::new(
                         "integrations.d".to_string(),
                         "strategy: bootstrap\n".to_string(),
-                    )),
-                )])),
+                    ))),
+                )]))),
             ),
         ]);
         let actual = input_structure

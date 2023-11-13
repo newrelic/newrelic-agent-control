@@ -224,7 +224,8 @@ impl FinalAgent {
 }
 
 /// Flexible tree-like structure that contains variables definitions, that can later be changed by the end user via [`AgentValues`].
-type AgentVariables = HashMap<String, Spec>;
+#[derive(Debug, PartialEq, Deserialize, Clone, Default)]
+pub struct AgentVariables(HashMap<String, Spec>);
 
 #[derive(Debug, PartialEq, Clone, Copy, Deserialize)]
 pub enum VariableType {
@@ -491,7 +492,7 @@ pub enum Spec {
 pub(crate) type NormalizedVariables = HashMap<String, EndSpec>;
 
 fn normalize_agent_spec(spec: AgentVariables) -> Result<NormalizedVariables, AgentTypeError> {
-    spec.into_iter().try_fold(HashMap::new(), |r, (k, v)| {
+    spec.0.into_iter().try_fold(HashMap::new(), |r, (k, v)| {
         let n_spec = inner_normalize(k, v);
         n_spec.iter().try_for_each(|(k, end_spec)| {
             if end_spec.kind.not_required_without_default() {
