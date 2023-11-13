@@ -1,7 +1,7 @@
 use crate::config::super_agent_configs::{AgentID, AgentTypeFQN};
 use crate::context::Context;
 use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPClientBuilderError};
-use crate::super_agent::instance_id::InstanceIDGetter;
+use crate::super_agent::instance_id_getter::{InstanceIDGetter, OnHostIdentifiers};
 use crate::super_agent::super_agent::SuperAgentEvent;
 use nix::unistd::gethostname;
 use opamp_client::capabilities;
@@ -15,14 +15,18 @@ pub(super) fn build_opamp_and_start_client<OpAMPBuilder, InstanceIdGetter>(
     instance_id_getter: &InstanceIdGetter,
     agent_id: AgentID,
     agent_type: &AgentTypeFQN,
+    identifier: &OnHostIdentifiers,
 ) -> Result<Option<OpAMPBuilder::Client>, OpAMPClientBuilderError>
 where
     OpAMPBuilder: OpAMPClientBuilder,
-    InstanceIdGetter: InstanceIDGetter,
+    InstanceIdGetter: InstanceIDGetter<Identifier = OnHostIdentifiers>,
 {
     match opamp_builder {
         Some(builder) => {
-            let start_settings = start_settings(instance_id_getter.get(&agent_id), agent_type);
+            let start_settings = start_settings(
+                instance_id_getter.get("where-To-Save", identifier),
+                agent_type,
+            );
 
             Ok(Some(builder.build_and_start(
                 ctx,

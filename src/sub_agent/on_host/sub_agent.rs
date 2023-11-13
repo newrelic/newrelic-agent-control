@@ -3,6 +3,7 @@ use std::thread::JoinHandle;
 use futures::executor::block_on;
 use opamp_client::opamp::proto::AgentHealth;
 use opamp_client::StartedClient;
+use tracing::callsite::Identifier;
 use tracing::info;
 
 use super::supervisor::command_supervisor::{NotStartedSupervisorOnHost, StartedSupervisorOnHost};
@@ -12,7 +13,7 @@ use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPClientBuilderError};
 use crate::sub_agent::error::SubAgentError;
 use crate::sub_agent::on_host::opamp::build_opamp_and_start_client;
 use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
-use crate::super_agent::instance_id::InstanceIDGetter;
+use crate::super_agent::instance_id_getter::{InstanceIDGetter, OnHostIdentifiers};
 use crate::super_agent::super_agent::SuperAgentEvent;
 use crate::utils::time::get_sys_time_nano;
 
@@ -23,19 +24,20 @@ use crate::utils::time::get_sys_time_nano;
 pub struct NotStartedSubAgentOnHost<'a, OpAMPBuilder, ID>
 where
     OpAMPBuilder: OpAMPClientBuilder,
-    ID: InstanceIDGetter,
+    ID: InstanceIDGetter<Identifier = OnHostIdentifiers>,
 {
     opamp_builder: Option<&'a OpAMPBuilder>,
     instance_id_getter: &'a ID,
     supervisors: Vec<NotStartedSupervisorOnHost>,
     agent_id: AgentID,
     agent_type: AgentTypeFQN,
+    identifiers: OnHostIdentifiers,
 }
 
 impl<'a, OpAMPBuilder, ID> NotStartedSubAgentOnHost<'a, OpAMPBuilder, ID>
 where
     OpAMPBuilder: OpAMPClientBuilder,
-    ID: InstanceIDGetter,
+    ID: InstanceIDGetter<Identifier = OnHostIdentifiers>,
 {
     pub fn new(
         agent_id: AgentID,
@@ -43,6 +45,7 @@ where
         opamp_builder: Option<&'a OpAMPBuilder>,
         instance_id_getter: &'a ID,
         agent_type: AgentTypeFQN,
+        identifiers: OnHostIdentifiers,
     ) -> Self {
         NotStartedSubAgentOnHost {
             opamp_builder,
@@ -50,6 +53,7 @@ where
             supervisors,
             agent_id,
             agent_type,
+            identifiers,
         }
     }
 
@@ -67,6 +71,7 @@ where
             self.instance_id_getter,
             self.agent_id.clone(),
             &self.agent_type,
+            &self.identifiers,
         )
     }
 }
@@ -74,7 +79,7 @@ where
 impl<'a, OpAMPBuilder, ID> NotStartedSubAgent for NotStartedSubAgentOnHost<'a, OpAMPBuilder, ID>
 where
     OpAMPBuilder: OpAMPClientBuilder,
-    ID: InstanceIDGetter,
+    ID: InstanceIDGetter<Identifier = OnHostIdentifiers>,
 {
     type StartedSubAgent = StartedSubAgentOnHost<OpAMPBuilder::Client>;
 

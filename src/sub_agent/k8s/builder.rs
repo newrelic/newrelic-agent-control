@@ -8,7 +8,7 @@ use crate::{
         restart_policy::RestartPolicy,
         SubAgentBuilder,
     },
-    super_agent::instance_id::InstanceIDGetter,
+    super_agent::instance_id_getter::InstanceIDGetter,
 };
 
 #[derive(Default)]

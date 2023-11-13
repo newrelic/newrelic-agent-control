@@ -1,3 +1,5 @@
+#![feature(async_closure)]
+
 use std::error::Error;
 
 use cfg_if::cfg_if;
@@ -8,7 +10,10 @@ use newrelic_super_agent::config::remote_config_hash::HashRepositoryFile;
 use newrelic_super_agent::config::store::{SuperAgentConfigStore, SuperAgentConfigStoreFile};
 use newrelic_super_agent::opamp::client_builder::OpAMPHttpBuilder;
 use newrelic_super_agent::super_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
-use newrelic_super_agent::super_agent::instance_id::ULIDInstanceIDGetter;
+use newrelic_super_agent::super_agent::instance_id_getter::{
+    OnHostIdentifiers, OnHostULIDInstanceIDGetter,
+};
+use newrelic_super_agent::super_agent::instance_id_storer::OnHostStorer;
 use newrelic_super_agent::super_agent::super_agent::{SuperAgent, SuperAgentEvent};
 use newrelic_super_agent::{cli::Cli, context::Context, logging::Logging};
 
@@ -44,7 +49,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         super_agent_config_storer = super_agent_config_storer.with_remote()?;
     }
 
-    let instance_id_getter = ULIDInstanceIDGetter::default();
+    let instance_id_getter = OnHostULIDInstanceIDGetter::default();
 
     Ok(run_super_agent(
         super_agent_config_storer,
@@ -58,7 +63,7 @@ fn run_super_agent(
     config_storer: SuperAgentConfigStoreFile,
     ctx: Context<Option<SuperAgentEvent>>,
     opamp_client_builder: Option<OpAMPHttpBuilder>,
-    instance_id_getter: ULIDInstanceIDGetter,
+    instance_id_getter: OnHostULIDInstanceIDGetter<OnHostStorer>,
 ) -> Result<(), AgentError> {
     // TODO: first matching feature will be used if --all-features is specified
     cfg_if! {
@@ -83,6 +88,10 @@ fn run_super_agent(
         HashRepositoryFile::default(),
         sub_agent_builder,
         config_storer,
+        OnHostIdentifiers {
+            hostname: "".to_string(),
+            machine_id: "".to_string(),
+        },
     )
     .run(ctx)
 }

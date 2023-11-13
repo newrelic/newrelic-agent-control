@@ -1,13 +1,23 @@
+use k8s_openapi::api::core::v1::ConfigMap;
 use k8s_openapi::api::core::v1::Pod;
+use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
+use kube::api::{DeleteParams, Patch, PatchParams, PostParams};
 use kube::config::{KubeConfigOptions, KubeconfigError};
 use kube::{api::ListParams, Api, Client, Config, Error};
 use mockall::*;
+use std::collections::BTreeMap;
 use tracing::debug;
 
 #[derive(thiserror::Error, Debug)]
 pub enum K8sExecutorError {
     #[error("it is not possible to create a k8s client")]
     UnableToSetupClient,
+
+    #[error("the cm data is malformed")]
+    CMMalformed(),
+
+    #[error("the cm key is missing")]
+    KeyIsMissing(),
 
     #[error("the kube client returned an error: `{0}`")]
     Generic(#[from] Error),
@@ -55,6 +65,75 @@ impl K8sExecutor {
         let pod_client: Api<Pod> = Api::default_namespaced(self.client.clone());
         let pod_list = pod_client.list(&ListParams::default()).await?;
         Ok(pod_list.items)
+    }
+
+    pub async fn get_configmap_key(
+        &self,
+        configmap_name: &str,
+        key: &str,
+    ) -> Result<String, K8sExecutorError> {
+        let cm_client: Api<ConfigMap> = Api::<ConfigMap>::default_namespaced(self.client.clone());
+        let cm = cm_client.get(configmap_name).await?;
+        let data = cm.data.ok_or(K8sExecutorError::CMMalformed())?;
+        let value = data.get(key).ok_or(K8sExecutorError::KeyIsMissing())?;
+        Ok(value.to_string())
+    }
+
+    pub async fn set_configmap_key(
+        &self,
+        configmap_name: &str,
+        key: &str,
+        value: &str,
+    ) -> Result<(), K8sExecutorError> {
+        let cm_client: Api<ConfigMap> = Api::<ConfigMap>::default_namespaced(self.client.clone());
+        let cm_result = cm_client.get(configmap_name).await;
+
+        let mut cm_to_update = match cm_result {
+            Ok(cm) => cm,
+            Err(_) => {
+                //Todo
+                let cm = ConfigMap {
+                    metadata: ObjectMeta {
+                        name: Some(configmap_name.to_string()),
+                        ..ObjectMeta::default()
+                    },
+                    data: Some(BTreeMap::new()),
+
+                    ..Default::default()
+                };
+
+                cm_client.create(&PostParams::default(), &cm).await?
+            }
+        };
+
+        let patch = &mut ConfigMap {
+            metadata: ObjectMeta {
+                name: Some(configmap_name.to_string()),
+                ..ObjectMeta::default()
+            },
+            data: cm_to_update.data.clone(),
+
+            ..Default::default()
+        };
+
+        patch
+            .data
+            .get_or_insert(BTreeMap::new())
+            .insert(key.to_string(), value.to_string());
+
+        let params = PatchParams::apply("myapp");
+        let patch = Patch::Apply(&patch);
+
+        cm_client.patch(configmap_name, &params, &patch).await?;
+        Ok(())
+    }
+
+    pub async fn remove_configmap_key(
+        &self,
+        configmap_name: &str,
+        key: &str,
+    ) -> Result<String, K8sExecutorError> {
+        todo!()
     }
 }
 

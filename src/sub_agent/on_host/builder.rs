@@ -1,3 +1,4 @@
+use crate::super_agent::instance_id_getter::OnHostIdentifiers;
 use crate::{
     config::{agent_type::agent_types::FinalAgent, super_agent_configs::AgentID},
     context::Context,
@@ -8,7 +9,7 @@ use crate::{
         restart_policy::RestartPolicy,
         SubAgentBuilder,
     },
-    super_agent::instance_id::InstanceIDGetter,
+    super_agent::instance_id_getter::InstanceIDGetter,
 };
 
 use super::sub_agent::NotStartedSubAgentOnHost;
@@ -20,7 +21,7 @@ use super::supervisor::{
 pub struct OnHostSubAgentBuilder<'a, O, I>
 where
     O: OpAMPClientBuilder,
-    I: InstanceIDGetter,
+    I: InstanceIDGetter<Identifier = OnHostIdentifiers>,
 {
     opamp_builder: Option<&'a O>,
     instance_id_getter: &'a I,
@@ -29,7 +30,7 @@ where
 impl<'a, O, I> OnHostSubAgentBuilder<'a, O, I>
 where
     O: OpAMPClientBuilder,
-    I: InstanceIDGetter,
+    I: InstanceIDGetter<Identifier = OnHostIdentifiers>,
 {
     pub fn new(opamp_builder: Option<&'a O>, instance_id_getter: &'a I) -> Self {
         Self {
@@ -42,7 +43,7 @@ where
 impl<'a, O, I> SubAgentBuilder for OnHostSubAgentBuilder<'a, O, I>
 where
     O: OpAMPClientBuilder,
-    I: InstanceIDGetter,
+    I: InstanceIDGetter<Identifier = OnHostIdentifiers>,
 {
     type NotStartedSubAgent = NotStartedSubAgentOnHost<'a, O, I>;
     fn build(
@@ -58,6 +59,10 @@ where
             self.opamp_builder,
             self.instance_id_getter,
             agent_type,
+            OnHostIdentifiers {
+                hostname: "".to_string(),
+                machine_id: "".to_string(),
+            },
         ))
     }
     // add code here
@@ -112,7 +117,7 @@ mod test {
     use crate::{
         config::agent_type::runtime_config::OnHost,
         opamp::client_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock},
-        super_agent::instance_id::test::MockInstanceIDGetterMock,
+        super_agent::instance_id_getter::test::MockInstanceIDGetterMock,
     };
 
     use super::*;

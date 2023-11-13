@@ -68,6 +68,6 @@ path = "src/bin/main.rs"
 
 
 [features]
-default = ["onhost"]
+default = ["k8s"]
 onhost = []
 k8s = ["dep:kube", "dep:k8s-openapi", "dep:tower", "dep:hyper", "dep:mockall"]
