@@ -1,13 +1,29 @@
-use super::error::K8sError;
+use super::{
+    error::K8sError,
+    reader::{DynamicObjectReflector, ReflectorBuilder},
+};
 use k8s_openapi::api::core::v1::Pod;
-use kube::config::{KubeConfigOptions, KubeconfigError};
-use kube::{api::ListParams, Api, Client, Config, Error};
+use kube::config::KubeConfigOptions;
+use kube::core::DynamicObject;
+use kube::{
+    api::{DeleteParams, PostParams},
+    discovery::ApiResource,
+};
+use kube::{
+    api::{ListParams, Patch, PatchParams},
+    core::GroupVersionKind,
+    Api, Client, Config,
+};
 use mockall::*;
+use std::{collections::HashMap, sync::Arc};
 use tracing::debug;
 
-#[derive(Clone)]
+const SA_ACTOR: &str = "super-agent-patch";
+
 pub struct K8sExecutor {
     client: Client,
+    reflector_builder: ReflectorBuilder,
+    dynamic_reflectors: HashMap<ApiResource, DynamicObjectReflector>,
 }
 
 #[automock]
@@ -18,21 +34,94 @@ impl K8sExecutor {
     /// This will respect the `$KUBECONFIG` envvar, but otherwise default to `~/.kube/config`.
     /// Not leveraging infer() to check inClusterConfig first
     ///
-    pub async fn try_default() -> Result<K8sExecutor, K8sError> {
+    pub async fn try_default(namespace: String) -> Result<K8sExecutor, K8sError> {
         debug!("trying inClusterConfig for k8s client");
-        let config = Config::incluster().unwrap_or({
+        let mut config = Config::incluster().unwrap_or({
             debug!("inClusterConfig failed, trying kubeconfig for k8s client");
             let c = KubeConfigOptions::default();
             Config::from_kubeconfig(&c).await?
         });
 
-        let c = Client::try_from(config)?;
+        config.default_namespace = namespace;
+
+        let client = Client::try_from(config)?;
         debug!("client creation succeeded");
-        Ok(K8sExecutor::new(c))
+
+        Ok(Self::new(client))
     }
 
-    pub fn new(c: Client) -> K8sExecutor {
-        K8sExecutor { client: c }
+    pub fn new(client: Client) -> K8sExecutor {
+        let reflector_builder = ReflectorBuilder::new(client.to_owned());
+        K8sExecutor {
+            client,
+            reflector_builder,
+            dynamic_reflectors: HashMap::new(),
+        }
+    }
+
+    pub async fn create_dynamic_object(
+        &self,
+        gvk: GroupVersionKind,
+        spec: &str,
+    ) -> Result<DynamicObject, K8sError> {
+        let api = self.namespaced_api(gvk).await?;
+
+        let object_spec: DynamicObject = serde_yaml::from_str(spec)?;
+
+        let created_object = api.create(&PostParams::default(), &object_spec).await?;
+
+        Ok(created_object)
+    }
+
+    pub async fn patch_dynamic_object(
+        &self,
+        gvk: GroupVersionKind,
+        name: &str,
+        spec: &str,
+    ) -> Result<(), K8sError> {
+        let api = self.namespaced_api(gvk).await?;
+
+        let object_spec: DynamicObject = serde_yaml::from_str(spec)?;
+
+        api.patch(
+            name,
+            &PatchParams::apply(SA_ACTOR).force(),
+            &Patch::Apply(&object_spec),
+        )
+        .await?;
+
+        Ok(())
+    }
+
+    pub async fn delete_dynamic_object(
+        &self,
+        gvk: GroupVersionKind,
+        name: &str,
+    ) -> Result<(), K8sError> {
+        let api = self.namespaced_api(gvk).await?;
+
+        api.delete(name, &DeleteParams::default()).await?;
+
+        Ok(())
+    }
+
+    // TODO this is not thread safe, lock mechanism need to be added to the reflector cache, will be added if needed when
+    // usage of these fn are defined.
+    pub async fn get_dynamic_object(
+        &mut self,
+        gvk: GroupVersionKind,
+        name: &str,
+    ) -> Result<Option<Arc<DynamicObject>>, K8sError> {
+        let ar = self.api_resource(gvk).await?;
+
+        let reflector = self
+            .dynamic_reflectors
+            .entry(ar.to_owned())
+            .or_insert(self.reflector_builder.dynamic_object_reflector(&ar).await?);
+
+        Ok(reflector
+            .reader()
+            .find(|obj| obj.metadata.name.to_owned().is_some_and(|n| n.eq(name))))
     }
 
     pub async fn get_minor_version(&self) -> Result<String, K8sError> {
@@ -45,14 +134,72 @@ impl K8sExecutor {
         let pod_list = pod_client.list(&ListParams::default()).await?;
         Ok(pod_list.items)
     }
+
+    // TODO this can be cached, or specialized in a similar way as the reflectors, so is not called on each operation.
+    async fn namespaced_api(&self, gvk: GroupVersionKind) -> Result<Api<DynamicObject>, K8sError> {
+        Ok(Api::default_namespaced_with(
+            self.client.to_owned(),
+            &self.api_resource(gvk).await?,
+        ))
+    }
+
+    async fn api_resource(&self, gvk: GroupVersionKind) -> Result<ApiResource, K8sError> {
+        let (api_resource, _) = kube::discovery::pinned_kind(&self.client, &gvk)
+            .await
+            .map_err(|_| K8sError::MissingKind(gvk.api_version(), gvk.kind))?;
+        Ok(api_resource)
+    }
 }
 
 #[cfg(test)]
 mod test {
-    use crate::k8s::executor::K8sExecutor;
+    use super::*;
+    use assert_matches::assert_matches;
     use k8s_openapi::serde_json;
-    use kube::Client;
+    use kube::{core::GroupVersionKind, Client};
     use tower_test::mock;
+
+    #[tokio::test]
+    async fn create_dynamic_object_fail_when_missing_resource_definition() {
+        let k = get_mocked_client(Scenario::Version);
+
+        let gvk = GroupVersionKind::gvk("missing_group", "ver", "kind");
+
+        let err = k.create_dynamic_object(gvk.clone(), "").await.unwrap_err();
+
+        assert_matches!(err, K8sError::MissingKind(_, _));
+    }
+
+    #[tokio::test]
+    async fn create_dynamic_object_fail_when_yaml_bad_format() {
+        // Mock must have the available gvk to not fail before.
+        let k = get_mocked_client(Scenario::APIResource);
+
+        let err = k
+            .create_dynamic_object(
+                GroupVersionKind::gvk("newrelic.com", "v1", "Foo"),
+                "bad: yaml: format",
+            )
+            .await
+            .unwrap_err();
+
+        assert_matches!(err, K8sError::SerdeYaml(_));
+    }
+
+    #[tokio::test]
+    async fn create_dynamic_object_fails_on_creation() {
+        let k = get_mocked_client(Scenario::APIResource);
+
+        let err = k
+            .create_dynamic_object(
+                GroupVersionKind::gvk("newrelic.com", "v1", "Foo"),
+                "bad: spec",
+            )
+            .await
+            .unwrap_err();
+
+        assert_matches!(err, K8sError::Generic(_));
+    }
 
     ///
     /// The following tests are just an example to show how the client can be mocked
@@ -64,7 +211,7 @@ mod test {
         let k = get_mocked_client(Scenario::Version);
         let version = k.get_minor_version().await;
 
-        assert_eq!(true, version.is_ok());
+        assert!(version.is_ok());
         let version = version.unwrap();
         assert_eq!(version, "24");
     }
@@ -74,7 +221,7 @@ mod test {
         let k = get_mocked_client(Scenario::ListPods);
         let list_pods = k.get_pods().await;
 
-        assert_eq!(true, list_pods.is_ok());
+        assert!(list_pods.is_ok());
         let pods = list_pods.unwrap();
         assert_eq!(pods.len(), 1);
         pods.iter().for_each(|pod| {
@@ -94,8 +241,8 @@ mod test {
         let (mock_service, handle) =
             mock::pair::<http::Request<hyper::Body>, http::Response<hyper::Body>>();
         ApiServerVerifier(handle).run(scenario);
-        let custom_client = Client::new(mock_service, "default");
-        K8sExecutor::new(custom_client)
+        let client = Client::new(mock_service, "default");
+        K8sExecutor::new(client)
     }
 
     type ApiServerHandle = mock::Handle<http::Request<hyper::Body>, http::Response<hyper::Body>>;
@@ -105,6 +252,7 @@ mod test {
     enum Scenario {
         Version,
         ListPods,
+        APIResource,
     }
     impl ApiServerVerifier {
         fn run(mut self, scenario: Scenario) -> tokio::task::JoinHandle<()> {
@@ -133,6 +281,18 @@ mod test {
                                 .unwrap(),
                         );
                     }
+                    Scenario::APIResource => {
+                        let (_, send) = self.0.next_request().await.expect("service not called");
+
+                        let response =
+                            serde_json::to_vec(&ApiServerVerifier::get_api_resource()).unwrap();
+
+                        send.send_response(
+                            http::Response::builder()
+                                .body(hyper::Body::from(response))
+                                .unwrap(),
+                        );
+                    }
                 }
             })
         }
@@ -147,6 +307,25 @@ mod test {
               "goVersion": "go1.19.10 X:boringcrypto",
               "compiler": "gc",
               "platform": "linux/amd64"
+            })
+        }
+
+        /// generated after CRD creation with kubectl get --raw /apis/newrelic.com/v1
+        fn get_api_resource() -> serde_json::Value {
+            serde_json::json!({
+              "kind": "APIResourceList",
+              "apiVersion": "v1",
+              "groupVersion": "newrelic.com/v1",
+              "resources": [
+                {
+                  "name": "foos",
+                  "singularName": "foo",
+                  "namespaced": true,
+                  "kind": "Foo",
+                  "verbs": ["delete","get","create"], // simplified
+                  "storageVersionHash": "PhxIpEAAgRo="
+                }
+              ]
             })
         }
 
