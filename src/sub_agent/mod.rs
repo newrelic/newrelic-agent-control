@@ -2,6 +2,7 @@
 pub mod collection;
 pub mod error;
 pub mod logger;
+pub mod opamp;
 pub mod restart_policy;
 
 #[cfg(feature = "onhost")]
