@@ -5,7 +5,7 @@ use opamp_client::opamp::proto::{RemoteConfigStatus, RemoteConfigStatuses};
 use opamp_client::StartedClient;
 
 pub mod client_builder;
-pub mod remote_config_updater;
+pub mod remote_config_publisher;
 
 pub fn report_remote_config_status_applying<O>(
     opamp_client: &O,

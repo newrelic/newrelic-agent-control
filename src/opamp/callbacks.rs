@@ -1,6 +1,6 @@
 use crate::config::super_agent_configs::AgentID;
 use crate::opamp::remote_config::RemoteConfigError;
-use crate::opamp::remote_config_updater::RemoteConfigUpdater;
+use crate::opamp::remote_config_publisher::RemoteConfigPublisher;
 use log::trace;
 use opamp_client::{
     error::ConnectionError,
@@ -32,27 +32,27 @@ pub enum AgentCallbacksError {
 
 pub struct AgentCallbacks<T>
 where
-    T: RemoteConfigUpdater,
+    T: RemoteConfigPublisher,
 {
     agent_id: AgentID,
-    remote_config_updater: T,
+    remote_config_publisher: T,
 }
 
 impl<T> AgentCallbacks<T>
 where
-    T: RemoteConfigUpdater,
+    T: RemoteConfigPublisher,
 {
-    pub fn new(agent_id: AgentID, remote_config_updater: T) -> Self {
+    pub fn new(agent_id: AgentID, remote_config_publisher: T) -> Self {
         Self {
             agent_id,
-            remote_config_updater,
+            remote_config_publisher,
         }
     }
 }
 
 impl<T> Callbacks for AgentCallbacks<T>
 where
-    T: RemoteConfigUpdater,
+    T: RemoteConfigPublisher,
 {
     type Error = AgentCallbacksError;
 
@@ -68,7 +68,7 @@ where
         if let Some(msg_remote_config) = msg.remote_config {
             trace!("OpAMP message received");
             let result = self
-                .remote_config_updater
+                .remote_config_publisher
                 .update(self.agent_id.clone(), &msg_remote_config)
                 .map_err(|error| error!("{}", error));
             match result {
@@ -126,23 +126,23 @@ mod tests {
     use super::*;
     use crate::opamp::remote_config::{ConfigMap, RemoteConfig};
     use crate::opamp::remote_config_hash::Hash;
-    use crate::opamp::remote_config_updater::RemoteConfigUpdaterError;
+    use crate::opamp::remote_config_publisher::RemoteConfigPublisherError;
     use crate::super_agent::super_agent::SuperAgentEvent;
     use mockall::{mock, predicate};
     use opamp_client::opamp::proto::{AgentConfigFile, AgentConfigMap, AgentRemoteConfig};
     use std::collections::HashMap;
 
     mock! {
-        pub RemoteConfigUpdaterMock {}
+        pub RemoteConfigPublisherMock {}
 
-        impl RemoteConfigUpdater for RemoteConfigUpdaterMock {
+        impl RemoteConfigPublisher for RemoteConfigPublisherMock {
             fn on_config_ok(&self, remote_config: RemoteConfig) -> SuperAgentEvent;
             fn on_config_err(&self, err: RemoteConfigError) -> SuperAgentEvent;
-            fn publish_event(&self, event: SuperAgentEvent) -> Result<(), RemoteConfigUpdaterError>;
+            fn publish_event(&self, event: SuperAgentEvent) -> Result<(), RemoteConfigPublisherError>;
             }
     }
 
-    impl MockRemoteConfigUpdaterMock {
+    impl MockRemoteConfigPublisherMock {
         pub fn should_on_config_ok(&mut self, remote_config: RemoteConfig, event: SuperAgentEvent) {
             let event = event.clone();
             self.expect_on_config_ok()
@@ -190,7 +190,7 @@ mod tests {
             agent_identification: None,
         };
 
-        let mut config_updater = MockRemoteConfigUpdaterMock::new();
+        let mut config_updater = MockRemoteConfigPublisherMock::new();
         let expected_config_map = ConfigMap::new(HashMap::from([(
             "my-config".to_string(),
             "enable_proces_metrics: true".to_string(),

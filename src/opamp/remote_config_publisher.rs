@@ -12,7 +12,7 @@ use opamp_client::opamp::proto::AgentRemoteConfig;
 //TODO this callbacks thing is just is a draft idea
 
 #[derive(Error, Debug)]
-pub enum RemoteConfigUpdaterError {
+pub enum RemoteConfigPublisherError {
     #[error("unable to publish remote config event")]
     PublishEventError,
     #[error("Invalid UTF-8 sequence: `{0}`")]
@@ -22,17 +22,17 @@ pub enum RemoteConfigUpdaterError {
     EmptyRemoteConfig,
 }
 
-pub trait RemoteConfigUpdater {
+pub trait RemoteConfigPublisher {
     fn on_config_ok(&self, remote_config: RemoteConfig) -> SuperAgentEvent;
     fn on_config_err(&self, err: RemoteConfigError) -> SuperAgentEvent;
 
-    fn publish_event(&self, event: SuperAgentEvent) -> Result<(), RemoteConfigUpdaterError>;
+    fn publish_event(&self, event: SuperAgentEvent) -> Result<(), RemoteConfigPublisherError>;
 
     fn update(
         &self,
         agent_id: AgentID,
         msg_remote_config: &AgentRemoteConfig,
-    ) -> Result<(), RemoteConfigUpdaterError> {
+    ) -> Result<(), RemoteConfigPublisherError> {
         if let Some(msg_config_map) = &msg_remote_config.config {
             //Check if hash is empty
             let config: Result<ConfigMap, RemoteConfigError> = msg_config_map.try_into();
@@ -70,6 +70,6 @@ pub trait RemoteConfigUpdater {
             };
             return self.publish_event(event);
         }
-        Err(RemoteConfigUpdaterError::EmptyRemoteConfig)
+        Err(RemoteConfigPublisherError::EmptyRemoteConfig)
     }
 }

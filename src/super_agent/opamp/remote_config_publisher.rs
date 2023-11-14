@@ -1,19 +1,19 @@
 use crate::context::Context;
 use crate::opamp::remote_config::{RemoteConfig, RemoteConfigError};
-use crate::opamp::remote_config_updater::{RemoteConfigUpdater, RemoteConfigUpdaterError};
+use crate::opamp::remote_config_publisher::{RemoteConfigPublisher, RemoteConfigPublisherError};
 use crate::super_agent::super_agent::SuperAgentEvent;
 
-pub struct SuperAgentRemoteConfigUpdater {
+pub struct SuperAgentRemoteConfigPublisher {
     ctx: Context<Option<SuperAgentEvent>>,
 }
 
-impl SuperAgentRemoteConfigUpdater {
+impl SuperAgentRemoteConfigPublisher {
     pub fn new(ctx: Context<Option<SuperAgentEvent>>) -> Self {
-        SuperAgentRemoteConfigUpdater { ctx }
+        SuperAgentRemoteConfigPublisher { ctx }
     }
 }
 
-impl RemoteConfigUpdater for SuperAgentRemoteConfigUpdater {
+impl RemoteConfigPublisher for SuperAgentRemoteConfigPublisher {
     fn on_config_ok(&self, remote_config: RemoteConfig) -> SuperAgentEvent {
         SuperAgentEvent::SuperAgentRemoteConfigValid(remote_config)
     }
@@ -22,10 +22,10 @@ impl RemoteConfigUpdater for SuperAgentRemoteConfigUpdater {
         SuperAgentEvent::SuperAgentRemoteConfigInvalid(err)
     }
 
-    fn publish_event(&self, event: SuperAgentEvent) -> Result<(), RemoteConfigUpdaterError> {
+    fn publish_event(&self, event: SuperAgentEvent) -> Result<(), RemoteConfigPublisherError> {
         return self
             .ctx
             .cancel_all(Some(event))
-            .map_err(|_| RemoteConfigUpdaterError::PublishEventError);
+            .map_err(|_| RemoteConfigPublisherError::PublishEventError);
     }
 }

@@ -4,7 +4,7 @@ use crate::opamp::callbacks::AgentCallbacks;
 use crate::opamp::client_builder::{
     build_http_client, OpAMPClientBuilder, OpAMPClientBuilderError,
 };
-use crate::sub_agent::opamp::remote_config_updater::SubAgentRemoteConfigUpdater;
+use crate::sub_agent::opamp::remote_config_publisher::SubAgentRemoteConfigPublisher;
 use crate::super_agent::opamp::client_builder::SuperAgentOpAMPHttpBuilder;
 use crate::super_agent::super_agent::SuperAgentEvent;
 use crate::utils::time::get_sys_time_nano;
@@ -34,7 +34,8 @@ impl<'a> From<&'a SuperAgentOpAMPHttpBuilder> for SubAgentOpAMPHttpBuilder {
 }
 
 impl OpAMPClientBuilder for SubAgentOpAMPHttpBuilder {
-    type Client = StartedHttpClient<AgentCallbacks<SubAgentRemoteConfigUpdater>, HttpClientReqwest>;
+    type Client =
+        StartedHttpClient<AgentCallbacks<SubAgentRemoteConfigPublisher>, HttpClientReqwest>;
     fn build_and_start(
         &self,
         ctx: Context<Option<SuperAgentEvent>>,
@@ -42,8 +43,8 @@ impl OpAMPClientBuilder for SubAgentOpAMPHttpBuilder {
         start_settings: StartSettings,
     ) -> Result<Self::Client, OpAMPClientBuilderError> {
         let http_client = build_http_client(&self.config)?;
-        let remote_config_updater = SubAgentRemoteConfigUpdater::new(ctx);
-        let callbacks = AgentCallbacks::new(agent_id, remote_config_updater);
+        let remote_config_publisher = SubAgentRemoteConfigPublisher::new(ctx);
+        let callbacks = AgentCallbacks::new(agent_id, remote_config_publisher);
 
         let not_started_client = NotStartedHttpClient::new(callbacks, start_settings, http_client)?;
         let started_client = block_on(not_started_client.start())?;
