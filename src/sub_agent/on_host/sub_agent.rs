@@ -1,6 +1,8 @@
+use std::collections::HashMap;
 use std::thread::JoinHandle;
 
 use futures::executor::block_on;
+use nix::unistd::gethostname;
 use opamp_client::opamp::proto::AgentHealth;
 use opamp_client::StartedClient;
 use tracing::info;
@@ -10,7 +12,7 @@ use crate::config::super_agent_configs::{AgentID, AgentTypeFQN};
 use crate::context::Context;
 use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPClientBuilderError};
 use crate::sub_agent::error::SubAgentError;
-use crate::sub_agent::on_host::opamp::build_opamp_and_start_client;
+use crate::sub_agent::opamp;
 use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
 use crate::super_agent::instance_id::InstanceIDGetter;
 use crate::super_agent::super_agent::SuperAgentEvent;
@@ -61,12 +63,16 @@ where
         &self,
         ctx: Context<Option<SuperAgentEvent>>,
     ) -> Result<Option<OpAMPBuilder::Client>, OpAMPClientBuilderError> {
-        build_opamp_and_start_client(
+        let opamp_start_settings = opamp::start_settings(
+            self.instance_id_getter.get(&self.agent_id),
+            &self.agent_type,
+            HashMap::from([("host.name".to_string(), get_hostname().into())]),
+        );
+        opamp::start_client(
             ctx,
             self.opamp_builder,
-            self.instance_id_getter,
             self.agent_id.clone(),
-            &self.agent_type,
+            opamp_start_settings,
         )
     }
 }
@@ -159,4 +165,12 @@ where
         }
         Ok(stopped_runners)
     }
+}
+
+fn get_hostname() -> String {
+    #[cfg(unix)]
+    return gethostname().unwrap_or_default().into_string().unwrap();
+
+    #[cfg(not(unix))]
+    return unimplemented!();
 }
