@@ -69,7 +69,8 @@ fn run_super_agent(
     // TODO: first matching feature will be used if --all-features is specified
     cfg_if! {
      if #[cfg(feature = "onhost")] {
-            let hash_repository = HashRepositoryFile::new_sub_agent_repository();
+            let hash_repository = HashRepositoryFile::default();
+            let sub_agent_hash_repository = HashRepositoryFile::new_sub_agent_repository();
             // Program must run as root if onhost execution
             #[cfg(unix)]
             if !nix::unistd::Uid::effective().is_root() {
@@ -85,6 +86,7 @@ fn run_super_agent(
         } else if #[cfg(feature = "k8s")] {
             //FIXME: this repository should be the concretion needed for K8s, hashRepositoryConfigMap?
             let mut hash_repository = HashRepositoryFile::default();
+            let sub_agent_hash_repository = HashRepositoryFile::new_sub_agent_repository();
 
             let sub_agent_builder = newrelic_super_agent::sub_agent::k8s::builder::K8sSubAgentBuilder::default();
                 panic!("K8S still not implemented");
@@ -96,7 +98,6 @@ fn run_super_agent(
     config_persister.delete_all_configs()?;
 
     info!("Starting the super agent");
-    let sub_agent_hash_repository = HashRepositoryFile::new_sub_agent_repository();
     let values_repository = RemoteValuesRepositoryFile::default();
 
     SuperAgent::new(
