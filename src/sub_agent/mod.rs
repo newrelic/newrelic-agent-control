@@ -2,21 +2,23 @@
 pub mod collection;
 pub mod error;
 pub mod logger;
+pub mod opamp;
 pub mod restart_policy;
+pub mod values;
 
 #[cfg(feature = "onhost")]
 pub mod on_host;
 
-pub mod callbacks;
 #[cfg(feature = "k8s")]
 pub mod k8s;
 
 use std::thread::JoinHandle;
 
 // CRATE TRAITS
-use crate::config::super_agent_configs::AgentTypeFQN;
-use crate::config::{agent_type::agent_types::FinalAgent, super_agent_configs::AgentID};
-use crate::super_agent::effective_agents_assembler::EffectiveAgentsAssemblerError;
+use crate::config::super_agent_configs::AgentID;
+use crate::config::super_agent_configs::SubAgentConfig;
+use crate::context::Context;
+use crate::super_agent::super_agent::SuperAgentEvent;
 
 use self::logger::Event;
 
@@ -37,23 +39,32 @@ pub trait SubAgentBuilder {
     type NotStartedSubAgent: NotStartedSubAgent;
     fn build(
         &self,
-        agent: Result<FinalAgent, EffectiveAgentsAssemblerError>,
         agent_id: AgentID,
-        agent_type: &AgentTypeFQN,
+        sub_agent_config: &SubAgentConfig,
         tx: std::sync::mpsc::Sender<Event>,
+        ctx: Context<Option<SuperAgentEvent>>,
     ) -> Result<Self::NotStartedSubAgent, error::SubAgentBuilderError>;
 }
 
 #[cfg(test)]
 pub mod test {
     use super::*;
-    use mockall::mock;
+    use crate::sub_agent::error::SubAgentBuilderError;
+    use crate::sub_agent::error::SubAgentError::ErrorCreatingSubAgent;
+    use mockall::{mock, predicate};
+    use std::sync::mpsc::Sender;
 
     mock! {
         pub StartedSubAgent {}
 
         impl StartedSubAgent for StartedSubAgent {
             fn stop(self) -> Result<Vec<JoinHandle<()>>, error::SubAgentError>;
+        }
+    }
+
+    impl MockStartedSubAgent {
+        pub fn should_stop(&mut self) {
+            self.expect_stop().once().returning(|| Ok(Vec::new()));
         }
     }
 
@@ -75,10 +86,10 @@ pub mod test {
 
             fn build(
                 &self,
-                agent: Result<FinalAgent, EffectiveAgentsAssemblerError>,
                 agent_id: AgentID,
-                agent_type: &AgentTypeFQN,
+                sub_agent_config: &SubAgentConfig,
                 tx: std::sync::mpsc::Sender<Event>,
+                ctx: Context<Option<SuperAgentEvent>>,
             ) -> Result<<Self as SubAgentBuilder>::NotStartedSubAgent, error::SubAgentBuilderError>;
         }
     }
@@ -98,6 +109,38 @@ pub mod test {
                     Ok(started_agent)
                 });
                 Ok(not_started_sub_agent)
+            });
+        }
+        // should_build_running provides a helper method to create a Sub Agent which runs
+        // successfully and does not stop
+        pub(crate) fn should_build_running(
+            &mut self,
+            agent_id: &AgentID,
+            sub_agent_config: SubAgentConfig,
+        ) {
+            self.expect_build()
+                .once()
+                .with(
+                    predicate::eq(agent_id.clone()),
+                    predicate::eq(sub_agent_config),
+                    predicate::always(),
+                    predicate::always(),
+                )
+                .returning(|_, _, _, _| {
+                    let mut not_started_sub_agent = MockNotStartedSubAgent::new();
+                    not_started_sub_agent
+                        .expect_run()
+                        .once()
+                        .returning(|| Ok(MockStartedSubAgent::new()));
+                    Ok(not_started_sub_agent)
+                });
+        }
+
+        pub(crate) fn should_not_build(&mut self, times: usize) {
+            self.expect_build().times(times).returning(|_, _, _, _| {
+                Err(SubAgentBuilderError::SubAgent(ErrorCreatingSubAgent(
+                    "error creating sub agent".to_string(),
+                )))
             });
         }
     }

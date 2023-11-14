@@ -1,9 +1,11 @@
-use crate::config::remote_config_hash::Hash;
-use crate::config::super_agent_configs::AgentID;
-use opamp_client::opamp::proto::AgentConfigMap;
 use std::collections::HashMap;
 use std::str::Utf8Error;
+
+use opamp_client::opamp::proto::AgentConfigMap;
 use thiserror::Error;
+
+use crate::config::super_agent_configs::AgentID;
+use crate::opamp::remote_config_hash::Hash;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct RemoteConfig {
@@ -12,7 +14,7 @@ pub struct RemoteConfig {
     pub config_map: ConfigMap,
 }
 
-#[derive(Error, Debug, Clone)]
+#[derive(Error, Debug, Clone, PartialEq)]
 pub enum RemoteConfigError {
     #[error("invalid UTF-8 sequence: `{0}`")]
     UTF8(#[from] Utf8Error),
@@ -23,6 +25,28 @@ pub enum RemoteConfigError {
 
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct ConfigMap(HashMap<String, String>);
+
+impl RemoteConfig {
+    //TODO : This is temporal as when there is only one conf item we should receive an empty string as key
+    pub fn get_unique(&self) -> Result<&String, RemoteConfigError> {
+        match self.config_map.0.len() {
+            0 => Err(RemoteConfigError::InvalidConfig(
+                self.hash.get(),
+                "empty config map".to_string(),
+            )),
+            1 => {
+                if let Some(key) = self.config_map.0.keys().next() {
+                    return Ok(self.config_map.get(key).unwrap());
+                }
+                unreachable!("this cannot happen")
+            }
+            _ => Err(RemoteConfigError::InvalidConfig(
+                self.hash.get(),
+                "too many config items".to_string(),
+            )),
+        }
+    }
+}
 
 impl ConfigMap {
     pub fn new(config_map: HashMap<String, String>) -> Self {

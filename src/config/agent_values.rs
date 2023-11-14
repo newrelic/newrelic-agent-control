@@ -1,5 +1,6 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap as Map;
+use thiserror::Error;
 
 use super::agent_type::agent_types::FinalAgent;
 use super::agent_type::error::AgentTypeError;
@@ -84,8 +85,14 @@ use super::agent_type::trivial_value::TrivialValue;
 /// Please see the tests in the sources for more examples.
 ///
 /// [agent_type]: crate::config::agent_type
-#[derive(Debug, PartialEq, Deserialize, Default, Clone)]
+#[derive(Debug, PartialEq, Deserialize, Serialize, Default, Clone)]
 pub struct AgentValues(Map<String, TrivialValue>);
+
+#[derive(Error, Debug)]
+pub enum AgentValuesError {
+    #[error("invalid agent values format: `{0}`")]
+    FormatError(#[from] serde_yaml::Error),
+}
 
 impl AgentValues {
     /// get_from_normalized recursively searches for a TrivialValue given a normalized prefix.  A
@@ -117,6 +124,14 @@ impl AgentValues {
         }
 
         Ok(self)
+    }
+}
+
+impl TryFrom<String> for AgentValues {
+    type Error = AgentValuesError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Ok(serde_yaml::from_str::<AgentValues>(value.as_str())?)
     }
 }
 
@@ -152,12 +167,19 @@ fn update_from_normalized(
     }
     None
 }
+
 #[cfg(test)]
 mod tests {
 
     use crate::config::agent_type::trivial_value::{FilePathWithContent, N};
 
     use super::*;
+
+    impl AgentValues {
+        pub fn new(values: Map<String, TrivialValue>) -> Self {
+            Self { 0: values }
+        }
+    }
 
     const EXAMPLE_CONFIG: &str = r#"
 description:

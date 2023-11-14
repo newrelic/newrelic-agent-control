@@ -1,4 +1,5 @@
 use crate::config::store::SuperAgentConfigStoreError;
+use crate::opamp::remote_config::RemoteConfigError;
 use std::fmt::Debug;
 use thiserror::Error;
 
@@ -15,4 +16,10 @@ pub enum SuperAgentConfigError {
 
     #[error("`{0}`")]
     InvalidYamlConfiguration(#[from] serde_yaml::Error),
+
+    #[error("remote config error: `{0}`")]
+    RemoteConfigError(#[from] RemoteConfigError),
+
+    #[error("remote config error: `{0}`")]
+    IOError(#[from] std::io::Error),
 }

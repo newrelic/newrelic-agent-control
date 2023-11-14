@@ -44,7 +44,10 @@ impl DirectoryManager for DirectoryManagerFs {
     ) -> Result<(), DirectoryManagementError> {
         validate_path(path)?;
 
-        let directory_creation = DirBuilder::new().mode(permissions.mode()).create(path);
+        let directory_creation = DirBuilder::new()
+            .mode(permissions.mode())
+            .recursive(true)
+            .create(path);
         match directory_creation {
             Err(e) => Err(DirectoryManagementError::ErrorCreatingDirectory(
                 path.to_str().unwrap().to_string(),
@@ -182,7 +185,7 @@ pub mod test {
 
     #[cfg(target_family = "unix")]
     #[test]
-    fn test_folder_creation_should_fail_if_exists() {
+    fn test_folder_creation_should_not_fail_if_exists() {
         // Prepare temp path and folder name
         let folder_name = "some_file";
         // tempdir gets automatically removed on drop
@@ -196,7 +199,7 @@ pub mod test {
         let create_result = directory_manager.create(path.as_path(), some_permissions.clone());
         assert!(create_result.is_ok());
         let create_result = directory_manager.create(path.as_path(), some_permissions.clone());
-        assert!(create_result.is_err());
+        assert!(create_result.is_ok());
     }
 
     #[cfg(target_family = "unix")]

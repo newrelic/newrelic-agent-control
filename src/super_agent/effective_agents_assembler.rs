@@ -4,11 +4,16 @@ use thiserror::Error;
 use tracing::error;
 
 use crate::config::agent_type::agent_types::FinalAgent;
-use crate::config::persister::remote_values_persister_file::RemoteConfigurationPersisterFile;
+use crate::config::persister::config_writer_file::WriterFile;
+use crate::config::persister::directory_manager::DirectoryManagerFs;
 use crate::config::super_agent_configs::{
-    get_remote_data_path, get_values_file_path, AgentID, SubAgentConfig, SubAgentsConfig,
+    get_remote_data_path, get_values_file_path, AgentID, SubAgentConfig,
 };
-use crate::super_agent::super_agent::{EffectiveAgents, EffectiveAgentsError};
+use crate::sub_agent::values::remote_values_repository::{
+    RemoteValuesRepository, RemoteValuesRepositoryError, RemoteValuesRepositoryFile,
+};
+use crate::super_agent::effective_agents_assembler::EffectiveAgentsAssemblerError::RemoteConfigLoadError;
+use crate::super_agent::super_agent::EffectiveAgentsError;
 use crate::{
     config::{
         agent_type::error::AgentTypeError,
@@ -38,14 +43,13 @@ pub enum EffectiveAgentsAssemblerError {
     EffectiveAgentsError(#[from] EffectiveAgentsError),
     #[error("could not get path string")]
     BadPath,
+    #[error("cannot load remote config: `{0}`")]
+    RemoteConfigLoadError(String),
+    #[error("values error: `{0}`")]
+    ValuesRepositoryError(#[from] RemoteValuesRepositoryError),
 }
 
 pub trait EffectiveAgentsAssembler {
-    fn assemble_agents(
-        &self,
-        agent_cfgs: &SubAgentsConfig,
-    ) -> Result<EffectiveAgents, EffectiveAgentsAssemblerError>;
-
     fn assemble_agent(
         &self,
         agent_id: &AgentID,
@@ -58,11 +62,11 @@ where
     R: AgentRegistry,
     C: ConfigurationPersister,
     F: FileReader,
-    D: ConfigurationPersister,
+    D: RemoteValuesRepository,
 {
     registry: R,
     config_persister: C,
-    remote_config_persister: D,
+    remote_values_repo: D,
     file_reader: F,
     opamp_enabled: bool,
 }
@@ -72,7 +76,7 @@ impl
         LocalRegistry,
         ConfigurationPersisterFile,
         FSFileReader,
-        RemoteConfigurationPersisterFile,
+        RemoteValuesRepositoryFile<DirectoryManagerFs, WriterFile>,
     >
 {
     pub fn with_remote_management(
@@ -81,12 +85,12 @@ impl
         LocalRegistry,
         ConfigurationPersisterFile,
         FSFileReader,
-        RemoteConfigurationPersisterFile,
+        RemoteValuesRepositoryFile<DirectoryManagerFs, WriterFile>,
     > {
         LocalEffectiveAgentsAssembler {
             registry: LocalRegistry::default(),
             config_persister: ConfigurationPersisterFile::default(),
-            remote_config_persister: RemoteConfigurationPersisterFile::default(),
+            remote_values_repo: RemoteValuesRepositoryFile::default(),
             file_reader: FSFileReader,
             opamp_enabled,
         }
@@ -98,28 +102,8 @@ where
     R: AgentRegistry,
     C: ConfigurationPersister,
     F: FileReader,
-    D: ConfigurationPersister,
+    D: RemoteValuesRepository,
 {
-    fn assemble_agents(
-        &self,
-        agent_cfgs: &SubAgentsConfig,
-    ) -> Result<EffectiveAgents, EffectiveAgentsAssemblerError> {
-        //clean all temporary configurations
-        self.config_persister.delete_all_configs()?;
-        let mut effective_agents = EffectiveAgents::default();
-
-        // Delete all remote values if opamp is disabled
-        if !self.opamp_enabled {
-            self.remote_config_persister.delete_all_configs()?;
-        }
-
-        for (agent_id, agent_cfg) in agent_cfgs.iter() {
-            let effective_agent = self.assemble_agent(agent_id, agent_cfg)?;
-            effective_agents.add(agent_id.clone(), effective_agent)?;
-        }
-        Ok(effective_agents)
-    }
-
     fn assemble_agent(
         &self,
         agent_id: &AgentID,
@@ -152,7 +136,7 @@ where
     R: AgentRegistry,
     C: ConfigurationPersister,
     F: FileReader,
-    D: ConfigurationPersister,
+    D: RemoteValuesRepository,
 {
     // Load a file contents only if the file is present.
     // If the file is not present there is no error nor file
@@ -182,13 +166,11 @@ where
         &self,
         agent_id: &AgentID,
         agent_type: &FinalAgent,
-    ) -> Result<(), PersistError> {
+    ) -> Result<(), RemoteValuesRepositoryError> {
         let is_remote_capable = agent_type.has_remote_management();
         if !self.opamp_enabled || !is_remote_capable {
             //  clean up remote dirs
-            return self
-                .remote_config_persister
-                .delete_agent_config(agent_id, agent_type);
+            return self.remote_values_repo.delete_agent_values(agent_id);
         }
         Ok(())
     }
@@ -203,6 +185,9 @@ where
         if self.opamp_enabled && agent_type.has_remote_management() {
             let remote_values_path = get_remote_data_path(agent_id).join("values.yml");
             values_result = self.load_file_if_present(remote_values_path);
+            if let Err(e) = values_result {
+                return Err(RemoteConfigLoadError(e.to_string()));
+            }
         }
 
         if let Ok(None) = values_result {
@@ -228,6 +213,7 @@ pub(crate) mod tests {
     use std::collections::HashMap;
     use std::io::{Error, ErrorKind};
 
+    use crate::sub_agent::values::remote_values_repository::test::MockRemoteValuesRepositoryMock;
     use crate::super_agent::defaults::SUPER_AGENT_LOCAL_DATA_DIR;
     use crate::{
         config::{
@@ -250,11 +236,6 @@ pub(crate) mod tests {
         pub(crate) EffectiveAgentAssemblerMock {}
 
         impl EffectiveAgentsAssembler for EffectiveAgentAssemblerMock {
-            fn assemble_agents(
-                &self,
-                agent_cfgs: &SubAgentsConfig,
-            ) -> Result<EffectiveAgents, EffectiveAgentsAssemblerError>;
-
             fn assemble_agent(
                 &self,
                 agent_id: &AgentID,
@@ -264,34 +245,6 @@ pub(crate) mod tests {
     }
 
     impl MockEffectiveAgentAssemblerMock {
-        pub fn should_assemble_agents(
-            &mut self,
-            agent_cfgs: &SubAgentsConfig,
-            effective_agents: EffectiveAgents,
-        ) {
-            self.expect_assemble_agents()
-                .once()
-                .with(predicate::eq(agent_cfgs.clone()))
-                .returning(move |_| Ok(effective_agents.clone()));
-        }
-
-        pub fn should_not_assemble_agents(
-            &mut self,
-            agent_cfgs: &SubAgentsConfig,
-            err_kind: ErrorKind,
-        ) {
-            self.expect_assemble_agents()
-                .once()
-                .with(predicate::eq(agent_cfgs.clone()))
-                .returning(move |_| {
-                    Err(EffectiveAgentsAssemblerError::ConfigurationPersisterError(
-                        PersistError::FileError(WriteError::ErrorCreatingFile(
-                            std::io::Error::from(err_kind),
-                        )),
-                    ))
-                });
-        }
-
         pub fn should_assemble_agent(
             &mut self,
             agent_id: &AgentID,
@@ -334,7 +287,7 @@ pub(crate) mod tests {
         R: AgentRegistry,
         C: ConfigurationPersister,
         F: FileReader,
-        D: ConfigurationPersister,
+        D: RemoteValuesRepository,
     {
         pub fn new(
             registry: R,
@@ -346,7 +299,7 @@ pub(crate) mod tests {
             Self {
                 registry,
                 config_persister,
-                remote_config_persister,
+                remote_values_repo: remote_config_persister,
                 file_reader,
                 opamp_enabled,
             }
@@ -401,27 +354,31 @@ pub(crate) mod tests {
             .returning(|_| Ok(SECOND_TYPE_VALUES.to_string()));
 
         let mut config_persister = MockConfigurationPersisterMock::new();
-        config_persister.should_delete_all_configs();
 
         // cannot assert on agent types as it's iterating a hashmap
         config_persister.should_delete_any_agent_config(2);
         config_persister.should_persist_any_agent_config(2);
 
-        let mut remote_config_persister = MockConfigurationPersisterMock::new();
+        let sub_agent_values_repo = MockRemoteValuesRepositoryMock::new();
 
-        let effective_agents = LocalEffectiveAgentsAssembler::new(
+        let assembler = LocalEffectiveAgentsAssembler::new(
             local_agent_type_repository,
             config_persister,
-            remote_config_persister,
+            sub_agent_values_repo,
             file_reader_mock,
             true,
-        )
-        .assemble_agents(&agent_config.agents)
-        .unwrap();
+        );
 
-        let first_agent = effective_agents
-            .get(&AgentID::new("first").unwrap())
+        let first_agent = assembler
+            .assemble_agent(
+                &AgentID::new("first").unwrap(),
+                &agent_config
+                    .agents
+                    .get(&AgentID::new("first").unwrap())
+                    .unwrap(),
+            )
             .unwrap();
+
         let file = first_agent
             .variables
             .get("config")
@@ -434,9 +391,16 @@ pub(crate) mod tests {
         };
         assert_eq!("license_key: abc123\nstaging: true\n", f.content);
 
-        let second_agent = effective_agents
-            .get(&AgentID::new("second").unwrap())
+        let second_agent = assembler
+            .assemble_agent(
+                &AgentID::new("second").unwrap(),
+                &agent_config
+                    .agents
+                    .get(&AgentID::new("second").unwrap())
+                    .unwrap(),
+            )
             .unwrap();
+
         let get_path = second_agent
             .variables
             .get("deployment.on_host.path")
@@ -479,26 +443,31 @@ pub(crate) mod tests {
             .returning(|_| Ok(SECOND_TYPE_VALUES.to_string()));
 
         let mut config_persister = MockConfigurationPersisterMock::new();
-        config_persister.should_delete_all_configs();
 
         // cannot assert on agent types as it's iterating a hashmap
         config_persister.should_delete_any_agent_config(2);
         config_persister.should_persist_any_agent_config(2);
 
-        let remote_config_persister = MockConfigurationPersisterMock::new();
+        let sub_agent_values_repo = MockRemoteValuesRepositoryMock::new();
 
-        let effective_agents = LocalEffectiveAgentsAssembler::new(
+        let assembler = LocalEffectiveAgentsAssembler::new(
             local_agent_type_repository,
             config_persister,
-            remote_config_persister,
+            sub_agent_values_repo,
             file_reader_mock,
             true,
-        )
-        .assemble_agents(&agent_config.agents)
-        .unwrap();
-        let first_agent = effective_agents
-            .get(&AgentID::new("first").unwrap())
+        );
+
+        let first_agent = assembler
+            .assemble_agent(
+                &AgentID::new("first").unwrap(),
+                &agent_config
+                    .agents
+                    .get(&AgentID::new("first").unwrap())
+                    .unwrap(),
+            )
             .unwrap();
+
         let file = first_agent
             .variables
             .get("config")
@@ -511,9 +480,16 @@ pub(crate) mod tests {
         };
         assert_eq!("license_key: abc123\nstaging: true\n", f.content);
 
-        let second_agent = effective_agents
-            .get(&AgentID::new("second").unwrap())
+        let second_agent = assembler
+            .assemble_agent(
+                &AgentID::new("second").unwrap(),
+                &agent_config
+                    .agents
+                    .get(&AgentID::new("second").unwrap())
+                    .unwrap(),
+            )
             .unwrap();
+
         let get_path = second_agent
             .variables
             .get("deployment.on_host.path")
@@ -613,11 +589,11 @@ pub(crate) mod tests {
         let mut file_reader_mock = MockFileReaderMock::new();
         //not idempotent test as the order of a hashmap is random
         file_reader_mock.could_read(
-            format!("{SUPER_AGENT_LOCAL_DATA_DIR}/agents.d/{first_agent_id}/values.yml"),
+            format!("{SUPER_AGENT_LOCAL_DATA_DIR}fleet/agents.d/{first_agent_id}/values.yml"),
             SECOND_TYPE_VALUES.to_string(),
         );
         file_reader_mock.could_read(
-            format!("{SUPER_AGENT_LOCAL_DATA_DIR}/agents.d/{second_agent_id}/values.yml"),
+            format!("{SUPER_AGENT_LOCAL_DATA_DIR}/fleet/agents.d/{second_agent_id}/values.yml"),
             SECOND_TYPE_VALUES.to_string(),
         );
 
@@ -631,23 +607,29 @@ pub(crate) mod tests {
         );
 
         let mut config_persister = MockConfigurationPersisterMock::new();
-        config_persister.should_delete_all_configs();
 
         let err = PersistError::DirectoryError(DirectoryManagementError::ErrorDeletingDirectory(
             "unauthorized".to_string(),
         ));
         // we cannot assert on the agent as the order of a hashmap is random
         config_persister.should_not_delete_any_agent_config(err);
-        let mut remote_config_persister = MockConfigurationPersisterMock::new();
+        let sub_agent_values_repo = MockRemoteValuesRepositoryMock::new();
 
-        let result = LocalEffectiveAgentsAssembler::new(
+        let assembler = LocalEffectiveAgentsAssembler::new(
             local_agent_type_repository,
             config_persister,
-            remote_config_persister,
+            sub_agent_values_repo,
             file_reader_mock,
             true,
-        )
-        .assemble_agents(&agent_config.agents);
+        );
+
+        let result = assembler.assemble_agent(
+            &AgentID::new("first").unwrap(),
+            &agent_config
+                .agents
+                .get(&AgentID::new("first").unwrap())
+                .unwrap(),
+        );
 
         assert!(result.is_err());
         assert_eq!(
@@ -670,11 +652,11 @@ pub(crate) mod tests {
 
         let mut file_reader_mock = MockFileReaderMock::new();
         file_reader_mock.could_read(
-            format!("{SUPER_AGENT_LOCAL_DATA_DIR}/agents.d/{first_agent_id}/values.yml"),
+            format!("{SUPER_AGENT_LOCAL_DATA_DIR}/fleet/agents.d/{first_agent_id}/values.yml"),
             SECOND_TYPE_VALUES.to_string(),
         );
         file_reader_mock.could_read(
-            format!("{SUPER_AGENT_LOCAL_DATA_DIR}/agents.d/{second_agent_id}/values.yml"),
+            format!("{SUPER_AGENT_LOCAL_DATA_DIR}/fleet/agents.d/{second_agent_id}/values.yml"),
             SECOND_TYPE_VALUES.to_string(),
         );
 
@@ -688,7 +670,6 @@ pub(crate) mod tests {
         );
 
         let mut config_persister = MockConfigurationPersisterMock::new();
-        config_persister.should_delete_all_configs();
 
         config_persister.should_delete_any_agent_config(1);
         let err = PersistError::FileError(WriteError::ErrorCreatingFile(Error::from(
@@ -696,16 +677,23 @@ pub(crate) mod tests {
         )));
         // we cannot assert on the agent as the order of a hashmap is random
         config_persister.should_not_persist_any_agent_config(err);
-        let mut remote_config_persister = MockConfigurationPersisterMock::new();
+        let sub_agent_values_repo = MockRemoteValuesRepositoryMock::new();
 
-        let result = LocalEffectiveAgentsAssembler::new(
+        let assembler = LocalEffectiveAgentsAssembler::new(
             local_agent_type_repository,
             config_persister,
-            remote_config_persister,
+            sub_agent_values_repo,
             file_reader_mock,
             true,
-        )
-        .assemble_agents(&agent_config.agents);
+        );
+
+        let result = assembler.assemble_agent(
+            &AgentID::new("first").unwrap(),
+            &agent_config
+                .agents
+                .get(&AgentID::new("first").unwrap())
+                .unwrap(),
+        );
 
         assert!(result.is_err());
         assert_eq!(
@@ -713,33 +701,6 @@ pub(crate) mod tests {
                 .to_string(),
             result.err().unwrap().to_string()
         );
-    }
-
-    #[test]
-    fn empty_cfgs_test() {
-        let agent_type_registry = LocalRegistry::default();
-        let file_reader_mock = MockFileReaderMock::new();
-        let agent_config = SuperAgentConfig {
-            agents: Default::default(),
-            opamp: None,
-        };
-
-        let mut config_persister = MockConfigurationPersisterMock::new();
-        config_persister.should_delete_all_configs();
-        let remote_config_persister = MockConfigurationPersisterMock::new();
-
-        let effective_agents = LocalEffectiveAgentsAssembler::new(
-            agent_type_registry,
-            config_persister,
-            remote_config_persister,
-            file_reader_mock,
-            true,
-        )
-        .assemble_agents(&agent_config.agents)
-        .unwrap();
-
-        let expected_effective_agents = EffectiveAgents::default();
-        assert_eq!(expected_effective_agents, effective_agents);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////

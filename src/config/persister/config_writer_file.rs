@@ -46,7 +46,7 @@ impl Writer for WriterFile {
         validate_path(path)?;
 
         let mut file = fs::OpenOptions::new()
-            .create_new(true)
+            .create(true)
             .write(true)
             .mode(permissions.mode())
             .open(path)?;
@@ -133,7 +133,7 @@ pub mod test {
 
     #[cfg(target_family = "unix")]
     #[test]
-    fn test_file_writer_should_return_error_if_file_already_exists() {
+    fn test_file_writer_should_not_return_error_if_file_already_exists() {
         // Prepare temp path and content for the file
         let file_name = "some_file";
         let content = "some content";
@@ -155,7 +155,7 @@ pub mod test {
             content.to_string(),
             Permissions::from_mode(0o645),
         );
-        assert!(write_result.is_err());
+        assert!(write_result.is_ok());
     }
 
     #[cfg(target_family = "unix")]
