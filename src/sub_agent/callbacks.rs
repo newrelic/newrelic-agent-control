@@ -54,17 +54,17 @@ impl AgentCallbacks {
             let current_hash = str::from_utf8(&msg_remote_config.config_hash)?.to_string();
 
             let event = match config {
-                Err(e) => SuperAgentEvent::RemoteConfig(Err(RemoteConfigError::InvalidConfig(
+                Err(e) => SuperAgentEvent::RemoteConfigInvalid(RemoteConfigError::InvalidConfig(
                     current_hash,
                     e.to_string(),
-                ))),
+                )),
                 Ok(config) => {
                     let remote_config = RemoteConfig {
                         agent_id,
                         hash: Hash::new(current_hash),
                         config_map: config,
                     };
-                    SuperAgentEvent::RemoteConfig(Ok(remote_config))
+                    SuperAgentEvent::RemoteConfigValid(remote_config)
                 }
             };
             return self
@@ -177,16 +177,18 @@ mod tests {
             unreachable!()
         };
 
-        let SuperAgentEvent::RemoteConfig(remote_config) = event else {
+        let SuperAgentEvent::RemoteConfigValid(remote_config) = event else {
             unreachable!()
         };
-        let result = remote_config.unwrap();
 
-        assert_eq!(AgentID::new("an-agent-id").unwrap(), result.agent_id);
-        assert_eq!("cool-hash".to_string(), result.hash.get());
+        assert_eq!(AgentID::new("an-agent-id").unwrap(), remote_config.agent_id);
+        assert_eq!("cool-hash".to_string(), remote_config.hash.get());
         assert_eq!(
             &"enable_proces_metrics: true".to_string(),
-            result.config_map.get(&"my-config".to_string()).unwrap(),
+            remote_config
+                .config_map
+                .get(&"my-config".to_string())
+                .unwrap(),
         );
     }
 }

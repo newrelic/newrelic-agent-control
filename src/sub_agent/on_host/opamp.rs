@@ -11,9 +11,9 @@ use crate::utils::time::get_sys_time_nano;
 use futures::executor::block_on;
 use nix::unistd::gethostname;
 use opamp_client::http::{HttpClientReqwest, NotStartedHttpClient, StartedHttpClient};
-use opamp_client::opamp::proto::{AgentCapabilities, AgentHealth};
+use opamp_client::opamp::proto::AgentHealth;
 use opamp_client::operation::settings::{AgentDescription, StartSettings};
-use opamp_client::{capabilities, Client, NotStartedClient};
+use opamp_client::{Client, NotStartedClient};
 use std::collections::HashMap;
 
 /// OpAMPBuilderCfg
