@@ -73,8 +73,10 @@ fn run_super_agent(
 
     // Disabled when --all-features
     #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
-    let sub_agent_builder =
-        newrelic_super_agent::sub_agent::k8s::builder::K8sSubAgentBuilder::default();
+    let sub_agent_builder = newrelic_super_agent::sub_agent::k8s::builder::K8sSubAgentBuilder::new(
+        opamp_client_builder.as_ref(),
+        &instance_id_getter,
+    );
 
     info!("Starting the super agent");
     SuperAgent::new(

@@ -1,20 +1,18 @@
+use std::collections::HashMap;
 use std::thread::JoinHandle;
 
-use futures::executor::block_on;
-use opamp_client::opamp::proto::AgentHealth;
-use opamp_client::StartedClient;
-use tracing::info;
+use nix::unistd::gethostname;
+use opamp_client;
 
 use super::supervisor::command_supervisor::{NotStartedSupervisorOnHost, StartedSupervisorOnHost};
 use crate::config::super_agent_configs::{AgentID, AgentTypeFQN};
 use crate::context::Context;
 use crate::opamp::client_builder::{OpAMPClientBuilder, OpAMPClientBuilderError};
 use crate::sub_agent::error::SubAgentError;
-use crate::sub_agent::on_host::opamp::build_opamp_and_start_client;
+use crate::sub_agent::opamp;
 use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
 use crate::super_agent::instance_id::InstanceIDGetter;
 use crate::super_agent::super_agent::SuperAgentEvent;
-use crate::utils::time::get_sys_time_nano;
 
 ////////////////////////////////////////////////////////////////////////////////////
 // Not Started SubAgent On Host
@@ -61,12 +59,16 @@ where
         &self,
         ctx: Context<Option<SuperAgentEvent>>,
     ) -> Result<Option<OpAMPBuilder::Client>, OpAMPClientBuilderError> {
-        build_opamp_and_start_client(
+        let opamp_start_settings = opamp::start_settings(
+            self.instance_id_getter.get(&self.agent_id),
+            &self.agent_type,
+            HashMap::from([("host.name".to_string(), get_hostname().into())]),
+        );
+        opamp::start_client(
             ctx,
             self.opamp_builder,
-            self.instance_id_getter,
             self.agent_id.clone(),
-            &self.agent_type,
+            opamp_start_settings,
         )
     }
 }
@@ -99,7 +101,7 @@ where
 ////////////////////////////////////////////////////////////////////////////////////
 pub struct StartedSubAgentOnHost<C>
 where
-    C: StartedClient,
+    C: opamp_client::StartedClient,
 {
     opamp_client: Option<C>,
     supervisors: Vec<StartedSupervisorOnHost>,
@@ -108,7 +110,7 @@ where
 
 impl<C> StartedSubAgentOnHost<C>
 where
-    C: StartedClient,
+    C: opamp_client::StartedClient,
 {
     pub fn new(
         agent_id: AgentID,
@@ -116,7 +118,7 @@ where
         supervisors: Vec<StartedSupervisorOnHost>,
     ) -> Self
     where
-        C: StartedClient,
+        C: opamp_client::StartedClient,
     {
         StartedSubAgentOnHost {
             opamp_client,
@@ -132,26 +134,10 @@ where
 
 impl<C> StartedSubAgent for StartedSubAgentOnHost<C>
 where
-    C: StartedClient,
+    C: opamp_client::StartedClient,
 {
     fn stop(self) -> Result<Vec<JoinHandle<()>>, SubAgentError> {
-        let _client = match self.opamp_client {
-            Some(client) => {
-                info!(
-                    "Stopping OpAMP client for supervised agent type: {}",
-                    self.agent_id
-                );
-                // set OpAMP health
-                block_on(client.set_health(AgentHealth {
-                    healthy: false,
-                    start_time_unix_nano: get_sys_time_nano()?,
-                    last_error: "".to_string(),
-                }))?;
-
-                Some(block_on(client.stop())?)
-            }
-            None => None,
-        };
+        opamp::stop_client(self.opamp_client, self.agent_id)?;
 
         let mut stopped_runners = Vec::new();
         for supervisors in self.supervisors {
@@ -159,4 +145,12 @@ where
         }
         Ok(stopped_runners)
     }
+}
+
+fn get_hostname() -> String {
+    #[cfg(unix)]
+    return gethostname().unwrap_or_default().into_string().unwrap();
+
+    #[cfg(not(unix))]
+    return unimplemented!();
 }
