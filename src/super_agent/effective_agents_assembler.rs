@@ -224,7 +224,7 @@ where
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use mockall::predicate;
+    use mockall::{mock, predicate};
     use std::collections::HashMap;
     use std::io::{Error, ErrorKind};
 
@@ -245,6 +245,89 @@ pub(crate) mod tests {
     };
 
     use super::*;
+
+    mock! {
+        pub(crate) EffectiveAgentAssemblerMock {}
+
+        impl EffectiveAgentsAssembler for EffectiveAgentAssemblerMock {
+            fn assemble_agents(
+                &self,
+                agent_cfgs: &SubAgentsConfig,
+            ) -> Result<EffectiveAgents, EffectiveAgentsAssemblerError>;
+
+            fn assemble_agent(
+                &self,
+                agent_id: &AgentID,
+                agent_cfg: &SubAgentConfig,
+            ) -> Result<FinalAgent, EffectiveAgentsAssemblerError>;
+        }
+    }
+
+    impl MockEffectiveAgentAssemblerMock {
+        pub fn should_assemble_agents(
+            &mut self,
+            agent_cfgs: &SubAgentsConfig,
+            effective_agents: EffectiveAgents,
+        ) {
+            self.expect_assemble_agents()
+                .once()
+                .with(predicate::eq(agent_cfgs.clone()))
+                .returning(move |_| Ok(effective_agents.clone()));
+        }
+
+        pub fn should_not_assemble_agents(
+            &mut self,
+            agent_cfgs: &SubAgentsConfig,
+            err_kind: ErrorKind,
+        ) {
+            self.expect_assemble_agents()
+                .once()
+                .with(predicate::eq(agent_cfgs.clone()))
+                .returning(move |_| {
+                    Err(EffectiveAgentsAssemblerError::ConfigurationPersisterError(
+                        PersistError::FileError(WriteError::ErrorCreatingFile(
+                            std::io::Error::from(err_kind),
+                        )),
+                    ))
+                });
+        }
+
+        pub fn should_assemble_agent(
+            &mut self,
+            agent_id: &AgentID,
+            agent_cfg: &SubAgentConfig,
+            final_agent: FinalAgent,
+        ) {
+            self.expect_assemble_agent()
+                .once()
+                .with(
+                    predicate::eq(agent_id.clone()),
+                    predicate::eq(agent_cfg.clone()),
+                )
+                .returning(move |_, _| Ok(final_agent.clone()));
+        }
+
+        pub fn should_not_assemble_agent(
+            &mut self,
+            agent_id: &AgentID,
+            agent_cfg: &SubAgentConfig,
+            err_kind: ErrorKind,
+        ) {
+            self.expect_assemble_agent()
+                .once()
+                .with(
+                    predicate::eq(agent_id.clone()),
+                    predicate::eq(agent_cfg.clone()),
+                )
+                .returning(move |_, _| {
+                    Err(EffectiveAgentsAssemblerError::ConfigurationPersisterError(
+                        PersistError::FileError(WriteError::ErrorCreatingFile(
+                            std::io::Error::from(err_kind),
+                        )),
+                    ))
+                });
+        }
+    }
 
     impl<R, C, F, D> LocalEffectiveAgentsAssembler<R, C, F, D>
     where

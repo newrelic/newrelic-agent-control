@@ -502,7 +502,7 @@ where
     }
 }
 
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Default, PartialEq, Clone)]
 pub struct EffectiveAgents {
     pub agents: HashMap<AgentID, FinalAgent>,
 }
@@ -544,33 +544,26 @@ impl EffectiveAgents {
 mod tests {
     use crate::config::agent_type::agent_types::FinalAgent;
     use crate::config::agent_type::runtime_config::OnHost;
-    use crate::config::agent_type_registry::tests::MockAgentRegistryMock;
-    use crate::config::persister::config_persister::test::MockConfigurationPersisterMock;
-    use crate::config::persister::config_persister::PersistError::FileError;
-    use crate::config::persister::config_writer_file::WriteError;
     use crate::config::remote_config::{ConfigMap, RemoteConfig};
     use crate::config::remote_config_hash::test::MockHashRepositoryMock;
     use crate::config::remote_config_hash::{Hash, HashRepository};
     use crate::config::store::tests::MockSubAgentsConfigStore;
     use crate::config::store::SubAgentsConfigStore;
     use crate::config::super_agent_configs::{
-        AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig,
+        AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig, SuperAgentConfig,
     };
     use crate::context::Context;
-    use crate::file_reader::test::MockFileReaderMock;
     use crate::opamp::client_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock};
     use crate::opamp::client_builder::OpAMPClientBuilder;
     use crate::sub_agent::{test::MockSubAgentBuilderMock, SubAgentBuilder};
     use crate::super_agent::defaults::{
         SUPER_AGENT_ID, SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION,
     };
-    use crate::super_agent::effective_agents_assembler::tests::get_remote_values_file_path;
-    use crate::super_agent::effective_agents_assembler::{
-        EffectiveAgentsAssembler, LocalEffectiveAgentsAssembler,
-    };
+    use crate::super_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
+    use crate::super_agent::effective_agents_assembler::EffectiveAgentsAssembler;
     use crate::super_agent::instance_id::test::MockInstanceIDGetterMock;
     use crate::super_agent::instance_id::InstanceIDGetter;
-    use crate::super_agent::super_agent::{SuperAgent, SuperAgentEvent};
+    use crate::super_agent::super_agent::{EffectiveAgents, SuperAgent, SuperAgentEvent};
     use mockall::predicate;
     use nix::unistd::gethostname;
     use opamp_client::capabilities;
@@ -643,34 +636,24 @@ mod tests {
             },
         );
 
-        let registry = MockAgentRegistryMock::new();
-
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
         instance_id_getter.should_get(
             SUPER_AGENT_ID.to_string(),
             "super_agent_instance_id".to_string(),
         );
 
-        let file_reader = MockFileReaderMock::new();
-
-        let mut conf_persister = MockConfigurationPersisterMock::new();
-        conf_persister.should_delete_all_configs();
-
-        let mut remote_conf_persister = MockConfigurationPersisterMock::new();
-        remote_conf_persister.should_delete_all_configs();
-
-        let local_assembler = LocalEffectiveAgentsAssembler::new(
-            registry,
-            conf_persister,
-            remote_conf_persister,
-            file_reader,
-            false,
-        );
+        let sub_agents_config = SubAgentsConfig {
+            agents: HashMap::new(),
+        };
 
         let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
         sub_agents_config_store
             .expect_load()
             .returning(|| Ok(HashMap::new().into()));
+
+        let mut effective_agents_assembler = MockEffectiveAgentAssemblerMock::new();
+        effective_agents_assembler
+            .should_assemble_agents(&sub_agents_config, EffectiveAgents::default());
 
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         hash_repository_mock.expect_get().times(1).returning(|_| {
@@ -682,7 +665,7 @@ mod tests {
         // no agents in the supervisor group
         let agent = SuperAgent::new_custom(
             &instance_id_getter,
-            local_assembler,
+            effective_agents_assembler,
             Some(&opamp_builder),
             &hash_repository_mock,
             MockSubAgentBuilderMock::new(),
@@ -722,60 +705,17 @@ mod tests {
         );
 
         // Sub Agents
-        let mut final_nrdot: FinalAgent = FinalAgent::default();
-        final_nrdot.runtime_config.deployment.on_host = Some(OnHost {
-            executables: Vec::new(),
-        });
-        final_nrdot.set_remote_capabilities();
-        let mut final_infra_agent: FinalAgent = FinalAgent::default();
-        final_infra_agent.runtime_config.deployment.on_host = Some(OnHost {
-            executables: Vec::new(),
-        });
-        final_infra_agent.set_remote_capabilities();
+        let effective_agents = default_effective_agents(vec!["infra_agent", "nrdot"]);
 
-        let mut registry = MockAgentRegistryMock::new();
-        registry.should_get(
-            "newrelic/io.opentelemetry.collector:0.0.1".to_string(),
-            final_nrdot,
-            1,
-        );
-        registry.should_get(
-            "newrelic/com.newrelic.infrastructure_agent:0.0.1".to_string(),
-            final_infra_agent,
-            1,
-        );
+        let sub_agents_config = sub_agents_default_config();
+
+        let mut effective_agents_assembler = MockEffectiveAgentAssemblerMock::new();
+        effective_agents_assembler.should_assemble_agents(&sub_agents_config, effective_agents);
 
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
         instance_id_getter.should_get(
             "super-agent".to_string(),
             "super_agent_instance_id".to_string(),
-        );
-
-        let mut file_reader_mock = MockFileReaderMock::new();
-
-        file_reader_mock.could_read(
-            get_remote_values_file_path(&AgentID::new("infra_agent").unwrap()),
-            String::default(),
-        );
-
-        file_reader_mock.could_read(
-            get_remote_values_file_path(&AgentID::new("nrdot").unwrap()),
-            String::default(),
-        );
-        let mut conf_persister = MockConfigurationPersisterMock::new();
-
-        conf_persister.should_delete_all_configs();
-        conf_persister.should_delete_any_agent_config(2);
-        conf_persister.should_persist_any_agent_config(2);
-
-        let remote_config_persister = MockConfigurationPersisterMock::new();
-
-        let local_assembler = LocalEffectiveAgentsAssembler::new(
-            registry,
-            conf_persister,
-            remote_config_persister,
-            file_reader_mock,
-            true,
         );
 
         let mut hash_repository_mock = MockHashRepositoryMock::new();
@@ -789,14 +729,16 @@ mod tests {
         // it should build two subagents: nrdot + infra_agent
         sub_agent_builder.should_build(2);
 
+        let sub_agents_config = sub_agents_default_config();
+
         let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
         sub_agents_config_store
             .expect_load()
-            .returning(|| Ok(super_agent_default_config()));
+            .returning(move || Ok(sub_agents_config.clone()));
 
         let agent = SuperAgent::new_custom(
             &instance_id_getter,
-            local_assembler,
+            effective_agents_assembler,
             Some(&opamp_builder),
             &hash_repository_mock,
             sub_agent_builder,
@@ -837,72 +779,28 @@ mod tests {
         );
 
         // Sub Agents
-        let mut final_nrdot: FinalAgent = FinalAgent::default();
-        final_nrdot.runtime_config.deployment.on_host = Some(OnHost {
-            executables: Vec::new(),
-        });
-        final_nrdot.set_remote_capabilities();
-        let mut final_infra_agent: FinalAgent = FinalAgent::default();
-        final_infra_agent.runtime_config.deployment.on_host = Some(OnHost {
-            executables: Vec::new(),
-        });
-        final_infra_agent.set_remote_capabilities();
+        let effective_agents = default_effective_agents(vec!["infra_agent", "nrdot"]);
 
-        let mut registry = MockAgentRegistryMock::new();
-        registry.should_get(
-            "newrelic/io.opentelemetry.collector:0.0.1".to_string(),
-            final_nrdot,
-            1,
-        );
-        registry.should_get(
-            "newrelic/com.newrelic.infrastructure_agent:0.0.1".to_string(),
-            final_infra_agent,
-            1,
-        );
+        let sub_agents_config = sub_agents_default_config();
+
+        let mut effective_agents_assembler = MockEffectiveAgentAssemblerMock::new();
+        effective_agents_assembler.should_assemble_agents(&sub_agents_config, effective_agents);
+
+        let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
+        sub_agents_config_store
+            .expect_load()
+            .returning(|| Ok(sub_agents_default_config()));
+        // updated agent
+        sub_agents_config_store
+            .expect_store()
+            .once()
+            .returning(|_| Ok(()));
 
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
         instance_id_getter.should_get(
             "super-agent".to_string(),
             "super_agent_instance_id".to_string(),
         );
-
-        let mut file_reader_mock = MockFileReaderMock::new();
-
-        file_reader_mock.could_read(
-            get_remote_values_file_path(&AgentID::new("infra_agent").unwrap()),
-            String::default(),
-        );
-
-        file_reader_mock.could_read(
-            get_remote_values_file_path(&AgentID::new("nrdot").unwrap()),
-            String::default(),
-        );
-
-        let mut conf_persister = MockConfigurationPersisterMock::new();
-
-        conf_persister.should_delete_all_configs();
-        conf_persister.should_delete_any_agent_config(2);
-        conf_persister.should_persist_any_agent_config(2);
-
-        let remote_config_persister = MockConfigurationPersisterMock::new();
-
-        let local_assembler = LocalEffectiveAgentsAssembler::new(
-            registry,
-            conf_persister,
-            remote_config_persister,
-            file_reader_mock,
-            true,
-        );
-
-        let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
-        sub_agents_config_store
-            .expect_load()
-            .returning(|| Ok(super_agent_default_config()));
-        // updated agent
-        sub_agents_config_store
-            .expect_store()
-            .once()
-            .returning(|_| Ok(()));
 
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         hash_repository_mock
@@ -935,7 +833,7 @@ mod tests {
                 // two agents in the supervisor group
                 let agent = SuperAgent::new_custom(
                     &instance_id_getter,
-                    local_assembler,
+                    effective_agents_assembler,
                     Some(&opamp_builder),
                     &hash_repository_mock,
                     sub_agent_builder,
@@ -987,28 +885,12 @@ agents:
         );
 
         // Sub Agents
-        let mut final_nrdot: FinalAgent = FinalAgent::default();
-        final_nrdot.runtime_config.deployment.on_host = Some(OnHost {
-            executables: Vec::new(),
-        });
-        final_nrdot.set_remote_capabilities();
-        let mut final_infra_agent: FinalAgent = FinalAgent::default();
-        final_infra_agent.runtime_config.deployment.on_host = Some(OnHost {
-            executables: Vec::new(),
-        });
-        final_infra_agent.set_remote_capabilities();
+        let effective_agents = default_effective_agents(vec!["infra_agent", "nrdot"]);
 
-        let mut registry = MockAgentRegistryMock::new();
-        registry.should_get(
-            "newrelic/io.opentelemetry.collector:0.0.1".to_string(),
-            final_nrdot,
-            1,
-        );
-        registry.should_get(
-            "newrelic/com.newrelic.infrastructure_agent:0.0.1".to_string(),
-            final_infra_agent.clone(),
-            1,
-        );
+        let sub_agents_config = sub_agents_default_config();
+
+        let mut effective_agents_assembler = MockEffectiveAgentAssemblerMock::new();
+        effective_agents_assembler.should_assemble_agents(&sub_agents_config, effective_agents);
 
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
         instance_id_getter.should_get(
@@ -1016,47 +898,18 @@ agents:
             "super_agent_instance_id".to_string(),
         );
 
-        let mut file_reader_mock = MockFileReaderMock::new();
-
-        file_reader_mock.could_read(
-            get_remote_values_file_path(&AgentID::new("infra_agent").unwrap()),
-            String::default(),
-        );
-
-        file_reader_mock.could_read(
-            get_remote_values_file_path(&AgentID::new("nrdot").unwrap()),
-            String::default(),
-        );
-        let mut conf_persister = MockConfigurationPersisterMock::new();
-
-        conf_persister.should_delete_all_configs();
-        conf_persister.should_delete_any_agent_config(2);
-        conf_persister.should_persist_any_agent_config(2);
-
         //Sub Agent reload expectations
         let agent_id_to_restart = AgentID::new("infra_agent").unwrap();
-        registry.should_get(
-            "newrelic/com.newrelic.infrastructure_agent:0.0.1".to_string(),
-            final_infra_agent.clone(),
-            1,
-        );
-        conf_persister.should_delete_agent_config(1, &agent_id_to_restart, &final_infra_agent);
-        conf_persister.should_persist_agent_config(1, &agent_id_to_restart, &final_infra_agent);
-
-        let remote_config_persister = MockConfigurationPersisterMock::new();
-
-        let local_assembler = LocalEffectiveAgentsAssembler::new(
-            registry,
-            conf_persister,
-            remote_config_persister,
-            file_reader_mock,
-            true,
+        effective_agents_assembler.should_assemble_agent(
+            &agent_id_to_restart,
+            sub_agents_config.agents.get(&agent_id_to_restart).unwrap(),
+            FinalAgent::default(),
         );
 
         let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
         sub_agents_config_store
             .expect_load()
-            .returning(|| Ok(super_agent_default_config()));
+            .returning(|| Ok(sub_agents_default_config()));
 
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         hash_repository_mock.expect_get().times(1).returning(|_| {
@@ -1072,7 +925,7 @@ agents:
         // two agents in the supervisor group
         let agent = SuperAgent::new_custom(
             &instance_id_getter,
-            local_assembler,
+            effective_agents_assembler,
             Some(&opamp_builder),
             &hash_repository_mock,
             sub_agent_builder,
@@ -1114,18 +967,12 @@ agents:
         );
 
         // Sub Agents
-        let mut final_infra_agent: FinalAgent = FinalAgent::default();
-        final_infra_agent.runtime_config.deployment.on_host = Some(OnHost {
-            executables: Vec::new(),
-        });
-        final_infra_agent.set_remote_capabilities();
+        let effective_agents = default_effective_agents(vec!["infra_agent"]);
 
-        let mut registry = MockAgentRegistryMock::new();
-        registry.should_get(
-            "newrelic/com.newrelic.infrastructure_agent:0.0.1".to_string(),
-            final_infra_agent.clone(),
-            1,
-        );
+        let sub_agents_config = sub_agents_config_single_agent();
+
+        let mut effective_agents_assembler = MockEffectiveAgentAssemblerMock::new();
+        effective_agents_assembler.should_assemble_agents(&sub_agents_config, effective_agents);
 
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
         instance_id_getter.should_get(
@@ -1133,56 +980,20 @@ agents:
             "super_agent_instance_id".to_string(),
         );
 
-        let mut file_reader_mock = MockFileReaderMock::new();
-
-        file_reader_mock.could_read(
-            get_remote_values_file_path(&AgentID::new("infra_agent").unwrap()),
-            String::default(),
-        );
-
-        let mut conf_persister = MockConfigurationPersisterMock::new();
-
-        conf_persister.should_delete_all_configs();
-        conf_persister.should_delete_any_agent_config(1);
-        conf_persister.should_persist_any_agent_config(1);
-
         //Sub Agent reload expectations
         let agent_id_to_restart = AgentID::new("infra_agent").unwrap();
-        registry.should_get(
-            "newrelic/com.newrelic.infrastructure_agent:0.0.1".to_string(),
-            final_infra_agent.clone(),
-            1,
-        );
-
-        conf_persister.should_delete_agent_config(1, &agent_id_to_restart, &final_infra_agent);
-
         //Persister will fail loading new configuration
-        let err = FileError(WriteError::ErrorCreatingFile(std::io::Error::from(
-            ErrorKind::PermissionDenied,
-        )));
-
-        conf_persister.should_not_persist_agent_config(
-            1,
+        effective_agents_assembler.should_not_assemble_agent(
             &agent_id_to_restart,
-            &final_infra_agent,
-            err,
-        );
-
-        let remote_config_persister = MockConfigurationPersisterMock::new();
-
-        let local_assembler = LocalEffectiveAgentsAssembler::new(
-            registry,
-            conf_persister,
-            remote_config_persister,
-            file_reader_mock,
-            true,
+            sub_agents_config.agents.get(&agent_id_to_restart).unwrap(),
+            ErrorKind::PermissionDenied,
         );
 
         let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
         sub_agents_config_store
             .expect_load()
             .times(2)
-            .returning(|| Ok(super_agent_single_agent()));
+            .returning(move || Ok(sub_agents_config.clone()));
 
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         hash_repository_mock.should_get_applied_hash(
@@ -1197,7 +1008,7 @@ agents:
         // two agents in the supervisor group
         let agent = SuperAgent::new_custom(
             &instance_id_getter,
-            local_assembler,
+            effective_agents_assembler,
             Some(&opamp_builder),
             &hash_repository_mock,
             sub_agent_builder,
@@ -1215,7 +1026,7 @@ agents:
         send_event_after(
             ctx.clone(),
             SuperAgentEvent::Stop,
-            Duration::from_millis(100),
+            Duration::from_millis(300),
         );
 
         let result = agent.run(ctx);
@@ -1225,8 +1036,6 @@ agents:
 
     #[test]
     fn recreate_agent_no_errors() {
-        let agent_id_to_restart = AgentID::new("infra_agent").unwrap();
-
         let mut opamp_builder = MockOpAMPClientBuilderMock::new();
         let hostname = gethostname().unwrap_or_default().into_string().unwrap();
         let super_agent_start_settings = super_agent_default_start_settings(&hostname);
@@ -1243,79 +1052,27 @@ agents:
             },
         );
 
-        let mut conf_persister = MockConfigurationPersisterMock::new();
-        let mut registry = MockAgentRegistryMock::new();
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
         instance_id_getter.should_get(
             "super-agent".to_string(),
             "super_agent_instance_id".to_string(),
         );
 
-        let mut file_reader_mock = MockFileReaderMock::new();
+        // Sub Agents
+        let effective_agents = default_effective_agents(vec!["infra_agent", "nrdot"]);
 
-        file_reader_mock.could_read(
-            get_remote_values_file_path(&AgentID::new("infra_agent").unwrap()),
-            String::default(),
-        );
+        let sub_agents_config = sub_agents_default_config();
 
-        file_reader_mock.could_read(
-            get_remote_values_file_path(&AgentID::new("nrdot").unwrap()),
-            String::default(),
-        );
+        let mut effective_agents_assembler = MockEffectiveAgentAssemblerMock::new();
+        effective_agents_assembler.should_assemble_agents(&sub_agents_config, effective_agents);
 
-        // Expectations for loading agents
-        let mut final_nrdot: FinalAgent = FinalAgent::default();
-        final_nrdot.runtime_config.deployment.on_host = Some(OnHost {
-            executables: Vec::new(),
-        });
-        final_nrdot.set_remote_capabilities();
-
-        registry.should_get(
-            "newrelic/io.opentelemetry.collector:0.0.1".to_string(),
-            final_nrdot,
-            1,
-        );
-        let mut final_infra_agent: FinalAgent = FinalAgent::default();
-        final_infra_agent.runtime_config.deployment.on_host = Some(OnHost {
-            executables: Vec::new(),
-        });
-        final_infra_agent.set_remote_capabilities();
-
-        registry.should_get(
-            "newrelic/com.newrelic.infrastructure_agent:0.0.1".to_string(),
-            final_infra_agent.clone(),
-            1,
-        );
-
-        conf_persister.should_delete_all_configs();
-        conf_persister.should_delete_any_agent_config(2);
-        conf_persister.should_persist_any_agent_config(2);
-
-        // Get Infra Agent from registry
-        let mut final_infra_agent: FinalAgent = FinalAgent::default();
-        final_infra_agent.runtime_config.deployment.on_host = Some(OnHost {
-            executables: Vec::new(),
-        });
-        final_infra_agent.set_remote_capabilities();
-
-        registry.should_get(
-            "newrelic/com.newrelic.infrastructure_agent:0.0.1".to_string(),
-            final_infra_agent.clone(),
-            1,
-        );
-        // Clean and persist new config
-        conf_persister.should_delete_agent_config(1, &agent_id_to_restart, &final_infra_agent);
-        conf_persister.should_persist_agent_config(1, &agent_id_to_restart, &final_infra_agent);
-
-        let remote_config_persister = MockConfigurationPersisterMock::new();
-
-        // Assemble services and Super Agent
-        let local_assembler = LocalEffectiveAgentsAssembler::new(
-            registry,
-            conf_persister,
-            remote_config_persister,
-            file_reader_mock,
-            true,
+        // recreate agent
+        //Sub Agent reload expectations
+        let agent_id_to_restart = AgentID::new("infra_agent").unwrap();
+        effective_agents_assembler.should_assemble_agent(
+            &agent_id_to_restart,
+            sub_agents_config.agents.get(&agent_id_to_restart).unwrap(),
+            FinalAgent::default(),
         );
 
         let mut sub_agent_builder = MockSubAgentBuilderMock::new();
@@ -1331,12 +1088,17 @@ agents:
         let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
         sub_agents_config_store
             .expect_load()
-            .returning(|| Ok(super_agent_default_config()));
+            .returning(|| Ok(sub_agents_default_config()));
+
+        let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
+        sub_agents_config_store
+            .expect_load()
+            .returning(|| Ok(sub_agents_default_config()));
 
         // Create the Super Agent and rub Sub Agents
         let super_agent = SuperAgent::new_custom(
             &instance_id_getter,
-            local_assembler,
+            effective_agents_assembler,
             Some(&opamp_builder),
             &hash_repository_mock,
             sub_agent_builder,
@@ -1359,65 +1121,19 @@ agents:
 
         assert!(super_agent.run(ctx).is_ok());
     }
+
     #[test]
     fn create_stop_sub_agents_from_remote_config() {
         // Mocked services
-        let mut conf_persister = MockConfigurationPersisterMock::new();
-        let mut registry = MockAgentRegistryMock::new();
         let instance_id_getter = MockInstanceIDGetterMock::new();
 
-        // Expectations for loading agents
-        let final_nrdot: FinalAgent = final_onhost_agent();
-        registry.should_get(
-            "newrelic/io.opentelemetry.collector:0.0.1".to_string(),
-            final_nrdot.clone(),
-            1,
-        );
-        let final_infra_agent: FinalAgent = final_onhost_agent();
+        // Sub Agents
+        let effective_agents = default_effective_agents(vec!["infra_agent", "nrdot"]);
 
-        registry.should_get(
-            "newrelic/com.newrelic.infrastructure_agent:0.0.1".to_string(),
-            final_infra_agent.clone(),
-            2,
-        );
+        let sub_agents_config = sub_agents_default_config();
 
-        conf_persister.should_delete_all_configs();
-        conf_persister.should_delete_any_agent_config(3);
-        conf_persister.should_persist_any_agent_config(3);
-
-        let mut file_reader_mock = MockFileReaderMock::new();
-
-        file_reader_mock
-            .expect_read()
-            .with(predicate::eq(
-                "/etc/newrelic-super-agent/agents.d/infra_agent/values.yml".to_string(),
-            ))
-            .times(2)
-            .returning(|_| Ok("".to_string()));
-
-        file_reader_mock
-            .expect_read()
-            .with(predicate::eq(
-                "/etc/newrelic-super-agent/agents.d/nrdot/values.yml".to_string(),
-            ))
-            .times(1)
-            .returning(|_| Ok("".to_string()));
-
-        // Clean and persist new config
-        // conf_persister.should_delete_any_agent_config(2);
-
-        let mut remote_config_persister = MockConfigurationPersisterMock::new();
-        remote_config_persister.should_delete_any_agent_config(3);
-        remote_config_persister.should_delete_all_configs();
-
-        // Assemble services and Super Agent
-        let local_assembler = LocalEffectiveAgentsAssembler::new(
-            registry,
-            conf_persister,
-            remote_config_persister,
-            file_reader_mock,
-            false,
-        );
+        let mut effective_agents_assembler = MockEffectiveAgentAssemblerMock::new();
+        effective_agents_assembler.should_assemble_agents(&sub_agents_config, effective_agents);
 
         let mut sub_agent_builder = MockSubAgentBuilderMock::new();
         // it should build two sub_agents (2 + 0 error)
@@ -1428,7 +1144,7 @@ agents:
         sub_agents_config_store
             .expect_load()
             .times(2)
-            .returning(|| Ok(super_agent_default_config()));
+            .returning(|| Ok(sub_agents_default_config()));
         // just nrdot in second load
         sub_agents_config_store
             .expect_load()
@@ -1457,10 +1173,17 @@ agents:
             Hash::new("b-hash".to_string()),
         );
 
+        let agent_id_to_restart = AgentID::new("infra_agent").unwrap();
+        effective_agents_assembler.should_assemble_agent(
+            &agent_id_to_restart,
+            sub_agents_config.agents.get(&agent_id_to_restart).unwrap(),
+            FinalAgent::default(),
+        );
+
         // Create the Super Agent and rub Sub Agents
         let super_agent = SuperAgent::new_custom(
             &instance_id_getter,
-            local_assembler,
+            effective_agents_assembler,
             None::<&MockOpAMPClientBuilderMock>,
             &hash_repository_mock,
             sub_agent_builder,
@@ -1526,87 +1249,21 @@ agents:
 
     #[test]
     fn recreate_agent_error_on_persister() {
-        let agent_id_to_restart = AgentID::new("infra_agent").unwrap();
-
         // Mocked services
-        let mut conf_persister = MockConfigurationPersisterMock::new();
-        let mut registry = MockAgentRegistryMock::new();
         let instance_id_getter = MockInstanceIDGetterMock::new();
-        let mut file_reader_mock = MockFileReaderMock::new();
 
-        file_reader_mock.could_read(
-            get_remote_values_file_path(&AgentID::new("infra_agent").unwrap()),
-            String::default(),
-        );
+        // Sub Agents
+        let effective_agents = default_effective_agents(vec!["infra_agent", "nrdot"]);
+        let sub_agents_config = sub_agents_default_config();
 
-        file_reader_mock.could_read(
-            get_remote_values_file_path(&AgentID::new("nrdot").unwrap()),
-            String::default(),
-        );
+        let mut effective_agents_assembler = MockEffectiveAgentAssemblerMock::new();
+        effective_agents_assembler.should_assemble_agents(&sub_agents_config, effective_agents);
 
-        // Expectations for loading agents
-        let mut final_nrdot: FinalAgent = FinalAgent::default();
-        final_nrdot.runtime_config.deployment.on_host = Some(OnHost {
-            executables: Vec::new(),
-        });
-        final_nrdot.set_remote_capabilities();
-
-        registry.should_get(
-            "newrelic/io.opentelemetry.collector:0.0.1".to_string(),
-            final_nrdot,
-            1,
-        );
-        let mut final_infra_agent: FinalAgent = FinalAgent::default();
-        final_infra_agent.runtime_config.deployment.on_host = Some(OnHost {
-            executables: Vec::new(),
-        });
-        final_infra_agent.set_remote_capabilities();
-
-        registry.should_get(
-            "newrelic/com.newrelic.infrastructure_agent:0.0.1".to_string(),
-            final_infra_agent.clone(),
-            1,
-        );
-
-        conf_persister.should_delete_all_configs();
-        conf_persister.should_delete_any_agent_config(2);
-        conf_persister.should_persist_any_agent_config(2);
-
-        // Expectations for recreating agent
-        // Get Infra Agent from registry
-        let mut final_infra_agent: FinalAgent = FinalAgent::default();
-        final_infra_agent.runtime_config.deployment.on_host = Some(OnHost {
-            executables: Vec::new(),
-        });
-        final_infra_agent.set_remote_capabilities();
-
-        registry.should_get(
-            "newrelic/com.newrelic.infrastructure_agent:0.0.1".to_string(),
-            final_infra_agent.clone(),
-            1,
-        );
-        // Clean and persist new config
-        conf_persister.should_delete_agent_config(1, &agent_id_to_restart, &final_infra_agent);
-        //Persister will fail loading new configuration
-        let err = FileError(WriteError::ErrorCreatingFile(std::io::Error::from(
-            ErrorKind::PermissionDenied,
-        )));
-        conf_persister.should_not_persist_agent_config(
-            1,
+        let agent_id_to_restart = AgentID::new("infra_agent").unwrap();
+        effective_agents_assembler.should_not_assemble_agent(
             &agent_id_to_restart,
-            &final_infra_agent,
-            err,
-        );
-
-        let remote_config_persister = MockConfigurationPersisterMock::new();
-
-        // Assemble services and Super Agent
-        let local_assembler = LocalEffectiveAgentsAssembler::new(
-            registry,
-            conf_persister,
-            remote_config_persister,
-            file_reader_mock,
-            true,
+            sub_agents_config.agents.get(&agent_id_to_restart).unwrap(),
+            ErrorKind::PermissionDenied,
         );
 
         let mut sub_agent_builder = MockSubAgentBuilderMock::new();
@@ -1616,14 +1273,14 @@ agents:
         let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
         sub_agents_config_store
             .expect_load()
-            .returning(|| Ok(super_agent_default_config()));
+            .returning(|| Ok(sub_agents_default_config()));
 
         let hash_repository_mock = MockHashRepositoryMock::new();
 
         // Create the Super Agent and rub Sub Agents
         let super_agent = SuperAgent::new_custom(
             &instance_id_getter,
-            local_assembler,
+            effective_agents_assembler,
             None::<&MockOpAMPClientBuilderMock>,
             &hash_repository_mock,
             sub_agent_builder,
@@ -1655,6 +1312,16 @@ agents:
     ////////////////////////////////////////////////////////////////////////////////////
     // Test helpers
     ////////////////////////////////////////////////////////////////////////////////////
+    fn default_effective_agents(agent_ids: Vec<&str>) -> EffectiveAgents {
+        let mut effective_agents = EffectiveAgents::default();
+        for agent_id in agent_ids {
+            effective_agents
+                .add(AgentID::new(agent_id).unwrap(), FinalAgent::default())
+                .unwrap();
+        }
+        effective_agents
+    }
+
     fn super_agent_default_start_settings(hostname: &str) -> StartSettings {
         start_settings(
             "super_agent_instance_id".to_string(),
@@ -1667,6 +1334,16 @@ agents:
             SUPER_AGENT_NAMESPACE.to_string(),
             hostname,
         )
+    }
+
+    fn sub_agents_config_single_agent() -> SubAgentsConfig {
+        HashMap::from([(
+            AgentID::new("infra_agent").unwrap(),
+            SubAgentConfig {
+                agent_type: AgentTypeFQN::from("newrelic/com.newrelic.infrastructure_agent:0.0.1"),
+            },
+        )])
+        .into()
     }
 
     fn final_onhost_agent() -> FinalAgent {
@@ -1702,7 +1379,7 @@ agents:
         }
     }
 
-    fn super_agent_default_config() -> SubAgentsConfig {
+    fn sub_agents_default_config() -> SubAgentsConfig {
         HashMap::from([
             (
                 AgentID::new("infra_agent").unwrap(),
@@ -1719,16 +1396,6 @@ agents:
                 },
             ),
         ])
-        .into()
-    }
-
-    fn super_agent_single_agent() -> SubAgentsConfig {
-        HashMap::from([(
-            AgentID::new("infra_agent").unwrap(),
-            SubAgentConfig {
-                agent_type: AgentTypeFQN::from("newrelic/com.newrelic.infrastructure_agent:0.0.1"),
-            },
-        )])
         .into()
     }
 
