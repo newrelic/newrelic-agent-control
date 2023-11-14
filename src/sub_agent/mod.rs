@@ -9,6 +9,7 @@ pub mod values;
 #[cfg(feature = "onhost")]
 pub mod on_host;
 
+pub mod callbacks;
 #[cfg(feature = "k8s")]
 pub mod k8s;
 
