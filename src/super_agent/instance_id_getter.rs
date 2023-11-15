@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 use std::cmp::Eq;
 use ulid::Ulid;
 
-#[feature(async_fn_in_trait)]
 pub trait InstanceIDGetter {
     type Identifier: Metadata;
     async fn get(&self, id: &str, identifiers: &Self::Identifier) -> String;
@@ -69,10 +68,7 @@ where
 ///
 
 #[derive(Default, Deserialize, Serialize, Eq, PartialEq, Clone)]
-pub struct K8sIdentifiers {
-    pub hostname: String,
-    pub machine_id: String,
-}
+pub struct K8sIdentifiers {}
 
 impl Metadata for K8sIdentifiers {}
 
@@ -145,32 +141,11 @@ pub(crate) mod test {
             },
         };
 
-        a.get(
-            "first",
-            &K8sIdentifiers {
-                hostname: "value1".to_string(),
-                machine_id: "value2".to_string(),
-            },
-        )
-        .await;
+        a.get("first", &K8sIdentifiers {}).await;
 
-        a.get(
-            "second",
-            &K8sIdentifiers {
-                hostname: "value1".to_string(),
-                machine_id: "value2".to_string(),
-            },
-        )
-        .await;
+        a.get("second", &K8sIdentifiers {}).await;
 
-        a.get(
-            "second",
-            &K8sIdentifiers {
-                hostname: "value1".to_string(),
-                machine_id: "value3".to_string(),
-            },
-        )
-        .await;
+        a.get("second", &K8sIdentifiers {}).await;
     }
 
     mock! {

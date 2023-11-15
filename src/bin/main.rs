@@ -11,7 +11,7 @@ use newrelic_super_agent::config::store::{SuperAgentConfigStore, SuperAgentConfi
 use newrelic_super_agent::opamp::client_builder::OpAMPHttpBuilder;
 use newrelic_super_agent::super_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use newrelic_super_agent::super_agent::instance_id_getter::{
-    OnHostIdentifiers, OnHostULIDInstanceIDGetter,
+    K8sULIDInstanceIDGetter, OnHostIdentifiers, OnHostULIDInstanceIDGetter,
 };
 use newrelic_super_agent::super_agent::instance_id_storer::OnHostStorer;
 use newrelic_super_agent::super_agent::super_agent::{SuperAgent, SuperAgentEvent};

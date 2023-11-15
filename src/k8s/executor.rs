@@ -88,7 +88,7 @@ impl K8sExecutor {
         let cm_client: Api<ConfigMap> = Api::<ConfigMap>::default_namespaced(self.client.clone());
         let cm_result = cm_client.get(configmap_name).await;
 
-        let mut cm_to_update = match cm_result {
+        let cm_to_update = match cm_result {
             Ok(cm) => cm,
             Err(_) => {
                 //Todo
