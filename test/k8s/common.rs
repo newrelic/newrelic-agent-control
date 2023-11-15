@@ -277,23 +277,29 @@ pub fn foo_gvk() -> GroupVersionKind {
 
 static ONCE: OnceCell<()> = OnceCell::const_new();
 
-/// Foo CRD is not cleaned on test termination (for simplicity) so all tests must expect this
-/// CRD exists.
+/// Create the Foo CRD for testing purposes.The CRD is not cleaned on test termination (for simplicity) so all tests
+/// can assume this CRD exists.
 pub async fn create_foo_crd(client: Client) {
-    ONCE.get_or_init(|| async {
-        let crds: Api<CustomResourceDefinition> = Api::all(client);
-
-        crds.patch(
-            "foos.newrelic.com",
-            &PatchParams::apply("foo"),
-            &Patch::Apply(Foo::crd()),
-        )
+    ONCE.get_or_try_init(|| async { perform_crd_patch(client).await })
         .await
-        .expect("fail creating foo crd");
-    })
-    .await;
+        .expect("Error creating the Foo CRD");
 }
 
+// We cannot use an async closure because they are unstable for now <https://github.com/rust-lang/rust/issues/62290>
+async fn perform_crd_patch(client: Client) -> Result<(), kube::Error> {
+    let crds: Api<CustomResourceDefinition> = Api::all(client);
+    crds.patch(
+        "foos.newrelic.com",
+        &PatchParams::apply("foo"),
+        &Patch::Apply(Foo::crd()),
+    )
+    .await?;
+    Ok(())
+}
+
+/// Creates a Foo CR for testing purposes.
+/// ### Panics
+/// It panics if there is an error creating the CR.
 pub async fn create_test_cr(client: Client, namespace: &str, name: &str) -> Foo {
     let api: Api<Foo> = Api::namespaced(client, namespace);
     api.create(
