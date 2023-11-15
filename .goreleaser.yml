@@ -3,7 +3,6 @@ builds:
   -
     main: ./build/dummy.go
     goarch:
-      - arm64
       - amd64
     goos:
       - linux
@@ -65,6 +64,11 @@ nfpms:
         dst: /usr/bin/newrelic-infra
       - src: build/embedded/artifacts/{{- .Arch }}/newrelic-infra/LICENSE.txt
         dst: /var/db/newrelic-infra/LICENSE.txt
+      # eBPF agent
+      - src: build/embedded/artifacts/{{- .Arch }}/nr-ebpf-agent/nr-ebpf-agent
+        dst: /usr/bin/nr-ebpf-agent
+      - src: build/embedded/artifacts/{{- .Arch }}/nr-ebpf-agent-client/nr-ebpf-agent-client
+        dst: /usr/bin/nr-ebpf-agent-client
       # nri-docker
       - src: build/embedded/artifacts/{{- .Arch }}/nri-docker
         dst: /var/db/newrelic-infra/newrelic-integrations/bin/nri-docker

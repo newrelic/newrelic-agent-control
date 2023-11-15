@@ -55,6 +55,17 @@ artifacts:
         src: etc/newrelic-infra/logging.d/tcp.yml.example
         dest: artifacts/{{.Arch}}/fluent-bit
 
+  - name: nr-ebpf-agent
+    version: 0.0.1
+    url: http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/nr-ebpf-agent/nr-ebpf-agent_{{.Version | trimv}}_{{.Arch}}.deb
+    files:
+      - name: nr-ebpf-agent binary
+        src: usr/bin/nr-ebpf-agent
+        dest: artifacts/{{.Arch}}/nr-ebpf-agent
+      - name: nt-ebpf-agent-client binary
+        src: usr/bin/nr-ebpf-agent-client
+        dest: artifacts/{{.Arch}}/nr-ebpf-agent-client
+
   - name: nr-otel-collector
     version: 0.5.0
     url: https://github.com/newrelic/opentelemetry-collector-releases/releases/download/nr-otel-collector-{{.Version | trimv}}/nr-otel-collector_{{.Version | trimv}}_linux_{{.Arch}}.deb
