@@ -19,7 +19,7 @@ tracing = "0.1.37"
 ctrlc = { version = "3.4.0", features = ["termination"] }
 serde_yaml = "0.9.25"
 regex = "1.9.3"
-opamp-client = { git = "ssh://git@github.com/newrelic/opamp-rs.git", tag = "0.0.5" }
+opamp-client = { git = "ssh://git@github.com/newrelic/opamp-rs.git", tag = "0.0.6" }
 futures = "0.3.28"
 async-trait = "0.1.71"
 tokio = "1.32.0"
