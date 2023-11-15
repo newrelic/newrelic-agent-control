@@ -112,9 +112,9 @@ where
                         maybe_opamp_client,
                     )?);
                 } else if !hash.is_applied() {
+                    report_remote_config_status_applied(opamp_client, &hash)?;
                     hash.apply();
                     self.hash_repository.save(&agent_id, &hash)?;
-                    report_remote_config_status_applied(opamp_client, &hash)?;
                 }
             }
         }

@@ -98,7 +98,7 @@ where
 pub mod test {
     use crate::config::super_agent_configs::AgentID;
     use crate::sub_agent::collection::StartedSubAgents;
-    use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
+    use crate::sub_agent::StartedSubAgent;
     use std::collections::HashMap;
 
     impl<S> StartedSubAgents<S>

@@ -1,12 +1,10 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::{collections::HashMap, fmt::Display};
 
 use std::ops::Deref;
 
 use crate::config::error::SuperAgentConfigError;
-use crate::super_agent::defaults::{
-    default_capabilities, SUPER_AGENT_DATA_DIR, SUPER_AGENT_ID, SUPER_AGENT_LOCAL_DATA_DIR,
-};
+use crate::super_agent::defaults::{default_capabilities, SUPER_AGENT_ID};
 use opamp_client::operation::capabilities::Capabilities;
 use thiserror::Error;
 
@@ -178,14 +176,6 @@ impl From<&str> for AgentTypeFQN {
 #[serde(deny_unknown_fields)]
 pub struct SubAgentConfig {
     pub agent_type: AgentTypeFQN, // FQN of the agent type, ex: newrelic/nrdot:0.1.0
-}
-
-pub fn get_values_file_path(agent_id: &AgentID) -> String {
-    format!("{SUPER_AGENT_LOCAL_DATA_DIR}/agents.d/{agent_id}/values.yml")
-}
-
-pub fn get_remote_data_path(agent_id: &AgentID) -> PathBuf {
-    PathBuf::from(format!("{SUPER_AGENT_DATA_DIR}/fleet/agents.d/{agent_id}"))
 }
 
 #[derive(Debug, Default, Deserialize, PartialEq, Clone)]

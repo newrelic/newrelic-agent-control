@@ -85,12 +85,19 @@ pub mod tests {
     }
 
     impl MockAgentRegistryMock {
-        pub fn should_get(&mut self, name: String, final_agent: FinalAgent, times: usize) {
+        pub fn should_get(&mut self, name: String, final_agent: &FinalAgent) {
             let final_agent = final_agent.clone();
             self.expect_get()
                 .with(predicate::eq(name.clone()))
-                .times(times)
+                .once()
                 .returning(move |_| Ok(final_agent.clone()));
+        }
+
+        pub fn should_not_get(&mut self, name: String) {
+            self.expect_get()
+                .with(predicate::eq(name.clone()))
+                .once()
+                .returning(move |_| Err(AgentRepositoryError::NotFound));
         }
     }
 

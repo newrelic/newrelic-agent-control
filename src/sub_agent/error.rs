@@ -8,7 +8,7 @@ use crate::super_agent::effective_agents_assembler::EffectiveAgentsAssemblerErro
 
 use crate::config::agent_values::AgentValuesError;
 use crate::opamp::remote_config::RemoteConfigError;
-use crate::sub_agent::values::remote_values_repository::RemoteValuesRepositoryError;
+use crate::sub_agent::values::values_repository::ValuesRepositoryError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -42,7 +42,7 @@ pub enum SubAgentError {
     ConfigAssemblerError(#[from] EffectiveAgentsAssemblerError),
 
     #[error("sub agent values error: `{0}`")]
-    ValuesError(#[from] RemoteValuesRepositoryError),
+    ValuesError(#[from] ValuesRepositoryError),
 
     #[error("sub agent values error: `{0}`")]
     ValuesUnserializeError(#[from] AgentValuesError),

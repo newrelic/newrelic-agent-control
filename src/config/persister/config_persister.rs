@@ -105,14 +105,9 @@ pub mod test {
     }
 
     impl MockConfigurationPersisterMock {
-        pub fn should_persist_agent_config(
-            &mut self,
-            times: usize,
-            agent_id: &AgentID,
-            agent_type: &FinalAgent,
-        ) {
+        pub fn should_persist_agent_config(&mut self, agent_id: &AgentID, agent_type: &FinalAgent) {
             self.expect_persist_agent_config()
-                .times(times)
+                .once()
                 .with(
                     predicate::eq(agent_id.clone()),
                     predicate::eq(agent_type.clone()),
@@ -122,16 +117,15 @@ pub mod test {
 
         pub fn should_not_persist_agent_config(
             &mut self,
-            times: usize,
             agent_id: &AgentID,
-            agent_type: &FinalAgent,
+            final_agent: &FinalAgent,
             err: PersistError,
         ) {
             self.expect_persist_agent_config()
-                .times(times)
+                .once()
                 .with(
                     predicate::eq(agent_id.clone()),
-                    predicate::eq(agent_type.clone()),
+                    predicate::eq(final_agent.clone()),
                 )
                 .once()
                 .returning(move |_, _| Err(err.clone()));
@@ -148,19 +142,29 @@ pub mod test {
                 .once()
                 .returning(move |_, _| Err(err.clone()));
         }
-        pub fn should_delete_agent_config(
-            &mut self,
-            times: usize,
-            agent_id: &AgentID,
-            agent_type: &FinalAgent,
-        ) {
+        pub fn should_delete_agent_config(&mut self, agent_id: &AgentID, final_agent: &FinalAgent) {
             self.expect_delete_agent_config()
-                .times(times)
+                .once()
                 .with(
                     predicate::eq(agent_id.clone()),
-                    predicate::eq(agent_type.clone()),
+                    predicate::eq(final_agent.clone()),
                 )
                 .returning(|_, _| Ok(()));
+        }
+
+        pub fn should_not_delete_agent_config(
+            &mut self,
+            agent_id: &AgentID,
+            final_agent: &FinalAgent,
+            err: PersistError,
+        ) {
+            self.expect_delete_agent_config()
+                .once()
+                .with(
+                    predicate::eq(agent_id.clone()),
+                    predicate::eq(final_agent.clone()),
+                )
+                .returning(move |_, _| Err(err.clone()));
         }
 
         pub fn should_delete_any_agent_config(&mut self, times: usize) {

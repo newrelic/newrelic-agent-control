@@ -67,18 +67,11 @@ where
     fn on_message(&self, msg: MessageData) {
         if let Some(msg_remote_config) = msg.remote_config {
             trace!("OpAMP message received");
-            let result = self
+            let _ = self
                 .remote_config_publisher
                 .update(self.agent_id.clone(), &msg_remote_config)
-                .map_err(|error| error!("{}", error));
-            match result {
-                Ok(()) => {
-                    trace!("on message ok {:?}", msg_remote_config.clone());
-                }
-                Err(e) => {
-                    error!("on message error {:?}", e)
-                }
-            }
+                .map_err(|error| error!("on message error: {}", error))
+                .map(|_| trace!("on message ok {:?}", msg_remote_config.clone()));
         } else {
             trace!("Empty OpAMP message received");
         }

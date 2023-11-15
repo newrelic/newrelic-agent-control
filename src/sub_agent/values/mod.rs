@@ -1,1 +1,1 @@
-pub mod remote_values_repository;
+pub mod values_repository;

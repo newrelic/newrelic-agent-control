@@ -19,6 +19,7 @@ use crate::config::persister::directory_manager::DirectoryManagerFs;
 use crate::config::store::{SubAgentsConfigStore, SuperAgentConfigStoreFile};
 use crate::config::super_agent_configs::{AgentID, SubAgentConfig, SubAgentsConfig};
 use crate::context::Context;
+use crate::file_reader::FSFileReader;
 use crate::opamp::client_builder::OpAMPClientBuilder;
 use crate::opamp::remote_config::{RemoteConfig, RemoteConfigError};
 use crate::opamp::remote_config_hash::{Hash, HashRepository, HashRepositoryFile};
@@ -33,9 +34,7 @@ use crate::super_agent::defaults::{
 use crate::sub_agent::opamp::{
     report_remote_config_status_applied, report_remote_config_status_applying,
 };
-use crate::sub_agent::values::remote_values_repository::{
-    RemoteValuesRepository, RemoteValuesRepositoryFile,
-};
+use crate::sub_agent::values::values_repository::{ValuesRepository, ValuesRepositoryFile};
 use crate::sub_agent::{error::SubAgentError, NotStartedSubAgent};
 use crate::super_agent::error::AgentError;
 use crate::super_agent::instance_id::{InstanceIDGetter, ULIDInstanceIDGetter};
@@ -63,7 +62,7 @@ pub struct SuperAgent<
     HR = HashRepositoryFile,
     SL = SuperAgentConfigStoreFile,
     HRS = HashRepositoryFile,
-    VR = RemoteValuesRepositoryFile<DirectoryManagerFs, WriterFile>,
+    VR = ValuesRepositoryFile<DirectoryManagerFs, WriterFile, FSFileReader>,
 > where
     OpAMPBuilder: OpAMPClientBuilder,
     ID: InstanceIDGetter,
@@ -71,7 +70,7 @@ pub struct SuperAgent<
     SL: SubAgentsConfigStore,
     HRS: HashRepository,
     S: SubAgentBuilder,
-    VR: RemoteValuesRepository,
+    VR: ValuesRepository,
 {
     instance_id_getter: &'a ID,
     opamp_client_builder: Option<&'a OpAMPBuilder>,
@@ -91,7 +90,7 @@ where
     S: SubAgentBuilder,
     SL: SubAgentsConfigStore,
     HRS: HashRepository,
-    VR: RemoteValuesRepository,
+    VR: ValuesRepository,
 {
     pub fn new(
         opamp_client_builder: Option<&'a OpAMPBuilder>,
@@ -128,7 +127,7 @@ where
     S: SubAgentBuilder,
     SL: SubAgentsConfigStore,
     HRS: HashRepository,
-    VR: RemoteValuesRepository,
+    VR: ValuesRepository,
 {
     pub fn run(self, ctx: Context<Option<SuperAgentEvent>>) -> Result<(), AgentError> {
         info!("Creating agent's communication channels");
@@ -155,13 +154,13 @@ where
 
             if let Some(mut hash) = remote_config_hash {
                 if !hash.is_applied() {
-                    self.set_config_hash_as_applied(&mut hash)?;
                     report_remote_config_status_applied(opamp_handle, &hash)?;
+                    self.set_config_hash_as_applied(&mut hash)?;
                 }
             }
         } else {
             // Delete remote values
-            self.remote_values_repo.delete_all()?;
+            self.remote_values_repo.delete_remote_all()?;
         }
 
         info!("Starting the supervisor group.");
@@ -399,11 +398,11 @@ where
         let remote_config_value = remote_config.get_unique()?;
         if remote_config_value.is_empty() {
             self.remote_values_repo
-                .delete_agent_values(&remote_config.agent_id)?;
+                .delete_remote(&remote_config.agent_id)?;
         } else {
             let agent_values = AgentValues::try_from(remote_config_value.to_string())?;
             self.remote_values_repo
-                .store(&remote_config.agent_id, &agent_values)?;
+                .store_remote(&remote_config.agent_id, &agent_values)?;
         }
 
         let config = self.sub_agents_config_store.load()?;
@@ -584,7 +583,6 @@ impl EffectiveAgents {
 
 #[cfg(test)]
 mod tests {
-    use crate::config::agent_type::agent_types::FinalAgent;
     use crate::config::agent_type::trivial_value::TrivialValue;
     use crate::config::agent_values::AgentValues;
     use crate::config::store::tests::MockSubAgentsConfigStore;
@@ -600,8 +598,8 @@ mod tests {
     use crate::opamp::remote_config_hash::{Hash, HashRepository};
     use crate::sub_agent::collection::StartedSubAgents;
     use crate::sub_agent::test::MockStartedSubAgent;
-    use crate::sub_agent::values::remote_values_repository::test::MockRemoteValuesRepositoryMock;
-    use crate::sub_agent::values::remote_values_repository::RemoteValuesRepository;
+    use crate::sub_agent::values::values_repository::test::MockRemoteValuesRepositoryMock;
+    use crate::sub_agent::values::values_repository::ValuesRepository;
     use crate::sub_agent::{test::MockSubAgentBuilderMock, SubAgentBuilder};
     use crate::super_agent::defaults::{
         default_capabilities, SUPER_AGENT_ID, SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE,
@@ -609,7 +607,7 @@ mod tests {
     };
     use crate::super_agent::instance_id::test::MockInstanceIDGetterMock;
     use crate::super_agent::instance_id::InstanceIDGetter;
-    use crate::super_agent::super_agent::{EffectiveAgents, SuperAgent, SuperAgentEvent};
+    use crate::super_agent::super_agent::{SuperAgent, SuperAgentEvent};
     use mockall::predicate;
     use nix::unistd::gethostname;
     use opamp_client::operation::capabilities::Capabilities;
@@ -632,7 +630,7 @@ mod tests {
         S: SubAgentBuilder,
         SL: SubAgentsConfigStore,
         HRS: HashRepository,
-        VR: RemoteValuesRepository,
+        VR: ValuesRepository,
     {
         pub fn new_custom(
             instance_id_getter: &'a ID,
@@ -948,7 +946,7 @@ config_file: /some/path/newrelic-infra.yml
             "config_file".to_string(),
             TrivialValue::String("/some/path/newrelic-infra.yml".to_string()),
         )]));
-        sub_agent_values_repo.should_store(&sub_agent_id, &expected_agent_values);
+        sub_agent_values_repo.should_store_remote(&sub_agent_id, &expected_agent_values);
         // And we reload the config from the Sub Agent Config Store
         let sub_agents_config = SubAgentsConfig::from(HashMap::from([
             (
@@ -1036,7 +1034,7 @@ config_file: /some/path/newrelic-infra.yml
         sub_agent_hash_repository_mock
             .should_save_hash(&remote_config.agent_id, &remote_config.hash);
         // And config should be deleted
-        sub_agent_values_repo.should_delete_agent_values(&sub_agent_id);
+        sub_agent_values_repo.should_delete_remote(&sub_agent_id);
         // And we reload the config from the Sub Agent Config Store
         let sub_agents_config = SubAgentsConfig::from(HashMap::from([
             (

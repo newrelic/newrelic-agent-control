@@ -34,12 +34,12 @@ impl RemoteConfig {
                 self.hash.get(),
                 "empty config map".to_string(),
             )),
-            1 => {
-                if let Some(key) = self.config_map.0.keys().next() {
-                    return Ok(self.config_map.get(key).unwrap());
-                }
-                unreachable!("this cannot happen")
-            }
+            1 => Ok(self
+                .config_map
+                .0
+                .values()
+                .next()
+                .expect("at least one config has been provided")),
             _ => Err(RemoteConfigError::InvalidConfig(
                 self.hash.get(),
                 "too many config items".to_string(),

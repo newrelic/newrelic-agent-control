@@ -9,7 +9,7 @@ use newrelic_super_agent::config::persister::config_persister_file::Configuratio
 use newrelic_super_agent::config::store::{SuperAgentConfigStore, SuperAgentConfigStoreFile};
 use newrelic_super_agent::opamp::remote_config_hash::HashRepositoryFile;
 use newrelic_super_agent::sub_agent::opamp::client_builder::SubAgentOpAMPHttpBuilder;
-use newrelic_super_agent::sub_agent::values::remote_values_repository::RemoteValuesRepositoryFile;
+use newrelic_super_agent::sub_agent::values::values_repository::ValuesRepositoryFile;
 use newrelic_super_agent::super_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use newrelic_super_agent::super_agent::instance_id::ULIDInstanceIDGetter;
 use newrelic_super_agent::super_agent::opamp::client_builder::SuperAgentOpAMPHttpBuilder;
@@ -64,8 +64,7 @@ fn run_super_agent(
     opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
     instance_id_getter: ULIDInstanceIDGetter,
 ) -> Result<(), AgentError> {
-    let effective_agents_assembler =
-        LocalEffectiveAgentsAssembler::with_remote_management(opamp_client_builder.is_some());
+    let effective_agents_assembler = LocalEffectiveAgentsAssembler::default().with_remote();
     // TODO: first matching feature will be used if --all-features is specified
     cfg_if! {
      if #[cfg(feature = "onhost")] {
@@ -98,7 +97,7 @@ fn run_super_agent(
     config_persister.delete_all_configs()?;
 
     info!("Starting the super agent");
-    let values_repository = RemoteValuesRepositoryFile::default();
+    let values_repository = ValuesRepositoryFile::default();
 
     SuperAgent::new(
         opamp_client_builder.as_ref(),

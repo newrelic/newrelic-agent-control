@@ -52,7 +52,6 @@ pub mod test {
     use crate::sub_agent::error::SubAgentBuilderError;
     use crate::sub_agent::error::SubAgentError::ErrorCreatingSubAgent;
     use mockall::{mock, predicate};
-    use std::sync::mpsc::Sender;
 
     mock! {
         pub StartedSubAgent {}

@@ -35,6 +35,7 @@ impl FileReader for FSFileReader {
 pub mod test {
     use super::*;
     use mockall::{mock, predicate};
+    use std::io::{Error, ErrorKind};
 
     mock! {
         pub FileReaderMock {}
@@ -50,6 +51,24 @@ pub mod test {
                 .with(predicate::eq(path.clone()))
                 .times(1)
                 .returning(move |_| Ok(content.clone()));
+        }
+
+        pub fn should_not_read_file_not_found(&mut self, path: String, error_message: String) {
+            self.expect_read()
+                .with(predicate::eq(path.clone()))
+                .once()
+                .returning(move |_| Err(FileReaderError::FileNotFound(error_message.clone())));
+        }
+
+        pub fn should_not_read_io_error(&mut self, path: String) {
+            self.expect_read()
+                .with(predicate::eq(path.clone()))
+                .once()
+                .returning(move |_| {
+                    Err(FileReaderError::Read(Error::from(
+                        ErrorKind::PermissionDenied,
+                    )))
+                });
         }
 
         // the test is not idempotent as it iterates hashmap. For now let's use this
