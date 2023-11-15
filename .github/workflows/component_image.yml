@@ -34,7 +34,7 @@ jobs:
 
       - name: Build Super Agent
         run: |
-          make build-super-agent ARCH=${{ matrix.arch }}
+          make build-super-agent BUILD_FEATURE=k8s ARCH=${{ matrix.arch }}
       
       - name: Upload artifact for Docker build step
         uses: actions/upload-artifact@v3

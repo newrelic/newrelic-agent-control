@@ -72,6 +72,7 @@ async fn k8s_get_dynamic_resource() {
         .unwrap()
         .is_none());
 }
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[ignore = "needs k8s cluster"]
 async fn k8s_delete_dynamic_resource() {

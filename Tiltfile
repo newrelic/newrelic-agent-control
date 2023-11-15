@@ -13,7 +13,7 @@ allow_k8s_contexts(settings.get('cluster_context'))
 
 local_resource(
     'build-rust-binary',
-    cmd="make BUILD_MODE=debug build-super-agent",
+    cmd="make BUILD_MODE=debug BUILD_FEATURE=k8s build-super-agent",
     deps=[
         './src',
         'Cargo.toml',

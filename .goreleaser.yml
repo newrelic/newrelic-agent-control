@@ -13,6 +13,7 @@ builds:
         - cmd: sh ./build/scripts/build_super_agent.sh
           env:
             - ARCH={{ .Arch }}
+            - BUILD_FEATURE=onhost
         - cmd: sh ./build/scripts/replace_go_with_rust.sh
           env:
             - ARCH={{ .Arch }}

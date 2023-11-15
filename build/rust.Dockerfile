@@ -27,11 +27,14 @@ ENV ARCH_NAME=${ARCH_NAME} \
 # Persist the ARG value into an ENV so it's available at runtime
 ARG BUILD_MODE
 ENV BUILD_MODE_ENV=${BUILD_MODE}
+ARG BUILD_FEATURE
+ENV BUILD_FEATURE_ENV=${BUILD_FEATURE}
 
 # Execute the command dynamically at runtime
 CMD [ "sh", "-c", "\
      CMD_STRING='cargo build'; \
      [ \"$BUILD_MODE_ENV\" != 'debug' ] && CMD_STRING='cargo build --release'; \
+     CMD_STRING=\"$CMD_STRING --features $BUILD_FEATURE_ENV\"; \
      CMD_STRING=\"$CMD_STRING --target $ARCH_NAME-unknown-linux-gnu\"; \
      $CMD_STRING \
 "]
