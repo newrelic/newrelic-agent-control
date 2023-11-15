@@ -71,24 +71,13 @@ deployment:
   on_host:
     executables:
       - path: /usr/bin/nr-ebpf-agent
-    restart_policy:
-      backoff_strategy:
-        type: fixed
-        backoff_delay_seconds: 5
-"#;
-
-// NR_EBPF_AGENT_CLIENT_TYPE AgentType
-pub(crate) const NR_EBPF_AGENT_CLIENT_TYPE: &str = r#"
-namespace: newrelic
-name: com.newrelic.nr_ebpf_client
-version: 0.0.1
-variables:
-deployment:
-  on_host:
-    executables:
+        restart_policy:
+           backoff_strategy:
+           type: fixed
+           backoff_delay_seconds: 5
       - path: /usr/bin/nr-ebpf-agent-client
-    restart_policy:
-      backoff_strategy:
-        type: fixed
-        backoff_delay_seconds: 5
+        restart_policy:
+           backoff_strategy:
+           type: fixed
+           backoff_delay_seconds: 5
 "#;

@@ -6,7 +6,6 @@ use crate::super_agent::defaults::{
     NEWRELIC_INFRA_TYPE,
     NRDOT_TYPE,
     NR_EBPF_AGENT_TYPE,
-    NR_EBPF_AGENT_CLIENT_TYPE,
 };
 
 use super::agent_type::agent_types::FinalAgent;
@@ -37,7 +36,6 @@ impl Default for LocalRegistry {
             NEWRELIC_INFRA_TYPE,
             NRDOT_TYPE,
             NR_EBPF_AGENT_TYPE,
-            NR_EBPF_AGENT_CLIENT_TYPE,
         ];
 
         agent_types.map(|agent_type| {
