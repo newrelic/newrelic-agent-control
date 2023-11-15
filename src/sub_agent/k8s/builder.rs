@@ -1,15 +1,14 @@
-use std::collections::HashMap;
-
 use crate::config::super_agent_configs::SubAgentConfig;
 use crate::context::Context;
+use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::sub_agent::opamp::common::build_opamp_and_start_client;
 use crate::super_agent::super_agent::SuperAgentEvent;
 use crate::{
     config::super_agent_configs::AgentID,
     opamp::client_builder::OpAMPClientBuilder,
     sub_agent::{error::SubAgentBuilderError, logger::Event, SubAgentBuilder},
-    super_agent::instance_id::InstanceIDGetter,
 };
+use std::collections::HashMap;
 
 use super::sub_agent::NotStartedSubAgentK8s;
 
@@ -66,16 +65,14 @@ where
 
 #[cfg(test)]
 mod test {
-    use std::{collections::HashMap, sync::mpsc::channel};
-
+    use super::*;
+    use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
     use crate::sub_agent::opamp::common::start_settings;
     use crate::{
         opamp::client_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock},
         sub_agent::{NotStartedSubAgent, StartedSubAgent},
-        super_agent::instance_id::test::MockInstanceIDGetterMock,
     };
-
-    use super::*;
+    use std::{collections::HashMap, sync::mpsc::channel};
 
     #[test]
     fn build_start_stop() {

@@ -9,6 +9,7 @@ use tracing::error;
 use crate::config::super_agent_configs::{AgentID, OpAMPClientConfig};
 
 use crate::context::Context;
+use crate::opamp::instance_id::getter;
 use crate::super_agent::super_agent::SuperAgentEvent;
 
 #[derive(Error, Debug)]
@@ -23,6 +24,8 @@ pub enum OpAMPClientBuilderError {
     StartedOpAMPlientError(#[from] opamp_client::error::ClientError),
     #[error("system time error: `{0}`")]
     SystemTimeError(#[from] SystemTimeError),
+    #[error("error getting agent ulid: `{0}`")]
+    GetUlidError(#[from] getter::GetterError),
 }
 
 pub trait OpAMPClientBuilder {

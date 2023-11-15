@@ -1,19 +1,17 @@
+use crate::config::persister::config_persister_file::FILE_PERMISSIONS;
 use crate::config::persister::config_writer_file::{WriteError, Writer, WriterFile};
+use crate::config::persister::directory_manager::{
+    DirectoryManagementError, DirectoryManager, DirectoryManagerFs,
+};
 use crate::config::super_agent_configs::AgentID;
-use thiserror::Error;
-
+use crate::file_reader::{FSFileReader, FileReader, FileReaderError};
+use crate::super_agent::defaults::{REMOTE_AGENT_DATA_DIR, SUPER_AGENT_DATA_DIR};
 use serde::{Deserialize, Serialize};
 use std::fs::Permissions;
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
-
-use crate::config::persister::config_persister_file::FILE_PERMISSIONS;
-use crate::config::persister::directory_manager::{
-    DirectoryManagementError, DirectoryManager, DirectoryManagerFs,
-};
-use crate::file_reader::{FSFileReader, FileReader, FileReaderError};
-use crate::super_agent::defaults::{REMOTE_AGENT_DATA_DIR, SUPER_AGENT_DATA_DIR};
+use thiserror::Error;
 
 #[cfg(target_family = "unix")]
 const DIRECTORY_PERMISSIONS: u32 = 0o700;

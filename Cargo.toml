@@ -23,7 +23,7 @@ opamp-client = { git = "ssh://git@github.com/newrelic/opamp-rs.git", tag = "0.0.
 futures = "0.3.28"
 async-trait = "0.1.71"
 tokio = "1.32.0"
-ulid = "1.0.1"
+ulid = { version = "1.0.1", features = ["serde"]}
 openssl = { version = "0.10.57", features = ["vendored"] }
 aquamarine = "0.3.2"
 duration-str = "0.7.0"

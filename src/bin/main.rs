@@ -4,10 +4,11 @@ use newrelic_super_agent::super_agent::error::AgentError;
 use tracing::{error, info};
 
 use newrelic_super_agent::config::store::{SuperAgentConfigStore, SuperAgentConfigStoreFile};
+use newrelic_super_agent::opamp::instance_id::getter::ULIDInstanceIDGetter;
+use newrelic_super_agent::opamp::instance_id::Storer;
 use newrelic_super_agent::opamp::remote_config_hash::HashRepositoryFile;
 use newrelic_super_agent::sub_agent::values::values_repository::ValuesRepositoryFile;
 use newrelic_super_agent::super_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
-use newrelic_super_agent::super_agent::instance_id::ULIDInstanceIDGetter;
 use newrelic_super_agent::super_agent::opamp::client_builder::SuperAgentOpAMPHttpBuilder;
 use newrelic_super_agent::super_agent::super_agent::{SuperAgent, SuperAgentEvent};
 use newrelic_super_agent::{cli::Cli, context::Context, logging::Logging};
@@ -44,7 +45,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         super_agent_config_storer = super_agent_config_storer.with_remote()?;
     }
 
-    let instance_id_getter = ULIDInstanceIDGetter::default();
+    let instance_id_getter = ULIDInstanceIDGetter::new(Storer {});
 
     Ok(run_super_agent(
         super_agent_config_storer,
@@ -59,7 +60,7 @@ fn run_super_agent(
     config_storer: SuperAgentConfigStoreFile,
     ctx: Context<Option<SuperAgentEvent>>,
     opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
-    instance_id_getter: ULIDInstanceIDGetter,
+    instance_id_getter: ULIDInstanceIDGetter<Storer>,
 ) -> Result<(), AgentError> {
     #[cfg(unix)]
     if !nix::unistd::Uid::effective().is_root() {
@@ -98,12 +99,11 @@ fn run_super_agent(
     config_storer: SuperAgentConfigStoreFile,
     ctx: Context<Option<SuperAgentEvent>>,
     opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
-    instance_id_getter: ULIDInstanceIDGetter,
+    instance_id_getter: ULIDInstanceIDGetter<Storer>,
 ) -> Result<(), AgentError> {
     let hash_repository = HashRepositoryFile::default();
     let sub_agent_hash_repository = HashRepositoryFile::new_sub_agent_repository();
 
-    // Disabled when --all-features
     #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
     let sub_agent_builder = newrelic_super_agent::sub_agent::k8s::builder::K8sSubAgentBuilder::new(
         opamp_client_builder.as_ref(),
