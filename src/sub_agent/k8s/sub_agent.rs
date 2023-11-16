@@ -60,7 +60,6 @@ where
             &self.agent_type,
             HashMap::new(), // TODO: check if some non-identifying attributes are needed
         );
-        println!("{:?}", opamp_start_settings);
         start_opamp_client(
             self.ctx.clone(),
             self.opamp_builder,

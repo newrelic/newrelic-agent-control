@@ -89,7 +89,6 @@ mod test {
             &sub_agent_config.agent_type,
             HashMap::new(),
         );
-        println!("{:?}", start_settings);
         opamp_builder.should_build_and_start(
             AgentID::new("k8s-test").unwrap(),
             start_settings,
