@@ -19,19 +19,19 @@ impl SubAgentBuilder for K8sSubAgentBuilder {
 
     fn build(
         &self,
-        agent: Result<FinalAgent, EffectiveAgentsAssemblerError>,
         agent_id: AgentID,
-        agent_type: &AgentTypeFQN,
+        sub_agent_config: &SubAgentConfig,
         tx: std::sync::mpsc::Sender<Event>,
+        ctx: Context<Option<SuperAgentEvent>>,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
         unimplemented!()
     }
 }
 
-use crate::config::remote_config_hash::HashRepository;
-use crate::config::super_agent_configs::AgentTypeFQN;
+use crate::config::super_agent_configs::{AgentTypeFQN, SubAgentConfig};
 use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
 use crate::super_agent::effective_agents_assembler::EffectiveAgentsAssemblerError;
+use crate::super_agent::super_agent::SuperAgentEvent;
 use std::thread::JoinHandle;
 
 pub struct K8sSubAgent;

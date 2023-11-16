@@ -92,9 +92,34 @@ where
             Ok(())
         })
     }
+}
 
-    #[cfg(test)]
-    pub(crate) fn len(&self) -> usize {
-        self.0.len()
+#[cfg(test)]
+pub mod test {
+    use crate::config::super_agent_configs::AgentID;
+    use crate::sub_agent::collection::StartedSubAgents;
+    use crate::sub_agent::StartedSubAgent;
+    use std::collections::HashMap;
+
+    impl<S> StartedSubAgents<S>
+    where
+        S: StartedSubAgent,
+    {
+        pub(crate) fn len(&self) -> usize {
+            self.0.len()
+        }
+
+        pub fn get(&mut self, agent_id: &AgentID) -> &mut S {
+            self.0.get_mut(agent_id).unwrap()
+        }
+    }
+
+    impl<S> From<HashMap<AgentID, S>> for StartedSubAgents<S>
+    where
+        S: StartedSubAgent,
+    {
+        fn from(value: HashMap<AgentID, S>) -> Self {
+            StartedSubAgents(value)
+        }
     }
 }

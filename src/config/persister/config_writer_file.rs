@@ -46,7 +46,7 @@ impl Writer for WriterFile {
         validate_path(path)?;
 
         let mut file = fs::OpenOptions::new()
-            .create_new(true)
+            .create(true)
             .write(true)
             .mode(permissions.mode())
             .open(path)?;
@@ -71,12 +71,12 @@ impl Writer for WriterFile {
 ////////////////////////////////////////////////////////////////////////////////////
 #[cfg(test)]
 pub mod test {
-    use std::fs;
     use std::fs::Permissions;
     use std::io::{Error, ErrorKind};
     #[cfg(target_family = "unix")]
     use std::os::unix::fs::PermissionsExt;
     use std::path::{Path, PathBuf};
+    use std::{fs, io};
 
     use mockall::{mock, predicate};
 
@@ -133,7 +133,7 @@ pub mod test {
 
     #[cfg(target_family = "unix")]
     #[test]
-    fn test_file_writer_should_return_error_if_file_already_exists() {
+    fn test_file_writer_should_not_return_error_if_file_already_exists() {
         // Prepare temp path and content for the file
         let file_name = "some_file";
         let content = "some content";
@@ -155,7 +155,7 @@ pub mod test {
             content.to_string(),
             Permissions::from_mode(0o645),
         );
-        assert!(write_result.is_err());
+        assert!(write_result.is_ok());
     }
 
     #[cfg(target_family = "unix")]
@@ -197,6 +197,22 @@ pub mod test {
                 )
                 .once()
                 .returning(|_, _, _| Ok(()));
+        }
+
+        pub fn should_not_write(&mut self, path: &Path, content: String, permissions: Permissions) {
+            let path_clone = PathBuf::from(path.to_str().unwrap().to_string().as_str());
+            self.expect_write()
+                .with(
+                    predicate::eq(path_clone),
+                    predicate::eq(content),
+                    predicate::eq(permissions),
+                )
+                .once()
+                .returning(|_, _, _| {
+                    Err(WriteError::ErrorCreatingFile(io::Error::from(
+                        ErrorKind::PermissionDenied,
+                    )))
+                });
         }
 
         pub fn should_write_any(&mut self, times: usize) {

@@ -1,20 +1,15 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::{collections::HashMap, fmt::Display};
 
 use std::ops::Deref;
 
 use crate::config::error::SuperAgentConfigError;
-use crate::super_agent::defaults::{
-    SUPER_AGENT_DATA_DIR, SUPER_AGENT_ID, SUPER_AGENT_LOCAL_DATA_DIR,
-};
-use opamp_client::capabilities;
-use opamp_client::opamp::proto::AgentCapabilities;
+use crate::super_agent::defaults::{default_capabilities, SUPER_AGENT_ID};
 use opamp_client::operation::capabilities::Capabilities;
 use thiserror::Error;
 
+use crate::opamp::remote_config::RemoteConfig;
 use serde::{Deserialize, Serialize};
-
-use super::remote_config::RemoteConfig;
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Hash, Eq)]
 #[serde(try_from = "String")]
@@ -106,7 +101,9 @@ impl TryFrom<&RemoteConfig> for SubAgentsConfig {
     fn try_from(value: &RemoteConfig) -> Result<Self, Self::Error> {
         // YAML format
         // simple config is provided as empty string filename: https://github.com/open-telemetry/opamp-spec/blob/main/proto/opamp.proto#L837
-        let config: SubAgentsConfig = serde_yaml::from_str(value.config_map.get("").unwrap())?;
+        // TODO the sentence above is not true yet
+        let config: SubAgentsConfig = serde_yaml::from_str(value.get_unique()?)?;
+        // let config: SubAgentsConfig = serde_yaml::from_str(value.config_map.get("").unwrap())?;
         Ok(config)
     }
 }
@@ -181,14 +178,6 @@ pub struct SubAgentConfig {
     pub agent_type: AgentTypeFQN, // FQN of the agent type, ex: newrelic/nrdot:0.1.0
 }
 
-pub fn get_values_file_path(agent_id: &AgentID) -> String {
-    format!("{SUPER_AGENT_LOCAL_DATA_DIR}/agents.d/{agent_id}/values.yml")
-}
-
-pub fn get_remote_data_path(agent_id: &AgentID) -> PathBuf {
-    PathBuf::from(format!("{SUPER_AGENT_DATA_DIR}/fleet/agents.d/{agent_id}"))
-}
-
 #[derive(Debug, Default, Deserialize, PartialEq, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct OpAMPClientConfig {
@@ -198,10 +187,8 @@ pub struct OpAMPClientConfig {
 
 impl AgentTypeFQN {
     pub(crate) fn get_capabilities(&self) -> Capabilities {
-        capabilities!(
-            AgentCapabilities::ReportsHealth,
-            AgentCapabilities::AcceptsRemoteConfig
-        )
+        //TODO: We should move this to EffectiveAgent
+        default_capabilities()
     }
 }
 
