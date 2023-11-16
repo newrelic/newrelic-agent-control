@@ -71,7 +71,7 @@ where
                 .remote_config_publisher
                 .update(self.agent_id.clone(), &msg_remote_config)
                 .map_err(|error| error!("on message error: {}", error))
-                .map(|_| trace!("on message ok {:?}", msg_remote_config.clone()));
+                .map(|_| trace!("on message ok {:?}", msg_remote_config));
         } else {
             trace!("Empty OpAMP message received");
         }
