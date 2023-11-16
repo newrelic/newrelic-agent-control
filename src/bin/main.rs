@@ -61,6 +61,7 @@ fn run_super_agent(
     opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
     instance_id_getter: ULIDInstanceIDGetter,
 ) -> Result<(), AgentError> {
+    #[cfg(unix)]
     if !nix::unistd::Uid::effective().is_root() {
         panic!("Program must run as root");
     }

@@ -61,12 +61,13 @@ impl SubAgentsConfigStore for SuperAgentConfigStoreFile {
 
     //TODO this code is not unit tested
     fn delete(&self) -> Result<(), SuperAgentConfigError> {
-        if let Some(remote_path_file) = &self.remote_path {
-            let _ = fs::remove_file(remote_path_file);
-            Ok(())
-        } else {
-            unreachable!("we should not write into local paths")
+        let Some(remote_path_file) = &self.remote_path else {
+            unreachable!("we should not write into local paths");
+        };
+        if remote_path_file.exists() {
+            fs::remove_file(remote_path_file)?;
         }
+        Ok(())
     }
 }
 
