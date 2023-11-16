@@ -1,6 +1,11 @@
+use std::collections::HashMap;
+
+#[cfg(unix)]
+use nix::unistd::gethostname;
+
 use crate::config::super_agent_configs::SubAgentConfig;
 use crate::opamp::remote_config_hash::HashRepository;
-use crate::sub_agent::on_host::opamp::build_opamp_and_start_client;
+use crate::sub_agent::opamp::common::build_opamp_and_start_client;
 use crate::sub_agent::opamp::{
     report_remote_config_status_applied, report_remote_config_status_error,
 };
@@ -86,6 +91,7 @@ where
             self.instance_id_getter,
             agent_id.clone(),
             &sub_agent_config.agent_type,
+            HashMap::from([("host.name".to_string(), get_hostname().into())]),
         )?;
 
         // try to build effective agent
@@ -294,4 +300,12 @@ mod test {
             },
         }
     }
+}
+
+fn get_hostname() -> String {
+    #[cfg(unix)]
+    return gethostname().unwrap_or_default().into_string().unwrap();
+
+    #[cfg(not(unix))]
+    return unimplemented!();
 }

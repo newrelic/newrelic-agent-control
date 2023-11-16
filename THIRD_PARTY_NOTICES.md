@@ -53,6 +53,14 @@ Distributed under the following license(s):
 
 
 
+## allocator-api2 (https://crates.io/crates/allocator-api2)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+
 ## android-tzdata (https://crates.io/crates/android-tzdata)
 
 Distributed under the following license(s):
@@ -161,6 +169,14 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 * Apache-2.0
 * MIT
+
+
+
+## backoff (https://crates.io/crates/backoff)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
 
 
 
@@ -323,6 +339,27 @@ Distributed under the following license(s):
 
 
 
+## darling (https://crates.io/crates/darling)
+
+Distributed under the following license(s):
+* MIT
+
+
+
+## darling_core (https://crates.io/crates/darling_core)
+
+Distributed under the following license(s):
+* MIT
+
+
+
+## darling_macro (https://crates.io/crates/darling_macro)
+
+Distributed under the following license(s):
+* MIT
+
+
+
 ## dary_heap (https://crates.io/crates/dary_heap)
 
 Distributed under the following license(s):
@@ -332,6 +369,14 @@ Distributed under the following license(s):
 
 
 ## deranged (https://crates.io/crates/deranged)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+
+## derivative (https://crates.io/crates/derivative)
 
 Distributed under the following license(s):
 * MIT
@@ -356,6 +401,14 @@ Distributed under the following license(s):
 ## duration-str (https://crates.io/crates/duration-str)
 
 Distributed under the following license(s):
+* Apache-2.0
+
+
+
+## dyn-clone (https://crates.io/crates/dyn-clone)
+
+Distributed under the following license(s):
+* MIT
 * Apache-2.0
 
 
@@ -675,6 +728,14 @@ Distributed under the following license(s):
 
 
 
+## ident_case (https://crates.io/crates/ident_case)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+
 ## idna (https://crates.io/crates/idna)
 
 Distributed under the following license(s):
@@ -713,6 +774,13 @@ Distributed under the following license(s):
 
 
 
+## instant (https://crates.io/crates/instant)
+
+Distributed under the following license(s):
+* BSD-3-Clause
+
+
+
 ## ipnet (https://crates.io/crates/ipnet)
 
 Distributed under the following license(s):
@@ -738,6 +806,14 @@ Distributed under the following license(s):
 
 
 ## js-sys (https://crates.io/crates/js-sys)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+
+## json-patch (https://crates.io/crates/json-patch)
 
 Distributed under the following license(s):
 * MIT
@@ -774,6 +850,20 @@ Distributed under the following license(s):
 
 
 ## kube-core (https://crates.io/crates/kube-core)
+
+Distributed under the following license(s):
+* Apache-2.0
+
+
+
+## kube-derive (https://crates.io/crates/kube-derive)
+
+Distributed under the following license(s):
+* Apache-2.0
+
+
+
+## kube-runtime (https://crates.io/crates/kube-runtime)
 
 Distributed under the following license(s):
 * Apache-2.0
@@ -982,7 +1072,7 @@ Distributed under the following license(s):
 
 
 
-## opamp-client (git+ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.5#2e0c9713dbc95cc803605ab8387fc26a66458a14)
+## opamp-client (git+ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.6#d0a61bb40f86a6d881d2a0a7a1ff90d1ec5e23f5)
 
 Distributed under the following license(s):
 * Apache-2.0
@@ -1331,6 +1421,20 @@ Distributed under the following license(s):
 
 
 
+## schemars (https://crates.io/crates/schemars)
+
+Distributed under the following license(s):
+* MIT
+
+
+
+## schemars_derive (https://crates.io/crates/schemars_derive)
+
+Distributed under the following license(s):
+* MIT
+
+
+
 ## scopeguard (https://crates.io/crates/scopeguard)
 
 Distributed under the following license(s):
@@ -1379,6 +1483,14 @@ Distributed under the following license(s):
 
 
 ## serde_derive (https://crates.io/crates/serde_derive)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+
+## serde_derive_internals (https://crates.io/crates/serde_derive_internals)
 
 Distributed under the following license(s):
 * MIT
@@ -1670,6 +1782,14 @@ Distributed under the following license(s):
 
 Distributed under the following license(s):
 * MIT
+
+
+
+## treediff (https://crates.io/crates/treediff)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
 
 
 

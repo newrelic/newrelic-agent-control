@@ -77,7 +77,7 @@ pub struct SuperAgent<
     sub_agent_builder: S,
     remote_config_hash_repository: &'a HR,
     agent_id: AgentID,
-    sub_agent_remote_config_hash_repository: HRS,
+    sub_agent_remote_config_hash_repository: &'a HRS,
     remote_values_repo: VR,
     sub_agents_config_store: SL,
 }
@@ -98,7 +98,7 @@ where
         remote_config_hash_repository: &'a HR,
         sub_agent_builder: S,
         sub_agents_config_store: SL,
-        sub_agent_remote_config_hash_repository: HRS,
+        sub_agent_remote_config_hash_repository: &'a HRS,
         values_repo: VR,
     ) -> Self {
         Self {
@@ -638,7 +638,7 @@ mod tests {
             remote_config_hash_repository: &'a HR,
             sub_agent_builder: S,
             sub_agents_config_store: SL,
-            sub_agent_remote_config_hash_repository: HRS,
+            sub_agent_remote_config_hash_repository: &'a HRS,
             sub_agent_values_repo: VR,
         ) -> Self {
             SuperAgent {
@@ -699,7 +699,7 @@ mod tests {
             &hash_repository_mock,
             MockSubAgentBuilderMock::new(),
             sub_agents_config_store,
-            sub_agent_hash_repository_mock,
+            &sub_agent_hash_repository_mock,
             sub_agent_values_repo,
         );
 
@@ -765,7 +765,7 @@ mod tests {
             &hash_repository_mock,
             sub_agent_builder,
             sub_agents_config_store,
-            sub_agent_hash_repository_mock,
+            &sub_agent_hash_repository_mock,
             sub_agent_values_repo,
         );
 
@@ -865,7 +865,7 @@ mod tests {
                     &hash_repository_mock,
                     sub_agent_builder,
                     sub_agents_config_store,
-                    sub_agent_hash_repository_mock,
+                    &sub_agent_hash_repository_mock,
                     sub_agent_values_repo,
                 );
                 agent.run(ctx)
@@ -986,7 +986,7 @@ config_file: /some/path/newrelic-infra.yml
             &hash_repository_mock,
             sub_agent_builder,
             sub_agents_config_store,
-            sub_agent_hash_repository_mock,
+            &sub_agent_hash_repository_mock,
             sub_agent_values_repo,
         );
 
@@ -1074,7 +1074,7 @@ config_file: /some/path/newrelic-infra.yml
             &hash_repository_mock,
             sub_agent_builder,
             sub_agents_config_store,
-            sub_agent_hash_repository_mock,
+            &sub_agent_hash_repository_mock,
             sub_agent_values_repo,
         );
 
@@ -1137,7 +1137,7 @@ config_file: /some/path/newrelic-infra.yml
             &hash_repository_mock,
             sub_agent_builder,
             sub_agents_config_store,
-            sub_agent_hash_repository_mock,
+            &sub_agent_hash_repository_mock,
             sub_agent_values_repo,
         );
 
@@ -1212,7 +1212,7 @@ config_file: /some/path/newrelic-infra.yml
             &hash_repository_mock,
             sub_agent_builder,
             sub_agents_config_store,
-            sub_agent_hash_repository_mock,
+            &sub_agent_hash_repository_mock,
             sub_agent_values_repo,
         );
 
@@ -1296,7 +1296,7 @@ config_file: /some/path/newrelic-infra.yml
             &hash_repository_mock,
             sub_agent_builder,
             sub_agents_config_store,
-            sub_agent_hash_repository_mock,
+            &sub_agent_hash_repository_mock,
             sub_agent_values_repo,
         );
 
@@ -1379,7 +1379,7 @@ config_file: /some/path/newrelic-infra.yml
             &hash_repository_mock,
             sub_agent_builder,
             sub_agents_config_store,
-            sub_agent_hash_repository_mock,
+            &sub_agent_hash_repository_mock,
             sub_agent_values_repo,
         );
 

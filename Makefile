@@ -30,8 +30,8 @@ help:
 	@echo $(addsuffix -clean,$(TARGETS))
 
 
-ARCH:=arm64
-BUILD_MODE:=release
+ARCH ?= arm64
+BUILD_MODE ?= release
 
 .PHONY: build-super-agent 
 # Cross-compilation only works from amd64 host.

@@ -34,7 +34,7 @@ jobs:
         uses: dtolnay/rust-toolchain@4f366e621dc8fa63f557ca04b8f4361824a35a45
         with:
           components: rustfmt
-      - name: cargo fmt --check
+      - name: Check code formatting
         run: cargo fmt --check
   clippy:
     runs-on: ubuntu-latest
@@ -63,7 +63,7 @@ jobs:
         uses: actions-rs/clippy-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          args: -- -D clippy::all
+          args: --all-features -- -D clippy::all
   doc:
     runs-on: ubuntu-latest
     name: stable / doc
@@ -77,7 +77,7 @@ jobs:
           ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
       - name: Install nightly
         uses: dtolnay/rust-toolchain@4f366e621dc8fa63f557ca04b8f4361824a35a45
-      - name: cargo doc
+      - name: Create documentation
         run: cargo doc --no-deps --all-features
         env:
           RUSTDOCFLAGS: --cfg docsrs
@@ -100,7 +100,7 @@ jobs:
         with:
           toolchain: ${{ matrix.msrv }}
       - name: cargo +${{ matrix.msrv }} check
-        run: cargo check
+        run: cargo check --all-features
 
   licenses:
     name: Validate third party libraries
@@ -114,7 +114,7 @@ jobs:
         uses: webfactory/ssh-agent@v0.8.0
         with:
           ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
-      - name: cargo deny check
+      - name: Check security and licensing
         run: cargo install --locked cargo-deny && cargo deny check
       - name: Ensure that third party notices is up to date
         run: make -C license third-party-notices-check

@@ -5,13 +5,20 @@ use bollard::{
     Docker,
 };
 use futures::StreamExt;
-use k8s_openapi::api::core::v1::Namespace;
-use kube::{
-    api::{Api, DeleteParams, PostParams},
-    Client,
+use k8s_openapi::{
+    api::core::v1::Namespace,
+    apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition,
 };
+use kube::{
+    api::{Api, DeleteParams, Patch, PatchParams, PostParams},
+    core::GroupVersionKind,
+    Client, CustomResource, CustomResourceExt,
+};
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, env, fs::File, io::Write, time::Duration};
 use tempfile::{tempdir, TempDir};
+use tokio::sync::OnceCell;
 use tokio::time::timeout;
 
 const KUBECONFIG_PATH: &str = "test/k8s/.kubeconfig-dev";
@@ -29,8 +36,11 @@ impl K8sEnv {
         // Forces the client to use the dev kubeconfig file.
         env::set_var("KUBECONFIG", KUBECONFIG_PATH);
 
+        let client = Client::try_default().await.expect("fail to create client");
+        create_foo_crd(client.to_owned()).await;
+
         K8sEnv {
-            client: Client::try_default().await.expect("fail to create client"),
+            client,
             generated_namespaces: Vec::new(),
         }
     }
@@ -135,11 +145,13 @@ impl K8sCluster {
 
         k8s_cluster.set_kubeconfig().await;
 
-        k8s_cluster.client = Some(
-            Client::try_default()
-                .await
-                .expect("fail to create the client"),
-        );
+        let client = Client::try_default()
+            .await
+            .expect("fail to create the client");
+
+        k8s_cluster.client = Some(client.to_owned());
+
+        create_foo_crd(client).await;
 
         k8s_cluster
     }
@@ -251,4 +263,56 @@ fn container_config(cluster_port: String) -> Config<String> {
         ]),
         ..Default::default()
     }
+}
+
+#[derive(CustomResource, Deserialize, Serialize, Clone, Debug, JsonSchema)]
+#[kube(group = "newrelic.com", version = "v1", kind = "Foo", namespaced)]
+pub struct FooSpec {
+    pub data: String,
+}
+
+pub fn foo_gvk() -> GroupVersionKind {
+    GroupVersionKind::gvk("newrelic.com", "v1", "Foo")
+}
+
+static ONCE: OnceCell<()> = OnceCell::const_new();
+
+/// Create the Foo CRD for testing purposes.The CRD is not cleaned on test termination (for simplicity) so all tests
+/// can assume this CRD exists.
+pub async fn create_foo_crd(client: Client) {
+    ONCE.get_or_try_init(|| async { perform_crd_patch(client).await })
+        .await
+        .expect("Error creating the Foo CRD");
+
+    // Wait for the CRD to be fully deployed: https://github.com/kubernetes/kubectl/issues/1117
+    tokio::time::sleep(Duration::from_secs(1)).await;
+}
+
+async fn perform_crd_patch(client: Client) -> Result<(), kube::Error> {
+    let crds: Api<CustomResourceDefinition> = Api::all(client);
+    crds.patch(
+        "foos.newrelic.com",
+        &PatchParams::apply("foo"),
+        &Patch::Apply(Foo::crd()),
+    )
+    .await?;
+    Ok(())
+}
+
+/// Creates a Foo CR for testing purposes.
+/// ### Panics
+/// It panics if there is an error creating the CR.
+pub async fn create_test_cr(client: Client, namespace: &str, name: &str) -> Foo {
+    let api: Api<Foo> = Api::namespaced(client, namespace);
+    api.create(
+        &PostParams::default(),
+        &Foo::new(
+            name,
+            FooSpec {
+                data: String::from("test"),
+            },
+        ),
+    )
+    .await
+    .unwrap()
 }
