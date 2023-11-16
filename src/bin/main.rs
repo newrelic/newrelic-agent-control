@@ -61,6 +61,13 @@ fn run_super_agent(
     opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
     instance_id_getter: ULIDInstanceIDGetter,
 ) -> Result<(), AgentError> {
+    use std::collections::HashMap;
+
+    use newrelic_super_agent::{
+        config::super_agent_configs::{AgentID, AgentTypeFQN},
+        sub_agent::opamp::common::build_opamp_and_start_client,
+    };
+
     #[cfg(unix)]
     if !nix::unistd::Uid::effective().is_root() {
         panic!("Program must run as root");
@@ -81,9 +88,17 @@ fn run_super_agent(
     info!("Starting the super agent");
     let values_repository = ValuesRepositoryFile::default();
 
-    SuperAgent::new(
+    let maybe_client = build_opamp_and_start_client(
+        ctx.clone(),
         opamp_client_builder.as_ref(),
         &instance_id_getter,
+        AgentID::new_super_agent_id(),
+        &AgentTypeFQN("jfkds".to_string()),
+        HashMap::new(),
+    )?;
+
+    SuperAgent::new(
+        maybe_client,
         &hash_repository,
         sub_agent_builder,
         config_storer,
