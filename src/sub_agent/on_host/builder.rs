@@ -119,14 +119,11 @@ where
             }
         }
 
-        match effective_agent_res {
-            Err(e) => Err(e.into()),
-            Ok(effective_agent) => Ok(NotStartedSubAgentOnHost::new(
-                agent_id,
-                build_supervisors(effective_agent, tx)?,
-                maybe_opamp_client,
-            )?),
-        }
+        Ok(NotStartedSubAgentOnHost::new(
+            agent_id,
+            build_supervisors(effective_agent_res?, tx)?,
+            maybe_opamp_client,
+        )?)
     }
 }
 

@@ -38,7 +38,10 @@ pub trait RemoteConfigPublisher {
             let config: Result<ConfigMap, RemoteConfigError> = msg_config_map.try_into();
 
             let current_hash = str::from_utf8(&msg_remote_config.config_hash)?.to_string();
-            trace!("OpAMP message received with hash: {}", current_hash);
+            trace!(
+                "OpAMP message received with remote config hash: {}",
+                current_hash
+            );
 
             let event = match config {
                 Err(e) => {
