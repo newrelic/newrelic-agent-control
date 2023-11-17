@@ -16,19 +16,19 @@ pub enum EventError {
 }
 
 
-pub(crate) trait Event {
+pub trait Event {
     fn event_name(&self) -> &str;
 }
 
-pub(crate) trait EventHandler<E: Event> {
+pub trait EventHandler<E: Event> {
     fn handle(&self, event:E);
 }
 
-pub(crate) trait EventConsumer<E: Event> {
+pub trait EventConsumer<E: Event> {
     type EventHandler: EventHandler<E>;
     fn consume(&self) -> Result<(), EventError>;
 }
 
-pub(crate) trait EventPublisher<E: Event> {
+pub trait EventPublisher<E: Event> {
     fn publish(&self, event: E) -> Result<(), EventError>;
 }

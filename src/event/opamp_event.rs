@@ -14,7 +14,7 @@ struct Invented {
 const REMOTE_CONFIG_EVENT_NAME:&str = "remote_config";
 const INVENTED_EVENT_NAME:&str = "invented";
 
-pub(crate) enum OpAMPEvent {
+pub enum OpAMPEvent {
     RemoteConfig(RemoteConfig),
     Invented(Invented)
 }
@@ -28,7 +28,7 @@ impl Event for OpAMPEvent {
     }
 }
 
-pub(crate) struct OpAMPEventConsumer {
+pub struct OpAMPEventConsumer {
     event_receiver: Receiver<OpAMPEvent>,
     opamp_event_handler: OpAMPEventHandler,
 }

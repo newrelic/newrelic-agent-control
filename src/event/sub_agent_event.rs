@@ -5,7 +5,7 @@ use crate::event::opamp_event::OpAMPEvent;
 
 const SUB_AGENT_STOPPED_EVENT_NAME:&str = "stopped";
 
-pub(crate) enum SubAgentEvent {
+pub enum SubAgentEvent {
     Stopped(AgentID),
 }
 
