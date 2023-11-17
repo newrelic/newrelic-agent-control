@@ -1219,9 +1219,9 @@ config_file: /some/path/newrelic-infra.yml
             .times(2)
             .returning(move || Ok(sub_agents_config.clone()));
 
-        hash_repository_mock.should_get_applied_hash(
+        hash_repository_mock.should_get_hash(
             &AgentID::new_super_agent_id(),
-            Hash::new("a-hash".to_string()),
+            Hash::applied("a-hash".to_string()),
         );
 
         // two agents in the supervisor group
@@ -1293,9 +1293,9 @@ config_file: /some/path/newrelic-infra.yml
         sub_agent_builder.should_build(3);
 
         let mut hash_repository_mock = MockHashRepositoryMock::new();
-        hash_repository_mock.should_get_applied_hash(
+        hash_repository_mock.should_get_hash(
             &AgentID::new_super_agent_id(),
-            Hash::new("a-hash".to_string()),
+            Hash::applied("a-hash".to_string()),
         );
 
         let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
