@@ -36,11 +36,18 @@ impl K8sExecutor {
     ///
     pub async fn try_default(namespace: String) -> Result<K8sExecutor, K8sError> {
         debug!("trying inClusterConfig for k8s client");
-        let mut config = Config::incluster().unwrap_or({
-            debug!("inClusterConfig failed, trying kubeconfig for k8s client");
-            let c = KubeConfigOptions::default();
-            Config::from_kubeconfig(&c).await?
-        });
+
+        let mut config = match Config::incluster() {
+            Ok(c) => c,
+            Err(e) => {
+                debug!(
+                    "inClusterConfig failed {}, trying kubeconfig for k8s client",
+                    e
+                );
+                let c = KubeConfigOptions::default();
+                Config::from_kubeconfig(&c).await?
+            }
+        };
 
         config.default_namespace = namespace;
 
