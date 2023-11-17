@@ -40,7 +40,8 @@ build-super-agent:
 	ARCH=$(ARCH) BUILD_MODE=$(BUILD_MODE) ./build/scripts/build_super_agent.sh
 
 .PHONY: build-dev-image
-build-dev-image: build-super-agent
+build-dev-image:
+	make build-super-agent BUILD_FEATURE=k8s
 	docker build . -t newrelic-super-agent:dev
 
 .PHONY: tilt-up
