@@ -1,10 +1,29 @@
+use opamp_client::capabilities;
+use opamp_client::opamp::proto::AgentCapabilities;
+use opamp_client::operation::capabilities::Capabilities;
+
 pub const SUPER_AGENT_ID: &str = "super-agent";
 pub const SUPER_AGENT_TYPE: &str = "com.newrelic.super_agent";
 pub const SUPER_AGENT_NAMESPACE: &str = "newrelic";
 pub const SUPER_AGENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 // Paths
+
+pub const SUPER_AGENT_LOCAL_DATA_DIR: &str = "/etc/newrelic-super-agent";
+pub const REMOTE_AGENT_DATA_DIR: &str = "/var/lib/newrelic-super-agent/fleet/agents.d";
+pub const LOCAL_AGENT_DATA_DIR: &str = "/etc/newrelic-super-agent/fleet/agents.d";
+pub const VALUES_FILENAME: &str = "values.yml";
 pub const SUPER_AGENT_DATA_DIR: &str = "/var/lib/newrelic-super-agent";
+
+pub fn default_capabilities() -> Capabilities {
+    capabilities!(
+        AgentCapabilities::ReportsHealth,
+        AgentCapabilities::AcceptsRemoteConfig,
+        AgentCapabilities::ReportsEffectiveConfig,
+        AgentCapabilities::ReportsRemoteConfig,
+        AgentCapabilities::ReportsStatus
+    )
+}
 
 // Infrastructure_agent AgentType
 pub(crate) const NEWRELIC_INFRA_TYPE: &str = r#"

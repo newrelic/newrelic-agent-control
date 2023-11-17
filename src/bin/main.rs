@@ -3,11 +3,12 @@ use std::error::Error;
 use newrelic_super_agent::super_agent::error::AgentError;
 use tracing::{error, info};
 
-use newrelic_super_agent::config::remote_config_hash::HashRepositoryFile;
 use newrelic_super_agent::config::store::{SuperAgentConfigStore, SuperAgentConfigStoreFile};
-use newrelic_super_agent::opamp::client_builder::OpAMPHttpBuilder;
+use newrelic_super_agent::opamp::remote_config_hash::HashRepositoryFile;
+use newrelic_super_agent::sub_agent::values::values_repository::ValuesRepositoryFile;
 use newrelic_super_agent::super_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use newrelic_super_agent::super_agent::instance_id::ULIDInstanceIDGetter;
+use newrelic_super_agent::super_agent::opamp::client_builder::SuperAgentOpAMPHttpBuilder;
 use newrelic_super_agent::super_agent::super_agent::{SuperAgent, SuperAgentEvent};
 use newrelic_super_agent::{cli::Cli, context::Context, logging::Logging};
 
@@ -32,11 +33,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let mut super_agent_config_storer = SuperAgentConfigStoreFile::new(&cli.get_config_path());
 
-    let opamp_client_builder: Option<OpAMPHttpBuilder> = super_agent_config_storer
+    let opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder> = super_agent_config_storer
         .load()?
         .opamp
         .as_ref()
-        .map(|opamp_config| OpAMPHttpBuilder::new(opamp_config.clone()));
+        .map(|opamp_config| SuperAgentOpAMPHttpBuilder::new(opamp_config.clone()));
 
     // enable remote config store
     if opamp_client_builder.is_some() {
@@ -53,23 +54,54 @@ async fn main() -> Result<(), Box<dyn Error>> {
     )?)
 }
 
+#[cfg(feature = "onhost")]
 fn run_super_agent(
     config_storer: SuperAgentConfigStoreFile,
     ctx: Context<Option<SuperAgentEvent>>,
-    opamp_client_builder: Option<OpAMPHttpBuilder>,
+    opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
     instance_id_getter: ULIDInstanceIDGetter,
 ) -> Result<(), AgentError> {
-    #[cfg(all(unix, feature = "onhost"))]
+    #[cfg(unix)]
     if !nix::unistd::Uid::effective().is_root() {
         panic!("Program must run as root");
     }
 
-    #[cfg(feature = "onhost")]
+    let hash_repository = HashRepositoryFile::default();
+    let sub_agent_hash_repository = HashRepositoryFile::new_sub_agent_repository();
+    let agents_assembler = LocalEffectiveAgentsAssembler::default().with_remote();
+
     let sub_agent_builder =
         newrelic_super_agent::sub_agent::on_host::builder::OnHostSubAgentBuilder::new(
-            opamp_client_builder.as_ref(),
+            opamp_client_builder.as_ref().map(Into::into),
             &instance_id_getter,
+            &sub_agent_hash_repository,
+            &agents_assembler,
         );
+
+    info!("Starting the super agent");
+    let values_repository = ValuesRepositoryFile::default();
+
+    SuperAgent::new(
+        opamp_client_builder.as_ref(),
+        &instance_id_getter,
+        &hash_repository,
+        sub_agent_builder,
+        config_storer,
+        &sub_agent_hash_repository,
+        values_repository,
+    )
+    .run(ctx)
+}
+
+#[cfg(all(not(feature = "onhost"), feature = "k8s"))]
+fn run_super_agent(
+    config_storer: SuperAgentConfigStoreFile,
+    ctx: Context<Option<SuperAgentEvent>>,
+    opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
+    instance_id_getter: ULIDInstanceIDGetter,
+) -> Result<(), AgentError> {
+    let hash_repository = HashRepositoryFile::default();
+    let sub_agent_hash_repository = HashRepositoryFile::new_sub_agent_repository();
 
     // Disabled when --all-features
     #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
@@ -79,13 +111,16 @@ fn run_super_agent(
     );
 
     info!("Starting the super agent");
+    let values_repository = ValuesRepositoryFile::default();
+
     SuperAgent::new(
-        LocalEffectiveAgentsAssembler::default(),
         opamp_client_builder.as_ref(),
         &instance_id_getter,
-        HashRepositoryFile::default(),
+        &hash_repository,
         sub_agent_builder,
         config_storer,
+        &sub_agent_hash_repository,
+        values_repository,
     )
     .run(ctx)
 }

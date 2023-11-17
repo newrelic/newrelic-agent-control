@@ -29,15 +29,12 @@ where
     pub(crate) fn run(
         self,
     ) -> Result<StartedSubAgents<S::StartedSubAgent>, SubAgentCollectionError> {
-        let started_sub_agents: Result<HashMap<AgentID, S::StartedSubAgent>, SubAgentError> = self
+        let sub_agents: Result<HashMap<AgentID, S::StartedSubAgent>, SubAgentError> = self
             .0
             .into_iter()
-            .map(|(id, subagent)| {
-                let running_agent = subagent.run()?;
-                Ok((id, running_agent))
-            })
+            .map(|(id, subagent)| Ok((id, subagent.run()?)))
             .collect();
-        Ok(StartedSubAgents(started_sub_agents?))
+        Ok(StartedSubAgents(sub_agents?))
     }
 }
 
@@ -95,9 +92,34 @@ where
             Ok(())
         })
     }
+}
 
-    #[cfg(test)]
-    pub(crate) fn len(&self) -> usize {
-        self.0.len()
+#[cfg(test)]
+pub mod test {
+    use crate::config::super_agent_configs::AgentID;
+    use crate::sub_agent::collection::StartedSubAgents;
+    use crate::sub_agent::StartedSubAgent;
+    use std::collections::HashMap;
+
+    impl<S> StartedSubAgents<S>
+    where
+        S: StartedSubAgent,
+    {
+        pub(crate) fn len(&self) -> usize {
+            self.0.len()
+        }
+
+        pub fn get(&mut self, agent_id: &AgentID) -> &mut S {
+            self.0.get_mut(agent_id).unwrap()
+        }
+    }
+
+    impl<S> From<HashMap<AgentID, S>> for StartedSubAgents<S>
+    where
+        S: StartedSubAgent,
+    {
+        fn from(value: HashMap<AgentID, S>) -> Self {
+            StartedSubAgents(value)
+        }
     }
 }

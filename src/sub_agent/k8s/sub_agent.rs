@@ -1,10 +1,12 @@
 use std::collections::HashMap;
 
+use crate::sub_agent::opamp::common::{start_opamp_client, start_settings, stop_opamp_client};
+use crate::super_agent::super_agent::SuperAgentEvent;
 use crate::{
     config::super_agent_configs::{AgentID, AgentTypeFQN},
     context::Context,
     opamp::client_builder::{OpAMPClientBuilder, OpAMPClientBuilderError},
-    sub_agent::{error::SubAgentError, opamp, NotStartedSubAgent, StartedSubAgent},
+    sub_agent::{error::SubAgentError, NotStartedSubAgent, StartedSubAgent},
     super_agent::instance_id::InstanceIDGetter,
 };
 
@@ -21,6 +23,7 @@ where
     agent_type: AgentTypeFQN,
     opamp_builder: Option<&'a O>,
     instance_id_getter: &'a I,
+    ctx: Context<Option<SuperAgentEvent>>,
     // TODO: store CRs supervisors
 }
 
@@ -34,12 +37,14 @@ where
         agent_type: AgentTypeFQN,
         opamp_builder: Option<&'a O>,
         instance_id_getter: &'a I,
+        ctx: Context<Option<SuperAgentEvent>>,
     ) -> Self {
         NotStartedSubAgentK8s {
             agent_id,
             agent_type,
             opamp_builder,
             instance_id_getter,
+            ctx,
         }
     }
 }
@@ -50,13 +55,13 @@ where
     I: InstanceIDGetter,
 {
     fn start_opamp_client(&self) -> Result<Option<O::Client>, OpAMPClientBuilderError> {
-        let opamp_start_settings = opamp::start_settings(
+        let opamp_start_settings = start_settings(
             self.instance_id_getter.get(&self.agent_id),
             &self.agent_type,
             HashMap::new(), // TODO: check if some non-identifying attributes are needed
         );
-        opamp::start_client(
-            Context::new(),
+        start_opamp_client(
+            self.ctx.clone(),
             self.opamp_builder,
             self.agent_id.clone(),
             opamp_start_settings,
@@ -99,7 +104,7 @@ impl<C: opamp_client::StartedClient> StartedSubAgentK8s<C> {
 
 impl<C: opamp_client::StartedClient> StartedSubAgent for StartedSubAgentK8s<C> {
     fn stop(self) -> Result<Vec<std::thread::JoinHandle<()>>, SubAgentError> {
-        opamp::stop_client(self.opamp_client, self.agent_id)?;
+        stop_opamp_client(self.opamp_client, &self.agent_id)?;
         // TODO: stop CRs supervisors and return the corresponding JoinHandle
         Ok(vec![])
     }

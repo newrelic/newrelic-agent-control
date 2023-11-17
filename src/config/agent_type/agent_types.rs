@@ -19,7 +19,10 @@ use super::{
     trivial_value::TrivialValue,
 };
 use crate::config::agent_values::AgentValues;
+use crate::super_agent::defaults::default_capabilities;
 use duration_str;
+use opamp_client::opamp::proto::AgentCapabilities;
+use opamp_client::operation::capabilities::Capabilities;
 
 /// Configuration of the Agent Type, contains identification metadata, a set of variables that can be adjusted, and rules of how to start given agent binaries.
 ///
@@ -31,6 +34,14 @@ pub struct FinalAgent {
     pub metadata: AgentMetadata,
     pub variables: NormalizedVariables,
     pub runtime_config: RuntimeConfig,
+    capabilities: Capabilities,
+}
+
+impl FinalAgent {
+    pub fn has_remote_management(&self) -> bool {
+        self.capabilities
+            .has_capability(AgentCapabilities::AcceptsRemoteConfig)
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Default)]
@@ -59,6 +70,7 @@ impl<'de> Deserialize<'de> for FinalAgent {
             variables: normalize_agent_spec(raw_agent.variables).map_err(D::Error::custom)?,
             metadata: raw_agent.metadata,
             runtime_config: raw_agent.runtime_config, // FIXME: make it actual implementation
+            capabilities: default_capabilities(),
         })
     }
 }
@@ -412,7 +424,12 @@ pub mod tests {
                 metadata,
                 variables,
                 runtime_config,
+                capabilities: default_capabilities(),
             }
+        }
+
+        pub fn set_capabilities(&mut self, capabilities: Capabilities) {
+            self.capabilities = capabilities
         }
 
         /// Retrieve the `variables` field of the agent type at the specified key, if any.

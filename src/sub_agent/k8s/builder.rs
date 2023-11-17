@@ -1,5 +1,8 @@
+use crate::config::super_agent_configs::SubAgentConfig;
+use crate::context::Context;
+use crate::super_agent::super_agent::SuperAgentEvent;
 use crate::{
-    config::{agent_type::agent_types::FinalAgent, super_agent_configs::AgentID},
+    config::super_agent_configs::AgentID,
     opamp::client_builder::OpAMPClientBuilder,
     sub_agent::{error::SubAgentBuilderError, logger::Event, SubAgentBuilder},
     super_agent::instance_id::InstanceIDGetter,
@@ -38,16 +41,18 @@ where
 
     fn build(
         &self,
-        agent: FinalAgent,
         agent_id: AgentID,
+        sub_agent_config: &SubAgentConfig,
         _tx: std::sync::mpsc::Sender<Event>,
+        ctx: Context<Option<SuperAgentEvent>>,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
         // TODO: build CRs supervisors and inject them into the NotStartedSubAgentK8s
         Ok(NotStartedSubAgentK8s::new(
             agent_id,
-            agent.agent_type(),
+            sub_agent_config.agent_type.clone(),
             self.opamp_builder,
             self.instance_id_getter,
+            ctx,
         ))
     }
 }
@@ -56,12 +61,15 @@ where
 mod test {
     use std::{collections::HashMap, sync::mpsc::channel};
 
+    use opamp_client::operation::capabilities::Capabilities;
     use opamp_client::{
         capabilities,
         opamp::proto::AgentCapabilities,
         operation::settings::{AgentDescription, StartSettings},
     };
 
+    use crate::config::super_agent_configs::AgentTypeFQN;
+    use crate::sub_agent::opamp::common::start_settings;
     use crate::{
         opamp::client_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock},
         sub_agent::{NotStartedSubAgent, StartedSubAgent},
@@ -73,8 +81,14 @@ mod test {
     #[test]
     fn build_start_stop() {
         // opamp builder mock
+        let instance_id = "k8s-test-instance-id";
         let mut opamp_builder = MockOpAMPClientBuilderMock::new();
-        let start_settings = start_settings();
+        let sub_agent_config = sub_agent_config();
+        let start_settings = start_settings(
+            instance_id.to_string(),
+            &sub_agent_config.agent_type,
+            HashMap::new(),
+        );
         opamp_builder.should_build_and_start(
             AgentID::new("k8s-test").unwrap(),
             start_settings,
@@ -92,33 +106,24 @@ mod test {
         let builder = K8sSubAgentBuilder::new(Some(&opamp_builder), &instance_id_getter);
 
         let (tx, _) = channel();
-
+        let ctx: Context<Option<SuperAgentEvent>> = Context::new();
         let started_agent = builder
-            .build(final_agent(), AgentID::new("k8s-test").unwrap(), tx)
+            .build(
+                AgentID::new("k8s-test").unwrap(),
+                &sub_agent_config,
+                tx,
+                ctx,
+            )
             .unwrap() // Not started agent
             .run()
             .unwrap();
         assert!(started_agent.stop().is_ok())
     }
 
-    fn final_agent() -> FinalAgent {
-        let mut final_agent = FinalAgent::default();
+    fn sub_agent_config() -> SubAgentConfig {
         // TODO: setup k8s runtime_config here. Eg: `final_agent.runtime_config.deployment.k8s = ...`
-        final_agent
-    }
-
-    fn start_settings() -> StartSettings {
-        StartSettings {
-            instance_id: "k8s-test-instance-id".to_string(),
-            capabilities: capabilities!(AgentCapabilities::ReportsHealth),
-            agent_description: AgentDescription {
-                identifying_attributes: HashMap::from([
-                    ("service.name".to_string(), "".into()),
-                    ("service.namespace".to_string(), "".into()),
-                    ("service.version".to_string(), "".into()),
-                ]),
-                non_identifying_attributes: HashMap::from([]),
-            },
+        SubAgentConfig {
+            agent_type: "some_agent".into(),
         }
     }
 }

@@ -4,12 +4,12 @@ use std::{
 };
 
 use crate::config::agent_type::agent_types::AgentTypeEndSpec;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::{agent_types::VariableType, error::AgentTypeError};
 
 /// Represents all the allowed types for a configuration defined in the spec value.
-#[derive(Debug, PartialEq, Clone, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 #[serde(untagged)]
 pub enum TrivialValue {
     String(String),
@@ -111,7 +111,7 @@ impl FilePathWithContent {
 }
 
 /// Represents a numeric value, which can be either a positive integer, a negative integer or a float.
-#[derive(Debug, PartialEq, Clone, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 #[serde(untagged)]
 pub enum N {
     PosInt(u64),

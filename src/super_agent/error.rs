@@ -4,10 +4,13 @@ use std::time::SystemTimeError;
 
 use thiserror::Error;
 
+use crate::config::agent_values::AgentValuesError;
 use crate::config::persister::config_persister::PersistError;
-use crate::config::remote_config_hash::HashRepositoryError;
 use crate::file_reader::FileReaderError;
+use crate::opamp::remote_config::RemoteConfigError;
+use crate::opamp::remote_config_hash::HashRepositoryError;
 use crate::sub_agent::error::{SubAgentBuilderError, SubAgentCollectionError, SubAgentError};
+use crate::sub_agent::values::values_repository::ValuesRepositoryError;
 use crate::super_agent::effective_agents_assembler::EffectiveAgentsAssemblerError;
 use crate::super_agent::super_agent::EffectiveAgentsError;
 use crate::{
@@ -76,4 +79,13 @@ pub enum AgentError {
 
     #[error("effective agents assembler error: `{0}`")]
     EffectiveAgentsAssemblerError(#[from] EffectiveAgentsAssemblerError),
+
+    #[error("remote config error: `{0}`")]
+    RemoteConfigError(#[from] RemoteConfigError),
+
+    #[error("sub agent remote config error: `{0}`")]
+    SubAgentRemoteConfigError(#[from] ValuesRepositoryError),
+
+    #[error("sub agent values error: `{0}`")]
+    SubAgentValuesError(#[from] AgentValuesError),
 }

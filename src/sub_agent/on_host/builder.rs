@@ -1,3 +1,18 @@
+use std::collections::HashMap;
+
+#[cfg(unix)]
+use nix::unistd::gethostname;
+
+use crate::config::super_agent_configs::SubAgentConfig;
+use crate::opamp::remote_config_hash::HashRepository;
+use crate::sub_agent::opamp::common::build_opamp_and_start_client;
+use crate::sub_agent::opamp::{
+    report_remote_config_status_applied, report_remote_config_status_error,
+};
+use crate::super_agent::effective_agents_assembler::{
+    EffectiveAgentsAssembler, EffectiveAgentsAssemblerError,
+};
+use crate::super_agent::super_agent::SuperAgentEvent;
 use crate::{
     config::{agent_type::agent_types::FinalAgent, super_agent_configs::AgentID},
     context::Context,
@@ -10,57 +25,112 @@ use crate::{
     },
     super_agent::instance_id::InstanceIDGetter,
 };
+use log::error;
+use EffectiveAgentsAssemblerError::RemoteConfigLoadError;
 
-use super::sub_agent::NotStartedSubAgentOnHost;
-use super::supervisor::{
-    command_supervisor::NotStartedSupervisorOnHost,
-    command_supervisor_config::SupervisorConfigOnHost,
+use super::{
+    sub_agent::NotStartedSubAgentOnHost,
+    supervisor::{
+        command_supervisor::NotStartedSupervisorOnHost,
+        command_supervisor_config::SupervisorConfigOnHost,
+    },
 };
 
-pub struct OnHostSubAgentBuilder<'a, O, I>
+pub struct OnHostSubAgentBuilder<'a, O, I, HR, A>
 where
     O: OpAMPClientBuilder,
     I: InstanceIDGetter,
+    A: EffectiveAgentsAssembler,
 {
     opamp_builder: Option<&'a O>,
     instance_id_getter: &'a I,
+    hash_repository: &'a HR,
+    effective_agent_assembler: &'a A,
 }
 
-impl<'a, O, I> OnHostSubAgentBuilder<'a, O, I>
+impl<'a, O, I, HR, A> OnHostSubAgentBuilder<'a, O, I, HR, A>
 where
     O: OpAMPClientBuilder,
     I: InstanceIDGetter,
+    HR: HashRepository,
+    A: EffectiveAgentsAssembler,
 {
-    pub fn new(opamp_builder: Option<&'a O>, instance_id_getter: &'a I) -> Self {
+    pub fn new(
+        opamp_builder: Option<&'a O>,
+        instance_id_getter: &'a I,
+        hash_repository: &'a HR,
+        effective_agent_assembler: &'a A,
+    ) -> Self {
         Self {
             opamp_builder,
             instance_id_getter,
+            hash_repository,
+            effective_agent_assembler,
         }
     }
 }
 
-impl<'a, O, I> SubAgentBuilder for OnHostSubAgentBuilder<'a, O, I>
+impl<'a, O, I, HR, A> SubAgentBuilder for OnHostSubAgentBuilder<'a, O, I, HR, A>
 where
     O: OpAMPClientBuilder,
     I: InstanceIDGetter,
+    HR: HashRepository,
+    A: EffectiveAgentsAssembler,
 {
-    type NotStartedSubAgent = NotStartedSubAgentOnHost<'a, O, I>;
+    type NotStartedSubAgent = NotStartedSubAgentOnHost<O::Client>;
     fn build(
         &self,
-        agent: FinalAgent,
         agent_id: AgentID,
+        sub_agent_config: &SubAgentConfig,
         tx: std::sync::mpsc::Sender<Event>,
+        ctx: Context<Option<SuperAgentEvent>>,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
-        let agent_type = agent.agent_type().clone();
-        Ok(NotStartedSubAgentOnHost::new(
-            agent_id,
-            build_supervisors(agent, tx)?,
+        let maybe_opamp_client = build_opamp_and_start_client(
+            ctx,
             self.opamp_builder,
             self.instance_id_getter,
-            agent_type,
-        ))
+            agent_id.clone(),
+            &sub_agent_config.agent_type,
+            HashMap::from([("host.name".to_string(), get_hostname().into())]),
+        )?;
+
+        // try to build effective agent
+        let effective_agent_res = self
+            .effective_agent_assembler
+            .assemble_agent(&agent_id, sub_agent_config);
+
+        if let Some(opamp_client) = &maybe_opamp_client {
+            let remote_config_hash = self
+                .hash_repository
+                .get(&agent_id)
+                .map_err(|e| error!("hash repository error: {}", e))
+                .ok();
+
+            if let Some(mut hash) = remote_config_hash {
+                // send to opamp the remote config error in case it happens
+                if let Err(RemoteConfigLoadError(error)) = effective_agent_res {
+                    report_remote_config_status_error(opamp_client, &hash, error.clone())?;
+                    // report the failed status for remote config and let the opamp client
+                    // running with no supervisors so the configuration can be fixed
+                    return Ok(NotStartedSubAgentOnHost::new(
+                        agent_id,
+                        Vec::default(),
+                        maybe_opamp_client,
+                    )?);
+                } else if !hash.is_applied() {
+                    report_remote_config_status_applied(opamp_client, &hash)?;
+                    hash.apply();
+                    self.hash_repository.save(&agent_id, &hash)?;
+                }
+            }
+        }
+
+        Ok(NotStartedSubAgentOnHost::new(
+            agent_id,
+            build_supervisors(effective_agent_res?, tx)?,
+            maybe_opamp_client,
+        )?)
     }
-    // add code here
 }
 
 fn build_supervisors(
@@ -100,15 +170,14 @@ mod test {
     use std::sync::mpsc::channel;
 
     use nix::unistd::gethostname;
-    use opamp_client::opamp::proto::AgentCapabilities;
-    use opamp_client::{
-        capabilities,
-        operation::{
-            capabilities::Capabilities,
-            settings::{AgentDescription, DescriptionValueType, StartSettings},
-        },
+    use opamp_client::operation::{
+        capabilities::Capabilities,
+        settings::{AgentDescription, DescriptionValueType, StartSettings},
     };
 
+    use crate::opamp::remote_config_hash::test::MockHashRepositoryMock;
+    use crate::opamp::remote_config_hash::Hash;
+    use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
     use crate::{
         config::agent_type::runtime_config::OnHost,
         opamp::client_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock},
@@ -117,21 +186,30 @@ mod test {
 
     use super::*;
 
-    use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
+    use crate::super_agent::defaults::default_capabilities;
+    use crate::super_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
 
     #[test]
     fn build_start_stop() {
+        let ctx = Context::new();
         let mut opamp_builder = MockOpAMPClientBuilderMock::new();
         let hostname = gethostname().unwrap_or_default().into_string().unwrap();
         let start_settings_infra = infra_agent_default_start_settings(&hostname);
 
+        let final_agent = on_host_final_agent();
+        let sub_agent_id = AgentID::new("infra_agent").unwrap();
+        let sub_agent_config = SubAgentConfig {
+            agent_type: final_agent.agent_type().clone(),
+        };
+
         // Infra Agent OpAMP no final stop nor health, just after stopping on reload
         opamp_builder.should_build_and_start(
-            AgentID::new("infra_agent").unwrap(),
+            sub_agent_id.clone(),
             start_settings_infra,
             |_, _, _| {
                 let mut started_client = MockOpAMPClientMock::new();
                 started_client.should_set_health(1);
+                started_client.should_set_remote_config_status(1);
                 started_client.should_stop(1);
                 Ok(started_client)
             },
@@ -139,20 +217,38 @@ mod test {
 
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
         instance_id_getter.should_get(
-            "infra_agent".to_string(),
+            sub_agent_id.to_string(),
             "infra_agent_instance_id".to_string(),
         );
 
-        let on_host_builder = OnHostSubAgentBuilder::new(Some(&opamp_builder), &instance_id_getter);
+        let mut hash_repository_mock = MockHashRepositoryMock::new();
+        hash_repository_mock.expect_get().times(1).returning(|_| {
+            let hash = Hash::new("a-hash".to_string());
+            Ok(hash)
+        });
+        hash_repository_mock
+            .expect_save()
+            .times(1)
+            .returning(|_, _| Ok(()));
+
+        let mut effective_agent_assembler = MockEffectiveAgentAssemblerMock::new();
+        effective_agent_assembler.should_assemble_agent(
+            &sub_agent_id,
+            &sub_agent_config,
+            final_agent,
+        );
+
+        let on_host_builder = OnHostSubAgentBuilder::new(
+            Some(&opamp_builder),
+            &instance_id_getter,
+            &hash_repository_mock,
+            &effective_agent_assembler,
+        );
 
         let (tx, _rx) = channel();
 
         assert!(on_host_builder
-            .build(
-                on_host_final_agent(),
-                AgentID::new("infra_agent").unwrap(),
-                tx
-            )
+            .build(sub_agent_id, &sub_agent_config, tx, ctx)
             .unwrap()
             .run()
             .unwrap()
@@ -172,7 +268,7 @@ mod test {
     fn infra_agent_default_start_settings(hostname: &str) -> StartSettings {
         start_settings(
             "infra_agent_instance_id".to_string(),
-            capabilities!(AgentCapabilities::ReportsHealth),
+            default_capabilities(),
             "".to_string(),
             "".to_string(),
             "".to_string(),
@@ -204,4 +300,12 @@ mod test {
             },
         }
     }
+}
+
+fn get_hostname() -> String {
+    #[cfg(unix)]
+    return gethostname().unwrap_or_default().into_string().unwrap();
+
+    #[cfg(not(unix))]
+    return unimplemented!();
 }

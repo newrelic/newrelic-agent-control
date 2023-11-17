@@ -1,5 +1,6 @@
 use crate::config::super_agent_configs::SuperAgentConfig;
 use crate::{config::error::SuperAgentConfigError, super_agent::defaults::SUPER_AGENT_DATA_DIR};
+use std::fs;
 use std::fs::OpenOptions;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
@@ -33,6 +34,7 @@ pub trait SuperAgentConfigStore: SubAgentsConfigStore {
 pub trait SubAgentsConfigStore {
     fn load(&self) -> Result<SubAgentsConfig, SuperAgentConfigError>;
     fn store(&self, config: &SubAgentsConfig) -> Result<(), SuperAgentConfigError>;
+    fn delete(&self) -> Result<(), SuperAgentConfigError>;
 }
 
 pub struct SuperAgentConfigStoreFile {
@@ -55,6 +57,17 @@ impl SubAgentsConfigStore for SuperAgentConfigStoreFile {
     }
     fn store(&self, config: &SubAgentsConfig) -> Result<(), SuperAgentConfigError> {
         Ok(self._store_sub_agents_config(config)?)
+    }
+
+    //TODO this code is not unit tested
+    fn delete(&self) -> Result<(), SuperAgentConfigError> {
+        let Some(remote_path_file) = &self.remote_path else {
+            unreachable!("we should not write into local paths");
+        };
+        if remote_path_file.exists() {
+            fs::remove_file(remote_path_file)?;
+        }
+        Ok(())
     }
 }
 
@@ -86,14 +99,16 @@ impl SuperAgentConfigStoreFile {
         let mut local_config: SuperAgentConfig = serde_yaml::from_reader(local_config_file)?;
 
         if let Some(remote_config_file) = &self.remote_path {
-            let remote_config_file = std::fs::File::open(remote_config_file)?;
-            let remote_config = serde_yaml::from_reader(remote_config_file)
-                .map_err(|err| warn!("Unable to parse remote config: {}", err))
-                .ok();
+            if remote_config_file.as_path().exists() {
+                let remote_config_file = std::fs::File::open(remote_config_file)?;
+                let remote_config = serde_yaml::from_reader(remote_config_file)
+                    .map_err(|err| warn!("Unable to parse remote config: {}", err))
+                    .ok();
 
-            if let Some(remote_config) = remote_config {
-                // replace local agents with remote ones
-                local_config.agents = remote_config;
+                if let Some(remote_config) = remote_config {
+                    // replace local agents with remote ones
+                    local_config.agents = remote_config;
+                }
             }
         }
 
@@ -106,14 +121,11 @@ impl SuperAgentConfigStoreFile {
     ) -> Result<(), SuperAgentConfigStoreError> {
         if let Some(remote_path_file) = &self.remote_path {
             Ok(serde_yaml::to_writer(
-                std::fs::File::open(remote_path_file)?,
+                fs::File::create(remote_path_file)?,
                 sub_agents,
             )?)
         } else {
-            Ok(serde_yaml::to_writer(
-                std::fs::File::open(&self.local_path)?,
-                sub_agents,
-            )?)
+            unreachable!("we should not write into local paths")
         }
     }
 }
@@ -141,13 +153,23 @@ pub(crate) mod tests {
 
             fn load(&self) -> Result<super::SubAgentsConfig, super::SuperAgentConfigError>;
             fn store(&self, config: &SubAgentsConfig) -> Result<(), super::SuperAgentConfigError>;
+            fn delete(&self) -> Result<(), super::SuperAgentConfigError>;
         }
     }
 
-    use super::SuperAgentConfigStore;
+    impl MockSubAgentsConfigStore {
+        pub fn should_load(&mut self, sub_agents_config: &SubAgentsConfig) {
+            let sub_agents_config = sub_agents_config.clone();
+            self.expect_load()
+                .once()
+                .returning(move || Ok(sub_agents_config.clone()));
+        }
+    }
 
     #[test]
     fn load_agents_local_remote() {
+        use super::SuperAgentConfigStore;
+
         let mut local_file = NamedTempFile::new().unwrap();
         let local_config = r#"
 agents: {}
@@ -169,7 +191,7 @@ agents:
 
         store.remote_path = Some(remote_file.path().to_path_buf());
 
-        let actual = store.load();
+        let actual = SuperAgentConfigStore::load(&store);
 
         let expected = SuperAgentConfig {
             agents: HashMap::from([(

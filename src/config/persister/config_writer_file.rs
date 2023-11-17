@@ -46,7 +46,7 @@ impl Writer for WriterFile {
         validate_path(path)?;
 
         let mut file = fs::OpenOptions::new()
-            .create_new(true)
+            .create(true)
             .write(true)
             .mode(permissions.mode())
             .open(path)?;
@@ -71,12 +71,12 @@ impl Writer for WriterFile {
 ////////////////////////////////////////////////////////////////////////////////////
 #[cfg(test)]
 pub mod test {
-    use std::fs;
     use std::fs::Permissions;
     use std::io::{Error, ErrorKind};
     #[cfg(target_family = "unix")]
     use std::os::unix::fs::PermissionsExt;
     use std::path::{Path, PathBuf};
+    use std::{fs, io};
 
     use mockall::{mock, predicate};
 
@@ -102,7 +102,7 @@ pub mod test {
             content.to_string(),
             some_permissions.clone(),
         );
-        assert_eq!(true, write_result.is_ok());
+        assert!(write_result.is_ok());
 
         //assert on content
         assert_eq!(fs::read_to_string(path.clone()).unwrap(), "some content");
@@ -133,7 +133,7 @@ pub mod test {
 
     #[cfg(target_family = "unix")]
     #[test]
-    fn test_file_writer_should_return_error_if_file_already_exists() {
+    fn test_file_writer_should_not_return_error_if_file_already_exists() {
         // Prepare temp path and content for the file
         let file_name = "some_file";
         let content = "some content";
@@ -149,13 +149,13 @@ pub mod test {
             content.to_string(),
             Permissions::from_mode(0o645),
         );
-        assert_eq!(true, write_result.is_ok());
+        assert!(write_result.is_ok());
         let write_result = writer.write(
             path.as_path(),
             content.to_string(),
             Permissions::from_mode(0o645),
         );
-        assert_eq!(false, write_result.is_ok());
+        assert!(write_result.is_ok());
     }
 
     #[cfg(target_family = "unix")]
@@ -168,7 +168,7 @@ pub mod test {
 
         let result = writer.write(&path, "".to_string(), Permissions::from_mode(0o645));
 
-        assert_eq!(true, result.is_err());
+        assert!(result.is_err());
         assert_eq!(
             "invalid path: `dots disallowed in path `some/path/../../etc/passwd``".to_string(),
             result.err().unwrap().to_string()
@@ -187,12 +187,7 @@ pub mod test {
     }
 
     impl MockFileWriterMock {
-        pub fn should_write(
-            &mut self,
-            path: &Path,
-            content: String,
-            permissions: Permissions,
-        ) -> () {
+        pub fn should_write(&mut self, path: &Path, content: String, permissions: Permissions) {
             let path_clone = PathBuf::from(path.to_str().unwrap().to_string().as_str());
             self.expect_write()
                 .with(
@@ -204,11 +199,27 @@ pub mod test {
                 .returning(|_, _, _| Ok(()));
         }
 
-        pub fn should_write_any(&mut self, times: usize) -> () {
+        pub fn should_not_write(&mut self, path: &Path, content: String, permissions: Permissions) {
+            let path_clone = PathBuf::from(path.to_str().unwrap().to_string().as_str());
+            self.expect_write()
+                .with(
+                    predicate::eq(path_clone),
+                    predicate::eq(content),
+                    predicate::eq(permissions),
+                )
+                .once()
+                .returning(|_, _, _| {
+                    Err(WriteError::ErrorCreatingFile(io::Error::from(
+                        ErrorKind::PermissionDenied,
+                    )))
+                });
+        }
+
+        pub fn should_write_any(&mut self, times: usize) {
             self.expect_write().times(times).returning(|_, _, _| Ok(()));
         }
 
-        pub fn should_not_write_any(&mut self, times: usize, io_err_kind: ErrorKind) -> () {
+        pub fn should_not_write_any(&mut self, times: usize, io_err_kind: ErrorKind) {
             self.expect_write().times(times).returning(move |_, _, _| {
                 Err(WriteError::ErrorCreatingFile(Error::from(io_err_kind)))
             });

@@ -44,7 +44,10 @@ impl DirectoryManager for DirectoryManagerFs {
     ) -> Result<(), DirectoryManagementError> {
         validate_path(path)?;
 
-        let directory_creation = DirBuilder::new().mode(permissions.mode()).create(path);
+        let directory_creation = DirBuilder::new()
+            .mode(permissions.mode())
+            .recursive(true)
+            .create(path);
         match directory_creation {
             Err(e) => Err(DirectoryManagementError::ErrorCreatingDirectory(
                 path.to_str().unwrap().to_string(),
@@ -116,7 +119,7 @@ pub mod test {
 
         let result = directory_manager.create(&path, Permissions::from_mode(0o645));
 
-        assert_eq!(true, result.is_err());
+        assert!(result.is_err());
         assert_eq!(
             "invalid directory: `dots disallowed in path `some/path/../with/../dots``".to_string(),
             result.err().unwrap().to_string()
@@ -133,7 +136,7 @@ pub mod test {
 
         let result = directory_manager.delete(&path);
 
-        assert_eq!(true, result.is_err());
+        assert!(result.is_err());
         assert_eq!(
             "invalid directory: `dots disallowed in path `some/path/../with/../dots``".to_string(),
             result.err().unwrap().to_string()
@@ -154,7 +157,7 @@ pub mod test {
         let some_permissions = Permissions::from_mode(0o645);
         let directory_manager = DirectoryManagerFs::default();
         let create_result = directory_manager.create(path.as_path(), some_permissions.clone());
-        assert_eq!(true, create_result.is_ok());
+        assert!(create_result.is_ok());
 
         // read created folder permissions and assert od expected ones
         let meta = fs::metadata(path).unwrap();
@@ -182,7 +185,7 @@ pub mod test {
 
     #[cfg(target_family = "unix")]
     #[test]
-    fn test_folder_creation_should_fail_if_exists() {
+    fn test_folder_creation_should_not_fail_if_exists() {
         // Prepare temp path and folder name
         let folder_name = "some_file";
         // tempdir gets automatically removed on drop
@@ -194,9 +197,9 @@ pub mod test {
         let some_permissions = Permissions::from_mode(0o645);
         let directory_manager = DirectoryManagerFs::default();
         let create_result = directory_manager.create(path.as_path(), some_permissions.clone());
-        assert_eq!(true, create_result.is_ok());
+        assert!(create_result.is_ok());
         let create_result = directory_manager.create(path.as_path(), some_permissions.clone());
-        assert_eq!(false, create_result.is_ok());
+        assert!(create_result.is_ok());
     }
 
     #[cfg(target_family = "unix")]
@@ -213,11 +216,11 @@ pub mod test {
         let some_permissions = Permissions::from_mode(0o645);
         let directory_manager = DirectoryManagerFs::default();
         let create_result = directory_manager.create(path.as_path(), some_permissions.clone());
-        assert_eq!(true, create_result.is_ok());
+        assert!(create_result.is_ok());
         let delete_result = directory_manager.delete(path.as_path());
-        assert_eq!(true, delete_result.is_ok());
+        assert!(delete_result.is_ok());
         let create_result = directory_manager.create(path.as_path(), some_permissions.clone());
-        assert_eq!(true, create_result.is_ok());
+        assert!(create_result.is_ok());
     }
 
     ////////////////////////////////////////////////////////////////////////////////////
@@ -234,7 +237,7 @@ pub mod test {
     }
 
     impl MockDirectoryManagerMock {
-        pub fn should_create(&mut self, path: &Path, permissions: Permissions) -> () {
+        pub fn should_create(&mut self, path: &Path, permissions: Permissions) {
             let path_clone = PathBuf::from(path.to_str().unwrap().to_string().as_str());
             self.expect_create()
                 .with(predicate::eq(path_clone), predicate::eq(permissions))
@@ -247,7 +250,7 @@ pub mod test {
             path: &Path,
             permissions: Permissions,
             err: DirectoryManagementError,
-        ) -> () {
+        ) {
             let path_clone = PathBuf::from(path.to_str().unwrap().to_string().as_str());
             self.expect_create()
                 .with(predicate::eq(path_clone), predicate::eq(permissions))
@@ -263,7 +266,7 @@ pub mod test {
                 .returning(|_| Ok(()));
         }
 
-        pub fn should_not_delete(&mut self, path: &Path, err: DirectoryManagementError) -> () {
+        pub fn should_not_delete(&mut self, path: &Path, err: DirectoryManagementError) {
             let path_clone = PathBuf::from(path.to_str().unwrap().to_string().as_str());
             self.expect_delete()
                 .with(predicate::eq(path_clone))

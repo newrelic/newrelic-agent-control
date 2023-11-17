@@ -2,12 +2,13 @@ use std::collections::HashMap;
 
 use futures::executor::block_on;
 use opamp_client::{
-    capabilities,
-    opamp::proto::{AgentCapabilities, AgentHealth},
+    opamp::proto::AgentHealth,
     operation::settings::{AgentDescription, DescriptionValueType, StartSettings},
 };
 use tracing::info;
 
+use crate::sub_agent::error::SubAgentError;
+use crate::super_agent::instance_id::InstanceIDGetter;
 use crate::{
     config::super_agent_configs::{AgentID, AgentTypeFQN},
     context::Context,
@@ -16,10 +17,38 @@ use crate::{
     utils::time::get_sys_time_nano,
 };
 
-use super::error::SubAgentError;
+pub fn build_opamp_and_start_client<OpAMPBuilder, InstanceIdGetter>(
+    ctx: Context<Option<SuperAgentEvent>>,
+    opamp_builder: Option<&OpAMPBuilder>,
+    instance_id_getter: &InstanceIdGetter,
+    agent_id: AgentID,
+    agent_type: &AgentTypeFQN,
+    non_identifying_attributes: HashMap<String, DescriptionValueType>,
+) -> Result<Option<OpAMPBuilder::Client>, OpAMPClientBuilderError>
+where
+    OpAMPBuilder: OpAMPClientBuilder,
+    InstanceIdGetter: InstanceIDGetter,
+{
+    match opamp_builder {
+        Some(builder) => {
+            let start_settings = start_settings(
+                instance_id_getter.get(&agent_id),
+                agent_type,
+                non_identifying_attributes,
+            );
+
+            Ok(Some(builder.build_and_start(
+                ctx,
+                agent_id,
+                start_settings,
+            )?))
+        }
+        None => Ok(None),
+    }
+}
 
 /// Builds and start an OpAMP client when a builder is provided.
-pub fn start_client<O: OpAMPClientBuilder>(
+pub fn start_opamp_client<O: OpAMPClientBuilder>(
     ctx: Context<Option<SuperAgentEvent>>,
     opamp_builder: Option<&O>,
     agent_id: AgentID,
@@ -43,7 +72,7 @@ pub fn start_settings(
 ) -> StartSettings {
     StartSettings {
         instance_id,
-        capabilities: capabilities!(AgentCapabilities::ReportsHealth),
+        capabilities: agent_fqn.get_capabilities(),
         agent_description: AgentDescription {
             identifying_attributes: HashMap::from([
                 ("service.name".to_string(), agent_fqn.name().into()),
@@ -59,9 +88,9 @@ pub fn start_settings(
 }
 
 /// Stops an started OpAMP client.
-pub fn stop_client<C: opamp_client::StartedClient>(
+pub fn stop_opamp_client<C: opamp_client::StartedClient>(
     client: Option<C>,
-    agent_id: AgentID,
+    agent_id: &AgentID,
 ) -> Result<(), SubAgentError> {
     if let Some(client) = client {
         info!(

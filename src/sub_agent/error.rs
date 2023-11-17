@@ -2,9 +2,13 @@ use opamp_client::error::{ClientError, NotStartedClientError, StartedClientError
 use std::time::SystemTimeError;
 
 use crate::config::error::SuperAgentConfigError;
-use crate::config::remote_config_hash::HashRepositoryError;
 use crate::opamp::client_builder::OpAMPClientBuilderError;
+use crate::opamp::remote_config_hash::HashRepositoryError;
 use crate::super_agent::effective_agents_assembler::EffectiveAgentsAssemblerError;
+
+use crate::config::agent_values::AgentValuesError;
+use crate::opamp::remote_config::RemoteConfigError;
+use crate::sub_agent::values::values_repository::ValuesRepositoryError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -36,12 +40,30 @@ pub enum SubAgentError {
     SuperAgentConfigError(#[from] SuperAgentConfigError),
     #[error("config assembler error: `{0}`")]
     ConfigAssemblerError(#[from] EffectiveAgentsAssemblerError),
+
+    #[error("sub agent values error: `{0}`")]
+    ValuesError(#[from] ValuesRepositoryError),
+
+    #[error("sub agent values error: `{0}`")]
+    ValuesUnserializeError(#[from] AgentValuesError),
+
+    #[error("remote config error: `{0}`")]
+    RemoteConfigError(#[from] RemoteConfigError),
 }
 
 #[derive(Error, Debug)]
 pub enum SubAgentBuilderError {
     #[error("`{0}`")]
     SubAgent(#[from] SubAgentError),
+    #[error("config assembler error: `{0}`")]
+    ConfigAssemblerError(#[from] EffectiveAgentsAssemblerError),
+    #[error("remote config hash error: `{0}`")]
+    RemoteConfigHashError(#[from] HashRepositoryError),
+
+    #[error("OpAMP client error error: `{0}`")]
+    OpampClientBuilderError(#[from] OpAMPClientBuilderError),
+    #[error("OpAMP client error error: `{0}`")]
+    OpampClientError(#[from] ClientError),
 }
 
 #[derive(Error, Debug)]

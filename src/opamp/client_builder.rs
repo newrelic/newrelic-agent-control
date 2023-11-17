@@ -1,11 +1,7 @@
-use futures::executor::block_on;
 use opamp_client::error::{NotStartedClientError, StartedClientError};
-use opamp_client::http::{
-    HttpClientError, HttpClientReqwest, HttpConfig, NotStartedHttpClient, StartedHttpClient,
-};
-use opamp_client::opamp::proto::AgentHealth;
+use opamp_client::http::{HttpClientError, HttpClientReqwest, HttpConfig};
 use opamp_client::operation::settings::StartSettings;
-use opamp_client::{Client, NotStartedClient, StartedClient};
+use opamp_client::StartedClient;
 use std::time::SystemTimeError;
 use thiserror::Error;
 use tracing::error;
@@ -13,9 +9,7 @@ use tracing::error;
 use crate::config::super_agent_configs::{AgentID, OpAMPClientConfig};
 
 use crate::context::Context;
-use crate::super_agent::callbacks::AgentCallbacks;
 use crate::super_agent::super_agent::SuperAgentEvent;
-use crate::utils::time::get_sys_time_nano;
 
 #[derive(Error, Debug)]
 pub enum OpAMPClientBuilderError {
@@ -42,50 +36,19 @@ pub trait OpAMPClientBuilder {
     ) -> Result<Self::Client, OpAMPClientBuilderError>;
 }
 
-/// OpAMPBuilderCfg
-pub struct OpAMPHttpBuilder {
-    config: OpAMPClientConfig,
-}
+pub fn build_http_client(
+    config: &OpAMPClientConfig,
+) -> Result<HttpClientReqwest, OpAMPClientBuilderError> {
+    let headers = config.headers.clone().unwrap_or_default();
+    let headers: Vec<(&str, &str)> = headers
+        .iter()
+        .map(|(h, v)| (h.as_str(), v.as_str()))
+        .collect();
 
-impl OpAMPHttpBuilder {
-    pub fn new(config: OpAMPClientConfig) -> Self {
-        Self { config }
-    }
-}
+    let http_client =
+        HttpClientReqwest::new(HttpConfig::new(config.endpoint.as_str())?.with_headers(headers)?)?;
 
-impl OpAMPClientBuilder for OpAMPHttpBuilder {
-    type Client = StartedHttpClient<AgentCallbacks, HttpClientReqwest>;
-    fn build_and_start(
-        &self,
-        ctx: Context<Option<SuperAgentEvent>>,
-        agent_id: AgentID,
-        start_settings: StartSettings,
-    ) -> Result<Self::Client, OpAMPClientBuilderError> {
-        // TODO: cleanup
-        let headers = self.config.headers.clone().unwrap_or_default();
-        let headers: Vec<(&str, &str)> = headers
-            .iter()
-            .map(|header| (header.0.as_str(), header.1.as_str()))
-            .collect();
-
-        let http_client = HttpClientReqwest::new(
-            HttpConfig::new(self.config.endpoint.as_str())?.with_headers(headers)?,
-        )?;
-
-        let callbacks = AgentCallbacks::new(ctx, agent_id);
-
-        let not_started_client = NotStartedHttpClient::new(callbacks, start_settings, http_client)?;
-
-        let started_client = block_on(not_started_client.start())?;
-        // set OpAMP health
-        block_on(started_client.set_health(AgentHealth {
-            healthy: true,
-            start_time_unix_nano: get_sys_time_nano()?,
-            last_error: "".to_string(),
-        }))?;
-
-        Ok(started_client)
-    }
+    Ok(http_client)
 }
 
 #[cfg(test)]
@@ -137,6 +100,7 @@ pub(crate) mod test {
         pub fn should_set_health(&mut self, times: usize) {
             self.expect_set_health().times(times).returning(|_| Ok(()));
         }
+
         #[allow(dead_code)]
         pub fn should_not_set_health(&mut self, times: usize, status_code: u16, error_msg: String) {
             self.expect_set_health().times(times).returning(move |_| {
@@ -148,6 +112,7 @@ pub(crate) mod test {
         pub fn should_stop(&mut self, times: usize) {
             self.expect_stop().times(times).returning(|| Ok(()));
         }
+
         #[allow(dead_code)]
         pub fn should_not_stop(&mut self, times: usize, status_code: u16, error_msg: String) {
             self.expect_stop().times(times).returning(move || {
@@ -155,6 +120,12 @@ pub(crate) mod test {
                     HttpClientError::UnsuccessfulResponse(status_code, error_msg.clone()),
                 ))
             });
+        }
+
+        pub fn should_set_remote_config_status(&mut self, times: usize) {
+            self.expect_set_remote_config_status()
+                .times(times)
+                .returning(|_| Ok(()));
         }
     }
 
