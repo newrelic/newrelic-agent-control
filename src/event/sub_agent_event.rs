@@ -18,7 +18,7 @@ pub struct SubAgentEventPublisher {
 
 impl EventPublisher<OpAMPEvent> for SubAgentEventPublisher {
     // TODO : this error mapping don't thing is correct
-    fn publish(&self, event: OpAMPEvent) -> Result<(), EventError::SendOpampMessageError(OpAMPEvent)> {
-        self.event_sender.send(event)
+    fn publish(&self, event: OpAMPEvent) -> Result<(), EventError> {
+        Ok(self.event_sender.send(event)?)
     }
 }
