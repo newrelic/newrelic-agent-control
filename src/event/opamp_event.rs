@@ -78,4 +78,3 @@ impl OpAMPEventHandler {
         unimplemented!()
     }
 }
-
