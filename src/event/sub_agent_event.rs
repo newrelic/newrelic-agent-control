@@ -1,4 +1,4 @@
-use std::sync::mpsc::{Sender, SendError};
+use std::sync::mpsc::{Sender};
 use crate::config::super_agent_configs::AgentID;
 use crate::event::event::{EventError, EventPublisher};
 use crate::event::opamp_event::OpAMPEvent;

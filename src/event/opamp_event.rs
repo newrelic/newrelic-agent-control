@@ -1,6 +1,6 @@
 use tracing::error;
-use crate::event::event::{ConsumerError, Event, EventConsumer, EventError, EventHandler, EventPublisher};
-use std::sync::mpsc::{Receiver, Sender};
+use crate::event::event::{Event, EventConsumer, EventError, EventHandler};
+use std::sync::mpsc::{Receiver};
 
 struct RemoteConfig {
     config: String,
