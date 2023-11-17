@@ -17,7 +17,7 @@ pub enum EventError {
 
 
 pub(crate) trait Event {
-    fn event_name(&self) -> String;
+    fn event_name(&self) -> &str;
 }
 
 pub(crate) trait EventHandler<E: Event> {
