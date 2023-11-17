@@ -122,4 +122,16 @@ pub mod test {
             StartedSubAgents(value)
         }
     }
+
+    // allow creating an empty StartedSubAgents for testing
+    impl<S> Default for StartedSubAgents<S>
+    where
+        S: StartedSubAgent,
+    {
+        fn default() -> Self {
+            StartedSubAgents {
+                0: HashMap::default(),
+            }
+        }
+    }
 }

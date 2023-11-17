@@ -122,9 +122,20 @@ pub(crate) mod test {
             });
         }
 
-        pub fn should_set_remote_config_status(&mut self, times: usize) {
+        // assertion just for the call of the method but not the remote
+        // status itself (so any remote config status)
+        pub fn should_set_any_remote_config_status(&mut self, times: usize) {
             self.expect_set_remote_config_status()
                 .times(times)
+                .returning(|_| Ok(()));
+        }
+
+        // assertion just for the call of the method but not the remote
+        // status itself (so any remote config status)
+        pub fn should_set_remote_config_status(&mut self, status: RemoteConfigStatus) {
+            self.expect_set_remote_config_status()
+                .once()
+                .with(predicate::eq(status))
                 .returning(|_| Ok(()));
         }
     }
