@@ -1,5 +1,8 @@
+use std::collections::HashMap;
+
 use crate::config::super_agent_configs::SubAgentConfig;
 use crate::context::Context;
+use crate::sub_agent::opamp::common::build_opamp_and_start_client;
 use crate::super_agent::super_agent::SuperAgentEvent;
 use crate::{
     config::super_agent_configs::AgentID,
@@ -37,7 +40,7 @@ where
     O: OpAMPClientBuilder,
     I: InstanceIDGetter,
 {
-    type NotStartedSubAgent = NotStartedSubAgentK8s<'a, O, I>;
+    type NotStartedSubAgent = NotStartedSubAgentK8s<O::Client>;
 
     fn build(
         &self,
@@ -46,14 +49,18 @@ where
         _tx: std::sync::mpsc::Sender<Event>,
         ctx: Context<Option<SuperAgentEvent>>,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
-        // TODO: build CRs supervisors and inject them into the NotStartedSubAgentK8s
-        Ok(NotStartedSubAgentK8s::new(
-            agent_id,
-            sub_agent_config.agent_type.clone(),
+        let maybe_opamp_client = build_opamp_and_start_client(
+            ctx,
             self.opamp_builder,
             self.instance_id_getter,
-            ctx,
-        ))
+            agent_id.clone(),
+            &sub_agent_config.agent_type,
+            HashMap::from([]), // TODO: check if we need to set non_identifying_attributes
+        )?;
+
+        // TODO: build CRs supervisors and inject them into the NotStartedSubAgentK8s
+
+        Ok(NotStartedSubAgentK8s::new(agent_id, maybe_opamp_client))
     }
 }
 
@@ -61,14 +68,6 @@ where
 mod test {
     use std::{collections::HashMap, sync::mpsc::channel};
 
-    use opamp_client::operation::capabilities::Capabilities;
-    use opamp_client::{
-        capabilities,
-        opamp::proto::AgentCapabilities,
-        operation::settings::{AgentDescription, StartSettings},
-    };
-
-    use crate::config::super_agent_configs::AgentTypeFQN;
     use crate::sub_agent::opamp::common::start_settings;
     use crate::{
         opamp::client_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock},
