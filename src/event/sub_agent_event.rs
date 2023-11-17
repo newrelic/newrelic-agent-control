@@ -11,12 +11,20 @@ pub enum SubAgentEvent {
 
 
 pub struct SubAgentEventPublisher {
-    event_sender: Sender<OpAMPEvent>,
+    event_sender: Sender<SubAgentEvent>,
 }
 
-impl EventPublisher<OpAMPEvent> for SubAgentEventPublisher {
+impl SubAgentEventPublisher {
+    pub fn new(event_sender: Sender<SubAgentEvent>) -> Self {
+        Self{
+            event_sender
+        }
+    }
+}
+
+impl EventPublisher<SubAgentEvent> for SubAgentEventPublisher {
     // TODO : this error mapping don't thing is correct
-    fn publish(&self, event: OpAMPEvent) -> Result<(), EventError> {
+    fn publish(&self, event: SubAgentEvent) -> Result<(), EventError> {
         Ok(self.event_sender.send(event)?)
     }
 }

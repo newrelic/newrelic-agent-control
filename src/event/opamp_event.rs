@@ -35,7 +35,7 @@ pub struct OpAMPEventConsumer {
 
 impl OpAMPEventConsumer {
 
-    fn new(event_receiver: Receiver<OpAMPEvent>, opamp_event_handler: OpAMPEventHandler) -> Self {
+    pub fn new(event_receiver: Receiver<OpAMPEvent>, opamp_event_handler: OpAMPEventHandler) -> Self {
         Self{
             event_receiver,
             opamp_event_handler,
