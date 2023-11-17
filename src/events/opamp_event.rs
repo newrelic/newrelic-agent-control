@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 use tracing::error;
-use crate::event::event::{Event, EventConsumer, EventError, EventHandler};
+use crate::events::event::{Event, EventConsumer, EventError, EventHandler};
 use std::sync::mpsc::{Receiver};
 use std::thread;
 use log::info;

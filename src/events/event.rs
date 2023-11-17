@@ -1,7 +1,7 @@
 use std::sync::mpsc::{RecvError, SendError};
 use thiserror::Error;
-use crate::event::opamp_event::{OpAMPEvent};
-use crate::event::sub_agent_event::SubAgentEvent;
+use crate::events::opamp_event::{OpAMPEvent};
+use crate::events::sub_agent_event::SubAgentEvent;
 
 #[derive(Error, Debug)]
 pub enum EventError {

@@ -7,7 +7,7 @@ pub mod opamp;
 pub mod sub_agent;
 pub mod super_agent;
 pub mod utils;
-pub mod event;
+pub mod events;
 
 #[cfg(feature = "k8s")]
 pub mod k8s;

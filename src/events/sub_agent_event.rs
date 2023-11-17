@@ -1,7 +1,7 @@
 use std::sync::mpsc::{Sender};
 use crate::config::super_agent_configs::AgentID;
-use crate::event::event::{Event, EventError, EventPublisher};
-use crate::event::opamp_event::OpAMPEvent;
+use crate::events::event::{Event, EventError, EventPublisher};
+use crate::events::opamp_event::OpAMPEvent;
 
 const SUB_AGENT_STOPPED_EVENT_NAME:&str = "stopped";
 

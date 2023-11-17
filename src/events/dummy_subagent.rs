@@ -1,7 +1,7 @@
 use std::thread;
-use crate::event::event::{EventConsumer, EventPublisher};
-use crate::event::opamp_event::{OpAMPEvent, OpAMPEventConsumer};
-use crate::event::sub_agent_event::{SubAgentEvent, SubAgentEventPublisher};
+use crate::events::event::{EventConsumer, EventPublisher};
+use crate::events::opamp_event::{OpAMPEvent, OpAMPEventConsumer};
+use crate::events::sub_agent_event::{SubAgentEvent, SubAgentEventPublisher};
 
 struct SubAgent<C = OpAMPEventConsumer, P = SubAgentEventPublisher>
     where
@@ -38,7 +38,7 @@ mod tests {
     use std::sync::mpsc::channel;
     use std::thread::sleep;
     use std::time::Duration;
-    use crate::event::opamp_event::{OpAMPEventHandler, RemoteConfig};
+    use crate::events::opamp_event::{OpAMPEventHandler, RemoteConfig};
     use super::*;
 
 
