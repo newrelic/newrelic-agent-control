@@ -209,7 +209,7 @@ mod test {
             |_, _, _| {
                 let mut started_client = MockOpAMPClientMock::new();
                 started_client.should_set_health(1);
-                started_client.should_set_remote_config_status(1);
+                started_client.should_set_any_remote_config_status(1);
                 started_client.should_stop(1);
                 Ok(started_client)
             },

@@ -144,7 +144,7 @@ pub(crate) mod tests {
         },
     };
 
-    use mockall::mock;
+    use mockall::{mock, predicate};
 
     mock! {
         pub SubAgentsConfigStore {}
@@ -163,6 +163,14 @@ pub(crate) mod tests {
             self.expect_load()
                 .once()
                 .returning(move || Ok(sub_agents_config.clone()));
+        }
+
+        pub fn should_store(&mut self, sub_agents_config: &SubAgentsConfig) {
+            let sub_agents_config = sub_agents_config.clone();
+            self.expect_store()
+                .once()
+                .with(predicate::eq(sub_agents_config))
+                .returning(move |_| Ok(()));
         }
     }
 

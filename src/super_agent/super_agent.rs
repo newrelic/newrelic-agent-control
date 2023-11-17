@@ -33,6 +33,7 @@ use crate::super_agent::defaults::{
 
 use crate::sub_agent::opamp::{
     report_remote_config_status_applied, report_remote_config_status_applying,
+    report_remote_config_status_error,
 };
 use crate::sub_agent::values::values_repository::{ValuesRepository, ValuesRepositoryFile};
 use crate::sub_agent::{error::SubAgentError, NotStartedSubAgent};
@@ -430,6 +431,10 @@ where
     }
 
     // Super Agent on remote config
+    // Configuration will be reported as applying to OpAMP
+    // Valid configuration will be applied and reported as applied to OpAMP
+    // Invalid configuration will not be applied and therefore it will not break the execution
+    // of the Super Agent. It will be logged and reported as failed to OpAMP
     fn process_super_agent_remote_config(
         &self,
         opamp_client: &OpAMPBuilder::Client,
@@ -442,12 +447,24 @@ where
     ) -> Result<(), AgentError> {
         info!("Applying SuperAgent remote config");
         report_remote_config_status_applying(opamp_client, &remote_config.hash)?;
-        self.apply_remote_config(remote_config.clone(), tx, running_sub_agents, ctx)?;
-        self.set_config_hash_as_applied(&mut remote_config.hash)?;
-        Ok(report_remote_config_status_applied(
-            opamp_client,
-            &remote_config.hash,
-        )?)
+
+        if let Err(err) =
+            self.apply_remote_config(remote_config.clone(), tx, running_sub_agents, ctx)
+        {
+            let error_message = format!("Error applying remote config: {}", err);
+            error!(error_message);
+            Ok(report_remote_config_status_error(
+                opamp_client,
+                &remote_config.hash,
+                error_message,
+            )?)
+        } else {
+            self.set_config_hash_as_applied(&mut remote_config.hash)?;
+            Ok(report_remote_config_status_applied(
+                opamp_client,
+                &remote_config.hash,
+            )?)
+        }
     }
 
     // Super Agent on remote config
@@ -610,6 +627,8 @@ mod tests {
     use crate::super_agent::super_agent::{SuperAgent, SuperAgentEvent};
     use mockall::predicate;
     use nix::unistd::gethostname;
+    use opamp_client::opamp::proto::RemoteConfigStatus;
+    use opamp_client::opamp::proto::RemoteConfigStatuses::{Applied, Applying, Failed};
     use opamp_client::operation::capabilities::Capabilities;
     use opamp_client::operation::settings::{
         AgentDescription, DescriptionValueType, StartSettings,
@@ -1439,6 +1458,168 @@ agents:
         assert_eq!(running_sub_agents.len(), 1);
 
         assert!(running_sub_agents.stop().is_ok())
+    }
+
+    // Invalid configuration should be reported to OpAMP as Failed and the Super Agent should
+    // not apply it nor crash execution.
+    #[test]
+    fn super_agent_invalid_remote_config_should_be_reported_as_failed() {
+        let ctx = Context::new();
+        let (tx, _) = mpsc::channel();
+        // Mocked services
+        let instance_id_getter = MockInstanceIDGetterMock::new();
+        let sub_agent_hash_repository_mock = MockHashRepositoryMock::new();
+        let sub_agent_values_repo = MockRemoteValuesRepositoryMock::new();
+        let sub_agent_builder = MockSubAgentBuilderMock::new();
+        let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
+        let hash_repository_mock = MockHashRepositoryMock::new();
+        let mut started_client = MockOpAMPClientMock::new();
+
+        // Structs
+        let sub_agents_config = sub_agents_default_config();
+        let mut running_sub_agents = StartedSubAgents::default();
+        let old_sub_agents_config = SubAgentsConfig::default();
+        let agent_id = AgentID::new_super_agent_id();
+        let mut remote_config = RemoteConfig {
+            agent_id,
+            hash: Hash::new("this-is-a-hash".to_string()),
+            config_map: ConfigMap::new(HashMap::from([(
+                "".to_string(),
+                "invalid_yaml_content:{}".to_string(),
+            )])),
+        };
+
+        //Expectations
+
+        // Report config status as applying
+        let status = RemoteConfigStatus {
+            status: Applying as i32,
+            last_remote_config_hash: remote_config.hash.get().into_bytes(),
+            error_message: "".to_string(),
+        };
+        started_client.should_set_remote_config_status(status);
+
+        // load current sub agents config
+        sub_agents_config_store.should_load(&old_sub_agents_config);
+
+        // report failed after trying to unserialize
+        let status = RemoteConfigStatus {
+            status: Failed as i32,
+            last_remote_config_hash: remote_config.hash.get().into_bytes(),
+            error_message: "Error applying remote config: could not resolve config: `configuration is not valid YAML: `invalid type: string \"invalid_yaml_content:{}\", expected struct SubAgentsConfig``".to_string(),
+        };
+        started_client.should_set_remote_config_status(status);
+
+        // Create the Super Agent and rub Sub Agents
+        let super_agent = SuperAgent::new_custom(
+            &instance_id_getter,
+            None::<&MockOpAMPClientBuilderMock>,
+            &hash_repository_mock,
+            sub_agent_builder,
+            sub_agents_config_store,
+            &sub_agent_hash_repository_mock,
+            sub_agent_values_repo,
+        );
+
+        super_agent
+            .process_super_agent_remote_config(
+                &started_client,
+                &mut remote_config,
+                tx,
+                &mut running_sub_agents,
+                ctx,
+            )
+            .unwrap();
+    }
+
+    #[test]
+    fn super_agent_valid_remote_config_should_be_reported_as_applied() {
+        let ctx = Context::new();
+        let (tx, _) = mpsc::channel();
+        // Mocked services
+        let instance_id_getter = MockInstanceIDGetterMock::new();
+        let sub_agent_hash_repository_mock = MockHashRepositoryMock::new();
+        let sub_agent_values_repo = MockRemoteValuesRepositoryMock::new();
+        let sub_agent_builder = MockSubAgentBuilderMock::new();
+        let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
+        let mut hash_repository_mock = MockHashRepositoryMock::new();
+        let mut started_client = MockOpAMPClientMock::new();
+
+        // Structs
+        let sub_agents_config = sub_agents_default_config();
+        let mut started_sub_agent = MockStartedSubAgent::new();
+        let sub_agent_id = AgentID::try_from("agent_id".to_string()).unwrap();
+        started_sub_agent.should_stop();
+
+        let mut running_sub_agents =
+            StartedSubAgents::from(HashMap::from([(sub_agent_id.clone(), started_sub_agent)]));
+
+        let old_sub_agents_config = SubAgentsConfig::from(HashMap::from([(
+            sub_agent_id.clone(),
+            SubAgentConfig {
+                agent_type: "some_agent_type".into(),
+            },
+        )]));
+
+        let agent_id = AgentID::new_super_agent_id();
+        let mut remote_config = RemoteConfig {
+            agent_id,
+            hash: Hash::new("this-is-a-hash".to_string()),
+            config_map: ConfigMap::new(HashMap::from([("".to_string(), "agents: {}".to_string())])),
+        };
+
+        //Expectations
+
+        // Report config status as applying
+        let status = RemoteConfigStatus {
+            status: Applying as i32,
+            last_remote_config_hash: remote_config.hash.get().into_bytes(),
+            error_message: "".to_string(),
+        };
+        started_client.should_set_remote_config_status(status);
+
+        // load current sub agents config
+        sub_agents_config_store.should_load(&old_sub_agents_config);
+
+        // store remote config with empty agents
+        sub_agents_config_store.should_store(&SubAgentsConfig::default());
+
+        // persist hash
+        hash_repository_mock.should_save_hash(&AgentID::new_super_agent_id(), &remote_config.hash);
+
+        // persist hash after applied
+        let mut applied_hash = remote_config.hash.clone();
+        applied_hash.apply();
+        hash_repository_mock.should_save_hash(&AgentID::new_super_agent_id(), &applied_hash);
+
+        // Report config status as applied
+        let status = RemoteConfigStatus {
+            status: Applied as i32,
+            last_remote_config_hash: remote_config.hash.get().into_bytes(),
+            error_message: "".to_string(),
+        };
+        started_client.should_set_remote_config_status(status);
+
+        // Create the Super Agent and rub Sub Agents
+        let super_agent = SuperAgent::new_custom(
+            &instance_id_getter,
+            None::<&MockOpAMPClientBuilderMock>,
+            &hash_repository_mock,
+            sub_agent_builder,
+            sub_agents_config_store,
+            &sub_agent_hash_repository_mock,
+            sub_agent_values_repo,
+        );
+
+        super_agent
+            .process_super_agent_remote_config(
+                &started_client,
+                &mut remote_config,
+                tx,
+                &mut running_sub_agents,
+                ctx,
+            )
+            .unwrap();
     }
 
     ////////////////////////////////////////////////////////////////////////////////////
