@@ -26,7 +26,7 @@ pub trait EventHandler<E: Event> {
 
 pub trait EventConsumer<E: Event> {
     type EventHandler: EventHandler<E>;
-    fn consume(&self) -> Result<(), EventError>;
+    fn consume(&self);
 }
 
 pub trait EventPublisher<E: Event> {

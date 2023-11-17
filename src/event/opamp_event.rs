@@ -1,19 +1,25 @@
+use std::sync::{Arc, Mutex};
 use tracing::error;
 use crate::event::event::{Event, EventConsumer, EventError, EventHandler};
 use std::sync::mpsc::{Receiver};
+use std::thread;
+use log::info;
 
-struct RemoteConfig {
-    config: String,
-    hash: String,
+#[derive(Debug)]
+pub struct RemoteConfig {
+    pub config: String,
+    pub hash: String,
 }
 
-struct Invented {
+#[derive(Debug)]
+pub struct Invented {
     field: i32,
 }
 
 const REMOTE_CONFIG_EVENT_NAME:&str = "remote_config";
 const INVENTED_EVENT_NAME:&str = "invented";
 
+#[derive(Debug)]
 pub enum OpAMPEvent {
     RemoteConfig(RemoteConfig),
     Invented(Invented)
@@ -29,13 +35,13 @@ impl Event for OpAMPEvent {
 }
 
 pub struct OpAMPEventConsumer {
-    event_receiver: Receiver<OpAMPEvent>,
-    opamp_event_handler: OpAMPEventHandler,
+    event_receiver: Arc<Mutex<Receiver<OpAMPEvent>>>,
+    opamp_event_handler: Arc<Mutex<OpAMPEventHandler>>,
 }
 
 impl OpAMPEventConsumer {
 
-    pub fn new(event_receiver: Receiver<OpAMPEvent>, opamp_event_handler: OpAMPEventHandler) -> Self {
+    pub fn new(event_receiver: Arc<Mutex<Receiver<OpAMPEvent>>>, opamp_event_handler: Arc<Mutex<OpAMPEventHandler>>) -> Self {
         Self{
             event_receiver,
             opamp_event_handler,
@@ -46,11 +52,15 @@ impl OpAMPEventConsumer {
 impl EventConsumer<OpAMPEvent> for OpAMPEventConsumer {
     type EventHandler = OpAMPEventHandler;
 
-    fn consume(&self) -> Result<(), EventError> {
-        loop {
-            let event = self.event_receiver.recv()?;
-            self.opamp_event_handler.handle(event);
-        }
+    fn consume(&self) {
+        let event_receiver = self.event_receiver.clone();
+        let opamp_handler = self.opamp_event_handler.clone();
+        thread::spawn(move || {
+            loop {
+                let event = event_receiver.lock().unwrap().recv().unwrap();
+                opamp_handler.lock().unwrap().handle(event);
+            }
+        });
     }
 }
 
@@ -72,7 +82,9 @@ impl EventHandler<OpAMPEvent> for OpAMPEventHandler {
 }
 
 impl OpAMPEventHandler {
-    fn on_remote_config(&self, event: OpAMPEvent) { unimplemented!() }
+    fn on_remote_config(&self, event: OpAMPEvent) {
+        info!("{:?}", event)
+    }
 
     fn on_invented(&self, event: OpAMPEvent) {
         unimplemented!()
