@@ -3,9 +3,7 @@ use crate::config::super_agent_configs::AgentID;
 use crate::event::event::{EventError, EventPublisher};
 use crate::event::opamp_event::OpAMPEvent;
 
-struct Invented {}
-
-const SUB_AGENT_STOPPED_EVENT_NAME:&str = "remote_config";
+const SUB_AGENT_STOPPED_EVENT_NAME:&str = "stopped";
 
 pub(crate) enum SubAgentEvent {
     Stopped(AgentID),
