@@ -45,7 +45,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         super_agent_config_storer = super_agent_config_storer.with_remote()?;
     }
 
-    let instance_id_getter = ULIDInstanceIDGetter::new(Storer {});
+    let instance_id_getter = ULIDInstanceIDGetter::default();
 
     Ok(run_super_agent(
         super_agent_config_storer,

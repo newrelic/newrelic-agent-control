@@ -22,7 +22,6 @@ use crate::context::Context;
 use crate::file_reader::FSFileReader;
 use crate::opamp::client_builder::OpAMPClientBuilder;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
-use crate::opamp::instance_id::Identifiers;
 use crate::opamp::remote_config::{RemoteConfig, RemoteConfigError};
 use crate::opamp::remote_config_hash::{Hash, HashRepository, HashRepositoryFile};
 use crate::sub_agent::collection::{NotStartedSubAgents, StartedSubAgents};
@@ -290,9 +289,7 @@ where
 
     fn super_agent_start_settings(&self) -> Result<StartSettings, AgentError> {
         Ok(StartSettings {
-            instance_id: self
-                .instance_id_getter
-                .get(self.agent_id(), &Identifiers::default())?,
+            instance_id: self.instance_id_getter.get(self.agent_id())?.to_string(),
             capabilities: default_capabilities(),
             agent_description: AgentDescription {
                 identifying_attributes: HashMap::<String, DescriptionValueType>::from([

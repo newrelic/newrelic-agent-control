@@ -7,8 +7,8 @@ pub enum StorerError {
 }
 
 pub trait InstanceIDStorer {
-    fn set(&self, agent_fqdn: &str, data: &DataStored) -> Result<(), StorerError>;
-    fn get(&self, agent_fqdn: &str) -> Result<Option<DataStored>, StorerError>;
+    fn set(&self, agent_id: &str, data: &DataStored) -> Result<(), StorerError>;
+    fn get(&self, agent_id: &str) -> Result<Option<DataStored>, StorerError>;
 }
 
 #[cfg(test)]
@@ -20,8 +20,8 @@ pub(crate) mod test {
         pub InstanceIDStorerMock {}
 
         impl InstanceIDStorer for InstanceIDStorerMock {
-            fn set(&self, agent_fqdn: &str, data: &DataStored) -> Result<(), StorerError>;
-            fn get(&self, agent_fqdn: &str) -> Result<Option<DataStored>, StorerError>;
+            fn set(&self, agent_id: &str, data: &DataStored) -> Result<(), StorerError>;
+            fn get(&self, agent_id: &str) -> Result<Option<DataStored>, StorerError>;
         }
     }
 }
