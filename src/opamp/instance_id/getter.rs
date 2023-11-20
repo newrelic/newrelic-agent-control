@@ -61,10 +61,7 @@ where
         };
 
         debug!("persisting ulid {}", new_data.ulid);
-        let _ = self
-            .storer
-            .set(agent_fqdn, &new_data)
-            .map_err(|err| debug!("error while persisting ULID={}: {}", new_data.ulid, err));
+        self.storer.set(agent_fqdn, &new_data)?;
 
         Ok(new_data.ulid.to_string())
     }

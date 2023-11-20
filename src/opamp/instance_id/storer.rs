@@ -1,7 +1,10 @@
 use crate::opamp::instance_id::getter::DataStored;
 
 #[derive(thiserror::Error, Debug)]
-pub enum StorerError {}
+pub enum StorerError {
+    #[error("generic storer error")]
+    Generic
+}
 
 pub trait InstanceIDStorer {
     fn set(&self, agent_fqdn: &str, data: &DataStored) -> Result<(), StorerError>;

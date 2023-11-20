@@ -11,6 +11,7 @@ pub(crate) mod test {
     use super::*;
     use crate::opamp::instance_id::getter::{DataStored, InstanceIDGetter, ULIDInstanceIDGetter};
     use crate::opamp::instance_id::storer::test::MockInstanceIDStorerMock;
+    use crate::opamp::instance_id::storer::StorerError;
 
     #[test]
     fn test_not_found() {
@@ -22,6 +23,34 @@ pub(crate) mod test {
         let res = getter.get("agent_fqdn", &Identifiers::default());
 
         assert!(res.is_ok());
+    }
+
+    #[test]
+    fn test_error_get() {
+        let mut mock = MockInstanceIDStorerMock::new();
+
+        mock.expect_get()
+            .once()
+            .returning(|_| Err(StorerError::Generic));
+        let getter = ULIDInstanceIDGetter::new(mock);
+        let res = getter.get("agent_fqdn", &Identifiers::default());
+
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn test_error_set() {
+        let mut mock = MockInstanceIDStorerMock::new();
+
+        mock.expect_get().once().returning(|_| Ok(None));
+        mock.expect_set()
+            .once()
+            .returning(|_, _| Err(StorerError::Generic));
+
+        let getter = ULIDInstanceIDGetter::new(mock);
+        let res = getter.get("agent_fqdn", &Identifiers::default());
+
+        assert!(res.is_err());
     }
 
     #[test]
