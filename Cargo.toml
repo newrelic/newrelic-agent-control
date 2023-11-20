@@ -63,6 +63,7 @@ required-features = ["k8s"]
 [[test]]
 name = "integration"
 path = "test/integration/mod.rs"
+required-features = ["onhost"]
 
 [[bin]]
 name = "newrelic-super-agent"
@@ -72,3 +73,5 @@ path = "src/bin/main.rs"
 [features]
 onhost = []
 k8s = ["dep:kube", "dep:k8s-openapi", "dep:tower", "dep:hyper", "dep:mockall"]
+# feature ci allows calling --all-features (needed on the test pipelines) and not failing to compile
+ci = []
