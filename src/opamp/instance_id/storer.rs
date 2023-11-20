@@ -3,7 +3,7 @@ use crate::opamp::instance_id::getter::DataStored;
 #[derive(thiserror::Error, Debug)]
 pub enum StorerError {
     #[error("generic storer error")]
-    Generic
+    Generic,
 }
 
 pub trait InstanceIDStorer {
