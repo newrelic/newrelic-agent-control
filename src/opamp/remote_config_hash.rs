@@ -23,15 +23,13 @@ const DIRECTORY_PERMISSIONS: u32 = 0o700;
 enum ConfigState {
     Applying,
     Applied,
-    Failed,
+    Failed(String),
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Hash, Eq)]
 pub struct Hash {
     hash: String,
     state: ConfigState,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    error_message: Option<String>,
 }
 
 #[derive(Error, Debug)]
@@ -65,11 +63,14 @@ impl Hash {
     }
 
     pub fn is_failed(&self) -> bool {
-        self.state == ConfigState::Failed
+        matches!(&self.state, ConfigState::Failed(_))
     }
 
-    pub fn error_message(&self) -> &Option<String> {
-        &self.error_message
+    pub fn error_message(&self) -> Option<String> {
+        match &self.state {
+            ConfigState::Failed(msg) => Some(msg.clone()),
+            _ => None,
+        }
     }
 }
 
@@ -78,7 +79,6 @@ impl Hash {
         Self {
             hash,
             state: ConfigState::Applying,
-            error_message: None,
         }
     }
     pub fn apply(&mut self) {
@@ -87,8 +87,7 @@ impl Hash {
 
     // It is mandatory for a failed hash to have the error
     pub fn fail(&mut self, error_message: String) {
-        self.state = ConfigState::Failed;
-        self.error_message = Some(error_message)
+        self.state = ConfigState::Failed(error_message);
     }
 }
 
@@ -218,15 +217,13 @@ pub mod test {
             Self {
                 hash,
                 state: ConfigState::Applied,
-                error_message: None,
             }
         }
 
         pub fn failed(hash: String, error_message: String) -> Self {
             Self {
                 hash,
-                state: ConfigState::Failed,
-                error_message: Some(error_message),
+                state: ConfigState::Failed(error_message),
             }
         }
     }
@@ -359,8 +356,7 @@ state: applied
         assert_eq!(expected, serde_yaml::to_string(&hash).unwrap());
 
         hash.fail("this is an error message".to_string());
-        let expected =
-            "hash: '123456789'\nstate: failed\nerror_message: this is an error message\n";
+        let expected = "hash: '123456789'\nstate: !failed this is an error message\n";
         assert_eq!(expected, serde_yaml::to_string(&hash).unwrap());
     }
 
@@ -375,7 +371,7 @@ state: applied
         assert_eq!(hash, serde_yaml::from_str::<Hash>(&content).unwrap());
 
         hash.fail("this is an error message".to_string());
-        let content = "hash: '123456789'\nstate: failed\nerror_message: this is an error message\n";
+        let content = "hash: '123456789'\nstate: !failed this is an error message\n";
         assert_eq!(hash, serde_yaml::from_str::<Hash>(&content).unwrap());
     }
 }

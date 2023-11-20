@@ -123,7 +123,7 @@ where
                     self.hash_repository.save(&agent_id, &hash)?;
                 } else if hash.is_failed() {
                     // failed hash always has the error message
-                    let error_message = hash.error_message().as_ref().unwrap();
+                    let error_message = hash.error_message().unwrap();
                     report_remote_config_status_error(
                         opamp_client,
                         &hash,
