@@ -85,6 +85,7 @@ impl Hash {
         self.state = ConfigState::Applied;
     }
 
+    // It is mandatory for a failed hash to have the error
     pub fn fail(&mut self, error_message: String) {
         self.state = ConfigState::Failed;
         self.error_message = Some(error_message)
@@ -218,6 +219,14 @@ pub mod test {
                 hash,
                 state: ConfigState::Applied,
                 error_message: None,
+            }
+        }
+
+        pub fn failed(hash: String, error_message: String) -> Self {
+            Self {
+                hash,
+                state: ConfigState::Failed,
+                error_message: Some(error_message),
             }
         }
     }
