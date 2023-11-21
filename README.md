@@ -72,7 +72,7 @@ cargo test --features "onhost" -- --skip as_root
 
 ### Only for the feature k8s:
 ```
-cargo test --features "k8s" -- --skip as_root
+cargo test --features "k8s"
 ```
 
 **Passing the flag --features "onhost, k8s" will throw a compilation error, there is a special feature "ci", that needs to be enabled to allow those 2 features at the same time (since we only want them together in specific CI scenarios).*
