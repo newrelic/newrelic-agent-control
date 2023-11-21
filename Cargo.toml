@@ -61,8 +61,8 @@ path = "test/k8s/mod.rs"
 required-features = ["k8s"]
 
 [[test]]
-name = "integration"
-path = "test/integration/mod.rs"
+name = "on_host"
+path = "test/on_host/mod.rs"
 required-features = ["onhost"]
 
 [[bin]]
