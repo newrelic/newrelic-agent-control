@@ -13,6 +13,12 @@ use newrelic_super_agent::super_agent::opamp::client_builder::SuperAgentOpAMPHtt
 use newrelic_super_agent::super_agent::super_agent::{SuperAgent, SuperAgentEvent};
 use newrelic_super_agent::{cli::Cli, context::Context, logging::Logging};
 
+#[cfg(all(feature = "onhost", feature = "k8s", not(feature = "ci")))]
+compile_error!("Feature \"onhost\" and feature \"k8s\" cannot be enabled at the same time");
+
+#[cfg(all(not(feature = "onhost"), not(feature = "k8s")))]
+compile_error!("Either feature \"onhost\" or feature \"k8s\" must be enabled");
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     // init logging singleton
@@ -23,6 +29,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
     if cli.print_debug_info() {
         println!("Printing debug info");
         println!("CLI: {:#?}", cli);
+
+        #[cfg(feature = "onhost")]
+        println!("Feature: onhost");
+        #[cfg(feature = "k8s")]
+        println!("Feature: k8s");
+
         return Ok(());
     }
 
@@ -47,12 +59,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let instance_id_getter = ULIDInstanceIDGetter::default();
 
-    Ok(run_super_agent(
+    #[cfg(any(feature = "onhost", feature = "k8s"))]
+    return Ok(run_super_agent(
         super_agent_config_storer,
         ctx,
         opamp_client_builder,
         instance_id_getter,
-    )?)
+    )?);
+
+    #[cfg(all(not(feature = "onhost"), not(feature = "k8s")))]
+    Ok(())
 }
 
 #[cfg(feature = "onhost")]
@@ -104,7 +120,6 @@ fn run_super_agent(
     let hash_repository = HashRepositoryFile::default();
     let sub_agent_hash_repository = HashRepositoryFile::new_sub_agent_repository();
 
-    #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
     let sub_agent_builder = newrelic_super_agent::sub_agent::k8s::builder::K8sSubAgentBuilder::new(
         opamp_client_builder.as_ref(),
         &instance_id_getter,

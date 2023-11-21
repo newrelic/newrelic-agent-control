@@ -7,9 +7,9 @@ use newrelic_super_agent::sub_agent::on_host::command::command::{
 use newrelic_super_agent::sub_agent::on_host::command::command_os::NotStartedCommandOS;
 use newrelic_super_agent::sub_agent::on_host::command::shutdown::ProcessTerminator;
 
-const TICKER: &str = "test/integration/command/scripts/ticker.sh";
-const TICKER_STDERR: &str = "test/integration/command/scripts/ticker_stderr.sh";
-const TICKER_10: &str = "test/integration/command/scripts/ticker_10.sh";
+const TICKER: &str = "test/on_host/command/scripts/ticker.sh";
+const TICKER_STDERR: &str = "test/on_host/command/scripts/ticker_stderr.sh";
+const TICKER_10: &str = "test/on_host/command/scripts/ticker_10.sh";
 
 // non blocking supervisor
 struct NonSupervisor<C = NotStartedCommandOS>
