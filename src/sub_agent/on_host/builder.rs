@@ -117,10 +117,18 @@ where
                         Vec::default(),
                         maybe_opamp_client,
                     )?);
-                } else if !hash.is_applied() {
+                } else if hash.is_applying() {
                     report_remote_config_status_applied(opamp_client, &hash)?;
                     hash.apply();
                     self.hash_repository.save(&agent_id, &hash)?;
+                } else if hash.is_failed() {
+                    // failed hash always has the error message
+                    let error_message = hash.error_message().unwrap();
+                    report_remote_config_status_error(
+                        opamp_client,
+                        &hash,
+                        error_message.to_string(),
+                    )?;
                 }
             }
         }
@@ -170,6 +178,8 @@ mod test {
     use std::sync::mpsc::channel;
 
     use nix::unistd::gethostname;
+    use opamp_client::opamp::proto::RemoteConfigStatus;
+    use opamp_client::opamp::proto::RemoteConfigStatuses::Failed;
     use opamp_client::operation::{
         capabilities::Capabilities,
         settings::{AgentDescription, DescriptionValueType, StartSettings},
@@ -254,6 +264,71 @@ mod test {
             .unwrap()
             .stop()
             .is_ok())
+    }
+
+    #[test]
+    fn test_builder_should_report_failed_config() {
+        let ctx = Context::new();
+        let (tx, _rx) = channel();
+        // Mocks
+        let mut opamp_builder = MockOpAMPClientBuilderMock::new();
+        let mut hash_repository_mock = MockHashRepositoryMock::new();
+        let mut instance_id_getter = MockInstanceIDGetterMock::new();
+        let mut effective_agent_assembler = MockEffectiveAgentAssemblerMock::new();
+
+        // Structures
+        let hostname = gethostname().unwrap_or_default().into_string().unwrap();
+        let start_settings_infra = infra_agent_default_start_settings(&hostname);
+        let final_agent = on_host_final_agent();
+        let sub_agent_id = AgentID::new("infra_agent").unwrap();
+        let sub_agent_config = SubAgentConfig {
+            agent_type: final_agent.agent_type().clone(),
+        };
+
+        // Expectations
+        // Infra Agent OpAMP no final stop nor health, just after stopping on reload
+        instance_id_getter.should_get(
+            sub_agent_id.to_string(),
+            "infra_agent_instance_id".to_string(),
+        );
+
+        opamp_builder.should_build_and_start(
+            sub_agent_id.clone(),
+            start_settings_infra,
+            |_, _, _| {
+                let mut started_client = MockOpAMPClientMock::new();
+                // failed conf should be reported
+                started_client.should_set_remote_config_status(RemoteConfigStatus {
+                    error_message: "this is an error message".to_string(),
+                    status: Failed as i32,
+                    last_remote_config_hash: "a-hash".as_bytes().to_vec(),
+                });
+                Ok(started_client)
+            },
+        );
+
+        effective_agent_assembler.should_assemble_agent(
+            &sub_agent_id,
+            &sub_agent_config,
+            final_agent,
+        );
+
+        // return a failed hash
+        let failed_hash =
+            Hash::failed("a-hash".to_string(), "this is an error message".to_string());
+        hash_repository_mock.should_get_hash(&sub_agent_id, failed_hash);
+
+        // Sub Agent Builder
+        let on_host_builder = OnHostSubAgentBuilder::new(
+            Some(&opamp_builder),
+            &instance_id_getter,
+            &hash_repository_mock,
+            &effective_agent_assembler,
+        );
+
+        assert!(on_host_builder
+            .build(sub_agent_id, &sub_agent_config, tx, ctx)
+            .is_ok());
     }
 
     // HELPERS

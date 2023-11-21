@@ -385,7 +385,7 @@ where
     // Sub Agent on remote config
     fn process_sub_agent_remote_config(
         &self,
-        remote_config: RemoteConfig,
+        mut remote_config: RemoteConfig,
         sub_agents: &mut StartedSubAgents<
             <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
@@ -397,13 +397,28 @@ where
         self.sub_agent_remote_config_hash_repository
             .save(&remote_config.agent_id, &remote_config.hash)?;
         let remote_config_value = remote_config.get_unique()?;
+        // If remote config is empty, we delete the persisted remote config so later the store
+        // will load the local config
         if remote_config_value.is_empty() {
             self.remote_values_repo
                 .delete_remote(&remote_config.agent_id)?;
         } else {
-            let agent_values = AgentValues::try_from(remote_config_value.to_string())?;
-            self.remote_values_repo
-                .store_remote(&remote_config.agent_id, &agent_values)?;
+            // If the config is not valid log we cannot report it to OpAMP as
+            // we don't have access to the Sub Agent OpAMP Client here (yet) so
+            // for now we mark the remote config as failed and we don't persist it.
+            // When the Sub Agent is "recreated" it will report the remote config
+            // as failed.
+            match AgentValues::try_from(remote_config_value.to_string()) {
+                Err(e) => {
+                    error!("Error applying Sub Agent remote config: {}", e);
+                    remote_config.hash.fail(e.to_string());
+                    self.sub_agent_remote_config_hash_repository
+                        .save(&remote_config.agent_id, &remote_config.hash)?;
+                }
+                Ok(agent_values) => self
+                    .remote_values_repo
+                    .store_remote(&remote_config.agent_id, &agent_values)?,
+            }
         }
 
         let config = self.sub_agents_config_store.load()?;
@@ -451,7 +466,7 @@ where
         if let Err(err) =
             self.apply_remote_config(remote_config.clone(), tx, running_sub_agents, ctx)
         {
-            let error_message = format!("Error applying remote config: {}", err);
+            let error_message = format!("Error applying Super Agent remote config: {}", err);
             error!(error_message);
             Ok(report_remote_config_status_error(
                 opamp_client,
@@ -1219,9 +1234,9 @@ config_file: /some/path/newrelic-infra.yml
             .times(2)
             .returning(move || Ok(sub_agents_config.clone()));
 
-        hash_repository_mock.should_get_applied_hash(
+        hash_repository_mock.should_get_hash(
             &AgentID::new_super_agent_id(),
-            Hash::new("a-hash".to_string()),
+            Hash::applied("a-hash".to_string()),
         );
 
         // two agents in the supervisor group
@@ -1293,9 +1308,9 @@ config_file: /some/path/newrelic-infra.yml
         sub_agent_builder.should_build(3);
 
         let mut hash_repository_mock = MockHashRepositoryMock::new();
-        hash_repository_mock.should_get_applied_hash(
+        hash_repository_mock.should_get_hash(
             &AgentID::new_super_agent_id(),
-            Hash::new("a-hash".to_string()),
+            Hash::applied("a-hash".to_string()),
         );
 
         let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
@@ -1506,7 +1521,7 @@ agents:
         let status = RemoteConfigStatus {
             status: Failed as i32,
             last_remote_config_hash: remote_config.hash.get().into_bytes(),
-            error_message: "Error applying remote config: could not resolve config: `configuration is not valid YAML: `invalid type: string \"invalid_yaml_content:{}\", expected struct SubAgentsConfig``".to_string(),
+            error_message: "Error applying Super Agent remote config: could not resolve config: `configuration is not valid YAML: `invalid type: string \"invalid_yaml_content:{}\", expected struct SubAgentsConfig``".to_string(),
         };
         started_client.should_set_remote_config_status(status);
 

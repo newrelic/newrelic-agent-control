@@ -19,9 +19,19 @@ use crate::super_agent::defaults::{REMOTE_AGENT_DATA_DIR, SUPER_AGENT_DATA_DIR};
 const DIRECTORY_PERMISSIONS: u32 = 0o700;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Hash, Eq)]
+#[serde(rename_all = "snake_case")]
+#[serde(tag = "state")]
+enum ConfigState {
+    Applying,
+    Applied,
+    Failed { error_message: String },
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Hash, Eq)]
 pub struct Hash {
     hash: String,
-    applied: bool,
+    #[serde(flatten)]
+    state: ConfigState,
 }
 
 #[derive(Error, Debug)]
@@ -43,22 +53,44 @@ pub enum HashRepositoryError {
 }
 
 impl Hash {
-    pub fn new(hash: String) -> Self {
-        Self {
-            hash,
-            applied: false,
-        }
-    }
     pub fn get(&self) -> String {
         self.hash.clone()
     }
-
     pub fn is_applied(&self) -> bool {
-        self.applied
+        self.state == ConfigState::Applied
     }
 
+    pub fn is_applying(&self) -> bool {
+        self.state == ConfigState::Applying
+    }
+
+    pub fn is_failed(&self) -> bool {
+        // if let self.state = ConfigState::Failed(msg)
+        matches!(&self.state, ConfigState::Failed { .. })
+    }
+
+    pub fn error_message(&self) -> Option<String> {
+        match &self.state {
+            ConfigState::Failed { error_message: msg } => Some(msg.clone()),
+            _ => None,
+        }
+    }
+}
+
+impl Hash {
+    pub fn new(hash: String) -> Self {
+        Self {
+            hash,
+            state: ConfigState::Applying,
+        }
+    }
     pub fn apply(&mut self) {
-        self.applied = true
+        self.state = ConfigState::Applied;
+    }
+
+    // It is mandatory for a failed hash to have the error
+    pub fn fail(&mut self, error_message: String) {
+        self.state = ConfigState::Failed { error_message };
     }
 }
 
@@ -168,8 +200,8 @@ pub mod test {
     use std::os::unix::fs::PermissionsExt;
 
     use super::{
-        Hash, HashRepository, HashRepositoryError, HashRepositoryFile, DIRECTORY_PERMISSIONS,
-        HASH_FILE_EXTENSION,
+        ConfigState, Hash, HashRepository, HashRepositoryError, HashRepositoryFile,
+        DIRECTORY_PERMISSIONS, HASH_FILE_EXTENSION,
     };
     use crate::config::persister::config_persister_file::FILE_PERMISSIONS;
     use crate::config::persister::config_writer_file::test::MockFileWriterMock;
@@ -186,8 +218,15 @@ pub mod test {
     impl Hash {
         pub fn applied(hash: String) -> Self {
             Self {
-                applied: true,
                 hash,
+                state: ConfigState::Applied,
+            }
+        }
+
+        pub fn failed(hash: String, error_message: String) -> Self {
+            Self {
+                hash,
+                state: ConfigState::Failed { error_message },
             }
         }
     }
@@ -206,15 +245,11 @@ pub mod test {
     }
 
     impl MockHashRepositoryMock {
-        pub fn should_get_applied_hash(&mut self, agent_id: &AgentID, hash: Hash) {
+        pub fn should_get_hash(&mut self, agent_id: &AgentID, hash: Hash) {
             self.expect_get()
                 .with(predicate::eq(agent_id.clone()))
                 .once()
-                .returning(move |_| {
-                    let mut hash = hash.clone();
-                    hash.apply();
-                    Ok(hash)
-                });
+                .returning(move |_| Ok(hash.clone()));
         }
         pub fn should_save_hash(&mut self, agent_id: &AgentID, hash: &Hash) {
             self.expect_save()
@@ -257,7 +292,7 @@ pub mod test {
 
         // This indentation and the single quotes is to match serde yaml
         let content = r#"hash: '123456789'
-applied: true
+state: applied
 "#;
 
         let mut expected_path = some_path.clone();
@@ -293,5 +328,54 @@ applied: true
 
         let result = hash_repository.get(&agent_id);
         assert_eq!(hash, result.unwrap());
+    }
+
+    #[test]
+    fn test_config_state_default_status() {
+        //default status for a hash should be applying
+        let hash = Hash::new("some-hash".into());
+        assert!(hash.is_applying())
+    }
+
+    #[test]
+    fn test_config_state_transition() {
+        // hash can change state. This is not ideal, as an applied hash should not go to failed
+        let mut hash = Hash::new("some-hash".into());
+        assert!(hash.is_applying());
+        hash.apply();
+        assert!(hash.is_applied());
+        hash.fail("this is an error message".to_string());
+        assert!(hash.is_failed());
+    }
+
+    #[test]
+    fn test_hash_serialization() {
+        let mut hash = Hash::new("123456789".to_string());
+        let expected = "hash: '123456789'\nstate: applying\n";
+        assert_eq!(expected, serde_yaml::to_string(&hash).unwrap());
+
+        hash.apply();
+        let expected = "hash: '123456789'\nstate: applied\n";
+        assert_eq!(expected, serde_yaml::to_string(&hash).unwrap());
+
+        hash.fail("this is an error message".to_string());
+        let expected =
+            "hash: '123456789'\nstate: failed\nerror_message: this is an error message\n";
+        assert_eq!(expected, serde_yaml::to_string(&hash).unwrap());
+    }
+
+    #[test]
+    fn test_hash_deserialization() {
+        let mut hash = Hash::new("123456789".to_string());
+        let content = "hash: '123456789'\nstate: applying\n";
+        assert_eq!(hash, serde_yaml::from_str::<Hash>(&content).unwrap());
+
+        hash.apply();
+        let content = "hash: '123456789'\nstate: applied\n";
+        assert_eq!(hash, serde_yaml::from_str::<Hash>(&content).unwrap());
+
+        hash.fail("this is an error message".to_string());
+        let content = "hash: '123456789'\nstate: failed\nerror_message: this is an error message\n";
+        assert_eq!(hash, serde_yaml::from_str::<Hash>(&content).unwrap());
     }
 }
