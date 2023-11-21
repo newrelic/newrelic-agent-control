@@ -33,7 +33,7 @@ jobs:
       - name: Run tests onHost excluding root-required tests
         run: cargo test --locked --features=onhost --all-targets -- --skip as_root
       - name: Run tests onK8s
-        run: cargo test --locked --features=k8s  --all-targets -- --skip as_root
+        run: cargo test --locked --features=k8s  --all-targets
       - name: Run documentation tests onhost
         run: cargo test --locked --features=onhost  --doc
       - name: Run documentation tests k8st
@@ -54,7 +54,7 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
       - name: Run k8s root-required tests only
-        run: cargo test --locked --features=k8s --all-targets -- --skip no_root
+        run: cargo test --locked --features=k8s --all-targets
       - name: Run onHost root-required tests only
         run: cargo test --locked --features=onhost --all-targets -- --skip no_root
   # Windows and macos not required at the moment (ci failing while fetching

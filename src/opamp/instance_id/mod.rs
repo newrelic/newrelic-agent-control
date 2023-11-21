@@ -1,6 +1,8 @@
 pub mod getter;
 pub mod storer;
 
+pub use getter::InstanceID;
+
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
 mod getter_k8s;
 #[cfg(feature = "onhost")]
