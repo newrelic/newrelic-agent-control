@@ -7,8 +7,8 @@ use opamp_client::{
 };
 use tracing::info;
 
+use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::sub_agent::error::SubAgentError;
-use crate::super_agent::instance_id::InstanceIDGetter;
 use crate::{
     config::super_agent_configs::{AgentID, AgentTypeFQN},
     context::Context,
@@ -32,7 +32,7 @@ where
     match opamp_builder {
         Some(builder) => {
             let start_settings = start_settings(
-                instance_id_getter.get(&agent_id),
+                instance_id_getter.get(&agent_id)?.to_string(),
                 agent_type,
                 non_identifying_attributes,
             );

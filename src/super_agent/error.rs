@@ -2,11 +2,10 @@ use opamp_client::error::{ClientError, NotStartedClientError, StartedClientError
 use std::fmt::Debug;
 use std::time::SystemTimeError;
 
-use thiserror::Error;
-
 use crate::config::agent_values::AgentValuesError;
 use crate::config::persister::config_persister::PersistError;
 use crate::file_reader::FileReaderError;
+use crate::opamp::instance_id::getter;
 use crate::opamp::remote_config::RemoteConfigError;
 use crate::opamp::remote_config_hash::HashRepositoryError;
 use crate::sub_agent::error::{SubAgentBuilderError, SubAgentCollectionError, SubAgentError};
@@ -20,6 +19,7 @@ use crate::{
     },
     opamp::client_builder::OpAMPClientBuilderError,
 };
+use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum AgentError {
@@ -58,6 +58,9 @@ pub enum AgentError {
 
     #[error("error persisting agent config: `{0}`")]
     PersistError(#[from] PersistError),
+
+    #[error("error getting agent ulid: `{0}`")]
+    GetUlidError(#[from] getter::GetterError),
 
     #[error("`Effective agent error: {0}`")]
     EffectiveAgentsError(#[from] EffectiveAgentsError),

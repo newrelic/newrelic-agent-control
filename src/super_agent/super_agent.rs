@@ -21,6 +21,7 @@ use crate::config::super_agent_configs::{AgentID, SubAgentConfig, SubAgentsConfi
 use crate::context::Context;
 use crate::file_reader::FSFileReader;
 use crate::opamp::client_builder::OpAMPClientBuilder;
+use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::remote_config::{RemoteConfig, RemoteConfigError};
 use crate::opamp::remote_config_hash::{Hash, HashRepository, HashRepositoryFile};
 use crate::sub_agent::collection::{NotStartedSubAgents, StartedSubAgents};
@@ -38,7 +39,6 @@ use crate::sub_agent::opamp::{
 use crate::sub_agent::values::values_repository::{ValuesRepository, ValuesRepositoryFile};
 use crate::sub_agent::{error::SubAgentError, NotStartedSubAgent};
 use crate::super_agent::error::AgentError;
-use crate::super_agent::instance_id::{InstanceIDGetter, ULIDInstanceIDGetter};
 use crate::super_agent::opamp::client_builder::SuperAgentOpAMPHttpBuilder;
 use crate::super_agent::super_agent::EffectiveAgentsError::{
     EffectiveAgentExists, EffectiveAgentNotFound,
@@ -58,15 +58,15 @@ pub enum SuperAgentEvent {
 pub struct SuperAgent<
     'a,
     S,
+    ID,
     OpAMPBuilder = SuperAgentOpAMPHttpBuilder,
-    ID = ULIDInstanceIDGetter,
     HR = HashRepositoryFile,
     SL = SuperAgentConfigStoreFile,
     HRS = HashRepositoryFile,
     VR = ValuesRepositoryFile<DirectoryManagerFs, WriterFile, FSFileReader>,
 > where
-    OpAMPBuilder: OpAMPClientBuilder,
     ID: InstanceIDGetter,
+    OpAMPBuilder: OpAMPClientBuilder,
     HR: HashRepository,
     SL: SubAgentsConfigStore,
     HRS: HashRepository,
@@ -83,7 +83,7 @@ pub struct SuperAgent<
     sub_agents_config_store: SL,
 }
 
-impl<'a, S, OpAMPBuilder, ID, HR, SL, HRS, VR> SuperAgent<'a, S, OpAMPBuilder, ID, HR, SL, HRS, VR>
+impl<'a, S, ID, OpAMPBuilder, HR, SL, HRS, VR> SuperAgent<'a, S, ID, OpAMPBuilder, HR, SL, HRS, VR>
 where
     OpAMPBuilder: OpAMPClientBuilder,
     ID: InstanceIDGetter,
@@ -120,7 +120,7 @@ where
     }
 }
 
-impl<'a, S, OpAMPBuilder, ID, HR, SL, HRS, VR> SuperAgent<'a, S, OpAMPBuilder, ID, HR, SL, HRS, VR>
+impl<'a, S, ID, OpAMPBuilder, HR, SL, HRS, VR> SuperAgent<'a, S, ID, OpAMPBuilder, HR, SL, HRS, VR>
 where
     OpAMPBuilder: OpAMPClientBuilder,
     ID: InstanceIDGetter,
@@ -278,7 +278,7 @@ where
                 let opamp_client = builder.build_and_start(
                     ctx,
                     self.agent_id().clone(),
-                    self.super_agent_start_settings(),
+                    self.super_agent_start_settings()?,
                 )?;
                 Some(opamp_client)
             }
@@ -288,9 +288,9 @@ where
         Ok(opamp_client_handle)
     }
 
-    fn super_agent_start_settings(&self) -> StartSettings {
-        StartSettings {
-            instance_id: self.instance_id_getter.get(self.agent_id()),
+    fn super_agent_start_settings(&self) -> Result<StartSettings, AgentError> {
+        Ok(StartSettings {
+            instance_id: self.instance_id_getter.get(self.agent_id())?.to_string(),
             capabilities: default_capabilities(),
             agent_description: AgentDescription {
                 identifying_attributes: HashMap::<String, DescriptionValueType>::from([
@@ -310,7 +310,7 @@ where
                         .into(),
                 )]),
             },
-        }
+        })
     }
 
     fn process_events(
@@ -625,6 +625,8 @@ mod tests {
     use crate::context::Context;
     use crate::opamp::client_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock};
     use crate::opamp::client_builder::OpAMPClientBuilder;
+    use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
+    use crate::opamp::instance_id::getter::InstanceIDGetter;
     use crate::opamp::remote_config::{ConfigMap, RemoteConfig};
     use crate::opamp::remote_config_hash::test::MockHashRepositoryMock;
     use crate::opamp::remote_config_hash::{Hash, HashRepository};
@@ -637,8 +639,6 @@ mod tests {
         default_capabilities, SUPER_AGENT_ID, SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE,
         SUPER_AGENT_VERSION,
     };
-    use crate::super_agent::instance_id::test::MockInstanceIDGetterMock;
-    use crate::super_agent::instance_id::InstanceIDGetter;
     use crate::super_agent::super_agent::{SuperAgent, SuperAgentEvent};
     use mockall::predicate;
     use nix::unistd::gethostname;
@@ -656,7 +656,7 @@ mod tests {
     ////////////////////////////////////////////////////////////////////////////////////
     // Custom Agent constructor for tests
     ////////////////////////////////////////////////////////////////////////////////////
-    impl<'a, S, OpAMPBuilder, ID, HR, SL, HRS, VR> SuperAgent<'a, S, OpAMPBuilder, ID, HR, SL, HRS, VR>
+    impl<'a, S, ID, OpAMPBuilder, HR, SL, HRS, VR> SuperAgent<'a, S, ID, OpAMPBuilder, HR, SL, HRS, VR>
     where
         OpAMPBuilder: OpAMPClientBuilder,
         ID: InstanceIDGetter,

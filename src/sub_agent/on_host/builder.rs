@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use nix::unistd::gethostname;
 
 use crate::config::super_agent_configs::SubAgentConfig;
+use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::remote_config_hash::HashRepository;
 use crate::sub_agent::opamp::common::build_opamp_and_start_client;
 use crate::sub_agent::opamp::{
@@ -23,7 +24,6 @@ use crate::{
         restart_policy::RestartPolicy,
         SubAgentBuilder,
     },
-    super_agent::instance_id::InstanceIDGetter,
 };
 use log::error;
 use EffectiveAgentsAssemblerError::RemoteConfigLoadError;
@@ -185,13 +185,13 @@ mod test {
         settings::{AgentDescription, DescriptionValueType, StartSettings},
     };
 
+    use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
     use crate::opamp::remote_config_hash::test::MockHashRepositoryMock;
     use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
     use crate::{
         config::agent_type::runtime_config::OnHost,
         opamp::client_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock},
-        super_agent::instance_id::test::MockInstanceIDGetterMock,
     };
 
     use super::*;

@@ -63,7 +63,12 @@ jobs:
         uses: actions-rs/clippy-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          args: --all-features -- -D clippy::all
+          args: --features=onhost  -- -D clippy::all
+      - name: cargo clippy
+        uses: actions-rs/clippy-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --features=k8s  -- -D clippy::all
   doc:
     runs-on: ubuntu-latest
     name: stable / doc
@@ -99,8 +104,11 @@ jobs:
         uses: dtolnay/rust-toolchain@4f366e621dc8fa63f557ca04b8f4361824a35a45
         with:
           toolchain: ${{ matrix.msrv }}
-      - name: cargo +${{ matrix.msrv }} check
-        run: cargo check --all-features
+      - name: cargo +${{ matrix.msrv }} check onK8s
+        run: cargo check --features=k8s
+      - name: cargo +${{ matrix.msrv }} check onHost
+        run: cargo check --features=onhost
+
 
   licenses:
     name: Validate third party libraries
