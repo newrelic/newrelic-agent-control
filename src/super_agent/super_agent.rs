@@ -7,8 +7,6 @@ use crate::config::store::{SubAgentsConfigStore, SuperAgentConfigStoreFile};
 use crate::config::super_agent_configs::{AgentID, SubAgentConfig, SubAgentsConfig};
 use crate::context::Context;
 use crate::file_reader::FSFileReader;
-use crate::opamp::client_builder::OpAMPClientBuilder;
-use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::remote_config::{RemoteConfig, RemoteConfigError};
 use crate::opamp::remote_config_hash::{Hash, HashRepository, HashRepositoryFile};
 use crate::sub_agent::collection::{NotStartedSubAgents, StartedSubAgents};
@@ -21,19 +19,12 @@ use crate::sub_agent::opamp::{
 use crate::sub_agent::values::values_repository::{ValuesRepository, ValuesRepositoryFile};
 use crate::sub_agent::SubAgentBuilder;
 use crate::sub_agent::{error::SubAgentError, NotStartedSubAgent};
-use crate::super_agent::defaults::{
-    default_capabilities, SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION,
-};
 use crate::super_agent::error::AgentError;
-use crate::super_agent::opamp::client_builder::SuperAgentOpAMPHttpBuilder;
 use crate::super_agent::super_agent::EffectiveAgentsError::{
     EffectiveAgentExists, EffectiveAgentNotFound,
 };
 use futures::executor::block_on;
-use nix::unistd::gethostname;
 use opamp_client::opamp::proto::{RemoteConfigStatus, RemoteConfigStatuses};
-use opamp_client::operation::settings::{AgentDescription, DescriptionValueType, StartSettings};
-use opamp_client::Client;
 use opamp_client::StartedClient;
 use std::collections::HashMap;
 use std::string::ToString;
@@ -55,23 +46,20 @@ pub enum SuperAgentEvent {
 pub struct SuperAgent<
     'a,
     S,
-    ID,
-    OpAMPBuilder = SuperAgentOpAMPHttpBuilder,
+    O,
     HR = HashRepositoryFile,
     SL = SuperAgentConfigStoreFile,
     HRS = HashRepositoryFile,
     VR = ValuesRepositoryFile<DirectoryManagerFs, WriterFile, FSFileReader>,
 > where
-    ID: InstanceIDGetter,
-    OpAMPBuilder: OpAMPClientBuilder,
+    O: StartedClient,
     HR: HashRepository,
     SL: SubAgentsConfigStore,
     HRS: HashRepository,
     S: SubAgentBuilder,
     VR: ValuesRepository,
 {
-    instance_id_getter: &'a ID,
-    opamp_client_builder: Option<&'a OpAMPBuilder>,
+    opamp_client: Option<O>,
     sub_agent_builder: S,
     remote_config_hash_repository: &'a HR,
     agent_id: AgentID,
@@ -80,10 +68,9 @@ pub struct SuperAgent<
     sub_agents_config_store: SL,
 }
 
-impl<'a, S, ID, OpAMPBuilder, HR, SL, HRS, VR> SuperAgent<'a, S, ID, OpAMPBuilder, HR, SL, HRS, VR>
+impl<'a, S, O, HR, SL, HRS, VR> SuperAgent<'a, S, O, HR, SL, HRS, VR>
 where
-    OpAMPBuilder: OpAMPClientBuilder,
-    ID: InstanceIDGetter,
+    O: StartedClient,
     HR: HashRepository,
     S: SubAgentBuilder,
     SL: SubAgentsConfigStore,
@@ -91,8 +78,7 @@ where
     VR: ValuesRepository,
 {
     pub fn new(
-        opamp_client_builder: Option<&'a OpAMPBuilder>,
-        instance_id_getter: &'a ID,
+        opamp_client: Option<O>,
         remote_config_hash_repository: &'a HR,
         sub_agent_builder: S,
         sub_agents_config_store: SL,
@@ -100,8 +86,7 @@ where
         values_repo: VR,
     ) -> Self {
         Self {
-            instance_id_getter,
-            opamp_client_builder,
+            opamp_client,
             remote_config_hash_repository,
             sub_agent_builder,
             // unwrap as we control content of the SUPER_AGENT_ID constant
@@ -117,10 +102,9 @@ where
     }
 }
 
-impl<'a, S, ID, OpAMPBuilder, HR, SL, HRS, VR> SuperAgent<'a, S, ID, OpAMPBuilder, HR, SL, HRS, VR>
+impl<'a, S, O, HR, SL, HRS, VR> SuperAgent<'a, S, O, HR, SL, HRS, VR>
 where
-    OpAMPBuilder: OpAMPClientBuilder,
-    ID: InstanceIDGetter,
+    O: StartedClient,
     HR: HashRepository,
     S: SubAgentBuilder,
     SL: SubAgentsConfigStore,
@@ -135,9 +119,9 @@ where
         let output_manager = StdEventReceiver::default().log(rx);
 
         // build and start the Agent's OpAMP client if a builder is provided
-        let maybe_opamp_client = self.start_super_agent_opamp_client(ctx.clone())?;
+        // let maybe_opamp_client = self.start_super_agent_opamp_client(ctx.clone())?;
 
-        if let Some(opamp_handle) = &maybe_opamp_client {
+        if let Some(opamp_handle) = &self.opamp_client {
             // TODO should we error on first launch with no hash file?
             let remote_config_hash = self
                 .remote_config_hash_repository
@@ -168,9 +152,9 @@ where
 
         // Run all the Sub Agents
         let running_sub_agents = not_started_sub_agents.run()?;
-        self.process_events(ctx.clone(), running_sub_agents, tx, &maybe_opamp_client)?;
+        self.process_events(ctx.clone(), running_sub_agents, tx, &self.opamp_client)?;
 
-        if let Some(handle) = maybe_opamp_client {
+        if let Some(handle) = self.opamp_client {
             info!("Stopping and setting to unhealthy the OpAMP Client");
             let health = opamp_client::opamp::proto::AgentHealth {
                 healthy: false,
@@ -264,51 +248,51 @@ where
         Ok(())
     }
 
-    fn start_super_agent_opamp_client(
-        &self,
-        ctx: Context<Option<SuperAgentEvent>>,
-    ) -> Result<Option<OpAMPBuilder::Client>, AgentError> {
-        // build and start the Agent's OpAMP client if a builder is provided
-        let opamp_client_handle = match self.opamp_client_builder {
-            Some(builder) => {
-                info!("Starting superagent's OpAMP Client.");
-                let opamp_client = builder.build_and_start(
-                    ctx,
-                    self.agent_id().clone(),
-                    self.super_agent_start_settings()?,
-                )?;
-                Some(opamp_client)
-            }
-            None => None,
-        };
+    // fn start_super_agent_opamp_client(
+    //     &self,
+    //     ctx: Context<Option<SuperAgentEvent>>,
+    // ) -> Result<Option<OpAMPBuilder::Client>, AgentError> {
+    //     // build and start the Agent's OpAMP client if a builder is provided
+    //     let opamp_client_handle = match self.opamp_client_builder {
+    //         Some(builder) => {
+    //             info!("Starting superagent's OpAMP Client.");
+    //             let opamp_client = builder.build_and_start(
+    //                 ctx,
+    //                 self.agent_id().clone(),
+    //                 self.super_agent_start_settings()?,
+    //             )?;
+    //             Some(opamp_client)
+    //         }
+    //         None => None,
+    //     };
 
-        Ok(opamp_client_handle)
-    }
+    //     Ok(opamp_client_handle)
+    // }
 
-    fn super_agent_start_settings(&self) -> Result<StartSettings, AgentError> {
-        Ok(StartSettings {
-            instance_id: self.instance_id_getter.get(self.agent_id())?.to_string(),
-            capabilities: default_capabilities(),
-            agent_description: AgentDescription {
-                identifying_attributes: HashMap::<String, DescriptionValueType>::from([
-                    ("service.name".to_string(), SUPER_AGENT_TYPE.into()),
-                    (
-                        "service.namespace".to_string(),
-                        SUPER_AGENT_NAMESPACE.into(),
-                    ),
-                    ("service.version".to_string(), SUPER_AGENT_VERSION.into()),
-                ]),
-                non_identifying_attributes: HashMap::from([(
-                    "host.name".to_string(),
-                    gethostname()
-                        .unwrap_or_default()
-                        .into_string()
-                        .unwrap()
-                        .into(),
-                )]),
-            },
-        })
-    }
+    // fn super_agent_start_settings(&self) -> Result<StartSettings, AgentError> {
+    //     Ok(StartSettings {
+    //         instance_id: self.instance_id_getter.get(self.agent_id())?.to_string(),
+    //         capabilities: default_capabilities(),
+    //         agent_description: AgentDescription {
+    //             identifying_attributes: HashMap::<String, DescriptionValueType>::from([
+    //                 ("service.name".to_string(), SUPER_AGENT_TYPE.into()),
+    //                 (
+    //                     "service.namespace".to_string(),
+    //                     SUPER_AGENT_NAMESPACE.into(),
+    //                 ),
+    //                 ("service.version".to_string(), SUPER_AGENT_VERSION.into()),
+    //             ]),
+    //             non_identifying_attributes: HashMap::from([(
+    //                 "host.name".to_string(),
+    //                 gethostname()
+    //                     .unwrap_or_default()
+    //                     .into_string()
+    //                     .unwrap()
+    //                     .into(),
+    //             )]),
+    //         },
+    //     })
+    // }
 
     fn process_events(
         &self,
@@ -317,7 +301,7 @@ where
             <<S as SubAgentBuilder>::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
         tx: Sender<Event>,
-        maybe_opamp_client: &Option<OpAMPBuilder::Client>,
+        maybe_opamp_client: &Option<O>,
     ) -> Result<(), AgentError> {
         loop {
             // blocking wait until context is woken up
@@ -449,7 +433,7 @@ where
     // of the Super Agent. It will be logged and reported as failed to OpAMP
     fn process_super_agent_remote_config(
         &self,
-        opamp_client: &OpAMPBuilder::Client,
+        opamp_client: &O,
         remote_config: &mut RemoteConfig,
         tx: Sender<Event>,
         running_sub_agents: &mut StartedSubAgents<
@@ -482,7 +466,7 @@ where
     // Super Agent on remote config
     fn process_super_agent_remote_config_error(
         &self,
-        opamp_client: &OpAMPBuilder::Client,
+        opamp_client: &O,
         remote_config_err: RemoteConfigError,
     ) -> Result<(), AgentError> {
         if let RemoteConfigError::InvalidConfig(hash, error) = remote_config_err {
@@ -620,10 +604,7 @@ mod tests {
         AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig,
     };
     use crate::context::Context;
-    use crate::opamp::client_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock};
-    use crate::opamp::client_builder::OpAMPClientBuilder;
-    use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
-    use crate::opamp::instance_id::getter::InstanceIDGetter;
+    use crate::opamp::client_builder::test::MockOpAMPClientMock;
     use crate::opamp::remote_config::{ConfigMap, RemoteConfig};
     use crate::opamp::remote_config_hash::test::MockHashRepositoryMock;
     use crate::opamp::remote_config_hash::{Hash, HashRepository};
@@ -632,19 +613,12 @@ mod tests {
     use crate::sub_agent::values::values_repository::test::MockRemoteValuesRepositoryMock;
     use crate::sub_agent::values::values_repository::ValuesRepository;
     use crate::sub_agent::{test::MockSubAgentBuilderMock, SubAgentBuilder};
-    use crate::super_agent::defaults::{
-        default_capabilities, SUPER_AGENT_ID, SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE,
-        SUPER_AGENT_VERSION,
-    };
     use crate::super_agent::super_agent::{SuperAgent, SuperAgentEvent};
     use mockall::predicate;
-    use nix::unistd::gethostname;
     use opamp_client::opamp::proto::RemoteConfigStatus;
     use opamp_client::opamp::proto::RemoteConfigStatuses::{Applied, Applying, Failed};
-    use opamp_client::operation::capabilities::Capabilities;
-    use opamp_client::operation::settings::{
-        AgentDescription, DescriptionValueType, StartSettings,
-    };
+
+    use opamp_client::StartedClient;
     use std::collections::HashMap;
     use std::sync::mpsc;
     use std::thread::{sleep, spawn};
@@ -653,10 +627,9 @@ mod tests {
     ////////////////////////////////////////////////////////////////////////////////////
     // Custom Agent constructor for tests
     ////////////////////////////////////////////////////////////////////////////////////
-    impl<'a, S, ID, OpAMPBuilder, HR, SL, HRS, VR> SuperAgent<'a, S, ID, OpAMPBuilder, HR, SL, HRS, VR>
+    impl<'a, S, O, HR, SL, HRS, VR> SuperAgent<'a, S, O, HR, SL, HRS, VR>
     where
-        OpAMPBuilder: OpAMPClientBuilder,
-        ID: InstanceIDGetter,
+        O: StartedClient,
         HR: HashRepository,
         S: SubAgentBuilder,
         SL: SubAgentsConfigStore,
@@ -664,8 +637,7 @@ mod tests {
         VR: ValuesRepository,
     {
         pub fn new_custom(
-            instance_id_getter: &'a ID,
-            opamp_client_builder: Option<&'a OpAMPBuilder>,
+            opamp_client: Option<O>,
             remote_config_hash_repository: &'a HR,
             sub_agent_builder: S,
             sub_agents_config_store: SL,
@@ -673,8 +645,7 @@ mod tests {
             sub_agent_values_repo: VR,
         ) -> Self {
             SuperAgent {
-                opamp_client_builder,
-                instance_id_getter,
+                opamp_client,
                 remote_config_hash_repository,
                 sub_agent_builder,
                 agent_id: AgentID::new_super_agent_id(),
@@ -687,31 +658,13 @@ mod tests {
 
     #[test]
     fn run_and_stop_supervisors_no_agents() {
-        let mut opamp_builder = MockOpAMPClientBuilderMock::new();
         let sub_agent_hash_repository_mock = MockHashRepositoryMock::new();
         let sub_agent_values_repo = MockRemoteValuesRepositoryMock::new();
-        let mut instance_id_getter = MockInstanceIDGetterMock::new();
         let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
         let mut hash_repository_mock = MockHashRepositoryMock::new();
-
-        let hostname = gethostname().unwrap_or_default().into_string().unwrap();
-        let super_agent_start_settings = super_agent_default_start_settings(&hostname);
-
-        opamp_builder.should_build_and_start(
-            AgentID::new_super_agent_id(),
-            super_agent_start_settings,
-            |_, _, _| {
-                let mut started_client = MockOpAMPClientMock::new();
-                started_client.should_set_health(1);
-                started_client.should_stop(1);
-                Ok(started_client)
-            },
-        );
-
-        instance_id_getter.should_get(
-            SUPER_AGENT_ID.to_string(),
-            "super_agent_instance_id".to_string(),
-        );
+        let mut started_client = MockOpAMPClientMock::new();
+        started_client.should_set_health(1);
+        started_client.should_stop(1);
 
         sub_agents_config_store
             .expect_load()
@@ -725,8 +678,7 @@ mod tests {
 
         // no agents in the supervisor group
         let agent = SuperAgent::new_custom(
-            &instance_id_getter,
-            Some(&opamp_builder),
+            Some(started_client),
             &hash_repository_mock,
             MockSubAgentBuilderMock::new(),
             sub_agents_config_store,
@@ -748,34 +700,18 @@ mod tests {
 
     #[test]
     fn run_and_stop_supervisors() {
-        let mut opamp_builder = MockOpAMPClientBuilderMock::new();
         let sub_agent_hash_repository_mock = MockHashRepositoryMock::new();
         let sub_agent_values_repo = MockRemoteValuesRepositoryMock::new();
-        let mut instance_id_getter = MockInstanceIDGetterMock::new();
         let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         let mut sub_agent_builder = MockSubAgentBuilderMock::new();
 
-        let hostname = gethostname().unwrap_or_default().into_string().unwrap();
-        let super_agent_start_settings = super_agent_default_start_settings(&hostname);
         let sub_agents_config = sub_agents_default_config();
 
         // Super Agent OpAMP
-        opamp_builder.should_build_and_start(
-            AgentID::new_super_agent_id(),
-            super_agent_start_settings,
-            |_, _, _| {
-                let mut started_client = MockOpAMPClientMock::new();
-                started_client.should_set_health(1);
-                started_client.should_stop(1);
-                Ok(started_client)
-            },
-        );
-
-        instance_id_getter.should_get(
-            "super-agent".to_string(),
-            "super_agent_instance_id".to_string(),
-        );
+        let mut started_client = MockOpAMPClientMock::new();
+        started_client.should_set_health(1);
+        started_client.should_stop(1);
 
         hash_repository_mock.expect_get().times(1).returning(|_| {
             let mut hash = Hash::new("a-hash".to_string());
@@ -791,8 +727,7 @@ mod tests {
             .returning(move || Ok(sub_agents_config.clone()));
 
         let agent = SuperAgent::new_custom(
-            &instance_id_getter,
-            Some(&opamp_builder),
+            Some(started_client),
             &hash_repository_mock,
             sub_agent_builder,
             sub_agents_config_store,
@@ -812,32 +747,20 @@ mod tests {
 
     #[test]
     fn receive_opamp_remote_config() {
-        let mut opamp_builder = MockOpAMPClientBuilderMock::new();
         let sub_agent_hash_repository_mock = MockHashRepositoryMock::new();
         let sub_agent_values_repo = MockRemoteValuesRepositoryMock::new();
-        let mut instance_id_getter = MockInstanceIDGetterMock::new();
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         let mut sub_agent_builder = MockSubAgentBuilderMock::new();
 
-        let hostname = gethostname().unwrap_or_default().into_string().unwrap();
-        let super_agent_start_settings = super_agent_default_start_settings(&hostname);
-
         // Super Agent OpAMP
-        opamp_builder.should_build_and_start(
-            AgentID::new_super_agent_id(),
-            super_agent_start_settings,
-            |_, _, _| {
-                let mut started_client = MockOpAMPClientMock::new();
-                started_client.should_set_health(1);
-                // applying and applied
-                started_client
-                    .expect_set_remote_config_status()
-                    .times(2)
-                    .returning(|_| Ok(()));
-                started_client.should_stop(1);
-                Ok(started_client)
-            },
-        );
+        let mut started_client = MockOpAMPClientMock::new();
+        started_client.should_set_health(1);
+        // applying and applied
+        started_client
+            .expect_set_remote_config_status()
+            .times(2)
+            .returning(|_| Ok(()));
+        started_client.should_stop(1);
 
         let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
         sub_agents_config_store
@@ -848,11 +771,6 @@ mod tests {
             .expect_store()
             .once()
             .returning(|_| Ok(()));
-
-        instance_id_getter.should_get(
-            "super-agent".to_string(),
-            "super_agent_instance_id".to_string(),
-        );
 
         hash_repository_mock
             .expect_get()
@@ -891,8 +809,7 @@ mod tests {
             move || {
                 // two agents in the supervisor group
                 let agent = SuperAgent::new_custom(
-                    &instance_id_getter,
-                    Some(&opamp_builder),
+                    Some(started_client),
                     &hash_repository_mock,
                     sub_agent_builder,
                     sub_agents_config_store,
@@ -933,8 +850,6 @@ agents:
         let ctx = Context::new();
         let (tx, _) = mpsc::channel();
 
-        let opamp_builder = MockOpAMPClientBuilderMock::new();
-        let instance_id_getter = MockInstanceIDGetterMock::new();
         let hash_repository_mock = MockHashRepositoryMock::new();
         let mut sub_agent_builder = MockSubAgentBuilderMock::new();
         let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
@@ -1012,8 +927,7 @@ config_file: /some/path/newrelic-infra.yml
 
         // Create the Super Agent and rub Sub Agents
         let super_agent = SuperAgent::new_custom(
-            &instance_id_getter,
-            Some(&opamp_builder),
+            Some(MockOpAMPClientMock::new()),
             &hash_repository_mock,
             sub_agent_builder,
             sub_agents_config_store,
@@ -1031,8 +945,6 @@ config_file: /some/path/newrelic-infra.yml
         let ctx = Context::new();
         let (tx, _) = mpsc::channel();
 
-        let opamp_builder = MockOpAMPClientBuilderMock::new();
-        let instance_id_getter = MockInstanceIDGetterMock::new();
         let hash_repository_mock = MockHashRepositoryMock::new();
         let mut sub_agent_builder = MockSubAgentBuilderMock::new();
         let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
@@ -1100,8 +1012,7 @@ config_file: /some/path/newrelic-infra.yml
 
         // Create the Super Agent and rub Sub Agents
         let super_agent = SuperAgent::new_custom(
-            &instance_id_getter,
-            Some(&opamp_builder),
+            Some(MockOpAMPClientMock::new()),
             &hash_repository_mock,
             sub_agent_builder,
             sub_agents_config_store,
@@ -1116,30 +1027,13 @@ config_file: /some/path/newrelic-infra.yml
 
     #[test]
     fn restart_sub_agent() {
-        let mut opamp_builder = MockOpAMPClientBuilderMock::new();
         let sub_agent_hash_repository_mock = MockHashRepositoryMock::new();
         let mut sub_agent_builder = MockSubAgentBuilderMock::new();
 
-        let hostname = gethostname().unwrap_or_default().into_string().unwrap();
-        let super_agent_start_settings = super_agent_default_start_settings(&hostname);
-
         // Super Agent OpAMP
-        opamp_builder.should_build_and_start(
-            AgentID::new_super_agent_id(),
-            super_agent_start_settings,
-            |_, _, _| {
-                let mut started_client = MockOpAMPClientMock::new();
-                started_client.should_set_health(1);
-                started_client.should_stop(1);
-                Ok(started_client)
-            },
-        );
-
-        let mut instance_id_getter = MockInstanceIDGetterMock::new();
-        instance_id_getter.should_get(
-            "super-agent".to_string(),
-            "super_agent_instance_id".to_string(),
-        );
+        let mut started_client = MockOpAMPClientMock::new();
+        started_client.should_set_health(1);
+        started_client.should_stop(1);
 
         //Sub Agent reload expectations
         let agent_id_to_restart = AgentID::new("infra_agent").unwrap();
@@ -1163,8 +1057,7 @@ config_file: /some/path/newrelic-infra.yml
 
         // two agents in the supervisor group
         let agent = SuperAgent::new_custom(
-            &instance_id_getter,
-            Some(&opamp_builder),
+            Some(started_client),
             &hash_repository_mock,
             sub_agent_builder,
             sub_agents_config_store,
@@ -1190,34 +1083,14 @@ config_file: /some/path/newrelic-infra.yml
 
     #[test]
     fn reload_sub_agent_config_error_on_assemble_new_config() {
-        let mut opamp_builder = MockOpAMPClientBuilderMock::new();
-        let mut instance_id_getter = MockInstanceIDGetterMock::new();
         let mut sub_agent_builder = MockSubAgentBuilderMock::new();
         let sub_agent_hash_repository_mock = MockHashRepositoryMock::new();
         let sub_agent_values_repo = MockRemoteValuesRepositoryMock::new();
         let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
         let mut hash_repository_mock = MockHashRepositoryMock::new();
 
-        let hostname = gethostname().unwrap_or_default().into_string().unwrap();
-        let super_agent_start_settings = super_agent_default_start_settings(&hostname);
-
-        // Super Agent OpAMP no final stop nor health
-        opamp_builder.should_build_and_start(
-            AgentID::new_super_agent_id(),
-            super_agent_start_settings,
-            |_, _, _| {
-                let started_client = MockOpAMPClientMock::new();
-                Ok(started_client)
-            },
-        );
-
         // Sub Agents
         let sub_agents_config = sub_agents_config_single_agent();
-
-        instance_id_getter.should_get(
-            "super-agent".to_string(),
-            "super_agent_instance_id".to_string(),
-        );
 
         // it should build one subagent: infra_agent and be called a second time sending the error to opamp
         sub_agent_builder.should_build(1);
@@ -1238,8 +1111,7 @@ config_file: /some/path/newrelic-infra.yml
 
         // two agents in the supervisor group
         let agent = SuperAgent::new_custom(
-            &instance_id_getter,
-            Some(&opamp_builder),
+            Some(MockOpAMPClientMock::new()),
             &hash_repository_mock,
             sub_agent_builder,
             sub_agents_config_store,
@@ -1271,30 +1143,13 @@ config_file: /some/path/newrelic-infra.yml
 
     #[test]
     fn recreate_agent_no_errors() {
-        let mut opamp_builder = MockOpAMPClientBuilderMock::new();
-        let mut instance_id_getter = MockInstanceIDGetterMock::new();
         let sub_agent_hash_repository_mock = MockHashRepositoryMock::new();
         let sub_agent_values_repo = MockRemoteValuesRepositoryMock::new();
 
-        let hostname = gethostname().unwrap_or_default().into_string().unwrap();
-        let super_agent_start_settings = super_agent_default_start_settings(&hostname);
-
         // Super Agent OpAMP
-        opamp_builder.should_build_and_start(
-            AgentID::new_super_agent_id(),
-            super_agent_start_settings,
-            |_, _, _| {
-                let mut started_client = MockOpAMPClientMock::new();
-                started_client.should_set_health(1);
-                started_client.should_stop(1);
-                Ok(started_client)
-            },
-        );
-
-        instance_id_getter.should_get(
-            "super-agent".to_string(),
-            "super_agent_instance_id".to_string(),
-        );
+        let mut started_client = MockOpAMPClientMock::new();
+        started_client.should_set_health(1);
+        started_client.should_stop(1);
 
         // recreate agent
         //Sub Agent reload expectations
@@ -1322,8 +1177,7 @@ config_file: /some/path/newrelic-infra.yml
 
         // Create the Super Agent and rub Sub Agents
         let super_agent = SuperAgent::new_custom(
-            &instance_id_getter,
-            Some(&opamp_builder),
+            Some(started_client),
             &hash_repository_mock,
             sub_agent_builder,
             sub_agents_config_store,
@@ -1352,7 +1206,6 @@ config_file: /some/path/newrelic-infra.yml
     fn create_stop_sub_agents_from_remote_config() {
         let ctx = Context::new();
         // Mocked services
-        let instance_id_getter = MockInstanceIDGetterMock::new();
         let sub_agent_hash_repository_mock = MockHashRepositoryMock::new();
         let sub_agent_values_repo = MockRemoteValuesRepositoryMock::new();
 
@@ -1405,8 +1258,7 @@ config_file: /some/path/newrelic-infra.yml
 
         // Create the Super Agent and rub Sub Agents
         let super_agent = SuperAgent::new_custom(
-            &instance_id_getter,
-            None::<&MockOpAMPClientBuilderMock>,
+            None::<MockOpAMPClientMock>,
             &hash_repository_mock,
             sub_agent_builder,
             sub_agents_config_store,
@@ -1479,7 +1331,6 @@ agents:
         let ctx = Context::new();
         let (tx, _) = mpsc::channel();
         // Mocked services
-        let instance_id_getter = MockInstanceIDGetterMock::new();
         let sub_agent_hash_repository_mock = MockHashRepositoryMock::new();
         let sub_agent_values_repo = MockRemoteValuesRepositoryMock::new();
         let sub_agent_builder = MockSubAgentBuilderMock::new();
@@ -1488,7 +1339,6 @@ agents:
         let mut started_client = MockOpAMPClientMock::new();
 
         // Structs
-        let sub_agents_config = sub_agents_default_config();
         let mut running_sub_agents = StartedSubAgents::default();
         let old_sub_agents_config = SubAgentsConfig::default();
         let agent_id = AgentID::new_super_agent_id();
@@ -1524,8 +1374,7 @@ agents:
 
         // Create the Super Agent and rub Sub Agents
         let super_agent = SuperAgent::new_custom(
-            &instance_id_getter,
-            None::<&MockOpAMPClientBuilderMock>,
+            None::<MockOpAMPClientMock>,
             &hash_repository_mock,
             sub_agent_builder,
             sub_agents_config_store,
@@ -1549,7 +1398,6 @@ agents:
         let ctx = Context::new();
         let (tx, _) = mpsc::channel();
         // Mocked services
-        let instance_id_getter = MockInstanceIDGetterMock::new();
         let sub_agent_hash_repository_mock = MockHashRepositoryMock::new();
         let sub_agent_values_repo = MockRemoteValuesRepositoryMock::new();
         let sub_agent_builder = MockSubAgentBuilderMock::new();
@@ -1558,7 +1406,6 @@ agents:
         let mut started_client = MockOpAMPClientMock::new();
 
         // Structs
-        let sub_agents_config = sub_agents_default_config();
         let mut started_sub_agent = MockStartedSubAgent::new();
         let sub_agent_id = AgentID::try_from("agent_id".to_string()).unwrap();
         started_sub_agent.should_stop();
@@ -1614,8 +1461,7 @@ agents:
 
         // Create the Super Agent and rub Sub Agents
         let super_agent = SuperAgent::new_custom(
-            &instance_id_getter,
-            None::<&MockOpAMPClientBuilderMock>,
+            None::<MockOpAMPClientMock>,
             &hash_repository_mock,
             sub_agent_builder,
             sub_agents_config_store,
@@ -1637,16 +1483,6 @@ agents:
     ////////////////////////////////////////////////////////////////////////////////////
     // Test helpers
     ////////////////////////////////////////////////////////////////////////////////////
-    fn super_agent_default_start_settings(hostname: &str) -> StartSettings {
-        start_settings(
-            "super_agent_instance_id".to_string(),
-            default_capabilities(),
-            SUPER_AGENT_TYPE.to_string(),
-            SUPER_AGENT_VERSION.to_string(),
-            SUPER_AGENT_NAMESPACE.to_string(),
-            hostname,
-        )
-    }
 
     fn sub_agents_config_single_agent() -> SubAgentsConfig {
         HashMap::from([(
@@ -1656,31 +1492,6 @@ agents:
             },
         )])
         .into()
-    }
-
-    fn start_settings(
-        instance_id: String,
-        capabilities: Capabilities,
-        agent_type: String,
-        agent_version: String,
-        agent_namespace: String,
-        hostname: &str,
-    ) -> StartSettings {
-        StartSettings {
-            instance_id,
-            capabilities,
-            agent_description: AgentDescription {
-                identifying_attributes: HashMap::<String, DescriptionValueType>::from([
-                    ("service.name".to_string(), agent_type.into()),
-                    ("service.namespace".to_string(), agent_namespace.into()),
-                    ("service.version".to_string(), agent_version.into()),
-                ]),
-                non_identifying_attributes: HashMap::from([(
-                    "host.name".to_string(),
-                    DescriptionValueType::String(hostname.to_string()),
-                )]),
-            },
-        }
     }
 
     fn sub_agents_default_config() -> SubAgentsConfig {
