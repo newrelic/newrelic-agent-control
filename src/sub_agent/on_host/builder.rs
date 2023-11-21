@@ -40,6 +40,7 @@ pub struct OnHostSubAgentBuilder<'a, O, I, HR, A>
 where
     O: OpAMPClientBuilder,
     I: InstanceIDGetter,
+    // HR: HashRepository, // TODO??
     A: EffectiveAgentsAssembler,
 {
     opamp_builder: Option<&'a O>,

@@ -144,6 +144,7 @@ mod tests {
                 .returning(move |_| event.clone());
         }
 
+        #[allow(dead_code)]
         pub fn should_on_config_err(&mut self, err: RemoteConfigError, event: SuperAgentEvent) {
             let event = event.clone();
             self.expect_on_config_err()

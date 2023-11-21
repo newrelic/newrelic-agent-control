@@ -131,12 +131,14 @@ pub mod test {
                 .returning(move |_, _| Err(err.clone()));
         }
 
+        #[allow(dead_code)]
         pub fn should_persist_any_agent_config(&mut self, times: usize) {
             self.expect_persist_agent_config()
                 .times(times)
                 .returning(|_, _| Ok(()));
         }
 
+        #[allow(dead_code)]
         pub fn should_not_persist_any_agent_config(&mut self, err: PersistError) {
             self.expect_persist_agent_config()
                 .once()
@@ -167,6 +169,7 @@ pub mod test {
                 .returning(move |_, _| Err(err.clone()));
         }
 
+        #[allow(dead_code)]
         pub fn should_delete_any_agent_config(&mut self, times: usize) {
             self.expect_delete_agent_config()
                 .times(times)
@@ -174,16 +177,19 @@ pub mod test {
         }
 
         // cannot assert on what is cleaned because of hashmap order
+        #[allow(dead_code)]
         pub fn should_not_delete_any_agent_config(&mut self, err: PersistError) {
             self.expect_delete_agent_config()
                 .once()
                 .returning(move |_, _| Err(err.clone()));
         }
 
+        #[allow(dead_code)]
         pub fn should_delete_all_configs(&mut self) {
             self.expect_delete_all_configs().once().returning(|| Ok(()));
         }
 
+        #[allow(dead_code)]
         pub fn should_delete_all_configs_times(&mut self, times: usize) {
             self.expect_delete_all_configs()
                 .times(times)

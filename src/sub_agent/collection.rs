@@ -129,9 +129,7 @@ pub mod test {
         S: StartedSubAgent,
     {
         fn default() -> Self {
-            StartedSubAgents {
-                0: HashMap::default(),
-            }
+            StartedSubAgents(HashMap::default())
         }
     }
 }
