@@ -20,18 +20,18 @@ const DIRECTORY_PERMISSIONS: u32 = 0o700;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Hash, Eq)]
 #[serde(rename_all = "snake_case")]
+#[serde(tag = "state")]
 enum ConfigState {
     Applying,
     Applied,
-    Failed,
+    Failed { error_message: String },
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Hash, Eq)]
 pub struct Hash {
     hash: String,
+    #[serde(flatten)]
     state: ConfigState,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    error_message: Option<String>,
 }
 
 #[derive(Error, Debug)]
@@ -65,11 +65,15 @@ impl Hash {
     }
 
     pub fn is_failed(&self) -> bool {
-        self.state == ConfigState::Failed
+        // if let self.state = ConfigState::Failed(msg)
+        matches!(&self.state, ConfigState::Failed { .. })
     }
 
-    pub fn error_message(&self) -> &Option<String> {
-        &self.error_message
+    pub fn error_message(&self) -> Option<String> {
+        match &self.state {
+            ConfigState::Failed { error_message: msg } => Some(msg.clone()),
+            _ => None,
+        }
     }
 }
 
@@ -78,16 +82,15 @@ impl Hash {
         Self {
             hash,
             state: ConfigState::Applying,
-            error_message: None,
         }
     }
     pub fn apply(&mut self) {
         self.state = ConfigState::Applied;
     }
 
+    // It is mandatory for a failed hash to have the error
     pub fn fail(&mut self, error_message: String) {
-        self.state = ConfigState::Failed;
-        self.error_message = Some(error_message)
+        self.state = ConfigState::Failed { error_message };
     }
 }
 
@@ -217,7 +220,13 @@ pub mod test {
             Self {
                 hash,
                 state: ConfigState::Applied,
-                error_message: None,
+            }
+        }
+
+        pub fn failed(hash: String, error_message: String) -> Self {
+            Self {
+                hash,
+                state: ConfigState::Failed { error_message },
             }
         }
     }
