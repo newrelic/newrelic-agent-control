@@ -1,8 +1,13 @@
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+
 use opamp_client::operation::callbacks::Callbacks;
 
 use crate::config::super_agent_configs::SubAgentConfig;
 use crate::context::Context;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
+use crate::k8s::executor::K8sExecutor;
+use crate::sub_agent::opamp::common::build_opamp_and_start_client;
 use crate::opamp::operations::build_opamp_and_start_client;
 use crate::super_agent::super_agent::SuperAgentEvent;
 use crate::{
@@ -13,6 +18,7 @@ use crate::{
 use std::collections::HashMap;
 
 use super::sub_agent::NotStartedSubAgentK8s;
+use crate::sub_agent::k8s::supervisor::Supervisor;
 
 pub struct K8sSubAgentBuilder<'a, C, O, I>
 where
@@ -27,6 +33,7 @@ where
     // It's actually used as a generic parameter for the `OpAMPClientBuilder` instance bound by type parameter `O`.
     // Feel free to remove this when the actual implementations (Callbacks instance for K8s agents) make it redundant!
     _callbacks: std::marker::PhantomData<C>,
+    // client: Client, Should we inject the client?
 }
 
 impl<'a, C, O, I> K8sSubAgentBuilder<'a, C, O, I>
@@ -41,6 +48,7 @@ where
             instance_id_getter,
 
             _callbacks: std::marker::PhantomData,
+            // client: client,
         }
     }
 }
@@ -69,7 +77,8 @@ where
             HashMap::from([]), // TODO: check if we need to set non_identifying_attributes
         )?;
 
-        // TODO: build CRs supervisors and inject them into the NotStartedSubAgentK8s
+        // let executor = K8sExecutor::new(self.client.clone());
+        // let supervisor = Supervisor::new(Arc::new(Mutex::new(executor)));
 
         Ok(NotStartedSubAgentK8s::new(agent_id, maybe_opamp_client))
     }

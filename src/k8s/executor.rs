@@ -3,6 +3,7 @@ use super::{
     reader::{DynamicObjectReflector, ReflectorBuilder},
 };
 use k8s_openapi::api::core::v1::ConfigMap;
+use async_trait::async_trait;
 use k8s_openapi::api::core::v1::Pod;
 use kube::core::DynamicObject;
 use kube::{
@@ -30,6 +31,51 @@ pub struct K8sExecutor {
 }
 
 #[cfg_attr(test, mockall::automock)]
+// #[derive(Error, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum K8sResourceType {
+    OtelHelmRepository,
+    OtelColHelmRelease,
+}
+
+// TODO: For now only the two used function are defined in the interface. We might want to break it ito a specific dynamic objects
+// interface.
+#[async_trait]
+pub trait K8sDynamicObjectsManager {
+    async fn create_dynamic_object(
+        &self,
+        gvk: GroupVersionKind,
+        spec: &str,
+    ) -> Result<DynamicObject, K8sError>;
+    async fn delete_dynamic_object(
+        &self,
+        gvk: GroupVersionKind,
+        name: &str,
+    ) -> Result<(), K8sError>;
+}
+
+#[async_trait]
+impl K8sDynamicObjectsManager for K8sExecutor {
+    async fn create_dynamic_object(
+        &self,
+        gvk: GroupVersionKind,
+        spec: &str,
+    ) -> Result<DynamicObject, K8sError> {
+        // Delegate to the existing method in K8sExecutor
+        self.create_dynamic_object(gvk, spec).await
+    }
+
+    async fn delete_dynamic_object(
+        &self,
+        gvk: GroupVersionKind,
+        name: &str,
+    ) -> Result<(), K8sError> {
+        // Delegate to the existing method in K8sExecutor
+        self.delete_dynamic_object(gvk, name).await
+    }
+}
+
+#[automock]
 impl K8sExecutor {
     /// Constructs a new Kubernetes client.
     ///
@@ -206,6 +252,28 @@ impl K8sExecutor {
             .map_err(|_| K8sError::MissingKind(gvk.api_version(), gvk.kind))?;
         Ok(api_resource)
     }
+}
+
+impl K8sResourceType {
+    pub fn to_gvk(&self) -> GroupVersionKind {
+        match self {
+            K8sResourceType::OtelHelmRepository => GroupVersionKind {
+                group: "source.toolkit.fluxcd.io".into(),
+                version: "v1beta2".into(),
+                kind: "HelmRepository".into(),
+            },
+            K8sResourceType::OtelColHelmRelease => GroupVersionKind {
+                group: "helm.toolkit.fluxcd.io".into(),
+                version: "v2beta1".into(),
+                kind: "HelmRelease".into(),
+            },
+        }
+    }
+}
+
+// TODO: remove me once we have implemented the config translation
+pub fn gvk_from_strings(api_version: &str, kind: &str, group: &str) -> GroupVersionKind {
+    GroupVersionKind::gvk(group, api_version, kind)
 }
 
 #[cfg(test)]

@@ -23,6 +23,7 @@ where
     // It's actually used as a generic parameter for the `OpAMPClientBuilder` instance bound by type parameter `O`.
     // Feel free to remove this when the actual implementations (Callbacks instance for K8s agents) make it redundant!
     _callbacks: std::marker::PhantomData<CB>,
+    // supervisor: Supervisor<K8sExecutor>,
 }
 
 impl<CB, C> NotStartedSubAgentK8s<CB, C>
@@ -31,11 +32,18 @@ where
     C: StartedClient<CB>,
 {
     pub fn new(agent_id: AgentID, opamp_client: Option<C>) -> Self {
+impl<C: opamp_client::StartedClient> NotStartedSubAgentK8s<C> {
+    pub fn new(
+        agent_id: AgentID,
+        opamp_client: Option<C>,
+        // supervisor: Supervisor<K8sExecutor>,
+    ) -> Self {
         NotStartedSubAgentK8s {
             agent_id,
             opamp_client,
 
             _callbacks: std::marker::PhantomData,
+            // supervisor: supervisor,
         }
     }
 }
@@ -48,7 +56,14 @@ where
     type StartedSubAgent = StartedSubAgentK8s<CB, C>;
 
     fn run(self) -> Result<Self::StartedSubAgent, SubAgentError> {
-        // TODO: handle stored CRs supervisors
+        // Start the supervisor
+        // let _supervisor_handle = tokio::spawn(async move {
+        //     self.supervisor
+        //         .start()
+        //         .await
+        //         .expect("Failed to start supervisor");
+        // });
+
         Ok(StartedSubAgentK8s::new(self.agent_id, self.opamp_client))
     }
 }
