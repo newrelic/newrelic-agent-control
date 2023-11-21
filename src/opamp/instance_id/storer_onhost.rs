@@ -1,8 +1,14 @@
 use crate::opamp::instance_id::getter::{DataStored, InstanceID};
-use crate::opamp::instance_id::storer::{InstanceIDStorer, StorerError};
+use crate::opamp::instance_id::storer::InstanceIDStorer;
 use ulid::Ulid;
 
 pub struct Storer {}
+
+#[derive(thiserror::Error, Debug)]
+pub enum StorerError {
+    #[error("generic storer error")]
+    Generic,
+}
 
 impl InstanceIDStorer for Storer {
     fn set(&self, _agent_id: &str, _ds: &DataStored) -> Result<(), StorerError> {

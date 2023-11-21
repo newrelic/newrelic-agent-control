@@ -1,18 +1,17 @@
-use std::error::Error;
-
-use newrelic_super_agent::super_agent::error::AgentError;
-use tracing::{error, info};
-
 use newrelic_super_agent::config::store::{SuperAgentConfigStore, SuperAgentConfigStoreFile};
-use newrelic_super_agent::opamp::instance_id::getter::ULIDInstanceIDGetter;
+use newrelic_super_agent::opamp::instance_id;
+use newrelic_super_agent::opamp::instance_id::getter::{InstanceIDGetter, ULIDInstanceIDGetter};
 use newrelic_super_agent::opamp::instance_id::Storer;
 use newrelic_super_agent::opamp::remote_config_hash::HashRepositoryFile;
 use newrelic_super_agent::sub_agent::opamp::client_builder::SubAgentOpAMPHttpBuilder;
 use newrelic_super_agent::sub_agent::values::values_repository::ValuesRepositoryFile;
 use newrelic_super_agent::super_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
+use newrelic_super_agent::super_agent::error::AgentError;
 use newrelic_super_agent::super_agent::opamp::client_builder::SuperAgentOpAMPHttpBuilder;
 use newrelic_super_agent::super_agent::super_agent::{SuperAgent, SuperAgentEvent};
 use newrelic_super_agent::{cli::Cli, context::Context, logging::Logging};
+use std::error::Error;
+use tracing::{error, info};
 
 #[cfg(all(feature = "onhost", feature = "k8s", not(feature = "ci")))]
 compile_error!("Feature \"onhost\" and feature \"k8s\" cannot be enabled at the same time");
@@ -58,7 +57,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
         super_agent_config_storer = super_agent_config_storer.with_remote()?;
     }
 
-    let instance_id_getter = ULIDInstanceIDGetter::default();
+    #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
+    let instance_id_getter =
+        ULIDInstanceIDGetter::try_default::<instance_id::K8sIdentifiers>("newrelic").await?;
+    #[cfg(feature = "onhost")]
+    let instance_id_getter =
+        ULIDInstanceIDGetter::try_default::<instance_id::OnHostIdentifiers>().await?;
 
     #[cfg(any(feature = "onhost", feature = "k8s"))]
     return Ok(run_super_agent(

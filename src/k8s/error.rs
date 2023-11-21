@@ -1,4 +1,4 @@
-use kube::config::KubeconfigError;
+use kube::{api, config::KubeconfigError};
 
 #[derive(thiserror::Error, Debug)]
 pub enum K8sError {
@@ -14,9 +14,18 @@ pub enum K8sError {
     #[error("cannot start a k8s reader `{0}`")]
     ReflectorWriterDropped(#[from] kube::runtime::reflector::store::WriterDropped),
 
+    #[error("cannot post object `{0}`")]
+    CommitError(#[from] api::entry::CommitError),
+
     #[error("missing resource definition: api_version: {0}, kind: {1}")]
     MissingKind(String, String),
 
     #[error("error serializing/deserializing yaml: `{0}`")]
     SerdeYaml(#[from] serde_yaml::Error),
+
+    #[error("the cm data is malformed")]
+    CMMalformed(),
+
+    #[error("the cm key is missing")]
+    KeyIsMissing(),
 }

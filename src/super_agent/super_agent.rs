@@ -1,16 +1,3 @@
-use std::collections::HashMap;
-use std::string::ToString;
-use std::sync::mpsc::{self, Sender};
-
-use futures::executor::block_on;
-use nix::unistd::gethostname;
-use opamp_client::opamp::proto::{RemoteConfigStatus, RemoteConfigStatuses};
-use opamp_client::operation::settings::{AgentDescription, DescriptionValueType, StartSettings};
-use opamp_client::Client;
-use opamp_client::StartedClient;
-use thiserror::Error;
-use tracing::{error, info, warn};
-
 use crate::config::agent_type::agent_types::FinalAgent;
 use crate::config::agent_values::AgentValues;
 use crate::config::error::SuperAgentConfigError;
@@ -27,22 +14,32 @@ use crate::opamp::remote_config_hash::{Hash, HashRepository, HashRepositoryFile}
 use crate::sub_agent::collection::{NotStartedSubAgents, StartedSubAgents};
 use crate::sub_agent::error::SubAgentBuilderError;
 use crate::sub_agent::logger::{Event, EventLogger, StdEventReceiver};
-use crate::sub_agent::SubAgentBuilder;
-use crate::super_agent::defaults::{
-    default_capabilities, SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION,
-};
-
 use crate::sub_agent::opamp::{
     report_remote_config_status_applied, report_remote_config_status_applying,
     report_remote_config_status_error,
 };
 use crate::sub_agent::values::values_repository::{ValuesRepository, ValuesRepositoryFile};
+use crate::sub_agent::SubAgentBuilder;
 use crate::sub_agent::{error::SubAgentError, NotStartedSubAgent};
+use crate::super_agent::defaults::{
+    default_capabilities, SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION,
+};
 use crate::super_agent::error::AgentError;
 use crate::super_agent::opamp::client_builder::SuperAgentOpAMPHttpBuilder;
 use crate::super_agent::super_agent::EffectiveAgentsError::{
     EffectiveAgentExists, EffectiveAgentNotFound,
 };
+use futures::executor::block_on;
+use nix::unistd::gethostname;
+use opamp_client::opamp::proto::{RemoteConfigStatus, RemoteConfigStatuses};
+use opamp_client::operation::settings::{AgentDescription, DescriptionValueType, StartSettings};
+use opamp_client::Client;
+use opamp_client::StartedClient;
+use std::collections::HashMap;
+use std::string::ToString;
+use std::sync::mpsc::{self, Sender};
+use thiserror::Error;
+use tracing::{error, info, warn};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum SuperAgentEvent {

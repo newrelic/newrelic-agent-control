@@ -20,7 +20,7 @@ async fn k8s_create_dynamic_resource() {
     ))
     .unwrap();
 
-    let executor: K8sExecutor = K8sExecutor::try_default(test_ns.to_string()).await.unwrap();
+    let executor: K8sExecutor = K8sExecutor::try_default(test_ns.as_str()).await.unwrap();
     executor
         .create_dynamic_object(foo_gvk(), cr.as_str())
         .await
@@ -40,7 +40,7 @@ async fn k8s_get_dynamic_resource() {
 
     let cr_name = "get-test";
 
-    let mut executor: K8sExecutor = K8sExecutor::try_default(test_ns.to_string()).await.unwrap();
+    let mut executor: K8sExecutor = K8sExecutor::try_default(test_ns.as_str()).await.unwrap();
 
     // get doesn't find any object before creation.
     assert!(executor
@@ -82,7 +82,7 @@ async fn k8s_delete_dynamic_resource() {
     let cr_name = "delete-test";
     create_test_cr(test.client.to_owned(), test_ns.as_str(), cr_name).await;
 
-    let executor: K8sExecutor = K8sExecutor::try_default(test_ns.to_string()).await.unwrap();
+    let executor: K8sExecutor = K8sExecutor::try_default(test_ns.as_str()).await.unwrap();
     executor
         .delete_dynamic_object(foo_gvk(), cr_name)
         .await
@@ -109,7 +109,7 @@ async fn k8s_patch_dynamic_resource() {
     ))
     .unwrap();
 
-    let executor: K8sExecutor = K8sExecutor::try_default(test_ns.to_string()).await.unwrap();
+    let executor: K8sExecutor = K8sExecutor::try_default(test_ns.as_str()).await.unwrap();
     executor
         .patch_dynamic_object(foo_gvk(), cr_name, patch.as_str())
         .await
