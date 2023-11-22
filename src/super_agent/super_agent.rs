@@ -10,13 +10,15 @@ use crate::file_reader::FSFileReader;
 use crate::opamp::callbacks::AgentCallbacks;
 use crate::opamp::remote_config::{RemoteConfig, RemoteConfigError};
 use crate::opamp::remote_config_hash::{Hash, HashRepository, HashRepositoryFile};
-use crate::sub_agent::collection::{NotStartedSubAgents, StartedSubAgents};
-use crate::sub_agent::error::SubAgentBuilderError;
-use crate::sub_agent::logger::{Event, EventLogger, StdEventReceiver};
-use crate::sub_agent::opamp::{
+use crate::opamp::remote_config_report::{
     report_remote_config_status_applied, report_remote_config_status_applying,
     report_remote_config_status_error,
 };
+use crate::sub_agent::collection::{NotStartedSubAgents, StartedSubAgents};
+use crate::sub_agent::error::SubAgentBuilderError;
+use crate::sub_agent::logger::{Event, EventLogger, StdEventReceiver};
+use crate::sub_agent::SubAgentBuilder;
+
 use crate::sub_agent::values::values_repository::{ValuesRepository, ValuesRepositoryFile};
 use crate::sub_agent::SubAgentBuilder;
 use crate::sub_agent::{error::SubAgentError, NotStartedSubAgent};
@@ -35,7 +37,7 @@ use tracing::{error, info, warn};
 
 use super::opamp::remote_config_publisher::SuperAgentRemoteConfigPublisher;
 
-type SuperAgentCallbacks = AgentCallbacks<SuperAgentRemoteConfigPublisher>;
+pub(super) type SuperAgentCallbacks = AgentCallbacks<SuperAgentRemoteConfigPublisher>;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum SuperAgentEvent {

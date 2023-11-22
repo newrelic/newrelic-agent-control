@@ -4,3 +4,5 @@ pub mod instance_id;
 pub mod remote_config;
 pub mod remote_config_hash;
 pub mod remote_config_publisher;
+pub mod remote_config_report;
+pub mod operations;

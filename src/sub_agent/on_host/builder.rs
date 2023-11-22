@@ -5,11 +5,12 @@ use nix::unistd::gethostname;
 
 use crate::config::super_agent_configs::SubAgentConfig;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
+use crate::opamp::operations::build_opamp_and_start_client;
 use crate::opamp::remote_config_hash::HashRepository;
-use crate::sub_agent::opamp::common::build_opamp_and_start_client;
-use crate::sub_agent::opamp::{
+use crate::opamp::remote_config_report::{
     report_remote_config_status_applied, report_remote_config_status_error,
 };
+use crate::sub_agent::SubAgentCallbacks;
 use crate::super_agent::effective_agents_assembler::{
     EffectiveAgentsAssembler, EffectiveAgentsAssemblerError,
 };
@@ -38,7 +39,7 @@ use super::{
 
 pub struct OnHostSubAgentBuilder<'a, O, I, HR, A>
 where
-    O: OpAMPClientBuilder,
+    O: OpAMPClientBuilder<SubAgentCallbacks>,
     I: InstanceIDGetter,
     // HR: HashRepository, // TODO??
     A: EffectiveAgentsAssembler,
@@ -51,7 +52,7 @@ where
 
 impl<'a, O, I, HR, A> OnHostSubAgentBuilder<'a, O, I, HR, A>
 where
-    O: OpAMPClientBuilder,
+    O: OpAMPClientBuilder<SubAgentCallbacks>,
     I: InstanceIDGetter,
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
@@ -73,7 +74,7 @@ where
 
 impl<'a, O, I, HR, A> SubAgentBuilder for OnHostSubAgentBuilder<'a, O, I, HR, A>
 where
-    O: OpAMPClientBuilder,
+    O: OpAMPClientBuilder<SubAgentCallbacks>,
     I: InstanceIDGetter,
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
