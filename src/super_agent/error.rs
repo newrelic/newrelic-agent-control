@@ -91,4 +91,7 @@ pub enum AgentError {
 
     #[error("sub agent values error: `{0}`")]
     SubAgentValuesError(#[from] AgentValuesError),
+
+    #[error("External module error: `{0}`")]
+    ExternalError(String),
 }

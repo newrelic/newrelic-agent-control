@@ -31,6 +31,7 @@ pub struct K8sExecutor {
 }
 
 #[cfg_attr(test, mockall::automock)]
+// TODO: This is just an example and once we've implemented the config, needs to be removed.
 // #[derive(Error, Debug)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum K8sResourceType {
@@ -38,7 +39,8 @@ pub enum K8sResourceType {
     OtelColHelmRelease,
 }
 
-// TODO: For now only the two used function are defined in the interface. We might want to break it ito a specific dynamic objects
+// TODO: For now only the two used function are defined in the interface.
+//  We might want to break into a specific dynamic objects.
 // interface.
 #[async_trait]
 pub trait K8sDynamicObjectsManager {
@@ -61,8 +63,13 @@ impl K8sDynamicObjectsManager for K8sExecutor {
         gvk: GroupVersionKind,
         spec: &str,
     ) -> Result<DynamicObject, K8sError> {
-        // Delegate to the existing method in K8sExecutor
-        self.create_dynamic_object(gvk, spec).await
+        let api = self.namespaced_api(gvk).await?;
+
+        let object_spec: DynamicObject = serde_yaml::from_str(spec)?;
+
+        let created_object = api.create(&PostParams::default(), &object_spec).await?;
+
+        Ok(created_object)
     }
 
     async fn delete_dynamic_object(
@@ -70,8 +77,11 @@ impl K8sDynamicObjectsManager for K8sExecutor {
         gvk: GroupVersionKind,
         name: &str,
     ) -> Result<(), K8sError> {
-        // Delegate to the existing method in K8sExecutor
-        self.delete_dynamic_object(gvk, name).await
+        let api = self.namespaced_api(gvk).await?;
+
+        api.delete(name, &DeleteParams::default()).await?;
+
+        Ok(())
     }
 }
 
@@ -269,11 +279,6 @@ impl K8sResourceType {
             },
         }
     }
-}
-
-// TODO: remove me once we have implemented the config translation
-pub fn gvk_from_strings(api_version: &str, kind: &str, group: &str) -> GroupVersionKind {
-    GroupVersionKind::gvk(group, api_version, kind)
 }
 
 #[cfg(test)]

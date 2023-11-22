@@ -1,4 +1,3 @@
-use futures::executor::block_on;
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
 use tracing::{error, info};
@@ -12,7 +11,10 @@ pub enum SupervisorError {
     LockError,
 }
 
-pub struct Supervisor<E: K8sDynamicObjectsManager + Send + Sync> {
+pub struct Supervisor<E>
+where
+    E: K8sDynamicObjectsManager + Send + Sync + 'static,
+{
     executor: Arc<Mutex<E>>,
     created_resources: Arc<Mutex<Vec<(K8sResourceType, String)>>>,
 }
@@ -35,7 +37,7 @@ impl<E: K8sDynamicObjectsManager + Send + Sync + 'static> Supervisor<E> {
             .lock()
             .map_err(|_| SupervisorError::LockError)?;
 
-        for resource in vec![
+        for resource in [
             (
                 K8sResourceType::OtelHelmRepository,
                 "open-telemetry",
@@ -49,7 +51,7 @@ impl<E: K8sDynamicObjectsManager + Send + Sync + 'static> Supervisor<E> {
         ] {
             let (resource_type, resource_name, cr_spec) = resource;
             let gvk = resource_type.to_gvk();
-            match block_on(executor_guard.create_dynamic_object(gvk, cr_spec)) {
+            match executor_guard.create_dynamic_object(gvk, cr_spec).await {
                 Ok(_) => created_resources_guard.push((resource_type, resource_name.to_string())),
                 Err(err) => error!(
                     "Error creating CR: {} for resource type: {:?}, Error: {:?}",
@@ -76,7 +78,10 @@ impl<E: K8sDynamicObjectsManager + Send + Sync + 'static> Supervisor<E> {
 
         for (resource_type, resource_name) in resources_guard.iter() {
             let gvk = resource_type.to_gvk();
-            match block_on(executor_guard.delete_dynamic_object(gvk, resource_name)) {
+            match executor_guard
+                .delete_dynamic_object(gvk, resource_name)
+                .await
+            {
                 Ok(_) => resources_to_remove.push((resource_type.clone(), resource_name.clone())),
                 Err(err) => error!(
                     "Error deleting resource: {}, type: {:?}, Error: {:?}",
@@ -94,7 +99,7 @@ impl<E: K8sDynamicObjectsManager + Send + Sync + 'static> Supervisor<E> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod test {
     use super::*;
     use crate::k8s::Error;
     use async_trait::async_trait;
@@ -104,10 +109,10 @@ mod tests {
     use mockall::{mock, predicate};
 
     mock! {
-        K8sExecutorTrait {}
+        pub K8sExecutorMock {}
 
         #[async_trait]
-        impl K8sDynamicObjectsManager for K8sExecutorTrait {
+        impl K8sDynamicObjectsManager for K8sExecutorMock {
             async fn create_dynamic_object(
                 &self,
                 gvk: GroupVersionKind,
@@ -124,7 +129,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_supervisor_start() {
-        let mut mock_executor = MockK8sExecutorTrait::new();
+        let mut mock_executor = MockK8sExecutorMock::new();
 
         // Mock the behavior for creating dynamic objects
         mock_executor
@@ -159,7 +164,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_supervisor_stop() {
-        let mut mock_executor = MockK8sExecutorTrait::new();
+        let mut mock_executor = MockK8sExecutorMock::new();
 
         // Mock the behavior for deleting dynamic objects
         mock_executor

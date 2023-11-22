@@ -1,10 +1,14 @@
 use opamp_client::{operation::callbacks::Callbacks, StartedClient};
 
+use crate::k8s::executor::K8sDynamicObjectsManager;
+use crate::sub_agent::k8s::supervisor::Supervisor;
+use crate::sub_agent::opamp::common::stop_opamp_client;
 use crate::{
     config::super_agent_configs::AgentID,
     opamp::operations::stop_opamp_client,
     sub_agent::{error::SubAgentError, NotStartedSubAgent, StartedSubAgent},
 };
+use futures::executor::block_on;
 
 ////////////////////////////////////////////////////////////////////////////////////
 // Not Started SubAgent On K8s
@@ -14,6 +18,11 @@ pub struct NotStartedSubAgentK8s<CB, C>
 where
     CB: Callbacks,
     C: StartedClient<CB>,
+{
+pub struct NotStartedSubAgentK8s<C, E>
+where
+    C: opamp_client::StartedClient,
+    E: K8sDynamicObjectsManager + Send + Sync + 'static,
 {
     agent_id: AgentID,
     opamp_client: Option<C>,
@@ -38,12 +47,22 @@ impl<C: opamp_client::StartedClient> NotStartedSubAgentK8s<C> {
         opamp_client: Option<C>,
         // supervisor: Supervisor<K8sExecutor>,
     ) -> Self {
+    supervisor: Supervisor<E>,
+}
+
+impl<C, E> NotStartedSubAgentK8s<C, E>
+where
+    C: opamp_client::StartedClient,
+    E: K8sDynamicObjectsManager + Send + Sync + 'static,
+{
+    pub fn new(agent_id: AgentID, opamp_client: Option<C>, supervisor: Supervisor<E>) -> Self {
         NotStartedSubAgentK8s {
             agent_id,
             opamp_client,
 
             _callbacks: std::marker::PhantomData,
             // supervisor: supervisor,
+            supervisor,
         }
     }
 }
@@ -54,17 +73,23 @@ where
     C: StartedClient<CB>,
 {
     type StartedSubAgent = StartedSubAgentK8s<CB, C>;
+impl<C, E> NotStartedSubAgent for NotStartedSubAgentK8s<C, E>
+where
+    C: opamp_client::StartedClient,
+    E: K8sDynamicObjectsManager + Send + Sync + 'static,
+{
+    type StartedSubAgent = StartedSubAgentK8s<C, E>;
 
     fn run(self) -> Result<Self::StartedSubAgent, SubAgentError> {
-        // Start the supervisor
-        // let _supervisor_handle = tokio::spawn(async move {
-        //     self.supervisor
-        //         .start()
-        //         .await
-        //         .expect("Failed to start supervisor");
-        // });
+        block_on(self.supervisor.start()).map_err(|e| {
+            SubAgentError::SupervisorStopError(format!("Failed to start supervisor: {:?}", e))
+        })?;
 
-        Ok(StartedSubAgentK8s::new(self.agent_id, self.opamp_client))
+        Ok(StartedSubAgentK8s::new(
+            self.agent_id,
+            self.opamp_client,
+            self.supervisor,
+        ))
     }
 }
 
@@ -77,6 +102,11 @@ where
     CB: Callbacks,
     C: StartedClient<CB>,
 {
+pub struct StartedSubAgentK8s<C, E>
+where
+    C: opamp_client::StartedClient,
+    E: K8sDynamicObjectsManager + Send + Sync + 'static,
+{
     agent_id: AgentID,
     opamp_client: Option<C>,
     // TODO: CRs handle
@@ -85,6 +115,7 @@ where
     // It's actually used as a generic parameter for the `OpAMPClientBuilder` instance bound by type parameter `O`.
     // Feel free to remove this when the actual implementations (Callbacks instance for K8s agents) make it redundant!
     _callbacks: std::marker::PhantomData<CB>,
+    supervisor: Supervisor<E>,
 }
 
 impl<CB, C> StartedSubAgentK8s<CB, C>
@@ -93,11 +124,18 @@ where
     C: StartedClient<CB>,
 {
     fn new(agent_id: AgentID, opamp_client: Option<C>) -> Self {
+impl<C, E> StartedSubAgentK8s<C, E>
+where
+    C: opamp_client::StartedClient,
+    E: K8sDynamicObjectsManager + Send + Sync + 'static,
+{
+    fn new(agent_id: AgentID, opamp_client: Option<C>, supervisor: Supervisor<E>) -> Self {
         StartedSubAgentK8s {
             agent_id,
             opamp_client,
 
             _callbacks: std::marker::PhantomData,
+            supervisor,
         }
     }
 }
@@ -107,9 +145,18 @@ where
     CB: Callbacks,
     C: StartedClient<CB>,
 {
+impl<C, E> StartedSubAgent for StartedSubAgentK8s<C, E>
+where
+    C: opamp_client::StartedClient,
+    E: K8sDynamicObjectsManager + Send + Sync,
+{
     fn stop(self) -> Result<Vec<std::thread::JoinHandle<()>>, SubAgentError> {
         stop_opamp_client(self.opamp_client, &self.agent_id)?;
-        // TODO: stop CRs supervisors and return the corresponding JoinHandle
+
+        block_on(self.supervisor.stop()).map_err(|e| {
+            SubAgentError::SupervisorStopError(format!("Failed to stop supervisor: {:?}", e))
+        })?;
+
         Ok(vec![])
     }
 }

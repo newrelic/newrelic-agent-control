@@ -151,9 +151,21 @@ fn run_super_agent(
     let hash_repository = HashRepositoryFile::default();
     let sub_agent_hash_repository = HashRepositoryFile::new_sub_agent_repository();
 
+    // Initialize K8sExecutor
+    let namespace = "default".to_string(); // change to your desired namespace
+    let executor = futures::executor::block_on(
+        newrelic_super_agent::k8s::executor::K8sExecutor::try_default(namespace),
+    )
+    .map_err(|e| AgentError::ExternalError(e.to_string()))?;
+
+    let executor = std::sync::Arc::new(std::sync::Mutex::new(executor));
+
+    // Disabled when --all-features
+    #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
     let sub_agent_builder = newrelic_super_agent::sub_agent::k8s::builder::K8sSubAgentBuilder::new(
         opamp_client_builder.as_ref(),
         &instance_id_getter,
+        executor,
     );
 
     info!("Starting the super agent");
