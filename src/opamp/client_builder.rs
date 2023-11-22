@@ -1,5 +1,6 @@
 use opamp_client::error::{NotStartedClientError, StartedClientError};
 use opamp_client::http::{HttpClientError, HttpClientReqwest, HttpConfig};
+use opamp_client::operation::callbacks::Callbacks;
 use opamp_client::operation::settings::StartSettings;
 use opamp_client::StartedClient;
 use std::time::SystemTimeError;
@@ -28,8 +29,8 @@ pub enum OpAMPClientBuilderError {
     GetUlidError(#[from] instance_id::GetterError),
 }
 
-pub trait OpAMPClientBuilder {
-    type Client: StartedClient;
+pub trait OpAMPClientBuilder<CB: Callbacks> {
+    type Client: StartedClient<CB>;
     // type StartedClient: StartedClient;
     fn build_and_start(
         &self,

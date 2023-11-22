@@ -7,6 +7,7 @@ use crate::config::store::{SubAgentsConfigStore, SuperAgentConfigStoreFile};
 use crate::config::super_agent_configs::{AgentID, SubAgentConfig, SubAgentsConfig};
 use crate::context::Context;
 use crate::file_reader::FSFileReader;
+use crate::opamp::callbacks::AgentCallbacks;
 use crate::opamp::remote_config::{RemoteConfig, RemoteConfigError};
 use crate::opamp::remote_config_hash::{Hash, HashRepository, HashRepositoryFile};
 use crate::sub_agent::collection::{NotStartedSubAgents, StartedSubAgents};
@@ -32,6 +33,10 @@ use std::sync::mpsc::{self, Sender};
 use thiserror::Error;
 use tracing::{error, info, warn};
 
+use super::opamp::remote_config_publisher::SuperAgentRemoteConfigPublisher;
+
+type SuperAgentCallbacks = AgentCallbacks<SuperAgentRemoteConfigPublisher>;
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum SuperAgentEvent {
     SuperAgentRemoteConfigValid(RemoteConfig),
@@ -52,7 +57,7 @@ pub struct SuperAgent<
     HRS = HashRepositoryFile,
     VR = ValuesRepositoryFile<DirectoryManagerFs, WriterFile, FSFileReader>,
 > where
-    O: StartedClient,
+    O: StartedClient<SuperAgentCallbacks>,
     HR: HashRepository,
     SL: SubAgentsConfigStore,
     HRS: HashRepository,
@@ -70,7 +75,7 @@ pub struct SuperAgent<
 
 impl<'a, S, O, HR, SL, HRS, VR> SuperAgent<'a, S, O, HR, SL, HRS, VR>
 where
-    O: StartedClient,
+    O: StartedClient<SuperAgentCallbacks>,
     HR: HashRepository,
     S: SubAgentBuilder,
     SL: SubAgentsConfigStore,
@@ -104,7 +109,7 @@ where
 
 impl<'a, S, O, HR, SL, HRS, VR> SuperAgent<'a, S, O, HR, SL, HRS, VR>
 where
-    O: StartedClient,
+    O: StartedClient<SuperAgentCallbacks>,
     HR: HashRepository,
     S: SubAgentBuilder,
     SL: SubAgentsConfigStore,
@@ -624,12 +629,14 @@ mod tests {
     use std::thread::{sleep, spawn};
     use std::time::Duration;
 
+    use super::SuperAgentCallbacks;
+
     ////////////////////////////////////////////////////////////////////////////////////
     // Custom Agent constructor for tests
     ////////////////////////////////////////////////////////////////////////////////////
     impl<'a, S, O, HR, SL, HRS, VR> SuperAgent<'a, S, O, HR, SL, HRS, VR>
     where
-        O: StartedClient,
+        O: StartedClient<SuperAgentCallbacks>,
         HR: HashRepository,
         S: SubAgentBuilder,
         SL: SubAgentsConfigStore,

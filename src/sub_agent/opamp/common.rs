@@ -7,7 +7,6 @@ use opamp_client::{
 };
 use tracing::info;
 
-use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::sub_agent::error::SubAgentError;
 use crate::{
     config::super_agent_configs::{AgentID, AgentTypeFQN},
@@ -16,6 +15,7 @@ use crate::{
     super_agent::super_agent::SuperAgentEvent,
     utils::time::get_sys_time_nano,
 };
+use crate::{opamp::instance_id::getter::InstanceIDGetter, sub_agent::SubAgentCallbacks};
 
 pub fn build_opamp_and_start_client<OpAMPBuilder, InstanceIdGetter>(
     ctx: Context<Option<SuperAgentEvent>>,
@@ -88,7 +88,7 @@ pub fn start_settings(
 }
 
 /// Stops an started OpAMP client.
-pub fn stop_opamp_client<C: opamp_client::StartedClient>(
+pub fn stop_opamp_client<C: opamp_client::StartedClient<SubAgentCallbacks>>(
     client: Option<C>,
     agent_id: &AgentID,
 ) -> Result<(), SubAgentError> {

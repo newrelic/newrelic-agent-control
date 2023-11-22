@@ -4,6 +4,8 @@ use opamp_client::error::ClientError;
 use opamp_client::opamp::proto::{RemoteConfigStatus, RemoteConfigStatuses};
 use opamp_client::StartedClient;
 
+use super::SubAgentCallbacks;
+
 pub mod client_builder;
 pub mod common;
 pub mod remote_config_publisher;
@@ -13,7 +15,7 @@ pub fn report_remote_config_status_applying<O>(
     hash: &Hash,
 ) -> Result<(), ClientError>
 where
-    O: StartedClient,
+    O: StartedClient<SubAgentCallbacks>,
 {
     let err = "".to_string();
     report_remote_config_status(
@@ -30,7 +32,7 @@ pub fn report_remote_config_status_error<O>(
     error_msg: String,
 ) -> Result<(), ClientError>
 where
-    O: StartedClient,
+    O: StartedClient<SubAgentCallbacks>,
 {
     report_remote_config_status(
         opamp_client,
@@ -45,7 +47,7 @@ pub fn report_remote_config_status_applied<O>(
     hash: &Hash,
 ) -> Result<(), ClientError>
 where
-    O: StartedClient,
+    O: StartedClient<SubAgentCallbacks>,
 {
     let err = "".to_string();
     report_remote_config_status(
@@ -63,7 +65,7 @@ fn report_remote_config_status<O>(
     error_msg: String,
 ) -> Result<(), ClientError>
 where
-    O: StartedClient,
+    O: StartedClient<SubAgentCallbacks>,
 {
     block_on(opamp_client.set_remote_config_status(RemoteConfigStatus {
         last_remote_config_hash: hash.get().into_bytes(),
