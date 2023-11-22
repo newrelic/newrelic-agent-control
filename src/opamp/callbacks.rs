@@ -115,7 +115,7 @@ fn log_on_http_status_code(err: &ConnectionError) {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::opamp::remote_config::{ConfigMap, RemoteConfig};
     use crate::opamp::remote_config_hash::Hash;
