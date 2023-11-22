@@ -89,7 +89,7 @@ fn run_super_agent(
 
     use newrelic_super_agent::{
         config::super_agent_configs::{AgentID, AgentTypeFQN},
-        sub_agent::opamp::{common::build_opamp_and_start_client, client_builder::SubAgentOpAMPHttpBuilder},
+        sub_agent::opamp::client_builder::SubAgentOpAMPHttpBuilder, opamp::operations::build_opamp_and_start_client,
     };
 
     #[cfg(unix)]
