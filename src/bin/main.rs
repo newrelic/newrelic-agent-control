@@ -3,7 +3,6 @@ use newrelic_super_agent::opamp::instance_id;
 use newrelic_super_agent::opamp::instance_id::getter::ULIDInstanceIDGetter;
 use newrelic_super_agent::opamp::instance_id::{Identifiers, Storer};
 use newrelic_super_agent::opamp::remote_config_hash::HashRepositoryFile;
-use newrelic_super_agent::sub_agent::opamp::client_builder::SubAgentOpAMPHttpBuilder;
 use newrelic_super_agent::sub_agent::values::values_repository::ValuesRepositoryFile;
 use newrelic_super_agent::super_agent::opamp::client_builder::SuperAgentOpAMPHttpBuilder;
 use newrelic_super_agent::super_agent::super_agent::{SuperAgent, SuperAgentEvent};
@@ -101,7 +100,9 @@ fn run_super_agent(
     let sub_agent_hash_repository = HashRepositoryFile::new_sub_agent_repository();
     let agents_assembler = LocalEffectiveAgentsAssembler::default().with_remote();
 
-    let sub_agent_opamp_builder = opamp_client_builder.as_ref().map(SubAgentOpAMPHttpBuilder::from);
+    let sub_agent_opamp_builder = opamp_client_builder
+        .as_ref()
+        .map(SubAgentOpAMPHttpBuilder::from);
     let sub_agent_builder =
         newrelic_super_agent::sub_agent::on_host::builder::OnHostSubAgentBuilder::new(
             sub_agent_opamp_builder.as_ref(),
