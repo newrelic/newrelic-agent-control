@@ -1,3 +1,4 @@
+use crate::sub_agent::k8s::supervisor::SupervisorTrait;
 use opamp_client::{operation::callbacks::Callbacks, StartedClient};
 
 use crate::k8s::executor::K8sDynamicObjectsManager;
@@ -8,11 +9,10 @@ use crate::{
     opamp::operations::stop_opamp_client,
     sub_agent::{error::SubAgentError, NotStartedSubAgent, StartedSubAgent},
 };
-use futures::executor::block_on;
 
 ////////////////////////////////////////////////////////////////////////////////////
 // Not Started SubAgent On K8s
-// C: OpAMP Client
+// S: Supervisor Trait
 ////////////////////////////////////////////////////////////////////////////////////
 pub struct NotStartedSubAgentK8s<CB, C>
 where
@@ -20,12 +20,14 @@ where
     C: StartedClient<CB>,
 {
 pub struct NotStartedSubAgentK8s<C, E>
+pub struct NotStartedSubAgentK8s<C, S>
 where
     C: opamp_client::StartedClient,
-    E: K8sDynamicObjectsManager + Send + Sync + 'static,
+    S: SupervisorTrait,
 {
     agent_id: AgentID,
     opamp_client: Option<C>,
+    supervisor: S,
     // TODO: store CRs supervisors
 
     // Needed to include this in the struct to avoid the compiler complaining about not using the type parameter `C`.
@@ -50,12 +52,12 @@ impl<C: opamp_client::StartedClient> NotStartedSubAgentK8s<C> {
     supervisor: Supervisor<E>,
 }
 
-impl<C, E> NotStartedSubAgentK8s<C, E>
+impl<C, S> NotStartedSubAgentK8s<C, S>
 where
     C: opamp_client::StartedClient,
-    E: K8sDynamicObjectsManager + Send + Sync + 'static,
+    S: SupervisorTrait,
 {
-    pub fn new(agent_id: AgentID, opamp_client: Option<C>, supervisor: Supervisor<E>) -> Self {
+    pub fn new(agent_id: AgentID, opamp_client: Option<C>, supervisor: S) -> Self {
         NotStartedSubAgentK8s {
             agent_id,
             opamp_client,
@@ -74,14 +76,15 @@ where
 {
     type StartedSubAgent = StartedSubAgentK8s<CB, C>;
 impl<C, E> NotStartedSubAgent for NotStartedSubAgentK8s<C, E>
+impl<C, S> NotStartedSubAgent for NotStartedSubAgentK8s<C, S>
 where
     C: opamp_client::StartedClient,
-    E: K8sDynamicObjectsManager + Send + Sync + 'static,
+    S: SupervisorTrait,
 {
-    type StartedSubAgent = StartedSubAgentK8s<C, E>;
+    type StartedSubAgent = StartedSubAgentK8s<C, S>;
 
     fn run(self) -> Result<Self::StartedSubAgent, SubAgentError> {
-        block_on(self.supervisor.start()).map_err(|e| {
+        self.supervisor.start().map_err(|e| {
             SubAgentError::SupervisorStopError(format!("Failed to start supervisor: {:?}", e))
         })?;
 
@@ -96,6 +99,7 @@ where
 ////////////////////////////////////////////////////////////////////////////////////
 // Started SubAgent On K8s
 // C: OpAMP Client
+// S: Supervisor Trait
 ////////////////////////////////////////////////////////////////////////////////////
 pub struct StartedSubAgentK8s<CB, C>
 where
@@ -103,9 +107,10 @@ where
     C: StartedClient<CB>,
 {
 pub struct StartedSubAgentK8s<C, E>
+pub struct StartedSubAgentK8s<C, S>
 where
     C: opamp_client::StartedClient,
-    E: K8sDynamicObjectsManager + Send + Sync + 'static,
+    S: SupervisorTrait,
 {
     agent_id: AgentID,
     opamp_client: Option<C>,
@@ -116,6 +121,7 @@ where
     // Feel free to remove this when the actual implementations (Callbacks instance for K8s agents) make it redundant!
     _callbacks: std::marker::PhantomData<CB>,
     supervisor: Supervisor<E>,
+    supervisor: S,
 }
 
 impl<CB, C> StartedSubAgentK8s<CB, C>
@@ -125,11 +131,12 @@ where
 {
     fn new(agent_id: AgentID, opamp_client: Option<C>) -> Self {
 impl<C, E> StartedSubAgentK8s<C, E>
+impl<C, S> StartedSubAgentK8s<C, S>
 where
     C: opamp_client::StartedClient,
-    E: K8sDynamicObjectsManager + Send + Sync + 'static,
+    S: SupervisorTrait,
 {
-    fn new(agent_id: AgentID, opamp_client: Option<C>, supervisor: Supervisor<E>) -> Self {
+    fn new(agent_id: AgentID, opamp_client: Option<C>, supervisor: S) -> Self {
         StartedSubAgentK8s {
             agent_id,
             opamp_client,
@@ -146,14 +153,15 @@ where
     C: StartedClient<CB>,
 {
 impl<C, E> StartedSubAgent for StartedSubAgentK8s<C, E>
+impl<C, S> StartedSubAgent for StartedSubAgentK8s<C, S>
 where
     C: opamp_client::StartedClient,
-    E: K8sDynamicObjectsManager + Send + Sync,
+    S: SupervisorTrait,
 {
     fn stop(self) -> Result<Vec<std::thread::JoinHandle<()>>, SubAgentError> {
         stop_opamp_client(self.opamp_client, &self.agent_id)?;
 
-        block_on(self.supervisor.stop()).map_err(|e| {
+        self.supervisor.stop().map_err(|e| {
             SubAgentError::SupervisorStopError(format!("Failed to stop supervisor: {:?}", e))
         })?;
 

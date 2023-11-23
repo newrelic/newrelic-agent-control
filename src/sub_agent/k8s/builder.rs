@@ -1,3 +1,5 @@
+use super::sub_agent::NotStartedSubAgentK8s;
+
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -15,8 +17,15 @@ use crate::opamp::operations::build_opamp_and_start_client;
 use crate::super_agent::super_agent::SuperAgentEvent;
 use crate::{
     config::super_agent_configs::AgentID,
+    config::super_agent_configs::SubAgentConfig,
+    context::Context,
+    k8s::executor::K8sDynamicObjectsManager,
     opamp::client_builder::OpAMPClientBuilder,
+    opamp::instance_id::getter::InstanceIDGetter,
+    sub_agent::k8s::supervisor::Supervisor,
+    sub_agent::opamp::common::build_opamp_and_start_client,
     sub_agent::{error::SubAgentBuilderError, logger::Event, SubAgentBuilder},
+    super_agent::super_agent::SuperAgentEvent,
 };
 
 use super::sub_agent::NotStartedSubAgentK8s;
@@ -47,7 +56,7 @@ where
     C: Callbacks,
     O: OpAMPClientBuilder<C>,
     I: InstanceIDGetter,
-    E: K8sDynamicObjectsManager + Send + Sync,
+    E: K8sDynamicObjectsManager + Send + Sync + 'static,
 {
     pub fn new(
         opamp_builder: Option<&'a O>,
@@ -75,6 +84,7 @@ where
 {
     type NotStartedSubAgent = NotStartedSubAgentK8s<C, O::Client>;
     type NotStartedSubAgent = NotStartedSubAgentK8s<O::Client, E>;
+    type NotStartedSubAgent = NotStartedSubAgentK8s<O::Client, Supervisor<E>>;
 
     fn build(
         &self,
@@ -111,12 +121,18 @@ mod test {
     use crate::opamp::operations::start_settings;
     use crate::{
         opamp::client_builder::test::MockOpAMPClientBuilderMock,
+        k8s::executor::K8sResourceType,
+        opamp::client_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock},
+        opamp::instance_id::getter::test::MockInstanceIDGetterMock,
+        sub_agent::k8s::sample_crs::{OTELCOL_HELM_RELEASE_CR, OTEL_HELM_REPOSITORY_CR},
+        sub_agent::k8s::supervisor::test::MockK8sExecutorMock,
+        sub_agent::opamp::common::start_settings,
         sub_agent::{NotStartedSubAgent, StartedSubAgent},
     };
-
-    use crate::sub_agent::k8s::supervisor::test::MockK8sExecutorMock;
-
-    use super::*;
+    use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
+    use kube::core::{DynamicObject, TypeMeta};
+    use mockall::predicate;
+    use serde_json::json;
     use std::{collections::HashMap, sync::mpsc::channel};
 
     #[test]
@@ -149,9 +165,28 @@ mod test {
         );
 
         // instance K8s executor mock
-        let mock_executor = MockK8sExecutorMock::new();
-        let executor = Arc::new(Mutex::new(mock_executor));
+        let mut mock_executor = MockK8sExecutorMock::new();
 
+        // Set mock executor expectations
+        mock_executor
+            .expect_create_dynamic_object()
+            .withf(|gvk, spec| {
+                // Check if the parameters match the expected CRs
+                *gvk == K8sResourceType::OtelHelmRepository.to_gvk()
+                    && spec == OTEL_HELM_REPOSITORY_CR
+                    || *gvk == K8sResourceType::OtelColHelmRelease.to_gvk()
+                        && spec == OTELCOL_HELM_RELEASE_CR
+            })
+            .times(2)
+            .returning(move |_, _| Ok(create_mock_dynamic_object().clone()));
+
+        mock_executor
+            .expect_delete_dynamic_object()
+            .with(predicate::always(), predicate::always())
+            .times(2) // Expect it to be called twice for the two resource types
+            .returning(|_, _| Ok(()));
+
+        let executor = Arc::new(Mutex::new(mock_executor));
         let builder = K8sSubAgentBuilder::new(Some(&opamp_builder), &instance_id_getter, executor);
 
         let (tx, _) = channel();
@@ -173,6 +208,17 @@ mod test {
         // TODO: setup k8s runtime_config here. Eg: `final_agent.runtime_config.deployment.k8s = ...`
         SubAgentConfig {
             agent_type: "some_agent".into(),
+        }
+    }
+
+    fn create_mock_dynamic_object() -> DynamicObject {
+        DynamicObject {
+            types: Some(TypeMeta {
+                api_version: "v1".into(),
+                kind: "MockKind".into(),
+            }),
+            metadata: ObjectMeta::default(),
+            data: json!({}),
         }
     }
 }

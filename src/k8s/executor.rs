@@ -2,8 +2,8 @@ use super::{
     error::K8sError,
     reader::{DynamicObjectReflector, ReflectorBuilder},
 };
-use k8s_openapi::api::core::v1::ConfigMap;
 use async_trait::async_trait;
+use k8s_openapi::api::core::v1::ConfigMap;
 use k8s_openapi::api::core::v1::Pod;
 use kube::core::DynamicObject;
 use kube::{
