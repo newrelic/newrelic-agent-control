@@ -14,9 +14,9 @@ pub enum GetterError {
     Persisting(#[from] StorerError),
 }
 
-pub struct OnHostIdentifiers {}
+pub struct OnHostIdentifiersRetriever {}
 
-impl IdentifiersRetriever for OnHostIdentifiers {
+impl IdentifiersRetriever for OnHostIdentifiersRetriever {
     fn get() -> Result<Identifiers, GetterError> {
         Ok(Identifiers::default())
     }

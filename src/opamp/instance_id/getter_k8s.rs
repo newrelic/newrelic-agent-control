@@ -20,9 +20,9 @@ pub enum GetterError {
 
 const CM_PREFIX: &str = "super-agent-ulid";
 
-pub struct K8sIdentifiers {}
+pub struct K8sIdentifiersRetriever {}
 
-impl IdentifiersRetriever for K8sIdentifiers {
+impl IdentifiersRetriever for K8sIdentifiersRetriever {
     fn get() -> Result<Identifiers, GetterError> {
         Ok(Identifiers::default())
     }

@@ -81,7 +81,6 @@ impl SuperAgentConfigStoreFile {
 
     pub fn with_remote(self) -> Result<Self, SuperAgentConfigStoreError> {
         let remote_path = format!("{}/{}", SUPER_AGENT_DATA_DIR, "config.yaml");
-
         // create and open the file in read-write mode even if does not exists
         let _ = OpenOptions::new()
             .read(true)

@@ -16,7 +16,7 @@ async fn k8s_ulid_persister() {
     let test_ns = test.test_namespace().await;
 
     let instance_id_getter =
-        ULIDInstanceIDGetter::try_default::<instance_id::K8sIdentifiers>(test_ns.as_str())
+        ULIDInstanceIDGetter::try_default::<instance_id::K8sIdentifiersRetriever>(test_ns.as_str())
             .await
             .unwrap();
 

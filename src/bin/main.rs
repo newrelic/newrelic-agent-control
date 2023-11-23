@@ -59,10 +59,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
     let instance_id_getter =
-        ULIDInstanceIDGetter::try_default::<instance_id::K8sIdentifiers>("newrelic").await?;
+        ULIDInstanceIDGetter::try_default::<instance_id::K8sIdentifiersRetriever>("newrelic")
+            .await?;
     #[cfg(feature = "onhost")]
     let instance_id_getter =
-        ULIDInstanceIDGetter::try_default::<instance_id::OnHostIdentifiers>().await?;
+        ULIDInstanceIDGetter::try_default::<instance_id::OnHostIdentifiersRetriever>().await?;
 
     #[cfg(any(feature = "onhost", feature = "k8s"))]
     return Ok(run_super_agent(

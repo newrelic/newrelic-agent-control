@@ -37,7 +37,7 @@ impl InstanceIDStorer for Storer {
 
 impl Storer {
     async fn async_set(&self, agent_id: &str, ds: &DataStored) -> Result<(), StorerError> {
-        let cm_name: String = build_cm_name(&self.configmap_prefix, &agent_id.to_string());
+        let cm_name: String = build_cm_name(&self.configmap_prefix, agent_id);
 
         let data = serde_yaml::to_string(&ds)
             .map_err(|e| StorerError::FailedToPasrseYaml(e.to_string()))?;
@@ -50,7 +50,7 @@ impl Storer {
     }
 
     async fn async_get(&self, agent_id: &str) -> Result<Option<DataStored>, StorerError> {
-        let cm_name: String = build_cm_name(&self.configmap_prefix, &agent_id.to_string());
+        let cm_name: String = build_cm_name(&self.configmap_prefix, agent_id);
 
         let data_res = self
             .k8s_executor
@@ -68,7 +68,7 @@ impl Storer {
     }
 }
 
-fn build_cm_name(prefix: &String, agent_id: &String) -> String {
+fn build_cm_name(prefix: &String, agent_id: &str) -> String {
     let mut cm_name = prefix.to_owned();
     cm_name.push('-');
     cm_name.push_str(agent_id);
