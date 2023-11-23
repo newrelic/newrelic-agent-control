@@ -5,7 +5,7 @@ use opamp_client::StartedClient;
 
 use super::supervisor::command_supervisor::{NotStartedSupervisorOnHost, StartedSupervisorOnHost};
 use crate::config::super_agent_configs::AgentID;
-use crate::opamp::operations::stop_subagent_opamp_client;
+use crate::opamp::operations::stop_opamp_client;
 use crate::sub_agent::error::SubAgentError;
 
 use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent, SubAgentCallbacks};
@@ -86,7 +86,7 @@ where
 {
     fn stop(self) -> Result<Vec<JoinHandle<()>>, SubAgentError> {
         let stopped_supervisors = self.supervisors.into_iter().map(|s| s.stop()).collect();
-        stop_subagent_opamp_client(self.opamp_client, &self.agent_id)?;
+        stop_opamp_client(self.opamp_client, &self.agent_id)?;
         Ok(stopped_supervisors)
     }
 }

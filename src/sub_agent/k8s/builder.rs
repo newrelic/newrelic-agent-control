@@ -1,7 +1,9 @@
+use opamp_client::operation::callbacks::Callbacks;
+
 use crate::config::super_agent_configs::SubAgentConfig;
 use crate::context::Context;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
-use crate::sub_agent::opamp::common::build_opamp_and_start_client;
+use crate::opamp::operations::build_opamp_and_start_client;
 use crate::super_agent::super_agent::SuperAgentEvent;
 use crate::{
     config::super_agent_configs::AgentID,
@@ -12,34 +14,44 @@ use std::collections::HashMap;
 
 use super::sub_agent::NotStartedSubAgentK8s;
 
-pub struct K8sSubAgentBuilder<'a, O, I>
+pub struct K8sSubAgentBuilder<'a, C, O, I>
 where
-    O: OpAMPClientBuilder,
+    C: Callbacks,
+    O: OpAMPClientBuilder<C>,
     I: InstanceIDGetter,
 {
     opamp_builder: Option<&'a O>,
     instance_id_getter: &'a I,
+
+    // Needed to include this in the struct to avoid the compiler complaining about not using the type parameter `C`.
+    // It's actually used as a generic parameter for the `OpAMPClientBuilder` instance bound by type parameter `O`.
+    // Feel free to remove this when the actual implementations (Callbacks instance for K8s agents) make it redundant!
+    _callbacks: std::marker::PhantomData<C>,
 }
 
-impl<'a, O, I> K8sSubAgentBuilder<'a, O, I>
+impl<'a, C, O, I> K8sSubAgentBuilder<'a, C, O, I>
 where
-    O: OpAMPClientBuilder,
+    C: Callbacks,
+    O: OpAMPClientBuilder<C>,
     I: InstanceIDGetter,
 {
     pub fn new(opamp_builder: Option<&'a O>, instance_id_getter: &'a I) -> Self {
         Self {
             opamp_builder,
             instance_id_getter,
+
+            _callbacks: std::marker::PhantomData,
         }
     }
 }
 
-impl<'a, O, I> SubAgentBuilder for K8sSubAgentBuilder<'a, O, I>
+impl<'a, C, O, I> SubAgentBuilder for K8sSubAgentBuilder<'a, C, O, I>
 where
-    O: OpAMPClientBuilder,
+    C: Callbacks,
+    O: OpAMPClientBuilder<C>,
     I: InstanceIDGetter,
 {
-    type NotStartedSubAgent = NotStartedSubAgentK8s<O::Client>;
+    type NotStartedSubAgent = NotStartedSubAgentK8s<C, O::Client>;
 
     fn build(
         &self,
@@ -66,10 +78,12 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::opamp::callbacks::tests::MockCallbacksM;
+    use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
-    use crate::sub_agent::opamp::common::start_settings;
+    use crate::opamp::operations::start_settings;
     use crate::{
-        opamp::client_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock},
+        opamp::client_builder::test::MockOpAMPClientBuilderMock,
         sub_agent::{NotStartedSubAgent, StartedSubAgent},
     };
     use std::{collections::HashMap, sync::mpsc::channel};
@@ -78,7 +92,8 @@ mod test {
     fn build_start_stop() {
         // opamp builder mock
         let instance_id = "k8s-test-instance-id";
-        let mut opamp_builder = MockOpAMPClientBuilderMock::new();
+        let mut opamp_builder: MockOpAMPClientBuilderMock<MockCallbacksM> =
+            MockOpAMPClientBuilderMock::new();
         let sub_agent_config = sub_agent_config();
         let start_settings = start_settings(
             instance_id.to_string(),
@@ -89,7 +104,7 @@ mod test {
             AgentID::new("k8s-test").unwrap(),
             start_settings,
             |_, _, _| {
-                let mut started_client = MockOpAMPClientMock::new();
+                let mut started_client = MockStartedOpAMPClientMock::new();
                 started_client.should_set_health(1);
                 started_client.should_stop(1);
                 Ok(started_client)

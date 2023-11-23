@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::{
     config::super_agent_configs::{AgentID, AgentTypeFQN},
     context::Context,
-    sub_agent::{error::SubAgentError, SubAgentCallbacks},
+    sub_agent::error::SubAgentError,
     super_agent::super_agent::SuperAgentEvent,
     utils::time::get_sys_time_nano,
 };
@@ -95,7 +95,7 @@ pub fn start_settings(
 }
 
 /// Stops an started OpAMP client.
-pub fn stop_subagent_opamp_client<C: StartedClient<SubAgentCallbacks>>(
+pub fn stop_opamp_client<CB: Callbacks, C: StartedClient<CB>>(
     client: Option<C>,
     agent_id: &AgentID,
 ) -> Result<(), SubAgentError> {

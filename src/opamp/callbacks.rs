@@ -126,6 +126,23 @@ pub(crate) mod tests {
     use std::collections::HashMap;
 
     mock! {
+        pub CallbacksM {}
+
+        impl Callbacks for CallbacksM {
+            type Error = AgentCallbacksError;
+
+            fn on_connect(&self);
+            fn on_connect_failed(&self, err: ConnectionError);
+            fn on_error(&self, err: ServerErrorResponse);
+            fn on_message(&self, msg: MessageData);
+            fn on_opamp_connection_settings(&self, settings: &OpAmpConnectionSettings) -> Result<(), <Self as Callbacks>::Error>;
+            fn on_opamp_connection_settings_accepted(&self, settings: &OpAmpConnectionSettings);
+            fn on_command(&self, command: &ServerToAgentCommand) -> Result<(), <Self as Callbacks>::Error>;
+            fn get_effective_config(&self) -> Result<EffectiveConfig, <Self as Callbacks>::Error>;
+        }
+    }
+
+    mock! {
         pub RemoteConfigPublisherMock {}
 
         impl RemoteConfigPublisher for RemoteConfigPublisherMock {
