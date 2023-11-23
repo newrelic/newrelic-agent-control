@@ -2,7 +2,6 @@ use thiserror::Error;
 use tracing::error;
 
 use crate::config::agent_type::agent_types::FinalAgent;
-use crate::config::persister::config_writer_file::WriterFile;
 use crate::config::persister::directory_manager::DirectoryManagerFs;
 use crate::config::super_agent_configs::{AgentID, SubAgentConfig};
 use crate::sub_agent::values::values_repository::{
@@ -18,7 +17,7 @@ use crate::{
             config_persister_file::ConfigurationPersisterFile,
         },
     },
-    file_reader::{FSFileReader, FileReaderError},
+    file_reader::FileReaderError,
 };
 
 #[derive(Error, Debug)]

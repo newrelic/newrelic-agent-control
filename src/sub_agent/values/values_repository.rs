@@ -81,6 +81,7 @@ impl Default for ValuesRepositoryFile<DirectoryManagerFs> {
             remote_conf_path: REMOTE_AGENT_DATA_DIR.to_string(),
             local_conf_path: LOCAL_AGENT_DATA_DIR.to_string(),
             remote_enabled: false,
+            #[allow(clippy::default_constructed_unit_structs)]
             file_reader: FSFileReader::default(),
         }
     }
@@ -779,6 +780,51 @@ pub mod test {
         repo.delete_remote(&agent_id).unwrap();
     }
 
+    // This test is the only one that writes to an actual file in the FS
+    // #[test]
+    // fn test_store_remote_no_mocks() {
+    //     let tempdir = tempfile::tempdir().unwrap();
+    //
+    //     let mut local_dir = PathBuf::from(&tempdir.path());
+    //     local_dir.push("local_dir");
+    //
+    //     let mut remote_dir = PathBuf::from(&tempdir.path());
+    //     remote_dir.push("remote_dir");
+    //
+    //     let file_reader = FSFileReader::default();
+    //     let dir_manager = DirectoryManagerFs::default();
+    //     let remote_enabled = true;
+    //
+    //     // Ensure dir exists
+    //     let res = dir_manager.create(remote_dir.as_path(), Permissions::from_mode(0o700));
+    //     assert!(res.is_ok());
+    //
+    //     let values_repo = ValuesRepositoryFile::with_mocks(
+    //         WriterFile::default(),
+    //         DirectoryManagerFs::default(),
+    //         file_reader,
+    //         local_dir.as_path(),
+    //         remote_dir.as_path(),
+    //         remote_enabled,
+    //     );
+    //     let agent_id = AgentID::new("SomeAgentID").unwrap();
+    //
+    //     let agent_values: AgentValues =
+    //         serde_yaml::from_reader(AGENT_VALUES_SINGLE_FILE.as_bytes()).unwrap();
+    //
+    //     values_repo
+    //         .store_remote(&agent_id.clone(), &agent_values)
+    //         .unwrap();
+    //
+    //     remote_dir.push(agent_id);
+    //     remote_dir.push("values.yml");
+    //
+    //     assert_eq!(
+    //         AGENT_VALUES_SINGLE_FILE,
+    //         fs::read_to_string(remote_dir.as_path()).unwrap()
+    //     );
+    // }
+
     //////////////////////////////////////////////////
     // Fixtures
     //////////////////////////////////////////////////
@@ -788,72 +834,3 @@ pub mod test {
     level: debug
 "#;
 }
-
-// #[cfg(test)]
-// pub mod test_no_mocks {
-//     use crate::config::agent_values::AgentValues;
-//     use crate::config::persister::config_writer_file::WriterFile;
-//     use crate::config::persister::directory_manager::{DirectoryManager, DirectoryManagerFs};
-//     use crate::config::super_agent_configs::AgentID;
-//     use crate::file_reader::FSFileReader;
-//     use crate::sub_agent::values::values_repository::{ValuesRepository, ValuesRepositoryFile};
-//     use std::fs;
-//     use std::fs::Permissions;
-//     #[cfg(target_family = "unix")]
-//     use std::os::unix::fs::PermissionsExt;
-//     use std::path::PathBuf;
-//
-//     // This test is the only one that writes to an actual file in the FS
-//     #[test]
-//     fn test_store_remote_no_mocks() {
-//         let tempdir = tempfile::tempdir().unwrap();
-//
-//         let mut local_dir = PathBuf::from(&tempdir.path());
-//         local_dir.push("local_dir");
-//
-//         let mut remote_dir = PathBuf::from(&tempdir.path());
-//         remote_dir.push("remote_dir");
-//
-//         let file_reader = FSFileReader::default();
-//         let dir_manager = DirectoryManagerFs::default();
-//         let remote_enabled = true;
-//
-//         // Ensure dir exists
-//         let res = dir_manager.create(remote_dir.as_path(), Permissions::from_mode(0o700));
-//         assert!(res.is_ok());
-//
-//         let values_repo = ValuesRepositoryFile::with_mocks(
-//             WriterFile::default(),
-//             DirectoryManagerFs::default(),
-//             file_reader,
-//             local_dir.as_path(),
-//             remote_dir.as_path(),
-//             remote_enabled,
-//         );
-//         let agent_id = AgentID::new("SomeAgentID").unwrap();
-//
-//         let agent_values: AgentValues =
-//             serde_yaml::from_reader(AGENT_VALUES_SINGLE_FILE.as_bytes()).unwrap();
-//
-//         values_repo
-//             .store_remote(&agent_id.clone(), &agent_values)
-//             .unwrap();
-//
-//         remote_dir.push(agent_id);
-//         remote_dir.push("values.yml");
-//
-//         assert_eq!(
-//             AGENT_VALUES_SINGLE_FILE,
-//             fs::read_to_string(remote_dir.as_path()).unwrap()
-//         );
-//     }
-//
-//     //////////////////////////////////////////////////
-//     // Fixtures
-//     //////////////////////////////////////////////////
-//     const AGENT_VALUES_SINGLE_FILE: &str = r#"config_file: |
-//   license_key: 1234567890987654321
-//   log:
-//     level: debug
-// "#;
-// }

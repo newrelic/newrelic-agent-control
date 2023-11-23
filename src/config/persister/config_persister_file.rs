@@ -15,8 +15,6 @@ use crate::super_agent::defaults::SUPER_AGENT_DATA_DIR;
 
 #[double]
 use crate::config::persister::config_writer_file::WriterFile;
-#[double]
-use crate::file_reader::FSFileReader;
 use mockall_double::double;
 
 const GENERATED_FOLDER_NAME: &str = "auto-generated";
@@ -239,7 +237,7 @@ mod test {
     }
 
     // #[test]
-    // // This test is the only one that writes to an actual file in the FS
+    // This test is the only one that writes to an actual file in the FS
     // fn test_configuration_persister_single_file() {
     //     let tempdir = tempfile::tempdir().unwrap();
     //     let mut temp_path = PathBuf::from(&tempdir.path());

@@ -120,6 +120,7 @@ impl HashRepositoryFile<DirectoryManagerFs> {
     // and config path
     fn new(data_dir: String) -> Self {
         HashRepositoryFile {
+            #[allow(clippy::default_constructed_unit_structs)]
             file_reader: FSFileReader::default(),
             file_writer: WriterFile::default(),
             conf_path: PathBuf::from(data_dir),
