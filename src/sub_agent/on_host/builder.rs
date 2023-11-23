@@ -187,13 +187,14 @@ mod test {
         settings::{AgentDescription, DescriptionValueType, StartSettings},
     };
 
+    use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
     use crate::opamp::remote_config_hash::test::MockHashRepositoryMock;
     use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
     use crate::{
         config::agent_type::runtime_config::OnHost,
-        opamp::client_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock},
+        opamp::client_builder::test::MockOpAMPClientBuilderMock,
     };
 
     use super::*;
@@ -219,7 +220,7 @@ mod test {
             sub_agent_id.clone(),
             start_settings_infra,
             |_, _, _| {
-                let mut started_client = MockOpAMPClientMock::new();
+                let mut started_client = MockStartedOpAMPClientMock::new();
                 started_client.should_set_health(1);
                 started_client.should_set_any_remote_config_status(1);
                 started_client.should_stop(1);
@@ -298,7 +299,7 @@ mod test {
             sub_agent_id.clone(),
             start_settings_infra,
             |_, _, _| {
-                let mut started_client = MockOpAMPClientMock::new();
+                let mut started_client = MockStartedOpAMPClientMock::new();
                 // failed conf should be reported
                 started_client.should_set_remote_config_status(RemoteConfigStatus {
                     error_message: "this is an error message".to_string(),

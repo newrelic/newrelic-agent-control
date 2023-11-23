@@ -611,7 +611,7 @@ mod tests {
         AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig,
     };
     use crate::context::Context;
-    use crate::opamp::client_builder::test::MockOpAMPClientMock;
+    use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::remote_config::{ConfigMap, RemoteConfig};
     use crate::opamp::remote_config_hash::test::MockHashRepositoryMock;
     use crate::opamp::remote_config_hash::{Hash, HashRepository};
@@ -671,7 +671,7 @@ mod tests {
         let sub_agent_values_repo = MockRemoteValuesRepositoryMock::new();
         let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
         let mut hash_repository_mock = MockHashRepositoryMock::new();
-        let mut started_client = MockOpAMPClientMock::new();
+        let mut started_client = MockStartedOpAMPClientMock::new();
         started_client.should_set_health(1);
         started_client.should_stop(1);
 
@@ -718,7 +718,7 @@ mod tests {
         let sub_agents_config = sub_agents_default_config();
 
         // Super Agent OpAMP
-        let mut started_client = MockOpAMPClientMock::new();
+        let mut started_client = MockStartedOpAMPClientMock::new();
         started_client.should_set_health(1);
         started_client.should_stop(1);
 
@@ -762,7 +762,7 @@ mod tests {
         let mut sub_agent_builder = MockSubAgentBuilderMock::new();
 
         // Super Agent OpAMP
-        let mut started_client = MockOpAMPClientMock::new();
+        let mut started_client = MockStartedOpAMPClientMock::new();
         started_client.should_set_health(1);
         // applying and applied
         started_client
@@ -934,9 +934,9 @@ config_file: /some/path/newrelic-infra.yml
             },
         );
 
-        // Create the Super Agent and rub Sub Agents
+        // Create the Super Agent and run Sub Agents
         let super_agent = SuperAgent::new_custom(
-            Some(MockOpAMPClientMock::new()),
+            Some(MockStartedOpAMPClientMock::new()),
             &hash_repository_mock,
             sub_agent_builder,
             sub_agents_config_store,
@@ -1021,7 +1021,7 @@ config_file: /some/path/newrelic-infra.yml
 
         // Create the Super Agent and rub Sub Agents
         let super_agent = SuperAgent::new_custom(
-            Some(MockOpAMPClientMock::new()),
+            Some(MockStartedOpAMPClientMock::new()),
             &hash_repository_mock,
             sub_agent_builder,
             sub_agents_config_store,
@@ -1040,7 +1040,7 @@ config_file: /some/path/newrelic-infra.yml
         let mut sub_agent_builder = MockSubAgentBuilderMock::new();
 
         // Super Agent OpAMP
-        let mut started_client = MockOpAMPClientMock::new();
+        let mut started_client = MockStartedOpAMPClientMock::new();
         started_client.should_set_health(1);
         started_client.should_stop(1);
 
@@ -1120,7 +1120,7 @@ config_file: /some/path/newrelic-infra.yml
 
         // two agents in the supervisor group
         let agent = SuperAgent::new_custom(
-            Some(MockOpAMPClientMock::new()),
+            Some(MockStartedOpAMPClientMock::new()),
             &hash_repository_mock,
             sub_agent_builder,
             sub_agents_config_store,
@@ -1156,7 +1156,7 @@ config_file: /some/path/newrelic-infra.yml
         let sub_agent_values_repo = MockRemoteValuesRepositoryMock::new();
 
         // Super Agent OpAMP
-        let mut started_client = MockOpAMPClientMock::new();
+        let mut started_client = MockStartedOpAMPClientMock::new();
         started_client.should_set_health(1);
         started_client.should_stop(1);
 
@@ -1267,7 +1267,7 @@ config_file: /some/path/newrelic-infra.yml
 
         // Create the Super Agent and rub Sub Agents
         let super_agent = SuperAgent::new_custom(
-            None::<MockOpAMPClientMock>,
+            None::<MockStartedOpAMPClientMock<SuperAgentCallbacks>>,
             &hash_repository_mock,
             sub_agent_builder,
             sub_agents_config_store,
@@ -1345,7 +1345,7 @@ agents:
         let sub_agent_builder = MockSubAgentBuilderMock::new();
         let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
         let hash_repository_mock = MockHashRepositoryMock::new();
-        let mut started_client = MockOpAMPClientMock::new();
+        let mut started_client = MockStartedOpAMPClientMock::new();
 
         // Structs
         let mut running_sub_agents = StartedSubAgents::default();
@@ -1383,7 +1383,7 @@ agents:
 
         // Create the Super Agent and rub Sub Agents
         let super_agent = SuperAgent::new_custom(
-            None::<MockOpAMPClientMock>,
+            None,
             &hash_repository_mock,
             sub_agent_builder,
             sub_agents_config_store,
@@ -1412,7 +1412,7 @@ agents:
         let sub_agent_builder = MockSubAgentBuilderMock::new();
         let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
         let mut hash_repository_mock = MockHashRepositoryMock::new();
-        let mut started_client = MockOpAMPClientMock::new();
+        let mut started_client = MockStartedOpAMPClientMock::new();
 
         // Structs
         let mut started_sub_agent = MockStartedSubAgent::new();
@@ -1470,7 +1470,7 @@ agents:
 
         // Create the Super Agent and rub Sub Agents
         let super_agent = SuperAgent::new_custom(
-            None::<MockOpAMPClientMock>,
+            None,
             &hash_repository_mock,
             sub_agent_builder,
             sub_agents_config_store,
