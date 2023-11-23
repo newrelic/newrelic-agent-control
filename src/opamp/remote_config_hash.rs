@@ -1,10 +1,10 @@
 use crate::config::persister::config_persister_file::FILE_PERMISSIONS;
-use crate::config::persister::config_writer_file::{WriteError, Writer, WriterFile};
+use crate::config::persister::config_writer_file::WriteError;
 use crate::config::persister::directory_manager::{
     DirectoryManagementError, DirectoryManager, DirectoryManagerFs,
 };
 use crate::config::super_agent_configs::AgentID;
-use crate::file_reader::{FSFileReader, FileReader, FileReaderError};
+use crate::file_reader::FileReaderError;
 use crate::super_agent::defaults::{REMOTE_AGENT_DATA_DIR, SUPER_AGENT_DATA_DIR};
 use serde::{Deserialize, Serialize};
 use std::fs::Permissions;
@@ -12,6 +12,12 @@ use std::fs::Permissions;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
+
+#[double]
+use crate::config::persister::config_writer_file::WriterFile;
+#[double]
+use crate::file_reader::FSFileReader;
+use mockall_double::double;
 
 #[cfg(target_family = "unix")]
 const DIRECTORY_PERMISSIONS: u32 = 0o700;
@@ -99,24 +105,22 @@ pub trait HashRepository {
 
 const HASH_FILE_EXTENSION: &str = "yaml";
 
-pub struct HashRepositoryFile<R = FSFileReader, W = WriterFile, D = DirectoryManagerFs>
+pub struct HashRepositoryFile<D = DirectoryManagerFs>
 where
-    R: FileReader,
-    W: Writer,
     D: DirectoryManager,
 {
-    file_reader: R,
-    file_writer: W,
+    file_reader: FSFileReader,
+    file_writer: WriterFile,
     conf_path: PathBuf,
     directory_manager: D,
 }
 
-impl HashRepositoryFile<FSFileReader, WriterFile, DirectoryManagerFs> {
+impl HashRepositoryFile<DirectoryManagerFs> {
     // HashGetterPersisterFile with default writer and reader
     // and config path
     fn new(data_dir: String) -> Self {
         HashRepositoryFile {
-            file_reader: FSFileReader,
+            file_reader: FSFileReader::default(),
             file_writer: WriterFile::default(),
             conf_path: PathBuf::from(data_dir),
             directory_manager: DirectoryManagerFs::default(),
@@ -124,16 +128,14 @@ impl HashRepositoryFile<FSFileReader, WriterFile, DirectoryManagerFs> {
     }
 }
 
-impl Default for HashRepositoryFile<FSFileReader, WriterFile> {
+impl Default for HashRepositoryFile {
     fn default() -> Self {
         HashRepositoryFile::new(SUPER_AGENT_DATA_DIR.to_string())
     }
 }
 
-impl<R, W, D> HashRepository for HashRepositoryFile<R, W, D>
+impl<D> HashRepository for HashRepositoryFile<D>
 where
-    R: FileReader,
-    W: Writer,
     D: DirectoryManager,
 {
     fn save(&self, agent_id: &AgentID, hash: &Hash) -> Result<(), HashRepositoryError> {
@@ -163,16 +165,14 @@ where
     }
 }
 
-impl HashRepositoryFile<FSFileReader, WriterFile> {
+impl HashRepositoryFile {
     pub fn new_sub_agent_repository() -> Self {
         HashRepositoryFile::new(REMOTE_AGENT_DATA_DIR.to_string())
     }
 }
 
-impl<R, W, D> HashRepositoryFile<R, W, D>
+impl<D> HashRepositoryFile<D>
 where
-    R: FileReader,
-    W: Writer,
     D: DirectoryManager,
 {
     fn hash_file_path<'a>(&'a self, agent_id: &AgentID, path: &'a mut PathBuf) -> &Path {
@@ -202,16 +202,18 @@ pub mod test {
         DIRECTORY_PERMISSIONS, HASH_FILE_EXTENSION,
     };
     use crate::config::persister::config_persister_file::FILE_PERMISSIONS;
-    use crate::config::persister::config_writer_file::test::MockFileWriterMock;
-    use crate::config::persister::config_writer_file::Writer;
     use crate::config::persister::directory_manager::test::MockDirectoryManagerMock;
     use crate::config::persister::directory_manager::DirectoryManager;
     use crate::config::super_agent_configs::AgentID;
-    use crate::file_reader::test::MockFileReaderMock;
-    use crate::file_reader::FileReader;
     use mockall::{mock, predicate};
     use std::fs::Permissions;
     use std::path::PathBuf;
+
+    #[double]
+    use crate::config::persister::config_writer_file::WriterFile;
+    #[double]
+    use crate::file_reader::FSFileReader;
+    use mockall_double::double;
 
     impl Hash {
         pub fn applied(hash: String) -> Self {
@@ -257,15 +259,13 @@ pub mod test {
         }
     }
 
-    impl<R, W, D> HashRepositoryFile<R, W, D>
+    impl<D> HashRepositoryFile<D>
     where
-        R: FileReader,
-        W: Writer,
         D: DirectoryManager,
     {
         pub fn with_mocks(
-            file_reader: R,
-            file_writer: W,
+            file_reader: FSFileReader,
+            file_writer: WriterFile,
             directory_manager: D,
             conf_path: PathBuf,
         ) -> Self {
@@ -281,8 +281,8 @@ pub mod test {
     #[test]
     fn test_save_and_get_hash() {
         let some_path = PathBuf::from("some/path");
-        let mut file_writer_mock = MockFileWriterMock::new();
-        let mut file_reader_mock = MockFileReaderMock::new();
+        let mut file_writer = WriterFile::default();
+        let mut file_reader = FSFileReader::default();
         let file_permissions = Permissions::from_mode(FILE_PERMISSIONS);
         let agent_id = AgentID::new("SomeAgentID").unwrap();
         let mut hash = Hash::new("123456789".to_string());
@@ -296,11 +296,11 @@ state: applied
         let mut expected_path = some_path.clone();
         expected_path.push(format!("{}.{}", agent_id.get(), HASH_FILE_EXTENSION));
 
-        file_reader_mock.should_read(
+        file_reader.should_read(
             expected_path.to_str().unwrap().to_string(),
             content.to_string(),
         );
-        file_writer_mock.should_write(
+        file_writer.should_write(
             expected_path.as_path(),
             content.to_string(),
             file_permissions,
@@ -314,12 +314,8 @@ state: applied
             Permissions::from_mode(DIRECTORY_PERMISSIONS),
         );
 
-        let hash_repository = HashRepositoryFile::with_mocks(
-            file_reader_mock,
-            file_writer_mock,
-            dir_manager,
-            some_path,
-        );
+        let hash_repository =
+            HashRepositoryFile::with_mocks(file_reader, file_writer, dir_manager, some_path);
 
         let result = hash_repository.save(&agent_id, &hash);
         assert!(result.is_ok());

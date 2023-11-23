@@ -27,6 +27,8 @@ ulid = { version = "1.0.1", features = ["serde"]}
 openssl = { version = "0.10.57", features = ["vendored"] }
 aquamarine = "0.3.2"
 duration-str = "0.7.0"
+mockall_double = "0.3.0"
+
 
 # OnHost subagent dependencies
 # IMPORTANT: All onhost only deps needs to be `optional = true` so they won't be compiled by default
@@ -47,7 +49,6 @@ bollard = "0.15.0"
 predicates = "3.0.3"
 tower-test = "0.4.0"
 http = "0.2.9"
-mockall_double = "0.3.0"
 tempfile = "3.8.0"
 mockall = "0.11.4"
 schemars = "0.8.15"

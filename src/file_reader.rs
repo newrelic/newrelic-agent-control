@@ -1,3 +1,5 @@
+#[cfg(test)]
+use mockall::automock;
 use std::fs::read_to_string;
 use std::io::Error as ioError;
 use std::path::Path;
@@ -11,15 +13,12 @@ pub enum FileReaderError {
     FileNotFound(String),
 }
 
-pub trait FileReader {
-    fn read(&self, path: &str) -> Result<String, FileReaderError>;
-}
-
 #[derive(Default)]
 pub struct FSFileReader;
 
-impl FileReader for FSFileReader {
-    fn read(&self, path: &str) -> Result<String, FileReaderError> {
+#[cfg_attr(test, automock)]
+impl FSFileReader {
+    pub fn read(&self, path: &str) -> Result<String, FileReaderError> {
         let file_path = Path::new(&path);
         if !file_path.is_file() {
             return Err(FileReaderError::FileNotFound(path.to_string()));
@@ -33,19 +32,16 @@ impl FileReader for FSFileReader {
 
 #[cfg(test)]
 pub mod test {
-    use super::*;
-    use mockall::{mock, predicate};
+
+    use mockall::predicate;
     use std::io::{Error, ErrorKind};
 
-    mock! {
-        pub FileReaderMock {}
+    #[double]
+    use crate::file_reader::FSFileReader;
+    use crate::file_reader::FileReaderError;
+    use mockall_double::double;
 
-        impl FileReader for FileReaderMock {
-            fn read(&self, path:&str) -> Result<String, FileReaderError>;
-        }
-    }
-
-    impl MockFileReaderMock {
+    impl FSFileReader {
         pub fn should_read(&mut self, path: String, content: String) {
             self.expect_read()
                 .with(predicate::eq(path.clone()))

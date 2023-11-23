@@ -67,7 +67,7 @@ impl Default
     for LocalEffectiveAgentsAssembler<
         LocalRegistry,
         ConfigurationPersisterFile,
-        ValuesRepositoryFile<DirectoryManagerFs, WriterFile, FSFileReader>,
+        ValuesRepositoryFile<DirectoryManagerFs>,
     >
 {
     fn default() -> Self {
