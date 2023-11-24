@@ -5,7 +5,7 @@ use crate::opamp::client_builder::{
     build_http_client, OpAMPClientBuilder, OpAMPClientBuilderError,
 };
 use crate::super_agent::opamp::remote_config_publisher::SuperAgentRemoteConfigPublisher;
-use crate::super_agent::super_agent::SuperAgentEvent;
+use crate::super_agent::super_agent::{SuperAgentCallbacks, SuperAgentEvent};
 use crate::utils::time::get_sys_time_nano;
 use futures::executor::block_on;
 use opamp_client::http::{HttpClientReqwest, NotStartedHttpClient, StartedHttpClient};
@@ -28,9 +28,8 @@ impl SuperAgentOpAMPHttpBuilder {
     }
 }
 
-impl OpAMPClientBuilder for SuperAgentOpAMPHttpBuilder {
-    type Client =
-        StartedHttpClient<AgentCallbacks<SuperAgentRemoteConfigPublisher>, HttpClientReqwest>;
+impl OpAMPClientBuilder<SuperAgentCallbacks> for SuperAgentOpAMPHttpBuilder {
+    type Client = StartedHttpClient<SuperAgentCallbacks, HttpClientReqwest>;
     fn build_and_start(
         &self,
         ctx: Context<Option<SuperAgentEvent>>,
@@ -40,8 +39,8 @@ impl OpAMPClientBuilder for SuperAgentOpAMPHttpBuilder {
         let http_client = build_http_client(&self.config)?;
         let remote_config_publisher = SuperAgentRemoteConfigPublisher::new(ctx);
         let callbacks = AgentCallbacks::new(agent_id, remote_config_publisher);
-        let not_started_client = NotStartedHttpClient::new(callbacks, start_settings, http_client)?;
-        let started_client = block_on(not_started_client.start())?;
+        let not_started_client = NotStartedHttpClient::new(http_client);
+        let started_client = block_on(not_started_client.start(callbacks, start_settings))?;
         // TODO remove opamp health from here, it should be done outside
         // set OpAMP health
         block_on(started_client.set_health(AgentHealth {

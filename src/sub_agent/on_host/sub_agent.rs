@@ -5,9 +5,10 @@ use opamp_client::StartedClient;
 
 use super::supervisor::command_supervisor::{NotStartedSupervisorOnHost, StartedSupervisorOnHost};
 use crate::config::super_agent_configs::AgentID;
+use crate::opamp::operations::stop_opamp_client;
 use crate::sub_agent::error::SubAgentError;
-use crate::sub_agent::opamp::common::stop_opamp_client;
-use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
+
+use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent, SubAgentCallbacks};
 
 ////////////////////////////////////////////////////////////////////////////////////
 // Not Started SubAgent On Host
@@ -15,7 +16,7 @@ use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
 ////////////////////////////////////////////////////////////////////////////////////
 pub struct NotStartedSubAgentOnHost<C>
 where
-    C: StartedClient,
+    C: StartedClient<SubAgentCallbacks>,
 {
     opamp_client: Option<C>,
     supervisors: Vec<NotStartedSupervisorOnHost>,
@@ -24,7 +25,7 @@ where
 
 impl<C> NotStartedSubAgentOnHost<C>
 where
-    C: StartedClient,
+    C: StartedClient<SubAgentCallbacks>,
 {
     pub fn new(
         agent_id: AgentID,
@@ -45,7 +46,7 @@ where
 
 impl<C> NotStartedSubAgent for NotStartedSubAgentOnHost<C>
 where
-    C: StartedClient,
+    C: StartedClient<SubAgentCallbacks>,
 {
     type StartedSubAgent = StartedSubAgentOnHost<C>;
 
@@ -72,7 +73,7 @@ where
 ////////////////////////////////////////////////////////////////////////////////////
 pub struct StartedSubAgentOnHost<C>
 where
-    C: StartedClient,
+    C: StartedClient<SubAgentCallbacks>,
 {
     opamp_client: Option<C>,
     supervisors: Vec<StartedSupervisorOnHost>,
@@ -81,7 +82,7 @@ where
 
 impl<C> StartedSubAgent for StartedSubAgentOnHost<C>
 where
-    C: StartedClient,
+    C: StartedClient<SubAgentCallbacks>,
 {
     fn stop(self) -> Result<Vec<JoinHandle<()>>, SubAgentError> {
         let stopped_supervisors = self.supervisors.into_iter().map(|s| s.stop()).collect();

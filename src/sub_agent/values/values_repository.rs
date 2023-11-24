@@ -609,7 +609,7 @@ pub mod test {
     fn test_store_remote_error_deleting_dir() {
         //Mocks
         let file_reader = MockFileReaderMock::new();
-        let mut file_writer = MockFileWriterMock::new();
+        let file_writer = MockFileWriterMock::new();
         let mut dir_manager = MockDirectoryManagerMock::new();
         let remote_conf_path = Path::new("some/remote/path");
         let local_conf_path = Path::new("some/local/path");

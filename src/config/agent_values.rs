@@ -177,7 +177,7 @@ mod tests {
 
     impl AgentValues {
         pub fn new(values: Map<String, TrivialValue>) -> Self {
-            Self { 0: values }
+            Self(values)
         }
     }
 

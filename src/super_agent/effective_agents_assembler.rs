@@ -181,6 +181,7 @@ pub(crate) mod tests {
                 .returning(move |_, _| Ok(final_agent.clone()));
         }
 
+        #[allow(dead_code)]
         pub fn should_not_assemble_agent(
             &mut self,
             agent_id: &AgentID,
