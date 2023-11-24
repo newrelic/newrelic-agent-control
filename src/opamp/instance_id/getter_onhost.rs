@@ -23,10 +23,10 @@ impl IdentifiersRetriever for OnHostIdentifiersRetriever {
 }
 
 impl ULIDInstanceIDGetter<Storer> {
-    pub async fn try_default<I>() -> Result<Self, GetterError>
+    pub fn try_with_identifiers<I>() -> Result<Self, GetterError>
     where
         I: IdentifiersRetriever,
     {
-        Ok(Self::new(Storer {}, I::get()?))
+        Ok(Self::new(Storer::new(), I::get()?))
     }
 }

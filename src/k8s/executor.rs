@@ -38,7 +38,7 @@ impl K8sExecutor {
     /// This will respect the `$KUBECONFIG` envvar, but otherwise default to `~/.kube/config`.
     /// Not leveraging infer() to check inClusterConfig first
     ///
-    pub async fn try_default(namespace: &str) -> Result<K8sExecutor, K8sError> {
+    pub async fn try_default(namespace: String) -> Result<K8sExecutor, K8sError> {
         debug!("trying inClusterConfig for k8s client");
 
         let mut config = match Config::incluster() {
@@ -53,7 +53,7 @@ impl K8sExecutor {
             }
         };
 
-        config.default_namespace = namespace.to_string();
+        config.default_namespace = namespace;
 
         let client = Client::try_from(config)?;
         debug!("client creation succeeded");

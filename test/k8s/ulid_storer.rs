@@ -12,11 +12,14 @@ const AGENT_INVALID_ID_TEST: &str = "agent-invalid-#$^%&%*^&(";
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[ignore = "needs k8s cluster"]
 async fn k8s_ulid_persister() {
+    // This tests cover the happy path of ULIDInstanceIDGetter on K8s.
+    // It checks that with same AgentID the the Ulid is the same and if different the ULID is different
+
     let mut test = K8sEnv::new().await;
     let test_ns = test.test_namespace().await;
 
     let instance_id_getter =
-        ULIDInstanceIDGetter::try_default::<instance_id::K8sIdentifiersRetriever>(test_ns.as_str())
+        ULIDInstanceIDGetter::try_with_identifiers::<instance_id::K8sIdentifiersRetriever>(test_ns)
             .await
             .unwrap();
 

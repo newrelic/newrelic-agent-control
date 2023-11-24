@@ -10,6 +10,12 @@ pub enum StorerError {
     Generic,
 }
 
+impl Storer {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
 impl InstanceIDStorer for Storer {
     fn set(&self, _agent_id: &str, _ds: &DataStored) -> Result<(), StorerError> {
         // TODO

@@ -1,4 +1,4 @@
-use crate::k8s::error::K8sError;
+use crate::k8s;
 use crate::k8s::executor::K8sExecutor;
 use crate::opamp::instance_id::getter::{IdentifiersRetriever, ULIDInstanceIDGetter};
 use crate::opamp::instance_id::{Storer, StorerError};
@@ -15,7 +15,7 @@ pub enum GetterError {
     Persisting(#[from] StorerError),
 
     #[error("k8s api failure: `{0}`")]
-    K8s(#[from] K8sError),
+    K8s(#[from] k8s::Error),
 }
 
 const CM_PREFIX: &str = "super-agent-ulid";
@@ -29,15 +29,12 @@ impl IdentifiersRetriever for K8sIdentifiersRetriever {
 }
 
 impl ULIDInstanceIDGetter<Storer> {
-    pub async fn try_default<I>(namespace: &str) -> Result<Self, GetterError>
+    pub async fn try_with_identifiers<I>(namespace: String) -> Result<Self, GetterError>
     where
         I: IdentifiersRetriever,
     {
         Ok(Self::new(
-            Storer {
-                k8s_executor: K8sExecutor::try_default(namespace).await?,
-                configmap_prefix: CM_PREFIX.to_string(),
-            },
+            Storer::new(K8sExecutor::try_default(namespace).await?),
             I::get()?,
         ))
     }
