@@ -158,13 +158,12 @@ fn run_super_agent(
         newrelic_super_agent::k8s::executor::K8sExecutor::try_default(namespace),
     )
     .map_err(|e| AgentError::ExternalError(e.to_string()))?;
-    let executor = std::sync::Arc::new(std::sync::Mutex::new(executor));
     /////////////////////////
 
     let sub_agent_builder = newrelic_super_agent::sub_agent::k8s::builder::K8sSubAgentBuilder::new(
         opamp_client_builder.as_ref(),
         &instance_id_getter,
-        executor,
+        std::sync::Arc::new(executor),
     );
 
     info!("Starting the super agent");

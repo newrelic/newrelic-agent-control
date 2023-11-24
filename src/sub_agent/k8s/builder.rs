@@ -1,7 +1,7 @@
 use super::sub_agent::NotStartedSubAgentK8s;
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use opamp_client::operation::callbacks::Callbacks;
 
@@ -22,7 +22,7 @@ use crate::{
     k8s::executor::K8sDynamicObjectsManager,
     opamp::client_builder::OpAMPClientBuilder,
     opamp::instance_id::getter::InstanceIDGetter,
-    sub_agent::k8s::supervisor::Supervisor,
+    sub_agent::k8s::supervisor::CRSupervisor,
     sub_agent::opamp::common::build_opamp_and_start_client,
     sub_agent::{error::SubAgentBuilderError, logger::Event, SubAgentBuilder},
     super_agent::super_agent::SuperAgentEvent,
@@ -48,6 +48,7 @@ where
     _callbacks: std::marker::PhantomData<C>,
     // client: Client, Should we inject the client?
     executor: Arc<Mutex<E>>,
+    executor: Arc<E>,
 }
 
 impl<'a, C, O, I> K8sSubAgentBuilder<'a, C, O, I>
@@ -58,11 +59,7 @@ where
     I: InstanceIDGetter,
     E: K8sDynamicObjectsManager + Send + Sync + 'static,
 {
-    pub fn new(
-        opamp_builder: Option<&'a O>,
-        instance_id_getter: &'a I,
-        executor: Arc<Mutex<E>>,
-    ) -> Self {
+    pub fn new(opamp_builder: Option<&'a O>, instance_id_getter: &'a I, executor: Arc<E>) -> Self {
         Self {
             opamp_builder,
             instance_id_getter,
@@ -85,6 +82,7 @@ where
     type NotStartedSubAgent = NotStartedSubAgentK8s<C, O::Client>;
     type NotStartedSubAgent = NotStartedSubAgentK8s<O::Client, E>;
     type NotStartedSubAgent = NotStartedSubAgentK8s<O::Client, Supervisor<E>>;
+    type NotStartedSubAgent = NotStartedSubAgentK8s<O::Client, CRSupervisor<E>>;
 
     fn build(
         &self,
@@ -102,7 +100,8 @@ where
             HashMap::from([]), // TODO: check if we need to set non_identifying_attributes
         )?;
 
-        let supervisor = Supervisor::new(self.executor.clone());
+        // let supervisor = Supervisor::new(self.executor.clone());
+        let supervisor = CRSupervisor::new(Arc::clone(&self.executor));
 
         Ok(NotStartedSubAgentK8s::new(
             agent_id,
@@ -121,11 +120,11 @@ mod test {
     use crate::opamp::operations::start_settings;
     use crate::{
         opamp::client_builder::test::MockOpAMPClientBuilderMock,
+        k8s::executor::test::MockK8sExecutorMock,
         k8s::executor::K8sResourceType,
         opamp::client_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock},
         opamp::instance_id::getter::test::MockInstanceIDGetterMock,
         sub_agent::k8s::sample_crs::{OTELCOL_HELM_RELEASE_CR, OTEL_HELM_REPOSITORY_CR},
-        sub_agent::k8s::supervisor::test::MockK8sExecutorMock,
         sub_agent::opamp::common::start_settings,
         sub_agent::{NotStartedSubAgent, StartedSubAgent},
     };
@@ -186,7 +185,7 @@ mod test {
             .times(2) // Expect it to be called twice for the two resource types
             .returning(|_, _| Ok(()));
 
-        let executor = Arc::new(Mutex::new(mock_executor));
+        let executor = Arc::new(mock_executor);
         let builder = K8sSubAgentBuilder::new(Some(&opamp_builder), &instance_id_getter, executor);
 
         let (tx, _) = channel();

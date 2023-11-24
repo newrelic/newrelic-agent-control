@@ -282,12 +282,33 @@ impl K8sResourceType {
 }
 
 #[cfg(test)]
-mod test {
+pub(crate) mod test {
     use super::*;
+    use crate::k8s::Error;
     use assert_matches::assert_matches;
+    use async_trait::async_trait;
     use k8s_openapi::serde_json;
     use kube::{core::GroupVersionKind, Client};
     use tower_test::mock;
+
+    mock! {
+        pub K8sExecutorMock {}
+
+        #[async_trait]
+        impl K8sDynamicObjectsManager for K8sExecutorMock {
+            async fn create_dynamic_object(
+                &self,
+                gvk: GroupVersionKind,
+                spec: &str,
+            ) -> Result<DynamicObject, Error>;
+
+            async fn delete_dynamic_object(
+                &self,
+                gvk: GroupVersionKind,
+                name: &str,
+            ) -> Result<(), Error>;
+        }
+    }
 
     #[tokio::test]
     async fn create_dynamic_object_fail_when_missing_resource_definition() {

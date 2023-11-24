@@ -3,6 +3,7 @@ use opamp_client::{operation::callbacks::Callbacks, StartedClient};
 
 use crate::k8s::executor::K8sDynamicObjectsManager;
 use crate::sub_agent::k8s::supervisor::Supervisor;
+use crate::sub_agent::k8s::supervisor::Supervisor;
 use crate::sub_agent::opamp::common::stop_opamp_client;
 use crate::{
     config::super_agent_configs::AgentID,
@@ -12,6 +13,7 @@ use crate::{
 
 ////////////////////////////////////////////////////////////////////////////////////
 // Not Started SubAgent On K8s
+// C: OpAMP Client
 // S: Supervisor Trait
 ////////////////////////////////////////////////////////////////////////////////////
 pub struct NotStartedSubAgentK8s<CB, C>
@@ -23,7 +25,7 @@ pub struct NotStartedSubAgentK8s<C, E>
 pub struct NotStartedSubAgentK8s<C, S>
 where
     C: opamp_client::StartedClient,
-    S: SupervisorTrait,
+    S: Supervisor,
 {
     agent_id: AgentID,
     opamp_client: Option<C>,
@@ -55,7 +57,7 @@ impl<C: opamp_client::StartedClient> NotStartedSubAgentK8s<C> {
 impl<C, S> NotStartedSubAgentK8s<C, S>
 where
     C: opamp_client::StartedClient,
-    S: SupervisorTrait,
+    S: Supervisor,
 {
     pub fn new(agent_id: AgentID, opamp_client: Option<C>, supervisor: S) -> Self {
         NotStartedSubAgentK8s {
@@ -79,7 +81,7 @@ impl<C, E> NotStartedSubAgent for NotStartedSubAgentK8s<C, E>
 impl<C, S> NotStartedSubAgent for NotStartedSubAgentK8s<C, S>
 where
     C: opamp_client::StartedClient,
-    S: SupervisorTrait,
+    S: Supervisor,
 {
     type StartedSubAgent = StartedSubAgentK8s<C, S>;
 
@@ -110,7 +112,7 @@ pub struct StartedSubAgentK8s<C, E>
 pub struct StartedSubAgentK8s<C, S>
 where
     C: opamp_client::StartedClient,
-    S: SupervisorTrait,
+    S: Supervisor,
 {
     agent_id: AgentID,
     opamp_client: Option<C>,
@@ -134,7 +136,7 @@ impl<C, E> StartedSubAgentK8s<C, E>
 impl<C, S> StartedSubAgentK8s<C, S>
 where
     C: opamp_client::StartedClient,
-    S: SupervisorTrait,
+    S: Supervisor,
 {
     fn new(agent_id: AgentID, opamp_client: Option<C>, supervisor: S) -> Self {
         StartedSubAgentK8s {
@@ -156,7 +158,7 @@ impl<C, E> StartedSubAgent for StartedSubAgentK8s<C, E>
 impl<C, S> StartedSubAgent for StartedSubAgentK8s<C, S>
 where
     C: opamp_client::StartedClient,
-    S: SupervisorTrait,
+    S: Supervisor,
 {
     fn stop(self) -> Result<Vec<std::thread::JoinHandle<()>>, SubAgentError> {
         stop_opamp_client(self.opamp_client, &self.agent_id)?;
