@@ -24,7 +24,6 @@ pub enum WriteError {
 #[derive(Default)]
 pub struct WriterFile {}
 
-#[cfg_attr(test, automock)]
 impl WriterFile {
     #[cfg(target_family = "unix")]
     pub fn write(
@@ -67,17 +66,30 @@ pub mod test {
     use std::io::{Error, ErrorKind};
     use std::path::{Path, PathBuf};
 
-    #[double]
-    use crate::config::persister::config_writer_file::WriterFile;
-    #[double]
+    // #[double]
+    // use crate::config::persister::config_writer_file::WriterFile;
+    // #[double]
     use crate::file_reader::FSFileReader;
-    use mockall::predicate;
+    use mockall::{mock, predicate};
     use mockall_double::double;
+
+    // #[cfg_attr(test, automock)]
+
+    mock! {
+        pub WriterFile{
+             pub fn write(
+        &self,
+        path: &Path,
+        content: String,
+        permissions: Permissions,
+    ) -> Result<(), WriteError>;
+        }
+    }
 
     ////////////////////////////////////////////////////////////////////////////////////
     // Mock
     ////////////////////////////////////////////////////////////////////////////////////
-    impl WriterFile {
+    impl MockWriterFile {
         pub fn should_write(&mut self, path: &Path, content: String, permissions: Permissions) {
             let path_clone = PathBuf::from(path.to_str().unwrap().to_string().as_str());
             self.expect_write()

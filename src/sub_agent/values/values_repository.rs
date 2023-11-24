@@ -16,8 +16,11 @@ use log::error;
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::PermissionsExt;
 
-#[double]
+#[cfg(test)]
+use crate::config::persister::config_writer_file::test::MockWriterFile as WriterFile;
+#[cfg(not(test))]
 use crate::config::persister::config_writer_file::WriterFile;
+
 #[double]
 use crate::file_reader::FSFileReader;
 use mockall_double::double;
@@ -231,8 +234,8 @@ pub mod test {
     use std::os::unix::fs::PermissionsExt;
     use std::path::{Path, PathBuf};
 
-    #[double]
-    use crate::config::persister::config_writer_file::WriterFile;
+    use crate::config::persister::config_writer_file::test::MockWriterFile as WriterFile;
+
     #[double]
     use crate::file_reader::FSFileReader;
     use mockall_double::double;

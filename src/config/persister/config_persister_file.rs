@@ -13,9 +13,10 @@ use crate::config::persister::directory_manager::{
 use crate::config::super_agent_configs::AgentID;
 use crate::super_agent::defaults::SUPER_AGENT_DATA_DIR;
 
-#[double]
+#[cfg(test)]
+use crate::config::persister::config_writer_file::test::MockWriterFile as WriterFile;
+#[cfg(not(test))]
 use crate::config::persister::config_writer_file::WriterFile;
-use mockall_double::double;
 
 const GENERATED_FOLDER_NAME: &str = "auto-generated";
 #[cfg(target_family = "unix")]
@@ -212,9 +213,12 @@ mod test {
     use std::io::ErrorKind;
     use std::path::{Path, PathBuf};
 
-    #[double]
-    use crate::config::persister::config_writer_file::WriterFile;
-    use mockall_double::double;
+    // #[double]
+    // use crate::config::persister::config_writer_file::WriterFile;
+    // #[cfg(test)]
+    use crate::config::persister::config_writer_file::test::MockWriterFile as WriterFile;
+
+    // use mockall_double::double;
 
     #[cfg(target_family = "unix")]
     use std::os::unix::fs::PermissionsExt;
