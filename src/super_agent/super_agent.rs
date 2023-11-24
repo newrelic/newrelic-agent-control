@@ -125,9 +125,6 @@ where
 
         let output_manager = StdEventReceiver::default().log(rx);
 
-        // build and start the Agent's OpAMP client if a builder is provided
-        // let maybe_opamp_client = self.start_super_agent_opamp_client(ctx.clone())?;
-
         if let Some(opamp_handle) = &self.opamp_client {
             // TODO should we error on first launch with no hash file?
             let remote_config_hash = self
@@ -254,52 +251,6 @@ where
 
         Ok(())
     }
-
-    // fn start_super_agent_opamp_client(
-    //     &self,
-    //     ctx: Context<Option<SuperAgentEvent>>,
-    // ) -> Result<Option<OpAMPBuilder::Client>, AgentError> {
-    //     // build and start the Agent's OpAMP client if a builder is provided
-    //     let opamp_client_handle = match self.opamp_client_builder {
-    //         Some(builder) => {
-    //             info!("Starting superagent's OpAMP Client.");
-    //             let opamp_client = builder.build_and_start(
-    //                 ctx,
-    //                 self.agent_id().clone(),
-    //                 self.super_agent_start_settings()?,
-    //             )?;
-    //             Some(opamp_client)
-    //         }
-    //         None => None,
-    //     };
-
-    //     Ok(opamp_client_handle)
-    // }
-
-    // fn super_agent_start_settings(&self) -> Result<StartSettings, AgentError> {
-    //     Ok(StartSettings {
-    //         instance_id: self.instance_id_getter.get(self.agent_id())?.to_string(),
-    //         capabilities: default_capabilities(),
-    //         agent_description: AgentDescription {
-    //             identifying_attributes: HashMap::<String, DescriptionValueType>::from([
-    //                 ("service.name".to_string(), SUPER_AGENT_TYPE.into()),
-    //                 (
-    //                     "service.namespace".to_string(),
-    //                     SUPER_AGENT_NAMESPACE.into(),
-    //                 ),
-    //                 ("service.version".to_string(), SUPER_AGENT_VERSION.into()),
-    //             ]),
-    //             non_identifying_attributes: HashMap::from([(
-    //                 "host.name".to_string(),
-    //                 gethostname()
-    //                     .unwrap_or_default()
-    //                     .into_string()
-    //                     .unwrap()
-    //                     .into(),
-    //             )]),
-    //         },
-    //     })
-    // }
 
     fn process_events(
         &self,
