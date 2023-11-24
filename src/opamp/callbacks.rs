@@ -126,9 +126,9 @@ pub(crate) mod tests {
     use std::collections::HashMap;
 
     mock! {
-        pub CallbacksM {}
+        pub CallbacksMock {}
 
-        impl Callbacks for CallbacksM {
+        impl Callbacks for CallbacksMock {
             type Error = AgentCallbacksError;
 
             fn on_connect(&self);

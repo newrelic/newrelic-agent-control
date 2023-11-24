@@ -78,7 +78,7 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::opamp::callbacks::tests::MockCallbacksM;
+    use crate::opamp::callbacks::tests::MockCallbacksMock;
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
     use crate::opamp::operations::start_settings;
@@ -92,7 +92,7 @@ mod test {
     fn build_start_stop() {
         // opamp builder mock
         let instance_id = "k8s-test-instance-id";
-        let mut opamp_builder: MockOpAMPClientBuilderMock<MockCallbacksM> =
+        let mut opamp_builder: MockOpAMPClientBuilderMock<MockCallbacksMock> =
             MockOpAMPClientBuilderMock::new();
         let sub_agent_config = sub_agent_config();
         let start_settings = start_settings(
