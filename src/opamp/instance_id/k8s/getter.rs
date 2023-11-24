@@ -22,8 +22,6 @@ pub enum GetterError {
     K8s(#[from] k8s::Error),
 }
 
-const CM_PREFIX: &str = "super-agent-ulid";
-
 impl ULIDInstanceIDGetter<Storer> {
     pub async fn try_with_identifiers(
         namespace: String,
