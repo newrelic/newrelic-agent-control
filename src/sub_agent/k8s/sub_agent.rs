@@ -1,36 +1,25 @@
-use crate::sub_agent::k8s::supervisor::SupervisorTrait;
-use opamp_client::{operation::callbacks::Callbacks, StartedClient};
-
-use crate::k8s::executor::K8sDynamicObjectsManager;
 use crate::sub_agent::k8s::supervisor::Supervisor;
-use crate::sub_agent::k8s::supervisor::Supervisor;
-use crate::sub_agent::opamp::common::stop_opamp_client;
 use crate::{
     config::super_agent_configs::AgentID,
     opamp::operations::stop_opamp_client,
     sub_agent::{error::SubAgentError, NotStartedSubAgent, StartedSubAgent},
 };
+use opamp_client::{operation::callbacks::Callbacks, StartedClient};
 
 ////////////////////////////////////////////////////////////////////////////////////
 // Not Started SubAgent On K8s
 // C: OpAMP Client
 // S: Supervisor Trait
 ////////////////////////////////////////////////////////////////////////////////////
-pub struct NotStartedSubAgentK8s<CB, C>
+pub struct NotStartedSubAgentK8s<CB, C, S>
 where
     CB: Callbacks,
     C: StartedClient<CB>,
-{
-pub struct NotStartedSubAgentK8s<C, E>
-pub struct NotStartedSubAgentK8s<C, S>
-where
-    C: opamp_client::StartedClient,
     S: Supervisor,
 {
     agent_id: AgentID,
     opamp_client: Option<C>,
     supervisor: S,
-    // TODO: store CRs supervisors
 
     // Needed to include this in the struct to avoid the compiler complaining about not using the type parameter `C`.
     // It's actually used as a generic parameter for the `OpAMPClientBuilder` instance bound by type parameter `O`.
@@ -39,51 +28,29 @@ where
     // supervisor: Supervisor<K8sExecutor>,
 }
 
-impl<CB, C> NotStartedSubAgentK8s<CB, C>
+impl<CB, C, S> NotStartedSubAgentK8s<CB, C, S>
 where
     CB: Callbacks,
     C: StartedClient<CB>,
-{
-    pub fn new(agent_id: AgentID, opamp_client: Option<C>) -> Self {
-impl<C: opamp_client::StartedClient> NotStartedSubAgentK8s<C> {
-    pub fn new(
-        agent_id: AgentID,
-        opamp_client: Option<C>,
-        // supervisor: Supervisor<K8sExecutor>,
-    ) -> Self {
-    supervisor: Supervisor<E>,
-}
-
-impl<C, S> NotStartedSubAgentK8s<C, S>
-where
-    C: opamp_client::StartedClient,
     S: Supervisor,
 {
     pub fn new(agent_id: AgentID, opamp_client: Option<C>, supervisor: S) -> Self {
         NotStartedSubAgentK8s {
             agent_id,
             opamp_client,
-
-            _callbacks: std::marker::PhantomData,
-            // supervisor: supervisor,
             supervisor,
+            _callbacks: std::marker::PhantomData,
         }
     }
 }
 
-impl<CB, C> NotStartedSubAgent for NotStartedSubAgentK8s<CB, C>
+impl<CB, C, S> NotStartedSubAgent for NotStartedSubAgentK8s<CB, C, S>
 where
     CB: Callbacks,
     C: StartedClient<CB>,
-{
-    type StartedSubAgent = StartedSubAgentK8s<CB, C>;
-impl<C, E> NotStartedSubAgent for NotStartedSubAgentK8s<C, E>
-impl<C, S> NotStartedSubAgent for NotStartedSubAgentK8s<C, S>
-where
-    C: opamp_client::StartedClient,
     S: Supervisor,
 {
-    type StartedSubAgent = StartedSubAgentK8s<C, S>;
+    type StartedSubAgent = StartedSubAgentK8s<CB, C, S>;
 
     fn run(self) -> Result<Self::StartedSubAgent, SubAgentError> {
         self.supervisor.start().map_err(|e| {
@@ -103,61 +70,42 @@ where
 // C: OpAMP Client
 // S: Supervisor Trait
 ////////////////////////////////////////////////////////////////////////////////////
-pub struct StartedSubAgentK8s<CB, C>
+pub struct StartedSubAgentK8s<CB, C, S>
 where
     CB: Callbacks,
     C: StartedClient<CB>,
-{
-pub struct StartedSubAgentK8s<C, E>
-pub struct StartedSubAgentK8s<C, S>
-where
-    C: opamp_client::StartedClient,
     S: Supervisor,
 {
     agent_id: AgentID,
     opamp_client: Option<C>,
-    // TODO: CRs handle
+    supervisor: S,
 
     // Needed to include this in the struct to avoid the compiler complaining about not using the type parameter `C`.
     // It's actually used as a generic parameter for the `OpAMPClientBuilder` instance bound by type parameter `O`.
     // Feel free to remove this when the actual implementations (Callbacks instance for K8s agents) make it redundant!
     _callbacks: std::marker::PhantomData<CB>,
-    supervisor: Supervisor<E>,
-    supervisor: S,
 }
 
-impl<CB, C> StartedSubAgentK8s<CB, C>
+impl<CB, C, S> StartedSubAgentK8s<CB, C, S>
 where
     CB: Callbacks,
     C: StartedClient<CB>,
-{
-    fn new(agent_id: AgentID, opamp_client: Option<C>) -> Self {
-impl<C, E> StartedSubAgentK8s<C, E>
-impl<C, S> StartedSubAgentK8s<C, S>
-where
-    C: opamp_client::StartedClient,
     S: Supervisor,
 {
     fn new(agent_id: AgentID, opamp_client: Option<C>, supervisor: S) -> Self {
         StartedSubAgentK8s {
             agent_id,
             opamp_client,
-
-            _callbacks: std::marker::PhantomData,
             supervisor,
+            _callbacks: std::marker::PhantomData,
         }
     }
 }
 
-impl<CB, C> StartedSubAgent for StartedSubAgentK8s<CB, C>
+impl<CB, C, S> StartedSubAgent for StartedSubAgentK8s<CB, C, S>
 where
     CB: Callbacks,
     C: StartedClient<CB>,
-{
-impl<C, E> StartedSubAgent for StartedSubAgentK8s<C, E>
-impl<C, S> StartedSubAgent for StartedSubAgentK8s<C, S>
-where
-    C: opamp_client::StartedClient,
     S: Supervisor,
 {
     fn stop(self) -> Result<Vec<std::thread::JoinHandle<()>>, SubAgentError> {

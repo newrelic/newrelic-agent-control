@@ -30,7 +30,6 @@ pub struct K8sExecutor {
     dynamic_reflectors: HashMap<ApiResource, DynamicObjectReflector>,
 }
 
-#[cfg_attr(test, mockall::automock)]
 // TODO: This is just an example and once we've implemented the config, needs to be removed.
 // #[derive(Error, Debug)]
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -85,7 +84,7 @@ impl K8sDynamicObjectsManager for K8sExecutor {
     }
 }
 
-#[automock]
+#[cfg_attr(test, mockall::automock)]
 impl K8sExecutor {
     /// Constructs a new Kubernetes client.
     ///
@@ -289,6 +288,7 @@ pub(crate) mod test {
     use async_trait::async_trait;
     use k8s_openapi::serde_json;
     use kube::{core::GroupVersionKind, Client};
+    use mockall::mock;
     use tower_test::mock;
 
     mock! {

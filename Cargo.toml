@@ -40,9 +40,6 @@ kube = { version = "0.86.0", default-features = false, features = [
   "derive",
 ], optional = true }
 k8s-openapi = { version = "0.20.0", features = ["latest"], optional = true }
-kube = { version="0.87.1", default-features = false, features = ["client",
-"openssl-tls","runtime", "derive"], optional = true }
-k8s-openapi = { version= "0.20.0", features = ["latest"], optional = true }
 tower = { version = "0.4.13", features = [], optional = true }
 hyper = { version = "0.14.27", optional = true }
 

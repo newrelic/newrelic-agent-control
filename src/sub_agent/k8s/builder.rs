@@ -1,38 +1,23 @@
-use super::sub_agent::NotStartedSubAgentK8s;
-
-use std::collections::HashMap;
-use std::sync::Arc;
-
 use opamp_client::operation::callbacks::Callbacks;
 
-use super::sub_agent::NotStartedSubAgentK8s;
 use crate::config::super_agent_configs::SubAgentConfig;
 use crate::context::Context;
-use crate::k8s::executor::K8sDynamicObjectsManager;
-use crate::k8s::executor::K8sExecutor;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
-use crate::sub_agent::k8s::supervisor::Supervisor;
-use crate::sub_agent::opamp::common::build_opamp_and_start_client;
 use crate::opamp::operations::build_opamp_and_start_client;
 use crate::super_agent::super_agent::SuperAgentEvent;
 use crate::{
     config::super_agent_configs::AgentID,
-    config::super_agent_configs::SubAgentConfig,
-    context::Context,
     k8s::executor::K8sDynamicObjectsManager,
     opamp::client_builder::OpAMPClientBuilder,
-    opamp::instance_id::getter::InstanceIDGetter,
     sub_agent::k8s::supervisor::CRSupervisor,
-    sub_agent::opamp::common::build_opamp_and_start_client,
     sub_agent::{error::SubAgentBuilderError, logger::Event, SubAgentBuilder},
-    super_agent::super_agent::SuperAgentEvent,
 };
+use std::collections::HashMap;
+use std::sync::Arc;
 
 use super::sub_agent::NotStartedSubAgentK8s;
-use crate::sub_agent::k8s::supervisor::Supervisor;
 
-pub struct K8sSubAgentBuilder<'a, C, O, I>
-pub struct K8sSubAgentBuilder<'a, O, I, E>
+pub struct K8sSubAgentBuilder<'a, C, O, I, E>
 where
     C: Callbacks,
     O: OpAMPClientBuilder<C>,
@@ -47,12 +32,10 @@ where
     // Feel free to remove this when the actual implementations (Callbacks instance for K8s agents) make it redundant!
     _callbacks: std::marker::PhantomData<C>,
     // client: Client, Should we inject the client?
-    executor: Arc<Mutex<E>>,
     executor: Arc<E>,
 }
 
-impl<'a, C, O, I> K8sSubAgentBuilder<'a, C, O, I>
-impl<'a, O, I, E> K8sSubAgentBuilder<'a, O, I, E>
+impl<'a, C, O, I, E> K8sSubAgentBuilder<'a, C, O, I, E>
 where
     C: Callbacks,
     O: OpAMPClientBuilder<C>,
@@ -65,24 +48,19 @@ where
             instance_id_getter,
 
             _callbacks: std::marker::PhantomData,
-            // client: client,
             executor,
         }
     }
 }
 
-impl<'a, C, O, I> SubAgentBuilder for K8sSubAgentBuilder<'a, C, O, I>
-impl<'a, O, I, E> SubAgentBuilder for K8sSubAgentBuilder<'a, O, I, E>
+impl<'a, C, O, I, E> SubAgentBuilder for K8sSubAgentBuilder<'a, C, O, I, E>
 where
     C: Callbacks,
     O: OpAMPClientBuilder<C>,
     I: InstanceIDGetter,
     E: K8sDynamicObjectsManager + Send + Sync + 'static,
 {
-    type NotStartedSubAgent = NotStartedSubAgentK8s<C, O::Client>;
-    type NotStartedSubAgent = NotStartedSubAgentK8s<O::Client, E>;
-    type NotStartedSubAgent = NotStartedSubAgentK8s<O::Client, Supervisor<E>>;
-    type NotStartedSubAgent = NotStartedSubAgentK8s<O::Client, CRSupervisor<E>>;
+    type NotStartedSubAgent = NotStartedSubAgentK8s<C, O::Client, CRSupervisor<E>>;
 
     fn build(
         &self,
@@ -100,7 +78,6 @@ where
             HashMap::from([]), // TODO: check if we need to set non_identifying_attributes
         )?;
 
-        // let supervisor = Supervisor::new(self.executor.clone());
         let supervisor = CRSupervisor::new(Arc::clone(&self.executor));
 
         Ok(NotStartedSubAgentK8s::new(
@@ -119,13 +96,10 @@ mod test {
     use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
     use crate::opamp::operations::start_settings;
     use crate::{
-        opamp::client_builder::test::MockOpAMPClientBuilderMock,
         k8s::executor::test::MockK8sExecutorMock,
         k8s::executor::K8sResourceType,
-        opamp::client_builder::test::{MockOpAMPClientBuilderMock, MockOpAMPClientMock},
-        opamp::instance_id::getter::test::MockInstanceIDGetterMock,
+        opamp::client_builder::test::MockOpAMPClientBuilderMock,
         sub_agent::k8s::sample_crs::{OTELCOL_HELM_RELEASE_CR, OTEL_HELM_REPOSITORY_CR},
-        sub_agent::opamp::common::start_settings,
         sub_agent::{NotStartedSubAgent, StartedSubAgent},
     };
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
