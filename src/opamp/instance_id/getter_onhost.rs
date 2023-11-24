@@ -1,4 +1,4 @@
-use crate::opamp::instance_id::getter::{IdentifiersRetriever, ULIDInstanceIDGetter};
+use crate::opamp::instance_id::getter::ULIDInstanceIDGetter;
 use crate::opamp::instance_id::{Storer, StorerError};
 use serde::{Deserialize, Serialize};
 
@@ -16,17 +16,8 @@ pub enum GetterError {
 
 pub struct OnHostIdentifiersRetriever {}
 
-impl IdentifiersRetriever for OnHostIdentifiersRetriever {
-    fn get() -> Result<Identifiers, GetterError> {
-        Ok(Identifiers::default())
-    }
-}
-
 impl ULIDInstanceIDGetter<Storer> {
-    pub fn try_with_identifiers<I>() -> Result<Self, GetterError>
-    where
-        I: IdentifiersRetriever,
-    {
-        Ok(Self::new(Storer::new(), I::get()?))
+    pub fn try_with_identifiers(identifiers: Identifiers) -> Result<Self, GetterError> {
+        Ok(Self::new(Storer {}, identifiers))
     }
 }

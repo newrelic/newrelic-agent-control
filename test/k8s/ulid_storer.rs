@@ -2,6 +2,7 @@ use crate::common::K8sEnv;
 use newrelic_super_agent::opamp::instance_id::{
     self,
     getter::{InstanceIDGetter, ULIDInstanceIDGetter},
+    Identifiers,
 };
 
 const AGENT_ID_TEST: &str = "agent-id-test";
@@ -19,7 +20,7 @@ async fn k8s_ulid_persister() {
     let test_ns = test.test_namespace().await;
 
     let instance_id_getter =
-        ULIDInstanceIDGetter::try_with_identifiers::<instance_id::K8sIdentifiersRetriever>(test_ns)
+        ULIDInstanceIDGetter::try_with_identifiers(test_ns, Identifiers::default())
             .await
             .unwrap();
 

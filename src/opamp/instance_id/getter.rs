@@ -78,10 +78,6 @@ where
     }
 }
 
-pub trait IdentifiersRetriever {
-    fn get() -> Result<Identifiers, GetterError>;
-}
-
 #[derive(Deserialize, Serialize)]
 pub struct DataStored {
     pub ulid: InstanceID,

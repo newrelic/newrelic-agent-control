@@ -1,7 +1,7 @@
 use newrelic_super_agent::config::store::{SuperAgentConfigStore, SuperAgentConfigStoreFile};
 use newrelic_super_agent::opamp::instance_id;
 use newrelic_super_agent::opamp::instance_id::getter::ULIDInstanceIDGetter;
-use newrelic_super_agent::opamp::instance_id::Storer;
+use newrelic_super_agent::opamp::instance_id::{Identifiers, Storer};
 use newrelic_super_agent::opamp::remote_config_hash::HashRepositoryFile;
 use newrelic_super_agent::sub_agent::opamp::client_builder::SubAgentOpAMPHttpBuilder;
 use newrelic_super_agent::sub_agent::values::values_repository::ValuesRepositoryFile;
@@ -58,13 +58,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 
     #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
-    let instance_id_getter = ULIDInstanceIDGetter::try_with_identifiers::<
-        instance_id::K8sIdentifiersRetriever,
-    >("newrelic".to_string())
+    let instance_id_getter = ULIDInstanceIDGetter::try_with_identifiers(
+        "newrelic".to_string(),
+        instance_id::get_identifiers("fake_cluster".to_string()),
+    )
     .await?;
     #[cfg(feature = "onhost")]
-    let instance_id_getter =
-        ULIDInstanceIDGetter::try_with_identifiers::<instance_id::OnHostIdentifiersRetriever>()?;
+    let instance_id_getter = ULIDInstanceIDGetter::try_with_identifiers(Identifiers::default())?;
 
     #[cfg(any(feature = "onhost", feature = "k8s"))]
     return Ok(run_super_agent(
