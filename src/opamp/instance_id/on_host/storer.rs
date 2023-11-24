@@ -1,5 +1,6 @@
 use crate::opamp::instance_id::getter::{DataStored, InstanceID};
 use crate::opamp::instance_id::storer::InstanceIDStorer;
+use crate::opamp::instance_id::Identifiers;
 use ulid::Ulid;
 
 pub struct Storer {}
@@ -20,7 +21,7 @@ impl InstanceIDStorer for Storer {
         // TODO
         Ok(Some(DataStored {
             ulid: InstanceID::new(Ulid::new().to_string()),
-            identifiers: Default::default(),
+            identifiers: Identifiers::default(),
         }))
     }
 }

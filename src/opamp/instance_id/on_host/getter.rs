@@ -1,5 +1,5 @@
 use crate::opamp::instance_id::getter::ULIDInstanceIDGetter;
-use crate::opamp::instance_id::{Storer, StorerError};
+use crate::opamp::instance_id::on_host::storer::{Storer, StorerError};
 use serde::{Deserialize, Serialize};
 
 #[derive(Default, Debug, Deserialize, Serialize, PartialEq, Clone)]

@@ -1,6 +1,5 @@
-use super::GetterError;
+use super::{GetterError, Identifiers};
 use crate::opamp::instance_id::storer::InstanceIDStorer;
-use crate::opamp::instance_id::Identifiers;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 use tracing::debug;

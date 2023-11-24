@@ -4,19 +4,16 @@ pub mod storer;
 pub use getter::InstanceID;
 
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
-mod getter_k8s;
+mod k8s;
 #[cfg(feature = "onhost")]
-mod getter_onhost;
-#[cfg(all(not(feature = "onhost"), feature = "k8s"))]
-mod storer_k8s;
-#[cfg(feature = "onhost")]
-mod storer_onhost;
+mod on_host;
 
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
-pub use getter_k8s::*;
-#[cfg(feature = "onhost")]
-pub use getter_onhost::*;
+pub use k8s::getter::*;
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
-pub use storer_k8s::*;
+pub use k8s::storer::*;
+
 #[cfg(feature = "onhost")]
-pub use storer_onhost::*;
+pub use on_host::getter::*;
+#[cfg(feature = "onhost")]
+pub use on_host::storer::*;
