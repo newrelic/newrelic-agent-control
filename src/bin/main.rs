@@ -1,10 +1,10 @@
 use newrelic_super_agent::config::store::{SuperAgentConfigStore, SuperAgentConfigStoreFile};
-use newrelic_super_agent::opamp::instance_id;
 use newrelic_super_agent::opamp::instance_id::getter::ULIDInstanceIDGetter;
-use newrelic_super_agent::opamp::instance_id::{Identifiers, Storer};
+use newrelic_super_agent::opamp::instance_id::{self, Identifiers, Storer};
 use newrelic_super_agent::opamp::remote_config_hash::HashRepositoryFile;
 use newrelic_super_agent::sub_agent::values::values_repository::ValuesRepositoryFile;
 use newrelic_super_agent::super_agent::defaults::SUPER_AGENT_TYPE;
+use newrelic_super_agent::super_agent::error::AgentError;
 use newrelic_super_agent::super_agent::opamp::client_builder::SuperAgentOpAMPHttpBuilder;
 use newrelic_super_agent::super_agent::super_agent::{SuperAgent, SuperAgentEvent};
 use newrelic_super_agent::{cli::Cli, context::Context, logging::Logging};
