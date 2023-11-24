@@ -1,4 +1,5 @@
 use newrelic_super_agent::config::store::{SuperAgentConfigStore, SuperAgentConfigStoreFile};
+use newrelic_super_agent::config::super_agent_configs;
 use newrelic_super_agent::opamp::instance_id;
 use newrelic_super_agent::opamp::instance_id::getter::ULIDInstanceIDGetter;
 use newrelic_super_agent::opamp::instance_id::{Identifiers, Storer};
@@ -46,8 +47,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let mut super_agent_config_storer = SuperAgentConfigStoreFile::new(&cli.get_config_path());
 
-    let opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder> = super_agent_config_storer
-        .load()?
+    let super_agent_config = super_agent_config_storer.load()?;
+
+    let opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder> = super_agent_config
+        .clone()
         .opamp
         .as_ref()
         .map(|opamp_config| SuperAgentOpAMPHttpBuilder::new(opamp_config.clone()));
@@ -58,11 +61,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 
     #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
-    let instance_id_getter = ULIDInstanceIDGetter::try_with_identifiers(
-        "newrelic".to_string(),
-        instance_id::get_identifiers("fake_cluster".to_string()),
-    )
-    .await?;
+    let instance_id_getter = super_agent_config
+        .k8s
+        .map(|k8s_config| {
+            ULIDInstanceIDGetter::try_with_identifiers(
+                k8s_config.namespace,
+                instance_id::get_identifiers(k8s_config.cluster_name),
+            )
+        })
+        .ok_or("missing config field: \"k8s\"")?
+        .await?;
+
     #[cfg(feature = "onhost")]
     let instance_id_getter = ULIDInstanceIDGetter::try_with_identifiers(Identifiers::default())?;
 
