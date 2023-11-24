@@ -1576,7 +1576,7 @@ checksum = "dd8b5dd2ae5ed71462c540258bedcb51965123ad7e7ccf4b9a8cafaa4a63576d"
 [[package]]
 name = "opamp-client"
 version = "0.1.0"
-source = "git+ssh://git@github.com/newrelic/opamp-rs.git?branch=add_callbacks_to_interface#c93b49199a2252cd98d795a1032a9016d63206cd"
+source = "git+ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.7#51bf91404985aa72ff754ed7150cebbcbd4e5e79"
 dependencies = [
  "async-recursion",
  "async-trait",

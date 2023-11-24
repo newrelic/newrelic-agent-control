@@ -1072,7 +1072,7 @@ Distributed under the following license(s):
 
 
 
-## opamp-client (git+ssh://git@github.com/newrelic/opamp-rs.git?branch=add_callbacks_to_interface#c93b49199a2252cd98d795a1032a9016d63206cd)
+## opamp-client (git+ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.7#51bf91404985aa72ff754ed7150cebbcbd4e5e79)
 
 Distributed under the following license(s):
 * Apache-2.0
