@@ -39,11 +39,14 @@ impl ReflectorBuilder {
             label_selector: None,
         }
     }
+
+    #[allow(dead_code)]
     pub fn with_fields(mut self, field_selector: String) -> Self {
         self.field_selector = Some(field_selector);
         self
     }
 
+    #[allow(dead_code)]
     pub fn with_labels(mut self, labels: String) -> Self {
         self.label_selector = Some(labels);
         self

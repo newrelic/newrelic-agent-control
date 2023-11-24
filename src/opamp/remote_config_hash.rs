@@ -366,14 +366,14 @@ state: applied
     fn test_hash_deserialization() {
         let mut hash = Hash::new("123456789".to_string());
         let content = "hash: '123456789'\nstate: applying\n";
-        assert_eq!(hash, serde_yaml::from_str::<Hash>(&content).unwrap());
+        assert_eq!(hash, serde_yaml::from_str::<Hash>(content).unwrap());
 
         hash.apply();
         let content = "hash: '123456789'\nstate: applied\n";
-        assert_eq!(hash, serde_yaml::from_str::<Hash>(&content).unwrap());
+        assert_eq!(hash, serde_yaml::from_str::<Hash>(content).unwrap());
 
         hash.fail("this is an error message".to_string());
         let content = "hash: '123456789'\nstate: failed\nerror_message: this is an error message\n";
-        assert_eq!(hash, serde_yaml::from_str::<Hash>(&content).unwrap());
+        assert_eq!(hash, serde_yaml::from_str::<Hash>(content).unwrap());
     }
 }
