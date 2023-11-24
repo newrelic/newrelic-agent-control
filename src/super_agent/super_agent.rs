@@ -907,19 +907,19 @@ config_file: /some/path/newrelic-infra.yml
             (
                 AgentID::new("nrdot").unwrap(),
                 SubAgentConfig {
-                    agent_type: AgentTypeFQN("fqn_rdot".to_string()),
+                    agent_type: AgentTypeFQN::from("fqn_rdot"),
                 },
             ),
             (
                 AgentID::new("infra_agent").unwrap(),
                 SubAgentConfig {
-                    agent_type: AgentTypeFQN("fqn_infra_agent".to_string()),
+                    agent_type: AgentTypeFQN::from("fqn_infra_agent"),
                 },
             ),
             (
                 AgentID::new("fluent_bit").unwrap(),
                 SubAgentConfig {
-                    agent_type: AgentTypeFQN("fqn_fluent_bit".to_string()),
+                    agent_type: AgentTypeFQN::from("fqn_fluent_bit"),
                 },
             ),
         ]));
@@ -930,7 +930,7 @@ config_file: /some/path/newrelic-infra.yml
         sub_agent_builder.should_build_running(
             &sub_agent_id,
             SubAgentConfig {
-                agent_type: AgentTypeFQN("fqn_infra_agent".to_string()),
+                agent_type: AgentTypeFQN::from("fqn_infra_agent"),
             },
         );
 
@@ -992,19 +992,19 @@ config_file: /some/path/newrelic-infra.yml
             (
                 AgentID::new("nrdot").unwrap(),
                 SubAgentConfig {
-                    agent_type: AgentTypeFQN("fqn_rdot".to_string()),
+                    agent_type: AgentTypeFQN::from("fqn_rdot"),
                 },
             ),
             (
                 AgentID::new("infra_agent").unwrap(),
                 SubAgentConfig {
-                    agent_type: AgentTypeFQN("fqn_infra_agent".to_string()),
+                    agent_type: AgentTypeFQN::from("fqn_infra_agent"),
                 },
             ),
             (
                 AgentID::new("fluent_bit").unwrap(),
                 SubAgentConfig {
-                    agent_type: AgentTypeFQN("fqn_fluent_bit".to_string()),
+                    agent_type: AgentTypeFQN::from("fqn_fluent_bit"),
                 },
             ),
         ]));
@@ -1015,7 +1015,7 @@ config_file: /some/path/newrelic-infra.yml
         sub_agent_builder.should_build_running(
             &sub_agent_id,
             SubAgentConfig {
-                agent_type: AgentTypeFQN("fqn_infra_agent".to_string()),
+                agent_type: AgentTypeFQN::from("fqn_infra_agent"),
             },
         );
 

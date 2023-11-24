@@ -4,6 +4,7 @@ use newrelic_super_agent::opamp::instance_id::getter::ULIDInstanceIDGetter;
 use newrelic_super_agent::opamp::instance_id::{Identifiers, Storer};
 use newrelic_super_agent::opamp::remote_config_hash::HashRepositoryFile;
 use newrelic_super_agent::sub_agent::values::values_repository::ValuesRepositoryFile;
+use newrelic_super_agent::super_agent::defaults::SUPER_AGENT_TYPE;
 use newrelic_super_agent::super_agent::opamp::client_builder::SuperAgentOpAMPHttpBuilder;
 use newrelic_super_agent::super_agent::super_agent::{SuperAgent, SuperAgentEvent};
 use newrelic_super_agent::{cli::Cli, context::Context, logging::Logging};
@@ -118,7 +119,7 @@ fn run_super_agent(
         opamp_client_builder.as_ref(),
         &instance_id_getter,
         AgentID::new_super_agent_id(),
-        &AgentTypeFQN("jfkds".to_string()),
+        &AgentTypeFQN::from(SUPER_AGENT_TYPE),
         HashMap::new(),
     )?;
 
@@ -162,7 +163,7 @@ fn run_super_agent(
         opamp_client_builder.as_ref(),
         &instance_id_getter,
         AgentID::new_super_agent_id(),
-        &AgentTypeFQN("jfkds".to_string()),
+        &AgentTypeFQN::from(SUPER_AGENT_TYPE),
         HashMap::new(),
     )?;
 
