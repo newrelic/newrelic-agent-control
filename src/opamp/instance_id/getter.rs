@@ -1,15 +1,9 @@
-use crate::opamp::instance_id::storer::{InstanceIDStorer, StorerError};
-use crate::opamp::instance_id::{Identifiers, Storer};
+use super::{GetterError, Identifiers};
+use crate::opamp::instance_id::storer::InstanceIDStorer;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 use tracing::debug;
 use ulid::Ulid;
-
-#[derive(thiserror::Error, Debug)]
-pub enum GetterError {
-    #[error("failed to persist Data: `{0}`")]
-    Persisting(#[from] StorerError),
-}
 
 // InstanceID holds the to_string of Ulid assigned to a Agent
 #[derive(Default, Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -83,12 +77,6 @@ where
     }
 }
 
-impl Default for ULIDInstanceIDGetter<Storer> {
-    fn default() -> Self {
-        Self::new(Storer {}, Identifiers::default())
-    }
-}
-
 #[derive(Deserialize, Serialize)]
 pub struct DataStored {
     pub ulid: InstanceID,
@@ -98,9 +86,9 @@ pub struct DataStored {
 #[cfg(test)]
 pub mod test {
     use super::*;
-    use crate::opamp::instance_id::getter::{DataStored, InstanceIDGetter, ULIDInstanceIDGetter};
+    use crate::opamp::instance_id::getter::{DataStored, ULIDInstanceIDGetter};
     use crate::opamp::instance_id::storer::test::MockInstanceIDStorerMock;
-    use crate::opamp::instance_id::storer::StorerError;
+    use crate::opamp::instance_id::StorerError;
     use mockall::{mock, predicate};
 
     mock! {

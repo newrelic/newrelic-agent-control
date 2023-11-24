@@ -49,7 +49,6 @@ impl OpAMPClientBuilder for SuperAgentOpAMPHttpBuilder {
             start_time_unix_nano: get_sys_time_nano()?,
             last_error: "".to_string(),
         }))?;
-
         Ok(started_client)
     }
 }

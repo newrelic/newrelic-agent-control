@@ -5,7 +5,7 @@ use std::time::SystemTimeError;
 use crate::config::agent_values::AgentValuesError;
 use crate::config::persister::config_persister::PersistError;
 use crate::file_reader::FileReaderError;
-use crate::opamp::instance_id::getter;
+use crate::opamp::instance_id;
 use crate::opamp::remote_config::RemoteConfigError;
 use crate::opamp::remote_config_hash::HashRepositoryError;
 use crate::sub_agent::error::{SubAgentBuilderError, SubAgentCollectionError, SubAgentError};
@@ -60,7 +60,7 @@ pub enum AgentError {
     PersistError(#[from] PersistError),
 
     #[error("error getting agent ulid: `{0}`")]
-    GetUlidError(#[from] getter::GetterError),
+    GetUlidError(#[from] instance_id::GetterError),
 
     #[error("`Effective agent error: {0}`")]
     EffectiveAgentsError(#[from] EffectiveAgentsError),

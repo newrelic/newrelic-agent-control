@@ -2,8 +2,8 @@ use super::{
     error::K8sError,
     reader::{DynamicObjectReflector, ReflectorBuilder},
 };
+use k8s_openapi::api::core::v1::ConfigMap;
 use k8s_openapi::api::core::v1::Pod;
-use kube::config::KubeConfigOptions;
 use kube::core::DynamicObject;
 use kube::{
     api::{DeleteParams, PostParams},
@@ -14,8 +14,12 @@ use kube::{
     core::GroupVersionKind,
     Api, Client, Config,
 };
+use kube::{config::KubeConfigOptions, core::ObjectMeta};
 use mockall::*;
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+};
 use tracing::debug;
 
 const SA_ACTOR: &str = "super-agent-patch";
@@ -140,6 +144,53 @@ impl K8sExecutor {
         let pod_client: Api<Pod> = Api::default_namespaced(self.client.clone());
         let pod_list = pod_client.list(&ListParams::default()).await?;
         Ok(pod_list.items)
+    }
+
+    pub async fn get_configmap_key(
+        &self,
+        configmap_name: &str,
+        key: &str,
+    ) -> Result<Option<String>, K8sError> {
+        let cm_client: Api<ConfigMap> = Api::<ConfigMap>::default_namespaced(self.client.clone());
+        let cm_res = cm_client.get_opt(configmap_name).await?;
+
+        match cm_res {
+            Some(cm) => {
+                let data = cm.data.ok_or(K8sError::CMMalformed())?;
+                let value = data.get(key).ok_or(K8sError::KeyIsMissing())?;
+
+                Ok(Some(value.to_string()))
+            }
+            None => Ok(None),
+        }
+    }
+
+    pub async fn set_configmap_key(
+        &self,
+        configmap_name: &str,
+        key: &str,
+        value: &str,
+    ) -> Result<(), K8sError> {
+        let cm_client: Api<ConfigMap> = Api::<ConfigMap>::default_namespaced(self.client.clone());
+        cm_client
+            .entry(configmap_name)
+            .await?
+            .or_insert(|| ConfigMap {
+                metadata: ObjectMeta {
+                    name: Some(configmap_name.to_string()),
+                    // TODO The deployment should be the owner of this object
+                    ..ObjectMeta::default()
+                },
+                ..Default::default()
+            })
+            .and_modify(|cm| {
+                cm.data
+                    .get_or_insert_with(BTreeMap::default)
+                    .insert(key.to_string(), value.to_string());
+            })
+            .commit(&kube::api::PostParams::default())
+            .await?;
+        Ok(())
     }
 
     // TODO this can be cached, or specialized in a similar way as the reflectors, so is not called on each operation.
