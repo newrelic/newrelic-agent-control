@@ -99,10 +99,13 @@ pub mod test {
 identifiers:
   cluster_name: ''
 ";
-
+    const ULID: &str = "01HFW1YZKYWHTGC0WMWPNR4P4K";
     const EXPECTED_CM_NAME: &str = "ulid-data-agent1";
+
     #[test]
-    fn test_cm_name() {
+    fn test_input_parameters_dependencies() {
+        // In this tests we are checking that the parameters are passed as expected and that cm names are built in the proper way
+        // The output of the commands are checked in following tests.
         let mut m = MockK8sExecutor::default();
         m.expect_get_configmap_key()
             .once()
@@ -124,7 +127,7 @@ identifiers:
         let _ = s.set(
             AGENT_NAME,
             &DataStored {
-                ulid: InstanceID::new("01HFW1YZKYWHTGC0WMWPNR4P4K".to_string()),
+                ulid: InstanceID::new(ULID.to_string()),
                 identifiers: Default::default(),
             },
         );
@@ -168,10 +171,7 @@ identifiers:
         let id_un = id.unwrap();
         assert!(id_un.is_some());
         let td = id_un.unwrap();
-        assert_eq!(
-            td.ulid,
-            InstanceID::new("01HFW1YZKYWHTGC0WMWPNR4P4K".to_string())
-        )
+        assert_eq!(td.ulid, InstanceID::new(ULID.to_string()))
     }
 
     #[test]
