@@ -37,7 +37,7 @@ impl K8sExecutor {
     /// This will respect the `$KUBECONFIG` envvar, but otherwise default to `~/.kube/config`.
     /// Not leveraging infer() to check inClusterConfig first
     ///
-    pub async fn try_default(namespace: String) -> Result<K8sExecutor, K8sError> {
+    pub async fn try_default(namespace: String) -> Result<Self, K8sError> {
         debug!("trying inClusterConfig for k8s client");
 
         let mut config = match Config::incluster() {
@@ -60,9 +60,9 @@ impl K8sExecutor {
         Ok(Self::new(client))
     }
 
-    pub fn new(client: Client) -> K8sExecutor {
+    pub fn new(client: Client) -> Self {
         let reflector_builder = ReflectorBuilder::new(client.to_owned());
-        K8sExecutor {
+        Self {
             client,
             reflector_builder,
             dynamic_reflectors: HashMap::new(),
