@@ -2,7 +2,7 @@ use newrelic_super_agent::config::store::{SuperAgentConfigStore, SuperAgentConfi
 use newrelic_super_agent::config::super_agent_configs;
 use newrelic_super_agent::opamp::instance_id;
 use newrelic_super_agent::opamp::instance_id::getter::ULIDInstanceIDGetter;
-use newrelic_super_agent::opamp::instance_id::{self, Identifiers, Storer};
+use newrelic_super_agent::opamp::instance_id::{Identifiers, Storer};
 use newrelic_super_agent::opamp::remote_config_hash::HashRepositoryFile;
 use newrelic_super_agent::sub_agent::values::values_repository::ValuesRepositoryFile;
 use newrelic_super_agent::super_agent::defaults::SUPER_AGENT_TYPE;
