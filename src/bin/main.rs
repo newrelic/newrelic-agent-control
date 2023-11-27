@@ -48,7 +48,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let super_agent_config = super_agent_config_storer.load()?;
 
-    let opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder> = (&super_agent_config)
+    let opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder> = super_agent_config
         .opamp
         .as_ref()
         .map(|opamp_config| SuperAgentOpAMPHttpBuilder::new(opamp_config.clone()));
