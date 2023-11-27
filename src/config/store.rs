@@ -205,7 +205,7 @@ agents:
             agents: HashMap::from([(
                 AgentID::new("rolldice").unwrap(),
                 SubAgentConfig {
-                    agent_type: AgentTypeFQN("com.newrelic.infrastructure_agent:0.0.2".to_string()),
+                    agent_type: AgentTypeFQN::from("com.newrelic.infrastructure_agent:0.0.2"),
                 },
             )])
             .into(),

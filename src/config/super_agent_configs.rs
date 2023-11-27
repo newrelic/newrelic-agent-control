@@ -137,7 +137,7 @@ impl SubAgentsConfig {
 }
 
 #[derive(Debug, PartialEq, Deserialize, Serialize, Clone)]
-pub struct AgentTypeFQN(pub String);
+pub struct AgentTypeFQN(String);
 
 impl Deref for AgentTypeFQN {
     type Target = str;

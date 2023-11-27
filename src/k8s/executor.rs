@@ -15,7 +15,6 @@ use kube::{
     Api, Client, Config,
 };
 use kube::{config::KubeConfigOptions, core::ObjectMeta};
-use mockall::*;
 use std::{
     collections::{BTreeMap, HashMap},
     sync::Arc,
@@ -30,7 +29,7 @@ pub struct K8sExecutor {
     dynamic_reflectors: HashMap<ApiResource, DynamicObjectReflector>,
 }
 
-#[automock]
+#[cfg_attr(test, mockall::automock)]
 impl K8sExecutor {
     /// Constructs a new Kubernetes client.
     ///

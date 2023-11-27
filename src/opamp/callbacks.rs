@@ -115,7 +115,7 @@ fn log_on_http_status_code(err: &ConnectionError) {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::opamp::remote_config::{ConfigMap, RemoteConfig};
     use crate::opamp::remote_config_hash::Hash;
@@ -124,6 +124,23 @@ mod tests {
     use mockall::{mock, predicate};
     use opamp_client::opamp::proto::{AgentConfigFile, AgentConfigMap, AgentRemoteConfig};
     use std::collections::HashMap;
+
+    mock! {
+        pub CallbacksMock {}
+
+        impl Callbacks for CallbacksMock {
+            type Error = AgentCallbacksError;
+
+            fn on_connect(&self);
+            fn on_connect_failed(&self, err: ConnectionError);
+            fn on_error(&self, err: ServerErrorResponse);
+            fn on_message(&self, msg: MessageData);
+            fn on_opamp_connection_settings(&self, settings: &OpAmpConnectionSettings) -> Result<(), <Self as Callbacks>::Error>;
+            fn on_opamp_connection_settings_accepted(&self, settings: &OpAmpConnectionSettings);
+            fn on_command(&self, command: &ServerToAgentCommand) -> Result<(), <Self as Callbacks>::Error>;
+            fn get_effective_config(&self) -> Result<EffectiveConfig, <Self as Callbacks>::Error>;
+        }
+    }
 
     mock! {
         pub RemoteConfigPublisherMock {}
@@ -144,6 +161,7 @@ mod tests {
                 .returning(move |_| event.clone());
         }
 
+        #[allow(dead_code)]
         pub fn should_on_config_err(&mut self, err: RemoteConfigError, event: SuperAgentEvent) {
             let event = event.clone();
             self.expect_on_config_err()

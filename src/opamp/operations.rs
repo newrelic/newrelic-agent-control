@@ -1,33 +1,40 @@
 use std::collections::HashMap;
 
-use futures::executor::block_on;
-use opamp_client::{
-    opamp::proto::AgentHealth,
-    operation::settings::{AgentDescription, DescriptionValueType, StartSettings},
-};
-use tracing::info;
-
-use crate::opamp::instance_id::getter::InstanceIDGetter;
-use crate::sub_agent::error::SubAgentError;
 use crate::{
     config::super_agent_configs::{AgentID, AgentTypeFQN},
     context::Context,
-    opamp::client_builder::{OpAMPClientBuilder, OpAMPClientBuilderError},
+    sub_agent::error::SubAgentError,
     super_agent::super_agent::SuperAgentEvent,
     utils::time::get_sys_time_nano,
 };
+use futures::executor::block_on;
+use opamp_client::opamp::proto::AgentHealth;
+use opamp_client::{
+    operation::{
+        callbacks::Callbacks,
+        settings::{AgentDescription, DescriptionValueType, StartSettings},
+    },
+    StartedClient,
+};
+use tracing::info;
 
-pub fn build_opamp_and_start_client<OpAMPBuilder, InstanceIdGetter>(
+use super::{
+    client_builder::{OpAMPClientBuilder, OpAMPClientBuilderError},
+    instance_id::getter::InstanceIDGetter,
+};
+
+pub fn build_opamp_and_start_client<CB, OB, IG>(
     ctx: Context<Option<SuperAgentEvent>>,
-    opamp_builder: Option<&OpAMPBuilder>,
-    instance_id_getter: &InstanceIdGetter,
+    opamp_builder: Option<&OB>,
+    instance_id_getter: &IG,
     agent_id: AgentID,
     agent_type: &AgentTypeFQN,
     non_identifying_attributes: HashMap<String, DescriptionValueType>,
-) -> Result<Option<OpAMPBuilder::Client>, OpAMPClientBuilderError>
+) -> Result<Option<OB::Client>, OpAMPClientBuilderError>
 where
-    OpAMPBuilder: OpAMPClientBuilder,
-    InstanceIdGetter: InstanceIDGetter,
+    CB: Callbacks,
+    OB: OpAMPClientBuilder<CB>,
+    IG: InstanceIDGetter,
 {
     match opamp_builder {
         Some(builder) => {
@@ -48,7 +55,7 @@ where
 }
 
 /// Builds and start an OpAMP client when a builder is provided.
-pub fn start_opamp_client<O: OpAMPClientBuilder>(
+pub fn start_opamp_client<CB: Callbacks, O: OpAMPClientBuilder<CB>>(
     ctx: Context<Option<SuperAgentEvent>>,
     opamp_builder: Option<&O>,
     agent_id: AgentID,
@@ -88,7 +95,7 @@ pub fn start_settings(
 }
 
 /// Stops an started OpAMP client.
-pub fn stop_opamp_client<C: opamp_client::StartedClient>(
+pub fn stop_opamp_client<CB: Callbacks, C: StartedClient<CB>>(
     client: Option<C>,
     agent_id: &AgentID,
 ) -> Result<(), SubAgentError> {
