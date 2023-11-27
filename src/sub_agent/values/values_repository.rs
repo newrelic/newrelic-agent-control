@@ -112,8 +112,7 @@ where
     // Load a file contents only if the file is present.
     // If the file is not present there is no error nor file
     fn load_file_if_present(&self, path: PathBuf) -> Result<Option<String>, ValuesRepositoryError> {
-        let remote_values_path = path.to_str().ok_or(ValuesRepositoryError::IncorrectPath)?;
-        let values_result = self.file_reader.read(remote_values_path);
+        let values_result = self.file_reader.read(path.as_path());
         match values_result {
             Err(FileReaderError::FileNotFound(_)) => {
                 //actively fallback to load local file
@@ -122,7 +121,7 @@ where
             Ok(res) => Ok(Some(res)),
             Err(err) => {
                 // we log any unexpected error for now but maybe we should propagate it
-                error!("error loading remote file {}", remote_values_path);
+                error!("error loading remote file {}", path.display());
                 Err(err.into())
             }
         }
@@ -348,7 +347,7 @@ pub mod test {
         let agent_values_content = "some_config: true\nanother_item: false";
 
         file_reader.should_read(
-            "some/remote/path/some_agent_id/values.yml".to_string(),
+            &Path::new("some/remote/path/some_agent_id/values.yml"),
             agent_values_content.to_string(),
         );
 
@@ -390,7 +389,7 @@ pub mod test {
         let agent_values_content = "some_config: true\nanother_item: false";
 
         file_reader.should_read(
-            "some/local/path/some_agent_id/values.yml".to_string(),
+            &Path::new("some/local/path/some_agent_id/values.yml"),
             agent_values_content.to_string(),
         );
 
@@ -432,12 +431,12 @@ pub mod test {
         let agent_values_content = "some_config: true\nanother_item: false";
 
         file_reader.should_not_read_file_not_found(
-            "some/remote/path/some_agent_id/values.yml".to_string(),
+            &Path::new("some/remote/path/some_agent_id/values.yml"),
             "some_error_message".to_string(),
         );
 
         file_reader.should_read(
-            "some/local/path/some_agent_id/values.yml".to_string(),
+            &Path::new("some/local/path/some_agent_id/values.yml"),
             agent_values_content.to_string(),
         );
 
@@ -477,7 +476,7 @@ pub mod test {
         final_agent.set_capabilities(default_capabilities());
 
         file_reader.should_not_read_file_not_found(
-            "some/local/path/some_agent_id/values.yml".to_string(),
+            &Path::new("some/local/path/some_agent_id/values.yml"),
             "some message".to_string(),
         );
 
@@ -510,7 +509,7 @@ pub mod test {
         final_agent.set_capabilities(default_capabilities());
 
         file_reader
-            .should_not_read_io_error("some/remote/path/some_agent_id/values.yml".to_string());
+            .should_not_read_io_error(&Path::new("some/remote/path/some_agent_id/values.yml"));
 
         let repo = ValuesRepositoryFile::with_mocks(
             file_writer,
@@ -545,7 +544,7 @@ pub mod test {
         final_agent.set_capabilities(default_capabilities());
 
         file_reader
-            .should_not_read_io_error("some/local/path/some_agent_id/values.yml".to_string());
+            .should_not_read_io_error(&Path::new("some/local/path/some_agent_id/values.yml"));
 
         let repo = ValuesRepositoryFile::with_mocks(
             file_writer,
