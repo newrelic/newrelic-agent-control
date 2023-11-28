@@ -19,25 +19,13 @@ pub enum WriteError {
     InvalidPath(#[from] FsError),
 }
 
-/// Writer writes the given content in the given path
-/// path needs to exist and it has to be writeable
-/// if path doesn't exist or is not writeable a WriteError will be returned
-pub trait Writer {
-    #[cfg(target_family = "unix")]
-    fn write(
-        &self,
-        path: &Path,
-        content: String,
-        permissions: Permissions,
-    ) -> Result<(), WriteError>;
-}
-
 #[derive(Default)]
 pub struct WriterFile {}
 
-impl Writer for WriterFile {
+#[cfg_attr(test, mockall::automock)]
+impl WriterFile {
     #[cfg(target_family = "unix")]
-    fn write(
+    pub fn write(
         &self,
         path: &Path,
         content: String,
@@ -78,9 +66,9 @@ pub mod test {
     use std::path::{Path, PathBuf};
     use std::{fs, io};
 
-    use mockall::{mock, predicate};
+    use mockall::predicate;
 
-    use super::{WriteError, Writer};
+    use super::{MockWriterFile, WriteError};
     use crate::config::persister::config_writer_file::WriterFile;
 
     #[cfg(target_family = "unix")]
@@ -178,15 +166,7 @@ pub mod test {
     ////////////////////////////////////////////////////////////////////////////////////
     // Mock
     ////////////////////////////////////////////////////////////////////////////////////
-    mock! {
-        pub(crate) FileWriterMock {}
-
-        impl Writer for FileWriterMock {
-             fn write(&self, path: &Path, content: String, permissions: Permissions)-> Result<(),WriteError>;
-        }
-    }
-
-    impl MockFileWriterMock {
+    impl MockWriterFile {
         pub fn should_write(&mut self, path: &Path, content: String, permissions: Permissions) {
             let path_clone = PathBuf::from(path.to_str().unwrap().to_string().as_str());
             self.expect_write()

@@ -1,7 +1,6 @@
 use crate::config::agent_type::agent_types::FinalAgent;
 use crate::config::agent_values::AgentValues;
 use crate::config::error::SuperAgentConfigError;
-use crate::config::persister::config_writer_file::WriterFile;
 use crate::config::persister::directory_manager::DirectoryManagerFs;
 use crate::config::store::{SubAgentsConfigStore, SuperAgentConfigStoreFile};
 use crate::config::super_agent_configs::{AgentID, SubAgentConfig, SubAgentsConfig};
@@ -55,7 +54,7 @@ pub struct SuperAgent<
     HR = HashRepositoryFile,
     SL = SuperAgentConfigStoreFile,
     HRS = HashRepositoryFile,
-    VR = ValuesRepositoryFile<DirectoryManagerFs, WriterFile>,
+    VR = ValuesRepositoryFile<DirectoryManagerFs>,
 > where
     O: StartedClient<SuperAgentCallbacks>,
     HR: HashRepository,

@@ -1,8 +1,5 @@
-#[cfg(feature = "onhost")]
 mod cli;
-
-#[cfg(feature = "onhost")]
 mod command;
-
-#[cfg(feature = "onhost")]
+mod config_persister;
 mod supervisor;
+mod values_repository;
