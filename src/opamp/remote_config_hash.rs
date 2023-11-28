@@ -153,13 +153,10 @@ where
 
     fn get(&self, agent_id: &AgentID) -> Result<Hash, HashRepositoryError> {
         let mut conf_path = self.conf_path.clone();
-        let hash_path = self.hash_file_path(agent_id, &mut conf_path).to_str();
-        if let Some(path) = hash_path {
-            let contents = self.file_reader.read(path)?;
-            let result = serde_yaml::from_str(&contents);
-            return Ok(result?);
-        }
-        Err(HashRepositoryError::WrongPath)
+        let hash_path = self.hash_file_path(agent_id, &mut conf_path);
+        let contents = self.file_reader.read(hash_path)?;
+        let result = serde_yaml::from_str(&contents);
+        Ok(result?)
     }
 }
 
@@ -296,10 +293,7 @@ state: applied
         let mut expected_path = some_path.clone();
         expected_path.push(format!("{}.{}", agent_id.get(), HASH_FILE_EXTENSION));
 
-        file_reader_mock.should_read(
-            expected_path.to_str().unwrap().to_string(),
-            content.to_string(),
-        );
+        file_reader_mock.should_read(expected_path.as_path(), content.to_string());
         file_writer_mock.should_write(
             expected_path.as_path(),
             content.to_string(),
