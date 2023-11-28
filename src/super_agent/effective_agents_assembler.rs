@@ -18,7 +18,7 @@ use crate::{
             config_persister_file::ConfigurationPersisterFile,
         },
     },
-    file_reader::{FSFileReader, FileReaderError},
+    file_reader::FileReaderError,
 };
 
 #[derive(Error, Debug)]
@@ -67,7 +67,7 @@ impl Default
     for LocalEffectiveAgentsAssembler<
         LocalRegistry,
         ConfigurationPersisterFile,
-        ValuesRepositoryFile<DirectoryManagerFs, WriterFile, FSFileReader>,
+        ValuesRepositoryFile<DirectoryManagerFs, WriterFile>,
     >
 {
     fn default() -> Self {

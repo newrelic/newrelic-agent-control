@@ -11,15 +11,12 @@ pub enum FileReaderError {
     FileNotFound(String),
 }
 
-pub trait FileReader {
-    fn read(&self, path: &Path) -> Result<String, FileReaderError>;
-}
-
 #[derive(Default)]
-pub struct FSFileReader;
+pub struct FSFileReader {}
 
-impl FileReader for FSFileReader {
-    fn read(&self, file_path: &Path) -> Result<String, FileReaderError> {
+#[cfg_attr(test, mockall::automock)]
+impl FSFileReader {
+    pub fn read(&self, file_path: &Path) -> Result<String, FileReaderError> {
         if !file_path.is_file() {
             return Err(FileReaderError::FileNotFound(format!(
                 "{}",
@@ -36,19 +33,11 @@ impl FileReader for FSFileReader {
 #[cfg(test)]
 pub mod test {
     use super::*;
-    use mockall::{mock, predicate};
+    use mockall::predicate;
     use std::io::{Error, ErrorKind};
     use std::path::PathBuf;
 
-    mock! {
-        pub FileReaderMock {}
-
-        impl FileReader for FileReaderMock {
-            fn read(&self, path:&Path) -> Result<String, FileReaderError>;
-        }
-    }
-
-    impl MockFileReaderMock {
+    impl MockFSFileReader {
         pub fn should_read(&mut self, path: &Path, content: String) {
             self.expect_read()
                 .with(predicate::eq(PathBuf::from(path.clone())))
