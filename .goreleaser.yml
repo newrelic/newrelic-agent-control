@@ -61,6 +61,8 @@ nfpms:
           mode: 0700
       - dst: /var/lib/newrelic-super-agent/fleet/agents.d
         type: dir
+        file_info:
+          mode: 0700
       - dst: /var/lib/newrelic-super-agent/auto-generated
         type: dir
         file_info:
