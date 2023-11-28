@@ -11,20 +11,19 @@ pub enum FileReaderError {
     FileNotFound(String),
 }
 
-pub trait FileReader {
-    fn read(&self, path: &str) -> Result<String, FileReaderError>;
-}
-
 #[derive(Default)]
-pub struct FSFileReader;
+pub struct FSFileReader {}
 
-impl FileReader for FSFileReader {
-    fn read(&self, path: &str) -> Result<String, FileReaderError> {
-        let file_path = Path::new(&path);
+#[cfg_attr(test, mockall::automock)]
+impl FSFileReader {
+    pub fn read(&self, file_path: &Path) -> Result<String, FileReaderError> {
         if !file_path.is_file() {
-            return Err(FileReaderError::FileNotFound(path.to_string()));
+            return Err(FileReaderError::FileNotFound(format!(
+                "{}",
+                file_path.display()
+            )));
         }
-        match read_to_string(path) {
+        match read_to_string(file_path) {
             Err(e) => Err(FileReaderError::Read(e)),
             Ok(content) => Ok(content),
         }
@@ -34,35 +33,28 @@ impl FileReader for FSFileReader {
 #[cfg(test)]
 pub mod test {
     use super::*;
-    use mockall::{mock, predicate};
+    use mockall::predicate;
     use std::io::{Error, ErrorKind};
+    use std::path::PathBuf;
 
-    mock! {
-        pub FileReaderMock {}
-
-        impl FileReader for FileReaderMock {
-            fn read(&self, path:&str) -> Result<String, FileReaderError>;
-        }
-    }
-
-    impl MockFileReaderMock {
-        pub fn should_read(&mut self, path: String, content: String) {
+    impl MockFSFileReader {
+        pub fn should_read(&mut self, path: &Path, content: String) {
             self.expect_read()
-                .with(predicate::eq(path.clone()))
+                .with(predicate::eq(PathBuf::from(path)))
                 .times(1)
                 .returning(move |_| Ok(content.clone()));
         }
 
-        pub fn should_not_read_file_not_found(&mut self, path: String, error_message: String) {
+        pub fn should_not_read_file_not_found(&mut self, path: &Path, error_message: String) {
             self.expect_read()
-                .with(predicate::eq(path.clone()))
+                .with(predicate::eq(PathBuf::from(path)))
                 .once()
                 .returning(move |_| Err(FileReaderError::FileNotFound(error_message.clone())));
         }
 
-        pub fn should_not_read_io_error(&mut self, path: String) {
+        pub fn should_not_read_io_error(&mut self, path: &Path) {
             self.expect_read()
-                .with(predicate::eq(path.clone()))
+                .with(predicate::eq(PathBuf::from(path)))
                 .once()
                 .returning(move |_| {
                     Err(FileReaderError::Read(Error::from(
@@ -72,9 +64,9 @@ pub mod test {
         }
 
         // the test is not idempotent as it iterates hashmap. For now let's use this
-        pub fn could_read(&mut self, path: String, content: String) {
+        pub fn could_read(&mut self, path: &Path, content: String) {
             self.expect_read()
-                .with(predicate::eq(path.clone()))
+                .with(predicate::eq(PathBuf::from(path)))
                 .returning(move |_| Ok(content.clone()));
         }
     }

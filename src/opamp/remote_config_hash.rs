@@ -4,7 +4,9 @@ use crate::config::persister::directory_manager::{
     DirectoryManagementError, DirectoryManager, DirectoryManagerFs,
 };
 use crate::config::super_agent_configs::AgentID;
-use crate::file_reader::{FSFileReader, FileReader, FileReaderError};
+#[cfg_attr(test, mockall_double::double)]
+use crate::file_reader::FSFileReader;
+use crate::file_reader::FileReaderError;
 use crate::super_agent::defaults::{REMOTE_AGENT_DATA_DIR, SUPER_AGENT_DATA_DIR};
 use serde::{Deserialize, Serialize};
 use std::fs::Permissions;
@@ -99,24 +101,23 @@ pub trait HashRepository {
 
 const HASH_FILE_EXTENSION: &str = "yaml";
 
-pub struct HashRepositoryFile<R = FSFileReader, W = WriterFile, D = DirectoryManagerFs>
+pub struct HashRepositoryFile<W = WriterFile, D = DirectoryManagerFs>
 where
-    R: FileReader,
     W: Writer,
     D: DirectoryManager,
 {
-    file_reader: R,
+    file_reader: FSFileReader,
     file_writer: W,
     conf_path: PathBuf,
     directory_manager: D,
 }
 
-impl HashRepositoryFile<FSFileReader, WriterFile, DirectoryManagerFs> {
+impl HashRepositoryFile<WriterFile, DirectoryManagerFs> {
     // HashGetterPersisterFile with default writer and reader
     // and config path
     fn new(data_dir: String) -> Self {
         HashRepositoryFile {
-            file_reader: FSFileReader,
+            file_reader: FSFileReader::default(),
             file_writer: WriterFile::default(),
             conf_path: PathBuf::from(data_dir),
             directory_manager: DirectoryManagerFs::default(),
@@ -124,15 +125,14 @@ impl HashRepositoryFile<FSFileReader, WriterFile, DirectoryManagerFs> {
     }
 }
 
-impl Default for HashRepositoryFile<FSFileReader, WriterFile> {
+impl Default for HashRepositoryFile<WriterFile> {
     fn default() -> Self {
         HashRepositoryFile::new(SUPER_AGENT_DATA_DIR.to_string())
     }
 }
 
-impl<R, W, D> HashRepository for HashRepositoryFile<R, W, D>
+impl<W, D> HashRepository for HashRepositoryFile<W, D>
 where
-    R: FileReader,
     W: Writer,
     D: DirectoryManager,
 {
@@ -153,25 +153,21 @@ where
 
     fn get(&self, agent_id: &AgentID) -> Result<Hash, HashRepositoryError> {
         let mut conf_path = self.conf_path.clone();
-        let hash_path = self.hash_file_path(agent_id, &mut conf_path).to_str();
-        if let Some(path) = hash_path {
-            let contents = self.file_reader.read(path)?;
-            let result = serde_yaml::from_str(&contents);
-            return Ok(result?);
-        }
-        Err(HashRepositoryError::WrongPath)
+        let hash_path = self.hash_file_path(agent_id, &mut conf_path);
+        let contents = self.file_reader.read(hash_path)?;
+        let result = serde_yaml::from_str(&contents);
+        Ok(result?)
     }
 }
 
-impl HashRepositoryFile<FSFileReader, WriterFile> {
+impl HashRepositoryFile<WriterFile> {
     pub fn new_sub_agent_repository() -> Self {
         HashRepositoryFile::new(REMOTE_AGENT_DATA_DIR.to_string())
     }
 }
 
-impl<R, W, D> HashRepositoryFile<R, W, D>
+impl<W, D> HashRepositoryFile<W, D>
 where
-    R: FileReader,
     W: Writer,
     D: DirectoryManager,
 {
@@ -207,8 +203,7 @@ pub mod test {
     use crate::config::persister::directory_manager::test::MockDirectoryManagerMock;
     use crate::config::persister::directory_manager::DirectoryManager;
     use crate::config::super_agent_configs::AgentID;
-    use crate::file_reader::test::MockFileReaderMock;
-    use crate::file_reader::FileReader;
+    use crate::file_reader::MockFSFileReader;
     use mockall::{mock, predicate};
     use std::fs::Permissions;
     use std::path::PathBuf;
@@ -257,14 +252,13 @@ pub mod test {
         }
     }
 
-    impl<R, W, D> HashRepositoryFile<R, W, D>
+    impl<W, D> HashRepositoryFile<W, D>
     where
-        R: FileReader,
         W: Writer,
         D: DirectoryManager,
     {
         pub fn with_mocks(
-            file_reader: R,
+            file_reader: MockFSFileReader,
             file_writer: W,
             directory_manager: D,
             conf_path: PathBuf,
@@ -282,7 +276,7 @@ pub mod test {
     fn test_save_and_get_hash() {
         let some_path = PathBuf::from("some/path");
         let mut file_writer_mock = MockFileWriterMock::new();
-        let mut file_reader_mock = MockFileReaderMock::new();
+        let mut file_reader_mock = MockFSFileReader::default();
         let file_permissions = Permissions::from_mode(FILE_PERMISSIONS);
         let agent_id = AgentID::new("SomeAgentID").unwrap();
         let mut hash = Hash::new("123456789".to_string());
@@ -296,10 +290,7 @@ state: applied
         let mut expected_path = some_path.clone();
         expected_path.push(format!("{}.{}", agent_id.get(), HASH_FILE_EXTENSION));
 
-        file_reader_mock.should_read(
-            expected_path.to_str().unwrap().to_string(),
-            content.to_string(),
-        );
+        file_reader_mock.should_read(expected_path.as_path(), content.to_string());
         file_writer_mock.should_write(
             expected_path.as_path(),
             content.to_string(),

@@ -54,6 +54,9 @@ impl AgentID {
     pub fn get(&self) -> String {
         String::from(&self.0)
     }
+    pub fn is_super_agent_id(&self) -> bool {
+        self.0.eq(SUPER_AGENT_ID)
+    }
 }
 
 impl Deref for AgentID {
@@ -80,6 +83,7 @@ impl Display for AgentID {
 /// SubAgentsConfig represents the configuration for the sub agents.
 #[derive(Debug, Deserialize, Serialize, Default, PartialEq, Clone)]
 pub struct SubAgentsConfig {
+    #[serde(default)]
     pub(crate) agents: HashMap<AgentID, SubAgentConfig>,
 }
 
@@ -113,7 +117,7 @@ impl TryFrom<&RemoteConfig> for SubAgentsConfig {
 #[serde(deny_unknown_fields)]
 pub struct SuperAgentConfig {
     /// agents is a map of agent types to their specific configuration (if any).
-    #[serde(default, flatten)]
+    #[serde(flatten)]
     pub agents: SubAgentsConfig,
 
     /// opamp contains the OpAMP client configuration
@@ -223,6 +227,13 @@ agents:
     agent_type: namespace/agent_type:0.0.1
 "#;
 
+    const EXAMPLE_SUPERAGENT_CONFIG_NO_AGENTS: &str = r#"
+opamp:
+  endpoint: http://localhost:8080/some/path
+  headers:
+    some-key: some-value
+"#;
+
     const EXAMPLE_SUBAGENTS_CONFIG: &str = r#"
 agents:
   agent_1:
@@ -299,6 +310,10 @@ k8s:
         assert!(serde_yaml::from_str::<SuperAgentConfig>(EXAMPLE_SUPERAGENT_CONFIG).is_ok());
         assert!(serde_yaml::from_str::<SubAgentsConfig>(EXAMPLE_SUBAGENTS_CONFIG).is_ok());
         assert!(serde_yaml::from_str::<SubAgentsConfig>(EXAMPLE_K8S_CONFIG).is_ok());
+        assert!(
+            serde_yaml::from_str::<SuperAgentConfig>(EXAMPLE_SUPERAGENT_CONFIG_NO_AGENTS).is_ok()
+        );
+        assert!(serde_yaml::from_str::<SubAgentsConfig>(EXAMPLE_SUBAGENTS_CONFIG).is_ok())
     }
 
     #[test]
