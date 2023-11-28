@@ -70,4 +70,15 @@ pub mod test {
                 .returning(move |_| Ok(content.clone()));
         }
     }
+
+    #[test]
+    fn test_file_not_found_should_return_error() {
+        let reader = FSFileReader::default();
+        let result = reader.read(Path::new("/a/path/that/does/not/exist"));
+        assert!(result.is_err());
+        assert_eq!(
+            String::from("file not found: `/a/path/that/does/not/exist`"),
+            result.unwrap_err().to_string()
+        );
+    }
 }

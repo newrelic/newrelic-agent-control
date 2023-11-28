@@ -1,19 +1,22 @@
 use newrelic_super_agent::config::store::{SuperAgentConfigStore, SuperAgentConfigStoreFile};
-use newrelic_super_agent::config::super_agent_configs;
 use newrelic_super_agent::event::event::{Event, SuperAgentEvent};
+#[cfg(feature = "k8s")]
 use newrelic_super_agent::opamp::instance_id;
 use newrelic_super_agent::opamp::instance_id::getter::ULIDInstanceIDGetter;
-use newrelic_super_agent::opamp::instance_id::{Identifiers, Storer};
+#[cfg(feature = "onhost")]
+use newrelic_super_agent::opamp::instance_id::IdentifiersProvider;
+use newrelic_super_agent::opamp::instance_id::Storer;
 use newrelic_super_agent::opamp::remote_config_hash::HashRepositoryFile;
 use newrelic_super_agent::sub_agent::values::values_repository::ValuesRepositoryFile;
 use newrelic_super_agent::super_agent::error::AgentError;
 use newrelic_super_agent::super_agent::opamp::client_builder::SuperAgentOpAMPHttpBuilder;
 use newrelic_super_agent::super_agent::super_agent::{super_agent_fqn, SuperAgent};
+use newrelic_super_agent::utils::hostname::HostnameGetter;
 use newrelic_super_agent::{cli::Cli, context::Context, logging::Logging};
-use nix::unistd::gethostname;
 use opamp_client::operation::settings::DescriptionValueType;
 use std::collections::HashMap;
 use std::error::Error;
+use std::ffi::OsString;
 use tracing::{error, info};
 
 #[cfg(all(feature = "onhost", feature = "k8s", not(feature = "ci")))]
@@ -74,7 +77,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .await?;
 
     #[cfg(feature = "onhost")]
-    let instance_id_getter = ULIDInstanceIDGetter::try_with_identifiers(Identifiers::default())?;
+    let instance_id_getter =
+        ULIDInstanceIDGetter::default().with_identifiers(IdentifiersProvider::default().provide());
 
     #[cfg(any(feature = "onhost", feature = "k8s"))]
     return Ok(run_super_agent(
@@ -208,12 +212,17 @@ fn create_shutdown_signal_handler(ctx: Context<Option<Event>>) -> Result<(), ctr
 }
 
 fn super_agent_opamp_non_identifying_attributes() -> HashMap<String, DescriptionValueType> {
+    let hostname = HostnameGetter::default()
+        .get()
+        .unwrap_or_else(|e| {
+            error!("cannot retrieve hostname: {}", e.to_string());
+            OsString::from("unknown_hostname")
+        })
+        .to_string_lossy()
+        .to_string();
+
     HashMap::from([(
         "host.name".to_string(),
-        gethostname()
-            .unwrap_or_default()
-            .into_string()
-            .unwrap()
-            .into(),
+        DescriptionValueType::String(hostname),
     )])
 }

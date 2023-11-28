@@ -1499,6 +1499,7 @@ dependencies = [
  "tower-test",
  "tracing",
  "tracing-subscriber",
+ "tracing-test",
  "ulid",
 ]
 

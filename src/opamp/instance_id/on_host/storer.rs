@@ -4,6 +4,7 @@ use crate::opamp::instance_id::storer::InstanceIDStorer;
 use crate::opamp::instance_id::Identifiers;
 use ulid::Ulid;
 
+#[derive(Default)]
 pub struct Storer {}
 
 #[derive(thiserror::Error, Debug)]
