@@ -9,7 +9,9 @@ use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 use crate::config::agent_type::agent_types::FinalAgent;
-use crate::config::persister::config_writer_file::{WriteError, Writer, WriterFile};
+use crate::config::persister::config_writer_file::WriteError;
+#[cfg_attr(test, mockall_double::double)]
+use crate::config::persister::config_writer_file::WriterFile;
 #[cfg_attr(test, mockall_double::double)]
 use crate::file_reader::FSFileReader;
 use crate::file_reader::FileReaderError;
@@ -57,24 +59,23 @@ pub trait ValuesRepository {
     fn delete_remote(&self, agent_id: &AgentID) -> Result<(), ValuesRepositoryError>;
 }
 
-pub struct ValuesRepositoryFile<S, F>
+pub struct ValuesRepositoryFile<S>
 where
     S: DirectoryManager,
-    F: Writer,
 {
     directory_manager: S,
-    writer: F,
+    writer: WriterFile,
     remote_conf_path: String,
     local_conf_path: String,
     remote_enabled: bool,
     file_reader: FSFileReader,
 }
 
-impl Default for ValuesRepositoryFile<DirectoryManagerFs, WriterFile> {
+impl Default for ValuesRepositoryFile<DirectoryManagerFs> {
     fn default() -> Self {
         ValuesRepositoryFile {
             directory_manager: DirectoryManagerFs {},
-            writer: WriterFile {},
+            writer: WriterFile::default(),
             remote_conf_path: REMOTE_AGENT_DATA_DIR.to_string(),
             local_conf_path: LOCAL_AGENT_DATA_DIR.to_string(),
             remote_enabled: false,
@@ -83,17 +84,30 @@ impl Default for ValuesRepositoryFile<DirectoryManagerFs, WriterFile> {
     }
 }
 
-impl ValuesRepositoryFile<DirectoryManagerFs, WriterFile> {
+impl ValuesRepositoryFile<DirectoryManagerFs> {
     pub fn with_remote(mut self) -> Self {
         self.remote_enabled = true;
         self
     }
+
+    // Change remote conf path for integration tests
+    // TODO : move this under a feature
+    pub fn with_remote_conf_path(mut self, path: String) -> Self {
+        self.remote_conf_path = path;
+        self
+    }
+
+    // Change remote conf path for integration tests
+    // TODO : move this under a feature
+    pub fn with_local_conf_path(mut self, path: String) -> Self {
+        self.local_conf_path = path;
+        self
+    }
 }
 
-impl<S, F> ValuesRepositoryFile<S, F>
+impl<S> ValuesRepositoryFile<S>
 where
     S: DirectoryManager,
-    F: Writer,
 {
     pub fn get_values_file_path(&self, agent_id: &AgentID) -> PathBuf {
         PathBuf::from(format!(
@@ -128,10 +142,9 @@ where
     }
 }
 
-impl<S, F> ValuesRepository for ValuesRepositoryFile<S, F>
+impl<S> ValuesRepository for ValuesRepositoryFile<S>
 where
     S: DirectoryManager,
-    F: Writer,
 {
     fn load(
         &self,
@@ -209,22 +222,20 @@ where
 pub mod test {
     use crate::config::agent_type::agent_types::FinalAgent;
     use crate::config::agent_values::AgentValues;
-    use crate::config::persister::config_writer_file::test::MockFileWriterMock;
-    use crate::config::persister::config_writer_file::{Writer, WriterFile};
+    use crate::config::persister::config_writer_file::MockWriterFile;
     use crate::config::persister::directory_manager::test::MockDirectoryManagerMock;
     use crate::config::persister::directory_manager::DirectoryManagementError::{
         ErrorCreatingDirectory, ErrorDeletingDirectory,
     };
-    use crate::config::persister::directory_manager::{DirectoryManager, DirectoryManagerFs};
+    use crate::config::persister::directory_manager::DirectoryManager;
     use crate::config::super_agent_configs::AgentID;
     use crate::sub_agent::values::values_repository::{
         ValuesRepository, ValuesRepositoryError, ValuesRepositoryFile,
     };
     use mockall::{mock, predicate};
     use std::collections::HashMap;
-    use std::fs;
     use std::fs::Permissions;
-    use std::path::{Path, PathBuf};
+    use std::path::Path;
 
     use crate::config::agent_type::trivial_value::TrivialValue;
     use crate::file_reader::MockFSFileReader;
@@ -232,13 +243,12 @@ pub mod test {
     #[cfg(target_family = "unix")]
     use std::os::unix::fs::PermissionsExt;
 
-    impl<S, F> ValuesRepositoryFile<S, F>
+    impl<S> ValuesRepositoryFile<S>
     where
         S: DirectoryManager,
-        F: Writer,
     {
         pub fn with_mocks(
-            file_writer: F,
+            file_writer: MockWriterFile,
             directory_manager: S,
             file_reader: MockFSFileReader,
             local_conf_path: &Path,
@@ -331,7 +341,7 @@ pub mod test {
     fn test_load_when_remote_enabled() {
         //Mocks
         let mut file_reader = MockFSFileReader::default();
-        let file_writer = MockFileWriterMock::new();
+        let file_writer = MockWriterFile::new();
         let dir_manager = MockDirectoryManagerMock::new();
         let remote_conf_path = Path::new("some/remote/path");
         let local_conf_path = Path::new("some/local/path");
@@ -373,7 +383,7 @@ pub mod test {
     fn test_load_when_remote_disabled() {
         //Mocks
         let mut file_reader = MockFSFileReader::default();
-        let file_writer = MockFileWriterMock::new();
+        let file_writer = MockWriterFile::new();
         let dir_manager = MockDirectoryManagerMock::new();
         let remote_conf_path = Path::new("some/remote/path");
         let local_conf_path = Path::new("some/local/path");
@@ -415,7 +425,7 @@ pub mod test {
     fn test_load_when_remote_enabled_file_not_found_fallbacks_to_local() {
         //Mocks
         let mut file_reader = MockFSFileReader::default();
-        let file_writer = MockFileWriterMock::new();
+        let file_writer = MockWriterFile::new();
         let dir_manager = MockDirectoryManagerMock::new();
         let remote_conf_path = Path::new("some/remote/path");
         let local_conf_path = Path::new("some/local/path");
@@ -462,7 +472,7 @@ pub mod test {
     fn test_load_local_file_not_found_should_return_defaults() {
         //Mocks
         let mut file_reader = MockFSFileReader::default();
-        let file_writer = MockFileWriterMock::new();
+        let file_writer = MockWriterFile::new();
         let dir_manager = MockDirectoryManagerMock::new();
         let remote_conf_path = Path::new("some/remote/path");
         let local_conf_path = Path::new("some/local/path");
@@ -495,7 +505,7 @@ pub mod test {
     fn test_load_when_remote_enabled_io_error() {
         //Mocks
         let mut file_reader = MockFSFileReader::default();
-        let file_writer = MockFileWriterMock::new();
+        let file_writer = MockWriterFile::new();
         let dir_manager = MockDirectoryManagerMock::new();
         let remote_conf_path = Path::new("some/remote/path");
         let local_conf_path = Path::new("some/local/path");
@@ -530,7 +540,7 @@ pub mod test {
     fn test_load_local_io_error() {
         //Mocks
         let mut file_reader = MockFSFileReader::default();
-        let file_writer = MockFileWriterMock::new();
+        let file_writer = MockWriterFile::new();
         let dir_manager = MockDirectoryManagerMock::new();
         let remote_conf_path = Path::new("some/remote/path");
         let local_conf_path = Path::new("some/local/path");
@@ -565,7 +575,7 @@ pub mod test {
     fn test_store_remote() {
         //Mocks
         let file_reader = MockFSFileReader::default();
-        let mut file_writer = MockFileWriterMock::new();
+        let mut file_writer = MockWriterFile::new();
         let mut dir_manager = MockDirectoryManagerMock::new();
         let remote_conf_path = Path::new("some/remote/path");
         let local_conf_path = Path::new("some/local/path");
@@ -605,7 +615,7 @@ pub mod test {
     fn test_store_remote_error_deleting_dir() {
         //Mocks
         let file_reader = MockFSFileReader::default();
-        let file_writer = MockFileWriterMock::new();
+        let file_writer = MockWriterFile::new();
         let mut dir_manager = MockDirectoryManagerMock::new();
         let remote_conf_path = Path::new("some/remote/path");
         let local_conf_path = Path::new("some/local/path");
@@ -643,7 +653,7 @@ pub mod test {
     fn test_store_remote_error_creating_dir() {
         //Mocks
         let file_reader = MockFSFileReader::default();
-        let file_writer = MockFileWriterMock::new();
+        let file_writer = MockWriterFile::new();
         let mut dir_manager = MockDirectoryManagerMock::new();
         let remote_conf_path = Path::new("some/remote/path");
         let local_conf_path = Path::new("some/local/path");
@@ -684,7 +694,7 @@ pub mod test {
     fn test_store_remote_error_writing_file() {
         //Mocks
         let file_reader = MockFSFileReader::default();
-        let mut file_writer = MockFileWriterMock::new();
+        let mut file_writer = MockWriterFile::new();
         let mut dir_manager = MockDirectoryManagerMock::new();
         let remote_conf_path = Path::new("some/remote/path");
         let local_conf_path = Path::new("some/local/path");
@@ -730,7 +740,7 @@ pub mod test {
     fn test_delete_remote_all() {
         //Mocks
         let file_reader = MockFSFileReader::default();
-        let file_writer = MockFileWriterMock::new();
+        let file_writer = MockWriterFile::new();
         let mut dir_manager = MockDirectoryManagerMock::new();
         let remote_conf_path = Path::new("some/remote/path");
         let local_conf_path = Path::new("some/local/path");
@@ -754,7 +764,7 @@ pub mod test {
     fn test_delete_remote() {
         //Mocks
         let file_reader = MockFSFileReader::default();
-        let file_writer = MockFileWriterMock::new();
+        let file_writer = MockWriterFile::new();
         let mut dir_manager = MockDirectoryManagerMock::new();
         let remote_conf_path = Path::new("some/remote/path");
         let local_conf_path = Path::new("some/local/path");
@@ -775,58 +785,4 @@ pub mod test {
 
         repo.delete_remote(&agent_id).unwrap();
     }
-
-    // This test is the only one that writes to an actual file in the FS
-    #[test]
-    fn test_store_remote_no_mocks() {
-        let tempdir = tempfile::tempdir().unwrap();
-
-        let mut local_dir = PathBuf::from(&tempdir.path());
-        local_dir.push("local_dir");
-
-        let mut remote_dir = PathBuf::from(&tempdir.path());
-        remote_dir.push("remote_dir");
-
-        let file_reader = MockFSFileReader::default();
-        let dir_manager = DirectoryManagerFs::default();
-        let remote_enabled = true;
-
-        // Ensure dir exists
-        let res = dir_manager.create(remote_dir.as_path(), Permissions::from_mode(0o700));
-        assert!(res.is_ok());
-
-        let values_repo = ValuesRepositoryFile::with_mocks(
-            WriterFile::default(),
-            DirectoryManagerFs::default(),
-            file_reader,
-            local_dir.as_path(),
-            remote_dir.as_path(),
-            remote_enabled,
-        );
-        let agent_id = AgentID::new("SomeAgentID").unwrap();
-
-        let agent_values: AgentValues =
-            serde_yaml::from_reader(AGENT_VALUES_SINGLE_FILE.as_bytes()).unwrap();
-
-        values_repo
-            .store_remote(&agent_id.clone(), &agent_values)
-            .unwrap();
-
-        remote_dir.push(agent_id);
-        remote_dir.push("values.yml");
-
-        assert_eq!(
-            AGENT_VALUES_SINGLE_FILE,
-            fs::read_to_string(remote_dir.as_path()).unwrap()
-        );
-    }
-
-    //////////////////////////////////////////////////
-    // Fixtures
-    //////////////////////////////////////////////////
-    const AGENT_VALUES_SINGLE_FILE: &str = r#"config_file: |
-  license_key: 1234567890987654321
-  log:
-    level: debug
-"#;
 }

@@ -1,5 +1,7 @@
 use crate::config::persister::config_persister_file::FILE_PERMISSIONS;
-use crate::config::persister::config_writer_file::{WriteError, Writer, WriterFile};
+use crate::config::persister::config_writer_file::WriteError;
+#[cfg_attr(test, mockall_double::double)]
+use crate::config::persister::config_writer_file::WriterFile;
 use crate::config::persister::directory_manager::{
     DirectoryManagementError, DirectoryManager, DirectoryManagerFs,
 };
@@ -101,18 +103,17 @@ pub trait HashRepository {
 
 const HASH_FILE_EXTENSION: &str = "yaml";
 
-pub struct HashRepositoryFile<W = WriterFile, D = DirectoryManagerFs>
+pub struct HashRepositoryFile<D = DirectoryManagerFs>
 where
-    W: Writer,
     D: DirectoryManager,
 {
     file_reader: FSFileReader,
-    file_writer: W,
+    file_writer: WriterFile,
     conf_path: PathBuf,
     directory_manager: D,
 }
 
-impl HashRepositoryFile<WriterFile, DirectoryManagerFs> {
+impl HashRepositoryFile<DirectoryManagerFs> {
     // HashGetterPersisterFile with default writer and reader
     // and config path
     fn new(data_dir: String) -> Self {
@@ -125,15 +126,14 @@ impl HashRepositoryFile<WriterFile, DirectoryManagerFs> {
     }
 }
 
-impl Default for HashRepositoryFile<WriterFile> {
+impl Default for HashRepositoryFile {
     fn default() -> Self {
         HashRepositoryFile::new(SUPER_AGENT_DATA_DIR.to_string())
     }
 }
 
-impl<W, D> HashRepository for HashRepositoryFile<W, D>
+impl<D> HashRepository for HashRepositoryFile<D>
 where
-    W: Writer,
     D: DirectoryManager,
 {
     fn save(&self, agent_id: &AgentID, hash: &Hash) -> Result<(), HashRepositoryError> {
@@ -160,15 +160,14 @@ where
     }
 }
 
-impl HashRepositoryFile<WriterFile> {
+impl HashRepositoryFile {
     pub fn new_sub_agent_repository() -> Self {
         HashRepositoryFile::new(REMOTE_AGENT_DATA_DIR.to_string())
     }
 }
 
-impl<W, D> HashRepositoryFile<W, D>
+impl<D> HashRepositoryFile<D>
 where
-    W: Writer,
     D: DirectoryManager,
 {
     fn hash_file_path<'a>(&'a self, agent_id: &AgentID, path: &'a mut PathBuf) -> &Path {
@@ -198,8 +197,7 @@ pub mod test {
         DIRECTORY_PERMISSIONS, HASH_FILE_EXTENSION,
     };
     use crate::config::persister::config_persister_file::FILE_PERMISSIONS;
-    use crate::config::persister::config_writer_file::test::MockFileWriterMock;
-    use crate::config::persister::config_writer_file::Writer;
+    use crate::config::persister::config_writer_file::MockWriterFile;
     use crate::config::persister::directory_manager::test::MockDirectoryManagerMock;
     use crate::config::persister::directory_manager::DirectoryManager;
     use crate::config::super_agent_configs::AgentID;
@@ -252,14 +250,13 @@ pub mod test {
         }
     }
 
-    impl<W, D> HashRepositoryFile<W, D>
+    impl<D> HashRepositoryFile<D>
     where
-        W: Writer,
         D: DirectoryManager,
     {
         pub fn with_mocks(
             file_reader: MockFSFileReader,
-            file_writer: W,
+            file_writer: MockWriterFile,
             directory_manager: D,
             conf_path: PathBuf,
         ) -> Self {
@@ -275,7 +272,7 @@ pub mod test {
     #[test]
     fn test_save_and_get_hash() {
         let some_path = PathBuf::from("some/path");
-        let mut file_writer_mock = MockFileWriterMock::new();
+        let mut file_writer_mock = MockWriterFile::new();
         let mut file_reader_mock = MockFSFileReader::default();
         let file_permissions = Permissions::from_mode(FILE_PERMISSIONS);
         let agent_id = AgentID::new("SomeAgentID").unwrap();
