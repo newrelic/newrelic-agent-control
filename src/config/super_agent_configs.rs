@@ -199,7 +199,7 @@ pub struct OpAMPClientConfig {
 #[serde(deny_unknown_fields)]
 /// K8sConfig represents the SuperAgent configuration for K8s environments
 pub struct K8sConfig {
-    /// cluster_name is an attribute used to tag all monitored data in a particular kubernetes cluster.
+    /// cluster_name is an attribute used to identify all monitored data in a particular kubernetes cluster.
     pub cluster_name: String,
     /// namespace is the kubernetes namespace where all resources directly managed by the super agent will be created.
     pub namespace: String,
