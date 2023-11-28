@@ -16,10 +16,7 @@ use std::sync::Arc;
 
 use super::sub_agent::NotStartedSubAgentK8s;
 
-#[cfg(test)]
-use mockall_double::double;
-
-#[cfg_attr(test, double)]
+#[cfg_attr(test, mockall_double::double)]
 use crate::k8s::executor::K8sExecutor;
 
 pub struct K8sSubAgentBuilder<'a, C, O, I>

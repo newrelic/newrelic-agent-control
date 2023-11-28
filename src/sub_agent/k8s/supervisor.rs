@@ -6,10 +6,7 @@ use tracing::{error, info};
 use crate::k8s::executor::K8sResourceType;
 use crate::sub_agent::k8s::sample_crs::{OTELCOL_HELM_RELEASE_CR, OTEL_HELM_REPOSITORY_CR};
 
-#[cfg(test)]
-use mockall_double::double;
-
-#[cfg_attr(test, double)]
+#[cfg_attr(test, mockall_double::double)]
 use crate::k8s::executor::K8sExecutor;
 
 #[derive(Debug, Error)]
@@ -35,7 +32,7 @@ impl CRSupervisor {
         }
     }
 
-    pub fn start(&self) -> Result<(), SupervisorError> {
+    pub fn apply(&self) -> Result<(), SupervisorError> {
         let resources = [
             (
                 K8sResourceType::OtelHelmRepository,
@@ -70,7 +67,7 @@ impl CRSupervisor {
         Ok(())
     }
 
-    pub fn stop(&self) -> Result<(), SupervisorError> {
+    pub fn delete(&self) -> Result<(), SupervisorError> {
         for (resource_type, resource_name) in self.created_resources.borrow().iter() {
             let gvk = resource_type.to_gvk();
             let delete_result = block_on(self.executor.delete_dynamic_object(gvk, resource_name));
@@ -122,7 +119,7 @@ mod test {
 
         let supervisor = CRSupervisor::new(Arc::new(mock_executor));
 
-        let start_result = supervisor.start();
+        let start_result = supervisor.apply();
 
         assert!(start_result.is_ok());
 
@@ -162,7 +159,7 @@ mod test {
             "otel-collector".to_string(),
         ));
 
-        let stop_result = supervisor.stop();
+        let stop_result = supervisor.delete();
         assert!(stop_result.is_ok());
 
         // Ensure that created_resources is empty after stop

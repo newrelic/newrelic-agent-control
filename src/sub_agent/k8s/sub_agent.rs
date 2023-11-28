@@ -48,7 +48,7 @@ where
     type StartedSubAgent = StartedSubAgentK8s<CB, C>;
 
     fn run(self) -> Result<Self::StartedSubAgent, SubAgentError> {
-        self.supervisor.start().map_err(|e| {
+        self.supervisor.apply().map_err(|e| {
             SubAgentError::SupervisorStopError(format!("Failed to start supervisor: {:?}", e))
         })?;
 
@@ -103,7 +103,7 @@ where
     fn stop(self) -> Result<Vec<std::thread::JoinHandle<()>>, SubAgentError> {
         stop_opamp_client(self.opamp_client, &self.agent_id)?;
 
-        self.supervisor.stop().map_err(|e| {
+        self.supervisor.delete().map_err(|e| {
             SubAgentError::SupervisorStopError(format!("Failed to stop supervisor: {:?}", e))
         })?;
 
