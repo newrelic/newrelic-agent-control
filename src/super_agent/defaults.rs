@@ -11,7 +11,7 @@ pub const SUPER_AGENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub const SUPER_AGENT_LOCAL_DATA_DIR: &str = "/etc/newrelic-super-agent";
 pub const REMOTE_AGENT_DATA_DIR: &str = "/var/lib/newrelic-super-agent/fleet/agents.d";
-pub const LOCAL_AGENT_DATA_DIR: &str = "/etc/newrelic-super-agent/agents.d";
+pub const LOCAL_AGENT_DATA_DIR: &str = "/etc/newrelic-super-agent/fleet/agents.d";
 pub const VALUES_FILENAME: &str = "values.yml";
 pub const SUPER_AGENT_DATA_DIR: &str = "/var/lib/newrelic-super-agent";
 

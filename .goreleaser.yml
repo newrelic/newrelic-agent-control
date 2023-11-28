@@ -51,7 +51,7 @@ nfpms:
       - src: build/package/newrelic-super-agent.conf
         dst: /etc/newrelic-super-agent/newrelic-super-agent.conf
         type: config|noreplace
-      - dst: /etc/newrelic-super-agent/agents.d
+      - dst: /etc/newrelic-super-agent/fleet/agents.d
         type: dir
       - src: LICENSE.md
         dst: /usr/share/doc/newrelic/newrelic-super-agent/LICENSE.md
@@ -59,6 +59,8 @@ nfpms:
         type: dir
         file_info:
           mode: 0700
+      - dst: /var/lib/newrelic-super-agent/fleet/agents.d
+        type: dir
       - dst: /var/lib/newrelic-super-agent/auto-generated
         type: dir
         file_info:
