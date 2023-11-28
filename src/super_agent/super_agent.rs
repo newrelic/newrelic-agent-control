@@ -6,7 +6,6 @@ use crate::config::persister::directory_manager::DirectoryManagerFs;
 use crate::config::store::{SubAgentsConfigStore, SuperAgentConfigStoreFile};
 use crate::config::super_agent_configs::{AgentID, SubAgentConfig, SubAgentsConfig};
 use crate::context::Context;
-use crate::file_reader::FSFileReader;
 use crate::opamp::callbacks::AgentCallbacks;
 use crate::opamp::remote_config::{RemoteConfig, RemoteConfigError};
 use crate::opamp::remote_config_hash::{Hash, HashRepository, HashRepositoryFile};
@@ -56,7 +55,7 @@ pub struct SuperAgent<
     HR = HashRepositoryFile,
     SL = SuperAgentConfigStoreFile,
     HRS = HashRepositoryFile,
-    VR = ValuesRepositoryFile<DirectoryManagerFs, WriterFile, FSFileReader>,
+    VR = ValuesRepositoryFile<DirectoryManagerFs, WriterFile>,
 > where
     O: StartedClient<SuperAgentCallbacks>,
     HR: HashRepository,
