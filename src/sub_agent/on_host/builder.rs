@@ -229,10 +229,7 @@ mod test {
         );
 
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
-        instance_id_getter.should_get(
-            sub_agent_id.to_string(),
-            "infra_agent_instance_id".to_string(),
-        );
+        instance_id_getter.should_get(&sub_agent_id, "infra_agent_instance_id".to_string());
 
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         hash_repository_mock.expect_get().times(1).returning(|_| {
@@ -290,10 +287,7 @@ mod test {
 
         // Expectations
         // Infra Agent OpAMP no final stop nor health, just after stopping on reload
-        instance_id_getter.should_get(
-            sub_agent_id.to_string(),
-            "infra_agent_instance_id".to_string(),
-        );
+        instance_id_getter.should_get(&sub_agent_id, "infra_agent_instance_id".to_string());
 
         opamp_builder.should_build_and_start(
             sub_agent_id.clone(),
