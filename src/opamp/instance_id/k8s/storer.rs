@@ -1,3 +1,4 @@
+use crate::config::super_agent_configs::AgentID;
 use crate::k8s;
 use crate::opamp::instance_id::getter::DataStored;
 use crate::opamp::instance_id::storer::InstanceIDStorer;
@@ -29,11 +30,11 @@ pub enum StorerError {
 }
 
 impl InstanceIDStorer for Storer {
-    fn set(&self, agent_id: &str, ds: &DataStored) -> Result<(), StorerError> {
+    fn set(&self, agent_id: &AgentID, ds: &DataStored) -> Result<(), StorerError> {
         futures::executor::block_on(self.async_set(agent_id, ds))
     }
 
-    fn get(&self, agent_id: &str) -> Result<Option<DataStored>, StorerError> {
+    fn get(&self, agent_id: &AgentID) -> Result<Option<DataStored>, StorerError> {
         futures::executor::block_on(self.async_get(agent_id))
     }
 }
@@ -87,6 +88,7 @@ fn build_cm_name(prefix: &String, agent_id: &str) -> String {
 #[cfg(test)]
 pub mod test {
     use super::{Storer, CM_KEY};
+    use crate::config::super_agent_configs::AgentID;
     use crate::k8s::error::K8sError;
     use crate::k8s::executor::MockK8sExecutor;
     use crate::opamp::instance_id::getter::DataStored;
@@ -123,9 +125,9 @@ identifiers:
             )
             .returning(move |_, _, _| Err(K8sError::CMMalformed()));
         let s = Storer::new(m);
-        let _ = s.get(AGENT_NAME);
+        let _ = s.get(&AgentID::new(AGENT_NAME).unwrap());
         let _ = s.set(
-            AGENT_NAME,
+            &AgentID::new(AGENT_NAME).unwrap(),
             &DataStored {
                 ulid: InstanceID::new(ULID.to_string()),
                 identifiers: Default::default(),
@@ -141,7 +143,7 @@ identifiers:
             .returning(move |_, _| Err(K8sError::CMMalformed()));
         let s = Storer::new(m);
 
-        let id = s.get(AGENT_NAME);
+        let id = s.get(&AgentID::new(AGENT_NAME).unwrap());
         assert!(id.is_err())
     }
 
@@ -153,7 +155,7 @@ identifiers:
             .returning(move |_, _| Ok(None));
         let s = Storer::new(m);
 
-        let id = s.get(AGENT_NAME);
+        let id = s.get(&AgentID::new(AGENT_NAME).unwrap());
         assert!(id.is_ok());
         assert!(id.unwrap().is_none());
     }
@@ -166,7 +168,7 @@ identifiers:
             .returning(move |_, _| Ok(Some(DATA_STORED.to_string())));
         let s = Storer::new(m);
 
-        let id = s.get(AGENT_NAME);
+        let id = s.get(&AgentID::new(AGENT_NAME).unwrap());
         assert!(id.is_ok());
         let id_un = id.unwrap();
         assert!(id_un.is_some());
@@ -183,7 +185,7 @@ identifiers:
         let s = Storer::new(m);
 
         let id = s.set(
-            AGENT_NAME,
+            &AgentID::new(AGENT_NAME).unwrap(),
             &DataStored {
                 ulid: Default::default(),
                 identifiers: Default::default(),
@@ -201,7 +203,7 @@ identifiers:
         let s = Storer::new(m);
 
         let id = s.set(
-            AGENT_NAME,
+            &AgentID::new(AGENT_NAME).unwrap(),
             &DataStored {
                 ulid: Default::default(),
                 identifiers: Default::default(),

@@ -40,21 +40,21 @@ pub mod test {
     impl MockFSFileReader {
         pub fn should_read(&mut self, path: &Path, content: String) {
             self.expect_read()
-                .with(predicate::eq(PathBuf::from(path.clone())))
+                .with(predicate::eq(PathBuf::from(path)))
                 .times(1)
                 .returning(move |_| Ok(content.clone()));
         }
 
         pub fn should_not_read_file_not_found(&mut self, path: &Path, error_message: String) {
             self.expect_read()
-                .with(predicate::eq(PathBuf::from(path.clone())))
+                .with(predicate::eq(PathBuf::from(path)))
                 .once()
                 .returning(move |_| Err(FileReaderError::FileNotFound(error_message.clone())));
         }
 
         pub fn should_not_read_io_error(&mut self, path: &Path) {
             self.expect_read()
-                .with(predicate::eq(PathBuf::from(path.clone())))
+                .with(predicate::eq(PathBuf::from(path)))
                 .once()
                 .returning(move |_| {
                     Err(FileReaderError::Read(Error::from(
@@ -66,7 +66,7 @@ pub mod test {
         // the test is not idempotent as it iterates hashmap. For now let's use this
         pub fn could_read(&mut self, path: &Path, content: String) {
             self.expect_read()
-                .with(predicate::eq(PathBuf::from(path.clone())))
+                .with(predicate::eq(PathBuf::from(path)))
                 .returning(move |_| Ok(content.clone()));
         }
     }

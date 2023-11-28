@@ -54,6 +54,9 @@ impl AgentID {
     pub fn get(&self) -> String {
         String::from(&self.0)
     }
+    pub fn is_super_agent_id(&self) -> bool {
+        self.0.eq(SUPER_AGENT_ID)
+    }
 }
 
 impl Deref for AgentID {

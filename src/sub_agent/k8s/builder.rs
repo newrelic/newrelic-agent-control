@@ -112,7 +112,10 @@ mod test {
         );
         // instance id getter mock
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
-        instance_id_getter.should_get("k8s-test".to_string(), "k8s-test-instance-id".to_string());
+        instance_id_getter.should_get(
+            &AgentID::new("k8s-test").unwrap(),
+            "k8s-test-instance-id".to_string(),
+        );
 
         let builder = K8sSubAgentBuilder::new(Some(&opamp_builder), &instance_id_getter);
 
