@@ -51,6 +51,8 @@ nfpms:
       - src: build/package/newrelic-super-agent.conf
         dst: /etc/newrelic-super-agent/newrelic-super-agent.conf
         type: config|noreplace
+      - dst: /etc/newrelic-super-agent/agents.d
+        type: dir
       - src: LICENSE.md
         dst: /usr/share/doc/newrelic/newrelic-super-agent/LICENSE.md
       - dst: /var/lib/newrelic-super-agent
