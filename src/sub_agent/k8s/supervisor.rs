@@ -3,16 +3,17 @@ use std::{cell::RefCell, rc::Rc, sync::Arc};
 use thiserror::Error;
 use tracing::{error, info};
 
-use crate::k8s::executor::{K8sDynamicObjectsManager, K8sResourceType};
+use crate::k8s::executor::K8sResourceType;
 use crate::sub_agent::k8s::sample_crs::{OTELCOL_HELM_RELEASE_CR, OTEL_HELM_REPOSITORY_CR};
+
+#[cfg(test)]
+use mockall_double::double;
+
+#[cfg_attr(test, double)]
+use crate::k8s::executor::K8sExecutor;
 
 #[derive(Debug, Error)]
 pub enum SupervisorError {}
-
-pub trait Supervisor {
-    fn start(&self) -> Result<(), SupervisorError>;
-    fn stop(&self) -> Result<(), SupervisorError>;
-}
 
 /// CRSupervisor - Supervises Kubernetes resources.
 /// To be considered:
@@ -21,31 +22,20 @@ pub trait Supervisor {
 /// - RefCell for internal mutability; it might change depending on future implementations.
 /// - Synchronous block_on operations; review async handling.
 
-pub struct CRSupervisor<E>
-where
-    E: K8sDynamicObjectsManager + Send + Sync + 'static,
-{
-    executor: Arc<E>,
+pub struct CRSupervisor {
+    executor: Arc<K8sExecutor>,
     created_resources: Rc<RefCell<Vec<(K8sResourceType, String)>>>,
 }
 
-impl<E> CRSupervisor<E>
-where
-    E: K8sDynamicObjectsManager + Send + Sync,
-{
-    pub fn new(executor: Arc<E>) -> Self {
+impl CRSupervisor {
+    pub fn new(executor: Arc<K8sExecutor>) -> Self {
         Self {
             executor,
             created_resources: Rc::new(RefCell::new(Vec::new())),
         }
     }
-}
 
-impl<E> Supervisor for CRSupervisor<E>
-where
-    E: K8sDynamicObjectsManager + Send + Sync,
-{
-    fn start(&self) -> Result<(), SupervisorError> {
+    pub fn start(&self) -> Result<(), SupervisorError> {
         let resources = [
             (
                 K8sResourceType::OtelHelmRepository,
@@ -80,7 +70,7 @@ where
         Ok(())
     }
 
-    fn stop(&self) -> Result<(), SupervisorError> {
+    pub fn stop(&self) -> Result<(), SupervisorError> {
         for (resource_type, resource_name) in self.created_resources.borrow().iter() {
             let gvk = resource_type.to_gvk();
             let delete_result = block_on(self.executor.delete_dynamic_object(gvk, resource_name));
@@ -102,7 +92,7 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::k8s::executor::test::MockK8sExecutorMock;
+    use crate::k8s::executor::MockK8sExecutor;
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
     use kube::core::{DynamicObject, TypeMeta};
     use mockall::predicate;
@@ -121,7 +111,7 @@ mod test {
 
     #[test]
     fn test_supervisor_start() {
-        let mut mock_executor = MockK8sExecutorMock::new();
+        let mut mock_executor = MockK8sExecutor::default();
 
         // Mock the behavior for creating dynamic objects
         mock_executor
@@ -151,7 +141,7 @@ mod test {
 
     #[test]
     fn test_supervisor_stop() {
-        let mut mock_executor = MockK8sExecutorMock::new();
+        let mut mock_executor = MockK8sExecutor::default();
 
         // Mock behavior for deleting dynamic objects
         mock_executor

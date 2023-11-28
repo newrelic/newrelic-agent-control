@@ -7,7 +7,6 @@ use crate::opamp::operations::build_opamp_and_start_client;
 use crate::super_agent::super_agent::SuperAgentEvent;
 use crate::{
     config::super_agent_configs::AgentID,
-    k8s::executor::K8sDynamicObjectsManager,
     opamp::client_builder::OpAMPClientBuilder,
     sub_agent::k8s::supervisor::CRSupervisor,
     sub_agent::{error::SubAgentBuilderError, logger::Event, SubAgentBuilder},
@@ -17,12 +16,17 @@ use std::sync::Arc;
 
 use super::sub_agent::NotStartedSubAgentK8s;
 
-pub struct K8sSubAgentBuilder<'a, C, O, I, E>
+#[cfg(test)]
+use mockall_double::double;
+
+#[cfg_attr(test, double)]
+use crate::k8s::executor::K8sExecutor;
+
+pub struct K8sSubAgentBuilder<'a, C, O, I>
 where
     C: Callbacks,
     O: OpAMPClientBuilder<C>,
     I: InstanceIDGetter,
-    E: K8sDynamicObjectsManager + Send + Sync + 'static,
 {
     opamp_builder: Option<&'a O>,
     instance_id_getter: &'a I,
@@ -32,17 +36,20 @@ where
     // Feel free to remove this when the actual implementations (Callbacks instance for K8s agents) make it redundant!
     _callbacks: std::marker::PhantomData<C>,
     // client: Client, Should we inject the client?
-    executor: Arc<E>,
+    executor: Arc<K8sExecutor>,
 }
 
-impl<'a, C, O, I, E> K8sSubAgentBuilder<'a, C, O, I, E>
+impl<'a, C, O, I> K8sSubAgentBuilder<'a, C, O, I>
 where
     C: Callbacks,
     O: OpAMPClientBuilder<C>,
     I: InstanceIDGetter,
-    E: K8sDynamicObjectsManager + Send + Sync + 'static,
 {
-    pub fn new(opamp_builder: Option<&'a O>, instance_id_getter: &'a I, executor: Arc<E>) -> Self {
+    pub fn new(
+        opamp_builder: Option<&'a O>,
+        instance_id_getter: &'a I,
+        executor: Arc<K8sExecutor>,
+    ) -> Self {
         Self {
             opamp_builder,
             instance_id_getter,
@@ -53,14 +60,13 @@ where
     }
 }
 
-impl<'a, C, O, I, E> SubAgentBuilder for K8sSubAgentBuilder<'a, C, O, I, E>
+impl<'a, C, O, I> SubAgentBuilder for K8sSubAgentBuilder<'a, C, O, I>
 where
     C: Callbacks,
     O: OpAMPClientBuilder<C>,
     I: InstanceIDGetter,
-    E: K8sDynamicObjectsManager + Send + Sync + 'static,
 {
-    type NotStartedSubAgent = NotStartedSubAgentK8s<C, O::Client, CRSupervisor<E>>;
+    type NotStartedSubAgent = NotStartedSubAgentK8s<C, O::Client>;
 
     fn build(
         &self,
@@ -78,7 +84,8 @@ where
             HashMap::from([]), // TODO: check if we need to set non_identifying_attributes
         )?;
 
-        let supervisor = CRSupervisor::new(Arc::clone(&self.executor));
+        // Clone the executor on each build.
+        let supervisor = CRSupervisor::new(Arc::clone(&self.executor.clone()));
 
         Ok(NotStartedSubAgentK8s::new(
             agent_id,
@@ -96,8 +103,8 @@ mod test {
     use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
     use crate::opamp::operations::start_settings;
     use crate::{
-        k8s::executor::test::MockK8sExecutorMock,
         k8s::executor::K8sResourceType,
+        k8s::executor::MockK8sExecutor,
         opamp::client_builder::test::MockOpAMPClientBuilderMock,
         sub_agent::k8s::sample_crs::{OTELCOL_HELM_RELEASE_CR, OTEL_HELM_REPOSITORY_CR},
         sub_agent::{NotStartedSubAgent, StartedSubAgent},
@@ -138,7 +145,7 @@ mod test {
         );
 
         // instance K8s executor mock
-        let mut mock_executor = MockK8sExecutorMock::new();
+        let mut mock_executor = MockK8sExecutor::default();
 
         // Set mock executor expectations
         mock_executor

@@ -2,7 +2,6 @@ use super::{
     error::K8sError,
     reader::{DynamicObjectReflector, ReflectorBuilder},
 };
-use async_trait::async_trait;
 use k8s_openapi::api::core::v1::ConfigMap;
 use k8s_openapi::api::core::v1::Pod;
 use kube::core::DynamicObject;
@@ -38,52 +37,6 @@ pub enum K8sResourceType {
     OtelColHelmRelease,
 }
 
-// TODO: For now only the two used function are defined in the interface.
-//  We might want to break into a specific dynamic objects.
-// interface.
-#[async_trait]
-pub trait K8sDynamicObjectsManager {
-    async fn create_dynamic_object(
-        &self,
-        gvk: GroupVersionKind,
-        spec: &str,
-    ) -> Result<DynamicObject, K8sError>;
-    async fn delete_dynamic_object(
-        &self,
-        gvk: GroupVersionKind,
-        name: &str,
-    ) -> Result<(), K8sError>;
-}
-
-#[async_trait]
-impl K8sDynamicObjectsManager for K8sExecutor {
-    async fn create_dynamic_object(
-        &self,
-        gvk: GroupVersionKind,
-        spec: &str,
-    ) -> Result<DynamicObject, K8sError> {
-        let api = self.namespaced_api(gvk).await?;
-
-        let object_spec: DynamicObject = serde_yaml::from_str(spec)?;
-
-        let created_object = api.create(&PostParams::default(), &object_spec).await?;
-
-        Ok(created_object)
-    }
-
-    async fn delete_dynamic_object(
-        &self,
-        gvk: GroupVersionKind,
-        name: &str,
-    ) -> Result<(), K8sError> {
-        let api = self.namespaced_api(gvk).await?;
-
-        api.delete(name, &DeleteParams::default()).await?;
-
-        Ok(())
-    }
-}
-
 #[cfg_attr(test, mockall::automock)]
 impl K8sExecutor {
     /// Constructs a new Kubernetes client.
@@ -91,6 +44,7 @@ impl K8sExecutor {
     /// If loading from the inCluster config fail we fall back to kube-config
     /// This will respect the `$KUBECONFIG` envvar, but otherwise default to `~/.kube/config`.
     /// Not leveraging infer() to check inClusterConfig first
+    ///
     ///
     pub async fn try_default(namespace: String) -> Result<Self, K8sError> {
         debug!("trying inClusterConfig for k8s client");
@@ -283,32 +237,10 @@ impl K8sResourceType {
 #[cfg(test)]
 pub(crate) mod test {
     use super::*;
-    use crate::k8s::Error;
     use assert_matches::assert_matches;
-    use async_trait::async_trait;
     use k8s_openapi::serde_json;
     use kube::{core::GroupVersionKind, Client};
-    use mockall::mock;
     use tower_test::mock;
-
-    mock! {
-        pub K8sExecutorMock {}
-
-        #[async_trait]
-        impl K8sDynamicObjectsManager for K8sExecutorMock {
-            async fn create_dynamic_object(
-                &self,
-                gvk: GroupVersionKind,
-                spec: &str,
-            ) -> Result<DynamicObject, Error>;
-
-            async fn delete_dynamic_object(
-                &self,
-                gvk: GroupVersionKind,
-                name: &str,
-            ) -> Result<(), Error>;
-        }
-    }
 
     #[tokio::test]
     async fn create_dynamic_object_fail_when_missing_resource_definition() {
