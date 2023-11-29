@@ -6,11 +6,13 @@ use newrelic_super_agent::opamp::instance_id::getter::ULIDInstanceIDGetter;
 use newrelic_super_agent::opamp::instance_id::{Identifiers, Storer};
 use newrelic_super_agent::opamp::remote_config_hash::HashRepositoryFile;
 use newrelic_super_agent::sub_agent::values::values_repository::ValuesRepositoryFile;
-use newrelic_super_agent::super_agent::defaults::SUPER_AGENT_TYPE;
 use newrelic_super_agent::super_agent::error::AgentError;
 use newrelic_super_agent::super_agent::opamp::client_builder::SuperAgentOpAMPHttpBuilder;
-use newrelic_super_agent::super_agent::super_agent::SuperAgent;
+use newrelic_super_agent::super_agent::super_agent::{super_agent_fqn, SuperAgent};
 use newrelic_super_agent::{cli::Cli, context::Context, logging::Logging};
+use nix::unistd::gethostname;
+use opamp_client::operation::settings::DescriptionValueType;
+use std::collections::HashMap;
 use std::error::Error;
 use tracing::{error, info};
 
@@ -93,11 +95,8 @@ fn run_super_agent(
     opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
     instance_id_getter: ULIDInstanceIDGetter<Storer>,
 ) -> Result<(), AgentError> {
-    use std::collections::HashMap;
-
     use newrelic_super_agent::{
-        config::super_agent_configs::{AgentID, AgentTypeFQN},
-        opamp::operations::build_opamp_and_start_client,
+        config::super_agent_configs::AgentID, opamp::operations::build_opamp_and_start_client,
         sub_agent::opamp::client_builder::SubAgentOpAMPHttpBuilder,
         super_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler,
     };
@@ -129,8 +128,8 @@ fn run_super_agent(
         opamp_client_builder.as_ref(),
         &instance_id_getter,
         AgentID::new_super_agent_id(),
-        &AgentTypeFQN::from(SUPER_AGENT_TYPE),
-        HashMap::new(),
+        &super_agent_fqn(),
+        super_agent_opamp_non_identifying_attributes(),
     )?;
 
     SuperAgent::new(
@@ -151,11 +150,8 @@ fn run_super_agent(
     opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
     instance_id_getter: ULIDInstanceIDGetter<Storer>,
 ) -> Result<(), AgentError> {
-    use std::collections::HashMap;
-
     use newrelic_super_agent::{
-        config::super_agent_configs::{AgentID, AgentTypeFQN},
-        opamp::operations::build_opamp_and_start_client,
+        config::super_agent_configs::AgentID, opamp::operations::build_opamp_and_start_client,
     };
 
     let hash_repository = HashRepositoryFile::default();
@@ -183,8 +179,8 @@ fn run_super_agent(
         opamp_client_builder.as_ref(),
         &instance_id_getter,
         AgentID::new_super_agent_id(),
-        &AgentTypeFQN::from(SUPER_AGENT_TYPE),
-        HashMap::new(),
+        &super_agent_fqn(),
+        super_agent_opamp_non_identifying_attributes(),
     )?;
 
     SuperAgent::new(
@@ -209,4 +205,15 @@ fn create_shutdown_signal_handler(ctx: Context<Option<Event>>) -> Result<(), ctr
     })?;
 
     Ok(())
+}
+
+fn super_agent_opamp_non_identifying_attributes() -> HashMap<String, DescriptionValueType> {
+    HashMap::from([(
+        "host.name".to_string(),
+        gethostname()
+            .unwrap_or_default()
+            .into_string()
+            .unwrap()
+            .into(),
+    )])
 }
