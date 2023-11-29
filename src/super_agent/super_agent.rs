@@ -4,7 +4,7 @@ use crate::config::error::SuperAgentConfigError;
 use crate::config::persister::config_writer_file::WriterFile;
 use crate::config::persister::directory_manager::DirectoryManagerFs;
 use crate::config::store::{SubAgentsConfigStore, SuperAgentConfigStoreFile};
-use crate::config::super_agent_configs::{AgentID, SubAgentConfig, SubAgentsConfig};
+use crate::config::super_agent_configs::{AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig};
 use crate::context::Context;
 use crate::opamp::callbacks::AgentCallbacks;
 use crate::opamp::remote_config::{RemoteConfig, RemoteConfigError};
@@ -20,6 +20,7 @@ use crate::sub_agent::SubAgentBuilder;
 
 use crate::sub_agent::values::values_repository::{ValuesRepository, ValuesRepositoryFile};
 use crate::sub_agent::{error::SubAgentError, NotStartedSubAgent};
+use crate::super_agent::defaults::{SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION};
 use crate::super_agent::error::AgentError;
 use crate::super_agent::super_agent::EffectiveAgentsError::{
     EffectiveAgentExists, EffectiveAgentNotFound,
@@ -105,6 +106,16 @@ where
     fn agent_id(&self) -> &AgentID {
         &self.agent_id
     }
+}
+
+pub fn super_agent_fqn() -> AgentTypeFQN {
+    AgentTypeFQN::from(
+        format!(
+            "{}/{}:{}",
+            SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION
+        )
+        .as_str(),
+    )
 }
 
 impl<'a, S, O, HR, SL, HRS, VR> SuperAgent<'a, S, O, HR, SL, HRS, VR>
