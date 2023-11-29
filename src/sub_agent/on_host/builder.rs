@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use nix::unistd::gethostname;
 
 use crate::config::super_agent_configs::SubAgentConfig;
+use crate::event::event::Event;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_opamp_and_start_client;
 use crate::opamp::remote_config_hash::HashRepository;
@@ -14,14 +15,13 @@ use crate::sub_agent::SubAgentCallbacks;
 use crate::super_agent::effective_agents_assembler::{
     EffectiveAgentsAssembler, EffectiveAgentsAssemblerError,
 };
-use crate::super_agent::super_agent::SuperAgentEvent;
 use crate::{
     config::{agent_type::agent_types::FinalAgent, super_agent_configs::AgentID},
     context::Context,
     opamp::client_builder::OpAMPClientBuilder,
     sub_agent::{
         error::{SubAgentBuilderError, SubAgentError},
-        logger::Event,
+        logger::AgentLog,
         restart_policy::RestartPolicy,
         SubAgentBuilder,
     },
@@ -84,8 +84,8 @@ where
         &self,
         agent_id: AgentID,
         sub_agent_config: &SubAgentConfig,
-        tx: std::sync::mpsc::Sender<Event>,
-        ctx: Context<Option<SuperAgentEvent>>,
+        tx: std::sync::mpsc::Sender<AgentLog>,
+        ctx: Context<Option<Event>>,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
         let maybe_opamp_client = build_opamp_and_start_client(
             ctx,
@@ -145,7 +145,7 @@ where
 
 fn build_supervisors(
     final_agent: FinalAgent,
-    tx: std::sync::mpsc::Sender<Event>,
+    tx: std::sync::mpsc::Sender<AgentLog>,
 ) -> Result<Vec<NotStartedSupervisorOnHost>, SubAgentError> {
     let on_host = final_agent
         .runtime_config

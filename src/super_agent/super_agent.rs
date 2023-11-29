@@ -14,9 +14,10 @@ use crate::opamp::remote_config_report::{
 };
 use crate::sub_agent::collection::{NotStartedSubAgents, StartedSubAgents};
 use crate::sub_agent::error::SubAgentBuilderError;
-use crate::sub_agent::logger::{Event, EventLogger, StdEventReceiver};
+use crate::sub_agent::logger::{AgentLog, EventLogger, StdEventReceiver};
 use crate::sub_agent::SubAgentBuilder;
 
+use crate::event::event::{Event, OpAMPEvent, SubAgentEvent, SuperAgentEvent};
 use crate::sub_agent::values::values_repository::{ValuesRepository, ValuesRepositoryFile};
 use crate::sub_agent::{error::SubAgentError, NotStartedSubAgent};
 use crate::super_agent::error::AgentError;
@@ -35,17 +36,6 @@ use tracing::{error, info, warn};
 use super::opamp::remote_config_publisher::SuperAgentRemoteConfigPublisher;
 
 pub(super) type SuperAgentCallbacks = AgentCallbacks<SuperAgentRemoteConfigPublisher>;
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum SuperAgentEvent {
-    SuperAgentRemoteConfigValid(RemoteConfig),
-    SuperAgentRemoteConfigInvalid(RemoteConfigError),
-    SubAgentRemoteConfigValid(RemoteConfig),
-    SubAgentRemoteConfigInvalid(RemoteConfigError),
-    RestartSubAgent(AgentID),
-    // stop all supervisors
-    Stop,
-}
 
 pub struct SuperAgent<
     'a,
@@ -115,7 +105,7 @@ where
     HRS: HashRepository,
     VR: ValuesRepository,
 {
-    pub fn run(self, ctx: Context<Option<SuperAgentEvent>>) -> Result<(), AgentError> {
+    pub fn run(self, ctx: Context<Option<Event>>) -> Result<(), AgentError> {
         info!("Creating agent's communication channels");
         // Channel will be closed when tx is dropped and no reference to it is alive
         let (tx, rx) = mpsc::channel();
@@ -186,8 +176,8 @@ where
     fn load_sub_agents(
         &self,
         sub_agents_config: &SubAgentsConfig,
-        tx: &Sender<Event>,
-        ctx: Context<Option<SuperAgentEvent>>,
+        tx: &Sender<AgentLog>,
+        ctx: Context<Option<Event>>,
     ) -> Result<NotStartedSubAgents<S::NotStartedSubAgent>, AgentError> {
         Ok(NotStartedSubAgents::from(
             sub_agents_config
@@ -217,11 +207,11 @@ where
         &self,
         agent_id: AgentID,
         sub_agent_config: &SubAgentConfig,
-        tx: Sender<Event>,
+        tx: Sender<AgentLog>,
         running_sub_agents: &mut StartedSubAgents<
             <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
-        ctx: Context<Option<SuperAgentEvent>>,
+        ctx: Context<Option<Event>>,
     ) -> Result<(), AgentError> {
         running_sub_agents.stop_remove(&agent_id)?;
 
@@ -233,11 +223,11 @@ where
         &self,
         agent_id: AgentID,
         sub_agent_config: &SubAgentConfig,
-        tx: Sender<Event>,
+        tx: Sender<AgentLog>,
         running_sub_agents: &mut StartedSubAgents<
             <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
-        ctx: Context<Option<SuperAgentEvent>>,
+        ctx: Context<Option<Event>>,
     ) -> Result<(), AgentError> {
         running_sub_agents.insert(
             agent_id.clone(),
@@ -251,22 +241,24 @@ where
 
     fn process_events(
         &self,
-        ctx: Context<Option<SuperAgentEvent>>,
+        ctx: Context<Option<Event>>,
         mut sub_agents: StartedSubAgents<
             <<S as SubAgentBuilder>::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
-        tx: Sender<Event>,
+        tx: Sender<AgentLog>,
         maybe_opamp_client: &Option<O>,
     ) -> Result<(), AgentError> {
         loop {
             // blocking wait until context is woken up
             if let Some(event) = ctx.wait_condvar().unwrap() {
                 match event {
-                    SuperAgentEvent::Stop => {
+                    Event::SuperAgentEvent(SuperAgentEvent::StopRequested) => {
                         drop(tx); //drop the main channel sender to stop listener
                         break sub_agents.stop()?;
                     }
-                    SuperAgentEvent::SuperAgentRemoteConfigInvalid(remote_config_error) => {
+                    Event::OpAMPEvent(OpAMPEvent::InvalidRemoteConfigReceived(
+                        remote_config_error,
+                    )) => {
                         if let Some(opamp_client) = &maybe_opamp_client {
                             self.process_super_agent_remote_config_error(
                                 opamp_client,
@@ -276,7 +268,7 @@ where
                             unreachable!("got remote config without OpAMP being enabled")
                         }
                     }
-                    SuperAgentEvent::SuperAgentRemoteConfigValid(mut remote_config) => {
+                    Event::OpAMPEvent(OpAMPEvent::ValidRemoteConfigReceived(mut remote_config)) => {
                         if let Some(opamp_client) = &maybe_opamp_client {
                             self.process_super_agent_remote_config(
                                 opamp_client,
@@ -289,18 +281,10 @@ where
                             unreachable!("got remote config without OpAMP being enabled")
                         }
                     }
-                    SuperAgentEvent::SubAgentRemoteConfigValid(remote_config) => {
-                        self.process_sub_agent_remote_config(
-                            remote_config,
-                            &mut sub_agents,
-                            tx.clone(),
-                            ctx.clone(),
-                        )?;
-                    }
-                    SuperAgentEvent::SubAgentRemoteConfigInvalid(remote_config_error) => {
-                        self.process_sub_agent_remote_config_error(remote_config_error)?;
-                    }
-                    SuperAgentEvent::RestartSubAgent(agent_id) => {
+
+                    // TODO: The SubAgentRemoteConfig events now are opamp events that need
+                    // to be handled on the subagent event loop
+                    Event::SubAgentEvent(SubAgentEvent::ConfigUpdated(agent_id)) => {
                         let config = self.sub_agents_config_store.load()?;
                         let config = config.get(&agent_id)?;
                         self.recreate_sub_agent(
@@ -318,6 +302,7 @@ where
         Ok(())
     }
 
+    // TODO This call should be moved to on subagent event loop when opamp event remote_config
     // Sub Agent on remote config
     fn process_sub_agent_remote_config(
         &self,
@@ -325,8 +310,8 @@ where
         sub_agents: &mut StartedSubAgents<
             <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
-        tx: Sender<Event>,
-        ctx: Context<Option<SuperAgentEvent>>,
+        tx: Sender<AgentLog>,
+        ctx: Context<Option<Event>>,
     ) -> Result<(), AgentError> {
         let agent_id = remote_config.agent_id.clone();
 
@@ -390,11 +375,11 @@ where
         &self,
         opamp_client: &O,
         remote_config: &mut RemoteConfig,
-        tx: Sender<Event>,
+        tx: Sender<AgentLog>,
         running_sub_agents: &mut StartedSubAgents<
             <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
-        ctx: Context<Option<SuperAgentEvent>>,
+        ctx: Context<Option<Event>>,
     ) -> Result<(), AgentError> {
         info!("Applying SuperAgent remote config");
         report_remote_config_status_applying(opamp_client, &remote_config.hash)?;
@@ -440,11 +425,11 @@ where
     fn apply_remote_config(
         &self,
         remote_config: RemoteConfig,
-        tx: Sender<Event>,
+        tx: Sender<AgentLog>,
         running_sub_agents: &mut StartedSubAgents<
             <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
-        ctx: Context<Option<SuperAgentEvent>>,
+        ctx: Context<Option<Event>>,
     ) -> Result<(), AgentError> {
         //TODO fix get_unique to fit OpAMP Spec of having a "" when single config
         let content = remote_config.get_unique()?;
@@ -559,6 +544,7 @@ mod tests {
         AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig,
     };
     use crate::context::Context;
+    use crate::event::event::{Event, OpAMPEvent, SubAgentEvent, SuperAgentEvent};
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::remote_config::{ConfigMap, RemoteConfig};
     use crate::opamp::remote_config_hash::test::MockHashRepositoryMock;
@@ -568,7 +554,7 @@ mod tests {
     use crate::sub_agent::values::values_repository::test::MockRemoteValuesRepositoryMock;
     use crate::sub_agent::values::values_repository::ValuesRepository;
     use crate::sub_agent::{test::MockSubAgentBuilderMock, SubAgentBuilder};
-    use crate::super_agent::super_agent::{SuperAgent, SuperAgentEvent};
+    use crate::super_agent::super_agent::SuperAgent;
     use mockall::predicate;
     use opamp_client::opamp::proto::RemoteConfigStatus;
     use opamp_client::opamp::proto::RemoteConfigStatuses::{Applied, Applying, Failed};
@@ -648,7 +634,7 @@ mod tests {
         // stop all agents after 50 milliseconds
         send_event_after(
             ctx.clone(),
-            SuperAgentEvent::Stop,
+            SuperAgentEvent::StopRequested.into(),
             Duration::from_millis(50),
         );
 
@@ -696,7 +682,7 @@ mod tests {
         // stop all agents after 50 milliseconds
         send_event_after(
             ctx.clone(),
-            SuperAgentEvent::Stop,
+            SuperAgentEvent::StopRequested.into(),
             Duration::from_millis(50),
         );
         assert!(agent.run(ctx).is_ok())
@@ -793,15 +779,17 @@ agents:
 
         // TODO: replace Context with a unbuffered channel?
         sleep(Duration::from_millis(100));
-        ctx.cancel_all(Some(SuperAgentEvent::SuperAgentRemoteConfigValid(
-            remote_config,
-        )))
+        ctx.cancel_all(Some(
+            OpAMPEvent::ValidRemoteConfigReceived(remote_config).into(),
+        ))
         .unwrap();
         sleep(Duration::from_millis(50));
-        ctx.cancel_all(Some(SuperAgentEvent::Stop)).unwrap();
+        ctx.cancel_all(Some(SuperAgentEvent::StopRequested.into()))
+            .unwrap();
         assert!(running_agent.join().is_ok())
     }
 
+    // TODO Move to SubAgent when its event loop is created
     #[test]
     fn receive_sub_agent_opamp_remote_config_existing_sub_agent_should_be_recreated() {
         let ctx = Context::new();
@@ -897,6 +885,7 @@ config_file: /some/path/newrelic-infra.yml
             .is_ok());
     }
 
+    // TODO Move to SubAgent when its event loop is created
     #[test]
     fn receive_sub_agent_remote_deleted_config_should_delete_and_use_local() {
         let ctx = Context::new();
@@ -1026,13 +1015,13 @@ config_file: /some/path/newrelic-infra.yml
         // restart agent after 50 milliseconds
         send_event_after(
             ctx.clone(),
-            SuperAgentEvent::RestartSubAgent(agent_id_to_restart.clone()),
+            SubAgentEvent::ConfigUpdated(agent_id_to_restart.clone()).into(),
             Duration::from_millis(50),
         );
         // stop all agents after 100 milliseconds
         send_event_after(
             ctx.clone(),
-            SuperAgentEvent::Stop,
+            SuperAgentEvent::StopRequested.into(),
             Duration::from_millis(300),
         );
         assert!(agent.run(ctx).is_ok())
@@ -1080,13 +1069,13 @@ config_file: /some/path/newrelic-infra.yml
         // restart agent after 50 milliseconds
         send_event_after(
             ctx.clone(),
-            SuperAgentEvent::RestartSubAgent(agent_id_to_restart.clone()),
+            SubAgentEvent::ConfigUpdated(agent_id_to_restart.clone()).into(),
             Duration::from_millis(50),
         );
         // stop all agents after 100 milliseconds
         send_event_after(
             ctx.clone(),
-            SuperAgentEvent::Stop,
+            SuperAgentEvent::StopRequested.into(),
             Duration::from_millis(300),
         );
 
@@ -1146,13 +1135,13 @@ config_file: /some/path/newrelic-infra.yml
         // restart agent after 50 milliseconds
         send_event_after(
             ctx.clone(),
-            SuperAgentEvent::RestartSubAgent(agent_id_to_restart.clone()),
+            SubAgentEvent::ConfigUpdated(agent_id_to_restart.clone()).into(),
             Duration::from_millis(50),
         );
         // stop all agents after 100 milliseconds
         send_event_after(
             ctx.clone(),
-            SuperAgentEvent::Stop,
+            SuperAgentEvent::StopRequested.into(),
             Duration::from_millis(100),
         );
 
@@ -1471,11 +1460,7 @@ agents:
         .into()
     }
 
-    fn send_event_after(
-        ctx: Context<Option<SuperAgentEvent>>,
-        event: SuperAgentEvent,
-        after: Duration,
-    ) {
+    fn send_event_after(ctx: Context<Option<Event>>, event: Event, after: Duration) {
         spawn({
             let ctx = ctx.clone();
             move || {

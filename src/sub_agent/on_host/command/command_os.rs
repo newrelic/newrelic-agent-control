@@ -5,7 +5,7 @@ use std::{
     sync::mpsc::{SendError, Sender},
 };
 
-use crate::sub_agent::logger::{Event, Metadata, OutputEvent};
+use crate::sub_agent::logger::{AgentLog, LogOutput, Metadata};
 
 use super::command::{CommandError, NotStartedCommand, StartedCommand, SyncCommandRunner};
 use tracing::error;
@@ -78,7 +78,7 @@ impl StartedCommand for StartedCommandOS {
         self.process.id()
     }
 
-    fn stream(mut self, snd: Sender<Event>) -> Result<Self, CommandError> {
+    fn stream(mut self, snd: Sender<AgentLog>) -> Result<Self, CommandError> {
         let stdout = self
             .process
             .stdout
@@ -99,9 +99,9 @@ impl StartedCommand for StartedCommandOS {
             let snd = snd.clone();
             move || {
                 process_events(stdout, |line| {
-                    snd.send(Event {
+                    snd.send(AgentLog {
                         metadata: fields.clone(),
-                        output: OutputEvent::Stdout(line),
+                        output: LogOutput::Stdout(line),
                     })
                 })
                 .map_err(|e| error!("stdout stream error: {}", e))
@@ -111,8 +111,8 @@ impl StartedCommand for StartedCommandOS {
         // Read stderr and send to the channel
         std::thread::spawn(move || {
             process_events(stderr, |line| {
-                snd.send(Event {
-                    output: OutputEvent::Stderr(line),
+                snd.send(AgentLog {
+                    output: LogOutput::Stderr(line),
                     metadata: fields.clone(),
                 })
             })
@@ -157,7 +157,7 @@ impl SyncCommandRunner for SyncCommandOS {
 fn process_events<R, F>(stream: R, send: F) -> Result<(), CommandError>
 where
     R: Read,
-    F: Fn(String) -> Result<(), SendError<Event>>,
+    F: Fn(String) -> Result<(), SendError<AgentLog>>,
 {
     let out = BufReader::new(stream).lines();
     for line in out {
@@ -177,9 +177,7 @@ mod tests {
     use std::process::ExitStatus;
     use std::sync::mpsc::Sender;
 
-    use super::{Event, Metadata};
-
-    use super::OutputEvent;
+    use super::{AgentLog, LogOutput, Metadata};
 
     // MockedCommandExector returns an error on start if fail is true
     // It can be used to mock process spawn
@@ -209,17 +207,17 @@ mod tests {
             0
         }
 
-        fn stream(self, snd: Sender<Event>) -> Result<Self::StartedCommand, CommandError> {
+        fn stream(self, snd: Sender<AgentLog>) -> Result<Self::StartedCommand, CommandError> {
             (0..9).for_each(|i| {
-                snd.send(Event {
-                    output: OutputEvent::Stdout(format!("This is line {}", i)),
+                snd.send(AgentLog {
+                    output: LogOutput::Stdout(format!("This is line {}", i)),
                     metadata: Metadata::from(&self),
                 })
                 .unwrap()
             });
             (0..9).for_each(|i| {
-                snd.send(Event {
-                    output: OutputEvent::Stderr(format!("This is error {}", i)),
+                snd.send(AgentLog {
+                    output: LogOutput::Stderr(format!("This is error {}", i)),
                     metadata: Metadata::from(&self),
                 })
                 .unwrap()
@@ -267,8 +265,8 @@ mod tests {
         rx.iter().for_each(|event| {
             assert_eq!(Metadata::new("mocked"), event.metadata);
             match event.output {
-                OutputEvent::Stdout(line) => stdout_result.push(line),
-                OutputEvent::Stderr(line) => stderr_result.push(line),
+                LogOutput::Stdout(line) => stdout_result.push(line),
+                LogOutput::Stderr(line) => stderr_result.push(line),
             }
         });
 

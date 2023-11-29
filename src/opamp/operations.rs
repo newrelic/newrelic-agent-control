@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use crate::{
     config::super_agent_configs::{AgentID, AgentTypeFQN},
     context::Context,
+    event::event::Event,
     sub_agent::error::SubAgentError,
-    super_agent::super_agent::SuperAgentEvent,
     utils::time::get_sys_time_nano,
 };
 use futures::executor::block_on;
@@ -24,7 +24,7 @@ use super::{
 };
 
 pub fn build_opamp_and_start_client<CB, OB, IG>(
-    ctx: Context<Option<SuperAgentEvent>>,
+    ctx: Context<Option<Event>>,
     opamp_builder: Option<&OB>,
     instance_id_getter: &IG,
     agent_id: AgentID,
@@ -56,7 +56,7 @@ where
 
 /// Builds and start an OpAMP client when a builder is provided.
 pub fn start_opamp_client<CB: Callbacks, O: OpAMPClientBuilder<CB>>(
-    ctx: Context<Option<SuperAgentEvent>>,
+    ctx: Context<Option<Event>>,
     opamp_builder: Option<&O>,
     agent_id: AgentID,
     start_settings: StartSettings,

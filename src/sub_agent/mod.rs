@@ -18,10 +18,10 @@ use std::thread::JoinHandle;
 use crate::config::super_agent_configs::AgentID;
 use crate::config::super_agent_configs::SubAgentConfig;
 use crate::context::Context;
+use crate::event::event::Event;
 use crate::opamp::callbacks::AgentCallbacks;
-use crate::super_agent::super_agent::SuperAgentEvent;
 
-use self::logger::Event;
+use self::logger::AgentLog;
 use self::opamp::remote_config_publisher::SubAgentRemoteConfigPublisher;
 
 pub(crate) type SubAgentCallbacks = AgentCallbacks<SubAgentRemoteConfigPublisher>;
@@ -45,8 +45,8 @@ pub trait SubAgentBuilder {
         &self,
         agent_id: AgentID,
         sub_agent_config: &SubAgentConfig,
-        tx: std::sync::mpsc::Sender<Event>,
-        ctx: Context<Option<SuperAgentEvent>>,
+        tx: std::sync::mpsc::Sender<AgentLog>,
+        ctx: Context<Option<Event>>,
     ) -> Result<Self::NotStartedSubAgent, error::SubAgentBuilderError>;
 }
 
@@ -91,8 +91,8 @@ pub mod test {
                 &self,
                 agent_id: AgentID,
                 sub_agent_config: &SubAgentConfig,
-                tx: std::sync::mpsc::Sender<Event>,
-                ctx: Context<Option<SuperAgentEvent>>,
+                tx: std::sync::mpsc::Sender<AgentLog>,
+                ctx: Context<Option<Event>>,
             ) -> Result<<Self as SubAgentBuilder>::NotStartedSubAgent, error::SubAgentBuilderError>;
         }
     }

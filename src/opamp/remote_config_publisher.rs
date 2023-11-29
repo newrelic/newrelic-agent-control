@@ -5,9 +5,9 @@ use thiserror::Error;
 use tracing::{error, trace};
 
 use crate::config::super_agent_configs::AgentID;
+use crate::event::event::OpAMPEvent;
 use crate::opamp::remote_config::{ConfigMap, RemoteConfig, RemoteConfigError};
 use crate::opamp::remote_config_hash::Hash;
-use crate::super_agent::super_agent::SuperAgentEvent;
 use opamp_client::opamp::proto::AgentRemoteConfig;
 //TODO this callbacks thing is just is a draft idea
 
@@ -23,10 +23,9 @@ pub enum RemoteConfigPublisherError {
 }
 
 pub trait RemoteConfigPublisher {
-    fn on_config_ok(&self, remote_config: RemoteConfig) -> SuperAgentEvent;
-    fn on_config_err(&self, err: RemoteConfigError) -> SuperAgentEvent;
-
-    fn publish_event(&self, event: SuperAgentEvent) -> Result<(), RemoteConfigPublisherError>;
+    fn on_config_ok(&self, remote_config: RemoteConfig) -> OpAMPEvent;
+    fn on_config_err(&self, err: RemoteConfigError) -> OpAMPEvent;
+    fn publish_event(&self, event: OpAMPEvent) -> Result<(), RemoteConfigPublisherError>;
 
     fn update(
         &self,

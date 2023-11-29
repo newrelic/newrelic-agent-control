@@ -1,5 +1,6 @@
 use newrelic_super_agent::config::store::{SuperAgentConfigStore, SuperAgentConfigStoreFile};
 use newrelic_super_agent::config::super_agent_configs;
+use newrelic_super_agent::event::event::{Event, SuperAgentEvent};
 use newrelic_super_agent::opamp::instance_id;
 use newrelic_super_agent::opamp::instance_id::getter::ULIDInstanceIDGetter;
 use newrelic_super_agent::opamp::instance_id::{Identifiers, Storer};
@@ -8,7 +9,7 @@ use newrelic_super_agent::sub_agent::values::values_repository::ValuesRepository
 use newrelic_super_agent::super_agent::defaults::SUPER_AGENT_TYPE;
 use newrelic_super_agent::super_agent::error::AgentError;
 use newrelic_super_agent::super_agent::opamp::client_builder::SuperAgentOpAMPHttpBuilder;
-use newrelic_super_agent::super_agent::super_agent::{SuperAgent, SuperAgentEvent};
+use newrelic_super_agent::super_agent::super_agent::SuperAgent;
 use newrelic_super_agent::{cli::Cli, context::Context, logging::Logging};
 use std::error::Error;
 use tracing::{error, info};
@@ -39,7 +40,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 
     info!("Creating the global context");
-    let ctx: Context<Option<SuperAgentEvent>> = Context::new();
+    let ctx: Context<Option<Event>> = Context::new();
 
     info!("Creating the signal handler");
     create_shutdown_signal_handler(ctx.clone())?;
@@ -88,7 +89,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 #[cfg(feature = "onhost")]
 fn run_super_agent(
     config_storer: SuperAgentConfigStoreFile,
-    ctx: Context<Option<SuperAgentEvent>>,
+    ctx: Context<Option<Event>>,
     opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
     instance_id_getter: ULIDInstanceIDGetter<Storer>,
 ) -> Result<(), AgentError> {
@@ -146,7 +147,7 @@ fn run_super_agent(
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
 fn run_super_agent(
     config_storer: SuperAgentConfigStoreFile,
-    ctx: Context<Option<SuperAgentEvent>>,
+    ctx: Context<Option<Event>>,
     opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
     instance_id_getter: ULIDInstanceIDGetter<Storer>,
 ) -> Result<(), AgentError> {
@@ -197,15 +198,15 @@ fn run_super_agent(
     .run(ctx)
 }
 
-fn create_shutdown_signal_handler(
-    ctx: Context<Option<SuperAgentEvent>>,
-) -> Result<(), ctrlc::Error> {
-    ctrlc::set_handler(move || ctx.cancel_all(Some(SuperAgentEvent::Stop)).unwrap()).map_err(
-        |e| {
-            error!("Could not set signal handler: {}", e);
-            e
-        },
-    )?;
+fn create_shutdown_signal_handler(ctx: Context<Option<Event>>) -> Result<(), ctrlc::Error> {
+    ctrlc::set_handler(move || {
+        ctx.cancel_all(Some(SuperAgentEvent::StopRequested.into()))
+            .unwrap()
+    })
+    .map_err(|e| {
+        error!("Could not set signal handler: {}", e);
+        e
+    })?;
 
     Ok(())
 }

@@ -9,7 +9,7 @@ use std::{
 };
 
 use crate::context::Context;
-use crate::sub_agent::logger::{Event, Metadata};
+use crate::sub_agent::logger::{AgentLog, Metadata};
 
 use super::error::ProcessError;
 
@@ -110,7 +110,7 @@ impl StartedSupervisorOnHost {
 fn start_command<R>(
     not_started_command: R,
     pid: Arc<Mutex<Option<u32>>>,
-    tx: Sender<Event>,
+    tx: Sender<AgentLog>,
 ) -> Result<ExitStatus, CommandError>
 where
     R: NotStartedCommand,
@@ -219,9 +219,9 @@ pub mod sleep_supervisor_tests {
     use super::NotStartedSupervisorOnHost;
     use super::SupervisorConfigOnHost;
     use crate::sub_agent::restart_policy::{BackoffStrategy, RestartPolicy};
-    use crate::{context::Context, sub_agent::logger::Event};
+    use crate::{context::Context, sub_agent::logger::AgentLog};
 
-    pub fn new_sleep_supervisor(tx: Sender<Event>, seconds: u32) -> NotStartedSupervisorOnHost {
+    pub fn new_sleep_supervisor(tx: Sender<AgentLog>, seconds: u32) -> NotStartedSupervisorOnHost {
         let config = SupervisorConfigOnHost::new(
             "sh".to_owned(),
             vec!["-c".to_string(), format!("sleep {}", seconds)],
@@ -237,7 +237,7 @@ pub mod sleep_supervisor_tests {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sub_agent::logger::OutputEvent;
+    use crate::sub_agent::logger::LogOutput;
     use crate::sub_agent::restart_policy::{Backoff, BackoffStrategy, RestartPolicy};
     use std::collections::HashMap;
     use std::time::{Duration, Instant};
@@ -328,8 +328,8 @@ mod tests {
                 match rx.recv() {
                     Err(_) => break,
                     Ok(event) => match event.output {
-                        OutputEvent::Stdout(line) => stdout_actual.push(line),
-                        OutputEvent::Stderr(_) => (),
+                        LogOutput::Stdout(line) => stdout_actual.push(line),
+                        LogOutput::Stderr(_) => (),
                     },
                 }
             }
