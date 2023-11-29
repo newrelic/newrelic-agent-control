@@ -139,7 +139,7 @@ pub(crate) mod tests {
     use crate::config::{
         store::SuperAgentConfigStoreFile,
         super_agent_configs::{
-            AgentID, AgentTypeFQN, OpAMPClientConfig, SubAgentConfig, SubAgentsConfig,
+            AgentID, AgentTypeFQN, K8sConfig, OpAMPClientConfig, SubAgentConfig, SubAgentsConfig,
             SuperAgentConfig,
         },
     };
@@ -213,6 +213,7 @@ agents:
                 endpoint: "http://127.0.0.1/v1/opamp".to_string(),
                 headers: None,
             }),
+            k8s: None,
         };
 
         assert!(actual.is_ok());

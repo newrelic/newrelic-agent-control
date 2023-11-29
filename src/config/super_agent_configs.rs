@@ -122,6 +122,12 @@ pub struct SuperAgentConfig {
 
     /// opamp contains the OpAMP client configuration
     pub opamp: Option<OpAMPClientConfig>,
+
+    // We could make this field available only when #[cfg(feature = "k8s")] but it would over-complicate
+    // the struct definition and usage. Making it optional should work no matter what features are enabled.
+    /// k8s is a map containing the kubernetes-specific settings
+    #[serde(default)]
+    pub k8s: Option<K8sConfig>,
 }
 
 impl SubAgentsConfig {
@@ -189,6 +195,16 @@ pub struct OpAMPClientConfig {
     pub headers: Option<HashMap<String, String>>,
 }
 
+#[derive(Debug, Deserialize, Default, PartialEq, Clone)]
+#[serde(deny_unknown_fields)]
+/// K8sConfig represents the SuperAgent configuration for K8s environments
+pub struct K8sConfig {
+    /// cluster_name is an attribute used to identify all monitored data in a particular kubernetes cluster.
+    pub cluster_name: String,
+    /// namespace is the kubernetes namespace where all resources directly managed by the super agent will be created.
+    pub namespace: String,
+}
+
 impl AgentTypeFQN {
     pub(crate) fn get_capabilities(&self) -> Capabilities {
         //TODO: We should move this to EffectiveAgent
@@ -222,6 +238,15 @@ opamp:
 agents:
   agent_1:
     agent_type: namespace/agent_type:0.0.1
+"#;
+
+    const EXAMPLE_K8S_CONFIG: &str = r#"
+agents:
+  agent_1:
+    agent_type: namespace/agent_type:0.0.1
+k8s:
+  namespace: default
+  cluster_name: some-cluster
 "#;
 
     const SUPERAGENT_CONFIG_UNKNOWN_FIELDS: &str = r#"
@@ -261,6 +286,15 @@ agents:
     agent_type: namespace/agent_type:0.0.1
 "#;
 
+    const SUPERAGENT_CONFIG_MISSING_K8S_FIELDS: &str = r#"
+agents:
+  agent_1:
+    agent_type: namespace/agent_type:0.0.1
+k8s:
+  cluster_name: some-cluster
+  # the namespace is missing :(
+"#;
+
     #[test]
     fn agent_id_validator() {
         assert!(AgentID::try_from("abc012_-".to_string()).is_ok());
@@ -274,6 +308,8 @@ agents:
     #[test]
     fn basic_parse() {
         assert!(serde_yaml::from_str::<SuperAgentConfig>(EXAMPLE_SUPERAGENT_CONFIG).is_ok());
+        assert!(serde_yaml::from_str::<SubAgentsConfig>(EXAMPLE_SUBAGENTS_CONFIG).is_ok());
+        assert!(serde_yaml::from_str::<SubAgentsConfig>(EXAMPLE_K8S_CONFIG).is_ok());
         assert!(
             serde_yaml::from_str::<SuperAgentConfig>(EXAMPLE_SUPERAGENT_CONFIG_NO_AGENTS).is_ok()
         );
@@ -310,6 +346,16 @@ agents:
             .unwrap_err()
             .to_string()
             .contains("AgentID 'super-agent' is reserved at line"))
+    }
+
+    #[test]
+    fn parse_with_missing_k8s_fields() {
+        let actual = serde_yaml::from_str::<SuperAgentConfig>(SUPERAGENT_CONFIG_MISSING_K8S_FIELDS);
+        assert!(actual.is_err());
+        assert!(actual
+            .unwrap_err()
+            .to_string()
+            .contains("k8s: missing field"));
     }
 
     #[test]
