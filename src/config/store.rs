@@ -1,7 +1,6 @@
 use crate::config::super_agent_configs::SuperAgentConfig;
 use crate::{config::error::SuperAgentConfigError, super_agent::defaults::SUPER_AGENT_DATA_DIR};
 use std::fs;
-use std::fs::OpenOptions;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 use tracing::warn;
@@ -81,12 +80,6 @@ impl SuperAgentConfigStoreFile {
 
     pub fn with_remote(self) -> Result<Self, SuperAgentConfigStoreError> {
         let remote_path = format!("{}/{}", SUPER_AGENT_DATA_DIR, "config.yaml");
-        // create and open the file in read-write mode even if does not exists
-        let _ = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .open(&remote_path)?;
 
         Ok(Self {
             local_path: self.local_path,
@@ -119,6 +112,7 @@ impl SuperAgentConfigStoreFile {
         &self,
         sub_agents: &SubAgentsConfig,
     ) -> Result<(), SuperAgentConfigStoreError> {
+        //TODO we should inject DirectoryManager and ensure the directory exists
         if let Some(remote_path_file) = &self.remote_path {
             Ok(serde_yaml::to_writer(
                 fs::File::create(remote_path_file)?,
