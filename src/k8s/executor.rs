@@ -29,6 +29,14 @@ pub struct K8sExecutor {
     dynamic_reflectors: HashMap<ApiResource, DynamicObjectReflector>,
 }
 
+// TODO: This is just an example and once we've implemented the config, needs to be removed.
+// #[derive(Error, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum K8sResourceType {
+    OtelHelmRepository,
+    OtelColHelmRelease,
+}
+
 #[cfg_attr(test, mockall::automock)]
 impl K8sExecutor {
     /// Constructs a new Kubernetes client.
@@ -36,6 +44,7 @@ impl K8sExecutor {
     /// If loading from the inCluster config fail we fall back to kube-config
     /// This will respect the `$KUBECONFIG` envvar, but otherwise default to `~/.kube/config`.
     /// Not leveraging infer() to check inClusterConfig first
+    ///
     ///
     pub async fn try_default(namespace: String) -> Result<Self, K8sError> {
         debug!("trying inClusterConfig for k8s client");
@@ -208,8 +217,25 @@ impl K8sExecutor {
     }
 }
 
+impl K8sResourceType {
+    pub fn to_gvk(&self) -> GroupVersionKind {
+        match self {
+            K8sResourceType::OtelHelmRepository => GroupVersionKind {
+                group: "source.toolkit.fluxcd.io".into(),
+                version: "v1beta2".into(),
+                kind: "HelmRepository".into(),
+            },
+            K8sResourceType::OtelColHelmRelease => GroupVersionKind {
+                group: "helm.toolkit.fluxcd.io".into(),
+                version: "v2beta1".into(),
+                kind: "HelmRelease".into(),
+            },
+        }
+    }
+}
+
 #[cfg(test)]
-mod test {
+pub(crate) mod test {
     use super::*;
     use assert_matches::assert_matches;
     use k8s_openapi::serde_json;

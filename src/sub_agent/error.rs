@@ -49,6 +49,9 @@ pub enum SubAgentError {
 
     #[error("remote config error: `{0}`")]
     RemoteConfigError(#[from] RemoteConfigError),
+
+    #[error("Supervisor stop error: `{0}`")]
+    SupervisorStopError(String),
 }
 
 #[derive(Error, Debug)]

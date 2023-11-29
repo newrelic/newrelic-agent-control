@@ -8,11 +8,16 @@ use crate::super_agent::super_agent::SuperAgentEvent;
 use crate::{
     config::super_agent_configs::AgentID,
     opamp::client_builder::OpAMPClientBuilder,
+    sub_agent::k8s::supervisor::CRSupervisor,
     sub_agent::{error::SubAgentBuilderError, logger::Event, SubAgentBuilder},
 };
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use super::sub_agent::NotStartedSubAgentK8s;
+
+#[cfg_attr(test, mockall_double::double)]
+use crate::k8s::executor::K8sExecutor;
 
 pub struct K8sSubAgentBuilder<'a, C, O, I>
 where
@@ -27,6 +32,8 @@ where
     // It's actually used as a generic parameter for the `OpAMPClientBuilder` instance bound by type parameter `O`.
     // Feel free to remove this when the actual implementations (Callbacks instance for K8s agents) make it redundant!
     _callbacks: std::marker::PhantomData<C>,
+    // client: Client, Should we inject the client?
+    executor: Arc<K8sExecutor>,
 }
 
 impl<'a, C, O, I> K8sSubAgentBuilder<'a, C, O, I>
@@ -35,12 +42,17 @@ where
     O: OpAMPClientBuilder<C>,
     I: InstanceIDGetter,
 {
-    pub fn new(opamp_builder: Option<&'a O>, instance_id_getter: &'a I) -> Self {
+    pub fn new(
+        opamp_builder: Option<&'a O>,
+        instance_id_getter: &'a I,
+        executor: Arc<K8sExecutor>,
+    ) -> Self {
         Self {
             opamp_builder,
             instance_id_getter,
 
             _callbacks: std::marker::PhantomData,
+            executor,
         }
     }
 }
@@ -69,9 +81,14 @@ where
             HashMap::from([]), // TODO: check if we need to set non_identifying_attributes
         )?;
 
-        // TODO: build CRs supervisors and inject them into the NotStartedSubAgentK8s
+        // Clone the executor on each build.
+        let supervisor = CRSupervisor::new(Arc::clone(&self.executor.clone()));
 
-        Ok(NotStartedSubAgentK8s::new(agent_id, maybe_opamp_client))
+        Ok(NotStartedSubAgentK8s::new(
+            agent_id,
+            maybe_opamp_client,
+            supervisor,
+        ))
     }
 }
 
@@ -83,9 +100,16 @@ mod test {
     use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
     use crate::opamp::operations::start_settings;
     use crate::{
+        k8s::executor::K8sResourceType,
+        k8s::executor::MockK8sExecutor,
         opamp::client_builder::test::MockOpAMPClientBuilderMock,
+        sub_agent::k8s::sample_crs::{OTELCOL_HELM_RELEASE_CR, OTEL_HELM_REPOSITORY_CR},
         sub_agent::{NotStartedSubAgent, StartedSubAgent},
     };
+    use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
+    use kube::core::{DynamicObject, TypeMeta};
+    use mockall::predicate;
+    use serde_json::json;
     use std::{collections::HashMap, sync::mpsc::channel};
 
     #[test]
@@ -117,7 +141,30 @@ mod test {
             "k8s-test-instance-id".to_string(),
         );
 
-        let builder = K8sSubAgentBuilder::new(Some(&opamp_builder), &instance_id_getter);
+        // instance K8s executor mock
+        let mut mock_executor = MockK8sExecutor::default();
+
+        // Set mock executor expectations
+        mock_executor
+            .expect_create_dynamic_object()
+            .withf(|gvk, spec| {
+                // Check if the parameters match the expected CRs
+                *gvk == K8sResourceType::OtelHelmRepository.to_gvk()
+                    && spec == OTEL_HELM_REPOSITORY_CR
+                    || *gvk == K8sResourceType::OtelColHelmRelease.to_gvk()
+                        && spec == OTELCOL_HELM_RELEASE_CR
+            })
+            .times(2)
+            .returning(move |_, _| Ok(create_mock_dynamic_object().clone()));
+
+        mock_executor
+            .expect_delete_dynamic_object()
+            .with(predicate::always(), predicate::always())
+            .times(2) // Expect it to be called twice for the two resource types
+            .returning(|_, _| Ok(()));
+
+        let executor = Arc::new(mock_executor);
+        let builder = K8sSubAgentBuilder::new(Some(&opamp_builder), &instance_id_getter, executor);
 
         let (tx, _) = channel();
         let ctx: Context<Option<SuperAgentEvent>> = Context::new();
@@ -138,6 +185,17 @@ mod test {
         // TODO: setup k8s runtime_config here. Eg: `final_agent.runtime_config.deployment.k8s = ...`
         SubAgentConfig {
             agent_type: "some_agent".into(),
+        }
+    }
+
+    fn create_mock_dynamic_object() -> DynamicObject {
+        DynamicObject {
+            types: Some(TypeMeta {
+                api_version: "v1".into(),
+                kind: "MockKind".into(),
+            }),
+            metadata: ObjectMeta::default(),
+            data: json!({}),
         }
     }
 }
