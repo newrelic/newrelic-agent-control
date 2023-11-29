@@ -2,6 +2,7 @@ use std::thread::JoinHandle;
 
 use opamp_client;
 use opamp_client::StartedClient;
+use tracing::debug;
 
 use super::supervisor::command_supervisor::{NotStartedSupervisorOnHost, StartedSupervisorOnHost};
 use crate::config::super_agent_configs::AgentID;
@@ -54,7 +55,10 @@ where
         let started_supervisors = self
             .supervisors
             .into_iter()
-            .map(|s| s.run())
+            .map(|s| {
+                debug!("Running supervisor {} for {}", s.config.bin, self.agent_id);
+                s.run()
+            })
             .collect::<Result<Vec<_>, _>>()?;
 
         let started_sub_agent = StartedSubAgentOnHost {
