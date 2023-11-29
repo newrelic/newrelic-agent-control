@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::config::super_agent_configs::AgentID;
 
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 use super::{
     error::{SubAgentCollectionError, SubAgentError},
@@ -32,7 +32,10 @@ where
         let sub_agents: Result<HashMap<AgentID, S::StartedSubAgent>, SubAgentError> = self
             .0
             .into_iter()
-            .map(|(id, subagent)| Ok((id, subagent.run()?)))
+            .map(|(id, subagent)| {
+                debug!("Running supervisors for agent {}", id);
+                Ok((id, subagent.run()?))
+            })
             .collect();
         Ok(StartedSubAgents(sub_agents?))
     }

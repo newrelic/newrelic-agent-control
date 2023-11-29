@@ -14,6 +14,7 @@ use std::fs::Permissions;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
+use tracing::debug;
 
 #[cfg(target_family = "unix")]
 const DIRECTORY_PERMISSIONS: u32 = 0o700;
@@ -154,6 +155,7 @@ where
     fn get(&self, agent_id: &AgentID) -> Result<Hash, HashRepositoryError> {
         let mut conf_path = self.conf_path.clone();
         let hash_path = self.hash_file_path(agent_id, &mut conf_path);
+        debug!("Reading hash file at {}", hash_path.to_string_lossy());
         let contents = self.file_reader.read(hash_path)?;
         let result = serde_yaml::from_str(&contents);
         Ok(result?)
