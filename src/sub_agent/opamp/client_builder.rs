@@ -1,5 +1,6 @@
 use crate::config::super_agent_configs::{AgentID, OpAMPClientConfig};
 use crate::context::Context;
+use crate::event::event::Event;
 use crate::opamp::callbacks::AgentCallbacks;
 use crate::opamp::client_builder::{
     build_http_client, OpAMPClientBuilder, OpAMPClientBuilderError,
@@ -7,7 +8,6 @@ use crate::opamp::client_builder::{
 use crate::sub_agent::opamp::remote_config_publisher::SubAgentRemoteConfigPublisher;
 use crate::sub_agent::SubAgentCallbacks;
 use crate::super_agent::opamp::client_builder::SuperAgentOpAMPHttpBuilder;
-use crate::super_agent::super_agent::SuperAgentEvent;
 use crate::utils::time::get_sys_time_nano;
 use futures::executor::block_on;
 use opamp_client::http::{HttpClientReqwest, NotStartedHttpClient, StartedHttpClient};
@@ -38,7 +38,7 @@ impl OpAMPClientBuilder<SubAgentCallbacks> for SubAgentOpAMPHttpBuilder {
     type Client = StartedHttpClient<SubAgentCallbacks, HttpClientReqwest>;
     fn build_and_start(
         &self,
-        ctx: Context<Option<SuperAgentEvent>>,
+        ctx: Context<Option<Event>>,
         agent_id: AgentID,
         start_settings: StartSettings,
     ) -> Result<Self::Client, OpAMPClientBuilderError> {

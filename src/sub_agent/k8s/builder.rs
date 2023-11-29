@@ -2,14 +2,14 @@ use opamp_client::operation::callbacks::Callbacks;
 
 use crate::config::super_agent_configs::SubAgentConfig;
 use crate::context::Context;
+use crate::event::event::Event;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_opamp_and_start_client;
-use crate::super_agent::super_agent::SuperAgentEvent;
 use crate::{
     config::super_agent_configs::AgentID,
     opamp::client_builder::OpAMPClientBuilder,
     sub_agent::k8s::supervisor::CRSupervisor,
-    sub_agent::{error::SubAgentBuilderError, logger::Event, SubAgentBuilder},
+    sub_agent::{error::SubAgentBuilderError, logger::AgentLog, SubAgentBuilder},
 };
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -69,8 +69,8 @@ where
         &self,
         agent_id: AgentID,
         sub_agent_config: &SubAgentConfig,
-        _tx: std::sync::mpsc::Sender<Event>,
-        ctx: Context<Option<SuperAgentEvent>>,
+        _tx: std::sync::mpsc::Sender<AgentLog>,
+        ctx: Context<Option<Event>>,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
         let maybe_opamp_client = build_opamp_and_start_client(
             ctx,
@@ -167,7 +167,7 @@ mod test {
         let builder = K8sSubAgentBuilder::new(Some(&opamp_builder), &instance_id_getter, executor);
 
         let (tx, _) = channel();
-        let ctx: Context<Option<SuperAgentEvent>> = Context::new();
+        let ctx: Context<Option<Event>> = Context::new();
         let started_agent = builder
             .build(
                 AgentID::new("k8s-test").unwrap(),

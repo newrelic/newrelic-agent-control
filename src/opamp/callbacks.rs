@@ -117,10 +117,10 @@ fn log_on_http_status_code(err: &ConnectionError) {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    use crate::event::event::OpAMPEvent;
     use crate::opamp::remote_config::{ConfigMap, RemoteConfig};
     use crate::opamp::remote_config_hash::Hash;
     use crate::opamp::remote_config_publisher::RemoteConfigPublisherError;
-    use crate::super_agent::super_agent::SuperAgentEvent;
     use mockall::{mock, predicate};
     use opamp_client::opamp::proto::{AgentConfigFile, AgentConfigMap, AgentRemoteConfig};
     use std::collections::HashMap;
@@ -146,14 +146,14 @@ pub(crate) mod tests {
         pub RemoteConfigPublisherMock {}
 
         impl RemoteConfigPublisher for RemoteConfigPublisherMock {
-            fn on_config_ok(&self, remote_config: RemoteConfig) -> SuperAgentEvent;
-            fn on_config_err(&self, err: RemoteConfigError) -> SuperAgentEvent;
-            fn publish_event(&self, event: SuperAgentEvent) -> Result<(), RemoteConfigPublisherError>;
-            }
+            fn on_config_ok(&self, remote_config: RemoteConfig) -> OpAMPEvent;
+            fn on_config_err(&self, err: RemoteConfigError) -> OpAMPEvent;
+            fn publish_event(&self, event: OpAMPEvent) -> Result<(), RemoteConfigPublisherError>;
+        }
     }
 
     impl MockRemoteConfigPublisherMock {
-        pub fn should_on_config_ok(&mut self, remote_config: RemoteConfig, event: SuperAgentEvent) {
+        pub fn should_on_config_ok(&mut self, remote_config: RemoteConfig, event: OpAMPEvent) {
             let event = event.clone();
             self.expect_on_config_ok()
                 .once()
@@ -162,14 +162,14 @@ pub(crate) mod tests {
         }
 
         #[allow(dead_code)]
-        pub fn should_on_config_err(&mut self, err: RemoteConfigError, event: SuperAgentEvent) {
+        pub fn should_on_config_err(&mut self, err: RemoteConfigError, event: OpAMPEvent) {
             let event = event.clone();
             self.expect_on_config_err()
                 .once()
                 .with(predicate::eq(err.clone()))
                 .returning(move |_| event.clone());
         }
-        pub fn should_publish_event(&mut self, event: SuperAgentEvent) {
+        pub fn should_publish_event(&mut self, event: OpAMPEvent) {
             self.expect_publish_event()
                 .once()
                 .with(predicate::eq(event.clone()))
@@ -212,7 +212,7 @@ pub(crate) mod tests {
             config_map: expected_config_map,
         };
 
-        let expected_event = SuperAgentEvent::SuperAgentRemoteConfigValid(expected_config.clone());
+        let expected_event = OpAMPEvent::ValidRemoteConfigReceived(expected_config.clone());
         config_updater.should_on_config_ok(expected_config.clone(), expected_event.clone());
 
         config_updater.should_publish_event(expected_event);

@@ -3,9 +3,9 @@ use std::{sync::mpsc::Receiver, thread::spawn};
 
 use tracing::debug;
 
-/// Stream of output events, either stdout or stderr
+/// Stream of outputs, either stdout or stderr
 #[derive(Debug)]
-pub enum OutputEvent {
+pub enum LogOutput {
     Stdout(String),
     Stderr(String),
 }
@@ -27,9 +27,10 @@ impl Metadata {
     }
 }
 
+/// AgentLog with Stream of outputs and metadata
 #[derive(Debug)]
-pub struct Event {
-    pub output: OutputEvent,
+pub struct AgentLog {
+    pub output: LogOutput,
     pub metadata: Metadata,
 }
 
@@ -37,7 +38,7 @@ pub struct Event {
 /// The trait consumes itself as the logging is done in a separate thread,
 /// the thread handle is returned.
 pub trait EventLogger {
-    fn log(self, rcv: Receiver<Event>) -> JoinHandle<()>;
+    fn log(self, rcv: Receiver<AgentLog>) -> JoinHandle<()>;
 }
 
 // TODO: add configuration filters or additional fields for logging
@@ -48,13 +49,13 @@ impl EventLogger for StdEventReceiver {
     /// fn log outputs the received data using the debug macro, it does not distinguish between
     /// data received from stdout or stderr (newrelic-infra uses stdout while nr-otel-collector
     /// uses stderr)
-    fn log(self, rcv: Receiver<Event>) -> std::thread::JoinHandle<()> {
+    fn log(self, rcv: Receiver<AgentLog>) -> std::thread::JoinHandle<()> {
         spawn(move || {
             rcv.iter().for_each(|event| match event.output {
-                OutputEvent::Stdout(log) => {
+                LogOutput::Stdout(log) => {
                     debug!(command = event.metadata.values(), log)
                 }
-                OutputEvent::Stderr(log) => {
+                LogOutput::Stderr(log) => {
                     debug!(command = event.metadata.values(), log)
                 }
             })
@@ -104,8 +105,8 @@ mod tests {
 
         let logger_handle = logger.log(rx);
 
-        tx.send(Event {
-            output: OutputEvent::Stderr(send_message.to_owned()),
+        tx.send(AgentLog {
+            output: LogOutput::Stderr(send_message.to_owned()),
             metadata: Metadata::new(metadata),
         })
         .unwrap();

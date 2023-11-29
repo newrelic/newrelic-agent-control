@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::mpsc::Receiver, thread};
 
-use newrelic_super_agent::sub_agent::logger::{Event, OutputEvent};
+use newrelic_super_agent::sub_agent::logger::{AgentLog, LogOutput};
 use newrelic_super_agent::sub_agent::on_host::command::command::{
     CommandTerminator, NotStartedCommand, StartedCommand,
 };
@@ -19,24 +19,24 @@ where
     cmd: C,
 }
 
-fn get_n_outputs(rx: Receiver<Event>, times: usize) -> (Vec<String>, Vec<String>) {
+fn get_n_outputs(rx: Receiver<AgentLog>, times: usize) -> (Vec<String>, Vec<String>) {
     // stream the actual output on a separate thread
     let stream = thread::spawn(move || {
         let mut stdout_actual = Vec::new();
         let mut stderr_actual = Vec::new();
 
-        let mut match_output_event = |event: Event| {
+        let mut match_agent_log = |event: AgentLog| {
             match event.output {
-                OutputEvent::Stdout(line) => stdout_actual.push(line),
-                OutputEvent::Stderr(line) => stderr_actual.push(line),
+                LogOutput::Stdout(line) => stdout_actual.push(line),
+                LogOutput::Stderr(line) => stderr_actual.push(line),
             };
             Some(())
         };
 
         if times == 0 {
-            (0..).try_for_each(|_| match_output_event(rx.recv().ok()?))
+            (0..).try_for_each(|_| match_agent_log(rx.recv().ok()?))
         } else {
-            (0..times).try_for_each(|_| match_output_event(rx.recv().ok()?))
+            (0..times).try_for_each(|_| match_agent_log(rx.recv().ok()?))
         };
 
         (stdout_actual, stderr_actual)

@@ -10,8 +10,8 @@ use tracing::error;
 use crate::config::super_agent_configs::{AgentID, OpAMPClientConfig};
 
 use crate::context::Context;
+use crate::event::event::Event;
 use crate::opamp::instance_id;
-use crate::super_agent::super_agent::SuperAgentEvent;
 
 #[derive(Error, Debug)]
 pub enum OpAMPClientBuilderError {
@@ -34,7 +34,7 @@ pub trait OpAMPClientBuilder<CB: Callbacks> {
     // type StartedClient: StartedClient;
     fn build_and_start(
         &self,
-        ctx: Context<Option<SuperAgentEvent>>,
+        ctx: Context<Option<Event>>,
         agent_id: AgentID,
         start_settings: StartSettings,
     ) -> Result<Self::Client, OpAMPClientBuilderError>;
@@ -159,7 +159,7 @@ pub(crate) mod test {
 
         impl<C> OpAMPClientBuilder<C> for OpAMPClientBuilderMock<C> where C: Callbacks + Send + Sync + 'static{
             type Client = MockStartedOpAMPClientMock<C>;
-            fn build_and_start(&self, ctx: Context<Option<SuperAgentEvent>>, agent_id: AgentID, start_settings: StartSettings) -> Result<<Self as OpAMPClientBuilder<C>>::Client, OpAMPClientBuilderError>;
+            fn build_and_start(&self, ctx: Context<Option<Event>>, agent_id: AgentID, start_settings: StartSettings) -> Result<<Self as OpAMPClientBuilder<C>>::Client, OpAMPClientBuilderError>;
         }
     }
 
@@ -174,7 +174,7 @@ pub(crate) mod test {
             returning: F,
         ) where
             F: FnMut(
-                    Context<Option<SuperAgentEvent>>,
+                    Context<Option<Event>>,
                     AgentID,
                     StartSettings,
                 )
