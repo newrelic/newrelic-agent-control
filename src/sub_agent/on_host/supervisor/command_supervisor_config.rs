@@ -8,7 +8,7 @@ use crate::{context::Context, sub_agent::logger::AgentLog};
 #[derive(Debug, Clone)]
 pub struct SupervisorConfigOnHost {
     pub(super) ctx: Context<bool>,
-    pub(super) bin: String,
+    pub(crate) bin: String,
     pub(super) args: Vec<String>,
     pub(super) env: HashMap<String, String>,
     pub(super) snd: Sender<AgentLog>,
