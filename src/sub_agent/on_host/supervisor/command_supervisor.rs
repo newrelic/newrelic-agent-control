@@ -29,7 +29,7 @@ use tracing::{error, info};
 ////////////////////////////////////////////////////////////////////////////////////
 #[derive(Debug, Clone)]
 pub struct NotStartedSupervisorOnHost {
-    config: SupervisorConfigOnHost,
+    pub(crate) config: SupervisorConfigOnHost,
 }
 
 impl NotStartedSupervisorOnHost {
