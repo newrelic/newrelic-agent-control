@@ -95,17 +95,7 @@ where
     fn agent_id(&self) -> &AgentID {
         &self.agent_id
     }
-}
 
-impl<'a, S, O, HR, SL, HRS, VR> SuperAgent<'a, S, O, HR, SL, HRS, VR>
-where
-    O: StartedClient<SuperAgentCallbacks>,
-    HR: HashRepository,
-    S: SubAgentBuilder,
-    SL: SubAgentsConfigStore,
-    HRS: HashRepository,
-    VR: ValuesRepository,
-{
     pub fn run(self, ctx: Context<Option<Event>>) -> Result<(), AgentError> {
         info!("Creating agent's communication channels");
         // Channel will be closed when tx is dropped and no reference to it is alive
