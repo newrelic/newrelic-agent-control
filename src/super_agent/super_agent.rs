@@ -95,27 +95,7 @@ where
     fn agent_id(&self) -> &AgentID {
         &self.agent_id
     }
-}
 
-pub fn super_agent_fqn() -> AgentTypeFQN {
-    AgentTypeFQN::from(
-        format!(
-            "{}/{}:{}",
-            SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION
-        )
-        .as_str(),
-    )
-}
-
-impl<'a, S, O, HR, SL, HRS, VR> SuperAgent<'a, S, O, HR, SL, HRS, VR>
-where
-    O: StartedClient<SuperAgentCallbacks>,
-    HR: HashRepository,
-    S: SubAgentBuilder,
-    SL: SubAgentsConfigStore,
-    HRS: HashRepository,
-    VR: ValuesRepository,
-{
     pub fn run(self, ctx: Context<Option<Event>>) -> Result<(), AgentError> {
         info!("Creating agent's communication channels");
         // Channel will be closed when tx is dropped and no reference to it is alive
@@ -505,6 +485,16 @@ where
             .remote_config_hash_repository
             .save(self.agent_id(), &remote_config.hash)?)
     }
+}
+
+pub fn super_agent_fqn() -> AgentTypeFQN {
+    AgentTypeFQN::from(
+        format!(
+            "{}/{}:{}",
+            SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION
+        )
+        .as_str(),
+    )
 }
 
 #[derive(Debug, Default, PartialEq, Clone)]
