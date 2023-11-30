@@ -97,16 +97,6 @@ where
     }
 }
 
-pub fn super_agent_fqn() -> AgentTypeFQN {
-    AgentTypeFQN::from(
-        format!(
-            "{}/{}:{}",
-            SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION
-        )
-        .as_str(),
-    )
-}
-
 impl<'a, S, O, HR, SL, HRS, VR> SuperAgent<'a, S, O, HR, SL, HRS, VR>
 where
     O: StartedClient<SuperAgentCallbacks>,
@@ -505,6 +495,16 @@ where
             .remote_config_hash_repository
             .save(self.agent_id(), &remote_config.hash)?)
     }
+}
+
+pub fn super_agent_fqn() -> AgentTypeFQN {
+    AgentTypeFQN::from(
+        format!(
+            "{}/{}:{}",
+            SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION
+        )
+        .as_str(),
+    )
 }
 
 #[derive(Debug, Default, PartialEq, Clone)]
