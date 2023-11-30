@@ -3,10 +3,12 @@ use std::{
     fmt::{Display, Formatter},
 };
 
-use crate::config::agent_type::agent_types::AgentTypeEndSpec;
 use serde::Deserialize;
 
-use super::{agent_types::VariableType, error::AgentTypeError};
+use super::{
+    agent_types::{EndSpec, VariableType},
+    error::AgentTypeError,
+};
 
 /// Represents all the allowed types for a configuration defined in the spec value.
 #[derive(Debug, PartialEq, Clone, Deserialize)]
@@ -27,20 +29,24 @@ impl TrivialValue {
     /// Checks the `TrivialValue` against the given [`VariableType`], erroring if they do not match.
     ///
     /// This is also in charge of converting a `TrivialValue::String` into a `TrivialValue::File`, using the actual string as the file content, if the given [`VariableType`] is `VariableType::File`.
-    pub fn check_type<T>(self, end_spec: &T) -> Result<Self, AgentTypeError>
-    where
-        T: AgentTypeEndSpec,
-    {
-        match (self.clone(), end_spec.variable_type()) {
+    pub fn check_type(&self, end_spec: &EndSpec) -> Result<(), AgentTypeError> {
+        let trivial_value = self;
+        let var_type = end_spec.variable_type();
+        let trivial_value_str = format!("{trivial_value:?}");
+        let var_type_str = format!("{var_type:?}");
+        match (trivial_value, var_type) {
             (TrivialValue::String(_), VariableType::String)
             | (TrivialValue::Bool(_), VariableType::Bool)
-            | (TrivialValue::File(_), VariableType::File)
+            | (TrivialValue::String(_), VariableType::File)
             | (TrivialValue::Number(_), VariableType::Number)
             | (TrivialValue::MapStringString(_), VariableType::MapStringString)
-            | (TrivialValue::MapStringString(_), VariableType::MapStringFile) => Ok(self),
+            | (TrivialValue::MapStringString(_), VariableType::MapStringFile) => Ok(()),
+            // There is a possibility that the expected type is a file or a string but the parsed value results in a MapStringString or MapStringFile.
+            // FIXME is it possible to tell serde the difference? Not sure.
+            // So we need to
             (v, t) => Err(AgentTypeError::TypeMismatch {
                 expected_type: t.to_string(),
-                actual_value: v,
+                actual_value: v.clone(),
             }),
         }
     }

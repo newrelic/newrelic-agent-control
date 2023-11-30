@@ -3,7 +3,7 @@ use std::fs::Permissions;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
-use crate::config::agent_type::agent_types::{AgentTypeEndSpec, FinalAgent, VariableType};
+use crate::config::agent_type::agent_types::{FinalAgent, VariableType};
 use crate::config::agent_type::trivial_value::TrivialValue;
 use crate::config::persister::config_persister::{ConfigurationPersister, PersistError};
 use crate::config::persister::config_writer_file::{WriteError, Writer, WriterFile};

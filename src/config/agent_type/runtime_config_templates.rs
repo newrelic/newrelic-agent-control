@@ -186,8 +186,8 @@ mod tests {
                 required: true,
                 default: None,
                 variants: None,
+                file_path: Some("some_path".to_string()),
             }),
-            file_path: Some("some_path".to_string()),
         };
         let age_endspec: EndSpec = EndSpec {
             description: String::default(),
@@ -196,8 +196,8 @@ mod tests {
                 required: true,
                 default: None,
                 variants: None,
+                file_path: Some("some_path".to_string()),
             }),
-            file_path: Some("some_path".to_string()),
         };
 
         let variables = NormalizedVariables::from([
@@ -220,8 +220,8 @@ mod tests {
                 required: true,
                 default: None,
                 variants: None,
+                file_path: Some("some_path".to_string()),
             }),
-            file_path: Some("some_path".to_string()),
         };
         let args_endspec: EndSpec = EndSpec {
             description: String::default(),
@@ -230,8 +230,8 @@ mod tests {
                 required: true,
                 default: None,
                 variants: None,
+                file_path: Some("some_path".to_string()),
             }),
-            file_path: Some("some_path".to_string()),
         };
         let env_endspec: EndSpec = EndSpec {
             description: String::default(),
@@ -240,8 +240,8 @@ mod tests {
                 required: true,
                 default: None,
                 variants: None,
+                file_path: Some("some_path".to_string()),
             }),
-            file_path: Some("some_path".to_string()),
         };
         let backofftype_endspec: EndSpec = EndSpec {
             description: "backoff_type".to_string(),
@@ -250,8 +250,8 @@ mod tests {
                 required: true,
                 default: None,
                 variants: None, // FIXME???
+                file_path: Some("some_path".to_string()),
             }),
-            file_path: Some("some_path".to_string()),
         };
         let backoffdelay_endspec: EndSpec = EndSpec {
             description: "backoff_delay".to_string(),
@@ -260,8 +260,8 @@ mod tests {
                 required: true,
                 default: None,
                 variants: None,
+                file_path: Some("some_path".to_string()),
             }),
-            file_path: Some("some_path".to_string()),
         };
         let backoffretries_endspec: EndSpec = EndSpec {
             description: "backoff_retries".to_string(),
@@ -270,8 +270,8 @@ mod tests {
                 required: true,
                 default: None,
                 variants: None,
+                file_path: Some("some_path".to_string()),
             }),
-            file_path: Some("some_path".to_string()),
         };
         let backoffinterval_endspec: EndSpec = EndSpec {
             description: "backoff_interval".to_string(),
@@ -280,8 +280,8 @@ mod tests {
                 required: true,
                 default: None,
                 variants: None,
+                file_path: Some("some_path".to_string()),
             }),
-            file_path: Some("some_path".to_string()),
         };
 
         let variables = NormalizedVariables::from([

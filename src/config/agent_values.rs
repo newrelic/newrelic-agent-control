@@ -134,7 +134,8 @@ impl AgentValues {
 
             // check type matches agent one and apply transformations
             if let Some(inner) = value {
-                self.update_from_normalized(k, inner.clone().check_type(v)?);
+                inner.check_type(v)?;
+                self.update_from_normalized(k, inner);
             }
         }
 

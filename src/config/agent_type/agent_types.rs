@@ -262,21 +262,15 @@ impl Display for VariableType {
     }
 }
 
-pub trait AgentTypeEndSpec {
-    fn variable_type(&self) -> VariableType;
-    fn file_path(&self) -> Option<String>;
-}
-
 #[derive(Debug, PartialEq, Clone, Deserialize)]
 pub struct EndSpec {
     pub(crate) description: String,
     #[serde(flatten)]
     pub kind: Kind,
-    pub(crate) file_path: Option<String>,
 }
 
-impl AgentTypeEndSpec for EndSpec {
-    fn variable_type(&self) -> VariableType {
+impl EndSpec {
+    pub fn variable_type(&self) -> VariableType {
         match self.kind {
             Kind::String(_) => VariableType::String,
             Kind::Bool(_) => VariableType::Bool,
@@ -285,10 +279,6 @@ impl AgentTypeEndSpec for EndSpec {
             Kind::MapStringFile(_) => VariableType::MapStringFile,
             Kind::MapStringString(_) => VariableType::MapStringString,
         }
-    }
-
-    fn file_path(&self) -> Option<String> {
-        self.file_path.clone()
     }
 }
 
@@ -346,10 +336,28 @@ impl Kind {
     fn set_final_value(&mut self, value: Option<TrivialValue>) -> Result<(), AgentTypeError> {
         if let Some(v) = value {
             match (self, v) {
-                (Kind::String(v), TrivialValue::String(s)) => v.final_value = Some(s),
                 (Kind::Bool(v), TrivialValue::Bool(b)) => v.final_value = Some(b),
                 (Kind::Number(v), TrivialValue::Number(n)) => v.final_value = Some(n),
+                (Kind::File(v), TrivialValue::File(m)) => v.final_value = Some(m),
                 (Kind::MapStringFile(v), TrivialValue::MapStringFile(m)) => v.final_value = Some(m),
+                // As we cannot distinguish between strings and files with the current type structure, we perform a conversion when storing strings into files
+                (Kind::File(v), TrivialValue::String(m)) => {
+                    let file_path = v.file_path.clone();
+                    v.final_value = Some(FilePathWithContent::new(
+                        file_path
+                            .expect("file_path should always be present when working with files"),
+                        m,
+                    ))
+                }
+                (Kind::MapStringFile(v), TrivialValue::MapStringString(m)) => {
+                    v.final_value = Some(
+                        m.into_iter()
+                            .map(|(k, v)| (k.clone(), FilePathWithContent::new(k, v)))
+                            .collect(),
+                    )
+                }
+                // After the above checks, store the possible strings
+                (Kind::String(v), TrivialValue::String(s)) => v.final_value = Some(s),
                 (Kind::MapStringString(v), TrivialValue::MapStringString(m)) => {
                     v.final_value = Some(m)
                 }
@@ -372,7 +380,7 @@ impl Kind {
             Kind::String(v) => v.set_default_as_final(),
             Kind::Bool(v) => v.set_default_as_final(),
             Kind::Number(v) => v.set_default_as_final(),
-            Kind::File(v) => v.set_default_as_final(),
+            Kind::File(v) => v.set_default_as_final_file(),
             Kind::MapStringFile(v) => v.set_default_as_final(),
             Kind::MapStringString(v) => v.set_default_as_final(),
         }
@@ -407,6 +415,24 @@ pub struct KindValue<T> {
     pub(crate) final_value: Option<T>,
     pub required: bool,
     pub(crate) variants: Option<Vec<T>>,
+    pub(crate) file_path: Option<String>,
+}
+
+impl KindValue<FilePathWithContent> {
+    pub(crate) fn set_default_as_final_file(&mut self) {
+        let mut file = self
+            .default
+            .take()
+            .expect("set_default_as_final_file: default file contents must be present");
+        let path = self
+            .file_path
+            .take()
+            .expect("set_default_as_final_file: file_path must exist");
+
+        file.path = path;
+
+        self.final_value = Some(file);
+    }
 }
 
 impl<T> KindValue<T> {
@@ -432,6 +458,7 @@ where
             default: Option<T>,
             variants: Option<Vec<T>>,
             required: bool,
+            file_path: Option<String>,
         }
 
         let intermediate_spec = IntermediateValueKind::deserialize(deserializer)?;
@@ -445,6 +472,7 @@ where
             required: intermediate_spec.required,
             final_value: None,
             variants: intermediate_spec.variants,
+            file_path: intermediate_spec.file_path,
         })
     }
 }
@@ -693,8 +721,8 @@ deployment:
                 required: false,
                 default: Some("nrdot".to_string()),
                 variants: None,
+                file_path: None,
             }),
-            file_path: None,
         };
 
         let given_agent: FinalAgent = serde_yaml::from_str(AGENT_GIVEN_YAML).unwrap();
@@ -745,8 +773,8 @@ deployment:
                 required: true,
                 default: None,
                 variants: None,
+                file_path: None,
             }),
-            file_path: None,
         };
         let verbosity_endspec: EndSpec = EndSpec {
             description: "verbosity".to_string(),
@@ -755,8 +783,8 @@ deployment:
                 required: true,
                 default: None,
                 variants: None,
+                file_path: None,
             }),
-            file_path: None,
         };
         let loglevel_endspec: EndSpec = EndSpec {
             description: "log_level".to_string(),
@@ -765,8 +793,8 @@ deployment:
                 required: true,
                 default: None,
                 variants: None,
+                file_path: None,
             }),
-            file_path: None,
         };
         let backofftype_endspec: EndSpec = EndSpec {
             description: "backoff_type".to_string(),
@@ -775,8 +803,8 @@ deployment:
                 required: true,
                 default: None,
                 variants: None, // FIXME???
+                file_path: Some("some_path".to_string()),
             }),
-            file_path: Some("some_path".to_string()),
         };
         let backoffdelay_endspec: EndSpec = EndSpec {
             description: "backoff_delay".to_string(),
@@ -785,8 +813,8 @@ deployment:
                 required: true,
                 default: None,
                 variants: None,
+                file_path: Some("some_path".to_string()),
             }),
-            file_path: Some("some_path".to_string()),
         };
         let backoffretries_endspec: EndSpec = EndSpec {
             description: "backoff_retries".to_string(),
@@ -795,8 +823,8 @@ deployment:
                 required: true,
                 default: None,
                 variants: None,
+                file_path: Some("some_path".to_string()),
             }),
-            file_path: Some("some_path".to_string()),
         };
         let backoffinterval_endspec: EndSpec = EndSpec {
             description: "backoff_interval".to_string(),
@@ -805,8 +833,8 @@ deployment:
                 required: true,
                 default: None,
                 variants: None,
+                file_path: Some("some_path".to_string()),
             }),
-            file_path: Some("some_path".to_string()),
         };
 
         let normalized_values = Map::from([
@@ -898,8 +926,8 @@ deployment:
                 required: true,
                 default: None,
                 variants: None,
+                file_path: None,
             }),
-            file_path: None,
         };
         let verbosity_endspec: EndSpec = EndSpec {
             description: "verbosity".to_string(),
@@ -908,8 +936,8 @@ deployment:
                 required: true,
                 default: None,
                 variants: None,
+                file_path: None,
             }),
-            file_path: None,
         };
         let backofftype_endspec: EndSpec = EndSpec {
             description: "backoff_type".to_string(),
@@ -918,8 +946,8 @@ deployment:
                 required: true,
                 default: None,
                 variants: None, // FIXME???
+                file_path: Some("some_path".to_string()),
             }),
-            file_path: Some("some_path".to_string()),
         };
         let backoffdelay_endspec: EndSpec = EndSpec {
             description: "backoff_delay".to_string(),
@@ -928,8 +956,8 @@ deployment:
                 required: true,
                 default: None,
                 variants: None,
+                file_path: Some("some_path".to_string()),
             }),
-            file_path: Some("some_path".to_string()),
         };
         let backoffretries_endspec: EndSpec = EndSpec {
             description: "backoff_retries".to_string(),
@@ -938,8 +966,8 @@ deployment:
                 required: true,
                 default: None,
                 variants: None,
+                file_path: Some("some_path".to_string()),
             }),
-            file_path: Some("some_path".to_string()),
         };
         let backoffinterval_endspec: EndSpec = EndSpec {
             description: "backoff_interval".to_string(),
@@ -948,8 +976,8 @@ deployment:
                 required: true,
                 default: None,
                 variants: None,
+                file_path: Some("some_path".to_string()),
             }),
-            file_path: Some("some_path".to_string()),
         };
 
         let normalized_values = Map::from([
@@ -993,6 +1021,127 @@ deployment:
         assert_eq!(exec_actual, exec_expected);
     }
 
+    const SINGLE_TYPE_FILE: &str = r#"
+name: newrelic-infra
+namespace: newrelic
+version: 1.39.1
+variables:
+  nested:
+    config:
+        description: "Newrelic infra configuration yaml"
+        type: file
+        required: true
+        file_path: "config.yml"
+deployment:
+  on_host:
+    executables:
+      - path: /usr/bin/newrelic-infra
+        args: "--config ${nested.config}"
+        env: ""
+"#;
+
+    const SINGLE_VALUE_FILE: &str = r#"
+nested:
+    config: | 
+        license_key: abc124
+        staging: false
+"#;
+
+    #[test]
+    fn test_template_with_runtime_field_file() {
+        // Having Agent Type
+        let input_agent_type = serde_yaml::from_str::<FinalAgent>(SINGLE_TYPE_FILE).unwrap();
+
+        // And Agent Values
+        let input_user_config = serde_yaml::from_str::<AgentValues>(SINGLE_VALUE_FILE).unwrap();
+
+        // When populating values
+        let actual = input_agent_type
+            .template_with(input_user_config)
+            .expect("Failed to template_with the AgentType's runtime_config field");
+
+        // Then we expected final values
+        // File
+        let expected = TrivialValue::File(FilePathWithContent {
+            path: "config.yml".to_owned(),
+            content: "license_key: abc124\nstaging: false\n".to_owned(),
+        });
+
+        assert_eq!(
+            expected,
+            actual
+                .get_variables()
+                .get("nested.config")
+                .unwrap()
+                .kind
+                .get_final_value()
+                .unwrap()
+        );
+    }
+
+    const SINGLE_TYPE_FILEMAP: &str = r#"
+name: newrelic-infra
+namespace: newrelic
+version: 1.39.1
+variables:
+  nested:
+    config_map:
+      description: "Newrelic infra configuration yaml"
+      type: map[string]file
+      required: true
+deployment:
+  on_host:
+    executables:
+      - path: /usr/bin/newrelic-infra
+        args: ""
+        env: ""
+"#;
+
+    const SINGLE_VALUE_FILEMAP: &str = r#"
+nested:
+    config_map:
+        kafka: |
+            bootstrap: zookeeper
+"#;
+
+    #[test]
+    fn test_template_with_runtime_field_filemap() {
+        // Having Agent Type
+        let input_agent_type = serde_yaml::from_str::<FinalAgent>(SINGLE_TYPE_FILEMAP).unwrap();
+
+        // And Agent Values
+        let input_user_config = serde_yaml::from_str::<AgentValues>(SINGLE_VALUE_FILEMAP).unwrap();
+
+        // When populating values
+        let actual = input_agent_type
+            .template_with(input_user_config)
+            .expect("Failed to template_with the AgentType's runtime_config field");
+
+        // Then we expected final values
+        // File
+        let expected = TrivialValue::MapStringFile(
+            [(
+                "kafka".to_owned(),
+                FilePathWithContent {
+                    path: "kafka".to_owned(),
+                    content: "bootstrap: zookeeper\n".to_owned(),
+                },
+            )]
+            .into(),
+        );
+
+        assert_eq!(
+            expected,
+            actual
+                .get_variables()
+                .get("nested.config_map")
+                .unwrap()
+                .kind
+                .get_final_value()
+                .unwrap()
+        );
+    }
+
     const GIVEN_NEWRELIC_INFRA_YAML: &str = r#"
 name: newrelic-infra
 namespace: newrelic
@@ -1020,9 +1169,9 @@ variables:
     type: map[string]file
     required: true
     default:
-      kafka: |
+      kafka.conf: |
         bootstrap: zookeeper
-    file_path: "integrations.d"
+    file_path: integrations.d
 deployment:
   on_host:
     executables:
@@ -1046,7 +1195,7 @@ config: |
 "#;
 
     #[test]
-    fn test_template_with_runtime_field() {
+    fn test_template_with_runtime_fields() {
         // Having Agent Type
         let input_agent_type =
             serde_yaml::from_str::<FinalAgent>(GIVEN_NEWRELIC_INFRA_YAML).unwrap();
@@ -1077,17 +1226,18 @@ config: |
             "license_key: abc124\nstaging: false\n".to_string(),
         ));
         // MapStringFile
+        // FIXME: what happens with having a single file_path for a map[string]file value? should finel_path be a directory and then each key of the map is a file inside?
         let expected_integrations = TrivialValue::MapStringFile(HashMap::from([
             (
                 "kafka.conf".to_string(),
                 FilePathWithContent::new(
-                    "integrations.d".to_string(),
+                    "kafka.conf".to_string(),
                     "strategy: bootstrap\n".to_string(),
                 ),
             ),
             (
                 "redis.yml".to_string(),
-                FilePathWithContent::new("integrations.d".to_string(), "user: redis\n".to_string()),
+                FilePathWithContent::new("redis.yml".to_string(), "user: redis\n".to_string()),
             ),
         ]));
 
