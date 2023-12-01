@@ -13,6 +13,7 @@ pub struct RuntimeConfig {
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub struct Deployment {
     pub on_host: Option<OnHost>,
+    pub k8s: Option<K8s>,
 }
 
 /// The definition for an on-host supervisor.
@@ -64,4 +65,24 @@ impl Env {
             })
             .collect()
     }
+}
+
+/// The definition for an K8s supervisor.
+///
+/// It contains the instructions of what are the agent resources to be managed by the super-agent.
+#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+pub struct K8s {
+    pub objects: HashMap<String, K8sObject>,
+}
+
+/// A K8s object, usually a CR, to be managed by the super-agent.
+// TODO: at lest, the spec should be templatable.
+#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+pub struct K8sObject {
+    #[serde(rename = "apiVersion")]
+    pub api_version: String,
+    #[serde(rename = "kind")]
+    pub kind: String,
+    #[serde(default)]
+    pub spec: serde_yaml::Value,
 }

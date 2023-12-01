@@ -152,7 +152,10 @@ impl Templateable for Deployment {
             .on_host
             .map(|oh| oh.template_with(variables))
             .transpose()?;
-        Ok(Self { on_host: oh })
+        Ok(Self {
+            on_host: oh,
+            k8s: None, // TODO: template k8s
+        })
     }
 }
 
