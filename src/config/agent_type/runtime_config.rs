@@ -82,8 +82,9 @@ pub struct K8sObject {
     #[serde(rename = "apiVersion")]
     pub api_version: String,
     pub kind: String,
-    #[serde(default)]
-    pub spec: serde_yaml::Value,
+    // TODO: include metadata
+    #[serde(default, flatten)]
+    pub fields: serde_yaml::Value,
 }
 
 #[cfg(test)]
@@ -102,7 +103,11 @@ deployment:
       cr2:
         apiVersion: super_agent.version/v0beta1
         kind: Foo2
-        # no spec
+        # no additional fields
+      cr3:
+        apiVersion: super_agent.version/v0beta1
+        kind: Foo
+        key: value # no spec field
 "#;
 
     #[test]
@@ -117,9 +122,21 @@ deployment:
         );
         assert_eq!(
             &serde_yaml::Value::String("any-value".into()),
-            k8s.objects["cr1"].spec.get("anyKey").unwrap()
+            k8s.objects["cr1"]
+                .fields
+                .get("spec")
+                .unwrap()
+                .get("anyKey")
+                .unwrap()
         );
         assert_eq!("Foo2".to_string(), k8s.objects["cr2"].kind);
-        assert_eq!(serde_yaml::Value::default(), k8s.objects["cr2"].spec);
+        assert_eq!(
+            serde_yaml::Value::Mapping(Default::default()),
+            k8s.objects["cr2"].fields
+        );
+        assert_eq!(
+            &serde_yaml::Value::String("value".into()),
+            k8s.objects["cr3"].fields.get("key").unwrap()
+        );
     }
 }
