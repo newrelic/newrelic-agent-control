@@ -1,13 +1,16 @@
+use std::collections::HashMap;
 use std::sync::OnceLock;
 
 use regex::Regex;
 use tracing::warn;
 
+use crate::opamp::remote_config_hash::Hash;
+
 use super::{
     agent_types::NormalizedVariables,
     error::AgentTypeError,
     restart_policy::{BackoffStrategyConfig, RestartPolicyConfig},
-    runtime_config::{Deployment, Executable, OnHost, RuntimeConfig},
+    runtime_config::{Deployment, Executable, K8s, K8sObject, OnHost, RuntimeConfig},
 };
 
 /// Regex that extracts the template values from a string.
@@ -129,6 +132,38 @@ impl Templateable for BackoffStrategyConfig {
     }
 }
 
+impl Templateable for K8s {
+    fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
+        Ok(Self {
+            objects: self
+                .objects
+                .into_iter()
+                .map(|(k, v)| Ok((k, v.template_with(variables)?)))
+                .collect::<Result<HashMap<String, K8sObject>, AgentTypeError>>()?,
+        })
+    }
+}
+
+impl Templateable for K8sObject {
+    fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
+        Ok(Self {
+            api_version: self.api_version.clone(),
+            kind: self.kind.clone(),
+            fields: self.fields.template_with(variables)?,
+        })
+    }
+}
+
+impl Templateable for serde_yaml::Value {
+    fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
+        // TODO
+        // - Use the Templateable implementation for strings (casting could be performed depending on the var type)
+        // - Call `template_with` recursively for Mappings and sequences
+        // - Leave the value as it is on any other cases
+        Ok(self)
+    }
+}
+
 impl Templateable for Deployment {
     fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
         /*
@@ -159,10 +194,11 @@ impl Templateable for Deployment {
             .on_host
             .map(|oh| oh.template_with(variables))
             .transpose()?;
-        Ok(Self {
-            on_host: oh,
-            k8s: None, // TODO: template k8s
-        })
+        let k8s = self
+            .k8s
+            .map(|k8s| k8s.template_with(variables))
+            .transpose()?;
+        Ok(Self { on_host: oh, k8s })
     }
 }
 
