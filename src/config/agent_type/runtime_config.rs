@@ -81,8 +81,45 @@ pub struct K8s {
 pub struct K8sObject {
     #[serde(rename = "apiVersion")]
     pub api_version: String,
-    #[serde(rename = "kind")]
     pub kind: String,
     #[serde(default)]
     pub spec: serde_yaml::Value,
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    const RUNTIME_WITH_K8S_DEPLOYMENT: &str = r#"
+deployment:
+  k8s:
+    objects:
+      cr1:
+        apiVersion: super_agent.version/v0beta1
+        kind: Foo
+        spec:
+          anyKey: any-value
+      cr2:
+        apiVersion: super_agent.version/v0beta1
+        kind: Foo2
+        # no spec
+"#;
+
+    #[test]
+    fn test_k8s_object() {
+        let rtc: RuntimeConfig = serde_yaml::from_str(RUNTIME_WITH_K8S_DEPLOYMENT).unwrap();
+        assert!(rtc.deployment.on_host.is_none());
+        let k8s = rtc.deployment.k8s.unwrap();
+        assert_eq!("Foo".to_string(), k8s.objects["cr1"].kind);
+        assert_eq!(
+            "super_agent.version/v0beta1".to_string(),
+            k8s.objects["cr1"].api_version
+        );
+        assert_eq!(
+            &serde_yaml::Value::String("any-value".into()),
+            k8s.objects["cr1"].spec.get("anyKey").unwrap()
+        );
+        assert_eq!("Foo2".to_string(), k8s.objects["cr2"].kind);
+        assert_eq!(serde_yaml::Value::default(), k8s.objects["cr2"].spec,)
+    }
 }
