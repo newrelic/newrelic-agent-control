@@ -9,7 +9,6 @@ use newrelic_super_agent::opamp::instance_id::{
 
 const AGENT_ID_TEST: &str = "agent-id-test";
 const AGENT_DIFFERENT_ID_TEST: &str = "agent-different-id-test";
-const AGENT_INVALID_ID_TEST: &str = "agent-invalid-#$^%&%*^&(";
 
 // tokio test runs with 1 thread by default causing deadlock when executing `block_on` code during test helper drop.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

@@ -45,6 +45,10 @@ where
             identifiers,
         }
     }
+
+    pub fn with_identifiers(self, identifiers: Identifiers) -> Self {
+        Self::new(self.storer, identifiers)
+    }
 }
 
 impl<S> InstanceIDGetter for ULIDInstanceIDGetter<S>
