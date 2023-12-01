@@ -120,6 +120,6 @@ deployment:
             k8s.objects["cr1"].spec.get("anyKey").unwrap()
         );
         assert_eq!("Foo2".to_string(), k8s.objects["cr2"].kind);
-        assert_eq!(serde_yaml::Value::default(), k8s.objects["cr2"].spec,)
+        assert_eq!(serde_yaml::Value::default(), k8s.objects["cr2"].spec);
     }
 }
