@@ -19,7 +19,7 @@ use tracing::debug;
 use ulid::Ulid;
 
 #[cfg(target_family = "unix")]
-pub(crate) const FILE_PERMISSIONS: u32 = 0o600;
+const FILE_PERMISSIONS: u32 = 0o600;
 #[cfg(target_family = "unix")]
 const DIRECTORY_PERMISSIONS: u32 = 0o700;
 
@@ -64,14 +64,14 @@ impl InstanceIDStorer for Storer {
     }
 
     /// TODO
-    ///   Note: If we fail to read the file for any reason, we regenerate it with new data later.
-    ///
     fn get(&self, agent_id: &AgentID) -> Result<Option<DataStored>, StorerError> {
         let dest_path = get_uild_path(agent_id);
         if !dest_path.exists() {
             return Ok(None);
         }
         let file = File::open(dest_path)?;
+        // If we fail to read the file for any reason, we regenerate it with new data later.
+        // We are not actually using the Err variant for this trait method implementation.
         match serde_yaml::from_reader(file) {
             Ok(ds) => Ok(Some(ds)),
             Err(e) => {
