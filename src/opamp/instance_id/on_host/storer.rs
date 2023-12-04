@@ -43,7 +43,7 @@ pub enum StorerError {
     #[error("error writing file: `{0}`")]
     WriteError(#[from] WriteError),
     #[error("error creating file: `{0}`")]
-    ErrorCreatingFile(#[from] io::Error),
+    IOError(#[from] io::Error),
 }
 
 fn get_uild_path(agent_id: &AgentID) -> PathBuf {
@@ -56,33 +56,20 @@ fn get_uild_path(agent_id: &AgentID) -> PathBuf {
 
 impl InstanceIDStorer for Storer {
     fn set(&self, agent_id: &AgentID, ds: &DataStored) -> Result<(), StorerError> {
-        self.dir_manager.create(
-            Path::new(IDENTIFIERS_DIR),
-            Permissions::from_mode(DIRECTORY_PERMISSIONS),
-        )?;
         self.write_contents(agent_id, ds)
     }
 
     /// TODO
     fn get(&self, agent_id: &AgentID) -> Result<Option<DataStored>, StorerError> {
-        let dest_path = get_uild_path(agent_id);
-        if !dest_path.exists() {
-            return Ok(None);
-        }
-        let file = File::open(dest_path)?;
-        // If we fail to read the file for any reason, we regenerate it with new data later.
-        // We are not actually using the Err variant for this trait method implementation.
-        match serde_yaml::from_reader(file) {
-            Ok(ds) => Ok(Some(ds)),
-            Err(e) => {
-                debug!("Could not read existing file: {}", e);
-                Ok(None)
-            }
-        }
+        self.read_contents(agent_id)
     }
 }
 impl Storer {
     fn write_contents(&self, agent_id: &AgentID, ds: &DataStored) -> Result<(), StorerError> {
+        self.dir_manager.create(
+            Path::new(IDENTIFIERS_DIR),
+            Permissions::from_mode(DIRECTORY_PERMISSIONS),
+        )?;
         let dest_path = get_uild_path(agent_id);
         let contents = serde_yaml::to_string(ds)?;
 
@@ -92,15 +79,40 @@ impl Storer {
             Permissions::from_mode(FILE_PERMISSIONS),
         )?)
     }
+
+    fn read_contents(&self, agent_id: &AgentID) -> Result<Option<DataStored>, StorerError> {
+        let dest_path = get_uild_path(agent_id);
+        if !dest_path.exists() {
+            return Ok(None);
+        }
+
+        let file = match File::open(dest_path) {
+            Ok(file) => file,
+            Err(e) => {
+                debug!("Could not open file: {}", e);
+                return Ok(None);
+            }
+        };
+
+        match serde_yaml::from_reader(file) {
+            Ok(ds) => Ok(Some(ds)),
+            Err(e) => {
+                debug!("Could not deserialize file: {}", e);
+                Ok(None)
+            }
+        }
+    }
 }
 
 #[cfg(test)]
 mod test {
     use crate::config::persister::config_writer_file::{MockWriterFile, WriteError};
+    use crate::config::persister::directory_manager::test::MockDirectoryManagerMock;
     use crate::config::super_agent_configs::AgentID;
     use crate::opamp::instance_id::getter::DataStored;
     use crate::opamp::instance_id::on_host::storer::get_uild_path;
     use crate::opamp::instance_id::{Storer, StorerError};
+    use crate::super_agent::defaults::{IDENTIFIERS_DIR, SUPER_AGENT_IDENTIFIERS_PATH};
     use mockall::predicate;
     use nix::libc::pathconf;
     use std::fs::Permissions;
@@ -109,13 +121,34 @@ mod test {
     use std::path::{Path, PathBuf};
 
     #[test]
-    fn test_on() {
-        let mut writer = MockWriterFile::default();
-        writer.should_write(
+    fn basic_get_uild_path() {
+        let agent_id = AgentID::new("test").unwrap();
+        let path = get_uild_path(&agent_id);
+        assert_eq!(
+            path,
+            PathBuf::from(format!("{}/test.yaml", IDENTIFIERS_DIR))
+        );
+
+        let super_agent_id = AgentID::new_super_agent_id();
+        let path = get_uild_path(&super_agent_id);
+        assert_eq!(path, PathBuf::from(SUPER_AGENT_IDENTIFIERS_PATH));
+    }
+
+    #[test]
+    fn test_successful_write() {
+        let mut file_writer = MockWriterFile::default();
+        file_writer.should_write(
             Path::new(""),
             String::default(),
             Permissions::from_mode(0o645),
         );
-        todo!()
+
+        let mut dir_manager = MockDirectoryManagerMock::default();
+        dir_manager.should_create(Path::new(IDENTIFIERS_DIR), Permissions::from_mode(0o700));
+
+        let storer = Storer {
+            file_writer,
+            dir_manager,
+        };
     }
 }
