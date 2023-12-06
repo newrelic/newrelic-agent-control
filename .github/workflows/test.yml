@@ -95,7 +95,7 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
       - name: Install Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version-file: 'build/embedded/go.mod'
       - name: run tests for embedded downloader
