@@ -4,37 +4,25 @@ use super::{
 };
 use k8s_openapi::api::core::v1::ConfigMap;
 use k8s_openapi::api::core::v1::Pod;
-use kube::core::DynamicObject;
+use kube::core::TypeMeta;
+use kube::core::{DynamicObject, GroupVersion};
+use kube::{api::ListParams, Api, Client, Config};
 use kube::{
     api::{DeleteParams, PostParams},
     discovery::ApiResource,
 };
-use kube::{
-    api::{ListParams, Patch, PatchParams},
-    core::GroupVersionKind,
-    Api, Client, Config,
-};
 use kube::{config::KubeConfigOptions, core::ObjectMeta};
+use std::str::FromStr;
 use std::{
     collections::{BTreeMap, HashMap},
     sync::Arc,
 };
 use tracing::debug;
 
-const SA_ACTOR: &str = "super-agent-patch";
-
 pub struct K8sExecutor {
     client: Client,
     reflector_builder: ReflectorBuilder,
-    dynamic_reflectors: HashMap<ApiResource, DynamicObjectReflector>,
-}
-
-// TODO: This is just an example and once we've implemented the config, needs to be removed.
-// #[derive(Error, Debug)]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum K8sResourceType {
-    OtelHelmRepository,
-    OtelColHelmRelease,
+    dynamic_reflectors: HashMap<TypeMeta, DynamicObjectReflector>,
 }
 
 #[cfg_attr(test, mockall::automock)]
@@ -78,48 +66,29 @@ impl K8sExecutor {
         }
     }
 
-    pub async fn create_dynamic_object(
-        &self,
-        gvk: GroupVersionKind,
-        spec: &str,
-    ) -> Result<DynamicObject, K8sError> {
-        let api = self.namespaced_api(gvk).await?;
+    pub async fn apply_dynamic_object(&self, obj: &DynamicObject) -> Result<(), K8sError> {
+        let name = obj.metadata.clone().name.ok_or(K8sError::MissingName())?;
+        let tm = obj.types.clone().ok_or(K8sError::MissingKind())?;
+        let api: Api<DynamicObject> = self.namespaced_api(tm).await?;
 
-        let object_spec: DynamicObject = serde_yaml::from_str(spec)?;
+        // We are getting and modifying the object, but if not available we are creating it
+        api.entry(name.as_str())
+            .await?
+            .and_modify(|obj_old| {
+                obj_old.data = obj.data.clone();
 
-        let created_object = api.create(&PostParams::default(), &object_spec).await?;
-
-        Ok(created_object)
-    }
-
-    pub async fn patch_dynamic_object(
-        &self,
-        gvk: GroupVersionKind,
-        name: &str,
-        spec: &str,
-    ) -> Result<(), K8sError> {
-        let api = self.namespaced_api(gvk).await?;
-
-        let object_spec: DynamicObject = serde_yaml::from_str(spec)?;
-
-        api.patch(
-            name,
-            &PatchParams::apply(SA_ACTOR).force(),
-            &Patch::Apply(&object_spec),
-        )
-        .await?;
-
+                // TODO not updating metadata for now as we cannot overwrite everything
+                // obj_old.metadata. = obj.clone().metadata;
+            })
+            .or_insert(|| obj.clone())
+            .commit(&PostParams::default())
+            .await?;
         Ok(())
     }
 
-    pub async fn delete_dynamic_object(
-        &self,
-        gvk: GroupVersionKind,
-        name: &str,
-    ) -> Result<(), K8sError> {
-        let api = self.namespaced_api(gvk).await?;
-
-        api.delete(name, &DeleteParams::default()).await?;
+    pub async fn delete_dynamic_object(&self, tm: TypeMeta, name: String) -> Result<(), K8sError> {
+        let api = self.namespaced_api(tm).await?;
+        api.delete(name.as_str(), &DeleteParams::default()).await?;
 
         Ok(())
     }
@@ -128,19 +97,22 @@ impl K8sExecutor {
     // usage of these fn are defined.
     pub async fn get_dynamic_object(
         &mut self,
-        gvk: GroupVersionKind,
-        name: &str,
+        tm: TypeMeta,
+        name: String,
     ) -> Result<Option<Arc<DynamicObject>>, K8sError> {
-        let ar = self.api_resource(gvk).await?;
+        let ar = self.api_resource(tm.clone()).await?;
 
         let reflector = self
             .dynamic_reflectors
-            .entry(ar.to_owned())
+            .entry(tm)
             .or_insert(self.reflector_builder.dynamic_object_reflector(&ar).await?);
 
-        Ok(reflector
-            .reader()
-            .find(|obj| obj.metadata.name.to_owned().is_some_and(|n| n.eq(name))))
+        Ok(reflector.reader().find(|obj| {
+            obj.metadata
+                .name
+                .to_owned()
+                .is_some_and(|n| n.eq(name.as_str()))
+        }))
     }
 
     pub async fn get_minor_version(&self) -> Result<String, K8sError> {
@@ -202,35 +174,20 @@ impl K8sExecutor {
     }
 
     // TODO this can be cached, or specialized in a similar way as the reflectors, so is not called on each operation.
-    async fn namespaced_api(&self, gvk: GroupVersionKind) -> Result<Api<DynamicObject>, K8sError> {
+    async fn namespaced_api(&self, tm: TypeMeta) -> Result<Api<DynamicObject>, K8sError> {
         Ok(Api::default_namespaced_with(
             self.client.to_owned(),
-            &self.api_resource(gvk).await?,
+            &self.api_resource(tm).await?,
         ))
     }
 
-    async fn api_resource(&self, gvk: GroupVersionKind) -> Result<ApiResource, K8sError> {
-        let (api_resource, _) = kube::discovery::pinned_kind(&self.client, &gvk)
-            .await
-            .map_err(|_| K8sError::MissingKind(gvk.api_version(), gvk.kind))?;
-        Ok(api_resource)
-    }
-}
+    async fn api_resource(&self, tm: TypeMeta) -> Result<ApiResource, K8sError> {
+        let gvk = GroupVersion::from_str(tm.api_version.as_str())?.with_kind(tm.kind.as_str());
 
-impl K8sResourceType {
-    pub fn to_gvk(&self) -> GroupVersionKind {
-        match self {
-            K8sResourceType::OtelHelmRepository => GroupVersionKind {
-                group: "source.toolkit.fluxcd.io".into(),
-                version: "v1beta2".into(),
-                kind: "HelmRepository".into(),
-            },
-            K8sResourceType::OtelColHelmRelease => GroupVersionKind {
-                group: "helm.toolkit.fluxcd.io".into(),
-                version: "v2beta1".into(),
-                kind: "HelmRelease".into(),
-            },
-        }
+        let (api_resource, _) = kube::discovery::pinned_kind(&self.client, &gvk.clone())
+            .await
+            .map_err(|_| K8sError::UnexpectedKind(gvk.api_version(), gvk.kind))?;
+        Ok(api_resource)
     }
 }
 
@@ -239,49 +196,31 @@ pub(crate) mod test {
     use super::*;
     use assert_matches::assert_matches;
     use k8s_openapi::serde_json;
-    use kube::{core::GroupVersionKind, Client};
+    use kube::Client;
     use tower_test::mock;
 
     #[tokio::test]
     async fn create_dynamic_object_fail_when_missing_resource_definition() {
         let k = get_mocked_client(Scenario::Version);
 
-        let gvk = GroupVersionKind::gvk("missing_group", "ver", "kind");
-
-        let err = k.create_dynamic_object(gvk.clone(), "").await.unwrap_err();
-
-        assert_matches!(err, K8sError::MissingKind(_, _));
-    }
-
-    #[tokio::test]
-    async fn create_dynamic_object_fail_when_yaml_bad_format() {
-        // Mock must have the available gvk to not fail before.
-        let k = get_mocked_client(Scenario::APIResource);
+        let tm = TypeMeta {
+            api_version: "missing_group/ver".to_string(),
+            kind: "kind".to_string(),
+        };
 
         let err = k
-            .create_dynamic_object(
-                GroupVersionKind::gvk("newrelic.com", "v1", "Foo"),
-                "bad: yaml: format",
-            )
+            .apply_dynamic_object(&DynamicObject {
+                types: Some(tm),
+                metadata: ObjectMeta {
+                    name: Some("test_name".to_string()),
+                    ..Default::default()
+                },
+                data: Default::default(),
+            })
             .await
             .unwrap_err();
 
-        assert_matches!(err, K8sError::SerdeYaml(_));
-    }
-
-    #[tokio::test]
-    async fn create_dynamic_object_fails_on_creation() {
-        let k = get_mocked_client(Scenario::APIResource);
-
-        let err = k
-            .create_dynamic_object(
-                GroupVersionKind::gvk("newrelic.com", "v1", "Foo"),
-                "bad: spec",
-            )
-            .await
-            .unwrap_err();
-
-        assert_matches!(err, K8sError::Generic(_));
+        assert_matches!(err, K8sError::UnexpectedKind(_, _));
     }
 
     ///

@@ -9,9 +9,9 @@ use k8s_openapi::{
     api::core::v1::Namespace,
     apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition,
 };
+use kube::api::TypeMeta;
 use kube::{
     api::{Api, DeleteParams, Patch, PatchParams, PostParams},
-    core::GroupVersionKind,
     Client, CustomResource, CustomResourceExt,
 };
 use schemars::JsonSchema;
@@ -271,8 +271,11 @@ pub struct FooSpec {
     pub data: String,
 }
 
-pub fn foo_gvk() -> GroupVersionKind {
-    GroupVersionKind::gvk("newrelic.com", "v1", "Foo")
+pub fn foo_type_meta() -> TypeMeta {
+    TypeMeta {
+        api_version: "newrelic.com/v1".to_string(),
+        kind: "Foo".to_string(),
+    }
 }
 
 static ONCE: OnceCell<()> = OnceCell::const_new();

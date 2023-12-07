@@ -100,7 +100,6 @@ mod test {
     use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
     use crate::opamp::operations::start_settings;
     use crate::{
-        k8s::executor::K8sResourceType,
         k8s::executor::MockK8sExecutor,
         opamp::client_builder::test::MockOpAMPClientBuilderMock,
         sub_agent::k8s::sample_crs::{OTELCOL_HELM_RELEASE_CR, OTEL_HELM_REPOSITORY_CR},
@@ -108,7 +107,7 @@ mod test {
     };
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
     use kube::core::{DynamicObject, TypeMeta};
-    use mockall::predicate;
+    use mockall::{mock, predicate};
     use serde_json::json;
     use std::{collections::HashMap, sync::mpsc::channel};
 
@@ -146,21 +145,16 @@ mod test {
 
         // Set mock executor expectations
         mock_executor
-            .expect_create_dynamic_object()
-            .withf(|gvk, spec| {
-                // Check if the parameters match the expected CRs
-                *gvk == K8sResourceType::OtelHelmRepository.to_gvk()
-                    && spec == OTEL_HELM_REPOSITORY_CR
-                    || *gvk == K8sResourceType::OtelColHelmRelease.to_gvk()
-                        && spec == OTELCOL_HELM_RELEASE_CR
-            })
+            .expect_apply_dynamic_object()
+            //TODO as soon as we are supporting passing which agent to execute we should check these predicates
+            .with(predicate::always())
             .times(2)
-            .returning(move |_, _| Ok(create_mock_dynamic_object().clone()));
+            .returning(move |_| Ok(()));
 
         mock_executor
             .expect_delete_dynamic_object()
             .with(predicate::always(), predicate::always())
-            .times(2) // Expect it to be called twice for the two resource types
+            .times(0) // Expect it to be called 0 times, since it is the garbage collector cleaning it.
             .returning(|_, _| Ok(()));
 
         let executor = Arc::new(mock_executor);

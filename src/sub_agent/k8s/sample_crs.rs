@@ -1,3 +1,5 @@
+use kube::api::DynamicObject;
+
 /// This module includes some sample hard-coded Flux's CRs manifests to be used in early development stages.
 
 /// It defines a Flux's HelmRepository object corresponding to the OpenTelemetry helm charts repository.
@@ -123,14 +125,19 @@ spec:
       # extraArgs: ["--feature-gates=-pkg.translator.prometheus.NormalizeName"]
 "#;
 
+pub fn get_sample_resources() -> [DynamicObject; 2] {
+    [
+        serde_yaml::from_str::<DynamicObject>(OTEL_HELM_REPOSITORY_CR).unwrap(),
+        serde_yaml::from_str::<DynamicObject>(OTELCOL_HELM_RELEASE_CR).unwrap(),
+    ]
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
-    use serde_yaml;
 
     #[test]
     fn check_examples_are_valid_yaml() {
-        serde_yaml::from_str::<serde_yaml::Value>(OTEL_HELM_REPOSITORY_CR).unwrap();
-        serde_yaml::from_str::<serde_yaml::Value>(OTELCOL_HELM_RELEASE_CR).unwrap();
+        let _ = get_sample_resources();
     }
 }

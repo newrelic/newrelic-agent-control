@@ -1,3 +1,4 @@
+use crate::sub_agent::k8s::sample_crs::get_sample_resources;
 use crate::sub_agent::k8s::CRSupervisor;
 use crate::{
     config::super_agent_configs::AgentID,
@@ -48,7 +49,9 @@ where
     type StartedSubAgent = StartedSubAgentK8s<CB, C>;
 
     fn run(self) -> Result<Self::StartedSubAgent, SubAgentError> {
-        self.supervisor.apply().map_err(|e| {
+        let res = get_sample_resources();
+
+        self.supervisor.apply(res.as_slice()).map_err(|e| {
             SubAgentError::SupervisorStopError(format!("Failed to start supervisor: {:?}", e))
         })?;
 
@@ -100,13 +103,9 @@ where
     CB: Callbacks,
     C: StartedClient<CB>,
 {
+    // Stop does not deletes directly the CR. It will be the garbage collector doing so if needed.
     fn stop(self) -> Result<Vec<std::thread::JoinHandle<()>>, SubAgentError> {
         stop_opamp_client(self.opamp_client, &self.agent_id)?;
-
-        self.supervisor.delete().map_err(|e| {
-            SubAgentError::SupervisorStopError(format!("Failed to stop supervisor: {:?}", e))
-        })?;
-
         Ok(vec![])
     }
 }

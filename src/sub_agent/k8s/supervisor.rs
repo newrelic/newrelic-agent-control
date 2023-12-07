@@ -1,16 +1,17 @@
 use futures::executor::block_on;
-use std::{cell::RefCell, rc::Rc, sync::Arc};
+use kube::api::DynamicObject;
+use std::sync::Arc;
 use thiserror::Error;
 use tracing::{error, info};
-
-use crate::k8s::executor::K8sResourceType;
-use crate::sub_agent::k8s::sample_crs::{OTELCOL_HELM_RELEASE_CR, OTEL_HELM_REPOSITORY_CR};
 
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::executor::K8sExecutor;
 
 #[derive(Debug, Error)]
-pub enum SupervisorError {}
+pub enum SupervisorError {
+    #[error("applying k8s resource {0}")]
+    ApplyError(String),
+}
 
 /// CRSupervisor - Supervises Kubernetes resources.
 /// To be considered:
@@ -21,75 +22,39 @@ pub enum SupervisorError {}
 
 pub struct CRSupervisor {
     executor: Arc<K8sExecutor>,
-    created_resources: Rc<RefCell<Vec<(K8sResourceType, String)>>>,
 }
 
 impl CRSupervisor {
     pub fn new(executor: Arc<K8sExecutor>) -> Self {
-        Self {
-            executor,
-            created_resources: Rc::new(RefCell::new(Vec::new())),
-        }
+        Self { executor }
     }
 
-    pub fn apply(&self) -> Result<(), SupervisorError> {
-        let resources = [
-            (
-                K8sResourceType::OtelHelmRepository,
-                "open-telemetry",
-                OTEL_HELM_REPOSITORY_CR,
-            ),
-            (
-                K8sResourceType::OtelColHelmRelease,
-                "otel-collector",
-                OTELCOL_HELM_RELEASE_CR,
-            ),
-        ];
-
-        for (resource_type, resource_name, cr_spec) in resources {
-            let gvk = resource_type.to_gvk();
-            let create_result = block_on(self.executor.create_dynamic_object(gvk, cr_spec));
-
+    pub fn apply(&self, resources: &[DynamicObject]) -> Result<(), SupervisorError> {
+        for res in resources {
+            let create_result = block_on(self.apply_k8s_resource(res));
             if let Err(err) = create_result {
-                error!(
-                    "Error creating CR: {} for resource type: {:?}, Error: {:?}",
-                    resource_name, resource_type, err
-                );
+                error!("Error creating CR: {:?}", err);
                 continue;
             }
-
-            self.created_resources
-                .borrow_mut()
-                .push((resource_type, resource_name.to_string()));
         }
 
         info!("K8sSupervisor started and CRs created");
         Ok(())
     }
 
-    pub fn delete(&self) -> Result<(), SupervisorError> {
-        for (resource_type, resource_name) in self.created_resources.borrow().iter() {
-            let gvk = resource_type.to_gvk();
-            let delete_result = block_on(self.executor.delete_dynamic_object(gvk, resource_name));
-
-            if let Err(err) = delete_result {
-                error!(
-                    "Error deleting resource: {}, type: {:?}, Error: {:?}",
-                    resource_name, resource_type, err
-                );
-            }
-        }
-
-        self.created_resources.borrow_mut().clear();
-
-        info!("K8sSupervisor stopped and CRs deleted");
-        Ok(())
+    async fn apply_k8s_resource(&self, res: &DynamicObject) -> Result<(), SupervisorError> {
+        self.executor
+            .apply_dynamic_object(res)
+            .await
+            .map_err(|e| SupervisorError::ApplyError(format!("applying dynamic object: {}", e)))
     }
 }
+
 #[cfg(test)]
 mod test {
     use super::*;
     use crate::k8s::executor::MockK8sExecutor;
+    use crate::sub_agent::k8s::sample_crs::get_sample_resources;
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
     use kube::core::{DynamicObject, TypeMeta};
     use mockall::predicate;
@@ -112,57 +77,14 @@ mod test {
 
         // Mock the behavior for creating dynamic objects
         mock_executor
-            .expect_create_dynamic_object()
-            .with(predicate::always(), predicate::always())
+            .expect_apply_dynamic_object()
+            .with(predicate::always())
             .times(2)
-            .returning(|_, _| Ok(create_mock_dynamic_object()));
+            .returning(|_| Ok(()));
 
         let supervisor = CRSupervisor::new(Arc::new(mock_executor));
-
-        let start_result = supervisor.apply();
+        let start_result = supervisor.apply(get_sample_resources().as_slice());
 
         assert!(start_result.is_ok());
-
-        // Check if resources are added correctly
-        let created_resources_guard = supervisor.created_resources.borrow();
-        assert_eq!(created_resources_guard.len(), 2);
-        assert!(created_resources_guard.contains(&(
-            K8sResourceType::OtelHelmRepository,
-            "open-telemetry".to_string()
-        )));
-        assert!(created_resources_guard.contains(&(
-            K8sResourceType::OtelColHelmRelease,
-            "otel-collector".to_string()
-        )));
-    }
-
-    #[test]
-    fn test_supervisor_stop() {
-        let mut mock_executor = MockK8sExecutor::default();
-
-        // Mock behavior for deleting dynamic objects
-        mock_executor
-            .expect_delete_dynamic_object()
-            .with(predicate::always(), predicate::always())
-            .times(2)
-            .returning(|_, _| Ok(()));
-
-        let supervisor = CRSupervisor::new(Arc::new(mock_executor));
-
-        // Simulate resources being created
-        supervisor.created_resources.borrow_mut().push((
-            K8sResourceType::OtelHelmRepository,
-            "open-telemetry".to_string(),
-        ));
-        supervisor.created_resources.borrow_mut().push((
-            K8sResourceType::OtelColHelmRelease,
-            "otel-collector".to_string(),
-        ));
-
-        let stop_result = supervisor.delete();
-        assert!(stop_result.is_ok());
-
-        // Ensure that created_resources is empty after stop
-        assert!(supervisor.created_resources.borrow().is_empty());
     }
 }
