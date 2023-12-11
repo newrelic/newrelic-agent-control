@@ -463,9 +463,9 @@ mod tests {
         ]);
         let input: serde_yaml::Value = serde_yaml::from_str(
             r#"
-        anString: ${change.me.string}
-        aBool: ${change.me.bool}
-        aNumber: ${change.me.number}
+        a_string: ${change.me.string}
+        a_boolean: ${change.me.bool}
+        a_number: ${change.me.number}
         ${change.me.string}: Do not scape me
         ${change.me.bool}: Do not scape me
         ${change.me.number}: Do not scape me
@@ -474,9 +474,9 @@ mod tests {
         .unwrap();
         let expected_output: serde_yaml::Value = serde_yaml::from_str(
             r#"
-        anString: "CHANGED-STRING".to_string()
-        aBool: "true" // TODO: This test should break in a future iteration.
-        aNumber: "42" // TODO: This test should break in a future iteration.
+        a_string: "CHANGED-STRING"
+        a_boolean: "true"  # TODO: This test should break in a future iteration.
+        a_number: "42"  # TODO: This test should break in a future iteration.
         ${change.me.string}: Do not scape me
         ${change.me.bool}: Do not scape me
         ${change.me.number}: Do not scape me
@@ -527,43 +527,43 @@ mod tests {
         ]);
         let input: serde_yaml::Value = serde_yaml::from_str(
             r#"
-        anObject:
-            anString: ${change.me.string}
-            aBool: ${change.me.bool}
-            aNumber: ${change.me.number}
-        aSequence:
+        an_object:
+            a_string: ${change.me.string}
+            a_boolean: ${change.me.bool}
+            a_number: ${change.me.number}
+        a_sequence:
             - ${change.me.string}
             - ${change.me.bool}
             - ${change.me.number}
-        aNestedObject:
-            withNestedArray:
-                - anString: ${change.me.string}
-                - aBool: ${change.me.bool}
-                - aNumber: ${change.me.number}
-        anString: ${change.me.string}
-        aBool: ${change.me.bool}
-        aNumber: ${change.me.number}
+        a_nested_object:
+            with_nested_sequence:
+                - a_string: ${change.me.string}
+                - a_boolean: ${change.me.bool}
+                - a_number: ${change.me.number}
+        a_string: ${change.me.string}
+        a_boolean: ${change.me.bool}
+        a_number: ${change.me.number}
         "#,
         )
         .unwrap();
         let expected_output: serde_yaml::Value = serde_yaml::from_str(
             r#"
-        anObject:
-            anString: "CHANGED-STRING"
-            aBool: "true" // TODO: This test should break in a future iteration.
-            aNumber: "42" // TODO: This test should break in a future iteration.
-        aSequence:
+        an_object:
+            a_string: "CHANGED-STRING"
+            a_boolean: "true"  # TODO: This test should break in a future iteration.
+            a_number: "42"  # TODO: This test should break in a future iteration.
+        a_sequence:
             - "CHANGED-STRING"
-            - "true" // TODO: This test should break in a future iteration.
-            - "42" // TODO: This test should break in a future iteration.
-        aNestedObject:
-            withNestedArray:
-                - anString: "CHANGED-STRING"
-                - aBool: "true" // TODO: This test should break in a future iteration.
-                - aNumber: "42" // TODO: This test should break in a future iteration.
-        anString: "CHANGED-STRING"
-        aBool: "true" // TODO: This test should break in a future iteration.
-        aNumber: "42" // TODO: This test should break in a future iteration.
+            - "true"  # TODO: This test should break in a future iteration.
+            - "42"  # TODO: This test should break in a future iteration.
+        a_nested_object:
+            with_nested_sequence:
+                - a_string: "CHANGED-STRING"
+                - a_boolean: "true"  # TODO: This test should break in a future iteration.
+                - a_number: "42"  # TODO: This test should break in a future iteration.
+        a_string: "CHANGED-STRING"
+        a_boolean: "true"  # TODO: This test should break in a future iteration.
+        a_number: "42"  # TODO: This test should break in a future iteration.
         "#,
         )
         .unwrap();
