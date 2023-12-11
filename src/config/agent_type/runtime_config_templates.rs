@@ -423,4 +423,152 @@ mod tests {
         let actual_output = input.template_with(&variables).unwrap();
         assert_eq!(actual_output, expected_output);
     }
+
+    #[test]
+    fn test_template_yaml() {
+        let variables = NormalizedVariables::from([
+            (
+                "change.me.string".to_string(),
+                EndSpec {
+                    final_value: Some(TrivialValue::String("CHANGED-STRING".to_string())),
+                    default: None,
+                    description: String::default(),
+                    required: true,
+                    type_: VariableType::String,
+                    file_path: None,
+                },
+            ),
+            (
+                "change.me.bool".to_string(),
+                EndSpec {
+                    final_value: Some(TrivialValue::Bool(true)),
+                    default: None,
+                    description: String::default(),
+                    required: true,
+                    type_: VariableType::Bool,
+                    file_path: None,
+                },
+            ),
+            (
+                "change.me.number".to_string(),
+                EndSpec {
+                    final_value: Some(TrivialValue::Number(PosInt(42))),
+                    default: None,
+                    description: String::default(),
+                    required: true,
+                    type_: VariableType::Number,
+                    file_path: None,
+                },
+            ),
+        ]);
+        let input: serde_yaml::Value = serde_yaml::from_str(
+            r#"
+        anString: ${change.me.string}
+        aBool: ${change.me.bool}
+        aNumber: ${change.me.number}
+        ${change.me.string}: Do not scape me
+        ${change.me.bool}: Do not scape me
+        ${change.me.number}: Do not scape me
+        "#,
+        )
+        .unwrap();
+        let expected_output: serde_yaml::Value = serde_yaml::from_str(
+            r#"
+        anString: "CHANGED-STRING".to_string()
+        aBool: "true" // TODO: This test should break in a future iteration.
+        aNumber: "42" // TODO: This test should break in a future iteration.
+        ${change.me.string}: Do not scape me
+        ${change.me.bool}: Do not scape me
+        ${change.me.number}: Do not scape me
+        "#,
+        )
+        .unwrap();
+
+        let actual_output: serde_yaml::Value = input.template_with(&variables).unwrap();
+        assert_eq!(actual_output, expected_output);
+    }
+
+    #[test]
+    fn test_template_nested_yaml() {
+        let variables = NormalizedVariables::from([
+            (
+                "change.me.string".to_string(),
+                EndSpec {
+                    final_value: Some(TrivialValue::String("CHANGED-STRING".to_string())),
+                    default: None,
+                    description: String::default(),
+                    required: true,
+                    type_: VariableType::String,
+                    file_path: None,
+                },
+            ),
+            (
+                "change.me.bool".to_string(),
+                EndSpec {
+                    final_value: Some(TrivialValue::Bool(true)),
+                    default: None,
+                    description: String::default(),
+                    required: true,
+                    type_: VariableType::Bool,
+                    file_path: None,
+                },
+            ),
+            (
+                "change.me.number".to_string(),
+                EndSpec {
+                    final_value: Some(TrivialValue::Number(PosInt(42))),
+                    default: None,
+                    description: String::default(),
+                    required: true,
+                    type_: VariableType::Number,
+                    file_path: None,
+                },
+            ),
+        ]);
+        let input: serde_yaml::Value = serde_yaml::from_str(
+            r#"
+        anObject:
+            anString: ${change.me.string}
+            aBool: ${change.me.bool}
+            aNumber: ${change.me.number}
+        aSequence:
+            - ${change.me.string}
+            - ${change.me.bool}
+            - ${change.me.number}
+        aNestedObject:
+            withNestedArray:
+                - anString: ${change.me.string}
+                - aBool: ${change.me.bool}
+                - aNumber: ${change.me.number}
+        anString: ${change.me.string}
+        aBool: ${change.me.bool}
+        aNumber: ${change.me.number}
+        "#,
+        )
+        .unwrap();
+        let expected_output: serde_yaml::Value = serde_yaml::from_str(
+            r#"
+        anObject:
+            anString: "CHANGED-STRING"
+            aBool: "true" // TODO: This test should break in a future iteration.
+            aNumber: "42" // TODO: This test should break in a future iteration.
+        aSequence:
+            - "CHANGED-STRING"
+            - "true" // TODO: This test should break in a future iteration.
+            - "42" // TODO: This test should break in a future iteration.
+        aNestedObject:
+            withNestedArray:
+                - anString: "CHANGED-STRING"
+                - aBool: "true" // TODO: This test should break in a future iteration.
+                - aNumber: "42" // TODO: This test should break in a future iteration.
+        anString: "CHANGED-STRING"
+        aBool: "true" // TODO: This test should break in a future iteration.
+        aNumber: "42" // TODO: This test should break in a future iteration.
+        "#,
+        )
+        .unwrap();
+
+        let actual_output: serde_yaml::Value = input.template_with(&variables).unwrap();
+        assert_eq!(actual_output, expected_output);
+    }
 }
