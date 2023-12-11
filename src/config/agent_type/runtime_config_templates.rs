@@ -155,8 +155,12 @@ impl Templateable for K8sObject {
 impl Templateable for serde_yaml::Value {
     fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
         let templated_value = match self {
-            serde_yaml::Value::Mapping(m) => serde_yaml::Value::Mapping(m.template_with(variables)?),
-            serde_yaml::Value::Sequence(seq) => serde_yaml::Value::Sequence(seq.template_with(variables)?),
+            serde_yaml::Value::Mapping(m) => {
+                serde_yaml::Value::Mapping(m.template_with(variables)?)
+            }
+            serde_yaml::Value::Sequence(seq) => {
+                serde_yaml::Value::Sequence(seq.template_with(variables)?)
+            }
             serde_yaml::Value::String(st) => template_value_string(st, variables)?,
             _ => self,
         };
@@ -183,7 +187,10 @@ impl Templateable for serde_yaml::Sequence {
     }
 }
 
-fn template_value_string (st: String, variables: &NormalizedVariables) -> Result<serde_yaml::Value, AgentTypeError> {
+fn template_value_string(
+    st: String,
+    variables: &NormalizedVariables,
+) -> Result<serde_yaml::Value, AgentTypeError> {
     /*
     // TODO: All templated values are a YAML String, but the result does not have to be a string.
     ```yaml
@@ -416,5 +423,4 @@ mod tests {
         let actual_output = input.template_with(&variables).unwrap();
         assert_eq!(actual_output, expected_output);
     }
-
 }
