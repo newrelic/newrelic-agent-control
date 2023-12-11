@@ -84,7 +84,7 @@ pub struct K8sObject {
     pub kind: String,
     // TODO: include metadata
     #[serde(default, flatten)]
-    pub fields: serde_yaml::Value,
+    pub fields: serde_yaml::Mapping,
 }
 
 #[cfg(test)]
@@ -130,10 +130,7 @@ deployment:
                 .unwrap()
         );
         assert_eq!("Foo2".to_string(), k8s.objects["cr2"].kind);
-        assert_eq!(
-            serde_yaml::Value::Mapping(Default::default()),
-            k8s.objects["cr2"].fields
-        );
+        assert_eq!(serde_yaml::Mapping::default(), k8s.objects["cr2"].fields);
         assert_eq!(
             &serde_yaml::Value::String("value".into()),
             k8s.objects["cr3"].fields.get("key").unwrap()
