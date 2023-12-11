@@ -4,8 +4,6 @@ use std::sync::OnceLock;
 use regex::Regex;
 use tracing::warn;
 
-use crate::opamp::remote_config_hash::Hash;
-
 use super::{
     agent_types::NormalizedVariables,
     error::AgentTypeError,
@@ -157,8 +155,8 @@ impl Templateable for K8sObject {
 impl Templateable for serde_yaml::Value {
     fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
         let templated_value = match self {
-            serde_yaml::Value::Mapping(m) => template_value_mapping(m, variables)?,
-            serde_yaml::Value::Sequence(seq) => template_value_sequence(seq, variables)?,
+            serde_yaml::Value::Mapping(m) => serde_yaml::Value::Mapping(m.template_with(variables)?),
+            serde_yaml::Value::Sequence(seq) => serde_yaml::Value::Sequence(seq.template_with(variables)?),
             serde_yaml::Value::String(st) => template_value_string(st, variables)?,
             _ => self,
         };
@@ -167,18 +165,22 @@ impl Templateable for serde_yaml::Value {
     }
 }
 
-fn template_value_mapping (m: serde_yaml::Mapping, variables: &NormalizedVariables) -> Result<serde_yaml::Value, AgentTypeError> {
-    for (_, mut v) in m.iter() {
-        v = &v.clone().template_with(variables)?;
+impl Templateable for serde_yaml::Mapping {
+    fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
+        for (_, mut v) in self.iter() {
+            v = &v.clone().template_with(variables)?;
+        }
+        Ok(self)
     }
-    Ok(serde_yaml::Value::Mapping(m))
 }
 
-fn template_value_sequence (seq: serde_yaml::Sequence, variables: &NormalizedVariables) -> Result<serde_yaml::Value, AgentTypeError> {
-    for mut v in seq.iter() {
-        v = &v.clone().template_with(variables)?;
+impl Templateable for serde_yaml::Sequence {
+    fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
+        for mut v in self.iter() {
+            v = &v.clone().template_with(variables)?;
+        }
+        Ok(self)
     }
-    Ok(serde_yaml::Value::Sequence(seq))
 }
 
 fn template_value_string (st: String, variables: &NormalizedVariables) -> Result<serde_yaml::Value, AgentTypeError> {
@@ -414,7 +416,5 @@ mod tests {
         let actual_output = input.template_with(&variables).unwrap();
         assert_eq!(actual_output, expected_output);
     }
-
-    // #[test]
 
 }
