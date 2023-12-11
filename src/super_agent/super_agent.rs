@@ -260,6 +260,17 @@ where
                         }
                     }
                     Event::OpAMPEvent(OpAMPEvent::ValidRemoteConfigReceived(mut remote_config)) => {
+                        // TODO This condition should be removed to subagent event loop
+                        if !remote_config.agent_id.is_super_agent_id() {
+                            self.process_sub_agent_remote_config(
+                                remote_config,
+                                &mut sub_agents,
+                                tx.clone(),
+                                ctx.clone(),
+                            )?;
+                            break;
+                        }
+
                         if let Some(opamp_client) = &maybe_opamp_client {
                             self.process_super_agent_remote_config(
                                 opamp_client,
@@ -340,6 +351,7 @@ where
         Ok(())
     }
 
+    // TODO This call should be moved to on subagent event loop when opamp event remote_config
     // Sub Agent on remote config
     fn process_sub_agent_remote_config_error(
         &self,
