@@ -156,12 +156,49 @@ impl Templateable for K8sObject {
 
 impl Templateable for serde_yaml::Value {
     fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
-        // TODO
-        // - Use the Templateable implementation for strings (casting could be performed depending on the var type)
-        // - Call `template_with` recursively for Mappings and sequences
-        // - Leave the value as it is on any other cases
-        Ok(self)
+        let templated_value = match self {
+            serde_yaml::Value::Mapping(m) => template_value_mapping(m, variables)?,
+            serde_yaml::Value::Sequence(seq) => template_value_sequence(seq, variables)?,
+            serde_yaml::Value::String(st) => template_value_string(st, variables)?,
+            _ => self,
+        };
+
+        Ok(templated_value)
     }
+}
+
+fn template_value_mapping (m: serde_yaml::Mapping, variables: &NormalizedVariables) -> Result<serde_yaml::Value, AgentTypeError> {
+    for (_, mut v) in m.iter() {
+        v = &v.clone().template_with(variables)?;
+    }
+    Ok(serde_yaml::Value::Mapping(m))
+}
+
+fn template_value_sequence (seq: serde_yaml::Sequence, variables: &NormalizedVariables) -> Result<serde_yaml::Value, AgentTypeError> {
+    for mut v in seq.iter() {
+        v = &v.clone().template_with(variables)?;
+    }
+    Ok(serde_yaml::Value::Sequence(seq))
+}
+
+fn template_value_string (st: String, variables: &NormalizedVariables) -> Result<serde_yaml::Value, AgentTypeError> {
+    /*
+    // TODO: All templated values are a YAML String, but the result does not have to be a string.
+    ```yaml
+    test: ${value}
+    ```
+    Given the YAML above, if `value` is `1` the result is `"1"`, not a `1` (integer).
+    We will have to be careful to cast because there are many reason se do not want to change the type from string
+    to int, like in Kubernetes annotations that are a map[string]string and refuses to cast booleans of integers to
+    string.
+
+    In a future we might want to do a spike to support Tagged values: https://docs.rs/serde_yaml/latest/serde_yaml/enum.Value.html#variant.Tagged
+
+    For now, as a first iteration, we simply return a string and template a string.
+    */
+    let templated = template_string(st, variables)?;
+
+    Ok(serde_yaml::Value::String(templated))
 }
 
 impl Templateable for Deployment {
@@ -188,7 +225,7 @@ impl Templateable for Deployment {
         - Some(Err(_)) will be mapped to Err(_).
 
         With `?` I get rid of the original Result<_,_> wrapper type and get the Option<_> (or else the error bubbles up if it contained the Err(_) variant). Then I am able to store that Option<_>, be it None or Some(_), back into the Deployment object which contains the Option<_> field.
-         */
+        */
 
         let oh = self
             .on_host
@@ -377,4 +414,7 @@ mod tests {
         let actual_output = input.template_with(&variables).unwrap();
         assert_eq!(actual_output, expected_output);
     }
+
+    // #[test]
+
 }
