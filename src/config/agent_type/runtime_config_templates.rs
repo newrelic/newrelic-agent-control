@@ -171,20 +171,16 @@ impl Templateable for serde_yaml::Value {
 
 impl Templateable for serde_yaml::Mapping {
     fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
-        let mut result = serde_yaml::Mapping::new();
-
-        for (k, v) in self {
-            result.insert(k, v.clone().template_with(variables)?);
-        }
-
-        Ok(result)
+        self.into_iter()
+            .map(|(k, v)| Ok((k, v.template_with(variables)?)))
+            .collect()
     }
 }
 
 impl Templateable for serde_yaml::Sequence {
     fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
-        self.iter()
-            .map(|v| v.clone().template_with(variables))
+        self.into_iter()
+            .map(|v| v.template_with(variables))
             .collect()
     }
 }
@@ -462,57 +458,28 @@ mod tests {
                 },
             ),
         ]);
-        let mut input = serde_yaml::Mapping::new();
-        input.insert(
-            serde_yaml::Value::String("a_string".to_string()),
-            serde_yaml::Value::String("${change.me.string}".to_string()),
-        );
-        input.insert(
-            serde_yaml::Value::String("a_boolean".to_string()),
-            serde_yaml::Value::String("${change.me.bool}".to_string()),
-        );
-        input.insert(
-            serde_yaml::Value::String("a_number".to_string()),
-            serde_yaml::Value::String("${change.me.number}".to_string()),
-        );
-        input.insert(
-            serde_yaml::Value::String("${change.me.string}".to_string()),
-            serde_yaml::Value::String("Do not scape me".to_string()),
-        );
-        input.insert(
-            serde_yaml::Value::String("${change.me.bool}".to_string()),
-            serde_yaml::Value::String("Do not scape me".to_string()),
-        );
-        input.insert(
-            serde_yaml::Value::String("${change.me.number}".to_string()),
-            serde_yaml::Value::String("Do not scape me".to_string()),
-        );
-
-        let mut expected_output = serde_yaml::Mapping::new();
-        expected_output.insert(
-            serde_yaml::Value::String("a_string".to_string()),
-            serde_yaml::Value::String("CHANGED-STRING".to_string()),
-        );
-        expected_output.insert(
-            serde_yaml::Value::String("a_boolean".to_string()),
-            serde_yaml::Value::String("true".to_string()), // TODO: This test should break in a future iteration.
-        );
-        expected_output.insert(
-            serde_yaml::Value::String("a_number".to_string()),
-            serde_yaml::Value::String("42".to_string()), // TODO: This test should break in a future iteration.
-        );
-        expected_output.insert(
-            serde_yaml::Value::String("${change.me.string}".to_string()),
-            serde_yaml::Value::String("Do not scape me".to_string()),
-        );
-        expected_output.insert(
-            serde_yaml::Value::String("${change.me.bool}".to_string()),
-            serde_yaml::Value::String("Do not scape me".to_string()),
-        );
-        expected_output.insert(
-            serde_yaml::Value::String("${change.me.number}".to_string()),
-            serde_yaml::Value::String("Do not scape me".to_string()),
-        );
+        let input: serde_yaml::Sequence = serde_yaml::from_str(
+            r#"
+        a_string: "${change.me.string}"
+        a_boolean: "${change.me.bool}"
+        a_number: "${change.me.number}"
+        ${change.me.string}: "Do not scape me"
+        ${change.me.bool}: "Do not scape me"
+        ${change.me.number}: "Do not scape me"
+        "#,
+        )
+        .unwrap();
+        let expected_output: serde_yaml::Sequence = serde_yaml::from_str(
+            r#"
+        a_string: "CHANGED-STRING"
+        a_boolean: "true"  # TODO: This test should break in a future iteration.
+        a_number: "42"  # TODO: This test should break in a future iteration.
+        ${change.me.string}: "Do not scape me"
+        ${change.me.bool}: "Do not scape me"
+        ${change.me.number}: "Do not scape me"
+        "#,
+        )
+        .unwrap();
 
         let actual_output = input.template_with(&variables).unwrap();
         assert_eq!(actual_output, expected_output);
@@ -555,17 +522,24 @@ mod tests {
                 },
             ),
         ]);
-        let mut input = serde_yaml::Sequence::new();
-        input.push(serde_yaml::Value::String("${change.me.string}".to_string()));
-        input.push(serde_yaml::Value::String("${change.me.bool}".to_string()));
-        input.push(serde_yaml::Value::String("${change.me.number}".to_string()));
-        input.push(serde_yaml::Value::String("Do not scape me".to_string()));
-
-        let mut expected_output = serde_yaml::Sequence::new();
-        expected_output.push(serde_yaml::Value::String("CHANGED-STRING".to_string()));
-        expected_output.push(serde_yaml::Value::String("true".to_string())); // TODO: This test should break in a future iteration.
-        expected_output.push(serde_yaml::Value::String("42".to_string())); // TODO: This test should break in a future iteration.
-        expected_output.push(serde_yaml::Value::String("Do not scape me".to_string()));
+        let input: serde_yaml::Sequence = serde_yaml::from_str(
+            r#"
+        - ${change.me.string}
+        - ${change.me.bool}
+        - ${change.me.number}
+        - Do not scape me
+        "#,
+        )
+        .unwrap();
+        let expected_output: serde_yaml::Sequence = serde_yaml::from_str(
+            r#"
+        - CHANGED-STRING
+        - "true" # TODO: This test should break in a future iteration.
+        - "42" # TODO: This test should break in a future iteration.
+        - Do not scape me
+        "#,
+        )
+        .unwrap();
 
         let actual_output = input.template_with(&variables).unwrap();
         assert_eq!(actual_output, expected_output);
