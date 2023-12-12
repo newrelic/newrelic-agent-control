@@ -1,3 +1,5 @@
+use std::sync::OnceLock;
+
 use regex::Regex;
 use tracing::warn;
 
@@ -27,6 +29,11 @@ const TEMPLATE_BEGIN: &str = "${";
 const TEMPLATE_END: char = '}';
 pub const TEMPLATE_KEY_SEPARATOR: &str = ".";
 
+fn template_re() -> &'static Regex {
+    static RE_ONCE: OnceLock<Regex> = OnceLock::new();
+    RE_ONCE.get_or_init(|| Regex::new(TEMPLATE_RE).unwrap())
+}
+
 pub trait Templateable {
     fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError>
     where
@@ -52,7 +59,7 @@ impl Templateable for String {
 }
 
 fn template_string(s: String, variables: &NormalizedVariables) -> Result<String, AgentTypeError> {
-    let re = Regex::new(TEMPLATE_RE).unwrap();
+    let re = template_re();
 
     let result = re
         .find_iter(&s)
