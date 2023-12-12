@@ -458,7 +458,7 @@ mod tests {
                 },
             ),
         ]);
-        let input: serde_yaml::Sequence = serde_yaml::from_str(
+        let input: serde_yaml::Mapping = serde_yaml::from_str(
             r#"
         a_string: "${change.me.string}"
         a_boolean: "${change.me.bool}"
@@ -469,7 +469,7 @@ mod tests {
         "#,
         )
         .unwrap();
-        let expected_output: serde_yaml::Sequence = serde_yaml::from_str(
+        let expected_output: serde_yaml::Mapping = serde_yaml::from_str(
             r#"
         a_string: "CHANGED-STRING"
         a_boolean: "true"  # TODO: This test should break in a future iteration.
