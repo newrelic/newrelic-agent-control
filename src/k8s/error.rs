@@ -18,9 +18,6 @@ pub enum K8sError {
     #[error("cannot post object `{0}`")]
     CommitError(#[from] api::entry::CommitError),
 
-    #[error("unexpected resource definition: api_version: {0}, kind: {1}")]
-    UnexpectedKind(String, String),
-
     #[error("error serializing/deserializing yaml: `{0}`")]
     SerdeYaml(#[from] serde_yaml::Error),
 
@@ -38,4 +35,10 @@ pub enum K8sError {
 
     #[error("error parsing GroupVersion: `{0}`")]
     ParseGroupVersion(#[from] ParseGroupVersionError),
+
+    #[error("the kind of the cr is unexpected: {0}")]
+    UnexpectedKind(String),
+
+    #[error("while getting dynamic resource: {0}")]
+    GetDynamic(String),
 }

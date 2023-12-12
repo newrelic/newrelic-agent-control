@@ -1,15 +1,12 @@
-use std::path::Path;
-use std::{collections::HashMap, fmt::Display};
-
-use std::ops::Deref;
-
 use crate::config::error::SuperAgentConfigError;
+use crate::opamp::remote_config::RemoteConfig;
 use crate::super_agent::defaults::{default_capabilities, SUPER_AGENT_ID};
 use opamp_client::operation::capabilities::Capabilities;
-use thiserror::Error;
-
-use crate::opamp::remote_config::RemoteConfig;
 use serde::{Deserialize, Serialize};
+use std::ops::Deref;
+use std::path::Path;
+use std::{collections::HashMap, fmt::Display};
+use thiserror::Error;
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Hash, Eq)]
 #[serde(try_from = "String")]
@@ -203,6 +200,25 @@ pub struct K8sConfig {
     pub cluster_name: String,
     /// namespace is the kubernetes namespace where all resources directly managed by the super agent will be created.
     pub namespace: String,
+
+    /// CRDs is a list of crds that the SA should watch and be able to create/delete.
+    #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
+    #[serde(default = "default_group_version_kinds")]
+    pub cr_type_meta: Vec<kube::core::TypeMeta>,
+}
+
+#[cfg(all(not(feature = "onhost"), feature = "k8s"))]
+fn default_group_version_kinds() -> Vec<kube::core::TypeMeta> {
+    vec![
+        kube::core::TypeMeta {
+            api_version: "source.toolkit.fluxcd.io/v1beta2".to_string(),
+            kind: "HelmRepository".to_string(),
+        },
+        kube::core::TypeMeta {
+            api_version: "source.toolkit.fluxcd.io/v2beta1".to_string(),
+            kind: "HelmRelease".to_string(),
+        },
+    ]
 }
 
 impl AgentTypeFQN {

@@ -5,7 +5,6 @@ use newrelic_super_agent::opamp::instance_id;
 use newrelic_super_agent::opamp::instance_id::getter::ULIDInstanceIDGetter;
 #[cfg(feature = "onhost")]
 use newrelic_super_agent::opamp::instance_id::IdentifiersProvider;
-use newrelic_super_agent::opamp::instance_id::Storer;
 use newrelic_super_agent::opamp::remote_config_hash::HashRepositoryFile;
 use newrelic_super_agent::sub_agent::values::values_repository::ValuesRepositoryFile;
 use newrelic_super_agent::super_agent::error::AgentError;
@@ -64,40 +63,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
         super_agent_config_storer = super_agent_config_storer.with_remote()?;
     }
 
-    #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
-    let instance_id_getter = super_agent_config
-        .k8s
-        .map(|k8s_config| {
-            ULIDInstanceIDGetter::try_with_identifiers(
-                k8s_config.namespace,
-                instance_id::get_identifiers(k8s_config.cluster_name),
-            )
-        })
-        .ok_or("missing config field: \"k8s\"")?
-        .await?;
-
-    #[cfg(feature = "onhost")]
-    let instance_id_getter =
-        ULIDInstanceIDGetter::default().with_identifiers(IdentifiersProvider::default().provide());
-
     #[cfg(any(feature = "onhost", feature = "k8s"))]
-    return Ok(run_super_agent(
-        super_agent_config_storer,
-        ctx,
-        opamp_client_builder,
-        instance_id_getter,
-    )?);
+    return Ok(run_super_agent(super_agent_config_storer, ctx, opamp_client_builder).await?);
 
     #[cfg(all(not(feature = "onhost"), not(feature = "k8s")))]
     Ok(())
 }
 
 #[cfg(feature = "onhost")]
-fn run_super_agent(
+async fn run_super_agent(
     config_storer: SuperAgentConfigStoreFile,
     ctx: Context<Option<Event>>,
     opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
-    instance_id_getter: ULIDInstanceIDGetter<Storer>,
 ) -> Result<(), AgentError> {
     use newrelic_super_agent::{
         config::super_agent_configs::AgentID, opamp::operations::build_opamp_and_start_client,
@@ -109,6 +86,9 @@ fn run_super_agent(
     if !nix::unistd::Uid::effective().is_root() {
         panic!("Program must run as root");
     }
+
+    let instance_id_getter =
+        ULIDInstanceIDGetter::default().with_identifiers(IdentifiersProvider::default().provide());
 
     let hash_repository = HashRepositoryFile::default();
     let sub_agent_hash_repository = HashRepositoryFile::new_sub_agent_repository();
@@ -148,11 +128,10 @@ fn run_super_agent(
 }
 
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
-fn run_super_agent(
+async fn run_super_agent(
     config_storer: SuperAgentConfigStoreFile,
     ctx: Context<Option<Event>>,
     opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
-    instance_id_getter: ULIDInstanceIDGetter<Storer>,
 ) -> Result<(), AgentError> {
     use newrelic_super_agent::{
         config::super_agent_configs::AgentID, opamp::operations::build_opamp_and_start_client,
@@ -160,12 +139,22 @@ fn run_super_agent(
 
     let hash_repository = HashRepositoryFile::default();
     let sub_agent_hash_repository = HashRepositoryFile::new_sub_agent_repository();
+    let k8s_config = config_storer.load()?.k8s.ok_or(AgentError::K8sConfig())?;
+
+    let instance_id_getter = ULIDInstanceIDGetter::try_with_identifiers(
+        k8s_config.namespace,
+        instance_id::get_identifiers(k8s_config.cluster_name),
+    )
+    .await?;
 
     // Initialize K8sExecutor
     // TODO: once we know how we're going to use the K8sExecutor, we might need to refactor and move this.
     let namespace = "default".to_string(); // change to your desired namespace
     let executor = futures::executor::block_on(
-        newrelic_super_agent::k8s::executor::K8sExecutor::try_default(namespace),
+        newrelic_super_agent::k8s::executor::K8sExecutor::try_new_with_reflectors(
+            namespace,
+            k8s_config.cr_type_meta,
+        ),
     )
     .map_err(|e| AgentError::ExternalError(e.to_string()))?;
     /////////////////////////

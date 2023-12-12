@@ -30,7 +30,7 @@ impl ULIDInstanceIDGetter<Storer> {
         identifiers: Identifiers,
     ) -> Result<Self, GetterError> {
         Ok(Self::new(
-            Storer::new(K8sExecutor::try_default(namespace).await?),
+            Storer::new(K8sExecutor::try_new(namespace).await?),
             identifiers,
         ))
     }
