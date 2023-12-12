@@ -184,7 +184,7 @@ impl Templateable for serde_yaml::Mapping {
 impl Templateable for serde_yaml::Sequence {
     fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
         self.iter()
-            .map(|v| Ok(v.clone().template_with(variables)?))
+            .map(|v| v.clone().template_with(variables))
             .collect()
     }
 }
