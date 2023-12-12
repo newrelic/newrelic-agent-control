@@ -18,7 +18,7 @@ pub enum K8sError {
     #[error("cannot post object `{0}`")]
     CommitError(#[from] api::entry::CommitError),
 
-    #[error("missing resource definition: api_version: {0}, kind: {1}")]
+    #[error("unexpected resource definition: api_version: {0}, kind: {1}")]
     UnexpectedKind(String, String),
 
     #[error("error serializing/deserializing yaml: `{0}`")]

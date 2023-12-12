@@ -55,21 +55,7 @@ mod test {
     use super::*;
     use crate::k8s::executor::MockK8sExecutor;
     use crate::sub_agent::k8s::sample_crs::get_sample_resources;
-    use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
-    use kube::core::{DynamicObject, TypeMeta};
     use mockall::predicate;
-    use serde_json::json;
-
-    fn create_mock_dynamic_object() -> DynamicObject {
-        DynamicObject {
-            types: Some(TypeMeta {
-                api_version: "v1".into(),
-                kind: "MockKind".into(),
-            }),
-            metadata: ObjectMeta::default(),
-            data: json!({}),
-        }
-    }
 
     #[test]
     fn test_supervisor_start() {

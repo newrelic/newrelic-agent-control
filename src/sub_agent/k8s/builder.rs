@@ -102,13 +102,9 @@ mod test {
     use crate::{
         k8s::executor::MockK8sExecutor,
         opamp::client_builder::test::MockOpAMPClientBuilderMock,
-        sub_agent::k8s::sample_crs::{OTELCOL_HELM_RELEASE_CR, OTEL_HELM_REPOSITORY_CR},
         sub_agent::{NotStartedSubAgent, StartedSubAgent},
     };
-    use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
-    use kube::core::{DynamicObject, TypeMeta};
-    use mockall::{mock, predicate};
-    use serde_json::json;
+    use mockall::predicate;
     use std::{collections::HashMap, sync::mpsc::channel};
 
     #[test]
@@ -179,17 +175,6 @@ mod test {
         // TODO: setup k8s runtime_config here. Eg: `final_agent.runtime_config.deployment.k8s = ...`
         SubAgentConfig {
             agent_type: "some_agent".into(),
-        }
-    }
-
-    fn create_mock_dynamic_object() -> DynamicObject {
-        DynamicObject {
-            types: Some(TypeMeta {
-                api_version: "v1".into(),
-                kind: "MockKind".into(),
-            }),
-            metadata: ObjectMeta::default(),
-            data: json!({}),
         }
     }
 }
