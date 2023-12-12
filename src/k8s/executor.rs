@@ -86,9 +86,9 @@ impl K8sExecutor {
         Ok(())
     }
 
-    pub async fn delete_dynamic_object(&self, tm: TypeMeta, name: String) -> Result<(), K8sError> {
+    pub async fn delete_dynamic_object(&self, tm: TypeMeta, name: &str) -> Result<(), K8sError> {
         let api = self.namespaced_api(tm).await?;
-        api.delete(name.as_str(), &DeleteParams::default()).await?;
+        api.delete(name, &DeleteParams::default()).await?;
 
         Ok(())
     }
@@ -98,7 +98,7 @@ impl K8sExecutor {
     pub async fn get_dynamic_object(
         &mut self,
         tm: TypeMeta,
-        name: String,
+        name: &str,
     ) -> Result<Option<Arc<DynamicObject>>, K8sError> {
         let ar = self.api_resource(tm.clone()).await?;
 
@@ -107,12 +107,9 @@ impl K8sExecutor {
             .entry(tm)
             .or_insert(self.reflector_builder.dynamic_object_reflector(&ar).await?);
 
-        Ok(reflector.reader().find(|obj| {
-            obj.metadata
-                .name
-                .to_owned()
-                .is_some_and(|n| n.eq(name.as_str()))
-        }))
+        Ok(reflector
+            .reader()
+            .find(|obj| obj.metadata.name.to_owned().is_some_and(|n| n.eq(name))))
     }
 
     pub async fn get_minor_version(&self) -> Result<String, K8sError> {

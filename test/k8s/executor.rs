@@ -38,22 +38,22 @@ async fn k8s_get_dynamic_resource() {
     let mut test = K8sEnv::new().await;
     let test_ns = test.test_namespace().await;
 
-    let cr_name = "get-test".to_string();
+    let cr_name = "get-test";
 
     let mut executor: K8sExecutor = K8sExecutor::try_default(test_ns.to_string()).await.unwrap();
 
     // get doesn't find any object before creation.
     assert!(executor
-        .get_dynamic_object(foo_type_meta(), cr_name.clone())
+        .get_dynamic_object(foo_type_meta(), cr_name)
         .await
         .unwrap()
         .is_none());
 
-    create_test_cr(test.client.to_owned(), test_ns.as_str(), cr_name.as_str()).await;
+    create_test_cr(test.client.to_owned(), test_ns.as_str(), cr_name).await;
 
     // the object is found after creation.
     let cr = executor
-        .get_dynamic_object(foo_type_meta(), cr_name.clone())
+        .get_dynamic_object(foo_type_meta(), cr_name)
         .await
         .unwrap()
         .unwrap();
@@ -64,7 +64,7 @@ async fn k8s_get_dynamic_resource() {
     );
 
     Api::<Foo>::namespaced(test.client.to_owned(), &test_ns)
-        .delete(cr_name.clone().as_str(), &DeleteParams::default())
+        .delete(cr_name, &DeleteParams::default())
         .await
         .unwrap();
 
@@ -87,7 +87,7 @@ async fn k8s_delete_dynamic_resource() {
 
     let executor: K8sExecutor = K8sExecutor::try_default(test_ns.to_string()).await.unwrap();
     executor
-        .delete_dynamic_object(foo_type_meta(), cr_name.to_string())
+        .delete_dynamic_object(foo_type_meta(), cr_name)
         .await
         .unwrap();
 
