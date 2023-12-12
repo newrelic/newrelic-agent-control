@@ -19,8 +19,12 @@ use tracing::debug;
 
 pub struct K8sExecutor {
     client: Client,
-    dynamic_reflectors: HashMap<TypeMeta, DynamicObjectReflector>,
-    dynamic_apis: HashMap<TypeMeta, Api<DynamicObject>>,
+    dynamics: HashMap<TypeMeta, Dynamic>,
+}
+
+struct Dynamic {
+    object_api: Api<DynamicObject>,
+    object_reflector: DynamicObjectReflector,
 }
 
 #[cfg_attr(test, mockall::automock)]
@@ -54,8 +58,7 @@ impl K8sExecutor {
 
         Ok(Self {
             client,
-            dynamic_reflectors: HashMap::new(),
-            dynamic_apis: HashMap::new(),
+            dynamics: HashMap::new(),
         })
     }
 
@@ -81,25 +84,27 @@ impl K8sExecutor {
                 .await
                 .map_err(|_| UnexpectedKind(gvk.clone().kind))?;
 
-            let api = Api::default_namespaced_with(self.client.to_owned(), &ar);
-            self.dynamic_apis.insert(tm.to_owned(), api);
-
-            let reflector = reflector_builder.dynamic_object_reflector(&ar).await?;
-            self.dynamic_reflectors.insert(tm.to_owned(), reflector);
+            self.dynamics.insert(
+                tm.to_owned(),
+                Dynamic {
+                    object_api: Api::default_namespaced_with(self.client.to_owned(), &ar),
+                    object_reflector: reflector_builder.dynamic_object_reflector(&ar).await?,
+                },
+            );
         }
         Ok(self)
     }
 
     pub async fn apply_dynamic_object(&self, obj: &DynamicObject) -> Result<(), K8sError> {
-        let name = obj.metadata.clone().name.ok_or(K8sError::MissingName())?;
-        let tm = obj.types.clone().ok_or(K8sError::MissingKind())?;
-        let api = self
-            .dynamic_apis
+        let tm = get_type_meta(obj)?;
+        let api = &self
+            .dynamics
             .get(&tm)
-            .ok_or(UnexpectedKind("applying dynamic object".to_string()))?;
+            .ok_or(UnexpectedKind(format!("applying dynamic object {:?}", tm)))?
+            .object_api;
 
         // We are getting and modifying the object, but if not available we are creating it
-        api.entry(name.as_str())
+        api.entry(get_name(obj)?.as_str())
             .await
             .map_err(|e| K8sError::GetDynamic(e.to_string()))?
             .and_modify(|obj_old| {
@@ -114,13 +119,30 @@ impl K8sExecutor {
         Ok(())
     }
 
-    pub async fn delete_dynamic_object(&self, tm: TypeMeta, name: &str) -> Result<(), K8sError> {
-        let api = self
-            .dynamic_apis
-            .get(&tm)
-            .ok_or(UnexpectedKind("applying dynamic object".to_string()))?;
-        api.delete(name, &DeleteParams::default()).await?;
+    pub async fn has_dynamic_object_changed(&self, obj: &DynamicObject) -> Result<bool, K8sError> {
+        let name = get_name(obj)?;
+        let tm = get_type_meta(obj)?;
+        let existing_obj = self.get_dynamic_object(tm, name.as_str()).await?;
 
+        match existing_obj {
+            None => Ok(true),
+            Some(obj_old) => {
+                if obj_old.data != obj.data {
+                    return Ok(true);
+                }
+                Ok(false)
+            }
+        }
+    }
+
+    pub async fn delete_dynamic_object(&self, tm: TypeMeta, name: &str) -> Result<(), K8sError> {
+        let api = &self
+            .dynamics
+            .get(&tm)
+            .ok_or(UnexpectedKind(format!("deleting dynamic object {:?}", tm)))?
+            .object_api;
+
+        api.delete(name, &DeleteParams::default()).await?;
         Ok(())
     }
 
@@ -129,12 +151,14 @@ impl K8sExecutor {
         tm: TypeMeta,
         name: &str,
     ) -> Result<Option<Arc<DynamicObject>>, K8sError> {
-        let r = self
-            .dynamic_reflectors
+        let reflector = &self
+            .dynamics
             .get(&tm)
-            .ok_or(UnexpectedKind("getting dynamic object".to_string()))?;
+            .ok_or(UnexpectedKind(format!("getting dynamic object {:?}", tm)))?
+            .object_reflector;
 
-        Ok(r.reader()
+        Ok(reflector
+            .reader()
             .find(|obj| obj.metadata.name.to_owned().is_some_and(|n| n.eq(name))))
     }
 
@@ -184,6 +208,14 @@ impl K8sExecutor {
             .await?;
         Ok(())
     }
+}
+
+pub fn get_name(obj: &DynamicObject) -> Result<String, K8sError> {
+    obj.metadata.clone().name.ok_or(K8sError::MissingName())
+}
+
+pub fn get_type_meta(obj: &DynamicObject) -> Result<TypeMeta, K8sError> {
+    obj.types.clone().ok_or(K8sError::MissingKind())
 }
 
 #[cfg(test)]
@@ -258,8 +290,7 @@ pub(crate) mod test {
         let client = Client::new(mock_service, "default");
         K8sExecutor {
             client,
-            dynamic_reflectors: HashMap::new(),
-            dynamic_apis: HashMap::new(),
+            dynamics: HashMap::new(),
         }
     }
 

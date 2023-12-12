@@ -47,7 +47,7 @@ impl CRSupervisor {
     }
 
     async fn apply_k8s_resource(&self, obj: &DynamicObject) -> Result<(), SupervisorError> {
-        if !self.resource_has_changed(obj).await? {
+        if !self.executor.has_dynamic_object_changed(obj).await? {
             return Ok(());
         }
 
@@ -55,22 +55,6 @@ impl CRSupervisor {
             .apply_dynamic_object(obj)
             .await
             .map_err(|e| SupervisorError::ApplyError(format!("applying dynamic object: {}", e)))
-    }
-
-    async fn resource_has_changed(&self, obj: &DynamicObject) -> Result<bool, SupervisorError> {
-        let name = obj.metadata.clone().name.ok_or(K8sError::MissingName())?;
-        let tm = obj.types.clone().ok_or(K8sError::MissingKind())?;
-        let existing_obj = self.executor.get_dynamic_object(tm, name.as_str()).await?;
-
-        match existing_obj {
-            None => Ok(true),
-            Some(obj_old) => {
-                if obj_old.data != obj.data {
-                    return Ok(true);
-                }
-                Ok(false)
-            }
-        }
     }
 }
 
@@ -105,15 +89,13 @@ mod test {
         // Mock the behavior for creating dynamic objects
         mock_executor
             .expect_apply_dynamic_object()
-            .with(predicate::always())
             .times(2)
             .returning(|_| Ok(()));
 
         mock_executor
-            .expect_get_dynamic_object()
-            .with(predicate::always(), predicate::always())
+            .expect_has_dynamic_object_changed()
             .times(2)
-            .returning(|_, _| Ok(None));
+            .returning(|_| Ok(true));
 
         let supervisor = CRSupervisor::new(Arc::new(mock_executor));
         let start_result = supervisor.apply(get_sample_resources().as_slice());
@@ -126,38 +108,12 @@ mod test {
         let mut mock_executor = MockK8sExecutor::default();
 
         mock_executor
-            .expect_get_dynamic_object()
-            .with(predicate::always(), predicate::always())
+            .expect_has_dynamic_object_changed()
             .times(1)
-            .returning(|_, _| Ok(Some(Arc::new(create_mock_dynamic_object()))));
+            .returning(|_| Ok(false));
 
         let supervisor = CRSupervisor::new(Arc::new(mock_executor));
         let start_result = supervisor.apply(&[create_mock_dynamic_object()]);
-        assert!(start_result.is_ok());
-    }
-
-    #[test]
-    fn test_supervisor_already_started_but_different() {
-        let mut mock_executor = MockK8sExecutor::default();
-
-        mock_executor
-            .expect_apply_dynamic_object()
-            .with(predicate::always())
-            .times(1)
-            .returning(|_| Ok(()));
-
-        mock_executor
-            .expect_get_dynamic_object()
-            .with(predicate::always(), predicate::always())
-            .times(1)
-            .returning(|_, _| Ok(Some(Arc::new(create_mock_dynamic_object()))));
-
-        let mut obj_patched = create_mock_dynamic_object();
-        obj_patched.data = json!({
-              "different": "value"});
-
-        let supervisor = CRSupervisor::new(Arc::new(mock_executor));
-        let start_result = supervisor.apply(&[obj_patched]);
         assert!(start_result.is_ok());
     }
 }

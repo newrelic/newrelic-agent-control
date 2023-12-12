@@ -146,10 +146,9 @@ mod test {
             .returning(move |_| Ok(()));
 
         mock_executor
-            .expect_get_dynamic_object()
-            .with(predicate::always(), predicate::always())
+            .expect_has_dynamic_object_changed()
             .times(2)
-            .returning(|_, _| Ok(None));
+            .returning(|_| Ok(true));
 
         mock_executor
             .expect_delete_dynamic_object()
