@@ -1,6 +1,7 @@
-use crate::common::{create_test_cr, foo_gvk, Foo, FooSpec, K8sCluster, K8sEnv};
+use crate::common::{create_test_cr, foo_type_meta, Foo, FooSpec, K8sCluster, K8sEnv};
 use k8s_openapi::api::core::v1::Pod;
 use kube::api::{Api, DeleteParams};
+use kube::core::DynamicObject;
 
 use newrelic_super_agent::k8s::executor::K8sExecutor;
 
@@ -11,24 +12,23 @@ async fn k8s_create_dynamic_resource() {
     let mut test = K8sEnv::new().await;
     let test_ns = test.test_namespace().await;
 
-    let cr_name = "test-cr";
+    let name = "test-cr";
     let cr = serde_yaml::to_string(&Foo::new(
-        cr_name,
+        name,
         FooSpec {
             data: String::from("on_create"),
         },
     ))
     .unwrap();
+    let obj: DynamicObject = serde_yaml::from_str(cr.as_str()).unwrap();
 
     let executor: K8sExecutor = K8sExecutor::try_default(test_ns.to_string()).await.unwrap();
-    executor
-        .create_dynamic_object(foo_gvk(), cr.as_str())
-        .await
-        .unwrap();
+
+    executor.apply_dynamic_object(&obj).await.unwrap();
 
     // Assert that object has been created.
     let api: Api<Foo> = Api::namespaced(test.client.clone(), &test_ns);
-    let result = api.get(cr_name).await.expect("fail creating the cr");
+    let result = api.get(name).await.expect("fail creating the cr");
     assert_eq!(String::from("on_create"), result.spec.data);
 }
 
@@ -44,7 +44,7 @@ async fn k8s_get_dynamic_resource() {
 
     // get doesn't find any object before creation.
     assert!(executor
-        .get_dynamic_object(foo_gvk(), cr_name)
+        .get_dynamic_object(foo_type_meta(), cr_name)
         .await
         .unwrap()
         .is_none());
@@ -53,12 +53,15 @@ async fn k8s_get_dynamic_resource() {
 
     // the object is found after creation.
     let cr = executor
-        .get_dynamic_object(foo_gvk(), cr_name)
+        .get_dynamic_object(foo_type_meta(), cr_name)
         .await
         .unwrap()
         .unwrap();
 
-    assert_eq!(cr.metadata.to_owned().name.unwrap().as_str(), cr_name);
+    assert_eq!(
+        cr.metadata.to_owned().name.unwrap().as_str(),
+        cr_name.clone()
+    );
 
     Api::<Foo>::namespaced(test.client.to_owned(), &test_ns)
         .delete(cr_name, &DeleteParams::default())
@@ -67,7 +70,7 @@ async fn k8s_get_dynamic_resource() {
 
     // get doesn't find any object after deletion.
     assert!(executor
-        .get_dynamic_object(foo_gvk(), cr_name)
+        .get_dynamic_object(foo_type_meta(), cr_name)
         .await
         .unwrap()
         .is_none());
@@ -80,11 +83,11 @@ async fn k8s_delete_dynamic_resource() {
     let test_ns = test.test_namespace().await;
 
     let cr_name = "delete-test";
-    create_test_cr(test.client.to_owned(), test_ns.as_str(), cr_name).await;
+    create_test_cr(test.client.to_owned(), test_ns.as_str(), cr_name.clone()).await;
 
     let executor: K8sExecutor = K8sExecutor::try_default(test_ns.to_string()).await.unwrap();
     executor
-        .delete_dynamic_object(foo_gvk(), cr_name)
+        .delete_dynamic_object(foo_type_meta(), cr_name)
         .await
         .unwrap();
 
@@ -108,12 +111,10 @@ async fn k8s_patch_dynamic_resource() {
         },
     ))
     .unwrap();
+    let obj: DynamicObject = serde_yaml::from_str(patch.as_str()).unwrap();
 
     let executor: K8sExecutor = K8sExecutor::try_default(test_ns.to_string()).await.unwrap();
-    executor
-        .patch_dynamic_object(foo_gvk(), cr_name, patch.as_str())
-        .await
-        .unwrap();
+    executor.apply_dynamic_object(&obj).await.unwrap();
 
     let api: Api<Foo> = Api::namespaced(test.client.to_owned(), test_ns.as_str());
     let result = api.get(cr_name).await.expect("fail creating the cr");

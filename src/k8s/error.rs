@@ -1,3 +1,4 @@
+use kube::core::gvk::ParseGroupVersionError;
 use kube::{api, config::KubeconfigError};
 
 #[derive(thiserror::Error, Debug)]
@@ -17,8 +18,8 @@ pub enum K8sError {
     #[error("cannot post object `{0}`")]
     CommitError(#[from] api::entry::CommitError),
 
-    #[error("missing resource definition: api_version: {0}, kind: {1}")]
-    MissingKind(String, String),
+    #[error("unexpected resource definition: api_version: {0}, kind: {1}")]
+    UnexpectedKind(String, String),
 
     #[error("error serializing/deserializing yaml: `{0}`")]
     SerdeYaml(#[from] serde_yaml::Error),
@@ -28,4 +29,13 @@ pub enum K8sError {
 
     #[error("the cm key is missing")]
     KeyIsMissing(),
+
+    #[error("the kind of the cr is missing")]
+    MissingKind(),
+
+    #[error("the name of the cr is missing")]
+    MissingName(),
+
+    #[error("error parsing GroupVersion: `{0}`")]
+    ParseGroupVersion(#[from] ParseGroupVersionError),
 }
