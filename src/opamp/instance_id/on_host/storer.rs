@@ -1,5 +1,3 @@
-#[cfg_attr(test, mockall_double::double)]
-use super::reader::FileReader;
 use crate::config::persister::config_writer_file::WriteError;
 #[cfg_attr(test, mockall_double::double)]
 use crate::config::persister::config_writer_file::WriterFile;
@@ -7,6 +5,9 @@ use crate::config::persister::directory_manager::{
     DirectoryManagementError, DirectoryManager, DirectoryManagerFs,
 };
 use crate::config::super_agent_configs::AgentID;
+#[cfg_attr(test, mockall_double::double)]
+use crate::file_reader::FSFileReader;
+use crate::file_reader::FileReaderError;
 use crate::opamp::instance_id::getter::DataStored;
 use crate::opamp::instance_id::storer::InstanceIDStorer;
 
@@ -28,7 +29,7 @@ where
     D: DirectoryManager,
 {
     file_writer: WriterFile,
-    file_reader: FileReader,
+    file_reader: FSFileReader,
     dir_manager: D,
 }
 
@@ -36,14 +37,16 @@ where
 pub enum StorerError {
     #[error("Generic error")]
     Generic,
-    #[error("Error deserializing into an identifiers file:`{0}`")]
-    Serialization(#[from] serde_yaml::Error),
+    #[error("Error (de)serializing from/into an identifiers file: `{0}`")]
+    Serde(#[from] serde_yaml::Error),
     #[error("Directory management error: `{0}`")]
     DirectoryManagement(#[from] DirectoryManagementError),
     #[error("error writing file: `{0}`")]
     WriteError(#[from] WriteError),
     #[error("error creating file: `{0}`")]
     IOError(#[from] io::Error),
+    #[error("error reading file: `{0}`")]
+    ReadError(#[from] FileReaderError),
 }
 
 fn get_uild_path(agent_id: &AgentID) -> PathBuf {
@@ -72,7 +75,7 @@ impl<D> Storer<D>
 where
     D: DirectoryManager,
 {
-    pub fn new(file_writer: WriterFile, file_reader: FileReader, dir_manager: D) -> Self {
+    pub fn new(file_writer: WriterFile, file_reader: FSFileReader, dir_manager: D) -> Self {
         Self {
             file_writer,
             file_reader,
@@ -109,10 +112,18 @@ where
 
     fn read_contents(&self, agent_id: &AgentID) -> Result<Option<DataStored>, StorerError> {
         let dest_path = get_uild_path(agent_id);
-        match self.file_reader.read(dest_path.as_path()) {
+        // Ok(serde_yaml::from_reader(File::open(path)?)?)
+        let file_str = match self.file_reader.read(dest_path.as_path()) {
+            Ok(s) => s,
+            Err(e) => {
+                debug!("error reading file for agent {}: {}", agent_id, e);
+                return Ok(None);
+            }
+        };
+        match serde_yaml::from_str(&file_str) {
             Ok(ds) => Ok(Some(ds)),
             Err(e) => {
-                debug!("error retrieving data for agent {}: {}", agent_id, e);
+                debug!("error deserializing data for agent {}: {}", agent_id, e);
                 Ok(None)
             }
         }
@@ -124,8 +135,8 @@ mod test {
     use crate::config::persister::config_writer_file::MockWriterFile;
     use crate::config::persister::directory_manager::test::MockDirectoryManagerMock;
     use crate::config::super_agent_configs::AgentID;
+    use crate::file_reader::MockFSFileReader;
     use crate::opamp::instance_id::getter::DataStored;
-    use crate::opamp::instance_id::on_host::reader::MockFileReader;
     use crate::opamp::instance_id::on_host::storer::get_uild_path;
     use crate::opamp::instance_id::storer::InstanceIDStorer;
     use crate::opamp::instance_id::{Identifiers, InstanceID, Storer};
@@ -156,7 +167,7 @@ mod test {
         let agent_id = AgentID::new("test").unwrap();
         let mut file_writer = MockWriterFile::default();
         let mut dir_manager = MockDirectoryManagerMock::default();
-        let file_reader = MockFileReader::new();
+        let file_reader = MockFSFileReader::new();
         let ds = DataStored {
             ulid: InstanceID::new("test-ULID".to_owned()),
             identifiers: Identifiers {
@@ -183,7 +194,7 @@ mod test {
         let agent_id = AgentID::new("test").unwrap();
         let mut file_writer = MockWriterFile::default();
         let mut dir_manager = MockDirectoryManagerMock::default();
-        let file_reader = MockFileReader::new();
+        let file_reader = MockFSFileReader::new();
         let ds = DataStored {
             ulid: InstanceID::new("test-ULID".to_owned()),
             identifiers: Identifiers {
@@ -210,7 +221,7 @@ mod test {
         let agent_id = AgentID::new("test").unwrap();
         let file_writer = MockWriterFile::default();
         let dir_manager = MockDirectoryManagerMock::default();
-        let mut file_reader = MockFileReader::new();
+        let mut file_reader = MockFSFileReader::new();
         let ds = DataStored {
             ulid: InstanceID::new("test-ULID".to_owned()),
             identifiers: Identifiers {
@@ -226,7 +237,7 @@ mod test {
             .expect_read()
             .with(predicate::function(move |p| p == ulid_path.as_path()))
             .once()
-            .return_once(|_| Ok(ds));
+            .return_once(|_| Ok(String::from("ulid: test-ULID\nidentifiers:\n  hostname: test-hostname\n  machine_id: test-machine-id\n")));
 
         let storer = Storer::new(file_writer, file_reader, dir_manager);
         let actual = storer.get(&agent_id);
@@ -239,7 +250,7 @@ mod test {
         let agent_id = AgentID::new("test").unwrap();
         let file_writer = MockWriterFile::default();
         let dir_manager = MockDirectoryManagerMock::default();
-        let mut file_reader = MockFileReader::new();
+        let mut file_reader = MockFSFileReader::new();
         let ulid_path = get_uild_path(&agent_id);
 
         file_reader
