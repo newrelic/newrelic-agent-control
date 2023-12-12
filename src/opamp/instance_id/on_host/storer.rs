@@ -11,7 +11,7 @@ use crate::file_reader::FileReaderError;
 use crate::opamp::instance_id::getter::DataStored;
 use crate::opamp::instance_id::storer::InstanceIDStorer;
 
-use crate::super_agent::defaults::{IDENTIFIERS_DIR, SUPER_AGENT_IDENTIFIERS_PATH};
+use crate::super_agent::defaults::{REMOTE_AGENT_DATA_DIR, SUPER_AGENT_IDENTIFIERS_PATH};
 use std::fs::Permissions;
 use std::io;
 use std::os::unix::fs::PermissionsExt;
@@ -53,7 +53,7 @@ fn get_uild_path(agent_id: &AgentID) -> PathBuf {
     if agent_id.is_super_agent_id() {
         PathBuf::from(SUPER_AGENT_IDENTIFIERS_PATH)
     } else {
-        PathBuf::from(format!("{}/{}.yaml", IDENTIFIERS_DIR, agent_id.get()))
+        PathBuf::from(format!("{}/{}.yaml", REMOTE_AGENT_DATA_DIR, agent_id.get()))
     }
 }
 
@@ -97,7 +97,7 @@ where
     // }
     fn write_contents(&self, agent_id: &AgentID, ds: &DataStored) -> Result<(), StorerError> {
         self.dir_manager.create(
-            Path::new(IDENTIFIERS_DIR),
+            Path::new(REMOTE_AGENT_DATA_DIR),
             Permissions::from_mode(DIRECTORY_PERMISSIONS),
         )?;
         let dest_path = get_uild_path(agent_id);
@@ -140,7 +140,7 @@ mod test {
     use crate::opamp::instance_id::on_host::storer::get_uild_path;
     use crate::opamp::instance_id::storer::InstanceIDStorer;
     use crate::opamp::instance_id::{Identifiers, InstanceID, Storer};
-    use crate::super_agent::defaults::{IDENTIFIERS_DIR, SUPER_AGENT_IDENTIFIERS_PATH};
+    use crate::super_agent::defaults::{REMOTE_AGENT_DATA_DIR, SUPER_AGENT_IDENTIFIERS_PATH};
     use mockall::predicate;
     use std::fs::Permissions;
     use std::io::{self, ErrorKind};
@@ -153,7 +153,7 @@ mod test {
         let path = get_uild_path(&agent_id);
         assert_eq!(
             path,
-            PathBuf::from(format!("{}/test.yaml", IDENTIFIERS_DIR))
+            PathBuf::from(format!("{}/test.yaml", REMOTE_AGENT_DATA_DIR))
         );
 
         let super_agent_id = AgentID::new_super_agent_id();
@@ -177,7 +177,10 @@ mod test {
         };
 
         // Expectations
-        dir_manager.should_create(Path::new(IDENTIFIERS_DIR), Permissions::from_mode(0o700));
+        dir_manager.should_create(
+            Path::new(REMOTE_AGENT_DATA_DIR),
+            Permissions::from_mode(0o700),
+        );
         file_writer.should_write(
             get_uild_path(&agent_id).as_path(),
             String::from("ulid: test-ULID\nidentifiers:\n  hostname: test-hostname\n  machine_id: test-machine-id\n"),
@@ -209,7 +212,10 @@ mod test {
             String::from("ulid: test-ULID\nidentifiers:\n  hostname: test-hostname\n  machine_id: test-machine-id\n"),
             Permissions::from_mode(0o600),
         );
-        dir_manager.should_create(Path::new(IDENTIFIERS_DIR), Permissions::from_mode(0o700));
+        dir_manager.should_create(
+            Path::new(REMOTE_AGENT_DATA_DIR),
+            Permissions::from_mode(0o700),
+        );
 
         let storer = Storer::new(file_writer, file_reader, dir_manager);
         assert!(storer.set(&agent_id, &ds).is_err());
