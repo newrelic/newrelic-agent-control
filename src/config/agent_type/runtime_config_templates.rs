@@ -273,6 +273,19 @@ mod tests {
 
     use super::*;
 
+    impl EndSpec {
+        fn default_with_type(type_: VariableType) -> Self {
+            Self {
+                type_,
+                final_value: None,
+                default: None,
+                description: String::default(),
+                required: false,
+                file_path: None,
+            }
+        }
+    }
+
     #[test]
     fn test_template_string() {
         let variables = NormalizedVariables::from([
@@ -436,33 +449,21 @@ mod tests {
                 "change.me.string".to_string(),
                 EndSpec {
                     final_value: Some(TrivialValue::String("CHANGED-STRING".to_string())),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::String,
-                    file_path: None,
+                    ..EndSpec::default_with_type(VariableType::String)
                 },
             ),
             (
                 "change.me.bool".to_string(),
                 EndSpec {
                     final_value: Some(TrivialValue::Bool(true)),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::Bool,
-                    file_path: None,
+                    ..EndSpec::default_with_type(VariableType::Bool)
                 },
             ),
             (
                 "change.me.number".to_string(),
                 EndSpec {
                     final_value: Some(TrivialValue::Number(PosInt(42))),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::Number,
-                    file_path: None,
+                    ..EndSpec::default_with_type(VariableType::Number)
                 },
             ),
         ]);
@@ -500,33 +501,21 @@ mod tests {
                 "change.me.string".to_string(),
                 EndSpec {
                     final_value: Some(TrivialValue::String("CHANGED-STRING".to_string())),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::String,
-                    file_path: None,
+                    ..EndSpec::default_with_type(VariableType::String)
                 },
             ),
             (
                 "change.me.bool".to_string(),
                 EndSpec {
                     final_value: Some(TrivialValue::Bool(true)),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::Bool,
-                    file_path: None,
+                    ..EndSpec::default_with_type(VariableType::Bool)
                 },
             ),
             (
                 "change.me.number".to_string(),
                 EndSpec {
                     final_value: Some(TrivialValue::Number(PosInt(42))),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::Number,
-                    file_path: None,
+                    ..EndSpec::default_with_type(VariableType::Number)
                 },
             ),
         ]);
@@ -560,33 +549,21 @@ mod tests {
                 "change.me.string".to_string(),
                 EndSpec {
                     final_value: Some(TrivialValue::String("CHANGED-STRING".to_string())),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::String,
-                    file_path: None,
+                    ..EndSpec::default_with_type(VariableType::String)
                 },
             ),
             (
                 "change.me.bool".to_string(),
                 EndSpec {
                     final_value: Some(TrivialValue::Bool(true)),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::Bool,
-                    file_path: None,
+                    ..EndSpec::default_with_type(VariableType::Bool)
                 },
             ),
             (
                 "change.me.number".to_string(),
                 EndSpec {
                     final_value: Some(TrivialValue::Number(PosInt(42))),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::Number,
-                    file_path: None,
+                    ..EndSpec::default_with_type(VariableType::Number)
                 },
             ),
         ]);
@@ -624,33 +601,21 @@ mod tests {
                 "change.me.string".to_string(),
                 EndSpec {
                     final_value: Some(TrivialValue::String("CHANGED-STRING".to_string())),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::String,
-                    file_path: None,
+                    ..EndSpec::default_with_type(VariableType::String)
                 },
             ),
             (
                 "change.me.bool".to_string(),
                 EndSpec {
                     final_value: Some(TrivialValue::Bool(true)),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::Bool,
-                    file_path: None,
+                    ..EndSpec::default_with_type(VariableType::Bool)
                 },
             ),
             (
                 "change.me.number".to_string(),
                 EndSpec {
                     final_value: Some(TrivialValue::Number(PosInt(42))),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::Number,
-                    file_path: None,
+                    ..EndSpec::default_with_type(VariableType::Number)
                 },
             ),
         ]);
