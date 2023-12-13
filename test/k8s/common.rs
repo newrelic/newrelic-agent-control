@@ -15,7 +15,8 @@ use kube::{
     Client, CustomResource, CustomResourceExt,
 };
 use newrelic_super_agent::config::{
-    error::SuperAgentConfigError, super_agent_configs::SuperAgentConfig,
+    error::SuperAgentConfigError,
+    super_agent_configs::{AgentTypeError, SuperAgentConfig},
 };
 use newrelic_super_agent::{config::super_agent_configs::AgentID, k8s::labels::DefaultLabels};
 use schemars::JsonSchema;
@@ -317,11 +318,14 @@ pub async fn create_test_cr(client: Client, namespace: &str, name: &str) -> Foo 
             data: String::from("test"),
         },
     );
-    foo_cr.metadata.labels = Some(
-        DefaultLabels::new()
-            .with_agent_id(AgentID::new(name).unwrap())
-            .get(),
-    );
+
+    let agent_id = match AgentID::new(name) {
+        Err(AgentTypeError::InvalidAgentIDUsesReservedOne(_)) => AgentID::new_super_agent_id(),
+        Ok(id) => id,
+        _ => panic!(),
+    };
+
+    foo_cr.metadata.labels = Some(DefaultLabels::new().with_agent_id(agent_id).get());
 
     foo_cr = api.create(&PostParams::default(), &foo_cr).await.unwrap();
 

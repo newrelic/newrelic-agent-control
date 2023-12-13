@@ -2,7 +2,10 @@ use super::{
     error::K8sError,
     labels::{DefaultLabels, AGENT_ID_LABEL_KEY},
 };
-use crate::config::{store::SuperAgentConfigLoader, super_agent_configs::AgentID};
+use crate::{
+    config::{store::SuperAgentConfigLoader, super_agent_configs::AgentID},
+    super_agent,
+};
 use std::{sync::Arc, thread, time::Duration};
 use tokio::sync::mpsc;
 use tracing::{debug, info, warn};
@@ -115,14 +118,10 @@ where
     }
 
     fn garbage_label_selector(agent_list: Vec<AgentID>) -> String {
-        let mut id_list = String::new();
-        let mut iter = agent_list.iter();
+        // We add SUPER_AGENT_ID to prevent removing any resource related to it.
+        let mut id_list = String::from(super_agent::defaults::SUPER_AGENT_ID);
 
-        if let Some(id) = iter.next() {
-            id_list.push_str(id);
-        }
-
-        for id in iter {
+        for id in agent_list.iter() {
             id_list.push_str(format!(",{id}").as_str());
         }
 
@@ -139,6 +138,7 @@ pub(crate) mod test {
     use crate::config::store::MockSuperAgentConfigLoader;
     use crate::config::super_agent_configs::AgentID;
     use crate::k8s::labels::{DefaultLabels, AGENT_ID_LABEL_KEY};
+    use crate::super_agent::defaults::SUPER_AGENT_ID;
     use std::sync::Arc;
     use std::time::Duration;
     use tokio::time::sleep;
@@ -172,12 +172,29 @@ pub(crate) mod test {
         let labels = DefaultLabels::new();
         assert_eq!(
             format!(
-                "{},{AGENT_ID_LABEL_KEY} notin ({agent_id})",
-                labels.selector()
+                "{},{AGENT_ID_LABEL_KEY} notin ({SUPER_AGENT_ID},{agent_id})",
+                labels.selector(),
             ),
             K8sGarbageCollector::<MockSuperAgentConfigLoader>::garbage_label_selector(vec![
-                agent_id
+                agent_id.clone()
             ])
+        );
+        assert_eq!(
+            format!(
+                "{},{AGENT_ID_LABEL_KEY} notin ({SUPER_AGENT_ID},{agent_id},{agent_id})",
+                labels.selector(),
+            ),
+            K8sGarbageCollector::<MockSuperAgentConfigLoader>::garbage_label_selector(vec![
+                agent_id.clone(),
+                agent_id.clone()
+            ])
+        );
+        assert_eq!(
+            format!(
+                "{},{AGENT_ID_LABEL_KEY} notin ({SUPER_AGENT_ID})",
+                labels.selector(),
+            ),
+            K8sGarbageCollector::<MockSuperAgentConfigLoader>::garbage_label_selector(vec![])
         );
     }
 }
