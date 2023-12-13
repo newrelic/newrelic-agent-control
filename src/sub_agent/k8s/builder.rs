@@ -1,5 +1,4 @@
-use opamp_client::operation::callbacks::Callbacks;
-
+use super::sub_agent::NotStartedSubAgentK8s;
 use crate::config::super_agent_configs::SubAgentConfig;
 use crate::context::Context;
 use crate::event::event::Event;
@@ -11,10 +10,9 @@ use crate::{
     sub_agent::k8s::supervisor::CRSupervisor,
     sub_agent::{error::SubAgentBuilderError, logger::AgentLog, SubAgentBuilder},
 };
+use opamp_client::operation::callbacks::Callbacks;
 use std::collections::HashMap;
 use std::sync::Arc;
-
-use super::sub_agent::NotStartedSubAgentK8s;
 
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::executor::K8sExecutor;
@@ -146,6 +144,11 @@ mod test {
             .with(predicate::always())
             .times(2)
             .returning(move |_| Ok(()));
+
+        mock_executor
+            .expect_has_dynamic_object_changed()
+            .times(2)
+            .returning(|_| Ok(true));
 
         mock_executor
             .expect_delete_dynamic_object()

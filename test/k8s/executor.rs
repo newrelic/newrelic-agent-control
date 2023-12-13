@@ -2,8 +2,8 @@ use crate::common::{create_test_cr, foo_type_meta, Foo, FooSpec, K8sCluster, K8s
 use k8s_openapi::api::core::v1::Pod;
 use kube::api::{Api, DeleteParams};
 use kube::core::DynamicObject;
-
 use newrelic_super_agent::k8s::executor::K8sExecutor;
+use std::time::Duration;
 
 // tokio test runs with 1 thread by default causing deadlock when executing `block_on` code during test helper drop.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -22,7 +22,10 @@ async fn k8s_create_dynamic_resource() {
     .unwrap();
     let obj: DynamicObject = serde_yaml::from_str(cr.as_str()).unwrap();
 
-    let executor: K8sExecutor = K8sExecutor::try_default(test_ns.to_string()).await.unwrap();
+    let executor: K8sExecutor =
+        K8sExecutor::try_new_with_reflectors(test_ns.to_string(), vec![foo_type_meta()])
+            .await
+            .unwrap();
 
     executor.apply_dynamic_object(&obj).await.unwrap();
 
@@ -40,7 +43,10 @@ async fn k8s_get_dynamic_resource() {
 
     let cr_name = "get-test";
 
-    let mut executor: K8sExecutor = K8sExecutor::try_default(test_ns.to_string()).await.unwrap();
+    let executor: K8sExecutor =
+        K8sExecutor::try_new_with_reflectors(test_ns.to_string(), vec![foo_type_meta()])
+            .await
+            .unwrap();
 
     // get doesn't find any object before creation.
     assert!(executor
@@ -68,6 +74,9 @@ async fn k8s_get_dynamic_resource() {
         .await
         .unwrap();
 
+    // we should give the time to the cache to be updated for sure
+    tokio::time::sleep(Duration::from_secs(1)).await;
+
     // get doesn't find any object after deletion.
     assert!(executor
         .get_dynamic_object(foo_type_meta(), cr_name)
@@ -83,9 +92,12 @@ async fn k8s_delete_dynamic_resource() {
     let test_ns = test.test_namespace().await;
 
     let cr_name = "delete-test";
-    create_test_cr(test.client.to_owned(), test_ns.as_str(), cr_name.clone()).await;
+    create_test_cr(test.client.to_owned(), test_ns.as_str(), cr_name).await;
 
-    let executor: K8sExecutor = K8sExecutor::try_default(test_ns.to_string()).await.unwrap();
+    let executor: K8sExecutor =
+        K8sExecutor::try_new_with_reflectors(test_ns.to_string(), vec![foo_type_meta()])
+            .await
+            .unwrap();
     executor
         .delete_dynamic_object(foo_type_meta(), cr_name)
         .await
@@ -113,7 +125,10 @@ async fn k8s_patch_dynamic_resource() {
     .unwrap();
     let obj: DynamicObject = serde_yaml::from_str(patch.as_str()).unwrap();
 
-    let executor: K8sExecutor = K8sExecutor::try_default(test_ns.to_string()).await.unwrap();
+    let executor: K8sExecutor =
+        K8sExecutor::try_new_with_reflectors(test_ns.to_string(), vec![foo_type_meta()])
+            .await
+            .unwrap();
     executor.apply_dynamic_object(&obj).await.unwrap();
 
     let api: Api<Foo> = Api::namespaced(test.client.to_owned(), test_ns.as_str());

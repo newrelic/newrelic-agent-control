@@ -94,4 +94,7 @@ pub enum AgentError {
 
     #[error("External module error: `{0}`")]
     ExternalError(String),
+
+    #[error("k8s config missing while running on k8s ")]
+    K8sConfig(),
 }
