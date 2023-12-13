@@ -64,14 +64,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 
     #[cfg(any(feature = "onhost", feature = "k8s"))]
-    return Ok(run_super_agent(super_agent_config_storer, ctx, opamp_client_builder).await?);
+    return Ok(run_super_agent(
+        super_agent_config_storer,
+        ctx,
+        opamp_client_builder,
+    )?);
 
     #[cfg(all(not(feature = "onhost"), not(feature = "k8s")))]
     Ok(())
 }
 
 #[cfg(feature = "onhost")]
-async fn run_super_agent(
+fn run_super_agent(
     config_storer: SuperAgentConfigStoreFile,
     ctx: Context<Option<Event>>,
     opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
@@ -128,7 +132,7 @@ async fn run_super_agent(
 }
 
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
-async fn run_super_agent(
+fn run_super_agent(
     config_storer: SuperAgentConfigStoreFile,
     ctx: Context<Option<Event>>,
     opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
@@ -141,11 +145,11 @@ async fn run_super_agent(
     let sub_agent_hash_repository = HashRepositoryFile::new_sub_agent_repository();
     let k8s_config = config_storer.load()?.k8s.ok_or(AgentError::K8sConfig())?;
 
-    let instance_id_getter = ULIDInstanceIDGetter::try_with_identifiers(
-        k8s_config.namespace,
-        instance_id::get_identifiers(k8s_config.cluster_name),
-    )
-    .await?;
+    let instance_id_getter =
+        futures::executor::block_on(ULIDInstanceIDGetter::try_with_identifiers(
+            k8s_config.namespace,
+            instance_id::get_identifiers(k8s_config.cluster_name),
+        ))?;
 
     // Initialize K8sExecutor
     // TODO: once we know how we're going to use the K8sExecutor, we might need to refactor and move this.

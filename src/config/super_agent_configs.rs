@@ -8,6 +8,9 @@ use std::path::Path;
 use std::{collections::HashMap, fmt::Display};
 use thiserror::Error;
 
+#[cfg(all(not(feature = "onhost"), feature = "k8s"))]
+use kube::core::TypeMeta;
+
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Hash, Eq)]
 #[serde(try_from = "String")]
 pub struct AgentID(String);
@@ -204,17 +207,17 @@ pub struct K8sConfig {
     /// CRDs is a list of crds that the SA should watch and be able to create/delete.
     #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
     #[serde(default = "default_group_version_kinds")]
-    pub cr_type_meta: Vec<kube::core::TypeMeta>,
+    pub cr_type_meta: Vec<TypeMeta>,
 }
 
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
-fn default_group_version_kinds() -> Vec<kube::core::TypeMeta> {
+fn default_group_version_kinds() -> Vec<TypeMeta> {
     vec![
-        kube::core::TypeMeta {
+        TypeMeta {
             api_version: "source.toolkit.fluxcd.io/v1beta2".to_string(),
             kind: "HelmRepository".to_string(),
         },
-        kube::core::TypeMeta {
+        TypeMeta {
             api_version: "source.toolkit.fluxcd.io/v2beta1".to_string(),
             kind: "HelmRelease".to_string(),
         },

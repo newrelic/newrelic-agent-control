@@ -18,9 +18,6 @@ pub enum K8sError {
     #[error("cannot post object `{0}`")]
     CommitError(#[from] api::entry::CommitError),
 
-    #[error("error serializing/deserializing yaml: `{0}`")]
-    SerdeYaml(#[from] serde_yaml::Error),
-
     #[error("the cm data is malformed")]
     CMMalformed(),
 

@@ -15,7 +15,7 @@ use std::{
     collections::{BTreeMap, HashMap},
     sync::Arc,
 };
-use tracing::debug;
+use tracing::{debug, warn};
 
 pub struct K8sExecutor {
     client: Client,
@@ -80,9 +80,17 @@ impl K8sExecutor {
 
         for tm in cr_type_metas.iter() {
             let gvk = &GroupVersion::from_str(tm.api_version.as_str())?.with_kind(tm.kind.as_str());
-            let (ar, _) = kube::discovery::pinned_kind(&self.client, gvk)
-                .await
-                .map_err(|_| UnexpectedKind(gvk.clone().kind))?;
+
+            let (ar, _) = match kube::discovery::pinned_kind(&self.client, gvk).await {
+                Ok(r) => r,
+                Err(e) => {
+                    warn!(
+                        "The gvk '{:?}' was not found in the cluster and cannot be used: {}",
+                        gvk, e
+                    );
+                    continue;
+                }
+            };
 
             self.dynamics.insert(
                 tm.to_owned(),
@@ -97,6 +105,7 @@ impl K8sExecutor {
 
     pub async fn apply_dynamic_object(&self, obj: &DynamicObject) -> Result<(), K8sError> {
         let tm = get_type_meta(obj)?;
+        let name = get_name(obj)?;
         let api = &self
             .dynamics
             .get(&tm)
@@ -104,9 +113,11 @@ impl K8sExecutor {
             .object_api;
 
         // We are getting and modifying the object, but if not available we are creating it
-        api.entry(get_name(obj)?.as_str())
+        api.entry(name.as_str())
             .await
-            .map_err(|e| K8sError::GetDynamic(e.to_string()))?
+            .map_err(|e| {
+                K8sError::GetDynamic(format!("getting dynamic object with name {}: {}", name, e))
+            })?
             .and_modify(|obj_old| {
                 obj_old.data = obj.data.clone();
 
@@ -227,7 +238,7 @@ pub(crate) mod test {
     use tower_test::mock;
 
     #[tokio::test]
-    async fn create_dynamic_object_fail_when_missing_resource_definition() {
+    async fn test_create_dynamic_object_fail_when_missing_resource_definition() {
         let tm = TypeMeta {
             api_version: "newrelic.com/v1".to_string(),
             kind: "Foo".to_string(),
@@ -258,14 +269,18 @@ pub(crate) mod test {
     }
 
     #[tokio::test]
-    async fn create_dynamic_object_succeeds() {
+    async fn test_create_dynamic_object_succeeds_and_ignores_missing_kind() {
         let tm = TypeMeta {
             api_version: "newrelic.com/v1".to_string(),
             kind: "Foo".to_string(),
         };
+        let tm_not_existing = TypeMeta {
+            api_version: "not.existing/v0".to_string(),
+            kind: "NotExisting".to_string(),
+        };
 
         let k = get_mocked_client(Scenario::APIResource)
-            .with_dynamics_objects(vec![tm.clone()])
+            .with_dynamics_objects(vec![tm_not_existing, tm.clone()])
             .await
             .unwrap();
 
