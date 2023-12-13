@@ -5,7 +5,7 @@ use regex::Regex;
 use tracing::warn;
 
 use super::{
-    agent_types::NormalizedVariables,
+    agent_types::{EndSpec, NormalizedVariables},
     error::AgentTypeError,
     restart_policy::{BackoffStrategyConfig, RestartPolicyConfig},
     runtime_config::{Deployment, Executable, K8s, K8sObject, OnHost, RuntimeConfig},
@@ -35,6 +35,33 @@ fn template_re() -> &'static Regex {
     RE_ONCE.get_or_init(|| Regex::new(TEMPLATE_RE).unwrap())
 }
 
+/// Returns a string slice with the template's begin and end trimmed.
+fn template_trim(s: &str) -> &str {
+    s.trim_start_matches(TEMPLATE_BEGIN)
+        .trim_end_matches(TEMPLATE_END)
+}
+
+/// Returns an owned variable from the provided set if it exists, it returns an error otherwise.
+fn normalized_var(name: &str, variables: &NormalizedVariables) -> Result<EndSpec, AgentTypeError> {
+    Ok(variables
+        .get(name)
+        .ok_or(AgentTypeError::MissingTemplateKey(name.to_string()))?
+        .to_owned())
+}
+
+/// Returns a string with the first match of a variable replaced with the corresponding value
+/// (according to the provided normalized variable).
+fn replace(re: &Regex, s: &str, normalized_var: EndSpec) -> Result<String, AgentTypeError> {
+    let value = normalized_var
+        .final_value
+        .or(normalized_var.default)
+        .ok_or(AgentTypeError::MissingTemplateKey(
+            template_trim(s).to_string(),
+        ))?
+        .to_string();
+    Ok(re.replace(s, value).to_string())
+}
+
 pub trait Templateable {
     fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError>
     where
@@ -61,30 +88,11 @@ impl Templateable for String {
 
 fn template_string(s: String, variables: &NormalizedVariables) -> Result<String, AgentTypeError> {
     let re = template_re();
-
-    let result = re
-        .find_iter(&s)
+    re.find_iter(&s)
         .map(|i| i.as_str())
         .try_fold(s.clone(), |r, i| {
-            let trimmed_s = i
-                .trim_start_matches(TEMPLATE_BEGIN)
-                .trim_end_matches(TEMPLATE_END);
-            if !variables.contains_key(trimmed_s) {
-                return Err(AgentTypeError::MissingTemplateKey(trimmed_s.to_string()));
-            }
-            let replacement = variables[trimmed_s].clone();
-            Ok(re
-                .replace(
-                    &r,
-                    replacement
-                        .final_value
-                        .or(replacement.default)
-                        .ok_or(AgentTypeError::MissingTemplateKey(trimmed_s.to_string()))?
-                        .to_string(),
-                )
-                .to_string())
-        });
-    result
+            replace(re, &r, normalized_var(template_trim(i), variables)?)
+        })
 }
 
 impl Templateable for OnHost {
