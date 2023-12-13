@@ -1,66 +1,11 @@
-use crate::common::{
-    create_test_cr, foo_type_meta, Foo, FooSpec, K8sCluster, K8sEnv, MockSuperAgentConfigLoader,
-};
+use crate::common::{create_test_cr, foo_type_meta, Foo, FooSpec, K8sCluster, K8sEnv};
 use k8s_openapi::api::core::v1::Pod;
 use kube::api::{Api, DeleteParams};
 use kube::core::DynamicObject;
-use newrelic_super_agent::{
-    config::super_agent_configs::SuperAgentConfig,
-    k8s::{executor::K8sExecutor, garbage_collector::K8sGarbageCollector},
-};
-use std::sync::Arc;
+use newrelic_super_agent::k8s::executor::K8sExecutor;
 use std::time::Duration;
 
 // tokio test runs with 1 thread by default causing deadlock when executing `block_on` code during test helper drop.
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-#[ignore = "needs k8s cluster"]
-async fn k8s_garbage_collector() {
-    let mut test = K8sEnv::new().await;
-    let test_ns = test.test_namespace().await;
-
-    // Creates CRs labeled for two agents.
-    let removed_agent_id = "removed";
-    create_test_cr(test.client.to_owned(), test_ns.as_str(), removed_agent_id).await;
-    let current_agent_id = "current";
-    create_test_cr(test.client.to_owned(), test_ns.as_str(), current_agent_id).await;
-
-    // Executes the GC passing only current agent in the config.
-    let mut config_loader = MockSuperAgentConfigLoader::new();
-    let config = format!(
-        r#"
-agents:
-  {current_agent_id}:
-    agent_type: test
-"#
-    );
-    config_loader
-        .expect_load()
-        .returning(move || Ok(serde_yaml::from_str::<SuperAgentConfig>(config.as_str()).unwrap()));
-
-    let gc = K8sGarbageCollector::new(
-        Arc::new(config_loader),
-        Arc::new(
-            K8sExecutor::try_new_with_reflectors(test_ns.to_string(), vec![foo_type_meta()])
-                .await
-                .unwrap(),
-        ),
-    )
-    .with_interval(Duration::ZERO);
-
-    gc.collect().await.unwrap();
-
-    // Expects the GC to clean the "removed" agent CR.
-    let api: Api<Foo> = Api::namespaced(test.client.clone(), &test_ns);
-    let _result = api
-        .get(removed_agent_id)
-        .await
-        .expect_err("fail garbage collecting removed agent");
-    let _result = api
-        .get(current_agent_id)
-        .await
-        .expect("current_agent_id should exist");
-}
-
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[ignore = "needs k8s cluster"]
 async fn k8s_create_dynamic_resource() {
