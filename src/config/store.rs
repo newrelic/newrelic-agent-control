@@ -2,6 +2,7 @@ use crate::config::super_agent_configs::SuperAgentConfig;
 use crate::{config::error::SuperAgentConfigError, super_agent::defaults::SUPER_AGENT_DATA_DIR};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::RwLock;
 use thiserror::Error;
 use tracing::warn;
 
@@ -25,9 +26,15 @@ pub enum SubAgentsConfigStoreError {
     SerdeYamlError(#[from] serde_yaml::Error),
 }
 
-pub trait SuperAgentConfigStore: SubAgentsConfigStore {
-    fn load(&self) -> Result<SuperAgentConfig, SuperAgentConfigError>;
+pub trait SuperAgentConfigStore: SuperAgentConfigLoader + SuperAgentConfigStorer {}
+
+pub trait SuperAgentConfigStorer {
     fn store(&self, config: SuperAgentConfig) -> Result<SuperAgentConfig, SuperAgentConfigError>;
+}
+
+#[cfg_attr(test, mockall::automock)]
+pub trait SuperAgentConfigLoader {
+    fn load(&self) -> Result<SuperAgentConfig, SuperAgentConfigError>;
 }
 
 pub trait SubAgentsConfigStore {
@@ -39,12 +46,18 @@ pub trait SubAgentsConfigStore {
 pub struct SuperAgentConfigStoreFile {
     local_path: PathBuf,
     remote_path: Option<PathBuf>,
+    rw_lock: RwLock<()>,
 }
 
-impl SuperAgentConfigStore for SuperAgentConfigStoreFile {
+impl SuperAgentConfigLoader for SuperAgentConfigStoreFile {
     fn load(&self) -> Result<SuperAgentConfig, SuperAgentConfigError> {
         Ok(self._load_config()?) //wrapper to encapsulate error
     }
+}
+
+impl SuperAgentConfigStore for SuperAgentConfigStoreFile {}
+
+impl SuperAgentConfigStorer for SuperAgentConfigStoreFile {
     fn store(&self, _config: SuperAgentConfig) -> Result<SuperAgentConfig, SuperAgentConfigError> {
         unimplemented!()
     }
@@ -63,6 +76,7 @@ impl SubAgentsConfigStore for SuperAgentConfigStoreFile {
         let Some(remote_path_file) = &self.remote_path else {
             unreachable!("we should not write into local paths");
         };
+        let _write_guard = self.rw_lock.write().unwrap();
         if remote_path_file.exists() {
             fs::remove_file(remote_path_file)?;
         }
@@ -75,6 +89,7 @@ impl SuperAgentConfigStoreFile {
         Self {
             local_path: file_path.to_path_buf(),
             remote_path: None,
+            rw_lock: RwLock::new(()),
         }
     }
 
@@ -84,10 +99,12 @@ impl SuperAgentConfigStoreFile {
         Ok(Self {
             local_path: self.local_path,
             remote_path: Some(Path::new(&remote_path).to_path_buf()),
+            rw_lock: RwLock::new(()),
         })
     }
 
     fn _load_config(&self) -> Result<SuperAgentConfig, SuperAgentConfigStoreError> {
+        let _read_guard = self.rw_lock.read().unwrap();
         let local_config_file = std::fs::File::open(&self.local_path)?;
         let mut local_config: SuperAgentConfig = serde_yaml::from_reader(local_config_file)?;
 
@@ -113,6 +130,7 @@ impl SuperAgentConfigStoreFile {
         sub_agents: &SubAgentsConfig,
     ) -> Result<(), SuperAgentConfigStoreError> {
         //TODO we should inject DirectoryManager and ensure the directory exists
+        let _write_guard = self.rw_lock.write().unwrap();
         if let Some(remote_path_file) = &self.remote_path {
             Ok(serde_yaml::to_writer(
                 fs::File::create(remote_path_file)?,
@@ -131,9 +149,9 @@ pub(crate) mod tests {
     use tempfile::NamedTempFile;
 
     use crate::config::{
-        store::SuperAgentConfigStoreFile,
+        store::{SuperAgentConfigLoader, SuperAgentConfigStoreFile},
         super_agent_configs::{
-            AgentID, AgentTypeFQN, K8sConfig, OpAMPClientConfig, SubAgentConfig, SubAgentsConfig,
+            AgentID, AgentTypeFQN, OpAMPClientConfig, SubAgentConfig, SubAgentsConfig,
             SuperAgentConfig,
         },
     };
@@ -193,7 +211,7 @@ agents:
 
         store.remote_path = Some(remote_file.path().to_path_buf());
 
-        let actual = SuperAgentConfigStore::load(&store);
+        let actual = SuperAgentConfigLoader::load(&store);
 
         let expected = SuperAgentConfig {
             agents: HashMap::from([(
