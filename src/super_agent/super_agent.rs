@@ -31,6 +31,7 @@ use opamp_client::StartedClient;
 use std::collections::HashMap;
 use std::string::ToString;
 use std::sync::mpsc::{self, Sender};
+use std::sync::Arc;
 use thiserror::Error;
 use tracing::{error, info, warn};
 
@@ -60,7 +61,7 @@ pub struct SuperAgent<
     agent_id: AgentID,
     sub_agent_remote_config_hash_repository: &'a HRS,
     remote_values_repo: VR,
-    sub_agents_config_store: SL,
+    sub_agents_config_store: Arc<SL>,
 }
 
 impl<'a, S, O, HR, SL, HRS, VR> SuperAgent<'a, S, O, HR, SL, HRS, VR>
@@ -76,7 +77,7 @@ where
         opamp_client: Option<O>,
         remote_config_hash_repository: &'a HR,
         sub_agent_builder: S,
-        sub_agents_config_store: SL,
+        sub_agents_config_store: Arc<SL>,
         sub_agent_remote_config_hash_repository: &'a HRS,
         values_repo: VR,
     ) -> Self {
@@ -575,6 +576,7 @@ mod tests {
     use opamp_client::StartedClient;
     use std::collections::HashMap;
     use std::sync::mpsc;
+    use std::sync::Arc;
     use std::thread::{sleep, spawn};
     use std::time::Duration;
 
@@ -605,7 +607,7 @@ mod tests {
                 remote_config_hash_repository,
                 sub_agent_builder,
                 agent_id: AgentID::new_super_agent_id(),
-                sub_agents_config_store,
+                sub_agents_config_store: Arc::new(sub_agents_config_store),
                 sub_agent_remote_config_hash_repository,
                 remote_values_repo: sub_agent_values_repo,
             }

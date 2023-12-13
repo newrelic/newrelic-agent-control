@@ -1,21 +1,24 @@
 use super::{
     error::K8sError,
+    error::K8sError::UnexpectedKind,
     reader::{DynamicObjectReflector, ReflectorBuilder},
 };
-use crate::k8s::Error::UnexpectedKind;
-use k8s_openapi::api::core::v1::ConfigMap;
-use kube::api::{DeleteParams, PostParams};
-use kube::core::DynamicObject;
-use kube::core::GroupVersion;
-use kube::core::TypeMeta;
-use kube::{config::KubeConfigOptions, core::ObjectMeta};
-use kube::{Api, Client, Config};
-use std::str::FromStr;
+use k8s_openapi::api::core::v1::{ConfigMap, Pod};
+use kube::{
+    api::{DeleteParams, ListParams, Patch, PatchParams, PostParams},
+    config::KubeConfigOptions,
+    core::{object, DynamicObject, GroupVersion, GroupVersionKind, ObjectMeta, TypeMeta},
+    discovery::ApiResource,
+    Api, Client, Config, ResourceExt,
+};
 use std::{
     collections::{BTreeMap, HashMap},
+    str::FromStr,
     sync::Arc,
 };
 use tracing::{debug, warn};
+
+const SA_ACTOR: &str = "super-agent-patch";
 
 pub struct K8sExecutor {
     client: Client,
@@ -103,6 +106,10 @@ impl K8sExecutor {
         Ok(self)
     }
 
+    pub fn supported_type_meta_collection(&self) -> Vec<TypeMeta> {
+        self.dynamics.keys().cloned().collect()
+    }
+
     pub async fn apply_dynamic_object(&self, obj: &DynamicObject) -> Result<(), K8sError> {
         let tm = get_type_meta(obj)?;
         let name = get_name(obj)?;
@@ -171,6 +178,83 @@ impl K8sExecutor {
         Ok(reflector
             .reader()
             .find(|obj| obj.metadata.name.to_owned().is_some_and(|n| n.eq(name))))
+    }
+
+    pub async fn delete_dynamic_object_collection(
+        &self,
+        tm: TypeMeta,
+        label_selector: &str,
+    ) -> Result<(), K8sError> {
+        let api = &self
+            .dynamics
+            .get(&tm)
+            .ok_or(UnexpectedKind(format!(
+                "deleting dynamic object collection {:?}",
+                tm
+            )))?
+            .object_api;
+
+        match api
+            .delete_collection(
+                &DeleteParams::default(),
+                &ListParams {
+                    label_selector: Some(label_selector.to_string()),
+                    ..ListParams::default()
+                },
+            )
+            .await?
+        {
+            either::Left(list) => {
+                debug!(
+                    "Deleting collection of {:?}: {:?}",
+                    &tm,
+                    list.iter().map(ResourceExt::name_any).collect::<Vec<_>>()
+                );
+            }
+            either::Right(status) => {
+                debug!("Deleted collection of {:?}: status={:?}", &tm, status);
+            }
+        }
+
+        Ok(())
+    }
+
+    pub async fn get_minor_version(&self) -> Result<String, K8sError> {
+        let version = self.client.apiserver_version().await?;
+        Ok(version.minor)
+    }
+
+    pub async fn get_pods(&self) -> Result<Vec<Pod>, K8sError> {
+        let pod_client: Api<Pod> = Api::default_namespaced(self.client.clone());
+        let pod_list = pod_client.list(&ListParams::default()).await?;
+        Ok(pod_list.items)
+    }
+
+    pub async fn delete_configmap_collection(&self, label_selector: &str) -> Result<(), K8sError> {
+        let cm_client: Api<ConfigMap> = Api::<ConfigMap>::default_namespaced(self.client.clone());
+
+        match cm_client
+            .delete_collection(
+                &DeleteParams::default(),
+                &ListParams {
+                    label_selector: Some(label_selector.to_string()),
+                    ..ListParams::default()
+                },
+            )
+            .await?
+        {
+            either::Left(list) => {
+                debug!(
+                    "Deleting collection of ConfigMaps: {:?}",
+                    list.iter().map(ResourceExt::name_any).collect::<Vec<_>>()
+                );
+            }
+            either::Right(status) => {
+                debug!("Deleted collection of ConfigMaps: status={:?}", status);
+            }
+        }
+
+        Ok(())
     }
 
     pub async fn get_configmap_key(
