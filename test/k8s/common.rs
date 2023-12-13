@@ -311,24 +311,24 @@ async fn perform_crd_patch(client: Client) -> Result<(), kube::Error> {
 /// It panics if there is an error creating the CR.
 pub async fn create_test_cr(client: Client, namespace: &str, name: &str) -> Foo {
     let api: Api<Foo> = Api::namespaced(client, namespace);
-    let mut foo = Foo::new(
+    let mut foo_cr = Foo::new(
         name,
         FooSpec {
             data: String::from("test"),
         },
     );
-    foo.metadata.labels = Some(
+    foo_cr.metadata.labels = Some(
         DefaultLabels::new()
             .with_agent_id(AgentID::new(name).unwrap())
             .get(),
     );
 
-    foo = api.create(&PostParams::default(), &foo).await.unwrap();
+    foo_cr = api.create(&PostParams::default(), &foo_cr).await.unwrap();
 
     // Sleeping to let watchers have the time to be updated
     tokio::time::sleep(Duration::from_secs(1)).await;
 
-    foo
+    foo_cr
 }
 
 use mockall::mock;

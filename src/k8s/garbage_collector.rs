@@ -105,7 +105,7 @@ where
             }
         }
 
-        // TODO remove CM created from the ulid persistance, we need to apply default labels to them as well.
+        // TODO remove CM created from the ulid persistence, we need to apply default labels to them as well.
         // Garbage collect CM of identifiers
         // self.k8s_executor
         //     .delete_configmap_collection(selector.as_str())

@@ -76,6 +76,6 @@ async fn k8s_ulid_persister_fail() {
         GetterError::K8sClientInitialization(_) => {
             panic!("this is unexpected, the test should fail contacting the k8s API")
         }
-        GetterError::Persisting(_) => return,
+        GetterError::Persisting(_) => (),
     }
 }

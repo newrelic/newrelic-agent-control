@@ -5,10 +5,9 @@ use super::{
 };
 use k8s_openapi::api::core::v1::{ConfigMap, Pod};
 use kube::{
-    api::{DeleteParams, ListParams, Patch, PatchParams, PostParams},
+    api::{DeleteParams, ListParams, PostParams},
     config::KubeConfigOptions,
-    core::{object, DynamicObject, GroupVersion, GroupVersionKind, ObjectMeta, TypeMeta},
-    discovery::ApiResource,
+    core::{DynamicObject, GroupVersion, ObjectMeta, TypeMeta},
     Api, Client, Config, ResourceExt,
 };
 use std::{
@@ -17,8 +16,6 @@ use std::{
     sync::Arc,
 };
 use tracing::{debug, warn};
-
-const SA_ACTOR: &str = "super-agent-patch";
 
 pub struct K8sExecutor {
     client: Client,

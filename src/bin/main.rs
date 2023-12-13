@@ -1,7 +1,4 @@
-use newrelic_super_agent::config::store::{
-    SuperAgentConfigLoader, SuperAgentConfigStore, SuperAgentConfigStoreFile,
-};
-use newrelic_super_agent::config::super_agent_configs;
+use newrelic_super_agent::config::store::{SuperAgentConfigLoader, SuperAgentConfigStoreFile};
 use newrelic_super_agent::event::event::{Event, SuperAgentEvent};
 #[cfg(feature = "k8s")]
 use newrelic_super_agent::opamp::instance_id;
