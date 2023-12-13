@@ -161,7 +161,7 @@ impl Templateable for serde_yaml::Value {
             serde_yaml::Value::Sequence(seq) => {
                 serde_yaml::Value::Sequence(seq.template_with(variables)?)
             }
-            serde_yaml::Value::String(st) => template_value_string(st, variables)?,
+            serde_yaml::Value::String(st) => template_yaml_value_string(st, variables)?,
             _ => self,
         };
 
@@ -185,7 +185,7 @@ impl Templateable for serde_yaml::Sequence {
     }
 }
 
-fn template_value_string(
+fn template_yaml_value_string(
     st: String,
     variables: &NormalizedVariables,
 ) -> Result<serde_yaml::Value, AgentTypeError> {
