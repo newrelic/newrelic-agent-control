@@ -7,6 +7,7 @@ use newrelic_super_agent::opamp::instance_id::getter::ULIDInstanceIDGetter;
 use newrelic_super_agent::opamp::instance_id::IdentifiersProvider;
 use newrelic_super_agent::opamp::remote_config_hash::HashRepositoryFile;
 use newrelic_super_agent::sub_agent::values::values_repository::ValuesRepositoryFile;
+use newrelic_super_agent::super_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use newrelic_super_agent::super_agent::error::AgentError;
 use newrelic_super_agent::super_agent::opamp::client_builder::SuperAgentOpAMPHttpBuilder;
 use newrelic_super_agent::super_agent::super_agent::{super_agent_fqn, SuperAgent};
@@ -150,7 +151,7 @@ fn run_super_agent(
     let instance_id_getter =
         futures::executor::block_on(ULIDInstanceIDGetter::try_with_identifiers(
             k8s_config.namespace.clone(),
-            instance_id::get_identifiers(k8s_config.cluster_name),
+            instance_id::get_identifiers(k8s_config.cluster_name.clone()),
         ))?;
 
     // Initialize K8sExecutor
@@ -158,18 +159,22 @@ fn run_super_agent(
     let executor = Arc::new(
         futures::executor::block_on(
             newrelic_super_agent::k8s::executor::K8sExecutor::try_new_with_reflectors(
-                k8s_config.namespace,
-                k8s_config.cr_type_meta,
+                k8s_config.namespace.clone(),
+                k8s_config.cr_type_meta.clone(),
             ),
         )
         .map_err(|e| AgentError::ExternalError(e.to_string()))?,
     );
     /////////////////////////
 
+    let agents_assembler = LocalEffectiveAgentsAssembler::default();
+
     let sub_agent_builder = newrelic_super_agent::sub_agent::k8s::builder::K8sSubAgentBuilder::new(
         opamp_client_builder.as_ref(),
         &instance_id_getter,
         executor.clone(),
+        &agents_assembler,
+        k8s_config.clone(),
     );
 
     info!("Starting the super agent");

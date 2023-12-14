@@ -195,7 +195,7 @@ pub struct OpAMPClientConfig {
     pub headers: Option<HashMap<String, String>>,
 }
 
-#[derive(Debug, Deserialize, Default, PartialEq, Clone)]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(deny_unknown_fields)]
 /// K8sConfig represents the SuperAgent configuration for K8s environments
 pub struct K8sConfig {
@@ -208,6 +208,17 @@ pub struct K8sConfig {
     #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
     #[serde(default = "default_group_version_kinds")]
     pub cr_type_meta: Vec<TypeMeta>,
+}
+
+#[cfg(all(not(feature = "onhost"), feature = "k8s"))]
+impl Default for K8sConfig {
+    fn default() -> Self {
+        Self {
+            cluster_name: String::new(),
+            namespace: String::new(),
+            cr_type_meta: default_group_version_kinds(),
+        }
+    }
 }
 
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]

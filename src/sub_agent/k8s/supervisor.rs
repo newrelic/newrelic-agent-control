@@ -1,6 +1,10 @@
+use crate::config::agent_type::runtime_config::K8sObject;
+use crate::config::super_agent_configs::AgentID;
 use crate::k8s::error::K8sError;
 use futures::executor::block_on;
 use kube::api::DynamicObject;
+use kube::ResourceExt;
+use std::collections::HashMap;
 use std::sync::Arc;
 use thiserror::Error;
 use tracing::{error, info};
@@ -15,6 +19,9 @@ pub enum SupervisorError {
 
     #[error("the kube client returned an error: `{0}`")]
     Generic(#[from] K8sError),
+
+    #[error("applying k8s resource {0}")]
+    ConfigError(String),
 }
 
 /// CRSupervisor - Supervises Kubernetes resources.
@@ -25,25 +32,39 @@ pub enum SupervisorError {
 /// - Synchronous block_on operations; review async handling.
 
 pub struct CRSupervisor {
+    agent_id: AgentID,
     executor: Arc<K8sExecutor>,
+    k8s_objects: HashMap<String, K8sObject>,
 }
 
 impl CRSupervisor {
-    pub fn new(executor: Arc<K8sExecutor>) -> Self {
-        Self { executor }
+    pub fn new(
+        agent_id: AgentID,
+        executor: Arc<K8sExecutor>,
+        k8s_objects: HashMap<String, K8sObject>,
+    ) -> Self {
+        Self {
+            agent_id,
+            executor,
+            k8s_objects,
+        }
     }
 
-    pub fn apply(&self, resources: &[DynamicObject]) -> Result<(), SupervisorError> {
+    pub fn apply(&self) -> Result<(), SupervisorError> {
+        let resources = self.build_dynamic_objects()?;
         for res in resources {
-            let create_result = block_on(self.apply_k8s_resource(res));
-            if let Err(err) = create_result {
-                error!("Error creating CR: {:?}", err);
-                continue;
-            }
+            block_on(self.apply_k8s_resource(&res))?;
         }
 
         info!("K8sSupervisor started and CRs created");
         Ok(())
+    }
+
+    fn build_dynamic_objects(&self) -> Result<Vec<DynamicObject>, SupervisorError> {
+        self.k8s_objects
+            .values()
+            .map(|k8s_obj| self.executor.create_dynamic_object(&self.agent_id, k8s_obj))
+            .collect()
     }
 
     async fn apply_k8s_resource(&self, obj: &DynamicObject) -> Result<(), SupervisorError> {
@@ -59,15 +80,15 @@ impl CRSupervisor {
 }
 
 #[cfg(test)]
-mod test {
+pub mod test {
     use super::*;
+    use crate::config::agent_type::runtime_config::K8sObject;
     use crate::k8s::executor::MockK8sExecutor;
-    use crate::sub_agent::k8s::sample_crs::get_sample_resources;
-    use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
-    use kube::core::TypeMeta;
-    use serde_json::json;
+    use k8s_openapi::serde_json;
+    use kube::core::{ObjectMeta, TypeMeta};
+    use std::collections::HashMap;
 
-    fn create_mock_dynamic_object() -> DynamicObject {
+    pub fn create_mock_dynamic_object() -> DynamicObject {
         DynamicObject {
             types: Some(TypeMeta {
                 api_version: "v1".into(),
@@ -77,29 +98,20 @@ mod test {
                 name: Some("test".to_string()),
                 ..Default::default()
             },
-            data: json!({}),
+            data: serde_json::json!({}),
         }
     }
 
-    #[test]
-    fn test_supervisor_start() {
-        let mut mock_executor = MockK8sExecutor::default();
-
-        // Mock the behavior for creating dynamic objects
-        mock_executor
-            .expect_apply_dynamic_object()
-            .times(2)
-            .returning(|_| Ok(()));
-
-        mock_executor
-            .expect_has_dynamic_object_changed()
-            .times(2)
-            .returning(|_| Ok(true));
-
-        let supervisor = CRSupervisor::new(Arc::new(mock_executor));
-        let start_result = supervisor.apply(get_sample_resources().as_slice());
-
-        assert!(start_result.is_ok());
+    pub fn create_mock_k8s_objects(api_version: &str, kind: &str) -> HashMap<String, K8sObject> {
+        let mock_k8s_obj = K8sObject {
+            api_version: api_version.to_string(),
+            kind: kind.to_string(),
+            metadata: None,
+            fields: serde_yaml::Mapping::default(),
+        };
+        let mut k8s_objects = HashMap::new();
+        k8s_objects.insert("test".to_string(), mock_k8s_obj);
+        k8s_objects
     }
 
     #[test]
@@ -111,8 +123,22 @@ mod test {
             .times(1)
             .returning(|_| Ok(false));
 
-        let supervisor = CRSupervisor::new(Arc::new(mock_executor));
-        let start_result = supervisor.apply(&[create_mock_dynamic_object()]);
+        mock_executor
+            .expect_create_dynamic_object()
+            .withf(|agent_id, k8s_obj| {
+                agent_id.to_string() == "test-agent" && k8s_obj.kind == "MockKind"
+            })
+            .times(1)
+            .returning(|_, _| Ok(create_mock_dynamic_object()));
+
+        let mut supervisor = CRSupervisor::new(
+            AgentID::new("test-agent").unwrap(),
+            Arc::new(mock_executor),
+            create_mock_k8s_objects("v1", "MockKind"),
+        );
+
+        let start_result = supervisor.apply();
+
         assert!(start_result.is_ok());
     }
 }

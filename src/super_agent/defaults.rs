@@ -95,3 +95,70 @@ deployment:
             type: fixed
             backoff_delay_seconds: 5s
 "#;
+
+// Kubernetes AgentType
+pub(crate) const KUBERNETES_TYPE: &str = r#"
+namespace: newrelic
+name: io.k8s.opentelemetry.collector # Changed to avoid collisions with the upper agent type
+version: 0.0.1
+variables:
+  config_file:
+    description: "Newrelic otel collector configuration path"
+    type: yaml
+    required: true
+deployment:
+  k8s:
+    objects:
+      repository:
+        apiVersion: source.toolkit.fluxcd.io/v1beta2
+        kind: HelmRepository
+        metadata:
+          labels:
+            extralabel: ${extralabel}
+          name: open-telemetry # Needed as a reference below. Do not override or override below too.
+        spec:
+          interval: 3m
+          url: https://open-telemetry.github.io/opentelemetry-helm-charts
+      release:
+        apiVersion: helm.toolkit.fluxcd.io/v2beta1
+        kind: HelmRelease
+        metadata:
+          labels:
+            extralabel: ${extralabel}
+        spec:
+          interval: 3m
+          chart:
+            spec:
+              chart: opentelemetry-collector
+              version: 0.67.0
+              sourceRef:
+                kind: HelmRepository
+                name: open-telemetry # Needed this reference from above. Do not override or override above too.
+                namespace: default # This comes from the static config, we need some way to inject it.
+              interval: 3m
+          install:
+            remediation:
+              retries: 3
+            replace: true
+          upgrade:
+            cleanupOnFail: true
+            force: true
+            remediation:
+              retries: 3
+              strategy: rollback
+          values:
+            mode: deployment
+            config: ${config_file}
+"#;
+
+#[cfg(test)]
+mod test {
+    use crate::config::agent_type::agent_types::FinalAgent;
+
+    #[test]
+    fn test_parsable_configs() {
+        let _: FinalAgent = serde_yaml::from_str(super::NEWRELIC_INFRA_TYPE).unwrap();
+        let _: FinalAgent = serde_yaml::from_str(super::NRDOT_TYPE).unwrap();
+        let _: FinalAgent = serde_yaml::from_str(super::KUBERNETES_TYPE).unwrap();
+    }
+}

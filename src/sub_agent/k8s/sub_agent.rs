@@ -1,4 +1,3 @@
-use crate::sub_agent::k8s::sample_crs::get_sample_resources;
 use crate::sub_agent::k8s::CRSupervisor;
 use crate::{
     config::super_agent_configs::AgentID,
@@ -49,11 +48,9 @@ where
     type StartedSubAgent = StartedSubAgentK8s<CB, C>;
 
     fn run(self) -> Result<Self::StartedSubAgent, SubAgentError> {
-        let res = get_sample_resources();
-
-        self.supervisor.apply(res.as_slice()).map_err(|e| {
-            SubAgentError::SupervisorStopError(format!("Failed to start supervisor: {:?}", e))
-        })?;
+        self.supervisor
+            .apply()
+            .map_err(SubAgentError::SupervisorError)?;
 
         Ok(StartedSubAgentK8s::new(
             self.agent_id,

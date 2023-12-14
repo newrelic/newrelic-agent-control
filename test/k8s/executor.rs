@@ -64,10 +64,7 @@ async fn k8s_get_dynamic_resource() {
         .unwrap()
         .unwrap();
 
-    assert_eq!(
-        cr.metadata.to_owned().name.unwrap().as_str(),
-        cr_name.clone()
-    );
+    assert_eq!(cr.metadata.to_owned().name.unwrap().as_str(), cr_name);
 
     Api::<Foo>::namespaced(test.client.to_owned(), &test_ns)
         .delete(cr_name, &DeleteParams::default())

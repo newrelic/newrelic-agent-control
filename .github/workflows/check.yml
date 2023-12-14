@@ -82,8 +82,12 @@ jobs:
           ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
       - name: Install nightly
         uses: dtolnay/rust-toolchain@4f366e621dc8fa63f557ca04b8f4361824a35a45
-      - name: Create documentation
-        run: cargo doc --no-deps --all-features
+      - name: Create on-host documentation
+        run: cargo doc --no-deps --features=onhost
+        env:
+          RUSTDOCFLAGS: --cfg docsrs
+      - name: Create K8s documentation
+        run: cargo doc --no-deps --features=k8s
         env:
           RUSTDOCFLAGS: --cfg docsrs
   msrv:

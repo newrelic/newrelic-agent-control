@@ -82,11 +82,14 @@ pub struct K8sObject {
     #[serde(rename = "apiVersion")]
     pub api_version: String,
     pub kind: String,
-    // TODO: include metadata
+    pub metadata: Option<Metadata>,
     #[serde(default, flatten)]
     pub fields: serde_yaml::Mapping,
 }
 
+// Set empty metadata to build a valid K8s Object. Otherwise, the K8s API is returning an error.
+#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+pub struct Metadata {}
 #[cfg(test)]
 mod test {
     use super::*;
