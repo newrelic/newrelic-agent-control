@@ -51,7 +51,7 @@ fn normalized_var(name: &str, variables: &NormalizedVariables) -> Result<EndSpec
     Ok(variables
         .get(name)
         .ok_or(AgentTypeError::MissingTemplateKey(name.to_string()))?
-        .to_owned())
+        .clone())
 }
 
 /// Returns a string with the first match of a variable replaced with the corresponding value
@@ -60,11 +60,12 @@ fn replace(
     re: &Regex,
     s: &str,
     var_name: &str,
-    normalized_var: EndSpec,
+    normalized_var: &EndSpec,
 ) -> Result<String, AgentTypeError> {
     let value = normalized_var
         .final_value
-        .or(normalized_var.default)
+        .clone()
+        .or(normalized_var.default.clone())
         .ok_or(AgentTypeError::MissingTemplateKey(var_name.to_string()))?
         .to_string();
     Ok(re.replace(s, value).to_string())
@@ -100,7 +101,7 @@ fn template_string(s: String, variables: &NormalizedVariables) -> Result<String,
         .map(|i| i.as_str())
         .try_fold(s.clone(), |r, i| {
             let var_name = template_trim(i);
-            replace(re, &r, var_name, normalized_var(var_name, variables)?)
+            replace(re, &r, var_name, &normalized_var(var_name, variables)?)
         })
 }
 
@@ -220,13 +221,12 @@ fn template_yaml_value_string(
     if re.is_match(s.as_str()) {
         let var_name = template_trim(s.as_str());
         let replacement = normalized_var(var_name, variables)?;
+        let templated = replace(re, s.as_str(), var_name, &replacement)?;
         match replacement.type_ {
             VariableType::Bool | VariableType::Number => {
-                let templated = replace(re, s.as_str(), var_name, replacement)?;
                 return serde_yaml::from_str(templated.as_str()).map_err(AgentTypeError::SerdeYaml);
             }
             _ => {
-                let templated = replace(re, s.as_str(), var_name, replacement)?;
                 return Ok(serde_yaml::Value::String(templated));
             }
         }
@@ -800,14 +800,14 @@ mod tests {
         let re = template_re();
         assert_eq!(
             "Value-${other}".to_string(),
-            replace(re, "${any}-${other}", "any", value_var).unwrap()
+            replace(re, "${any}-${other}", "any", &value_var).unwrap()
         );
         assert_eq!(
             "Default-${other}".to_string(),
-            replace(re, "${any}-${other}", "any", default_var).unwrap()
+            replace(re, "${any}-${other}", "any", &default_var).unwrap()
         );
         let key = assert_matches!(
-            replace(re, "${any}-x", "any", neither_value_nor_default).err().unwrap(),
+            replace(re, "${any}-x", "any", &neither_value_nor_default).err().unwrap(),
             AgentTypeError::MissingTemplateKey(s) => s);
         assert_eq!("any".to_string(), key);
     }
