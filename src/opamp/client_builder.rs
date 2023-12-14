@@ -9,8 +9,8 @@ use tracing::error;
 
 use crate::config::super_agent_configs::{AgentID, OpAMPClientConfig};
 
-use crate::context::Context;
 use crate::event::event::Event;
+use crate::event::EventPublisher;
 use crate::opamp::instance_id;
 
 #[derive(Error, Debug)]
@@ -34,7 +34,7 @@ pub trait OpAMPClientBuilder<CB: Callbacks> {
     // type StartedClient: StartedClient;
     fn build_and_start(
         &self,
-        ctx: Context<Option<Event>>,
+        ctx: impl EventPublisher<Event>,
         agent_id: AgentID,
         start_settings: StartSettings,
     ) -> Result<Self::Client, OpAMPClientBuilderError>;

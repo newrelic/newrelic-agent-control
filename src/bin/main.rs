@@ -1,5 +1,8 @@
 use newrelic_super_agent::config::store::{SuperAgentConfigStore, SuperAgentConfigStoreFile};
+use newrelic_super_agent::event::channel::event_channel;
 use newrelic_super_agent::event::event::{Event, SuperAgentEvent};
+use newrelic_super_agent::event::EventConsumer;
+use newrelic_super_agent::event::EventPublisher;
 #[cfg(feature = "k8s")]
 use newrelic_super_agent::opamp::instance_id;
 use newrelic_super_agent::opamp::instance_id::getter::ULIDInstanceIDGetter;
@@ -47,7 +50,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let ctx: Context<Option<Event>> = Context::new();
 
     info!("Creating the signal handler");
-    create_shutdown_signal_handler(ctx.clone())?;
+    let (tx, rx) = event_channel();
+    create_shutdown_signal_handler(tx)?;
 
     let mut super_agent_config_storer = SuperAgentConfigStoreFile::new(&cli.get_config_path());
 
@@ -67,6 +71,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     return Ok(run_super_agent(
         super_agent_config_storer,
         ctx,
+        rx,
         opamp_client_builder,
     )?);
 
@@ -78,6 +83,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 fn run_super_agent(
     config_storer: SuperAgentConfigStoreFile,
     ctx: Context<Option<Event>>,
+    rx: impl EventConsumer<Event>,
     opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
 ) -> Result<(), AgentError> {
     use newrelic_super_agent::{
@@ -128,7 +134,7 @@ fn run_super_agent(
         &sub_agent_hash_repository,
         values_repository,
     )
-    .run(ctx)
+    .run(ctx, rx)
 }
 
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
@@ -138,7 +144,8 @@ fn run_super_agent(
     opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
 ) -> Result<(), AgentError> {
     use newrelic_super_agent::{
-        config::super_agent_configs::AgentID, opamp::operations::build_opamp_and_start_client,
+        config::super_agent_configs::AgentID, event::channel::event_channel,
+        opamp::operations::build_opamp_and_start_client,
     };
 
     let hash_repository = HashRepositoryFile::default();
@@ -191,15 +198,15 @@ fn run_super_agent(
     .run(ctx)
 }
 
-fn create_shutdown_signal_handler(ctx: Context<Option<Event>>) -> Result<(), ctrlc::Error> {
-    ctrlc::set_handler(move || {
-        ctx.cancel_all(Some(SuperAgentEvent::StopRequested.into()))
-            .unwrap()
-    })
-    .map_err(|e| {
-        error!("Could not set signal handler: {}", e);
-        e
-    })?;
+fn create_shutdown_signal_handler<E: EventPublisher<Event> + Send + 'static>(
+    ctx: E,
+) -> Result<(), ctrlc::Error> {
+    ctrlc::set_handler(move || ctx.publish(SuperAgentEvent::StopRequested.into())).map_err(
+        |e| {
+            error!("Could not set signal handler: {}", e);
+            e
+        },
+    )?;
 
     Ok(())
 }

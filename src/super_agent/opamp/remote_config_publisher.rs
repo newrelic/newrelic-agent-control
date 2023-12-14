@@ -1,19 +1,28 @@
-use crate::context::Context;
 use crate::event::event::{Event, OpAMPEvent};
+use crate::event::EventPublisher;
 use crate::opamp::remote_config::{RemoteConfig, RemoteConfigError};
 use crate::opamp::remote_config_publisher::{RemoteConfigPublisher, RemoteConfigPublisherError};
 
-pub struct SuperAgentRemoteConfigPublisher {
-    ctx: Context<Option<Event>>,
+pub struct SuperAgentRemoteConfigPublisher<P>
+where
+    P: EventPublisher<Event>,
+{
+    ctx: P,
 }
 
-impl SuperAgentRemoteConfigPublisher {
-    pub fn new(ctx: Context<Option<Event>>) -> Self {
+impl<P> SuperAgentRemoteConfigPublisher<P>
+where
+    P: EventPublisher<Event>,
+{
+    pub fn new(ctx: P) -> Self {
         SuperAgentRemoteConfigPublisher { ctx }
     }
 }
 
-impl RemoteConfigPublisher for SuperAgentRemoteConfigPublisher {
+impl<P> RemoteConfigPublisher for SuperAgentRemoteConfigPublisher<P>
+where
+    P: EventPublisher<Event>,
+{
     fn on_config_ok(&self, remote_config: RemoteConfig) -> OpAMPEvent {
         OpAMPEvent::ValidRemoteConfigReceived(remote_config)
     }
