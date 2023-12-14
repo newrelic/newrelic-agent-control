@@ -223,13 +223,12 @@ fn template_yaml_value_string(
     if re.is_match(s.as_str()) {
         let var_name = template_trim(s.as_str());
         let replacement = normalized_var(var_name, variables)?;
+        let templated = replace(re, s.as_str(), var_name, replacement)?;
         match replacement.type_ {
             VariableType::Bool | VariableType::Number => {
-                let templated = replace(re, s.as_str(), var_name, replacement)?;
                 return serde_yaml::from_str(templated.as_str()).map_err(AgentTypeError::SerdeYaml);
             }
             _ => {
-                let templated = replace(re, s.as_str(), var_name, replacement)?;
                 return Ok(serde_yaml::Value::String(templated));
             }
         }
