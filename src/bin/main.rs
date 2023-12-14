@@ -1,8 +1,6 @@
-use crossbeam::channel::Receiver;
-use crossbeam::channel::{unbounded, Sender};
 use newrelic_super_agent::config::store::{SuperAgentConfigStore, SuperAgentConfigStoreFile};
 use newrelic_super_agent::event::channel::{channel, EventConsumer, EventPublisher};
-use newrelic_super_agent::event::event::{Event, SuperAgentEvent};
+use newrelic_super_agent::event::event::SuperAgentEvent;
 use newrelic_super_agent::event::Publisher;
 #[cfg(feature = "k8s")]
 use newrelic_super_agent::opamp::instance_id;
@@ -15,7 +13,7 @@ use newrelic_super_agent::super_agent::error::AgentError;
 use newrelic_super_agent::super_agent::opamp::client_builder::SuperAgentOpAMPHttpBuilder;
 use newrelic_super_agent::super_agent::super_agent::{super_agent_fqn, SuperAgent};
 use newrelic_super_agent::utils::hostname::HostnameGetter;
-use newrelic_super_agent::{cli::Cli, context::Context, logging::Logging};
+use newrelic_super_agent::{cli::Cli, logging::Logging};
 use opamp_client::operation::settings::DescriptionValueType;
 use std::collections::HashMap;
 use std::error::Error;
@@ -116,11 +114,10 @@ fn run_super_agent(
     info!("Starting the super agent");
     let values_repository = ValuesRepositoryFile::default();
 
-    let ctx = Context::new();
     let (opamp_sender, opamp_receiver) = channel();
 
     let maybe_client = build_opamp_and_start_client(
-        ctx,
+        opamp_sender.clone(),
         opamp_client_builder.as_ref(),
         &instance_id_getter,
         AgentID::new_super_agent_id(),
@@ -136,7 +133,7 @@ fn run_super_agent(
         &sub_agent_hash_repository,
         values_repository,
     )
-    .run(cancel_receiver, opamp_receiver)
+    .run(cancel_receiver, opamp_receiver, opamp_sender)
 }
 
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]

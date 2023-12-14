@@ -2,8 +2,7 @@ use std::collections::HashMap;
 
 use crate::{
     config::super_agent_configs::{AgentID, AgentTypeFQN},
-    context::Context,
-    event::event::Event,
+    event::{channel::EventPublisher, event::OpAMPEvent},
     sub_agent::error::SubAgentError,
     utils::time::get_sys_time_nano,
 };
@@ -24,7 +23,7 @@ use super::{
 };
 
 pub fn build_opamp_and_start_client<CB, OB, IG>(
-    ctx: Context<Option<Event>>,
+    opamp_publisher: EventPublisher<OpAMPEvent>,
     opamp_builder: Option<&OB>,
     instance_id_getter: &IG,
     agent_id: AgentID,
@@ -45,7 +44,7 @@ where
             );
 
             Ok(Some(builder.build_and_start(
-                ctx,
+                opamp_publisher,
                 agent_id,
                 start_settings,
             )?))
@@ -56,14 +55,14 @@ where
 
 /// Builds and start an OpAMP client when a builder is provided.
 pub fn start_opamp_client<CB: Callbacks, O: OpAMPClientBuilder<CB>>(
-    ctx: Context<Option<Event>>,
+    opamp_publisher: EventPublisher<OpAMPEvent>,
     opamp_builder: Option<&O>,
     agent_id: AgentID,
     start_settings: StartSettings,
 ) -> Result<Option<O::Client>, OpAMPClientBuilderError> {
     match opamp_builder {
         Some(builder) => Ok(Some(builder.build_and_start(
-            ctx,
+            opamp_publisher,
             agent_id,
             start_settings,
         )?)),

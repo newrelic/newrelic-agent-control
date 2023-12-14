@@ -4,8 +4,7 @@ use crate::config::error::SuperAgentConfigError;
 use crate::config::persister::directory_manager::DirectoryManagerFs;
 use crate::config::store::{SubAgentsConfigStore, SuperAgentConfigStoreFile};
 use crate::config::super_agent_configs::{AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig};
-use crate::context::Context;
-use crate::event::channel::EventConsumer;
+use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::opamp::callbacks::AgentCallbacks;
 use crate::opamp::remote_config::{RemoteConfig, RemoteConfigError};
 use crate::opamp::remote_config_hash::{Hash, HashRepository, HashRepositoryFile};
@@ -18,7 +17,7 @@ use crate::sub_agent::error::SubAgentBuilderError;
 use crate::sub_agent::logger::{AgentLog, EventLogger, StdEventReceiver};
 use crate::sub_agent::SubAgentBuilder;
 
-use crate::event::event::{Event, OpAMPEvent, SubAgentEvent, SuperAgentEvent};
+use crate::event::event::{OpAMPEvent, SuperAgentEvent};
 use crate::sub_agent::values::values_repository::{ValuesRepository, ValuesRepositoryFile};
 use crate::sub_agent::{error::SubAgentError, NotStartedSubAgent};
 use crate::super_agent::defaults::{SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION};
@@ -26,6 +25,7 @@ use crate::super_agent::error::AgentError;
 use crate::super_agent::super_agent::EffectiveAgentsError::{
     EffectiveAgentExists, EffectiveAgentNotFound,
 };
+use crossbeam::select;
 use futures::executor::block_on;
 use opamp_client::opamp::proto::{RemoteConfigStatus, RemoteConfigStatuses};
 use opamp_client::StartedClient;
@@ -99,8 +99,9 @@ where
 
     pub fn run(
         self,
-        context: EventConsumer<SuperAgentEvent>,
+        super_agent_events: EventConsumer<SuperAgentEvent>,
         opamp_consumer: EventConsumer<OpAMPEvent>,
+        opamp_publisher: EventPublisher<OpAMPEvent>,
     ) -> Result<(), AgentError> {
         info!("Creating agent's communication channels");
         // Channel will be closed when tx is dropped and no reference to it is alive
@@ -136,12 +137,19 @@ where
         // let effective_agents = self.load_effective_agents(&self.sub_agents_config_store.load()?)?;
         let sub_agents_config = &self.sub_agents_config_store.load()?;
 
-        let ctx = Context::new();
-        let not_started_sub_agents = self.load_sub_agents(sub_agents_config, &tx, ctx.clone())?;
+        let not_started_sub_agents =
+            self.load_sub_agents(sub_agents_config, &tx, opamp_publisher.clone())?;
 
         // Run all the Sub Agents
         let running_sub_agents = not_started_sub_agents.run()?;
-        self.process_events(ctx.clone(), running_sub_agents, tx, &self.opamp_client)?;
+        self.process_events(
+            super_agent_events,
+            opamp_consumer,
+            opamp_publisher,
+            running_sub_agents,
+            tx,
+            &self.opamp_client,
+        )?;
 
         if let Some(handle) = self.opamp_client {
             info!("Stopping and setting to unhealthy the OpAMP Client");
@@ -175,7 +183,7 @@ where
         &self,
         sub_agents_config: &SubAgentsConfig,
         tx: &Sender<AgentLog>,
-        ctx: Context<Option<Event>>,
+        ctx: EventPublisher<OpAMPEvent>,
     ) -> Result<NotStartedSubAgents<S::NotStartedSubAgent>, AgentError> {
         Ok(NotStartedSubAgents::from(
             sub_agents_config
@@ -209,7 +217,7 @@ where
         running_sub_agents: &mut StartedSubAgents<
             <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
-        ctx: Context<Option<Event>>,
+        ctx: EventPublisher<OpAMPEvent>,
     ) -> Result<(), AgentError> {
         running_sub_agents.stop_remove(&agent_id)?;
 
@@ -225,7 +233,7 @@ where
         running_sub_agents: &mut StartedSubAgents<
             <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
-        ctx: Context<Option<Event>>,
+        ctx: EventPublisher<OpAMPEvent>,
     ) -> Result<(), AgentError> {
         running_sub_agents.insert(
             agent_id.clone(),
@@ -239,7 +247,9 @@ where
 
     fn process_events(
         &self,
-        ctx: Context<Option<Event>>,
+        super_agent_events: EventConsumer<SuperAgentEvent>,
+        opamp_consumer: EventConsumer<OpAMPEvent>,
+        opamp_publisher: EventPublisher<OpAMPEvent>,
         mut sub_agents: StartedSubAgents<
             <<S as SubAgentBuilder>::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
@@ -247,66 +257,53 @@ where
         maybe_opamp_client: &Option<O>,
     ) -> Result<(), AgentError> {
         loop {
-            // blocking wait until context is woken up
-            if let Some(event) = ctx.wait_condvar().unwrap() {
-                match event {
-                    Event::SuperAgentEvent(SuperAgentEvent::StopRequested) => {
+            select! {
+                recv(opamp_consumer.as_ref()) -> opamp_event => {
+                    match opamp_event.unwrap() {
+                        OpAMPEvent::InvalidRemoteConfigReceived(
+                            remote_config_error,
+                        ) => {
+                            if let Some(opamp_client) = &maybe_opamp_client {
+                                self.process_super_agent_remote_config_error(
+                                    opamp_client,
+                                    remote_config_error,
+                                )?;
+                            } else {
+                                unreachable!("got remote config without OpAMP being enabled")
+                            }
+                        }
+                        OpAMPEvent::ValidRemoteConfigReceived(mut remote_config) => {
+                            // TODO This condition should be removed to subagent event loop
+                            if !remote_config.agent_id.is_super_agent_id() {
+                                self.process_sub_agent_remote_config(
+                                    remote_config,
+                                    &mut sub_agents,
+                                    tx.clone(),
+                                    opamp_publisher.clone(),
+                                )?;
+                                break;
+                            }
+
+                            if let Some(opamp_client) = &maybe_opamp_client {
+                                self.process_super_agent_remote_config(
+                                    opamp_client,
+                                    &mut remote_config,
+                                    tx.clone(),
+                                    &mut sub_agents,
+                                    opamp_publisher.clone(),
+                                )?;
+                            } else {
+                                unreachable!("got remote config without OpAMP being enabled")
+                            }
+                        }
+                    }
+
+                },
+                recv(super_agent_events.as_ref()) -> _super_agent_event => {
                         drop(tx); //drop the main channel sender to stop listener
                         break sub_agents.stop()?;
-                    }
-                    Event::OpAMPEvent(OpAMPEvent::InvalidRemoteConfigReceived(
-                        remote_config_error,
-                    )) => {
-                        if let Some(opamp_client) = &maybe_opamp_client {
-                            self.process_super_agent_remote_config_error(
-                                opamp_client,
-                                remote_config_error,
-                            )?;
-                        } else {
-                            unreachable!("got remote config without OpAMP being enabled")
-                        }
-                    }
-                    Event::OpAMPEvent(OpAMPEvent::ValidRemoteConfigReceived(mut remote_config)) => {
-                        // TODO This condition should be removed to subagent event loop
-                        if !remote_config.agent_id.is_super_agent_id() {
-                            self.process_sub_agent_remote_config(
-                                remote_config,
-                                &mut sub_agents,
-                                tx.clone(),
-                                ctx.clone(),
-                            )?;
-                            break;
-                        }
-
-                        if let Some(opamp_client) = &maybe_opamp_client {
-                            self.process_super_agent_remote_config(
-                                opamp_client,
-                                &mut remote_config,
-                                tx.clone(),
-                                &mut sub_agents,
-                                ctx.clone(),
-                            )?;
-                        } else {
-                            unreachable!("got remote config without OpAMP being enabled")
-                        }
-                    }
-
-                    // TODO: The SubAgentRemoteConfig events now are opamp events that need
-                    // to be handled on the subagent event loop
-                    Event::SubAgentEvent(SubAgentEvent::ConfigUpdated(agent_id)) => {
-                        let config = self.sub_agents_config_store.load()?;
-                        let config = config.get(&agent_id)?;
-                        self.recreate_sub_agent(
-                            agent_id,
-                            config,
-                            tx.clone(),
-                            &mut sub_agents,
-                            ctx.clone(),
-                        )?;
-                    }
-                };
+                },
             }
-            // spurious condvar wake up, loop should continue
         }
         Ok(())
     }
@@ -320,7 +317,7 @@ where
             <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
         tx: Sender<AgentLog>,
-        ctx: Context<Option<Event>>,
+        opamp_publisher: EventPublisher<OpAMPEvent>,
     ) -> Result<(), AgentError> {
         let agent_id = remote_config.agent_id.clone();
 
@@ -353,7 +350,7 @@ where
 
         let config = self.sub_agents_config_store.load()?;
         let config = config.get(&agent_id)?;
-        self.recreate_sub_agent(agent_id, config, tx.clone(), sub_agents, ctx)?;
+        self.recreate_sub_agent(agent_id, config, tx.clone(), sub_agents, opamp_publisher)?;
 
         Ok(())
     }
@@ -389,14 +386,17 @@ where
         running_sub_agents: &mut StartedSubAgents<
             <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
-        ctx: Context<Option<Event>>,
+        opamp_publisher: EventPublisher<OpAMPEvent>,
     ) -> Result<(), AgentError> {
         info!("Applying SuperAgent remote config");
         report_remote_config_status_applying(opamp_client, &remote_config.hash)?;
 
-        if let Err(err) =
-            self.apply_remote_config(remote_config.clone(), tx, running_sub_agents, ctx)
-        {
+        if let Err(err) = self.apply_remote_config(
+            remote_config.clone(),
+            tx,
+            running_sub_agents,
+            opamp_publisher,
+        ) {
             let error_message = format!("Error applying Super Agent remote config: {}", err);
             error!(error_message);
             Ok(report_remote_config_status_error(
@@ -439,7 +439,7 @@ where
         running_sub_agents: &mut StartedSubAgents<
             <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
-        ctx: Context<Option<Event>>,
+        opamp_publisher: EventPublisher<OpAMPEvent>,
     ) -> Result<(), AgentError> {
         //TODO fix get_unique to fit OpAMP Spec of having a "" when single config
         let content = remote_config.get_unique()?;
@@ -465,7 +465,7 @@ where
                             agent_config,
                             tx.clone(),
                             running_sub_agents,
-                            ctx.clone(),
+                            opamp_publisher.clone(),
                         );
                     } else {
                         // no changes applied
@@ -478,7 +478,7 @@ where
                     agent_config,
                     tx.clone(),
                     running_sub_agents,
-                    ctx.clone(),
+                    opamp_publisher.clone(),
                 )
             })?;
 

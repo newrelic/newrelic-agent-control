@@ -4,7 +4,8 @@ use std::collections::HashMap;
 use nix::unistd::gethostname;
 
 use crate::config::super_agent_configs::SubAgentConfig;
-use crate::event::event::Event;
+use crate::event::channel::EventPublisher;
+use crate::event::event::OpAMPEvent;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_opamp_and_start_client;
 use crate::opamp::remote_config_hash::HashRepository;
@@ -85,10 +86,10 @@ where
         agent_id: AgentID,
         sub_agent_config: &SubAgentConfig,
         tx: std::sync::mpsc::Sender<AgentLog>,
-        ctx: Context<Option<Event>>,
+        opamp_publisher: EventPublisher<OpAMPEvent>,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
         let maybe_opamp_client = build_opamp_and_start_client(
-            ctx,
+            opamp_publisher,
             self.opamp_builder,
             self.instance_id_getter,
             agent_id.clone(),

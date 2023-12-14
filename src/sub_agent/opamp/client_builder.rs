@@ -1,6 +1,6 @@
 use crate::config::super_agent_configs::{AgentID, OpAMPClientConfig};
-use crate::context::Context;
-use crate::event::event::Event;
+use crate::event::channel::EventPublisher;
+use crate::event::event::OpAMPEvent;
 use crate::opamp::callbacks::AgentCallbacks;
 use crate::opamp::client_builder::{
     build_http_client, OpAMPClientBuilder, OpAMPClientBuilderError,
@@ -38,12 +38,12 @@ impl OpAMPClientBuilder<SubAgentCallbacks> for SubAgentOpAMPHttpBuilder {
     type Client = StartedHttpClient<SubAgentCallbacks, HttpClientReqwest>;
     fn build_and_start(
         &self,
-        ctx: Context<Option<Event>>,
+        opamp_publisher: EventPublisher<OpAMPEvent>,
         agent_id: AgentID,
         start_settings: StartSettings,
     ) -> Result<Self::Client, OpAMPClientBuilderError> {
         let http_client = build_http_client(&self.config)?;
-        let remote_config_publisher = SubAgentRemoteConfigPublisher::new(ctx);
+        let remote_config_publisher = SubAgentRemoteConfigPublisher::new(opamp_publisher);
         let callbacks = AgentCallbacks::new(agent_id, remote_config_publisher);
 
         let not_started_client = NotStartedHttpClient::new(http_client);
