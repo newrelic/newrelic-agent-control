@@ -8,8 +8,10 @@ use kube::{
     api::{DeleteParams, ListParams, PostParams},
     config::KubeConfigOptions,
     core::{DynamicObject, GroupVersion, ObjectMeta, TypeMeta},
-    Api, Client, Config, ResourceExt,
+    Api, Client, Config, Resource, ResourceExt,
 };
+use serde::de::DeserializeOwned;
+use std::fmt::Debug;
 use std::{
     collections::{BTreeMap, HashMap},
     str::FromStr,
@@ -177,20 +179,11 @@ impl K8sExecutor {
             .find(|obj| obj.metadata.name.to_owned().is_some_and(|n| n.eq(name))))
     }
 
-    pub async fn delete_dynamic_object_collection(
-        &self,
-        tm: TypeMeta,
-        label_selector: &str,
-    ) -> Result<(), K8sError> {
-        let api = &self
-            .dynamics
-            .get(&tm)
-            .ok_or(UnexpectedKind(format!(
-                "deleting dynamic object collection {:?}",
-                tm
-            )))?
-            .object_api;
-
+    async fn delete_collection<K>(api: &Api<K>, label_selector: &str) -> Result<(), K8sError>
+    where
+        // TODO remove the 'static that has been added since is required by mockall.
+        K: Resource + Clone + DeserializeOwned + Debug + 'static,
+    {
         match api
             .delete_collection(
                 &DeleteParams::default(),
@@ -203,13 +196,12 @@ impl K8sExecutor {
         {
             either::Left(list) => {
                 debug!(
-                    "Deleting collection of {:?}: {:?}",
-                    &tm,
+                    "Deleting collection: {:?}",
                     list.iter().map(ResourceExt::name_any).collect::<Vec<_>>()
                 );
             }
             either::Right(status) => {
-                debug!("Deleted collection of {:?}: status={:?}", &tm, status);
+                debug!("Deleted collection: status={:?}", status);
             }
         }
 
@@ -227,31 +219,27 @@ impl K8sExecutor {
         Ok(pod_list.items)
     }
 
+    pub async fn delete_dynamic_object_collection(
+        &self,
+        tm: TypeMeta,
+        label_selector: &str,
+    ) -> Result<(), K8sError> {
+        let api = &self
+            .dynamics
+            .get(&tm)
+            .ok_or(UnexpectedKind(format!(
+                "deleting dynamic object collection {:?}",
+                tm
+            )))?
+            .object_api;
+
+        Self::delete_collection(api, label_selector).await
+    }
+
     pub async fn delete_configmap_collection(&self, label_selector: &str) -> Result<(), K8sError> {
-        let cm_client: Api<ConfigMap> = Api::<ConfigMap>::default_namespaced(self.client.clone());
+        let api: Api<ConfigMap> = Api::<ConfigMap>::default_namespaced(self.client.clone());
 
-        match cm_client
-            .delete_collection(
-                &DeleteParams::default(),
-                &ListParams {
-                    label_selector: Some(label_selector.to_string()),
-                    ..ListParams::default()
-                },
-            )
-            .await?
-        {
-            either::Left(list) => {
-                debug!(
-                    "Deleting collection of ConfigMaps: {:?}",
-                    list.iter().map(ResourceExt::name_any).collect::<Vec<_>>()
-                );
-            }
-            either::Right(status) => {
-                debug!("Deleted collection of ConfigMaps: status={:?}", status);
-            }
-        }
-
-        Ok(())
+        Self::delete_collection(&api, label_selector).await
     }
 
     pub async fn get_configmap_key(
