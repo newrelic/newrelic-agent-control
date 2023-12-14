@@ -82,7 +82,7 @@ where
     }
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Debug, PartialEq, Clone)]
 pub struct DataStored {
     pub ulid: InstanceID,
     pub identifiers: Identifiers,
