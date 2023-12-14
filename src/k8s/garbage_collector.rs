@@ -14,9 +14,10 @@ use tracing::{debug, info, warn};
 use crate::k8s::executor::K8sExecutor;
 
 const DEFAULT_INTERVAL_SEC: u64 = 30;
+const GRACEFUL_STOP_RETRY_INTERVAL_MS: u64 = 10;
 
 /// Responsible for cleaning resources created by the super agent that are not longer used.
-pub struct K8sGarbageCollector<S>
+pub struct NotStartedK8sGarbageCollector<S>
 where
     S: SuperAgentConfigLoader + std::marker::Sync + std::marker::Send + 'static,
 {
@@ -34,10 +35,10 @@ impl K8sGarbageCollectorStarted {
     pub fn is_finished(&self) -> bool {
         self.handle.is_finished()
     }
-    pub fn stop(&self) {
+    fn stop(&self) {
         let _ = self.stop_tx.send(());
         while !self.handle.is_finished() {
-            thread::sleep(Duration::from_millis(10))
+            thread::sleep(Duration::from_millis(GRACEFUL_STOP_RETRY_INTERVAL_MS))
         }
     }
 }
@@ -48,12 +49,12 @@ impl Drop for K8sGarbageCollectorStarted {
     }
 }
 
-impl<S> K8sGarbageCollector<S>
+impl<S> NotStartedK8sGarbageCollector<S>
 where
     S: SuperAgentConfigLoader + std::marker::Sync + std::marker::Send + 'static,
 {
     pub fn new(config_store: Arc<S>, k8s_executor: Arc<K8sExecutor>) -> Self {
-        K8sGarbageCollector {
+        NotStartedK8sGarbageCollector {
             config_store,
             k8s_executor,
             interval: Duration::from_secs(DEFAULT_INTERVAL_SEC),
@@ -65,8 +66,8 @@ where
         self
     }
 
-    /// A tokio task will be spawned to perform the garbage collection each interval, and gracefully shouted down
-    /// when K8sGarbageCollectorStarted gets dropped.
+    /// Spawns a tokio task in charge of performing the garbage collection periodically. The task will be
+    /// gracefully shouted down when the returned `K8sGarbageCollectorStarted` gets dropped.
     pub fn start(self) -> K8sGarbageCollectorStarted {
         let (stop_tx, mut stop_rx) = mpsc::unbounded_channel();
 
@@ -89,6 +90,7 @@ where
         K8sGarbageCollectorStarted { stop_tx, handle }
     }
 
+    /// Garbage collect all resources managed by the SA associated to removed sub-agents.
     pub async fn collect(&self) -> Result<(), K8sError> {
         let super_agent_config = SuperAgentConfigLoader::load(self.config_store.as_ref())?;
 
@@ -134,7 +136,7 @@ where
 
 #[cfg(test)]
 pub(crate) mod test {
-    use super::K8sGarbageCollector;
+    use super::NotStartedK8sGarbageCollector;
     use crate::config::store::MockSuperAgentConfigLoader;
     use crate::config::super_agent_configs::AgentID;
     use crate::k8s::labels::{DefaultLabels, AGENT_ID_LABEL_KEY};
@@ -147,7 +149,7 @@ pub(crate) mod test {
     use crate::k8s::executor::K8sExecutor;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn start_executes_collection_as_expected() {
+    async fn test_start_executes_collection_as_expected() {
         let mut cs = MockSuperAgentConfigLoader::new();
 
         // Expect the gc runs more than 10 times if interval is 1ms and runs for at least 100ms.
@@ -156,9 +158,10 @@ pub(crate) mod test {
             Err(crate::config::error::SuperAgentConfigError::SubAgentNotFound(String::new()))
         });
 
-        let started_gc = K8sGarbageCollector::new(Arc::new(cs), Arc::new(K8sExecutor::default()))
-            .with_interval(Duration::from_millis(1))
-            .start();
+        let started_gc =
+            NotStartedK8sGarbageCollector::new(Arc::new(cs), Arc::new(K8sExecutor::default()))
+                .with_interval(Duration::from_millis(1))
+                .start();
         sleep(Duration::from_millis(100)).await;
 
         // Expect the gc is correctly stopped
@@ -167,7 +170,7 @@ pub(crate) mod test {
     }
 
     #[test]
-    fn garbage_label_selector() {
+    fn test_garbage_label_selector() {
         let agent_id = AgentID::new("test").unwrap();
         let labels = DefaultLabels::new();
         assert_eq!(
@@ -175,26 +178,27 @@ pub(crate) mod test {
                 "{},{AGENT_ID_LABEL_KEY} notin ({SUPER_AGENT_ID},{agent_id})",
                 labels.selector(),
             ),
-            K8sGarbageCollector::<MockSuperAgentConfigLoader>::garbage_label_selector(vec![
-                agent_id.clone()
-            ])
+            NotStartedK8sGarbageCollector::<MockSuperAgentConfigLoader>::garbage_label_selector(
+                vec![agent_id.clone()]
+            )
         );
         assert_eq!(
             format!(
                 "{},{AGENT_ID_LABEL_KEY} notin ({SUPER_AGENT_ID},{agent_id},{agent_id})",
                 labels.selector(),
             ),
-            K8sGarbageCollector::<MockSuperAgentConfigLoader>::garbage_label_selector(vec![
-                agent_id.clone(),
-                agent_id.clone()
-            ])
+            NotStartedK8sGarbageCollector::<MockSuperAgentConfigLoader>::garbage_label_selector(
+                vec![agent_id.clone(), agent_id.clone()]
+            )
         );
         assert_eq!(
             format!(
                 "{},{AGENT_ID_LABEL_KEY} notin ({SUPER_AGENT_ID})",
                 labels.selector(),
             ),
-            K8sGarbageCollector::<MockSuperAgentConfigLoader>::garbage_label_selector(vec![])
+            NotStartedK8sGarbageCollector::<MockSuperAgentConfigLoader>::garbage_label_selector(
+                vec![]
+            )
         );
     }
 }

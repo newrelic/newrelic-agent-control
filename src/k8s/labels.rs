@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 
 pub const MANAGED_BY_KEY: &str = "app.kubernetes.io/managed-by";
 pub const MANAGED_BY_VAL: &str = "newrelic-super-agent";
-pub const AGENT_ID_LABEL_KEY: &str = "app.kubernetes.io/agent-id";
+pub const AGENT_ID_LABEL_KEY: &str = "newrelic.io/agent-id";
 
 /// Collection of labels used to identify super agent resources.
 #[derive(Default)]
@@ -54,11 +54,11 @@ pub(crate) mod test {
     use super::{DefaultLabels, AGENT_ID_LABEL_KEY, MANAGED_BY_KEY, MANAGED_BY_VAL};
 
     #[test]
-    fn selector() {
+    fn test_selector() {
         let agent_id = AgentID::new("test").unwrap();
         let labels = DefaultLabels::new().with_agent_id(agent_id.clone());
         assert_eq!(
-            format!("{AGENT_ID_LABEL_KEY}=={agent_id},{MANAGED_BY_KEY}=={MANAGED_BY_VAL}"),
+            format!("{MANAGED_BY_KEY}=={MANAGED_BY_VAL},{AGENT_ID_LABEL_KEY}=={agent_id}"),
             labels.selector()
         );
     }

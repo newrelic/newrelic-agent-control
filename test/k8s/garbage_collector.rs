@@ -3,7 +3,7 @@ use kube::{api::Api, core::TypeMeta};
 use mockall::Sequence;
 use newrelic_super_agent::{
     config::super_agent_configs::SuperAgentConfig,
-    k8s::{executor::K8sExecutor, garbage_collector::K8sGarbageCollector},
+    k8s::{executor::K8sExecutor, garbage_collector::NotStartedK8sGarbageCollector},
     super_agent::defaults::SUPER_AGENT_ID,
 };
 use std::sync::Arc;
@@ -41,7 +41,7 @@ agents:
         .returning(move || Ok(serde_yaml::from_str::<SuperAgentConfig>("agents: {}").unwrap()))
         .in_sequence(&mut seq);
 
-    let gc = K8sGarbageCollector::new(
+    let gc = NotStartedK8sGarbageCollector::new(
         Arc::new(config_loader),
         Arc::new(
             K8sExecutor::try_new_with_reflectors(test_ns.to_string(), vec![foo_type_meta()])
@@ -84,7 +84,7 @@ async fn k8s_garbage_collector_with_missing_kinds() {
         kind: "Missing".to_string(),
     };
 
-    let gc = K8sGarbageCollector::new(
+    let gc = NotStartedK8sGarbageCollector::new(
         Arc::new(config_loader),
         Arc::new(
             K8sExecutor::try_new_with_reflectors(
@@ -120,7 +120,7 @@ async fn k8s_garbage_collector_does_not_remove_super_agent() {
         .times(1)
         .returning(move || Ok(serde_yaml::from_str::<SuperAgentConfig>("agents: {}").unwrap()));
 
-    let gc = K8sGarbageCollector::new(
+    let gc = NotStartedK8sGarbageCollector::new(
         Arc::new(config_loader),
         Arc::new(
             K8sExecutor::try_new_with_reflectors(test_ns.to_string(), vec![foo_type_meta()])

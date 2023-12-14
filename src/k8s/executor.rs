@@ -159,7 +159,16 @@ impl K8sExecutor {
             .ok_or(UnexpectedKind(format!("deleting dynamic object {:?}", tm)))?
             .object_api;
 
-        api.delete(name, &DeleteParams::default()).await?;
+        match api.delete(name, &DeleteParams::default()).await? {
+            // List of objects being deleted.
+            either::Left(dynamic_object) => {
+                debug!("Deleting object: {:?}", dynamic_object.meta().name);
+            }
+            // Status response of the deleted objects.
+            either::Right(status) => {
+                debug!("Deleted collection: status={:?}", status);
+            }
+        }
         Ok(())
     }
 
@@ -194,29 +203,20 @@ impl K8sExecutor {
             )
             .await?
         {
+            // List of objects being deleted.
             either::Left(list) => {
                 debug!(
                     "Deleting collection: {:?}",
                     list.iter().map(ResourceExt::name_any).collect::<Vec<_>>()
                 );
             }
+            // Status response of the deleted objects.
             either::Right(status) => {
                 debug!("Deleted collection: status={:?}", status);
             }
         }
 
         Ok(())
-    }
-
-    pub async fn get_minor_version(&self) -> Result<String, K8sError> {
-        let version = self.client.apiserver_version().await?;
-        Ok(version.minor)
-    }
-
-    pub async fn get_pods(&self) -> Result<Vec<Pod>, K8sError> {
-        let pod_client: Api<Pod> = Api::default_namespaced(self.client.clone());
-        let pod_list = pod_client.list(&ListParams::default()).await?;
-        Ok(pod_list.items)
     }
 
     pub async fn delete_dynamic_object_collection(

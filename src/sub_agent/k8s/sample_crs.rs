@@ -11,7 +11,7 @@ metadata:
   namespace: default
   labels:
     app.kubernetes.io/managed-by: newrelic-super-agent
-    app.kubernetes.io/agent-id: otel-collector
+    newrelic.io/agent-id: otel-collector
 spec:
   interval: 1m
   url: https://open-telemetry.github.io/opentelemetry-helm-charts
@@ -38,7 +38,7 @@ metadata:
   namespace: default
   labels:
     app.kubernetes.io/managed-by: newrelic-super-agent
-    app.kubernetes.io/agent-id: otel-collector
+    newrelic.io/agent-id: otel-collector
 spec:
   interval: 1h0m0s
   chart:

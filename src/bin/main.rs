@@ -138,7 +138,7 @@ fn run_super_agent(
     ctx: Context<Option<Event>>,
     opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
 ) -> Result<(), AgentError> {
-    use newrelic_super_agent::k8s::garbage_collector::K8sGarbageCollector;
+    use newrelic_super_agent::k8s::garbage_collector::NotStartedK8sGarbageCollector;
     use newrelic_super_agent::{
         config::super_agent_configs::AgentID, opamp::operations::build_opamp_and_start_client,
     };
@@ -149,17 +149,17 @@ fn run_super_agent(
 
     let instance_id_getter =
         futures::executor::block_on(ULIDInstanceIDGetter::try_with_identifiers(
-            k8s_config.namespace,
+            // TODO change the executor signature to accept &str
+            k8s_config.namespace.clone(),
             instance_id::get_identifiers(k8s_config.cluster_name),
         ))?;
 
     // Initialize K8sExecutor
     // TODO: once we know how we're going to use the K8sExecutor, we might need to refactor and move this.
-    let namespace = "default".to_string(); // change to your desired namespace
     let executor = Arc::new(
         futures::executor::block_on(
             newrelic_super_agent::k8s::executor::K8sExecutor::try_new_with_reflectors(
-                namespace,
+                k8s_config.namespace,
                 k8s_config.cr_type_meta,
             ),
         )
@@ -186,7 +186,8 @@ fn run_super_agent(
 
     let config_storer = Arc::new(config_storer);
 
-    let _started_gcc = K8sGarbageCollector::new(config_storer.clone(), executor.clone()).start();
+    let _started_gcc =
+        NotStartedK8sGarbageCollector::new(config_storer.clone(), executor.clone()).start();
 
     SuperAgent::new(
         maybe_client,
