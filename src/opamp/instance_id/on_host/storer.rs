@@ -69,7 +69,6 @@ where
         self.write_contents(agent_id, ds)
     }
 
-    /// TODO
     fn get(&self, agent_id: &AgentID) -> Result<Option<DataStored>, StorerError> {
         self.read_contents(agent_id)
     }
@@ -116,7 +115,6 @@ where
 
     fn read_contents(&self, agent_id: &AgentID) -> Result<Option<DataStored>, StorerError> {
         let dest_path = get_uild_path(agent_id);
-        // Ok(serde_yaml::from_reader(File::open(path)?)?)
         let file_str = match self.file_reader.read(dest_path.as_path()) {
             Ok(s) => s,
             Err(e) => {
