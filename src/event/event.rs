@@ -1,6 +1,5 @@
 use crate::config::super_agent_configs::AgentID;
 use crate::opamp::remote_config::{RemoteConfig, RemoteConfigError};
-use std::sync::mpsc::{Receiver, Sender};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Event {
@@ -41,24 +40,4 @@ pub enum SuperAgentEvent {
 #[derive(Clone, Debug, PartialEq)]
 pub enum SubAgentEvent {
     ConfigUpdated(AgentID),
-}
-
-pub(crate) trait EventConsumer<E> {
-    fn consume(&self) -> E;
-}
-
-pub(crate) trait EventPublisher<E> {
-    fn publish(&self, event: E);
-}
-
-impl<E> EventPublisher<E> for Sender<E> {
-    fn publish(&self, event: E) {
-        self.send(event).unwrap()
-    }
-}
-
-impl<E> EventConsumer<E> for Receiver<E> {
-    fn consume(&self) -> E {
-        self.recv().unwrap()
-    }
 }

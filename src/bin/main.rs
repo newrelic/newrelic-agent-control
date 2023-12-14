@@ -1,5 +1,9 @@
+use crossbeam::channel::Receiver;
+use crossbeam::channel::{unbounded, Sender};
 use newrelic_super_agent::config::store::{SuperAgentConfigStore, SuperAgentConfigStoreFile};
+use newrelic_super_agent::event::channel::{channel, EventConsumer, EventPublisher};
 use newrelic_super_agent::event::event::{Event, SuperAgentEvent};
+use newrelic_super_agent::event::Publisher;
 #[cfg(feature = "k8s")]
 use newrelic_super_agent::opamp::instance_id;
 use newrelic_super_agent::opamp::instance_id::getter::ULIDInstanceIDGetter;
@@ -44,10 +48,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 
     info!("Creating the global context");
-    let ctx: Context<Option<Event>> = Context::new();
+    let (cancel_sender, cancel_receiver) = channel();
 
     info!("Creating the signal handler");
-    create_shutdown_signal_handler(ctx.clone())?;
+    create_shutdown_signal_handler(cancel_sender)?;
 
     let mut super_agent_config_storer = SuperAgentConfigStoreFile::new(&cli.get_config_path());
 
@@ -66,7 +70,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     #[cfg(any(feature = "onhost", feature = "k8s"))]
     return Ok(run_super_agent(
         super_agent_config_storer,
-        ctx,
+        cancel_receiver,
         opamp_client_builder,
     )?);
 
@@ -77,7 +81,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 #[cfg(feature = "onhost")]
 fn run_super_agent(
     config_storer: SuperAgentConfigStoreFile,
-    ctx: Context<Option<Event>>,
+    cancel_receiver: EventConsumer<SuperAgentEvent>,
     opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
 ) -> Result<(), AgentError> {
     use newrelic_super_agent::{
@@ -111,8 +115,12 @@ fn run_super_agent(
 
     info!("Starting the super agent");
     let values_repository = ValuesRepositoryFile::default();
+
+    let ctx = Context::new();
+    let (opamp_sender, opamp_receiver) = channel();
+
     let maybe_client = build_opamp_and_start_client(
-        ctx.clone(),
+        ctx,
         opamp_client_builder.as_ref(),
         &instance_id_getter,
         AgentID::new_super_agent_id(),
@@ -128,7 +136,7 @@ fn run_super_agent(
         &sub_agent_hash_repository,
         values_repository,
     )
-    .run(ctx)
+    .run(cancel_receiver, opamp_receiver)
 }
 
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
@@ -191,12 +199,10 @@ fn run_super_agent(
     .run(ctx)
 }
 
-fn create_shutdown_signal_handler(ctx: Context<Option<Event>>) -> Result<(), ctrlc::Error> {
-    ctrlc::set_handler(move || {
-        ctx.cancel_all(Some(SuperAgentEvent::StopRequested.into()))
-            .unwrap()
-    })
-    .map_err(|e| {
+fn create_shutdown_signal_handler(
+    ctx: EventPublisher<SuperAgentEvent>,
+) -> Result<(), ctrlc::Error> {
+    ctrlc::set_handler(move || ctx.publish(SuperAgentEvent::StopRequested)).map_err(|e| {
         error!("Could not set signal handler: {}", e);
         e
     })?;

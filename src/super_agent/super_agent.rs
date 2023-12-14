@@ -5,6 +5,7 @@ use crate::config::persister::directory_manager::DirectoryManagerFs;
 use crate::config::store::{SubAgentsConfigStore, SuperAgentConfigStoreFile};
 use crate::config::super_agent_configs::{AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig};
 use crate::context::Context;
+use crate::event::channel::EventConsumer;
 use crate::opamp::callbacks::AgentCallbacks;
 use crate::opamp::remote_config::{RemoteConfig, RemoteConfigError};
 use crate::opamp::remote_config_hash::{Hash, HashRepository, HashRepositoryFile};
@@ -96,7 +97,11 @@ where
         &self.agent_id
     }
 
-    pub fn run(self, ctx: Context<Option<Event>>) -> Result<(), AgentError> {
+    pub fn run(
+        self,
+        context: EventConsumer<SuperAgentEvent>,
+        opamp_consumer: EventConsumer<OpAMPEvent>,
+    ) -> Result<(), AgentError> {
         info!("Creating agent's communication channels");
         // Channel will be closed when tx is dropped and no reference to it is alive
         let (tx, rx) = mpsc::channel();
@@ -130,6 +135,8 @@ where
         info!("Starting the supervisor group.");
         // let effective_agents = self.load_effective_agents(&self.sub_agents_config_store.load()?)?;
         let sub_agents_config = &self.sub_agents_config_store.load()?;
+
+        let ctx = Context::new();
         let not_started_sub_agents = self.load_sub_agents(sub_agents_config, &tx, ctx.clone())?;
 
         // Run all the Sub Agents
