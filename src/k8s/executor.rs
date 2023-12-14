@@ -188,37 +188,6 @@ impl K8sExecutor {
             .find(|obj| obj.metadata.name.to_owned().is_some_and(|n| n.eq(name))))
     }
 
-    async fn delete_collection<K>(api: &Api<K>, label_selector: &str) -> Result<(), K8sError>
-    where
-        // TODO remove the 'static that has been added since is required by mockall.
-        K: Resource + Clone + DeserializeOwned + Debug + 'static,
-    {
-        match api
-            .delete_collection(
-                &DeleteParams::default(),
-                &ListParams {
-                    label_selector: Some(label_selector.to_string()),
-                    ..ListParams::default()
-                },
-            )
-            .await?
-        {
-            // List of objects being deleted.
-            either::Left(list) => {
-                debug!(
-                    "Deleting collection: {:?}",
-                    list.iter().map(ResourceExt::name_any).collect::<Vec<_>>()
-                );
-            }
-            // Status response of the deleted objects.
-            either::Right(status) => {
-                debug!("Deleted collection: status={:?}", status);
-            }
-        }
-
-        Ok(())
-    }
-
     pub async fn delete_dynamic_object_collection(
         &self,
         tm: TypeMeta,
@@ -233,13 +202,13 @@ impl K8sExecutor {
             )))?
             .object_api;
 
-        Self::delete_collection(api, label_selector).await
+        delete_collection(api, label_selector).await
     }
 
     pub async fn delete_configmap_collection(&self, label_selector: &str) -> Result<(), K8sError> {
         let api: Api<ConfigMap> = Api::<ConfigMap>::default_namespaced(self.client.clone());
 
-        Self::delete_collection(&api, label_selector).await
+        delete_collection(&api, label_selector).await
     }
 
     pub async fn get_configmap_key(
@@ -288,6 +257,38 @@ impl K8sExecutor {
             .await?;
         Ok(())
     }
+}
+
+//  delete_collection has been moved outside the executor to be able to use mockall in the executor
+//  without having to make K 'static.
+async fn delete_collection<K>(api: &Api<K>, label_selector: &str) -> Result<(), K8sError>
+where
+    K: Resource + Clone + DeserializeOwned + Debug,
+{
+    match api
+        .delete_collection(
+            &DeleteParams::default(),
+            &ListParams {
+                label_selector: Some(label_selector.to_string()),
+                ..ListParams::default()
+            },
+        )
+        .await?
+    {
+        // List of objects being deleted.
+        either::Left(list) => {
+            debug!(
+                "Deleting collection: {:?}",
+                list.iter().map(ResourceExt::name_any).collect::<Vec<_>>()
+            );
+        }
+        // Status response of the deleted objects.
+        either::Right(status) => {
+            debug!("Deleted collection: status={:?}", status);
+        }
+    }
+
+    Ok(())
 }
 
 pub fn get_name(obj: &DynamicObject) -> Result<String, K8sError> {
