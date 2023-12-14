@@ -46,12 +46,14 @@ fn template_trim(s: &str) -> &str {
         .trim_end_matches(TEMPLATE_END)
 }
 
-/// Returns an owned variable from the provided set if it exists, it returns an error otherwise.
-fn normalized_var(name: &str, variables: &NormalizedVariables) -> Result<EndSpec, AgentTypeError> {
-    Ok(variables
+/// Returns a variable reference from the provided set if it exists, it returns an error otherwise.
+fn normalized_var<'a>(
+    name: &str,
+    variables: &'a NormalizedVariables,
+) -> Result<&'a EndSpec, AgentTypeError> {
+    variables
         .get(name)
-        .ok_or(AgentTypeError::MissingTemplateKey(name.to_string()))?
-        .to_owned())
+        .ok_or(AgentTypeError::MissingTemplateKey(name.to_string()))
 }
 
 /// Returns a string with the first match of a variable replaced with the corresponding value
@@ -60,11 +62,12 @@ fn replace(
     re: &Regex,
     s: &str,
     var_name: &str,
-    normalized_var: EndSpec,
+    normalized_var: &EndSpec,
 ) -> Result<String, AgentTypeError> {
     let value = normalized_var
         .final_value
-        .or(normalized_var.default)
+        .clone()
+        .or(normalized_var.default.clone())
         .ok_or(AgentTypeError::MissingTemplateKey(var_name.to_string()))?
         .to_string();
     Ok(re.replace(s, value).to_string())
@@ -800,14 +803,14 @@ mod tests {
         let re = template_re();
         assert_eq!(
             "Value-${other}".to_string(),
-            replace(re, "${any}-${other}", "any", value_var).unwrap()
+            replace(re, "${any}-${other}", "any", &value_var).unwrap()
         );
         assert_eq!(
             "Default-${other}".to_string(),
-            replace(re, "${any}-${other}", "any", default_var).unwrap()
+            replace(re, "${any}-${other}", "any", &default_var).unwrap()
         );
         let key = assert_matches!(
-            replace(re, "${any}-x", "any", neither_value_nor_default).err().unwrap(),
+            replace(re, "${any}-x", "any", &neither_value_nor_default).err().unwrap(),
             AgentTypeError::MissingTemplateKey(s) => s);
         assert_eq!("any".to_string(), key);
     }
