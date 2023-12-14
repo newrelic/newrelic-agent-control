@@ -9,7 +9,7 @@ where
     fn consume(&self) -> E;
 }
 
-pub trait EventPublisher<E>: Clone + Send + Sync
+pub trait EventPublisher<E>: Send + Sync
 where
     E: Send + Sync,
 {

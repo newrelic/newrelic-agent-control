@@ -34,7 +34,7 @@ pub trait OpAMPClientBuilder<CB: Callbacks> {
     // type StartedClient: StartedClient;
     fn build_and_start(
         &self,
-        ctx: impl EventPublisher<Event>,
+        ctx: impl EventPublisher<Event> + 'static,
         agent_id: AgentID,
         start_settings: StartSettings,
     ) -> Result<Self::Client, OpAMPClientBuilderError>;

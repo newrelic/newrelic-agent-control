@@ -24,7 +24,7 @@ use crate::opamp::callbacks::AgentCallbacks;
 use self::logger::AgentLog;
 use self::opamp::remote_config_publisher::SubAgentRemoteConfigPublisher;
 
-pub(crate) type SubAgentCallbacks<P> = AgentCallbacks<SubAgentRemoteConfigPublisher<P>>;
+pub(crate) type SubAgentCallbacks = AgentCallbacks<SubAgentRemoteConfigPublisher>;
 
 /// The Runner trait defines the entry-point interface for a supervisor. Exposes a run method that will start the supervised processes' execution.
 pub trait NotStartedSubAgent {
@@ -46,7 +46,7 @@ pub trait SubAgentBuilder {
         agent_id: AgentID,
         sub_agent_config: &SubAgentConfig,
         tx: std::sync::mpsc::Sender<AgentLog>,
-        ctx: impl EventPublisher<Event>,
+        ctx: impl EventPublisher<Event> + 'static,
     ) -> Result<Self::NotStartedSubAgent, error::SubAgentBuilderError>;
 }
 

@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::marker::PhantomData;
 
 #[cfg(unix)]
 use nix::unistd::gethostname;
@@ -39,28 +38,25 @@ use super::{
     },
 };
 
-pub struct OnHostSubAgentBuilder<'a, O, I, HR, A, P>
+pub struct OnHostSubAgentBuilder<'a, O, I, HR, A>
 where
-    O: OpAMPClientBuilder<SubAgentCallbacks<P>>,
+    O: OpAMPClientBuilder<SubAgentCallbacks>,
     I: InstanceIDGetter,
     // HR: HashRepository, // TODO??
     A: EffectiveAgentsAssembler,
-    P: EventPublisher<Event> + Sync + Send,
 {
     opamp_builder: Option<&'a O>,
     instance_id_getter: &'a I,
     hash_repository: &'a HR,
     effective_agent_assembler: &'a A,
-    pmarker: PhantomData<P>,
 }
 
-impl<'a, O, I, HR, A, P> OnHostSubAgentBuilder<'a, O, I, HR, A, P>
+impl<'a, O, I, HR, A> OnHostSubAgentBuilder<'a, O, I, HR, A>
 where
-    O: OpAMPClientBuilder<SubAgentCallbacks<P>>,
+    O: OpAMPClientBuilder<SubAgentCallbacks>,
     I: InstanceIDGetter,
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
-    P: EventPublisher<Event> + Sync + Send,
 {
     pub fn new(
         opamp_builder: Option<&'a O>,
@@ -73,26 +69,24 @@ where
             instance_id_getter,
             hash_repository,
             effective_agent_assembler,
-            pmarker: PhantomData,
         }
     }
 }
 
-impl<'a, O, I, HR, A, P> SubAgentBuilder for OnHostSubAgentBuilder<'a, O, I, HR, A, P>
+impl<'a, O, I, HR, A> SubAgentBuilder for OnHostSubAgentBuilder<'a, O, I, HR, A>
 where
-    O: OpAMPClientBuilder<SubAgentCallbacks<P>>,
+    O: OpAMPClientBuilder<SubAgentCallbacks>,
     I: InstanceIDGetter,
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
-    P: EventPublisher<Event> + Sync + Send,
 {
-    type NotStartedSubAgent = NotStartedSubAgentOnHost<O::Client, P>;
+    type NotStartedSubAgent = NotStartedSubAgentOnHost<O::Client>;
     fn build(
         &self,
         agent_id: AgentID,
         sub_agent_config: &SubAgentConfig,
         tx: std::sync::mpsc::Sender<AgentLog>,
-        ctx: impl EventPublisher<Event>,
+        ctx: impl EventPublisher<Event> + 'static,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
         let maybe_opamp_client = build_opamp_and_start_client(
             ctx,

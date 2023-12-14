@@ -1,4 +1,3 @@
-use std::marker::PhantomData;
 use std::thread::JoinHandle;
 
 use opamp_client;
@@ -7,8 +6,6 @@ use tracing::debug;
 
 use super::supervisor::command_supervisor::{NotStartedSupervisorOnHost, StartedSupervisorOnHost};
 use crate::config::super_agent_configs::AgentID;
-use crate::event::event::Event;
-use crate::event::EventPublisher;
 use crate::opamp::operations::stop_opamp_client;
 use crate::sub_agent::error::SubAgentError;
 
@@ -18,21 +15,18 @@ use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent, SubAgentCallbacks};
 // Not Started SubAgent On Host
 // C: OpAMP Client
 ////////////////////////////////////////////////////////////////////////////////////
-pub struct NotStartedSubAgentOnHost<C, P>
+pub struct NotStartedSubAgentOnHost<C>
 where
-    C: StartedClient<SubAgentCallbacks<P>>,
-    P: EventPublisher<Event> + Sync + Send,
+    C: StartedClient<SubAgentCallbacks>,
 {
     opamp_client: Option<C>,
     supervisors: Vec<NotStartedSupervisorOnHost>,
     agent_id: AgentID,
-    pmarker: PhantomData<P>,
 }
 
-impl<C, P> NotStartedSubAgentOnHost<C, P>
+impl<C> NotStartedSubAgentOnHost<C>
 where
-    C: StartedClient<SubAgentCallbacks<P>>,
-    P: EventPublisher<Event> + Sync + Send,
+    C: StartedClient<SubAgentCallbacks>,
 {
     pub fn new(
         agent_id: AgentID,
@@ -43,7 +37,6 @@ where
             opamp_client,
             supervisors,
             agent_id,
-            pmarker: PhantomData,
         })
     }
 
@@ -52,12 +45,11 @@ where
     }
 }
 
-impl<C, P> NotStartedSubAgent for NotStartedSubAgentOnHost<C, P>
+impl<C> NotStartedSubAgent for NotStartedSubAgentOnHost<C>
 where
-    C: StartedClient<SubAgentCallbacks<P>>,
-    P: EventPublisher<Event> + Sync + Send,
+    C: StartedClient<SubAgentCallbacks>,
 {
-    type StartedSubAgent = StartedSubAgentOnHost<C, P>;
+    type StartedSubAgent = StartedSubAgentOnHost<C>;
 
     fn run(self) -> Result<Self::StartedSubAgent, SubAgentError> {
         let started_supervisors = self
@@ -73,7 +65,6 @@ where
             opamp_client: self.opamp_client,
             supervisors: started_supervisors,
             agent_id: self.agent_id,
-            pmarker: PhantomData,
         };
 
         Ok(started_sub_agent)
@@ -84,21 +75,18 @@ where
 // Started SubAgent On Host
 // C: OpAMP Client
 ////////////////////////////////////////////////////////////////////////////////////
-pub struct StartedSubAgentOnHost<C, P>
+pub struct StartedSubAgentOnHost<C>
 where
-    C: StartedClient<SubAgentCallbacks<P>>,
-    P: EventPublisher<Event> + Sync + Send,
+    C: StartedClient<SubAgentCallbacks>,
 {
     opamp_client: Option<C>,
     supervisors: Vec<StartedSupervisorOnHost>,
     agent_id: AgentID,
-    pmarker: PhantomData<P>,
 }
 
-impl<C, P> StartedSubAgent for StartedSubAgentOnHost<C, P>
+impl<C> StartedSubAgent for StartedSubAgentOnHost<C>
 where
-    C: StartedClient<SubAgentCallbacks<P>>,
-    P: EventPublisher<Event> + Sync + Send,
+    C: StartedClient<SubAgentCallbacks>,
 {
     fn stop(self) -> Result<Vec<JoinHandle<()>>, SubAgentError> {
         let stopped_supervisors = self.supervisors.into_iter().map(|s| s.stop()).collect();

@@ -29,14 +29,11 @@ impl SuperAgentOpAMPHttpBuilder {
     }
 }
 
-impl<P> OpAMPClientBuilder<SuperAgentCallbacks<P>> for SuperAgentOpAMPHttpBuilder
-where
-    P: EventPublisher<Event>,
-{
-    type Client = StartedHttpClient<SuperAgentCallbacks<P>, HttpClientReqwest>;
+impl OpAMPClientBuilder<SuperAgentCallbacks> for SuperAgentOpAMPHttpBuilder {
+    type Client = StartedHttpClient<SuperAgentCallbacks, HttpClientReqwest>;
     fn build_and_start(
         &self,
-        ctx: impl EventPublisher<Event>,
+        ctx: impl EventPublisher<Event> + 'static,
         agent_id: AgentID,
         start_settings: StartSettings,
     ) -> Result<Self::Client, OpAMPClientBuilderError> {

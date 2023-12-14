@@ -14,7 +14,7 @@ use newrelic_super_agent::super_agent::error::AgentError;
 use newrelic_super_agent::super_agent::opamp::client_builder::SuperAgentOpAMPHttpBuilder;
 use newrelic_super_agent::super_agent::super_agent::{super_agent_fqn, SuperAgent};
 use newrelic_super_agent::utils::hostname::HostnameGetter;
-use newrelic_super_agent::{cli::Cli, context::Context, logging::Logging};
+use newrelic_super_agent::{cli::Cli, logging::Logging};
 use opamp_client::operation::settings::DescriptionValueType;
 use std::collections::HashMap;
 use std::error::Error;
@@ -46,12 +46,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
         return Ok(());
     }
 
-    info!("Creating the global context");
-    let ctx: Context<Option<Event>> = Context::new();
-
     info!("Creating the signal handler");
     let (tx, rx) = event_channel();
-    create_shutdown_signal_handler(tx)?;
+    create_shutdown_signal_handler(tx.clone())?;
 
     let mut super_agent_config_storer = SuperAgentConfigStoreFile::new(&cli.get_config_path());
 
@@ -70,8 +67,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     #[cfg(any(feature = "onhost", feature = "k8s"))]
     return Ok(run_super_agent(
         super_agent_config_storer,
-        ctx,
         rx,
+        tx,
         opamp_client_builder,
     )?);
 
@@ -82,8 +79,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
 #[cfg(feature = "onhost")]
 fn run_super_agent(
     config_storer: SuperAgentConfigStoreFile,
-    ctx: Context<Option<Event>>,
     rx: impl EventConsumer<Event>,
+    tx: impl EventPublisher<Event> + Clone + 'static,
     opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
 ) -> Result<(), AgentError> {
     use newrelic_super_agent::{
@@ -118,7 +115,7 @@ fn run_super_agent(
     info!("Starting the super agent");
     let values_repository = ValuesRepositoryFile::default();
     let maybe_client = build_opamp_and_start_client(
-        ctx.clone(),
+        tx.clone(),
         opamp_client_builder.as_ref(),
         &instance_id_getter,
         AgentID::new_super_agent_id(),
@@ -134,7 +131,7 @@ fn run_super_agent(
         &sub_agent_hash_repository,
         values_repository,
     )
-    .run(ctx, rx)
+    .run(rx, tx)
 }
 
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
