@@ -649,7 +649,9 @@ mod tests {
 
         let (super_agent_publisher, super_agent_consumer) = pub_sub();
 
-        super_agent_publisher.publish(SuperAgentEvent::StopRequested);
+        super_agent_publisher
+            .publish(SuperAgentEvent::StopRequested)
+            .unwrap();
 
         assert!(agent.run(super_agent_consumer, pub_sub()).is_ok())
     }
@@ -693,7 +695,9 @@ mod tests {
 
         let (super_agent_publisher, super_agent_consumer) = pub_sub();
 
-        super_agent_publisher.publish(SuperAgentEvent::StopRequested);
+        super_agent_publisher
+            .publish(SuperAgentEvent::StopRequested)
+            .unwrap();
 
         assert!(agent.run(super_agent_consumer, pub_sub()).is_ok())
     }
@@ -789,9 +793,13 @@ agents:
             )])),
         };
 
-        opamp_publisher.publish(OpAMPEvent::ValidRemoteConfigReceived(remote_config));
+        opamp_publisher
+            .publish(OpAMPEvent::ValidRemoteConfigReceived(remote_config))
+            .unwrap();
         sleep(Duration::from_millis(500));
-        super_agent_publisher.publish(SuperAgentEvent::StopRequested);
+        super_agent_publisher
+            .publish(SuperAgentEvent::StopRequested)
+            .unwrap();
 
         assert!(running_agent.join().is_ok())
     }

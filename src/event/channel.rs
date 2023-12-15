@@ -1,7 +1,14 @@
 use crossbeam::channel::{unbounded, Receiver, Sender};
+use thiserror::Error;
 
 pub struct EventConsumer<E>(Receiver<E>);
 pub struct EventPublisher<E>(Sender<E>);
+
+#[derive(Debug, Error)]
+pub enum EventPublisherError {
+    #[error("error while publishing event: {0}")]
+    SendError(String),
+}
 
 pub fn pub_sub<E>() -> (EventPublisher<E>, EventConsumer<E>) {
     let (s, r) = unbounded();
@@ -9,9 +16,10 @@ pub fn pub_sub<E>() -> (EventPublisher<E>, EventConsumer<E>) {
 }
 
 impl<E> EventPublisher<E> {
-    pub fn publish(&self, event: E) {
-        // TODO: remove unwrap
-        self.0.send(event).unwrap()
+    pub fn publish(&self, event: E) -> Result<(), EventPublisherError> {
+        self.0
+            .send(event)
+            .map_err(|err| EventPublisherError::SendError(err.to_string()))
     }
 }
 

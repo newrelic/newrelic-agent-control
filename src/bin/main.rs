@@ -200,7 +200,12 @@ fn run_super_agent(
 fn create_shutdown_signal_handler(
     publisher: EventPublisher<SuperAgentEvent>,
 ) -> Result<(), ctrlc::Error> {
-    ctrlc::set_handler(move || publisher.publish(SuperAgentEvent::StopRequested)).map_err(|e| {
+    ctrlc::set_handler(move || {
+        let _ = publisher
+            .publish(SuperAgentEvent::StopRequested)
+            .map_err(|_| error!("Could not send super agent stop request"));
+    })
+    .map_err(|e| {
         error!("Could not set signal handler: {}", e);
         e
     })?;
