@@ -66,8 +66,8 @@ fn replace(
 ) -> Result<String, AgentTypeError> {
     let value = normalized_var
         .final_value
-        .clone()
-        .or(normalized_var.default.clone())
+        .as_ref()
+        .or(normalized_var.default.as_ref())
         .ok_or(AgentTypeError::MissingTemplateKey(var_name.to_string()))?
         .to_string();
     Ok(re.replace(s, value).to_string())
