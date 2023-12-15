@@ -57,7 +57,7 @@ agents:
 
     // Expect that the current_agent is removed on the second call.
     gc.collect().await.unwrap();
-    let _result = api.get(agent_id).await.expect_err("CR should be removed");
+    api.get(agent_id).await.expect_err("CR should be removed");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -99,8 +99,7 @@ async fn k8s_garbage_collector_with_missing_kinds() {
     // Expects the GC to clean the "removed" agent CR.
     gc.collect().await.unwrap();
     let api: Api<Foo> = Api::namespaced(test.client.clone(), &test_ns);
-    let _result = api
-        .get(removed_agent_id)
+    api.get(removed_agent_id)
         .await
         .expect_err("fail garbage collecting removed agent");
 }
@@ -132,5 +131,5 @@ async fn k8s_garbage_collector_does_not_remove_super_agent() {
     // Expects the GC do not clean any resource related to the SA.
     gc.collect().await.unwrap();
     let api: Api<Foo> = Api::namespaced(test.client.clone(), &test_ns);
-    let _result = api.get(SUPER_AGENT_ID).await.expect("CR should exist");
+    api.get(SUPER_AGENT_ID).await.expect("CR should exist");
 }
