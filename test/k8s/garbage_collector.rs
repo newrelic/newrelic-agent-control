@@ -1,4 +1,5 @@
 use crate::common::{create_test_cr, foo_type_meta, Foo, K8sEnv, MockSuperAgentConfigLoader};
+use k8s_openapi::{api::core::v1::ConfigMap, Resource};
 use kube::{api::Api, core::TypeMeta};
 use mockall::Sequence;
 use newrelic_super_agent::{
@@ -50,7 +51,8 @@ agents:
         ),
     );
 
-    // Expects the GC to keep the agent cr which is in the config.
+    // Expects the GC to keep the agent cr which is in the config, event if looking for multiple kinds or that
+    // are missing in the cluster.
     gc.collect().await.unwrap();
     let api: Api<Foo> = Api::namespaced(test.client.clone(), &test_ns);
     let _result = api.get(agent_id).await.expect("CR should exist");
@@ -62,7 +64,7 @@ agents:
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[ignore = "needs k8s cluster"]
-async fn k8s_garbage_collector_with_missing_kinds() {
+async fn k8s_garbage_collector_with_missing_and_extra_kinds() {
     let mut test = K8sEnv::new().await;
     let test_ns = test.test_namespace().await;
 
@@ -84,12 +86,17 @@ async fn k8s_garbage_collector_with_missing_kinds() {
         kind: "Missing".to_string(),
     };
 
+    let existing_kind = TypeMeta {
+        api_version: ConfigMap::API_VERSION.to_string(),
+        kind: ConfigMap::KIND.to_string(),
+    };
+
     let gc = NotStartedK8sGarbageCollector::new(
         Arc::new(config_loader),
         Arc::new(
             K8sExecutor::try_new_with_reflectors(
                 test_ns.to_string(),
-                vec![foo_type_meta(), missing_kind],
+                vec![foo_type_meta(), existing_kind, missing_kind],
             )
             .await
             .unwrap(),
