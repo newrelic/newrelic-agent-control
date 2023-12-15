@@ -27,7 +27,6 @@ use crate::super_agent::super_agent::EffectiveAgentsError::{
 };
 use crossbeam::select;
 use futures::executor::block_on;
-use opamp_client::opamp::proto::{RemoteConfigStatus, RemoteConfigStatuses};
 use opamp_client::StartedClient;
 use std::collections::HashMap;
 use std::string::ToString;
@@ -55,7 +54,7 @@ pub struct SuperAgent<
     S: SubAgentBuilder,
     VR: ValuesRepository,
 {
-    opamp_client: Option<O>,
+    pub(super) opamp_client: Option<O>,
     sub_agent_builder: S,
     remote_config_hash_repository: &'a HR,
     agent_id: AgentID,
@@ -141,13 +140,7 @@ where
 
         // Run all the Sub Agents
         let running_sub_agents = not_started_sub_agents.run()?;
-        self.process_events(
-            super_agent_events,
-            opamp_pub_sub,
-            running_sub_agents,
-            tx,
-            &self.opamp_client,
-        )?;
+        self.process_events(super_agent_events, opamp_pub_sub, running_sub_agents, tx)?;
 
         if let Some(handle) = self.opamp_client {
             info!("Stopping and setting to unhealthy the OpAMP Client");
@@ -251,7 +244,6 @@ where
             <<S as SubAgentBuilder>::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
         tx: Sender<AgentLog>,
-        maybe_opamp_client: &Option<O>,
     ) -> Result<(), AgentError> {
         let (opamp_publisher, opamp_consumer) = (opamp_pub_sub.0, opamp_pub_sub.1);
         loop {
@@ -261,14 +253,7 @@ where
                         OpAMPEvent::InvalidRemoteConfigReceived(
                             remote_config_error,
                         ) => {
-                            if let Some(opamp_client) = &maybe_opamp_client {
-                                self.process_super_agent_remote_config_error(
-                                    opamp_client,
-                                    remote_config_error,
-                                )?;
-                            } else {
-                                unreachable!("got remote config without OpAMP being enabled")
-                            }
+                            self.invalid_remote_config(remote_config_error)?
                         }
                         OpAMPEvent::ValidRemoteConfigReceived(mut remote_config) => {
                             // TODO This condition should be removed to subagent event loop
@@ -282,7 +267,7 @@ where
                                 break;
                             }
 
-                            if let Some(opamp_client) = &maybe_opamp_client {
+                            if let Some(opamp_client) = &self.opamp_client {
                                 self.process_super_agent_remote_config(
                                     opamp_client,
                                     &mut remote_config,
@@ -408,24 +393,6 @@ where
                 opamp_client,
                 &remote_config.hash,
             )?)
-        }
-    }
-
-    // Super Agent on remote config
-    fn process_super_agent_remote_config_error(
-        &self,
-        opamp_client: &O,
-        remote_config_err: RemoteConfigError,
-    ) -> Result<(), AgentError> {
-        if let RemoteConfigError::InvalidConfig(hash, error) = remote_config_err {
-            block_on(opamp_client.set_remote_config_status(RemoteConfigStatus {
-                last_remote_config_hash: hash.into_bytes(),
-                error_message: error,
-                status: RemoteConfigStatuses::Failed as i32,
-            }))?;
-            Ok(())
-        } else {
-            unreachable!()
         }
     }
 
