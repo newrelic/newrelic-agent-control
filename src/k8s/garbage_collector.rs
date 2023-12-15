@@ -51,7 +51,7 @@ impl Drop for K8sGarbageCollectorStarted {
 
 impl<S> NotStartedK8sGarbageCollector<S>
 where
-    S: SuperAgentConfigLoader + std::marker::Sync + std::marker::Send + 'static,
+    S: SuperAgentConfigLoader + std::marker::Sync + std::marker::Send,
 {
     pub fn new(config_store: Arc<S>, k8s_executor: Arc<K8sExecutor>) -> Self {
         NotStartedK8sGarbageCollector {
@@ -121,11 +121,10 @@ where
 
     fn garbage_label_selector(agent_list: Vec<AgentID>) -> String {
         // We add SUPER_AGENT_ID to prevent removing any resource related to it.
-        let mut id_list = String::from(super_agent::defaults::SUPER_AGENT_ID);
-
-        for id in agent_list.iter() {
-            id_list.push_str(format!(",{id}").as_str());
-        }
+        let id_list = agent_list.iter().fold(
+            super_agent::defaults::SUPER_AGENT_ID.to_string(),
+            |acc, id| format!("{acc},{id}"),
+        );
 
         format!(
             "{},{AGENT_ID_LABEL_KEY} notin ({id_list})",
