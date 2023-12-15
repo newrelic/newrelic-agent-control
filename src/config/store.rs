@@ -26,10 +26,6 @@ pub enum SubAgentsConfigStoreError {
     SerdeYamlError(#[from] serde_yaml::Error),
 }
 
-pub trait SuperAgentConfigStorer {
-    fn store(&self, config: SuperAgentConfig) -> Result<SuperAgentConfig, SuperAgentConfigError>;
-}
-
 #[cfg_attr(test, mockall::automock)]
 pub trait SuperAgentConfigLoader {
     fn load(&self) -> Result<SuperAgentConfig, SuperAgentConfigError>;
@@ -57,11 +53,6 @@ impl SuperAgentConfigLoader for SuperAgentConfigStoreFile {
     }
 }
 
-impl SuperAgentConfigStorer for SuperAgentConfigStoreFile {
-    fn store(&self, _config: SuperAgentConfig) -> Result<SuperAgentConfig, SuperAgentConfigError> {
-        unimplemented!()
-    }
-}
 impl SubAgentsConfigLoader for SuperAgentConfigStoreFile {
     fn load(&self) -> Result<SubAgentsConfig, SuperAgentConfigError> {
         Ok(self._load_config()?.agents)
@@ -163,13 +154,13 @@ pub(crate) mod tests {
     mock! {
         pub SubAgentsConfigStore {}
 
-        impl super::SubAgentsConfigStorer for SubAgentsConfigStore {
+        impl SubAgentsConfigStorer for SubAgentsConfigStore {
             fn store(&self, config: &SubAgentsConfig) -> Result<(), SuperAgentConfigError>;
         }
-        impl super::SubAgentsConfigLoader for SubAgentsConfigStore {
+        impl SubAgentsConfigLoader for SubAgentsConfigStore {
             fn load(&self) -> Result<SubAgentsConfig, SuperAgentConfigError>;
         }
-        impl super::SubAgentsConfigDeleter for SubAgentsConfigStore {
+        impl SubAgentsConfigDeleter for SubAgentsConfigStore {
             fn delete(&self) -> Result<(), SuperAgentConfigError>;
         }
     }
