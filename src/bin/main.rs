@@ -78,7 +78,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 #[cfg(feature = "onhost")]
 fn run_super_agent(
     config_storer: SuperAgentConfigStoreFile,
-    cancel_receiver: EventConsumer<SuperAgentEvent>,
+    super_agent_consumer: EventConsumer<SuperAgentEvent>,
     opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
 ) -> Result<(), AgentError> {
     use newrelic_super_agent::{
@@ -132,13 +132,13 @@ fn run_super_agent(
         &sub_agent_hash_repository,
         values_repository,
     )
-    .run(cancel_receiver, (opamp_publisher, opamp_consumer))
+    .run(super_agent_consumer, (opamp_publisher, opamp_consumer))
 }
 
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
 fn run_super_agent(
     config_storer: SuperAgentConfigStoreFile,
-    cancel_receiver: EventConsumer<SuperAgentEvent>,
+    super_agent_consumer: EventConsumer<SuperAgentEvent>,
     opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
 ) -> Result<(), AgentError> {
     use newrelic_super_agent::{
@@ -194,7 +194,7 @@ fn run_super_agent(
         &sub_agent_hash_repository,
         values_repository,
     )
-    .run(cancel_receiver, (opamp_publisher, opamp_consumer))
+    .run(super_agent_consumer, (opamp_publisher, opamp_consumer))
 }
 
 fn create_shutdown_signal_handler(
