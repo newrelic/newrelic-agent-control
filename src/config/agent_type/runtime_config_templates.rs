@@ -5,7 +5,7 @@ use regex::Regex;
 use tracing::warn;
 
 use super::{
-    agent_types::NormalizedVariables,
+    agent_types::{EndSpec, NormalizedVariables, VariableType},
     error::AgentTypeError,
     restart_policy::{BackoffStrategyConfig, RestartPolicyConfig},
     runtime_config::{Deployment, Executable, K8s, K8sObject, OnHost, RuntimeConfig},
@@ -35,6 +35,44 @@ fn template_re() -> &'static Regex {
     RE_ONCE.get_or_init(|| Regex::new(TEMPLATE_RE).unwrap())
 }
 
+fn only_template_var_re() -> &'static Regex {
+    static ONLY_RE_ONCE: OnceLock<Regex> = OnceLock::new();
+    ONLY_RE_ONCE.get_or_init(|| Regex::new(format!("^{TEMPLATE_RE}$").as_str()).unwrap())
+}
+
+/// Returns a string slice with the template's begin and end trimmed.
+fn template_trim(s: &str) -> &str {
+    s.trim_start_matches(TEMPLATE_BEGIN)
+        .trim_end_matches(TEMPLATE_END)
+}
+
+/// Returns a variable reference from the provided set if it exists, it returns an error otherwise.
+fn normalized_var<'a>(
+    name: &str,
+    variables: &'a NormalizedVariables,
+) -> Result<&'a EndSpec, AgentTypeError> {
+    variables
+        .get(name)
+        .ok_or(AgentTypeError::MissingTemplateKey(name.to_string()))
+}
+
+/// Returns a string with the first match of a variable replaced with the corresponding value
+/// (according to the provided normalized variable).
+fn replace(
+    re: &Regex,
+    s: &str,
+    var_name: &str,
+    normalized_var: &EndSpec,
+) -> Result<String, AgentTypeError> {
+    let value = normalized_var
+        .final_value
+        .as_ref()
+        .or(normalized_var.default.as_ref())
+        .ok_or(AgentTypeError::MissingTemplateKey(var_name.to_string()))?
+        .to_string();
+    Ok(re.replace(s, value).to_string())
+}
+
 pub trait Templateable {
     fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError>
     where
@@ -61,30 +99,12 @@ impl Templateable for String {
 
 fn template_string(s: String, variables: &NormalizedVariables) -> Result<String, AgentTypeError> {
     let re = template_re();
-
-    let result = re
-        .find_iter(&s)
+    re.find_iter(&s)
         .map(|i| i.as_str())
         .try_fold(s.clone(), |r, i| {
-            let trimmed_s = i
-                .trim_start_matches(TEMPLATE_BEGIN)
-                .trim_end_matches(TEMPLATE_END);
-            if !variables.contains_key(trimmed_s) {
-                return Err(AgentTypeError::MissingTemplateKey(trimmed_s.to_string()));
-            }
-            let replacement = variables[trimmed_s].clone();
-            Ok(re
-                .replace(
-                    &r,
-                    replacement
-                        .final_value
-                        .or(replacement.default)
-                        .ok_or(AgentTypeError::MissingTemplateKey(trimmed_s.to_string()))?
-                        .to_string(),
-                )
-                .to_string())
-        });
-    result
+            let var_name = template_trim(i);
+            replace(re, &r, var_name, normalized_var(var_name, variables)?)
+        })
 }
 
 impl Templateable for OnHost {
@@ -185,25 +205,35 @@ impl Templateable for serde_yaml::Sequence {
     }
 }
 
+/// Templates yaml strings as [serde_yaml::Value].
+/// When all the string content is a variable template, the corresponding variable type is checked
+/// and the value is handled as needed. Otherwise, it is templated as a regular string. Example:
+///
+/// ```yaml
+/// key1: ${var} # The var type is checked and the expanded value might not be a string.
+/// # The examples below are always templated as string, regardless of the variable type.
+/// key2: this-${var}
+/// key3: ${var}${var}
+/// ```
 fn template_yaml_value_string(
-    st: String,
+    s: String,
     variables: &NormalizedVariables,
 ) -> Result<serde_yaml::Value, AgentTypeError> {
-    let templated = template_string(st, variables)?;
-    /*
-    // TODO: All templated values are a YAML String, but the result does not have to be a string.
-    ```yaml
-    test: ${value}
-    ```
-    Given the YAML above, if `value` is `1` the result is `"1"`, not a `1` (integer).
-    We will have to be careful to cast because there are many reason se do not want to change the type from string
-    to int, like in Kubernetes annotations that are a map[string]string and refuses to cast booleans of integers to
-    string.
-
-    In a future we might want to do a spike to support Tagged values: https://docs.rs/serde_yaml/latest/serde_yaml/enum.Value.html#variant.Tagged
-
-    For now, as a first iteration, we simply return a string and template a string.
-    */
+    let re = only_template_var_re();
+    if re.is_match(s.as_str()) {
+        let var_name = template_trim(s.as_str());
+        let replacement = normalized_var(var_name, variables)?;
+        let templated = replace(re, s.as_str(), var_name, replacement)?;
+        match replacement.type_ {
+            VariableType::Bool | VariableType::Number => {
+                return serde_yaml::from_str(templated.as_str()).map_err(AgentTypeError::SerdeYaml);
+            }
+            _ => {
+                return Ok(serde_yaml::Value::String(templated));
+            }
+        }
+    }
+    let templated = template_string(s, variables)?;
     Ok(serde_yaml::Value::String(templated))
 }
 
@@ -255,6 +285,8 @@ impl Templateable for RuntimeConfig {
 
 #[cfg(test)]
 mod tests {
+    use assert_matches::assert_matches;
+
     use crate::config::agent_type::restart_policy::{BackoffDuration, BackoffStrategyType};
     use crate::config::agent_type::trivial_value::N::PosInt;
     use crate::config::agent_type::{
@@ -264,6 +296,19 @@ mod tests {
     };
 
     use super::*;
+
+    impl EndSpec {
+        fn default_with_type(type_: VariableType) -> Self {
+            Self {
+                type_,
+                final_value: None,
+                default: None,
+                description: String::default(),
+                required: false,
+                file_path: None,
+            }
+        }
+    }
 
     #[test]
     fn test_template_string() {
@@ -428,33 +473,21 @@ mod tests {
                 "change.me.string".to_string(),
                 EndSpec {
                     final_value: Some(TrivialValue::String("CHANGED-STRING".to_string())),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::String,
-                    file_path: None,
+                    ..EndSpec::default_with_type(VariableType::String)
                 },
             ),
             (
                 "change.me.bool".to_string(),
                 EndSpec {
                     final_value: Some(TrivialValue::Bool(true)),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::Bool,
-                    file_path: None,
+                    ..EndSpec::default_with_type(VariableType::Bool)
                 },
             ),
             (
                 "change.me.number".to_string(),
                 EndSpec {
                     final_value: Some(TrivialValue::Number(PosInt(42))),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::Number,
-                    file_path: None,
+                    ..EndSpec::default_with_type(VariableType::Number)
                 },
             ),
         ]);
@@ -472,8 +505,8 @@ mod tests {
         let expected_output: serde_yaml::Mapping = serde_yaml::from_str(
             r#"
         a_string: "CHANGED-STRING"
-        a_boolean: "true"  # TODO: This test should break in a future iteration.
-        a_number: "42"  # TODO: This test should break in a future iteration.
+        a_boolean: true
+        a_number: 42
         ${change.me.string}: "Do not scape me"
         ${change.me.bool}: "Do not scape me"
         ${change.me.number}: "Do not scape me"
@@ -492,33 +525,21 @@ mod tests {
                 "change.me.string".to_string(),
                 EndSpec {
                     final_value: Some(TrivialValue::String("CHANGED-STRING".to_string())),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::String,
-                    file_path: None,
+                    ..EndSpec::default_with_type(VariableType::String)
                 },
             ),
             (
                 "change.me.bool".to_string(),
                 EndSpec {
                     final_value: Some(TrivialValue::Bool(true)),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::Bool,
-                    file_path: None,
+                    ..EndSpec::default_with_type(VariableType::Bool)
                 },
             ),
             (
                 "change.me.number".to_string(),
                 EndSpec {
                     final_value: Some(TrivialValue::Number(PosInt(42))),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::Number,
-                    file_path: None,
+                    ..EndSpec::default_with_type(VariableType::Number)
                 },
             ),
         ]);
@@ -534,8 +555,8 @@ mod tests {
         let expected_output: serde_yaml::Sequence = serde_yaml::from_str(
             r#"
         - CHANGED-STRING
-        - "true" # TODO: This test should break in a future iteration.
-        - "42" # TODO: This test should break in a future iteration.
+        - true
+        - 42
         - Do not scape me
         "#,
         )
@@ -552,33 +573,21 @@ mod tests {
                 "change.me.string".to_string(),
                 EndSpec {
                     final_value: Some(TrivialValue::String("CHANGED-STRING".to_string())),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::String,
-                    file_path: None,
+                    ..EndSpec::default_with_type(VariableType::String)
                 },
             ),
             (
                 "change.me.bool".to_string(),
                 EndSpec {
                     final_value: Some(TrivialValue::Bool(true)),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::Bool,
-                    file_path: None,
+                    ..EndSpec::default_with_type(VariableType::Bool)
                 },
             ),
             (
                 "change.me.number".to_string(),
                 EndSpec {
                     final_value: Some(TrivialValue::Number(PosInt(42))),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::Number,
-                    file_path: None,
+                    ..EndSpec::default_with_type(VariableType::Number)
                 },
             ),
         ]);
@@ -596,8 +605,8 @@ mod tests {
         let expected_output: serde_yaml::Value = serde_yaml::from_str(
             r#"
         a_string: "CHANGED-STRING"
-        a_boolean: "true"  # TODO: This test should break in a future iteration.
-        a_number: "42"  # TODO: This test should break in a future iteration.
+        a_boolean: true
+        a_number: 42
         ${change.me.string}: Do not scape me
         ${change.me.bool}: Do not scape me
         ${change.me.number}: Do not scape me
@@ -616,33 +625,21 @@ mod tests {
                 "change.me.string".to_string(),
                 EndSpec {
                     final_value: Some(TrivialValue::String("CHANGED-STRING".to_string())),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::String,
-                    file_path: None,
+                    ..EndSpec::default_with_type(VariableType::String)
                 },
             ),
             (
                 "change.me.bool".to_string(),
                 EndSpec {
                     final_value: Some(TrivialValue::Bool(true)),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::Bool,
-                    file_path: None,
+                    ..EndSpec::default_with_type(VariableType::Bool)
                 },
             ),
             (
                 "change.me.number".to_string(),
                 EndSpec {
                     final_value: Some(TrivialValue::Number(PosInt(42))),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::Number,
-                    file_path: None,
+                    ..EndSpec::default_with_type(VariableType::Number)
                 },
             ),
         ]);
@@ -671,25 +668,149 @@ mod tests {
             r#"
         an_object:
             a_string: "CHANGED-STRING"
-            a_boolean: "true"  # TODO: This test should break in a future iteration.
-            a_number: "42"  # TODO: This test should break in a future iteration.
+            a_boolean: true
+            a_number: 42
         a_sequence:
             - "CHANGED-STRING"
-            - "true"  # TODO: This test should break in a future iteration.
-            - "42"  # TODO: This test should break in a future iteration.
+            - true
+            - 42
         a_nested_object:
             with_nested_sequence:
                 - a_string: "CHANGED-STRING"
-                - a_boolean: "true"  # TODO: This test should break in a future iteration.
-                - a_number: "42"  # TODO: This test should break in a future iteration.
+                - a_boolean: true
+                - a_number: 42
         a_string: "CHANGED-STRING"
-        a_boolean: "true"  # TODO: This test should break in a future iteration.
-        a_number: "42"  # TODO: This test should break in a future iteration.
+        a_boolean: true
+        a_number: 42
         "#,
         )
         .unwrap();
 
         let actual_output: serde_yaml::Value = input.template_with(&variables).unwrap();
         assert_eq!(actual_output, expected_output);
+    }
+
+    #[test]
+    fn test_template_yaml_value_string() {
+        let variables = NormalizedVariables::from([
+            (
+                "simple.string.var".to_string(),
+                EndSpec {
+                    final_value: Some(TrivialValue::String("Value".into())),
+                    ..EndSpec::default_with_type(VariableType::String)
+                },
+            ),
+            (
+                "string.with.yaml.var".to_string(),
+                EndSpec {
+                    final_value: Some(TrivialValue::String("[Value]".into())),
+                    ..EndSpec::default_with_type(VariableType::String)
+                },
+            ),
+            (
+                "bool.var".to_string(),
+                EndSpec {
+                    final_value: Some(TrivialValue::Bool(true)),
+                    ..EndSpec::default_with_type(VariableType::Bool)
+                },
+            ),
+            (
+                "number.var".to_string(),
+                EndSpec {
+                    final_value: Some(TrivialValue::Number(PosInt(42))),
+                    ..EndSpec::default_with_type(VariableType::Number)
+                },
+            ),
+        ]);
+
+        assert_eq!(
+            serde_yaml::Value::String("Value".into()),
+            template_yaml_value_string("${simple.string.var}".into(), &variables).unwrap()
+        );
+        assert_eq!(
+            serde_yaml::Value::String("var=Value".into()),
+            template_yaml_value_string("var=${simple.string.var}".into(), &variables).unwrap()
+        );
+        assert_eq!(
+            serde_yaml::Value::String("ValueValue".into()),
+            template_yaml_value_string(
+                "${simple.string.var}${simple.string.var}".into(),
+                &variables
+            )
+            .unwrap()
+        );
+        assert_eq!(
+            serde_yaml::Value::String("[Value]".into()),
+            template_yaml_value_string("${string.with.yaml.var}".into(), &variables).unwrap()
+        );
+        // bool and number values are got when the corresponding variable is "alone".
+        assert_eq!(
+            serde_yaml::Value::Bool(true),
+            template_yaml_value_string("${bool.var}".into(), &variables).unwrap()
+        );
+        assert_eq!(
+            serde_yaml::Value::Number(serde_yaml::Number::try_from(42i32).unwrap()),
+            template_yaml_value_string("${number.var}".into(), &variables).unwrap()
+        );
+        assert_eq!(
+            serde_yaml::Value::String("truetrue".into()),
+            template_yaml_value_string("${bool.var}${bool.var}".into(), &variables).unwrap()
+        );
+        assert_eq!(
+            serde_yaml::Value::String("true42".into()),
+            template_yaml_value_string("${bool.var}${number.var}".into(), &variables).unwrap()
+        );
+        assert_eq!(
+            serde_yaml::Value::String("the 42 Value is true".into()),
+            template_yaml_value_string(
+                "the ${number.var} ${simple.string.var} is ${bool.var}".into(),
+                &variables
+            )
+            .unwrap()
+        );
+    }
+
+    #[test]
+    fn test_normalized_var() {
+        let variables = NormalizedVariables::from([(
+            "var.name".to_string(),
+            EndSpec::default_with_type(VariableType::String),
+        )]);
+
+        assert_eq!(
+            normalized_var("var.name", &variables).unwrap().type_,
+            VariableType::String
+        );
+        let key = assert_matches!(
+            normalized_var("does.not.exists", &variables).err().unwrap(),
+            AgentTypeError::MissingTemplateKey(s) => s);
+        assert_eq!("does.not.exists".to_string(), key);
+    }
+
+    #[test]
+    fn test_replace() {
+        let value_var = EndSpec {
+            final_value: Some(TrivialValue::String("Value".into())),
+            ..EndSpec::default_with_type(VariableType::String)
+        };
+        let default_var = EndSpec {
+            default: Some(TrivialValue::String("Default".into())),
+            ..EndSpec::default_with_type(VariableType::String)
+        };
+        let neither_value_nor_default = EndSpec::default_with_type(VariableType::String);
+
+        let re = template_re();
+        assert_eq!(
+            "Value-${other}".to_string(),
+            replace(re, "${any}-${other}", "any", &value_var).unwrap()
+        );
+        assert_eq!(
+            "Default-${other}".to_string(),
+            replace(re, "${any}-${other}", "any", &default_var).unwrap()
+        );
+        let key = assert_matches!(
+            replace(re, "${any}-x", "any", &neither_value_nor_default).err().unwrap(),
+            AgentTypeError::MissingTemplateKey(s) => s);
+        assert_eq!("any".to_string(), key);
     }
 }
