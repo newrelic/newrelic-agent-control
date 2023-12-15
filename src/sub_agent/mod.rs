@@ -92,7 +92,7 @@ pub mod test {
                 agent_id: AgentID,
                 sub_agent_config: &SubAgentConfig,
                 tx: std::sync::mpsc::Sender<AgentLog>,
-                ctx: Context<Option<Event>>,
+                opamp_publisher: EventPublisher<OpAMPEvent>,
             ) -> Result<<Self as SubAgentBuilder>::NotStartedSubAgent, error::SubAgentBuilderError>;
         }
     }

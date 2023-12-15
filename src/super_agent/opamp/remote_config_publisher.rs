@@ -1,6 +1,5 @@
 use crate::event::channel::EventPublisher;
 use crate::event::event::OpAMPEvent;
-use crate::event::Publisher;
 use crate::opamp::remote_config::{RemoteConfig, RemoteConfigError};
 use crate::opamp::remote_config_publisher::{RemoteConfigPublisher, RemoteConfigPublisherError};
 

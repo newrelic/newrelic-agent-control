@@ -188,6 +188,7 @@ mod test {
         settings::{AgentDescription, DescriptionValueType, StartSettings},
     };
 
+    use crate::event::channel::pub_sub;
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
     use crate::opamp::remote_config_hash::test::MockHashRepositoryMock;
@@ -205,7 +206,7 @@ mod test {
 
     #[test]
     fn build_start_stop() {
-        let ctx = Context::new();
+        let (opamp_publisher, _opamp_consumer) = pub_sub();
         let mut opamp_builder = MockOpAMPClientBuilderMock::new();
         let hostname = gethostname().unwrap_or_default().into_string().unwrap();
         let start_settings_infra = infra_agent_default_start_settings(&hostname);
@@ -259,7 +260,7 @@ mod test {
         let (tx, _rx) = channel();
 
         assert!(on_host_builder
-            .build(sub_agent_id, &sub_agent_config, tx, ctx)
+            .build(sub_agent_id, &sub_agent_config, tx, opamp_publisher)
             .unwrap()
             .run()
             .unwrap()
@@ -269,7 +270,7 @@ mod test {
 
     #[test]
     fn test_builder_should_report_failed_config() {
-        let ctx = Context::new();
+        let (opamp_publisher, _opamp_consumer) = pub_sub();
         let (tx, _rx) = channel();
         // Mocks
         let mut opamp_builder = MockOpAMPClientBuilderMock::new();
@@ -325,7 +326,7 @@ mod test {
         );
 
         assert!(on_host_builder
-            .build(sub_agent_id, &sub_agent_config, tx, ctx)
+            .build(sub_agent_id, &sub_agent_config, tx, opamp_publisher)
             .is_ok());
     }
 

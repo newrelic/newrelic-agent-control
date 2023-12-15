@@ -1,7 +1,6 @@
 use newrelic_super_agent::config::store::{SuperAgentConfigStore, SuperAgentConfigStoreFile};
-use newrelic_super_agent::event::channel::{channel, EventConsumer, EventPublisher};
+use newrelic_super_agent::event::channel::{pub_sub, EventConsumer, EventPublisher};
 use newrelic_super_agent::event::event::SuperAgentEvent;
-use newrelic_super_agent::event::Publisher;
 #[cfg(feature = "k8s")]
 use newrelic_super_agent::opamp::instance_id;
 use newrelic_super_agent::opamp::instance_id::getter::ULIDInstanceIDGetter;
@@ -46,10 +45,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 
     info!("Creating the global context");
-    let (cancel_sender, cancel_receiver) = channel();
+    let (super_agent_publisher, super_agent_consumer) = pub_sub();
 
     info!("Creating the signal handler");
-    create_shutdown_signal_handler(cancel_sender)?;
+    create_shutdown_signal_handler(super_agent_publisher)?;
 
     let mut super_agent_config_storer = SuperAgentConfigStoreFile::new(&cli.get_config_path());
 
@@ -68,7 +67,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     #[cfg(any(feature = "onhost", feature = "k8s"))]
     return Ok(run_super_agent(
         super_agent_config_storer,
-        cancel_receiver,
+        super_agent_consumer,
         opamp_client_builder,
     )?);
 
@@ -114,10 +113,10 @@ fn run_super_agent(
     info!("Starting the super agent");
     let values_repository = ValuesRepositoryFile::default();
 
-    let (opamp_sender, opamp_receiver) = channel();
+    let (opamp_publisher, opamp_consumer) = pub_sub();
 
     let maybe_client = build_opamp_and_start_client(
-        opamp_sender.clone(),
+        opamp_publisher.clone(),
         opamp_client_builder.as_ref(),
         &instance_id_getter,
         AgentID::new_super_agent_id(),
@@ -133,7 +132,7 @@ fn run_super_agent(
         &sub_agent_hash_repository,
         values_repository,
     )
-    .run(cancel_receiver, opamp_receiver, opamp_sender)
+    .run(cancel_receiver, (opamp_publisher, opamp_consumer))
 }
 
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
@@ -197,9 +196,9 @@ fn run_super_agent(
 }
 
 fn create_shutdown_signal_handler(
-    ctx: EventPublisher<SuperAgentEvent>,
+    publisher: EventPublisher<SuperAgentEvent>,
 ) -> Result<(), ctrlc::Error> {
-    ctrlc::set_handler(move || ctx.publish(SuperAgentEvent::StopRequested)).map_err(|e| {
+    ctrlc::set_handler(move || publisher.publish(SuperAgentEvent::StopRequested)).map_err(|e| {
         error!("Could not set signal handler: {}", e);
         e
     })?;

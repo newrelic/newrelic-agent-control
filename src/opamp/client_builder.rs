@@ -159,7 +159,7 @@ pub(crate) mod test {
 
         impl<C> OpAMPClientBuilder<C> for OpAMPClientBuilderMock<C> where C: Callbacks + Send + Sync + 'static{
             type Client = MockStartedOpAMPClientMock<C>;
-            fn build_and_start(&self, ctx: Context<Option<Event>>, agent_id: AgentID, start_settings: StartSettings) -> Result<<Self as OpAMPClientBuilder<C>>::Client, OpAMPClientBuilderError>;
+            fn build_and_start(&self, opamp_publisher: EventPublisher<OpAMPEvent>, agent_id: AgentID, start_settings: StartSettings) -> Result<<Self as OpAMPClientBuilder<C>>::Client, OpAMPClientBuilderError>;
         }
     }
 
@@ -174,7 +174,7 @@ pub(crate) mod test {
             returning: F,
         ) where
             F: FnMut(
-                    Context<Option<Event>>,
+                    EventPublisher<OpAMPEvent>,
                     AgentID,
                     StartSettings,
                 )
