@@ -17,7 +17,7 @@ use crate::sub_agent::error::SubAgentBuilderError;
 use crate::sub_agent::logger::{AgentLog, EventLogger, StdEventReceiver};
 use crate::sub_agent::SubAgentBuilder;
 
-use crate::event::event::{OpAMPEvent, SuperAgentEvent};
+use crate::event::{OpAMPEvent, SuperAgentEvent};
 use crate::sub_agent::values::values_repository::{ValuesRepository, ValuesRepositoryFile};
 use crate::sub_agent::{error::SubAgentError, NotStartedSubAgent};
 use crate::super_agent::defaults::{SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION};
@@ -562,7 +562,7 @@ mod tests {
         AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig,
     };
     use crate::event::channel::pub_sub;
-    use crate::event::event::{OpAMPEvent, SuperAgentEvent};
+    use crate::event::{OpAMPEvent, SuperAgentEvent};
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::remote_config::{ConfigMap, RemoteConfig};
     use crate::opamp::remote_config_hash::test::MockHashRepositoryMock;

@@ -5,7 +5,7 @@ use nix::unistd::gethostname;
 
 use crate::config::super_agent_configs::SubAgentConfig;
 use crate::event::channel::EventPublisher;
-use crate::event::event::OpAMPEvent;
+use crate::event::OpAMPEvent;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_opamp_and_start_client;
 use crate::opamp::remote_config_hash::HashRepository;

@@ -10,7 +10,7 @@ use tracing::error;
 use crate::config::super_agent_configs::{AgentID, OpAMPClientConfig};
 
 use crate::event::channel::EventPublisher;
-use crate::event::event::OpAMPEvent;
+use crate::event::OpAMPEvent;
 use crate::opamp::instance_id;
 
 #[derive(Error, Debug)]

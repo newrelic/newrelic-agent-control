@@ -18,7 +18,7 @@ use std::thread::JoinHandle;
 use crate::config::super_agent_configs::AgentID;
 use crate::config::super_agent_configs::SubAgentConfig;
 use crate::event::channel::EventPublisher;
-use crate::event::event::OpAMPEvent;
+use crate::event::OpAMPEvent;
 use crate::opamp::callbacks::AgentCallbacks;
 
 use self::logger::AgentLog;

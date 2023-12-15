@@ -1,7 +1,7 @@
 use super::sub_agent::NotStartedSubAgentK8s;
 use crate::config::super_agent_configs::SubAgentConfig;
-use crate::context::Context;
-use crate::event::event::Event;
+use crate::event::channel::EventPublisher;
+use crate::event::OpAMPEvent;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_opamp_and_start_client;
 use crate::{
@@ -68,7 +68,7 @@ where
         agent_id: AgentID,
         sub_agent_config: &SubAgentConfig,
         _tx: std::sync::mpsc::Sender<AgentLog>,
-        ctx: Context<Option<Event>>,
+        ctx: EventPublisher<OpAMPEvent>,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
         let maybe_opamp_client = build_opamp_and_start_client(
             ctx,
@@ -93,6 +93,7 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::event::channel::pub_sub;
     use crate::opamp::callbacks::tests::MockCallbacksMock;
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
@@ -160,13 +161,13 @@ mod test {
         let builder = K8sSubAgentBuilder::new(Some(&opamp_builder), &instance_id_getter, executor);
 
         let (tx, _) = channel();
-        let ctx: Context<Option<Event>> = Context::new();
+        let (super_agent_publisher, _super_agent_consumer) = pub_sub();
         let started_agent = builder
             .build(
                 AgentID::new("k8s-test").unwrap(),
                 &sub_agent_config,
                 tx,
-                ctx,
+                super_agent_publisher,
             )
             .unwrap() // Not started agent
             .run()

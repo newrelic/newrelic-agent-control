@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::{
     config::super_agent_configs::{AgentID, AgentTypeFQN},
-    event::{channel::EventPublisher, event::OpAMPEvent},
+    event::{channel::EventPublisher, OpAMPEvent},
     sub_agent::error::SubAgentError,
     utils::time::get_sys_time_nano,
 };
