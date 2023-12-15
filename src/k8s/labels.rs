@@ -31,19 +31,11 @@ impl DefaultLabels {
 
     /// Prints a label selector that matches all labels in the set.
     pub fn selector(&self) -> String {
-        let mut selector = String::new();
+        let selector = self.0.iter().fold(String::new(), |acc, label| {
+            format!("{acc}{}=={},", label.0, label.1)
+        });
 
-        let mut iter = self.0.iter();
-
-        if let Some((k, v)) = iter.next() {
-            selector.push_str(format!("{k}=={v}").as_str());
-        }
-
-        for (k, v) in iter {
-            selector.push_str(format!(",{k}=={v}").as_str());
-        }
-
-        selector
+        selector.strip_suffix(',').unwrap_or(&selector).to_string()
     }
 }
 
