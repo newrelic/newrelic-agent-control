@@ -26,8 +26,6 @@ pub enum SubAgentsConfigStoreError {
     SerdeYamlError(#[from] serde_yaml::Error),
 }
 
-pub trait SuperAgentConfigStore: SuperAgentConfigLoader + SuperAgentConfigStorer {}
-
 pub trait SuperAgentConfigStorer {
     fn store(&self, config: SuperAgentConfig) -> Result<SuperAgentConfig, SuperAgentConfigError>;
 }
@@ -37,9 +35,13 @@ pub trait SuperAgentConfigLoader {
     fn load(&self) -> Result<SuperAgentConfig, SuperAgentConfigError>;
 }
 
-pub trait SubAgentsConfigStore {
-    fn load(&self) -> Result<SubAgentsConfig, SuperAgentConfigError>;
+pub trait SubAgentsConfigStorer {
     fn store(&self, config: &SubAgentsConfig) -> Result<(), SuperAgentConfigError>;
+}
+pub trait SubAgentsConfigLoader {
+    fn load(&self) -> Result<SubAgentsConfig, SuperAgentConfigError>;
+}
+pub trait SubAgentsConfigDeleter {
     fn delete(&self) -> Result<(), SuperAgentConfigError>;
 }
 
@@ -55,22 +57,17 @@ impl SuperAgentConfigLoader for SuperAgentConfigStoreFile {
     }
 }
 
-impl SuperAgentConfigStore for SuperAgentConfigStoreFile {}
-
 impl SuperAgentConfigStorer for SuperAgentConfigStoreFile {
     fn store(&self, _config: SuperAgentConfig) -> Result<SuperAgentConfig, SuperAgentConfigError> {
         unimplemented!()
     }
 }
-
-impl SubAgentsConfigStore for SuperAgentConfigStoreFile {
+impl SubAgentsConfigLoader for SuperAgentConfigStoreFile {
     fn load(&self) -> Result<SubAgentsConfig, SuperAgentConfigError> {
         Ok(self._load_config()?.agents)
     }
-    fn store(&self, config: &SubAgentsConfig) -> Result<(), SuperAgentConfigError> {
-        Ok(self._store_sub_agents_config(config)?)
-    }
-
+}
+impl SubAgentsConfigDeleter for SuperAgentConfigStoreFile {
     //TODO this code is not unit tested
     fn delete(&self) -> Result<(), SuperAgentConfigError> {
         let Some(remote_path_file) = &self.remote_path else {
@@ -81,6 +78,12 @@ impl SubAgentsConfigStore for SuperAgentConfigStoreFile {
             fs::remove_file(remote_path_file)?;
         }
         Ok(())
+    }
+}
+
+impl SubAgentsConfigStorer for SuperAgentConfigStoreFile {
+    fn store(&self, config: &SubAgentsConfig) -> Result<(), SuperAgentConfigError> {
+        Ok(self._store_sub_agents_config(config)?)
     }
 }
 
@@ -144,10 +147,8 @@ impl SuperAgentConfigStoreFile {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::{collections::HashMap, io::Write};
-
-    use tempfile::NamedTempFile;
-
+    use super::SuperAgentConfigError;
+    use super::{SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer};
     use crate::config::{
         store::{SuperAgentConfigLoader, SuperAgentConfigStoreFile},
         super_agent_configs::{
@@ -155,17 +156,21 @@ pub(crate) mod tests {
             SuperAgentConfig,
         },
     };
-
     use mockall::{mock, predicate};
+    use std::{collections::HashMap, io::Write};
+    use tempfile::NamedTempFile;
 
     mock! {
         pub SubAgentsConfigStore {}
 
-        impl super::SubAgentsConfigStore for SubAgentsConfigStore {
-
-            fn load(&self) -> Result<super::SubAgentsConfig, super::SuperAgentConfigError>;
-            fn store(&self, config: &SubAgentsConfig) -> Result<(), super::SuperAgentConfigError>;
-            fn delete(&self) -> Result<(), super::SuperAgentConfigError>;
+        impl super::SubAgentsConfigStorer for SubAgentsConfigStore {
+            fn store(&self, config: &SubAgentsConfig) -> Result<(), SuperAgentConfigError>;
+        }
+        impl super::SubAgentsConfigLoader for SubAgentsConfigStore {
+            fn load(&self) -> Result<SubAgentsConfig, SuperAgentConfigError>;
+        }
+        impl super::SubAgentsConfigDeleter for SubAgentsConfigStore {
+            fn delete(&self) -> Result<(), SuperAgentConfigError>;
         }
     }
 
@@ -188,8 +193,6 @@ pub(crate) mod tests {
 
     #[test]
     fn load_agents_local_remote() {
-        use super::SuperAgentConfigStore;
-
         let mut local_file = NamedTempFile::new().unwrap();
         let local_config = r#"
 agents: {}

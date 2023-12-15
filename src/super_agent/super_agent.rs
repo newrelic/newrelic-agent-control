@@ -2,7 +2,9 @@ use crate::config::agent_type::agent_types::FinalAgent;
 use crate::config::agent_values::AgentValues;
 use crate::config::error::SuperAgentConfigError;
 use crate::config::persister::directory_manager::DirectoryManagerFs;
-use crate::config::store::{SubAgentsConfigStore, SuperAgentConfigStoreFile};
+use crate::config::store::{
+    SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer, SuperAgentConfigStoreFile,
+};
 use crate::config::super_agent_configs::{AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig};
 use crate::context::Context;
 use crate::opamp::callbacks::AgentCallbacks;
@@ -50,7 +52,7 @@ pub struct SuperAgent<
 > where
     O: StartedClient<SuperAgentCallbacks>,
     HR: HashRepository,
-    SL: SubAgentsConfigStore,
+    SL: SubAgentsConfigStorer + SubAgentsConfigLoader + SubAgentsConfigDeleter,
     HRS: HashRepository,
     S: SubAgentBuilder,
     VR: ValuesRepository,
@@ -69,7 +71,7 @@ where
     O: StartedClient<SuperAgentCallbacks>,
     HR: HashRepository,
     S: SubAgentBuilder,
-    SL: SubAgentsConfigStore,
+    SL: SubAgentsConfigStorer + SubAgentsConfigLoader + SubAgentsConfigDeleter,
     HRS: HashRepository,
     VR: ValuesRepository,
 {
@@ -553,7 +555,9 @@ mod tests {
     use crate::config::agent_type::trivial_value::TrivialValue;
     use crate::config::agent_values::AgentValues;
     use crate::config::store::tests::MockSubAgentsConfigStore;
-    use crate::config::store::SubAgentsConfigStore;
+    use crate::config::store::{
+        SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer,
+    };
     use crate::config::super_agent_configs::{
         AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig,
     };
@@ -590,7 +594,7 @@ mod tests {
         O: StartedClient<SuperAgentCallbacks>,
         HR: HashRepository,
         S: SubAgentBuilder,
-        SL: SubAgentsConfigStore,
+        SL: SubAgentsConfigStorer + SubAgentsConfigLoader + SubAgentsConfigDeleter,
         HRS: HashRepository,
         VR: ValuesRepository,
     {
