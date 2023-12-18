@@ -6,7 +6,7 @@ pub const MANAGED_BY_VAL: &str = "newrelic-super-agent";
 pub const AGENT_ID_LABEL_KEY: &str = "newrelic.io/agent-id";
 
 /// Collection of labels used to identify super agent resources.
-#[derive(Default)]
+#[derive(Default, PartialEq)]
 pub struct DefaultLabels(BTreeMap<String, String>);
 
 impl DefaultLabels {
@@ -19,7 +19,7 @@ impl DefaultLabels {
     }
 
     /// Adds the agent id label to the set.
-    pub fn with_agent_id(mut self, agent_id: AgentID) -> Self {
+    pub fn with_agent_id(mut self, agent_id: &AgentID) -> Self {
         self.0
             .insert(AGENT_ID_LABEL_KEY.to_string(), agent_id.get());
         self
@@ -47,8 +47,8 @@ pub(crate) mod test {
 
     #[test]
     fn test_selector() {
-        let agent_id = AgentID::new("test").unwrap();
-        let labels = DefaultLabels::new().with_agent_id(agent_id.clone());
+        let agent_id = &AgentID::new("test").unwrap();
+        let labels = DefaultLabels::new().with_agent_id(agent_id);
         assert_eq!(
             format!("{MANAGED_BY_KEY}=={MANAGED_BY_VAL},{AGENT_ID_LABEL_KEY}=={agent_id}"),
             labels.selector()

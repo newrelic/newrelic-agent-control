@@ -233,6 +233,7 @@ impl K8sExecutor {
     pub async fn set_configmap_key(
         &self,
         configmap_name: &str,
+        labels: BTreeMap<String, String>,
         key: &str,
         value: &str,
     ) -> Result<(), K8sError> {
@@ -243,12 +244,14 @@ impl K8sExecutor {
             .or_insert(|| ConfigMap {
                 metadata: ObjectMeta {
                     name: Some(configmap_name.to_string()),
+                    labels: Some(labels.clone()),
                     // TODO The deployment should be the owner of this object
                     ..ObjectMeta::default()
                 },
                 ..Default::default()
             })
             .and_modify(|cm| {
+                cm.metadata.labels = Some(labels);
                 cm.data
                     .get_or_insert_with(BTreeMap::default)
                     .insert(key.to_string(), value.to_string());

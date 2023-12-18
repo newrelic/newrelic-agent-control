@@ -149,7 +149,6 @@ fn run_super_agent(
 
     let instance_id_getter =
         futures::executor::block_on(ULIDInstanceIDGetter::try_with_identifiers(
-            // TODO change the executor signature to accept &str
             k8s_config.namespace.clone(),
             instance_id::get_identifiers(k8s_config.cluster_name),
         ))?;
