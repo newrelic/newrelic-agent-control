@@ -37,7 +37,7 @@ where
         &self,
         mut remote_config: RemoteConfig,
         opamp_publisher: EventPublisher<OpAMPEvent>,
-        mut sub_agents: &mut StartedSubAgents<
+        sub_agents: &mut StartedSubAgents<
             <<S as SubAgentBuilder>::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
         tx: Sender<AgentLog>,
@@ -45,20 +45,20 @@ where
         if !remote_config.agent_id.is_super_agent_id() {
             return self.process_sub_agent_remote_config(
                 remote_config,
-                &mut sub_agents,
+                sub_agents,
                 tx,
                 opamp_publisher,
             );
         }
 
         if let Some(opamp_client) = &self.opamp_client {
-            return self.process_super_agent_remote_config(
+            self.process_super_agent_remote_config(
                 opamp_client,
                 &mut remote_config,
                 tx.clone(),
-                &mut sub_agents,
+                sub_agents,
                 opamp_publisher.clone(),
-            );
+            )
         } else {
             unreachable!("got remote config without OpAMP being enabled")
         }
