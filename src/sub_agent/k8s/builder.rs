@@ -80,7 +80,7 @@ where
         )?;
 
         // Clone the executor on each build.
-        let supervisor = CRSupervisor::new(Arc::clone(&self.executor.clone()));
+        let supervisor = CRSupervisor::new(self.executor.clone());
 
         Ok(NotStartedSubAgentK8s::new(
             agent_id,

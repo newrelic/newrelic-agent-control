@@ -7,8 +7,11 @@ pub const OTEL_HELM_REPOSITORY_CR: &str = r#"
 apiVersion: source.toolkit.fluxcd.io/v1beta2
 kind: HelmRepository
 metadata:
-  name: open-telemetry
+  name: otel-collector
   namespace: default
+  labels:
+    app.kubernetes.io/managed-by: newrelic-super-agent
+    newrelic.io/agent-id: otel-collector
 spec:
   interval: 1m
   url: https://open-telemetry.github.io/opentelemetry-helm-charts
@@ -33,6 +36,9 @@ kind: HelmRelease
 metadata:
   name: otel-collector
   namespace: default
+  labels:
+    app.kubernetes.io/managed-by: newrelic-super-agent
+    newrelic.io/agent-id: otel-collector
 spec:
   interval: 1h0m0s
   chart:

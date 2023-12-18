@@ -1,3 +1,4 @@
+use crate::config::error::SuperAgentConfigError;
 use kube::core::gvk::ParseGroupVersionError;
 use kube::{api, config::KubeconfigError};
 
@@ -38,4 +39,7 @@ pub enum K8sError {
 
     #[error("while getting dynamic resource: {0}")]
     GetDynamic(String),
+
+    #[error("garbage collector failed loading config store: `{0}`")]
+    LoadingConfigStore(#[from] SuperAgentConfigError),
 }

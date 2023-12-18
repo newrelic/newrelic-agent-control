@@ -2,7 +2,9 @@ use crate::config::agent_type::agent_types::FinalAgent;
 use crate::config::agent_values::AgentValues;
 use crate::config::error::SuperAgentConfigError;
 use crate::config::persister::directory_manager::DirectoryManagerFs;
-use crate::config::store::{SubAgentsConfigStore, SuperAgentConfigStoreFile};
+use crate::config::store::{
+    SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer, SuperAgentConfigStoreFile,
+};
 use crate::config::super_agent_configs::{AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig};
 use crate::context::Context;
 use crate::opamp::callbacks::AgentCallbacks;
@@ -31,6 +33,7 @@ use opamp_client::StartedClient;
 use std::collections::HashMap;
 use std::string::ToString;
 use std::sync::mpsc::{self, Sender};
+use std::sync::Arc;
 use thiserror::Error;
 use tracing::{error, info, warn};
 
@@ -49,7 +52,7 @@ pub struct SuperAgent<
 > where
     O: StartedClient<SuperAgentCallbacks>,
     HR: HashRepository,
-    SL: SubAgentsConfigStore,
+    SL: SubAgentsConfigStorer + SubAgentsConfigLoader + SubAgentsConfigDeleter,
     HRS: HashRepository,
     S: SubAgentBuilder,
     VR: ValuesRepository,
@@ -60,7 +63,7 @@ pub struct SuperAgent<
     agent_id: AgentID,
     sub_agent_remote_config_hash_repository: &'a HRS,
     remote_values_repo: VR,
-    sub_agents_config_store: SL,
+    sub_agents_config_store: Arc<SL>,
 }
 
 impl<'a, S, O, HR, SL, HRS, VR> SuperAgent<'a, S, O, HR, SL, HRS, VR>
@@ -68,7 +71,7 @@ where
     O: StartedClient<SuperAgentCallbacks>,
     HR: HashRepository,
     S: SubAgentBuilder,
-    SL: SubAgentsConfigStore,
+    SL: SubAgentsConfigStorer + SubAgentsConfigLoader + SubAgentsConfigDeleter,
     HRS: HashRepository,
     VR: ValuesRepository,
 {
@@ -76,7 +79,7 @@ where
         opamp_client: Option<O>,
         remote_config_hash_repository: &'a HR,
         sub_agent_builder: S,
-        sub_agents_config_store: SL,
+        sub_agents_config_store: Arc<SL>,
         sub_agent_remote_config_hash_repository: &'a HRS,
         values_repo: VR,
     ) -> Self {
@@ -552,7 +555,9 @@ mod tests {
     use crate::config::agent_type::trivial_value::TrivialValue;
     use crate::config::agent_values::AgentValues;
     use crate::config::store::tests::MockSubAgentsConfigStore;
-    use crate::config::store::SubAgentsConfigStore;
+    use crate::config::store::{
+        SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer,
+    };
     use crate::config::super_agent_configs::{
         AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig,
     };
@@ -575,6 +580,7 @@ mod tests {
     use opamp_client::StartedClient;
     use std::collections::HashMap;
     use std::sync::mpsc;
+    use std::sync::Arc;
     use std::thread::{sleep, spawn};
     use std::time::Duration;
 
@@ -588,7 +594,7 @@ mod tests {
         O: StartedClient<SuperAgentCallbacks>,
         HR: HashRepository,
         S: SubAgentBuilder,
-        SL: SubAgentsConfigStore,
+        SL: SubAgentsConfigStorer + SubAgentsConfigLoader + SubAgentsConfigDeleter,
         HRS: HashRepository,
         VR: ValuesRepository,
     {
@@ -605,7 +611,7 @@ mod tests {
                 remote_config_hash_repository,
                 sub_agent_builder,
                 agent_id: AgentID::new_super_agent_id(),
-                sub_agents_config_store,
+                sub_agents_config_store: Arc::new(sub_agents_config_store),
                 sub_agent_remote_config_hash_repository,
                 remote_values_repo: sub_agent_values_repo,
             }
