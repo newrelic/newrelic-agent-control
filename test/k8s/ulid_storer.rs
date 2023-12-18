@@ -11,7 +11,7 @@ const AGENT_ID_TEST: &str = "agent-id-test";
 const AGENT_DIFFERENT_ID_TEST: &str = "agent-different-id-test";
 
 // tokio test runs with 1 thread by default causing deadlock when executing `block_on` code during test helper drop.
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[tokio::test(flavor = "multi_thread")]
 #[ignore = "needs k8s cluster"]
 async fn k8s_ulid_persister() {
     // This tests cover the happy path of ULIDInstanceIDGetter on K8s.
@@ -58,7 +58,7 @@ async fn k8s_ulid_persister() {
 }
 
 // tokio test runs with 1 thread by default causing deadlock when executing `block_on` code during test helper drop.
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[tokio::test(flavor = "multi_thread")]
 #[ignore = "needs k8s cluster"]
 async fn k8s_ulid_persister_fail() {
     // This tests cover the error path for the storer. The namespace does not exist, every call is going to fail.

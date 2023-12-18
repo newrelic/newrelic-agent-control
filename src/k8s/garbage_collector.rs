@@ -141,13 +141,14 @@ pub(crate) mod test {
     use crate::k8s::labels::{DefaultLabels, AGENT_ID_LABEL_KEY};
     use crate::super_agent::defaults::SUPER_AGENT_ID;
     use std::sync::Arc;
+    use std::sync::Mutex;
     use std::time::Duration;
     use tokio::time::sleep;
 
     #[mockall_double::double]
     use crate::k8s::executor::K8sExecutor;
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_start_executes_collection_as_expected() {
         let mut cs = MockSuperAgentConfigLoader::new();
 
@@ -166,6 +167,32 @@ pub(crate) mod test {
         // Expect the gc is correctly stopped
         started_gc.stop();
         assert!(started_gc.is_finished());
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn test_does_not_deadlock_with_sync_mutex() {
+        let mut config_loader = MockSuperAgentConfigLoader::new();
+        let mutex = Arc::new(Mutex::new(()));
+        let mutex_moved = mutex.clone();
+        config_loader.expect_load().times(1).returning(move || {
+            let _guard = mutex_moved.lock();
+            std::thread::sleep(Duration::from_secs(1));
+            Err(crate::config::error::SuperAgentConfigError::SubAgentNotFound(String::new()))
+        });
+
+        let cl = Arc::new(config_loader);
+
+        let _sgc = NotStartedK8sGarbageCollector::new(cl.clone(), Arc::new(K8sExecutor::default()))
+            .with_interval(Duration::from_millis(1))
+            .start();
+        std::thread::sleep(Duration::from_millis(100));
+
+        // At this point gc should be started and blocking the mutex on load.
+        mutex.try_lock().expect_err("mutex should be locked");
+
+        // The goal of the test/poc is to check that the main thread doesn't get deadlocked
+        // when the mutex has been locked from a tokio task (running in multithread with 1 thread).
+        let _guard = mutex.lock();
     }
 
     #[test]

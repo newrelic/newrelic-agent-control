@@ -9,7 +9,7 @@ use newrelic_super_agent::{
 };
 use std::sync::Arc;
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[tokio::test(flavor = "multi_thread")]
 #[ignore = "needs k8s cluster"]
 async fn k8s_garbage_collector_cleans_removed_agent() {
     let mut test = K8sEnv::new().await;
@@ -62,7 +62,7 @@ agents:
     api.get(agent_id).await.expect_err("CR should be removed");
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[tokio::test(flavor = "multi_thread")]
 #[ignore = "needs k8s cluster"]
 async fn k8s_garbage_collector_with_missing_and_extra_kinds() {
     let mut test = K8sEnv::new().await;
@@ -111,7 +111,7 @@ async fn k8s_garbage_collector_with_missing_and_extra_kinds() {
         .expect_err("fail garbage collecting removed agent");
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[tokio::test(flavor = "multi_thread")]
 #[ignore = "needs k8s cluster"]
 async fn k8s_garbage_collector_does_not_remove_super_agent() {
     let mut test = K8sEnv::new().await;
