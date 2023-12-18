@@ -7,11 +7,15 @@ use std::{fs, io};
 use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::fs::PermissionsExt;
 
+use crate::config::persister::directory_manager::DirectoryManagementError;
 use crate::config::persister::fs_utils::{validate_path, FsError};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum WriteError {
+    #[error("directory error: `{0}`")]
+    DirectoryError(#[from] DirectoryManagementError),
+
     #[error("error creating file: `{0}`")]
     ErrorCreatingFile(#[from] io::Error),
 

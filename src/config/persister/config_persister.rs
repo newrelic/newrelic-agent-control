@@ -84,6 +84,12 @@ pub mod test {
                                 FsError::DotsDisallowed(path.to_string()),
                             )),
                         },
+                        WriteError::DirectoryError(_) => {
+                            // we hardcode this one for simplicity
+                            PersistError::DirectoryError(ErrorDeletingDirectory(
+                                "oh no...".to_string(),
+                            ))
+                        }
                     }
                 }
             }

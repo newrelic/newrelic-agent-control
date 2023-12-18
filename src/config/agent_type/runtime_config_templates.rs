@@ -65,11 +65,10 @@ fn replace(
     normalized_var: &EndSpec,
 ) -> Result<String, AgentTypeError> {
     let value = normalized_var
-        .final_value
-        .as_ref()
-        .or(normalized_var.default.as_ref())
+        .get_template_value()
         .ok_or(AgentTypeError::MissingTemplateKey(var_name.to_string()))?
         .to_string();
+
     Ok(re.replace(s, value).to_string())
 }
 
@@ -288,12 +287,14 @@ mod tests {
     use assert_matches::assert_matches;
 
     use crate::config::agent_type::restart_policy::{BackoffDuration, BackoffStrategyType};
+    use crate::config::agent_type::trivial_value::FilePathWithContent;
     use crate::config::agent_type::trivial_value::N::PosInt;
     use crate::config::agent_type::{
         agent_types::{EndSpec, TemplateableValue, VariableType},
         runtime_config::{Args, Env},
         trivial_value::{TrivialValue, N},
     };
+    use std::collections::HashMap;
 
     use super::*;
 
@@ -423,11 +424,42 @@ mod tests {
                     file_path: Some("some_path".to_string()),
                 },
             ),
+            (
+                "config".to_string(),
+                EndSpec {
+                    final_value: Some(TrivialValue::File(FilePathWithContent::new(
+                        "config2.yml".to_string(),
+                        "license_key: abc123\nstaging: true\n".to_string(),
+                    ))),
+                    default: None,
+                    description: "config".to_string(),
+                    type_: VariableType::File,
+                    required: true,
+                    file_path: Some("config_path".to_string()),
+                },
+            ),
+            (
+                "integrations".to_string(),
+                EndSpec {
+                    final_value: Some(TrivialValue::Map(HashMap::from([(
+                        "kafka.yml".to_string(),
+                        TrivialValue::File(FilePathWithContent::new(
+                            "config2.yml".to_string(),
+                            "license_key: abc123\nstaging: true\n".to_string(),
+                        )),
+                    )]))),
+                    default: None,
+                    description: "integrations".to_string(),
+                    type_: VariableType::MapStringFile,
+                    required: true,
+                    file_path: Some("integration_path".to_string()),
+                },
+            ),
         ]);
 
         let input = Executable {
             path: TemplateableValue::from_template("${path}".to_string()),
-            args: TemplateableValue::from_template("${args}".to_string()),
+            args: TemplateableValue::from_template("${args} ${config} ${integrations}".to_string()),
             env: TemplateableValue::from_template("MYAPP_PORT=${env.MYAPP_PORT}".to_string()),
             restart_policy: RestartPolicyConfig {
                 backoff_strategy: BackoffStrategyConfig {
@@ -444,8 +476,10 @@ mod tests {
         let expected_output = Executable {
             path: TemplateableValue::new("/usr/bin/myapp".to_string())
                 .with_template("${path}".to_string()),
-            args: TemplateableValue::new(Args("--config /etc/myapp.conf".to_string()))
-                .with_template("${args}".to_string()),
+            args: TemplateableValue::new(Args(
+                "--config /etc/myapp.conf config_path integration_path".to_string(),
+            ))
+            .with_template("${args} ${config} ${integrations}".to_string()),
             env: TemplateableValue::new(Env("MYAPP_PORT=8080".to_string()))
                 .with_template("MYAPP_PORT=${env.MYAPP_PORT}".to_string()),
             restart_policy: RestartPolicyConfig {
