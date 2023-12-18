@@ -218,7 +218,7 @@ fn default_group_version_kinds() -> Vec<TypeMeta> {
             kind: "HelmRepository".to_string(),
         },
         TypeMeta {
-            api_version: "helm.toolkit.fluxcd.io/v2beta1".to_string(),
+            api_version: "helm.toolkit.fluxcd.io/v2beta2".to_string(),
             kind: "HelmRelease".to_string(),
         },
     ]
