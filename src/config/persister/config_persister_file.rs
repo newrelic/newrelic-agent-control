@@ -13,9 +13,8 @@ use crate::config::persister::directory_manager::{
     DirectoryManagementError, DirectoryManager, DirectoryManagerFs,
 };
 use crate::config::super_agent_configs::AgentID;
-use crate::super_agent::defaults::SUPER_AGENT_DATA_DIR;
+use crate::super_agent::defaults::{GENERATED_FOLDER_NAME, SUPER_AGENT_DATA_DIR};
 
-const GENERATED_FOLDER_NAME: &str = "auto-generated";
 #[cfg(target_family = "unix")]
 pub(crate) const FILE_PERMISSIONS: u32 = 0o600;
 #[cfg(target_family = "unix")]
@@ -140,6 +139,9 @@ where
                         TrivialValue::File(file_path_with_content) => {
                             let mut file_dest_path = PathBuf::from(dest_path);
                             file_dest_path.push(Path::new(file_path_with_content.path.as_str()));
+                            if !file_dest_path.exists() {
+                                self.create_directory(file_dest_path.as_path())?;
+                            }
                             file_dest_path.push(filename);
                             self.write(
                                 file_dest_path.as_path(),
@@ -246,7 +248,7 @@ mod test {
         agent_files_path.push(&agent_id);
 
         // populate agent type
-        agent_type = agent_type.template_with(agent_values).unwrap();
+        agent_type = agent_type.template_with(agent_values, None).unwrap();
 
         // Expectations
         directory_manager.should_delete(agent_files_path.as_path());
@@ -311,7 +313,7 @@ mod test {
         agent_files_path.push(&agent_id);
 
         // populate agent type
-        agent_type = agent_type.template_with(agent_values).unwrap();
+        agent_type = agent_type.template_with(agent_values, None).unwrap();
 
         // Expectations
         directory_manager.should_delete(agent_files_path.as_path());
@@ -326,6 +328,12 @@ mod test {
 
         let mut config_kafka_path = agent_files_path.clone();
         config_kafka_path.push("integrations.d");
+        // We need to mock create because path will never exist on the test
+        directory_manager.should_create(
+            config_kafka_path.as_path(),
+            Permissions::from_mode(DIRECTORY_PERMISSIONS),
+        );
+
         config_kafka_path.push("kafka.yml");
         file_writer.should_write(
             config_kafka_path.as_path(),
@@ -335,6 +343,12 @@ mod test {
 
         let mut config_mysql_path = agent_files_path.clone();
         config_mysql_path.push("integrations.d");
+        // We need to mock create because path will never exist on the test
+        directory_manager.should_create(
+            config_mysql_path.as_path(),
+            Permissions::from_mode(DIRECTORY_PERMISSIONS),
+        );
+
         config_mysql_path.push("mysql.yml");
         file_writer.should_write(
             config_mysql_path.as_path(),
@@ -344,6 +358,12 @@ mod test {
 
         let mut config_redis_path = agent_files_path.clone();
         config_redis_path.push("integrations.d");
+        // We need to mock create because path will never exist on the test
+        directory_manager.should_create(
+            config_redis_path.as_path(),
+            Permissions::from_mode(DIRECTORY_PERMISSIONS),
+        );
+
         config_redis_path.push("redis.yml");
         file_writer.should_write(
             config_redis_path.as_path(),
@@ -379,7 +399,7 @@ mod test {
         agent_files_path.push(&agent_id);
 
         // populate agent type
-        agent_type = agent_type.template_with(agent_values).unwrap();
+        agent_type = agent_type.template_with(agent_values, None).unwrap();
 
         // Expectations
         directory_manager.should_delete(agent_files_path.as_path());
@@ -394,6 +414,11 @@ mod test {
 
         let mut config_redis_path = agent_files_path.clone();
         config_redis_path.push("integrations.d");
+        // We need to mock create because path will never exist on the test
+        directory_manager.should_create(
+            config_redis_path.as_path(),
+            Permissions::from_mode(DIRECTORY_PERMISSIONS),
+        );
         config_redis_path.push("redis.yml");
         file_writer.should_write(
             config_redis_path.as_path(),
@@ -403,6 +428,11 @@ mod test {
 
         let mut config_kafka_path = agent_files_path.clone();
         config_kafka_path.push("integrations.d");
+        // We need to mock create because path will never exist on the test
+        directory_manager.should_create(
+            config_kafka_path.as_path(),
+            Permissions::from_mode(DIRECTORY_PERMISSIONS),
+        );
         config_kafka_path.push("kafka.yml");
         file_writer.should_write(
             config_kafka_path.as_path(),
@@ -412,6 +442,11 @@ mod test {
 
         let mut config_logging_file_path = agent_files_path.clone();
         config_logging_file_path.push("logging.d");
+        // We need to mock create because path will never exist on the test
+        directory_manager.should_create(
+            config_logging_file_path.as_path(),
+            Permissions::from_mode(DIRECTORY_PERMISSIONS),
+        );
         config_logging_file_path.push("file");
         file_writer.should_write(
             config_logging_file_path.as_path(),
@@ -421,6 +456,11 @@ mod test {
 
         let mut config_logging_systemctl_path = agent_files_path.clone();
         config_logging_systemctl_path.push("logging.d");
+        // We need to mock create because path will never exist on the test
+        directory_manager.should_create(
+            config_logging_systemctl_path.as_path(),
+            Permissions::from_mode(DIRECTORY_PERMISSIONS),
+        );
         config_logging_systemctl_path.push("systemctl.yml");
         file_writer.should_write(
             config_logging_systemctl_path.as_path(),
@@ -455,7 +495,7 @@ mod test {
         agent_files_path.push(&agent_id);
 
         // populate agent type
-        agent_type = agent_type.template_with(agent_values).unwrap();
+        agent_type = agent_type.template_with(agent_values, None).unwrap();
 
         // Expectations
         directory_manager.should_create(
@@ -497,7 +537,7 @@ mod test {
         agent_files_path.push(&agent_id);
 
         // populate agent type
-        agent_type = agent_type.template_with(agent_values).unwrap();
+        agent_type = agent_type.template_with(agent_values, None).unwrap();
 
         // Expectations
         directory_manager.should_delete(agent_files_path.as_path());
@@ -545,7 +585,7 @@ mod test {
         agent_files_path.push(&agent_id);
 
         // populate agent type
-        agent_type = agent_type.template_with(agent_values).unwrap();
+        agent_type = agent_type.template_with(agent_values, None).unwrap();
 
         // Expectations
         directory_manager.should_not_create(
@@ -588,7 +628,7 @@ mod test {
         agent_files_path.push(&agent_id);
 
         // populate agent type
-        agent_type = agent_type.template_with(agent_values).unwrap();
+        agent_type = agent_type.template_with(agent_values, None).unwrap();
 
         // Expectations
         directory_manager.should_delete(agent_files_path.as_path());
@@ -636,7 +676,7 @@ mod test {
         agent_files_path.push(&agent_id);
 
         // populate agent type
-        agent_type = agent_type.template_with(agent_values).unwrap();
+        agent_type = agent_type.template_with(agent_values, None).unwrap();
 
         // Expectations
         directory_manager.should_delete(agent_files_path.as_path());
@@ -648,9 +688,23 @@ mod test {
             agent_files_path.as_path(),
             Permissions::from_mode(DIRECTORY_PERMISSIONS),
         );
+        let mut integrations_path = agent_files_path.clone();
+        integrations_path.push("integrations.d");
+        // We need to mock create because path will never exist on the test
+        directory_manager.should_create(
+            integrations_path.as_path(),
+            Permissions::from_mode(DIRECTORY_PERMISSIONS),
+        );
+        let mut integrations_path = agent_files_path.clone();
+        integrations_path.push("integrations.d");
+        // We need to mock create because path will never exist on the test
+        directory_manager.should_create(
+            integrations_path.as_path(),
+            Permissions::from_mode(DIRECTORY_PERMISSIONS),
+        );
 
         // hashmaps are not ordered, so we cannot assert on what will be written
-        // but we can assert how many writes gill happen
+        // but we can assert how many writes will happen
         file_writer.should_write_any(1);
         file_writer.should_not_write_any(1, ErrorKind::AlreadyExists);
 

@@ -15,6 +15,7 @@ pub const REMOTE_AGENT_DATA_DIR: &str = "/var/lib/newrelic-super-agent/fleet/age
 pub const LOCAL_AGENT_DATA_DIR: &str = "/etc/newrelic-super-agent/fleet/agents.d";
 pub const VALUES_FILENAME: &str = "values.yml";
 pub const SUPER_AGENT_DATA_DIR: &str = "/var/lib/newrelic-super-agent";
+pub const GENERATED_FOLDER_NAME: &str = "auto-generated";
 
 pub fn default_capabilities() -> Capabilities {
     capabilities!(
@@ -30,18 +31,32 @@ pub fn default_capabilities() -> Capabilities {
 pub(crate) const NEWRELIC_INFRA_TYPE: &str = r#"
 namespace: newrelic
 name: com.newrelic.infrastructure_agent
-version: 0.0.1
+version: 0.0.2
 variables:
-  config_file:
-    description: "Newrelic infra configuration path"
-    type: string
+  config_agent:
+    description: "Newrelic infra configuration"
+    type: file
     required: false
-    default: /etc/newrelic-infra.yml
+    default: ""
+    file_path: "newrelic-infra.yml"
+  config_ohis:
+    description: "map of YAML configs for the OHIs"
+    type: map[string]file
+    required: false
+    default: {}
+    file_path: "integrations.d"
+  logging:
+    description: "map of YAML config for logging"
+    type: map[string]file
+    required: false
+    default: {}
+    file_path: "logging.d"
 deployment:
   on_host:
     executables:
-      - path: /usr/bin/newrelic-infra
-        args: "--config=${config_file}"
+      - path: /usr/local/bin/newrelic-infra
+        args: "--config=${config_agent}"
+        env: "NRIA_PLUGIN_DIR=${config_ohis} NRIA_LOGGING_CONFIGS_DIR=${logging}"
         restart_policy:
           backoff_strategy:
             type: fixed
