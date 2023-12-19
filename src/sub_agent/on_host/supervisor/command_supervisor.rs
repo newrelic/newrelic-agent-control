@@ -11,12 +11,11 @@ use std::{
 use crate::context::Context;
 use crate::sub_agent::logger::{AgentLog, Metadata};
 
-use super::error::ProcessError;
-
-use super::super::command::command_os::NotStartedCommandOS;
 use crate::sub_agent::on_host::command::command::{
     CommandError, CommandTerminator, NotStartedCommand, StartedCommand,
 };
+use crate::sub_agent::on_host::command::command_os;
+use crate::sub_agent::on_host::command::command_os::CommandOS;
 use crate::sub_agent::on_host::command::shutdown::{
     wait_exit_timeout, wait_exit_timeout_default, ProcessTerminator,
 };
@@ -25,39 +24,57 @@ use crate::sub_agent::on_host::supervisor::error::SupervisorError;
 use tracing::{error, info};
 
 ////////////////////////////////////////////////////////////////////////////////////
-// NotStartedSupervisorOnHost
+// States for Started/Not Started supervisor
 ////////////////////////////////////////////////////////////////////////////////////
-#[derive(Debug, Clone)]
-pub struct NotStartedSupervisorOnHost {
-    pub(crate) config: SupervisorConfigOnHost,
+pub struct NotStarted {
+    config: SupervisorConfigOnHost,
+}
+pub struct Started {
+    handle: JoinHandle<()>,
+    ctx: Context<bool>,
 }
 
-impl NotStartedSupervisorOnHost {
+#[derive(Debug)]
+pub struct SupervisorOnHost<S> {
+    state: S,
+}
+
+impl<S> SupervisorOnHost<S> {}
+
+impl SupervisorOnHost<NotStarted> {
     pub fn new(config: SupervisorConfigOnHost) -> Self {
-        NotStartedSupervisorOnHost { config }
+        SupervisorOnHost {
+            state: NotStarted { config },
+        }
     }
 
     pub fn id(&self) -> String {
-        self.bin.clone()
+        self.state.config.bin.clone()
     }
 
-    pub fn run(self) -> Result<StartedSupervisorOnHost, SupervisorError> {
-        let ctx = self.ctx.clone();
+    pub fn run(self) -> Result<SupervisorOnHost<Started>, SupervisorError> {
         //TODO: validate binary path, exec permissions...?
-        Ok(StartedSupervisorOnHost {
-            handle: start_process_thread(self),
-            ctx,
+        let ctx = self.state.config.ctx.clone();
+        Ok(SupervisorOnHost {
+            state: Started {
+                handle: start_process_thread(self),
+                ctx,
+            },
         })
     }
 
-    pub fn not_started_command(&self) -> NotStartedCommandOS {
+    pub fn not_started_command(&self) -> CommandOS<command_os::NotStarted> {
         //TODO extract to to a builder so we can mock it
-        NotStartedCommandOS::new(&self.bin, &self.args, &self.env)
+        CommandOS::<command_os::NotStarted>::new(
+            &self.state.config.bin,
+            &self.state.config.args,
+            &self.state.config.env,
+        )
     }
 
     pub fn metadata(&self) -> Metadata {
         Metadata::new(
-            Path::new(&self.bin)
+            Path::new(&self.state.config.bin)
                 .file_name()
                 .unwrap_or(OsStr::new("not found"))
                 .to_string_lossy(),
@@ -65,39 +82,19 @@ impl NotStartedSupervisorOnHost {
     }
 }
 
-impl Deref for NotStartedSupervisorOnHost {
+impl Deref for SupervisorOnHost<NotStarted> {
     type Target = SupervisorConfigOnHost;
     fn deref(&self) -> &Self::Target {
-        &self.config
+        &self.state.config
     }
 }
 
-////////////////////////////////////////////////////////////////////////////////////
-// StartedSupervisorOnHost
-////////////////////////////////////////////////////////////////////////////////////
-pub struct StartedSupervisorOnHost {
-    handle: JoinHandle<()>,
-    ctx: Context<bool>,
-}
-
-impl StartedSupervisorOnHost {
+impl SupervisorOnHost<Started> {
     pub fn stop(self) -> JoinHandle<()> {
         // Stop all the supervisors
         // TODO: handle PoisonErrors (log?)
-        self.ctx.cancel_all(true).unwrap();
-        self.handle
-    }
-
-    //TODO do we really need wait?
-    #[allow(dead_code)]
-    pub fn wait(self) -> Result<(), ProcessError> {
-        self.handle.join().map_err(|_| ProcessError::ThreadError)
-    }
-
-    //TODO do we really need is_finished?
-    #[allow(dead_code)]
-    pub fn is_finished(&self) -> bool {
-        self.handle.is_finished()
+        self.state.ctx.cancel_all(true).unwrap();
+        self.state.handle
     }
 }
 
@@ -124,7 +121,7 @@ where
     streaming.wait()
 }
 
-fn start_process_thread(not_started_supervisor: NotStartedSupervisorOnHost) -> JoinHandle<()> {
+fn start_process_thread(not_started_supervisor: SupervisorOnHost<NotStarted>) -> JoinHandle<()> {
     let mut restart_policy = not_started_supervisor.restart_policy.clone();
     let current_pid: Arc<Mutex<Option<u32>>> = Arc::new(Mutex::new(None));
 
@@ -216,12 +213,15 @@ pub mod sleep_supervisor_tests {
     use std::collections::HashMap;
     use std::sync::mpsc::Sender;
 
-    use super::NotStartedSupervisorOnHost;
-    use super::SupervisorConfigOnHost;
+    use super::SupervisorOnHost;
+    use super::{NotStarted, SupervisorConfigOnHost};
     use crate::sub_agent::restart_policy::{BackoffStrategy, RestartPolicy};
     use crate::{context::Context, sub_agent::logger::AgentLog};
 
-    pub fn new_sleep_supervisor(tx: Sender<AgentLog>, seconds: u32) -> NotStartedSupervisorOnHost {
+    pub fn new_sleep_supervisor(
+        tx: Sender<AgentLog>,
+        seconds: u32,
+    ) -> SupervisorOnHost<NotStarted> {
         let config = SupervisorConfigOnHost::new(
             "sh".to_owned(),
             vec!["-c".to_string(), format!("sleep {}", seconds)],
@@ -230,7 +230,7 @@ pub mod sleep_supervisor_tests {
             tx.clone(),
             RestartPolicy::new(BackoffStrategy::None, Vec::new()),
         );
-        NotStartedSupervisorOnHost::new(config)
+        SupervisorOnHost::new(config)
     }
 }
 
@@ -259,11 +259,11 @@ mod tests {
             tx.clone(),
             RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]),
         );
-        let agent: NotStartedSupervisorOnHost = NotStartedSupervisorOnHost::new(config);
+        let agent = SupervisorOnHost::new(config);
 
         let agent = agent.run().unwrap();
 
-        while !agent.handle.is_finished() {
+        while !agent.state.handle.is_finished() {
             thread::sleep(Duration::from_millis(15));
         }
     }
@@ -288,7 +288,7 @@ mod tests {
             tx.clone(),
             RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]),
         );
-        let agent: NotStartedSupervisorOnHost = NotStartedSupervisorOnHost::new(config);
+        let agent = SupervisorOnHost::new(config);
 
         // run the agent with wrong command so it enters in restart policy
         let agent = agent.run().unwrap();
@@ -300,7 +300,6 @@ mod tests {
     }
 
     #[test]
-    //
     fn test_supervisor_fixed_backoff_retry_3_times() {
         let (tx, rx) = std::sync::mpsc::channel();
 
@@ -317,7 +316,7 @@ mod tests {
             tx,
             RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]),
         );
-        let agent: NotStartedSupervisorOnHost = NotStartedSupervisorOnHost::new(config);
+        let agent = SupervisorOnHost::new(config);
 
         let agent = agent.run().unwrap();
 
@@ -337,7 +336,7 @@ mod tests {
             stdout_actual
         });
 
-        while !agent.handle.is_finished() {
+        while !agent.state.handle.is_finished() {
             thread::sleep(Duration::from_millis(15));
         }
 

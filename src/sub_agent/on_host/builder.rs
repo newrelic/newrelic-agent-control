@@ -12,6 +12,8 @@ use crate::opamp::remote_config_hash::HashRepository;
 use crate::opamp::remote_config_report::{
     report_remote_config_status_applied, report_remote_config_status_error,
 };
+use crate::sub_agent::on_host::sub_agent::NotStarted;
+use crate::sub_agent::on_host::supervisor::command_supervisor;
 use crate::sub_agent::SubAgentCallbacks;
 use crate::super_agent::effective_agents_assembler::{
     EffectiveAgentsAssembler, EffectiveAgentsAssemblerError,
@@ -31,10 +33,9 @@ use log::error;
 use EffectiveAgentsAssemblerError::RemoteConfigLoadError;
 
 use super::{
-    sub_agent::NotStartedSubAgentOnHost,
+    sub_agent::SubAgentOnHost,
     supervisor::{
-        command_supervisor::NotStartedSupervisorOnHost,
-        command_supervisor_config::SupervisorConfigOnHost,
+        command_supervisor::SupervisorOnHost, command_supervisor_config::SupervisorConfigOnHost,
     },
 };
 
@@ -80,7 +81,8 @@ where
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
 {
-    type NotStartedSubAgent = NotStartedSubAgentOnHost<O::Client>;
+    type NotStartedSubAgent = SubAgentOnHost<O::Client, NotStarted, command_supervisor::NotStarted>;
+
     fn build(
         &self,
         agent_id: AgentID,
@@ -115,11 +117,11 @@ where
                     report_remote_config_status_error(opamp_client, &hash, error.clone())?;
                     // report the failed status for remote config and let the opamp client
                     // running with no supervisors so the configuration can be fixed
-                    return Ok(NotStartedSubAgentOnHost::new(
+                    return Ok(SubAgentOnHost::new(
                         agent_id,
                         Vec::default(),
                         maybe_opamp_client,
-                    )?);
+                    ));
                 } else if hash.is_applying() {
                     report_remote_config_status_applied(opamp_client, &hash)?;
                     hash.apply();
@@ -136,18 +138,18 @@ where
             }
         }
 
-        Ok(NotStartedSubAgentOnHost::new(
+        Ok(SubAgentOnHost::new(
             agent_id,
             build_supervisors(effective_agent_res?, tx)?,
             maybe_opamp_client,
-        )?)
+        ))
     }
 }
 
 fn build_supervisors(
     final_agent: FinalAgent,
     tx: std::sync::mpsc::Sender<AgentLog>,
-) -> Result<Vec<NotStartedSupervisorOnHost>, SubAgentError> {
+) -> Result<Vec<SupervisorOnHost<command_supervisor::NotStarted>>, SubAgentError> {
     let on_host = final_agent
         .runtime_config
         .deployment
@@ -169,7 +171,7 @@ fn build_supervisors(
             restart_policy,
         );
 
-        let not_started_supervisor = NotStartedSupervisorOnHost::new(config);
+        let not_started_supervisor = SupervisorOnHost::new(config);
         supervisors.push(not_started_supervisor);
     }
     Ok(supervisors)
