@@ -355,6 +355,8 @@ pub enum VariableType {
     // MapStringNumber,
     // #[serde(rename = "map[string]bool")]
     // MapStringBool,
+    #[serde(rename = "yaml")]
+    Yaml,
 }
 
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]

@@ -222,13 +222,24 @@ fn template_yaml_value_string(
     if re.is_match(s.as_str()) {
         let var_name = template_trim(s.as_str());
         let replacement = normalized_var(var_name, variables)?;
-        let templated = replace(re, s.as_str(), var_name, replacement)?;
+        let replacement_value = replacement
+            .get_template_value()
+            .ok_or(AgentTypeError::MissingAgentKey(var_name.to_string()))?;
         match replacement.type_ {
+            VariableType::Yaml => {
+                return replacement_value.to_yaml_value().ok_or(
+                    AgentTypeError::InvalidValueForSpec {
+                        key: var_name.to_string(),
+                        type_: VariableType::Yaml,
+                    },
+                );
+            }
             VariableType::Bool | VariableType::Number => {
-                return serde_yaml::from_str(templated.as_str()).map_err(AgentTypeError::SerdeYaml);
+                return serde_yaml::from_str(replacement_value.to_string().as_str())
+                    .map_err(AgentTypeError::SerdeYaml);
             }
             _ => {
-                return Ok(serde_yaml::Value::String(templated));
+                return Ok(serde_yaml::Value::String(replacement_value.to_string()));
             }
         }
     }
@@ -624,56 +635,26 @@ mod tests {
                     ..EndSpec::default_with_type(VariableType::Number)
                 },
             ),
-        ]);
-        let input: serde_yaml::Value = serde_yaml::from_str(
-            r#"
-        a_string: ${change.me.string}
-        a_boolean: ${change.me.bool}
-        a_number: ${change.me.number}
-        ${change.me.string}: Do not scape me
-        ${change.me.bool}: Do not scape me
-        ${change.me.number}: Do not scape me
-        "#,
-        )
-        .unwrap();
-        let expected_output: serde_yaml::Value = serde_yaml::from_str(
-            r#"
-        a_string: "CHANGED-STRING"
-        a_boolean: true
-        a_number: 42
-        ${change.me.string}: Do not scape me
-        ${change.me.bool}: Do not scape me
-        ${change.me.number}: Do not scape me
-        "#,
-        )
-        .unwrap();
-
-        let actual_output: serde_yaml::Value = input.template_with(&variables).unwrap();
-        assert_eq!(actual_output, expected_output);
-    }
-
-    #[test]
-    fn test_template_nested_yaml() {
-        let variables = NormalizedVariables::from([
             (
-                "change.me.string".to_string(),
+                "change.me.yaml".to_string(),
                 EndSpec {
-                    final_value: Some(TrivialValue::String("CHANGED-STRING".to_string())),
-                    ..EndSpec::default_with_type(VariableType::String)
+                    final_value: Some(TrivialValue::Yaml(
+                        r#"{"key": "value"}"#.to_string().try_into().unwrap(),
+                    )),
+                    ..EndSpec::default_with_type(VariableType::Yaml)
                 },
             ),
             (
-                "change.me.bool".to_string(),
+                // Expansion inside variable's values is not supported.
+                "yaml.with.var.placeholder".to_string(),
                 EndSpec {
-                    final_value: Some(TrivialValue::Bool(true)),
-                    ..EndSpec::default_with_type(VariableType::Bool)
-                },
-            ),
-            (
-                "change.me.number".to_string(),
-                EndSpec {
-                    final_value: Some(TrivialValue::Number(PosInt(42))),
-                    ..EndSpec::default_with_type(VariableType::Number)
+                    final_value: Some(TrivialValue::Yaml(
+                        r#"{"this.will.not.be.expanded": "${change.me.string}"}"#
+                            .to_string()
+                            .try_into()
+                            .unwrap(),
+                    )),
+                    ..EndSpec::default_with_type(VariableType::Yaml)
                 },
             ),
         ]);
@@ -692,9 +673,13 @@ mod tests {
                 - a_string: ${change.me.string}
                 - a_boolean: ${change.me.bool}
                 - a_number: ${change.me.number}
+                - a_yaml: ${change.me.yaml}
         a_string: ${change.me.string}
         a_boolean: ${change.me.bool}
         a_number: ${change.me.number}
+        a_yaml: ${change.me.yaml}
+        another_yaml: ${yaml.with.var.placeholder}
+        string_key: "here, the value ${change.me.yaml} isn't expanded because it is not alone"
         "#,
         )
         .unwrap();
@@ -713,9 +698,17 @@ mod tests {
                 - a_string: "CHANGED-STRING"
                 - a_boolean: true
                 - a_number: 42
+                - a_yaml:
+                    key:
+                      value
         a_string: "CHANGED-STRING"
         a_boolean: true
         a_number: 42
+        a_yaml:
+          key: value
+        another_yaml:
+          "this.will.not.be.expanded": "${change.me.string}"
+        string_key: "here, the value {\"key\": \"value\"} isn't expanded because it is not alone"
         "#,
         )
         .unwrap();
@@ -755,6 +748,15 @@ mod tests {
                     ..EndSpec::default_with_type(VariableType::Number)
                 },
             ),
+            (
+                "yaml.var".to_string(),
+                EndSpec {
+                    final_value: Some(TrivialValue::Yaml(
+                        r#"{"key": "value"}"#.to_string().try_into().unwrap(),
+                    )),
+                    ..EndSpec::default_with_type(VariableType::Yaml)
+                },
+            ),
         ]);
 
         assert_eq!(
@@ -777,7 +779,7 @@ mod tests {
             serde_yaml::Value::String("[Value]".into()),
             template_yaml_value_string("${string.with.yaml.var}".into(), &variables).unwrap()
         );
-        // bool and number values are got when the corresponding variable is "alone".
+        // yaml, bool and number values are got when the corresponding variable is "alone".
         assert_eq!(
             serde_yaml::Value::Bool(true),
             template_yaml_value_string("${bool.var}".into(), &variables).unwrap()
@@ -802,6 +804,18 @@ mod tests {
             )
             .unwrap()
         );
+        let m = assert_matches!(
+            template_yaml_value_string("${yaml.var}".into(), &variables).unwrap(),
+            serde_yaml::Value::Mapping(m) => m
+        );
+        assert_eq!(
+            serde_yaml::Value::String("value".into()),
+            m.get("key").unwrap().clone()
+        );
+        assert_eq!(
+            serde_yaml::Value::String(r#"x: {"key": "value"}"#.into()),
+            template_yaml_value_string("x: ${yaml.var}".into(), &variables).unwrap()
+        )
     }
 
     #[test]
