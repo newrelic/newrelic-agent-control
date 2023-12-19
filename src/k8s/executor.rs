@@ -3,7 +3,7 @@ use super::{
     error::K8sError::UnexpectedKind,
     reader::{DynamicObjectReflector, ReflectorBuilder},
 };
-use k8s_openapi::api::core::v1::{ConfigMap, Pod};
+use k8s_openapi::api::core::v1::ConfigMap;
 use kube::{
     api::{DeleteParams, ListParams, PostParams},
     config::KubeConfigOptions,
