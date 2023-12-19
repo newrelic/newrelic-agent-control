@@ -39,8 +39,6 @@ pub struct SupervisorOnHost<S> {
     state: S,
 }
 
-impl<S> SupervisorOnHost<S> {}
-
 impl SupervisorOnHost<NotStarted> {
     pub fn new(config: SupervisorConfigOnHost) -> Self {
         SupervisorOnHost {
