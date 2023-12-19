@@ -218,18 +218,20 @@ fn template_yaml_value_string(
     s: String,
     variables: &NormalizedVariables,
 ) -> Result<serde_yaml::Value, AgentTypeError> {
+    // When there is more content than a variable template, template as a regular string.
     if !only_template_var_re().is_match(s.as_str()) {
         let templated = template_string(s, variables)?;
         return Ok(serde_yaml::Value::String(templated));
     }
+    // Otherwise, template according to the variable type.
     let var_name = template_trim(s.as_str());
-    let replacement = normalized_var(var_name, variables)?;
-    let replacement_value = replacement
+    let var_spec = normalized_var(var_name, variables)?;
+    let var_value = var_spec
         .get_template_value()
         .ok_or(AgentTypeError::MissingAgentKey(var_name.to_string()))?;
-    match replacement.type_ {
+    match var_spec.type_ {
         VariableType::Yaml => {
-            replacement_value
+            var_value
                 .to_yaml_value()
                 .ok_or(AgentTypeError::InvalidValueForSpec {
                     key: var_name.to_string(),
@@ -237,10 +239,9 @@ fn template_yaml_value_string(
                 })
         }
         VariableType::Bool | VariableType::Number => {
-            serde_yaml::from_str(replacement_value.to_string().as_str())
-                .map_err(AgentTypeError::SerdeYaml)
+            serde_yaml::from_str(var_value.to_string().as_str()).map_err(AgentTypeError::SerdeYaml)
         }
-        _ => Ok(serde_yaml::Value::String(replacement_value.to_string())),
+        _ => Ok(serde_yaml::Value::String(var_value.to_string())),
     }
 }
 
