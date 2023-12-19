@@ -218,33 +218,30 @@ fn template_yaml_value_string(
     s: String,
     variables: &NormalizedVariables,
 ) -> Result<serde_yaml::Value, AgentTypeError> {
-    let re = only_template_var_re();
-    if re.is_match(s.as_str()) {
-        let var_name = template_trim(s.as_str());
-        let replacement = normalized_var(var_name, variables)?;
-        let replacement_value = replacement
-            .get_template_value()
-            .ok_or(AgentTypeError::MissingAgentKey(var_name.to_string()))?;
-        match replacement.type_ {
-            VariableType::Yaml => {
-                return replacement_value.to_yaml_value().ok_or(
-                    AgentTypeError::InvalidValueForSpec {
-                        key: var_name.to_string(),
-                        type_: VariableType::Yaml,
-                    },
-                );
-            }
-            VariableType::Bool | VariableType::Number => {
-                return serde_yaml::from_str(replacement_value.to_string().as_str())
-                    .map_err(AgentTypeError::SerdeYaml);
-            }
-            _ => {
-                return Ok(serde_yaml::Value::String(replacement_value.to_string()));
-            }
-        }
+    if !only_template_var_re().is_match(s.as_str()) {
+        let templated = template_string(s, variables)?;
+        return Ok(serde_yaml::Value::String(templated));
     }
-    let templated = template_string(s, variables)?;
-    Ok(serde_yaml::Value::String(templated))
+    let var_name = template_trim(s.as_str());
+    let replacement = normalized_var(var_name, variables)?;
+    let replacement_value = replacement
+        .get_template_value()
+        .ok_or(AgentTypeError::MissingAgentKey(var_name.to_string()))?;
+    match replacement.type_ {
+        VariableType::Yaml => {
+            replacement_value
+                .to_yaml_value()
+                .ok_or(AgentTypeError::InvalidValueForSpec {
+                    key: var_name.to_string(),
+                    type_: VariableType::Yaml,
+                })
+        }
+        VariableType::Bool | VariableType::Number => {
+            serde_yaml::from_str(replacement_value.to_string().as_str())
+                .map_err(AgentTypeError::SerdeYaml)
+        }
+        _ => Ok(serde_yaml::Value::String(replacement_value.to_string())),
+    }
 }
 
 impl Templateable for Deployment {
