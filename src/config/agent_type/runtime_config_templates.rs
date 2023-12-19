@@ -678,8 +678,8 @@ mod tests {
         a_boolean: ${change.me.bool}
         a_number: ${change.me.number}
         a_yaml: ${change.me.yaml}
-        another_yaml: ${yaml.with.var.placeholder}
-        string_key: "here, the value ${change.me.yaml} isn't expanded because it is not alone"
+        another_yaml: ${yaml.with.var.placeholder} # A variable inside another variable value is not expanded
+        string_key: "here, the value ${change.me.yaml} is encoded as string because it is not alone"
         "#,
         )
         .unwrap();
@@ -707,8 +707,8 @@ mod tests {
         a_yaml:
           key: value
         another_yaml:
-          "this.will.not.be.expanded": "${change.me.string}"
-        string_key: "here, the value {\"key\": \"value\"} isn't expanded because it is not alone"
+          "this.will.not.be.expanded": "${change.me.string}" # A variable inside another other variable value is not expanded
+        string_key: "here, the value {\"key\": \"value\"} is encoded as string because it is not alone"
         "#,
         )
         .unwrap();
