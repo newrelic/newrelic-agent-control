@@ -325,7 +325,7 @@ pub async fn create_test_cr(client: Client, namespace: &str, name: &str) -> Foo 
         _ => panic!(),
     };
 
-    foo_cr.metadata.labels = Some(DefaultLabels::new().with_agent_id(agent_id).get());
+    foo_cr.metadata.labels = Some(DefaultLabels::new().with_agent_id(&agent_id).get());
 
     foo_cr = api.create(&PostParams::default(), &foo_cr).await.unwrap();
 

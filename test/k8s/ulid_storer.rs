@@ -2,6 +2,7 @@ use crate::common::K8sEnv;
 use k8s_openapi::api::core::v1::ConfigMap;
 use kube::Api;
 use newrelic_super_agent::config::super_agent_configs::AgentID;
+use newrelic_super_agent::k8s::labels::DefaultLabels;
 use newrelic_super_agent::opamp::instance_id::{
     getter::{InstanceIDGetter, ULIDInstanceIDGetter},
     GetterError, Identifiers, CM_KEY,
@@ -49,12 +50,22 @@ async fn k8s_ulid_persister() {
     let cm_un = cm.unwrap();
     assert!(cm_un.data.is_some());
     assert!(cm_un.data.unwrap().contains_key(CM_KEY));
+    assert_eq!(
+        cm_un.metadata.labels,
+        Some(DefaultLabels::new().with_agent_id(&agent_id).get()),
+        "Expect to have default SA labels"
+    );
 
     let cm = cm_client.get("ulid-data-agent-different-id-test").await;
     assert!(cm.is_ok());
     let cm_un = cm.unwrap();
     assert!(cm_un.data.is_some());
     assert!(cm_un.data.unwrap().contains_key(CM_KEY));
+    assert_eq!(
+        cm_un.metadata.labels,
+        Some(DefaultLabels::new().with_agent_id(&another_agent_id).get()),
+        "Expect to have default SA labels"
+    );
 }
 
 // tokio test runs with 1 thread by default causing deadlock when executing `block_on` code during test helper drop.
