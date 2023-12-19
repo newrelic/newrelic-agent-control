@@ -3,12 +3,14 @@ use crate::k8s;
 use crate::k8s::labels::DefaultLabels;
 use crate::opamp::instance_id::getter::DataStored;
 use crate::opamp::instance_id::storer::InstanceIDStorer;
+use std::sync::Arc;
+use tracing::debug;
 
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::executor::K8sExecutor;
 
 pub struct Storer {
-    k8s_executor: K8sExecutor,
+    k8s_executor: Arc<K8sExecutor>,
     configmap_prefix: String,
 }
 
@@ -41,7 +43,7 @@ impl InstanceIDStorer for Storer {
 }
 
 impl Storer {
-    pub fn new(k8s_executor: K8sExecutor) -> Self {
+    pub fn new(k8s_executor: Arc<K8sExecutor>) -> Self {
         Self {
             k8s_executor,
             configmap_prefix: CM_PREFIX.to_string(),
@@ -53,6 +55,7 @@ impl Storer {
 
         let data = serde_yaml::to_string(&ds)?;
 
+        debug!("storer: setting ULID of agent_id:{}", agent_id);
         self.k8s_executor
             .set_configmap_key(
                 &cm_name,
@@ -67,6 +70,8 @@ impl Storer {
 
     async fn async_get(&self, agent_id: &AgentID) -> Result<Option<DataStored>, StorerError> {
         let cm_name: String = build_cm_name(&self.configmap_prefix, agent_id);
+
+        debug!("storer: getting ULID of agent_id:{}", agent_id);
 
         let data_res = self
             .k8s_executor
@@ -102,6 +107,7 @@ pub mod test {
     use crate::opamp::instance_id::storer::InstanceIDStorer;
     use crate::opamp::instance_id::InstanceID;
     use mockall::predicate;
+    use std::sync::Arc;
 
     const AGENT_NAME: &str = "agent1";
     const DATA_STORED: &str = "ulid: 01HFW1YZKYWHTGC0WMWPNR4P4K
@@ -136,7 +142,7 @@ identifiers:
                 predicate::function(|ds| ds == DATA_STORED),
             )
             .returning(move |_, _, _, _| Err(K8sError::CMMalformed()));
-        let s = Storer::new(m);
+        let s = Storer::new(Arc::new(m));
         let _ = s.get(&AgentID::new(AGENT_NAME).unwrap());
         let _ = s.set(
             &AgentID::new(AGENT_NAME).unwrap(),
@@ -153,7 +159,7 @@ identifiers:
         m.expect_get_configmap_key()
             .once()
             .returning(move |_, _| Err(K8sError::CMMalformed()));
-        let s = Storer::new(m);
+        let s = Storer::new(Arc::new(m));
 
         let id = s.get(&AgentID::new(AGENT_NAME).unwrap());
         assert!(id.is_err())
@@ -165,7 +171,7 @@ identifiers:
         m.expect_get_configmap_key()
             .once()
             .returning(move |_, _| Ok(None));
-        let s = Storer::new(m);
+        let s = Storer::new(Arc::new(m));
 
         let id = s.get(&AgentID::new(AGENT_NAME).unwrap());
         assert!(id.is_ok());
@@ -178,7 +184,7 @@ identifiers:
         m.expect_get_configmap_key()
             .once()
             .returning(move |_, _| Ok(Some(DATA_STORED.to_string())));
-        let s = Storer::new(m);
+        let s = Storer::new(Arc::new(m));
 
         let id = s.get(&AgentID::new(AGENT_NAME).unwrap());
         assert!(id.is_ok());
@@ -194,7 +200,7 @@ identifiers:
         m.expect_set_configmap_key()
             .once()
             .returning(move |_, _, _, _| Err(K8sError::CMMalformed()));
-        let s = Storer::new(m);
+        let s = Storer::new(Arc::new(m));
 
         let id = s.set(
             &AgentID::new(AGENT_NAME).unwrap(),
@@ -212,8 +218,7 @@ identifiers:
         m.expect_set_configmap_key()
             .once()
             .returning(move |_, _, _, _| Ok(()));
-        let s = Storer::new(m);
-
+        let s = Storer::new(Arc::new(m));
         let id = s.set(
             &AgentID::new(AGENT_NAME).unwrap(),
             &DataStored {
