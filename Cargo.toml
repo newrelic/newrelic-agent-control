@@ -3,5 +3,8 @@ resolver = "2"
 
 members = [
     "super-agent",
+]
+
+exclude = [
     "license", # Rust tool that checks used third party licenses
 ]
