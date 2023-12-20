@@ -167,21 +167,12 @@ pub(crate) mod test {
     where
         C: Callbacks + Send + Sync + 'static,
     {
-        pub fn should_build_and_start<F>(
+        pub fn should_build_and_start(
             &mut self,
             agent_id: AgentID,
             start_settings: StartSettings,
-            returning: F,
-        ) where
-            F: FnMut(
-                    EventPublisher<OpAMPEvent>,
-                    AgentID,
-                    StartSettings,
-                )
-                    -> Result<MockStartedOpAMPClientMock<C>, OpAMPClientBuilderError>
-                + Send
-                + 'static,
-        {
+            client: MockStartedOpAMPClientMock<C>,
+        ) {
             self.expect_build_and_start()
                 .with(
                     predicate::always(),
@@ -189,7 +180,7 @@ pub(crate) mod test {
                     predicate::eq(start_settings),
                 )
                 .once()
-                .returning(returning);
+                .return_once(move |_, _, _| Ok(client));
         }
     }
 }

@@ -219,17 +219,16 @@ mod test {
             agent_type: final_agent.agent_type().clone(),
         };
 
+        let mut started_client = MockStartedOpAMPClientMock::new();
+        started_client.should_set_health(1);
+        started_client.should_set_any_remote_config_status(1);
+        started_client.should_stop(1);
+
         // Infra Agent OpAMP no final stop nor health, just after stopping on reload
         opamp_builder.should_build_and_start(
             sub_agent_id.clone(),
             start_settings_infra,
-            |_, _, _| {
-                let mut started_client = MockStartedOpAMPClientMock::new();
-                started_client.should_set_health(1);
-                started_client.should_set_any_remote_config_status(1);
-                started_client.should_stop(1);
-                Ok(started_client)
-            },
+            started_client,
         );
 
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
@@ -293,19 +292,18 @@ mod test {
         // Infra Agent OpAMP no final stop nor health, just after stopping on reload
         instance_id_getter.should_get(&sub_agent_id, "infra_agent_instance_id".to_string());
 
+        let mut started_client = MockStartedOpAMPClientMock::new();
+        // failed conf should be reported
+        started_client.should_set_remote_config_status(RemoteConfigStatus {
+            error_message: "this is an error message".to_string(),
+            status: Failed as i32,
+            last_remote_config_hash: "a-hash".as_bytes().to_vec(),
+        });
+
         opamp_builder.should_build_and_start(
             sub_agent_id.clone(),
             start_settings_infra,
-            |_, _, _| {
-                let mut started_client = MockStartedOpAMPClientMock::new();
-                // failed conf should be reported
-                started_client.should_set_remote_config_status(RemoteConfigStatus {
-                    error_message: "this is an error message".to_string(),
-                    status: Failed as i32,
-                    last_remote_config_hash: "a-hash".as_bytes().to_vec(),
-                });
-                Ok(started_client)
-            },
+            started_client,
         );
 
         effective_agent_assembler.should_assemble_agent(

@@ -118,15 +118,15 @@ mod test {
             &sub_agent_config.agent_type,
             HashMap::new(),
         );
+
+        let mut started_client = MockStartedOpAMPClientMock::new();
+        started_client.should_set_health(1);
+        started_client.should_stop(1);
+
         opamp_builder.should_build_and_start(
             AgentID::new("k8s-test").unwrap(),
             start_settings,
-            |_, _, _| {
-                let mut started_client = MockStartedOpAMPClientMock::new();
-                started_client.should_set_health(1);
-                started_client.should_stop(1);
-                Ok(started_client)
-            },
+            started_client,
         );
         // instance id getter mock
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
