@@ -1,7 +1,7 @@
 pub mod defaults;
 pub mod effective_agents_assembler;
 pub mod error;
-pub(crate) mod handle;
+pub(super) mod event_handler;
 pub mod opamp;
 
 #[allow(clippy::module_inception)]

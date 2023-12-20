@@ -391,8 +391,6 @@ impl EffectiveAgents {
 
 #[cfg(test)]
 mod tests {
-    use crate::config::agent_type::trivial_value::TrivialValue;
-    use crate::config::agent_values::AgentValues;
     use crate::config::store::tests::MockSubAgentsConfigStore;
     use crate::config::store::SubAgentsConfigStore;
     use crate::config::super_agent_configs::{
@@ -404,15 +402,11 @@ mod tests {
     use crate::opamp::remote_config::{ConfigMap, RemoteConfig};
     use crate::opamp::remote_config_hash::test::MockHashRepositoryMock;
     use crate::opamp::remote_config_hash::{Hash, HashRepository};
-    use crate::sub_agent::collection::StartedSubAgents;
-    use crate::sub_agent::test::MockStartedSubAgent;
     use crate::sub_agent::values::values_repository::test::MockRemoteValuesRepositoryMock;
     use crate::sub_agent::values::values_repository::ValuesRepository;
     use crate::sub_agent::{test::MockSubAgentBuilderMock, SubAgentBuilder};
     use crate::super_agent::super_agent::SuperAgent;
     use mockall::predicate;
-    use opamp_client::opamp::proto::RemoteConfigStatus;
-    use opamp_client::opamp::proto::RemoteConfigStatuses::{Applied, Applying};
 
     use opamp_client::StartedClient;
     use std::collections::HashMap;
