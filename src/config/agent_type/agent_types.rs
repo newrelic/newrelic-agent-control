@@ -999,7 +999,7 @@ integrations:
     strategy: bootstrap
   redis.yml: |
     user: redis
-config: | 
+config: |
     license_key: abc124
     staging: false
 "#;
@@ -1452,5 +1452,93 @@ backoff:
                 .restart_policy
                 .backoff_strategy
         );
+    }
+
+    const K8S_AGENT_TYPE_YAML_VARIABLES: &str = r#"
+name: k8s-agent-type
+namespace: newrelic
+version: 0.0.1
+variables:
+  config:
+    values:
+      description: "yaml values"
+      type: yaml
+      required: true
+    yaml_string:
+      description: "yaml string"
+      type: yaml
+      required: true
+    list:
+      description: "list values"
+      type: yaml
+      required: true
+
+deployment:
+  k8s:
+    objects:
+      cr1:
+        apiVersion: group/version
+        kind: ObjectKind
+        spec:
+          values: ${config.values}
+          str: ${config.yaml_string}
+          list: ${config.list}
+"#;
+    const K8S_CONFIG_YAML_VARIABLES: &str = r#"
+
+config:
+  values:
+    key: value
+    another_key:
+      nested: nested_value
+      nested_list:
+        - item
+  yaml_string: |
+    key: value
+  list:
+    - item1
+    - item2
+"#;
+    #[test]
+    fn test_k8s_config_yaml_variables() {
+        let input_agent_type: FinalAgent =
+            serde_yaml::from_str(K8S_AGENT_TYPE_YAML_VARIABLES).unwrap();
+        let user_config: AgentValues = serde_yaml::from_str(K8S_CONFIG_YAML_VARIABLES).unwrap();
+
+        let expected_spec_yaml: &str = r#"
+values:
+  key: value
+  another_key:
+    nested: nested_value
+    nested_list:
+      - item
+    empty:
+str: |
+  key: value
+list:
+  - item1
+  - item2
+"#; // TODO: null values are not supported for now
+        let expected_spec_value: serde_yaml::Value =
+            serde_yaml::from_str(expected_spec_yaml).unwrap();
+
+        let expanded_final_agent = input_agent_type.template_with(user_config, None).unwrap();
+
+        let cr1 = expanded_final_agent
+            .runtime_config
+            .deployment
+            .k8s
+            .unwrap()
+            .objects
+            .get("cr1")
+            .unwrap()
+            .clone();
+
+        assert_eq!("group/version".to_string(), cr1.api_version);
+        assert_eq!("ObjectKind".to_string(), cr1.kind);
+
+        let spec = cr1.fields.get("spec").unwrap();
+        println!("{:?}", spec);
+        assert_eq!(expected_spec_value, spec.to_owned())
     }
 }

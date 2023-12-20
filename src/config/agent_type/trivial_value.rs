@@ -15,11 +15,12 @@ pub enum TrivialValue {
     String(String),
     #[serde(skip)]
     File(FilePathWithContent),
-    #[serde(skip)]
-    Yaml(YamlValue),
     Bool(bool),
     Number(N),
+    #[serde(skip)]
+    Yaml(YamlValue),
     Map(Map<String, TrivialValue>),
+    Sequence(Vec<TrivialValue>),
 }
 
 impl TrivialValue {
@@ -66,15 +67,33 @@ impl TrivialValue {
                         .collect(),
                 ))
             }
+            (TrivialValue::Map(m), VariableType::Yaml) => {
+                let yaml = &serde_yaml::to_value(m)?;
+                Ok(TrivialValue::Yaml(YamlValue {
+                    value: yaml.to_owned(),
+                    content: serde_yaml::to_string(yaml)?,
+                }))
+            }
             (TrivialValue::String(content), VariableType::File) => match end_spec.file_path() {
                 None => Err(AgentTypeError::InvalidFilePath),
                 Some(file_path) => Ok(TrivialValue::File(FilePathWithContent::new(
                     file_path, content,
                 ))),
             },
+            // A yaml variable with string content is deserialized
             (TrivialValue::String(content), VariableType::Yaml) => {
-                let yaml_value: YamlValue = content.try_into()?;
-                Ok(TrivialValue::Yaml(yaml_value))
+                Ok(TrivialValue::Yaml(YamlValue {
+                    value: serde_yaml::Value::String(content.clone()),
+                    content,
+                }))
+            }
+            // Sequence is supported for yaml variables only
+            (TrivialValue::Sequence(m), VariableType::Yaml) => {
+                let yaml = &serde_yaml::to_value(m)?;
+                Ok(TrivialValue::Yaml(YamlValue {
+                    value: yaml.to_owned(),
+                    content: serde_yaml::to_string(yaml)?,
+                }))
             }
             (v, t) => Err(AgentTypeError::TypeMismatch {
                 expected_type: t,
@@ -97,7 +116,7 @@ impl Display for TrivialValue {
         match self {
             TrivialValue::String(s) => write!(f, "{}", s),
             TrivialValue::File(file) => write!(f, "{}", file.path),
-            TrivialValue::Yaml(yaml) => write!(f, "{}", yaml.content),
+            TrivialValue::Yaml(y) => write!(f, "{}", y),
             TrivialValue::Bool(b) => write!(f, "{}", b),
             TrivialValue::Number(n) => write!(f, "{}", n),
             TrivialValue::Map(n) => {
@@ -105,6 +124,10 @@ impl Display for TrivialValue {
                     .iter()
                     .map(|(key, value)| format!("{key}={value}"))
                     .collect();
+                write!(f, "{}", flatten.join(" "))
+            }
+            TrivialValue::Sequence(s) => {
+                let flatten: Vec<String> = s.iter().map(|v| format!("{v}")).collect();
                 write!(f, "{}", flatten.join(" "))
             }
         }
@@ -148,12 +171,19 @@ impl Display for N {
 }
 
 /// Represents a yaml value, holding both the string before deserializing and the [serde_yaml::Value] after.
-#[derive(Debug, PartialEq, Default, Clone, Deserialize)]
+/// The string before deserializing is kept to avoid serializing again when displaying.
+#[derive(Debug, PartialEq, Default, Clone, Deserialize, Serialize)]
 pub struct YamlValue {
-    #[serde(skip)]
-    pub value: serde_yaml::Value,
     #[serde(flatten)]
-    pub content: String,
+    pub value: serde_yaml::Value,
+    #[serde(skip)]
+    content: String,
+}
+
+impl Display for YamlValue {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.content)
+    }
 }
 
 impl TryFrom<String> for YamlValue {
