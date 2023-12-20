@@ -30,6 +30,7 @@ duration-str = "0.7.0"
 
 # OnHost subagent dependencies
 # IMPORTANT: All onhost only deps needs to be `optional = true` so they won't be compiled by default
+identifier = {path = "../identifier"}
 
 # K8S subagent dependencies
 # IMPORTANT: All k8s only deps needs to be `optional = true` so they won't be compiled by default
@@ -77,6 +78,7 @@ path = "src/bin/main.rs"
 
 
 [features]
+default = ["onhost"]
 onhost = []
 k8s = ["dep:kube", "dep:k8s-openapi", "dep:tower", "dep:hyper", "dep:either"]
 # feature ci allows calling --all-features (needed on the test pipelines) and not failing to compile

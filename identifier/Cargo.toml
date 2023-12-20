@@ -1,0 +1,16 @@
+[package]
+name = "identifier"
+description = "Provides multiple identification methods for a host"
+version = "0.0.1"
+edition = "2021"
+authors = ["The New Relic Core Agent & Open Standards (CAOS) Team"]
+publish = false
+
+[dependencies]
+mockall = "0.12.0"
+nix = { version = "0.27.1", features = ["hostname"] }
+serde = {version = "1.0.193", features = ["derive"]}
+thiserror = "1.0.51"
+tracing = "0.1.40"
+ulid = "1.1.0"
+mockall_double = "0.3.0"
