@@ -137,7 +137,6 @@ deployment:
         metadata:
           labels:
             extralabel: ${extralabel}
-          name: open-telemetry # Needed as a reference below. Do not override or override below too.
         spec:
           interval: 3m
           url: https://open-telemetry.github.io/opentelemetry-helm-charts

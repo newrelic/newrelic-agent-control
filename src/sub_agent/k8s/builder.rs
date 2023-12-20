@@ -307,8 +307,7 @@ mod test {
         let k8s_object = K8sObject {
             api_version: "source.toolkit.fluxcd.io/v1beta2".to_string(),
             kind,
-            metadata: None,
-            fields: serde_yaml::Mapping::new(),
+            ..Default::default()
         };
 
         let mut objects = HashMap::new();

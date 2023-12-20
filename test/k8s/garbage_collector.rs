@@ -3,15 +3,19 @@ use k8s_openapi::{api::core::v1::ConfigMap, Resource};
 use kube::{api::Api, core::TypeMeta};
 use mockall::Sequence;
 use newrelic_super_agent::{
-    config::super_agent_configs::{AgentID, SuperAgentConfig},
+    config::{
+        agent_type::runtime_config::K8sObject,
+        super_agent_configs::{AgentID, SuperAgentConfig},
+    },
     k8s::{executor::K8sExecutor, garbage_collector::NotStartedK8sGarbageCollector},
     opamp::instance_id::{
         getter::{InstanceIDGetter, ULIDInstanceIDGetter},
         Identifiers,
     },
+    sub_agent::k8s::CRSupervisor,
     super_agent::defaults::SUPER_AGENT_ID,
 };
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "needs k8s cluster"]
@@ -20,7 +24,37 @@ async fn k8s_garbage_collector_cleans_removed_agent() {
     let test_ns = test.test_namespace().await;
 
     let agent_id = &AgentID::new("sub-agent").unwrap();
-    create_test_cr(test.client.to_owned(), test_ns.as_str(), agent_id).await;
+
+    let executor = Arc::new(
+        K8sExecutor::try_new_with_reflectors(test_ns.to_string(), vec![foo_type_meta()])
+            .await
+            .unwrap(),
+    );
+
+    let s = CRSupervisor::new(
+        agent_id.clone(),
+        executor.clone(),
+        HashMap::from([(
+            "fooCR".to_string(),
+            serde_yaml::from_str::<K8sObject>(
+                format!(
+                    r#"
+apiVersion: {}
+kind: {}
+spec:
+    data: test
+        "#,
+                    foo_type_meta().api_version,
+                    foo_type_meta().kind
+                )
+                .as_str(),
+            )
+            .unwrap(),
+        )]),
+    );
+
+    // Creates the Foo CR correctly tagged.
+    s.apply().unwrap();
 
     let executor = Arc::new(
         K8sExecutor::try_new_with_reflectors(test_ns.to_string(), vec![foo_type_meta()])
@@ -33,6 +67,7 @@ async fn k8s_garbage_collector_cleans_removed_agent() {
             .await
             .unwrap();
 
+    // Creates ULID CM correctly tagged.
     let agent_ulid = instance_id_getter.get(agent_id).unwrap();
 
     let mut config_loader = MockSuperAgentConfigLoader::new();
@@ -59,7 +94,7 @@ agents:
         .returning(move || Ok(serde_yaml::from_str::<SuperAgentConfig>("agents: {}").unwrap()))
         .in_sequence(&mut seq);
 
-    let gc = NotStartedK8sGarbageCollector::new(Arc::new(config_loader), executor);
+    let gc = NotStartedK8sGarbageCollector::new(Arc::new(config_loader), executor.clone());
 
     // Expects the GC to keep the agent cr which is in the config, event if looking for multiple kinds or that
     // are missing in the cluster.

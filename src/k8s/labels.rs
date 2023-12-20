@@ -25,6 +25,13 @@ impl DefaultLabels {
         self
     }
 
+    /// Adds extra labels to the collection WITHOUT replacing existing ones.
+    pub fn append_extra_labels(&mut self, labels: &BTreeMap<String, String>) {
+        for (label, value) in labels.iter() {
+            self.0.entry(label.clone()).or_insert(value.clone());
+        }
+    }
+
     pub fn get(&self) -> BTreeMap<String, String> {
         self.0.clone()
     }
@@ -41,6 +48,8 @@ impl DefaultLabels {
 
 #[cfg(test)]
 pub(crate) mod test {
+    use std::collections::BTreeMap;
+
     use crate::config::super_agent_configs::AgentID;
 
     use super::{DefaultLabels, AGENT_ID_LABEL_KEY, MANAGED_BY_KEY, MANAGED_BY_VAL};
@@ -53,5 +62,25 @@ pub(crate) mod test {
             format!("{MANAGED_BY_KEY}=={MANAGED_BY_VAL},{AGENT_ID_LABEL_KEY}=={agent_id}"),
             labels.selector()
         );
+    }
+
+    #[test]
+    fn test_append_extra_labels() {
+        let agent_id = &AgentID::new("test").unwrap();
+        let mut labels = DefaultLabels::new().with_agent_id(agent_id);
+        labels.append_extra_labels(&BTreeMap::from([
+            (
+                AGENT_ID_LABEL_KEY.to_string(),
+                "will-not-be-override".to_string(),
+            ),
+            ("foo".to_string(), "bar".to_string()),
+        ]));
+
+        assert_eq!(
+            labels.0.get(AGENT_ID_LABEL_KEY).unwrap(),
+            &agent_id.to_string()
+        );
+
+        assert_eq!(labels.0.get("foo").unwrap(), "bar");
     }
 }

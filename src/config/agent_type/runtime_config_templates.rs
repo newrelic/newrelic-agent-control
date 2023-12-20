@@ -166,8 +166,7 @@ impl Templateable for K8sObject {
         Ok(Self {
             api_version: self.api_version.clone(),
             kind: self.kind.clone(),
-            // TODO: Once we decide how to handle metadata from AgentType, we need to update it.
-            metadata: None,
+            metadata: self.metadata.clone(),
             fields: self.fields.template_with(variables)?,
         })
     }

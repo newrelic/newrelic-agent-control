@@ -1,6 +1,7 @@
 use crate::config::agent_type::runtime_config::K8sObject;
 use crate::config::super_agent_configs::AgentID;
 use crate::k8s::error::K8sError;
+use crate::k8s::labels::DefaultLabels;
 use futures::executor::block_on;
 use k8s_openapi::serde_json;
 use kube::{
@@ -88,9 +89,18 @@ impl CRSupervisor {
             kind: k8s_obj.kind.clone(),
         };
 
+        let mut labels = DefaultLabels::new().with_agent_id(&self.agent_id);
+        if let Some(metadata) = &k8s_obj.metadata {
+            if let Some(l) = &metadata.labels {
+                // Merge default labels with the ones coming from the config with default labels taking precedence.
+                labels.append_extra_labels(l);
+            }
+        }
+
         let metadata = ObjectMeta {
             name: Some(self.agent_id.to_string()),
             namespace: Some(self.executor.default_namespace().to_string()),
+            labels: Some(labels.get()),
             ..Default::default()
         };
 
@@ -109,46 +119,58 @@ impl CRSupervisor {
 #[cfg(test)]
 pub mod test {
     use super::*;
-    use crate::config::agent_type::runtime_config::K8sObject;
+    use crate::config::agent_type::runtime_config::{K8sObject, K8sObjectMeta};
     use crate::k8s::executor::MockK8sExecutor;
+    use crate::k8s::labels::AGENT_ID_LABEL_KEY;
+    use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
     use k8s_openapi::serde_json;
-    use kube::core::{ObjectMeta, TypeMeta};
+    use kube::core::TypeMeta;
     use serde_json::json;
-    use std::collections::HashMap;
+    use std::collections::{BTreeMap, HashMap};
 
     const TEST_API_VERSION: &str = "test/v1";
     const TEST_KIND: &str = "test";
+    const NAMESPACE: &str = "default";
 
-    fn test_dynamic_object() -> DynamicObject {
-        DynamicObject {
-            types: Some(TypeMeta {
-                api_version: TEST_API_VERSION.to_string(),
-                kind: TEST_KIND.to_string(),
+    fn k8s_object() -> K8sObject {
+        K8sObject {
+            api_version: TEST_API_VERSION.to_string(),
+            kind: TEST_KIND.to_string(),
+            metadata: Some(K8sObjectMeta {
+                labels: Some(BTreeMap::from([
+                    ("custom-label".to_string(), "values".to_string()),
+                    (
+                        AGENT_ID_LABEL_KEY.to_string(),
+                        "to be overwritten".to_string(),
+                    ),
+                ])),
             }),
-            metadata: ObjectMeta {
-                name: Some("test".to_string()),
-                ..Default::default()
-            },
-            data: json!({}),
-        }
-    }
-
-    fn test_equal_k8s_objects() -> HashMap<String, K8sObject> {
-        let cr = K8sObject {
-            api_version: test_dynamic_object().types.unwrap().api_version,
-            kind: test_dynamic_object().types.unwrap().kind,
-            metadata: None,
             ..Default::default()
-        };
-        HashMap::from([
-            ("mock_cr1".to_string(), cr.clone()),
-            ("mock_cr2".to_string(), cr.clone()),
-        ])
+        }
     }
 
     #[test]
     fn test_supervisor_apply() {
         let mut mock_executor = MockK8sExecutor::default();
+
+        let agent_id = AgentID::new("test").unwrap();
+
+        let mut labels = DefaultLabels::new().with_agent_id(&agent_id);
+        labels.append_extra_labels(&k8s_object().metadata.unwrap().labels.unwrap());
+
+        let expected = DynamicObject {
+            types: Some(TypeMeta {
+                api_version: TEST_API_VERSION.to_string(),
+                kind: TEST_KIND.to_string(),
+            }),
+            metadata: ObjectMeta {
+                name: Some(agent_id.get()),
+                namespace: Some(NAMESPACE.to_string()),
+                labels: Some(labels.get()),
+                ..Default::default()
+            },
+            data: json!({}),
+        };
 
         mock_executor
             .expect_has_dynamic_object_changed()
@@ -156,21 +178,24 @@ pub mod test {
             .returning(|_| Ok(true));
         mock_executor
             .expect_default_namespace()
-            .return_const("default".to_string());
+            .return_const(NAMESPACE.to_string());
 
         mock_executor
             .expect_apply_dynamic_object()
             .times(2)
-            .withf(|dynamic_object| {
-                dynamic_object.types.as_ref().unwrap().kind == TEST_KIND
-                    && dynamic_object.types.as_ref().unwrap().api_version == TEST_API_VERSION
+            .withf(move |dyn_object| {
+                assert_eq!(dyn_object, &expected);
+                expected.eq(dyn_object)
             })
             .returning(|_| Ok(()));
 
         let supervisor = CRSupervisor::new(
-            AgentID::new("test-agent").unwrap(),
+            agent_id,
             Arc::new(mock_executor),
-            test_equal_k8s_objects(),
+            HashMap::from([
+                ("mock_cr1".to_string(), k8s_object()),
+                ("mock_cr2".to_string(), k8s_object()),
+            ]),
         );
 
         supervisor.apply().unwrap();
