@@ -1,1 +1,1 @@
-pub(crate) mod opamp;
+pub(super) mod opamp;
