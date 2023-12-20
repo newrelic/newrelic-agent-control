@@ -1,9 +1,12 @@
-use crate::{Detect, Resource};
+use std::marker::PhantomData;
 
-use super::{hostname::HostnameGetter, identifier_machine_id_unix::IdentifierProviderMachineId};
+use crate::{Detect, DetectError, Resource};
 
-#[derive(thiserror::Error, Debug)]
-#[cfg_attr(test, derive(Clone))]
+use super::{
+    hostname::HostnameGetter, identifier_machine_id_unix::IdentifierProviderMachineId, System,
+};
+
+#[derive(thiserror::Error, Debug, Clone)]
 pub enum SystemDetectorError {
     #[error("error getting hostname `{0}`")]
     HostnameError(String),
@@ -25,8 +28,8 @@ impl Default for SystemDetector {
     }
 }
 
-impl Detect<2> for SystemDetector {
-    fn detect(&self) -> Resource<2> {
+impl Detect<System, 2> for SystemDetector {
+    fn detect(&self) -> Resource<System, 2> {
         Resource {
             attributes: [
                 (
@@ -41,6 +44,17 @@ impl Detect<2> for SystemDetector {
                     self.machine_id_provider.provide().map_err(|e| e.into()),
                 ),
             ],
+            environment: PhantomData,
         }
+    }
+}
+
+impl Resource<System, 2> {
+    pub fn get_hostname(&self) -> Result<String, DetectError> {
+        self.attributes[0].1.clone()
+    }
+
+    pub fn get_machine_id(&self) -> Result<String, DetectError> {
+        self.attributes[1].1.clone()
     }
 }
