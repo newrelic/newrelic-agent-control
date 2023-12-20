@@ -3,7 +3,7 @@ use super::{
     error::K8sError::UnexpectedKind,
     reader::{DynamicObjectReflector, ReflectorBuilder},
 };
-use k8s_openapi::api::core::v1::ConfigMap;
+use k8s_openapi::api::core::v1::{ConfigMap, Namespace};
 use kube::{
     api::{DeleteParams, ListParams, PostParams},
     config::KubeConfigOptions,
@@ -54,10 +54,17 @@ impl K8sExecutor {
         };
 
         config.default_namespace = namespace;
-
         let client = Client::try_from(config)?;
-        debug!("client creation succeeded");
 
+        debug!("verifying default namespace existence");
+        Api::<Namespace>::all(client.clone())
+            .get(client.default_namespace())
+            .await
+            .map_err(|e| {
+                K8sError::UnableToSetupClient(format!("failed to get the default namespace: {}", e))
+            })?;
+
+        debug!("client creation succeeded");
         Ok(Self {
             client,
             dynamics: HashMap::new(),

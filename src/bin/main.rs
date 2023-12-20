@@ -147,12 +147,6 @@ fn run_super_agent(
     let sub_agent_hash_repository = HashRepositoryFile::new_sub_agent_repository();
     let k8s_config = config_storer.load()?.k8s.ok_or(AgentError::K8sConfig())?;
 
-    let instance_id_getter =
-        futures::executor::block_on(ULIDInstanceIDGetter::try_with_identifiers(
-            k8s_config.namespace.clone(),
-            instance_id::get_identifiers(k8s_config.cluster_name),
-        ))?;
-
     // Initialize K8sExecutor
     // TODO: once we know how we're going to use the K8sExecutor, we might need to refactor and move this.
     let executor = Arc::new(
@@ -164,6 +158,13 @@ fn run_super_agent(
         )
         .map_err(|e| AgentError::ExternalError(e.to_string()))?,
     );
+
+    let instance_id_getter =
+        futures::executor::block_on(ULIDInstanceIDGetter::try_with_identifiers(
+            executor.clone(),
+            instance_id::get_identifiers(k8s_config.cluster_name),
+        ))?;
+
     /////////////////////////
 
     let sub_agent_builder = newrelic_super_agent::sub_agent::k8s::builder::K8sSubAgentBuilder::new(

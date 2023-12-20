@@ -1,6 +1,8 @@
 use crate::common::{create_test_cr, foo_type_meta, Foo, K8sEnv, MockSuperAgentConfigLoader};
+use bollard::exec;
 use k8s_openapi::{api::core::v1::ConfigMap, Resource};
 use kube::{api::Api, core::TypeMeta};
+use log::kv::Source;
 use mockall::Sequence;
 use newrelic_super_agent::{
     config::super_agent_configs::{AgentID, SuperAgentConfig},
@@ -22,8 +24,14 @@ async fn k8s_garbage_collector_cleans_removed_agent() {
     let agent_id = &AgentID::new("sub-agent").unwrap();
     create_test_cr(test.client.to_owned(), test_ns.as_str(), agent_id).await;
 
+    let executor = Arc::new(
+        K8sExecutor::try_new_with_reflectors(test_ns.to_string(), vec![foo_type_meta()])
+            .await
+            .unwrap(),
+    );
+
     let instance_id_getter =
-        ULIDInstanceIDGetter::try_with_identifiers(test_ns.clone(), Identifiers::default())
+        ULIDInstanceIDGetter::try_with_identifiers(executor.clone(), Identifiers::default())
             .await
             .unwrap();
 
@@ -53,14 +61,7 @@ agents:
         .returning(move || Ok(serde_yaml::from_str::<SuperAgentConfig>("agents: {}").unwrap()))
         .in_sequence(&mut seq);
 
-    let gc = NotStartedK8sGarbageCollector::new(
-        Arc::new(config_loader),
-        Arc::new(
-            K8sExecutor::try_new_with_reflectors(test_ns.to_string(), vec![foo_type_meta()])
-                .await
-                .unwrap(),
-        ),
-    );
+    let gc = NotStartedK8sGarbageCollector::new(Arc::new(config_loader), executor);
 
     // Expects the GC to keep the agent cr which is in the config, event if looking for multiple kinds or that
     // are missing in the cluster.
@@ -141,8 +142,13 @@ async fn k8s_garbage_collector_does_not_remove_super_agent() {
     let sa_id = &AgentID::new_super_agent_id();
     create_test_cr(test.client.to_owned(), test_ns.as_str(), sa_id).await;
 
+    let executor = Arc::new(
+        K8sExecutor::try_new_with_reflectors(test_ns.to_string(), vec![foo_type_meta()])
+            .await
+            .unwrap(),
+    );
     let instance_id_getter =
-        ULIDInstanceIDGetter::try_with_identifiers(test_ns.clone(), Identifiers::default())
+        ULIDInstanceIDGetter::try_with_identifiers(executor.clone(), Identifiers::default())
             .await
             .unwrap();
 
@@ -155,14 +161,7 @@ async fn k8s_garbage_collector_does_not_remove_super_agent() {
         .times(1)
         .returning(move || Ok(serde_yaml::from_str::<SuperAgentConfig>("agents: {}").unwrap()));
 
-    let gc = NotStartedK8sGarbageCollector::new(
-        Arc::new(config_loader),
-        Arc::new(
-            K8sExecutor::try_new_with_reflectors(test_ns.to_string(), vec![foo_type_meta()])
-                .await
-                .unwrap(),
-        ),
-    );
+    let gc = NotStartedK8sGarbageCollector::new(Arc::new(config_loader), executor);
 
     // Expects the GC do not clean any resource related to the SA.
     gc.collect().await.unwrap();
