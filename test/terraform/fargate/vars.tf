@@ -66,15 +66,15 @@ variable "secret_name_docker_password" {
 
 # CrowdStrike Falcon secrets
 
-variable "crowdstrike_client_id" {
+variable "secret_name_crowdstrike_client_id" {
   default = "caos/canaries/crowdstrike_falcon_client_id-N7nGXx"
 }
 
-variable "crowdstrike_client_secret" {
+variable "secret_name_crowdstrike_client_secret" {
   default = "caos/canaries/crowdstrike_falcon_client_secret-l9EIhi"
 }
 
-variable "crowdstrike_customer_id" {
+variable "secret_name_crowdstrike_customer_id" {
   default = "caos/canaries/crowdstrike_falcon_customer_id-f7n7rI"
 }
 
