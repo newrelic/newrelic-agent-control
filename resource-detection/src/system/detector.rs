@@ -14,11 +14,17 @@ pub enum SystemDetectorError {
     MachineIDError(String),
 }
 
+/// The `SystemDetector` struct encapsulates system detection functionality.
+///
+/// # Fields:
+/// - `hostname_getter`: An instance of the `HostnameGetter` struct for retrieving system hostname.
+/// - `machine_id_provider`: An instance of the `IdentifierProviderMachineId` struct for retrieving machine ID.
 pub struct SystemDetector {
     hostname_getter: HostnameGetter,
     machine_id_provider: IdentifierProviderMachineId,
 }
 
+/// Default implementation for `SystemDetector` struct.
 impl Default for SystemDetector {
     fn default() -> Self {
         Self {
@@ -28,6 +34,7 @@ impl Default for SystemDetector {
     }
 }
 
+/// Implementing the `Detect` trait for the `SystemDetector` struct.
 impl Detect<System, 2> for SystemDetector {
     fn detect(&self) -> Resource<System, 2> {
         Resource {
@@ -49,11 +56,22 @@ impl Detect<System, 2> for SystemDetector {
     }
 }
 
+/// Extension methods for the `Resource` struct when the Resource represents a system environment.
 impl Resource<System, 2> {
+    /// Attempts to get the hostname from the Resource attributes.
+    ///
+    /// # Returns:
+    /// - `Ok(String)`: The hostname string if present and retrieval is successful.
+    /// - `Err(DetectError)`: A `DetectError` instance in case of an error.
     pub fn get_hostname(&self) -> Result<String, DetectError> {
         self.attributes[0].1.clone()
     }
 
+    /// Attempts to get the machine ID from the Resource attributes.
+    ///
+    /// # Returns:
+    /// - `Ok(String)`: The machine ID string if present and retrieval is successful.
+    /// - `Err(DetectError)`: A `DetectError` instance in case of an error.
     pub fn get_machine_id(&self) -> Result<String, DetectError> {
         self.attributes[1].1.clone()
     }
