@@ -79,39 +79,38 @@ mod test {
     use identifier::system::System;
     use identifier::Detect;
     use identifier::{DetectError, Resource};
+    use mockall::mock;
     use tracing_test::internal::logs_with_scope_contain;
     use tracing_test::traced_test;
 
-    struct SystemDetectorMock {
-        pub detect_mock: fn() -> Resource<System, 2>,
-    }
-
-    impl Detect<System, 2> for SystemDetectorMock {
-        fn detect(&self) -> Resource<System, 2> {
-            (self.detect_mock)()
+    mock! {
+        pub SystemDetectorMock {}
+        impl Detect<System,2> for SystemDetectorMock {
+            fn detect(&self) -> Resource<System, 2>;
         }
     }
 
     #[traced_test]
     #[test]
     fn test_hostname_error_will_return_empty_hostname() {
+        let mut system_detector_mock = MockSystemDetectorMock::new();
+        system_detector_mock
+            .expect_detect()
+            .once()
+            .returning(|| Resource {
+                attributes: [
+                    (
+                        "hostname".to_string(),
+                        Err(DetectError::from(SystemDetectorError::HostnameError(
+                            "errno".to_string(),
+                        ))),
+                    ),
+                    ("machine-i".to_string(), Ok("some machine id".to_string())),
+                ],
+                environment: PhantomData,
+            });
         let identifiers_provider = IdentifiersProvider {
-            system_detector: SystemDetectorMock {
-                detect_mock: || -> Resource<System, 2> {
-                    Resource {
-                        attributes: [
-                            (
-                                "hostname".to_string(),
-                                Err(DetectError::from(SystemDetectorError::HostnameError(
-                                    "errno".to_string(),
-                                ))),
-                            ),
-                            ("machine-i".to_string(), Ok("some machine id".to_string())),
-                        ],
-                        environment: PhantomData,
-                    }
-                },
-            },
+            system_detector: system_detector_mock,
         };
         let identifiers = identifiers_provider.provide();
 
@@ -129,25 +128,26 @@ mod test {
     #[traced_test]
     #[test]
     fn test_machine_id_error_will_return_empty_machine_id() {
+        let mut system_detector_mock = MockSystemDetectorMock::new();
+        system_detector_mock
+            .expect_detect()
+            .once()
+            .returning(|| Resource {
+                attributes: [
+                    ("hostname".to_string(), Ok("some.example.org".to_string())),
+                    (
+                        "machine-i".to_string(),
+                        Err(DetectError::SystemError(
+                            SystemDetectorError::HostnameError(String::from(
+                                "machine-id was not found...",
+                            )),
+                        )),
+                    ),
+                ],
+                environment: PhantomData,
+            });
         let identifiers_provider = IdentifiersProvider {
-            system_detector: SystemDetectorMock {
-                detect_mock: || -> Resource<System, 2> {
-                    Resource {
-                        attributes: [
-                            ("hostname".to_string(), Ok("some.example.org".to_string())),
-                            (
-                                "machine-i".to_string(),
-                                Err(DetectError::SystemError(
-                                    SystemDetectorError::HostnameError(String::from(
-                                        "machine-id was not found...",
-                                    )),
-                                )),
-                            ),
-                        ],
-                        environment: PhantomData,
-                    }
-                },
-            },
+            system_detector: system_detector_mock,
         };
         let identifiers = identifiers_provider.provide();
 
@@ -165,18 +165,19 @@ mod test {
     #[traced_test]
     #[test]
     fn test_providers_should_be_returned() {
+        let mut system_detector_mock = MockSystemDetectorMock::new();
+        system_detector_mock
+            .expect_detect()
+            .once()
+            .returning(|| Resource {
+                attributes: [
+                    ("hostname".to_string(), Ok("some.example.org".to_string())),
+                    ("machine-i".to_string(), Ok(String::from("some machine-id"))),
+                ],
+                environment: PhantomData,
+            });
         let identifiers_provider = IdentifiersProvider {
-            system_detector: SystemDetectorMock {
-                detect_mock: || -> Resource<System, 2> {
-                    Resource {
-                        attributes: [
-                            ("hostname".to_string(), Ok("some.example.org".to_string())),
-                            ("machine-i".to_string(), Ok(String::from("some machine-id"))),
-                        ],
-                        environment: PhantomData,
-                    }
-                },
-            },
+            system_detector: system_detector_mock,
         };
         let identifiers = identifiers_provider.provide();
 
