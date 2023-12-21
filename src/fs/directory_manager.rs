@@ -7,7 +7,7 @@ use std::path::Path;
 
 use thiserror::Error;
 
-use crate::config::persister::fs_utils::{validate_path, FsError};
+use crate::fs::utils::{validate_path, FsError};
 
 #[derive(Error, Debug)]
 pub enum DirectoryManagementError {
@@ -85,7 +85,7 @@ pub mod test {
 
     use mockall::{mock, predicate};
 
-    use crate::config::persister::directory_manager::{
+    use crate::fs::directory_manager::{
         DirectoryManagementError, DirectoryManager, DirectoryManagerFs,
     };
 

@@ -1,4 +1,4 @@
-use std::fs::read_to_string;
+use std::fs::{read_dir, read_to_string};
 use std::io::Error as ioError;
 use std::path::Path;
 use thiserror::Error;
@@ -9,6 +9,8 @@ pub enum FileReaderError {
     Read(#[from] ioError),
     #[error("file not found: `{0}`")]
     FileNotFound(String),
+    #[error("dir not found: `{0}`")]
+    DirNotFound(String),
 }
 
 #[derive(Default)]
@@ -27,6 +29,21 @@ impl FSFileReader {
             Err(e) => Err(FileReaderError::Read(e)),
             Ok(content) => Ok(content),
         }
+    }
+
+    pub fn read_dir(&self, dir_path: &Path) -> Result<Vec<String>, FileReaderError> {
+        if !dir_path.is_dir() {
+            return Err(FileReaderError::DirNotFound(format!(
+                "{}",
+                dir_path.display()
+            )));
+        }
+        let files = read_dir(dir_path)?;
+        let mut file_paths: Vec<String> = Vec::new();
+        for path in files {
+            file_paths.push(path?.path().into_os_string().into_string().unwrap());
+        }
+        Ok(file_paths)
     }
 }
 
@@ -69,6 +86,13 @@ pub mod test {
                 .with(predicate::eq(PathBuf::from(path)))
                 .returning(move |_| Ok(content.clone()));
         }
+
+        pub fn should_read_dir(&mut self, path: &Path, content: Vec<String>) {
+            self.expect_read_dir()
+                .with(predicate::eq(PathBuf::from(path)))
+                .times(1)
+                .returning(move |_| Ok(content.clone()));
+        }
     }
 
     #[test]
@@ -78,6 +102,17 @@ pub mod test {
         assert!(result.is_err());
         assert_eq!(
             String::from("file not found: `/a/path/that/does/not/exist`"),
+            result.unwrap_err().to_string()
+        );
+    }
+
+    #[test]
+    fn test_dir_not_found_should_return_error() {
+        let reader = FSFileReader::default();
+        let result = reader.read_dir(Path::new("/a/path/that/does/not/exist"));
+        assert!(result.is_err());
+        assert_eq!(
+            String::from("dir not found: `/a/path/that/does/not/exist`"),
             result.unwrap_err().to_string()
         );
     }
