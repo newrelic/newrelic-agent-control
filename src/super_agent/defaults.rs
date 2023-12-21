@@ -28,7 +28,29 @@ pub fn default_capabilities() -> Capabilities {
 }
 
 // Infrastructure_agent AgentType
-pub(crate) const NEWRELIC_INFRA_TYPE: &str = r#"
+pub(crate) const NEWRELIC_INFRA_TYPE_1: &str = r#"
+namespace: newrelic
+name: com.newrelic.infrastructure_agent
+version: 0.0.1
+variables:
+  config_file:
+    description: "Newrelic infra configuration path"
+    type: string
+    required: false
+    default: /etc/newrelic-infra.yml
+deployment:
+  on_host:
+    executables:
+      - path: /usr/bin/newrelic-infra
+        args: "--config=${config_file}"
+        restart_policy:
+          backoff_strategy:
+            type: fixed
+            backoff_delay_seconds: 5s
+"#;
+
+// Infrastructure_agent AgentType
+pub(crate) const NEWRELIC_INFRA_TYPE_2: &str = r#"
 namespace: newrelic
 name: com.newrelic.infrastructure_agent
 version: 0.0.2
