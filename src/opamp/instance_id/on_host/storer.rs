@@ -1,13 +1,13 @@
-use crate::config::persister::config_writer_file::WriteError;
-#[cfg_attr(test, mockall_double::double)]
-use crate::config::persister::config_writer_file::WriterFile;
-use crate::config::persister::directory_manager::{
+use crate::config::super_agent_configs::AgentID;
+use crate::fs::directory_manager::{
     DirectoryManagementError, DirectoryManager, DirectoryManagerFs,
 };
-use crate::config::super_agent_configs::AgentID;
 #[cfg_attr(test, mockall_double::double)]
-use crate::file_reader::FSFileReader;
-use crate::file_reader::FileReaderError;
+use crate::fs::file_reader::FSFileReader;
+use crate::fs::file_reader::FileReaderError;
+use crate::fs::writer_file::WriteError;
+#[cfg_attr(test, mockall_double::double)]
+use crate::fs::writer_file::WriterFile;
 use crate::opamp::instance_id::getter::DataStored;
 use crate::opamp::instance_id::storer::InstanceIDStorer;
 
@@ -134,10 +134,10 @@ where
 
 #[cfg(test)]
 mod test {
-    use crate::config::persister::config_writer_file::MockWriterFile;
-    use crate::config::persister::directory_manager::test::MockDirectoryManagerMock;
     use crate::config::super_agent_configs::AgentID;
-    use crate::file_reader::MockFSFileReader;
+    use crate::fs::directory_manager::test::MockDirectoryManagerMock;
+    use crate::fs::file_reader::MockFSFileReader;
+    use crate::fs::writer_file::MockWriterFile;
     use crate::opamp::instance_id::getter::DataStored;
     use crate::opamp::instance_id::on_host::storer::get_uild_path;
     use crate::opamp::instance_id::storer::InstanceIDStorer;

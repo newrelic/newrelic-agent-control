@@ -1,5 +1,5 @@
 #[cfg_attr(test, mockall_double::double)]
-use crate::file_reader::FSFileReader;
+use crate::fs::file_reader::FSFileReader;
 use crate::opamp::instance_id::on_host::getter::IdentifierRetrievalError;
 use std::path::PathBuf;
 
@@ -32,7 +32,7 @@ impl Default for IdentifierProviderMachineId {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::file_reader::MockFSFileReader;
+    use crate::fs::file_reader::MockFSFileReader;
     use std::path::Path;
 
     impl IdentifierProviderMachineId {

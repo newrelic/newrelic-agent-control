@@ -2,8 +2,8 @@ use thiserror::Error;
 use tracing::error;
 
 use crate::config::agent_type::agent_types::FinalAgent;
-use crate::config::persister::directory_manager::DirectoryManagerFs;
 use crate::config::super_agent_configs::{AgentID, SubAgentConfig};
+use crate::fs::directory_manager::DirectoryManagerFs;
 use crate::sub_agent::values::values_repository::{
     ValuesRepository, ValuesRepositoryError, ValuesRepositoryFile,
 };
@@ -18,7 +18,7 @@ use crate::{
             config_persister_file::ConfigurationPersisterFile,
         },
     },
-    file_reader::FileReaderError,
+    fs::file_reader::FileReaderError,
 };
 
 #[derive(Error, Debug)]
@@ -149,13 +149,12 @@ pub(crate) mod tests {
         agent_type::{agent_types::FinalAgent, trivial_value::TrivialValue},
         agent_type_registry::AgentRegistry,
         agent_values::AgentValues,
-        persister::{
-            config_persister::{test::MockConfigurationPersisterMock, ConfigurationPersister},
-            config_writer_file::WriteError,
-            directory_manager::DirectoryManagementError,
+        persister::config_persister::{
+            test::MockConfigurationPersisterMock, ConfigurationPersister,
         },
         super_agent_configs::{AgentID, SubAgentConfig},
     };
+    use crate::fs::{directory_manager::DirectoryManagementError, writer_file::WriteError};
     use crate::sub_agent::values::values_repository::test::MockRemoteValuesRepositoryMock;
 
     use super::*;

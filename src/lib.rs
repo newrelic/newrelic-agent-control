@@ -1,8 +1,9 @@
 pub mod cli;
 pub mod config;
+pub mod config_migrate;
 pub mod context;
 pub mod event;
-pub mod file_reader;
+pub mod fs;
 pub mod logging;
 pub mod opamp;
 pub mod sub_agent;

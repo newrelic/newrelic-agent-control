@@ -7,8 +7,8 @@ use std::{fs, io};
 use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::fs::PermissionsExt;
 
-use crate::config::persister::directory_manager::DirectoryManagementError;
-use crate::config::persister::fs_utils::{validate_path, FsError};
+use crate::fs::directory_manager::DirectoryManagementError;
+use crate::fs::utils::{validate_path, FsError};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -73,7 +73,7 @@ pub mod test {
     use mockall::predicate;
 
     use super::{MockWriterFile, WriteError};
-    use crate::config::persister::config_writer_file::WriterFile;
+    use crate::fs::writer_file::WriterFile;
 
     #[cfg(target_family = "unix")]
     #[test]

@@ -1,12 +1,12 @@
 use crate::config::agent_type::agent_types::FinalAgent;
 use crate::config::agent_values::AgentValues;
 use crate::config::error::SuperAgentConfigError;
-use crate::config::persister::directory_manager::DirectoryManagerFs;
 use crate::config::store::{
     SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer, SuperAgentConfigStoreFile,
 };
 use crate::config::super_agent_configs::{AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig};
 use crate::context::Context;
+use crate::fs::directory_manager::DirectoryManagerFs;
 use crate::opamp::callbacks::AgentCallbacks;
 use crate::opamp::remote_config::{RemoteConfig, RemoteConfigError};
 use crate::opamp::remote_config_hash::{Hash, HashRepository, HashRepositoryFile};
