@@ -29,6 +29,8 @@ ARG BUILD_MODE
 ENV BUILD_MODE_ENV=${BUILD_MODE}
 ARG BUILD_FEATURE
 ENV BUILD_FEATURE_ENV=${BUILD_FEATURE}
+ARG BUILD_BIN
+ENV BUILD_BIN_ENV=${BUILD_BIN}
 
 # Execute the command dynamically at runtime
 CMD [ "sh", "-c", "\
@@ -36,5 +38,6 @@ CMD [ "sh", "-c", "\
      [ \"$BUILD_MODE_ENV\" != 'debug' ] && CMD_STRING='cargo build --release'; \
      CMD_STRING=\"$CMD_STRING --features $BUILD_FEATURE_ENV\"; \
      CMD_STRING=\"$CMD_STRING --target $ARCH_NAME-unknown-linux-gnu\"; \
+     CMD_STRING=\"$CMD_STRING --bin $BUILD_BIN_ENV\"; \
      $CMD_STRING \
 "]
