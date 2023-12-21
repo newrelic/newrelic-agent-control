@@ -15,16 +15,22 @@ fi
 
 : "${BUILD_MODE:=release}" # Default to release if not specified
 
+if [ -z "${BIN}" ]; then
+    BIN="newrelic-super-agent"
+    echo "BIN not provided; defaulting to 'newrelic-super-agent'."
+fi
+
+
 if [ -z "${BUILD_FEATURE}" ]; then
     BUILD_FEATURE="onhost"
     echo "BUILD_FEATURE not provided; defaulting to 'onhost'."
 fi
 
-docker build -t "rust-cross-${ARCH_NAME}" -f ./build/rust.Dockerfile --build-arg ARCH_NAME="${ARCH_NAME}" --build-arg BUILD_MODE="${BUILD_MODE}" --build-arg BUILD_FEATURE="${BUILD_FEATURE}" .
+docker build -t "rust-cross-${ARCH_NAME}" -f ./build/rust.Dockerfile --build-arg ARCH_NAME="${ARCH_NAME}" --build-arg BUILD_MODE="${BUILD_MODE}" --build-arg BUILD_FEATURE="${BUILD_FEATURE}" --build-arg BUILD_BIN="${BIN}" .
 
 CARGO_HOME=/tmp/.cargo cargo fetch
 docker run --rm --user "$(id -u)":"$(id -g)" -v "$PWD":/usr/src/app -v /tmp/.cargo:/usr/src/app/.cargo rust-cross-"${ARCH_NAME}"
 
 mkdir -p "bin"
 
-cp "./target/${ARCH_NAME}-unknown-linux-gnu/${BUILD_MODE}/newrelic-super-agent" "./bin/newrelic-super-agent-${ARCH}"
+cp "./target/${ARCH_NAME}-unknown-linux-gnu/${BUILD_MODE}/${BIN}" "./bin/${BIN}-${ARCH}"
