@@ -1,6 +1,6 @@
 [package]
-name = "identifier"
-description = "Provides multiple identification methods for a host"
+name = "resource-detection"
+description = "The resource detection can be used to detect resource information from the host"
 version = "0.0.1"
 edition = "2021"
 authors = ["The New Relic Core Agent & Open Standards (CAOS) Team"]

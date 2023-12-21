@@ -1073,19 +1073,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b9e0384b61958566e926dc50660321d12159025e767c18e043daf26b70104c39"
 
 [[package]]
-name = "identifier"
-version = "0.0.1"
-dependencies = [
- "mockall 0.12.0",
- "mockall_double",
- "nix",
- "serde",
- "thiserror",
- "tracing",
- "ulid",
-]
-
-[[package]]
 name = "idna"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1578,7 +1565,6 @@ dependencies = [
  "futures",
  "http",
  "hyper",
- "identifier",
  "k8s-openapi",
  "kube",
  "log",
@@ -1589,6 +1575,7 @@ dependencies = [
  "openssl",
  "predicates 3.0.4",
  "regex",
+ "resource-detection",
  "schemars",
  "serde",
  "serde_json",
@@ -2139,6 +2126,19 @@ dependencies = [
  "wasm-bindgen-futures",
  "web-sys",
  "winreg",
+]
+
+[[package]]
+name = "resource-detection"
+version = "0.0.1"
+dependencies = [
+ "mockall 0.12.0",
+ "mockall_double",
+ "nix",
+ "serde",
+ "thiserror",
+ "tracing",
+ "ulid",
 ]
 
 [[package]]

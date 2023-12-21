@@ -3,7 +3,7 @@ resolver = "2"
 
 members = [
     "super-agent",
-    "identifier",
+    "resource-detection",
 ]
 
 exclude = [

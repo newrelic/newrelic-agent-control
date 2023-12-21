@@ -1,7 +1,7 @@
 use crate::opamp::instance_id::getter::ULIDInstanceIDGetter;
 use crate::opamp::instance_id::on_host::storer::{Storer, StorerError};
-use identifier::system::System;
-use identifier::{system::detector::SystemDetector, Detect};
+use resource_detection::system::System;
+use resource_detection::{system::detector::SystemDetector, Detect};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::error;
@@ -75,11 +75,10 @@ mod test {
 
     use crate::opamp::instance_id::on_host::getter::IdentifiersProvider;
     use crate::opamp::instance_id::Identifiers;
-    use identifier::system::detector::SystemDetectorError;
-    use identifier::system::System;
-    use identifier::Detect;
-    use identifier::{DetectError, Resource};
     use mockall::mock;
+    use resource_detection::system::detector::SystemDetectorError;
+    use resource_detection::system::System;
+    use resource_detection::{Detect, DetectError, Resource};
     use tracing_test::internal::logs_with_scope_contain;
     use tracing_test::traced_test;
 
