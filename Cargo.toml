@@ -1,7 +1,7 @@
 [package]
 name = "newrelic_super_agent"
 description = "New Relic Super Agent Limited Preview"
-version = "0.5.3"
+version = "0.6.0"
 edition = "2021"
 authors = ["The New Relic Core Agent & Open Standards (CAOS) Team"]
 publish = false
