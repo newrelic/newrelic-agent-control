@@ -1,3 +1,4 @@
+use std::marker::PhantomData;
 use std::thread::JoinHandle;
 
 use opamp_client;
@@ -10,18 +11,19 @@ use crate::opamp::operations::stop_opamp_client;
 use crate::sub_agent::error::SubAgentError;
 
 use super::supervisor::command_supervisor;
-#[cfg_attr(test, mockall_double::double)]
-use crate::sub_agent::on_host::event_processor::EventProcessor;
+use crate::sub_agent::on_host::event_processor::SubAgentEventProcessor;
 use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent, SubAgentCallbacks};
 
 ////////////////////////////////////////////////////////////////////////////////////
 // States for Started/Not Started Sub Agents
 ////////////////////////////////////////////////////////////////////////////////////
-pub struct NotStarted<C>
+pub struct NotStarted<C, E>
 where
     C: StartedClient<SubAgentCallbacks> + 'static,
+    E: SubAgentEventProcessor<C>,
 {
-    event_processor: EventProcessor<C>,
+    event_processor: E,
+    _marker: PhantomData<C>,
 }
 
 pub struct Started<C>
@@ -47,26 +49,31 @@ impl<S, V> SubAgentOnHost<S, V> {
     }
 }
 
-impl<C> SubAgentOnHost<NotStarted<C>, command_supervisor::NotStarted>
+impl<C, E> SubAgentOnHost<NotStarted<C, E>, command_supervisor::NotStarted>
 where
     C: StartedClient<SubAgentCallbacks> + 'static,
+    E: SubAgentEventProcessor<C>,
 {
     pub fn new(
         agent_id: AgentID,
         supervisors: Vec<SupervisorOnHost<command_supervisor::NotStarted>>,
-        event_processor: EventProcessor<C>,
-    ) -> SubAgentOnHost<NotStarted<C>, command_supervisor::NotStarted> {
+        event_processor: E,
+    ) -> SubAgentOnHost<NotStarted<C, E>, command_supervisor::NotStarted> {
         SubAgentOnHost {
             supervisors,
             agent_id,
-            state: NotStarted { event_processor },
+            state: NotStarted {
+                event_processor,
+                _marker: PhantomData,
+            },
         }
     }
 }
 
-impl<C> NotStartedSubAgent for SubAgentOnHost<NotStarted<C>, command_supervisor::NotStarted>
+impl<C, E> NotStartedSubAgent for SubAgentOnHost<NotStarted<C, E>, command_supervisor::NotStarted>
 where
     C: StartedClient<SubAgentCallbacks> + 'static,
+    E: SubAgentEventProcessor<C>,
 {
     type StartedSubAgent = SubAgentOnHost<Started<C>, command_supervisor::Started>;
 
@@ -108,7 +115,7 @@ where
 mod test {
     use crate::config::super_agent_configs::AgentID;
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
-    use crate::sub_agent::on_host::event_processor::MockEventProcessor;
+    use crate::sub_agent::on_host::event_processor::test::MockEventProcessorMock;
     use crate::sub_agent::on_host::sub_agent::SubAgentOnHost;
     use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent, SubAgentCallbacks};
     use std::thread::sleep;
@@ -122,8 +129,7 @@ mod test {
         let mut opamp_client: MockStartedOpAMPClientMock<SubAgentCallbacks> =
             MockStartedOpAMPClientMock::new();
 
-        let mut event_processor: MockEventProcessor<MockStartedOpAMPClientMock<SubAgentCallbacks>> =
-            MockEventProcessor::default();
+        let mut event_processor = MockEventProcessorMock::default();
 
         opamp_client.should_set_health(1);
         opamp_client.should_stop(1);

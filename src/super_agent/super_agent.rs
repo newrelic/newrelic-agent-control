@@ -1,6 +1,5 @@
 use crate::config::agent_type::agent_types::FinalAgent;
 use crate::config::error::SuperAgentConfigError;
-use crate::config::persister::directory_manager::DirectoryManagerFs;
 use crate::config::store::{SubAgentsConfigStore, SuperAgentConfigStoreFile};
 use crate::config::super_agent_configs::{AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig};
 use crate::event::channel::{pub_sub, EventConsumer, EventPublisher};
@@ -14,7 +13,6 @@ use crate::sub_agent::logger::{AgentLog, EventLogger, StdEventReceiver};
 use crate::sub_agent::SubAgentBuilder;
 
 use crate::event::{OpAMPEvent, SubAgentEvent, SuperAgentEvent};
-use crate::sub_agent::values::values_repository::{ValuesRepository, ValuesRepositoryFile};
 use crate::sub_agent::NotStartedSubAgent;
 use crate::super_agent::defaults::{SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION};
 use crate::super_agent::error::AgentError;
@@ -28,53 +26,38 @@ use std::collections::HashMap;
 use std::string::ToString;
 use std::sync::mpsc::{self, Sender};
 use thiserror::Error;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 use super::opamp::remote_config_publisher::SuperAgentRemoteConfigPublisher;
 
 pub(super) type SuperAgentCallbacks = AgentCallbacks<SuperAgentRemoteConfigPublisher>;
 
-pub struct SuperAgent<
-    'a,
-    S,
-    O,
-    HR = HashRepositoryFile,
-    SL = SuperAgentConfigStoreFile,
-    HRS = HashRepositoryFile,
-    VR = ValuesRepositoryFile<DirectoryManagerFs>,
-> where
+pub struct SuperAgent<'a, S, O, HR = HashRepositoryFile, SL = SuperAgentConfigStoreFile>
+where
     O: StartedClient<SuperAgentCallbacks>,
     HR: HashRepository,
     SL: SubAgentsConfigStore,
-    HRS: HashRepository,
     S: SubAgentBuilder,
-    VR: ValuesRepository,
 {
     pub(super) opamp_client: Option<O>,
     sub_agent_builder: S,
     remote_config_hash_repository: &'a HR,
     agent_id: AgentID,
-    pub(super) sub_agent_remote_config_hash_repository: &'a HRS,
-    pub(super) remote_values_repo: VR,
     pub(super) sub_agents_config_store: SL,
 }
 
-impl<'a, S, O, HR, SL, HRS, VR> SuperAgent<'a, S, O, HR, SL, HRS, VR>
+impl<'a, S, O, HR, SL> SuperAgent<'a, S, O, HR, SL>
 where
     O: StartedClient<SuperAgentCallbacks>,
     HR: HashRepository,
     S: SubAgentBuilder,
     SL: SubAgentsConfigStore,
-    HRS: HashRepository,
-    VR: ValuesRepository,
 {
     pub fn new(
         opamp_client: Option<O>,
         remote_config_hash_repository: &'a HR,
         sub_agent_builder: S,
         sub_agents_config_store: SL,
-        sub_agent_remote_config_hash_repository: &'a HRS,
-        values_repo: VR,
     ) -> Self {
         Self {
             opamp_client,
@@ -83,8 +66,6 @@ where
             // unwrap as we control content of the SUPER_AGENT_ID constant
             agent_id: AgentID::new_super_agent_id(),
             sub_agents_config_store,
-            sub_agent_remote_config_hash_repository,
-            remote_values_repo: values_repo,
         }
     }
 
@@ -122,9 +103,6 @@ where
                     self.set_config_hash_as_applied(&mut hash)?;
                 }
             }
-        } else {
-            // Delete remote values
-            self.remote_values_repo.delete_remote_all()?;
         }
 
         info!("Starting the supervisor group.");
@@ -273,6 +251,21 @@ where
                         drop(tx); //drop the main channel sender to stop listener
                         break sub_agents.stop()?;
                 },
+                recv(sub_agent_pub_sub.1.as_ref()) -> sub_agent_event_res => {
+                    match sub_agent_event_res {
+                        Err(_) => {
+                            // TODO is it worth to log this?
+                            debug!("channel closed");
+                        },
+                        Ok(sub_agent_event) => {
+                            match sub_agent_event{
+                                SubAgentEvent::ConfigUpdated(agent_id) => {
+                                    self.sub_agent_config_updated(agent_id,tx.clone(),sub_agent_pub_sub.0.clone(),&mut sub_agents)?
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
         Ok(())
@@ -409,17 +402,17 @@ mod tests {
         AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig,
     };
     use crate::event::channel::pub_sub;
-    use crate::event::{OpAMPEvent, SuperAgentEvent};
+    use crate::event::{OpAMPEvent, SubAgentEvent, SuperAgentEvent};
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::remote_config::{ConfigMap, RemoteConfig};
     use crate::opamp::remote_config_hash::test::MockHashRepositoryMock;
     use crate::opamp::remote_config_hash::{Hash, HashRepository};
-    use crate::sub_agent::values::values_repository::test::MockRemoteValuesRepositoryMock;
-    use crate::sub_agent::values::values_repository::ValuesRepository;
     use crate::sub_agent::{test::MockSubAgentBuilderMock, SubAgentBuilder};
     use crate::super_agent::super_agent::SuperAgent;
     use mockall::predicate;
 
+    use crate::sub_agent::collection::StartedSubAgents;
+    use crate::sub_agent::test::{MockNotStartedSubAgent, MockStartedSubAgent};
     use opamp_client::StartedClient;
     use std::collections::HashMap;
     use std::sync::mpsc;
@@ -431,22 +424,18 @@ mod tests {
     ////////////////////////////////////////////////////////////////////////////////////
     // Custom Agent constructor for tests
     ////////////////////////////////////////////////////////////////////////////////////
-    impl<'a, S, O, HR, SL, HRS, VR> SuperAgent<'a, S, O, HR, SL, HRS, VR>
+    impl<'a, S, O, HR, SL> SuperAgent<'a, S, O, HR, SL>
     where
         O: StartedClient<SuperAgentCallbacks>,
         HR: HashRepository,
         S: SubAgentBuilder,
         SL: SubAgentsConfigStore,
-        HRS: HashRepository,
-        VR: ValuesRepository,
     {
         pub fn new_custom(
             opamp_client: Option<O>,
             remote_config_hash_repository: &'a HR,
             sub_agent_builder: S,
             sub_agents_config_store: SL,
-            sub_agent_remote_config_hash_repository: &'a HRS,
-            sub_agent_values_repo: VR,
         ) -> Self {
             SuperAgent {
                 opamp_client,
@@ -454,16 +443,12 @@ mod tests {
                 sub_agent_builder,
                 agent_id: AgentID::new_super_agent_id(),
                 sub_agents_config_store,
-                sub_agent_remote_config_hash_repository,
-                remote_values_repo: sub_agent_values_repo,
             }
         }
     }
 
     #[test]
     fn run_and_stop_supervisors_no_agents() {
-        let sub_agent_hash_repository_mock = MockHashRepositoryMock::new();
-        let sub_agent_values_repo = MockRemoteValuesRepositoryMock::new();
         let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         let mut started_client = MockStartedOpAMPClientMock::new();
@@ -486,8 +471,6 @@ mod tests {
             &hash_repository_mock,
             MockSubAgentBuilderMock::new(),
             sub_agents_config_store,
-            &sub_agent_hash_repository_mock,
-            sub_agent_values_repo,
         );
 
         let (super_agent_publisher, super_agent_consumer) = pub_sub();
@@ -501,8 +484,6 @@ mod tests {
 
     #[test]
     fn run_and_stop_supervisors() {
-        let sub_agent_hash_repository_mock = MockHashRepositoryMock::new();
-        let sub_agent_values_repo = MockRemoteValuesRepositoryMock::new();
         let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         let mut sub_agent_builder = MockSubAgentBuilderMock::new();
@@ -532,8 +513,6 @@ mod tests {
             &hash_repository_mock,
             sub_agent_builder,
             sub_agents_config_store,
-            &sub_agent_hash_repository_mock,
-            sub_agent_values_repo,
         );
 
         let (super_agent_publisher, super_agent_consumer) = pub_sub();
@@ -547,8 +526,6 @@ mod tests {
 
     #[test]
     fn receive_opamp_remote_config() {
-        let sub_agent_hash_repository_mock = MockHashRepositoryMock::new();
-        let sub_agent_values_repo = MockRemoteValuesRepositoryMock::new();
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         let mut sub_agent_builder = MockSubAgentBuilderMock::new();
 
@@ -615,8 +592,6 @@ mod tests {
                     &hash_repository_mock,
                     sub_agent_builder,
                     sub_agents_config_store,
-                    &sub_agent_hash_repository_mock,
-                    sub_agent_values_repo,
                 );
                 agent.run(super_agent_consumer, (opamp_publisher, opamp_consumer))
             }
@@ -826,10 +801,6 @@ agents:
 
     #[test]
     fn create_stop_sub_agents_from_remote_config() {
-        // Mocked services
-        let sub_agent_hash_repository_mock = MockHashRepositoryMock::new();
-        let sub_agent_values_repo = MockRemoteValuesRepositoryMock::new();
-
         // Sub Agents
         let sub_agents_config = sub_agents_default_config();
 
@@ -883,8 +854,6 @@ agents:
             &hash_repository_mock,
             sub_agent_builder,
             sub_agents_config_store,
-            &sub_agent_hash_repository_mock,
-            sub_agent_values_repo,
         );
 
         let (tx, _) = mpsc::channel();
@@ -985,5 +954,110 @@ agents:
             ),
         ])
         .into()
+    }
+
+    #[test]
+    fn test_sub_agent_config_updated_should_recreate_sub_agent() {
+        let (tx, _) = std::sync::mpsc::channel();
+        let hash_repository_mock = MockHashRepositoryMock::new();
+        let mut sub_agent_builder = MockSubAgentBuilderMock::new();
+        let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
+
+        // Given that we have 3 running Sub Agents
+        let sub_agent_id = AgentID::new("infra_agent").unwrap();
+        let mut sub_agents = StartedSubAgents::from(HashMap::from([
+            (
+                AgentID::new("fluent_bit").unwrap(),
+                MockStartedSubAgent::new(),
+            ),
+            (sub_agent_id.clone(), MockStartedSubAgent::new()),
+            (AgentID::new("nrdot").unwrap(), MockStartedSubAgent::new()),
+        ]));
+
+        let sub_agents_config = SubAgentsConfig::from(HashMap::from([
+            (
+                AgentID::new("nrdot").unwrap(),
+                SubAgentConfig {
+                    agent_type: AgentTypeFQN::from("fqn_rdot"),
+                },
+            ),
+            (
+                sub_agent_id.clone(),
+                SubAgentConfig {
+                    agent_type: AgentTypeFQN::from("fqn_infra_agent"),
+                },
+            ),
+            (
+                AgentID::new("fluent_bit").unwrap(),
+                SubAgentConfig {
+                    agent_type: AgentTypeFQN::from("fqn_fluent_bit"),
+                },
+            ),
+        ]));
+
+        sub_agents_config_store.should_load(&sub_agents_config);
+        // And the Sub Agent should be stopped
+        sub_agents.get(&sub_agent_id).should_stop();
+        // And the Sub Agent should be re-created
+        let mut not_started_sub_agent = MockNotStartedSubAgent::default();
+        // and it will be started
+        let mut started_sub_agent = MockStartedSubAgent::default();
+        // and will be stopped in the end
+        started_sub_agent.should_stop();
+
+        not_started_sub_agent.should_run(started_sub_agent);
+
+        sub_agent_builder.should_build_not_started(
+            &sub_agent_id,
+            SubAgentConfig {
+                agent_type: AgentTypeFQN::from("fqn_infra_agent"),
+            },
+            not_started_sub_agent,
+        );
+        // And all the Sub Agents should stop on Stopping the Super Agent
+        sub_agents
+            .get(&AgentID::new("nrdot").unwrap())
+            .should_stop();
+        sub_agents
+            .get(&AgentID::new("fluent_bit").unwrap())
+            .should_stop();
+
+        let (super_agent_publisher, super_agent_consumer) = pub_sub();
+        let (sub_agent_publisher, sub_agent_consumer) = pub_sub();
+        let (_super_agent_opamp_publisher, super_agent_opamp_consumer) = pub_sub();
+
+        // Create the Super Agent and run Sub Agents
+        let super_agent = SuperAgent::new_custom(
+            Some(MockStartedOpAMPClientMock::new()),
+            &hash_repository_mock,
+            sub_agent_builder,
+            sub_agents_config_store,
+        );
+
+        let sub_agent_publisher_clone = sub_agent_publisher.clone();
+        let super_agent_publisher_clone = super_agent_publisher.clone();
+        spawn(move || {
+            sleep(Duration::from_millis(20));
+
+            sub_agent_publisher_clone
+                .publish(SubAgentEvent::ConfigUpdated(
+                    AgentID::new("infra_agent").unwrap(),
+                ))
+                .unwrap();
+
+            super_agent_publisher_clone
+                .publish(SuperAgentEvent::StopRequested)
+                .unwrap();
+        });
+
+        super_agent
+            .process_events(
+                super_agent_consumer,
+                super_agent_opamp_consumer,
+                (sub_agent_publisher, sub_agent_consumer),
+                sub_agents,
+                tx,
+            )
+            .unwrap();
     }
 }

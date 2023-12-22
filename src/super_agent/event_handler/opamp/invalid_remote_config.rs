@@ -5,21 +5,19 @@ use opamp_client::StartedClient;
 use crate::{
     config::store::SubAgentsConfigStore,
     opamp::{remote_config::RemoteConfigError, remote_config_hash::HashRepository},
-    sub_agent::{values::values_repository::ValuesRepository, SubAgentBuilder},
+    sub_agent::SubAgentBuilder,
     super_agent::{
         error::AgentError,
         super_agent::{SuperAgent, SuperAgentCallbacks},
     },
 };
 
-impl<'a, S, O, HR, SL, HRS, VR> SuperAgent<'a, S, O, HR, SL, HRS, VR>
+impl<'a, S, O, HR, SL> SuperAgent<'a, S, O, HR, SL>
 where
     O: StartedClient<SuperAgentCallbacks>,
     HR: HashRepository,
     S: SubAgentBuilder,
     SL: SubAgentsConfigStore,
-    HRS: HashRepository,
-    VR: ValuesRepository,
 {
     pub(crate) fn invalid_remote_config(
         &self,

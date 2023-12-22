@@ -1,20 +1,62 @@
 use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::{OpAMPEvent, SubAgentEvent};
-#[cfg_attr(test, mockall_double::double)]
-use crate::sub_agent::on_host::event_processor::EventProcessor;
+use crate::opamp::remote_config_hash::HashRepository;
+use crate::sub_agent::on_host::event_processor::{EventProcessor, SubAgentEventProcessor};
+use crate::sub_agent::values::values_repository::ValuesRepository;
 use crate::sub_agent::SubAgentCallbacks;
 use opamp_client::StartedClient;
+use std::sync::Arc;
 
-pub struct SubAgentEventProcessorBuilder;
+pub trait SubAgentEventProcessorBuilder<C>
+where
+    C: StartedClient<SubAgentCallbacks> + 'static,
+{
+    type SubAgentEventProcessor: SubAgentEventProcessor<C>;
 
-#[cfg_attr(test, mockall::automock)]
-impl SubAgentEventProcessorBuilder {
-    pub fn build<C>(
+    fn build(
         &self,
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
         sub_agent_opamp_consumer: EventConsumer<OpAMPEvent>,
         maybe_opamp_client: Option<C>,
-    ) -> EventProcessor<C>
+    ) -> Self::SubAgentEventProcessor;
+}
+
+pub struct EventProcessorBuilder<H, R>
+where
+    H: HashRepository,
+    R: ValuesRepository,
+{
+    hash_repository: Arc<H>,
+    values_repository: Arc<R>,
+}
+
+impl<H, R> EventProcessorBuilder<H, R>
+where
+    H: HashRepository,
+    R: ValuesRepository,
+{
+    pub fn new(hash_repository: Arc<H>, values_repository: Arc<R>) -> EventProcessorBuilder<H, R> {
+        EventProcessorBuilder {
+            values_repository,
+            hash_repository,
+        }
+    }
+}
+
+impl<C, H, R> SubAgentEventProcessorBuilder<C> for EventProcessorBuilder<H, R>
+where
+    C: StartedClient<SubAgentCallbacks> + 'static,
+    H: HashRepository + Send + Sync + 'static,
+    R: ValuesRepository + Send + Sync + 'static,
+{
+    type SubAgentEventProcessor = EventProcessor<C, H, R>;
+
+    fn build(
+        &self,
+        sub_agent_publisher: EventPublisher<SubAgentEvent>,
+        sub_agent_opamp_consumer: EventConsumer<OpAMPEvent>,
+        maybe_opamp_client: Option<C>,
+    ) -> EventProcessor<C, H, R>
     where
         C: StartedClient<SubAgentCallbacks> + 'static,
     {
@@ -22,22 +64,50 @@ impl SubAgentEventProcessorBuilder {
             sub_agent_publisher,
             sub_agent_opamp_consumer,
             maybe_opamp_client,
+            self.hash_repository.clone(),
+            self.values_repository.clone(),
         )
     }
 }
 
 #[cfg(test)]
 pub mod test {
-    use crate::sub_agent::on_host::event_processor::MockEventProcessor;
-    use crate::sub_agent::on_host::event_processor_builder::MockSubAgentEventProcessorBuilder;
+    use crate::event::channel::{EventConsumer, EventPublisher};
+    use crate::event::{OpAMPEvent, SubAgentEvent};
+    use crate::sub_agent::on_host::event_processor::test::MockEventProcessorMock;
+    use crate::sub_agent::on_host::event_processor_builder::SubAgentEventProcessorBuilder;
     use crate::sub_agent::SubAgentCallbacks;
+    use mockall::mock;
     use opamp_client::StartedClient;
 
-    impl MockSubAgentEventProcessorBuilder {
-        pub fn should_build<C>(&mut self, processor: MockEventProcessor<C>)
+    mock! {
+
+        pub SubAgentEventProcessorBuilderMock<C>
         where
-            C: StartedClient<SubAgentCallbacks> + 'static,
+            C: StartedClient<SubAgentCallbacks> + 'static
+        {}
+
+        impl<C> SubAgentEventProcessorBuilder<C> for SubAgentEventProcessorBuilderMock<C>
+         where
+            C: StartedClient<SubAgentCallbacks> + 'static
         {
+            type SubAgentEventProcessor = MockEventProcessorMock<C>;
+
+            fn build(
+                &self,
+                sub_agent_publisher: EventPublisher<SubAgentEvent>,
+                sub_agent_opamp_consumer: EventConsumer<OpAMPEvent>,
+                maybe_opamp_client: Option<C>,
+            ) -><Self as SubAgentEventProcessorBuilder<C>>::SubAgentEventProcessor;
+
+        }
+    }
+
+    impl<C> MockSubAgentEventProcessorBuilderMock<C>
+    where
+        C: StartedClient<SubAgentCallbacks> + Send + Sync + 'static,
+    {
+        pub fn should_build(&mut self, processor: MockEventProcessorMock<C>) {
             self.expect_build()
                 .once()
                 .return_once(move |_, _, _| processor);

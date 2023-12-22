@@ -7,6 +7,7 @@ use crate::opamp::remote_config_hash::HashRepositoryError;
 use crate::super_agent::effective_agents_assembler::EffectiveAgentsAssemblerError;
 
 use crate::config::agent_values::AgentValuesError;
+use crate::event::channel::EventPublisherError;
 use crate::opamp::remote_config::RemoteConfigError;
 use crate::sub_agent::values::values_repository::ValuesRepositoryError;
 use thiserror::Error;
@@ -52,6 +53,9 @@ pub enum SubAgentError {
 
     #[error("Supervisor stop error: `{0}`")]
     SupervisorStopError(String),
+
+    #[error("Error publishing event: `{0}`")]
+    EventPublisherError(#[from] EventPublisherError),
 }
 
 #[derive(Error, Debug)]
