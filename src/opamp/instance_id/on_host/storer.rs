@@ -180,14 +180,11 @@ mod test {
                 machine_id: "test-machine-id".to_string(),
             },
         };
-        
+
         let ulid_path = get_uild_path(&agent_id);
 
         // Expectations
-        dir_manager.should_create(
-            ulid_path.parent().unwrap(),
-            Permissions::from_mode(0o700),
-        );
+        dir_manager.should_create(ulid_path.parent().unwrap(), Permissions::from_mode(0o700));
         file_writer.should_write(
             &ulid_path,
             String::from("ulid: test-ULID\nidentifiers:\n  hostname: test-hostname\n  machine_id: test-machine-id\n"),
@@ -221,10 +218,7 @@ mod test {
             String::from("ulid: test-ULID\nidentifiers:\n  hostname: test-hostname\n  machine_id: test-machine-id\n"),
             Permissions::from_mode(0o600),
         );
-        dir_manager.should_create(
-            ulid_path.parent().unwrap(),
-            Permissions::from_mode(0o700),
-        );
+        dir_manager.should_create(ulid_path.parent().unwrap(), Permissions::from_mode(0o700));
 
         let storer = Storer::new(file_writer, file_reader, dir_manager);
         assert!(storer.set(&agent_id, &ds).is_err());
