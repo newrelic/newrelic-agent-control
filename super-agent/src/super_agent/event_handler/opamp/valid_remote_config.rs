@@ -3,12 +3,13 @@ use std::sync::mpsc::Sender;
 use opamp_client::StartedClient;
 use tracing::{error, info};
 
+use crate::event::SubAgentEvent;
 use crate::{
     config::{
         agent_values::AgentValues,
         store::{SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer},
     },
-    event::{channel::EventPublisher, OpAMPEvent},
+    event::channel::EventPublisher,
     opamp::{
         remote_config::RemoteConfig,
         remote_config_hash::HashRepository,
@@ -39,7 +40,7 @@ where
     pub(crate) fn valid_remote_config(
         &self,
         mut remote_config: RemoteConfig,
-        opamp_publisher: EventPublisher<OpAMPEvent>,
+        sub_agent_publisher: EventPublisher<SubAgentEvent>,
         sub_agents: &mut StartedSubAgents<
             <<S as SubAgentBuilder>::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
@@ -50,7 +51,7 @@ where
                 remote_config,
                 sub_agents,
                 tx,
-                opamp_publisher,
+                sub_agent_publisher,
             );
         }
 
@@ -60,7 +61,7 @@ where
                 &mut remote_config,
                 tx.clone(),
                 sub_agents,
-                opamp_publisher.clone(),
+                sub_agent_publisher.clone(),
             )
         } else {
             unreachable!("got remote config without OpAMP being enabled")
@@ -76,7 +77,7 @@ where
             <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
         tx: Sender<AgentLog>,
-        opamp_publisher: EventPublisher<OpAMPEvent>,
+        sub_agent_publisher: EventPublisher<SubAgentEvent>,
     ) -> Result<(), AgentError> {
         let agent_id = remote_config.agent_id.clone();
 
@@ -109,7 +110,13 @@ where
 
         let config = self.sub_agents_config_store.load()?;
         let config = config.get(&agent_id)?;
-        self.recreate_sub_agent(agent_id, config, tx.clone(), sub_agents, opamp_publisher)?;
+        self.recreate_sub_agent(
+            agent_id,
+            config,
+            tx.clone(),
+            sub_agents,
+            sub_agent_publisher,
+        )?;
 
         Ok(())
     }
@@ -126,7 +133,7 @@ where
         running_sub_agents: &mut StartedSubAgents<
             <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
-        opamp_publisher: EventPublisher<OpAMPEvent>,
+        sub_agent_publisher: EventPublisher<SubAgentEvent>,
     ) -> Result<(), AgentError> {
         info!("Applying SuperAgent remote config");
         report_remote_config_status_applying(opamp_client, &remote_config.hash)?;
@@ -135,7 +142,7 @@ where
             remote_config.clone(),
             tx,
             running_sub_agents,
-            opamp_publisher,
+            sub_agent_publisher,
         ) {
             let error_message = format!("Error applying Super Agent remote config: {}", err);
             error!(error_message);
@@ -275,10 +282,15 @@ config_file: /some/path/newrelic-infra.yml
             sub_agent_values_repo,
         );
 
-        let (opamp_publisher, _opamp_consumer) = pub_sub();
+        let (sub_agent_publisher, _sub_agent_publisher) = pub_sub();
 
         assert!(super_agent
-            .process_sub_agent_remote_config(remote_config, &mut sub_agents, tx, opamp_publisher)
+            .process_sub_agent_remote_config(
+                remote_config,
+                &mut sub_agents,
+                tx,
+                sub_agent_publisher
+            )
             .is_ok());
     }
 
@@ -362,9 +374,14 @@ config_file: /some/path/newrelic-infra.yml
             sub_agent_values_repo,
         );
 
-        let (opamp_publisher, _opamp_consumer) = pub_sub();
+        let (sub_agent_publisher, _sub_agent_publisher) = pub_sub();
         assert!(super_agent
-            .process_sub_agent_remote_config(remote_config, &mut sub_agents, tx, opamp_publisher)
+            .process_sub_agent_remote_config(
+                remote_config,
+                &mut sub_agents,
+                tx,
+                sub_agent_publisher
+            )
             .is_ok());
     }
 

@@ -85,6 +85,7 @@ fn run_super_agent(
 ) -> Result<(), AgentError> {
     use newrelic_super_agent::{
         config::super_agent_configs::AgentID, opamp::operations::build_opamp_and_start_client,
+        sub_agent::on_host::event_processor_builder::SubAgentEventProcessorBuilder,
         sub_agent::opamp::client_builder::SubAgentOpAMPHttpBuilder,
     };
 
@@ -99,6 +100,7 @@ fn run_super_agent(
     let hash_repository = HashRepositoryFile::default();
     let sub_agent_hash_repository = HashRepositoryFile::new_sub_agent_repository();
     let agents_assembler = LocalEffectiveAgentsAssembler::default().with_remote();
+    let sub_agent_event_processor_builder = SubAgentEventProcessorBuilder;
 
     let sub_agent_opamp_builder = opamp_client_builder
         .as_ref()
@@ -109,15 +111,16 @@ fn run_super_agent(
             &instance_id_getter,
             &sub_agent_hash_repository,
             &agents_assembler,
+            &sub_agent_event_processor_builder,
         );
 
     info!("Starting the super agent");
     let values_repository = ValuesRepositoryFile::default();
 
-    let (opamp_publisher, opamp_consumer) = pub_sub();
+    let (super_agent_opamp_publisher, super_agent_opamp_consumer) = pub_sub();
 
     let maybe_client = build_opamp_and_start_client(
-        opamp_publisher.clone(),
+        super_agent_opamp_publisher.clone(),
         opamp_client_builder.as_ref(),
         &instance_id_getter,
         AgentID::new_super_agent_id(),
@@ -133,7 +136,10 @@ fn run_super_agent(
         &sub_agent_hash_repository,
         values_repository,
     )
-    .run(super_agent_consumer, (opamp_publisher, opamp_consumer))
+    .run(
+        super_agent_consumer,
+        (super_agent_opamp_publisher, super_agent_opamp_consumer),
+    )
 }
 
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]

@@ -30,7 +30,7 @@ pub enum OpAMPClientBuilderError {
 }
 
 pub trait OpAMPClientBuilder<CB: Callbacks> {
-    type Client: StartedClient<CB>;
+    type Client: StartedClient<CB> + 'static;
     // type StartedClient: StartedClient;
     fn build_and_start(
         &self,
