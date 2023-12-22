@@ -33,4 +33,4 @@ docker run --rm --user "$(id -u)":"$(id -g)" -v "$PWD":/usr/src/app -v /tmp/.car
 
 mkdir -p "bin"
 
-cp "./target/${ARCH_NAME}-unknown-linux-gnu/${BUILD_MODE}/${BIN}" "./bin/${BIN}-${ARCH}"
+cp "./target-${BIN}/${ARCH_NAME}-unknown-linux-gnu/${BUILD_MODE}/${BIN}" "./bin/${BIN}-${ARCH}"
