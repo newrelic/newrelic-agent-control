@@ -51,10 +51,12 @@ We use [Minikube](https://minikube.sigs.k8s.io/docs/) and [Tilt](https://tilt.de
 #### Prerequisites:
 - Ensure you have kubectl installed and properly configured.
 - Install Minikube for local Kubernetes cluster emulation.
+- Install [ctlptl](https://github.com/tilt-dev/ctlptl)
 - Ensure you have Tilt installed for managing local development environments.
 
 #### Steps
-```
+```shell
+ctlptl create registry ctlptl-registry --port=5005 && ctlptl create cluster minikube --registry=ctlptl-registry
 make tilt-up
 ```
 This will spin up the Super Agent within your local Minikube Kubernetes cluster. You can view the Super Agent logs and services using Tilt's web interface or using standard kubectl commands.
