@@ -39,6 +39,6 @@ CMD [ "sh", "-c", "\
      CMD_STRING=\"$CMD_STRING --features $BUILD_FEATURE_ENV\"; \
      CMD_STRING=\"$CMD_STRING --target $ARCH_NAME-unknown-linux-gnu\"; \
      CMD_STRING=\"$CMD_STRING --bin $BUILD_BIN_ENV\"; \
-     CMD_STRING=\"$CMD_STRING --target-dir 'target-$BUILD_BIN'\"; \
+     CMD_STRING=\"$CMD_STRING --target-dir 'target-$BUILD_BIN_ENV'\"; \
      $CMD_STRING \
 "]
