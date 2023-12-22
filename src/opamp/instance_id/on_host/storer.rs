@@ -180,14 +180,16 @@ mod test {
                 machine_id: "test-machine-id".to_string(),
             },
         };
+        
+        let ulid_path = get_uild_path(&agent_id);
 
         // Expectations
         dir_manager.should_create(
-            Path::new(REMOTE_AGENT_DATA_DIR),
+            ulid_path.parent().unwrap(),
             Permissions::from_mode(0o700),
         );
         file_writer.should_write(
-            get_uild_path(&agent_id).as_path(),
+            &ulid_path,
             String::from("ulid: test-ULID\nidentifiers:\n  hostname: test-hostname\n  machine_id: test-machine-id\n"),
             Permissions::from_mode(0o600),
         );
@@ -211,14 +213,16 @@ mod test {
             },
         };
 
+        let ulid_path = get_uild_path(&agent_id);
+
         // Expectations
         file_writer.should_not_write(
-            get_uild_path(&agent_id).as_path(),
+            &ulid_path,
             String::from("ulid: test-ULID\nidentifiers:\n  hostname: test-hostname\n  machine_id: test-machine-id\n"),
             Permissions::from_mode(0o600),
         );
         dir_manager.should_create(
-            Path::new(REMOTE_AGENT_DATA_DIR),
+            ulid_path.parent().unwrap(),
             Permissions::from_mode(0o700),
         );
 
