@@ -99,11 +99,17 @@ where
     //     }
     // }
     fn write_contents(&self, agent_id: &AgentID, ds: &DataStored) -> Result<(), StorerError> {
+        let dest_path = get_uild_path(agent_id);
+
+        // TODO REVIEW THIS
+        let mut dest_path_parent = dest_path.clone();
+        dest_path_parent.pop();
+
         self.dir_manager.create(
-            Path::new(REMOTE_AGENT_DATA_DIR),
+            dest_path_parent.as_path(),
             Permissions::from_mode(DIRECTORY_PERMISSIONS),
         )?;
-        let dest_path = get_uild_path(agent_id);
+
         let contents = serde_yaml::to_string(ds)?;
 
         Ok(self.file_writer.write(
