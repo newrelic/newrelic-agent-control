@@ -15,7 +15,7 @@ use crate::super_agent::defaults::{REMOTE_AGENT_DATA_DIR, SUPER_AGENT_IDENTIFIER
 use std::fs::Permissions;
 use std::io;
 use std::os::unix::fs::PermissionsExt;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use tracing::debug;
 
 #[cfg(target_family = "unix")]
@@ -99,15 +99,18 @@ where
     //     }
     // }
     fn write_contents(&self, agent_id: &AgentID, ds: &DataStored) -> Result<(), StorerError> {
-        self.dir_manager.create(
-            Path::new(REMOTE_AGENT_DATA_DIR),
-            Permissions::from_mode(DIRECTORY_PERMISSIONS),
-        )?;
-        let dest_path = get_uild_path(agent_id);
+        let dest_file = get_uild_path(agent_id);
+        // Get a ref to the target file's parent directory
+        let dest_dir = dest_file
+            .parent()
+            .expect("no parent directory found for {dest_file} (empty or root dir)");
+
+        self.dir_manager
+            .create(dest_dir, Permissions::from_mode(DIRECTORY_PERMISSIONS))?;
         let contents = serde_yaml::to_string(ds)?;
 
         Ok(self.file_writer.write(
-            dest_path.as_path(),
+            &dest_file,
             contents,
             Permissions::from_mode(FILE_PERMISSIONS),
         )?)
