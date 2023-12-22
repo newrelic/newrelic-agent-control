@@ -26,10 +26,10 @@ if [ -z "${BUILD_FEATURE}" ]; then
     echo "BUILD_FEATURE not provided; defaulting to 'onhost'."
 fi
 
-docker build -t "rust-cross-${ARCH_NAME}" -f ./build/rust.Dockerfile --build-arg ARCH_NAME="${ARCH_NAME}" --build-arg BUILD_MODE="${BUILD_MODE}" --build-arg BUILD_FEATURE="${BUILD_FEATURE}" --build-arg BUILD_BIN="${BIN}" .
+docker build -t "rust-cross-${ARCH_NAME}-${BIN}" -f ./build/rust.Dockerfile --build-arg ARCH_NAME="${ARCH_NAME}" --build-arg BUILD_MODE="${BUILD_MODE}" --build-arg BUILD_FEATURE="${BUILD_FEATURE}" --build-arg BUILD_BIN="${BIN}" .
 
 CARGO_HOME=/tmp/.cargo cargo fetch
-docker run --rm --user "$(id -u)":"$(id -g)" -v "$PWD":/usr/src/app -v /tmp/.cargo:/usr/src/app/.cargo rust-cross-"${ARCH_NAME}"
+docker run --rm --user "$(id -u)":"$(id -g)" -v "$PWD":/usr/src/app -v /tmp/.cargo:/usr/src/app/.cargo "rust-cross-${ARCH_NAME}-${BIN}"
 
 mkdir -p "bin"
 
