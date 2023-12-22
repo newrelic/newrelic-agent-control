@@ -45,7 +45,7 @@ jobs:
         with:
           distribution: goreleaser
           version: latest
-          args: build --clean --debug --timeout 2h --single-target --parallelism=1
+          args: build --clean --debug --timeout 2h --single-target
         env:
           ARCH: "${{ matrix.arch }}"
           GOARCH: "${{ matrix.arch }}"
@@ -56,7 +56,7 @@ jobs:
         with:
           distribution: goreleaser
           version: latest
-          args: release --clean --debug --timeout 2h -f dist/config.yaml --parallelism=1
+          args: release --clean --debug --timeout 2h -f dist/config.yaml
         env:
           ARCH: "${{ matrix.arch }}"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
