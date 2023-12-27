@@ -8,6 +8,14 @@ use std::time::Duration;
 // tokio test runs with 1 thread by default causing deadlock when executing `block_on` code during test helper drop.
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "needs k8s cluster"]
+async fn k8s_client_creation_fail() {
+    let test_ns = "test-not-existing-namespace";
+    assert!(K8sExecutor::try_new(test_ns.to_string()).await.is_err());
+}
+
+// tokio test runs with 1 thread by default causing deadlock when executing `block_on` code during test helper drop.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "needs k8s cluster"]
 async fn k8s_create_dynamic_resource() {
     let mut test = K8sEnv::new().await;
     let test_ns = test.test_namespace().await;

@@ -2,11 +2,13 @@ use crate::common::K8sEnv;
 use k8s_openapi::api::core::v1::ConfigMap;
 use kube::Api;
 use newrelic_super_agent::config::super_agent_configs::AgentID;
+use newrelic_super_agent::k8s::executor::K8sExecutor;
 use newrelic_super_agent::k8s::labels::DefaultLabels;
 use newrelic_super_agent::opamp::instance_id::{
     getter::{InstanceIDGetter, ULIDInstanceIDGetter},
-    GetterError, Identifiers, CM_KEY,
+    Identifiers, CM_KEY,
 };
+use std::sync::Arc;
 
 const AGENT_ID_TEST: &str = "agent-id-test";
 const AGENT_DIFFERENT_ID_TEST: &str = "agent-different-id-test";
@@ -20,11 +22,12 @@ async fn k8s_ulid_persister() {
 
     let mut test = K8sEnv::new().await;
     let test_ns = test.test_namespace().await;
+    let executor = Arc::new(K8sExecutor::try_new(test_ns.clone()).await.unwrap());
     let agent_id = AgentID::new(AGENT_ID_TEST).unwrap();
     let another_agent_id = AgentID::new(AGENT_DIFFERENT_ID_TEST).unwrap();
 
     let instance_id_getter =
-        ULIDInstanceIDGetter::try_with_identifiers(test_ns.clone(), Identifiers::default())
+        ULIDInstanceIDGetter::try_with_identifiers(executor, Identifiers::default())
             .await
             .unwrap();
 
@@ -66,27 +69,4 @@ async fn k8s_ulid_persister() {
         Some(DefaultLabels::new().with_agent_id(&another_agent_id).get()),
         "Expect to have default SA labels"
     );
-}
-
-// tokio test runs with 1 thread by default causing deadlock when executing `block_on` code during test helper drop.
-#[tokio::test(flavor = "multi_thread")]
-#[ignore = "needs k8s cluster"]
-async fn k8s_ulid_persister_fail() {
-    // This tests cover the error path for the storer. The namespace does not exist, every call is going to fail.
-
-    let test_ns = "test-not-existing-namespace";
-    let agent_id = AgentID::new(AGENT_ID_TEST).unwrap();
-
-    let instance_id_getter =
-        ULIDInstanceIDGetter::try_with_identifiers(test_ns.to_string(), Identifiers::default())
-            .await
-            .unwrap();
-
-    let e = instance_id_getter.get(&agent_id);
-    match e.unwrap_err() {
-        GetterError::K8sClientInitialization(_) => {
-            panic!("this is unexpected, the test should fail contacting the k8s API")
-        }
-        GetterError::Persisting(_) => (),
-    }
 }

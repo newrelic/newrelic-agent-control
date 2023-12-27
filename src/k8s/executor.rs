@@ -6,8 +6,11 @@ use super::{
 use crate::config::agent_type::runtime_config::K8sObject;
 use crate::config::super_agent_configs::AgentID;
 use crate::sub_agent::k8s::SupervisorError;
-use k8s_openapi::api::core::v1::ConfigMap;
-use k8s_openapi::serde_json;
+use k8s_openapi::{
+    api::core::v1::{ConfigMap, Namespace},
+    serde_json,
+};
+
 use kube::{
     api::{DeleteParams, ListParams, PostParams},
     config::KubeConfigOptions,
@@ -58,10 +61,17 @@ impl K8sExecutor {
         };
 
         config.default_namespace = namespace;
-
         let client = Client::try_from(config)?;
-        debug!("client creation succeeded");
 
+        debug!("verifying default namespace existence");
+        Api::<Namespace>::all(client.clone())
+            .get(client.default_namespace())
+            .await
+            .map_err(|e| {
+                K8sError::UnableToSetupClient(format!("failed to get the default namespace: {}", e))
+            })?;
+
+        debug!("client creation succeeded");
         Ok(Self {
             client,
             dynamics: HashMap::new(),
