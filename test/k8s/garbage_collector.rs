@@ -1,8 +1,6 @@
 use crate::common::{create_test_cr, foo_type_meta, Foo, K8sEnv, MockSuperAgentConfigLoader};
-use bollard::exec;
 use k8s_openapi::{api::core::v1::ConfigMap, Resource};
 use kube::{api::Api, core::TypeMeta};
-use log::kv::Source;
 use mockall::Sequence;
 use newrelic_super_agent::{
     config::super_agent_configs::{AgentID, SuperAgentConfig},

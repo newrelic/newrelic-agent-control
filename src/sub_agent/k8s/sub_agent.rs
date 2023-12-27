@@ -52,11 +52,7 @@ where
             .apply()
             .map_err(SubAgentError::SupervisorError)?;
 
-        Ok(StartedSubAgentK8s::new(
-            self.agent_id,
-            self.opamp_client,
-            self.supervisor,
-        ))
+        Ok(StartedSubAgentK8s::new(self.agent_id, self.opamp_client))
     }
 }
 
@@ -72,7 +68,6 @@ where
 {
     agent_id: AgentID,
     opamp_client: Option<C>,
-    supervisor: CRSupervisor,
 
     // Needed to include this in the struct to avoid the compiler complaining about not using the type parameter `C`.
     // It's actually used as a generic parameter for the `OpAMPClientBuilder` instance bound by type parameter `O`.
@@ -85,11 +80,10 @@ where
     CB: Callbacks,
     C: StartedClient<CB>,
 {
-    fn new(agent_id: AgentID, opamp_client: Option<C>, supervisor: CRSupervisor) -> Self {
+    fn new(agent_id: AgentID, opamp_client: Option<C>) -> Self {
         StartedSubAgentK8s {
             agent_id,
             opamp_client,
-            supervisor,
             _callbacks: std::marker::PhantomData,
         }
     }

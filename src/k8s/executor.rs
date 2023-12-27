@@ -3,14 +3,7 @@ use super::{
     error::K8sError::UnexpectedKind,
     reader::{DynamicObjectReflector, ReflectorBuilder},
 };
-use crate::config::agent_type::runtime_config::K8sObject;
-use crate::config::super_agent_configs::AgentID;
-use crate::sub_agent::k8s::SupervisorError;
-use k8s_openapi::{
-    api::core::v1::{ConfigMap, Namespace},
-    serde_json,
-};
-
+use k8s_openapi::api::core::v1::{ConfigMap, Namespace};
 use kube::{
     api::{DeleteParams, ListParams, PostParams},
     config::KubeConfigOptions,
@@ -273,33 +266,6 @@ impl K8sExecutor {
             .commit(&kube::api::PostParams::default())
             .await?;
         Ok(())
-    }
-
-    pub fn create_dynamic_object(
-        &self,
-        agent_id: &AgentID,
-        k8s_obj: &K8sObject,
-    ) -> Result<DynamicObject, SupervisorError> {
-        let types = TypeMeta {
-            api_version: k8s_obj.api_version.clone(),
-            kind: k8s_obj.kind.clone(),
-        };
-
-        let metadata = ObjectMeta {
-            name: Some(agent_id.to_string()),
-            namespace: Some(self.default_namespace().to_string()),
-            ..Default::default()
-        };
-
-        let data = serde_json::to_value(&k8s_obj.fields).map_err(|e| {
-            SupervisorError::ConfigError(format!("Error serializing fields: {}", e))
-        })?;
-
-        Ok(DynamicObject {
-            types: Some(types),
-            metadata,
-            data,
-        })
     }
 
     pub fn default_namespace(&self) -> &str {

@@ -2,8 +2,12 @@ use crate::config::agent_type::runtime_config::K8sObject;
 use crate::config::super_agent_configs::AgentID;
 use crate::k8s::error::K8sError;
 use futures::executor::block_on;
-use kube::api::DynamicObject;
-use kube::ResourceExt;
+use k8s_openapi::serde_json;
+use kube::{
+    api::DynamicObject,
+    core::{ObjectMeta, TypeMeta},
+};
+
 use std::collections::HashMap;
 use std::sync::Arc;
 use thiserror::Error;
@@ -63,7 +67,7 @@ impl CRSupervisor {
     fn build_dynamic_objects(&self) -> Result<Vec<DynamicObject>, SupervisorError> {
         self.k8s_objects
             .values()
-            .map(|k8s_obj| self.executor.create_dynamic_object(&self.agent_id, k8s_obj))
+            .map(|k8s_obj| self.create_dynamic_object(k8s_obj))
             .collect()
     }
 
@@ -77,6 +81,29 @@ impl CRSupervisor {
             .await
             .map_err(|e| SupervisorError::ApplyError(format!("applying dynamic object: {}", e)))
     }
+
+    fn create_dynamic_object(&self, k8s_obj: &K8sObject) -> Result<DynamicObject, SupervisorError> {
+        let types = TypeMeta {
+            api_version: k8s_obj.api_version.clone(),
+            kind: k8s_obj.kind.clone(),
+        };
+
+        let metadata = ObjectMeta {
+            name: Some(self.agent_id.to_string()),
+            namespace: Some(self.executor.default_namespace().to_string()),
+            ..Default::default()
+        };
+
+        let data = serde_json::to_value(&k8s_obj.fields).map_err(|e| {
+            SupervisorError::ConfigError(format!("Error serializing fields: {}", e))
+        })?;
+
+        Ok(DynamicObject {
+            types: Some(types),
+            metadata,
+            data,
+        })
+    }
 }
 
 #[cfg(test)]
@@ -86,59 +113,66 @@ pub mod test {
     use crate::k8s::executor::MockK8sExecutor;
     use k8s_openapi::serde_json;
     use kube::core::{ObjectMeta, TypeMeta};
+    use serde_json::json;
     use std::collections::HashMap;
 
-    pub fn create_mock_dynamic_object() -> DynamicObject {
+    const TEST_API_VERSION: &str = "test/v1";
+    const TEST_KIND: &str = "test";
+
+    fn test_dynamic_object() -> DynamicObject {
         DynamicObject {
             types: Some(TypeMeta {
-                api_version: "v1".into(),
-                kind: "MockKind".into(),
+                api_version: TEST_API_VERSION.to_string(),
+                kind: TEST_KIND.to_string(),
             }),
             metadata: ObjectMeta {
                 name: Some("test".to_string()),
                 ..Default::default()
             },
-            data: serde_json::json!({}),
+            data: json!({}),
         }
     }
 
-    pub fn create_mock_k8s_objects(api_version: &str, kind: &str) -> HashMap<String, K8sObject> {
-        let mock_k8s_obj = K8sObject {
-            api_version: api_version.to_string(),
-            kind: kind.to_string(),
+    fn test_equal_k8s_objects() -> HashMap<String, K8sObject> {
+        let cr = K8sObject {
+            api_version: test_dynamic_object().types.unwrap().api_version,
+            kind: test_dynamic_object().types.unwrap().kind,
             metadata: None,
-            fields: serde_yaml::Mapping::default(),
+            ..Default::default()
         };
-        let mut k8s_objects = HashMap::new();
-        k8s_objects.insert("test".to_string(), mock_k8s_obj);
-        k8s_objects
+        HashMap::from([
+            ("mock_cr1".to_string(), cr.clone()),
+            ("mock_cr2".to_string(), cr.clone()),
+        ])
     }
 
     #[test]
-    fn test_supervisor_already_started() {
+    fn test_supervisor_apply() {
         let mut mock_executor = MockK8sExecutor::default();
 
         mock_executor
             .expect_has_dynamic_object_changed()
-            .times(1)
-            .returning(|_| Ok(false));
+            .times(2)
+            .returning(|_| Ok(true));
+        mock_executor
+            .expect_default_namespace()
+            .return_const("default".to_string());
 
         mock_executor
-            .expect_create_dynamic_object()
-            .withf(|agent_id, k8s_obj| {
-                agent_id.to_string() == "test-agent" && k8s_obj.kind == "MockKind"
+            .expect_apply_dynamic_object()
+            .times(2)
+            .withf(|dynamic_object| {
+                dynamic_object.types.as_ref().unwrap().kind == TEST_KIND
+                    && dynamic_object.types.as_ref().unwrap().api_version == TEST_API_VERSION
             })
-            .times(1)
-            .returning(|_, _| Ok(create_mock_dynamic_object()));
+            .returning(|_| Ok(()));
 
-        let mut supervisor = CRSupervisor::new(
+        let supervisor = CRSupervisor::new(
             AgentID::new("test-agent").unwrap(),
             Arc::new(mock_executor),
-            create_mock_k8s_objects("v1", "MockKind"),
+            test_equal_k8s_objects(),
         );
 
-        let start_result = supervisor.apply();
-
-        assert!(start_result.is_ok());
+        supervisor.apply().unwrap();
     }
 }

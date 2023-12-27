@@ -11,7 +11,6 @@ use crate::{
     sub_agent::{error::SubAgentBuilderError, logger::AgentLog, SubAgentBuilder},
 };
 use kube::core::TypeMeta;
-use kube::ResourceExt;
 use opamp_client::operation::callbacks::Callbacks;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -20,7 +19,6 @@ use crate::config::agent_type::runtime_config::K8sObject;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::executor::K8sExecutor;
 use crate::super_agent::effective_agents_assembler::EffectiveAgentsAssembler;
-use crate::super_agent::effective_agents_assembler::EffectiveAgentsAssemblerError::RemoteConfigLoadError;
 
 pub struct K8sSubAgentBuilder<'a, C, O, I, A>
 where
@@ -157,8 +155,7 @@ mod test {
         opamp::client_builder::test::MockOpAMPClientBuilderMock,
         sub_agent::{NotStartedSubAgent, StartedSubAgent},
     };
-    use kube::api::DynamicObject;
-    use mockall::predicate;
+    use assert_matches::assert_matches;
     use std::{collections::HashMap, sync::mpsc::channel};
 
     #[test]
@@ -197,7 +194,6 @@ mod test {
         let mut mock_executor = MockK8sExecutor::default();
         mock_executor
             .expect_apply_dynamic_object()
-            .with(has_api_version_and_kind("v1", "MockKind"))
             .times(1)
             .returning(|_| Ok(()));
         mock_executor
@@ -205,19 +201,8 @@ mod test {
             .times(1)
             .returning(|_| Ok(true));
         mock_executor
-            .expect_create_dynamic_object()
-            .withf(|agent_id, k8s_obj| {
-                agent_id.to_string() == "k8s-test" && k8s_obj.kind == "HelmRepository"
-            })
-            .times(1)
-            .returning(|_, _| {
-                Ok(crate::sub_agent::k8s::supervisor::test::create_mock_dynamic_object())
-            });
-        mock_executor
-            .expect_delete_dynamic_object()
-            .with(predicate::always(), predicate::always())
-            .times(0) // Expect it to be called 0 times, since it is the garbage collector cleaning it.
-            .returning(|_, _| Ok(()));
+            .expect_default_namespace()
+            .return_const("default".to_string());
 
         let sub_agent_id = AgentID::new("k8s-test").unwrap();
 
@@ -306,18 +291,10 @@ mod test {
         let (tx, _) = channel();
         let ctx = Context::new();
         let build_result = builder.build(sub_agent_id, &sub_agent_config, tx, ctx);
+
         let error = build_result.err().expect("Expected an error");
 
-        match error {
-            SubAgentBuilderError::UnsupportedK8sObject(message) => {}
-            other_error => {
-                assert!(
-                    false,
-                    "Expected UnsupportedK8sObject error, got {:?}",
-                    other_error,
-                );
-            }
-        }
+        assert_matches!(error, SubAgentBuilderError::UnsupportedK8sObject(_));
     }
 
     fn k8s_final_agent(valid_kind: bool) -> FinalAgent {
@@ -340,34 +317,5 @@ mod test {
         let mut final_agent: FinalAgent = FinalAgent::default();
         final_agent.runtime_config.deployment.k8s = Some(K8s { objects });
         final_agent
-    }
-
-    fn k8s_final_agen2() -> FinalAgent {
-        let mut final_agent: FinalAgent = FinalAgent::default();
-
-        let k8s_object = K8sObject {
-            api_version: "source.toolkit.fluxcd.io/v1beta2".to_string(),
-            kind: "HelmRepository".to_string(),
-            metadata: None,
-            fields: serde_yaml::Mapping::new(),
-        };
-
-        let mut objects = HashMap::new();
-        objects.insert("sample_object".to_string(), k8s_object);
-
-        final_agent.runtime_config.deployment.k8s = Some(K8s { objects });
-
-        final_agent
-    }
-
-    fn has_api_version_and_kind(
-        api_version: &'static str,
-        kind: &'static str,
-    ) -> impl mockall::Predicate<DynamicObject> {
-        predicate::function(move |obj: &DynamicObject| {
-            obj.types
-                .as_ref()
-                .map_or(false, |tm| tm.api_version == api_version && tm.kind == kind)
-        })
     }
 }
