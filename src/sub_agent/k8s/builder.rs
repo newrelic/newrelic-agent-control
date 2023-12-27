@@ -1,5 +1,5 @@
 use super::sub_agent::NotStartedSubAgentK8s;
-use crate::config::super_agent_configs::SubAgentConfig;
+use crate::config::super_agent_configs::{K8sConfig, SubAgentConfig};
 use crate::context::Context;
 use crate::event::event::Event;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
@@ -10,18 +10,22 @@ use crate::{
     sub_agent::k8s::supervisor::CRSupervisor,
     sub_agent::{error::SubAgentBuilderError, logger::AgentLog, SubAgentBuilder},
 };
+use kube::core::TypeMeta;
 use opamp_client::operation::callbacks::Callbacks;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
+use crate::config::agent_type::runtime_config::K8sObject;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::executor::K8sExecutor;
+use crate::super_agent::effective_agents_assembler::EffectiveAgentsAssembler;
 
-pub struct K8sSubAgentBuilder<'a, C, O, I>
+pub struct K8sSubAgentBuilder<'a, C, O, I, A>
 where
     C: Callbacks,
     O: OpAMPClientBuilder<C>,
     I: InstanceIDGetter,
+    A: EffectiveAgentsAssembler,
 {
     opamp_builder: Option<&'a O>,
     instance_id_getter: &'a I,
@@ -30,36 +34,42 @@ where
     // It's actually used as a generic parameter for the `OpAMPClientBuilder` instance bound by type parameter `O`.
     // Feel free to remove this when the actual implementations (Callbacks instance for K8s agents) make it redundant!
     _callbacks: std::marker::PhantomData<C>,
-    // client: Client, Should we inject the client?
     executor: Arc<K8sExecutor>,
+    effective_agent_assembler: &'a A,
+    k8s_config: K8sConfig,
 }
 
-impl<'a, C, O, I> K8sSubAgentBuilder<'a, C, O, I>
+impl<'a, C, O, I, A> K8sSubAgentBuilder<'a, C, O, I, A>
 where
     C: Callbacks,
     O: OpAMPClientBuilder<C>,
     I: InstanceIDGetter,
+    A: EffectiveAgentsAssembler,
 {
     pub fn new(
         opamp_builder: Option<&'a O>,
         instance_id_getter: &'a I,
         executor: Arc<K8sExecutor>,
+        effective_agent_assembler: &'a A,
+        k8s_config: K8sConfig,
     ) -> Self {
         Self {
             opamp_builder,
             instance_id_getter,
-
             _callbacks: std::marker::PhantomData,
             executor,
+            effective_agent_assembler,
+            k8s_config,
         }
     }
 }
 
-impl<'a, C, O, I> SubAgentBuilder for K8sSubAgentBuilder<'a, C, O, I>
+impl<'a, C, O, I, A> SubAgentBuilder for K8sSubAgentBuilder<'a, C, O, I, A>
 where
     C: Callbacks,
     O: OpAMPClientBuilder<C>,
     I: InstanceIDGetter,
+    A: EffectiveAgentsAssembler,
 {
     type NotStartedSubAgent = NotStartedSubAgentK8s<C, O::Client>;
 
@@ -79,8 +89,26 @@ where
             HashMap::from([]), // TODO: check if we need to set non_identifying_attributes
         )?;
 
+        let effective_agent = self
+            .effective_agent_assembler
+            .assemble_agent(&agent_id, sub_agent_config)?;
+
+        let k8s_objects = effective_agent
+            .runtime_config
+            .deployment
+            .k8s
+            .as_ref()
+            .ok_or(SubAgentBuilderError::ConfigError(
+                "Missing k8s deployment configuration".into(),
+            ))?
+            .objects
+            .clone();
+
+        // Validate Kubernetes objects against the list of supported resources.
+        validate_k8s_objects(&k8s_objects, &self.k8s_config.cr_type_meta)?;
+
         // Clone the executor on each build.
-        let supervisor = CRSupervisor::new(self.executor.clone());
+        let supervisor = CRSupervisor::new(agent_id.clone(), self.executor.clone(), k8s_objects);
 
         Ok(NotStartedSubAgentK8s::new(
             agent_id,
@@ -90,19 +118,44 @@ where
     }
 }
 
+fn validate_k8s_objects(
+    objects: &HashMap<String, K8sObject>,
+    supported_types: &[TypeMeta],
+) -> Result<(), SubAgentBuilderError> {
+    let supported_set: HashSet<(&str, &str)> = supported_types
+        .iter()
+        .map(|tm| (tm.api_version.as_str(), tm.kind.as_str()))
+        .collect();
+
+    for k8s_obj in objects.values() {
+        let obj_key = (k8s_obj.api_version.as_str(), k8s_obj.kind.as_str());
+        if !supported_set.contains(&obj_key) {
+            return Err(SubAgentBuilderError::UnsupportedK8sObject(format!(
+                "Unsupported Kubernetes object with api_version '{}' and kind '{}'",
+                k8s_obj.api_version, k8s_obj.kind
+            )));
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::config::agent_type::agent_types::FinalAgent;
+    use crate::config::agent_type::runtime_config::K8s;
+    use crate::config::super_agent_configs::K8sConfig;
     use crate::opamp::callbacks::tests::MockCallbacksMock;
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
     use crate::opamp::operations::start_settings;
+    use crate::super_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
     use crate::{
         k8s::executor::MockK8sExecutor,
         opamp::client_builder::test::MockOpAMPClientBuilderMock,
         sub_agent::{NotStartedSubAgent, StartedSubAgent},
     };
-    use mockall::predicate;
+    use assert_matches::assert_matches;
     use std::{collections::HashMap, sync::mpsc::channel};
 
     #[test]
@@ -111,7 +164,10 @@ mod test {
         let instance_id = "k8s-test-instance-id";
         let mut opamp_builder: MockOpAMPClientBuilderMock<MockCallbacksMock> =
             MockOpAMPClientBuilderMock::new();
-        let sub_agent_config = sub_agent_config();
+        let final_agent = k8s_final_agent(true);
+        let sub_agent_config = SubAgentConfig {
+            agent_type: final_agent.agent_type().clone(),
+        };
         let start_settings = start_settings(
             instance_id.to_string(),
             &sub_agent_config.agent_type,
@@ -136,48 +192,130 @@ mod test {
 
         // instance K8s executor mock
         let mut mock_executor = MockK8sExecutor::default();
-
-        // Set mock executor expectations
         mock_executor
             .expect_apply_dynamic_object()
-            //TODO as soon as we are supporting passing which agent to execute we should check these predicates
-            .with(predicate::always())
-            .times(2)
-            .returning(move |_| Ok(()));
-
+            .times(1)
+            .returning(|_| Ok(()));
         mock_executor
             .expect_has_dynamic_object_changed()
-            .times(2)
+            .times(1)
             .returning(|_| Ok(true));
-
         mock_executor
-            .expect_delete_dynamic_object()
-            .with(predicate::always(), predicate::always())
-            .times(0) // Expect it to be called 0 times, since it is the garbage collector cleaning it.
-            .returning(|_, _| Ok(()));
+            .expect_default_namespace()
+            .return_const("default".to_string());
 
-        let executor = Arc::new(mock_executor);
-        let builder = K8sSubAgentBuilder::new(Some(&opamp_builder), &instance_id_getter, executor);
+        let sub_agent_id = AgentID::new("k8s-test").unwrap();
+
+        let mut effective_agent_assembler = MockEffectiveAgentAssemblerMock::new();
+        effective_agent_assembler.should_assemble_agent(
+            &sub_agent_id,
+            &sub_agent_config,
+            final_agent,
+        );
+
+        let k8s_config = K8sConfig {
+            cluster_name: "test-cluster".to_string(),
+            namespace: "test-namespace".to_string(),
+            cr_type_meta: K8sConfig::default().cr_type_meta,
+        };
+
+        let builder = K8sSubAgentBuilder::new(
+            Some(&opamp_builder),
+            &instance_id_getter,
+            Arc::new(mock_executor),
+            &effective_agent_assembler,
+            k8s_config,
+        );
 
         let (tx, _) = channel();
-        let ctx: Context<Option<Event>> = Context::new();
+        let ctx = Context::new();
         let started_agent = builder
-            .build(
-                AgentID::new("k8s-test").unwrap(),
-                &sub_agent_config,
-                tx,
-                ctx,
-            )
+            .build(sub_agent_id, &sub_agent_config, tx, ctx)
             .unwrap() // Not started agent
             .run()
             .unwrap();
         assert!(started_agent.stop().is_ok())
     }
 
-    fn sub_agent_config() -> SubAgentConfig {
-        // TODO: setup k8s runtime_config here. Eg: `final_agent.runtime_config.deployment.k8s = ...`
-        SubAgentConfig {
-            agent_type: "some_agent".into(),
-        }
+    #[test]
+    fn build_error_with_invalid_object_kind() {
+        let instance_id = "k8s-test-instance-id";
+        let mut opamp_builder: MockOpAMPClientBuilderMock<MockCallbacksMock> =
+            MockOpAMPClientBuilderMock::new();
+        let final_agent = k8s_final_agent(false); // false indicates invalid kind
+        let sub_agent_config = SubAgentConfig {
+            agent_type: final_agent.agent_type().clone(),
+        };
+        let start_settings = start_settings(
+            instance_id.to_string(),
+            &sub_agent_config.agent_type,
+            HashMap::new(),
+        );
+        opamp_builder.should_build_and_start(
+            AgentID::new("k8s-test").unwrap(),
+            start_settings,
+            |_, _, _| {
+                let started_client = MockStartedOpAMPClientMock::new();
+                Ok(started_client)
+            },
+        );
+        // instance id getter mock
+        let mut instance_id_getter = MockInstanceIDGetterMock::new();
+        instance_id_getter.should_get(
+            &AgentID::new("k8s-test").unwrap(),
+            "k8s-test-instance-id".to_string(),
+        );
+
+        let sub_agent_id = AgentID::new("k8s-test").unwrap();
+        let mut effective_agent_assembler = MockEffectiveAgentAssemblerMock::new();
+        effective_agent_assembler.should_assemble_agent(
+            &sub_agent_id,
+            &sub_agent_config,
+            final_agent,
+        );
+
+        let k8s_config = K8sConfig {
+            cluster_name: "test-cluster".to_string(),
+            namespace: "test-namespace".to_string(),
+            cr_type_meta: K8sConfig::default().cr_type_meta,
+        };
+
+        let builder = K8sSubAgentBuilder::new(
+            Some(&opamp_builder),
+            &instance_id_getter,
+            Arc::new(MockK8sExecutor::default()),
+            &effective_agent_assembler,
+            k8s_config,
+        );
+
+        let (tx, _) = channel();
+        let ctx = Context::new();
+        let build_result = builder.build(sub_agent_id, &sub_agent_config, tx, ctx);
+
+        let error = build_result.err().expect("Expected an error");
+
+        assert_matches!(error, SubAgentBuilderError::UnsupportedK8sObject(_));
+    }
+
+    fn k8s_final_agent(valid_kind: bool) -> FinalAgent {
+        let kind = if valid_kind {
+            "HelmRepository".to_string()
+        } else {
+            "UnsupportedKind".to_string()
+        };
+
+        let k8s_object = K8sObject {
+            api_version: "source.toolkit.fluxcd.io/v1beta2".to_string(),
+            kind,
+            metadata: None,
+            fields: serde_yaml::Mapping::new(),
+        };
+
+        let mut objects = HashMap::new();
+        objects.insert("sample_object".to_string(), k8s_object);
+
+        let mut final_agent: FinalAgent = FinalAgent::default();
+        final_agent.runtime_config.deployment.k8s = Some(K8s { objects });
+        final_agent
     }
 }

@@ -267,6 +267,10 @@ impl K8sExecutor {
             .await?;
         Ok(())
     }
+
+    pub fn default_namespace(&self) -> &str {
+        self.client.default_namespace()
+    }
 }
 
 //  delete_collection has been moved outside the executor to be able to use mockall in the executor
