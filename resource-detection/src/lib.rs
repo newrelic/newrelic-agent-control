@@ -1,9 +1,12 @@
-use std::marker::PhantomData;
+use std::collections::HashMap;
 
 use system::detector::SystemDetectorError;
 
 mod file_reader;
 pub mod system;
+
+pub mod common;
+pub use common::{Key, Value};
 
 /// The `Resource` struct encapsulates a detected resource as per some system detection logic.
 ///
@@ -16,10 +19,14 @@ pub mod system;
 ///   containing either the value string or a `DetectError` object if an error occurred.
 /// - `environment`: A placeholder type (`PhantomData`) permitting `Resource` to use the
 ///   generic `E` without it needing to hold values of that type.
-pub struct Resource<E, const N: usize> {
-    pub attributes: [(String, Result<String, DetectError>); N],
+pub struct Resource {
+    pub attributes: HashMap<Key, Value>,
+}
 
-    pub environment: PhantomData<E>,
+impl Resource {
+    pub fn get(&self, key: Key) -> Option<Value> {
+        self.attributes.get(&key).cloned()
+    }
 }
 
 #[derive(thiserror::Error, Debug, Clone)]
@@ -37,6 +44,6 @@ pub enum DetectError {
 ///
 /// # Methods:
 /// - `detect`: Returns a `Resource` structure detected by the implementer of this trait.
-pub trait Detect<E, const N: usize> {
-    fn detect(&self) -> Resource<E, N>;
+pub trait Detect {
+    fn detect(&self) -> Result<Resource, DetectError>;
 }

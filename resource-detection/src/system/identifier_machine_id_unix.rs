@@ -48,17 +48,6 @@ mod test {
         }
     }
 
-    impl MockIdentifierProviderMachineId {
-        pub fn should_provide(&mut self, machine_id: String) {
-            self.expect_provide()
-                .returning(move || Ok(machine_id.clone()));
-        }
-
-        pub fn should_not_provide(&mut self, err: SystemDetectorError) {
-            self.expect_provide().returning(move || Err(err.clone()));
-        }
-    }
-
     #[test]
     fn test_machine_id_is_retrieved() {
         let mut file_reader = MockFSFileReader::default();

@@ -1,6 +1,7 @@
 use crate::opamp::instance_id::getter::ULIDInstanceIDGetter;
 use crate::opamp::instance_id::on_host::storer::{Storer, StorerError};
-use resource_detection::system::System;
+use resource_detection::system::{HOSTNAME_KEY, MACHINE_ID_KEY};
+use resource_detection::DetectError;
 use resource_detection::{system::detector::SystemDetector, Detect};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -23,7 +24,7 @@ pub struct Identifiers {
 
 pub struct IdentifiersProvider<D = SystemDetector>
 where
-    D: Detect<System, 2>,
+    D: Detect,
 {
     system_detector: D,
 }
@@ -38,22 +39,28 @@ impl Default for IdentifiersProvider {
 
 impl<D> IdentifiersProvider<D>
 where
-    D: Detect<System, 2>,
+    D: Detect,
 {
-    pub fn provide(&self) -> Identifiers {
-        let identifiers = self.system_detector.detect();
-        let hostname = identifiers.get_hostname().unwrap_or_else(|e| {
-            error!("cannot get hostname identifier: {}", e.to_string());
-            "".into()
-        });
-        let machine_id = identifiers.get_machine_id().unwrap_or_else(|e| {
-            error!("cannot get machine_id identifier: {}", e.to_string());
-            "".into()
-        });
-        Identifiers {
+    pub fn provide(&self) -> Result<Identifiers, DetectError> {
+        let identifiers = self.system_detector.detect()?;
+        let hostname: String = identifiers
+            .get(HOSTNAME_KEY.into())
+            .map(|val| val.into())
+            .unwrap_or_else(|| {
+                error!("cannot get hostname identifier");
+                "".to_string()
+            });
+        let machine_id: String = identifiers
+            .get(MACHINE_ID_KEY.into())
+            .map(|val| val.into())
+            .unwrap_or_else(|| {
+                error!("cannot get machine_id identifier");
+                "".to_string()
+            });
+        Ok(Identifiers {
             hostname,
             machine_id,
-        }
+        })
     }
 }
 
@@ -71,21 +78,18 @@ impl Default for ULIDInstanceIDGetter<Storer> {
 
 #[cfg(test)]
 mod test {
-    use std::marker::PhantomData;
 
     use crate::opamp::instance_id::on_host::getter::IdentifiersProvider;
     use crate::opamp::instance_id::Identifiers;
     use mockall::mock;
-    use resource_detection::system::detector::SystemDetectorError;
-    use resource_detection::system::System;
-    use resource_detection::{Detect, DetectError, Resource};
+    use resource_detection::{Detect, DetectError, Key, Resource, Value};
     use tracing_test::internal::logs_with_scope_contain;
     use tracing_test::traced_test;
 
     mock! {
         pub SystemDetectorMock {}
-        impl Detect<System,2> for SystemDetectorMock {
-            fn detect(&self) -> Resource<System, 2>;
+        impl Detect for SystemDetectorMock {
+            fn detect(&self) -> Result<Resource, DetectError>;
         }
     }
 
@@ -93,25 +97,19 @@ mod test {
     #[test]
     fn test_hostname_error_will_return_empty_hostname() {
         let mut system_detector_mock = MockSystemDetectorMock::new();
-        system_detector_mock
-            .expect_detect()
-            .once()
-            .returning(|| Resource {
-                attributes: [
-                    (
-                        "hostname".to_string(),
-                        Err(DetectError::from(SystemDetectorError::HostnameError(
-                            "errno".to_string(),
-                        ))),
-                    ),
-                    ("machine-i".to_string(), Ok("some machine id".to_string())),
-                ],
-                environment: PhantomData,
-            });
+        system_detector_mock.expect_detect().once().returning(|| {
+            Ok(Resource {
+                attributes: [(
+                    "machine_id".to_string().into(),
+                    Value::from("some machine id".to_string()),
+                )]
+                .into(),
+            })
+        });
         let identifiers_provider = IdentifiersProvider {
             system_detector: system_detector_mock,
         };
-        let identifiers = identifiers_provider.provide();
+        let identifiers = identifiers_provider.provide().unwrap();
 
         let expected_identifiers = Identifiers {
             hostname: String::from(""),
@@ -128,27 +126,19 @@ mod test {
     #[test]
     fn test_machine_id_error_will_return_empty_machine_id() {
         let mut system_detector_mock = MockSystemDetectorMock::new();
-        system_detector_mock
-            .expect_detect()
-            .once()
-            .returning(|| Resource {
-                attributes: [
-                    ("hostname".to_string(), Ok("some.example.org".to_string())),
-                    (
-                        "machine-i".to_string(),
-                        Err(DetectError::SystemError(
-                            SystemDetectorError::HostnameError(String::from(
-                                "machine-id was not found...",
-                            )),
-                        )),
-                    ),
-                ],
-                environment: PhantomData,
-            });
+        system_detector_mock.expect_detect().once().returning(|| {
+            Ok(Resource {
+                attributes: [(
+                    Key::from("hostname".to_string()),
+                    Value::from("some.example.org".to_string()),
+                )]
+                .into(),
+            })
+        });
         let identifiers_provider = IdentifiersProvider {
             system_detector: system_detector_mock,
         };
-        let identifiers = identifiers_provider.provide();
+        let identifiers = identifiers_provider.provide().unwrap();
 
         let expected_identifiers = Identifiers {
             hostname: String::from("some.example.org"),
@@ -157,7 +147,7 @@ mod test {
         assert_eq!(expected_identifiers, identifiers);
         assert!(logs_with_scope_contain(
             "test_machine_id_error_will_return_empty_machine_id",
-            "machine-id was not found..."
+            "cannot get machine_id identifier"
         ));
     }
 
@@ -165,20 +155,25 @@ mod test {
     #[test]
     fn test_providers_should_be_returned() {
         let mut system_detector_mock = MockSystemDetectorMock::new();
-        system_detector_mock
-            .expect_detect()
-            .once()
-            .returning(|| Resource {
+        system_detector_mock.expect_detect().once().returning(|| {
+            Ok(Resource {
                 attributes: [
-                    ("hostname".to_string(), Ok("some.example.org".to_string())),
-                    ("machine-i".to_string(), Ok(String::from("some machine-id"))),
-                ],
-                environment: PhantomData,
-            });
+                    (
+                        Key::from("hostname".to_string()),
+                        Value::from("some.example.org".to_string()),
+                    ),
+                    (
+                        "machine_id".to_string().into(),
+                        Value::from("some machine-id".to_string()),
+                    ),
+                ]
+                .into(),
+            })
+        });
         let identifiers_provider = IdentifiersProvider {
             system_detector: system_detector_mock,
         };
-        let identifiers = identifiers_provider.provide();
+        let identifiers = identifiers_provider.provide().unwrap();
 
         let expected_identifiers = Identifiers {
             hostname: String::from("some.example.org"),

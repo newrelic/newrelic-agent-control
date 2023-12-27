@@ -94,7 +94,7 @@ fn run_super_agent(
     }
 
     let instance_id_getter =
-        ULIDInstanceIDGetter::default().with_identifiers(IdentifiersProvider::default().provide());
+        ULIDInstanceIDGetter::default().with_identifiers(IdentifiersProvider::default().provide()?);
 
     let hash_repository = HashRepositoryFile::default();
     let sub_agent_hash_repository = HashRepositoryFile::new_sub_agent_repository();

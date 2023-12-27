@@ -34,7 +34,6 @@ impl FSFileReader {
 pub mod test {
     use super::*;
     use mockall::predicate;
-    use std::io::{Error, ErrorKind};
     use std::path::PathBuf;
 
     impl MockFSFileReader {
@@ -50,24 +49,6 @@ pub mod test {
                 .with(predicate::eq(PathBuf::from(path)))
                 .once()
                 .returning(move |_| Err(FileReaderError::FileNotFound(error_message.clone())));
-        }
-
-        pub fn should_not_read_io_error(&mut self, path: &Path) {
-            self.expect_read()
-                .with(predicate::eq(PathBuf::from(path)))
-                .once()
-                .returning(move |_| {
-                    Err(FileReaderError::Read(Error::from(
-                        ErrorKind::PermissionDenied,
-                    )))
-                });
-        }
-
-        // the test is not idempotent as it iterates hashmap. For now let's use this
-        pub fn could_read(&mut self, path: &Path, content: String) {
-            self.expect_read()
-                .with(predicate::eq(PathBuf::from(path)))
-                .returning(move |_| Ok(content.clone()));
         }
     }
 
