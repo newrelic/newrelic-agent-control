@@ -138,11 +138,8 @@ deployment:
           interval: 3m
           url: https://open-telemetry.github.io/opentelemetry-helm-charts
       release:
-        apiVersion: helm.toolkit.fluxcd.io/v2beta1
+        apiVersion: helm.toolkit.fluxcd.io/v2beta2
         kind: HelmRelease
-        metadata:
-          labels:
-            extralabel: ${extralabel}
         spec:
           interval: 3m
           chart:
