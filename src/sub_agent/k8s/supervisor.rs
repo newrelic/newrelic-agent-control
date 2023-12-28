@@ -1,7 +1,7 @@
 use crate::config::agent_type::runtime_config::K8sObject;
 use crate::config::super_agent_configs::AgentID;
 use crate::k8s::error::K8sError;
-use crate::k8s::labels::DefaultLabels;
+use crate::k8s::labels::Labels;
 use futures::executor::block_on;
 use k8s_openapi::serde_json;
 use kube::{
@@ -89,7 +89,7 @@ impl CRSupervisor {
             kind: k8s_obj.kind.clone(),
         };
 
-        let mut labels = DefaultLabels::new().with_agent_id(&self.agent_id);
+        let mut labels = Labels::new(&self.agent_id);
         if let Some(metadata) = &k8s_obj.metadata {
             // Merge default labels with the ones coming from the config with default labels taking precedence.
             labels.append_extra_labels(&metadata.labels);
@@ -153,7 +153,7 @@ pub mod test {
 
         let agent_id = AgentID::new("test").unwrap();
 
-        let mut labels = DefaultLabels::new().with_agent_id(&agent_id);
+        let mut labels = Labels::new(&agent_id);
         labels.append_extra_labels(&k8s_object().metadata.unwrap().labels);
 
         let expected = DynamicObject {

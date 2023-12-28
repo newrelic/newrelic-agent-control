@@ -1,6 +1,6 @@
 use super::{
     error::K8sError,
-    labels::{DefaultLabels, AGENT_ID_LABEL_KEY},
+    labels::{Labels, AGENT_ID_LABEL_KEY},
 };
 use crate::{
     config::{store::SuperAgentConfigLoader, super_agent_configs::AgentID},
@@ -127,7 +127,7 @@ where
 
         format!(
             "{},{AGENT_ID_LABEL_KEY} notin ({id_list})",
-            DefaultLabels::new().selector(),
+            Labels::default().selector(),
         )
     }
 }
@@ -137,7 +137,7 @@ pub(crate) mod test {
     use super::NotStartedK8sGarbageCollector;
     use crate::config::store::MockSuperAgentConfigLoader;
     use crate::config::super_agent_configs::AgentID;
-    use crate::k8s::labels::{DefaultLabels, AGENT_ID_LABEL_KEY};
+    use crate::k8s::labels::{Labels, AGENT_ID_LABEL_KEY};
     use crate::super_agent::defaults::SUPER_AGENT_ID;
     use std::sync::Arc;
     use std::sync::Mutex;
@@ -197,7 +197,7 @@ pub(crate) mod test {
     #[test]
     fn test_garbage_label_selector() {
         let agent_id = AgentID::new("test").unwrap();
-        let labels = DefaultLabels::new();
+        let labels = Labels::default();
         assert_eq!(
             format!(
                 "{},{AGENT_ID_LABEL_KEY} notin ({SUPER_AGENT_ID},{agent_id})",
