@@ -91,10 +91,8 @@ impl CRSupervisor {
 
         let mut labels = DefaultLabels::new().with_agent_id(&self.agent_id);
         if let Some(metadata) = &k8s_obj.metadata {
-            if let Some(l) = &metadata.labels {
-                // Merge default labels with the ones coming from the config with default labels taking precedence.
-                labels.append_extra_labels(l);
-            }
+            // Merge default labels with the ones coming from the config with default labels taking precedence.
+            labels.append_extra_labels(&metadata.labels);
         }
 
         let metadata = ObjectMeta {
@@ -137,13 +135,13 @@ pub mod test {
             api_version: TEST_API_VERSION.to_string(),
             kind: TEST_KIND.to_string(),
             metadata: Some(K8sObjectMeta {
-                labels: Some(BTreeMap::from([
+                labels: BTreeMap::from([
                     ("custom-label".to_string(), "values".to_string()),
                     (
                         AGENT_ID_LABEL_KEY.to_string(),
                         "to be overwritten".to_string(),
                     ),
-                ])),
+                ]),
             }),
             ..Default::default()
         }
@@ -156,7 +154,7 @@ pub mod test {
         let agent_id = AgentID::new("test").unwrap();
 
         let mut labels = DefaultLabels::new().with_agent_id(&agent_id);
-        labels.append_extra_labels(&k8s_object().metadata.unwrap().labels.unwrap());
+        labels.append_extra_labels(&k8s_object().metadata.unwrap().labels);
 
         let expected = DynamicObject {
             types: Some(TypeMeta {

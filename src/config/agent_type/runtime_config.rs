@@ -92,7 +92,8 @@ pub struct K8sObject {
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct K8sObjectMeta {
-    pub labels: Option<std::collections::BTreeMap<String, String>>,
+    #[serde(default)]
+    pub labels: std::collections::BTreeMap<String, String>,
 }
 
 #[cfg(test)]
@@ -153,7 +154,7 @@ deployment:
 
         assert_eq!(
             "bar",
-            &k8s.objects["cr4"].metadata.clone().unwrap().labels.unwrap()["foo"].clone()
+            &k8s.objects["cr4"].metadata.clone().unwrap().labels["foo"].clone()
         );
     }
 }
