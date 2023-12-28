@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
+use cloud::aws::detector::AWSDetectorError;
 use system::detector::SystemDetectorError;
 
+pub mod cloud;
 mod file_reader;
 pub mod system;
 
@@ -29,10 +31,12 @@ impl Resource {
     }
 }
 
-#[derive(thiserror::Error, Debug, Clone)]
+#[derive(thiserror::Error, Debug)]
 pub enum DetectError {
     #[error("error detecting system resources `{0}`")]
     SystemError(#[from] SystemDetectorError),
+    #[error("error detecting aws resources `{0}`")]
+    AWSError(#[from] AWSDetectorError),
 }
 
 /// The `Detect` trait defines the detection interface to be implemented

@@ -7,7 +7,7 @@ use super::{
     HOSTNAME_KEY, MACHINE_ID_KEY,
 };
 
-#[derive(thiserror::Error, Debug, Clone)]
+#[derive(thiserror::Error, Debug)]
 pub enum SystemDetectorError {
     #[error("error getting hostname `{0}`")]
     HostnameError(String),
