@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::OnceLock;
 
 use regex::Regex;
@@ -8,7 +8,9 @@ use super::{
     agent_types::{EndSpec, NormalizedVariables, VariableType},
     error::AgentTypeError,
     restart_policy::{BackoffStrategyConfig, RestartPolicyConfig},
-    runtime_config::{Deployment, Executable, K8s, K8sObject, OnHost, RuntimeConfig},
+    runtime_config::{
+        Deployment, Executable, K8s, K8sObject, K8sObjectMeta, OnHost, RuntimeConfig,
+    },
 };
 
 /// Regex that extracts the template values from a string.
@@ -163,12 +165,28 @@ impl Templateable for K8s {
 
 impl Templateable for K8sObject {
     fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
+        let metadata = self
+            .metadata
+            .map(|m| m.template_with(variables))
+            .transpose()?;
+
         Ok(Self {
             api_version: self.api_version.clone(),
             kind: self.kind.clone(),
-            // TODO: Once we decide how to handle metadata from AgentType, we need to update it.
-            metadata: None,
+            metadata,
             fields: self.fields.template_with(variables)?,
+        })
+    }
+}
+
+impl Templateable for K8sObjectMeta {
+    fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
+        Ok(Self {
+            labels: self
+                .labels
+                .into_iter()
+                .map(|(k, v)| Ok((k.template_with(variables)?, v.template_with(variables)?)))
+                .collect::<Result<BTreeMap<String, String>, AgentTypeError>>()?,
         })
     }
 }
@@ -860,5 +878,56 @@ mod tests {
             replace(re, "${any}-x", "any", &neither_value_nor_default).err().unwrap(),
             AgentTypeError::MissingTemplateKey(s) => s);
         assert_eq!("any".to_string(), key);
+    }
+
+    #[test]
+    fn test_template_k8s() {
+        let untouched_val = "${any} no templated";
+        let k8s_template: K8s = serde_yaml::from_str(
+            format!(
+                r#"
+objects:
+  cr1:
+    apiVersion: {untouched_val} 
+    kind: {untouched_val} 
+    metadata:
+      labels:
+        foo: ${{any}}
+        ${{any}}: bar
+    spec: ${{any}}
+"#
+            )
+            .as_str(),
+        )
+        .unwrap();
+
+        let value = "test_value";
+        let variables = NormalizedVariables::from([(
+            "any".to_string(),
+            EndSpec {
+                final_value: Some(TrivialValue::String(value.to_string())),
+                default: None,
+                description: String::default(),
+                required: true,
+                type_: VariableType::String,
+                file_path: None,
+            },
+        )]);
+
+        let k8s = k8s_template.template_with(&variables).unwrap();
+
+        let cr1 = k8s.objects.get("cr1").unwrap().clone();
+
+        // Expect no template applied on these fields.
+        assert_eq!(cr1.api_version, untouched_val);
+        assert_eq!(cr1.kind, untouched_val);
+
+        // Expect template works on fields.
+        assert_eq!(cr1.fields.get("spec").unwrap(), value);
+
+        // Expect template works on labels.
+        let labels = cr1.metadata.unwrap().labels;
+        assert_eq!(labels.get("foo").unwrap(), value);
+        assert_eq!(labels.get(value).unwrap(), "bar");
     }
 }

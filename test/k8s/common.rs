@@ -18,7 +18,7 @@ use newrelic_super_agent::config::{
     error::SuperAgentConfigError,
     super_agent_configs::{AgentTypeError, SuperAgentConfig},
 };
-use newrelic_super_agent::{config::super_agent_configs::AgentID, k8s::labels::DefaultLabels};
+use newrelic_super_agent::{config::super_agent_configs::AgentID, k8s::labels::Labels};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, env, fs::File, io::Write, time::Duration};
@@ -325,7 +325,7 @@ pub async fn create_test_cr(client: Client, namespace: &str, name: &str) -> Foo 
         _ => panic!(),
     };
 
-    foo_cr.metadata.labels = Some(DefaultLabels::new().with_agent_id(&agent_id).get());
+    foo_cr.metadata.labels = Some(Labels::new(&agent_id).get());
 
     foo_cr = api.create(&PostParams::default(), &foo_cr).await.unwrap();
 

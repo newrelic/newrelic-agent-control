@@ -1,6 +1,6 @@
 use crate::config::super_agent_configs::AgentID;
 use crate::k8s;
-use crate::k8s::labels::DefaultLabels;
+use crate::k8s::labels::Labels;
 use crate::opamp::instance_id::getter::DataStored;
 use crate::opamp::instance_id::storer::InstanceIDStorer;
 use std::sync::Arc;
@@ -57,12 +57,7 @@ impl Storer {
 
         debug!("storer: setting ULID of agent_id:{}", agent_id);
         self.k8s_executor
-            .set_configmap_key(
-                &cm_name,
-                DefaultLabels::new().with_agent_id(agent_id).get(),
-                CM_KEY,
-                data.as_str(),
-            )
+            .set_configmap_key(&cm_name, Labels::new(agent_id).get(), CM_KEY, data.as_str())
             .await?;
 
         Ok(())
@@ -102,7 +97,7 @@ pub mod test {
     use crate::config::super_agent_configs::AgentID;
     use crate::k8s::error::K8sError;
     use crate::k8s::executor::MockK8sExecutor;
-    use crate::k8s::labels::DefaultLabels;
+    use crate::k8s::labels::Labels;
     use crate::opamp::instance_id::getter::DataStored;
     use crate::opamp::instance_id::storer::InstanceIDStorer;
     use crate::opamp::instance_id::InstanceID;
@@ -134,9 +129,7 @@ identifiers:
             .with(
                 predicate::function(|name| name == EXPECTED_CM_NAME),
                 predicate::function(|key| {
-                    key == &DefaultLabels::new()
-                        .with_agent_id(&AgentID::new(AGENT_NAME).unwrap())
-                        .get()
+                    key == &Labels::new(&AgentID::new(AGENT_NAME).unwrap()).get()
                 }),
                 predicate::function(|key| key == CM_KEY),
                 predicate::function(|ds| ds == DATA_STORED),

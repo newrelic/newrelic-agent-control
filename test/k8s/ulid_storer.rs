@@ -3,7 +3,7 @@ use k8s_openapi::api::core::v1::ConfigMap;
 use kube::Api;
 use newrelic_super_agent::config::super_agent_configs::AgentID;
 use newrelic_super_agent::k8s::executor::K8sExecutor;
-use newrelic_super_agent::k8s::labels::DefaultLabels;
+use newrelic_super_agent::k8s::labels::Labels;
 use newrelic_super_agent::opamp::instance_id::{
     getter::{InstanceIDGetter, ULIDInstanceIDGetter},
     Identifiers, CM_KEY,
@@ -55,7 +55,7 @@ async fn k8s_ulid_persister() {
     assert!(cm_un.data.unwrap().contains_key(CM_KEY));
     assert_eq!(
         cm_un.metadata.labels,
-        Some(DefaultLabels::new().with_agent_id(&agent_id).get()),
+        Some(Labels::new(&agent_id).get()),
         "Expect to have default SA labels"
     );
 
@@ -66,7 +66,7 @@ async fn k8s_ulid_persister() {
     assert!(cm_un.data.unwrap().contains_key(CM_KEY));
     assert_eq!(
         cm_un.metadata.labels,
-        Some(DefaultLabels::new().with_agent_id(&another_agent_id).get()),
+        Some(Labels::new(&another_agent_id).get()),
         "Expect to have default SA labels"
     );
 }

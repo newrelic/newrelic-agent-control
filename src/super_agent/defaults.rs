@@ -134,19 +134,12 @@ deployment:
       repository:
         apiVersion: source.toolkit.fluxcd.io/v1beta2
         kind: HelmRepository
-        metadata:
-          labels:
-            extralabel: ${extralabel}
-          name: open-telemetry # Needed as a reference below. Do not override or override below too.
         spec:
           interval: 3m
           url: https://open-telemetry.github.io/opentelemetry-helm-charts
       release:
-        apiVersion: helm.toolkit.fluxcd.io/v2beta1
+        apiVersion: helm.toolkit.fluxcd.io/v2beta2
         kind: HelmRelease
-        metadata:
-          labels:
-            extralabel: ${extralabel}
         spec:
           interval: 3m
           chart:
