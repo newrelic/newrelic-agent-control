@@ -7,7 +7,7 @@ use crate::{cloud::AWS_INSTANCE_ID, Detect, DetectError, Key, Resource, Value};
 
 use super::metadata::{AWSMetadata, IPV4_METADATA_ENDPOINT};
 
-struct AWSDetector<C: HttpClient> {
+pub struct AWSDetector<C: HttpClient> {
     http_client: C,
 }
 
