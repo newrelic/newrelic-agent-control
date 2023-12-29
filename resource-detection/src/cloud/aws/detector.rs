@@ -1,6 +1,5 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 
-use reqwest::blocking::Response;
 use thiserror::Error;
 
 use crate::{cloud::AWS_INSTANCE_ID, Detect, DetectError, Key, Resource, Value};
@@ -11,10 +10,15 @@ pub struct AWSDetector<C: HttpClient> {
     http_client: C,
 }
 
-impl Default for AWSDetector<HttpClientReqwest> {
+const DEFAULT_CLIENT_TIMEOUT: Duration = Duration::from_secs(5);
+
+impl Default for AWSDetector<HttpClientUreq> {
     fn default() -> Self {
         Self {
-            http_client: HttpClientReqwest::new(IPV4_METADATA_ENDPOINT.to_string()),
+            http_client: HttpClientUreq::new(
+                IPV4_METADATA_ENDPOINT.to_string(),
+                DEFAULT_CLIENT_TIMEOUT,
+            ),
         }
     }
 }
@@ -22,9 +26,9 @@ impl Default for AWSDetector<HttpClientReqwest> {
 /// An enumeration of potential errors related to the HTTP client.
 #[derive(Error, Debug)]
 pub enum HttpClientError {
-    /// Represents Reqwest crate error.
-    #[error("`{0}`")]
-    ReqwestError(#[from] reqwest::Error),
+    /// Represents Ureq crate error.
+    #[error("internal client error: `{0}`")]
+    UreqError(String),
 }
 
 /// An enumeration of potential errors related to the HTTP client.
@@ -42,27 +46,32 @@ pub enum AWSDetectorError {
 }
 
 pub trait HttpClient {
-    fn get(&self) -> Result<Response, HttpClientError>;
+    fn get(&self) -> Result<http::Response<Vec<u8>>, HttpClientError>;
 }
 
 /// An implementation of the `HttpClient` trait using the reqwest library.
-pub struct HttpClientReqwest {
-    client: reqwest::blocking::Client,
+pub struct HttpClientUreq {
+    client: ureq::Agent,
     url: String,
 }
 
-impl HttpClientReqwest {
-    fn new(url: String) -> Self {
+impl HttpClientUreq {
+    fn new(url: String, timeout: Duration) -> Self {
         Self {
-            client: reqwest::blocking::Client::new(),
+            client: ureq::AgentBuilder::new().timeout(timeout).build(),
             url,
         }
     }
 }
 
-impl HttpClient for HttpClientReqwest {
-    fn get(&self) -> Result<Response, HttpClientError> {
-        Ok(self.client.get(self.url.clone()).send()?)
+impl HttpClient for HttpClientUreq {
+    fn get(&self) -> Result<http::Response<Vec<u8>>, HttpClientError> {
+        Ok(self
+            .client
+            .get(&self.url)
+            .call()
+            .map_err(|e| HttpClientError::UreqError(e.to_string()))?
+            .into())
     }
 }
 
@@ -90,12 +99,8 @@ where
             ));
         }
 
-        let metadata: AWSMetadata = serde_json::from_slice(
-            &response
-                .bytes()
-                .map_err(|e| AWSDetectorError::DeserializeError(e.to_string()))?,
-        )
-        .map_err(AWSDetectorError::JsonError)?;
+        let metadata: AWSMetadata =
+            serde_json::from_slice(response.body()).map_err(AWSDetectorError::JsonError)?;
 
         Ok(Resource {
             attributes: HashMap::from([(
@@ -109,12 +114,13 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
+    use http::Response;
     use mockall::mock;
 
     mock! {
         pub HttpClientMock {}
         impl HttpClient for HttpClientMock {
-            fn get(&self) -> Result<Response, HttpClientError>;
+            fn get(&self) -> Result<Response<Vec<u8>>, HttpClientError>;
         }
     }
 
@@ -127,24 +133,26 @@ mod test {
                     .status(200)
                     .body(
                         r#"
-{
-    "devpayProductCodes" : null,
-    "marketplaceProductCodes" : [ "1abc2defghijklm3nopqrs4tu" ],
-    "availabilityZone" : "us-west-2b",
-    "privateIp" : "10.158.112.84",
-    "version" : "2017-09-30",
-    "instanceId" : "i-1234567890abcdef0",
-    "billingProducts" : null,
-    "instanceType" : "t2.micro",
-    "accountId" : "123456789012",
-    "imageId" : "ami-5fb8c835",
-    "pendingTime" : "2016-11-19T16:32:11Z",
-    "architecture" : "x86_64",
-    "kernelId" : null,
-    "ramdiskId" : null,
-    "region" : "us-west-2"
-}
-"#,
+    {
+        "devpayProductCodes" : null,
+        "marketplaceProductCodes" : [ "1abc2defghijklm3nopqrs4tu" ],
+        "availabilityZone" : "us-west-2b",
+        "privateIp" : "10.158.112.84",
+        "version" : "2017-09-30",
+        "instanceId" : "i-1234567890abcdef0",
+        "billingProducts" : null,
+        "instanceType" : "t2.micro",
+        "accountId" : "123456789012",
+        "imageId" : "ami-5fb8c835",
+        "pendingTime" : "2016-11-19T16:32:11Z",
+        "architecture" : "x86_64",
+        "kernelId" : null,
+        "ramdiskId" : null,
+        "region" : "us-west-2"
+    }
+    "#
+                        .as_bytes()
+                        .to_vec(),
                     )
                     .unwrap(),
             ))
