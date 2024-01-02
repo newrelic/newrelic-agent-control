@@ -1,13 +1,16 @@
 use crate::config::super_agent_configs::AgentID;
 use crate::k8s;
+use crate::k8s::labels::Labels;
 use crate::opamp::instance_id::getter::DataStored;
 use crate::opamp::instance_id::storer::InstanceIDStorer;
+use std::sync::Arc;
+use tracing::debug;
 
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::executor::K8sExecutor;
 
 pub struct Storer {
-    k8s_executor: K8sExecutor,
+    k8s_executor: Arc<K8sExecutor>,
     configmap_prefix: String,
 }
 
@@ -40,27 +43,30 @@ impl InstanceIDStorer for Storer {
 }
 
 impl Storer {
-    pub fn new(k8s_executor: K8sExecutor) -> Self {
+    pub fn new(k8s_executor: Arc<K8sExecutor>) -> Self {
         Self {
             k8s_executor,
             configmap_prefix: CM_PREFIX.to_string(),
         }
     }
 
-    async fn async_set(&self, agent_id: &str, ds: &DataStored) -> Result<(), StorerError> {
+    async fn async_set(&self, agent_id: &AgentID, ds: &DataStored) -> Result<(), StorerError> {
         let cm_name: String = build_cm_name(&self.configmap_prefix, agent_id);
 
         let data = serde_yaml::to_string(&ds)?;
 
+        debug!("storer: setting ULID of agent_id:{}", agent_id);
         self.k8s_executor
-            .set_configmap_key(&cm_name, CM_KEY, data.as_str())
+            .set_configmap_key(&cm_name, Labels::new(agent_id).get(), CM_KEY, data.as_str())
             .await?;
 
         Ok(())
     }
 
-    async fn async_get(&self, agent_id: &str) -> Result<Option<DataStored>, StorerError> {
+    async fn async_get(&self, agent_id: &AgentID) -> Result<Option<DataStored>, StorerError> {
         let cm_name: String = build_cm_name(&self.configmap_prefix, agent_id);
+
+        debug!("storer: getting ULID of agent_id:{}", agent_id);
 
         let data_res = self
             .k8s_executor
@@ -91,10 +97,12 @@ pub mod test {
     use crate::config::super_agent_configs::AgentID;
     use crate::k8s::error::K8sError;
     use crate::k8s::executor::MockK8sExecutor;
+    use crate::k8s::labels::Labels;
     use crate::opamp::instance_id::getter::DataStored;
     use crate::opamp::instance_id::storer::InstanceIDStorer;
     use crate::opamp::instance_id::InstanceID;
     use mockall::predicate;
+    use std::sync::Arc;
 
     const AGENT_NAME: &str = "agent1";
     const DATA_STORED: &str = "ulid: 01HFW1YZKYWHTGC0WMWPNR4P4K
@@ -120,11 +128,14 @@ identifiers:
             .once()
             .with(
                 predicate::function(|name| name == EXPECTED_CM_NAME),
+                predicate::function(|key| {
+                    key == &Labels::new(&AgentID::new(AGENT_NAME).unwrap()).get()
+                }),
                 predicate::function(|key| key == CM_KEY),
                 predicate::function(|ds| ds == DATA_STORED),
             )
-            .returning(move |_, _, _| Err(K8sError::CMMalformed()));
-        let s = Storer::new(m);
+            .returning(move |_, _, _, _| Err(K8sError::CMMalformed()));
+        let s = Storer::new(Arc::new(m));
         let _ = s.get(&AgentID::new(AGENT_NAME).unwrap());
         let _ = s.set(
             &AgentID::new(AGENT_NAME).unwrap(),
@@ -141,7 +152,7 @@ identifiers:
         m.expect_get_configmap_key()
             .once()
             .returning(move |_, _| Err(K8sError::CMMalformed()));
-        let s = Storer::new(m);
+        let s = Storer::new(Arc::new(m));
 
         let id = s.get(&AgentID::new(AGENT_NAME).unwrap());
         assert!(id.is_err())
@@ -153,7 +164,7 @@ identifiers:
         m.expect_get_configmap_key()
             .once()
             .returning(move |_, _| Ok(None));
-        let s = Storer::new(m);
+        let s = Storer::new(Arc::new(m));
 
         let id = s.get(&AgentID::new(AGENT_NAME).unwrap());
         assert!(id.is_ok());
@@ -166,7 +177,7 @@ identifiers:
         m.expect_get_configmap_key()
             .once()
             .returning(move |_, _| Ok(Some(DATA_STORED.to_string())));
-        let s = Storer::new(m);
+        let s = Storer::new(Arc::new(m));
 
         let id = s.get(&AgentID::new(AGENT_NAME).unwrap());
         assert!(id.is_ok());
@@ -181,8 +192,8 @@ identifiers:
         let mut m = MockK8sExecutor::default();
         m.expect_set_configmap_key()
             .once()
-            .returning(move |_, _, _| Err(K8sError::CMMalformed()));
-        let s = Storer::new(m);
+            .returning(move |_, _, _, _| Err(K8sError::CMMalformed()));
+        let s = Storer::new(Arc::new(m));
 
         let id = s.set(
             &AgentID::new(AGENT_NAME).unwrap(),
@@ -199,9 +210,8 @@ identifiers:
         let mut m = MockK8sExecutor::default();
         m.expect_set_configmap_key()
             .once()
-            .returning(move |_, _, _| Ok(()));
-        let s = Storer::new(m);
-
+            .returning(move |_, _, _, _| Ok(()));
+        let s = Storer::new(Arc::new(m));
         let id = s.set(
             &AgentID::new(AGENT_NAME).unwrap(),
             &DataStored {

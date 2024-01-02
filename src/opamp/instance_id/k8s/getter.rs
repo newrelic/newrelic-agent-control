@@ -2,6 +2,7 @@ use crate::k8s;
 use crate::opamp::instance_id::getter::ULIDInstanceIDGetter;
 use crate::opamp::instance_id::k8s::storer::{Storer, StorerError};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::executor::K8sExecutor;
@@ -26,12 +27,9 @@ pub enum GetterError {
 
 impl ULIDInstanceIDGetter<Storer> {
     pub async fn try_with_identifiers(
-        namespace: String,
+        executor: Arc<K8sExecutor>,
         identifiers: Identifiers,
     ) -> Result<Self, GetterError> {
-        Ok(Self::new(
-            Storer::new(K8sExecutor::try_new(namespace).await?),
-            identifiers,
-        ))
+        Ok(Self::new(Storer::new(executor), identifiers))
     }
 }

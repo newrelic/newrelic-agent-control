@@ -15,6 +15,8 @@ pub enum TrivialValue {
     String(String),
     #[serde(skip)]
     File(FilePathWithContent),
+    #[serde(skip)]
+    Yaml(YamlValue),
     Bool(bool),
     Number(N),
     Map(Map<String, TrivialValue>),
@@ -32,6 +34,7 @@ impl TrivialValue {
             (TrivialValue::String(_), VariableType::String)
             | (TrivialValue::Bool(_), VariableType::Bool)
             | (TrivialValue::File(_), VariableType::File)
+            | (TrivialValue::Yaml(_), VariableType::Yaml)
             | (TrivialValue::Number(_), VariableType::Number) => Ok(self),
             (TrivialValue::Map(m), VariableType::MapStringString) => {
                 if !m.iter().all(|(_, v)| matches!(v, TrivialValue::String(_))) {
@@ -69,10 +72,22 @@ impl TrivialValue {
                     file_path, content,
                 ))),
             },
+            (TrivialValue::String(content), VariableType::Yaml) => {
+                let yaml_value: YamlValue = content.try_into()?;
+                Ok(TrivialValue::Yaml(yaml_value))
+            }
             (v, t) => Err(AgentTypeError::TypeMismatch {
                 expected_type: t,
                 actual_value: v,
             }),
+        }
+    }
+
+    /// If the trivial value is a yaml, it returns a copy the corresponding [serde_yaml::Value], returns None otherwise.
+    pub fn to_yaml_value(&self) -> Option<serde_yaml::Value> {
+        match self {
+            Self::Yaml(yaml) => Some(yaml.value.clone()),
+            _ => None,
         }
     }
 }
@@ -82,6 +97,7 @@ impl Display for TrivialValue {
         match self {
             TrivialValue::String(s) => write!(f, "{}", s),
             TrivialValue::File(file) => write!(f, "{}", file.path),
+            TrivialValue::Yaml(yaml) => write!(f, "{}", yaml.content),
             TrivialValue::Bool(b) => write!(f, "{}", b),
             TrivialValue::Number(n) => write!(f, "{}", n),
             TrivialValue::Map(n) => {
@@ -128,5 +144,25 @@ impl Display for N {
             N::NegInt(n) => write!(f, "{}", n),
             N::Float(n) => write!(f, "{}", n),
         }
+    }
+}
+
+/// Represents a yaml value, holding both the string before deserializing and the [serde_yaml::Value] after.
+#[derive(Debug, PartialEq, Default, Clone, Deserialize)]
+pub struct YamlValue {
+    #[serde(skip)]
+    pub value: serde_yaml::Value,
+    #[serde(flatten)]
+    pub content: String,
+}
+
+impl TryFrom<String> for YamlValue {
+    type Error = serde_yaml::Error;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Ok(Self {
+            value: serde_yaml::from_str(value.as_str())?,
+            content: value,
+        })
     }
 }

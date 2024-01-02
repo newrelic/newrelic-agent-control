@@ -6,7 +6,15 @@ use newrelic_super_agent::k8s::executor::K8sExecutor;
 use std::time::Duration;
 
 // tokio test runs with 1 thread by default causing deadlock when executing `block_on` code during test helper drop.
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "needs k8s cluster"]
+async fn k8s_client_creation_fail() {
+    let test_ns = "test-not-existing-namespace";
+    assert!(K8sExecutor::try_new(test_ns.to_string()).await.is_err());
+}
+
+// tokio test runs with 1 thread by default causing deadlock when executing `block_on` code during test helper drop.
+#[tokio::test(flavor = "multi_thread")]
 #[ignore = "needs k8s cluster"]
 async fn k8s_create_dynamic_resource() {
     let mut test = K8sEnv::new().await;
@@ -35,7 +43,7 @@ async fn k8s_create_dynamic_resource() {
     assert_eq!(String::from("on_create"), result.spec.data);
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[tokio::test(flavor = "multi_thread")]
 #[ignore = "needs k8s cluster"]
 async fn k8s_get_dynamic_resource() {
     let mut test = K8sEnv::new().await;
@@ -64,10 +72,7 @@ async fn k8s_get_dynamic_resource() {
         .unwrap()
         .unwrap();
 
-    assert_eq!(
-        cr.metadata.to_owned().name.unwrap().as_str(),
-        cr_name.clone()
-    );
+    assert_eq!(cr.metadata.to_owned().name.unwrap().as_str(), cr_name);
 
     Api::<Foo>::namespaced(test.client.to_owned(), &test_ns)
         .delete(cr_name, &DeleteParams::default())
@@ -85,7 +90,7 @@ async fn k8s_get_dynamic_resource() {
         .is_none());
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[tokio::test(flavor = "multi_thread")]
 #[ignore = "needs k8s cluster"]
 async fn k8s_delete_dynamic_resource() {
     let mut test = K8sEnv::new().await;
@@ -107,7 +112,7 @@ async fn k8s_delete_dynamic_resource() {
     api.get(cr_name).await.expect_err("fail removing the cr");
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[tokio::test(flavor = "multi_thread")]
 #[ignore = "needs k8s cluster"]
 async fn k8s_patch_dynamic_resource() {
     let mut test = K8sEnv::new().await;
@@ -137,7 +142,7 @@ async fn k8s_patch_dynamic_resource() {
 }
 
 // Example code to replace with real test when added.
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[tokio::test(flavor = "multi_thread")]
 #[ignore = "spawns a k8s cluster"]
 async fn k3s_spawning_container_k3s() {
     let test = K8sCluster::new().await;

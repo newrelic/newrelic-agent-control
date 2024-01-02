@@ -43,6 +43,7 @@ k8s-openapi = { version = "0.20.0", features = ["latest"], optional = true }
 tower = { version = "0.4.13", features = [], optional = true }
 hyper = { version = "0.14.27", optional = true }
 crossbeam = "0.8.2"
+either = { version = "1.9.0", optional = true }
 
 [dev-dependencies]
 assert_cmd = "2.0.12"
@@ -78,6 +79,6 @@ path = "src/bin/main.rs"
 
 [features]
 onhost = []
-k8s = ["dep:kube", "dep:k8s-openapi", "dep:tower", "dep:hyper"]
+k8s = ["dep:kube", "dep:k8s-openapi", "dep:tower", "dep:hyper", "dep:either"]
 # feature ci allows calling --all-features (needed on the test pipelines) and not failing to compile
 ci = []

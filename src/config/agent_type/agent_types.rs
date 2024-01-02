@@ -205,7 +205,11 @@ impl FinalAgent {
     /// template_with the [`RuntimeConfig`] object field of the [`Agent`] type with the user-provided config, which must abide by the agent type's defined [`AgentVariables`].
     ///
     /// This method will return an error if the user-provided config does not conform to the agent type's spec.
-    pub fn template_with(self, config: AgentValues) -> Result<FinalAgent, AgentTypeError> {
+    pub fn template_with(
+        self,
+        config: AgentValues,
+        agent_configs_path: Option<&str>,
+    ) -> Result<FinalAgent, AgentTypeError> {
         // let normalized_config = NormalizedSupervisorConfig::from(config);
         // let validated_conf = validate_with_agent_type(normalized_config, &self)?;
         let config = config.normalize_with_agent_type(&self)?;
@@ -216,6 +220,14 @@ impl FinalAgent {
         // modifies variables final value with the one defined in the SupervisorConfig
         spec.iter_mut().for_each(|(k, v)| {
             let defined_value = config.get_from_normalized(k);
+
+            if v.file_path.is_some() && agent_configs_path.is_some() {
+                v.file_path = v.file_path.as_ref().and_then(|file_path| {
+                    agent_configs_path.map(|agent_path| format!("{agent_path}/{file_path}"))
+                });
+            }
+
+            // TODO: understand why we need to redo this or in EndSpec::get_template_value()
             v.final_value = defined_value.or(v.default.clone());
         });
 
@@ -248,6 +260,23 @@ pub struct EndSpec {
     pub file_path: Option<String>,
     /// The actual value that will be used by the agent. This will be either the user-provided value or, if not provided and not marked as [`required`], the default value.
     pub final_value: Option<TrivialValue>,
+}
+
+impl EndSpec {
+    /// get_template_value returns the replacement value that will be used to substitute
+    /// the placeholder from an agent_type when templating a config
+    pub fn get_template_value(&self) -> Option<TrivialValue> {
+        match self.type_ {
+            // For MapStringFile and file the file_path includes the full path with agent_configs_path
+            VariableType::MapStringFile | VariableType::File => {
+                if let Some(file_path) = self.file_path.as_ref() {
+                    return Some(TrivialValue::String(file_path.to_string()));
+                }
+                self.default.clone()
+            }
+            _ => self.final_value.as_ref().or(self.default.as_ref()).cloned(),
+        }
+    }
 }
 
 impl<'de> Deserialize<'de> for EndSpec {
@@ -326,6 +355,8 @@ pub enum VariableType {
     // MapStringNumber,
     // #[serde(rename = "map[string]bool")]
     // MapStringBool,
+    #[serde(rename = "yaml")]
+    Yaml,
 }
 
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
@@ -611,7 +642,7 @@ deployment:
         let exec = Executable {
             path: TemplateableValue::from_template("${bin}/otelcol".to_string()),
             args: TemplateableValue::from_template(
-                "--verbose ${deployment.on_host.verbose} --logs ${deployment.on_host.log_level}"
+                "--config ${config} --plugin_dir ${integrations} --verbose ${deployment.on_host.verbose} --logs ${deployment.on_host.log_level}"
                     .to_string(),
             ),
             env: TemplateableValue::from_template("".to_string()),
@@ -638,6 +669,46 @@ deployment:
                     required: true,
                     final_value: Some(TrivialValue::String("/etc".to_string())),
                     file_path: None,
+                },
+            ),
+            (
+                "config".to_string(),
+                EndSpec {
+                    default: None,
+                    description: "config".to_string(),
+                    type_: VariableType::File,
+                    required: true,
+                    final_value: Some(TrivialValue::File(FilePathWithContent::new(
+                        "config2.yml".to_string(),
+                        "license_key: abc123\nstaging: true\n".to_string(),
+                    ))),
+                    file_path: Some("config_path".to_string()),
+                },
+            ),
+            (
+                "integrations".to_string(),
+                EndSpec {
+                    final_value: Some(TrivialValue::Map(HashMap::from([
+                        (
+                            "kafka.yml".to_string(),
+                            TrivialValue::File(FilePathWithContent::new(
+                                "config2.yml".to_string(),
+                                "license_key: abc123\nstaging: true\n".to_string(),
+                            )),
+                        ),
+                        (
+                            "redis.yml".to_string(),
+                            TrivialValue::File(FilePathWithContent::new(
+                                "config2.yml".to_string(),
+                                "license_key: abc123\nstaging: true\n".to_string(),
+                            )),
+                        ),
+                    ]))),
+                    default: None,
+                    description: "integrations".to_string(),
+                    type_: VariableType::MapStringFile,
+                    required: true,
+                    file_path: Some("integration_path".to_string()),
                 },
             ),
             (
@@ -716,9 +787,9 @@ deployment:
                 template: "${bin}/otelcol".to_string(),
             },
             args: TemplateableValue {
-                value: Some(Args("--verbose true --logs trace".to_string())),
+                value: Some(Args("--config config_path --plugin_dir integration_path --verbose true --logs trace".to_string())),
                 template:
-                    "--verbose ${deployment.on_host.verbose} --logs ${deployment.on_host.log_level}"
+                    "--config ${config} --plugin_dir ${integrations} --verbose ${deployment.on_host.verbose} --logs ${deployment.on_host.log_level}"
                         .to_string(),
             },
             env: TemplateableValue {
@@ -934,7 +1005,7 @@ config: |
 "#;
 
     #[test]
-    fn test_template_with_runtime_field() {
+    fn test_template_with_runtime_field_and_agent_configs_path() {
         // Having Agent Type
         let input_agent_type =
             serde_yaml::from_str::<FinalAgent>(GIVEN_NEWRELIC_INFRA_YAML).unwrap();
@@ -945,7 +1016,7 @@ config: |
 
         // When populating values
         let actual = input_agent_type
-            .template_with(input_user_config)
+            .template_with(input_user_config, Some("an/agents-config/path"))
             .expect("Failed to template_with the AgentType's runtime_config field");
 
         // Then we expected final values
@@ -987,6 +1058,9 @@ config: |
                 )),
             ),
         ]));
+
+        let expected_executable_args_with_abs_pat =
+            "--config an/agents-config/path/config.yml --config2 an/agents-config/path/config2.yml";
 
         assert_eq!(
             expected_config_3,
@@ -1031,6 +1105,20 @@ config: |
                 .as_ref()
                 .unwrap()
                 .clone()
+        );
+        assert_eq!(
+            expected_executable_args_with_abs_pat,
+            actual
+                .runtime_config
+                .deployment
+                .on_host
+                .unwrap()
+                .executables[0]
+                .args
+                .value
+                .clone()
+                .unwrap()
+                .0
         );
     }
 
@@ -1110,7 +1198,7 @@ backoff:
         };
 
         let actual = input_agent_type
-            .template_with(input_user_config)
+            .template_with(input_user_config, None)
             .expect("Failed to template_with the AgentType's runtime_config field");
 
         // println!("Output: {:#?}", actual);
@@ -1172,16 +1260,16 @@ backoff:
         let wrong_type =
             serde_yaml::from_str::<AgentValues>(WRONG_TYPE_BACKOFF_CONFIG_YAML).unwrap();
 
-        let actual = input_agent_type.clone().template_with(wrong_retries);
+        let actual = input_agent_type.clone().template_with(wrong_retries, None);
         assert!(actual.is_err());
 
-        let actual = input_agent_type.clone().template_with(wrong_delay);
+        let actual = input_agent_type.clone().template_with(wrong_delay, None);
         assert!(actual.is_err());
 
-        let actual = input_agent_type.clone().template_with(wrong_interval);
+        let actual = input_agent_type.clone().template_with(wrong_interval, None);
         assert!(actual.is_err());
 
-        let actual = input_agent_type.template_with(wrong_type);
+        let actual = input_agent_type.template_with(wrong_type, None);
         assert!(actual.is_err());
     }
 
@@ -1349,7 +1437,7 @@ backoff:
         };
 
         let actual = input_agent_type
-            .template_with(input_user_config)
+            .template_with(input_user_config, None)
             .expect("Failed to template_with the AgentType's runtime_config field");
 
         // println!("Output: {:#?}", actual);
@@ -1364,5 +1452,76 @@ backoff:
                 .restart_policy
                 .backoff_strategy
         );
+    }
+
+    const K8S_AGENT_TYPE_YAML_VARIABLES: &str = r#"
+name: k8s-agent-type
+namespace: newrelic
+version: 0.0.1
+variables:
+  config:
+    values:
+      description: "yaml values"
+      type: yaml
+      required: true
+deployment:
+  k8s:
+    objects:
+      cr1:
+        apiVersion: group/version
+        kind: ObjectKind
+        spec:
+          values: ${config.values}
+"#;
+
+    const K8S_CONFIG_YAML_VALUES: &str = r#"
+config:
+  values: |
+    key: value
+    another_key:
+      nested: nested_value
+      nested_list:
+        - item1
+        - item2
+        - item3_nested: value
+    empty_key:
+"#;
+
+    #[test]
+    fn test_k8s_config_yaml_variables() {
+        let input_agent_type: FinalAgent =
+            serde_yaml::from_str(K8S_AGENT_TYPE_YAML_VARIABLES).unwrap();
+        let user_config: AgentValues = serde_yaml::from_str(K8S_CONFIG_YAML_VALUES).unwrap();
+        let expected_spec_yaml = r#"
+values:
+  key: value
+  another_key:
+    nested: nested_value
+    nested_list:
+      - item1
+      - item2
+      - item3_nested: value
+  empty_key:
+"#;
+        let expected_spec_value: serde_yaml::Value =
+            serde_yaml::from_str(expected_spec_yaml).unwrap();
+
+        let expanded_final_agent = input_agent_type.template_with(user_config, None).unwrap();
+
+        let cr1 = expanded_final_agent
+            .runtime_config
+            .deployment
+            .k8s
+            .unwrap()
+            .objects
+            .get("cr1")
+            .unwrap()
+            .clone();
+
+        assert_eq!("group/version".to_string(), cr1.api_version);
+        assert_eq!("ObjectKind".to_string(), cr1.kind);
+
+        let spec = cr1.fields.get("spec").unwrap().clone();
+        assert_eq!(expected_spec_value, spec);
     }
 }

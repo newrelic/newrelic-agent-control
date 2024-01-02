@@ -1,14 +1,16 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::OnceLock;
 
 use regex::Regex;
 use tracing::warn;
 
 use super::{
-    agent_types::NormalizedVariables,
+    agent_types::{EndSpec, NormalizedVariables, VariableType},
     error::AgentTypeError,
     restart_policy::{BackoffStrategyConfig, RestartPolicyConfig},
-    runtime_config::{Deployment, Executable, K8s, K8sObject, OnHost, RuntimeConfig},
+    runtime_config::{
+        Deployment, Executable, K8s, K8sObject, K8sObjectMeta, OnHost, RuntimeConfig,
+    },
 };
 
 /// Regex that extracts the template values from a string.
@@ -33,6 +35,43 @@ pub const TEMPLATE_KEY_SEPARATOR: &str = ".";
 fn template_re() -> &'static Regex {
     static RE_ONCE: OnceLock<Regex> = OnceLock::new();
     RE_ONCE.get_or_init(|| Regex::new(TEMPLATE_RE).unwrap())
+}
+
+fn only_template_var_re() -> &'static Regex {
+    static ONLY_RE_ONCE: OnceLock<Regex> = OnceLock::new();
+    ONLY_RE_ONCE.get_or_init(|| Regex::new(format!("^{TEMPLATE_RE}$").as_str()).unwrap())
+}
+
+/// Returns a string slice with the template's begin and end trimmed.
+fn template_trim(s: &str) -> &str {
+    s.trim_start_matches(TEMPLATE_BEGIN)
+        .trim_end_matches(TEMPLATE_END)
+}
+
+/// Returns a variable reference from the provided set if it exists, it returns an error otherwise.
+fn normalized_var<'a>(
+    name: &str,
+    variables: &'a NormalizedVariables,
+) -> Result<&'a EndSpec, AgentTypeError> {
+    variables
+        .get(name)
+        .ok_or(AgentTypeError::MissingTemplateKey(name.to_string()))
+}
+
+/// Returns a string with the first match of a variable replaced with the corresponding value
+/// (according to the provided normalized variable).
+fn replace(
+    re: &Regex,
+    s: &str,
+    var_name: &str,
+    normalized_var: &EndSpec,
+) -> Result<String, AgentTypeError> {
+    let value = normalized_var
+        .get_template_value()
+        .ok_or(AgentTypeError::MissingTemplateKey(var_name.to_string()))?
+        .to_string();
+
+    Ok(re.replace(s, value).to_string())
 }
 
 pub trait Templateable {
@@ -61,30 +100,12 @@ impl Templateable for String {
 
 fn template_string(s: String, variables: &NormalizedVariables) -> Result<String, AgentTypeError> {
     let re = template_re();
-
-    let result = re
-        .find_iter(&s)
+    re.find_iter(&s)
         .map(|i| i.as_str())
         .try_fold(s.clone(), |r, i| {
-            let trimmed_s = i
-                .trim_start_matches(TEMPLATE_BEGIN)
-                .trim_end_matches(TEMPLATE_END);
-            if !variables.contains_key(trimmed_s) {
-                return Err(AgentTypeError::MissingTemplateKey(trimmed_s.to_string()));
-            }
-            let replacement = variables[trimmed_s].clone();
-            Ok(re
-                .replace(
-                    &r,
-                    replacement
-                        .final_value
-                        .or(replacement.default)
-                        .ok_or(AgentTypeError::MissingTemplateKey(trimmed_s.to_string()))?
-                        .to_string(),
-                )
-                .to_string())
-        });
-    result
+            let var_name = template_trim(i);
+            replace(re, &r, var_name, normalized_var(var_name, variables)?)
+        })
 }
 
 impl Templateable for OnHost {
@@ -144,10 +165,28 @@ impl Templateable for K8s {
 
 impl Templateable for K8sObject {
     fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
+        let metadata = self
+            .metadata
+            .map(|m| m.template_with(variables))
+            .transpose()?;
+
         Ok(Self {
             api_version: self.api_version.clone(),
             kind: self.kind.clone(),
+            metadata,
             fields: self.fields.template_with(variables)?,
+        })
+    }
+}
+
+impl Templateable for K8sObjectMeta {
+    fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
+        Ok(Self {
+            labels: self
+                .labels
+                .into_iter()
+                .map(|(k, v)| Ok((k.template_with(variables)?, v.template_with(variables)?)))
+                .collect::<Result<BTreeMap<String, String>, AgentTypeError>>()?,
         })
     }
 }
@@ -185,26 +224,45 @@ impl Templateable for serde_yaml::Sequence {
     }
 }
 
+/// Templates yaml strings as [serde_yaml::Value].
+/// When all the string content is a variable template, the corresponding variable type is checked
+/// and the value is handled as needed. Otherwise, it is templated as a regular string. Example:
+///
+/// ```yaml
+/// key1: ${var} # The var type is checked and the expanded value might not be a string.
+/// # The examples below are always templated as string, regardless of the variable type.
+/// key2: this-${var}
+/// key3: ${var}${var}
+/// ```
 fn template_yaml_value_string(
-    st: String,
+    s: String,
     variables: &NormalizedVariables,
 ) -> Result<serde_yaml::Value, AgentTypeError> {
-    let templated = template_string(st, variables)?;
-    /*
-    // TODO: All templated values are a YAML String, but the result does not have to be a string.
-    ```yaml
-    test: ${value}
-    ```
-    Given the YAML above, if `value` is `1` the result is `"1"`, not a `1` (integer).
-    We will have to be careful to cast because there are many reason se do not want to change the type from string
-    to int, like in Kubernetes annotations that are a map[string]string and refuses to cast booleans of integers to
-    string.
-
-    In a future we might want to do a spike to support Tagged values: https://docs.rs/serde_yaml/latest/serde_yaml/enum.Value.html#variant.Tagged
-
-    For now, as a first iteration, we simply return a string and template a string.
-    */
-    Ok(serde_yaml::Value::String(templated))
+    // When there is more content than a variable template, template as a regular string.
+    if !only_template_var_re().is_match(s.as_str()) {
+        let templated = template_string(s, variables)?;
+        return Ok(serde_yaml::Value::String(templated));
+    }
+    // Otherwise, template according to the variable type.
+    let var_name = template_trim(s.as_str());
+    let var_spec = normalized_var(var_name, variables)?;
+    let var_value = var_spec
+        .get_template_value()
+        .ok_or(AgentTypeError::MissingAgentKey(var_name.to_string()))?;
+    match var_spec.type_ {
+        VariableType::Yaml => {
+            var_value
+                .to_yaml_value()
+                .ok_or(AgentTypeError::InvalidValueForSpec {
+                    key: var_name.to_string(),
+                    type_: VariableType::Yaml,
+                })
+        }
+        VariableType::Bool | VariableType::Number => {
+            serde_yaml::from_str(var_value.to_string().as_str()).map_err(AgentTypeError::SerdeYaml)
+        }
+        _ => Ok(serde_yaml::Value::String(var_value.to_string())),
+    }
 }
 
 impl Templateable for Deployment {
@@ -255,15 +313,32 @@ impl Templateable for RuntimeConfig {
 
 #[cfg(test)]
 mod tests {
+    use assert_matches::assert_matches;
+
     use crate::config::agent_type::restart_policy::{BackoffDuration, BackoffStrategyType};
+    use crate::config::agent_type::trivial_value::FilePathWithContent;
     use crate::config::agent_type::trivial_value::N::PosInt;
     use crate::config::agent_type::{
         agent_types::{EndSpec, TemplateableValue, VariableType},
         runtime_config::{Args, Env},
         trivial_value::{TrivialValue, N},
     };
+    use std::collections::HashMap;
 
     use super::*;
+
+    impl EndSpec {
+        fn default_with_type(type_: VariableType) -> Self {
+            Self {
+                type_,
+                final_value: None,
+                default: None,
+                description: String::default(),
+                required: false,
+                file_path: None,
+            }
+        }
+    }
 
     #[test]
     fn test_template_string() {
@@ -378,11 +453,42 @@ mod tests {
                     file_path: Some("some_path".to_string()),
                 },
             ),
+            (
+                "config".to_string(),
+                EndSpec {
+                    final_value: Some(TrivialValue::File(FilePathWithContent::new(
+                        "config2.yml".to_string(),
+                        "license_key: abc123\nstaging: true\n".to_string(),
+                    ))),
+                    default: None,
+                    description: "config".to_string(),
+                    type_: VariableType::File,
+                    required: true,
+                    file_path: Some("config_path".to_string()),
+                },
+            ),
+            (
+                "integrations".to_string(),
+                EndSpec {
+                    final_value: Some(TrivialValue::Map(HashMap::from([(
+                        "kafka.yml".to_string(),
+                        TrivialValue::File(FilePathWithContent::new(
+                            "config2.yml".to_string(),
+                            "license_key: abc123\nstaging: true\n".to_string(),
+                        )),
+                    )]))),
+                    default: None,
+                    description: "integrations".to_string(),
+                    type_: VariableType::MapStringFile,
+                    required: true,
+                    file_path: Some("integration_path".to_string()),
+                },
+            ),
         ]);
 
         let input = Executable {
             path: TemplateableValue::from_template("${path}".to_string()),
-            args: TemplateableValue::from_template("${args}".to_string()),
+            args: TemplateableValue::from_template("${args} ${config} ${integrations}".to_string()),
             env: TemplateableValue::from_template("MYAPP_PORT=${env.MYAPP_PORT}".to_string()),
             restart_policy: RestartPolicyConfig {
                 backoff_strategy: BackoffStrategyConfig {
@@ -399,8 +505,10 @@ mod tests {
         let expected_output = Executable {
             path: TemplateableValue::new("/usr/bin/myapp".to_string())
                 .with_template("${path}".to_string()),
-            args: TemplateableValue::new(Args("--config /etc/myapp.conf".to_string()))
-                .with_template("${args}".to_string()),
+            args: TemplateableValue::new(Args(
+                "--config /etc/myapp.conf config_path integration_path".to_string(),
+            ))
+            .with_template("${args} ${config} ${integrations}".to_string()),
             env: TemplateableValue::new(Env("MYAPP_PORT=8080".to_string()))
                 .with_template("MYAPP_PORT=${env.MYAPP_PORT}".to_string()),
             restart_policy: RestartPolicyConfig {
@@ -428,33 +536,21 @@ mod tests {
                 "change.me.string".to_string(),
                 EndSpec {
                     final_value: Some(TrivialValue::String("CHANGED-STRING".to_string())),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::String,
-                    file_path: None,
+                    ..EndSpec::default_with_type(VariableType::String)
                 },
             ),
             (
                 "change.me.bool".to_string(),
                 EndSpec {
                     final_value: Some(TrivialValue::Bool(true)),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::Bool,
-                    file_path: None,
+                    ..EndSpec::default_with_type(VariableType::Bool)
                 },
             ),
             (
                 "change.me.number".to_string(),
                 EndSpec {
                     final_value: Some(TrivialValue::Number(PosInt(42))),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::Number,
-                    file_path: None,
+                    ..EndSpec::default_with_type(VariableType::Number)
                 },
             ),
         ]);
@@ -472,8 +568,8 @@ mod tests {
         let expected_output: serde_yaml::Mapping = serde_yaml::from_str(
             r#"
         a_string: "CHANGED-STRING"
-        a_boolean: "true"  # TODO: This test should break in a future iteration.
-        a_number: "42"  # TODO: This test should break in a future iteration.
+        a_boolean: true
+        a_number: 42
         ${change.me.string}: "Do not scape me"
         ${change.me.bool}: "Do not scape me"
         ${change.me.number}: "Do not scape me"
@@ -492,33 +588,21 @@ mod tests {
                 "change.me.string".to_string(),
                 EndSpec {
                     final_value: Some(TrivialValue::String("CHANGED-STRING".to_string())),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::String,
-                    file_path: None,
+                    ..EndSpec::default_with_type(VariableType::String)
                 },
             ),
             (
                 "change.me.bool".to_string(),
                 EndSpec {
                     final_value: Some(TrivialValue::Bool(true)),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::Bool,
-                    file_path: None,
+                    ..EndSpec::default_with_type(VariableType::Bool)
                 },
             ),
             (
                 "change.me.number".to_string(),
                 EndSpec {
                     final_value: Some(TrivialValue::Number(PosInt(42))),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::Number,
-                    file_path: None,
+                    ..EndSpec::default_with_type(VariableType::Number)
                 },
             ),
         ]);
@@ -534,8 +618,8 @@ mod tests {
         let expected_output: serde_yaml::Sequence = serde_yaml::from_str(
             r#"
         - CHANGED-STRING
-        - "true" # TODO: This test should break in a future iteration.
-        - "42" # TODO: This test should break in a future iteration.
+        - true
+        - 42
         - Do not scape me
         "#,
         )
@@ -552,97 +636,43 @@ mod tests {
                 "change.me.string".to_string(),
                 EndSpec {
                     final_value: Some(TrivialValue::String("CHANGED-STRING".to_string())),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::String,
-                    file_path: None,
+                    ..EndSpec::default_with_type(VariableType::String)
                 },
             ),
             (
                 "change.me.bool".to_string(),
                 EndSpec {
                     final_value: Some(TrivialValue::Bool(true)),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::Bool,
-                    file_path: None,
+                    ..EndSpec::default_with_type(VariableType::Bool)
                 },
             ),
             (
                 "change.me.number".to_string(),
                 EndSpec {
                     final_value: Some(TrivialValue::Number(PosInt(42))),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::Number,
-                    file_path: None,
-                },
-            ),
-        ]);
-        let input: serde_yaml::Value = serde_yaml::from_str(
-            r#"
-        a_string: ${change.me.string}
-        a_boolean: ${change.me.bool}
-        a_number: ${change.me.number}
-        ${change.me.string}: Do not scape me
-        ${change.me.bool}: Do not scape me
-        ${change.me.number}: Do not scape me
-        "#,
-        )
-        .unwrap();
-        let expected_output: serde_yaml::Value = serde_yaml::from_str(
-            r#"
-        a_string: "CHANGED-STRING"
-        a_boolean: "true"  # TODO: This test should break in a future iteration.
-        a_number: "42"  # TODO: This test should break in a future iteration.
-        ${change.me.string}: Do not scape me
-        ${change.me.bool}: Do not scape me
-        ${change.me.number}: Do not scape me
-        "#,
-        )
-        .unwrap();
-
-        let actual_output: serde_yaml::Value = input.template_with(&variables).unwrap();
-        assert_eq!(actual_output, expected_output);
-    }
-
-    #[test]
-    fn test_template_nested_yaml() {
-        let variables = NormalizedVariables::from([
-            (
-                "change.me.string".to_string(),
-                EndSpec {
-                    final_value: Some(TrivialValue::String("CHANGED-STRING".to_string())),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::String,
-                    file_path: None,
+                    ..EndSpec::default_with_type(VariableType::Number)
                 },
             ),
             (
-                "change.me.bool".to_string(),
+                "change.me.yaml".to_string(),
                 EndSpec {
-                    final_value: Some(TrivialValue::Bool(true)),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::Bool,
-                    file_path: None,
+                    final_value: Some(TrivialValue::Yaml(
+                        r#"{"key": "value"}"#.to_string().try_into().unwrap(),
+                    )),
+                    ..EndSpec::default_with_type(VariableType::Yaml)
                 },
             ),
             (
-                "change.me.number".to_string(),
+                // Expansion inside variable's values is not supported.
+                "yaml.with.var.placeholder".to_string(),
                 EndSpec {
-                    final_value: Some(TrivialValue::Number(PosInt(42))),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::Number,
-                    file_path: None,
+                    final_value: Some(TrivialValue::Yaml(
+                        r#"{"this.will.not.be.expanded": "${change.me.string}"}"#
+                            .to_string()
+                            .try_into()
+                            .unwrap(),
+                    )),
+                    ..EndSpec::default_with_type(VariableType::Yaml)
                 },
             ),
         ]);
@@ -661,9 +691,13 @@ mod tests {
                 - a_string: ${change.me.string}
                 - a_boolean: ${change.me.bool}
                 - a_number: ${change.me.number}
+                - a_yaml: ${change.me.yaml}
         a_string: ${change.me.string}
         a_boolean: ${change.me.bool}
         a_number: ${change.me.number}
+        a_yaml: ${change.me.yaml}
+        another_yaml: ${yaml.with.var.placeholder} # A variable inside another variable value is not expanded
+        string_key: "here, the value ${change.me.yaml} is encoded as string because it is not alone"
         "#,
         )
         .unwrap();
@@ -671,25 +705,229 @@ mod tests {
             r#"
         an_object:
             a_string: "CHANGED-STRING"
-            a_boolean: "true"  # TODO: This test should break in a future iteration.
-            a_number: "42"  # TODO: This test should break in a future iteration.
+            a_boolean: true
+            a_number: 42
         a_sequence:
             - "CHANGED-STRING"
-            - "true"  # TODO: This test should break in a future iteration.
-            - "42"  # TODO: This test should break in a future iteration.
+            - true
+            - 42
         a_nested_object:
             with_nested_sequence:
                 - a_string: "CHANGED-STRING"
-                - a_boolean: "true"  # TODO: This test should break in a future iteration.
-                - a_number: "42"  # TODO: This test should break in a future iteration.
+                - a_boolean: true
+                - a_number: 42
+                - a_yaml:
+                    key:
+                      value
         a_string: "CHANGED-STRING"
-        a_boolean: "true"  # TODO: This test should break in a future iteration.
-        a_number: "42"  # TODO: This test should break in a future iteration.
+        a_boolean: true
+        a_number: 42
+        a_yaml:
+          key: value
+        another_yaml:
+          "this.will.not.be.expanded": "${change.me.string}" # A variable inside another other variable value is not expanded
+        string_key: "here, the value {\"key\": \"value\"} is encoded as string because it is not alone"
         "#,
         )
         .unwrap();
 
         let actual_output: serde_yaml::Value = input.template_with(&variables).unwrap();
         assert_eq!(actual_output, expected_output);
+    }
+
+    #[test]
+    fn test_template_yaml_value_string() {
+        let variables = NormalizedVariables::from([
+            (
+                "simple.string.var".to_string(),
+                EndSpec {
+                    final_value: Some(TrivialValue::String("Value".into())),
+                    ..EndSpec::default_with_type(VariableType::String)
+                },
+            ),
+            (
+                "string.with.yaml.var".to_string(),
+                EndSpec {
+                    final_value: Some(TrivialValue::String("[Value]".into())),
+                    ..EndSpec::default_with_type(VariableType::String)
+                },
+            ),
+            (
+                "bool.var".to_string(),
+                EndSpec {
+                    final_value: Some(TrivialValue::Bool(true)),
+                    ..EndSpec::default_with_type(VariableType::Bool)
+                },
+            ),
+            (
+                "number.var".to_string(),
+                EndSpec {
+                    final_value: Some(TrivialValue::Number(PosInt(42))),
+                    ..EndSpec::default_with_type(VariableType::Number)
+                },
+            ),
+            (
+                "yaml.var".to_string(),
+                EndSpec {
+                    final_value: Some(TrivialValue::Yaml(
+                        r#"{"key": "value"}"#.to_string().try_into().unwrap(),
+                    )),
+                    ..EndSpec::default_with_type(VariableType::Yaml)
+                },
+            ),
+        ]);
+
+        assert_eq!(
+            serde_yaml::Value::String("Value".into()),
+            template_yaml_value_string("${simple.string.var}".into(), &variables).unwrap()
+        );
+        assert_eq!(
+            serde_yaml::Value::String("var=Value".into()),
+            template_yaml_value_string("var=${simple.string.var}".into(), &variables).unwrap()
+        );
+        assert_eq!(
+            serde_yaml::Value::String("ValueValue".into()),
+            template_yaml_value_string(
+                "${simple.string.var}${simple.string.var}".into(),
+                &variables
+            )
+            .unwrap()
+        );
+        assert_eq!(
+            serde_yaml::Value::String("[Value]".into()),
+            template_yaml_value_string("${string.with.yaml.var}".into(), &variables).unwrap()
+        );
+        // yaml, bool and number values are got when the corresponding variable is "alone".
+        assert_eq!(
+            serde_yaml::Value::Bool(true),
+            template_yaml_value_string("${bool.var}".into(), &variables).unwrap()
+        );
+        assert_eq!(
+            serde_yaml::Value::Number(serde_yaml::Number::try_from(42i32).unwrap()),
+            template_yaml_value_string("${number.var}".into(), &variables).unwrap()
+        );
+        assert_eq!(
+            serde_yaml::Value::String("truetrue".into()),
+            template_yaml_value_string("${bool.var}${bool.var}".into(), &variables).unwrap()
+        );
+        assert_eq!(
+            serde_yaml::Value::String("true42".into()),
+            template_yaml_value_string("${bool.var}${number.var}".into(), &variables).unwrap()
+        );
+        assert_eq!(
+            serde_yaml::Value::String("the 42 Value is true".into()),
+            template_yaml_value_string(
+                "the ${number.var} ${simple.string.var} is ${bool.var}".into(),
+                &variables
+            )
+            .unwrap()
+        );
+        let m = assert_matches!(
+            template_yaml_value_string("${yaml.var}".into(), &variables).unwrap(),
+            serde_yaml::Value::Mapping(m) => m
+        );
+        assert_eq!(
+            serde_yaml::Value::String("value".into()),
+            m.get("key").unwrap().clone()
+        );
+        assert_eq!(
+            serde_yaml::Value::String(r#"x: {"key": "value"}"#.into()),
+            template_yaml_value_string("x: ${yaml.var}".into(), &variables).unwrap()
+        )
+    }
+
+    #[test]
+    fn test_normalized_var() {
+        let variables = NormalizedVariables::from([(
+            "var.name".to_string(),
+            EndSpec::default_with_type(VariableType::String),
+        )]);
+
+        assert_eq!(
+            normalized_var("var.name", &variables).unwrap().type_,
+            VariableType::String
+        );
+        let key = assert_matches!(
+            normalized_var("does.not.exists", &variables).err().unwrap(),
+            AgentTypeError::MissingTemplateKey(s) => s);
+        assert_eq!("does.not.exists".to_string(), key);
+    }
+
+    #[test]
+    fn test_replace() {
+        let value_var = EndSpec {
+            final_value: Some(TrivialValue::String("Value".into())),
+            ..EndSpec::default_with_type(VariableType::String)
+        };
+        let default_var = EndSpec {
+            default: Some(TrivialValue::String("Default".into())),
+            ..EndSpec::default_with_type(VariableType::String)
+        };
+        let neither_value_nor_default = EndSpec::default_with_type(VariableType::String);
+
+        let re = template_re();
+        assert_eq!(
+            "Value-${other}".to_string(),
+            replace(re, "${any}-${other}", "any", &value_var).unwrap()
+        );
+        assert_eq!(
+            "Default-${other}".to_string(),
+            replace(re, "${any}-${other}", "any", &default_var).unwrap()
+        );
+        let key = assert_matches!(
+            replace(re, "${any}-x", "any", &neither_value_nor_default).err().unwrap(),
+            AgentTypeError::MissingTemplateKey(s) => s);
+        assert_eq!("any".to_string(), key);
+    }
+
+    #[test]
+    fn test_template_k8s() {
+        let untouched_val = "${any} no templated";
+        let k8s_template: K8s = serde_yaml::from_str(
+            format!(
+                r#"
+objects:
+  cr1:
+    apiVersion: {untouched_val} 
+    kind: {untouched_val} 
+    metadata:
+      labels:
+        foo: ${{any}}
+        ${{any}}: bar
+    spec: ${{any}}
+"#
+            )
+            .as_str(),
+        )
+        .unwrap();
+
+        let value = "test_value";
+        let variables = NormalizedVariables::from([(
+            "any".to_string(),
+            EndSpec {
+                final_value: Some(TrivialValue::String(value.to_string())),
+                default: None,
+                description: String::default(),
+                required: true,
+                type_: VariableType::String,
+                file_path: None,
+            },
+        )]);
+
+        let k8s = k8s_template.template_with(&variables).unwrap();
+
+        let cr1 = k8s.objects.get("cr1").unwrap().clone();
+
+        // Expect no template applied on these fields.
+        assert_eq!(cr1.api_version, untouched_val);
+        assert_eq!(cr1.kind, untouched_val);
+
+        // Expect template works on fields.
+        assert_eq!(cr1.fields.get("spec").unwrap(), value);
+
+        // Expect template works on labels.
+        let labels = cr1.metadata.unwrap().labels;
+        assert_eq!(labels.get("foo").unwrap(), value);
+        assert_eq!(labels.get(value).unwrap(), "bar");
     }
 }

@@ -1,7 +1,7 @@
 pub mod builder;
 pub mod sub_agent;
 
-mod sample_crs;
 mod supervisor;
 
 pub use supervisor::CRSupervisor;
+pub use supervisor::SupervisorError;

@@ -3,7 +3,7 @@ use opamp_client::opamp::proto::{RemoteConfigStatus, RemoteConfigStatuses};
 use opamp_client::StartedClient;
 
 use crate::{
-    config::store::SubAgentsConfigStore,
+    config::store::{SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer},
     opamp::{remote_config::RemoteConfigError, remote_config_hash::HashRepository},
     sub_agent::{values::values_repository::ValuesRepository, SubAgentBuilder},
     super_agent::{
@@ -17,7 +17,7 @@ where
     O: StartedClient<SuperAgentCallbacks>,
     HR: HashRepository,
     S: SubAgentBuilder,
-    SL: SubAgentsConfigStore,
+    SL: SubAgentsConfigStorer + SubAgentsConfigLoader + SubAgentsConfigDeleter,
     HRS: HashRepository,
     VR: ValuesRepository,
 {

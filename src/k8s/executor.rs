@@ -1,18 +1,20 @@
 use super::{
     error::K8sError,
+    error::K8sError::UnexpectedKind,
     reader::{DynamicObjectReflector, ReflectorBuilder},
 };
-use crate::k8s::Error::UnexpectedKind;
-use k8s_openapi::api::core::v1::ConfigMap;
-use kube::api::{DeleteParams, PostParams};
-use kube::core::DynamicObject;
-use kube::core::GroupVersion;
-use kube::core::TypeMeta;
-use kube::{config::KubeConfigOptions, core::ObjectMeta};
-use kube::{Api, Client, Config};
-use std::str::FromStr;
+use k8s_openapi::api::core::v1::{ConfigMap, Namespace};
+use kube::{
+    api::{DeleteParams, ListParams, PostParams},
+    config::KubeConfigOptions,
+    core::{DynamicObject, GroupVersion, ObjectMeta, TypeMeta},
+    Api, Client, Config, Resource, ResourceExt,
+};
+use serde::de::DeserializeOwned;
+use std::fmt::Debug;
 use std::{
     collections::{BTreeMap, HashMap},
+    str::FromStr,
     sync::Arc,
 };
 use tracing::{debug, warn};
@@ -52,10 +54,17 @@ impl K8sExecutor {
         };
 
         config.default_namespace = namespace;
-
         let client = Client::try_from(config)?;
-        debug!("client creation succeeded");
 
+        debug!("verifying default namespace existence");
+        Api::<Namespace>::all(client.clone())
+            .get(client.default_namespace())
+            .await
+            .map_err(|e| {
+                K8sError::UnableToSetupClient(format!("failed to get the default namespace: {}", e))
+            })?;
+
+        debug!("client creation succeeded");
         Ok(Self {
             client,
             dynamics: HashMap::new(),
@@ -101,6 +110,10 @@ impl K8sExecutor {
             );
         }
         Ok(self)
+    }
+
+    pub fn supported_type_meta_collection(&self) -> Vec<TypeMeta> {
+        self.dynamics.keys().cloned().collect()
     }
 
     pub async fn apply_dynamic_object(&self, obj: &DynamicObject) -> Result<(), K8sError> {
@@ -153,7 +166,16 @@ impl K8sExecutor {
             .ok_or(UnexpectedKind(format!("deleting dynamic object {:?}", tm)))?
             .object_api;
 
-        api.delete(name, &DeleteParams::default()).await?;
+        match api.delete(name, &DeleteParams::default()).await? {
+            // List of objects being deleted.
+            either::Left(dynamic_object) => {
+                debug!("Deleting object: {:?}", dynamic_object.meta().name);
+            }
+            // Status response of the deleted objects.
+            either::Right(status) => {
+                debug!("Deleted collection: status={:?}", status);
+            }
+        }
         Ok(())
     }
 
@@ -171,6 +193,29 @@ impl K8sExecutor {
         Ok(reflector
             .reader()
             .find(|obj| obj.metadata.name.to_owned().is_some_and(|n| n.eq(name))))
+    }
+
+    pub async fn delete_dynamic_object_collection(
+        &self,
+        tm: TypeMeta,
+        label_selector: &str,
+    ) -> Result<(), K8sError> {
+        let api = &self
+            .dynamics
+            .get(&tm)
+            .ok_or(UnexpectedKind(format!(
+                "deleting dynamic object collection {:?}",
+                tm
+            )))?
+            .object_api;
+
+        delete_collection(api, label_selector).await
+    }
+
+    pub async fn delete_configmap_collection(&self, label_selector: &str) -> Result<(), K8sError> {
+        let api: Api<ConfigMap> = Api::<ConfigMap>::default_namespaced(self.client.clone());
+
+        delete_collection(&api, label_selector).await
     }
 
     pub async fn get_configmap_key(
@@ -195,6 +240,7 @@ impl K8sExecutor {
     pub async fn set_configmap_key(
         &self,
         configmap_name: &str,
+        labels: BTreeMap<String, String>,
         key: &str,
         value: &str,
     ) -> Result<(), K8sError> {
@@ -205,12 +251,14 @@ impl K8sExecutor {
             .or_insert(|| ConfigMap {
                 metadata: ObjectMeta {
                     name: Some(configmap_name.to_string()),
+                    labels: Some(labels.clone()),
                     // TODO The deployment should be the owner of this object
                     ..ObjectMeta::default()
                 },
                 ..Default::default()
             })
             .and_modify(|cm| {
+                cm.metadata.labels = Some(labels);
                 cm.data
                     .get_or_insert_with(BTreeMap::default)
                     .insert(key.to_string(), value.to_string());
@@ -219,6 +267,42 @@ impl K8sExecutor {
             .await?;
         Ok(())
     }
+
+    pub fn default_namespace(&self) -> &str {
+        self.client.default_namespace()
+    }
+}
+
+//  delete_collection has been moved outside the executor to be able to use mockall in the executor
+//  without having to make K 'static.
+async fn delete_collection<K>(api: &Api<K>, label_selector: &str) -> Result<(), K8sError>
+where
+    K: Resource + Clone + DeserializeOwned + Debug,
+{
+    match api
+        .delete_collection(
+            &DeleteParams::default(),
+            &ListParams {
+                label_selector: Some(label_selector.to_string()),
+                ..ListParams::default()
+            },
+        )
+        .await?
+    {
+        // List of objects being deleted.
+        either::Left(list) => {
+            debug!(
+                "Deleting collection: {:?}",
+                list.iter().map(ResourceExt::name_any).collect::<Vec<_>>()
+            );
+        }
+        // Status response of the deleted objects.
+        either::Right(status) => {
+            debug!("Deleted collection: status={:?}", status);
+        }
+    }
+
+    Ok(())
 }
 
 pub fn get_name(obj: &DynamicObject) -> Result<String, K8sError> {

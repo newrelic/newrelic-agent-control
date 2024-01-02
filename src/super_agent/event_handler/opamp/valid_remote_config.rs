@@ -4,7 +4,10 @@ use opamp_client::StartedClient;
 use tracing::{error, info};
 
 use crate::{
-    config::{agent_values::AgentValues, store::SubAgentsConfigStore},
+    config::{
+        agent_values::AgentValues,
+        store::{SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer},
+    },
     event::{channel::EventPublisher, OpAMPEvent},
     opamp::{
         remote_config::RemoteConfig,
@@ -29,7 +32,7 @@ where
     O: StartedClient<SuperAgentCallbacks>,
     HR: HashRepository,
     S: SubAgentBuilder,
-    SL: SubAgentsConfigStore,
+    SL: SubAgentsConfigStorer + SubAgentsConfigLoader + SubAgentsConfigDeleter,
     HRS: HashRepository,
     VR: ValuesRepository,
 {

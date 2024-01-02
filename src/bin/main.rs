@@ -1,4 +1,4 @@
-use newrelic_super_agent::config::store::{SuperAgentConfigStore, SuperAgentConfigStoreFile};
+use newrelic_super_agent::config::store::{SuperAgentConfigLoader, SuperAgentConfigStoreFile};
 use newrelic_super_agent::event::channel::{pub_sub, EventConsumer, EventPublisher};
 use newrelic_super_agent::event::SuperAgentEvent;
 #[cfg(feature = "k8s")]
@@ -8,6 +8,7 @@ use newrelic_super_agent::opamp::instance_id::getter::ULIDInstanceIDGetter;
 use newrelic_super_agent::opamp::instance_id::IdentifiersProvider;
 use newrelic_super_agent::opamp::remote_config_hash::HashRepositoryFile;
 use newrelic_super_agent::sub_agent::values::values_repository::ValuesRepositoryFile;
+use newrelic_super_agent::super_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use newrelic_super_agent::super_agent::error::AgentError;
 use newrelic_super_agent::super_agent::opamp::client_builder::SuperAgentOpAMPHttpBuilder;
 use newrelic_super_agent::super_agent::super_agent::{super_agent_fqn, SuperAgent};
@@ -17,6 +18,7 @@ use opamp_client::operation::settings::DescriptionValueType;
 use std::collections::HashMap;
 use std::error::Error;
 use std::ffi::OsString;
+use std::sync::Arc;
 use tracing::{error, info};
 
 #[cfg(all(feature = "onhost", feature = "k8s", not(feature = "ci")))]
@@ -84,7 +86,6 @@ fn run_super_agent(
     use newrelic_super_agent::{
         config::super_agent_configs::AgentID, opamp::operations::build_opamp_and_start_client,
         sub_agent::opamp::client_builder::SubAgentOpAMPHttpBuilder,
-        super_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler,
     };
 
     #[cfg(unix)]
@@ -128,7 +129,7 @@ fn run_super_agent(
         maybe_client,
         &hash_repository,
         sub_agent_builder,
-        config_storer,
+        Arc::new(config_storer),
         &sub_agent_hash_repository,
         values_repository,
     )
@@ -141,6 +142,7 @@ fn run_super_agent(
     super_agent_consumer: EventConsumer<SuperAgentEvent>,
     opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
 ) -> Result<(), AgentError> {
+    use newrelic_super_agent::k8s::garbage_collector::NotStartedK8sGarbageCollector;
     use newrelic_super_agent::{
         config::super_agent_configs::AgentID, opamp::operations::build_opamp_and_start_client,
     };
@@ -149,28 +151,32 @@ fn run_super_agent(
     let sub_agent_hash_repository = HashRepositoryFile::new_sub_agent_repository();
     let k8s_config = config_storer.load()?.k8s.ok_or(AgentError::K8sConfig())?;
 
+    let executor = Arc::new(
+        futures::executor::block_on(
+            newrelic_super_agent::k8s::executor::K8sExecutor::try_new_with_reflectors(
+                k8s_config.namespace.clone(),
+                k8s_config.cr_type_meta.clone(),
+            ),
+        )
+        .map_err(|e| AgentError::ExternalError(e.to_string()))?,
+    );
+
     let instance_id_getter =
         futures::executor::block_on(ULIDInstanceIDGetter::try_with_identifiers(
-            k8s_config.namespace,
-            instance_id::get_identifiers(k8s_config.cluster_name),
+            executor.clone(),
+            instance_id::get_identifiers(k8s_config.cluster_name.clone()),
         ))?;
 
-    // Initialize K8sExecutor
-    // TODO: once we know how we're going to use the K8sExecutor, we might need to refactor and move this.
-    let namespace = "default".to_string(); // change to your desired namespace
-    let executor = futures::executor::block_on(
-        newrelic_super_agent::k8s::executor::K8sExecutor::try_new_with_reflectors(
-            namespace,
-            k8s_config.cr_type_meta,
-        ),
-    )
-    .map_err(|e| AgentError::ExternalError(e.to_string()))?;
     /////////////////////////
+
+    let agents_assembler = LocalEffectiveAgentsAssembler::default();
 
     let sub_agent_builder = newrelic_super_agent::sub_agent::k8s::builder::K8sSubAgentBuilder::new(
         opamp_client_builder.as_ref(),
         &instance_id_getter,
-        std::sync::Arc::new(executor),
+        executor.clone(),
+        &agents_assembler,
+        k8s_config.clone(),
     );
 
     info!("Starting the super agent");
@@ -186,11 +192,16 @@ fn run_super_agent(
         super_agent_opamp_non_identifying_attributes(),
     )?;
 
+    let config_storer = Arc::new(config_storer);
+
+    let _started_gcc =
+        NotStartedK8sGarbageCollector::new(config_storer.clone(), executor.clone()).start();
+
     SuperAgent::new(
         maybe_client,
         &hash_repository,
         sub_agent_builder,
-        config_storer,
+        config_storer.clone(),
         &sub_agent_hash_repository,
         values_repository,
     )

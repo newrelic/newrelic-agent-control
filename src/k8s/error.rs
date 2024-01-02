@@ -1,10 +1,11 @@
+use crate::config::error::SuperAgentConfigError;
 use kube::core::gvk::ParseGroupVersionError;
 use kube::{api, config::KubeconfigError};
 
 #[derive(thiserror::Error, Debug)]
 pub enum K8sError {
-    #[error("it is not possible to create a k8s client")]
-    UnableToSetupClient,
+    #[error("it is not possible to create a k8s client: {0}")]
+    UnableToSetupClient(String),
 
     #[error("the kube client returned an error: `{0}`")]
     Generic(#[from] kube::Error),
@@ -38,4 +39,7 @@ pub enum K8sError {
 
     #[error("while getting dynamic resource: {0}")]
     GetDynamic(String),
+
+    #[error("garbage collector failed loading config store: `{0}`")]
+    LoadingConfigStore(#[from] SuperAgentConfigError),
 }

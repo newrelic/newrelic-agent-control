@@ -82,9 +82,18 @@ pub struct K8sObject {
     #[serde(rename = "apiVersion")]
     pub api_version: String,
     pub kind: String,
-    // TODO: include metadata
+    // Is expected that metadata is populated inside the SA so is allowed
+    // to be empty on the config.
+    pub metadata: Option<K8sObjectMeta>,
     #[serde(default, flatten)]
     pub fields: serde_yaml::Mapping,
+}
+
+#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct K8sObjectMeta {
+    #[serde(default)]
+    pub labels: std::collections::BTreeMap<String, String>,
 }
 
 #[cfg(test)]
@@ -107,6 +116,13 @@ deployment:
       cr3:
         apiVersion: super_agent.version/v0beta1
         kind: Foo
+        key: value # no spec field
+      cr4:
+        apiVersion: super_agent.version/v0beta1
+        kind: Foo
+        metadata:
+          labels:
+            foo: bar
         key: value # no spec field
 "#;
 
@@ -134,6 +150,11 @@ deployment:
         assert_eq!(
             &serde_yaml::Value::String("value".into()),
             k8s.objects["cr3"].fields.get("key").unwrap()
+        );
+
+        assert_eq!(
+            "bar",
+            &k8s.objects["cr4"].metadata.clone().unwrap().labels["foo"].clone()
         );
     }
 }

@@ -37,6 +37,9 @@ pub enum AgentTypeError {
     #[error("Invalid default value for spec key `{key}`: expected a {type_:?}")]
     InvalidDefaultForSpec { key: String, type_: VariableType },
 
+    #[error("Invalid value for spec key `{key}`: expected a {type_:?}")]
+    InvalidValueForSpec { key: String, type_: VariableType },
+
     #[error("Value was not populated")]
     ValueNotPopulated,
 

@@ -14,6 +14,11 @@ use kube::{
     api::{Api, DeleteParams, Patch, PatchParams, PostParams},
     Client, CustomResource, CustomResourceExt,
 };
+use newrelic_super_agent::config::{
+    error::SuperAgentConfigError,
+    super_agent_configs::{AgentTypeError, SuperAgentConfig},
+};
+use newrelic_super_agent::{config::super_agent_configs::AgentID, k8s::labels::Labels};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, env, fs::File, io::Write, time::Duration};
@@ -265,7 +270,7 @@ fn container_config(cluster_port: String) -> Config<String> {
     }
 }
 
-#[derive(CustomResource, Deserialize, Serialize, Clone, Debug, JsonSchema)]
+#[derive(Default, CustomResource, Deserialize, Serialize, Clone, Debug, JsonSchema)]
 #[kube(group = "newrelic.com", version = "v1", kind = "Foo", namespaced)]
 pub struct FooSpec {
     pub data: String,
@@ -307,21 +312,35 @@ async fn perform_crd_patch(client: Client) -> Result<(), kube::Error> {
 /// It panics if there is an error creating the CR.
 pub async fn create_test_cr(client: Client, namespace: &str, name: &str) -> Foo {
     let api: Api<Foo> = Api::namespaced(client, namespace);
-    let foo = api
-        .create(
-            &PostParams::default(),
-            &Foo::new(
-                name,
-                FooSpec {
-                    data: String::from("test"),
-                },
-            ),
-        )
-        .await
-        .unwrap();
+    let mut foo_cr = Foo::new(
+        name,
+        FooSpec {
+            data: String::from("test"),
+        },
+    );
+
+    let agent_id = match AgentID::new(name) {
+        Err(AgentTypeError::InvalidAgentIDUsesReservedOne(_)) => AgentID::new_super_agent_id(),
+        Ok(id) => id,
+        _ => panic!(),
+    };
+
+    foo_cr.metadata.labels = Some(Labels::new(&agent_id).get());
+
+    foo_cr = api.create(&PostParams::default(), &foo_cr).await.unwrap();
 
     // Sleeping to let watchers have the time to be updated
     tokio::time::sleep(Duration::from_secs(1)).await;
 
-    foo
+    foo_cr
+}
+
+use mockall::mock;
+
+mock! {
+    pub SuperAgentConfigLoader {}
+
+    impl newrelic_super_agent::config::store::SuperAgentConfigLoader for SuperAgentConfigLoader {
+        fn load(&self) -> Result<SuperAgentConfig, SuperAgentConfigError>;
+    }
 }

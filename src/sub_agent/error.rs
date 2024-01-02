@@ -34,6 +34,10 @@ pub enum SubAgentError {
     #[error("not started opamp client error: `{0}`")]
     SupervisorError(#[from] crate::sub_agent::on_host::supervisor::error::SupervisorError),
 
+    #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
+    #[error("Supervisor run error: `{0}`")]
+    SupervisorError(#[from] crate::sub_agent::k8s::SupervisorError),
+
     #[error("remote config hash error: `{0}`")]
     RemoteConfigHashError(#[from] HashRepositoryError),
     #[error("super agent config error: `{0}`")]
@@ -49,9 +53,6 @@ pub enum SubAgentError {
 
     #[error("remote config error: `{0}`")]
     RemoteConfigError(#[from] RemoteConfigError),
-
-    #[error("Supervisor stop error: `{0}`")]
-    SupervisorStopError(String),
 }
 
 #[derive(Error, Debug)]
@@ -67,6 +68,12 @@ pub enum SubAgentBuilderError {
     OpampClientBuilderError(#[from] OpAMPClientBuilderError),
     #[error("OpAMP client error error: `{0}`")]
     OpampClientError(#[from] ClientError),
+
+    #[error("unsupported K8s object: `{0}`")]
+    UnsupportedK8sObject(String),
+
+    #[error("Invalid configuration: `{0}`")]
+    ConfigError(String),
 }
 
 #[derive(Error, Debug)]

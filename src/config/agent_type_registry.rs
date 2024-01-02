@@ -2,7 +2,9 @@ use std::collections::HashMap;
 
 use thiserror::Error;
 
-use crate::super_agent::defaults::{NEWRELIC_INFRA_TYPE, NRDOT_TYPE};
+use crate::super_agent::defaults::{
+    KUBERNETES_TYPE, NEWRELIC_INFRA_TYPE_1, NEWRELIC_INFRA_TYPE_2, NRDOT_TYPE,
+};
 
 use super::agent_type::agent_types::FinalAgent;
 
@@ -30,10 +32,16 @@ impl Default for LocalRegistry {
         let mut local_agent_type_repository = LocalRegistry(HashMap::new());
         // save to unwrap(), default agent cannot be changed inline
         local_agent_type_repository
-            .store_from_yaml(NEWRELIC_INFRA_TYPE.as_bytes())
+            .store_from_yaml(NEWRELIC_INFRA_TYPE_1.as_bytes())
+            .unwrap();
+        local_agent_type_repository
+            .store_from_yaml(NEWRELIC_INFRA_TYPE_2.as_bytes())
             .unwrap();
         local_agent_type_repository
             .store_from_yaml(NRDOT_TYPE.as_bytes())
+            .unwrap();
+        local_agent_type_repository
+            .store_from_yaml(KUBERNETES_TYPE.as_bytes())
             .unwrap();
 
         local_agent_type_repository
@@ -43,6 +51,9 @@ impl Default for LocalRegistry {
 impl LocalRegistry {
     pub fn store_from_yaml(&mut self, agent_bytes: &[u8]) -> Result<(), AgentRepositoryError> {
         let agent: FinalAgent = serde_yaml::from_reader(agent_bytes)?;
+        // TODO: The usage of `insert` allows to insert the same agent metadata without failing, it just overwrites it.
+        //  We should consider a way to check if an agent already exists and fail.
+        //  See issue #82766 <https://github.com/rust-lang/rust/issues/82766> as a potential solution.
         self.0.insert(agent.metadata.to_string(), agent);
         Ok(())
     }
@@ -114,7 +125,7 @@ pub mod tests {
     #[test]
     fn default_local_registry() {
         let registry = LocalRegistry::default();
-        assert_eq!(registry.0.len(), 2)
+        assert_eq!(registry.0.len(), 4)
     }
 
     #[test]

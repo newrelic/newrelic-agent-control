@@ -110,7 +110,7 @@ jobs:
         with:
           tag: ${{ github.event.release.tag_name }}
           app_name: "newrelic-super-agent"
-          repo_name: "newrelic/newrelic-supervisor"
+          repo_name: "newrelic/newrelic-super-agent"
           schema: "custom-local"
           schema_path: "/srv/build/upload-schema-linux-deb.yml"
           aws_access_key_id: ${{ secrets.TMP_OHAI_AWS_ACCESS_KEY_ID_STAGING }}
@@ -135,7 +135,7 @@ jobs:
         with:
           tag: ${{ github.event.release.tag_name }}
           app_name: "newrelic-super-agent"
-          repo_name: "newrelic/newrelic-supervisor"
+          repo_name: "newrelic/newrelic-super-agent"
           schema: "custom-local"
           schema_path: "/srv/build/upload-schema-linux-rpm.yml"
           aws_access_key_id: ${{ secrets.TMP_OHAI_AWS_ACCESS_KEY_ID_STAGING }}
