@@ -4,7 +4,7 @@ use std::time::SystemTimeError;
 
 use crate::config::agent_values::AgentValuesError;
 use crate::config::persister::config_persister::PersistError;
-use crate::file_reader::FileReaderError;
+use crate::fs::file_reader::FileReaderError;
 use crate::opamp::instance_id;
 use crate::opamp::remote_config::RemoteConfigError;
 use crate::opamp::remote_config_hash::HashRepositoryError;

@@ -6,13 +6,13 @@ use std::path::{Path, PathBuf};
 use crate::config::agent_type::agent_types::{FinalAgent, VariableType};
 use crate::config::agent_type::trivial_value::TrivialValue;
 use crate::config::persister::config_persister::{ConfigurationPersister, PersistError};
-use crate::config::persister::config_writer_file::WriteError;
-#[cfg_attr(test, mockall_double::double)]
-use crate::config::persister::config_writer_file::WriterFile;
-use crate::config::persister::directory_manager::{
+use crate::config::super_agent_configs::AgentID;
+use crate::fs::directory_manager::{
     DirectoryManagementError, DirectoryManager, DirectoryManagerFs,
 };
-use crate::config::super_agent_configs::AgentID;
+use crate::fs::writer_file::WriteError;
+#[cfg_attr(test, mockall_double::double)]
+use crate::fs::writer_file::WriterFile;
 use crate::super_agent::defaults::{GENERATED_FOLDER_NAME, SUPER_AGENT_DATA_DIR};
 
 #[cfg(target_family = "unix")]
@@ -200,16 +200,16 @@ mod test {
     use crate::config::persister::config_persister_file::{
         ConfigurationPersisterFile, DIRECTORY_PERMISSIONS, FILE_PERMISSIONS, GENERATED_FOLDER_NAME,
     };
-    use crate::config::persister::config_writer_file::MockWriterFile;
-    use crate::config::persister::directory_manager::test::MockDirectoryManagerMock;
-    use crate::config::persister::directory_manager::DirectoryManager;
     use crate::config::super_agent_configs::AgentID;
+    use crate::fs::directory_manager::test::MockDirectoryManagerMock;
+    use crate::fs::directory_manager::DirectoryManager;
+    use crate::fs::writer_file::MockWriterFile;
     use std::fs::Permissions;
     use std::io::ErrorKind;
     use std::path::{Path, PathBuf};
 
     use crate::config::agent_type::agent_types::FinalAgent;
-    use crate::config::persister::directory_manager::DirectoryManagementError::{
+    use crate::fs::directory_manager::DirectoryManagementError::{
         ErrorCreatingDirectory, ErrorDeletingDirectory,
     };
     #[cfg(target_family = "unix")]

@@ -5,6 +5,7 @@ version = "0.5.3"
 edition = "2021"
 authors = ["The New Relic Core Agent & Open Standards (CAOS) Team"]
 publish = false
+default-run = "newrelic-super-agent"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -73,7 +74,11 @@ required-features = ["onhost"]
 
 [[bin]]
 name = "newrelic-super-agent"
-path = "src/bin/main.rs"
+path = "src/bin/newrelic-super-agent.rs"
+
+[[bin]]
+name = "newrelic-config-migrate"
+path = "src/bin/newrelic-config-migrate.rs"
 
 
 [features]
