@@ -37,7 +37,12 @@ BUILD_MODE ?= release
 # Cross-compilation only works from amd64 host.
 build-super-agent:
 	@echo "Building with mode: $(BUILD_MODE) and arch: $(ARCH)"
-	ARCH=$(ARCH) BUILD_MODE=$(BUILD_MODE) ./build/scripts/build_super_agent.sh
+	ARCH=$(ARCH) BUILD_MODE=$(BUILD_MODE) BIN="newrelic-super-agent" ./build/scripts/build_binary.sh
+
+# Cross-compilation only works from amd64 host.
+build-config-migrate:
+	@echo "Building with mode: $(BUILD_MODE) and arch: $(ARCH)"
+	ARCH=$(ARCH) BUILD_MODE=$(BUILD_MODE) BIN="newrelic-config-migrate" ./build/scripts/build_binary.sh
 
 .PHONY: build-dev-image
 build-dev-image:
