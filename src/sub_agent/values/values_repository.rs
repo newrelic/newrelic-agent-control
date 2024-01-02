@@ -1,20 +1,20 @@
 use crate::config::agent_values::AgentValues;
-use crate::config::persister::directory_manager::{
+use crate::config::super_agent_configs::AgentID;
+use crate::fs::directory_manager::{
     DirectoryManagementError, DirectoryManager, DirectoryManagerFs,
 };
-use crate::config::super_agent_configs::AgentID;
 use crate::sub_agent::values::values_repository::ValuesRepositoryError::DeleteError;
 use std::fs::Permissions;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 use crate::config::agent_type::agent_types::FinalAgent;
-use crate::config::persister::config_writer_file::WriteError;
 #[cfg_attr(test, mockall_double::double)]
-use crate::config::persister::config_writer_file::WriterFile;
+use crate::fs::file_reader::FSFileReader;
+use crate::fs::file_reader::FileReaderError;
+use crate::fs::writer_file::WriteError;
 #[cfg_attr(test, mockall_double::double)]
-use crate::file_reader::FSFileReader;
-use crate::file_reader::FileReaderError;
+use crate::fs::writer_file::WriterFile;
 use crate::super_agent::defaults::{LOCAL_AGENT_DATA_DIR, REMOTE_AGENT_DATA_DIR, VALUES_FILENAME};
 use log::error;
 #[cfg(target_family = "unix")]
@@ -222,13 +222,13 @@ where
 pub mod test {
     use crate::config::agent_type::agent_types::FinalAgent;
     use crate::config::agent_values::AgentValues;
-    use crate::config::persister::config_writer_file::MockWriterFile;
-    use crate::config::persister::directory_manager::test::MockDirectoryManagerMock;
-    use crate::config::persister::directory_manager::DirectoryManagementError::{
+    use crate::config::super_agent_configs::AgentID;
+    use crate::fs::directory_manager::test::MockDirectoryManagerMock;
+    use crate::fs::directory_manager::DirectoryManagementError::{
         ErrorCreatingDirectory, ErrorDeletingDirectory,
     };
-    use crate::config::persister::directory_manager::DirectoryManager;
-    use crate::config::super_agent_configs::AgentID;
+    use crate::fs::directory_manager::DirectoryManager;
+    use crate::fs::writer_file::MockWriterFile;
     use crate::sub_agent::values::values_repository::{
         ValuesRepository, ValuesRepositoryError, ValuesRepositoryFile,
     };
@@ -238,7 +238,7 @@ pub mod test {
     use std::path::Path;
 
     use crate::config::agent_type::trivial_value::TrivialValue;
-    use crate::file_reader::MockFSFileReader;
+    use crate::fs::file_reader::MockFSFileReader;
     use crate::super_agent::defaults::default_capabilities;
     #[cfg(target_family = "unix")]
     use std::os::unix::fs::PermissionsExt;
