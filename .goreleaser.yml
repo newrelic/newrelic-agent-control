@@ -1,6 +1,6 @@
 project_name: newrelic-super-agent
 builds:
-  -
+  - id: newrelic-super-agent
     main: ./build/dummy.go
     goarch:
       - arm64
@@ -10,21 +10,43 @@ builds:
     binary: newrelic-super-agent
     hooks:
       post:
-        - cmd: sh ./build/scripts/build_super_agent.sh
+        - cmd: sh ./build/scripts/build_binary.sh
           env:
             - ARCH={{ .Arch }}
             - BUILD_FEATURE=onhost
+            - BIN=newrelic-super-agent
         - cmd: sh ./build/scripts/replace_go_with_rust.sh
           env:
             - ARCH={{ .Arch }}
+            - BIN=newrelic-super-agent
         - cmd: sh ./build/scripts/download_embedded.sh
           env:
             - ARCH={{ .Arch }}
+  - id: newrelic-config-migrate
+    main: ./build/dummy.go
+    goarch:
+      - arm64
+      - amd64
+    goos:
+      - linux
+    binary: newrelic-config-migrate
+    hooks:
+      post:
+        - cmd: sh ./build/scripts/build_binary.sh
+          env:
+            - ARCH={{ .Arch }}
+            - BUILD_FEATURE=onhost
+            - BIN=newrelic-config-migrate
+        - cmd: sh ./build/scripts/replace_go_with_rust.sh
+          env:
+            - ARCH={{ .Arch }}
+            - BIN=newrelic-config-migrate
 archives:
   - format: tar.gz
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     builds:
       - newrelic-super-agent
+      - newrelic-config-migrate
 
 nfpms:
   - package_name: newrelic-super-agent
