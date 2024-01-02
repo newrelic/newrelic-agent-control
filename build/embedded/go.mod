@@ -1,4 +1,4 @@
-module github.com/newrelic/newrelic-supervisor/embedded-downloader
+module github.com/newrelic/newrelic-super-agent/embedded-downloader
 
 go 1.20
 
