@@ -1,4 +1,4 @@
-use std::{collections::HashMap, time::Duration};
+use std::time::Duration;
 
 use thiserror::Error;
 
@@ -102,12 +102,10 @@ where
         let metadata: AWSMetadata =
             serde_json::from_slice(response.body()).map_err(AWSDetectorError::JsonError)?;
 
-        Ok(Resource {
-            attributes: HashMap::from([(
-                Key::from(AWS_INSTANCE_ID),
-                Value::from(metadata.instance_id),
-            )]),
-        })
+        Ok(Resource::new([(
+            Key::from(AWS_INSTANCE_ID),
+            Value::from(metadata.instance_id),
+        )]))
     }
 }
 

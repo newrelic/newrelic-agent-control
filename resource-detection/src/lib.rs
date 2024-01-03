@@ -22,10 +22,20 @@ pub use common::{Key, Value};
 /// - `environment`: A placeholder type (`PhantomData`) permitting `Resource` to use the
 ///   generic `E` without it needing to hold values of that type.
 pub struct Resource {
-    pub attributes: HashMap<Key, Value>,
+    attributes: HashMap<Key, Value>,
 }
 
 impl Resource {
+    pub fn new<T: IntoIterator<Item = (Key, Value)>>(kvs: T) -> Self {
+        let mut attributes = HashMap::new();
+
+        for kv in kvs.into_iter() {
+            attributes.insert(kv.0, kv.1);
+        }
+
+        Resource { attributes }
+    }
+
     pub fn get(&self, key: Key) -> Option<Value> {
         self.attributes.get(&key).cloned()
     }

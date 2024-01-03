@@ -133,22 +133,16 @@ mod test {
         let mut system_detector_mock = MockSystemDetectorMock::new();
         let mut cloud_detector_mock = MockCloudDetectorMock::new();
         system_detector_mock.expect_detect().once().returning(|| {
-            Ok(Resource {
-                attributes: [(
-                    "machine_id".to_string().into(),
-                    Value::from("some machine id".to_string()),
-                )]
-                .into(),
-            })
+            Ok(Resource::new([(
+                "machine_id".to_string().into(),
+                Value::from("some machine id".to_string()),
+            )]))
         });
         cloud_detector_mock.expect_detect().once().returning(|| {
-            Ok(Resource {
-                attributes: [(
-                    "aws_instance_id".to_string().into(),
-                    Value::from("abc".to_string()),
-                )]
-                .into(),
-            })
+            Ok(Resource::new([(
+                "aws_instance_id".to_string().into(),
+                Value::from("abc".to_string()),
+            )]))
         });
 
         let identifiers_provider = IdentifiersProvider {
@@ -175,22 +169,16 @@ mod test {
         let mut system_detector_mock = MockSystemDetectorMock::new();
         let mut cloud_detector_mock = MockCloudDetectorMock::new();
         cloud_detector_mock.expect_detect().once().returning(|| {
-            Ok(Resource {
-                attributes: [(
-                    "aws_instance_id".to_string().into(),
-                    Value::from("abc".to_string()),
-                )]
-                .into(),
-            })
+            Ok(Resource::new([(
+                "aws_instance_id".to_string().into(),
+                Value::from("abc".to_string()),
+            )]))
         });
         system_detector_mock.expect_detect().once().returning(|| {
-            Ok(Resource {
-                attributes: [(
-                    Key::from("hostname".to_string()),
-                    Value::from("some.example.org".to_string()),
-                )]
-                .into(),
-            })
+            Ok(Resource::new([(
+                Key::from("hostname".to_string()),
+                Value::from("some.example.org".to_string()),
+            )]))
         });
         let identifiers_provider = IdentifiersProvider {
             system_detector: system_detector_mock,
@@ -216,28 +204,22 @@ mod test {
         let mut system_detector_mock = MockSystemDetectorMock::new();
         let mut cloud_detector_mock = MockCloudDetectorMock::new();
         cloud_detector_mock.expect_detect().once().returning(|| {
-            Ok(Resource {
-                attributes: [(
-                    "aws_instance_id".to_string().into(),
-                    Value::from("abc".to_string()),
-                )]
-                .into(),
-            })
+            Ok(Resource::new([(
+                "aws_instance_id".to_string().into(),
+                Value::from("abc".to_string()),
+            )]))
         });
         system_detector_mock.expect_detect().once().returning(|| {
-            Ok(Resource {
-                attributes: [
-                    (
-                        Key::from("hostname".to_string()),
-                        Value::from("some.example.org".to_string()),
-                    ),
-                    (
-                        "machine_id".to_string().into(),
-                        Value::from("some machine-id".to_string()),
-                    ),
-                ]
-                .into(),
-            })
+            Ok(Resource::new([
+                (
+                    Key::from("hostname".to_string()),
+                    Value::from("some.example.org".to_string()),
+                ),
+                (
+                    "machine_id".to_string().into(),
+                    Value::from("some machine-id".to_string()),
+                ),
+            ]))
         });
         let identifiers_provider = IdentifiersProvider {
             system_detector: system_detector_mock,

@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::{Detect, DetectError, Key, Resource, Value};
 
 use super::{
@@ -38,21 +36,19 @@ impl Default for SystemDetector {
 /// Implementing the `Detect` trait for the `SystemDetector` struct.
 impl Detect for SystemDetector {
     fn detect(&self) -> Result<Resource, DetectError> {
-        Ok(Resource {
-            attributes: HashMap::from([
-                (
-                    Key::from(HOSTNAME_KEY),
-                    Value::from(
-                        self.hostname_getter
-                            .get()
-                            .map(|val| val.into_string().unwrap_or_default())?,
-                    ),
+        Ok(Resource::new([
+            (
+                Key::from(HOSTNAME_KEY),
+                Value::from(
+                    self.hostname_getter
+                        .get()
+                        .map(|val| val.into_string().unwrap_or_default())?,
                 ),
-                (
-                    Key::from(MACHINE_ID_KEY),
-                    Value::from(self.machine_id_provider.provide()?),
-                ),
-            ]),
-        })
+            ),
+            (
+                Key::from(MACHINE_ID_KEY),
+                Value::from(self.machine_id_provider.provide()?),
+            ),
+        ]))
     }
 }
