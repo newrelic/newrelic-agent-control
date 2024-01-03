@@ -18,6 +18,8 @@ mod file_reader;
 pub mod system;
 
 pub mod common;
+pub mod http_client;
+
 pub use common::{Key, Value};
 
 /// The `Resource` struct encapsulates a detected resource as per some detection logic.

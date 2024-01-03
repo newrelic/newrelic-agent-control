@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use thiserror::Error;
 
+use crate::http_client::{HttpClient, HttpClientError, HttpClientUreq};
 use crate::{cloud::AWS_INSTANCE_ID, Detect, DetectError, Key, Resource, Value};
 
 use super::metadata::{AWSMetadata, IPV4_METADATA_ENDPOINT};
@@ -27,14 +28,6 @@ impl Default for AWSDetector<HttpClientUreq> {
 
 /// An enumeration of potential errors related to the HTTP client.
 #[derive(Error, Debug)]
-pub enum HttpClientError {
-    /// Represents Ureq crate error.
-    #[error("internal client error: `{0}`")]
-    UreqError(String),
-}
-
-/// An enumeration of potential errors related to the HTTP client.
-#[derive(Error, Debug)]
 pub enum AWSDetectorError {
     /// Internal HTTP error
     #[error("`{0}`")]
@@ -45,40 +38,6 @@ pub enum AWSDetectorError {
     /// Unsuccessful HTTP response.
     #[error("Status code: `{0}` Canonical reason: `{1}`")]
     UnsuccessfulResponse(u16, String),
-}
-
-/// The `HttpClient` trait defines the HTTP get interface to be implemented
-/// by HTTP clients.
-pub trait HttpClient {
-    /// Returns a `http::Response<Vec<u8>>` structure as the HTPP response or
-    /// HttpClientError if an error was found.
-    fn get(&self) -> Result<http::Response<Vec<u8>>, HttpClientError>;
-}
-
-/// An implementation of the `HttpClient` trait using the ureq library.
-pub struct HttpClientUreq {
-    client: ureq::Agent,
-    url: String,
-}
-
-impl HttpClientUreq {
-    fn new(url: String, timeout: Duration) -> Self {
-        Self {
-            client: ureq::AgentBuilder::new().timeout(timeout).build(),
-            url,
-        }
-    }
-}
-
-impl HttpClient for HttpClientUreq {
-    fn get(&self) -> Result<http::Response<Vec<u8>>, HttpClientError> {
-        Ok(self
-            .client
-            .get(&self.url)
-            .call()
-            .map_err(|e| HttpClientError::UreqError(e.to_string()))?
-            .into())
-    }
 }
 
 impl<C> Detect for AWSDetector<C>
@@ -118,15 +77,8 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::http_client::test::MockHttpClientMock;
     use http::Response;
-    use mockall::mock;
-
-    mock! {
-        pub HttpClientMock {}
-        impl HttpClient for HttpClientMock {
-            fn get(&self) -> Result<Response<Vec<u8>>, HttpClientError>;
-        }
-    }
 
     #[test]
     fn detect_aws_metadata() {
