@@ -173,4 +173,60 @@ mod test {
             String::from(identifiers.get(AWS_INSTANCE_ID.into()).unwrap())
         )
     }
+
+    #[test]
+    fn detect_internal_http_error() {
+        let mut client_mock = MockHttpClientMock::new();
+        client_mock.expect_get().once().returning(|| {
+            Ok(Response::from(
+                http::Response::builder()
+                    .status(404)
+                    .body(r#""#.as_bytes().to_vec())
+                    .unwrap(),
+            ))
+        });
+
+        let detector = AWSDetector {
+            http_client: client_mock,
+        };
+
+        let result = detector.detect();
+
+        match result {
+            Err(e) => assert_eq!(
+                "error detecting aws resources `Status code: `404` Canonical reason: `Not Found``"
+                    .to_string(),
+                e.to_string()
+            ),
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn detect_json_error() {
+        let mut client_mock = MockHttpClientMock::new();
+        client_mock.expect_get().once().returning(|| {
+            Ok(Response::from(
+                http::Response::builder()
+                    .status(200)
+                    .body(r#"{ this is an invalid json right }"#.as_bytes().to_vec())
+                    .unwrap(),
+            ))
+        });
+
+        let detector = AWSDetector {
+            http_client: client_mock,
+        };
+
+        let result = detector.detect();
+
+        match result {
+            Err(e) => assert_eq!(
+                "error detecting aws resources ``key must be a string at line 1 column 3``"
+                    .to_string(),
+                e.to_string()
+            ),
+            _ => unreachable!(),
+        }
+    }
 }
