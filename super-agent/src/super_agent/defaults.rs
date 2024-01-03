@@ -76,7 +76,7 @@ variables:
 deployment:
   on_host:
     executables:
-      - path: /usr/local/bin/newrelic-infra
+      - path: /usr/bin/newrelic-infra
         args: "--config=${config_agent}"
         env: "NRIA_PLUGIN_DIR=${config_ohis} NRIA_LOGGING_CONFIGS_DIR=${logging}"
         restart_policy:

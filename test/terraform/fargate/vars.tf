@@ -64,6 +64,22 @@ variable "secret_name_docker_password" {
   default = "caos/canaries/docker-password-jAtw3v"
 }
 
+# CrowdStrike Falcon secrets
+
+variable "secret_name_crowdstrike_client_id" {
+  default = "caos/canaries/crowdstrike_falcon_client_id-N7nGXx"
+}
+
+variable "secret_name_crowdstrike_client_secret" {
+  default = "caos/canaries/crowdstrike_falcon_client_secret-l9EIhi"
+}
+
+variable "secret_name_crowdstrike_customer_id" {
+  default = "caos/canaries/crowdstrike_falcon_customer_id-f7n7rI"
+}
+
+####
+
 variable "task_container_image" {
   default = "ghcr.io/newrelic/fargate-runner-action:latest"
 }

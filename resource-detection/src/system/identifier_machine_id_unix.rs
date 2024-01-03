@@ -33,10 +33,8 @@ impl Default for IdentifierProviderMachineId {
 
 #[cfg(test)]
 mod test {
-
-    use crate::file_reader::MockFSFileReader;
-
     use super::*;
+    use crate::file_reader::MockFSFileReader;
     use std::path::Path;
 
     impl IdentifierProviderMachineId {

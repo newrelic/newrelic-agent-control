@@ -6,11 +6,11 @@ their own copyright notices and license terms. These notices are provided
 below.
 
 In the event that a required notice is missing or incorrect, please notify us
-either by [opening an issue](https://github.com/newrelic/newrelic-supervisor/issues/new),
+either by [opening an issue](https://github.com/newrelic/newrelic-super-agent/issues/new),
 or by e-mailing [open-source@newrelic.com](mailto:open-source@newrelic.com).
 
 For any licenses that require the disclosure of source code, the source code
-can be found at https://github.com/newrelic/newrelic-supervisor.
+can be found at https://github.com/newrelic/newrelic-super-agent.
 
 
 ## addr2line (https://crates.io/crates/addr2line)

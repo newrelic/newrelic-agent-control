@@ -1,7 +1,7 @@
 [package]
 name = "newrelic_super_agent"
 description = "New Relic Super Agent Limited Preview"
-version = "0.5.3"
+version = "0.6.2"
 edition = "2021"
 authors = ["The New Relic Core Agent & Open Standards (CAOS) Team"]
 publish = false
@@ -72,10 +72,14 @@ name = "on_host"
 path = "test/on_host/mod.rs"
 required-features = ["onhost"]
 
+
 [[bin]]
 name = "newrelic-super-agent"
-path = "src/bin/main.rs"
+path = "src/bin/newrelic-super-agent.rs"
 
+[[bin]]
+name = "newrelic-config-migrate"
+path = "src/bin/newrelic-config-migrate.rs"
 
 [features]
 onhost = []

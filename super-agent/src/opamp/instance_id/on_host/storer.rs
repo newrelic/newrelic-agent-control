@@ -1,13 +1,13 @@
-use crate::config::persister::config_writer_file::WriteError;
-#[cfg_attr(test, mockall_double::double)]
-use crate::config::persister::config_writer_file::WriterFile;
-use crate::config::persister::directory_manager::{
+use crate::config::super_agent_configs::AgentID;
+use crate::fs::directory_manager::{
     DirectoryManagementError, DirectoryManager, DirectoryManagerFs,
 };
-use crate::config::super_agent_configs::AgentID;
 #[cfg_attr(test, mockall_double::double)]
-use crate::file_reader::FSFileReader;
-use crate::file_reader::FileReaderError;
+use crate::fs::file_reader::FSFileReader;
+use crate::fs::file_reader::FileReaderError;
+use crate::fs::writer_file::WriteError;
+#[cfg_attr(test, mockall_double::double)]
+use crate::fs::writer_file::WriterFile;
 use crate::opamp::instance_id::getter::DataStored;
 use crate::opamp::instance_id::storer::InstanceIDStorer;
 
@@ -15,7 +15,7 @@ use crate::super_agent::defaults::{REMOTE_AGENT_DATA_DIR, SUPER_AGENT_IDENTIFIER
 use std::fs::Permissions;
 use std::io;
 use std::os::unix::fs::PermissionsExt;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use tracing::debug;
 
 #[cfg(target_family = "unix")]
@@ -99,15 +99,18 @@ where
     //     }
     // }
     fn write_contents(&self, agent_id: &AgentID, ds: &DataStored) -> Result<(), StorerError> {
-        self.dir_manager.create(
-            Path::new(REMOTE_AGENT_DATA_DIR),
-            Permissions::from_mode(DIRECTORY_PERMISSIONS),
-        )?;
-        let dest_path = get_uild_path(agent_id);
+        let dest_file = get_uild_path(agent_id);
+        // Get a ref to the target file's parent directory
+        let dest_dir = dest_file
+            .parent()
+            .expect("no parent directory found for {dest_file} (empty or root dir)");
+
+        self.dir_manager
+            .create(dest_dir, Permissions::from_mode(DIRECTORY_PERMISSIONS))?;
         let contents = serde_yaml::to_string(ds)?;
 
         Ok(self.file_writer.write(
-            dest_path.as_path(),
+            &dest_file,
             contents,
             Permissions::from_mode(FILE_PERMISSIONS),
         )?)
@@ -134,10 +137,10 @@ where
 
 #[cfg(test)]
 mod test {
-    use crate::config::persister::config_writer_file::MockWriterFile;
-    use crate::config::persister::directory_manager::test::MockDirectoryManagerMock;
     use crate::config::super_agent_configs::AgentID;
-    use crate::file_reader::MockFSFileReader;
+    use crate::fs::directory_manager::test::MockDirectoryManagerMock;
+    use crate::fs::file_reader::MockFSFileReader;
+    use crate::fs::writer_file::MockWriterFile;
     use crate::opamp::instance_id::getter::DataStored;
     use crate::opamp::instance_id::on_host::storer::get_uild_path;
     use crate::opamp::instance_id::storer::InstanceIDStorer;
@@ -179,13 +182,12 @@ mod test {
             },
         };
 
+        let ulid_path = get_uild_path(&agent_id);
+
         // Expectations
-        dir_manager.should_create(
-            Path::new(REMOTE_AGENT_DATA_DIR),
-            Permissions::from_mode(0o700),
-        );
+        dir_manager.should_create(ulid_path.parent().unwrap(), Permissions::from_mode(0o700));
         file_writer.should_write(
-            get_uild_path(&agent_id).as_path(),
+            &ulid_path,
             String::from("ulid: test-ULID\nidentifiers:\n  hostname: test-hostname\n  machine_id: test-machine-id\n  cloud_instance_id: test-instance-id\n"),
             Permissions::from_mode(0o600),
         );
@@ -210,16 +212,15 @@ mod test {
             },
         };
 
+        let ulid_path = get_uild_path(&agent_id);
+
         // Expectations
         file_writer.should_not_write(
-            get_uild_path(&agent_id).as_path(),
+            &ulid_path,
             String::from("ulid: test-ULID\nidentifiers:\n  hostname: test-hostname\n  machine_id: test-machine-id\n  cloud_instance_id: test-instance-id\n"),
             Permissions::from_mode(0o600),
         );
-        dir_manager.should_create(
-            Path::new(REMOTE_AGENT_DATA_DIR),
-            Permissions::from_mode(0o700),
-        );
+        dir_manager.should_create(ulid_path.parent().unwrap(), Permissions::from_mode(0o700));
 
         let storer = Storer::new(file_writer, file_reader, dir_manager);
         assert!(storer.set(&agent_id, &ds).is_err());

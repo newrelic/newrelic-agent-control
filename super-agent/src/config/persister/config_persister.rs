@@ -1,9 +1,9 @@
 use thiserror::Error;
 
 use crate::config::agent_type::agent_types::FinalAgent;
-use crate::config::persister::config_writer_file::WriteError;
-use crate::config::persister::directory_manager::DirectoryManagementError;
 use crate::config::super_agent_configs::AgentID;
+use crate::fs::directory_manager::DirectoryManagementError;
+use crate::fs::writer_file::WriteError;
 
 #[derive(Error, Debug)]
 pub enum PersistError {
@@ -37,13 +37,13 @@ pub trait ConfigurationPersister {
 #[cfg(test)]
 pub mod test {
     use crate::config::agent_type::agent_types::FinalAgent;
-    use crate::config::persister::config_writer_file::WriteError;
-    use crate::config::persister::config_writer_file::WriteError::InvalidPath;
-    use crate::config::persister::directory_manager::DirectoryManagementError::{
+    use crate::config::super_agent_configs::AgentID;
+    use crate::fs::directory_manager::DirectoryManagementError::{
         ErrorCreatingDirectory, ErrorDeletingDirectory, InvalidDirectory,
     };
-    use crate::config::persister::fs_utils::FsError;
-    use crate::config::super_agent_configs::AgentID;
+    use crate::fs::utils::FsError;
+    use crate::fs::writer_file::WriteError;
+    use crate::fs::writer_file::WriteError::InvalidPath;
     use mockall::{mock, predicate};
     use std::io::{Error, ErrorKind};
 
