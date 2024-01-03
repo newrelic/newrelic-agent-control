@@ -88,7 +88,7 @@ impl Drop for K8sEnv {
     fn drop(&mut self) {
         // clean up test environment even if the test panics.
         // async drop doesn't exist so this needs to be run sync code.
-        futures::executor::block_on(self.clean_up());
+        newrelic_super_agent::runtime::runtime().block_on(self.clean_up());
     }
 }
 
@@ -231,7 +231,7 @@ impl Drop for K8sCluster {
     fn drop(&mut self) {
         // clean up test environment even if the test panics.
         // async drop doesn't exist so this needs to be run sync code.
-        futures::executor::block_on(self.clean_up());
+        newrelic_super_agent::runtime::runtime().block_on(self.clean_up());
     }
 }
 

@@ -34,11 +34,11 @@ pub enum StorerError {
 
 impl InstanceIDStorer for Storer {
     fn set(&self, agent_id: &AgentID, ds: &DataStored) -> Result<(), StorerError> {
-        futures::executor::block_on(self.async_set(agent_id, ds))
+        crate::runtime::runtime().block_on(self.async_set(agent_id, ds))
     }
 
     fn get(&self, agent_id: &AgentID) -> Result<Option<DataStored>, StorerError> {
-        futures::executor::block_on(self.async_get(agent_id))
+        crate::runtime::runtime().block_on(self.async_get(agent_id))
     }
 }
 

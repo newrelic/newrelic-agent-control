@@ -58,7 +58,7 @@ impl CRSupervisor {
     pub fn apply(&self) -> Result<(), SupervisorError> {
         let resources = self.build_dynamic_objects()?;
         for res in resources {
-            block_on(self.apply_k8s_resource(&res))?;
+            crate::runtime::runtime().block_on(self.apply_k8s_resource(&res))?;
         }
 
         info!("K8sSupervisor started and CRs created");

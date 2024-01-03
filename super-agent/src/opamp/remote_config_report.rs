@@ -65,7 +65,7 @@ where
     C: Callbacks,
     O: StartedClient<C>,
 {
-    block_on(opamp_client.set_remote_config_status(RemoteConfigStatus {
+    crate::runtime::runtime().block_on(opamp_client.set_remote_config_status(RemoteConfigStatus {
         last_remote_config_hash: hash.get().into_bytes(),
         status,
         error_message: error_msg,

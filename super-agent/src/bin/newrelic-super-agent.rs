@@ -26,8 +26,7 @@ compile_error!("Feature \"onhost\" and feature \"k8s\" cannot be enabled at the 
 #[cfg(all(not(feature = "onhost"), not(feature = "k8s")))]
 compile_error!("Either feature \"onhost\" or feature \"k8s\" must be enabled");
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> Result<(), Box<dyn Error>> {
     // init logging singleton
     Logging::try_init()?;
 
@@ -165,20 +164,22 @@ fn run_super_agent(
     let k8s_config = config_storer.load()?.k8s.ok_or(AgentError::K8sConfig())?;
 
     let executor = Arc::new(
-        futures::executor::block_on(
-            newrelic_super_agent::k8s::executor::K8sExecutor::try_new_with_reflectors(
-                k8s_config.namespace.clone(),
-                k8s_config.cr_type_meta.clone(),
-            ),
-        )
-        .map_err(|e| AgentError::ExternalError(e.to_string()))?,
+        newrelic_super_agent::runtime::runtime()
+            .block_on(
+                newrelic_super_agent::k8s::executor::K8sExecutor::try_new_with_reflectors(
+                    k8s_config.namespace.clone(),
+                    k8s_config.cr_type_meta.clone(),
+                ),
+            )
+            .map_err(|e| AgentError::ExternalError(e.to_string()))?,
     );
 
-    let instance_id_getter =
-        futures::executor::block_on(ULIDInstanceIDGetter::try_with_identifiers(
+    let instance_id_getter = newrelic_super_agent::runtime::runtime().block_on(
+        ULIDInstanceIDGetter::try_with_identifiers(
             executor.clone(),
             instance_id::get_identifiers(k8s_config.cluster_name.clone()),
-        ))?;
+        ),
+    )?;
 
     /////////////////////////
 
@@ -206,8 +207,8 @@ fn run_super_agent(
 
     let config_storer = Arc::new(config_storer);
 
-    let _started_gcc =
-        NotStartedK8sGarbageCollector::new(config_storer.clone(), executor.clone()).start();
+    //let _started_gcc =
+    //    NotStartedK8sGarbageCollector::new(config_storer.clone(), executor.clone()).start();
 
     SuperAgent::new(
         maybe_client,
