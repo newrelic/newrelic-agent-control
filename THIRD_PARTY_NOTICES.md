@@ -1414,11 +1414,6 @@ Distributed under the following license(s):
 
 
 
-## resource-detection (path+file:///Users/rcoll/Documents/github/newrelic/newrelic-super-agent/resource-detection)
-
-Distributed under the following license(s):
-
-
 
 ## ring (https://crates.io/crates/ring)
 
