@@ -21,7 +21,7 @@ use crate::sub_agent::SubAgentBuilder;
 
 use crate::event::event::{Event, OpAMPEvent, SubAgentEvent, SuperAgentEvent};
 use crate::sub_agent::values::values_repository::{ValuesRepository, ValuesRepositoryFile};
-use crate::sub_agent::{error::SubAgentError, NotStartedSubAgent};
+use crate::sub_agent::NotStartedSubAgent;
 use crate::super_agent::defaults::{SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION};
 use crate::super_agent::error::AgentError;
 use crate::super_agent::super_agent::EffectiveAgentsError::{
@@ -350,24 +350,6 @@ where
         let config = self.sub_agents_config_store.load()?;
         let config = config.get(&agent_id)?;
         self.recreate_sub_agent(agent_id, config, tx.clone(), sub_agents, ctx)?;
-
-        Ok(())
-    }
-
-    // TODO This call should be moved to on subagent event loop when opamp event remote_config
-    // Sub Agent on remote config
-    fn process_sub_agent_remote_config_error(
-        &self,
-        remote_config_err: RemoteConfigError,
-    ) -> Result<(), SubAgentError> {
-        match remote_config_err {
-            RemoteConfigError::InvalidConfig(hash, error) => {
-                error!("invalid remote config. Hash: {} Error: {}", hash, error)
-            }
-            _ => {
-                unreachable!("only errors with hash will reach this block")
-            }
-        }
 
         Ok(())
     }

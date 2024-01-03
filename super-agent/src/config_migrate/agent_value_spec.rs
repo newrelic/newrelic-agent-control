@@ -22,7 +22,7 @@ pub enum AgentValueSpec {
 }
 
 impl AgentValueSpec {
-    // for testing
+    #[cfg(test)]
     fn get(&self, key: String) -> Option<AgentValueSpec> {
         match self {
             AgentValueSpecEnd(_) => None,

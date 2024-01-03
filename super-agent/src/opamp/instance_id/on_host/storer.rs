@@ -150,7 +150,7 @@ mod test {
     use std::fs::Permissions;
     use std::io::{self, ErrorKind};
     use std::os::unix::fs::PermissionsExt;
-    use std::path::{Path, PathBuf};
+    use std::path::PathBuf;
 
     #[test]
     fn basic_get_uild_path() {

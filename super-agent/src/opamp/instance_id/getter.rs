@@ -11,6 +11,7 @@ use ulid::Ulid;
 pub struct InstanceID(String);
 
 impl InstanceID {
+    #[cfg(test)]
     pub(crate) fn new(id: String) -> InstanceID {
         InstanceID(id)
     }

@@ -85,7 +85,6 @@ fn run_super_agent(
     use newrelic_super_agent::{
         config::super_agent_configs::AgentID, opamp::operations::build_opamp_and_start_client,
         sub_agent::opamp::client_builder::SubAgentOpAMPHttpBuilder,
-        super_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler,
     };
 
     #[cfg(unix)]
