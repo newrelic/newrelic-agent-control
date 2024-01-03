@@ -1,3 +1,4 @@
+//! System resource detector implementation
 use crate::{Detect, DetectError, Key, Resource, Value};
 
 use super::{
@@ -5,10 +6,13 @@ use super::{
     HOSTNAME_KEY, MACHINE_ID_KEY,
 };
 
+/// An enumeration of potential errors related to the system detector.
 #[derive(thiserror::Error, Debug)]
 pub enum SystemDetectorError {
+    /// Error while getting hostname
     #[error("error getting hostname `{0}`")]
     HostnameError(String),
+    /// Error while getting the machine-id
     #[error("error getting machine-id: `{0}`")]
     MachineIDError(String),
 }
