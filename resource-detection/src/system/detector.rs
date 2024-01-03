@@ -1,5 +1,4 @@
-use std::collections::HashMap;
-
+//! System resource detector implementation
 use crate::{Detect, DetectError, Key, Resource, Value};
 
 use super::{
@@ -7,10 +6,13 @@ use super::{
     HOSTNAME_KEY, MACHINE_ID_KEY,
 };
 
-#[derive(thiserror::Error, Debug, Clone)]
+/// An enumeration of potential errors related to the system detector.
+#[derive(thiserror::Error, Debug)]
 pub enum SystemDetectorError {
+    /// Error while getting hostname
     #[error("error getting hostname `{0}`")]
     HostnameError(String),
+    /// Error while getting the machine-id
     #[error("error getting machine-id: `{0}`")]
     MachineIDError(String),
 }
@@ -38,21 +40,19 @@ impl Default for SystemDetector {
 /// Implementing the `Detect` trait for the `SystemDetector` struct.
 impl Detect for SystemDetector {
     fn detect(&self) -> Result<Resource, DetectError> {
-        Ok(Resource {
-            attributes: HashMap::from([
-                (
-                    Key::from(HOSTNAME_KEY),
-                    Value::from(
-                        self.hostname_getter
-                            .get()
-                            .map(|val| val.into_string().unwrap_or_default())?,
-                    ),
+        Ok(Resource::new([
+            (
+                Key::from(HOSTNAME_KEY),
+                Value::from(
+                    self.hostname_getter
+                        .get()
+                        .map(|val| val.into_string().unwrap_or_default())?,
                 ),
-                (
-                    Key::from(MACHINE_ID_KEY),
-                    Value::from(self.machine_id_provider.provide()?),
-                ),
-            ]),
-        })
+            ),
+            (
+                Key::from(MACHINE_ID_KEY),
+                Value::from(self.machine_id_provider.provide()?),
+            ),
+        ]))
     }
 }

@@ -1,5 +1,10 @@
+//! Common structures for the crate.
+
+/// Key represents the attribute name.
 #[derive(Eq, Hash, PartialEq)]
 pub struct Key(String);
+
+/// Value represents the attribute value.
 #[derive(Clone)]
 pub struct Value(String);
 
