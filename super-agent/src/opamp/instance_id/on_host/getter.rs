@@ -1,9 +1,10 @@
 use crate::opamp::instance_id::getter::ULIDInstanceIDGetter;
-#[cfg_attr(test, mockall_double::double)]
-use crate::opamp::instance_id::on_host::identifier_machine_id_unix::IdentifierProviderMachineId;
 use crate::opamp::instance_id::on_host::storer::{Storer, StorerError};
-#[cfg_attr(test, mockall_double::double)]
-use crate::utils::hostname::HostnameGetter;
+use resource_detection::cloud::aws::detector::{AWSDetector, HttpClientUreq};
+use resource_detection::cloud::AWS_INSTANCE_ID;
+use resource_detection::system::{HOSTNAME_KEY, MACHINE_ID_KEY};
+use resource_detection::DetectError;
+use resource_detection::{system::detector::SystemDetector, Detect};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::error;
@@ -21,37 +22,71 @@ pub enum IdentifierRetrievalError {
 pub struct Identifiers {
     pub hostname: String,
     pub machine_id: String,
+    pub cloud_instance_id: String,
 }
 
-#[derive(Default)]
-pub struct IdentifiersProvider {
-    hostname_getter: HostnameGetter,
-    machine_id_provider: IdentifierProviderMachineId,
+pub struct IdentifiersProvider<D = SystemDetector, D2 = AWSDetector<HttpClientUreq>>
+where
+    D: Detect,
+    D2: Detect,
+{
+    system_detector: D,
+    cloud_detector: D2,
 }
 
-impl IdentifiersProvider {
-    pub fn provide(&self) -> Identifiers {
-        Identifiers {
-            hostname: self.hostname_identifier(),
-            machine_id: self.machine_id_identifier(),
+impl Default for IdentifiersProvider {
+    fn default() -> Self {
+        Self {
+            system_detector: SystemDetector::default(),
+            cloud_detector: AWSDetector::default(),
         }
     }
+}
 
-    fn hostname_identifier(&self) -> String {
-        self.hostname_getter
-            .get()
-            .unwrap_or_else(|e| {
-                error!("cannot get hostname identifier: {}", e.to_string());
-                "".into()
+impl<D, D2> IdentifiersProvider<D, D2>
+where
+    D: Detect,
+    D2: Detect,
+{
+    pub fn provide(&self) -> Result<Identifiers, DetectError> {
+        let system_identifiers = self.system_detector.detect()?;
+        let hostname: String = system_identifiers
+            .get(HOSTNAME_KEY.into())
+            .map(|val| val.into())
+            .unwrap_or_else(|| {
+                error!("cannot get hostname identifier");
+                "".to_string()
+            });
+        let machine_id: String = system_identifiers
+            .get(MACHINE_ID_KEY.into())
+            .map(|val| val.into())
+            .unwrap_or_else(|| {
+                error!("cannot get machine_id identifier");
+                "".to_string()
+            });
+
+        // TODO: should we propagate cloud error?
+        let cloud_instance_id: String = self
+            .cloud_detector
+            .detect()
+            .map(|c_identifiers| {
+                c_identifiers
+                    .get(AWS_INSTANCE_ID.into())
+                    .map(|val| val.into())
+                    .unwrap_or_else(|| {
+                        error!("cannot get aws identifier");
+                        "".to_string()
+                    })
             })
-            .into_string()
-            .unwrap()
-    }
+            .unwrap_or_else(|e| {
+                error!("cloud detector error: {}", e);
+                "".to_string()
+            });
 
-    fn machine_id_identifier(&self) -> String {
-        self.machine_id_provider.provide().unwrap_or_else(|e| {
-            error!("cannot get machine_id identifier: {}", e.to_string());
-            "".to_string()
+        Ok(Identifiers {
+            hostname,
+            machine_id,
+            cloud_instance_id,
         })
     }
 }
@@ -70,91 +105,132 @@ impl Default for ULIDInstanceIDGetter<Storer> {
 
 #[cfg(test)]
 mod test {
-    use crate::opamp::instance_id::on_host::getter::{
-        IdentifierRetrievalError, IdentifiersProvider,
-    };
-    use crate::opamp::instance_id::on_host::identifier_machine_id_unix::MockIdentifierProviderMachineId;
+
+    use crate::opamp::instance_id::on_host::getter::IdentifiersProvider;
     use crate::opamp::instance_id::Identifiers;
-    use crate::utils::hostname::MockHostnameGetter;
-    use nix::errno::Errno;
+    use mockall::mock;
+    use resource_detection::{Detect, DetectError, Key, Resource, Value};
     use tracing_test::internal::logs_with_scope_contain;
     use tracing_test::traced_test;
 
-    impl IdentifiersProvider {
-        fn new(
-            hostname_provider: MockHostnameGetter,
-            machine_id_provider: MockIdentifierProviderMachineId,
-        ) -> Self {
-            Self {
-                hostname_getter: hostname_provider,
-                machine_id_provider,
-            }
+    mock! {
+        pub SystemDetectorMock {}
+        impl Detect for SystemDetectorMock {
+            fn detect(&self) -> Result<Resource, DetectError>;
+        }
+    }
+
+    mock! {
+        pub CloudDetectorMock {}
+        impl Detect for CloudDetectorMock {
+            fn detect(&self) -> Result<Resource, DetectError>;
         }
     }
 
     #[traced_test]
     #[test]
     fn test_hostname_error_will_return_empty_hostname() {
-        let mut hostname_getter = MockHostnameGetter::default();
-        let mut machine_id_provider = MockIdentifierProviderMachineId::default();
+        let mut system_detector_mock = MockSystemDetectorMock::new();
+        let mut cloud_detector_mock = MockCloudDetectorMock::new();
+        system_detector_mock.expect_detect().once().returning(|| {
+            Ok(Resource::new([(
+                "machine_id".to_string().into(),
+                Value::from("some machine id".to_string()),
+            )]))
+        });
+        cloud_detector_mock.expect_detect().once().returning(|| {
+            Ok(Resource::new([(
+                "aws_instance_id".to_string().into(),
+                Value::from("abc".to_string()),
+            )]))
+        });
 
-        hostname_getter.should_not_get(Errno::EBUSY);
-        machine_id_provider.should_provide(String::from("some machine id"));
-
-        let identifiers_provider = IdentifiersProvider::new(hostname_getter, machine_id_provider);
-        let identifiers = identifiers_provider.provide();
+        let identifiers_provider = IdentifiersProvider {
+            system_detector: system_detector_mock,
+            cloud_detector: cloud_detector_mock,
+        };
+        let identifiers = identifiers_provider.provide().unwrap();
 
         let expected_identifiers = Identifiers {
             hostname: String::from(""),
             machine_id: String::from("some machine id"),
+            cloud_instance_id: String::from("abc"),
         };
         assert_eq!(expected_identifiers, identifiers);
         assert!(logs_with_scope_contain(
             "test_hostname_error_will_return_empty_hostname",
-            "cannot get hostname identifier: EBUSY: Device or resource busy"
+            "cannot get hostname identifier"
         ));
     }
 
     #[traced_test]
     #[test]
     fn test_machine_id_error_will_return_empty_machine_id() {
-        let mut hostname_getter = MockHostnameGetter::default();
-        let mut machine_id_provider = MockIdentifierProviderMachineId::default();
-
-        hostname_getter.should_get(String::from("some.example.org"));
-        machine_id_provider.should_not_provide(IdentifierRetrievalError::HostnameError(
-            String::from("machine-id was not found..."),
-        ));
-
-        let identifiers_provider = IdentifiersProvider::new(hostname_getter, machine_id_provider);
-        let identifiers = identifiers_provider.provide();
+        let mut system_detector_mock = MockSystemDetectorMock::new();
+        let mut cloud_detector_mock = MockCloudDetectorMock::new();
+        cloud_detector_mock.expect_detect().once().returning(|| {
+            Ok(Resource::new([(
+                "aws_instance_id".to_string().into(),
+                Value::from("abc".to_string()),
+            )]))
+        });
+        system_detector_mock.expect_detect().once().returning(|| {
+            Ok(Resource::new([(
+                Key::from("hostname".to_string()),
+                Value::from("some.example.org".to_string()),
+            )]))
+        });
+        let identifiers_provider = IdentifiersProvider {
+            system_detector: system_detector_mock,
+            cloud_detector: cloud_detector_mock,
+        };
+        let identifiers = identifiers_provider.provide().unwrap();
 
         let expected_identifiers = Identifiers {
             hostname: String::from("some.example.org"),
             machine_id: String::from(""),
+            cloud_instance_id: String::from("abc"),
         };
         assert_eq!(expected_identifiers, identifiers);
         assert!(logs_with_scope_contain(
             "test_machine_id_error_will_return_empty_machine_id",
-            "machine-id was not found..."
+            "cannot get machine_id identifier"
         ));
     }
 
     #[traced_test]
     #[test]
-    fn test_providers_should_be_returned() {
-        let mut hostname_provider = MockHostnameGetter::default();
-        let mut machine_id_provider = MockIdentifierProviderMachineId::default();
-
-        hostname_provider.should_get(String::from("some.example.org"));
-        machine_id_provider.should_provide(String::from("some machine-id"));
-
-        let identifiers_provider = IdentifiersProvider::new(hostname_provider, machine_id_provider);
-        let identifiers = identifiers_provider.provide();
+    fn test_all_providers_should_be_returned() {
+        let mut system_detector_mock = MockSystemDetectorMock::new();
+        let mut cloud_detector_mock = MockCloudDetectorMock::new();
+        cloud_detector_mock.expect_detect().once().returning(|| {
+            Ok(Resource::new([(
+                "aws_instance_id".to_string().into(),
+                Value::from("abc".to_string()),
+            )]))
+        });
+        system_detector_mock.expect_detect().once().returning(|| {
+            Ok(Resource::new([
+                (
+                    Key::from("hostname".to_string()),
+                    Value::from("some.example.org".to_string()),
+                ),
+                (
+                    "machine_id".to_string().into(),
+                    Value::from("some machine-id".to_string()),
+                ),
+            ]))
+        });
+        let identifiers_provider = IdentifiersProvider {
+            system_detector: system_detector_mock,
+            cloud_detector: cloud_detector_mock,
+        };
+        let identifiers = identifiers_provider.provide().unwrap();
 
         let expected_identifiers = Identifiers {
             hostname: String::from("some.example.org"),
             machine_id: String::from("some machine-id"),
+            cloud_instance_id: String::from("abc"),
         };
         assert_eq!(expected_identifiers, identifiers);
     }

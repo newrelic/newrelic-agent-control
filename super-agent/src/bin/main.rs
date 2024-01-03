@@ -93,8 +93,8 @@ fn run_super_agent(
         panic!("Program must run as root");
     }
 
-    let instance_id_getter =
-        ULIDInstanceIDGetter::default().with_identifiers(IdentifiersProvider::default().provide());
+    let instance_id_getter = ULIDInstanceIDGetter::default()
+        .with_identifiers(IdentifiersProvider::default().provide().unwrap_or_default());
 
     let hash_repository = HashRepositoryFile::default();
     let sub_agent_hash_repository = HashRepositoryFile::new_sub_agent_repository();

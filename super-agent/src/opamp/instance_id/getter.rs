@@ -227,6 +227,7 @@ pub mod test {
         return Identifiers {
             machine_id: "different".to_string(),
             hostname: "different".to_string(),
+            cloud_instance_id: "different".to_string(),
         };
     }
 }

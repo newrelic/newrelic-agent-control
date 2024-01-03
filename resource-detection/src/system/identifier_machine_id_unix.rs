@@ -1,7 +1,9 @@
+use std::path::PathBuf;
+
 #[cfg_attr(test, mockall_double::double)]
 use crate::file_reader::FSFileReader;
-use crate::opamp::instance_id::on_host::getter::IdentifierRetrievalError;
-use std::path::PathBuf;
+
+use super::detector::SystemDetectorError;
 
 const MACHINE_ID_PATH: &str = "/etc/machine-id";
 
@@ -12,11 +14,11 @@ pub(super) struct IdentifierProviderMachineId {
 
 #[cfg_attr(test, mockall::automock)]
 impl IdentifierProviderMachineId {
-    pub(super) fn provide(&self) -> Result<String, IdentifierRetrievalError> {
+    pub(super) fn provide(&self) -> Result<String, SystemDetectorError> {
         self.file_reader
             .read(self.machine_id_path.as_path())
             .map(|s: String| s.trim().to_string())
-            .map_err(|e| IdentifierRetrievalError::MachineIDError(e.to_string()))
+            .map_err(|e| SystemDetectorError::MachineIDError(e.to_string()))
     }
 }
 
@@ -31,8 +33,10 @@ impl Default for IdentifierProviderMachineId {
 
 #[cfg(test)]
 mod test {
-    use super::*;
+
     use crate::file_reader::MockFSFileReader;
+
+    use super::*;
     use std::path::Path;
 
     impl IdentifierProviderMachineId {
@@ -41,17 +45,6 @@ mod test {
                 file_reader,
                 machine_id_path: PathBuf::from(some_path),
             }
-        }
-    }
-
-    impl MockIdentifierProviderMachineId {
-        pub fn should_provide(&mut self, machine_id: String) {
-            self.expect_provide()
-                .returning(move || Ok(machine_id.clone()));
-        }
-
-        pub fn should_not_provide(&mut self, err: IdentifierRetrievalError) {
-            self.expect_provide().returning(move || Err(err.clone()));
         }
     }
 
