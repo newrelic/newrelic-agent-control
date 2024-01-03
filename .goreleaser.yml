@@ -169,6 +169,7 @@ nfpms:
     id: newrelic-super-agent
     builds:
       - newrelic-super-agent
+      - newrelic-config-migrate
     formats:
       - deb
       - rpm
