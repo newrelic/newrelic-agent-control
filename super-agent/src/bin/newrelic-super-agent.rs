@@ -207,8 +207,9 @@ fn run_super_agent(
 
     let config_storer = Arc::new(config_storer);
 
-    //let _started_gcc =
-    //    NotStartedK8sGarbageCollector::new(config_storer.clone(), executor.clone()).start();
+    let gcc = NotStartedK8sGarbageCollector::new(config_storer.clone(), executor.clone());
+    let _started_gcc =
+        newrelic_super_agent::runtime::runtime().block_on(async move { gcc.start() });
 
     SuperAgent::new(
         maybe_client,
