@@ -1,7 +1,7 @@
 use super::sub_agent::NotStartedSubAgentK8s;
 use crate::config::super_agent_configs::{K8sConfig, SubAgentConfig};
-use crate::event::channel::EventPublisher;
-use crate::event::OpAMPEvent;
+use crate::event::channel::{pub_sub, EventPublisher};
+use crate::event::SubAgentEvent;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_opamp_and_start_client;
 use crate::{
@@ -78,10 +78,12 @@ where
         agent_id: AgentID,
         sub_agent_config: &SubAgentConfig,
         _tx: std::sync::mpsc::Sender<AgentLog>,
-        ctx: EventPublisher<OpAMPEvent>,
+        _sub_agent_publisher: EventPublisher<SubAgentEvent>,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
+        let (sub_agent_opamp_publisher, _sub_agent_opamp_consumer) = pub_sub();
+
         let maybe_opamp_client = build_opamp_and_start_client(
-            ctx,
+            sub_agent_opamp_publisher,
             self.opamp_builder,
             self.instance_id_getter,
             agent_id.clone(),

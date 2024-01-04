@@ -18,7 +18,7 @@ use std::thread::JoinHandle;
 use crate::config::super_agent_configs::AgentID;
 use crate::config::super_agent_configs::SubAgentConfig;
 use crate::event::channel::EventPublisher;
-use crate::event::OpAMPEvent;
+use crate::event::SubAgentEvent;
 use crate::opamp::callbacks::AgentCallbacks;
 
 use self::logger::AgentLog;
@@ -46,7 +46,7 @@ pub trait SubAgentBuilder {
         agent_id: AgentID,
         sub_agent_config: &SubAgentConfig,
         tx: std::sync::mpsc::Sender<AgentLog>,
-        opamp_publisher: EventPublisher<OpAMPEvent>,
+        sub_agent_publisher: EventPublisher<SubAgentEvent>,
     ) -> Result<Self::NotStartedSubAgent, error::SubAgentBuilderError>;
 }
 
@@ -81,6 +81,14 @@ pub mod test {
         }
     }
 
+    impl MockNotStartedSubAgent {
+        pub fn should_run(&mut self, started_sub_agent: MockStartedSubAgent) {
+            self.expect_run()
+                .once()
+                .return_once(move || Ok(started_sub_agent));
+        }
+    }
+
     mock! {
         pub SubAgentBuilderMock {}
 
@@ -92,7 +100,7 @@ pub mod test {
                 agent_id: AgentID,
                 sub_agent_config: &SubAgentConfig,
                 tx: std::sync::mpsc::Sender<AgentLog>,
-                opamp_publisher: EventPublisher<OpAMPEvent>,
+                sub_agent_publisher: EventPublisher<SubAgentEvent>,
             ) -> Result<<Self as SubAgentBuilder>::NotStartedSubAgent, error::SubAgentBuilderError>;
         }
     }
@@ -114,12 +122,12 @@ pub mod test {
                 Ok(not_started_sub_agent)
             });
         }
-        // should_build_running provides a helper method to create a Sub Agent which runs
-        // successfully and does not stop
-        pub(crate) fn should_build_running(
+
+        pub(crate) fn should_build_not_started(
             &mut self,
             agent_id: &AgentID,
             sub_agent_config: SubAgentConfig,
+            sub_agent: MockNotStartedSubAgent,
         ) {
             self.expect_build()
                 .once()
@@ -129,14 +137,7 @@ pub mod test {
                     predicate::always(),
                     predicate::always(),
                 )
-                .returning(|_, _, _, _| {
-                    let mut not_started_sub_agent = MockNotStartedSubAgent::new();
-                    not_started_sub_agent
-                        .expect_run()
-                        .once()
-                        .returning(|| Ok(MockStartedSubAgent::new()));
-                    Ok(not_started_sub_agent)
-                });
+                .return_once(move |_, _, _, _| Ok(sub_agent));
         }
 
         pub(crate) fn should_not_build(&mut self, times: usize) {
