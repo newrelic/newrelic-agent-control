@@ -160,25 +160,25 @@ fn run_super_agent(
         config::super_agent_configs::AgentID, opamp::operations::build_opamp_and_start_client,
     };
 
+    let runtime = newrelic_super_agent::runtime::runtime();
+
     let hash_repository = HashRepositoryFile::default();
     let k8s_config = config_storer.load()?.k8s.ok_or(AgentError::K8sConfig())?;
 
-    let executor = Arc::new(
-        newrelic_super_agent::runtime::runtime()
-            .block_on(
-                newrelic_super_agent::k8s::executor::K8sExecutor::try_new_with_reflectors(
-                    k8s_config.namespace.clone(),
-                    k8s_config.cr_type_meta.clone(),
-                ),
-            )
-            .map_err(|e| AgentError::ExternalError(e.to_string()))?,
+    let sync_executor = Arc::new(
+        newrelic_super_agent::k8s::executor::SyncK8sExecutor::try_new_with_reflectors(
+            runtime,
+            k8s_config.namespace.clone(),
+            k8s_config.cr_type_meta.clone(),
+        )
+        .map_err(|e| AgentError::ExternalError(e.to_string()))?,
     );
 
-    let instance_id_getter = newrelic_super_agent::runtime::runtime().block_on(
-        ULIDInstanceIDGetter::try_with_identifiers(
-            executor.clone(),
-            instance_id::get_identifiers(k8s_config.cluster_name.clone()),
-        ),
+    let executor = sync_executor.executor.clone();
+
+    let instance_id_getter = ULIDInstanceIDGetter::try_with_identifiers(
+        sync_executor,
+        instance_id::get_identifiers(k8s_config.cluster_name.clone()),
     )?;
 
     /////////////////////////
