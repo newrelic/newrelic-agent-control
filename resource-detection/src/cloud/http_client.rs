@@ -5,7 +5,7 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum HttpClientError {
     /// Represents Ureq crate error.
-    #[error("internal client error: `{0}`")]
+    #[error("internal HTTP client error: `{0}`")]
     UreqError(String),
 }
 

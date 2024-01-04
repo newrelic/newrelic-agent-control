@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use thiserror::Error;
 
-use crate::http_client::{HttpClient, HttpClientError, HttpClientUreq};
+use crate::cloud::http_client::{HttpClient, HttpClientError, HttpClientUreq};
 use crate::{cloud::AWS_INSTANCE_ID, Detect, DetectError, Key, Resource, Value};
 
 use super::metadata::{AWSMetadata, IPV4_METADATA_ENDPOINT};
@@ -77,7 +77,7 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::http_client::test::MockHttpClientMock;
+    use crate::cloud::http_client::test::MockHttpClientMock;
     use http::Response;
 
     #[test]

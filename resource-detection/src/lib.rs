@@ -18,7 +18,6 @@ mod file_reader;
 pub mod system;
 
 pub mod common;
-pub mod http_client;
 
 pub use common::{Key, Value};
 
