@@ -39,3 +39,5 @@ bin/
 local/
 /config.yaml
 
+# targets created for goreleaser
+/target-*

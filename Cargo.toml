@@ -1,83 +1,11 @@
-[package]
-name = "newrelic_super_agent"
-description = "New Relic Super Agent Limited Preview"
-version = "0.5.3"
-edition = "2021"
-authors = ["The New Relic Core Agent & Open Standards (CAOS) Team"]
-publish = false
+[workspace]
+resolver = "2"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+members = [
+    "super-agent",
+    "resource-detection",
+]
 
-[dependencies]
-clap = { version = "4.4.3", features = ["derive"] }
-serde = { version = "1.0.188", features = ["derive"] }
-thiserror = "1.0.47"
-nix = { version = "0.27.1", features = ["signal", "user", "hostname"] }
-log = { version = "0.4.20", features = ["kv_unstable"] }
-tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
-tracing = "0.1.37"
-ctrlc = { version = "3.4.0", features = ["termination"] }
-serde_yaml = "0.9.25"
-regex = "1.9.3"
-opamp-client = { git = "ssh://git@github.com/newrelic/opamp-rs.git", tag = "0.0.7" }
-futures = "0.3.28"
-async-trait = "0.1.71"
-tokio = "1.32.0"
-ulid = { version = "1.0.1", features = ["serde"] }
-openssl = { version = "0.10.57", features = ["vendored"] }
-aquamarine = "0.3.2"
-duration-str = "0.7.0"
-
-# OnHost subagent dependencies
-# IMPORTANT: All onhost only deps needs to be `optional = true` so they won't be compiled by default
-
-# K8S subagent dependencies
-# IMPORTANT: All k8s only deps needs to be `optional = true` so they won't be compiled by default
-kube = { version = "0.86.0", default-features = false, features = [
-  "client",
-  "openssl-tls",
-  "runtime",
-  "derive",
-], optional = true }
-k8s-openapi = { version = "0.20.0", features = ["latest"], optional = true }
-tower = { version = "0.4.13", features = [], optional = true }
-hyper = { version = "0.14.27", optional = true }
-either = { version = "1.9.0", optional = true }
-
-[dev-dependencies]
-assert_cmd = "2.0.12"
-assert_fs = "1.0.13"
-bollard = "0.15.0"
-predicates = "3.0.3"
-tower-test = "0.4.0"
-http = "0.2.9"
-tempfile = "3.8.0"
-mockall = "0.11.4"
-schemars = "0.8.15"
-serde_json = "1.0.108"
-assert_matches = "1.5.0"
-mockall_double = "0.3.0"
-tracing-test = "0.2.4"
-
-
-[[test]]
-name = "k8s"
-path = "test/k8s/mod.rs"
-required-features = ["k8s"]
-
-
-[[test]]
-name = "on_host"
-path = "test/on_host/mod.rs"
-required-features = ["onhost"]
-
-[[bin]]
-name = "newrelic-super-agent"
-path = "src/bin/main.rs"
-
-
-[features]
-onhost = []
-k8s = ["dep:kube", "dep:k8s-openapi", "dep:tower", "dep:hyper", "dep:either"]
-# feature ci allows calling --all-features (needed on the test pipelines) and not failing to compile
-ci = []
+exclude = [
+    "license", # Rust tool that checks used third party licenses
+]

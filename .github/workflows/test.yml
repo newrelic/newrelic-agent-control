@@ -119,4 +119,4 @@ jobs:
           kubernetes version: 'v1.28.1' # Should we support a specific range of versions?
           driver: docker
       - name: Run k8s integration tests
-        run: make -C test/k8s
+        run: make -C super-agent/test/k8s

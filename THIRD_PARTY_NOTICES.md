@@ -6,11 +6,11 @@ their own copyright notices and license terms. These notices are provided
 below.
 
 In the event that a required notice is missing or incorrect, please notify us
-either by [opening an issue](https://github.com/newrelic/newrelic-supervisor/issues/new),
+either by [opening an issue](https://github.com/newrelic/newrelic-super-agent/issues/new),
 or by e-mailing [open-source@newrelic.com](mailto:open-source@newrelic.com).
 
 For any licenses that require the disclosure of source code, the source code
-can be found at https://github.com/newrelic/newrelic-supervisor.
+can be found at https://github.com/newrelic/newrelic-super-agent.
 
 
 ## addr2line (https://crates.io/crates/addr2line)
@@ -797,6 +797,14 @@ Distributed under the following license(s):
 
 
 
+## itertools (https://crates.io/crates/itertools)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+
 ## itoa (https://crates.io/crates/itoa)
 
 Distributed under the following license(s):
@@ -995,7 +1003,31 @@ Distributed under the following license(s):
 
 
 
+## mockall (https://crates.io/crates/mockall)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+
 ## mockall_derive (https://crates.io/crates/mockall_derive)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+
+## mockall_derive (https://crates.io/crates/mockall_derive)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+
+## mockall_double (https://crates.io/crates/mockall_double)
 
 Distributed under the following license(s):
 * MIT
@@ -1226,6 +1258,14 @@ Distributed under the following license(s):
 
 
 
+## predicates (https://crates.io/crates/predicates)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+
 ## predicates-core (https://crates.io/crates/predicates-core)
 
 Distributed under the following license(s):
@@ -1374,6 +1414,13 @@ Distributed under the following license(s):
 
 
 
+
+## ring (https://crates.io/crates/ring)
+
+Distributed under the following license(s):
+
+
+
 ## rle-decode-fast (https://crates.io/crates/rle-decode-fast)
 
 Distributed under the following license(s):
@@ -1403,6 +1450,22 @@ Distributed under the following license(s):
 * Apache-2.0 WITH LLVM-exception
 * Apache-2.0
 * MIT
+
+
+
+## rustls (https://crates.io/crates/rustls)
+
+Distributed under the following license(s):
+* Apache-2.0
+* ISC
+* MIT
+
+
+
+## rustls-webpki (https://crates.io/crates/rustls-webpki)
+
+Distributed under the following license(s):
+* ISC
 
 
 
@@ -1440,6 +1503,15 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 * MIT
 * Apache-2.0
+
+
+
+## sct (https://crates.io/crates/sct)
+
+Distributed under the following license(s):
+* Apache-2.0
+* ISC
+* MIT
 
 
 
@@ -1568,6 +1640,13 @@ Distributed under the following license(s):
 
 
 
+## spin (https://crates.io/crates/spin)
+
+Distributed under the following license(s):
+* MIT
+
+
+
 ## strsim (https://crates.io/crates/strsim)
 
 Distributed under the following license(s):
@@ -1584,6 +1663,22 @@ Distributed under the following license(s):
 
 
 ## syn (https://crates.io/crates/syn)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+
+## system-configuration (https://crates.io/crates/system-configuration)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+
+## system-configuration-sys (https://crates.io/crates/system-configuration-sys)
 
 Distributed under the following license(s):
 * MIT
@@ -1839,6 +1934,21 @@ Distributed under the following license(s):
 
 
 
+## untrusted (https://crates.io/crates/untrusted)
+
+Distributed under the following license(s):
+* ISC
+
+
+
+## ureq (https://crates.io/crates/ureq)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+
 ## url (https://crates.io/crates/url)
 
 Distributed under the following license(s):
@@ -1955,6 +2065,13 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 * MIT
 * Apache-2.0
+
+
+
+## webpki-roots (https://crates.io/crates/webpki-roots)
+
+Distributed under the following license(s):
+* MPL-2.0
 
 
 
