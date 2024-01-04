@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 #[cfg(unix)]
 use nix::unistd::gethostname;
@@ -13,7 +14,6 @@ use crate::opamp::remote_config_report::{
     report_remote_config_status_applied, report_remote_config_status_error,
 };
 
-#[cfg_attr(test, mockall_double::double)]
 use crate::sub_agent::on_host::event_processor_builder::SubAgentEventProcessorBuilder;
 use crate::sub_agent::on_host::sub_agent::NotStarted;
 use crate::sub_agent::on_host::supervisor::command_supervisor;
@@ -42,33 +42,35 @@ use super::{
     },
 };
 
-pub struct OnHostSubAgentBuilder<'a, O, I, HR, A>
-where
-    O: OpAMPClientBuilder<SubAgentCallbacks>,
-    I: InstanceIDGetter,
-    // HR: HashRepository, // TODO??
-    A: EffectiveAgentsAssembler,
-{
-    opamp_builder: Option<&'a O>,
-    instance_id_getter: &'a I,
-    hash_repository: &'a HR,
-    effective_agent_assembler: &'a A,
-    event_processor_builder: &'a SubAgentEventProcessorBuilder,
-}
-
-impl<'a, O, I, HR, A> OnHostSubAgentBuilder<'a, O, I, HR, A>
+pub struct OnHostSubAgentBuilder<'a, O, I, HR, A, E>
 where
     O: OpAMPClientBuilder<SubAgentCallbacks>,
     I: InstanceIDGetter,
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
+    E: SubAgentEventProcessorBuilder<O::Client>,
+{
+    opamp_builder: Option<&'a O>,
+    instance_id_getter: &'a I,
+    hash_repository: Arc<HR>,
+    effective_agent_assembler: &'a A,
+    event_processor_builder: &'a E,
+}
+
+impl<'a, O, I, HR, A, E> OnHostSubAgentBuilder<'a, O, I, HR, A, E>
+where
+    O: OpAMPClientBuilder<SubAgentCallbacks>,
+    I: InstanceIDGetter,
+    HR: HashRepository,
+    A: EffectiveAgentsAssembler,
+    E: SubAgentEventProcessorBuilder<O::Client>,
 {
     pub fn new(
         opamp_builder: Option<&'a O>,
         instance_id_getter: &'a I,
-        hash_repository: &'a HR,
+        hash_repository: Arc<HR>,
         effective_agent_assembler: &'a A,
-        event_processor_builder: &'a SubAgentEventProcessorBuilder,
+        event_processor_builder: &'a E,
     ) -> Self {
         Self {
             opamp_builder,
@@ -80,14 +82,18 @@ where
     }
 }
 
-impl<'a, O, I, HR, A> SubAgentBuilder for OnHostSubAgentBuilder<'a, O, I, HR, A>
+impl<'a, O, I, HR, A, E> SubAgentBuilder for OnHostSubAgentBuilder<'a, O, I, HR, A, E>
 where
     O: OpAMPClientBuilder<SubAgentCallbacks>,
     I: InstanceIDGetter,
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
+    E: SubAgentEventProcessorBuilder<O::Client>,
 {
-    type NotStartedSubAgent = SubAgentOnHost<NotStarted<O::Client>, command_supervisor::NotStarted>;
+    type NotStartedSubAgent = SubAgentOnHost<
+        NotStarted<O::Client, E::SubAgentEventProcessor>,
+        command_supervisor::NotStarted,
+    >;
 
     fn build(
         &self,
@@ -208,8 +214,9 @@ mod test {
     use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
     use crate::opamp::remote_config_hash::test::MockHashRepositoryMock;
     use crate::opamp::remote_config_hash::Hash;
-    use crate::sub_agent::on_host::event_processor::MockEventProcessor;
-    use crate::sub_agent::on_host::event_processor_builder::MockSubAgentEventProcessorBuilder;
+    use crate::sub_agent::on_host::event_processor::test::MockEventProcessorMock;
+    use crate::sub_agent::on_host::event_processor_builder::test::MockSubAgentEventProcessorBuilderMock;
+    use crate::sub_agent::values::values_repository::test::MockRemoteValuesRepositoryMock;
     use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
     use crate::{
         config::agent_type::runtime_config::OnHost,
@@ -264,22 +271,22 @@ mod test {
             final_agent,
         );
 
-        let mut sub_agent_event_processor: MockEventProcessor<
+        let mut sub_agent_event_processor: MockEventProcessorMock<
             MockStartedOpAMPClientMock<SubAgentCallbacks>,
-        > = MockEventProcessor::default();
+        > = MockEventProcessorMock::default();
 
         let mut started_client = MockStartedOpAMPClientMock::new();
         started_client.should_stop(1);
         started_client.should_set_health(1);
         sub_agent_event_processor.should_process(Some(started_client));
 
-        let mut sub_agent_event_processor_builder = MockSubAgentEventProcessorBuilder::new();
+        let mut sub_agent_event_processor_builder = MockSubAgentEventProcessorBuilderMock::new();
         sub_agent_event_processor_builder.should_build(sub_agent_event_processor);
 
         let on_host_builder = OnHostSubAgentBuilder::new(
             Some(&opamp_builder),
             &instance_id_getter,
-            &hash_repository_mock,
+            Arc::new(hash_repository_mock),
             &effective_agent_assembler,
             &sub_agent_event_processor_builder,
         );
@@ -343,18 +350,18 @@ mod test {
             Hash::failed("a-hash".to_string(), "this is an error message".to_string());
         hash_repository_mock.should_get_hash(&sub_agent_id, failed_hash);
 
-        let sub_agent_event_processor: MockEventProcessor<
+        let sub_agent_event_processor: MockEventProcessorMock<
             MockStartedOpAMPClientMock<SubAgentCallbacks>,
-        > = MockEventProcessor::default();
+        > = MockEventProcessorMock::default();
 
-        let mut sub_agent_event_processor_builder = MockSubAgentEventProcessorBuilder::new();
+        let mut sub_agent_event_processor_builder = MockSubAgentEventProcessorBuilderMock::new();
         sub_agent_event_processor_builder.should_build(sub_agent_event_processor);
 
         // Sub Agent Builder
         let on_host_builder = OnHostSubAgentBuilder::new(
             Some(&opamp_builder),
             &instance_id_getter,
-            &hash_repository_mock,
+            Arc::new(hash_repository_mock),
             &effective_agent_assembler,
             &sub_agent_event_processor_builder,
         );

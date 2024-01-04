@@ -4,10 +4,9 @@ use newrelic_super_agent::event::SuperAgentEvent;
 #[cfg(feature = "k8s")]
 use newrelic_super_agent::opamp::instance_id;
 use newrelic_super_agent::opamp::instance_id::getter::ULIDInstanceIDGetter;
-#[cfg(feature = "onhost")]
-use newrelic_super_agent::opamp::instance_id::IdentifiersProvider;
+
 use newrelic_super_agent::opamp::remote_config_hash::HashRepositoryFile;
-use newrelic_super_agent::sub_agent::values::values_repository::ValuesRepositoryFile;
+
 use newrelic_super_agent::super_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use newrelic_super_agent::super_agent::error::AgentError;
 use newrelic_super_agent::super_agent::opamp::client_builder::SuperAgentOpAMPHttpBuilder;
@@ -83,9 +82,13 @@ fn run_super_agent(
     super_agent_consumer: EventConsumer<SuperAgentEvent>,
     opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
 ) -> Result<(), AgentError> {
+    use newrelic_super_agent::opamp::instance_id::IdentifiersProvider;
+    use newrelic_super_agent::sub_agent::values::values_repository::{
+        ValuesRepository, ValuesRepositoryFile,
+    };
     use newrelic_super_agent::{
         config::super_agent_configs::AgentID, opamp::operations::build_opamp_and_start_client,
-        sub_agent::on_host::event_processor_builder::SubAgentEventProcessorBuilder,
+        sub_agent::on_host::event_processor_builder::EventProcessorBuilder,
         sub_agent::opamp::client_builder::SubAgentOpAMPHttpBuilder,
     };
 
@@ -98,9 +101,12 @@ fn run_super_agent(
         .with_identifiers(IdentifiersProvider::default().provide().unwrap_or_default());
 
     let hash_repository = HashRepositoryFile::default();
-    let sub_agent_hash_repository = HashRepositoryFile::new_sub_agent_repository();
     let agents_assembler = LocalEffectiveAgentsAssembler::default().with_remote();
-    let sub_agent_event_processor_builder = SubAgentEventProcessorBuilder;
+    // HashRepo and ValuesRepo needs to be shared between threads
+    let sub_agent_hash_repository = Arc::new(HashRepositoryFile::new_sub_agent_repository());
+    let values_repository = Arc::new(ValuesRepositoryFile::default());
+    let sub_agent_event_processor_builder =
+        EventProcessorBuilder::new(sub_agent_hash_repository.clone(), values_repository.clone());
 
     let sub_agent_opamp_builder = opamp_client_builder
         .as_ref()
@@ -109,13 +115,12 @@ fn run_super_agent(
         newrelic_super_agent::sub_agent::on_host::builder::OnHostSubAgentBuilder::new(
             sub_agent_opamp_builder.as_ref(),
             &instance_id_getter,
-            &sub_agent_hash_repository,
+            sub_agent_hash_repository,
             &agents_assembler,
             &sub_agent_event_processor_builder,
         );
 
     info!("Starting the super agent");
-    let values_repository = ValuesRepositoryFile::default();
 
     let (super_agent_opamp_publisher, super_agent_opamp_consumer) = pub_sub();
 
@@ -128,13 +133,16 @@ fn run_super_agent(
         super_agent_opamp_non_identifying_attributes(),
     )?;
 
+    if maybe_client.is_none() {
+        // Delete remote values
+        values_repository.delete_remote_all()?;
+    }
+
     SuperAgent::new(
         maybe_client,
         &hash_repository,
         sub_agent_builder,
         Arc::new(config_storer),
-        &sub_agent_hash_repository,
-        values_repository,
     )
     .run(
         super_agent_consumer,
@@ -154,7 +162,6 @@ fn run_super_agent(
     };
 
     let hash_repository = HashRepositoryFile::default();
-    let sub_agent_hash_repository = HashRepositoryFile::new_sub_agent_repository();
     let k8s_config = config_storer.load()?.k8s.ok_or(AgentError::K8sConfig())?;
 
     let executor = Arc::new(
@@ -186,7 +193,6 @@ fn run_super_agent(
     );
 
     info!("Starting the super agent");
-    let values_repository = ValuesRepositoryFile::default();
     let (opamp_publisher, opamp_consumer) = pub_sub();
 
     let maybe_client = build_opamp_and_start_client(
@@ -207,9 +213,7 @@ fn run_super_agent(
         maybe_client,
         &hash_repository,
         sub_agent_builder,
-        config_storer.clone(),
-        &sub_agent_hash_repository,
-        values_repository,
+        config_storer,
     )
     .run(super_agent_consumer, (opamp_publisher, opamp_consumer))
 }
