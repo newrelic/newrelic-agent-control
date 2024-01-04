@@ -1,6 +1,7 @@
 use crate::opamp::instance_id::getter::ULIDInstanceIDGetter;
 use crate::opamp::instance_id::on_host::storer::{Storer, StorerError};
-use resource_detection::cloud::aws::detector::{AWSDetector, HttpClientUreq};
+use resource_detection::cloud::aws::detector::AWSDetector;
+use resource_detection::cloud::http_client::HttpClientUreq;
 use resource_detection::cloud::AWS_INSTANCE_ID;
 use resource_detection::system::{HOSTNAME_KEY, MACHINE_ID_KEY};
 use resource_detection::DetectError;
