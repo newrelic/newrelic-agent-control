@@ -33,10 +33,7 @@ impl FileRenamer {
 #[cfg(test)]
 pub mod test {
     use super::*;
-    use crate::fs;
-    use fs::file_reader::FSFileReader;
     use mockall::predicate;
-    use std::io::{Error, ErrorKind};
     use std::path::PathBuf;
 
     impl MockFileRenamer {

@@ -150,7 +150,7 @@ mod test {
     use std::fs::Permissions;
     use std::io::{self, ErrorKind};
     use std::os::unix::fs::PermissionsExt;
-    use std::path::{Path, PathBuf};
+    use std::path::PathBuf;
 
     #[test]
     fn basic_get_uild_path() {
@@ -178,6 +178,7 @@ mod test {
             identifiers: Identifiers {
                 hostname: "test-hostname".to_string(),
                 machine_id: "test-machine-id".to_string(),
+                cloud_instance_id: "test-instance-id".to_string(),
             },
         };
 
@@ -187,7 +188,7 @@ mod test {
         dir_manager.should_create(ulid_path.parent().unwrap(), Permissions::from_mode(0o700));
         file_writer.should_write(
             &ulid_path,
-            String::from("ulid: test-ULID\nidentifiers:\n  hostname: test-hostname\n  machine_id: test-machine-id\n"),
+            String::from("ulid: test-ULID\nidentifiers:\n  hostname: test-hostname\n  machine_id: test-machine-id\n  cloud_instance_id: test-instance-id\n"),
             Permissions::from_mode(0o600),
         );
 
@@ -207,6 +208,7 @@ mod test {
             identifiers: Identifiers {
                 hostname: "test-hostname".to_string(),
                 machine_id: "test-machine-id".to_string(),
+                cloud_instance_id: "test-instance-id".to_string(),
             },
         };
 
@@ -215,7 +217,7 @@ mod test {
         // Expectations
         file_writer.should_not_write(
             &ulid_path,
-            String::from("ulid: test-ULID\nidentifiers:\n  hostname: test-hostname\n  machine_id: test-machine-id\n"),
+            String::from("ulid: test-ULID\nidentifiers:\n  hostname: test-hostname\n  machine_id: test-machine-id\n  cloud_instance_id: test-instance-id\n"),
             Permissions::from_mode(0o600),
         );
         dir_manager.should_create(ulid_path.parent().unwrap(), Permissions::from_mode(0o700));
@@ -236,6 +238,7 @@ mod test {
             identifiers: Identifiers {
                 hostname: "test-hostname".to_string(),
                 machine_id: "test-machine-id".to_string(),
+                cloud_instance_id: "test-instance-id".to_string(),
             },
         };
         let expected = Some(ds.clone());
@@ -246,7 +249,7 @@ mod test {
             .expect_read()
             .with(predicate::function(move |p| p == ulid_path.as_path()))
             .once()
-            .return_once(|_| Ok(String::from("ulid: test-ULID\nidentifiers:\n  hostname: test-hostname\n  machine_id: test-machine-id\n")));
+            .return_once(|_| Ok(String::from("ulid: test-ULID\nidentifiers:\n  hostname: test-hostname\n  machine_id: test-machine-id\n  cloud_instance_id: test-instance-id\n")));
 
         let storer = Storer::new(file_writer, file_reader, dir_manager);
         let actual = storer.get(&agent_id);

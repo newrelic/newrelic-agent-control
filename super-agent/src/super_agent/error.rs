@@ -1,4 +1,5 @@
 use opamp_client::error::{ClientError, NotStartedClientError, StartedClientError};
+use resource_detection::DetectError;
 use std::fmt::Debug;
 use std::time::SystemTimeError;
 
@@ -97,4 +98,7 @@ pub enum AgentError {
 
     #[error("k8s config missing while running on k8s ")]
     K8sConfig(),
+
+    #[error("resource detection error: `{0}`")]
+    ResourceDetetctionError(#[from] DetectError),
 }
