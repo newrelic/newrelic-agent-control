@@ -5,6 +5,7 @@ version = "0.6.2"
 edition = "2021"
 authors = ["The New Relic Core Agent & Open Standards (CAOS) Team"]
 publish = false
+default-run = "newrelic-super-agent"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
