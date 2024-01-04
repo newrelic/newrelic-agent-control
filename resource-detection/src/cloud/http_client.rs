@@ -12,6 +12,8 @@ pub enum HttpClientError {
 /// The `HttpClient` trait defines the HTTP get interface to be implemented
 /// by HTTP clients.
 pub trait HttpClient {
+    /// Returns a `http::Response<Vec<u8>>` structure as the HTPP response or
+    /// HttpClientError if an error was found.
     fn get(&self) -> Result<http::Response<Vec<u8>>, HttpClientError>;
 }
 
@@ -22,6 +24,7 @@ pub struct HttpClientUreq {
 }
 
 impl HttpClientUreq {
+    /// Returns a new instance of HttpClientUreq
     pub fn new(url: String, timeout: Duration) -> Self {
         Self {
             client: ureq::AgentBuilder::new().timeout(timeout).build(),
@@ -57,6 +60,10 @@ pub(crate) mod test {
     impl MockHttpClientMock {
         pub fn should_get(&mut self, response: Response<Vec<u8>>) {
             self.expect_get().once().return_once(move || Ok(response));
+        }
+
+        pub fn should_not_get(&mut self, error: HttpClientError) {
+            self.expect_get().once().return_once(move || Err(error));
         }
     }
 }

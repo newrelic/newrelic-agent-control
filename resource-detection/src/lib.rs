@@ -19,12 +19,14 @@ pub mod system;
 
 pub mod common;
 
+use crate::cloud::azure::detector::AzureDetectorError;
 pub use common::{Key, Value};
 
 /// The `Resource` struct encapsulates a detected resource as per some detection logic.
 ///
 /// # Fields:
 /// - `attributes`: A HashMap of Key/Values
+#[derive(Debug)]
 pub struct Resource {
     attributes: HashMap<Key, Value>,
 }
@@ -59,6 +61,9 @@ pub enum DetectError {
     /// Error for the AWS cloud implementation
     #[error("error detecting aws resources `{0}`")]
     AWSError(#[from] AWSDetectorError),
+    /// Error for the Azure cloud implementation
+    #[error("error detecting azure resources `{0}`")]
+    AzureError(#[from] AzureDetectorError),
 }
 
 /// The `Detect` trait defines the detection interface to be implemented

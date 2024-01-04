@@ -1,11 +1,11 @@
 //! Common structures for the crate.
 
 /// Key represents the attribute name.
-#[derive(Eq, Hash, PartialEq)]
+#[derive(Eq, Hash, PartialEq, Debug)]
 pub struct Key(String);
 
 /// Value represents the attribute value.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Value(String);
 
 impl From<String> for Key {
