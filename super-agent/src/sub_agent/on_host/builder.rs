@@ -4,13 +4,16 @@ use std::collections::HashMap;
 use nix::unistd::gethostname;
 
 use crate::config::super_agent_configs::SubAgentConfig;
-use crate::event::event::Event;
+use crate::event::channel::EventPublisher;
+use crate::event::OpAMPEvent;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_opamp_and_start_client;
 use crate::opamp::remote_config_hash::HashRepository;
 use crate::opamp::remote_config_report::{
     report_remote_config_status_applied, report_remote_config_status_error,
 };
+use crate::sub_agent::on_host::sub_agent::NotStarted;
+use crate::sub_agent::on_host::supervisor::command_supervisor;
 use crate::sub_agent::SubAgentCallbacks;
 use crate::super_agent::effective_agents_assembler::{
     EffectiveAgentsAssembler, EffectiveAgentsAssemblerError,
@@ -30,10 +33,9 @@ use log::error;
 use EffectiveAgentsAssemblerError::RemoteConfigLoadError;
 
 use super::{
-    sub_agent::NotStartedSubAgentOnHost,
+    sub_agent::SubAgentOnHost,
     supervisor::{
-        command_supervisor::NotStartedSupervisorOnHost,
-        command_supervisor_config::SupervisorConfigOnHost,
+        command_supervisor::SupervisorOnHost, command_supervisor_config::SupervisorConfigOnHost,
     },
 };
 
@@ -79,16 +81,17 @@ where
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
 {
-    type NotStartedSubAgent = NotStartedSubAgentOnHost<O::Client>;
+    type NotStartedSubAgent = SubAgentOnHost<O::Client, NotStarted, command_supervisor::NotStarted>;
+
     fn build(
         &self,
         agent_id: AgentID,
         sub_agent_config: &SubAgentConfig,
         tx: std::sync::mpsc::Sender<AgentLog>,
-        ctx: Context<Option<Event>>,
+        opamp_publisher: EventPublisher<OpAMPEvent>,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
         let maybe_opamp_client = build_opamp_and_start_client(
-            ctx,
+            opamp_publisher,
             self.opamp_builder,
             self.instance_id_getter,
             agent_id.clone(),
@@ -114,11 +117,11 @@ where
                     report_remote_config_status_error(opamp_client, &hash, error.clone())?;
                     // report the failed status for remote config and let the opamp client
                     // running with no supervisors so the configuration can be fixed
-                    return Ok(NotStartedSubAgentOnHost::new(
+                    return Ok(SubAgentOnHost::new(
                         agent_id,
                         Vec::default(),
                         maybe_opamp_client,
-                    )?);
+                    ));
                 } else if hash.is_applying() {
                     report_remote_config_status_applied(opamp_client, &hash)?;
                     hash.apply();
@@ -135,18 +138,18 @@ where
             }
         }
 
-        Ok(NotStartedSubAgentOnHost::new(
+        Ok(SubAgentOnHost::new(
             agent_id,
             build_supervisors(effective_agent_res?, tx)?,
             maybe_opamp_client,
-        )?)
+        ))
     }
 }
 
 fn build_supervisors(
     final_agent: FinalAgent,
     tx: std::sync::mpsc::Sender<AgentLog>,
-) -> Result<Vec<NotStartedSupervisorOnHost>, SubAgentError> {
+) -> Result<Vec<SupervisorOnHost<command_supervisor::NotStarted>>, SubAgentError> {
     let on_host = final_agent
         .runtime_config
         .deployment
@@ -168,7 +171,7 @@ fn build_supervisors(
             restart_policy,
         );
 
-        let not_started_supervisor = NotStartedSupervisorOnHost::new(config);
+        let not_started_supervisor = SupervisorOnHost::new(config);
         supervisors.push(not_started_supervisor);
     }
     Ok(supervisors)
@@ -187,6 +190,7 @@ mod test {
         settings::{AgentDescription, DescriptionValueType, StartSettings},
     };
 
+    use crate::event::channel::pub_sub;
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
     use crate::opamp::remote_config_hash::test::MockHashRepositoryMock;
@@ -204,7 +208,7 @@ mod test {
 
     #[test]
     fn build_start_stop() {
-        let ctx = Context::new();
+        let (opamp_publisher, _opamp_consumer) = pub_sub();
         let mut opamp_builder = MockOpAMPClientBuilderMock::new();
         let hostname = gethostname().unwrap_or_default().into_string().unwrap();
         let start_settings_infra = infra_agent_default_start_settings(&hostname);
@@ -215,17 +219,16 @@ mod test {
             agent_type: final_agent.agent_type().clone(),
         };
 
+        let mut started_client = MockStartedOpAMPClientMock::new();
+        started_client.should_set_health(1);
+        started_client.should_set_any_remote_config_status(1);
+        started_client.should_stop(1);
+
         // Infra Agent OpAMP no final stop nor health, just after stopping on reload
         opamp_builder.should_build_and_start(
             sub_agent_id.clone(),
             start_settings_infra,
-            |_, _, _| {
-                let mut started_client = MockStartedOpAMPClientMock::new();
-                started_client.should_set_health(1);
-                started_client.should_set_any_remote_config_status(1);
-                started_client.should_stop(1);
-                Ok(started_client)
-            },
+            started_client,
         );
 
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
@@ -258,7 +261,7 @@ mod test {
         let (tx, _rx) = channel();
 
         assert!(on_host_builder
-            .build(sub_agent_id, &sub_agent_config, tx, ctx)
+            .build(sub_agent_id, &sub_agent_config, tx, opamp_publisher)
             .unwrap()
             .run()
             .unwrap()
@@ -268,7 +271,7 @@ mod test {
 
     #[test]
     fn test_builder_should_report_failed_config() {
-        let ctx = Context::new();
+        let (opamp_publisher, _opamp_consumer) = pub_sub();
         let (tx, _rx) = channel();
         // Mocks
         let mut opamp_builder = MockOpAMPClientBuilderMock::new();
@@ -289,19 +292,18 @@ mod test {
         // Infra Agent OpAMP no final stop nor health, just after stopping on reload
         instance_id_getter.should_get(&sub_agent_id, "infra_agent_instance_id".to_string());
 
+        let mut started_client = MockStartedOpAMPClientMock::new();
+        // failed conf should be reported
+        started_client.should_set_remote_config_status(RemoteConfigStatus {
+            error_message: "this is an error message".to_string(),
+            status: Failed as i32,
+            last_remote_config_hash: "a-hash".as_bytes().to_vec(),
+        });
+
         opamp_builder.should_build_and_start(
             sub_agent_id.clone(),
             start_settings_infra,
-            |_, _, _| {
-                let mut started_client = MockStartedOpAMPClientMock::new();
-                // failed conf should be reported
-                started_client.should_set_remote_config_status(RemoteConfigStatus {
-                    error_message: "this is an error message".to_string(),
-                    status: Failed as i32,
-                    last_remote_config_hash: "a-hash".as_bytes().to_vec(),
-                });
-                Ok(started_client)
-            },
+            started_client,
         );
 
         effective_agent_assembler.should_assemble_agent(
@@ -324,7 +326,7 @@ mod test {
         );
 
         assert!(on_host_builder
-            .build(sub_agent_id, &sub_agent_config, tx, ctx)
+            .build(sub_agent_id, &sub_agent_config, tx, opamp_publisher)
             .is_ok());
     }
 

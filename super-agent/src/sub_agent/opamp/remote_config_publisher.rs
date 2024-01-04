@@ -1,15 +1,15 @@
-use crate::context::Context;
-use crate::event::event::{Event, OpAMPEvent};
+use crate::event::channel::EventPublisher;
+use crate::event::OpAMPEvent;
 use crate::opamp::remote_config::{RemoteConfig, RemoteConfigError};
 use crate::opamp::remote_config_publisher::{RemoteConfigPublisher, RemoteConfigPublisherError};
 
 pub struct SubAgentRemoteConfigPublisher {
-    ctx: Context<Option<Event>>,
+    publisher: EventPublisher<OpAMPEvent>,
 }
 
 impl SubAgentRemoteConfigPublisher {
-    pub fn new(ctx: Context<Option<Event>>) -> Self {
-        SubAgentRemoteConfigPublisher { ctx }
+    pub fn new(publisher: EventPublisher<OpAMPEvent>) -> Self {
+        SubAgentRemoteConfigPublisher { publisher }
     }
 }
 
@@ -23,9 +23,8 @@ impl RemoteConfigPublisher for SubAgentRemoteConfigPublisher {
     }
 
     fn publish_event(&self, opamp_event: OpAMPEvent) -> Result<(), RemoteConfigPublisherError> {
-        return self
-            .ctx
-            .cancel_all(Some(opamp_event.into()))
-            .map_err(|_| RemoteConfigPublisherError::PublishEventError);
+        self.publisher
+            .publish(opamp_event)
+            .map_err(|_| RemoteConfigPublisherError::PublishEventError)
     }
 }

@@ -1,7 +1,7 @@
 use super::sub_agent::NotStartedSubAgentK8s;
 use crate::config::super_agent_configs::{K8sConfig, SubAgentConfig};
-use crate::context::Context;
-use crate::event::event::Event;
+use crate::event::channel::EventPublisher;
+use crate::event::OpAMPEvent;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_opamp_and_start_client;
 use crate::{
@@ -78,7 +78,7 @@ where
         agent_id: AgentID,
         sub_agent_config: &SubAgentConfig,
         _tx: std::sync::mpsc::Sender<AgentLog>,
-        ctx: Context<Option<Event>>,
+        ctx: EventPublisher<OpAMPEvent>,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
         let maybe_opamp_client = build_opamp_and_start_client(
             ctx,
@@ -145,6 +145,7 @@ mod test {
     use crate::config::agent_type::agent_types::FinalAgent;
     use crate::config::agent_type::runtime_config::K8s;
     use crate::config::super_agent_configs::K8sConfig;
+    use crate::event::channel::pub_sub;
     use crate::opamp::callbacks::tests::MockCallbacksMock;
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
@@ -173,15 +174,15 @@ mod test {
             &sub_agent_config.agent_type,
             HashMap::new(),
         );
+
+        let mut started_client = MockStartedOpAMPClientMock::new();
+        started_client.should_set_health(1);
+        started_client.should_stop(1);
+
         opamp_builder.should_build_and_start(
             AgentID::new("k8s-test").unwrap(),
             start_settings,
-            |_, _, _| {
-                let mut started_client = MockStartedOpAMPClientMock::new();
-                started_client.should_set_health(1);
-                started_client.should_stop(1);
-                Ok(started_client)
-            },
+            started_client,
         );
         // instance id getter mock
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
@@ -228,9 +229,14 @@ mod test {
         );
 
         let (tx, _) = channel();
-        let ctx = Context::new();
+        let (super_agent_publisher, _super_agent_consumer) = pub_sub();
         let started_agent = builder
-            .build(sub_agent_id, &sub_agent_config, tx, ctx)
+            .build(
+                AgentID::new("k8s-test").unwrap(),
+                &sub_agent_config,
+                tx,
+                super_agent_publisher,
+            )
             .unwrap() // Not started agent
             .run()
             .unwrap();
@@ -254,10 +260,7 @@ mod test {
         opamp_builder.should_build_and_start(
             AgentID::new("k8s-test").unwrap(),
             start_settings,
-            |_, _, _| {
-                let started_client = MockStartedOpAMPClientMock::new();
-                Ok(started_client)
-            },
+            MockStartedOpAMPClientMock::new(),
         );
         // instance id getter mock
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
@@ -289,8 +292,8 @@ mod test {
         );
 
         let (tx, _) = channel();
-        let ctx = Context::new();
-        let build_result = builder.build(sub_agent_id, &sub_agent_config, tx, ctx);
+        let (opamp_publisher, _opamp_consumer) = pub_sub();
+        let build_result = builder.build(sub_agent_id, &sub_agent_config, tx, opamp_publisher);
 
         let error = build_result.err().expect("Expected an error");
 

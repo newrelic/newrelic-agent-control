@@ -1,5 +1,6 @@
 use newrelic_super_agent::config::store::{SuperAgentConfigLoader, SuperAgentConfigStoreFile};
-use newrelic_super_agent::event::event::{Event, SuperAgentEvent};
+use newrelic_super_agent::event::channel::{pub_sub, EventConsumer, EventPublisher};
+use newrelic_super_agent::event::SuperAgentEvent;
 #[cfg(feature = "k8s")]
 use newrelic_super_agent::opamp::instance_id;
 use newrelic_super_agent::opamp::instance_id::getter::ULIDInstanceIDGetter;
@@ -12,7 +13,7 @@ use newrelic_super_agent::super_agent::error::AgentError;
 use newrelic_super_agent::super_agent::opamp::client_builder::SuperAgentOpAMPHttpBuilder;
 use newrelic_super_agent::super_agent::super_agent::{super_agent_fqn, SuperAgent};
 use newrelic_super_agent::utils::hostname::HostnameGetter;
-use newrelic_super_agent::{cli::Cli, context::Context, logging::Logging};
+use newrelic_super_agent::{cli::Cli, logging::Logging};
 use opamp_client::operation::settings::DescriptionValueType;
 use std::collections::HashMap;
 use std::error::Error;
@@ -46,10 +47,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 
     info!("Creating the global context");
-    let ctx: Context<Option<Event>> = Context::new();
+    let (super_agent_publisher, super_agent_consumer) = pub_sub();
 
     info!("Creating the signal handler");
-    create_shutdown_signal_handler(ctx.clone())?;
+    create_shutdown_signal_handler(super_agent_publisher)?;
 
     let mut super_agent_config_storer = SuperAgentConfigStoreFile::new(&cli.get_config_path());
 
@@ -68,7 +69,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     #[cfg(any(feature = "onhost", feature = "k8s"))]
     return Ok(run_super_agent(
         super_agent_config_storer,
-        ctx,
+        super_agent_consumer,
         opamp_client_builder,
     )?);
 
@@ -79,7 +80,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 #[cfg(feature = "onhost")]
 fn run_super_agent(
     config_storer: SuperAgentConfigStoreFile,
-    ctx: Context<Option<Event>>,
+    super_agent_consumer: EventConsumer<SuperAgentEvent>,
     opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
 ) -> Result<(), AgentError> {
     use newrelic_super_agent::{
@@ -112,8 +113,11 @@ fn run_super_agent(
 
     info!("Starting the super agent");
     let values_repository = ValuesRepositoryFile::default();
+
+    let (opamp_publisher, opamp_consumer) = pub_sub();
+
     let maybe_client = build_opamp_and_start_client(
-        ctx.clone(),
+        opamp_publisher.clone(),
         opamp_client_builder.as_ref(),
         &instance_id_getter,
         AgentID::new_super_agent_id(),
@@ -129,13 +133,13 @@ fn run_super_agent(
         &sub_agent_hash_repository,
         values_repository,
     )
-    .run(ctx)
+    .run(super_agent_consumer, (opamp_publisher, opamp_consumer))
 }
 
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
 fn run_super_agent(
     config_storer: SuperAgentConfigStoreFile,
-    ctx: Context<Option<Event>>,
+    super_agent_consumer: EventConsumer<SuperAgentEvent>,
     opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
 ) -> Result<(), AgentError> {
     use newrelic_super_agent::k8s::garbage_collector::NotStartedK8sGarbageCollector;
@@ -177,8 +181,10 @@ fn run_super_agent(
 
     info!("Starting the super agent");
     let values_repository = ValuesRepositoryFile::default();
+    let (opamp_publisher, opamp_consumer) = pub_sub();
+
     let maybe_client = build_opamp_and_start_client(
-        ctx.clone(),
+        opamp_publisher.clone(),
         opamp_client_builder.as_ref(),
         &instance_id_getter,
         AgentID::new_super_agent_id(),
@@ -199,13 +205,16 @@ fn run_super_agent(
         &sub_agent_hash_repository,
         values_repository,
     )
-    .run(ctx)
+    .run(super_agent_consumer, (opamp_publisher, opamp_consumer))
 }
 
-fn create_shutdown_signal_handler(ctx: Context<Option<Event>>) -> Result<(), ctrlc::Error> {
+fn create_shutdown_signal_handler(
+    publisher: EventPublisher<SuperAgentEvent>,
+) -> Result<(), ctrlc::Error> {
     ctrlc::set_handler(move || {
-        ctx.cancel_all(Some(SuperAgentEvent::StopRequested.into()))
-            .unwrap()
+        let _ = publisher
+            .publish(SuperAgentEvent::StopRequested)
+            .map_err(|_| error!("Could not send super agent stop request"));
     })
     .map_err(|e| {
         error!("Could not set signal handler: {}", e);

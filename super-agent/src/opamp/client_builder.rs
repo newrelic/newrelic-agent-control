@@ -9,8 +9,8 @@ use tracing::error;
 
 use crate::config::super_agent_configs::{AgentID, OpAMPClientConfig};
 
-use crate::context::Context;
-use crate::event::event::Event;
+use crate::event::channel::EventPublisher;
+use crate::event::OpAMPEvent;
 use crate::opamp::instance_id;
 
 #[derive(Error, Debug)]
@@ -34,7 +34,7 @@ pub trait OpAMPClientBuilder<CB: Callbacks> {
     // type StartedClient: StartedClient;
     fn build_and_start(
         &self,
-        ctx: Context<Option<Event>>,
+        opamp_publisher: EventPublisher<OpAMPEvent>,
         agent_id: AgentID,
         start_settings: StartSettings,
     ) -> Result<Self::Client, OpAMPClientBuilderError>;
@@ -159,7 +159,7 @@ pub(crate) mod test {
 
         impl<C> OpAMPClientBuilder<C> for OpAMPClientBuilderMock<C> where C: Callbacks + Send + Sync + 'static{
             type Client = MockStartedOpAMPClientMock<C>;
-            fn build_and_start(&self, ctx: Context<Option<Event>>, agent_id: AgentID, start_settings: StartSettings) -> Result<<Self as OpAMPClientBuilder<C>>::Client, OpAMPClientBuilderError>;
+            fn build_and_start(&self, opamp_publisher: EventPublisher<OpAMPEvent>, agent_id: AgentID, start_settings: StartSettings) -> Result<<Self as OpAMPClientBuilder<C>>::Client, OpAMPClientBuilderError>;
         }
     }
 
@@ -167,21 +167,12 @@ pub(crate) mod test {
     where
         C: Callbacks + Send + Sync + 'static,
     {
-        pub fn should_build_and_start<F>(
+        pub fn should_build_and_start(
             &mut self,
             agent_id: AgentID,
             start_settings: StartSettings,
-            returning: F,
-        ) where
-            F: FnMut(
-                    Context<Option<Event>>,
-                    AgentID,
-                    StartSettings,
-                )
-                    -> Result<MockStartedOpAMPClientMock<C>, OpAMPClientBuilderError>
-                + Send
-                + 'static,
-        {
+            client: MockStartedOpAMPClientMock<C>,
+        ) {
             self.expect_build_and_start()
                 .with(
                     predicate::always(),
@@ -189,7 +180,7 @@ pub(crate) mod test {
                     predicate::eq(start_settings),
                 )
                 .once()
-                .returning(returning);
+                .return_once(move |_, _, _| Ok(client));
         }
     }
 }

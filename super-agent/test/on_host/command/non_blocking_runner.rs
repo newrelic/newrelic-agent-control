@@ -3,11 +3,11 @@ use std::process::Command;
 use newrelic_super_agent::sub_agent::on_host::command::command::{
     CommandTerminator, NotStartedCommand, StartedCommand,
 };
-use newrelic_super_agent::sub_agent::on_host::command::command_os::NotStartedCommandOS;
+use newrelic_super_agent::sub_agent::on_host::command::command_os::{CommandOS, NotStarted};
 use newrelic_super_agent::sub_agent::on_host::command::shutdown::ProcessTerminator;
 
 // non blocking supervisor
-struct NonSupervisor<C = NotStartedCommandOS>
+struct NonSupervisor<C = CommandOS<NotStarted>>
 where
     C: NotStartedCommand,
 {
@@ -23,7 +23,7 @@ fn non_blocking_runner() {
     sleep_cmd.arg("5");
 
     let agent = NonSupervisor {
-        cmd: NotStartedCommandOS::new("sleep", ["5"], HashMap::from([("TEST", "TEST")])),
+        cmd: CommandOS::<NotStarted>::new("sleep", ["5"], HashMap::from([("TEST", "TEST")])),
     };
 
     let started_cmd = agent.cmd.start().unwrap();

@@ -331,6 +331,54 @@ Distributed under the following license(s):
 
 
 
+## crossbeam (https://crates.io/crates/crossbeam)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+
+## crossbeam-channel (https://crates.io/crates/crossbeam-channel)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+
+## crossbeam-deque (https://crates.io/crates/crossbeam-deque)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+
+## crossbeam-epoch (https://crates.io/crates/crossbeam-epoch)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+
+## crossbeam-queue (https://crates.io/crates/crossbeam-queue)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+
+## crossbeam-utils (https://crates.io/crates/crossbeam-utils)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+
 ## ctrlc (https://crates.io/crates/ctrlc)
 
 Distributed under the following license(s):

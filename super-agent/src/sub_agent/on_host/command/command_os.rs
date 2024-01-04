@@ -11,14 +11,31 @@ use super::command::{CommandError, NotStartedCommand, StartedCommand, SyncComman
 use tracing::error;
 
 ////////////////////////////////////////////////////////////////////////////////////
-// Not Started Command OS
+// States for Started/Not Started/Sync Command
 ////////////////////////////////////////////////////////////////////////////////////
-pub struct NotStartedCommandOS {
+pub struct NotStarted {
     cmd: Command,
-    metadata: Metadata,
+}
+pub struct Started {
+    process: Child,
 }
 
-impl NotStartedCommandOS {
+pub struct Sync {
+    cmd: Command,
+}
+
+////////////////////////////////////////////////////////////////////////////////////
+// Command OS
+////////////////////////////////////////////////////////////////////////////////////
+pub struct CommandOS<S> {
+    metadata: Metadata,
+    state: S,
+}
+
+////////////////////////////////////////////////////////////////////////////////////
+// Not Started Command OS
+////////////////////////////////////////////////////////////////////////////////////
+impl CommandOS<NotStarted> {
     pub fn new<I, E, K, S>(binary_path: S, args: I, envs: E) -> Self
     where
         I: IntoIterator<Item = S>,
@@ -33,7 +50,7 @@ impl NotStartedCommandOS {
             .stderr(Stdio::piped());
 
         Self {
-            cmd,
+            state: NotStarted { cmd },
             metadata: Metadata::default(),
         }
     }
@@ -49,11 +66,13 @@ impl NotStartedCommandOS {
     }
 }
 
-impl NotStartedCommand for NotStartedCommandOS {
-    type StartedCommand = StartedCommandOS;
-    fn start(mut self) -> Result<StartedCommandOS, CommandError> {
-        Ok(StartedCommandOS {
-            process: self.cmd.spawn()?,
+impl NotStartedCommand for CommandOS<NotStarted> {
+    type StartedCommand = CommandOS<Started>;
+    fn start(mut self) -> Result<CommandOS<Started>, CommandError> {
+        Ok(CommandOS {
+            state: Started {
+                process: self.state.cmd.spawn()?,
+            },
             metadata: self.metadata,
         })
     }
@@ -62,30 +81,27 @@ impl NotStartedCommand for NotStartedCommandOS {
 ////////////////////////////////////////////////////////////////////////////////////
 // Started Command OS
 ////////////////////////////////////////////////////////////////////////////////////
-pub struct StartedCommandOS {
-    process: Child,
-    metadata: Metadata,
-}
-
-impl StartedCommand for StartedCommandOS {
-    type StartedCommand = StartedCommandOS;
+impl StartedCommand for CommandOS<Started> {
+    type StartedCommand = CommandOS<Started>;
 
     fn wait(mut self) -> Result<ExitStatus, CommandError> {
-        self.process.wait().map_err(CommandError::from)
+        self.state.process.wait().map_err(CommandError::from)
     }
 
     fn get_pid(&self) -> u32 {
-        self.process.id()
+        self.state.process.id()
     }
 
     fn stream(mut self, snd: Sender<AgentLog>) -> Result<Self, CommandError> {
         let stdout = self
+            .state
             .process
             .stdout
             .take()
             .ok_or(CommandError::StreamPipeError("stdout".to_string()))?;
 
         let stderr = self
+            .state
             .process
             .stderr
             .take()
@@ -126,11 +142,13 @@ impl StartedCommand for StartedCommandOS {
 ////////////////////////////////////////////////////////////////////////////////////
 // Sync/Blocking Command OS
 ////////////////////////////////////////////////////////////////////////////////////
-pub struct SyncCommandOS {
-    cmd: Command,
+impl SyncCommandRunner for CommandOS<Sync> {
+    fn run(mut self) -> Result<ExitStatus, CommandError> {
+        Ok(self.state.cmd.spawn()?.wait()?)
+    }
 }
 
-impl SyncCommandOS {
+impl CommandOS<Sync> {
     pub fn new<I, E, K, S>(binary_path: S, args: I, envs: E) -> Self
     where
         I: IntoIterator<Item = S>,
@@ -144,13 +162,10 @@ impl SyncCommandOS {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
-        Self { cmd }
-    }
-}
-
-impl SyncCommandRunner for SyncCommandOS {
-    fn run(mut self) -> Result<ExitStatus, CommandError> {
-        Ok(self.cmd.spawn()?.wait()?)
+        Self {
+            metadata: Metadata::default(),
+            state: Sync { cmd },
+        }
     }
 }
 
