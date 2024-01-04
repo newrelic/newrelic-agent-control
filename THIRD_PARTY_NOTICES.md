@@ -1011,13 +1011,6 @@ Distributed under the following license(s):
 
 
 
-## memoffset (https://crates.io/crates/memoffset)
-
-Distributed under the following license(s):
-* MIT
-
-
-
 ## mime (https://crates.io/crates/mime)
 
 Distributed under the following license(s):
