@@ -4,7 +4,6 @@
 settings = {
   'namespace':'super-agent',
   'cluster_context': 'minikube',
-  'registry':'ctlptl-registry:5005',
  
   # Use local charts       
   # 'chart_repo':'../helm-charts/charts/',
@@ -13,7 +12,6 @@ settings = {
 settings.update(read_json('local/tilt_option.json', default={}))
 
 namespace=settings.get('namespace')
-registry=settings.get('registry')
 
 # Use explicitly allowed kubeconfigs as a safety measure.
 allow_k8s_contexts(settings.get('cluster_context'))
@@ -29,11 +27,9 @@ local_resource(
     ]
 )
 
-default_registry(registry)
-
 # Build the final Docker image with the binary.
 docker_build(
-    registry+'/super-agent',
+    'tilt.local/super-agent-dev',
     context='.',
     dockerfile='./Dockerfile',
 )
@@ -76,12 +72,14 @@ helm_resource(
     '--create-namespace',
     '--version=>=0.0.0-beta',
     
-    '--set=image.imagePullPolicy=Alway',
+    '--set=image.registry=tilt.local',
+    '--set=image.repository=super-agent-dev',
+    '--set=image.imagePullPolicy=Always',
 
     '--values=local/super-agent-deployment-values.yml',
     ],
   # Required to force build the image 
-  image_deps=[registry+'/super-agent'],
+  image_deps=['tilt.local/super-agent-dev'],
   image_keys=[('image.registry', 'image.repository', 'image.tag')],
 )
 
