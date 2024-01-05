@@ -37,7 +37,7 @@ jobs:
           make build-super-agent BUILD_FEATURE=k8s ARCH=${{ matrix.arch }}
       
       - name: Upload artifact for Docker build step
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           retention-days: 1
           name: newrelic-super-agent-${{ matrix.arch }}
