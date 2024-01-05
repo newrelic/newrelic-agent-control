@@ -4,13 +4,14 @@
 //!
 //! See [`Agent::template_with`] for a flowchart of the dataflow that ends in the final, enriched structure.
 
-use std::{collections::HashMap, str::FromStr};
-
+use crate::config::agent_type::variable_spec::spec::Spec;
 use crate::config::super_agent_configs::AgentTypeFQN;
 use serde::de::Error;
 use serde::{Deserialize, Deserializer};
+use std::{collections::HashMap, str::FromStr};
 
 use super::restart_policy::BackoffDuration;
+use super::variable_spec::spec::EndSpec;
 use super::{
     agent_metadata::AgentMetadata,
     error::AgentTypeError,
@@ -218,18 +219,15 @@ impl FinalAgent {
         let mut spec = self.variables;
 
         // modifies variables final value with the one defined in the SupervisorConfig
-        spec.iter_mut().for_each(|(k, v)| {
-            let defined_value = config.get_from_normalized(k);
-
-            if v.file_path.is_some() && agent_configs_path.is_some() {
-                v.file_path = v.file_path.as_ref().and_then(|file_path| {
-                    agent_configs_path.map(|agent_path| format!("{agent_path}/{file_path}"))
-                });
+        spec.iter_mut().try_for_each(|(k, v)| {
+            // let defined_value = config.get_from_normalized(k);
+            // v.kind.set_final_value(defined_value)?;
+            match config.get_from_normalized(k) {
+                Some(value) => v.kind.set_final_value(value),
+                None => v.kind.set_default_as_final(),
             }
-
-            // TODO: understand why we need to redo this or in EndSpec::get_template_value()
-            v.final_value = defined_value.or(v.default.clone());
-        });
+            Ok(())
+        })?;
 
         let runtime_conf = self.runtime_config.template_with(&spec)?;
 
@@ -244,98 +242,8 @@ impl FinalAgent {
 }
 
 /// Flexible tree-like structure that contains variables definitions, that can later be changed by the end user via [`AgentValues`].
-type AgentVariables = HashMap<String, Spec>;
-
-pub trait AgentTypeEndSpec {
-    fn variable_type(&self) -> VariableType;
-    fn file_path(&self) -> Option<String>;
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct EndSpec {
-    pub(crate) description: String,
-    pub type_: VariableType,
-    pub required: bool,
-    pub default: Option<TrivialValue>,
-    pub file_path: Option<String>,
-    /// The actual value that will be used by the agent. This will be either the user-provided value or, if not provided and not marked as [`required`], the default value.
-    pub final_value: Option<TrivialValue>,
-}
-
-impl EndSpec {
-    /// get_template_value returns the replacement value that will be used to substitute
-    /// the placeholder from an agent_type when templating a config
-    pub fn get_template_value(&self) -> Option<TrivialValue> {
-        match self.type_ {
-            // For MapStringFile and file the file_path includes the full path with agent_configs_path
-            VariableType::MapStringFile | VariableType::File => {
-                if let Some(file_path) = self.file_path.as_ref() {
-                    return Some(TrivialValue::String(file_path.to_string()));
-                }
-                self.default.clone()
-            }
-            _ => self.final_value.as_ref().or(self.default.as_ref()).cloned(),
-        }
-    }
-}
-
-impl<'de> Deserialize<'de> for EndSpec {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        // temporal type for intermediate serialization
-        #[derive(Debug, Deserialize)]
-        struct IntermediateEndSpec {
-            description: String,
-            #[serde(rename = "type")]
-            type_: VariableType,
-            required: bool,
-            default: Option<TrivialValue>,
-            file_path: Option<String>,
-        }
-
-        impl AgentTypeEndSpec for IntermediateEndSpec {
-            fn variable_type(&self) -> VariableType {
-                self.type_
-            }
-
-            fn file_path(&self) -> Option<String> {
-                self.file_path.as_ref().cloned()
-            }
-        }
-
-        let intermediate_spec = IntermediateEndSpec::deserialize(deserializer)?;
-        if intermediate_spec.default.is_none() && !intermediate_spec.required {
-            return Err(D::Error::custom(AgentTypeError::MissingDefault));
-        }
-        let def_val = intermediate_spec
-            .default
-            .clone()
-            .map(|d| d.check_type(&intermediate_spec))
-            .transpose()
-            .map_err(D::Error::custom)?;
-
-        Ok(EndSpec {
-            default: def_val,
-            final_value: None,
-            file_path: intermediate_spec.file_path,
-            description: intermediate_spec.description,
-            type_: intermediate_spec.type_,
-            required: intermediate_spec.required,
-        })
-    }
-}
-
-impl AgentTypeEndSpec for EndSpec {
-    fn variable_type(&self) -> VariableType {
-        self.type_
-    }
-
-    fn file_path(&self) -> Option<String> {
-        self.file_path.as_ref().cloned()
-    }
-}
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+pub struct AgentVariables(HashMap<String, Spec>);
 
 #[derive(Debug, PartialEq, Clone, Copy, Deserialize)]
 pub enum VariableType {
@@ -359,18 +267,89 @@ pub enum VariableType {
     Yaml,
 }
 
+pub trait AgentTypeEndSpec {
+    fn variable_type(&self) -> VariableType;
+    fn file_path(&self) -> Option<String>;
+}
+
+// impl EndSpec {
+//     /// get_template_value returns the replacement value that will be used to substitute
+//     /// the placeholder from an agent_type when templating a config
+//     pub fn get_template_value(&self) -> Option<TrivialValue> {
+//         match self.type_ {
+//             // For MapStringFile and file the file_path includes the full path with agent_configs_path
+//             VariableType::MapStringFile | VariableType::File => {
+//                 if let Some(file_path) = self.file_path.as_ref() {
+//                     return Some(TrivialValue::String(file_path.to_string()));
+//                 }
+//                 self.kind.default.clone()
+//             }
+//             _ => self.final_value.as_ref().or(self.default.as_ref()).cloned(),
+//         }
+//     }
+// }
+
+// impl<'de> Deserialize<'de> for EndSpec {
+//     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+//     where
+//         D: Deserializer<'de>,
+//     {
+//         // temporal type for intermediate serialization
+//         #[derive(Debug, Deserialize)]
+//         struct IntermediateEndSpec {
+//             description: String,
+//             #[serde(rename = "type")]
+//             type_: VariableType,
+//             required: bool,
+//             default: Option<TrivialValue>,
+//             file_path: Option<String>,
+//         }
+
+//         impl AgentTypeEndSpec for IntermediateEndSpec {
+//             fn variable_type(&self) -> VariableType {
+//                 self.type_
+//             }
+
+//             fn file_path(&self) -> Option<String> {
+//                 self.file_path.as_ref().cloned()
+//             }
+//         }
+
+//         let intermediate_spec = IntermediateEndSpec::deserialize(deserializer)?;
+//         if intermediate_spec.default.is_none() && !intermediate_spec.required {
+//             return Err(D::Error::custom(AgentTypeError::MissingDefault));
+//         }
+//         let def_val = intermediate_spec
+//             .default
+//             .clone()
+//             .map(|d| d.check_type(&intermediate_spec))
+//             .transpose()
+//             .map_err(D::Error::custom)?;
+
+//         Ok(EndSpec {
+//             default: def_val,
+//             final_value: None,
+//             file_path: intermediate_spec.file_path,
+//             description: intermediate_spec.description,
+//             type_: intermediate_spec.type_,
+//             required: intermediate_spec.required,
+//         })
+//     }
+// }
+
+// impl AgentTypeEndSpec for EndSpec {
+//     fn variable_type(&self) -> VariableType {
+//         self.type_
+//     }
+
+//     fn file_path(&self) -> Option<String> {
+//         self.file_path.as_ref().cloned()
+//     }
+// }
+
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 struct K8s {
     crd: String,
-}
-
-// Spec can be an arbitrary number of nested mappings but all node terminal leaves are EndSpec,
-// so a recursive datatype is the answer!
-#[derive(Debug, Deserialize, PartialEq)]
-#[serde(untagged)]
-enum Spec {
-    SpecEnd(EndSpec),
-    SpecMapping(HashMap<String, Spec>),
 }
 
 /// The normalized version of the [`AgentVariables`] tree.
@@ -402,10 +381,10 @@ enum Spec {
 pub(crate) type NormalizedVariables = HashMap<String, EndSpec>;
 
 fn normalize_agent_spec(spec: AgentVariables) -> Result<NormalizedVariables, AgentTypeError> {
-    spec.into_iter().try_fold(HashMap::new(), |r, (k, v)| {
+    spec.0.into_iter().try_fold(HashMap::new(), |r, (k, v)| {
         let n_spec = inner_normalize(k, v);
         n_spec.iter().try_for_each(|(k, end_spec)| {
-            if end_spec.default.is_none() && !end_spec.required {
+            if end_spec.kind.is_not_required_without_default() {
                 return Err(AgentTypeError::MissingDefaultWithKey(k.clone()));
             }
             Ok(())
@@ -441,7 +420,7 @@ pub mod tests {
     use super::*;
     use crate::config::agent_type::restart_policy::RestartPolicyConfig;
     use crate::config::agent_type::trivial_value::FilePathWithContent;
-    use crate::config::agent_type::trivial_value::N::PosInt;
+    use crate::config::agent_type::trivial_value::Number::PosInt;
     use serde_yaml::Error;
     use std::collections::HashMap as Map;
 

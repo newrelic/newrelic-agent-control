@@ -171,7 +171,7 @@ fn update_from_normalized(
 #[cfg(test)]
 mod tests {
 
-    use crate::config::agent_type::trivial_value::{FilePathWithContent, N};
+    use crate::config::agent_type::trivial_value::{FilePathWithContent, Number};
 
     use super::*;
 
@@ -219,9 +219,9 @@ verbose: true
                     ),
                     (
                         "float_val".to_string(),
-                        TrivialValue::Number(N::Float(0.14)),
+                        TrivialValue::Number(Number::Float(0.14)),
                     ),
-                    ("logs".to_string(), TrivialValue::Number(N::NegInt(-4))),
+                    ("logs".to_string(), TrivialValue::Number(Number::NegInt(-4))),
                 ])),
             ),
             (
