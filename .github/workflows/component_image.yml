@@ -56,12 +56,12 @@ jobs:
           fetch-depth: 0
 
       # Binaries are added to the expected path in the Dockerfile
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: newrelic-super-agent-amd64
           path: ./bin
 
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: newrelic-super-agent-arm64
           path: ./bin
