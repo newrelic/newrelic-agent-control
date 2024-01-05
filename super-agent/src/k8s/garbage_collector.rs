@@ -11,7 +11,6 @@ use crossbeam::{
     select,
 };
 use std::{sync::Arc, thread, time::Duration};
-use tokio::sync::mpsc;
 use tracing::{debug, info, warn};
 
 #[cfg_attr(test, mockall_double::double)]
@@ -70,7 +69,7 @@ where
         self
     }
 
-    /// Spawns a tokio task in charge of performing the garbage collection periodically. The task will be
+    /// Spawns a thread in charge of performing the garbage collection periodically. The thread will be
     /// gracefully shouted down when the returned `K8sGarbageCollectorStarted` gets dropped.
     pub fn start(self) -> K8sGarbageCollectorStarted {
         let (stop_tx, stop_rx) = unbounded();
