@@ -165,8 +165,8 @@ fn run_super_agent(
     let hash_repository = HashRepositoryFile::default();
     let k8s_config = config_storer.load()?.k8s.ok_or(AgentError::K8sConfig())?;
 
-    let sync_executor = Arc::new(
-        newrelic_super_agent::k8s::executor::SyncK8sExecutor::try_new_with_reflectors(
+    let k8s_client = Arc::new(
+        newrelic_super_agent::k8s::client::SyncK8sClient::try_new_with_reflectors(
             runtime,
             k8s_config.namespace.clone(),
             k8s_config.cr_type_meta.clone(),
@@ -175,7 +175,7 @@ fn run_super_agent(
     );
 
     let instance_id_getter = ULIDInstanceIDGetter::try_with_identifiers(
-        sync_executor.clone(),
+        k8s_client.clone(),
         instance_id::get_identifiers(k8s_config.cluster_name.clone()),
     )?;
 
@@ -186,7 +186,7 @@ fn run_super_agent(
     let sub_agent_builder = newrelic_super_agent::sub_agent::k8s::builder::K8sSubAgentBuilder::new(
         opamp_client_builder.as_ref(),
         &instance_id_getter,
-        sync_executor.clone(),
+        k8s_client.clone(),
         &agents_assembler,
         k8s_config,
     );
@@ -205,8 +205,8 @@ fn run_super_agent(
 
     let config_storer = Arc::new(config_storer);
 
-    let _started_gcc =
-        NotStartedK8sGarbageCollector::new(config_storer.clone(), sync_executor).start();
+    let gcc = NotStartedK8sGarbageCollector::new(config_storer.clone(), k8s_client);
+    let _started_gcc = runtime.block_on(async move { gcc.start() });
 
     SuperAgent::new(
         maybe_client,

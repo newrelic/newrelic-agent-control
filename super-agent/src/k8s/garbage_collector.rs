@@ -1,4 +1,5 @@
 use super::{
+    client::SyncK8sClient,
     error::K8sError,
     labels::{Labels, AGENT_ID_LABEL_KEY},
 };
@@ -14,7 +15,7 @@ use std::{sync::Arc, thread, time::Duration};
 use tracing::{debug, info, warn};
 
 #[cfg_attr(test, mockall_double::double)]
-use crate::k8s::executor::SyncK8sExecutor;
+use crate::k8s::client::AsyncK8sClient;
 
 const DEFAULT_INTERVAL_SEC: u64 = 30;
 const GRACEFUL_STOP_RETRY_INTERVAL_MS: u64 = 10;
@@ -25,7 +26,7 @@ where
     S: SuperAgentConfigLoader + std::marker::Sync + std::marker::Send + 'static,
 {
     config_store: Arc<S>,
-    k8s_executor: Arc<SyncK8sExecutor>,
+    k8s_client: Arc<SyncK8sClient>,
     interval: Duration,
 }
 
@@ -56,10 +57,10 @@ impl<S> NotStartedK8sGarbageCollector<S>
 where
     S: SuperAgentConfigLoader + std::marker::Sync + std::marker::Send,
 {
-    pub fn new(config_store: Arc<S>, k8s_executor: Arc<SyncK8sExecutor>) -> Self {
+    pub fn new(config_store: Arc<S>, k8s_client: Arc<SyncK8sClient>) -> Self {
         NotStartedK8sGarbageCollector {
             config_store,
-            k8s_executor,
+            k8s_client,
             interval: Duration::from_secs(DEFAULT_INTERVAL_SEC),
         }
     }
@@ -104,9 +105,9 @@ where
         debug!("collecting resources: `{selector}`");
 
         // Garbage collect all supported custom resources managed by the SA and associated to sub agents that currently don't exists
-        for tm in self.k8s_executor.supported_type_meta_collection().iter() {
+        for tm in self.k8s_client.supported_type_meta_collection().iter() {
             if let Err(e) = self
-                .k8s_executor
+                .k8s_client
                 .delete_dynamic_object_collection(tm.clone(), selector.as_str())
             {
                 warn!("fail trying to delete collection of {:?}: {e}", tm);
@@ -114,7 +115,7 @@ where
         }
 
         // Garbage collect CM of identifiers
-        self.k8s_executor
+        self.k8s_client
             .delete_configmap_collection(selector.as_str())?;
 
         Ok(())
@@ -145,7 +146,7 @@ pub(crate) mod test {
     use std::time::Duration;
 
     #[mockall_double::double]
-    use crate::k8s::executor::SyncK8sExecutor;
+    use crate::k8s::executor::K8sExecutor;
 
     #[test]
     fn test_start_executes_collection_as_expected() {
@@ -158,7 +159,7 @@ pub(crate) mod test {
         });
 
         let started_gc =
-            NotStartedK8sGarbageCollector::new(Arc::new(cs), Arc::new(SyncK8sExecutor::default()))
+            NotStartedK8sGarbageCollector::new(Arc::new(cs), Arc::new(K8sExecutor::default()))
                 .with_interval(Duration::from_millis(1))
                 .start();
         std::thread::sleep(Duration::from_millis(100));
@@ -166,6 +167,32 @@ pub(crate) mod test {
         // Expect the gc is correctly stopped
         started_gc.stop();
         assert!(started_gc.is_finished());
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn test_does_not_deadlock_with_sync_mutex() {
+        let mut config_loader = MockSuperAgentConfigLoader::new();
+        let mutex = Arc::new(Mutex::new(()));
+        let mutex_moved = mutex.clone();
+        config_loader.expect_load().times(1).returning(move || {
+            let _guard = mutex_moved.lock();
+            std::thread::sleep(Duration::from_secs(1));
+            Err(crate::config::error::SuperAgentConfigError::SubAgentNotFound(String::new()))
+        });
+
+        let cl = Arc::new(config_loader);
+
+        let _sgc = NotStartedK8sGarbageCollector::new(cl.clone(), Arc::new(K8sExecutor::default()))
+            .with_interval(Duration::from_millis(1))
+            .start();
+        std::thread::sleep(Duration::from_millis(100));
+
+        // At this point gc should be started and blocking the mutex on load.
+        mutex.try_lock().expect_err("mutex should be locked");
+
+        // The goal of the test/poc is to check that the main thread doesn't get deadlocked
+        // when the mutex has been locked from a tokio task (running in multithread with 1 thread).
+        let _guard = mutex.lock();
     }
 
     #[test]

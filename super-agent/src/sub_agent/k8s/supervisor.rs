@@ -15,7 +15,7 @@ use thiserror::Error;
 use tracing::{debug, error, info, trace};
 
 #[cfg_attr(test, mockall_double::double)]
-use crate::k8s::executor::SyncK8sExecutor;
+use crate::k8s::client::SyncK8sClient;
 
 #[derive(Debug, Error)]
 pub enum SupervisorError {
@@ -31,26 +31,22 @@ pub enum SupervisorError {
 
 /// CRSupervisor - Supervises Kubernetes resources.
 /// To be considered:
-/// - Start function hardcodes resources; needs dynamic definition once we add the configuration.
-/// - Uses shared executor via Arc; consider design implications about sharing executor through all the supervisors.
-/// - RefCell for internal mutability; it might change depending on future implementations.
-/// - Synchronous block_on operations; review async handling.
-
+/// - Uses shared k8s client via Arc; consider design implications about sharing client through all the supervisors.
 pub struct CRSupervisor {
     agent_id: AgentID,
-    executor: Arc<SyncK8sExecutor>,
+    k8s_client: Arc<SyncK8sClient>,
     k8s_objects: HashMap<String, K8sObject>,
 }
 
 impl CRSupervisor {
     pub fn new(
         agent_id: AgentID,
-        executor: Arc<SyncK8sExecutor>,
+        k8s_client: Arc<SyncK8sClient>,
         k8s_objects: HashMap<String, K8sObject>,
     ) -> Self {
         Self {
             agent_id,
-            executor,
+            k8s_client,
             k8s_objects,
         }
     }
@@ -60,7 +56,7 @@ impl CRSupervisor {
         for res in resources {
             debug!("Applying k8s object for {}", self.agent_id,);
             trace!("K8s object: {:?}", res);
-            self.executor.apply_dynamic_object_if_changed(&res)?;
+            self.k8s_client.apply_dynamic_object_if_changed(&res)?;
         }
         info!(
             "{} K8sSupervisor started and K8s objects applied",
@@ -90,7 +86,7 @@ impl CRSupervisor {
 
         let metadata = ObjectMeta {
             name: Some(self.agent_id.to_string()),
-            namespace: Some(self.executor.default_namespace().to_string()),
+            namespace: Some(self.k8s_client.default_namespace().to_string()),
             labels: Some(labels.get()),
             ..Default::default()
         };
@@ -111,7 +107,7 @@ impl CRSupervisor {
 pub mod test {
     use super::*;
     use crate::config::agent_type::runtime_config::{K8sObject, K8sObjectMeta};
-    use crate::k8s::executor::MockSyncK8sExecutor;
+    use crate::k8s::client::MockSyncK8sClient;
     use crate::k8s::labels::AGENT_ID_LABEL_KEY;
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
     use k8s_openapi::serde_json;
@@ -142,7 +138,7 @@ pub mod test {
 
     #[test]
     fn test_supervisor_apply() {
-        let mut mock_executor = MockSyncK8sExecutor::default();
+        let mut mock_k8s_client = MockSyncK8sClient::default();
 
         let agent_id = AgentID::new("test").unwrap();
 
@@ -162,11 +158,11 @@ pub mod test {
             },
             data: json!({}),
         };
-        mock_executor
+        mock_k8s_client
             .expect_default_namespace()
             .return_const(NAMESPACE.to_string());
 
-        mock_executor
+        mock_k8s_client
             .expect_apply_dynamic_object_if_changed()
             .times(2)
             .withf(move |dyn_object| expected.eq(dyn_object))
@@ -174,7 +170,7 @@ pub mod test {
 
         let supervisor = CRSupervisor::new(
             agent_id,
-            Arc::new(mock_executor),
+            Arc::new(mock_k8s_client),
             HashMap::from([
                 ("mock_cr1".to_string(), k8s_object()),
                 ("mock_cr2".to_string(), k8s_object()),
