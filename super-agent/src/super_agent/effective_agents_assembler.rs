@@ -294,10 +294,11 @@ pub(crate) mod tests {
             TrivialValue::String("/some/path/config".into()),
             assembled_agent
                 .variables
+                .flatten()
                 .get("config_path")
                 .unwrap()
-                .final_value
-                .clone()
+                .kind
+                .get_final_value()
                 .unwrap()
         );
     }
@@ -342,10 +343,11 @@ pub(crate) mod tests {
             TrivialValue::String("/some/path/config".into()),
             assembled_agent
                 .variables
+                .flatten()
                 .get("config_path")
                 .unwrap()
-                .final_value
-                .clone()
+                .kind
+                .get_final_value()
                 .unwrap()
         );
     }

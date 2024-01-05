@@ -1,12 +1,17 @@
 use std::{
     collections::HashMap as Map,
     fmt::{Display, Formatter},
+    path::PathBuf,
 };
 
 use crate::config::agent_type::agent_types::AgentTypeEndSpec;
 use serde::{Deserialize, Serialize};
 
-use super::{agent_types::VariableType, error::AgentTypeError};
+use super::{
+    agent_types::VariableType,
+    error::AgentTypeError,
+    variable_spec::{kind::Kind, spec::EndSpec},
+};
 
 /// Represents all the allowed types for a configuration defined in the spec value.
 #[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
@@ -16,10 +21,55 @@ pub enum TrivialValue {
     #[serde(skip)]
     File(FilePathWithContent),
     #[serde(skip)]
-    Yaml(YamlValue),
+    Yaml(serde_yaml::Value),
     Bool(bool),
-    Number(N),
-    Map(Map<String, TrivialValue>),
+    Number(Number),
+    #[serde(skip)]
+    MapStringString(Map<String, String>),
+    #[serde(skip)]
+    MapStringFile(Map<String, FilePathWithContent>),
+}
+
+impl From<String> for TrivialValue {
+    fn from(s: String) -> Self {
+        TrivialValue::String(s)
+    }
+}
+
+impl From<FilePathWithContent> for TrivialValue {
+    fn from(file: FilePathWithContent) -> Self {
+        TrivialValue::File(file)
+    }
+}
+
+impl From<serde_yaml::Value> for TrivialValue {
+    fn from(yaml: serde_yaml::Value) -> Self {
+        TrivialValue::Yaml(yaml)
+    }
+}
+
+impl From<bool> for TrivialValue {
+    fn from(b: bool) -> Self {
+        TrivialValue::Bool(b)
+    }
+}
+
+impl From<Number> for TrivialValue {
+    fn from(n: Number) -> Self {
+        TrivialValue::Number(n)
+    }
+}
+
+impl From<Map<String, String>> for TrivialValue {
+    fn from(map: Map<String, String>) -> Self {
+        TrivialValue::MapStringString(map)
+    }
+}
+
+impl From<Map<String, FilePathWithContent>> for TrivialValue {
+    fn from(map: Map<String, FilePathWithContent>) -> Self {
+        TrivialValue::MapStringFile(map)
+    }
 }
 
 impl TrivialValue {
@@ -35,47 +85,10 @@ impl TrivialValue {
             | (TrivialValue::Bool(_), VariableType::Bool)
             | (TrivialValue::File(_), VariableType::File)
             | (TrivialValue::Yaml(_), VariableType::Yaml)
-            | (TrivialValue::Number(_), VariableType::Number) => Ok(self),
-            (TrivialValue::Map(m), VariableType::MapStringString) => {
-                if !m.iter().all(|(_, v)| matches!(v, TrivialValue::String(_))) {
-                    return Err(AgentTypeError::InvalidMap);
-                }
-                Ok(self)
-            }
-            (TrivialValue::Map(m), VariableType::MapStringFile) => {
-                if !m.iter().all(|(_, v)| matches!(v, TrivialValue::String(_))) {
-                    return Err(AgentTypeError::InvalidMap);
-                }
-
-                if end_spec.file_path().is_none() {
-                    return Err(AgentTypeError::InvalidFilePath);
-                }
-
-                Ok(TrivialValue::Map(
-                    m.into_iter()
-                        .map(|(k, v)| {
-                            (
-                                k,
-                                // it's safe to make unwrap() as we previously checked is not none
-                                TrivialValue::File(FilePathWithContent::new(
-                                    end_spec.file_path().unwrap(),
-                                    v.to_string(),
-                                )),
-                            )
-                        })
-                        .collect(),
-                ))
-            }
-            (TrivialValue::String(content), VariableType::File) => match end_spec.file_path() {
-                None => Err(AgentTypeError::InvalidFilePath),
-                Some(file_path) => Ok(TrivialValue::File(FilePathWithContent::new(
-                    file_path, content,
-                ))),
-            },
-            (TrivialValue::String(content), VariableType::Yaml) => {
-                let yaml_value: YamlValue = content.try_into()?;
-                Ok(TrivialValue::Yaml(yaml_value))
-            }
+            | (TrivialValue::Number(_), VariableType::Number)
+            | (TrivialValue::Yaml(_), VariableType::Yaml)
+            | (TrivialValue::MapStringString(_), VariableType::MapStringString)
+            | (TrivialValue::MapStringFile(_), VariableType::MapStringFile) => Ok(self),
             (v, t) => Err(AgentTypeError::TypeMismatch {
                 expected_type: t,
                 actual_value: v,
@@ -86,7 +99,7 @@ impl TrivialValue {
     /// If the trivial value is a yaml, it returns a copy the corresponding [serde_yaml::Value], returns None otherwise.
     pub fn to_yaml_value(&self) -> Option<serde_yaml::Value> {
         match self {
-            Self::Yaml(yaml) => Some(yaml.value.clone()),
+            Self::Yaml(yaml) => Some(yaml.clone()),
             _ => None,
         }
     }
@@ -96,14 +109,26 @@ impl Display for TrivialValue {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             TrivialValue::String(s) => write!(f, "{}", s),
-            TrivialValue::File(file) => write!(f, "{}", file.path),
-            TrivialValue::Yaml(yaml) => write!(f, "{}", yaml.content),
+            TrivialValue::File(file) => write!(f, "{}", file.path.to_string_lossy()),
+            TrivialValue::Yaml(yaml) => write!(
+                f,
+                "{}",
+                serde_yaml::to_string(yaml)
+                    .expect("A value of type serde_yaml::Value should always be serializable")
+            ),
             TrivialValue::Bool(b) => write!(f, "{}", b),
             TrivialValue::Number(n) => write!(f, "{}", n),
-            TrivialValue::Map(n) => {
+            TrivialValue::MapStringString(n) => {
                 let flatten: Vec<String> = n
                     .iter()
                     .map(|(key, value)| format!("{key}={value}"))
+                    .collect();
+                write!(f, "{}", flatten.join(" "))
+            }
+            TrivialValue::MapStringFile(n) => {
+                let flatten: Vec<String> = n
+                    .iter()
+                    .map(|(key, value)| format!("{key}={}", value.path.to_string_lossy()))
                     .collect();
                 write!(f, "{}", flatten.join(" "))
             }
@@ -112,24 +137,27 @@ impl Display for TrivialValue {
 }
 
 /// Represents a file path and its content.
-#[derive(Debug, PartialEq, Default, Clone, Deserialize)]
+#[derive(Debug, PartialEq, Default, Clone, Deserialize, Serialize)]
 pub struct FilePathWithContent {
     #[serde(skip)]
-    pub path: String,
-    #[serde(flatten)]
+    pub path: PathBuf,
+    // #[serde(flatten)]
     pub content: String,
 }
 
 impl FilePathWithContent {
-    pub fn new(path: String, content: String) -> Self {
+    pub fn new(path: PathBuf, content: String) -> Self {
         FilePathWithContent { path, content }
+    }
+    pub fn with_path(&mut self, path: PathBuf) {
+        self.path = path;
     }
 }
 
 /// Represents a numeric value, which can be either a positive integer, a negative integer or a float.
 #[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 #[serde(untagged)]
-pub enum N {
+pub enum Number {
     PosInt(u64),
     /// Always less than zero.
     NegInt(i64),
@@ -137,32 +165,58 @@ pub enum N {
     Float(f64),
 }
 
-impl Display for N {
+impl Display for Number {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            N::PosInt(n) => write!(f, "{}", n),
-            N::NegInt(n) => write!(f, "{}", n),
-            N::Float(n) => write!(f, "{}", n),
+            Number::PosInt(n) => write!(f, "{}", n),
+            Number::NegInt(n) => write!(f, "{}", n),
+            Number::Float(n) => write!(f, "{}", n),
         }
     }
 }
 
-/// Represents a yaml value, holding both the string before deserializing and the [serde_yaml::Value] after.
-#[derive(Debug, PartialEq, Default, Clone, Deserialize)]
-pub struct YamlValue {
-    #[serde(skip)]
-    pub value: serde_yaml::Value,
-    #[serde(flatten)]
-    pub content: String,
+impl From<serde_yaml::Number> for Number {
+    fn from(n: serde_yaml::Number) -> Self {
+        if n.is_u64() {
+            Number::PosInt(n.as_u64().expect("Number must be convertible to u64"))
+        } else if n.is_i64() {
+            Number::NegInt(n.as_i64().expect("Number must be convertible to i64"))
+        } else {
+            Number::Float(n.as_f64().expect("Number must be convertible to f64"))
+        }
+    }
 }
 
-impl TryFrom<String> for YamlValue {
-    type Error = serde_yaml::Error;
+// /// Represents a yaml value, holding both the string before deserializing and the [serde_yaml::Value] after.
+// #[derive(Debug, PartialEq, Default, Clone, Deserialize)]
+// pub struct YamlValue {
+//     #[serde(skip)]
+//     pub value: serde_yaml::Value,
+//     #[serde(flatten)]
+//     pub content: String,
+// }
 
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Ok(Self {
-            value: serde_yaml::from_str(value.as_str())?,
-            content: value,
-        })
+// impl TryFrom<String> for YamlValue {
+//     type Error = serde_yaml::Error;
+
+//     fn try_from(value: String) -> Result<Self, Self::Error> {
+//         Ok(Self {
+//             value: serde_yaml::from_str(value.as_str())?,
+//             content: value,
+//         })
+//     }
+// }
+
+#[cfg(test)]
+mod test {
+    use super::FilePathWithContent;
+
+    #[test]
+    fn test_file_path_with_contents() {
+        let file = FilePathWithContent::new("path".into(), "file_content".to_string());
+        assert_eq!(
+            serde_yaml::to_string(&file).unwrap(),
+            "content: file_content\n"
+        );
     }
 }

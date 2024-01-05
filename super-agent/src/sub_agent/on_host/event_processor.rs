@@ -125,6 +125,8 @@ pub mod test {
     use mockall::mock;
     use opamp_client::opamp::proto::RemoteConfigStatus;
     use opamp_client::opamp::proto::RemoteConfigStatuses::Failed;
+    use opamp_client::StartedClient;
+    use serde_yaml::{Mapping, Value};
     use std::collections::HashMap;
     use std::sync::Arc;
     use std::thread;
@@ -213,10 +215,14 @@ pub mod test {
         hash_repository.should_save_hash(&agent_id, &hash);
         values_repository.should_store_remote(
             &agent_id,
-            &AgentValues::new(HashMap::from([(
-                String::from("some_item"),
-                TrivialValue::String(String::from("some_value")),
-            )])),
+            // &AgentValues::new(HashMap::from([(
+            //     String::from("some_item"),
+            //     TrivialValue::String(String::from("some_value")),
+            // )])),
+            &AgentValues::new(Value::Mapping(Mapping::from_iter([(
+                Value::String("some_item".to_string()),
+                Value::String("some_value".to_string()),
+            )]))),
         );
 
         let remote_config = RemoteConfig {

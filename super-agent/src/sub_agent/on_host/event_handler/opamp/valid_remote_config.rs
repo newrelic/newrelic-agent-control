@@ -94,6 +94,7 @@ mod tests {
     };
     use opamp_client::opamp::proto::RemoteConfigStatus;
     use opamp_client::opamp::proto::RemoteConfigStatuses::Failed;
+    use serde_yaml::{Mapping, Value};
 
     #[test]
     fn test_valid_config_not_empty() {
@@ -115,10 +116,10 @@ mod tests {
         hash_repository.should_save_hash(&agent_id, &hash);
         values_repository.should_store_remote(
             &agent_id,
-            &AgentValues::new(HashMap::from([(
-                String::from("some_item"),
-                TrivialValue::String(String::from("some_value")),
-            )])),
+            &AgentValues::new(Value::Mapping(Mapping::from_iter([(
+                "some_item".into(),
+                "some_value".into(),
+            )]))),
         );
 
         let remote_config = RemoteConfig {

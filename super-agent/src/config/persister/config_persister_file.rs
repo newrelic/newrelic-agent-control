@@ -77,8 +77,8 @@ where
             .try_for_each(|(_fqn, end_spec)| {
                 self.write_file_values_to_file(
                     dest_path.as_path(),
-                    &end_spec.type_,
-                    &end_spec.final_value,
+                    &end_spec.kind.variable_type(),
+                    &end_spec.kind.get_final_value(),
                 )
             });
 
@@ -126,36 +126,30 @@ where
             (VariableType::File, Some(TrivialValue::File(file_path_with_content))) => {
                 // append file name to destination path and write the contents
                 let mut file_dest_path = PathBuf::from(dest_path);
-                file_dest_path.push(Path::new(file_path_with_content.path.as_str()));
+                file_dest_path.push(&file_path_with_content.path);
                 self.write(
                     file_dest_path.as_path(),
                     file_path_with_content.content.as_str(),
                 )
             }
-            (VariableType::MapStringFile, Some(TrivialValue::Map(files))) => {
+            (VariableType::MapStringFile, Some(TrivialValue::MapStringFile(files))) => {
                 // iterate all the files inside the map, append them the folder name, append them the file name
-                files.iter().try_for_each(|(filename, value)| {
-                    match value {
-                        TrivialValue::File(file_path_with_content) => {
-                            let mut file_dest_path = PathBuf::from(dest_path);
-                            file_dest_path.push(Path::new(file_path_with_content.path.as_str()));
-                            if !file_dest_path.exists() {
-                                self.create_directory(file_dest_path.as_path())?;
-                            }
-                            file_dest_path.push(filename);
-                            self.write(
-                                file_dest_path.as_path(),
-                                file_path_with_content.content.as_str(),
-                            )?
+                files
+                    .iter()
+                    .try_for_each(|(filename, file_path_with_content)| {
+                        let mut file_dest_path = PathBuf::from(dest_path);
+                        file_dest_path.push(&file_path_with_content.path);
+                        if !file_dest_path.exists() {
+                            self.create_directory(file_dest_path.as_path())?;
                         }
-                        _ => {
-                            unreachable!(
-                                "there should not be a map[string]file which content is not a file"
-                            );
-                        }
-                    }
-                    Ok(())
-                })
+                        file_dest_path.push(filename);
+                        self.write(
+                            file_dest_path.as_path(),
+                            file_path_with_content.content.as_str(),
+                        )?;
+
+                        Ok(())
+                    })
             }
             _ => Ok(()), // Not a file
         }
@@ -777,10 +771,11 @@ deployment:
 "#;
 
     const AGENT_VALUES_SINGLE_FILE: &str = r#"
-config_file: |
-  license_key: 1234567890987654321
-  log:
-    level: debug
+config_file: 
+  content: |
+    license_key: 1234567890987654321
+    log:
+      level: debug
 "#;
 
     const AGENT_TYPE_MULTIPLE_FILES: &str = r#"
@@ -804,10 +799,11 @@ variables:
     type: file
     required: false
     file_path: newrelic-infra-3.yml
-    default: |
-      license_key: 33333333333333333
-      log:
-        level: trace
+    default: 
+      content: |
+        license_key: 33333333333333333
+        log:
+          level: trace
 deployment:
   on_host:
     executables:
@@ -820,15 +816,17 @@ deployment:
 "#;
 
     const AGENT_VALUES_MULTIPLE_FILES: &str = r#"
-config_file1: |
-  license_key: 11111111111111111
-  log:
-    level: info
+config_file1: 
+  content: |
+    license_key: 11111111111111111
+    log:
+      level: info
 
-config_file2: |
-  license_key: 22222222222222222
-  log:
-    level: debug
+config_file2: 
+  content: |
+    license_key: 22222222222222222
+    log:
+      level: debug
 "#;
 
     const AGENT_TYPE_SINGLE_MAP_FILE: &str = r#"
@@ -854,18 +852,21 @@ deployment:
 
     const AGENT_VALUES_SINGLE_MAP_FILE: &str = r#"
 integrations:
-  redis.yml: |
-    redis: true
-    log:
-      level: info
-  mysql.yml: |
-    mysql: true
-    log:
-      level: trace
-  kafka.yml: |
-    kafka: true
-    log:
-      level: debug
+  redis.yml: 
+    content: |
+      redis: true
+      log:
+        level: info
+  mysql.yml:
+    content: |
+      mysql: true
+      log:
+        level: trace
+  kafka.yml:
+    content: |
+      kafka: true
+      log:
+        level: debug
 "#;
 
     const AGENT_TYPE_MULTIPLE_MAP_FILE: &str = r#"
@@ -900,21 +901,25 @@ deployment:
 
     const AGENT_VALUES_MULTIPLE_MAP_FILE: &str = r#"
 integrations:
-  redis.yml: |
-    redis: true
-    log:
-      level: info
-  kafka.yml: |
-    kafka: true
-    log:
-      level: debug
+  redis.yml: 
+    content: |
+      redis: true
+      log:
+        level: info
+  kafka.yml: 
+    content: |
+      kafka: true
+      log:
+        level: debug
 logging:
-  file: |
-    some logging conf
-  systemctl.yml: |
-    systemctl: true
-    log:
-      level: debug
+  file: 
+    content: |
+      some logging conf
+  systemctl.yml: 
+    content: |
+      systemctl: true
+      log:
+        level: debug
 config3:
   log_level: trace
   forward: "true"

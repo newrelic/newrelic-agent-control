@@ -7,7 +7,7 @@ use super::{agent_types::VariableType, trivial_value::TrivialValue};
 /// The different error types to be returned by operations involving the [`Agent`] type.
 #[derive(Error, Debug)]
 pub enum AgentTypeError {
-    #[error("`{0}`")]
+    #[error("Error while parsing: `{0}`")]
     SerdeYaml(#[from] serde_yaml::Error),
     #[error("Missing required key in config: `{0}`")]
     MissingAgentKey(String),
@@ -40,8 +40,8 @@ pub enum AgentTypeError {
     #[error("Invalid value for spec key `{key}`: expected a {type_:?}")]
     InvalidValueForSpec { key: String, type_: VariableType },
 
-    #[error("Value was not populated")]
-    ValueNotPopulated,
+    #[error("Not all values for this agent type have been populated: {0:?}")]
+    ValuesNotPopulated(Vec<String>),
 
     #[error("Template value not parseable from the string `{0}")]
     ValueNotParseableFromString(String),
