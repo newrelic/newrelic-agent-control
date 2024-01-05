@@ -6,7 +6,6 @@ use crate::{
     sub_agent::error::SubAgentError,
     utils::time::get_sys_time_nano,
 };
-use futures::executor::block_on;
 use opamp_client::opamp::proto::AgentHealth;
 use opamp_client::{
     operation::{

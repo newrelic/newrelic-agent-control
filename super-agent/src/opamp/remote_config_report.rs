@@ -1,5 +1,4 @@
 use crate::opamp::remote_config_hash::Hash;
-use futures::executor::block_on;
 use opamp_client::opamp::proto::RemoteConfigStatus;
 use opamp_client::opamp::proto::RemoteConfigStatuses;
 use opamp_client::{error::ClientError, operation::callbacks::Callbacks, StartedClient};
