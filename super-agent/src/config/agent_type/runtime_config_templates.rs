@@ -250,7 +250,7 @@ fn template_yaml_value_string(
     let var_value = var_spec
         .get_template_value()
         .ok_or(AgentTypeError::MissingAgentKey(var_name.to_string()))?;
-    match var_spec.type_ {
+    match var_spec.kind.variable_type() {
         VariableType::Yaml => {
             var_value
                 .to_yaml_value()
@@ -319,8 +319,9 @@ mod tests {
     use crate::config::agent_type::restart_policy::{BackoffDuration, BackoffStrategyType};
     use crate::config::agent_type::trivial_value::FilePathWithContent;
     use crate::config::agent_type::trivial_value::Number::PosInt;
+    use crate::config::agent_type::variable_spec::spec::EndSpec;
     use crate::config::agent_type::{
-        agent_types::{EndSpec, TemplateableValue, VariableType},
+        agent_types::{TemplateableValue, VariableType},
         runtime_config::{Args, Env},
         trivial_value::{Number, TrivialValue},
     };

@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use serde::Deserialize;
 
 use crate::config::agent_type::{
+    agent_types::VariableType,
     error::AgentTypeError,
     trivial_value::{FilePathWithContent, Number, TrivialValue},
 };
@@ -72,18 +73,118 @@ impl From<KindValue<serde_yaml::Value>> for Kind {
     }
 }
 
+/// Conversions from Kind to KindValue<T>
+
+impl TryFrom<&Kind> for KindValue<String> {
+    type Error = AgentTypeError;
+
+    fn try_from(kind: &Kind) -> Result<Self, Self::Error> {
+        match kind {
+            Kind::String(k) => Ok(k.clone()),
+            _ => Err(AgentTypeError::TypeMismatch {
+                expected_type: VariableType::String,
+                actual_value: kind.clone().get_final_value().unwrap(),
+            }),
+        }
+    }
+}
+
+impl TryFrom<&Kind> for KindValue<bool> {
+    type Error = AgentTypeError;
+
+    fn try_from(kind: &Kind) -> Result<Self, Self::Error> {
+        match kind {
+            Kind::Bool(k) => Ok(k.clone()),
+            _ => Err(AgentTypeError::TypeMismatch {
+                expected_type: VariableType::Bool,
+                actual_value: kind.clone().get_final_value().unwrap(),
+            }),
+        }
+    }
+}
+
+impl TryFrom<&Kind> for KindValue<Number> {
+    type Error = AgentTypeError;
+
+    fn try_from(kind: &Kind) -> Result<Self, Self::Error> {
+        match kind {
+            Kind::Number(k) => Ok(k.clone()),
+            _ => Err(AgentTypeError::TypeMismatch {
+                expected_type: VariableType::Number,
+                actual_value: kind.clone().get_final_value().unwrap(),
+            }),
+        }
+    }
+}
+
+impl TryFrom<&Kind> for KindValue<FilePathWithContent> {
+    type Error = AgentTypeError;
+
+    fn try_from(kind: &Kind) -> Result<Self, Self::Error> {
+        match kind {
+            Kind::File(k) => Ok(k.clone()),
+            _ => Err(AgentTypeError::TypeMismatch {
+                expected_type: VariableType::File,
+                actual_value: kind.clone().get_final_value().unwrap(),
+            }),
+        }
+    }
+}
+
+impl TryFrom<&Kind> for KindValue<HashMap<String, String>> {
+    type Error = AgentTypeError;
+
+    fn try_from(kind: &Kind) -> Result<Self, Self::Error> {
+        match kind {
+            Kind::MapStringString(k) => Ok(k.clone()),
+            _ => Err(AgentTypeError::TypeMismatch {
+                expected_type: VariableType::MapStringString,
+                actual_value: kind.clone().get_final_value().unwrap(),
+            }),
+        }
+    }
+}
+
+impl TryFrom<&Kind> for KindValue<HashMap<String, FilePathWithContent>> {
+    type Error = AgentTypeError;
+
+    fn try_from(kind: &Kind) -> Result<Self, Self::Error> {
+        match kind {
+            Kind::MapStringFile(k) => Ok(k.clone()),
+            _ => Err(AgentTypeError::TypeMismatch {
+                expected_type: VariableType::MapStringFile,
+                actual_value: kind.clone().get_final_value().unwrap(),
+            }),
+        }
+    }
+}
+
+impl TryFrom<&Kind> for KindValue<serde_yaml::Value> {
+    type Error = AgentTypeError;
+
+    fn try_from(kind: &Kind) -> Result<Self, Self::Error> {
+        match kind {
+            Kind::Yaml(k) => Ok(k.clone()),
+            _ => Err(AgentTypeError::TypeMismatch {
+                expected_type: VariableType::Yaml,
+                actual_value: kind.clone().get_final_value().unwrap(),
+            }),
+        }
+    }
+}
+
 /// The below methods are mostly concerned with delegating to the inner type on each `Kind` variant.
 /// It's a lot of boilerplate, but declarative and straight-forward.
 impl Kind {
-    pub(crate) fn name(&self) -> &str {
+    pub(crate) fn variable_type(&self) -> VariableType {
         match self {
-            Kind::String(_) => "string",
-            Kind::Bool(_) => "bool",
-            Kind::Number(_) => "number",
-            Kind::File(_) => "file",
-            Kind::MapStringString(_) => "map[string]string",
-            Kind::MapStringFile(_) => "map[string]file",
-            Kind::Yaml(_) => "yaml",
+            Kind::String(_) => VariableType::String,
+            Kind::Bool(_) => VariableType::Bool,
+            Kind::Number(_) => VariableType::Number,
+            Kind::File(_) => VariableType::File,
+            Kind::MapStringString(_) => VariableType::MapStringString,
+            Kind::MapStringFile(_) => VariableType::MapStringFile,
+            Kind::Yaml(_) => VariableType::Yaml,
         }
     }
     pub(crate) fn is_required(&self) -> bool {
@@ -136,11 +237,39 @@ impl Kind {
             (Kind::Yaml(k), TrivialValue::Yaml(v)) => k.final_value = Some(v),
             (k, v) => {
                 return Err(AgentTypeError::TypeMismatch {
-                    expected_type: k.name(),
+                    expected_type: k.variable_type(),
                     actual_value: v,
                 })
             }
         }
         Ok(())
+    }
+
+    pub(crate) fn get_final_value(&self) -> Option<TrivialValue> {
+        match self {
+            Kind::String(k) => k
+                .final_value
+                .or(k.default)
+                .clone()
+                .map(TrivialValue::String),
+            Kind::Bool(k) => k.final_value.or(k.default).clone().map(TrivialValue::Bool),
+            Kind::Number(k) => k
+                .final_value
+                .or(k.default)
+                .clone()
+                .map(TrivialValue::Number),
+            Kind::File(k) => k.final_value.or(k.default).clone().map(TrivialValue::File),
+            Kind::MapStringString(k) => k
+                .final_value
+                .or(k.default)
+                .clone()
+                .map(TrivialValue::MapStringString),
+            Kind::MapStringFile(k) => k
+                .final_value
+                .or(k.default)
+                .clone()
+                .map(TrivialValue::MapStringFile),
+            Kind::Yaml(k) => k.final_value.or(k.default).clone().map(TrivialValue::Yaml),
+        }
     }
 }

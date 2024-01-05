@@ -10,7 +10,7 @@ pub struct KindValue<T> {
     pub(crate) default: Option<T>,
     pub(crate) final_value: Option<T>,
     pub(crate) file_path: Option<PathBuf>, // Appropriate here? Or to FilePathWithContent?
-    // pub(crate) variants: Option<Vec<T>>,
+                                           // pub(crate) variants: Option<Vec<T>>,
 }
 
 impl<T> KindValue<T> {

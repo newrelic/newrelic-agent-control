@@ -25,6 +25,48 @@ pub enum TrivialValue {
     MapStringFile(Map<String, FilePathWithContent>),
 }
 
+impl From<String> for TrivialValue {
+    fn from(s: String) -> Self {
+        TrivialValue::String(s)
+    }
+}
+
+impl From<FilePathWithContent> for TrivialValue {
+    fn from(file: FilePathWithContent) -> Self {
+        TrivialValue::File(file)
+    }
+}
+
+impl From<serde_yaml::Value> for TrivialValue {
+    fn from(yaml: serde_yaml::Value) -> Self {
+        TrivialValue::Yaml(yaml)
+    }
+}
+
+impl From<bool> for TrivialValue {
+    fn from(b: bool) -> Self {
+        TrivialValue::Bool(b)
+    }
+}
+
+impl From<Number> for TrivialValue {
+    fn from(n: Number) -> Self {
+        TrivialValue::Number(n)
+    }
+}
+
+impl From<Map<String, String>> for TrivialValue {
+    fn from(map: Map<String, String>) -> Self {
+        TrivialValue::MapStringString(map)
+    }
+}
+
+impl From<Map<String, FilePathWithContent>> for TrivialValue {
+    fn from(map: Map<String, FilePathWithContent>) -> Self {
+        TrivialValue::MapStringFile(map)
+    }
+}
+
 impl TrivialValue {
     /// Checks the `TrivialValue` against the given [`VariableType`], erroring if they do not match.
     ///

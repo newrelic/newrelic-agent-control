@@ -15,7 +15,7 @@ pub enum AgentTypeError {
         "Type mismatch while parsing. Expected type {expected_type:?}, got value {actual_value:?}"
     )]
     TypeMismatch {
-        expected_type: &'static str,
+        expected_type: VariableType,
         actual_value: TrivialValue,
     },
     #[error("Found unexpected keys in config: {0:?}")]
