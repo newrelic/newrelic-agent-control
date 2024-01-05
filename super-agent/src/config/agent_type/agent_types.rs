@@ -224,9 +224,8 @@ impl FinalAgent {
             // v.kind.set_final_value(defined_value)?;
             match config.get_from_normalized(k) {
                 Some(value) => v.kind.set_final_value(value),
-                None => v.kind.set_default_as_final(),
+                None => Ok(v.kind.set_default_as_final()),
             }
-            Ok(())
         })?;
 
         let runtime_conf = self.runtime_config.template_with(&spec)?;
@@ -413,6 +412,7 @@ pub mod tests {
         agent_type::{
             restart_policy::{BackoffStrategyConfig, BackoffStrategyType},
             runtime_config::{Args, Env, Executable},
+            variable_spec::kind_value::KindValue,
         },
         agent_values::AgentValues,
     };
@@ -587,11 +587,13 @@ deployment:
             "description.name".to_string(),
             EndSpec {
                 description: "Name of the agent".to_string(),
-                type_: VariableType::String,
-                required: false,
-                default: Some(TrivialValue::String("nrdot".to_string())),
-                final_value: None,
-                file_path: None,
+                kind: KindValue {
+                    required: false,
+                    default: Some("nrdot".to_string()),
+                    final_value: None,
+                    file_path: None,
+                }
+                .into(),
             },
         )]);
 

@@ -9,7 +9,7 @@ pub struct KindValue<T> {
     pub(crate) required: bool,
     pub(crate) default: Option<T>,
     pub(crate) final_value: Option<T>,
-    pub(crate) file_path: Option<PathBuf>,
+    pub(crate) file_path: Option<PathBuf>, // Appropriate here? Or to FilePathWithContent?
     // pub(crate) variants: Option<Vec<T>>,
 }
 
@@ -42,8 +42,7 @@ where
 
         let intermediate_spec = IntermediateValueKind::deserialize(deserializer)?;
         if intermediate_spec.default.is_none() && !intermediate_spec.required {
-            let err = D::Error::custom(AgentTypeError::MissingDefault);
-            return Err(err);
+            return Err(D::Error::custom(AgentTypeError::MissingDefault));
         }
 
         Ok(KindValue {
