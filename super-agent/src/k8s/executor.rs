@@ -59,6 +59,11 @@ impl SyncK8sExecutor {
             .block_on(self.executor.has_dynamic_object_changed(obj))
     }
 
+    pub fn apply_dynamic_object_if_changed(&self, obj: &DynamicObject) -> Result<(), K8sError> {
+        self.runtime
+            .block_on(self.executor.apply_dynamic_object_if_changed(obj))
+    }
+
     pub fn get_dynamic_object(
         &self,
         tm: TypeMeta,
@@ -104,6 +109,10 @@ impl SyncK8sExecutor {
             self.executor
                 .set_configmap_key(configmap_name, labels, key, value),
         )
+    }
+
+    pub fn default_namespace(&self) -> &str {
+        self.executor.default_namespace()
     }
 }
 
@@ -245,6 +254,16 @@ impl K8sExecutor {
                 Ok(false)
             }
         }
+    }
+
+    pub async fn apply_dynamic_object_if_changed(
+        &self,
+        obj: &DynamicObject,
+    ) -> Result<(), K8sError> {
+        if !self.has_dynamic_object_changed(obj).await? {
+            return Ok(());
+        }
+        self.apply_dynamic_object(obj).await
     }
 
     pub async fn delete_dynamic_object(&self, tm: TypeMeta, name: &str) -> Result<(), K8sError> {

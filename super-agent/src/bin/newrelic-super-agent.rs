@@ -174,10 +174,8 @@ fn run_super_agent(
         .map_err(|e| AgentError::ExternalError(e.to_string()))?,
     );
 
-    let executor = sync_executor.executor.clone();
-
     let instance_id_getter = ULIDInstanceIDGetter::try_with_identifiers(
-        sync_executor,
+        sync_executor.clone(),
         instance_id::get_identifiers(k8s_config.cluster_name.clone()),
     )?;
 
@@ -188,9 +186,9 @@ fn run_super_agent(
     let sub_agent_builder = newrelic_super_agent::sub_agent::k8s::builder::K8sSubAgentBuilder::new(
         opamp_client_builder.as_ref(),
         &instance_id_getter,
-        executor.clone(),
+        sync_executor.clone(),
         &agents_assembler,
-        k8s_config.clone(),
+        k8s_config,
     );
 
     info!("Starting the super agent");
@@ -208,7 +206,8 @@ fn run_super_agent(
     let config_storer = Arc::new(config_storer);
 
     let _started_gcc =
-        NotStartedK8sGarbageCollector::new(config_storer.clone(), executor.clone()).start();
+        NotStartedK8sGarbageCollector::new(config_storer.clone(), sync_executor.executor.clone())
+            .start();
 
     SuperAgent::new(
         maybe_client,
