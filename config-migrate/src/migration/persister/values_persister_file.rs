@@ -1,17 +1,17 @@
-use crate::config::persister::config_persister::PersistError;
-use crate::config::super_agent_configs::AgentID;
 use std::fs::Permissions;
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
-use crate::fs::directory_manager::{
+use newrelic_super_agent::config::persister::config_persister::PersistError;
+use newrelic_super_agent::config::super_agent_configs::AgentID;
+use newrelic_super_agent::fs::directory_manager::{
     DirectoryManagementError, DirectoryManager, DirectoryManagerFs,
 };
-use crate::fs::writer_file::WriteError;
+use newrelic_super_agent::fs::writer_file::WriteError;
 #[cfg_attr(test, mockall_double::double)]
-use crate::fs::writer_file::WriterFile;
-use crate::super_agent::defaults::{LOCAL_AGENT_DATA_DIR, VALUES_FILENAME};
+use newrelic_super_agent::fs::writer_file::WriterFile;
+use newrelic_super_agent::super_agent::defaults::{LOCAL_AGENT_DATA_DIR, VALUES_FILENAME};
 
 #[cfg(target_family = "unix")]
 pub(crate) const FILE_PERMISSIONS: u32 = 0o600;

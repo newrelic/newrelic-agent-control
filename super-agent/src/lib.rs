@@ -1,6 +1,5 @@
 pub mod cli;
 pub mod config;
-pub mod config_migrate;
 pub mod context;
 pub mod event;
 pub mod fs;

@@ -1,4 +1,4 @@
-use crate::config::super_agent_configs::AgentTypeFQN;
+use newrelic_super_agent::config::super_agent_configs::AgentTypeFQN;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};

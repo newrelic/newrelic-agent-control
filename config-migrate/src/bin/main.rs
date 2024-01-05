@@ -1,13 +1,13 @@
+use config_migrate::migration::config::MigrationConfig;
+use config_migrate::migration::converter::ConfigConverter;
+use config_migrate::migration::defaults::{
+    DEFAULT_AGENT_ID, NEWRELIC_INFRA_AGENT_TYPE_CONFIG_MAPPING,
+};
+use config_migrate::migration::persister::legacy_config_renamer::LegacyConfigRenamer;
+use config_migrate::migration::persister::values_persister_file::ValuesPersisterFile;
 use log::{error, info};
 use newrelic_super_agent::config::store::{SuperAgentConfigLoader, SuperAgentConfigStoreFile};
 use newrelic_super_agent::config::super_agent_configs::{AgentID, AgentTypeFQN};
-use newrelic_super_agent::config_migrate::config::MigrationConfig;
-use newrelic_super_agent::config_migrate::converter::ConfigConverter;
-use newrelic_super_agent::config_migrate::defaults::{
-    DEFAULT_AGENT_ID, NEWRELIC_INFRA_AGENT_TYPE_CONFIG_MAPPING,
-};
-use newrelic_super_agent::config_migrate::legacy_config_renamer::LegacyConfigRenamer;
-use newrelic_super_agent::config_migrate::values_persister_file::ValuesPersisterFile;
 use newrelic_super_agent::logging::Logging;
 use std::error::Error;
 use std::path::PathBuf;

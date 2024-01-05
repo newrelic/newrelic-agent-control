@@ -4,18 +4,21 @@ use std::path::Path;
 
 use thiserror::Error;
 
-use crate::config::agent_type::agent_types::{AgentTypeEndSpec, VariableType};
-use crate::config::agent_type_registry::{AgentRegistry, AgentRepositoryError, LocalRegistry};
-use crate::config_migrate::agent_value_spec::AgentValueSpec::AgentValueSpecEnd;
-use crate::config_migrate::agent_value_spec::{
+use newrelic_super_agent::config::agent_type::agent_types::{AgentTypeEndSpec, VariableType};
+use newrelic_super_agent::config::agent_type_registry::{
+    AgentRegistry, AgentRepositoryError, LocalRegistry,
+};
+#[cfg_attr(test, mockall_double::double)]
+use newrelic_super_agent::fs::file_reader::FSFileReader;
+use newrelic_super_agent::fs::file_reader::FileReaderError;
+
+use crate::migration::agent_value_spec::AgentValueSpec::AgentValueSpecEnd;
+use crate::migration::agent_value_spec::{
     from_fqn_and_value, merge_agent_values, AgentValueError, AgentValueSpec,
 };
-use crate::config_migrate::config::{AgentTypeFieldFQN, DirPath, FilePath, MigrationAgentConfig};
-use crate::config_migrate::config::{FILE_SEPARATOR, FILE_SEPARATOR_REPLACE};
-use crate::config_migrate::converter::ConversionError::RequiredFileMappingNotFoundError;
-#[cfg_attr(test, mockall_double::double)]
-use crate::fs::file_reader::FSFileReader;
-use crate::fs::file_reader::FileReaderError;
+use crate::migration::config::{AgentTypeFieldFQN, DirPath, FilePath, MigrationAgentConfig};
+use crate::migration::config::{FILE_SEPARATOR, FILE_SEPARATOR_REPLACE};
+use crate::migration::converter::ConversionError::RequiredFileMappingNotFoundError;
 
 #[derive(Error, Debug)]
 pub enum ConversionError {
