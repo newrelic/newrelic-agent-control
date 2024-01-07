@@ -319,28 +319,41 @@ mod tests {
     use crate::config::agent_type::restart_policy::{BackoffDuration, BackoffStrategyType};
     use crate::config::agent_type::trivial_value::FilePathWithContent;
     use crate::config::agent_type::trivial_value::Number::PosInt;
+    use crate::config::agent_type::variable_spec::kind_value::KindValue;
     use crate::config::agent_type::variable_spec::spec::EndSpec;
     use crate::config::agent_type::{
         agent_types::{TemplateableValue, VariableType},
         runtime_config::{Args, Env},
-        trivial_value::{Number, TrivialValue},
+        trivial_value::Number,
     };
     use std::collections::HashMap;
 
     use super::*;
 
-    impl EndSpec {
-        fn default_with_type(type_: VariableType) -> Self {
-            Self {
-                type_,
-                final_value: None,
-                default: None,
-                description: String::default(),
-                required: false,
-                file_path: None,
-            }
-        }
-    }
+    // impl EndSpec {
+    //     fn new_final<T>(final_value: T) -> Self {
+    //         Self {
+    //             description: String::default(),
+    //             kind: KindValue {
+    //                 final_value: Some(final_value),
+    //                 default: None,
+    //                 required: true,
+    //                 file_path: None,
+    //             }
+    //             .into(),
+    //         }
+    //     }
+    //     fn new_default<T>(default: T) -> Self {
+    //         Self {
+    //             type_,
+    //             final_value: None,
+    //             default: None,
+    //             description: String::default(),
+    //             required: false,
+    //             file_path: None,
+    //         }
+    //     }
+    // }
 
     #[test]
     fn test_template_string() {
@@ -348,23 +361,27 @@ mod tests {
             (
                 "name".to_string(),
                 EndSpec {
-                    final_value: Some(TrivialValue::String("Alice".to_string())),
-                    default: None,
-                    type_: VariableType::String,
                     description: String::default(),
-                    required: true,
-                    file_path: Some("some_path".to_string()),
+                    kind: KindValue {
+                        final_value: Some("Alice".to_string()),
+                        default: None,
+                        required: true,
+                        file_path: Some("some_path".into()),
+                    }
+                    .into(),
                 },
             ),
             (
                 "age".to_string(),
                 EndSpec {
-                    final_value: None,
-                    default: Some(TrivialValue::Number(Number::PosInt(30))),
-                    type_: VariableType::Number,
                     description: String::default(),
-                    required: false,
-                    file_path: Some("some_path".to_string()),
+                    kind: KindValue {
+                        final_value: None,
+                        default: Some(Number::PosInt(30)),
+                        required: false,
+                        file_path: Some("some_path".into()),
+                    }
+                    .into(),
                 },
             ),
         ]);
@@ -381,109 +398,127 @@ mod tests {
             (
                 "path".to_string(),
                 EndSpec {
-                    final_value: Some(TrivialValue::String("/usr/bin/myapp".to_string())),
-                    default: None,
                     description: String::default(),
-                    required: true,
-                    type_: VariableType::String,
-                    file_path: Some("some_path".to_string()),
+                    kind: KindValue {
+                        final_value: Some("/usr/bin/myapp".to_string()),
+                        default: None,
+                        required: true,
+                        file_path: Some("some_path".into()),
+                    }
+                    .into(),
                 },
             ),
             (
                 "args".to_string(),
                 EndSpec {
-                    final_value: Some(TrivialValue::String("--config /etc/myapp.conf".to_string())),
-                    default: None,
                     description: String::default(),
-                    required: true,
-                    type_: VariableType::String,
-                    file_path: Some("some_path".to_string()),
+                    kind: KindValue {
+                        final_value: Some("--config /etc/myapp.conf".to_string()),
+                        default: None,
+                        required: true,
+                        file_path: Some("some_path".into()),
+                    }
+                    .into(),
                 },
             ),
             (
                 "env.MYAPP_PORT".to_string(),
                 EndSpec {
-                    final_value: Some(TrivialValue::Number(Number::PosInt(8080))),
-                    default: None,
                     description: String::default(),
-                    required: true,
-                    type_: VariableType::Number,
-                    file_path: Some("some_path".to_string()),
+                    kind: KindValue {
+                        final_value: Some("8080".to_string()),
+                        default: None,
+                        required: true,
+                        file_path: Some("some_path".into()),
+                    }
+                    .into(),
                 },
             ),
             (
                 "backoff.type".to_string(),
                 EndSpec {
-                    final_value: Some(TrivialValue::String("linear".to_string())),
-                    default: None,
-                    description: "backoff_type".to_string(),
-                    type_: VariableType::String,
-                    required: true,
-                    file_path: Some("some_path".to_string()),
+                    description: String::default(),
+                    kind: KindValue {
+                        final_value: Some("linear".to_string()),
+                        default: None,
+                        required: true,
+                        file_path: Some("some_path".into()),
+                    }
+                    .into(),
                 },
             ),
             (
                 "backoff.delay".to_string(),
                 EndSpec {
-                    final_value: Some(TrivialValue::String("10s".to_string())),
-                    default: None,
-                    description: "backoff_delay".to_string(),
-                    type_: VariableType::String,
-                    required: true,
-                    file_path: Some("some_path".to_string()),
+                    description: String::default(),
+                    kind: KindValue {
+                        final_value: Some("10s".to_string()),
+                        default: None,
+                        required: true,
+                        file_path: Some("some_path".into()),
+                    }
+                    .into(),
                 },
             ),
             (
                 "backoff.retries".to_string(),
                 EndSpec {
-                    final_value: Some(TrivialValue::Number(PosInt(30))),
-                    default: None,
-                    description: "backoff_retries".to_string(),
-                    type_: VariableType::String,
-                    required: true,
-                    file_path: Some("some_path".to_string()),
+                    description: String::default(),
+                    kind: KindValue {
+                        final_value: Some(PosInt(30)),
+                        default: None,
+                        required: true,
+                        file_path: Some("some_path".into()),
+                    }
+                    .into(),
                 },
             ),
             (
                 "backoff.interval".to_string(),
                 EndSpec {
-                    final_value: Some(TrivialValue::String("300s".to_string())),
-                    default: None,
-                    description: "backoff_interval".to_string(),
-                    type_: VariableType::Number,
-                    required: true,
-                    file_path: Some("some_path".to_string()),
+                    description: String::default(),
+                    kind: KindValue {
+                        final_value: Some("300s".to_string()),
+                        default: None,
+                        required: true,
+                        file_path: Some("some_path".into()),
+                    }
+                    .into(),
                 },
             ),
             (
                 "config".to_string(),
                 EndSpec {
-                    final_value: Some(TrivialValue::File(FilePathWithContent::new(
-                        "config2.yml".to_string(),
-                        "license_key: abc123\nstaging: true\n".to_string(),
-                    ))),
-                    default: None,
                     description: "config".to_string(),
-                    type_: VariableType::File,
-                    required: true,
-                    file_path: Some("config_path".to_string()),
+                    kind: KindValue {
+                        final_value: Some(FilePathWithContent::new(
+                            "config2.yml".to_string(),
+                            "license_key: abc123\nstaging: true\n".to_string(),
+                        )),
+                        default: None,
+                        required: true,
+                        file_path: Some("config_path".into()),
+                    }
+                    .into(),
                 },
             ),
             (
                 "integrations".to_string(),
                 EndSpec {
-                    final_value: Some(TrivialValue::Map(HashMap::from([(
-                        "kafka.yml".to_string(),
-                        TrivialValue::File(FilePathWithContent::new(
-                            "config2.yml".to_string(),
-                            "license_key: abc123\nstaging: true\n".to_string(),
-                        )),
-                    )]))),
-                    default: None,
                     description: "integrations".to_string(),
-                    type_: VariableType::MapStringFile,
-                    required: true,
-                    file_path: Some("integration_path".to_string()),
+                    kind: KindValue {
+                        final_value: Some(HashMap::from([(
+                            "kafka.yml".to_string(),
+                            FilePathWithContent::new(
+                                "config2.yml".to_string(),
+                                "license_key: abc123\nstaging: true\n".to_string(),
+                            ),
+                        )])),
+                        default: None,
+                        required: true,
+                        file_path: Some("integration_path".into()),
+                    }
+                    .into(),
                 },
             ),
         ]);
@@ -537,22 +572,40 @@ mod tests {
             (
                 "change.me.string".to_string(),
                 EndSpec {
-                    final_value: Some(TrivialValue::String("CHANGED-STRING".to_string())),
-                    ..EndSpec::default_with_type(VariableType::String)
+                    description: String::default(),
+                    kind: KindValue {
+                        final_value: Some("CHANGED-STRING".to_string()),
+                        default: None,
+                        required: true,
+                        file_path: Some("some_path".into()),
+                    }
+                    .into(),
                 },
             ),
             (
                 "change.me.bool".to_string(),
                 EndSpec {
-                    final_value: Some(TrivialValue::Bool(true)),
-                    ..EndSpec::default_with_type(VariableType::Bool)
+                    description: String::default(),
+                    kind: KindValue {
+                        final_value: Some(true),
+                        default: None,
+                        required: true,
+                        file_path: Some("some_path".into()),
+                    }
+                    .into(),
                 },
             ),
             (
                 "change.me.number".to_string(),
                 EndSpec {
-                    final_value: Some(TrivialValue::Number(PosInt(42))),
-                    ..EndSpec::default_with_type(VariableType::Number)
+                    description: String::default(),
+                    kind: KindValue {
+                        final_value: Some(PosInt(42)),
+                        default: None,
+                        required: true,
+                        file_path: Some("some_path".into()),
+                    }
+                    .into(),
                 },
             ),
         ]);
@@ -589,22 +642,40 @@ mod tests {
             (
                 "change.me.string".to_string(),
                 EndSpec {
-                    final_value: Some(TrivialValue::String("CHANGED-STRING".to_string())),
-                    ..EndSpec::default_with_type(VariableType::String)
+                    description: String::default(),
+                    kind: KindValue {
+                        final_value: Some("CHANGED-STRING".to_string()),
+                        default: None,
+                        required: true,
+                        file_path: Some("some_path".into()),
+                    }
+                    .into(),
                 },
             ),
             (
                 "change.me.bool".to_string(),
                 EndSpec {
-                    final_value: Some(TrivialValue::Bool(true)),
-                    ..EndSpec::default_with_type(VariableType::Bool)
+                    description: String::default(),
+                    kind: KindValue {
+                        final_value: Some(true),
+                        default: None,
+                        required: true,
+                        file_path: Some("some_path".into()),
+                    }
+                    .into(),
                 },
             ),
             (
                 "change.me.number".to_string(),
                 EndSpec {
-                    final_value: Some(TrivialValue::Number(PosInt(42))),
-                    ..EndSpec::default_with_type(VariableType::Number)
+                    description: String::default(),
+                    kind: KindValue {
+                        final_value: Some(PosInt(42)),
+                        default: None,
+                        required: true,
+                        file_path: Some("some_path".into()),
+                    }
+                    .into(),
                 },
             ),
         ]);
@@ -637,44 +708,78 @@ mod tests {
             (
                 "change.me.string".to_string(),
                 EndSpec {
-                    final_value: Some(TrivialValue::String("CHANGED-STRING".to_string())),
-                    ..EndSpec::default_with_type(VariableType::String)
+                    description: String::default(),
+                    kind: KindValue {
+                        final_value: Some("CHANGED-STRING".to_string()),
+                        default: None,
+                        required: true,
+                        file_path: Some("some_path".into()),
+                    }
+                    .into(),
                 },
             ),
             (
                 "change.me.bool".to_string(),
                 EndSpec {
-                    final_value: Some(TrivialValue::Bool(true)),
-                    ..EndSpec::default_with_type(VariableType::Bool)
+                    description: String::default(),
+                    kind: KindValue {
+                        final_value: Some(true),
+                        default: None,
+                        required: true,
+                        file_path: Some("some_path".into()),
+                    }
+                    .into(),
                 },
             ),
             (
                 "change.me.number".to_string(),
                 EndSpec {
-                    final_value: Some(TrivialValue::Number(PosInt(42))),
-                    ..EndSpec::default_with_type(VariableType::Number)
+                    description: String::default(),
+                    kind: KindValue {
+                        final_value: Some(PosInt(42)),
+                        default: None,
+                        required: true,
+                        file_path: Some("some_path".into()),
+                    }
+                    .into(),
                 },
             ),
             (
                 "change.me.yaml".to_string(),
                 EndSpec {
-                    final_value: Some(TrivialValue::Yaml(
-                        r#"{"key": "value"}"#.to_string().try_into().unwrap(),
-                    )),
-                    ..EndSpec::default_with_type(VariableType::Yaml)
+                    description: String::default(),
+                    kind: KindValue {
+                        final_value: Some(serde_yaml::to_value(r#"{"key": "value"}"#).unwrap()),
+                        // final_value: Some(serde_yaml::Value::Mapping(
+                        //     serde_yaml::Mapping::from_pairs(vec![(
+                        //         serde_yaml::Value::String("key".to_string()),
+                        //         serde_yaml::Value::String("value".to_string()),
+                        //     )]),
+                        // )),
+                        default: None,
+                        required: true,
+                        file_path: Some("some_path".into()),
+                    }
+                    .into(),
                 },
             ),
             (
                 // Expansion inside variable's values is not supported.
                 "yaml.with.var.placeholder".to_string(),
                 EndSpec {
-                    final_value: Some(TrivialValue::Yaml(
-                        r#"{"this.will.not.be.expanded": "${change.me.string}"}"#
-                            .to_string()
-                            .try_into()
+                    description: String::default(),
+                    kind: KindValue {
+                        final_value: Some(
+                            serde_yaml::to_value(
+                                r#"{"this.will.not.be.expanded": "${change.me.string}"}"#,
+                            )
                             .unwrap(),
-                    )),
-                    ..EndSpec::default_with_type(VariableType::Yaml)
+                        ),
+                        default: None,
+                        required: true,
+                        file_path: Some("some_path".into()),
+                    }
+                    .into(),
                 },
             ),
         ]);
@@ -743,38 +848,66 @@ mod tests {
             (
                 "simple.string.var".to_string(),
                 EndSpec {
-                    final_value: Some(TrivialValue::String("Value".into())),
-                    ..EndSpec::default_with_type(VariableType::String)
+                    description: String::default(),
+                    kind: KindValue {
+                        final_value: Some("Value".to_string()),
+                        default: None,
+                        required: true,
+                        file_path: Some("some_path".into()),
+                    }
+                    .into(),
                 },
             ),
             (
                 "string.with.yaml.var".to_string(),
                 EndSpec {
-                    final_value: Some(TrivialValue::String("[Value]".into())),
-                    ..EndSpec::default_with_type(VariableType::String)
+                    description: String::default(),
+                    kind: KindValue {
+                        final_value: Some("[Value]".to_string()),
+                        default: None,
+                        required: true,
+                        file_path: Some("some_path".into()),
+                    }
+                    .into(),
                 },
             ),
             (
                 "bool.var".to_string(),
                 EndSpec {
-                    final_value: Some(TrivialValue::Bool(true)),
-                    ..EndSpec::default_with_type(VariableType::Bool)
+                    description: String::default(),
+                    kind: KindValue {
+                        final_value: Some(true),
+                        default: None,
+                        required: true,
+                        file_path: Some("some_path".into()),
+                    }
+                    .into(),
                 },
             ),
             (
                 "number.var".to_string(),
                 EndSpec {
-                    final_value: Some(TrivialValue::Number(PosInt(42))),
-                    ..EndSpec::default_with_type(VariableType::Number)
+                    description: String::default(),
+                    kind: KindValue {
+                        final_value: Some(PosInt(42)),
+                        default: None,
+                        required: true,
+                        file_path: Some("some_path".into()),
+                    }
+                    .into(),
                 },
             ),
             (
                 "yaml.var".to_string(),
                 EndSpec {
-                    final_value: Some(TrivialValue::Yaml(
-                        r#"{"key": "value"}"#.to_string().try_into().unwrap(),
-                    )),
-                    ..EndSpec::default_with_type(VariableType::Yaml)
+                    description: String::default(),
+                    kind: KindValue {
+                        final_value: Some(serde_yaml::to_value(r#"{"key": "value"}"#).unwrap()),
+                        default: None,
+                        required: true,
+                        file_path: Some("some_path".into()),
+                    }
+                    .into(),
                 },
             ),
         ]);
@@ -842,11 +975,23 @@ mod tests {
     fn test_normalized_var() {
         let variables = NormalizedVariables::from([(
             "var.name".to_string(),
-            EndSpec::default_with_type(VariableType::String),
+            EndSpec {
+                description: String::default(),
+                kind: KindValue::<String> {
+                    final_value: None,
+                    default: None,
+                    required: true,
+                    file_path: None,
+                }
+                .into(),
+            },
         )]);
 
         assert_eq!(
-            normalized_var("var.name", &variables).unwrap().type_,
+            normalized_var("var.name", &variables)
+                .unwrap()
+                .kind
+                .variable_type(),
             VariableType::String
         );
         let key = assert_matches!(
@@ -858,14 +1003,35 @@ mod tests {
     #[test]
     fn test_replace() {
         let value_var = EndSpec {
-            final_value: Some(TrivialValue::String("Value".into())),
-            ..EndSpec::default_with_type(VariableType::String)
+            description: String::default(),
+            kind: KindValue {
+                final_value: Some("Value".to_string()),
+                default: None,
+                required: true,
+                file_path: None,
+            }
+            .into(),
         };
         let default_var = EndSpec {
-            default: Some(TrivialValue::String("Default".into())),
-            ..EndSpec::default_with_type(VariableType::String)
+            description: String::default(),
+            kind: KindValue {
+                default: Some("Default".to_string()),
+                final_value: None,
+                required: true,
+                file_path: None,
+            }
+            .into(),
         };
-        let neither_value_nor_default = EndSpec::default_with_type(VariableType::String);
+        let neither_value_nor_default = EndSpec {
+            description: String::default(),
+            kind: KindValue::<String> {
+                final_value: None,
+                default: None,
+                required: true,
+                file_path: None,
+            }
+            .into(),
+        };
 
         let re = template_re();
         assert_eq!(
@@ -907,12 +1073,14 @@ objects:
         let variables = NormalizedVariables::from([(
             "any".to_string(),
             EndSpec {
-                final_value: Some(TrivialValue::String(value.to_string())),
-                default: None,
                 description: String::default(),
-                required: true,
-                type_: VariableType::String,
-                file_path: None,
+                kind: KindValue {
+                    final_value: Some(value.to_string()),
+                    default: None,
+                    required: true,
+                    file_path: None,
+                }
+                .into(),
             },
         )]);
 

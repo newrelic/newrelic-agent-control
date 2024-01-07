@@ -78,8 +78,8 @@ where
             .try_for_each(|(_fqn, end_spec)| {
                 self.write_file_values_to_file(
                     dest_path.as_path(),
-                    &end_spec.type_,
-                    &end_spec.final_value,
+                    &end_spec.kind.variable_type(),
+                    &end_spec.kind.get_final_value(),
                 )
             });
 
@@ -132,30 +132,24 @@ where
                     file_path_with_content.content.as_str(),
                 )
             }
-            (VariableType::MapStringFile, Some(TrivialValue::Map(files))) => {
+            (VariableType::MapStringFile, Some(TrivialValue::MapStringFile(files))) => {
                 // iterate all the files inside the map, append them the folder name, append them the file name
-                files.iter().try_for_each(|(filename, value)| {
-                    match value {
-                        TrivialValue::File(file_path_with_content) => {
-                            let mut file_dest_path = PathBuf::from(dest_path);
-                            file_dest_path.push(Path::new(file_path_with_content.path.as_str()));
-                            if !file_dest_path.exists() {
-                                self.create_directory(file_dest_path.as_path())?;
-                            }
-                            file_dest_path.push(filename);
-                            self.write(
-                                file_dest_path.as_path(),
-                                file_path_with_content.content.as_str(),
-                            )?
+                files
+                    .iter()
+                    .try_for_each(|(filename, file_path_with_content)| {
+                        let mut file_dest_path = PathBuf::from(dest_path);
+                        file_dest_path.push(Path::new(file_path_with_content.path.as_str()));
+                        if !file_dest_path.exists() {
+                            self.create_directory(file_dest_path.as_path())?;
                         }
-                        _ => {
-                            unreachable!(
-                                "there should not be a map[string]file which content is not a file"
-                            );
-                        }
-                    }
-                    Ok(())
-                })
+                        file_dest_path.push(filename);
+                        self.write(
+                            file_dest_path.as_path(),
+                            file_path_with_content.content.as_str(),
+                        )?;
+
+                        Ok(())
+                    })
             }
             _ => Ok(()), // Not a file
         }

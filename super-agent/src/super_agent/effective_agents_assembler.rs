@@ -275,8 +275,8 @@ pub(crate) mod tests {
                 .variables
                 .get("config_path")
                 .unwrap()
-                .final_value
-                .clone()
+                .kind
+                .get_final_value()
                 .unwrap()
         );
     }
@@ -323,8 +323,8 @@ pub(crate) mod tests {
                 .variables
                 .get("config_path")
                 .unwrap()
-                .final_value
-                .clone()
+                .kind
+                .get_final_value()
                 .unwrap()
         );
     }
