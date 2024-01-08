@@ -206,8 +206,7 @@ fn run_super_agent(
     let config_storer = Arc::new(config_storer);
 
     let _started_gcc =
-        NotStartedK8sGarbageCollector::new(config_storer.clone(), sync_executor.executor.clone())
-            .start();
+        NotStartedK8sGarbageCollector::new(config_storer.clone(), sync_executor).start();
 
     SuperAgent::new(
         maybe_client,

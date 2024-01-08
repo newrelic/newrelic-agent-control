@@ -114,6 +114,10 @@ impl SyncK8sExecutor {
     pub fn default_namespace(&self) -> &str {
         self.executor.default_namespace()
     }
+
+    pub fn supported_type_meta_collection(&self) -> Vec<TypeMeta> {
+        self.executor.dynamics.keys().cloned().collect()
+    }
 }
 
 pub struct K8sExecutor {
