@@ -23,8 +23,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, env, fs::File, io::Write, time::Duration};
 use tempfile::{tempdir, TempDir};
-use tokio::sync::OnceCell;
-use tokio::time::timeout;
+use tokio::{sync::OnceCell, time::timeout};
 
 const KUBECONFIG_PATH: &str = "test/k8s/.kubeconfig-dev";
 const K3S_BOOTSTRAP_TIMEOUT: u64 = 60;
@@ -71,24 +70,42 @@ impl K8sEnv {
 
         ns
     }
-
-    async fn clean_up(&self) {
-        let namespaces: Api<Namespace> = Api::all(self.client.clone());
-
-        for ns in self.generated_namespaces.iter() {
-            namespaces
-                .delete(ns.as_str(), &DeleteParams::default())
-                .await
-                .expect("fail to remove namespace");
-        }
-    }
 }
 
 impl Drop for K8sEnv {
     fn drop(&mut self) {
         // clean up test environment even if the test panics.
-        // async drop doesn't exist so this needs to be run sync code.
-        newrelic_super_agent::runtime::runtime().block_on(self.clean_up());
+        // 'async drop' doesn't exist so `block_on` is needed to run it synchronously.
+        //
+        // Since K8sEnv variables can be dropped from either sync or async code, we need an additional runtime to make
+        // it work.
+        //
+        // `futures::executor::block_on` is needed because we cannot execute `runtime.block_on` from a tokio
+        // context (such as `#[tokio::test]`) as it would fail with:
+        // ```
+        // 'Cannot start a runtime from within a runtime. This happens because a function (like `block_on`) attempted to block the current thread while the thread is being used to drive asynchronous tasks.'
+        // ````
+        //
+        // `runtime.spawn(<future-block>).await` is needed because we cannot execute `futures::executor::block_on` when there is
+        // no tokio runtime (synchronous tests), since it would fail with:
+        // ```
+        // 'there is no reactor running, must be called from the context of a Tokio 1.x runtime
+        // ```
+        futures::executor::block_on(async move {
+            let ns_api: Api<Namespace> = Api::all(self.client.clone());
+            let generated_namespaces = self.generated_namespaces.clone();
+            newrelic_super_agent::runtime::runtime()
+                .spawn(async move {
+                    for ns in generated_namespaces.into_iter() {
+                        ns_api
+                            .delete(ns.as_str(), &DeleteParams::default())
+                            .await
+                            .expect("fail to remove namespace");
+                    }
+                })
+                .await
+                .unwrap();
+        })
     }
 }
 
@@ -214,24 +231,30 @@ impl K8sCluster {
 
         println!("KUBECONFIG={}", &file_path.as_path().display());
     }
-
-    async fn clean_up(&self) {
-        self.docker
-            .stop_container(self.k3s_container_id.as_str(), None)
-            .await
-            .expect("fail to stop the container");
-        self.docker
-            .remove_container(self.k3s_container_id.as_str(), None)
-            .await
-            .expect("fail to remove the container");
-    }
 }
 
 impl Drop for K8sCluster {
     fn drop(&mut self) {
         // clean up test environment even if the test panics.
-        // async drop doesn't exist so this needs to be run sync code.
-        newrelic_super_agent::runtime::runtime().block_on(self.clean_up());
+        // 'async drop' doesn't exist so `block_on` is needed to run it synchronously.
+        // It is implemented following the same strategy than [K8sEnv::drop]
+        futures::executor::block_on(async move {
+            let docker = self.docker.clone();
+            let container_id = self.k3s_container_id.clone();
+            newrelic_super_agent::runtime::runtime()
+                .spawn(async move {
+                    docker
+                        .stop_container(container_id.as_str(), None)
+                        .await
+                        .expect("fail to stop the container");
+                    docker
+                        .remove_container(container_id.as_str(), None)
+                        .await
+                        .expect("fail to remove the container");
+                })
+                .await
+                .unwrap();
+        })
     }
 }
 
