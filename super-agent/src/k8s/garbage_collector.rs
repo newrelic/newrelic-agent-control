@@ -6,8 +6,11 @@ use crate::{
     config::{store::SuperAgentConfigLoader, super_agent_configs::AgentID},
     super_agent,
 };
+use crossbeam::{
+    channel::{tick, unbounded, Sender},
+    select,
+};
 use std::{sync::Arc, thread, time::Duration};
-use tokio::sync::mpsc;
 use tracing::{debug, info, warn};
 
 #[cfg_attr(test, mockall_double::double)]
@@ -27,8 +30,8 @@ where
 }
 
 pub struct K8sGarbageCollectorStarted {
-    stop_tx: mpsc::UnboundedSender<()>,
-    handle: tokio::task::JoinHandle<()>,
+    stop_tx: Sender<()>,
+    handle: std::thread::JoinHandle<()>,
 }
 
 impl K8sGarbageCollectorStarted {
@@ -66,32 +69,33 @@ where
         self
     }
 
-    /// Spawns a tokio task in charge of performing the garbage collection periodically. The task will be
+    /// Spawns a thread in charge of performing the garbage collection periodically. The thread will be
     /// gracefully shouted down when the returned `K8sGarbageCollectorStarted` gets dropped.
     pub fn start(self) -> K8sGarbageCollectorStarted {
-        let (stop_tx, mut stop_rx) = mpsc::unbounded_channel();
+        let (stop_tx, stop_rx) = unbounded();
+        let ticker = tick(self.interval);
 
-        let handle = tokio::spawn(async move {
+        let handle = std::thread::spawn(move || {
             info!("k8s garbage collector started");
             loop {
-                tokio::select! {
-                    _ = stop_rx.recv() => {
-                        break;
-                    }
-                    _ = tokio::time::sleep(self.interval) => {
-                        if let Err(err)=self.collect().await{
+                select! {
+                    recv(stop_rx)->_ => break,
+                    recv(ticker)->_ => {
+
+                        if let Err(err)=self.collect(){
                             warn!("executing garbage collection: {err}")
                         }
                     }
                 }
             }
+            info!("k8s garbage collector stopped");
         });
 
         K8sGarbageCollectorStarted { stop_tx, handle }
     }
 
     /// Garbage collect all resources managed by the SA associated to removed sub-agents.
-    pub async fn collect(&self) -> Result<(), K8sError> {
+    pub fn collect(&self) -> Result<(), K8sError> {
         let super_agent_config = SuperAgentConfigLoader::load(self.config_store.as_ref())?;
 
         let selector =
@@ -101,19 +105,19 @@ where
 
         // Garbage collect all supported custom resources managed by the SA and associated to sub agents that currently don't exists
         for tm in self.k8s_executor.supported_type_meta_collection().iter() {
-            if let Err(e) = self
-                .k8s_executor
-                .delete_dynamic_object_collection(tm.clone(), selector.as_str())
-                .await
-            {
+            if let Err(e) = crate::runtime::runtime().block_on(
+                self.k8s_executor
+                    .delete_dynamic_object_collection(tm.clone(), selector.as_str()),
+            ) {
                 warn!("fail trying to delete collection of {:?}: {e}", tm);
             }
         }
 
         // Garbage collect CM of identifiers
-        self.k8s_executor
-            .delete_configmap_collection(selector.as_str())
-            .await?;
+        crate::runtime::runtime().block_on(
+            self.k8s_executor
+                .delete_configmap_collection(selector.as_str()),
+        )?;
 
         Ok(())
     }
@@ -140,15 +144,13 @@ pub(crate) mod test {
     use crate::k8s::labels::{Labels, AGENT_ID_LABEL_KEY};
     use crate::super_agent::defaults::SUPER_AGENT_ID;
     use std::sync::Arc;
-    use std::sync::Mutex;
     use std::time::Duration;
-    use tokio::time::sleep;
 
     #[mockall_double::double]
     use crate::k8s::executor::K8sExecutor;
 
-    #[tokio::test(flavor = "multi_thread")]
-    async fn test_start_executes_collection_as_expected() {
+    #[test]
+    fn test_start_executes_collection_as_expected() {
         let mut cs = MockSuperAgentConfigLoader::new();
 
         // Expect the gc runs more than 10 times if interval is 1ms and runs for at least 100ms.
@@ -161,37 +163,11 @@ pub(crate) mod test {
             NotStartedK8sGarbageCollector::new(Arc::new(cs), Arc::new(K8sExecutor::default()))
                 .with_interval(Duration::from_millis(1))
                 .start();
-        sleep(Duration::from_millis(100)).await;
+        std::thread::sleep(Duration::from_millis(100));
 
         // Expect the gc is correctly stopped
         started_gc.stop();
         assert!(started_gc.is_finished());
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    async fn test_does_not_deadlock_with_sync_mutex() {
-        let mut config_loader = MockSuperAgentConfigLoader::new();
-        let mutex = Arc::new(Mutex::new(()));
-        let mutex_moved = mutex.clone();
-        config_loader.expect_load().times(1).returning(move || {
-            let _guard = mutex_moved.lock();
-            std::thread::sleep(Duration::from_secs(1));
-            Err(crate::config::error::SuperAgentConfigError::SubAgentNotFound(String::new()))
-        });
-
-        let cl = Arc::new(config_loader);
-
-        let _sgc = NotStartedK8sGarbageCollector::new(cl.clone(), Arc::new(K8sExecutor::default()))
-            .with_interval(Duration::from_millis(1))
-            .start();
-        std::thread::sleep(Duration::from_millis(100));
-
-        // At this point gc should be started and blocking the mutex on load.
-        mutex.try_lock().expect_err("mutex should be locked");
-
-        // The goal of the test/poc is to check that the main thread doesn't get deadlocked
-        // when the mutex has been locked from a tokio task (running in multithread with 1 thread).
-        let _guard = mutex.lock();
     }
 
     #[test]
