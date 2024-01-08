@@ -1,6 +1,5 @@
-// Infrastructure_agent AgentType
-pub const DEFAULT_AGENT_ID: &str = "nr_infra_agent";
-
+// We are not disallowing by code to put two config entries with the same agent_type_fqn,
+// but there should be only one entry for each because the last one will overwrite the previous ones.
 pub const NEWRELIC_INFRA_AGENT_TYPE_CONFIG_MAPPING: &str = r#"
 configs:
   -

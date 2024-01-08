@@ -8,9 +8,8 @@ use newrelic_super_agent::config::agent_type::agent_types::{AgentTypeEndSpec, Va
 use newrelic_super_agent::config::agent_type_registry::{
     AgentRegistry, AgentRepositoryError, LocalRegistry,
 };
-#[cfg_attr(test, mockall_double::double)]
-use newrelic_super_agent::fs::file_reader::FSFileReader;
-use newrelic_super_agent::fs::file_reader::FileReaderError;
+
+use crate::fs::file_reader::{FSFileReader, FileReaderError};
 
 use crate::migration::agent_value_spec::AgentValueSpec::AgentValueSpecEnd;
 use crate::migration::agent_value_spec::{
@@ -46,6 +45,7 @@ impl Default for ConfigConverter<LocalRegistry> {
     }
 }
 
+#[cfg_attr(test, mockall::automock)]
 impl<R: AgentRegistry> ConfigConverter<R> {
     pub fn convert(
         &self,
@@ -117,10 +117,4 @@ impl<R: AgentRegistry> ConfigConverter<R> {
         }
         Ok(merge_agent_values(res)?)
     }
-}
-
-#[cfg(test)]
-mod test {
-    #[test]
-    fn test_convert_file() {}
 }

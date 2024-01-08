@@ -1,6 +1,6 @@
 #[cfg_attr(test, mockall_double::double)]
-use newrelic_super_agent::fs::file_renamer::FileRenamer;
-use newrelic_super_agent::fs::file_renamer::FileRenamerError;
+use crate::fs::file_renamer::FileRenamer;
+use crate::fs::file_renamer::FileRenamerError;
 use std::path::PathBuf;
 
 const LEGACY_PATH_BCK_TOKEN: &str = "bck";
@@ -32,7 +32,7 @@ impl LegacyConfigRenamer {
 #[cfg(test)]
 mod test {
     use super::*;
-    use newrelic_super_agent::fs::file_renamer::MockFileRenamer;
+    use crate::fs::file_renamer::MockFileRenamer;
 
     #[test]
     fn test_rename_path_without_extension() {

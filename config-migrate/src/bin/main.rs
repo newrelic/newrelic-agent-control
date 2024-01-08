@@ -1,17 +1,15 @@
+use config_migrate::cli::Cli;
+use config_migrate::migration::agent_config_getter::AgentConfigGetter;
 use config_migrate::migration::config::MigrationConfig;
 use config_migrate::migration::converter::ConfigConverter;
-use config_migrate::migration::defaults::{
-    DEFAULT_AGENT_ID, NEWRELIC_INFRA_AGENT_TYPE_CONFIG_MAPPING,
-};
+use config_migrate::migration::defaults::NEWRELIC_INFRA_AGENT_TYPE_CONFIG_MAPPING;
+use config_migrate::migration::migrator::ConfigMigrator;
 use config_migrate::migration::persister::legacy_config_renamer::LegacyConfigRenamer;
 use config_migrate::migration::persister::values_persister_file::ValuesPersisterFile;
-use log::{error, info};
-use newrelic_super_agent::config::store::{SuperAgentConfigLoader, SuperAgentConfigStoreFile};
-use newrelic_super_agent::config::super_agent_configs::{AgentID, AgentTypeFQN};
+use log::info;
+use newrelic_super_agent::config::store::SuperAgentConfigStoreFile;
 use newrelic_super_agent::logging::Logging;
 use std::error::Error;
-use std::path::PathBuf;
-const DEFAULT_CFG_PATH: &str = "/etc/newrelic-super-agent/config.yaml";
 
 fn main() -> Result<(), Box<dyn Error>> {
     // init logging singleton
@@ -21,57 +19,30 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let config: MigrationConfig = serde_yaml::from_str(NEWRELIC_INFRA_AGENT_TYPE_CONFIG_MAPPING)?;
 
-    let config_converter = ConfigConverter::default();
-    let values_persister = ValuesPersisterFile::default();
+    let cli = Cli::init_config_migrate_cli();
+    let local_config_path = cli.get_config_path();
+    let super_agent_config_loader =
+        SuperAgentConfigStoreFile::new(&local_config_path).with_remote()?;
+    let config_migrator = ConfigMigrator::new(
+        ConfigConverter::default(),
+        AgentConfigGetter::new(super_agent_config_loader),
+        ValuesPersisterFile::default(),
+    );
+
     let legacy_config_renamer = LegacyConfigRenamer::default();
 
     for cfg in config.configs {
-        let Ok(agent_type) = get_current_agent_type().map_err(|e| {
-            error!("Error finding newrelic-super-agent config: {}", e);
-        }) else {
-            return Ok(());
-        };
+        config_migrator.migrate(&cfg)?;
 
-        if cfg.agent_type_fqn != agent_type {
-            error!("This script requires a config file and nr_infra_agent agent_type 0.0.2");
-            return Ok(());
+        for (_, dir_path) in cfg.dirs_map {
+            legacy_config_renamer.rename_path(dir_path.as_str())?;
         }
-
-        match config_converter.convert(&cfg) {
-            Ok(agent_variables) => {
-                let values_content = serde_yaml::to_string(&agent_variables)?;
-                values_persister.persist_values_file(
-                    &AgentID::new(DEFAULT_AGENT_ID)?,
-                    values_content.as_str(),
-                )?;
-                for (_, dir_path) in cfg.dirs_map {
-                    legacy_config_renamer.rename_path(dir_path.as_str())?;
-                }
-                for (_, file_path) in cfg.files_map {
-                    legacy_config_renamer.rename_path(file_path.as_str())?;
-                }
-                info!("Config files successfully converted");
-            }
-            Err(e) => {
-                error!(
-                    "Conversion failed, old files or paths are renamed or not present: {}",
-                    e
-                );
-            }
-        };
+        for (_, file_path) in cfg.files_map {
+            legacy_config_renamer.rename_path(file_path.as_str())?;
+        }
+        info!("Old config files and paths renamed");
     }
+    info!("Config files successfully converted");
 
     Ok(())
-}
-
-// TODO : Add tests for getting this agent_type and check the agent_type by namespace instead of name DEFAULT_AGENT_ID
-fn get_current_agent_type() -> Result<AgentTypeFQN, Box<dyn Error>> {
-    let local_config_path = PathBuf::from(DEFAULT_CFG_PATH.to_string());
-    let super_agent_config_storer =
-        SuperAgentConfigStoreFile::new(&local_config_path).with_remote()?;
-    let agents = super_agent_config_storer.load()?.agents;
-    Ok(agents
-        .get(&AgentID::new(DEFAULT_AGENT_ID)?)
-        .cloned()?
-        .agent_type)
 }

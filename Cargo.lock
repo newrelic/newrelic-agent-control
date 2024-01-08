@@ -445,6 +445,7 @@ dependencies = [
  "newrelic_super_agent",
  "nix",
  "predicates 3.0.4",
+ "regex",
  "schemars",
  "serde",
  "serde_json",

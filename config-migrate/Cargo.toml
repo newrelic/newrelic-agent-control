@@ -10,6 +10,7 @@ publish = false
 
 [dependencies]
 clap = { version = "4.4.3", features = ["derive"] }
+regex = "1.9.3"
 serde = { version = "1.0.188", features = ["derive"] }
 thiserror = "1.0.47"
 nix = { version = "0.27.1", features = ["signal", "user", "hostname"] }
@@ -23,7 +24,7 @@ duration-str = "0.7.0"
 
 # OnHost super-agent dependencies
 # IMPORTANT: All onhost only deps needs to be `optional = true` so they won't be compiled by default
-newrelic_super_agent = {path = "../super-agent"}
+newrelic_super_agent = {path = "../super-agent", features = ["onhost"]}
 
 [dev-dependencies]
 assert_cmd = "2.0.12"
