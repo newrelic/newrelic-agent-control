@@ -6,13 +6,13 @@ use k8s_openapi::serde_json;
 use kube::{
     api::DynamicObject,
     core::{ObjectMeta, TypeMeta},
-    ResourceExt,
+    Resource, ResourceExt,
 };
 
 use std::collections::HashMap;
 use std::sync::Arc;
 use thiserror::Error;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, trace};
 
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::executor::SyncK8sExecutor;
@@ -58,11 +58,8 @@ impl CRSupervisor {
     pub fn apply(&self) -> Result<(), SupervisorError> {
         let resources = self.build_dynamic_objects()?;
         for res in resources {
-            debug!(
-                "Applying {} k8s object for {}",
-                res.name_any(),
-                self.agent_id
-            );
+            debug!("Applying k8s object for {}", self.agent_id,);
+            trace!("K8s object: {:?}", res);
             self.executor.apply_dynamic_object_if_changed(&res)?;
         }
         info!(
