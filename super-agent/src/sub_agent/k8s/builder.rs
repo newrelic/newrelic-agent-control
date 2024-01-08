@@ -17,7 +17,7 @@ use std::sync::Arc;
 
 use crate::config::agent_type::runtime_config::K8sObject;
 #[cfg_attr(test, mockall_double::double)]
-use crate::k8s::executor::K8sExecutor;
+use crate::k8s::executor::SyncK8sExecutor;
 use crate::super_agent::effective_agents_assembler::EffectiveAgentsAssembler;
 
 pub struct K8sSubAgentBuilder<'a, C, O, I, A>
@@ -34,7 +34,7 @@ where
     // It's actually used as a generic parameter for the `OpAMPClientBuilder` instance bound by type parameter `O`.
     // Feel free to remove this when the actual implementations (Callbacks instance for K8s agents) make it redundant!
     _callbacks: std::marker::PhantomData<C>,
-    executor: Arc<K8sExecutor>,
+    executor: Arc<SyncK8sExecutor>,
     effective_agent_assembler: &'a A,
     k8s_config: K8sConfig,
 }
@@ -49,7 +49,7 @@ where
     pub fn new(
         opamp_builder: Option<&'a O>,
         instance_id_getter: &'a I,
-        executor: Arc<K8sExecutor>,
+        executor: Arc<SyncK8sExecutor>,
         effective_agent_assembler: &'a A,
         k8s_config: K8sConfig,
     ) -> Self {
@@ -154,7 +154,7 @@ mod test {
     use crate::opamp::operations::start_settings;
     use crate::super_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
     use crate::{
-        k8s::executor::MockK8sExecutor,
+        k8s::executor::MockSyncK8sExecutor,
         opamp::client_builder::test::MockOpAMPClientBuilderMock,
         sub_agent::{NotStartedSubAgent, StartedSubAgent},
     };
@@ -194,15 +194,11 @@ mod test {
         );
 
         // instance K8s executor mock
-        let mut mock_executor = MockK8sExecutor::default();
+        let mut mock_executor = MockSyncK8sExecutor::default();
         mock_executor
-            .expect_apply_dynamic_object()
+            .expect_apply_dynamic_object_if_changed()
             .times(1)
             .returning(|_| Ok(()));
-        mock_executor
-            .expect_has_dynamic_object_changed()
-            .times(1)
-            .returning(|_| Ok(true));
         mock_executor
             .expect_default_namespace()
             .return_const("default".to_string());
@@ -288,7 +284,7 @@ mod test {
         let builder = K8sSubAgentBuilder::new(
             Some(&opamp_builder),
             &instance_id_getter,
-            Arc::new(MockK8sExecutor::default()),
+            Arc::new(MockSyncK8sExecutor::default()),
             &effective_agent_assembler,
             k8s_config,
         );

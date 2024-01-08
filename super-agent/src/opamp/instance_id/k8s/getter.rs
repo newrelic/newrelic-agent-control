@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 #[cfg_attr(test, mockall_double::double)]
-use crate::k8s::executor::K8sExecutor;
+use crate::k8s::executor::SyncK8sExecutor;
 
 #[derive(Default, Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct Identifiers {
@@ -26,8 +26,8 @@ pub enum GetterError {
 }
 
 impl ULIDInstanceIDGetter<Storer> {
-    pub async fn try_with_identifiers(
-        executor: Arc<K8sExecutor>,
+    pub fn try_with_identifiers(
+        executor: Arc<SyncK8sExecutor>,
         identifiers: Identifiers,
     ) -> Result<Self, GetterError> {
         Ok(Self::new(Storer::new(executor), identifiers))

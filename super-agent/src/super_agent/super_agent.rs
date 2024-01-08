@@ -23,7 +23,6 @@ use crate::super_agent::super_agent::EffectiveAgentsError::{
     EffectiveAgentExists, EffectiveAgentNotFound,
 };
 use crossbeam::select;
-use futures::executor::block_on;
 use opamp_client::StartedClient;
 use std::collections::HashMap;
 use std::string::ToString;

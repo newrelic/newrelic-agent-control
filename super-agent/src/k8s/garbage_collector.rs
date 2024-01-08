@@ -14,7 +14,7 @@ use std::{sync::Arc, thread, time::Duration};
 use tracing::{debug, info, warn};
 
 #[cfg_attr(test, mockall_double::double)]
-use crate::k8s::executor::K8sExecutor;
+use crate::k8s::executor::SyncK8sExecutor;
 
 const DEFAULT_INTERVAL_SEC: u64 = 30;
 const GRACEFUL_STOP_RETRY_INTERVAL_MS: u64 = 10;
@@ -25,7 +25,7 @@ where
     S: SuperAgentConfigLoader + std::marker::Sync + std::marker::Send + 'static,
 {
     config_store: Arc<S>,
-    k8s_executor: Arc<K8sExecutor>,
+    k8s_executor: Arc<SyncK8sExecutor>,
     interval: Duration,
 }
 
@@ -56,7 +56,7 @@ impl<S> NotStartedK8sGarbageCollector<S>
 where
     S: SuperAgentConfigLoader + std::marker::Sync + std::marker::Send,
 {
-    pub fn new(config_store: Arc<S>, k8s_executor: Arc<K8sExecutor>) -> Self {
+    pub fn new(config_store: Arc<S>, k8s_executor: Arc<SyncK8sExecutor>) -> Self {
         NotStartedK8sGarbageCollector {
             config_store,
             k8s_executor,
@@ -105,19 +105,17 @@ where
 
         // Garbage collect all supported custom resources managed by the SA and associated to sub agents that currently don't exists
         for tm in self.k8s_executor.supported_type_meta_collection().iter() {
-            if let Err(e) = crate::runtime::runtime().block_on(
-                self.k8s_executor
-                    .delete_dynamic_object_collection(tm.clone(), selector.as_str()),
-            ) {
+            if let Err(e) = self
+                .k8s_executor
+                .delete_dynamic_object_collection(tm.clone(), selector.as_str())
+            {
                 warn!("fail trying to delete collection of {:?}: {e}", tm);
             }
         }
 
         // Garbage collect CM of identifiers
-        crate::runtime::runtime().block_on(
-            self.k8s_executor
-                .delete_configmap_collection(selector.as_str()),
-        )?;
+        self.k8s_executor
+            .delete_configmap_collection(selector.as_str())?;
 
         Ok(())
     }
@@ -147,7 +145,7 @@ pub(crate) mod test {
     use std::time::Duration;
 
     #[mockall_double::double]
-    use crate::k8s::executor::K8sExecutor;
+    use crate::k8s::executor::SyncK8sExecutor;
 
     #[test]
     fn test_start_executes_collection_as_expected() {
@@ -160,7 +158,7 @@ pub(crate) mod test {
         });
 
         let started_gc =
-            NotStartedK8sGarbageCollector::new(Arc::new(cs), Arc::new(K8sExecutor::default()))
+            NotStartedK8sGarbageCollector::new(Arc::new(cs), Arc::new(SyncK8sExecutor::default()))
                 .with_interval(Duration::from_millis(1))
                 .start();
         std::thread::sleep(Duration::from_millis(100));

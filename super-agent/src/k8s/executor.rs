@@ -17,7 +17,108 @@ use std::{
     str::FromStr,
     sync::Arc,
 };
+use tokio::runtime::Runtime;
 use tracing::{debug, warn};
+
+/// Provides a _sync_ implementation of [K8sExecutor].
+pub struct SyncK8sExecutor {
+    executor: K8sExecutor,
+    runtime: &'static Runtime,
+}
+
+#[cfg_attr(test, mockall::automock)]
+impl SyncK8sExecutor {
+    pub fn try_new(runtime: &'static Runtime, namespace: String) -> Result<Self, K8sError> {
+        Ok(Self {
+            executor: runtime.block_on(K8sExecutor::try_new(namespace))?,
+            runtime,
+        })
+    }
+
+    pub fn try_new_with_reflectors(
+        runtime: &'static Runtime,
+        namespace: String,
+        cr_type_metas: Vec<TypeMeta>,
+    ) -> Result<Self, K8sError> {
+        Ok(Self {
+            executor: runtime.block_on(K8sExecutor::try_new_with_reflectors(
+                namespace,
+                cr_type_metas,
+            ))?,
+            runtime,
+        })
+    }
+
+    pub fn apply_dynamic_object(&self, obj: &DynamicObject) -> Result<(), K8sError> {
+        self.runtime
+            .block_on(self.executor.apply_dynamic_object(obj))
+    }
+
+    pub fn has_dynamic_object_changed(&self, obj: &DynamicObject) -> Result<bool, K8sError> {
+        self.runtime
+            .block_on(self.executor.has_dynamic_object_changed(obj))
+    }
+
+    pub fn apply_dynamic_object_if_changed(&self, obj: &DynamicObject) -> Result<(), K8sError> {
+        self.runtime
+            .block_on(self.executor.apply_dynamic_object_if_changed(obj))
+    }
+
+    pub fn get_dynamic_object(
+        &self,
+        tm: TypeMeta,
+        name: &str,
+    ) -> Result<Option<Arc<DynamicObject>>, K8sError> {
+        self.runtime
+            .block_on(self.executor.get_dynamic_object(tm, name))
+    }
+
+    pub fn delete_dynamic_object_collection(
+        &self,
+        tm: TypeMeta,
+        label_selector: &str,
+    ) -> Result<(), K8sError> {
+        self.runtime.block_on(
+            self.executor
+                .delete_dynamic_object_collection(tm, label_selector),
+        )
+    }
+
+    pub fn delete_configmap_collection(&self, label_selector: &str) -> Result<(), K8sError> {
+        self.runtime
+            .block_on(self.executor.delete_configmap_collection(label_selector))
+    }
+
+    pub fn get_configmap_key(
+        &self,
+        configmap_name: &str,
+        key: &str,
+    ) -> Result<Option<String>, K8sError> {
+        self.runtime
+            .block_on(self.executor.get_configmap_key(configmap_name, key))
+    }
+
+    pub fn set_configmap_key(
+        &self,
+        configmap_name: &str,
+        labels: BTreeMap<String, String>,
+        key: &str,
+        value: &str,
+    ) -> Result<(), K8sError> {
+        self.runtime.block_on(
+            self.executor
+                .set_configmap_key(configmap_name, labels, key, value),
+        )
+    }
+
+    pub fn default_namespace(&self) -> &str {
+        self.executor.default_namespace()
+    }
+
+    pub fn supported_type_meta_collection(&self) -> Vec<TypeMeta> {
+        self.executor.dynamics.keys().cloned().collect()
+    }
+}
 
 pub struct K8sExecutor {
     client: Client,
@@ -157,6 +258,16 @@ impl K8sExecutor {
                 Ok(false)
             }
         }
+    }
+
+    pub async fn apply_dynamic_object_if_changed(
+        &self,
+        obj: &DynamicObject,
+    ) -> Result<(), K8sError> {
+        if !self.has_dynamic_object_changed(obj).await? {
+            return Ok(());
+        }
+        self.apply_dynamic_object(obj).await
     }
 
     pub async fn delete_dynamic_object(&self, tm: TypeMeta, name: &str) -> Result<(), K8sError> {
