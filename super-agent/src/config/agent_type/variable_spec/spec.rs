@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::kind::Kind;
 
@@ -13,7 +13,7 @@ pub enum Spec {
     SpecMapping(HashMap<String, Spec>),
 }
 
-#[derive(Debug, PartialEq, Clone, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 pub struct EndSpec {
     pub(crate) description: String,
     #[serde(flatten)]

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::config::agent_type::{
     agent_types::VariableType,
@@ -10,7 +10,7 @@ use crate::config::agent_type::{
 
 use super::kind_value::KindValue;
 
-#[derive(Debug, PartialEq, Clone, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 #[serde(tag = "type")]
 pub enum Kind {
     #[serde(rename = "string")]

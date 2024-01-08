@@ -35,7 +35,8 @@ use opamp_client::operation::capabilities::Capabilities;
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct FinalAgent {
     pub metadata: AgentMetadata,
-    pub variables: NormalizedVariables,
+    // pub variables: NormalizedVariables,
+    pub variables: AgentVariables,
     pub runtime_config: RuntimeConfig,
     capabilities: Capabilities,
 }
@@ -70,7 +71,8 @@ impl<'de> Deserialize<'de> for FinalAgent {
 
         let raw_agent = RawAgent::deserialize(deserializer)?;
         Ok(Self {
-            variables: normalize_agent_spec(raw_agent.variables).map_err(D::Error::custom)?,
+            // variables: normalize_agent_spec(raw_agent.variables).map_err(D::Error::custom)?,
+            variables: raw_agent.variables,
             metadata: raw_agent.metadata,
             runtime_config: raw_agent.runtime_config, // FIXME: make it actual implementation
             capabilities: default_capabilities(),
@@ -200,9 +202,9 @@ impl FinalAgent {
         self.metadata.to_string().as_str().into()
     }
 
-    pub fn get_variables(&self) -> &NormalizedVariables {
-        &self.variables
-    }
+    // pub fn get_variables(&self) -> &NormalizedVariables {
+    //     &self.variables
+    // }
 
     #[cfg_attr(doc, aquamarine::aquamarine)]
     /// template_with the [`RuntimeConfig`] object field of the [`Agent`] type with the user-provided config, which must abide by the agent type's defined [`AgentVariables`].
@@ -221,7 +223,7 @@ impl FinalAgent {
         let mut spec = self.variables;
 
         // modifies variables final value with the one defined in the SupervisorConfig
-        spec.iter_mut()
+        spec.0.iter_mut()
             .try_for_each(|(k, v)| -> Result<(), AgentTypeError> {
                 // let defined_value = config.get_from_normalized(k);
                 // v.kind.set_final_value(defined_value)?;
@@ -245,7 +247,7 @@ impl FinalAgent {
 
 /// Flexible tree-like structure that contains variables definitions, that can later be changed by the end user via [`AgentValues`].
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
-pub struct AgentVariables(HashMap<String, Spec>);
+pub struct AgentVariables(pub(crate) HashMap<String, Spec>);
 
 #[derive(Debug, PartialEq, Clone, Copy, Deserialize)]
 pub enum VariableType {
@@ -413,6 +415,8 @@ struct K8s {
 ///
 /// Will be converted to `system.logging.level` and can be used later in the AgentType_Meta part as `${system.logging.level}`.
 pub(crate) type NormalizedVariables = HashMap<String, EndSpec>;
+
+
 
 fn normalize_agent_spec(spec: AgentVariables) -> Result<NormalizedVariables, AgentTypeError> {
     spec.0.into_iter().try_fold(HashMap::new(), |r, (k, v)| {

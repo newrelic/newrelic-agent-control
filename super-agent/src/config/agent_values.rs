@@ -1,12 +1,15 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap as Map;
+use std::collections::HashMap;
 use thiserror::Error;
 
-use super::agent_type::agent_types::FinalAgent;
+use super::agent_type::agent_types::{AgentVariables, FinalAgent};
 use super::agent_type::error::AgentTypeError;
 use super::agent_type::runtime_config_templates::TEMPLATE_KEY_SEPARATOR;
 use super::agent_type::trivial_value::TrivialValue;
+use super::agent_type::variable_spec::kind::Kind;
+use super::agent_type::variable_spec::spec::Spec;
 
+use crate::config::agent_type::variable_spec::spec::EndSpec;
 /// User-provided config.
 ///
 /// User-provided configuration (normally via a YAML file) that must follow the tree-like structure of [`Agent`]'s [`variables`] and will be used to populate the [`Agent`]'s [ `runtime_config`] field to totally define a deployable Sub Agent.
@@ -86,7 +89,10 @@ use super::agent_type::trivial_value::TrivialValue;
 ///
 /// [agent_type]: crate::config::agent_type
 #[derive(Debug, PartialEq, Deserialize, Serialize, Default, Clone)]
-pub struct AgentValues(Map<String, TrivialValue>);
+pub struct AgentValues(serde_yaml::Value);
+
+#[derive(Debug, PartialEq, Deserialize, Serialize, Default, Clone)]
+pub struct NormalizedValues(HashMap<String, TrivialValue>);
 
 #[derive(Error, Debug)]
 pub enum AgentValuesError {
@@ -99,17 +105,18 @@ impl AgentValues {
     /// normalized prefix flattens a Map path in a single string in which each indirection is
     /// denoted with the TEMPLATE_KEY_SEPARATOR.
     /// If found, an owned value will be returned.
-    pub(crate) fn get_from_normalized(&self, normalized_prefix: &str) -> Option<TrivialValue> {
-        get_from_normalized(&self.0, normalized_prefix)
-    }
+    // pub(crate) fn get_from_normalized(&self, normalized_prefix: &str) -> Option<TrivialValue> {
+    //     get_from_normalized(&self.0, normalized_prefix)
+    // }
 
     /// normalize_with_agent_type verifies that all required Agent variables are defined in the
     /// SubAgentConfig and transforms the types with check_type
     pub(crate) fn normalize_with_agent_type(
         mut self,
         agent_type: &FinalAgent,
-    ) -> Result<Self, AgentTypeError> {
-        for (k, v) in agent_type.variables.iter() {
+    ) -> Result<NormalizedValues, AgentTypeError> {
+        let mut normalized_values = HashMap::default();
+        for (k, v) in agent_type.variables.0.iter() {
             let value = get_from_normalized(&self.0, k);
 
             // required value but not defined in SubAgentConfig
@@ -127,6 +134,40 @@ impl AgentValues {
     }
 }
 
+fn normalize_values(
+    values: serde_yaml::Value,
+    agent_vars: &HashMap<String, Spec>,
+) -> Result<HashMap<String, TrivialValue>, AgentTypeError> {
+    let mut normalized_values = HashMap::default();
+
+    for (k, v) in values.as_mapping().unwrap().iter() {
+        let key = k.as_str().unwrap();
+        let spec = agent_vars.get(key).unwrap();
+
+        match spec {
+            Spec::SpecEnd(end) => {
+              let value_to_insert = 
+            },
+            Spec::SpecMapping(map) => {}
+        }
+    }
+
+    Ok(normalized_values)
+}
+
+fn convert_value(kind: Kind, value: serde_yaml::Value) -> Option<TrivialValue> {
+    match kind {
+        Kind::String(_) => todo!(),
+        Kind::Bool(_) => todo!(),
+        Kind::Number(_) => todo!(),
+        Kind::File(_) => todo!(),
+        Kind::MapStringString(_) => todo!(),
+        Kind::MapStringFile(_) => todo!(),
+        Kind::Yaml(_) => todo!(),
+    }
+    None
+}
+
 impl TryFrom<String> for AgentValues {
     type Error = AgentValuesError;
 
@@ -136,24 +177,24 @@ impl TryFrom<String> for AgentValues {
 }
 
 /// get_from_normalized recursively searches for a TrivialValue given a normalized prefix.
-fn get_from_normalized(
-    inner: &Map<String, TrivialValue>,
-    normalized_prefix: &str,
-) -> Option<TrivialValue> {
-    let prefix = normalized_prefix.split_once(TEMPLATE_KEY_SEPARATOR);
-    if let Some((key, suffix)) = prefix {
-        if let Some(TrivialValue::Map(inner_map)) = inner.get(key) {
-            return get_from_normalized(inner_map, suffix);
-        }
-    } else {
-        return inner.get(normalized_prefix).cloned();
-    }
-    None
-}
+// fn get_from_normalized(
+//     inner: &Map<String, TrivialValue>,
+//     normalized_prefix: &str,
+// ) -> Option<TrivialValue> {
+//     let prefix = normalized_prefix.split_once(TEMPLATE_KEY_SEPARATOR);
+//     if let Some((key, suffix)) = prefix {
+//         if let Some(TrivialValue::Map(inner_map)) = inner.get(key) {
+//             return get_from_normalized(inner_map, suffix);
+//         }
+//     } else {
+//         return inner.get(normalized_prefix).cloned();
+//     }
+//     None
+// }
 
 /// update_from_normalized updates a TrivialValue given a normalized prefix.
 fn update_from_normalized(
-    inner: &mut Map<String, TrivialValue>,
+    inner: &mut HashMap<String, TrivialValue>,
     normalized_prefix: &str,
     value: TrivialValue,
 ) -> Option<TrivialValue> {

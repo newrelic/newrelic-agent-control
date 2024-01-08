@@ -132,7 +132,7 @@ impl Display for TrivialValue {
 }
 
 /// Represents a file path and its content.
-#[derive(Debug, PartialEq, Default, Clone, Deserialize)]
+#[derive(Debug, PartialEq, Default, Clone, Deserialize, Serialize)]
 pub struct FilePathWithContent {
     #[serde(skip)]
     pub path: String,

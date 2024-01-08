@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::config::agent_type::error::AgentTypeError;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct KindValue<T> {
     pub(crate) required: bool,
     pub(crate) default: Option<T>,
