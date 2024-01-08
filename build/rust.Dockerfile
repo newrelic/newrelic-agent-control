@@ -1,9 +1,16 @@
 ARG RUST_VERSION=1.71.1
-FROM rust:${RUST_VERSION}-buster
+#FROM rust:${RUST_VERSION}-buster
+FROM debian:jessie
 
-RUN apt update && apt upgrade -y
+RUN #apt update && apt upgrade -y
 
 ARG ARCH_NAME
+
+RUN apt install curl
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+RUN rustup install ${RUST_VERSION}
+RUN rustup default ${RUST_VERSION}-${ARCH_NAME}-unknown-linux-gnu
+
 RUN if [ "${ARCH_NAME}" = "aarch64" ]; then \
       # We assume the docker image's arch is x86_64, so cross-compiling for aarch64
       apt install -y g++-aarch64-linux-gnu libc6-dev-arm64-cross pkg-config && \
