@@ -83,5 +83,6 @@ path = "src/bin/main.rs"
 [features]
 onhost = []
 k8s = ["dep:kube", "dep:k8s-openapi", "dep:either"]
+custom-local-path = []
 # feature ci allows calling --all-features (needed on the test pipelines) and not failing to compile
 ci = []

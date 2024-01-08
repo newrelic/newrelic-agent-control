@@ -97,6 +97,13 @@ impl ValuesRepositoryFile<LocalFile, DirectoryManagerFs> {
         self.local_conf_path = path;
         self
     }
+
+    #[cfg(feature = "custom-local-path")]
+    pub fn with_base_dir(mut self, base_dir: &str) -> Self {
+        self.remote_conf_path = format!("{}{}", base_dir, self.remote_conf_path);
+        self.local_conf_path = format!("{}{}", base_dir, self.local_conf_path);
+        self
+    }
 }
 
 impl<F, S> ValuesRepositoryFile<F, S>

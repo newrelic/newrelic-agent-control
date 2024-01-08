@@ -101,4 +101,7 @@ pub enum AgentError {
 
     #[error("resource detection error: `{0}`")]
     ResourceDetetctionError(#[from] DetectError),
+
+    #[error("invalid argument: `{0}`")]
+    InvalidArgumentError(String),
 }

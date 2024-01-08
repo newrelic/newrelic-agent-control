@@ -9,6 +9,10 @@ pub struct Cli {
 
     #[arg(long)]
     print_debug_info: bool,
+
+    #[cfg(feature = "custom-local-path")]
+    #[arg(long)]
+    local_path: Option<String>,
 }
 
 impl Cli {
@@ -24,5 +28,10 @@ impl Cli {
 
     pub fn print_debug_info(&self) -> bool {
         self.print_debug_info
+    }
+
+    #[cfg(feature = "custom-local-path")]
+    pub fn get_local_path(&self) -> Option<&str> {
+        self.local_path.as_deref()
     }
 }

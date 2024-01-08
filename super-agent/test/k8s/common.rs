@@ -21,9 +21,13 @@ use newrelic_super_agent::config::{
 use newrelic_super_agent::{config::super_agent_configs::AgentID, k8s::labels::Labels};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, env, fs::File, io::Write, sync::OnceLock, time::Duration};
+use std::{collections::HashMap, env, fs, fs::File, io::Write, sync::OnceLock, time::Duration};
 use tempfile::{tempdir, TempDir};
 use tokio::{runtime::Runtime, sync::OnceCell, time::timeout};
+
+use std::error::Error;
+use std::path::Path;
+use std::process::{Command, Stdio};
 
 const KUBECONFIG_PATH: &str = "test/k8s/.kubeconfig-dev";
 const K3S_BOOTSTRAP_TIMEOUT: u64 = 60;
@@ -388,4 +392,28 @@ mock! {
     impl newrelic_super_agent::config::store::SuperAgentConfigLoader for SuperAgentConfigLoader {
         fn load(&self) -> Result<SuperAgentConfig, SuperAgentConfigError>;
     }
+}
+
+pub fn start_super_agent(file_path: &Path, local_path: Option<&str>) -> std::process::Child {
+    let mut command = Command::new("cargo");
+    command
+        .args([
+            "run",
+            "--bin",
+            "newrelic-super-agent",
+            "--features",
+            "k8s,custom-local-path",
+            "--",
+            "--config",
+        ])
+        .arg(file_path)
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit());
+
+    // Add local path argument if provided
+    if let Some(path) = local_path {
+        command.arg("--local-path").arg(path);
+    }
+
+    command.spawn().expect("Failed to start super agent")
 }
