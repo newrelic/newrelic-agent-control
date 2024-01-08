@@ -27,6 +27,12 @@ use tracing::{debug, warn};
 ///
 /// Its maintainability can be improved using a procedural macro to generate all the methods implementation
 /// automatically.
+///
+/// This implementation allows us to encapsulate the use of a runtime to perform async calls from synchronous code.
+/// Besides, the names are explicit (Sync/Async prefixes) and the async client implementation is also public because
+/// we are still analyzing whole the asynchronous runtime should be used super-agent. Since the async client implements
+/// the actual k8s requests through [kube], most integration tests (which depend on a k8s cluster) will remain unchanged
+/// using the async client.
 pub struct SyncK8sClient {
     pub async_client: Arc<AsyncK8sClient>, // TODO: remove the Arc and make it private.
     runtime: &'static Runtime,
