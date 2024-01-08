@@ -22,7 +22,7 @@ use tracing::{debug, warn};
 
 /// Provides a _sync_ implementation of [K8sExecutor].
 pub struct SyncK8sExecutor {
-    pub executor: Arc<K8sExecutor>, // TODO: remove the Arc and make it private.
+    executor: K8sExecutor,
     runtime: &'static Runtime,
 }
 
@@ -30,7 +30,7 @@ pub struct SyncK8sExecutor {
 impl SyncK8sExecutor {
     pub fn try_new(runtime: &'static Runtime, namespace: String) -> Result<Self, K8sError> {
         Ok(Self {
-            executor: Arc::new(runtime.block_on(K8sExecutor::try_new(namespace))?),
+            executor: runtime.block_on(K8sExecutor::try_new(namespace))?,
             runtime,
         })
     }
@@ -41,10 +41,10 @@ impl SyncK8sExecutor {
         cr_type_metas: Vec<TypeMeta>,
     ) -> Result<Self, K8sError> {
         Ok(Self {
-            executor: Arc::new(runtime.block_on(K8sExecutor::try_new_with_reflectors(
+            executor: runtime.block_on(K8sExecutor::try_new_with_reflectors(
                 namespace,
                 cr_type_metas,
-            ))?),
+            ))?,
             runtime,
         })
     }
