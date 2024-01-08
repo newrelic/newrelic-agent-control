@@ -206,7 +206,7 @@ fn run_super_agent(
     let config_storer = Arc::new(config_storer);
 
     let gcc = NotStartedK8sGarbageCollector::new(config_storer.clone(), k8s_client);
-    let _started_gcc = runtime.block_on(async move { gcc.start() });
+    let _started_gcc = gcc.start();
 
     SuperAgent::new(
         maybe_client,

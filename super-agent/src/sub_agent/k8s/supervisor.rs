@@ -6,7 +6,6 @@ use k8s_openapi::serde_json;
 use kube::{
     api::DynamicObject,
     core::{ObjectMeta, TypeMeta},
-    Resource, ResourceExt,
 };
 
 use std::collections::HashMap;
