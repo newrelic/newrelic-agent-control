@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 #[cfg_attr(test, mockall_double::double)]
-use crate::k8s::executor::SyncK8sExecutor;
+use crate::k8s::client::SyncK8sClient;
 
 #[derive(Default, Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct Identifiers {
@@ -22,14 +22,14 @@ pub enum GetterError {
     Persisting(#[from] StorerError),
 
     #[error("Initialising client: `{0}`")]
-    K8sClientInitialization(#[from] k8s::Error),
+    SyncK8sClientInitialization(#[from] k8s::Error),
 }
 
 impl ULIDInstanceIDGetter<Storer> {
     pub fn try_with_identifiers(
-        executor: Arc<SyncK8sExecutor>,
+        k8s_client: Arc<SyncK8sClient>,
         identifiers: Identifiers,
     ) -> Result<Self, GetterError> {
-        Ok(Self::new(Storer::new(executor), identifiers))
+        Ok(Self::new(Storer::new(k8s_client), identifiers))
     }
 }

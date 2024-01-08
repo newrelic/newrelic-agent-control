@@ -7,7 +7,10 @@ use newrelic_super_agent::{
         agent_type::runtime_config::K8sObject,
         super_agent_configs::{AgentID, SuperAgentConfig},
     },
-    k8s::{executor::K8sExecutor, garbage_collector::NotStartedK8sGarbageCollector},
+    k8s::{
+        client::AsyncK8sClient, client::SyncK8sClient,
+        garbage_collector::NotStartedK8sGarbageCollector,
+    },
     opamp::instance_id::{
         getter::{InstanceIDGetter, ULIDInstanceIDGetter},
         Identifiers,
@@ -25,15 +28,18 @@ async fn k8s_garbage_collector_cleans_removed_agent() {
 
     let agent_id = &AgentID::new("sub-agent").unwrap();
 
-    let executor = Arc::new(
-        K8sExecutor::try_new_with_reflectors(test_ns.to_string(), vec![foo_type_meta()])
-            .await
-            .unwrap(),
+    let k8s_client = Arc::new(
+        SyncK8sClient::try_new_with_reflectors(
+            newrelic_super_agent::runtime::runtime(),
+            test_ns.to_string(),
+            vec![foo_type_meta()],
+        )
+        .unwrap(),
     );
 
     let s = CRSupervisor::new(
         agent_id.clone(),
-        executor.clone(),
+        k8s_client.clone(),
         HashMap::from([(
             "fooCR".to_string(),
             serde_yaml::from_str::<K8sObject>(
@@ -56,15 +62,17 @@ spec:
     // Creates the Foo CR correctly tagged.
     s.apply().unwrap();
 
-    let executor = Arc::new(
-        K8sExecutor::try_new_with_reflectors(test_ns.to_string(), vec![foo_type_meta()])
-            .await
-            .unwrap(),
+    let k8s_client = Arc::new(
+        SyncK8sClient::try_new_with_reflectors(
+            newrelic_super_agent::runtime::runtime(),
+            test_ns.to_string(),
+            vec![foo_type_meta()],
+        )
+        .unwrap(),
     );
 
     let instance_id_getter =
-        ULIDInstanceIDGetter::try_with_identifiers(executor.clone(), Identifiers::default())
-            .await
+        ULIDInstanceIDGetter::try_with_identifiers(k8s_client.clone(), Identifiers::default())
             .unwrap();
 
     // Creates ULID CM correctly tagged.
@@ -94,7 +102,10 @@ agents:
         .returning(move || Ok(serde_yaml::from_str::<SuperAgentConfig>("agents: {}").unwrap()))
         .in_sequence(&mut seq);
 
-    let gc = NotStartedK8sGarbageCollector::new(Arc::new(config_loader), executor.clone());
+    let gc = NotStartedK8sGarbageCollector::new(
+        Arc::new(config_loader),
+        k8s_client.async_client.clone(),
+    );
 
     // Expects the GC to keep the agent cr which is in the config, event if looking for multiple kinds or that
     // are missing in the cluster.
@@ -149,7 +160,7 @@ async fn k8s_garbage_collector_with_missing_and_extra_kinds() {
     let gc = NotStartedK8sGarbageCollector::new(
         Arc::new(config_loader),
         Arc::new(
-            K8sExecutor::try_new_with_reflectors(
+            AsyncK8sClient::try_new_with_reflectors(
                 test_ns.to_string(),
                 vec![foo_type_meta(), existing_kind, missing_kind],
             )
@@ -175,14 +186,16 @@ async fn k8s_garbage_collector_does_not_remove_super_agent() {
     let sa_id = &AgentID::new_super_agent_id();
     create_test_cr(test.client.to_owned(), test_ns.as_str(), sa_id).await;
 
-    let executor = Arc::new(
-        K8sExecutor::try_new_with_reflectors(test_ns.to_string(), vec![foo_type_meta()])
-            .await
-            .unwrap(),
+    let k8s_client = Arc::new(
+        SyncK8sClient::try_new_with_reflectors(
+            newrelic_super_agent::runtime::runtime(),
+            test_ns.to_string(),
+            vec![foo_type_meta()],
+        )
+        .unwrap(),
     );
     let instance_id_getter =
-        ULIDInstanceIDGetter::try_with_identifiers(executor.clone(), Identifiers::default())
-            .await
+        ULIDInstanceIDGetter::try_with_identifiers(k8s_client.clone(), Identifiers::default())
             .unwrap();
 
     let sa_ulid = instance_id_getter.get(sa_id).unwrap();
@@ -194,7 +207,10 @@ async fn k8s_garbage_collector_does_not_remove_super_agent() {
         .times(1)
         .returning(move || Ok(serde_yaml::from_str::<SuperAgentConfig>("agents: {}").unwrap()));
 
-    let gc = NotStartedK8sGarbageCollector::new(Arc::new(config_loader), executor);
+    let gc = NotStartedK8sGarbageCollector::new(
+        Arc::new(config_loader),
+        k8s_client.async_client.clone(),
+    );
 
     // Expects the GC do not clean any resource related to the SA.
     gc.collect().await.unwrap();

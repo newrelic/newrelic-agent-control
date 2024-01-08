@@ -2,7 +2,7 @@ use crate::common::K8sEnv;
 use k8s_openapi::api::core::v1::ConfigMap;
 use kube::Api;
 use newrelic_super_agent::config::super_agent_configs::AgentID;
-use newrelic_super_agent::k8s::executor::K8sExecutor;
+use newrelic_super_agent::k8s::client::SyncK8sClient;
 use newrelic_super_agent::k8s::labels::Labels;
 use newrelic_super_agent::opamp::instance_id::{
     getter::{InstanceIDGetter, ULIDInstanceIDGetter},
@@ -22,14 +22,14 @@ async fn k8s_ulid_persister() {
 
     let mut test = K8sEnv::new().await;
     let test_ns = test.test_namespace().await;
-    let executor = Arc::new(K8sExecutor::try_new(test_ns.clone()).await.unwrap());
+    let k8s_client = Arc::new(
+        SyncK8sClient::try_new(newrelic_super_agent::runtime::runtime(), test_ns.clone()).unwrap(),
+    );
     let agent_id = AgentID::new(AGENT_ID_TEST).unwrap();
     let another_agent_id = AgentID::new(AGENT_DIFFERENT_ID_TEST).unwrap();
 
     let instance_id_getter =
-        ULIDInstanceIDGetter::try_with_identifiers(executor, Identifiers::default())
-            .await
-            .unwrap();
+        ULIDInstanceIDGetter::try_with_identifiers(k8s_client, Identifiers::default()).unwrap();
 
     let value = instance_id_getter.get(&agent_id).unwrap();
     let value2 = instance_id_getter.get(&agent_id).unwrap();

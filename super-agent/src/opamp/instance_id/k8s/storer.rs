@@ -8,10 +8,10 @@ use crate::opamp::instance_id::storer::InstanceIDStorer;
 use tracing::debug;
 
 #[cfg_attr(test, mockall_double::double)]
-use crate::k8s::executor::SyncK8sExecutor;
+use crate::k8s::client::SyncK8sClient;
 
 pub struct Storer {
-    k8s: Arc<SyncK8sExecutor>,
+    k8s: Arc<SyncK8sClient>,
     configmap_prefix: String,
 }
 
@@ -64,9 +64,9 @@ impl InstanceIDStorer for Storer {
 }
 
 impl Storer {
-    pub fn new(k8s_executor: Arc<SyncK8sExecutor>) -> Self {
+    pub fn new(k8s_client: Arc<SyncK8sClient>) -> Self {
         Self {
-            k8s: k8s_executor,
+            k8s: k8s_client,
             configmap_prefix: CM_PREFIX.to_string(),
         }
     }
@@ -84,8 +84,8 @@ fn build_cm_name(prefix: &String, agent_id: &str) -> String {
 pub mod test {
     use super::{Storer, CM_KEY};
     use crate::config::super_agent_configs::AgentID;
+    use crate::k8s::client::MockSyncK8sClient;
     use crate::k8s::error::K8sError;
-    use crate::k8s::executor::MockSyncK8sExecutor;
     use crate::k8s::labels::Labels;
     use crate::opamp::instance_id::getter::DataStored;
     use crate::opamp::instance_id::storer::InstanceIDStorer;
@@ -105,7 +105,7 @@ identifiers:
     fn test_input_parameters_dependencies() {
         // In this tests we are checking that the parameters are passed as expected and that cm names are built in the proper way
         // The output of the commands are checked in following tests.
-        let mut m = MockSyncK8sExecutor::default();
+        let mut m = MockSyncK8sClient::default();
         m.expect_get_configmap_key()
             .once()
             .with(
@@ -137,7 +137,7 @@ identifiers:
 
     #[test]
     fn test_get_error() {
-        let mut m = MockSyncK8sExecutor::default();
+        let mut m = MockSyncK8sClient::default();
         m.expect_get_configmap_key()
             .once()
             .returning(move |_, _| Err(K8sError::CMMalformed()));
@@ -149,7 +149,7 @@ identifiers:
 
     #[test]
     fn test_get_not_found() {
-        let mut m = MockSyncK8sExecutor::default();
+        let mut m = MockSyncK8sClient::default();
         m.expect_get_configmap_key()
             .once()
             .returning(move |_, _| Ok(None));
@@ -162,7 +162,7 @@ identifiers:
 
     #[test]
     fn test_get_found_data() {
-        let mut m = MockSyncK8sExecutor::default();
+        let mut m = MockSyncK8sClient::default();
         m.expect_get_configmap_key()
             .once()
             .returning(move |_, _| Ok(Some(DATA_STORED.to_string())));
@@ -178,7 +178,7 @@ identifiers:
 
     #[test]
     fn test_set_error() {
-        let mut m = MockSyncK8sExecutor::default();
+        let mut m = MockSyncK8sClient::default();
         m.expect_set_configmap_key()
             .once()
             .returning(move |_, _, _, _| Err(K8sError::CMMalformed()));
@@ -196,7 +196,7 @@ identifiers:
 
     #[test]
     fn test_set_succeeded() {
-        let mut m = MockSyncK8sExecutor::default();
+        let mut m = MockSyncK8sClient::default();
         m.expect_set_configmap_key()
             .once()
             .returning(move |_, _, _, _| Ok(()));

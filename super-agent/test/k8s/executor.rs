@@ -2,7 +2,7 @@ use crate::common::{create_test_cr, foo_type_meta, Foo, FooSpec, K8sCluster, K8s
 use k8s_openapi::api::core::v1::Pod;
 use kube::api::{Api, DeleteParams};
 use kube::core::DynamicObject;
-use newrelic_super_agent::k8s::executor::K8sExecutor;
+use newrelic_super_agent::k8s::client::AsyncK8sClient;
 use std::time::Duration;
 
 // tokio test runs with 1 thread by default causing deadlock when executing `block_on` code during test helper drop.
@@ -10,7 +10,7 @@ use std::time::Duration;
 #[ignore = "needs k8s cluster"]
 async fn k8s_client_creation_fail() {
     let test_ns = "test-not-existing-namespace";
-    assert!(K8sExecutor::try_new(test_ns.to_string()).await.is_err());
+    assert!(AsyncK8sClient::try_new(test_ns.to_string()).await.is_err());
 }
 
 // tokio test runs with 1 thread by default causing deadlock when executing `block_on` code during test helper drop.
@@ -30,12 +30,12 @@ async fn k8s_create_dynamic_resource() {
     .unwrap();
     let obj: DynamicObject = serde_yaml::from_str(cr.as_str()).unwrap();
 
-    let executor: K8sExecutor =
-        K8sExecutor::try_new_with_reflectors(test_ns.to_string(), vec![foo_type_meta()])
+    let k8s_client: AsyncK8sClient =
+        AsyncK8sClient::try_new_with_reflectors(test_ns.to_string(), vec![foo_type_meta()])
             .await
             .unwrap();
 
-    executor.apply_dynamic_object(&obj).await.unwrap();
+    k8s_client.apply_dynamic_object(&obj).await.unwrap();
 
     // Assert that object has been created.
     let api: Api<Foo> = Api::namespaced(test.client.clone(), &test_ns);
@@ -51,13 +51,13 @@ async fn k8s_get_dynamic_resource() {
 
     let cr_name = "get-test";
 
-    let executor: K8sExecutor =
-        K8sExecutor::try_new_with_reflectors(test_ns.to_string(), vec![foo_type_meta()])
+    let k8s_client: AsyncK8sClient =
+        AsyncK8sClient::try_new_with_reflectors(test_ns.to_string(), vec![foo_type_meta()])
             .await
             .unwrap();
 
     // get doesn't find any object before creation.
-    assert!(executor
+    assert!(k8s_client
         .get_dynamic_object(foo_type_meta(), cr_name)
         .await
         .unwrap()
@@ -66,7 +66,7 @@ async fn k8s_get_dynamic_resource() {
     create_test_cr(test.client.to_owned(), test_ns.as_str(), cr_name).await;
 
     // the object is found after creation.
-    let cr = executor
+    let cr = k8s_client
         .get_dynamic_object(foo_type_meta(), cr_name)
         .await
         .unwrap()
@@ -83,7 +83,7 @@ async fn k8s_get_dynamic_resource() {
     tokio::time::sleep(Duration::from_secs(1)).await;
 
     // get doesn't find any object after deletion.
-    assert!(executor
+    assert!(k8s_client
         .get_dynamic_object(foo_type_meta(), cr_name)
         .await
         .unwrap()
@@ -99,11 +99,11 @@ async fn k8s_delete_dynamic_resource() {
     let cr_name = "delete-test";
     create_test_cr(test.client.to_owned(), test_ns.as_str(), cr_name).await;
 
-    let executor: K8sExecutor =
-        K8sExecutor::try_new_with_reflectors(test_ns.to_string(), vec![foo_type_meta()])
+    let k8s_client: AsyncK8sClient =
+        AsyncK8sClient::try_new_with_reflectors(test_ns.to_string(), vec![foo_type_meta()])
             .await
             .unwrap();
-    executor
+    k8s_client
         .delete_dynamic_object(foo_type_meta(), cr_name)
         .await
         .unwrap();
@@ -130,11 +130,11 @@ async fn k8s_patch_dynamic_resource() {
     .unwrap();
     let obj: DynamicObject = serde_yaml::from_str(patch.as_str()).unwrap();
 
-    let executor: K8sExecutor =
-        K8sExecutor::try_new_with_reflectors(test_ns.to_string(), vec![foo_type_meta()])
+    let k8s_client: AsyncK8sClient =
+        AsyncK8sClient::try_new_with_reflectors(test_ns.to_string(), vec![foo_type_meta()])
             .await
             .unwrap();
-    executor.apply_dynamic_object(&obj).await.unwrap();
+    k8s_client.apply_dynamic_object(&obj).await.unwrap();
 
     let api: Api<Foo> = Api::namespaced(test.client.to_owned(), test_ns.as_str());
     let result = api.get(cr_name).await.expect("fail creating the cr");

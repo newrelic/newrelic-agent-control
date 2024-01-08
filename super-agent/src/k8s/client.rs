@@ -20,17 +20,29 @@ use std::{
 use tokio::runtime::Runtime;
 use tracing::{debug, warn};
 
-/// Provides a _sync_ implementation of [K8sExecutor].
-pub struct SyncK8sExecutor {
-    executor: K8sExecutor,
+/// Provides a _sync_ implementation of [AsyncK8sClient].
+///
+/// It offers a sync version of each async method implemented in the [AsyncK8sClient]. To do so,
+/// it essentially calls to `runtime.block_on(self.async_client.future)` using the holt runtime reference.
+///
+/// Its maintainability can be improved using a procedural macro to generate all the methods implementation
+/// automatically.
+///
+/// This implementation allows us to encapsulate the use of a runtime to perform async calls from synchronous code.
+/// Besides, the names are explicit (Sync/Async prefixes) and the async client implementation is also public because
+/// we are still analyzing whole the asynchronous runtime should be used super-agent. Since the async client implements
+/// the actual k8s requests through [kube], most integration tests (which depend on a k8s cluster) will remain unchanged
+/// using the async client.
+pub struct SyncK8sClient {
+    pub async_client: Arc<AsyncK8sClient>, // TODO: remove the Arc and make it private.
     runtime: &'static Runtime,
 }
 
 #[cfg_attr(test, mockall::automock)]
-impl SyncK8sExecutor {
+impl SyncK8sClient {
     pub fn try_new(runtime: &'static Runtime, namespace: String) -> Result<Self, K8sError> {
         Ok(Self {
-            executor: runtime.block_on(K8sExecutor::try_new(namespace))?,
+            async_client: Arc::new(runtime.block_on(AsyncK8sClient::try_new(namespace))?),
             runtime,
         })
     }
@@ -41,27 +53,27 @@ impl SyncK8sExecutor {
         cr_type_metas: Vec<TypeMeta>,
     ) -> Result<Self, K8sError> {
         Ok(Self {
-            executor: runtime.block_on(K8sExecutor::try_new_with_reflectors(
+            async_client: Arc::new(runtime.block_on(AsyncK8sClient::try_new_with_reflectors(
                 namespace,
                 cr_type_metas,
-            ))?,
+            ))?),
             runtime,
         })
     }
 
     pub fn apply_dynamic_object(&self, obj: &DynamicObject) -> Result<(), K8sError> {
         self.runtime
-            .block_on(self.executor.apply_dynamic_object(obj))
+            .block_on(self.async_client.apply_dynamic_object(obj))
     }
 
     pub fn has_dynamic_object_changed(&self, obj: &DynamicObject) -> Result<bool, K8sError> {
         self.runtime
-            .block_on(self.executor.has_dynamic_object_changed(obj))
+            .block_on(self.async_client.has_dynamic_object_changed(obj))
     }
 
     pub fn apply_dynamic_object_if_changed(&self, obj: &DynamicObject) -> Result<(), K8sError> {
         self.runtime
-            .block_on(self.executor.apply_dynamic_object_if_changed(obj))
+            .block_on(self.async_client.apply_dynamic_object_if_changed(obj))
     }
 
     pub fn get_dynamic_object(
@@ -70,7 +82,7 @@ impl SyncK8sExecutor {
         name: &str,
     ) -> Result<Option<Arc<DynamicObject>>, K8sError> {
         self.runtime
-            .block_on(self.executor.get_dynamic_object(tm, name))
+            .block_on(self.async_client.get_dynamic_object(tm, name))
     }
 
     pub fn delete_dynamic_object_collection(
@@ -79,14 +91,16 @@ impl SyncK8sExecutor {
         label_selector: &str,
     ) -> Result<(), K8sError> {
         self.runtime.block_on(
-            self.executor
+            self.async_client
                 .delete_dynamic_object_collection(tm, label_selector),
         )
     }
 
     pub fn delete_configmap_collection(&self, label_selector: &str) -> Result<(), K8sError> {
-        self.runtime
-            .block_on(self.executor.delete_configmap_collection(label_selector))
+        self.runtime.block_on(
+            self.async_client
+                .delete_configmap_collection(label_selector),
+        )
     }
 
     pub fn get_configmap_key(
@@ -95,7 +109,7 @@ impl SyncK8sExecutor {
         key: &str,
     ) -> Result<Option<String>, K8sError> {
         self.runtime
-            .block_on(self.executor.get_configmap_key(configmap_name, key))
+            .block_on(self.async_client.get_configmap_key(configmap_name, key))
     }
 
     pub fn set_configmap_key(
@@ -105,22 +119,24 @@ impl SyncK8sExecutor {
         key: &str,
         value: &str,
     ) -> Result<(), K8sError> {
-        self.runtime.block_on(
-            self.executor
-                .set_configmap_key(configmap_name, labels, key, value),
-        )
-    }
-
-    pub fn default_namespace(&self) -> &str {
-        self.executor.default_namespace()
+        self.runtime.block_on(self.async_client.set_configmap_key(
+            configmap_name,
+            labels,
+            key,
+            value,
+        ))
     }
 
     pub fn supported_type_meta_collection(&self) -> Vec<TypeMeta> {
-        self.executor.dynamics.keys().cloned().collect()
+        self.async_client.supported_type_meta_collection()
+    }
+
+    pub fn default_namespace(&self) -> &str {
+        self.async_client.default_namespace()
     }
 }
 
-pub struct K8sExecutor {
+pub struct AsyncK8sClient {
     client: Client,
     dynamics: HashMap<TypeMeta, Dynamic>,
 }
@@ -130,8 +146,8 @@ struct Dynamic {
     object_reflector: DynamicObjectReflector,
 }
 
-#[cfg_attr(test, mockall::automock)]
-impl K8sExecutor {
+#[cfg_attr(test, mockall::automock)] // TODO: consider removing automock it when it is not used externally
+impl AsyncK8sClient {
     /// Constructs a new Kubernetes client.
     ///
     /// If loading from the inCluster config fail we fall back to kube-config
@@ -384,7 +400,7 @@ impl K8sExecutor {
     }
 }
 
-//  delete_collection has been moved outside the executor to be able to use mockall in the executor
+//  delete_collection has been moved outside the client to be able to use mockall in the client
 //  without having to make K 'static.
 async fn delete_collection<K>(api: &Api<K>, label_selector: &str) -> Result<(), K8sError>
 where
@@ -493,12 +509,12 @@ pub(crate) mod test {
         assert!(result.is_ok());
     }
 
-    fn get_mocked_client(scenario: Scenario) -> K8sExecutor {
+    fn get_mocked_client(scenario: Scenario) -> AsyncK8sClient {
         let (mock_service, handle) =
             mock::pair::<http::Request<hyper::Body>, http::Response<hyper::Body>>();
         ApiServerVerifier(handle).run(scenario);
         let client = Client::new(mock_service, "default");
-        K8sExecutor {
+        AsyncK8sClient {
             client,
             dynamics: HashMap::new(),
         }
