@@ -7,6 +7,7 @@ use crate::sub_agent::values::values_repository::ValuesRepositoryError::DeleteEr
 use std::fs::Permissions;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
+use tracing::info;
 
 use crate::config::agent_type::agent_types::FinalAgent;
 #[cfg_attr(test, mockall_double::double)]
@@ -117,8 +118,12 @@ where
     }
 
     pub fn get_remote_values_file_path(&self, agent_id: &AgentID) -> PathBuf {
+        // This file (soon files) will be removed often, but its parent directory contains files
+        // that should persist across these deletions. As opposed to its non-remote counterpart in 
+        // `get_values_file_path`, we put the values file inside its own directory, which will 
+        // be recreated each time a remote config is received, leaving the other files untouched.
         PathBuf::from(format!(
-            "{}/{}/{}",
+            "{}/{}/values/{}",
             self.remote_conf_path, agent_id, VALUES_FILENAME
         ))
     }
@@ -184,6 +189,7 @@ where
         let mut values_dir_path = PathBuf::from(&values_file_path);
         values_dir_path.pop();
 
+        info!("store_remote: Removing directory at {}", values_dir_path.to_string_lossy());
         self.directory_manager.delete(values_dir_path.as_path())?;
         self.directory_manager.create(
             values_dir_path.as_path(),
