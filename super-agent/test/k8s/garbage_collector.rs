@@ -107,7 +107,7 @@ agents:
 
     // Expect that the current_agent is removed on the second call.
     gc.collect().unwrap();
-    block_on(api.get(agent_id)).expect("CR should be removed");
+    block_on(api.get(agent_id)).expect_err("CR should be removed");
     assert_ne!(
         agent_ulid,
         instance_id_getter.get(agent_id).unwrap(),
