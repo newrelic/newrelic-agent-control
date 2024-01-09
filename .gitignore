@@ -41,3 +41,6 @@ local/
 
 # targets created for goreleaser
 /target-*
+
+# local k8s configuration for testing purposes
+super-agent/test/k8s/.kubeconfig-dev
