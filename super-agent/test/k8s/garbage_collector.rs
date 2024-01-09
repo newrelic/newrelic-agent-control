@@ -1,4 +1,6 @@
-use crate::common::{create_test_cr, foo_type_meta, Foo, K8sEnv, MockSuperAgentConfigLoader};
+use super::common::{
+    create_test_cr, foo_type_meta, tokio_runtime, Foo, K8sEnv, MockSuperAgentConfigLoader,
+};
 use k8s_openapi::{api::core::v1::ConfigMap, Resource};
 use kube::{api::Api, core::TypeMeta};
 use mockall::Sequence;
@@ -20,7 +22,7 @@ use std::{collections::HashMap, sync::Arc};
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_garbage_collector_cleans_removed_agent() {
-    let runtime = newrelic_super_agent::runtime::runtime();
+    let runtime = tokio_runtime();
     let mut test = runtime.block_on(K8sEnv::new());
     let test_ns = runtime.block_on(test.test_namespace());
 
@@ -117,7 +119,7 @@ agents:
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_garbage_collector_with_missing_and_extra_kinds() {
-    let runtime = newrelic_super_agent::runtime::runtime();
+    let runtime = tokio_runtime();
     let mut test = runtime.block_on(K8sEnv::new());
     let test_ns = runtime.block_on(test.test_namespace());
 
@@ -173,7 +175,7 @@ fn k8s_garbage_collector_with_missing_and_extra_kinds() {
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_garbage_collector_does_not_remove_super_agent() {
-    let runtime = newrelic_super_agent::runtime::runtime();
+    let runtime = tokio_runtime();
     let mut test = runtime.block_on(K8sEnv::new());
     let test_ns = runtime.block_on(test.test_namespace());
 
@@ -185,12 +187,8 @@ fn k8s_garbage_collector_does_not_remove_super_agent() {
     ));
 
     let k8s_client = Arc::new(
-        SyncK8sClient::try_new_with_reflectors(
-            newrelic_super_agent::runtime::runtime(),
-            test_ns.to_string(),
-            vec![foo_type_meta()],
-        )
-        .unwrap(),
+        SyncK8sClient::try_new_with_reflectors(runtime, test_ns.to_string(), vec![foo_type_meta()])
+            .unwrap(),
     );
     let instance_id_getter =
         ULIDInstanceIDGetter::try_with_identifiers(k8s_client.clone(), Identifiers::default())

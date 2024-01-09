@@ -1,4 +1,4 @@
-use crate::common::K8sEnv;
+use super::common::{tokio_runtime, K8sEnv};
 use k8s_openapi::api::core::v1::ConfigMap;
 use kube::Api;
 use newrelic_super_agent::config::super_agent_configs::AgentID;
@@ -19,13 +19,11 @@ fn k8s_ulid_persister() {
     // This tests cover the happy path of ULIDInstanceIDGetter on K8s.
     // It checks that with same AgentID the the Ulid is the same and if different the ULID is different
 
-    let runtime = newrelic_super_agent::runtime::runtime();
+    let runtime = tokio_runtime();
     let mut test = runtime.block_on(K8sEnv::new());
     let test_ns = runtime.block_on(test.test_namespace());
 
-    let k8s_client = Arc::new(
-        SyncK8sClient::try_new(newrelic_super_agent::runtime::runtime(), test_ns.clone()).unwrap(),
-    );
+    let k8s_client = Arc::new(SyncK8sClient::try_new(runtime, test_ns.clone()).unwrap());
     let agent_id = AgentID::new(AGENT_ID_TEST).unwrap();
     let another_agent_id = AgentID::new(AGENT_DIFFERENT_ID_TEST).unwrap();
 

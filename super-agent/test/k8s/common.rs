@@ -21,14 +21,27 @@ use newrelic_super_agent::config::{
 use newrelic_super_agent::{config::super_agent_configs::AgentID, k8s::labels::Labels};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, env, fs::File, io::Write, time::Duration};
+use std::{collections::HashMap, env, fs::File, io::Write, sync::OnceLock, time::Duration};
 use tempfile::{tempdir, TempDir};
-use tokio::{sync::OnceCell, time::timeout};
+use tokio::{runtime::Runtime, sync::OnceCell, time::timeout};
 
 const KUBECONFIG_PATH: &str = "test/k8s/.kubeconfig-dev";
 const K3S_BOOTSTRAP_TIMEOUT: u64 = 60;
 const K3S_IMAGE_ENV: &str = "K3S_IMAGE";
 const K3S_CLUSTER_PORT: &str = "6443/tcp";
+
+/// Returns a static reference to the tokio runtime. The runtime is built the first time this function
+/// is called.
+pub fn tokio_runtime() -> &'static Runtime {
+    static RUNTIME_ONCE: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
+    RUNTIME_ONCE.get_or_init(|| {
+        tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .unwrap()
+    })
+}
 
 pub struct K8sEnv {
     pub client: Client,
@@ -94,7 +107,7 @@ impl Drop for K8sEnv {
         futures::executor::block_on(async move {
             let ns_api: Api<Namespace> = Api::all(self.client.clone());
             let generated_namespaces = self.generated_namespaces.clone();
-            newrelic_super_agent::runtime::runtime()
+            tokio_runtime()
                 .spawn(async move {
                     for ns in generated_namespaces.into_iter() {
                         ns_api
@@ -241,7 +254,7 @@ impl Drop for K8sCluster {
         futures::executor::block_on(async move {
             let docker = self.docker.clone();
             let container_id = self.k3s_container_id.clone();
-            newrelic_super_agent::runtime::runtime()
+            tokio_runtime()
                 .spawn(async move {
                     docker
                         .stop_container(container_id.as_str(), None)
