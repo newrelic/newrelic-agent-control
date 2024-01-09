@@ -1,4 +1,4 @@
-# k8s Integration tests 
+# k8s Integration tests
 
 Requirements:
 - Docker
@@ -15,3 +15,30 @@ Notes:
 - The `KUBECONFIG` env var is overridden on each test execution and points to the dev cluster, so k8s clients used in the test can be configured to use the `KUBECONFIG` environment.
 - There are currently two kinds of tests, one using the same cluster but creating namespaces and the other creating a cluster for the tests which is destroyed when the test finishes. The first one is much faster but less isolated.
 - Tokio test runs with 1 thread by default causing deadlock when executing `block_on` code during test helper drop, so `#[tokio::test(flavor = "multi_thread", worker_threads = 2)]` needs to be added
+
+## sync / async integration tests
+
+Some tests use the `SyncK8sClient` which encapsulates calls to `runtime.block_on` to offer a synchronous interface.
+When this client is used, `#[tokio::test]` cannot be used because `runtime.block_on` would be executing in a tokio
+runtime context, leading to a panic:
+
+```
+'Cannot start a runtime from within a runtime. This happens because a function (like `block_on`) attempted to block the current thread while the thread is being used to drive asynchronous tasks.'
+```
+
+This kind of test, needs to be implemented as a regular test, and any asynchronous call needs to be in a `runtime.block_on`
+block. Example:
+
+```rust
+#[test]
+#[ignore = "needs k8s cluster"]
+fn test_whatever() {
+    let runtime = super::common::tokio_runtime();
+    // async calls
+    let mut test = runtime.block_on(K8sEnv::new());
+    let test_ns = runtime.block_on(test.test_namespace());
+    // sync client initialization
+    let k8s_client = Arc::new(SyncK8sClient::try_new(runtime, test_ns.clone()).unwrap());
+    // ...
+}
+```
