@@ -431,13 +431,11 @@ checksum = "acbf1af155f9b9ef647e42cdc158db4b64a1b61f743629225fde6f3e0be2a7c7"
 name = "config-migrate"
 version = "0.0.1"
 dependencies = [
- "aquamarine",
  "assert_cmd",
  "assert_fs",
  "assert_matches",
  "bollard",
  "clap",
- "duration-str",
  "http",
  "log",
  "mockall 0.11.4",

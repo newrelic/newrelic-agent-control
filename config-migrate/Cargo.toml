@@ -1,6 +1,6 @@
 [package]
 name = "config-migrate"
-description = "The resource detection can be used to detect resource information from the host"
+description = "Script to migrate legacy infra-agent configs to the new values format"
 version = "0.0.1"
 edition = "2021"
 authors = ["The New Relic Core Agent & Open Standards (CAOS) Team"]
@@ -18,13 +18,7 @@ log = { version = "0.4.20", features = ["kv_unstable"] }
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 tracing = "0.1.37"
 serde_yaml = "0.9.25"
-
-aquamarine = "0.3.2"
-duration-str = "0.7.0"
-
-# OnHost super-agent dependencies
-# IMPORTANT: All onhost only deps needs to be `optional = true` so they won't be compiled by default
-newrelic_super_agent = {path = "../super-agent", features = ["onhost"]}
+newrelic_super_agent = { path = "../super-agent" }
 
 [dev-dependencies]
 assert_cmd = "2.0.12"
@@ -44,4 +38,3 @@ tracing-test = "0.2.4"
 [[bin]]
 name = "newrelic-config-migrate"
 path = "src/bin/main.rs"
-
