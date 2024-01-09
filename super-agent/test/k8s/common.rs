@@ -4,7 +4,7 @@ use bollard::{
     service::{HostConfig, PortBinding},
     Docker,
 };
-use futures::StreamExt;
+use futures::{Future, StreamExt};
 use k8s_openapi::{
     api::core::v1::Namespace,
     apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition,
@@ -41,6 +41,12 @@ pub fn tokio_runtime() -> &'static Runtime {
             .build()
             .unwrap()
     })
+}
+
+/// A wrapper to shorten the usage of the runtime's block_on. It is useful because most synchronous
+/// tests need to perform some calls to async functions.
+pub fn block_on<F: Future>(future: F) -> F::Output {
+    tokio_runtime().block_on(future)
 }
 
 pub struct K8sEnv {

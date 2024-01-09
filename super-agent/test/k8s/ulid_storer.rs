@@ -1,4 +1,4 @@
-use super::common::{tokio_runtime, K8sEnv};
+use super::common::{block_on, tokio_runtime, K8sEnv};
 use k8s_openapi::api::core::v1::ConfigMap;
 use kube::Api;
 use newrelic_super_agent::config::super_agent_configs::AgentID;
@@ -19,11 +19,10 @@ fn k8s_ulid_persister() {
     // This tests cover the happy path of ULIDInstanceIDGetter on K8s.
     // It checks that with same AgentID the the Ulid is the same and if different the ULID is different
 
-    let runtime = tokio_runtime();
-    let mut test = runtime.block_on(K8sEnv::new());
-    let test_ns = runtime.block_on(test.test_namespace());
+    let mut test = block_on(K8sEnv::new());
+    let test_ns = block_on(test.test_namespace());
 
-    let k8s_client = Arc::new(SyncK8sClient::try_new(runtime, test_ns.clone()).unwrap());
+    let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime(), test_ns.clone()).unwrap());
     let agent_id = AgentID::new(AGENT_ID_TEST).unwrap();
     let another_agent_id = AgentID::new(AGENT_DIFFERENT_ID_TEST).unwrap();
 
@@ -44,30 +43,28 @@ fn k8s_ulid_persister() {
     assert_eq!(value_different, value_different2);
 
     // Verify also that the status of the cluster is the expected one
-    runtime.block_on(async {
-        let cm_client: Api<ConfigMap> =
-            Api::<ConfigMap>::namespaced(test.client.clone(), test_ns.clone().as_str());
+    let cm_client: Api<ConfigMap> =
+        Api::<ConfigMap>::namespaced(test.client.clone(), test_ns.clone().as_str());
 
-        let cm = cm_client.get("ulid-data-agent-id-test").await;
-        assert!(cm.is_ok());
-        let cm_un = cm.unwrap();
-        assert!(cm_un.data.is_some());
-        assert!(cm_un.data.unwrap().contains_key(CM_KEY));
-        assert_eq!(
-            cm_un.metadata.labels,
-            Some(Labels::new(&agent_id).get()),
-            "Expect to have default SA labels"
-        );
+    let cm = block_on(cm_client.get("ulid-data-agent-id-test"));
+    assert!(cm.is_ok());
+    let cm_un = cm.unwrap();
+    assert!(cm_un.data.is_some());
+    assert!(cm_un.data.unwrap().contains_key(CM_KEY));
+    assert_eq!(
+        cm_un.metadata.labels,
+        Some(Labels::new(&agent_id).get()),
+        "Expect to have default SA labels"
+    );
 
-        let cm = cm_client.get("ulid-data-agent-different-id-test").await;
-        assert!(cm.is_ok());
-        let cm_un = cm.unwrap();
-        assert!(cm_un.data.is_some());
-        assert!(cm_un.data.unwrap().contains_key(CM_KEY));
-        assert_eq!(
-            cm_un.metadata.labels,
-            Some(Labels::new(&another_agent_id).get()),
-            "Expect to have default SA labels"
-        );
-    });
+    let cm = block_on(cm_client.get("ulid-data-agent-different-id-test"));
+    assert!(cm.is_ok());
+    let cm_un = cm.unwrap();
+    assert!(cm_un.data.is_some());
+    assert!(cm_un.data.unwrap().contains_key(CM_KEY));
+    assert_eq!(
+        cm_un.metadata.labels,
+        Some(Labels::new(&another_agent_id).get()),
+        "Expect to have default SA labels"
+    );
 }

@@ -1,5 +1,5 @@
 use super::common::{
-    create_test_cr, foo_type_meta, tokio_runtime, Foo, K8sEnv, MockSuperAgentConfigLoader,
+    block_on, create_test_cr, foo_type_meta, tokio_runtime, Foo, K8sEnv, MockSuperAgentConfigLoader,
 };
 use k8s_openapi::{api::core::v1::ConfigMap, Resource};
 use kube::{api::Api, core::TypeMeta};
@@ -22,15 +22,18 @@ use std::{collections::HashMap, sync::Arc};
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_garbage_collector_cleans_removed_agent() {
-    let runtime = tokio_runtime();
-    let mut test = runtime.block_on(K8sEnv::new());
-    let test_ns = runtime.block_on(test.test_namespace());
+    let mut test = block_on(K8sEnv::new());
+    let test_ns = block_on(test.test_namespace());
 
     let agent_id = &AgentID::new("sub-agent").unwrap();
 
     let k8s_client = Arc::new(
-        SyncK8sClient::try_new_with_reflectors(runtime, test_ns.to_string(), vec![foo_type_meta()])
-            .unwrap(),
+        SyncK8sClient::try_new_with_reflectors(
+            tokio_runtime(),
+            test_ns.to_string(),
+            vec![foo_type_meta()],
+        )
+        .unwrap(),
     );
 
     let s = CRSupervisor::new(
@@ -95,9 +98,7 @@ agents:
     // are missing in the cluster.
     gc.collect().unwrap();
     let api: Api<Foo> = Api::namespaced(test.client.clone(), &test_ns);
-    runtime.block_on(async {
-        api.get(agent_id).await.expect("CR should exist");
-    });
+    block_on(api.get(agent_id)).expect("CR should exist");
     assert_eq!(
         agent_ulid,
         instance_id_getter.get(agent_id).unwrap(),
@@ -106,9 +107,7 @@ agents:
 
     // Expect that the current_agent is removed on the second call.
     gc.collect().unwrap();
-    runtime.block_on(async {
-        api.get(agent_id).await.expect_err("CR should be removed");
-    });
+    block_on(api.get(agent_id)).expect("CR should be removed");
     assert_ne!(
         agent_ulid,
         instance_id_getter.get(agent_id).unwrap(),
@@ -119,13 +118,12 @@ agents:
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_garbage_collector_with_missing_and_extra_kinds() {
-    let runtime = tokio_runtime();
-    let mut test = runtime.block_on(K8sEnv::new());
-    let test_ns = runtime.block_on(test.test_namespace());
+    let mut test = block_on(K8sEnv::new());
+    let test_ns = block_on(test.test_namespace());
 
     // Creates CRs labeled for two agents.
     let removed_agent_id = "removed";
-    runtime.block_on(create_test_cr(
+    block_on(create_test_cr(
         test.client.to_owned(),
         test_ns.as_str(),
         removed_agent_id,
@@ -154,7 +152,7 @@ fn k8s_garbage_collector_with_missing_and_extra_kinds() {
         Arc::new(config_loader),
         Arc::new(
             SyncK8sClient::try_new_with_reflectors(
-                runtime,
+                tokio_runtime(),
                 test_ns.to_string(),
                 vec![foo_type_meta(), existing_kind, missing_kind],
             )
@@ -165,30 +163,29 @@ fn k8s_garbage_collector_with_missing_and_extra_kinds() {
     // Expects the GC to clean the "removed" agent CR.
     gc.collect().unwrap();
     let api: Api<Foo> = Api::namespaced(test.client.clone(), &test_ns);
-    runtime.block_on(async {
-        api.get(removed_agent_id)
-            .await
-            .expect_err("fail garbage collecting removed agent");
-    });
+    block_on(api.get(removed_agent_id)).expect_err("fail garbage collecting removed agent");
 }
 
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_garbage_collector_does_not_remove_super_agent() {
-    let runtime = tokio_runtime();
-    let mut test = runtime.block_on(K8sEnv::new());
-    let test_ns = runtime.block_on(test.test_namespace());
+    let mut test = block_on(K8sEnv::new());
+    let test_ns = block_on(test.test_namespace());
 
     let sa_id = &AgentID::new_super_agent_id();
-    runtime.block_on(create_test_cr(
+    block_on(create_test_cr(
         test.client.to_owned(),
         test_ns.as_str(),
         sa_id,
     ));
 
     let k8s_client = Arc::new(
-        SyncK8sClient::try_new_with_reflectors(runtime, test_ns.to_string(), vec![foo_type_meta()])
-            .unwrap(),
+        SyncK8sClient::try_new_with_reflectors(
+            tokio_runtime(),
+            test_ns.to_string(),
+            vec![foo_type_meta()],
+        )
+        .unwrap(),
     );
     let instance_id_getter =
         ULIDInstanceIDGetter::try_with_identifiers(k8s_client.clone(), Identifiers::default())
@@ -208,9 +205,7 @@ fn k8s_garbage_collector_does_not_remove_super_agent() {
     // Expects the GC do not clean any resource related to the SA.
     gc.collect().unwrap();
     let api: Api<Foo> = Api::namespaced(test.client.clone(), &test_ns);
-    runtime.block_on(async {
-        api.get(SUPER_AGENT_ID).await.expect("CR should exist");
-    });
+    block_on(api.get(SUPER_AGENT_ID)).expect("CR should exist");
     assert_eq!(
         sa_ulid,
         instance_id_getter.get(sa_id).unwrap(),
