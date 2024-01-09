@@ -104,6 +104,9 @@ impl Drop for K8sEnv {
         // ```
         // 'Cannot start a runtime from within a runtime. This happens because a function (like `block_on`) attempted to block the current thread while the thread is being used to drive asynchronous tasks.'
         // ````
+        // It is important to notice that the usage of `futures::executor::block_on` could lead to a dead-lock if there
+        // are not available threads in the tokio runtime, so we need to use the multi-threading version of the macro:
+        // `#[tokio::test(flavor = "multi_thread")]`
         //
         // `runtime.spawn(<future-block>).await` is needed because we cannot execute `futures::executor::block_on` when there is
         // no tokio runtime (synchronous tests), since it would fail with:
