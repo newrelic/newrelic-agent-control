@@ -46,7 +46,7 @@ deployment:
         restart_policy:
           backoff_strategy:
             type: fixed
-            backoff_delay_seconds: 5s
+            backoff_delay: 20s
 "#;
 
 // Infrastructure_agent AgentType
@@ -73,6 +73,11 @@ variables:
     required: false
     default: {}
     file_path: "logging.d"
+  backoff_delay:
+    description: "seconds until next retry if agent fails to start"
+    type: string
+    required: false
+    default: 20s
 deployment:
   on_host:
     executables:
@@ -82,7 +87,7 @@ deployment:
         restart_policy:
           backoff_strategy:
             type: fixed
-            backoff_delay_seconds: 5s
+            backoff_delay: ${backoff_delay}
 "#;
 
 // NRDOT AgentType
@@ -106,6 +111,11 @@ variables:
     type: number
     required: false
     default: 100
+  backoff_delay:
+    description: "seconds until next retry if agent fails to start"
+    type: string
+    required: false
+    default: 20s
 deployment:
   on_host:
     executables:
@@ -115,7 +125,7 @@ deployment:
         restart_policy:
           backoff_strategy:
             type: fixed
-            backoff_delay_seconds: 5s
+            backoff_delay: ${backoff_delay}
 "#;
 
 // Kubernetes AgentType
@@ -148,8 +158,7 @@ deployment:
               version: 0.67.0
               sourceRef:
                 kind: HelmRepository
-                name: open-telemetry # Needed this reference from above. Do not override or override above too.
-                namespace: default # This comes from the static config, we need some way to inject it.
+                name: open-telemetry # TODO now sub-agent name must be "open-telemetry" for this to work.
               interval: 3m
           install:
             remediation:

@@ -5,7 +5,6 @@ use crate::config::store::{
 };
 use crate::config::super_agent_configs::{AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig};
 use crate::event::channel::{pub_sub, EventConsumer, EventPublisher};
-use crate::fs::directory_manager::DirectoryManagerFs;
 use crate::opamp::callbacks::AgentCallbacks;
 use crate::opamp::remote_config::RemoteConfig;
 use crate::opamp::remote_config_hash::{Hash, HashRepository, HashRepositoryFile};

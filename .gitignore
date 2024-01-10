@@ -33,7 +33,7 @@ super-agent/test/k8s/.kubeconfig-dev
 
 # local build
 .cargo
-bin/
+/bin/
 
 # local directory for testing purposes
 local/

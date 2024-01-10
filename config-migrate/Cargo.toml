@@ -1,0 +1,40 @@
+[package]
+name = "config-migrate"
+description = "Script to migrate legacy infra-agent configs to the new values format"
+version = "0.0.1"
+edition = "2021"
+authors = ["The New Relic Core Agent & Open Standards (CAOS) Team"]
+publish = false
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+clap = { version = "4.4.3", features = ["derive"] }
+regex = "1.9.3"
+serde = { version = "1.0.188", features = ["derive"] }
+thiserror = "1.0.47"
+nix = { version = "0.27.1", features = ["signal", "user", "hostname"] }
+log = { version = "0.4.20", features = ["kv_unstable"] }
+tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
+tracing = "0.1.37"
+serde_yaml = "0.9.25"
+newrelic_super_agent = { path = "../super-agent" }
+
+[dev-dependencies]
+assert_cmd = "2.0.12"
+assert_fs = "1.0.13"
+bollard = "0.15.0"
+predicates = "3.0.3"
+tower-test = "0.4.0"
+http = "0.2.9"
+tempfile = "3.8.0"
+mockall = "0.11.4"
+schemars = "0.8.15"
+serde_json = "1.0.108"
+assert_matches = "1.5.0"
+mockall_double = "0.3.0"
+tracing-test = "0.2.4"
+
+[[bin]]
+name = "newrelic-config-migrate"
+path = "src/bin/main.rs"
