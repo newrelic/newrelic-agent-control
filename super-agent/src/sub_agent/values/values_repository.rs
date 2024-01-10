@@ -118,8 +118,8 @@ where
 
     pub fn get_remote_values_file_path(&self, agent_id: &AgentID) -> PathBuf {
         // This file (soon files) will be removed often, but its parent directory contains files
-        // that should persist across these deletions. As opposed to its non-remote counterpart in 
-        // `get_values_file_path`, we put the values file inside its own directory, which will 
+        // that should persist across these deletions. As opposed to its non-remote counterpart in
+        // `get_values_file_path`, we put the values file inside its own directory, which will
         // be recreated each time a remote config is received, leaving the other files untouched.
         PathBuf::from(format!(
             "{}/{}/values/{}",
@@ -519,8 +519,9 @@ pub mod test {
         let mut final_agent = FinalAgent::default();
         final_agent.set_capabilities(default_capabilities());
 
-        file_reader
-            .should_not_read_io_error(Path::new("some/remote/path/some_agent_id/values/values.yml"));
+        file_reader.should_not_read_io_error(Path::new(
+            "some/remote/path/some_agent_id/values/values.yml",
+        ));
 
         let repo = ValuesRepositoryFile::with_mocks(
             file_writer,
@@ -554,8 +555,7 @@ pub mod test {
         let mut final_agent = FinalAgent::default();
         final_agent.set_capabilities(default_capabilities());
 
-        file_reader
-            .should_not_read_io_error(Path::new("some/local/path/some_agent_id/values.yml"));
+        file_reader.should_not_read_io_error(Path::new("some/local/path/some_agent_id/values.yml"));
 
         let repo = ValuesRepositoryFile::with_mocks(
             file_writer,
