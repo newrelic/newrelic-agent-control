@@ -1,4 +1,4 @@
-use crate::common::K8sEnv;
+use super::common::{block_on, tokio_runtime, K8sEnv};
 use k8s_openapi::api::core::v1::ConfigMap;
 use kube::Api;
 use newrelic_super_agent::config::super_agent_configs::AgentID;
@@ -13,18 +13,16 @@ use std::sync::Arc;
 const AGENT_ID_TEST: &str = "agent-id-test";
 const AGENT_DIFFERENT_ID_TEST: &str = "agent-different-id-test";
 
-// tokio test runs with 1 thread by default causing deadlock when executing `block_on` code during test helper drop.
-#[tokio::test(flavor = "multi_thread")]
+#[test]
 #[ignore = "needs k8s cluster"]
-async fn k8s_ulid_persister() {
+fn k8s_ulid_persister() {
     // This tests cover the happy path of ULIDInstanceIDGetter on K8s.
     // It checks that with same AgentID the the Ulid is the same and if different the ULID is different
 
-    let mut test = K8sEnv::new().await;
-    let test_ns = test.test_namespace().await;
-    let k8s_client = Arc::new(
-        SyncK8sClient::try_new(newrelic_super_agent::runtime::runtime(), test_ns.clone()).unwrap(),
-    );
+    let mut test = block_on(K8sEnv::new());
+    let test_ns = block_on(test.test_namespace());
+
+    let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime(), test_ns.clone()).unwrap());
     let agent_id = AgentID::new(AGENT_ID_TEST).unwrap();
     let another_agent_id = AgentID::new(AGENT_DIFFERENT_ID_TEST).unwrap();
 
@@ -48,7 +46,7 @@ async fn k8s_ulid_persister() {
     let cm_client: Api<ConfigMap> =
         Api::<ConfigMap>::namespaced(test.client.clone(), test_ns.clone().as_str());
 
-    let cm = cm_client.get("ulid-data-agent-id-test").await;
+    let cm = block_on(cm_client.get("ulid-data-agent-id-test"));
     assert!(cm.is_ok());
     let cm_un = cm.unwrap();
     assert!(cm_un.data.is_some());
@@ -59,7 +57,7 @@ async fn k8s_ulid_persister() {
         "Expect to have default SA labels"
     );
 
-    let cm = cm_client.get("ulid-data-agent-different-id-test").await;
+    let cm = block_on(cm_client.get("ulid-data-agent-different-id-test"));
     assert!(cm.is_ok());
     let cm_un = cm.unwrap();
     assert!(cm_un.data.is_some());
