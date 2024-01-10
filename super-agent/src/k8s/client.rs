@@ -34,7 +34,7 @@ use tracing::{debug, warn};
 /// the actual k8s requests through [kube], most integration tests (which depend on a k8s cluster) will remain unchanged
 /// using the async client.
 pub struct SyncK8sClient {
-    pub async_client: Arc<AsyncK8sClient>, // TODO: remove the Arc and make it private.
+    async_client: AsyncK8sClient,
     runtime: &'static Runtime,
 }
 
@@ -42,7 +42,7 @@ pub struct SyncK8sClient {
 impl SyncK8sClient {
     pub fn try_new(runtime: &'static Runtime, namespace: String) -> Result<Self, K8sError> {
         Ok(Self {
-            async_client: Arc::new(runtime.block_on(AsyncK8sClient::try_new(namespace))?),
+            async_client: runtime.block_on(AsyncK8sClient::try_new(namespace))?,
             runtime,
         })
     }
@@ -53,10 +53,10 @@ impl SyncK8sClient {
         cr_type_metas: Vec<TypeMeta>,
     ) -> Result<Self, K8sError> {
         Ok(Self {
-            async_client: Arc::new(runtime.block_on(AsyncK8sClient::try_new_with_reflectors(
+            async_client: runtime.block_on(AsyncK8sClient::try_new_with_reflectors(
                 namespace,
                 cr_type_metas,
-            ))?),
+            ))?,
             runtime,
         })
     }
