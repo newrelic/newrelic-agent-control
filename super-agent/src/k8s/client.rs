@@ -146,7 +146,6 @@ struct Dynamic {
     object_reflector: DynamicObjectReflector,
 }
 
-#[cfg_attr(test, mockall::automock)] // TODO: consider removing automock it when it is not used externally
 impl AsyncK8sClient {
     /// Constructs a new Kubernetes client.
     ///
