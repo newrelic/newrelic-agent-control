@@ -160,7 +160,7 @@ fn run_super_agent(
         config::super_agent_configs::AgentID, opamp::operations::build_opamp_and_start_client,
     };
 
-    let runtime = newrelic_super_agent::runtime::runtime();
+    let runtime = newrelic_super_agent::runtime::tokio_runtime();
 
     let hash_repository = HashRepositoryFile::default();
     let k8s_config = config_storer.load()?.k8s.ok_or(AgentError::K8sConfig())?;

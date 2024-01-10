@@ -36,7 +36,7 @@ where
         remote_config_err: RemoteConfigError,
     ) -> Result<(), AgentError> {
         if let RemoteConfigError::InvalidConfig(hash, error) = remote_config_err {
-            crate::runtime::runtime().block_on(opamp_client.set_remote_config_status(
+            crate::runtime::tokio_runtime().block_on(opamp_client.set_remote_config_status(
                 RemoteConfigStatus {
                     last_remote_config_hash: hash.into_bytes(),
                     error_message: error,

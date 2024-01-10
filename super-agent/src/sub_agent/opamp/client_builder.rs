@@ -46,12 +46,12 @@ impl OpAMPClientBuilder<SubAgentCallbacks> for SubAgentOpAMPHttpBuilder {
         let callbacks = AgentCallbacks::new(agent_id, remote_config_publisher);
 
         let not_started_client = NotStartedHttpClient::new(http_client);
-        let started_client = crate::runtime::runtime()
+        let started_client = crate::runtime::tokio_runtime()
             .block_on(not_started_client.start(callbacks, start_settings))?;
 
         // TODO remove opamp health from here, it should be done outside
         // set OpAMP health
-        crate::runtime::runtime().block_on(started_client.set_health(AgentHealth {
+        crate::runtime::tokio_runtime().block_on(started_client.set_health(AgentHealth {
             healthy: true,
             start_time_unix_nano: get_sys_time_nano()?,
             last_error: "".to_string(),
