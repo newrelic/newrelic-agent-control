@@ -1,9 +1,8 @@
-use crate::config::persister::config_persister::PersistError;
-use crate::config::super_agent_configs::AgentID;
 use std::fs::Permissions;
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
+use thiserror::Error;
 
 use crate::fs::directory_manager::{
     DirectoryManagementError, DirectoryManager, DirectoryManagerFs,
@@ -11,7 +10,17 @@ use crate::fs::directory_manager::{
 use crate::fs::writer_file::WriteError;
 #[cfg_attr(test, mockall_double::double)]
 use crate::fs::writer_file::WriterFile;
-use crate::super_agent::defaults::{LOCAL_AGENT_DATA_DIR, VALUES_FILENAME};
+use newrelic_super_agent::config::super_agent_configs::AgentID;
+use newrelic_super_agent::super_agent::defaults::{LOCAL_AGENT_DATA_DIR, VALUES_FILENAME};
+
+#[derive(Error, Debug)]
+pub enum PersistError {
+    #[error("directory error: `{0}`")]
+    DirectoryError(#[from] DirectoryManagementError),
+
+    #[error("file error: `{0}`")]
+    FileError(#[from] WriteError),
+}
 
 #[cfg(target_family = "unix")]
 pub(crate) const FILE_PERMISSIONS: u32 = 0o600;
@@ -43,6 +52,7 @@ impl Default for ValuesPersisterFile<DirectoryManagerFs> {
     }
 }
 
+#[cfg_attr(test, mockall::automock)]
 impl<C> ValuesPersisterFile<C>
 where
     C: DirectoryManager,
@@ -54,7 +64,9 @@ where
     ) -> Result<(), PersistError> {
         let mut path = PathBuf::from(&self.local_agent_data_dir);
         path.push(agent_id);
-        self.create_directory(&path)?;
+        if !path.exists() {
+            self.create_directory(&path)?;
+        }
 
         path.push(VALUES_FILENAME);
 

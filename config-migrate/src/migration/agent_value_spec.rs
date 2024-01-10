@@ -1,8 +1,8 @@
-use crate::config_migrate::agent_value_spec::AgentValueSpec::{
+use crate::migration::agent_value_spec::AgentValueSpec::{
     AgentValueSpecEnd, AgentValueSpecMapping,
 };
-use crate::config_migrate::config::AgentTypeFieldFQN;
-use crate::config_migrate::config::{FILE_SEPARATOR, FILE_SEPARATOR_REPLACE};
+use crate::migration::config::AgentTypeFieldFQN;
+use crate::migration::config::{FILE_SEPARATOR, FILE_SEPARATOR_REPLACE};
 use log::error;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -92,13 +92,13 @@ fn merge_agent_values_recursive(
 
 #[cfg(test)]
 mod test {
-    use crate::config_migrate::agent_value_spec::AgentValueSpec::{
+    use crate::migration::agent_value_spec::AgentValueSpec::{
         AgentValueSpecEnd, AgentValueSpecMapping,
     };
-    use crate::config_migrate::agent_value_spec::{
+    use crate::migration::agent_value_spec::{
         from_fqn_and_value, merge_agent_values_recursive, AgentValueSpec,
     };
-    use crate::config_migrate::config::AgentTypeFieldFQN;
+    use crate::migration::config::AgentTypeFieldFQN;
     use std::collections::HashMap;
 
     #[test]
@@ -132,7 +132,7 @@ mod test {
 
         let mut to: HashMap<String, AgentValueSpec> = HashMap::new();
 
-        let result = merge_agent_values_recursive(from, &mut to);
+        let _ = merge_agent_values_recursive(from, &mut to);
 
         println!("{:?}", to);
     }
@@ -168,7 +168,7 @@ mod test {
             ),
         ]);
 
-        let result = merge_agent_values_recursive(from, &mut to);
+        let _ = merge_agent_values_recursive(from, &mut to);
 
         println!("{:?}", to);
     }
@@ -191,7 +191,7 @@ mod test {
             )])),
         )]);
 
-        let result = merge_agent_values_recursive(from, &mut to);
+        let _ = merge_agent_values_recursive(from, &mut to);
 
         println!("{:?}", to);
     }

@@ -3,7 +3,7 @@ use crate::opamp::remote_config::RemoteConfig;
 use crate::super_agent::defaults::{default_capabilities, SUPER_AGENT_ID};
 use opamp_client::operation::capabilities::Capabilities;
 use serde::{Deserialize, Serialize};
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 use std::path::Path;
 use std::{collections::HashMap, fmt::Display};
 use thiserror::Error;
@@ -84,13 +84,19 @@ impl Display for AgentID {
 #[derive(Debug, Deserialize, Serialize, Default, PartialEq, Clone)]
 pub struct SubAgentsConfig {
     #[serde(default)]
-    pub(crate) agents: HashMap<AgentID, SubAgentConfig>,
+    pub agents: HashMap<AgentID, SubAgentConfig>,
 }
 
 impl Deref for SubAgentsConfig {
     type Target = HashMap<AgentID, SubAgentConfig>;
     fn deref(&self) -> &Self::Target {
         &self.agents
+    }
+}
+
+impl DerefMut for SubAgentsConfig {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.agents
     }
 }
 
