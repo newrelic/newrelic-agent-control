@@ -41,6 +41,7 @@ fn test_store_remote_no_mocks() {
         .unwrap();
 
     remote_dir.push(agent_id);
+    remote_dir.push("values");
     remote_dir.push("values.yml");
 
     assert_eq!(
