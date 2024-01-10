@@ -26,7 +26,16 @@ pub enum WriteError {
 #[derive(Default)]
 pub struct WriterFile {}
 
-#[cfg_attr(test, mockall::automock)]
+pub trait FileWriter {
+    fn write(&self, path: &Path, buf: String, permissions: Permissions) -> Result<(), WriteError>;
+}
+
+impl FileWriter for WriterFile {
+    fn write(&self, path: &Path, buf: String, permissions: Permissions) -> Result<(), WriteError> {
+        self.write(path, buf, permissions)
+    }
+}
+
 impl WriterFile {
     #[cfg(target_family = "unix")]
     pub fn write(
@@ -70,10 +79,25 @@ pub mod test {
     use std::path::{Path, PathBuf};
     use std::{fs, io};
 
-    use mockall::predicate;
+    use mockall::{mock, predicate};
 
-    use super::{MockWriterFile, WriteError};
+    use super::WriteError;
     use crate::fs::writer_file::WriterFile;
+
+    use super::*;
+
+    mock! {
+        pub(crate) FileWriter {}
+
+        impl FileWriter for FileWriter {
+            fn write(
+                &self,
+                path: &Path,
+                buf: String,
+                permissions: Permissions,
+            ) -> Result<(), WriteError>;
+        }
+    }
 
     #[cfg(target_family = "unix")]
     #[test]
@@ -170,7 +194,7 @@ pub mod test {
     ////////////////////////////////////////////////////////////////////////////////////
     // Mock
     ////////////////////////////////////////////////////////////////////////////////////
-    impl MockWriterFile {
+    impl MockFileWriter {
         pub fn should_write(&mut self, path: &Path, content: String, permissions: Permissions) {
             let path_clone = PathBuf::from(path.to_str().unwrap().to_string().as_str());
             self.expect_write()

@@ -5,9 +5,7 @@ use crate::fs::directory_manager::{
 #[cfg_attr(test, mockall_double::double)]
 use crate::fs::file_reader::FSFileReader;
 use crate::fs::file_reader::FileReaderError;
-use crate::fs::writer_file::WriteError;
-#[cfg_attr(test, mockall_double::double)]
-use crate::fs::writer_file::WriterFile;
+use crate::fs::writer_file::{FileWriter, WriteError, WriterFile};
 use crate::opamp::instance_id::getter::DataStored;
 use crate::opamp::instance_id::storer::InstanceIDStorer;
 
@@ -24,11 +22,12 @@ const FILE_PERMISSIONS: u32 = 0o600;
 const DIRECTORY_PERMISSIONS: u32 = 0o700;
 
 #[derive(Default)]
-pub struct Storer<D = DirectoryManagerFs>
+pub struct Storer<W = WriterFile, D = DirectoryManagerFs>
 where
     D: DirectoryManager,
+    W: FileWriter,
 {
-    file_writer: WriterFile,
+    file_writer: W,
     file_reader: FSFileReader,
     dir_manager: D,
 }
@@ -61,9 +60,10 @@ fn get_uild_path(agent_id: &AgentID) -> PathBuf {
     }
 }
 
-impl<D> InstanceIDStorer for Storer<D>
+impl<W, D> InstanceIDStorer for Storer<W, D>
 where
     D: DirectoryManager,
+    W: FileWriter,
 {
     fn set(&self, agent_id: &AgentID, ds: &DataStored) -> Result<(), StorerError> {
         self.write_contents(agent_id, ds)
@@ -74,11 +74,12 @@ where
     }
 }
 
-impl<D> Storer<D>
+impl<W, D> Storer<W, D>
 where
     D: DirectoryManager,
+    W: FileWriter,
 {
-    pub fn new(file_writer: WriterFile, file_reader: FSFileReader, dir_manager: D) -> Self {
+    pub fn new(file_writer: W, file_reader: FSFileReader, dir_manager: D) -> Self {
         Self {
             file_writer,
             file_reader,
@@ -87,9 +88,10 @@ where
     }
 }
 
-impl<D> Storer<D>
+impl<W, D> Storer<W, D>
 where
     D: DirectoryManager,
+    W: FileWriter,
 {
     // TODO: For when we address the DirectoryManager dep injection
     // pub fn new() -> Self {
@@ -140,7 +142,7 @@ mod test {
     use crate::config::super_agent_configs::AgentID;
     use crate::fs::directory_manager::test::MockDirectoryManagerMock;
     use crate::fs::file_reader::MockFSFileReader;
-    use crate::fs::writer_file::MockWriterFile;
+    use crate::fs::writer_file::test::MockFileWriter;
     use crate::opamp::instance_id::getter::DataStored;
     use crate::opamp::instance_id::on_host::storer::get_uild_path;
     use crate::opamp::instance_id::storer::InstanceIDStorer;
@@ -170,7 +172,7 @@ mod test {
     fn test_successful_write() {
         // Data
         let agent_id = AgentID::new("test").unwrap();
-        let mut file_writer = MockWriterFile::default();
+        let mut file_writer = MockFileWriter::default();
         let mut dir_manager = MockDirectoryManagerMock::default();
         let file_reader = MockFSFileReader::new();
         let ds = DataStored {
@@ -200,7 +202,7 @@ mod test {
     fn test_unsuccessful_write() {
         // Data
         let agent_id = AgentID::new("test").unwrap();
-        let mut file_writer = MockWriterFile::default();
+        let mut file_writer = MockFileWriter::default();
         let mut dir_manager = MockDirectoryManagerMock::default();
         let file_reader = MockFSFileReader::new();
         let ds = DataStored {
@@ -230,7 +232,7 @@ mod test {
     fn test_successful_read() {
         // Data
         let agent_id = AgentID::new("test").unwrap();
-        let file_writer = MockWriterFile::default();
+        let file_writer = MockFileWriter::default();
         let dir_manager = MockDirectoryManagerMock::default();
         let mut file_reader = MockFSFileReader::new();
         let ds = DataStored {
@@ -260,7 +262,7 @@ mod test {
     #[test]
     fn test_unsuccessful_read() {
         let agent_id = AgentID::new("test").unwrap();
-        let file_writer = MockWriterFile::default();
+        let file_writer = MockFileWriter::default();
         let dir_manager = MockDirectoryManagerMock::default();
         let mut file_reader = MockFSFileReader::new();
         let ulid_path = get_uild_path(&agent_id);
