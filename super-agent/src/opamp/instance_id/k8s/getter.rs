@@ -22,7 +22,7 @@ pub enum GetterError {
     Persisting(#[from] StorerError),
 
     #[error("Initialising client: `{0}`")]
-    SyncK8sClientInitialization(#[from] k8s::Error),
+    K8sClientInitialization(#[from] k8s::Error),
 }
 
 impl ULIDInstanceIDGetter<Storer> {
