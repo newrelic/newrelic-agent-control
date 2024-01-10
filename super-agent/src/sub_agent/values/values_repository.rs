@@ -358,7 +358,7 @@ pub mod test {
         let agent_values_content = "some_config: true\nanother_item: false";
 
         file_reader.should_read(
-            Path::new("some/remote/path/some_agent_id/values/values.yml"),
+            Path::new("some/remote/path/some_agent_id/values/values.yaml"),
             agent_values_content.to_string(),
         );
 
@@ -400,7 +400,7 @@ pub mod test {
         let agent_values_content = "some_config: true\nanother_item: false";
 
         file_reader.should_read(
-            Path::new("some/local/path/some_agent_id/values.yml"),
+            Path::new("some/local/path/some_agent_id/values.yaml"),
             agent_values_content.to_string(),
         );
 
@@ -442,12 +442,12 @@ pub mod test {
         let agent_values_content = "some_config: true\nanother_item: false";
 
         file_reader.should_not_read_file_not_found(
-            Path::new("some/remote/path/some_agent_id/values/values.yml"),
+            Path::new("some/remote/path/some_agent_id/values/values.yaml"),
             "some_error_message".to_string(),
         );
 
         file_reader.should_read(
-            Path::new("some/local/path/some_agent_id/values.yml"),
+            Path::new("some/local/path/some_agent_id/values.yaml"),
             agent_values_content.to_string(),
         );
 
@@ -487,7 +487,7 @@ pub mod test {
         final_agent.set_capabilities(default_capabilities());
 
         file_reader.should_not_read_file_not_found(
-            Path::new("some/local/path/some_agent_id/values.yml"),
+            Path::new("some/local/path/some_agent_id/values.yaml"),
             "some message".to_string(),
         );
 
@@ -520,7 +520,7 @@ pub mod test {
         final_agent.set_capabilities(default_capabilities());
 
         file_reader.should_not_read_io_error(Path::new(
-            "some/remote/path/some_agent_id/values/values.yml",
+            "some/remote/path/some_agent_id/values/values.yaml",
         ));
 
         let repo = ValuesRepositoryFile::with_mocks(
@@ -555,7 +555,7 @@ pub mod test {
         let mut final_agent = FinalAgent::default();
         final_agent.set_capabilities(default_capabilities());
 
-        file_reader.should_not_read_io_error(Path::new("some/local/path/some_agent_id/values.yml"));
+        file_reader.should_not_read_io_error(Path::new("some/local/path/some_agent_id/values.yaml"));
 
         let repo = ValuesRepositoryFile::with_mocks(
             file_writer,
@@ -598,7 +598,7 @@ pub mod test {
         );
 
         file_writer.should_write(
-            Path::new("some/remote/path/some_agent_id/values/values.yml"),
+            Path::new("some/remote/path/some_agent_id/values/values.yaml"),
             "one_item: one value\n".to_string(),
             Permissions::from_mode(0o600),
         );
@@ -717,7 +717,7 @@ pub mod test {
         );
 
         file_writer.should_not_write(
-            Path::new("some/remote/path/some_agent_id/values/values.yml"),
+            Path::new("some/remote/path/some_agent_id/values/values.yaml"),
             "one_item: one value\n".to_string(),
             Permissions::from_mode(0o600),
         );
