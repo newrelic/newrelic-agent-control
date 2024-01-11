@@ -102,12 +102,12 @@ pub fn stop_opamp_client<CB: Callbacks, C: StartedClient<CB>>(
             "Stopping OpAMP client for supervised agent type: {}",
             agent_id
         );
-        crate::runtime::runtime().block_on(client.set_health(AgentHealth {
+        crate::runtime::tokio_runtime().block_on(client.set_health(AgentHealth {
             healthy: false,
             start_time_unix_nano: get_sys_time_nano()?,
             last_error: "".to_string(),
         }))?;
-        crate::runtime::runtime().block_on(client.stop())?;
+        crate::runtime::tokio_runtime().block_on(client.stop())?;
     }
     Ok(())
 }

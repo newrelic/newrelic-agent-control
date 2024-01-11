@@ -131,8 +131,8 @@ where
                 last_error: "".to_string(),
                 start_time_unix_nano: 0,
             };
-            crate::runtime::runtime().block_on(handle.set_health(health))?;
-            crate::runtime::runtime().block_on(handle.stop())?;
+            crate::runtime::tokio_runtime().block_on(handle.set_health(health))?;
+            crate::runtime::tokio_runtime().block_on(handle.stop())?;
         }
 
         info!("Waiting for the output manager to finish");
