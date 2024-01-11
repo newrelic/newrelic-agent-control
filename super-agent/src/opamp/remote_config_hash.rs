@@ -173,7 +173,11 @@ where
     D: DirectoryManager,
 {
     fn hash_file_path<'a>(&'a self, agent_id: &AgentID, path: &'a mut PathBuf) -> &Path {
-        let hash_file = format!("{}.{}", agent_id.get(), HASH_FILE_EXTENSION);
+        let hash_file = if agent_id.is_super_agent_id() {
+            format!("hash.{}", HASH_FILE_EXTENSION)
+        } else {
+            format!("{}/hash.{}", agent_id.get(), HASH_FILE_EXTENSION)
+        };
         path.push(hash_file);
         path
     }
@@ -287,7 +291,7 @@ state: applied
 "#;
 
         let mut expected_path = some_path.clone();
-        expected_path.push(format!("{}.{}", agent_id.get(), HASH_FILE_EXTENSION));
+        expected_path.push(format!("{}/hash.{}", agent_id.get(), HASH_FILE_EXTENSION));
 
         file_reader_mock.should_read(expected_path.as_path(), content.to_string());
         file_writer_mock.should_write(
