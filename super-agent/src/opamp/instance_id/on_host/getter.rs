@@ -3,6 +3,7 @@ use crate::opamp::instance_id::on_host::storer::{Storer, StorerError};
 use resource_detection::cloud::aws::detector::AWSDetector;
 use resource_detection::cloud::azure::detector::AzureDetector;
 use resource_detection::cloud::cloud_id::detector::CloudIdDetector;
+use resource_detection::cloud::gcp::detector::GCPDetector;
 use resource_detection::cloud::http_client::HttpClientUreq;
 use resource_detection::cloud::{AWS_INSTANCE_ID, AZURE_INSTANCE_ID, CLOUD_INSTANCE_ID};
 use resource_detection::system::{HOSTNAME_KEY, MACHINE_ID_KEY};
@@ -30,7 +31,11 @@ pub struct Identifiers {
 
 pub struct IdentifiersProvider<
     D = SystemDetector,
-    D2 = CloudIdDetector<AWSDetector<HttpClientUreq>, AzureDetector<HttpClientUreq>>,
+    D2 = CloudIdDetector<
+        AWSDetector<HttpClientUreq>,
+        AzureDetector<HttpClientUreq>,
+        GCPDetector<HttpClientUreq>,
+    >,
 > where
     D: Detect,
     D2: Detect,
