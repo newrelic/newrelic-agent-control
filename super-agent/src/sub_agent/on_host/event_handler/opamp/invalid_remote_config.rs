@@ -1,4 +1,3 @@
-use futures::executor::block_on;
 use opamp_client::opamp::proto::{RemoteConfigStatus, RemoteConfigStatuses};
 use opamp_client::StartedClient;
 
@@ -20,7 +19,7 @@ where
     ) -> Result<(), AgentError> {
         if self.maybe_opamp_client.is_some() {
             if let RemoteConfigError::InvalidConfig(hash, error) = remote_config_error {
-                block_on(
+                crate::runtime::tokio_runtime().block_on(
                     self.maybe_opamp_client
                         .as_ref()
                         .unwrap()
