@@ -2,13 +2,16 @@ on:
   release:
     types:
       - released
-    tags:
-      - '*'
 
 # See https://docs.github.com/en/actions/using-jobs/using-concurrency
 name: Release
 jobs:
-  upload:
+  release-name-check:
+    if: ${{ !startsWith(github.event.release.tag_name, 'chart/') }}
+    runs-on: ubuntu-latest
+    steps:
+     - run: echo "prereleasing since it is not a chart related tag"  upload:
+    needs: [release-name-check]
     runs-on: ubuntu-latest
     name: Upload to S3
     steps:
@@ -72,7 +75,16 @@ jobs:
           local_packages_path:  "/srv/dist/"
           apt_skip_mirror: false
   
+  molecule-packaging-tests:
+    uses: ./.github/workflows/component_molecule_packaging.yml
+    needs: [upload]
+    with:
+      TAG: ${{ github.event.inputs.tag_name || github.event.release.tag_name }}
+      PACKAGE_NAME: "newrelic-super-agent"
+      REPO_ENDPOINT: 'https://download.newrelic.com/preview'
+
   push-container-tags:
+    needs: [release-name-check]
     runs-on: ubuntu-latest
     name: Push container release tags
     env:
@@ -94,12 +106,3 @@ jobs:
             -t $DOCKER_IMAGE_NAME:${{ github.event.release.tag_name }} \
             -t $DOCKER_IMAGE_NAME:latest \
             $DOCKER_IMAGE_NAME:${{ github.event.release.tag_name }}-rc
-
-
-  molecule-packaging-tests:
-    uses: ./.github/workflows/component_molecule_packaging.yml
-    needs: [upload]
-    with:
-      TAG: ${{ github.event.inputs.tag_name || github.event.release.tag_name }}
-      PACKAGE_NAME: "newrelic-super-agent"
-      REPO_ENDPOINT: 'https://download.newrelic.com/preview'

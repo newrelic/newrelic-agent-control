@@ -5,13 +5,16 @@ on:
   release:
     types:
       - prereleased
-    tags:
-      - '*'
 
 # See https://docs.github.com/en/actions/using-jobs/using-concurrency
 name: pre-release
 jobs:
-  build:
+  release-name-check:
+    if: ${{ !startsWith(github.event.release.tag_name, 'chart/') }}
+    runs-on: ubuntu-latest
+    steps:
+     - run: echo "prereleasing since it is not a chart related tag"  build:
+    needs: [release-name-check]
     runs-on: ubuntu-latest
     name: Build and upload / ${{ matrix.arch }}
     strategy:
