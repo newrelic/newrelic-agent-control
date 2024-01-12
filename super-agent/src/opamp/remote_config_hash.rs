@@ -102,7 +102,7 @@ pub trait HashRepository {
     fn get(&self, agent_id: &AgentID) -> Result<Hash, HashRepositoryError>;
 }
 
-const HASH_FILE_EXTENSION: &str = "yaml";
+const HASH_FILE_NAME: &str = "hash.yaml";
 
 pub struct HashRepositoryFile<D = DirectoryManagerFs>
 where
@@ -174,9 +174,9 @@ where
 {
     fn hash_file_path<'a>(&'a self, agent_id: &AgentID, path: &'a mut PathBuf) -> &Path {
         let hash_file = if agent_id.is_super_agent_id() {
-            format!("hash.{}", HASH_FILE_EXTENSION)
+            HASH_FILE_NAME.to_string()
         } else {
-            format!("{}/hash.{}", agent_id.get(), HASH_FILE_EXTENSION)
+            format!("{}/{}", agent_id.get(), HASH_FILE_NAME)
         };
         path.push(hash_file);
         path
@@ -200,7 +200,7 @@ pub mod test {
 
     use super::{
         ConfigState, Hash, HashRepository, HashRepositoryError, HashRepositoryFile,
-        DIRECTORY_PERMISSIONS, HASH_FILE_EXTENSION,
+        DIRECTORY_PERMISSIONS,
     };
     use crate::config::persister::config_persister_file::FILE_PERMISSIONS;
     use crate::config::super_agent_configs::AgentID;
@@ -208,6 +208,7 @@ pub mod test {
     use crate::fs::directory_manager::DirectoryManager;
     use crate::fs::file_reader::MockFSFileReader;
     use crate::fs::writer_file::MockWriterFile;
+    use crate::opamp::remote_config_hash::HASH_FILE_NAME;
     use mockall::{mock, predicate};
     use std::fs::Permissions;
     use std::path::PathBuf;
@@ -291,7 +292,7 @@ state: applied
 "#;
 
         let mut expected_path = some_path.clone();
-        expected_path.push(format!("{}/hash.{}", agent_id.get(), HASH_FILE_EXTENSION));
+        expected_path.push(format!("{}/{}", agent_id.get(), HASH_FILE_NAME));
 
         file_reader_mock.should_read(expected_path.as_path(), content.to_string());
         file_writer_mock.should_write(
