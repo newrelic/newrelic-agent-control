@@ -17,8 +17,14 @@ use opamp_client::operation::settings::DescriptionValueType;
 use std::collections::HashMap;
 use std::error::Error;
 use std::ffi::OsString;
+use std::fs::File;
+use std::io::Write;
 use std::sync::Arc;
 use tracing::{error, info};
+
+// #[cfg(feature = "pprof")]
+// use pprof;
+use pprof::protos::Message;
 
 #[cfg(all(feature = "onhost", feature = "k8s", not(feature = "ci")))]
 compile_error!("Feature \"onhost\" and feature \"k8s\" cannot be enabled at the same time");
@@ -28,6 +34,11 @@ compile_error!("Either feature \"onhost\" or feature \"k8s\" must be enabled");
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+
+    // #[cfg(feature = "pprof")]
+    let guard = pprof::ProfilerGuardBuilder::default().frequency(1000).build().unwrap();
+
+
     // init logging singleton
     Logging::try_init()?;
 
@@ -66,11 +77,26 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 
     #[cfg(any(feature = "onhost", feature = "k8s"))]
-    return Ok(run_super_agent(
-        super_agent_config_storer,
-        super_agent_consumer,
-        opamp_client_builder,
-    )?);
+    {
+        let result = Ok(run_super_agent(
+            super_agent_config_storer,
+            super_agent_consumer,
+            opamp_client_builder,
+        )?);
+
+        if let Ok(report) = guard.report().build() {
+            let mut file = File::create("profile.pb").unwrap();
+            let profile = report.pprof().unwrap();
+
+            let mut content = Vec::new();
+            profile.write_to_vec(&mut content).unwrap();
+            file.write_all(&content).unwrap();
+
+            println!("report: {:?}", report);
+        };
+
+        return result;
+    }
 
     #[cfg(all(not(feature = "onhost"), not(feature = "k8s")))]
     Ok(())
