@@ -11,7 +11,7 @@ use crate::fs::writer_file::WriteError;
 #[cfg_attr(test, mockall_double::double)]
 use crate::fs::writer_file::WriterFile;
 use newrelic_super_agent::config::super_agent_configs::AgentID;
-use newrelic_super_agent::super_agent::defaults::{LOCAL_AGENT_DATA_DIR, VALUES_FILENAME};
+use newrelic_super_agent::super_agent::defaults::{LOCAL_AGENT_DATA_DIR, VALUES_PATH};
 
 #[derive(Error, Debug)]
 pub enum PersistError {
@@ -68,7 +68,7 @@ where
             self.create_directory(&path)?;
         }
 
-        path.push(VALUES_FILENAME);
+        path.push(VALUES_PATH);
 
         Ok(self.write(path.as_path(), values_content)?)
     }
