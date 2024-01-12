@@ -8,8 +8,8 @@ use kube::{
     core::{ObjectMeta, TypeMeta},
 };
 
-use std::collections::HashMap;
 use std::sync::Arc;
+use std::{collections::HashMap, fs::metadata};
 use thiserror::Error;
 use tracing::{debug, error, info, trace};
 
@@ -76,15 +76,11 @@ impl CRSupervisor {
             api_version: k8s_obj.api_version.clone(),
             kind: k8s_obj.kind.clone(),
         };
-
         let mut labels = Labels::new(&self.agent_id);
-        if let Some(metadata) = &k8s_obj.metadata {
-            // Merge default labels with the ones coming from the config with default labels taking precedence.
-            labels.append_extra_labels(&metadata.labels);
-        }
+        labels.append_extra_labels(&k8s_obj.metadata.labels);
 
         let metadata = ObjectMeta {
-            name: Some(self.agent_id.to_string()),
+            name: Some(k8s_obj.metadata.name.clone()),
             namespace: Some(self.k8s_client.default_namespace().to_string()),
             labels: Some(labels.get()),
             ..Default::default()
@@ -117,12 +113,14 @@ pub mod test {
     const TEST_API_VERSION: &str = "test/v1";
     const TEST_KIND: &str = "test";
     const NAMESPACE: &str = "default";
+    const OBJECT_NAME: &str = "name";
 
     fn k8s_object() -> K8sObject {
         K8sObject {
             api_version: TEST_API_VERSION.to_string(),
             kind: TEST_KIND.to_string(),
-            metadata: Some(K8sObjectMeta {
+            metadata: K8sObjectMeta {
+                name: OBJECT_NAME.to_string(),
                 labels: BTreeMap::from([
                     ("custom-label".to_string(), "values".to_string()),
                     (
@@ -130,7 +128,7 @@ pub mod test {
                         "to be overwritten".to_string(),
                     ),
                 ]),
-            }),
+            },
             ..Default::default()
         }
     }
@@ -142,7 +140,7 @@ pub mod test {
         let agent_id = AgentID::new("test").unwrap();
 
         let mut labels = Labels::new(&agent_id);
-        labels.append_extra_labels(&k8s_object().metadata.unwrap().labels);
+        labels.append_extra_labels(&k8s_object().metadata.labels);
 
         let expected = DynamicObject {
             types: Some(TypeMeta {
@@ -150,7 +148,7 @@ pub mod test {
                 kind: TEST_KIND.to_string(),
             }),
             metadata: ObjectMeta {
-                name: Some(agent_id.get()),
+                name: Some(OBJECT_NAME.to_string()),
                 namespace: Some(NAMESPACE.to_string()),
                 labels: Some(labels.get()),
                 ..Default::default()

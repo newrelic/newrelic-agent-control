@@ -135,8 +135,12 @@ name: io.k8s.opentelemetry.collector # Changed to avoid collisions with the uppe
 version: 0.0.1
 variables:
   config_file:
-    description: "Newrelic otel collector configuration path"
+    description: "Newrelic otel collector configuration content"
     type: yaml
+    required: true
+  agent_name: # TODO: This value uniqueness relies on the value set by the user, consider changing the approach.
+    description: "Name of the k8s resources, should be unique for each agent and a valid DNS subdomain name"
+    type: string
     required: true
 deployment:
   k8s:
@@ -144,12 +148,16 @@ deployment:
       repository:
         apiVersion: source.toolkit.fluxcd.io/v1beta2
         kind: HelmRepository
+        metadata:
+          name: ${agent_name}
         spec:
           interval: 3m
           url: https://open-telemetry.github.io/opentelemetry-helm-charts
       release:
         apiVersion: helm.toolkit.fluxcd.io/v2beta2
         kind: HelmRelease
+        metadata:
+          name: ${agent_name}
         spec:
           interval: 3m
           chart:
@@ -158,7 +166,7 @@ deployment:
               version: 0.67.0
               sourceRef:
                 kind: HelmRepository
-                name: open-telemetry # TODO now sub-agent name must be "open-telemetry" for this to work.
+                name: ${agent_name}
               interval: 3m
           install:
             remediation:

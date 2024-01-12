@@ -1470,6 +1470,8 @@ deployment:
       cr1:
         apiVersion: group/version
         kind: ObjectKind
+        metadata:
+          name: cr1-name
         spec:
           values: ${config.values}
 "#;

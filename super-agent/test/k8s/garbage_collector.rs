@@ -26,6 +26,7 @@ fn k8s_garbage_collector_cleans_removed_agent() {
     let test_ns = block_on(test.test_namespace());
 
     let agent_id = &AgentID::new("sub-agent").unwrap();
+    let agent_name: &str = "sub-agent-name";
 
     let k8s_client = Arc::new(
         SyncK8sClient::try_new_with_reflectors(
@@ -46,11 +47,14 @@ fn k8s_garbage_collector_cleans_removed_agent() {
                     r#"
 apiVersion: {}
 kind: {}
+metadata:
+  name: {}
 spec:
     data: test
         "#,
                     foo_type_meta().api_version,
-                    foo_type_meta().kind
+                    foo_type_meta().kind,
+                    agent_name,
                 )
                 .as_str(),
             )
@@ -98,7 +102,7 @@ agents:
     // are missing in the cluster.
     gc.collect().unwrap();
     let api: Api<Foo> = Api::namespaced(test.client.clone(), &test_ns);
-    block_on(api.get(agent_id)).expect("CR should exist");
+    block_on(api.get(agent_name)).expect("CR should exist");
     assert_eq!(
         agent_ulid,
         instance_id_getter.get(agent_id).unwrap(),

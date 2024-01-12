@@ -165,15 +165,10 @@ impl Templateable for K8s {
 
 impl Templateable for K8sObject {
     fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
-        let metadata = self
-            .metadata
-            .map(|m| m.template_with(variables))
-            .transpose()?;
-
         Ok(Self {
             api_version: self.api_version.clone(),
             kind: self.kind.clone(),
-            metadata,
+            metadata: self.metadata.template_with(variables)?,
             fields: self.fields.template_with(variables)?,
         })
     }
@@ -187,6 +182,7 @@ impl Templateable for K8sObjectMeta {
                 .into_iter()
                 .map(|(k, v)| Ok((k.template_with(variables)?, v.template_with(variables)?)))
                 .collect::<Result<BTreeMap<String, String>, AgentTypeError>>()?,
+            name: self.name.template_with(variables)?,
         })
     }
 }
@@ -891,6 +887,7 @@ objects:
     apiVersion: {untouched_val} 
     kind: {untouched_val} 
     metadata:
+      name: ${{any}}
       labels:
         foo: ${{any}}
         ${{any}}: bar
@@ -925,8 +922,11 @@ objects:
         // Expect template works on fields.
         assert_eq!(cr1.fields.get("spec").unwrap(), value);
 
+        // Expect template works on names.
+        assert_eq!(cr1.metadata.name, value);
+
         // Expect template works on labels.
-        let labels = cr1.metadata.unwrap().labels;
+        let labels = cr1.metadata.labels;
         assert_eq!(labels.get("foo").unwrap(), value);
         assert_eq!(labels.get(value).unwrap(), "bar");
     }
