@@ -555,8 +555,9 @@ pub mod test {
         let mut final_agent = FinalAgent::default();
         final_agent.set_capabilities(default_capabilities());
 
-        file_reader
-            .should_not_read_io_error(Path::new("some/local/path/some_agent_id/values/values.yaml"));
+        file_reader.should_not_read_io_error(Path::new(
+            "some/local/path/some_agent_id/values/values.yaml",
+        ));
 
         let repo = ValuesRepositoryFile::with_mocks(
             file_writer,
