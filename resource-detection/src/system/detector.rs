@@ -1,4 +1,6 @@
 //! System resource detector implementation
+use fs::LocalFile;
+
 use crate::{Detect, DetectError, Key, Resource, Value};
 
 use super::{
@@ -24,7 +26,7 @@ pub enum SystemDetectorError {
 /// - `machine_id_provider`: An instance of the `IdentifierProviderMachineId` struct for retrieving machine ID.
 pub struct SystemDetector {
     hostname_getter: HostnameGetter,
-    machine_id_provider: IdentifierProviderMachineId,
+    machine_id_provider: IdentifierProviderMachineId<LocalFile>,
 }
 
 /// Default implementation for `SystemDetector` struct.

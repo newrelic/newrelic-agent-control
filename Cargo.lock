@@ -2122,9 +2122,9 @@ name = "resource-detection"
 version = "0.0.1"
 dependencies = [
  "bytes",
+ "fs",
  "http",
  "mockall 0.12.1",
- "mockall_double",
  "nix",
  "serde",
  "serde_json",

@@ -938,13 +938,6 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
-## mockall_double (https://crates.io/crates/mockall_double)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
 ## native-tls (https://crates.io/crates/native-tls)
 
 Distributed under the following license(s):
