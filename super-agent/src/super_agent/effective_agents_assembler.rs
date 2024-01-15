@@ -237,7 +237,7 @@ pub(crate) mod tests {
         let mut config_persister = MockConfigurationPersisterMock::new();
 
         // Objects
-        let agent_id = AgentID::new("some_agent_id").unwrap();
+        let agent_id = AgentID::new("some-agent-id").unwrap();
         let final_agent: FinalAgent = serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
         let agent_values: AgentValues = serde_yaml::from_reader(AGENT_VALUES.as_bytes()).unwrap();
         let sub_agent_config = SubAgentConfig {
@@ -287,7 +287,7 @@ pub(crate) mod tests {
         let mut config_persister = MockConfigurationPersisterMock::new();
 
         // Objects
-        let agent_id = AgentID::new("some_agent_id").unwrap();
+        let agent_id = AgentID::new("some-agent-id").unwrap();
         let final_agent: FinalAgent = serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
         let agent_values: AgentValues = serde_yaml::from_reader(AGENT_VALUES.as_bytes()).unwrap();
         let sub_agent_config = SubAgentConfig {
@@ -335,7 +335,7 @@ pub(crate) mod tests {
         let config_persister = MockConfigurationPersisterMock::new();
 
         // Objects
-        let agent_id = AgentID::new("some_agent_id").unwrap();
+        let agent_id = AgentID::new("some-agent-id").unwrap();
         let sub_agent_config = SubAgentConfig {
             agent_type: "some_fqn".into(),
         };
@@ -367,7 +367,7 @@ pub(crate) mod tests {
         let config_persister = MockConfigurationPersisterMock::new();
 
         // Objects
-        let agent_id = AgentID::new("some_agent_id").unwrap();
+        let agent_id = AgentID::new("some-agent-id").unwrap();
         let final_agent: FinalAgent = serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
         let sub_agent_config = SubAgentConfig {
             agent_type: "some_fqn".into(),
@@ -402,7 +402,7 @@ pub(crate) mod tests {
         let config_persister = MockConfigurationPersisterMock::new();
 
         // Objects
-        let agent_id = AgentID::new("some_agent_id").unwrap();
+        let agent_id = AgentID::new("some-agent-id").unwrap();
         let final_agent: FinalAgent = serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
         let sub_agent_config = SubAgentConfig {
             agent_type: "some_fqn".into(),
@@ -437,7 +437,7 @@ pub(crate) mod tests {
         let mut config_persister = MockConfigurationPersisterMock::new();
 
         // Objects
-        let agent_id = AgentID::new("some_agent_id").unwrap();
+        let agent_id = AgentID::new("some-agent-id").unwrap();
         let final_agent: FinalAgent = serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
         let agent_values: AgentValues = serde_yaml::from_reader(AGENT_VALUES.as_bytes()).unwrap();
         let sub_agent_config = SubAgentConfig {
@@ -480,7 +480,7 @@ pub(crate) mod tests {
         let mut config_persister = MockConfigurationPersisterMock::new();
 
         // Objects
-        let agent_id = AgentID::new("some_agent_id").unwrap();
+        let agent_id = AgentID::new("some-agent-id").unwrap();
         let final_agent: FinalAgent = serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
         let agent_values: AgentValues = serde_yaml::from_reader(AGENT_VALUES.as_bytes()).unwrap();
         let sub_agent_config = SubAgentConfig {

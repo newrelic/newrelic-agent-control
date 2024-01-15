@@ -198,7 +198,7 @@ mod tests {
 
         // Structs
         let mut started_sub_agent = MockStartedSubAgent::new();
-        let sub_agent_id = AgentID::try_from("agent_id".to_string()).unwrap();
+        let sub_agent_id = AgentID::try_from("agent-id".to_string()).unwrap();
         started_sub_agent.should_stop();
 
         let mut running_sub_agents =

@@ -387,7 +387,7 @@ k8s:
         assert!(actual
             .unwrap_err()
             .to_string()
-            .contains("AgentID allows only a-zA-Z0-9_- at line"))
+            .contains("AgentID allows only RFC-1035 Label Names: 63 characters at most, contain alphanumeric only, start with alphabetic, and end with alphanumeric"))
     }
 
     #[test]

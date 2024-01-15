@@ -31,7 +31,7 @@ fn test_store_remote_no_mocks() {
     let values_repo = ValuesRepositoryFile::default()
         .with_remote_conf_path(remote_dir.to_str().unwrap().to_string());
 
-    let agent_id = AgentID::new("SomeAgentID").unwrap();
+    let agent_id = AgentID::new("some-agent-id").unwrap();
 
     let agent_values: AgentValues =
         serde_yaml::from_reader(AGENT_VALUES_SINGLE_FILE.as_bytes()).unwrap();

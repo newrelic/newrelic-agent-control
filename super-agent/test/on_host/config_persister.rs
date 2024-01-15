@@ -23,7 +23,7 @@ fn test_configuration_persister_single_file() {
 
     assert!(res.is_ok());
     let persister = ConfigurationPersisterFile::new(temp_path.as_path());
-    let agent_id = AgentID::new("SomeAgentID").unwrap();
+    let agent_id = AgentID::new("some-agent-id").unwrap();
 
     let mut agent_type: FinalAgent =
         serde_yaml::from_reader(AGENT_TYPE_SINGLE_FILE.as_bytes()).unwrap();
