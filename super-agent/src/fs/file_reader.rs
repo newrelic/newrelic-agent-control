@@ -3,6 +3,8 @@ use std::io::Error as ioError;
 use std::path::Path;
 use thiserror::Error;
 
+use super::LocalFile;
+
 #[derive(Error, Debug)]
 pub enum FileReaderError {
     #[error("error reading contents: `{0}`")]
@@ -13,12 +15,13 @@ pub enum FileReaderError {
     DirNotFound(String),
 }
 
-#[derive(Default)]
-pub struct FSFileReader {}
+pub trait FileReader {
+    fn read(&self, file_path: &Path) -> Result<String, FileReaderError>;
+    fn read_dir(&self, dir_path: &Path) -> Result<Vec<String>, FileReaderError>;
+}
 
-#[cfg_attr(test, mockall::automock)]
-impl FSFileReader {
-    pub fn read(&self, file_path: &Path) -> Result<String, FileReaderError> {
+impl FileReader for LocalFile {
+    fn read(&self, file_path: &Path) -> Result<String, FileReaderError> {
         if !file_path.is_file() {
             return Err(FileReaderError::FileNotFound(format!(
                 "{}",
@@ -31,7 +34,7 @@ impl FSFileReader {
         }
     }
 
-    pub fn read_dir(&self, dir_path: &Path) -> Result<Vec<String>, FileReaderError> {
+    fn read_dir(&self, dir_path: &Path) -> Result<Vec<String>, FileReaderError> {
         if !dir_path.is_dir() {
             return Err(FileReaderError::DirNotFound(format!(
                 "{}",
@@ -49,12 +52,14 @@ impl FSFileReader {
 
 #[cfg(test)]
 pub mod test {
+    use crate::fs::test::MockLocalFile;
+
     use super::*;
     use mockall::predicate;
     use std::io::{Error, ErrorKind};
     use std::path::PathBuf;
 
-    impl MockFSFileReader {
+    impl MockLocalFile {
         pub fn should_read(&mut self, path: &Path, content: String) {
             self.expect_read()
                 .with(predicate::eq(PathBuf::from(path)))
@@ -97,7 +102,7 @@ pub mod test {
 
     #[test]
     fn test_file_not_found_should_return_error() {
-        let reader = FSFileReader::default();
+        let reader = LocalFile::default();
         let result = reader.read(Path::new("/a/path/that/does/not/exist"));
         assert!(result.is_err());
         assert_eq!(
@@ -108,7 +113,7 @@ pub mod test {
 
     #[test]
     fn test_dir_not_found_should_return_error() {
-        let reader = FSFileReader::default();
+        let reader = LocalFile::default();
         let result = reader.read_dir(Path::new("/a/path/that/does/not/exist"));
         assert!(result.is_err());
         assert_eq!(

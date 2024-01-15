@@ -216,7 +216,6 @@ mod test {
     use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::on_host::event_processor::test::MockEventProcessorMock;
     use crate::sub_agent::on_host::event_processor_builder::test::MockSubAgentEventProcessorBuilderMock;
-    use crate::sub_agent::values::values_repository::test::MockRemoteValuesRepositoryMock;
     use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
     use crate::{
         config::agent_type::runtime_config::OnHost,

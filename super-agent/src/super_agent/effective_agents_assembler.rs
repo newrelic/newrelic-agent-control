@@ -4,7 +4,7 @@ use tracing::error;
 use crate::config::agent_type::agent_types::FinalAgent;
 use crate::config::super_agent_configs::{AgentID, SubAgentConfig};
 use crate::fs::directory_manager::DirectoryManagerFs;
-use crate::fs::writer_file::WriterFile;
+use crate::fs::LocalFile;
 use crate::sub_agent::values::values_repository::{
     ValuesRepository, ValuesRepositoryError, ValuesRepositoryFile,
 };
@@ -68,7 +68,7 @@ impl Default
     for LocalEffectiveAgentsAssembler<
         LocalRegistry,
         ConfigurationPersisterFile,
-        ValuesRepositoryFile<WriterFile, DirectoryManagerFs>,
+        ValuesRepositoryFile<LocalFile, DirectoryManagerFs>,
     >
 {
     fn default() -> Self {

@@ -10,8 +10,8 @@ use crate::config::super_agent_configs::AgentID;
 use crate::fs::directory_manager::{
     DirectoryManagementError, DirectoryManager, DirectoryManagerFs,
 };
-use crate::fs::writer_file::WriterFile;
 use crate::fs::writer_file::{FileWriter, WriteError};
+use crate::fs::LocalFile;
 use crate::super_agent::defaults::{GENERATED_FOLDER_NAME, SUPER_AGENT_DATA_DIR};
 
 #[cfg(target_family = "unix")]
@@ -19,7 +19,7 @@ pub(crate) const FILE_PERMISSIONS: u32 = 0o600;
 #[cfg(target_family = "unix")]
 const DIRECTORY_PERMISSIONS: u32 = 0o700;
 
-pub struct ConfigurationPersisterFile<W = WriterFile, C = DirectoryManagerFs>
+pub struct ConfigurationPersisterFile<W = LocalFile, C = DirectoryManagerFs>
 where
     C: DirectoryManager,
     W: FileWriter,
@@ -29,7 +29,7 @@ where
     generated_conf_path: PathBuf,
 }
 
-impl ConfigurationPersisterFile<WriterFile, DirectoryManagerFs> {
+impl ConfigurationPersisterFile<LocalFile, DirectoryManagerFs> {
     // PersisterFile with defaults writer and directory manager
     // and custom data_dir path
     pub fn new(data_dir: &Path) -> Self {
@@ -37,14 +37,14 @@ impl ConfigurationPersisterFile<WriterFile, DirectoryManagerFs> {
         generated_conf_dir.push(GENERATED_FOLDER_NAME);
 
         ConfigurationPersisterFile {
-            file_writer: WriterFile::default(),
+            file_writer: LocalFile,
             directory_manager: DirectoryManagerFs::default(),
             generated_conf_path: generated_conf_dir,
         }
     }
 }
 
-impl Default for ConfigurationPersisterFile<WriterFile, DirectoryManagerFs> {
+impl Default for ConfigurationPersisterFile<LocalFile, DirectoryManagerFs> {
     // default uses the default SUPER_AGENT_DATA_DIR to persist the corresponding files
     fn default() -> Self {
         ConfigurationPersisterFile::new(Path::new(SUPER_AGENT_DATA_DIR))
@@ -205,7 +205,7 @@ mod test {
     use crate::config::super_agent_configs::AgentID;
     use crate::fs::directory_manager::test::MockDirectoryManagerMock;
     use crate::fs::directory_manager::DirectoryManager;
-    use crate::fs::writer_file::test::MockFileWriter;
+    use crate::fs::test::MockLocalFile;
     use crate::fs::writer_file::FileWriter;
     use std::fs::Permissions;
     use std::io::ErrorKind;
@@ -239,7 +239,7 @@ mod test {
     #[test]
     fn test_persist_multiple_single_files() {
         let generated_conf_path = PathBuf::from("some/path");
-        let mut file_writer = MockFileWriter::new();
+        let mut file_writer = MockLocalFile::new();
         let mut directory_manager = MockDirectoryManagerMock::new();
         let file_permissions = Permissions::from_mode(FILE_PERMISSIONS);
         let agent_id = AgentID::new("SomeAgentID").unwrap();
@@ -304,7 +304,7 @@ mod test {
     #[test]
     fn test_persist_multiple_single_map_files() {
         let generated_conf_path = PathBuf::from("some/path");
-        let mut file_writer = MockFileWriter::new();
+        let mut file_writer = MockLocalFile::new();
         let mut directory_manager = MockDirectoryManagerMock::new();
         let file_permissions = Permissions::from_mode(FILE_PERMISSIONS);
         let agent_id = AgentID::new("SomeAgentID").unwrap();
@@ -390,7 +390,7 @@ mod test {
     #[test]
     fn test_persist_multiple_multiple_map_files() {
         let generated_conf_path = PathBuf::from("some/path");
-        let mut file_writer = MockFileWriter::new();
+        let mut file_writer = MockLocalFile::new();
         let mut directory_manager = MockDirectoryManagerMock::new();
         let file_permissions = Permissions::from_mode(FILE_PERMISSIONS);
         let agent_id = AgentID::new("SomeAgentID").unwrap();
@@ -487,7 +487,7 @@ mod test {
     #[test]
     fn test_error_deleting_directory() {
         let generated_conf_path = PathBuf::from("some/path");
-        let file_writer = MockFileWriter::new();
+        let file_writer = MockLocalFile::new();
         let mut directory_manager = MockDirectoryManagerMock::new();
         let agent_id = AgentID::new("SomeAgentID").unwrap();
         let mut agent_type: FinalAgent =
@@ -529,7 +529,7 @@ mod test {
     #[test]
     fn test_error_creating_agent_directory() {
         let generated_conf_path = PathBuf::from("some/path");
-        let file_writer = MockFileWriter::new();
+        let file_writer = MockLocalFile::new();
         let mut directory_manager = MockDirectoryManagerMock::new();
         let agent_id = AgentID::new("SomeAgentID").unwrap();
         let mut agent_type: FinalAgent =
@@ -577,7 +577,7 @@ mod test {
     #[test]
     fn test_error_creating_directory() {
         let generated_conf_path = PathBuf::from("some/path");
-        let file_writer = MockFileWriter::new();
+        let file_writer = MockLocalFile::new();
         let mut directory_manager = MockDirectoryManagerMock::new();
         let agent_id = AgentID::new("SomeAgentID").unwrap();
         let mut agent_type: FinalAgent =
@@ -620,7 +620,7 @@ mod test {
     #[test]
     fn test_writing_file_type_should_stop_processing_the_rest() {
         let generated_conf_path = PathBuf::from("some/path");
-        let mut file_writer = MockFileWriter::new();
+        let mut file_writer = MockLocalFile::new();
         let mut directory_manager = MockDirectoryManagerMock::new();
         let agent_id = AgentID::new("SomeAgentID").unwrap();
         let mut agent_type: FinalAgent =
@@ -668,7 +668,7 @@ mod test {
     #[test]
     fn test_writing_filemap_type_should_stop_processing_the_rest() {
         let generated_conf_path = PathBuf::from("some/path");
-        let mut file_writer = MockFileWriter::new();
+        let mut file_writer = MockLocalFile::new();
         let mut directory_manager = MockDirectoryManagerMock::new();
         let agent_id = AgentID::new("SomeAgentID").unwrap();
         let mut agent_type: FinalAgent =

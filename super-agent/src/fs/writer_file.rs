@@ -11,6 +11,8 @@ use crate::fs::directory_manager::DirectoryManagementError;
 use crate::fs::utils::{validate_path, FsError};
 use thiserror::Error;
 
+use super::LocalFile;
+
 #[derive(Error, Debug)]
 pub enum WriteError {
     #[error("directory error: `{0}`")]
@@ -23,20 +25,17 @@ pub enum WriteError {
     InvalidPath(#[from] FsError),
 }
 
-#[derive(Default)]
-pub struct WriterFile {}
-
 pub trait FileWriter {
     fn write(&self, path: &Path, buf: String, permissions: Permissions) -> Result<(), WriteError>;
 }
 
-impl FileWriter for WriterFile {
+impl FileWriter for LocalFile {
     fn write(&self, path: &Path, buf: String, permissions: Permissions) -> Result<(), WriteError> {
         self.write(path, buf, permissions)
     }
 }
 
-impl WriterFile {
+impl LocalFile {
     #[cfg(target_family = "unix")]
     pub fn write(
         &self,
@@ -79,25 +78,13 @@ pub mod test {
     use std::path::{Path, PathBuf};
     use std::{fs, io};
 
-    use mockall::{mock, predicate};
+    use mockall::predicate;
+
+    use crate::fs::test::MockLocalFile;
 
     use super::WriteError;
-    use crate::fs::writer_file::WriterFile;
 
     use super::*;
-
-    mock! {
-        pub(crate) FileWriter {}
-
-        impl FileWriter for FileWriter {
-            fn write(
-                &self,
-                path: &Path,
-                buf: String,
-                permissions: Permissions,
-            ) -> Result<(), WriteError>;
-        }
-    }
 
     #[cfg(target_family = "unix")]
     #[test]
@@ -112,7 +99,7 @@ pub mod test {
 
         // Create writer and write to path with some permissions
         let some_permissions = Permissions::from_mode(0o645);
-        let writer = WriterFile::default();
+        let writer = LocalFile::default();
         let write_result = writer.write(
             path.as_path(),
             content.to_string(),
@@ -159,7 +146,7 @@ pub mod test {
         path.push(file_name);
 
         // Create writer and write to path
-        let writer = WriterFile::default();
+        let writer = LocalFile::default();
         let write_result = writer.write(
             path.as_path(),
             content.to_string(),
@@ -180,7 +167,7 @@ pub mod test {
         // Prepare temp path and folder name
         let file_name = "some/path/../../etc/passwd";
         let path = PathBuf::from(file_name);
-        let writer = WriterFile::default();
+        let writer = LocalFile::default();
 
         let result = writer.write(&path, "".to_string(), Permissions::from_mode(0o645));
 
@@ -194,7 +181,7 @@ pub mod test {
     ////////////////////////////////////////////////////////////////////////////////////
     // Mock
     ////////////////////////////////////////////////////////////////////////////////////
-    impl MockFileWriter {
+    impl MockLocalFile {
         pub fn should_write(&mut self, path: &Path, content: String, permissions: Permissions) {
             let path_clone = PathBuf::from(path.to_str().unwrap().to_string().as_str());
             self.expect_write()
