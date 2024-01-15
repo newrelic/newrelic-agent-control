@@ -1,3 +1,4 @@
+use serde::de::Error;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use thiserror::Error;
@@ -5,8 +6,9 @@ use thiserror::Error;
 use super::agent_type::agent_types::{AgentVariables, FinalAgent};
 use super::agent_type::error::AgentTypeError;
 use super::agent_type::runtime_config_templates::TEMPLATE_KEY_SEPARATOR;
-use super::agent_type::trivial_value::TrivialValue;
+use super::agent_type::trivial_value::{FilePathWithContent, Number, TrivialValue};
 use super::agent_type::variable_spec::kind::Kind;
+use super::agent_type::variable_spec::kind_value::KindValue;
 use super::agent_type::variable_spec::spec::Spec;
 
 use crate::config::agent_type::variable_spec::spec::EndSpec;
@@ -101,7 +103,7 @@ pub enum AgentValuesError {
 }
 
 impl AgentValues {
-    /// get_from_normalized recursively searches for a TrivialValue given a normalized prefix.  A
+    /// get_from_normalized recursively searches for a TrivialValue given a normalized prefix. A
     /// normalized prefix flattens a Map path in a single string in which each indirection is
     /// denoted with the TEMPLATE_KEY_SEPARATOR.
     /// If found, an owned value will be returned.
@@ -115,22 +117,22 @@ impl AgentValues {
         mut self,
         agent_type: &FinalAgent,
     ) -> Result<NormalizedValues, AgentTypeError> {
-        let mut normalized_values = HashMap::default();
-        for (k, v) in agent_type.variables.0.iter() {
-            let value = get_from_normalized(&self.0, k);
+        // let mut normalized_values = HashMap::default();
+        // for (k, v) in agent_type.variables.0.iter() {
+        //     let value = get_from_normalized(&self.0, k);
 
-            // required value but not defined in SubAgentConfig
-            if value.is_none() && v.kind.is_required() {
-                return Err(AgentTypeError::MissingAgentKey(k.clone()));
-            }
+        //     // required value but not defined in SubAgentConfig
+        //     if value.is_none() && v.kind.is_required() {
+        //         return Err(AgentTypeError::MissingAgentKey(k.clone()));
+        //     }
 
-            // check type matches agent one and apply transformations
-            if let Some(inner) = value {
-                let _ = update_from_normalized(&mut self.0, k, inner.clone().check_type(v)?);
-            }
-        }
+        //     // check type matches agent one and apply transformations
+        //     if let Some(inner) = value {
+        //         let _ = update_from_normalized(&mut self.0, k, inner.clone().check_type(v)?);
+        //     }
+        // }
 
-        Ok(self)
+        Ok(NormalizedValues::default())
     }
 }
 
@@ -140,16 +142,30 @@ fn normalize_values(
 ) -> Result<HashMap<String, TrivialValue>, AgentTypeError> {
     let mut normalized_values = HashMap::default();
 
-    for (k, v) in values.as_mapping().unwrap().iter() {
-        let key = k.as_str().unwrap();
-        let spec = agent_vars.get(key).unwrap();
+    // Attempt to get a HashMap<String, serde_yaml::Value> from the values and compare it with agent_vars
+    for (k, v) in serde_yaml::from_value::<HashMap<String, serde_yaml::Value>>(values)?.iter() {
+        let spec = agent_vars
+            .get(k)
+            .ok_or(AgentTypeError::MissingAgentKey(k.clone()))?;
 
         match spec {
-            Spec::SpecEnd(end) => {
-              let value_to_insert = 
-            },
-            Spec::SpecMapping(map) => {}
+            Spec::SpecEnd(EndSpec { kind, .. }) => {
+                let value = convert_value(kind.clone(), v.clone());
+
+                normalized_values.insert(k.clone(), value);
+            }
+            Spec::SpecMapping(_) => {}
         }
+
+        let value = convert_value(spec.kind.clone(), v.clone());
+        if value.is_none() {
+            return Err(AgentTypeError::TypeMismatch {
+                expected: spec.unwrap().kind.clone(),
+                got: v.clone(),
+            });
+        }
+
+        normalized_values.insert(k.clone(), value.unwrap());
     }
 
     Ok(normalized_values)
@@ -157,15 +173,23 @@ fn normalize_values(
 
 fn convert_value(kind: Kind, value: serde_yaml::Value) -> Option<TrivialValue> {
     match kind {
-        Kind::String(_) => todo!(),
-        Kind::Bool(_) => todo!(),
-        Kind::Number(_) => todo!(),
-        Kind::File(_) => todo!(),
-        Kind::MapStringString(_) => todo!(),
-        Kind::MapStringFile(_) => todo!(),
-        Kind::Yaml(_) => todo!(),
+        Kind::String(kv) => value.as_str().map(String::from).map(TrivialValue::String),
+        Kind::Bool(kv) => value.as_bool().map(TrivialValue::Bool),
+        Kind::Number(kv) => value
+            .as_u64()
+            .map(Number::PosInt)
+            .or_else(|| value.as_i64().map(Number::NegInt))
+            .or_else(|| value.as_f64().map(Number::Float))
+            .map(TrivialValue::Number),
+        Kind::File(kv) => serde_yaml::from_value(value).ok().map(TrivialValue::File),
+        Kind::MapStringString(kv) => serde_yaml::from_value(value)
+            .ok()
+            .map(TrivialValue::MapStringString),
+        Kind::MapStringFile(kv) => serde_yaml::from_value(value)
+            .ok()
+            .map(TrivialValue::MapStringFile),
+        Kind::Yaml(kv) => Some(TrivialValue::Yaml(value)),
     }
-    None
 }
 
 impl TryFrom<String> for AgentValues {

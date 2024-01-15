@@ -5,7 +5,10 @@ use serde::{Deserialize, Deserializer, Serialize};
 use crate::config::agent_type::error::AgentTypeError;
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
-pub struct KindValue<T> {
+pub struct KindValue<T>
+where
+    T: PartialEq,
+{
     pub(crate) required: bool,
     pub(crate) default: Option<T>,
     pub(crate) final_value: Option<T>,
@@ -13,18 +16,24 @@ pub struct KindValue<T> {
                                            // pub(crate) variants: Option<Vec<T>>,
 }
 
-impl<T> KindValue<T> {
+impl<T> KindValue<T>
+where
+    T: PartialEq,
+{
     pub(crate) fn not_required_without_default(&self) -> bool {
         !self.required && self.default.is_none()
     }
     pub(crate) fn set_default_as_final(&mut self) {
         self.final_value = self.default.take();
     }
+    // pub(crate) fn is_valid_variant(&self, value: T) -> bool {
+    //     self.variants.is_empty() || self.variants.iter().any(|v| v == &value)
+    // }
 }
 
 impl<'de, T> Deserialize<'de> for KindValue<T>
 where
-    T: Deserialize<'de>,
+    T: Deserialize<'de> + PartialEq,
 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
