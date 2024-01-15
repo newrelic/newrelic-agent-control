@@ -22,8 +22,7 @@ use std::io::Write;
 use std::sync::Arc;
 use tracing::{error, info};
 
-// #[cfg(feature = "pprof")]
-// use pprof;
+#[cfg(feature = "pprof")]
 use pprof::protos::Message;
 
 #[cfg(all(feature = "onhost", feature = "k8s", not(feature = "ci")))]
@@ -35,7 +34,7 @@ compile_error!("Either feature \"onhost\" or feature \"k8s\" must be enabled");
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
 
-    // #[cfg(feature = "pprof")]
+    #[cfg(feature = "pprof")]
     let guard = pprof::ProfilerGuardBuilder::default().frequency(1000).build().unwrap();
 
 
@@ -84,6 +83,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             opamp_client_builder,
         )?);
 
+        #[cfg(feature = "pprof")]
         if let Ok(report) = guard.report().build() {
             let mut file = File::create("profile.pb").unwrap();
             let profile = report.pprof().unwrap();

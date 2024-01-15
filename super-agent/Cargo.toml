@@ -46,7 +46,7 @@ tower = { version = "0.4.13", features = [], optional = true }
 hyper = { version = "0.14.27", optional = true }
 either = { version = "1.9.0", optional = true }
 crossbeam = "0.8.3"
-pprof = { version = "0.13.0", features = ["protobuf-codec"] }
+pprof = { version = "0.13.0", features = ["protobuf-codec"] , optional = true}
 
 [dev-dependencies]
 assert_cmd = "2.0.12"
@@ -85,3 +85,5 @@ onhost = []
 k8s = ["dep:kube", "dep:k8s-openapi", "dep:tower", "dep:hyper", "dep:either"]
 # feature ci allows calling --all-features (needed on the test pipelines) and not failing to compile
 ci = []
+pprof = ["dep:pprof"]
+default = ["onhost"]
