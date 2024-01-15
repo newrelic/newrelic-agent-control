@@ -3,24 +3,21 @@ use tracing::error;
 
 use crate::config::agent_type::agent_types::FinalAgent;
 use crate::config::super_agent_configs::{AgentID, SubAgentConfig};
-use crate::fs::directory_manager::DirectoryManagerFs;
-use crate::fs::LocalFile;
+use crate::config::{
+    agent_type::error::AgentTypeError,
+    agent_type_registry::{AgentRegistry, AgentRepositoryError, LocalRegistry},
+    persister::{
+        config_persister::{ConfigurationPersister, PersistError},
+        config_persister_file::ConfigurationPersisterFile,
+    },
+};
 use crate::sub_agent::values::values_repository::{
     ValuesRepository, ValuesRepositoryError, ValuesRepositoryFile,
 };
 use crate::super_agent::defaults::{GENERATED_FOLDER_NAME, SUPER_AGENT_DATA_DIR};
 use crate::super_agent::super_agent::EffectiveAgentsError;
-use crate::{
-    config::{
-        agent_type::error::AgentTypeError,
-        agent_type_registry::{AgentRegistry, AgentRepositoryError, LocalRegistry},
-        persister::{
-            config_persister::{ConfigurationPersister, PersistError},
-            config_persister_file::ConfigurationPersisterFile,
-        },
-    },
-    fs::file_reader::FileReaderError,
-};
+
+use fs::{directory_manager::DirectoryManagerFs, file_reader::FileReaderError, LocalFile};
 
 #[derive(Error, Debug)]
 pub enum EffectiveAgentsAssemblerError {
@@ -155,8 +152,8 @@ pub(crate) mod tests {
         },
         super_agent_configs::{AgentID, SubAgentConfig},
     };
-    use crate::fs::{directory_manager::DirectoryManagementError, writer_file::WriteError};
     use crate::sub_agent::values::values_repository::test::MockRemoteValuesRepositoryMock;
+    use fs::{directory_manager::DirectoryManagementError, writer_file::WriteError};
 
     use super::*;
 

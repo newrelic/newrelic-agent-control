@@ -7,8 +7,8 @@ use std::{fs, io};
 use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::fs::PermissionsExt;
 
-use crate::fs::directory_manager::DirectoryManagementError;
-use crate::fs::utils::{validate_path, FsError};
+use super::directory_manager::DirectoryManagementError;
+use super::utils::{validate_path, FsError};
 use thiserror::Error;
 
 use super::LocalFile;
@@ -67,22 +67,63 @@ impl LocalFile {
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
+// Mock
+////////////////////////////////////////////////////////////////////////////////////
+use crate::MockLocalFile;
+use mockall::predicate;
+use std::io::{Error, ErrorKind};
+use std::path::PathBuf;
+
+impl MockLocalFile {
+    pub fn should_write(&mut self, path: &Path, content: String, permissions: Permissions) {
+        let path_clone = PathBuf::from(path.to_str().unwrap().to_string().as_str());
+        self.expect_write()
+            .with(
+                predicate::eq(path_clone),
+                predicate::eq(content),
+                predicate::eq(permissions),
+            )
+            .once()
+            .returning(|_, _, _| Ok(()));
+    }
+
+    pub fn should_not_write(&mut self, path: &Path, content: String, permissions: Permissions) {
+        let path_clone = PathBuf::from(path.to_str().unwrap().to_string().as_str());
+        self.expect_write()
+            .with(
+                predicate::eq(path_clone),
+                predicate::eq(content),
+                predicate::eq(permissions),
+            )
+            .once()
+            .returning(|_, _, _| {
+                Err(WriteError::ErrorCreatingFile(io::Error::from(
+                    ErrorKind::PermissionDenied,
+                )))
+            });
+    }
+
+    pub fn should_write_any(&mut self, times: usize) {
+        self.expect_write().times(times).returning(|_, _, _| Ok(()));
+    }
+
+    pub fn should_not_write_any(&mut self, times: usize, io_err_kind: ErrorKind) {
+        self.expect_write()
+            .times(times)
+            .returning(move |_, _, _| Err(WriteError::ErrorCreatingFile(Error::from(io_err_kind))));
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////
 // TESTS
 ////////////////////////////////////////////////////////////////////////////////////
 #[cfg(test)]
 pub mod test {
+    use std::fs;
     use std::fs::Permissions;
-    use std::io::{Error, ErrorKind};
     #[cfg(target_family = "unix")]
     use std::os::unix::fs::PermissionsExt;
-    use std::path::{Path, PathBuf};
-    use std::{fs, io};
-
-    use mockall::predicate;
-
-    use crate::fs::test::MockLocalFile;
-
-    use super::WriteError;
+    use std::path::PathBuf;
 
     use super::*;
 
@@ -176,48 +217,5 @@ pub mod test {
             "invalid path: `dots disallowed in path `some/path/../../etc/passwd``".to_string(),
             result.err().unwrap().to_string()
         );
-    }
-
-    ////////////////////////////////////////////////////////////////////////////////////
-    // Mock
-    ////////////////////////////////////////////////////////////////////////////////////
-    impl MockLocalFile {
-        pub fn should_write(&mut self, path: &Path, content: String, permissions: Permissions) {
-            let path_clone = PathBuf::from(path.to_str().unwrap().to_string().as_str());
-            self.expect_write()
-                .with(
-                    predicate::eq(path_clone),
-                    predicate::eq(content),
-                    predicate::eq(permissions),
-                )
-                .once()
-                .returning(|_, _, _| Ok(()));
-        }
-
-        pub fn should_not_write(&mut self, path: &Path, content: String, permissions: Permissions) {
-            let path_clone = PathBuf::from(path.to_str().unwrap().to_string().as_str());
-            self.expect_write()
-                .with(
-                    predicate::eq(path_clone),
-                    predicate::eq(content),
-                    predicate::eq(permissions),
-                )
-                .once()
-                .returning(|_, _, _| {
-                    Err(WriteError::ErrorCreatingFile(io::Error::from(
-                        ErrorKind::PermissionDenied,
-                    )))
-                });
-        }
-
-        pub fn should_write_any(&mut self, times: usize) {
-            self.expect_write().times(times).returning(|_, _, _| Ok(()));
-        }
-
-        pub fn should_not_write_any(&mut self, times: usize, io_err_kind: ErrorKind) {
-            self.expect_write().times(times).returning(move |_, _, _| {
-                Err(WriteError::ErrorCreatingFile(Error::from(io_err_kind)))
-            });
-        }
     }
 }

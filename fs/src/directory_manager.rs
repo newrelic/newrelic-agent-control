@@ -4,10 +4,11 @@ use std::os::unix::fs::DirBuilderExt;
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
+use std::path::PathBuf;
 
 use thiserror::Error;
 
-use crate::fs::utils::{validate_path, FsError};
+use super::utils::{validate_path, FsError};
 
 #[derive(Error, Debug)]
 pub enum DirectoryManagementError {
@@ -73,6 +74,79 @@ impl DirectoryManager for DirectoryManagerFs {
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
+// Mock
+////////////////////////////////////////////////////////////////////////////////////
+impl Clone for DirectoryManagementError {
+    fn clone(&self) -> Self {
+        match self {
+            DirectoryManagementError::ErrorCreatingDirectory(path, s) => {
+                DirectoryManagementError::ErrorCreatingDirectory(path.clone(), s.to_string())
+            }
+            DirectoryManagementError::ErrorDeletingDirectory(s) => {
+                DirectoryManagementError::ErrorDeletingDirectory(s.to_string())
+            }
+            DirectoryManagementError::InvalidDirectory(s) => {
+                DirectoryManagementError::InvalidDirectory(s.clone())
+            }
+        }
+    }
+
+    fn clone_from(&mut self, _: &Self) {
+        unimplemented!()
+    }
+}
+
+use mockall::{mock, predicate};
+mock! {
+    pub DirectoryManagerMock {}
+
+    #[cfg(target_family = "unix")]
+    impl DirectoryManager for DirectoryManagerMock {
+        fn create(&self, path: &Path, permissions: Permissions) -> Result<(), DirectoryManagementError>;
+        fn delete(&self, path: &Path) -> Result<(), DirectoryManagementError>;
+    }
+}
+
+impl MockDirectoryManagerMock {
+    pub fn should_create(&mut self, path: &Path, permissions: Permissions) {
+        let path_clone = PathBuf::from(path.to_str().unwrap().to_string().as_str());
+        self.expect_create()
+            .with(predicate::eq(path_clone), predicate::eq(permissions))
+            .once()
+            .returning(|_, _| Ok(()));
+    }
+
+    pub fn should_not_create(
+        &mut self,
+        path: &Path,
+        permissions: Permissions,
+        err: DirectoryManagementError,
+    ) {
+        let path_clone = PathBuf::from(path.to_str().unwrap().to_string().as_str());
+        self.expect_create()
+            .with(predicate::eq(path_clone), predicate::eq(permissions))
+            .once()
+            .returning(move |_, _| Err(err.clone()));
+    }
+
+    pub fn should_delete(&mut self, path: &Path) {
+        let path_clone = PathBuf::from(path.to_str().unwrap().to_string().as_str());
+        self.expect_delete()
+            .with(predicate::eq(path_clone))
+            .once()
+            .returning(|_| Ok(()));
+    }
+
+    pub fn should_not_delete(&mut self, path: &Path, err: DirectoryManagementError) {
+        let path_clone = PathBuf::from(path.to_str().unwrap().to_string().as_str());
+        self.expect_delete()
+            .with(predicate::eq(path_clone))
+            .once()
+            .returning(move |_| Err(err.clone()));
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////
 // TESTS
 ////////////////////////////////////////////////////////////////////////////////////
 #[cfg(test)]
@@ -81,33 +155,9 @@ pub mod test {
     use std::fs::Permissions;
     #[cfg(target_family = "unix")]
     use std::os::unix::fs::PermissionsExt;
-    use std::path::{Path, PathBuf};
+    use std::path::PathBuf;
 
-    use mockall::{mock, predicate};
-
-    use crate::fs::directory_manager::{
-        DirectoryManagementError, DirectoryManager, DirectoryManagerFs,
-    };
-
-    impl Clone for DirectoryManagementError {
-        fn clone(&self) -> Self {
-            match self {
-                DirectoryManagementError::ErrorCreatingDirectory(path, s) => {
-                    DirectoryManagementError::ErrorCreatingDirectory(path.clone(), s.to_string())
-                }
-                DirectoryManagementError::ErrorDeletingDirectory(s) => {
-                    DirectoryManagementError::ErrorDeletingDirectory(s.to_string())
-                }
-                DirectoryManagementError::InvalidDirectory(s) => {
-                    DirectoryManagementError::InvalidDirectory(s.clone())
-                }
-            }
-        }
-
-        fn clone_from(&mut self, _: &Self) {
-            unimplemented!()
-        }
-    }
+    use super::{DirectoryManager, DirectoryManagerFs};
 
     #[cfg(target_family = "unix")]
     #[test]
@@ -221,57 +271,5 @@ pub mod test {
         assert!(delete_result.is_ok());
         let create_result = directory_manager.create(path.as_path(), some_permissions.clone());
         assert!(create_result.is_ok());
-    }
-
-    ////////////////////////////////////////////////////////////////////////////////////
-    // Mock
-    ////////////////////////////////////////////////////////////////////////////////////
-    mock! {
-        pub(crate) DirectoryManagerMock {}
-
-        #[cfg(target_family = "unix")]
-        impl DirectoryManager for DirectoryManagerMock {
-            fn create(&self, path: &Path, permissions: Permissions) -> Result<(), DirectoryManagementError>;
-            fn delete(&self, path: &Path) -> Result<(), DirectoryManagementError>;
-        }
-    }
-
-    impl MockDirectoryManagerMock {
-        pub fn should_create(&mut self, path: &Path, permissions: Permissions) {
-            let path_clone = PathBuf::from(path.to_str().unwrap().to_string().as_str());
-            self.expect_create()
-                .with(predicate::eq(path_clone), predicate::eq(permissions))
-                .once()
-                .returning(|_, _| Ok(()));
-        }
-
-        pub fn should_not_create(
-            &mut self,
-            path: &Path,
-            permissions: Permissions,
-            err: DirectoryManagementError,
-        ) {
-            let path_clone = PathBuf::from(path.to_str().unwrap().to_string().as_str());
-            self.expect_create()
-                .with(predicate::eq(path_clone), predicate::eq(permissions))
-                .once()
-                .returning(move |_, _| Err(err.clone()));
-        }
-
-        pub fn should_delete(&mut self, path: &Path) {
-            let path_clone = PathBuf::from(path.to_str().unwrap().to_string().as_str());
-            self.expect_delete()
-                .with(predicate::eq(path_clone))
-                .once()
-                .returning(|_| Ok(()));
-        }
-
-        pub fn should_not_delete(&mut self, path: &Path, err: DirectoryManagementError) {
-            let path_clone = PathBuf::from(path.to_str().unwrap().to_string().as_str());
-            self.expect_delete()
-                .with(predicate::eq(path_clone))
-                .once()
-                .returning(move |_| Err(err.clone()));
-        }
     }
 }

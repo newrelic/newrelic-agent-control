@@ -1,12 +1,10 @@
 use crate::config::super_agent_configs::AgentID;
-use crate::fs::directory_manager::{
-    DirectoryManagementError, DirectoryManager, DirectoryManagerFs,
-};
-use crate::fs::file_reader::{FileReader, FileReaderError};
-use crate::fs::writer_file::{FileWriter, WriteError};
-use crate::fs::LocalFile;
 use crate::opamp::instance_id::getter::DataStored;
 use crate::opamp::instance_id::storer::InstanceIDStorer;
+use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
+use fs::file_reader::{FileReader, FileReaderError};
+use fs::writer_file::{FileWriter, WriteError};
+use fs::LocalFile;
 
 use crate::super_agent::defaults::{REMOTE_AGENT_DATA_DIR, SUPER_AGENT_IDENTIFIERS_PATH};
 use std::fs::Permissions;
@@ -130,13 +128,13 @@ where
 #[cfg(test)]
 mod test {
     use crate::config::super_agent_configs::AgentID;
-    use crate::fs::directory_manager::test::MockDirectoryManagerMock;
-    use crate::fs::test::MockLocalFile;
     use crate::opamp::instance_id::getter::DataStored;
     use crate::opamp::instance_id::on_host::storer::get_uild_path;
     use crate::opamp::instance_id::storer::InstanceIDStorer;
     use crate::opamp::instance_id::{Identifiers, InstanceID, Storer};
     use crate::super_agent::defaults::{REMOTE_AGENT_DATA_DIR, SUPER_AGENT_IDENTIFIERS_PATH};
+    use fs::directory_manager::MockDirectoryManagerMock;
+    use fs::MockLocalFile;
     use mockall::predicate;
     use std::fs::Permissions;
     use std::io::{self, ErrorKind};

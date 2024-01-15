@@ -1,12 +1,10 @@
 use crate::config::persister::config_persister_file::FILE_PERMISSIONS;
 use crate::config::super_agent_configs::AgentID;
-use crate::fs::directory_manager::{
-    DirectoryManagementError, DirectoryManager, DirectoryManagerFs,
-};
-use crate::fs::file_reader::{FileReader, FileReaderError};
-use crate::fs::writer_file::{FileWriter, WriteError};
-use crate::fs::LocalFile;
 use crate::super_agent::defaults::{REMOTE_AGENT_DATA_DIR, SUPER_AGENT_DATA_DIR};
+use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
+use fs::file_reader::{FileReader, FileReaderError};
+use fs::writer_file::{FileWriter, WriteError};
+use fs::LocalFile;
 use serde::{Deserialize, Serialize};
 use std::fs::Permissions;
 #[cfg(target_family = "unix")]
@@ -198,11 +196,11 @@ pub mod test {
     };
     use crate::config::persister::config_persister_file::FILE_PERMISSIONS;
     use crate::config::super_agent_configs::AgentID;
-    use crate::fs::directory_manager::test::MockDirectoryManagerMock;
-    use crate::fs::directory_manager::DirectoryManager;
-    use crate::fs::file_reader::FileReader;
-    use crate::fs::test::MockLocalFile;
-    use crate::fs::writer_file::FileWriter;
+    use fs::directory_manager::DirectoryManager;
+    use fs::directory_manager::MockDirectoryManagerMock;
+    use fs::file_reader::FileReader;
+    use fs::writer_file::FileWriter;
+    use fs::MockLocalFile;
     use mockall::{mock, predicate};
     use std::fs::Permissions;
     use std::path::PathBuf;

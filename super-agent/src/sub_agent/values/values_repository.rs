@@ -1,18 +1,16 @@
 use crate::config::agent_values::AgentValues;
 use crate::config::super_agent_configs::AgentID;
-use crate::fs::directory_manager::{
-    DirectoryManagementError, DirectoryManager, DirectoryManagerFs,
-};
-use crate::fs::LocalFile;
 use crate::sub_agent::values::values_repository::ValuesRepositoryError::DeleteError;
+use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
+use fs::LocalFile;
 use std::fs::Permissions;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 use crate::config::agent_type::agent_types::FinalAgent;
-use crate::fs::file_reader::{FileReader, FileReaderError};
-use crate::fs::writer_file::{FileWriter, WriteError};
 use crate::super_agent::defaults::{LOCAL_AGENT_DATA_DIR, REMOTE_AGENT_DATA_DIR, VALUES_FILENAME};
+use fs::file_reader::{FileReader, FileReaderError};
+use fs::writer_file::{FileWriter, WriteError};
 use log::error;
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::PermissionsExt;
@@ -221,17 +219,17 @@ pub mod test {
     use crate::config::agent_type::agent_types::FinalAgent;
     use crate::config::agent_values::AgentValues;
     use crate::config::super_agent_configs::AgentID;
-    use crate::fs::directory_manager::test::MockDirectoryManagerMock;
-    use crate::fs::directory_manager::DirectoryManagementError::{
-        ErrorCreatingDirectory, ErrorDeletingDirectory,
-    };
-    use crate::fs::directory_manager::DirectoryManager;
-    use crate::fs::file_reader::FileReader;
-    use crate::fs::test::MockLocalFile;
-    use crate::fs::writer_file::FileWriter;
     use crate::sub_agent::values::values_repository::{
         ValuesRepository, ValuesRepositoryError, ValuesRepositoryFile,
     };
+    use fs::directory_manager::DirectoryManagementError::{
+        ErrorCreatingDirectory, ErrorDeletingDirectory,
+    };
+    use fs::directory_manager::DirectoryManager;
+    use fs::directory_manager::MockDirectoryManagerMock;
+    use fs::file_reader::FileReader;
+    use fs::writer_file::FileWriter;
+    use fs::MockLocalFile;
     use mockall::{mock, predicate};
     use std::collections::HashMap;
     use std::fs::Permissions;
