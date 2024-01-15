@@ -1,5 +1,6 @@
 use serde::de::Error;
 use serde::{Deserialize, Serialize};
+use serde_yaml::Value;
 use std::collections::HashMap;
 use thiserror::Error;
 
@@ -136,61 +137,49 @@ impl AgentValues {
     }
 }
 
-fn normalize_values(
+fn update_specs(
     values: serde_yaml::Value,
-    agent_vars: &HashMap<String, Spec>,
-) -> Result<HashMap<String, TrivialValue>, AgentTypeError> {
-    let mut normalized_values = HashMap::default();
-
-    // Attempt to get a HashMap<String, serde_yaml::Value> from the values and compare it with agent_vars
-    for (k, v) in serde_yaml::from_value::<HashMap<String, serde_yaml::Value>>(values)?.iter() {
-        let spec = agent_vars
-            .get(k)
-            .ok_or(AgentTypeError::MissingAgentKey(k.clone()))?;
+    agent_vars: &mut HashMap<String, Spec>,
+) -> Result<(), AgentTypeError> {
+    let values: HashMap<String, Value> = serde_yaml::from_value(values)?;
+    for (ref k, v) in values.into_iter() {
+        let mut spec = agent_vars
+            .get_mut(k)
+            .ok_or_else(|| AgentTypeError::MissingAgentKey(k.clone()))?;
 
         match spec {
-            Spec::SpecEnd(EndSpec { kind, .. }) => {
-                let value = convert_value(kind.clone(), v.clone());
-
-                normalized_values.insert(k.clone(), value);
-            }
-            Spec::SpecMapping(_) => {}
+            Spec::SpecEnd(EndSpec { kind, .. }) => kind.from_yaml_value(v)?,
+            Spec::SpecMapping(m) => update_specs(v, m)?,
         }
-
-        let value = convert_value(spec.kind.clone(), v.clone());
-        if value.is_none() {
-            return Err(AgentTypeError::TypeMismatch {
-                expected: spec.unwrap().kind.clone(),
-                got: v.clone(),
-            });
-        }
-
-        normalized_values.insert(k.clone(), value.unwrap());
     }
-
-    Ok(normalized_values)
+    Ok(())
 }
 
-fn convert_value(kind: Kind, value: serde_yaml::Value) -> Option<TrivialValue> {
-    match kind {
-        Kind::String(kv) => value.as_str().map(String::from).map(TrivialValue::String),
-        Kind::Bool(kv) => value.as_bool().map(TrivialValue::Bool),
-        Kind::Number(kv) => value
-            .as_u64()
-            .map(Number::PosInt)
-            .or_else(|| value.as_i64().map(Number::NegInt))
-            .or_else(|| value.as_f64().map(Number::Float))
-            .map(TrivialValue::Number),
-        Kind::File(kv) => serde_yaml::from_value(value).ok().map(TrivialValue::File),
-        Kind::MapStringString(kv) => serde_yaml::from_value(value)
-            .ok()
-            .map(TrivialValue::MapStringString),
-        Kind::MapStringFile(kv) => serde_yaml::from_value(value)
-            .ok()
-            .map(TrivialValue::MapStringFile),
-        Kind::Yaml(kv) => Some(TrivialValue::Yaml(value)),
-    }
-}
+// fn normalize_values(
+//     values: serde_yaml::Value,
+//     agent_vars: &HashMap<String, Spec>,
+// ) -> Result<HashMap<String, TrivialValue>, AgentTypeError> {
+//     let mut updated_spec = agent_vars.clone();
+//     let mut normalized_values = HashMap::default();
+
+//     // Attempt to get a HashMap<String, serde_yaml::Value> from the values and compare it with agent_vars
+//     let values: HashMap<String, Value> = serde_yaml::from_value(values)?;
+//     for (k, v) in values.into_iter() {
+//         let mut spec = agent_vars
+//             .get_mut(&k)
+//             .ok_or(AgentTypeError::MissingAgentKey(k.clone()))?;
+
+//         match spec {
+//             Spec::SpecEnd(EndSpec { kind, .. }) => {
+//                 kind.from_yaml_value(v)?
+//             }
+//             Spec::SpecMapping(m) =>
+//         }
+
+//     }
+
+//     Ok(normalized_values)
+// }
 
 impl TryFrom<String> for AgentValues {
     type Error = AgentValuesError;
@@ -217,21 +206,21 @@ impl TryFrom<String> for AgentValues {
 // }
 
 /// update_from_normalized updates a TrivialValue given a normalized prefix.
-fn update_from_normalized(
-    inner: &mut HashMap<String, TrivialValue>,
-    normalized_prefix: &str,
-    value: TrivialValue,
-) -> Option<TrivialValue> {
-    let prefix = normalized_prefix.split_once(TEMPLATE_KEY_SEPARATOR);
-    if let Some((key, suffix)) = prefix {
-        if let Some(TrivialValue::Map(inner_map)) = inner.get_mut(key) {
-            return update_from_normalized(inner_map, suffix, value);
-        }
-    } else {
-        return inner.insert(normalized_prefix.to_string(), value);
-    }
-    None
-}
+// fn update_from_normalized(
+//     inner: &mut HashMap<String, TrivialValue>,
+//     normalized_prefix: &str,
+//     value: TrivialValue,
+// ) -> Option<TrivialValue> {
+//     let prefix = normalized_prefix.split_once(TEMPLATE_KEY_SEPARATOR);
+//     if let Some((key, suffix)) = prefix {
+//         if let Some(TrivialValue::Map(inner_map)) = inner.get_mut(key) {
+//             return update_from_normalized(inner_map, suffix, value);
+//         }
+//     } else {
+//         return inner.insert(normalized_prefix.to_string(), value);
+//     }
+//     None
+// }
 
 #[cfg(test)]
 mod tests {
@@ -240,11 +229,11 @@ mod tests {
 
     use super::*;
 
-    impl AgentValues {
-        pub fn new(values: Map<String, TrivialValue>) -> Self {
-            Self(values)
-        }
-    }
+    // impl AgentValues {
+    //     pub fn new(values: HashMap<String, TrivialValue>) -> Self {
+    //         Self(values)
+    //     }
+    // }
 
     const EXAMPLE_CONFIG: &str = r#"
 description:
@@ -365,6 +354,76 @@ deployment:
         args: "-c ${deployment.on_host.args}"
         env: ""
 "#;
+
+    #[test]
+    fn test_update_specs() {
+        let input_structure = serde_yaml::from_str::<AgentValues>(EXAMPLE_CONFIG_REPLACE).unwrap();
+        let mut agent_type =
+            serde_yaml::from_str::<FinalAgent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
+
+        let expected = HashMap::from([
+            (
+                "deployment".to_string(),
+                Spec::SpecMapping(HashMap::from([(
+                    "on_host".to_string(),
+                    Spec::SpecMapping(HashMap::from([
+                        (
+                            "path".to_string(),
+                            Spec::SpecEnd(EndSpec {
+                                description: "Path to the agent".to_string(),
+                                kind: Kind::String(KindValue {
+                                    required: true,
+                                    default: None,
+                                    final_value: None,
+                                    file_path: None,
+                                }),
+                            }),
+                        ),
+                        (
+                            "args".to_string(),
+                            Spec::SpecEnd(EndSpec {
+                                description: "Args passed to the agent".to_string(),
+                                kind: Kind::String(KindValue {
+                                    required: true,
+                                    default: None,
+                                    final_value: None,
+                                    file_path: None,
+                                }),
+                            }),
+                        ),
+                    ])),
+                )])),
+            ),
+            (
+                "config".to_string(),
+                Spec::SpecEnd(EndSpec {
+                    description: "Path to the agent".to_string(),
+                    kind: Kind::File(KindValue {
+                        required: true,
+                        default: None,
+                        final_value: None,
+                        file_path: Some("newrelic-infra.yml".into()),
+                    }),
+                }),
+            ),
+            (
+                "integrations".to_string(),
+                Spec::SpecEnd(EndSpec {
+                    description: "Newrelic integrations configuration yamls".to_string(),
+                    kind: Kind::MapStringFile(KindValue {
+                        required: true,
+                        default: None,
+                        final_value: None,
+                        file_path: Some("integrations.d".into()),
+                    }),
+                }),
+            ),
+        ]);
+
+        update_specs(input_structure.0, &mut agent_type.variables.0).unwrap();
+
+        assert_eq!(expected, agent_type.variables.0);
+    }
 
     #[test]
     fn test_validate_with_agent_type() {

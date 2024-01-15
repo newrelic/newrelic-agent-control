@@ -26,10 +26,15 @@ where
     pub(crate) fn set_default_as_final(&mut self) {
         self.final_value = self.default.take();
     }
+    pub(crate) fn set_final_value(&mut self, value: T) {
+        self.final_value = Some(value);
+    }
     // pub(crate) fn is_valid_variant(&self, value: T) -> bool {
     //     self.variants.is_empty() || self.variants.iter().any(|v| v == &value)
     // }
 }
+
+
 
 impl<'de, T> Deserialize<'de> for KindValue<T>
 where

@@ -245,6 +245,21 @@ impl Kind {
         Ok(())
     }
 
+    pub(crate) fn from_yaml_value(
+        &mut self,
+        value: serde_yaml::Value,
+    ) -> Result<(), AgentTypeError> {
+        Ok(match self {
+            Kind::String(kv) => kv.set_final_value(serde_yaml::from_value(value)?),
+            Kind::Bool(kv) => kv.set_final_value(serde_yaml::from_value(value)?),
+            Kind::Number(kv) => kv.set_final_value(serde_yaml::from_value(value)?),
+            Kind::File(kv) => kv.set_final_value(serde_yaml::from_value(value)?),
+            Kind::MapStringString(kv) => kv.set_final_value(serde_yaml::from_value(value)?),
+            Kind::MapStringFile(kv) => kv.set_final_value(serde_yaml::from_value(value)?),
+            Kind::Yaml(kv) => kv.set_final_value(value),
+        })
+    }
+
     pub(crate) fn get_final_value(&self) -> Option<TrivialValue> {
         match self {
             Kind::String(k) => k
