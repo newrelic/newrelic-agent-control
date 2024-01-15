@@ -1,16 +1,24 @@
-#[cfg_attr(test, mockall_double::double)]
-use crate::fs::file_renamer::FileRenamer;
-use crate::fs::file_renamer::FileRenamerError;
+use fs::{
+    file_renamer::{FileRenamer, FileRenamerError},
+    LocalFile,
+};
 use std::path::PathBuf;
 
 const LEGACY_PATH_BCK_TOKEN: &str = "bck";
 
-#[derive(Default)]
-pub struct LegacyConfigRenamer {
-    file_renamer: FileRenamer,
+pub struct LegacyConfigRenamer<F: FileRenamer> {
+    file_renamer: F,
 }
 
-impl LegacyConfigRenamer {
+impl Default for LegacyConfigRenamer<LocalFile> {
+    fn default() -> Self {
+        Self {
+            file_renamer: LocalFile,
+        }
+    }
+}
+
+impl<F: FileRenamer> LegacyConfigRenamer<F> {
     pub fn rename_path(&self, path: &str) -> Result<(), FileRenamerError> {
         let original_path = PathBuf::from(path);
 
@@ -31,12 +39,13 @@ impl LegacyConfigRenamer {
 
 #[cfg(test)]
 mod test {
+    use fs::MockLocalFile;
+
     use super::*;
-    use crate::fs::file_renamer::MockFileRenamer;
 
     #[test]
     fn test_rename_path_without_extension() {
-        let mut file_renamer = MockFileRenamer::new();
+        let mut file_renamer = MockLocalFile::new();
 
         let path = "no-extension";
         let expected_path = "no-extension.bck";
@@ -52,7 +61,7 @@ mod test {
 
     #[test]
     fn test_rename_path_with_extension() {
-        let mut file_renamer = MockFileRenamer::new();
+        let mut file_renamer = MockLocalFile::new();
 
         let path = "with-extension.d";
         let expected_path = "with-extension.d.bck";

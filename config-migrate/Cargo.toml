@@ -19,6 +19,7 @@ tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 tracing = "0.1.37"
 serde_yaml = "0.9.25"
 newrelic_super_agent = { path = "../super-agent" }
+fs = { path = "../fs" }
 
 [dev-dependencies]
 assert_cmd = "2.0.12"

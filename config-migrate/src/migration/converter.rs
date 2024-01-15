@@ -1,3 +1,4 @@
+use fs::LocalFile;
 use log::error;
 use std::collections::HashMap;
 use std::path::Path;
@@ -9,7 +10,7 @@ use newrelic_super_agent::config::agent_type_registry::{
     AgentRegistry, AgentRepositoryError, LocalRegistry,
 };
 
-use crate::fs::file_reader::{FSFileReader, FileReaderError};
+use fs::file_reader::{FileReader, FileReaderError};
 
 use crate::migration::agent_value_spec::AgentValueSpec::AgentValueSpecEnd;
 use crate::migration::agent_value_spec::{
@@ -31,22 +32,22 @@ pub enum ConversionError {
     RequiredFileMappingNotFoundError,
 }
 
-pub struct ConfigConverter<R: AgentRegistry> {
+pub struct ConfigConverter<R: AgentRegistry, F: FileReader> {
     agent_registry: R,
-    file_reader: FSFileReader,
+    file_reader: F,
 }
 
-impl Default for ConfigConverter<LocalRegistry> {
+impl Default for ConfigConverter<LocalRegistry, LocalFile> {
     fn default() -> Self {
         ConfigConverter {
             agent_registry: LocalRegistry::default(),
-            file_reader: FSFileReader::default(),
+            file_reader: LocalFile,
         }
     }
 }
 
 #[cfg_attr(test, mockall::automock)]
-impl<R: AgentRegistry> ConfigConverter<R> {
+impl<R: AgentRegistry, F: FileReader> ConfigConverter<R, F> {
     pub fn convert(
         &self,
         migration_agent_config: &MigrationAgentConfig,
