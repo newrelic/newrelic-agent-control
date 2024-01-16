@@ -211,7 +211,20 @@ impl FinalAgent {
         &mut self,
         values: AgentValues,
     ) -> Result<(), AgentTypeError> {
-        update_specs(values.inner(), &mut self.variables.0)
+        update_specs(values.inner(), &mut self.variables.0)?;
+        // No item must be left without a final value
+        let not_populated = self
+            .variables
+            .clone()
+            .flatten()
+            .into_iter()
+            .filter_map(|(k, endspec)| endspec.kind.get_final_value().is_none().then_some(k))
+            .collect::<Vec<_>>();
+
+        if !not_populated.is_empty() {
+            return Err(AgentTypeError::ValuesNotPopulated(not_populated));
+        }
+        Ok(())
     }
 
     /// template_with the [`RuntimeConfig`] object field of the [`Agent`] type with the user-provided config, which must abide by the agent type's defined [`AgentVariables`].

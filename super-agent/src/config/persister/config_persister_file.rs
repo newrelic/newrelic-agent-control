@@ -769,10 +769,11 @@ deployment:
 "#;
 
     const AGENT_VALUES_SINGLE_FILE: &str = r#"
-config_file: |
-  license_key: 1234567890987654321
-  log:
-    level: debug
+config_file: 
+  content: |
+    license_key: 1234567890987654321
+    log:
+      level: debug
 "#;
 
     const AGENT_TYPE_MULTIPLE_FILES: &str = r#"
@@ -796,10 +797,11 @@ variables:
     type: file
     required: false
     file_path: newrelic-infra-3.yml
-    default: |
-      license_key: 33333333333333333
-      log:
-        level: trace
+    default: 
+      content: |
+        license_key: 33333333333333333
+        log:
+          level: trace
 deployment:
   on_host:
     executables:
@@ -812,15 +814,17 @@ deployment:
 "#;
 
     const AGENT_VALUES_MULTIPLE_FILES: &str = r#"
-config_file1: |
-  license_key: 11111111111111111
-  log:
-    level: info
+config_file1: 
+  content: |
+    license_key: 11111111111111111
+    log:
+      level: info
 
-config_file2: |
-  license_key: 22222222222222222
-  log:
-    level: debug
+config_file2: 
+  content: |
+    license_key: 22222222222222222
+    log:
+      level: debug
 "#;
 
     const AGENT_TYPE_SINGLE_MAP_FILE: &str = r#"
@@ -846,18 +850,21 @@ deployment:
 
     const AGENT_VALUES_SINGLE_MAP_FILE: &str = r#"
 integrations:
-  redis.yml: |
-    redis: true
-    log:
-      level: info
-  mysql.yml: |
-    mysql: true
-    log:
-      level: trace
-  kafka.yml: |
-    kafka: true
-    log:
-      level: debug
+  redis.yml: 
+    content: |
+      redis: true
+      log:
+        level: info
+  mysql.yml:
+    content: |
+      mysql: true
+      log:
+        level: trace
+  kafka.yml:
+    content: |
+      kafka: true
+      log:
+        level: debug
 "#;
 
     const AGENT_TYPE_MULTIPLE_MAP_FILE: &str = r#"
@@ -892,21 +899,25 @@ deployment:
 
     const AGENT_VALUES_MULTIPLE_MAP_FILE: &str = r#"
 integrations:
-  redis.yml: |
-    redis: true
-    log:
-      level: info
-  kafka.yml: |
-    kafka: true
-    log:
-      level: debug
+  redis.yml: 
+    content: |
+      redis: true
+      log:
+        level: info
+  kafka.yml: 
+    content: |
+      kafka: true
+      log:
+        level: debug
 logging:
-  file: |
-    some logging conf
-  systemctl.yml: |
-    systemctl: true
-    log:
-      level: debug
+  file: 
+    content: |
+      some logging conf
+  systemctl.yml: 
+    content: |
+      systemctl: true
+      log:
+        level: debug
 config3:
   log_level: trace
   forward: "true"

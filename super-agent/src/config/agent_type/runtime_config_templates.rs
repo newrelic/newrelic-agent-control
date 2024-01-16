@@ -315,6 +315,7 @@ impl Templateable for RuntimeConfig {
 #[cfg(test)]
 mod tests {
     use assert_matches::assert_matches;
+    use serde_yaml::Value;
 
     use crate::config::agent_type::restart_policy::{BackoffDuration, BackoffStrategyType};
     use crate::config::agent_type::trivial_value::FilePathWithContent;
@@ -749,13 +750,10 @@ mod tests {
                 EndSpec {
                     description: String::default(),
                     kind: KindValue {
-                        final_value: Some(serde_yaml::to_value(r#"{"key": "value"}"#).unwrap()),
-                        // final_value: Some(serde_yaml::Value::Mapping(
-                        //     serde_yaml::Mapping::from_pairs(vec![(
-                        //         serde_yaml::Value::String("key".to_string()),
-                        //         serde_yaml::Value::String("value".to_string()),
-                        //     )]),
-                        // )),
+                        // final_value: Some(serde_yaml::to_value(r#"{"key": "value"}"#).unwrap()),
+                        final_value: Some(serde_yaml::Value::Mapping(
+                            serde_yaml::Mapping::from_iter([("key".into(), "value".into())]),
+                        )),
                         default: None,
                         required: true,
                         file_path: Some("some_path".into()),
@@ -769,12 +767,12 @@ mod tests {
                 EndSpec {
                     description: String::default(),
                     kind: KindValue {
-                        final_value: Some(
-                            serde_yaml::to_value(
-                                r#"{"this.will.not.be.expanded": "${change.me.string}"}"#,
-                            )
-                            .unwrap(),
-                        ),
+                        final_value: Some(serde_yaml::Value::Mapping(
+                            serde_yaml::Mapping::from_iter([(
+                                "this.will.not.be.expanded".into(),
+                                "${change.me.string}".into(),
+                            )]),
+                        )),
                         default: None,
                         required: true,
                         file_path: Some("some_path".into()),
@@ -833,8 +831,8 @@ mod tests {
           key: value
         another_yaml:
           "this.will.not.be.expanded": "${change.me.string}" # A variable inside another other variable value is not expanded
-        string_key: "here, the value {\"key\": \"value\"} is encoded as string because it is not alone"
-        "#,
+        string_key: "here, the value key: value\n is encoded as string because it is not alone"
+        "#, // FIXME? Note line above, the "key: value\n" part was replaced!!
         )
         .unwrap();
 
@@ -902,7 +900,9 @@ mod tests {
                 EndSpec {
                     description: String::default(),
                     kind: KindValue {
-                        final_value: Some(serde_yaml::to_value(r#"{"key": "value"}"#).unwrap()),
+                        final_value: Some(serde_yaml::Value::Mapping(
+                            serde_yaml::Mapping::from_iter([("key".into(), "value".into())]),
+                        )),
                         default: None,
                         required: true,
                         file_path: Some("some_path".into()),
@@ -966,7 +966,7 @@ mod tests {
             m.get("key").unwrap().clone()
         );
         assert_eq!(
-            serde_yaml::Value::String(r#"x: {"key": "value"}"#.into()),
+            serde_yaml::Value::String("x: key: value\n".into()), // FIXME? Consder if this is ok.
             template_yaml_value_string("x: ${yaml.var}".into(), &variables).unwrap()
         )
     }

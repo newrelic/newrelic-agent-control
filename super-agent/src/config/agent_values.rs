@@ -136,64 +136,64 @@ impl AgentValues {
     //     flattened
     // }
 
-    pub(crate) fn normalize_with_agent_type(
-        self,
-        agent_type: &mut FinalAgent,
-    ) -> Result<NormalizedValues, AgentTypeError> {
-        agent_type.merge_variables_with_values(self)?;
+    // pub(crate) fn normalize_with_agent_type(
+    //     self,
+    //     agent_type: &mut FinalAgent,
+    // ) -> Result<NormalizedValues, AgentTypeError> {
+    //     agent_type.merge_variables_with_values(self)?;
 
-        // normalize values
-        let normalized = agent_type.variables.clone().flatten();
+    //     // normalize values
+    //     let normalized = agent_type.variables.clone().flatten();
 
-        // build trivialvalues from endspecs
-        Ok(NormalizedValues(
-            normalized
-                .into_iter()
-                .map(|(k, v)| {
-                    (
-                        k,
-                        v.kind
-                            .get_final_value()
-                            .expect("EndSpec must contain values at this point"),
-                    )
-                })
-                .collect(),
-        ))
+    //     // build trivialvalues from endspecs
+    //     Ok(NormalizedValues(
+    //         normalized
+    //             .into_iter()
+    //             .map(|(k, v)| {
+    //                 (
+    //                     k,
+    //                     v.kind
+    //                         .get_final_value()
+    //                         .expect("EndSpec must contain values at this point"),
+    //                 )
+    //             })
+    //             .collect(),
+    //     ))
 
-        // let mut normalized_values = HashMap::default();
-        // for (k, v) in agent_type.variables.0.iter() {
-        //     let value = get_from_normalized(&self.0, k);
+    //     // let mut normalized_values = HashMap::default();
+    //     // for (k, v) in agent_type.variables.0.iter() {
+    //     //     let value = get_from_normalized(&self.0, k);
 
-        //     // required value but not defined in SubAgentConfig
-        //     if value.is_none() && v.kind.is_required() {
-        //         return Err(AgentTypeError::MissingAgentKey(k.clone()));
-        //     }
+    //     //     // required value but not defined in SubAgentConfig
+    //     //     if value.is_none() && v.kind.is_required() {
+    //     //         return Err(AgentTypeError::MissingAgentKey(k.clone()));
+    //     //     }
 
-        //     // check type matches agent one and apply transformations
-        //     if let Some(inner) = value {
-        //         let _ = update_from_normalized(&mut self.0, k, inner.clone().check_type(v)?);
-        //     }
-        // }
-    }
+    //     //     // check type matches agent one and apply transformations
+    //     //     if let Some(inner) = value {
+    //     //         let _ = update_from_normalized(&mut self.0, k, inner.clone().check_type(v)?);
+    //     //     }
+    //     // }
+    // }
 }
 
-fn update_specs(
-    values: serde_yaml::Value,
-    agent_vars: &mut HashMap<String, Spec>,
-) -> Result<(), AgentTypeError> {
-    let values: HashMap<String, Value> = serde_yaml::from_value(values)?;
-    for (ref k, v) in values.into_iter() {
-        let mut spec = agent_vars
-            .get_mut(k)
-            .ok_or_else(|| AgentTypeError::MissingAgentKey(k.clone()))?;
+// fn update_specs(
+//     values: serde_yaml::Value,
+//     agent_vars: &mut HashMap<String, Spec>,
+// ) -> Result<(), AgentTypeError> {
+//     let values: HashMap<String, Value> = serde_yaml::from_value(values)?;
+//     for (ref k, v) in values.into_iter() {
+//         let mut spec = agent_vars
+//             .get_mut(k)
+//             .ok_or_else(|| AgentTypeError::MissingAgentKey(k.clone()))?;
 
-        match spec {
-            Spec::SpecEnd(EndSpec { kind, .. }) => kind.from_yaml_value(v)?,
-            Spec::SpecMapping(m) => update_specs(v, m)?,
-        }
-    }
-    Ok(())
-}
+//         match spec {
+//             Spec::SpecEnd(EndSpec { kind, .. }) => kind.from_yaml_value(v)?,
+//             Spec::SpecMapping(m) => update_specs(v, m)?,
+//         }
+//     }
+//     Ok(())
+// }
 
 // fn normalize_values(
 //     values: serde_yaml::Value,
@@ -266,8 +266,6 @@ impl TryFrom<String> for AgentValues {
 mod tests {
 
     use serde_yaml::Mapping;
-
-    use crate::config::agent_type::trivial_value::FilePathWithContent;
 
     use super::*;
 
@@ -357,10 +355,12 @@ deployment:
   on_host:
     path: "/etc"
     args: --verbose true
-config: test
+config: 
+  content: test
 integrations:
-  kafka: |
-    strategy: bootstrap
+  kafka:
+    content: |
+      strategy: bootstrap
 "#;
     const EXAMPLE_AGENT_YAML_REPLACE: &str = r#"
 name: nrdot
@@ -414,7 +414,7 @@ deployment:
                                 kind: Kind::String(KindValue {
                                     required: true,
                                     default: None,
-                                    final_value: None,
+                                    final_value: Some("/etc".into()),
                                     file_path: None,
                                 }),
                             }),
@@ -426,7 +426,7 @@ deployment:
                                 kind: Kind::String(KindValue {
                                     required: true,
                                     default: None,
-                                    final_value: None,
+                                    final_value: Some("--verbose true".into()),
                                     file_path: None,
                                 }),
                             }),
@@ -441,7 +441,10 @@ deployment:
                     kind: Kind::File(KindValue {
                         required: true,
                         default: None,
-                        final_value: None,
+                        final_value: Some(FilePathWithContent::new(
+                            "newrelic-infra.yml".into(),
+                            "test".to_string(),
+                        )),
                         file_path: Some("newrelic-infra.yml".into()),
                     }),
                 }),
@@ -453,94 +456,102 @@ deployment:
                     kind: Kind::MapStringFile(KindValue {
                         required: true,
                         default: None,
-                        final_value: None,
+                        final_value: Some(HashMap::from([(
+                            "kafka".into(),
+                            FilePathWithContent::new(
+                                "integrations.d".into(),
+                                "strategy: bootstrap\n".to_string(),
+                            ),
+                        )])),
                         file_path: Some("integrations.d".into()),
                     }),
                 }),
             ),
         ]);
 
-        update_specs(input_structure.0, &mut agent_type.variables.0).unwrap();
+        agent_type
+            .merge_variables_with_values(input_structure)
+            .unwrap();
 
         assert_eq!(expected, agent_type.variables.0);
     }
 
-    #[test]
-    fn test_validate_with_agent_type() {
-        let input_structure = serde_yaml::from_str::<AgentValues>(EXAMPLE_CONFIG_REPLACE).unwrap();
-        let mut agent_type =
-            serde_yaml::from_str::<FinalAgent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
+    // Obsoleted test
+    // #[test]
+    // fn test_validate_with_agent_type() {
+    //     let input_structure = serde_yaml::from_str::<AgentValues>(EXAMPLE_CONFIG_REPLACE).unwrap();
+    //     let mut agent_type =
+    //         serde_yaml::from_str::<FinalAgent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
 
-        let expected = NormalizedValues(HashMap::from([
-            (
-                "deployment.on_host.path".to_string(),
-                TrivialValue::String("/etc".to_string()),
-            ),
-            (
-                "deployment.on_host.args".to_string(),
-                TrivialValue::String("--verbose true".to_string()),
-            ),
-            (
-                "config".to_string(),
-                TrivialValue::File(FilePathWithContent::new(
-                    "newrelic-infra.yml".into(),
-                    "test".to_string(),
-                )),
-            ),
-            (
-                "integrations.kafka".to_string(),
-                TrivialValue::File(FilePathWithContent::new(
-                    "integrations.d".into(),
-                    "strategy: bootstrap\n".to_string(),
-                )),
-            ),
-        ]));
+    //     let expected = NormalizedValues(HashMap::from([
+    //         (
+    //             "deployment.on_host.path".to_string(),
+    //             TrivialValue::String("/etc".to_string()),
+    //         ),
+    //         (
+    //             "deployment.on_host.args".to_string(),
+    //             TrivialValue::String("--verbose true".to_string()),
+    //         ),
+    //         (
+    //             "config".to_string(),
+    //             TrivialValue::File(FilePathWithContent::new(
+    //                 "newrelic-infra.yml".into(),
+    //                 "test".to_string(),
+    //             )),
+    //         ),
+    //         (
+    //             "integrations.kafka".to_string(),
+    //             TrivialValue::File(FilePathWithContent::new(
+    //                 "integrations.d".into(),
+    //                 "strategy: bootstrap\n".to_string(),
+    //             )),
+    //         ),
+    //     ]));
 
-        // let expected = Map::from([
-        //     (
-        //         "deployment".to_string(),
-        //         TrivialValue::Map(Map::from([(
-        //             "on_host".to_string(),
-        //             TrivialValue::Map(Map::from([
-        //                 (
-        //                     "args".to_string(),
-        //                     TrivialValue::String("--verbose true".to_string()),
-        //                 ),
-        //                 ("path".to_string(), TrivialValue::String("/etc".to_string())),
-        //             ])),
-        //         )])),
-        //     ),
-        //     (
-        //         "config".to_string(),
-        //         TrivialValue::File(FilePathWithContent::new(
-        //             "newrelic-infra.yml".to_string(),
-        //             "test".to_string(),
-        //         )),
-        //     ),
-        //     (
-        //         "integrations".to_string(),
-        //         TrivialValue::Map(Map::from([(
-        //             "kafka".to_string(),
-        //             TrivialValue::File(FilePathWithContent::new(
-        //                 "integrations.d".to_string(),
-        //                 "strategy: bootstrap\n".to_string(),
-        //             )),
-        //         )])),
-        //     ),
-        // ]);
-        let actual = input_structure
-            .normalize_with_agent_type(&mut agent_type)
-            .unwrap();
+    //     // let expected = Map::from([
+    //     //     (
+    //     //         "deployment".to_string(),
+    //     //         TrivialValue::Map(Map::from([(
+    //     //             "on_host".to_string(),
+    //     //             TrivialValue::Map(Map::from([
+    //     //                 (
+    //     //                     "args".to_string(),
+    //     //                     TrivialValue::String("--verbose true".to_string()),
+    //     //                 ),
+    //     //                 ("path".to_string(), TrivialValue::String("/etc".to_string())),
+    //     //             ])),
+    //     //         )])),
+    //     //     ),
+    //     //     (
+    //     //         "config".to_string(),
+    //     //         TrivialValue::File(FilePathWithContent::new(
+    //     //             "newrelic-infra.yml".to_string(),
+    //     //             "test".to_string(),
+    //     //         )),
+    //     //     ),
+    //     //     (
+    //     //         "integrations".to_string(),
+    //     //         TrivialValue::Map(Map::from([(
+    //     //             "kafka".to_string(),
+    //     //             TrivialValue::File(FilePathWithContent::new(
+    //     //                 "integrations.d".to_string(),
+    //     //                 "strategy: bootstrap\n".to_string(),
+    //     //             )),
+    //     //         )])),
+    //     //     ),
+    //     // ]);
+    //     agent_type.merge_variables_with_values(input_structure).unwrap();
 
-        assert_eq!(expected, actual);
-    }
+    //     assert_eq!(expected, actual);
+    // }
 
     const EXAMPLE_CONFIG_REPLACE_NOPATH: &str = r#"
     deployment:
       on_host:
         args: --verbose true
     integrations: {}
-    config: test
+    config: 
+      content: test
     "#;
 
     #[test]
@@ -550,17 +561,18 @@ deployment:
         let mut agent_type =
             serde_yaml::from_str::<FinalAgent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
 
-        let actual = input_structure.normalize_with_agent_type(&mut agent_type);
+        let actual = agent_type.merge_variables_with_values(input_structure);
 
         assert!(actual.is_err());
         assert_eq!(
-            format!("{}", actual.unwrap_err()),
-            "Missing required key in config: `deployment.on_host.path`"
+            r#"Not all values for this agent type have been populated: ["deployment.on_host.path"]"#,
+            format!("{}", actual.unwrap_err())
         );
     }
 
     const EXAMPLE_CONFIG_REPLACE_WRONG_TYPE: &str = r#"
-    config: test
+    config: 
+      content: test
     deployment:
       on_host:
         path: true
@@ -575,12 +587,12 @@ deployment:
         let mut agent_type =
             serde_yaml::from_str::<FinalAgent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
 
-        let actual = input_structure.normalize_with_agent_type(&mut agent_type);
+        let actual = agent_type.merge_variables_with_values(input_structure);
 
         assert!(actual.is_err());
         assert_eq!(
             format!("{}", actual.unwrap_err()),
-            "Type mismatch while parsing. Expected type String, got value Bool(true)"
+            "Error while parsing: `invalid type: boolean `true`, expected a string`"
         );
     }
 }
