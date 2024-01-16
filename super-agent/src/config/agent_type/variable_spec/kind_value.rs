@@ -12,8 +12,17 @@ where
     pub(crate) required: bool,
     pub(crate) default: Option<T>,
     pub(crate) final_value: Option<T>,
-    pub(crate) file_path: Option<PathBuf>, // Appropriate here? Or to FilePathWithContent?
-                                           // pub(crate) variants: Option<Vec<T>>,
+    // pub(crate) variants: Option<Vec<T>>,
+}
+
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+pub struct KindValueWithPath<T>
+where
+    T: PartialEq,
+{
+    #[serde(flatten)]
+    pub(crate) inner: KindValue<T>,
+    pub(crate) file_path: PathBuf,
 }
 
 impl<T> KindValue<T>
@@ -49,7 +58,6 @@ where
             default: Option<T>,
             // variants: Option<Vec<T>>,
             required: bool,
-            file_path: Option<PathBuf>,
         }
 
         let intermediate_spec = IntermediateValueKind::deserialize(deserializer)?;
@@ -62,7 +70,6 @@ where
             required: intermediate_spec.required,
             final_value: None,
             // variants: intermediate_spec.variants,
-            file_path: intermediate_spec.file_path,
         })
     }
 }
