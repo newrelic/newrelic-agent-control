@@ -148,6 +148,7 @@ mod test {
     use crate::config::agent_type::runtime_config::K8s;
     use crate::config::super_agent_configs::K8sConfig;
     use crate::event::channel::pub_sub;
+    use crate::k8s::error::K8sError;
     use crate::opamp::callbacks::tests::MockCallbacksMock;
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
@@ -239,6 +240,95 @@ mod test {
             .run()
             .unwrap();
         assert!(started_agent.stop().is_ok())
+    }
+
+    #[test]
+    fn build_start_fails() {
+        let test_issue = "random issue";
+        let reported_message = "Supervisor run error: `the kube client returned an error: `while getting dynamic resource: random issue``";
+
+        // opamp builder mock
+        let instance_id = "k8s-test-instance-id";
+        let mut opamp_builder: MockOpAMPClientBuilderMock<MockCallbacksMock> =
+            MockOpAMPClientBuilderMock::new();
+        let final_agent = k8s_final_agent(true);
+        let sub_agent_config = SubAgentConfig {
+            agent_type: final_agent.agent_type().clone(),
+        };
+        let start_settings = start_settings(
+            instance_id.to_string(),
+            &sub_agent_config.agent_type,
+            HashMap::new(),
+        );
+
+        let mut started_client = MockStartedOpAMPClientMock::new();
+        started_client.should_set_specific_health(
+            1,
+            opamp_client::opamp::proto::AgentHealth {
+                healthy: false,
+                last_error: reported_message.to_string(),
+                start_time_unix_nano: 0,
+            },
+        );
+        started_client.should_stop(1);
+
+        opamp_builder.should_build_and_start(
+            AgentID::new("k8s-test").unwrap(),
+            start_settings,
+            started_client,
+        );
+        // instance id getter mock
+        let mut instance_id_getter = MockInstanceIDGetterMock::new();
+        instance_id_getter.should_get(
+            &AgentID::new("k8s-test").unwrap(),
+            "k8s-test-instance-id".to_string(),
+        );
+
+        // instance K8s client mock now FAILING to apply
+        let mut mock_client = MockSyncK8sClient::default();
+        mock_client
+            .expect_apply_dynamic_object_if_changed()
+            .times(1)
+            .returning(|_| Err(K8sError::GetDynamic(test_issue.to_string())));
+        mock_client
+            .expect_default_namespace()
+            .return_const("default".to_string());
+
+        let sub_agent_id = AgentID::new("k8s-test").unwrap();
+
+        let mut effective_agent_assembler = MockEffectiveAgentAssemblerMock::new();
+        effective_agent_assembler.should_assemble_agent(
+            &sub_agent_id,
+            &sub_agent_config,
+            final_agent,
+        );
+
+        let k8s_config = K8sConfig {
+            cluster_name: "test-cluster".to_string(),
+            namespace: "test-namespace".to_string(),
+            cr_type_meta: K8sConfig::default().cr_type_meta,
+        };
+
+        let builder = K8sSubAgentBuilder::new(
+            Some(&opamp_builder),
+            &instance_id_getter,
+            Arc::new(mock_client),
+            &effective_agent_assembler,
+            k8s_config,
+        );
+
+        let (tx, _) = channel();
+        let (super_agent_publisher, _super_agent_consumer) = pub_sub();
+        assert!(builder
+            .build(
+                AgentID::new("k8s-test").unwrap(),
+                &sub_agent_config,
+                tx,
+                super_agent_publisher,
+            )
+            .unwrap() // Not started agent
+            .run()
+            .is_err())
     }
 
     #[test]

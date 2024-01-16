@@ -5,6 +5,7 @@ use crate::{
     sub_agent::{error::SubAgentError, NotStartedSubAgent, StartedSubAgent},
 };
 use opamp_client::{operation::callbacks::Callbacks, StartedClient};
+use tracing::debug;
 
 ////////////////////////////////////////////////////////////////////////////////////
 // Not Started SubAgent On K8s
@@ -48,9 +49,26 @@ where
     type StartedSubAgent = StartedSubAgentK8s<CB, C>;
 
     fn run(self) -> Result<Self::StartedSubAgent, SubAgentError> {
-        self.supervisor
+        if let Err(err) = self
+            .supervisor
             .apply()
-            .map_err(SubAgentError::SupervisorError)?;
+            .map_err(SubAgentError::SupervisorError)
+        {
+            debug!(
+                "The creation of the resources failed for '{}': '{}'",
+                self.agent_id, err
+            );
+            if let Some(handle) = self.opamp_client {
+                let health = opamp_client::opamp::proto::AgentHealth {
+                    healthy: false,
+                    last_error: err.to_string(),
+                    start_time_unix_nano: 0,
+                };
+                crate::runtime::tokio_runtime().block_on(handle.set_health(health))?;
+                crate::runtime::tokio_runtime().block_on(handle.stop())?;
+            }
+            return Err(err);
+        }
 
         Ok(StartedSubAgentK8s::new(self.agent_id, self.opamp_client))
     }
