@@ -35,18 +35,22 @@ impl FileRenamer for LocalFile {
     }
 }
 
-use crate::mock::MockLocalFile;
-use mockall::predicate;
-use std::path::PathBuf;
-impl MockLocalFile {
-    pub fn should_rename(&mut self, path: &Path, rename: &Path) {
-        self.expect_rename()
-            .with(
-                predicate::eq(PathBuf::from(path)),
-                predicate::eq(PathBuf::from(rename)),
-            )
-            .times(1)
-            .returning(move |_, _| Ok(()));
+#[cfg(feature = "mocks")]
+pub mod mock {
+    use crate::mock::MockLocalFile;
+    use mockall::predicate;
+    use std::path::{Path, PathBuf};
+
+    impl MockLocalFile {
+        pub fn should_rename(&mut self, path: &Path, rename: &Path) {
+            self.expect_rename()
+                .with(
+                    predicate::eq(PathBuf::from(path)),
+                    predicate::eq(PathBuf::from(rename)),
+                )
+                .times(1)
+                .returning(move |_, _| Ok(()));
+        }
     }
 }
 

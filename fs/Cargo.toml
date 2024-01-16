@@ -7,10 +7,12 @@ publish = false
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-mockall = "0.12.1"
+mockall = {version = "0.12.1", optional = true}
 regex = "1.10.2"
-tempfile = "3.9.0"
 thiserror = "1.0.56"
 
+[dev-dependencies]
+tempfile = "3.9.0"
+
 [features]
-mocks = []
+mocks = ["dep:mockall"]

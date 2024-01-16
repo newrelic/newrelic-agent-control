@@ -222,11 +222,11 @@ pub mod test {
     use crate::sub_agent::values::values_repository::{
         ValuesRepository, ValuesRepositoryError, ValuesRepositoryFile,
     };
+    use fs::directory_manager::mock::MockDirectoryManagerMock;
     use fs::directory_manager::DirectoryManagementError::{
         ErrorCreatingDirectory, ErrorDeletingDirectory,
     };
     use fs::directory_manager::DirectoryManager;
-    use fs::directory_manager::MockDirectoryManagerMock;
     use fs::file_reader::FileReader;
     use fs::mock::MockLocalFile;
     use fs::writer_file::FileWriter;

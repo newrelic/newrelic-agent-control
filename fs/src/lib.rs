@@ -7,6 +7,7 @@ pub mod writer_file;
 #[derive(Debug, Default)]
 pub struct LocalFile;
 
+#[cfg(feature = "mocks")]
 pub mod mock {
     use std::{fs::Permissions, path::Path};
 

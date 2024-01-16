@@ -196,8 +196,8 @@ pub mod test {
     };
     use crate::config::persister::config_persister_file::FILE_PERMISSIONS;
     use crate::config::super_agent_configs::AgentID;
+    use fs::directory_manager::mock::MockDirectoryManagerMock;
     use fs::directory_manager::DirectoryManager;
-    use fs::directory_manager::MockDirectoryManagerMock;
     use fs::file_reader::FileReader;
     use fs::mock::MockLocalFile;
     use fs::writer_file::FileWriter;

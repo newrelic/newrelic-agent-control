@@ -201,8 +201,8 @@ mod test {
         ConfigurationPersisterFile, DIRECTORY_PERMISSIONS, FILE_PERMISSIONS, GENERATED_FOLDER_NAME,
     };
     use crate::config::super_agent_configs::AgentID;
+    use fs::directory_manager::mock::MockDirectoryManagerMock;
     use fs::directory_manager::DirectoryManager;
-    use fs::directory_manager::MockDirectoryManagerMock;
     use fs::mock::MockLocalFile;
     use fs::writer_file::FileWriter;
     use std::fs::Permissions;

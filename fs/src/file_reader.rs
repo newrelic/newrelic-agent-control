@@ -53,49 +53,53 @@ impl FileReader for LocalFile {
 ////////////////////////////////////////////////////////////////////////////////////
 // Mock
 ////////////////////////////////////////////////////////////////////////////////////
-use crate::mock::MockLocalFile;
-use mockall::predicate;
-use std::io::{Error, ErrorKind};
-use std::path::PathBuf;
+#[cfg(feature = "mocks")]
+pub mod mock {
+    use super::*;
+    use crate::mock::MockLocalFile;
+    use mockall::predicate;
+    use std::io::{Error, ErrorKind};
+    use std::path::PathBuf;
 
-impl MockLocalFile {
-    pub fn should_read(&mut self, path: &Path, content: String) {
-        self.expect_read()
-            .with(predicate::eq(PathBuf::from(path)))
-            .times(1)
-            .returning(move |_| Ok(content.clone()));
-    }
+    impl MockLocalFile {
+        pub fn should_read(&mut self, path: &Path, content: String) {
+            self.expect_read()
+                .with(predicate::eq(PathBuf::from(path)))
+                .times(1)
+                .returning(move |_| Ok(content.clone()));
+        }
 
-    pub fn should_not_read_file_not_found(&mut self, path: &Path, error_message: String) {
-        self.expect_read()
-            .with(predicate::eq(PathBuf::from(path)))
-            .once()
-            .returning(move |_| Err(FileReaderError::FileNotFound(error_message.clone())));
-    }
+        pub fn should_not_read_file_not_found(&mut self, path: &Path, error_message: String) {
+            self.expect_read()
+                .with(predicate::eq(PathBuf::from(path)))
+                .once()
+                .returning(move |_| Err(FileReaderError::FileNotFound(error_message.clone())));
+        }
 
-    pub fn should_not_read_io_error(&mut self, path: &Path) {
-        self.expect_read()
-            .with(predicate::eq(PathBuf::from(path)))
-            .once()
-            .returning(move |_| {
-                Err(FileReaderError::Read(Error::from(
-                    ErrorKind::PermissionDenied,
-                )))
-            });
-    }
+        pub fn should_not_read_io_error(&mut self, path: &Path) {
+            self.expect_read()
+                .with(predicate::eq(PathBuf::from(path)))
+                .once()
+                .returning(move |_| {
+                    Err(FileReaderError::Read(Error::from(
+                        ErrorKind::PermissionDenied,
+                    )))
+                });
+        }
 
-    // the test is not idempotent as it iterates hashmap. For now let's use this
-    pub fn could_read(&mut self, path: &Path, content: String) {
-        self.expect_read()
-            .with(predicate::eq(PathBuf::from(path)))
-            .returning(move |_| Ok(content.clone()));
-    }
+        // the test is not idempotent as it iterates hashmap. For now let's use this
+        pub fn could_read(&mut self, path: &Path, content: String) {
+            self.expect_read()
+                .with(predicate::eq(PathBuf::from(path)))
+                .returning(move |_| Ok(content.clone()));
+        }
 
-    pub fn should_read_dir(&mut self, path: &Path, content: Vec<String>) {
-        self.expect_read_dir()
-            .with(predicate::eq(PathBuf::from(path)))
-            .times(1)
-            .returning(move |_| Ok(content.clone()));
+        pub fn should_read_dir(&mut self, path: &Path, content: Vec<String>) {
+            self.expect_read_dir()
+                .with(predicate::eq(PathBuf::from(path)))
+                .times(1)
+                .returning(move |_| Ok(content.clone()));
+        }
     }
 }
 

@@ -133,7 +133,7 @@ mod test {
     use crate::opamp::instance_id::storer::InstanceIDStorer;
     use crate::opamp::instance_id::{Identifiers, InstanceID, Storer};
     use crate::super_agent::defaults::{REMOTE_AGENT_DATA_DIR, SUPER_AGENT_IDENTIFIERS_PATH};
-    use fs::directory_manager::MockDirectoryManagerMock;
+    use fs::directory_manager::mock::MockDirectoryManagerMock;
     use fs::mock::MockLocalFile;
     use mockall::predicate;
     use std::fs::Permissions;
