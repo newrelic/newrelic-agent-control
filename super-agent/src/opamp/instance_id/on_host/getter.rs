@@ -8,7 +8,7 @@ use resource_detection::cloud::http_client::HttpClientUreq;
 use resource_detection::cloud::{AWS_INSTANCE_ID, AZURE_INSTANCE_ID, CLOUD_INSTANCE_ID};
 use resource_detection::system::{HOSTNAME_KEY, MACHINE_ID_KEY};
 use resource_detection::DetectError;
-use resource_detection::{system::detector::SystemDetector, Detect};
+use resource_detection::{system::detector::SystemDetector, Detector};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::error;
@@ -37,8 +37,8 @@ pub struct IdentifiersProvider<
         GCPDetector<HttpClientUreq>,
     >,
 > where
-    D: Detect,
-    D2: Detect,
+    D: Detector,
+    D2: Detector,
 {
     system_detector: D,
     cloud_id_detector: D2,
@@ -55,8 +55,8 @@ impl Default for IdentifiersProvider {
 
 impl<D, D2> IdentifiersProvider<D, D2>
 where
-    D: Detect,
-    D2: Detect,
+    D: Detector,
+    D2: Detector,
 {
     pub fn provide(&self) -> Result<Identifiers, DetectError> {
         let system_identifiers = self.system_detector.detect()?;
@@ -124,7 +124,7 @@ mod test {
     use resource_detection::cloud::aws::detector::AWSDetectorError;
     use resource_detection::cloud::cloud_id::detector::CloudIdDetector;
     use resource_detection::cloud::http_client::HttpClientError;
-    use resource_detection::{Detect, DetectError, Key, Resource, Value};
+    use resource_detection::{DetectError, Detector, Key, Resource, Value};
     use tracing_test::internal::logs_with_scope_contain;
     use tracing_test::traced_test;
 

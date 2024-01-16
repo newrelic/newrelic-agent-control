@@ -1,5 +1,6 @@
 //! Aggregation cloud instance id detector implementation
 use thiserror::Error;
+use tracing::warn;
 
 use crate::cloud::aws::detector::AWSDetector;
 use crate::cloud::azure::detector::AzureDetector;
@@ -9,10 +10,10 @@ use crate::cloud::{
     AZURE_INSTANCE_ID, CLOUD_INSTANCE_ID, CLOUD_TYPE, CLOUD_TYPE_AWS, CLOUD_TYPE_AZURE,
     CLOUD_TYPE_GCP, CLOUD_TYPE_NO, GCP_INSTANCE_ID,
 };
-use crate::{cloud::AWS_INSTANCE_ID, Detect, DetectError, Key, Resource, Value};
+use crate::{cloud::AWS_INSTANCE_ID, DetectError, Detector, Key, Resource, Value};
 
 /// The `AWSDetector` struct encapsulates an HTTP client used to retrieve the instance metadata.
-pub struct CloudIdDetector<AWS: Detect, AZURE: Detect, GCP: Detect> {
+pub struct CloudIdDetector<AWS: Detector, AZURE: Detector, GCP: Detector> {
     aws_detector: AWS,
     azure_detector: AZURE,
     gcp_detector: GCP,
@@ -43,59 +44,58 @@ pub enum CloudIdDetectorError {
     UnsuccessfulCloudIdCheck(),
 }
 
-impl<AWS, AZURE, GCP> Detect for CloudIdDetector<AWS, AZURE, GCP>
+fn match_resource(
+    resource: Resource,
+    cloud_instance_id_const: &str,
+    cloud_type_const: &str,
+) -> Resource {
+    match resource.get(cloud_instance_id_const.into()) {
+        None => {
+            warn!(
+                "{} instance ID should be in the attributes list. Check API permissions.",
+                cloud_type_const
+            );
+            return Resource::new([
+                (Key::from(CLOUD_INSTANCE_ID), Value::from("".to_string())),
+                (
+                    Key::from(CLOUD_TYPE),
+                    Value::from(CLOUD_TYPE_NO.to_string()),
+                ),
+            ]);
+        }
+        Some(cloud_id) => {
+            return Resource::new([
+                (Key::from(CLOUD_INSTANCE_ID), cloud_id),
+                (
+                    Key::from(CLOUD_TYPE),
+                    Value::from(cloud_type_const.to_string()),
+                ),
+            ]);
+        }
+    }
+}
+
+impl<AWS, AZURE, GCP> Detector for CloudIdDetector<AWS, AZURE, GCP>
 where
-    AWS: Detect,
-    AZURE: Detect,
-    GCP: Detect,
+    AWS: Detector,
+    AZURE: Detector,
+    GCP: Detector,
 {
     fn detect(&self) -> Result<Resource, DetectError> {
-        let response = self.aws_detector.detect();
-
-        if response.is_ok() {
-            let cloud_id = response
-                .expect("AWS metadata should be present at this point. Check logice")
-                .get(AWS_INSTANCE_ID.into())
-                .expect("AWS instance ID should be in the attributes list. Check logic.");
-            return Ok(Resource::new([
-                (Key::from(CLOUD_INSTANCE_ID), cloud_id),
-                (
-                    Key::from(CLOUD_TYPE),
-                    Value::from(CLOUD_TYPE_AWS.to_string()),
-                ),
-            ]));
+        if let Ok(resource) = self.aws_detector.detect() {
+            return Ok(match_resource(resource, AWS_INSTANCE_ID, CLOUD_TYPE_AWS));
         }
 
-        let response = self.azure_detector.detect();
-
-        if response.is_ok() {
-            let cloud_id = response
-                .expect("Azure metadata should be present at this point. Check logic.")
-                .get(AZURE_INSTANCE_ID.into())
-                .expect("Azure instance ID should be in the attributes list. Check logic.");
-            return Ok(Resource::new([
-                (Key::from(CLOUD_INSTANCE_ID), cloud_id),
-                (
-                    Key::from(CLOUD_TYPE),
-                    Value::from(CLOUD_TYPE_AZURE.to_string()),
-                ),
-            ]));
+        if let Ok(resource) = self.azure_detector.detect() {
+            return Ok(match_resource(
+                resource,
+                AZURE_INSTANCE_ID,
+                CLOUD_TYPE_AZURE,
+            ));
         }
 
-        let response = self.gcp_detector.detect();
-
-        if response.is_ok() {
-            let cloud_id = response
-                .expect("GCP metadata should be present at this point. Check logic.")
-                .get(GCP_INSTANCE_ID.into())
-                .expect("GCP instance ID should be in the attributes list. Check logic.");
-            return Ok(Resource::new([
-                (Key::from(CLOUD_INSTANCE_ID), cloud_id),
-                (
-                    Key::from(CLOUD_TYPE),
-                    Value::from(CLOUD_TYPE_GCP.to_string()),
-                ),
-            ]));
+        if let Ok(resource) = self.gcp_detector.detect() {
+            return Ok(match_resource(resource, GCP_INSTANCE_ID, CLOUD_TYPE_GCP));
         }
 
         Ok(Resource::new([
@@ -132,7 +132,7 @@ mod test {
 
     mock! {
         pub DetectorMock {}
-        impl Detect for DetectorMock {
+        impl Detector for DetectorMock {
             fn detect(&self) -> Result<Resource, DetectError>;
         }
     }

@@ -75,7 +75,7 @@ pub enum DetectError {
 
 /// The `Detect` trait defines the detection interface to be implemented
 /// by types pertaining to resource detection.
-pub trait Detect {
+pub trait Detector {
     /// Returns a `Resource` structure detected by the implementer of this trait or
     /// DetectError if an error was found.
     fn detect(&self) -> Result<Resource, DetectError>;

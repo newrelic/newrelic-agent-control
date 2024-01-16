@@ -4,7 +4,7 @@ use std::time::Duration;
 use thiserror::Error;
 
 use crate::cloud::http_client::{HttpClient, HttpClientError, HttpClientUreq};
-use crate::{cloud::AWS_INSTANCE_ID, Detect, DetectError, Key, Resource, Value};
+use crate::{cloud::AWS_INSTANCE_ID, DetectError, Detector, Key, Resource, Value};
 
 use super::metadata::{AWSMetadata, IPV4_METADATA_ENDPOINT};
 
@@ -40,7 +40,7 @@ pub enum AWSDetectorError {
     UnsuccessfulResponse(u16, String),
 }
 
-impl<C> Detect for AWSDetector<C>
+impl<C> Detector for AWSDetector<C>
 where
     C: HttpClient,
 {

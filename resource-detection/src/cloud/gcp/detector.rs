@@ -6,7 +6,7 @@ use thiserror::Error;
 
 use crate::cloud::http_client::{HttpClient, HttpClientError, HttpClientUreq};
 use crate::cloud::GCP_INSTANCE_ID;
-use crate::{cloud::AWS_INSTANCE_ID, Detect, DetectError, Key, Resource, Value};
+use crate::{cloud::AWS_INSTANCE_ID, DetectError, Detector, Key, Resource, Value};
 
 use super::metadata::{GCPMetadata, IPV4_METADATA_ENDPOINT};
 
@@ -42,7 +42,7 @@ pub enum GCPDetectorError {
     UnsuccessfulResponse(u16, String),
 }
 
-impl<C> Detect for GCPDetector<C>
+impl<C> Detector for GCPDetector<C>
 where
     C: HttpClient,
 {
