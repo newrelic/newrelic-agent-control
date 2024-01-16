@@ -167,6 +167,18 @@ impl Display for Number {
     }
 }
 
+impl From<serde_yaml::Number> for Number {
+    fn from(n: serde_yaml::Number) -> Self {
+        if n.is_u64() {
+            Number::PosInt(n.as_u64().expect("Number must be convertible to u64"))
+        } else if n.is_i64() {
+            Number::NegInt(n.as_i64().expect("Number must be convertible to i64"))
+        } else {
+            Number::Float(n.as_f64().expect("Number must be convertible to f64"))
+        }
+    }
+}
+
 // /// Represents a yaml value, holding both the string before deserializing and the [serde_yaml::Value] after.
 // #[derive(Debug, PartialEq, Default, Clone, Deserialize)]
 // pub struct YamlValue {

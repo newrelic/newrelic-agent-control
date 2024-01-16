@@ -202,9 +202,9 @@ impl FinalAgent {
         self.metadata.to_string().as_str().into()
     }
 
-    // pub fn get_variables(&self) -> &NormalizedVariables {
-    //     &self.variables
-    // }
+    pub fn get_variables(&self) -> &NormalizedVariables {
+        &self.variables.flatten()
+    }
 
     #[cfg_attr(doc, aquamarine::aquamarine)]
     /// template_with the [`RuntimeConfig`] object field of the [`Agent`] type with the user-provided config, which must abide by the agent type's defined [`AgentVariables`].
@@ -223,7 +223,8 @@ impl FinalAgent {
         let mut spec = self.variables;
 
         // modifies variables final value with the one defined in the SupervisorConfig
-        spec.0.iter_mut()
+        spec.0
+            .iter_mut()
             .try_for_each(|(k, v)| -> Result<(), AgentTypeError> {
                 // let defined_value = config.get_from_normalized(k);
                 // v.kind.set_final_value(defined_value)?;
@@ -248,6 +249,26 @@ impl FinalAgent {
 /// Flexible tree-like structure that contains variables definitions, that can later be changed by the end user via [`AgentValues`].
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 pub struct AgentVariables(pub(crate) HashMap<String, Spec>);
+
+impl AgentVariables {
+    pub fn flatten(self) -> HashMap<String, EndSpec> {
+        self.0
+            .into_iter()
+            .flat_map(|(k, v)| inner_flatten(k, v))
+            .collect()
+    }
+}
+
+fn inner_flatten(key: String, spec: Spec) -> HashMap<String, EndSpec> {
+    let mut result = HashMap::new();
+    match spec {
+        Spec::SpecEnd(s) => _ = result.insert(key, s),
+        Spec::SpecMapping(m) => m.into_iter().for_each(|(k, v)| {
+            result.extend(inner_flatten(key.clone() + TEMPLATE_KEY_SEPARATOR + &k, v))
+        }),
+    }
+    result
+}
 
 #[derive(Debug, PartialEq, Clone, Copy, Deserialize)]
 pub enum VariableType {
@@ -416,8 +437,6 @@ struct K8s {
 /// Will be converted to `system.logging.level` and can be used later in the AgentType_Meta part as `${system.logging.level}`.
 pub(crate) type NormalizedVariables = HashMap<String, EndSpec>;
 
-
-
 fn normalize_agent_spec(spec: AgentVariables) -> Result<NormalizedVariables, AgentTypeError> {
     spec.0.into_iter().try_fold(HashMap::new(), |r, (k, v)| {
         let n_spec = inner_normalize(k, v);
@@ -465,18 +484,18 @@ pub mod tests {
     use std::collections::HashMap as Map;
 
     impl FinalAgent {
-        pub fn new(
-            metadata: AgentMetadata,
-            variables: NormalizedVariables,
-            runtime_config: RuntimeConfig,
-        ) -> FinalAgent {
-            FinalAgent {
-                metadata,
-                variables,
-                runtime_config,
-                capabilities: default_capabilities(),
-            }
-        }
+        // pub fn new(
+        //     metadata: AgentMetadata,
+        //     variables: NormalizedVariables,
+        //     runtime_config: RuntimeConfig,
+        // ) -> FinalAgent {
+        //     FinalAgent {
+        //         metadata,
+        //         variables,
+        //         runtime_config,
+        //         capabilities: default_capabilities(),
+        //     }
+        // }
 
         pub fn set_capabilities(&mut self, capabilities: Capabilities) {
             self.capabilities = capabilities
@@ -484,7 +503,7 @@ pub mod tests {
 
         /// Retrieve the `variables` field of the agent type at the specified key, if any.
         pub fn get_variable(self, path: String) -> Option<EndSpec> {
-            self.variables.get(&path).cloned()
+            self.variables.flatten().get(&path).cloned()
         }
     }
 
@@ -639,7 +658,7 @@ deployment:
 
         // expect output to be the map
 
-        assert_eq!(expected_map, given_agent.variables);
+        assert_eq!(expected_map, given_agent.variables.flatten());
 
         let expected_spec = EndSpec {
             description: "Name of the agent".to_string(),

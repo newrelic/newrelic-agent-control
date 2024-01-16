@@ -273,6 +273,7 @@ pub(crate) mod tests {
             TrivialValue::String("/some/path/config".into()),
             assembled_agent
                 .variables
+                .flatten()
                 .get("config_path")
                 .unwrap()
                 .kind
@@ -321,6 +322,7 @@ pub(crate) mod tests {
             TrivialValue::String("/some/path/config".into()),
             assembled_agent
                 .variables
+                .flatten()
                 .get("config_path")
                 .unwrap()
                 .kind

@@ -112,6 +112,16 @@ impl AgentValues {
     //     get_from_normalized(&self.0, normalized_prefix)
     // }
 
+    pub(crate) fn new(values: serde_yaml::Value) -> Self {
+        Self(values)
+    }
+
+    // pub(crate) fn flatten(&self) -> HashMap<String, TrivialValue> {
+    //     let mut flattened = HashMap::default();
+    //     inner_flatten(&self.0, &mut flattened, "".to_string());
+    //     flattened
+    // }
+
     /// normalize_with_agent_type verifies that all required Agent variables are defined in the
     /// SubAgentConfig and transforms the types with check_type
     pub(crate) fn normalize_with_agent_type(
@@ -133,7 +143,7 @@ impl AgentValues {
         //     }
         // }
 
-        Ok(NormalizedValues::default())
+        todo!("normalize_with_agent_type")
     }
 }
 
@@ -153,6 +163,62 @@ fn update_specs(
         }
     }
     Ok(())
+}
+
+impl From<AgentValues> for NormalizedValues {
+    fn from(value: AgentValues) -> Self {
+        let mut flattened = HashMap::default();
+        inner_flatten(&value.0, &mut flattened, "".to_string());
+        Self(flattened)
+    }
+}
+
+fn inner_flatten(
+    inner: &serde_yaml::Value,
+    flattened: &mut HashMap<String, TrivialValue>,
+    prefix: String,
+) {
+    match inner {
+        Value::Mapping(m) if m.keys().all(|s| s.is_string()) => {
+            for (k, v) in m.iter() {
+                let mut new_prefix = prefix.clone();
+                if !new_prefix.is_empty() {
+                    new_prefix.push_str(TEMPLATE_KEY_SEPARATOR);
+                }
+                new_prefix.push_str(k.as_str().expect("Keys for this mapping must be strings"));
+                inner_flatten(v, flattened, new_prefix);
+            }
+        }
+        Value::String(s) => {
+            flattened.insert(prefix, TrivialValue::String(s.clone()));
+        }
+        Value::Bool(b) => {
+            flattened.insert(prefix, TrivialValue::Bool(*b));
+        }
+        n @ Value::Number(_) => {
+            flattened.insert(
+                prefix,
+                TrivialValue::Number(serde_yaml::from_value(n.to_owned()).expect(
+                    "serde_yaml::Number must be convertible to our super-agent's Number type",
+                )),
+            );
+        }
+        otherwise => {
+            flattened.insert(prefix, TrivialValue::Yaml(otherwise.clone()));
+        } // Value::Sequence(s) => {
+          //     flattened.insert(
+          //         prefix,
+          //         TrivialValue::Sequence(
+          //             s.iter()
+          //                 .map(|v| TrivialValue::from(v.clone()))
+          //                 .collect(),
+          //         ),
+          //     );
+          // }
+          // Value::Null => {
+          //     flattened.insert(prefix, TrivialValue::Null);
+          // }
+    }
 }
 
 // fn normalize_values(
@@ -225,7 +291,9 @@ impl TryFrom<String> for AgentValues {
 #[cfg(test)]
 mod tests {
 
-    use crate::config::agent_type::trivial_value::{FilePathWithContent, Number};
+    use serde_yaml::Mapping;
+
+    use crate::config::agent_type::trivial_value::FilePathWithContent;
 
     use super::*;
 
@@ -263,51 +331,49 @@ verbose: true
     #[test]
     fn test_agent_values() {
         let actual = serde_yaml::from_str::<AgentValues>(EXAMPLE_CONFIG).unwrap();
-        let expected: Map<String, TrivialValue> = Map::from([
+        let expected = Value::Mapping(Mapping::from_iter([
             (
-                "description".to_string(),
-                TrivialValue::Map(Map::from([
+                Value::String("description".to_string()),
+                Value::Mapping(Mapping::from_iter([
                     (
-                        "name".to_string(),
-                        TrivialValue::String("newrelic-infra".to_string()),
+                        Value::String("name".to_string()),
+                        Value::String("newrelic-infra".to_string()),
                     ),
                     (
-                        "float_val".to_string(),
-                        TrivialValue::Number(Number::Float(0.14)),
+                        Value::String("float_val".to_string()),
+                        Value::Number(serde_yaml::Number::from(0.14 as f64)),
                     ),
-                    ("logs".to_string(), TrivialValue::Number(Number::NegInt(-4))),
+                    (
+                        Value::String("logs".to_string()),
+                        Value::Number(serde_yaml::Number::from(-4 as i64)),
+                    ),
                 ])),
             ),
             (
-                "configuration".to_string(),
-                TrivialValue::String(
-                    r#"license: abc123
-staging: true
-extra_list:
-  key: value
-  key2: value2
-"#
-                    .to_string(),
+                Value::String("configuration".to_string()),
+                Value::String(
+                    "license: abc123\nstaging: true\nextra_list:\n  key: value\n  key2: value2\n"
+                        .to_string(),
                 ),
             ),
             (
-                "config".to_string(),
-                TrivialValue::Map(Map::from([(
-                    "envs".to_string(),
-                    TrivialValue::Map(Map::from([
+                Value::String("config".to_string()),
+                Value::Mapping(Mapping::from_iter([(
+                    Value::String("envs".to_string()),
+                    Value::Mapping(Mapping::from_iter([
                         (
-                            "name".to_string(),
-                            TrivialValue::String("newrelic-infra".to_string()),
+                            Value::String("name".to_string()),
+                            Value::String("newrelic-infra".to_string()),
                         ),
                         (
-                            "name2".to_string(),
-                            TrivialValue::String("newrelic-infra2".to_string()),
+                            Value::String("name2".to_string()),
+                            Value::String("newrelic-infra2".to_string()),
                         ),
                     ])),
                 )])),
             ),
-            ("verbose".to_string(), TrivialValue::Bool(true)),
-        ]);
+            (Value::String("verbose".to_string()), Value::Bool(true)),
+        ]));
 
         assert_eq!(actual.0, expected);
     }
@@ -430,19 +496,14 @@ deployment:
         let input_structure = serde_yaml::from_str::<AgentValues>(EXAMPLE_CONFIG_REPLACE).unwrap();
         let agent_type = serde_yaml::from_str::<FinalAgent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
 
-        let expected = Map::from([
+        let expected = NormalizedValues(HashMap::from([
             (
-                "deployment".to_string(),
-                TrivialValue::Map(Map::from([(
-                    "on_host".to_string(),
-                    TrivialValue::Map(Map::from([
-                        (
-                            "args".to_string(),
-                            TrivialValue::String("--verbose true".to_string()),
-                        ),
-                        ("path".to_string(), TrivialValue::String("/etc".to_string())),
-                    ])),
-                )])),
+                "deployment.on_host.path".to_string(),
+                TrivialValue::String("/etc".to_string()),
+            ),
+            (
+                "deployment.on_host.args".to_string(),
+                TrivialValue::String("--verbose true".to_string()),
             ),
             (
                 "config".to_string(),
@@ -452,21 +513,51 @@ deployment:
                 )),
             ),
             (
-                "integrations".to_string(),
-                TrivialValue::Map(Map::from([(
-                    "kafka".to_string(),
-                    TrivialValue::File(FilePathWithContent::new(
-                        "integrations.d".to_string(),
-                        "strategy: bootstrap\n".to_string(),
-                    )),
-                )])),
+                "integrations.kafka".to_string(),
+                TrivialValue::File(FilePathWithContent::new(
+                    "integrations.d".to_string(),
+                    "strategy: bootstrap\n".to_string(),
+                )),
             ),
-        ]);
+        ]));
+
+        // let expected = Map::from([
+        //     (
+        //         "deployment".to_string(),
+        //         TrivialValue::Map(Map::from([(
+        //             "on_host".to_string(),
+        //             TrivialValue::Map(Map::from([
+        //                 (
+        //                     "args".to_string(),
+        //                     TrivialValue::String("--verbose true".to_string()),
+        //                 ),
+        //                 ("path".to_string(), TrivialValue::String("/etc".to_string())),
+        //             ])),
+        //         )])),
+        //     ),
+        //     (
+        //         "config".to_string(),
+        //         TrivialValue::File(FilePathWithContent::new(
+        //             "newrelic-infra.yml".to_string(),
+        //             "test".to_string(),
+        //         )),
+        //     ),
+        //     (
+        //         "integrations".to_string(),
+        //         TrivialValue::Map(Map::from([(
+        //             "kafka".to_string(),
+        //             TrivialValue::File(FilePathWithContent::new(
+        //                 "integrations.d".to_string(),
+        //                 "strategy: bootstrap\n".to_string(),
+        //             )),
+        //         )])),
+        //     ),
+        // ]);
         let actual = input_structure
             .normalize_with_agent_type(&agent_type)
             .unwrap();
 
-        assert_eq!(expected, actual.0);
+        assert_eq!(expected, actual);
     }
 
     const EXAMPLE_CONFIG_REPLACE_NOPATH: &str = r#"
