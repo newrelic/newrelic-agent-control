@@ -126,6 +126,10 @@ impl AgentValues {
         self.0.get(key)
     }
 
+    pub(crate) fn inner(self) -> serde_yaml::Value {
+        self.0
+    }
+
     // pub(crate) fn flatten(&self) -> HashMap<String, TrivialValue> {
     //     let mut flattened = HashMap::default();
     //     inner_flatten(&self.0, &mut flattened, "".to_string());
@@ -136,11 +140,7 @@ impl AgentValues {
         self,
         agent_type: &mut FinalAgent,
     ) -> Result<NormalizedValues, AgentTypeError> {
-        let values = self.0;
-        let vars = &mut agent_type.variables.0;
-
-        // update specs with values
-        update_specs(values, vars)?;
+        agent_type.merge_variables_with_values(self)?;
 
         // normalize values
         let normalized = agent_type.variables.clone().flatten();
@@ -315,11 +315,11 @@ verbose: true
                     ),
                     (
                         Value::String("float_val".to_string()),
-                        Value::Number(serde_yaml::Number::from(0.14 as f64)),
+                        Value::Number(serde_yaml::Number::from(0.14_f64)),
                     ),
                     (
                         Value::String("logs".to_string()),
-                        Value::Number(serde_yaml::Number::from(-4 as i64)),
+                        Value::Number(serde_yaml::Number::from(-4_i64)),
                     ),
                 ])),
             ),
@@ -483,14 +483,14 @@ deployment:
             (
                 "config".to_string(),
                 TrivialValue::File(FilePathWithContent::new(
-                    "newrelic-infra.yml".to_string(),
+                    "newrelic-infra.yml".into(),
                     "test".to_string(),
                 )),
             ),
             (
                 "integrations.kafka".to_string(),
                 TrivialValue::File(FilePathWithContent::new(
-                    "integrations.d".to_string(),
+                    "integrations.d".into(),
                     "strategy: bootstrap\n".to_string(),
                 )),
             ),

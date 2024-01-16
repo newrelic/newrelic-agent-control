@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -249,15 +249,37 @@ impl Kind {
         &mut self,
         value: serde_yaml::Value,
     ) -> Result<(), AgentTypeError> {
-        Ok(match self {
+        match self {
             Kind::String(kv) => kv.set_final_value(serde_yaml::from_value(value)?),
             Kind::Bool(kv) => kv.set_final_value(serde_yaml::from_value(value)?),
             Kind::Number(kv) => kv.set_final_value(serde_yaml::from_value(value)?),
-            Kind::File(kv) => kv.set_final_value(serde_yaml::from_value(value)?),
+            // FIXME: This is bulls**t. Use KindValueWithFilePath which does not allow for empty paths
+            Kind::File(kv) => {
+                let mut file: FilePathWithContent = serde_yaml::from_value(value)?;
+                file.with_path(
+                    kv.file_path
+                        .clone()
+                        .expect("file_path must be set for files"),
+                );
+                kv.set_final_value(file)
+            }
             Kind::MapStringString(kv) => kv.set_final_value(serde_yaml::from_value(value)?),
-            Kind::MapStringFile(kv) => kv.set_final_value(serde_yaml::from_value(value)?),
+            // FIXME: This is bulls**t. Use KindValueWithFilePath which does not allow for empty paths
+            Kind::MapStringFile(kv) => {
+                let mut files: HashMap<String, FilePathWithContent> =
+                    serde_yaml::from_value(value)?;
+                files.values_mut().for_each(|f| {
+                    f.with_path(
+                        kv.file_path
+                            .clone()
+                            .expect("file_path must be set for files"),
+                    )
+                });
+                kv.set_final_value(files)
+            }
             Kind::Yaml(kv) => kv.set_final_value(value),
-        })
+        };
+        Ok(())
     }
 
     pub(crate) fn get_final_value(&self) -> Option<TrivialValue> {
@@ -275,10 +297,22 @@ impl Kind {
                 .or(k.default.as_ref())
                 .cloned()
                 .map(TrivialValue::Number),
+            // FIXME: This is bulls**t. Use KindValueWithFilePath which does not allow for empty paths
             Kind::File(k) => k
                 .final_value
                 .as_ref()
-                .or(k.default.as_ref())
+                .or({
+                    let mut file = k.default.clone();
+                    if let Some(f) = file.as_mut() {
+                        f.with_path(
+                            k.file_path
+                                .clone()
+                                .expect("file_path must be set for files"),
+                        )
+                    }
+                    file
+                }
+                .as_ref())
                 .cloned()
                 .map(TrivialValue::File),
             Kind::MapStringString(k) => k
@@ -299,6 +333,26 @@ impl Kind {
                 .or(k.default.as_ref())
                 .cloned()
                 .map(TrivialValue::Yaml),
+        }
+    }
+
+    pub(crate) fn get_file_path(&self) -> Option<&PathBuf> {
+        match self {
+            Kind::String(_) => None,
+            Kind::Bool(_) => None,
+            Kind::Number(_) => None,
+            Kind::File(k) => k.file_path.as_ref(),
+            Kind::MapStringString(_) => None,
+            Kind::MapStringFile(k) => k.file_path.as_ref(),
+            Kind::Yaml(_) => None,
+        }
+    }
+
+    pub(crate) fn set_file_path(&mut self, file_path: PathBuf) {
+        match self {
+            Kind::File(k) => k.file_path = Some(file_path),
+            Kind::MapStringFile(k) => k.file_path = Some(file_path),
+            _ => {}
         }
     }
 }

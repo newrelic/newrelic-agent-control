@@ -492,7 +492,7 @@ mod tests {
                     description: "config".to_string(),
                     kind: KindValue {
                         final_value: Some(FilePathWithContent::new(
-                            "config2.yml".to_string(),
+                            "config2.yml".into(),
                             "license_key: abc123\nstaging: true\n".to_string(),
                         )),
                         default: None,
@@ -510,7 +510,7 @@ mod tests {
                         final_value: Some(HashMap::from([(
                             "kafka.yml".to_string(),
                             FilePathWithContent::new(
-                                "config2.yml".to_string(),
+                                "config2.yml".into(),
                                 "license_key: abc123\nstaging: true\n".to_string(),
                             ),
                         )])),

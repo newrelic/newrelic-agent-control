@@ -126,7 +126,7 @@ where
             (VariableType::File, Some(TrivialValue::File(file_path_with_content))) => {
                 // append file name to destination path and write the contents
                 let mut file_dest_path = PathBuf::from(dest_path);
-                file_dest_path.push(Path::new(file_path_with_content.path.as_str()));
+                file_dest_path.push(&file_path_with_content.path);
                 self.write(
                     file_dest_path.as_path(),
                     file_path_with_content.content.as_str(),
@@ -138,7 +138,7 @@ where
                     .iter()
                     .try_for_each(|(filename, file_path_with_content)| {
                         let mut file_dest_path = PathBuf::from(dest_path);
-                        file_dest_path.push(Path::new(file_path_with_content.path.as_str()));
+                        file_dest_path.push(&file_path_with_content.path);
                         if !file_dest_path.exists() {
                             self.create_directory(file_dest_path.as_path())?;
                         }

@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap as Map,
     fmt::{Display, Formatter},
+    path::PathBuf,
 };
 
 use crate::config::agent_type::agent_types::AgentTypeEndSpec;
@@ -108,7 +109,7 @@ impl Display for TrivialValue {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             TrivialValue::String(s) => write!(f, "{}", s),
-            TrivialValue::File(file) => write!(f, "{}", file.path),
+            TrivialValue::File(file) => write!(f, "{}", file.path.to_string_lossy()),
             TrivialValue::Yaml(yaml) => write!(
                 f,
                 "{}",
@@ -127,7 +128,7 @@ impl Display for TrivialValue {
             TrivialValue::MapStringFile(n) => {
                 let flatten: Vec<String> = n
                     .iter()
-                    .map(|(key, value)| format!("{key}={}", value.path))
+                    .map(|(key, value)| format!("{key}={}", value.path.to_string_lossy()))
                     .collect();
                 write!(f, "{}", flatten.join(" "))
             }
@@ -139,14 +140,17 @@ impl Display for TrivialValue {
 #[derive(Debug, PartialEq, Default, Clone, Deserialize, Serialize)]
 pub struct FilePathWithContent {
     #[serde(skip)]
-    pub path: String,
-    #[serde(flatten)]
+    pub path: PathBuf,
+    // #[serde(flatten)]
     pub content: String,
 }
 
 impl FilePathWithContent {
-    pub fn new(path: String, content: String) -> Self {
+    pub fn new(path: PathBuf, content: String) -> Self {
         FilePathWithContent { path, content }
+    }
+    pub fn with_path(&mut self, path: PathBuf) {
+        self.path = path;
     }
 }
 
@@ -202,3 +206,17 @@ impl From<serde_yaml::Number> for Number {
 //         })
 //     }
 // }
+
+#[cfg(test)]
+mod test {
+    use super::FilePathWithContent;
+
+    #[test]
+    fn test_file_path_with_contents() {
+        let file = FilePathWithContent::new("path".into(), "file_content".to_string());
+        assert_eq!(
+            serde_yaml::to_string(&file).unwrap(),
+            "content: file_content\n"
+        );
+    }
+}

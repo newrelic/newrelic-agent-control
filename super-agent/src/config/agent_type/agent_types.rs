@@ -9,6 +9,7 @@ use crate::config::super_agent_configs::AgentTypeFQN;
 use serde::de::Error;
 use serde::{Deserialize, Deserializer};
 use std::fmt::Display;
+use std::path::PathBuf;
 use std::{collections::HashMap, str::FromStr};
 
 use super::restart_policy::BackoffDuration;
@@ -206,18 +207,26 @@ impl FinalAgent {
         self.variables.clone().flatten()
     }
 
-    #[cfg_attr(doc, aquamarine::aquamarine)]
+    pub fn merge_variables_with_values(
+        &mut self,
+        values: AgentValues,
+    ) -> Result<(), AgentTypeError> {
+        update_specs(values.inner(), &mut self.variables.0)
+    }
+
     /// template_with the [`RuntimeConfig`] object field of the [`Agent`] type with the user-provided config, which must abide by the agent type's defined [`AgentVariables`].
     ///
     /// This method will return an error if the user-provided config does not conform to the agent type's spec.
     pub fn template_with(
         mut self,
-        config: AgentValues,
+        values: AgentValues,
         agent_configs_path: Option<&str>,
     ) -> Result<FinalAgent, AgentTypeError> {
         // let normalized_config = NormalizedSupervisorConfig::from(config);
         // let validated_conf = validate_with_agent_type(normalized_config, &self)?;
-        let config = config.normalize_with_agent_type(&mut self)?;
+
+        self.merge_variables_with_values(values)?;
+        // let config = config.normalize_with_agent_type(&mut self)?;
 
         // let runtime_conf = self.runtime_config.template_with(validated_conf.clone())?;
         // let mut spec = config.variables;
@@ -234,9 +243,21 @@ impl FinalAgent {
         //         }
         //     })?;
 
-        let runtime_conf = self
-            .runtime_config
-            .template_with(&self.variables.clone().flatten())?;
+        let variables = if let Some(p) = agent_configs_path {
+            let mut v = self.variables.clone().flatten();
+            v.values_mut().for_each(|v| {
+                if let Some(file_path) = v.kind.get_file_path() {
+                    let mut new_file_path = PathBuf::from(p);
+                    new_file_path.push(file_path);
+                    v.kind.set_file_path(new_file_path);
+                }
+            });
+            v
+        } else {
+            self.variables.clone().flatten()
+        };
+
+        let runtime_conf = self.runtime_config.template_with(&variables)?;
 
         let populated_agent = FinalAgent {
             runtime_config: runtime_conf,
@@ -246,6 +267,24 @@ impl FinalAgent {
 
         Ok(populated_agent)
     }
+}
+
+fn update_specs(
+    values: serde_yaml::Value,
+    agent_vars: &mut HashMap<String, Spec>,
+) -> Result<(), AgentTypeError> {
+    let values: HashMap<String, serde_yaml::Value> = serde_yaml::from_value(values)?;
+    for (ref k, v) in values.into_iter() {
+        let spec = agent_vars
+            .get_mut(k)
+            .ok_or_else(|| AgentTypeError::MissingAgentKey(k.clone()))?;
+
+        match spec {
+            Spec::SpecEnd(EndSpec { kind, .. }) => kind.from_yaml_value(v)?,
+            Spec::SpecMapping(m) => update_specs(v, m)?,
+        }
+    }
+    Ok(())
 }
 
 /// Flexible tree-like structure that contains variables definitions, that can later be changed by the end user via [`AgentValues`].
@@ -725,7 +764,7 @@ deployment:
                         required: true,
                         default: None,
                         final_value: Some(FilePathWithContent::new(
-                            "config2.yml".to_string(),
+                            "config2.yml".into(),
                             "license_key: abc123\nstaging: true\n".to_string(),
                         )),
                         file_path: Some("config_path".into()),
@@ -742,14 +781,14 @@ deployment:
                             (
                                 "kafka.yml".to_string(),
                                 FilePathWithContent::new(
-                                    "config2.yml".to_string(),
+                                    "config2.yml".into(),
                                     "license_key: abc123\nstaging: true\n".to_string(),
                                 ),
                             ),
                             (
                                 "redis.yml".to_string(),
                                 FilePathWithContent::new(
-                                    "config2.yml".to_string(),
+                                    "config2.yml".into(),
                                     "license_key: abc123\nstaging: true\n".to_string(),
                                 ),
                             ),
@@ -1040,7 +1079,8 @@ variables:
     description: "Newrelic infra configuration yaml"
     type: file
     required: false
-    default: |
+    default:
+      content: |
         license_key: abc123
         staging: true
     file_path: "config2.yml"
@@ -1053,8 +1093,9 @@ variables:
     type: map[string]file
     required: true
     default:
-      kafka: |
-        bootstrap: zookeeper
+      kafka:
+        content: |
+          bootstrap: zookeeper
     file_path: "integrations.d"
 deployment:
   on_host:
@@ -1069,11 +1110,14 @@ config3:
   log_level: trace
   forward: "true"
 integrations:
-  kafka.conf: |
-    strategy: bootstrap
-  redis.yml: |
-    user: redis
-config: | 
+  kafka.conf: 
+    content: |
+      strategy: bootstrap
+  redis.yml:
+    content: |
+      user: redis
+config:
+  content: | 
     license_key: abc124
     staging: false
 "#;
@@ -1102,13 +1146,13 @@ config: |
         .into();
         // File with default
         let expected_config_2: TrivialValue = FilePathWithContent::new(
-            "config2.yml".to_string(),
+            "config2.yml".into(),
             "license_key: abc123\nstaging: true\n".to_string(),
         )
         .into();
         // File with values
         let expected_config: TrivialValue = FilePathWithContent::new(
-            "config.yml".to_string(),
+            "config.yml".into(),
             "license_key: abc124\nstaging: false\n".to_string(),
         )
         .into();
@@ -1117,13 +1161,13 @@ config: |
             (
                 "kafka.conf".to_string(),
                 FilePathWithContent::new(
-                    "integrations.d".to_string(),
+                    "integrations.d".into(),
                     "strategy: bootstrap\n".to_string(),
                 ),
             ),
             (
                 "redis.yml".to_string(),
-                FilePathWithContent::new("integrations.d".to_string(), "user: redis\n".to_string()),
+                FilePathWithContent::new("integrations.d".into(), "user: redis\n".to_string()),
             ),
         ])
         .into();
@@ -1549,7 +1593,7 @@ deployment:
 
     const K8S_CONFIG_YAML_VALUES: &str = r#"
 config:
-  values: |
+  values:
     key: value
     another_key:
       nested: nested_value
