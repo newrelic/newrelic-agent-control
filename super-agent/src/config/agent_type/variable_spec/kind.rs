@@ -247,7 +247,7 @@ impl Kind {
         Ok(())
     }
 
-    pub(crate) fn from_yaml_value(
+    pub(crate) fn merge_with_yaml_value(
         &mut self,
         value: serde_yaml::Value,
     ) -> Result<(), AgentTypeError> {
@@ -257,14 +257,14 @@ impl Kind {
             Kind::Number(kv) => kv.set_final_value(serde_yaml::from_value(value)?),
             Kind::File(kv) => {
                 let mut file: FilePathWithContent = serde_yaml::from_value(value)?;
-                file.with_path(kv.file_path);
+                file.with_path(kv.file_path.clone());
                 kv.inner.set_final_value(file)
             }
             Kind::MapStringString(kv) => kv.set_final_value(serde_yaml::from_value(value)?),
             Kind::MapStringFile(kv) => {
                 let mut files: HashMap<String, FilePathWithContent> =
                     serde_yaml::from_value(value)?;
-                files.values_mut().for_each(|f| f.with_path(kv.file_path));
+                files.values_mut().for_each(|f| f.with_path(kv.file_path.clone()));
                 kv.inner.set_final_value(files)
             }
             Kind::Yaml(kv) => kv.set_final_value(value),
@@ -294,7 +294,7 @@ impl Kind {
                 .as_ref()
                 .or({
                     let mut file = k.inner.default.clone();
-                    file.as_mut().map(|f| f.with_path(k.file_path));
+                    file.as_mut().map(|f| f.with_path(k.file_path.clone()));
                     file
                 }
                 .as_ref())
@@ -322,10 +322,10 @@ impl Kind {
         }
     }
 
-    pub(crate) fn get_file_path(&self) -> Option<PathBuf> {
+    pub(crate) fn get_file_path(&self) -> Option<&PathBuf> {
         match self {
-            Kind::File(k) => Some(k.file_path),
-            Kind::MapStringFile(k) => Some(k.file_path),
+            Kind::File(k) => Some(&k.file_path),
+            Kind::MapStringFile(k) => Some(&k.file_path),
             _ => None,
         }
     }

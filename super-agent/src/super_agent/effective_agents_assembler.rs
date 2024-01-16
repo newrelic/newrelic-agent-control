@@ -297,7 +297,6 @@ pub(crate) mod tests {
                 .flatten()
                 .get("config_path")
                 .unwrap()
-                .kind
                 .get_final_value()
                 .unwrap()
         );
@@ -346,7 +345,6 @@ pub(crate) mod tests {
                 .flatten()
                 .get("config_path")
                 .unwrap()
-                .kind
                 .get_final_value()
                 .unwrap()
         );
