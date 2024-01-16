@@ -250,7 +250,7 @@ fn template_yaml_value_string(
     let var_value = var_spec
         .get_template_value()
         .ok_or(AgentTypeError::MissingAgentKey(var_name.to_string()))?;
-    match var_spec.kind.variable_type() {
+    match var_spec.variable_type() {
         VariableType::Yaml => {
             var_value
                 .to_yaml_value()

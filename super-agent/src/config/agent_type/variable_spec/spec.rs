@@ -19,7 +19,7 @@ pub enum Spec {
 pub struct EndSpec {
     pub(crate) description: String,
     #[serde(flatten)]
-    pub kind: Kind,
+    kind: Kind,
     // pub required: bool,
 }
 

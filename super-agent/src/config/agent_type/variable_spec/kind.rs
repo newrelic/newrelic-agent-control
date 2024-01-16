@@ -12,7 +12,7 @@ use super::kind_value::{KindValue, KindValueWithPath};
 
 #[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 #[serde(tag = "type")]
-pub enum Kind {
+pub(super) enum Kind {
     #[serde(rename = "string")]
     String(KindValue<String>),
     #[serde(rename = "bool")]
