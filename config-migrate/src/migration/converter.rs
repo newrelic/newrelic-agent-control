@@ -58,11 +58,11 @@ impl<R: AgentRegistry> ConfigConverter<R> {
         let mut agent_values_specs: Vec<HashMap<String, AgentValueSpec>> = Vec::new();
         for (normalized_fqn, spec) in agent_type.variables.flatten().iter() {
             let agent_type_fqn: AgentTypeFieldFQN = normalized_fqn.into();
-            match spec.kind.variable_type() {
+            match spec.variable_type() {
                 VariableType::File => {
                     // look for file mapping, if not found and required throw an error
                     let file_map = migration_agent_config.get_file(agent_type_fqn.clone());
-                    if spec.kind.is_required() && file_map.is_none() {
+                    if spec.is_required() && file_map.is_none() {
                         return Err(RequiredFileMappingNotFoundError);
                     }
                     agent_values_specs
@@ -71,7 +71,7 @@ impl<R: AgentRegistry> ConfigConverter<R> {
                 VariableType::MapStringFile => {
                     // look for file mapping, if not found and required throw an error
                     let file_map = migration_agent_config.get_dir(agent_type_fqn.clone());
-                    if spec.kind.is_required() && file_map.is_none() {
+                    if spec.is_required() && file_map.is_none() {
                         return Err(RequiredFileMappingNotFoundError);
                     }
                     agent_values_specs
@@ -80,7 +80,7 @@ impl<R: AgentRegistry> ConfigConverter<R> {
                 _ => {
                     error!(
                         "cannot handle variable type {:?}",
-                        spec.kind.variable_type()
+                        spec.variable_type()
                     )
                 }
             }
