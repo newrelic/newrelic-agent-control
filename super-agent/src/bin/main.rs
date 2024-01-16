@@ -188,11 +188,14 @@ fn run_super_agent(
         &instance_id_getter,
         k8s_client.clone(),
         &agents_assembler,
-        k8s_config,
+        k8s_config.clone(),
     );
 
     info!("Starting the super agent");
     let (opamp_publisher, opamp_consumer) = pub_sub();
+
+    let mut non_identifying_attributes = super_agent_opamp_non_identifying_attributes();
+    non_identifying_attributes.insert("cluster.name".to_string(), k8s_config.cluster_name.into());
 
     let maybe_client = build_opamp_and_start_client(
         opamp_publisher.clone(),
@@ -200,7 +203,7 @@ fn run_super_agent(
         &instance_id_getter,
         AgentID::new_super_agent_id(),
         &super_agent_fqn(),
-        super_agent_opamp_non_identifying_attributes(),
+        non_identifying_attributes,
     )?;
 
     let config_storer = Arc::new(config_storer);
