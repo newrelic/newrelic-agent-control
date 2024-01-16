@@ -128,6 +128,7 @@ mod tests {
         };
 
         let event_processor = EventProcessor::new(
+            agent_id.clone(),
             sub_agent_publisher,
             sub_agent_opamp_consumer,
             sub_agent_internal_consumer,
@@ -138,7 +139,7 @@ mod tests {
 
         event_processor.valid_remote_config(remote_config).unwrap();
 
-        let expected_event = ConfigUpdated(agent_id.clone());
+        let expected_event = ConfigUpdated(agent_id);
         assert_eq!(expected_event, sub_agent_consumer.as_ref().recv().unwrap());
     }
 
@@ -166,6 +167,7 @@ mod tests {
         };
 
         let event_processor = EventProcessor::new(
+            agent_id.clone(),
             sub_agent_publisher,
             sub_agent_opamp_consumer,
             sub_agent_internal_consumer,
@@ -176,7 +178,7 @@ mod tests {
 
         event_processor.valid_remote_config(remote_config).unwrap();
 
-        let expected_event = ConfigUpdated(agent_id.clone());
+        let expected_event = ConfigUpdated(agent_id);
         assert_eq!(expected_event, sub_agent_consumer.as_ref().recv().unwrap());
     }
 
@@ -218,6 +220,7 @@ mod tests {
         opamp_client.should_set_remote_config_status(status);
 
         let event_processor = EventProcessor::new(
+            agent_id,
             sub_agent_publisher,
             sub_agent_opamp_consumer,
             sub_agent_internal_consumer,

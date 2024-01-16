@@ -90,10 +90,8 @@ where
     A: EffectiveAgentsAssembler,
     E: SubAgentEventProcessorBuilder<O::Client>,
 {
-    type NotStartedSubAgent = SubAgentOnHost<
-        NotStarted<O::Client, E::SubAgentEventProcessor>,
-        command_supervisor::NotStarted,
-    >;
+    type NotStartedSubAgent =
+        SubAgentOnHost<NotStarted<E::SubAgentEventProcessor>, command_supervisor::NotStarted>;
 
     fn build(
         &self,
@@ -157,6 +155,7 @@ where
         };
 
         let event_processor = self.event_processor_builder.build(
+            agent_id.clone(),
             sub_agent_publisher,
             sub_agent_opamp_consumer,
             sub_agent_internal_consumer,
@@ -224,7 +223,6 @@ mod test {
     use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::on_host::event_processor::test::MockEventProcessorMock;
     use crate::sub_agent::on_host::event_processor_builder::test::MockSubAgentEventProcessorBuilderMock;
-    use crate::sub_agent::values::values_repository::test::MockRemoteValuesRepositoryMock;
     use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
     use crate::{
         config::agent_type::runtime_config::OnHost,
@@ -279,20 +277,14 @@ mod test {
             final_agent,
         );
 
-        let mut sub_agent_event_processor: MockEventProcessorMock<
-            MockStartedOpAMPClientMock<SubAgentCallbacks>,
-        > = MockEventProcessorMock::default();
-
-        let mut started_client = MockStartedOpAMPClientMock::new();
-        started_client.should_stop(1);
-        started_client.should_set_health(1);
-        sub_agent_event_processor.should_process(Some(started_client));
+        let mut sub_agent_event_processor = MockEventProcessorMock::default();
+        sub_agent_event_processor.should_process();
 
         let mut sub_agent_event_processor_builder = MockSubAgentEventProcessorBuilderMock::new();
         sub_agent_event_processor_builder
             .expect_build()
             .once()
-            .return_once(move |_, _, consumer, _| {
+            .return_once(move |_, _, _, consumer, _| {
                 thread::spawn(move || {
                     _ = consumer.as_ref().recv();
                 });
@@ -366,9 +358,7 @@ mod test {
             Hash::failed("a-hash".to_string(), "this is an error message".to_string());
         hash_repository_mock.should_get_hash(&sub_agent_id, failed_hash);
 
-        let sub_agent_event_processor: MockEventProcessorMock<
-            MockStartedOpAMPClientMock<SubAgentCallbacks>,
-        > = MockEventProcessorMock::default();
+        let sub_agent_event_processor = MockEventProcessorMock::default();
 
         let mut sub_agent_event_processor_builder = MockSubAgentEventProcessorBuilderMock::new();
         sub_agent_event_processor_builder.should_build(sub_agent_event_processor);

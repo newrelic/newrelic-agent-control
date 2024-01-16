@@ -1,3 +1,4 @@
+use crate::config::super_agent_configs::AgentID;
 use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
 use crate::opamp::remote_config_hash::HashRepository;
@@ -11,10 +12,11 @@ pub trait SubAgentEventProcessorBuilder<C>
 where
     C: StartedClient<SubAgentCallbacks> + 'static,
 {
-    type SubAgentEventProcessor: SubAgentEventProcessor<C>;
+    type SubAgentEventProcessor: SubAgentEventProcessor;
 
     fn build(
         &self,
+        agent_id: AgentID,
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
         sub_agent_opamp_consumer: EventConsumer<OpAMPEvent>,
         sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
@@ -54,6 +56,7 @@ where
 
     fn build(
         &self,
+        agent_id: AgentID,
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
         sub_agent_opamp_consumer: EventConsumer<OpAMPEvent>,
         sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
@@ -63,6 +66,7 @@ where
         C: StartedClient<SubAgentCallbacks> + 'static,
     {
         EventProcessor::new(
+            agent_id,
             sub_agent_publisher,
             sub_agent_opamp_consumer,
             sub_agent_internal_consumer,
@@ -75,6 +79,7 @@ where
 
 #[cfg(test)]
 pub mod test {
+    use crate::config::super_agent_configs::AgentID;
     use crate::event::channel::{EventConsumer, EventPublisher};
     use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
     use crate::sub_agent::on_host::event_processor::test::MockEventProcessorMock;
@@ -94,10 +99,11 @@ pub mod test {
          where
             C: StartedClient<SubAgentCallbacks> + 'static
         {
-            type SubAgentEventProcessor = MockEventProcessorMock<C>;
+            type SubAgentEventProcessor = MockEventProcessorMock;
 
             fn build(
                 &self,
+                agent_id: AgentID,
                 sub_agent_publisher: EventPublisher<SubAgentEvent>,
                 sub_agent_opamp_consumer: EventConsumer<OpAMPEvent>,
                 sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
@@ -111,10 +117,10 @@ pub mod test {
     where
         C: StartedClient<SubAgentCallbacks> + Send + Sync + 'static,
     {
-        pub fn should_build(&mut self, processor: MockEventProcessorMock<C>) {
+        pub fn should_build(&mut self, processor: MockEventProcessorMock) {
             self.expect_build()
                 .once()
-                .return_once(move |_, _, _, _| processor);
+                .return_once(move |_, _, _, _, _| processor);
         }
     }
 }

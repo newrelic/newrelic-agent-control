@@ -1,38 +1,29 @@
-use std::marker::PhantomData;
 use std::thread::JoinHandle;
 
-use opamp_client;
-use opamp_client::StartedClient;
 use tracing::{debug, error};
 
 use super::supervisor::command_supervisor::SupervisorOnHost;
 use crate::config::super_agent_configs::AgentID;
 use crate::event::channel::EventPublisher;
 use crate::event::SubAgentInternalEvent;
-use crate::opamp::operations::stop_opamp_client;
 use crate::sub_agent::error::SubAgentError;
 
 use super::supervisor::command_supervisor;
 use crate::sub_agent::on_host::event_processor::SubAgentEventProcessor;
-use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent, SubAgentCallbacks};
+use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
 
 ////////////////////////////////////////////////////////////////////////////////////
 // States for Started/Not Started Sub Agents
 ////////////////////////////////////////////////////////////////////////////////////
-pub struct NotStarted<C, E>
+pub struct NotStarted<E>
 where
-    C: StartedClient<SubAgentCallbacks> + 'static,
-    E: SubAgentEventProcessor<C>,
+    E: SubAgentEventProcessor,
 {
     event_processor: E,
-    _marker: PhantomData<C>,
 }
 
-pub struct Started<C>
-where
-    C: StartedClient<SubAgentCallbacks>,
-{
-    event_loop_handle: JoinHandle<Option<C>>,
+pub struct Started {
+    event_loop_handle: JoinHandle<Result<(), SubAgentError>>,
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -52,37 +43,32 @@ impl<S, V> SubAgentOnHost<S, V> {
     }
 }
 
-impl<C, E> SubAgentOnHost<NotStarted<C, E>, command_supervisor::NotStarted>
+impl<E> SubAgentOnHost<NotStarted<E>, command_supervisor::NotStarted>
 where
-    C: StartedClient<SubAgentCallbacks> + 'static,
-    E: SubAgentEventProcessor<C>,
+    E: SubAgentEventProcessor,
 {
     pub fn new(
         agent_id: AgentID,
         supervisors: Vec<SupervisorOnHost<command_supervisor::NotStarted>>,
         event_processor: E,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
-    ) -> SubAgentOnHost<NotStarted<C, E>, command_supervisor::NotStarted> {
+    ) -> SubAgentOnHost<NotStarted<E>, command_supervisor::NotStarted> {
         SubAgentOnHost {
             supervisors,
             agent_id,
             sub_agent_internal_publisher,
-            state: NotStarted {
-                event_processor,
-                _marker: PhantomData,
-            },
+            state: NotStarted { event_processor },
         }
     }
 }
 
-impl<C, E> NotStartedSubAgent for SubAgentOnHost<NotStarted<C, E>, command_supervisor::NotStarted>
+impl<E> NotStartedSubAgent for SubAgentOnHost<NotStarted<E>, command_supervisor::NotStarted>
 where
-    C: StartedClient<SubAgentCallbacks> + 'static,
-    E: SubAgentEventProcessor<C>,
+    E: SubAgentEventProcessor,
 {
-    type StartedSubAgent = SubAgentOnHost<Started<C>, command_supervisor::Started>;
+    type StartedSubAgent = SubAgentOnHost<Started, command_supervisor::Started>;
 
-    fn run(self) -> Result<SubAgentOnHost<Started<C>, command_supervisor::Started>, SubAgentError> {
+    fn run(self) -> Result<SubAgentOnHost<Started, command_supervisor::Started>, SubAgentError> {
         let started_supervisors = self
             .supervisors
             .into_iter()
@@ -105,10 +91,7 @@ where
     }
 }
 
-impl<C> StartedSubAgent for SubAgentOnHost<Started<C>, command_supervisor::Started>
-where
-    C: StartedClient<SubAgentCallbacks>,
-{
+impl StartedSubAgent for SubAgentOnHost<Started, command_supervisor::Started> {
     fn stop(self) -> Result<Vec<JoinHandle<()>>, SubAgentError> {
         let stopped_supervisors = self.supervisors.into_iter().map(|s| s.stop()).collect();
         let _ = self
@@ -120,8 +103,15 @@ where
                     e.to_string()
                 )
             });
-        let maybe_opamp_client = self.state.event_loop_handle.join().unwrap();
-        stop_opamp_client(maybe_opamp_client, &self.agent_id)?;
+        match self.state.event_loop_handle.join().unwrap() {
+            Err(e) => {
+                error!("error stopping sub agent process loop: {}", e.to_string())
+            }
+            Ok(()) => {
+                debug!("sub agent process loop stopped successfully");
+            }
+        }
+
         Ok(stopped_supervisors)
     }
 }
@@ -142,15 +132,8 @@ mod test {
         let agent_id = AgentID::new("some_agent_id").unwrap();
         let supervisors = Vec::default();
 
-        let mut opamp_client: MockStartedOpAMPClientMock<SubAgentCallbacks> =
-            MockStartedOpAMPClientMock::new();
-
         let mut event_processor = MockEventProcessorMock::default();
-
-        opamp_client.should_set_health(1);
-        opamp_client.should_stop(1);
-
-        event_processor.should_process(Some(opamp_client));
+        event_processor.should_process();
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let sub_agent = SubAgentOnHost::new(

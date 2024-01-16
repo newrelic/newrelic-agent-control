@@ -44,6 +44,7 @@ where
 ////////////////////////////////////////////////////////////////////////////////////
 #[cfg(test)]
 mod tests {
+    use crate::config::super_agent_configs::AgentID;
     use crate::event::channel::pub_sub;
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::remote_config::RemoteConfigError::InvalidConfig;
@@ -79,6 +80,7 @@ mod tests {
             InvalidConfig(String::from("some-hash"), String::from("some error"));
 
         let event_processor = EventProcessor::new(
+            AgentID::new("some-agent-id").unwrap(),
             sub_agent_publisher,
             sub_agent_opamp_consumer,
             sub_agent_internal_consumer,
@@ -105,6 +107,7 @@ mod tests {
             InvalidConfig(String::from("some-hash"), String::from("some error"));
 
         let event_processor = EventProcessor::new(
+            AgentID::new("some-agent-id").unwrap(),
             sub_agent_publisher,
             sub_agent_opamp_consumer,
             sub_agent_internal_consumer,
