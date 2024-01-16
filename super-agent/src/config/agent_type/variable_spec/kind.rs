@@ -8,11 +8,11 @@ use crate::config::agent_type::{
     trivial_value::{FilePathWithContent, Number, TrivialValue},
 };
 
-use super::kind_value::KindValue;
+use super::kind_value::{KindValue, KindValueWithPath};
 
 #[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 #[serde(tag = "type")]
-pub enum Kind {
+pub(super) enum Kind {
     #[serde(rename = "string")]
     String(KindValue<String>),
     #[serde(rename = "bool")]
@@ -20,11 +20,11 @@ pub enum Kind {
     #[serde(rename = "number")]
     Number(KindValue<Number>),
     #[serde(rename = "file")]
-    File(KindValue<FilePathWithContent>),
+    File(KindValueWithPath<FilePathWithContent>),
     #[serde(rename = "map[string]string")]
     MapStringString(KindValue<HashMap<String, String>>),
     #[serde(rename = "map[string]file")]
-    MapStringFile(KindValue<HashMap<String, FilePathWithContent>>),
+    MapStringFile(KindValueWithPath<HashMap<String, FilePathWithContent>>),
     #[serde(rename = "yaml")]
     Yaml(KindValue<serde_yaml::Value>),
 }
@@ -49,8 +49,8 @@ impl From<KindValue<Number>> for Kind {
     }
 }
 
-impl From<KindValue<FilePathWithContent>> for Kind {
-    fn from(kind_value: KindValue<FilePathWithContent>) -> Self {
+impl From<KindValueWithPath<FilePathWithContent>> for Kind {
+    fn from(kind_value: KindValueWithPath<FilePathWithContent>) -> Self {
         Kind::File(kind_value)
     }
 }
@@ -61,8 +61,8 @@ impl From<KindValue<HashMap<String, String>>> for Kind {
     }
 }
 
-impl From<KindValue<HashMap<String, FilePathWithContent>>> for Kind {
-    fn from(kind_value: KindValue<HashMap<String, FilePathWithContent>>) -> Self {
+impl From<KindValueWithPath<HashMap<String, FilePathWithContent>>> for Kind {
+    fn from(kind_value: KindValueWithPath<HashMap<String, FilePathWithContent>>) -> Self {
         Kind::MapStringFile(kind_value)
     }
 }
@@ -117,7 +117,7 @@ impl TryFrom<&Kind> for KindValue<Number> {
     }
 }
 
-impl TryFrom<&Kind> for KindValue<FilePathWithContent> {
+impl TryFrom<&Kind> for KindValueWithPath<FilePathWithContent> {
     type Error = AgentTypeError;
 
     fn try_from(kind: &Kind) -> Result<Self, Self::Error> {
@@ -145,7 +145,7 @@ impl TryFrom<&Kind> for KindValue<HashMap<String, String>> {
     }
 }
 
-impl TryFrom<&Kind> for KindValue<HashMap<String, FilePathWithContent>> {
+impl TryFrom<&Kind> for KindValueWithPath<HashMap<String, FilePathWithContent>> {
     type Error = AgentTypeError;
 
     fn try_from(kind: &Kind) -> Result<Self, Self::Error> {
@@ -192,9 +192,9 @@ impl Kind {
             Kind::String(k) => k.required,
             Kind::Bool(k) => k.required,
             Kind::Number(k) => k.required,
-            Kind::File(k) => k.required,
+            Kind::File(k) => k.inner.required,
             Kind::MapStringString(k) => k.required,
-            Kind::MapStringFile(k) => k.required,
+            Kind::MapStringFile(k) => k.inner.required,
             Kind::Yaml(k) => k.required,
         }
     }
@@ -204,9 +204,9 @@ impl Kind {
             Kind::String(k) => k.not_required_without_default(),
             Kind::Bool(k) => k.not_required_without_default(),
             Kind::Number(k) => k.not_required_without_default(),
-            Kind::File(k) => k.not_required_without_default(),
+            Kind::File(k) => k.inner.not_required_without_default(),
             Kind::MapStringString(k) => k.not_required_without_default(),
-            Kind::MapStringFile(k) => k.not_required_without_default(),
+            Kind::MapStringFile(k) => k.inner.not_required_without_default(),
             Kind::Yaml(k) => k.not_required_without_default(),
         }
     }
@@ -216,9 +216,9 @@ impl Kind {
             Kind::String(k) => k.set_default_as_final(),
             Kind::Bool(k) => k.set_default_as_final(),
             Kind::Number(k) => k.set_default_as_final(),
-            Kind::File(k) => k.set_default_as_final(),
+            Kind::File(k) => k.inner.set_default_as_final(),
             Kind::MapStringString(k) => k.set_default_as_final(),
-            Kind::MapStringFile(k) => k.set_default_as_final(),
+            Kind::MapStringFile(k) => k.inner.set_default_as_final(),
             Kind::Yaml(k) => k.set_default_as_final(),
         }
     }
@@ -231,9 +231,11 @@ impl Kind {
             (Kind::String(k), TrivialValue::String(v)) => k.final_value = Some(v),
             (Kind::Bool(k), TrivialValue::Bool(v)) => k.final_value = Some(v),
             (Kind::Number(k), TrivialValue::Number(v)) => k.final_value = Some(v),
-            (Kind::File(k), TrivialValue::File(v)) => k.final_value = Some(v),
+            (Kind::File(k), TrivialValue::File(v)) => k.inner.final_value = Some(v),
             (Kind::MapStringString(k), TrivialValue::MapStringString(v)) => k.final_value = Some(v),
-            (Kind::MapStringFile(k), TrivialValue::MapStringFile(v)) => k.final_value = Some(v),
+            (Kind::MapStringFile(k), TrivialValue::MapStringFile(v)) => {
+                k.inner.final_value = Some(v)
+            }
             (Kind::Yaml(k), TrivialValue::Yaml(v)) => k.final_value = Some(v),
             (k, v) => {
                 return Err(AgentTypeError::TypeMismatch {
@@ -253,29 +255,17 @@ impl Kind {
             Kind::String(kv) => kv.set_final_value(serde_yaml::from_value(value)?),
             Kind::Bool(kv) => kv.set_final_value(serde_yaml::from_value(value)?),
             Kind::Number(kv) => kv.set_final_value(serde_yaml::from_value(value)?),
-            // FIXME: This is bulls**t. Use KindValueWithFilePath which does not allow for empty paths
             Kind::File(kv) => {
                 let mut file: FilePathWithContent = serde_yaml::from_value(value)?;
-                file.with_path(
-                    kv.file_path
-                        .clone()
-                        .expect("file_path must be set for files"),
-                );
-                kv.set_final_value(file)
+                file.with_path(kv.file_path);
+                kv.inner.set_final_value(file)
             }
             Kind::MapStringString(kv) => kv.set_final_value(serde_yaml::from_value(value)?),
-            // FIXME: This is bulls**t. Use KindValueWithFilePath which does not allow for empty paths
             Kind::MapStringFile(kv) => {
                 let mut files: HashMap<String, FilePathWithContent> =
                     serde_yaml::from_value(value)?;
-                files.values_mut().for_each(|f| {
-                    f.with_path(
-                        kv.file_path
-                            .clone()
-                            .expect("file_path must be set for files"),
-                    )
-                });
-                kv.set_final_value(files)
+                files.values_mut().for_each(|f| f.with_path(kv.file_path));
+                kv.inner.set_final_value(files)
             }
             Kind::Yaml(kv) => kv.set_final_value(value),
         };
@@ -299,17 +289,12 @@ impl Kind {
                 .map(TrivialValue::Number),
             // FIXME: This is bulls**t. Use KindValueWithFilePath which does not allow for empty paths
             Kind::File(k) => k
+                .inner
                 .final_value
                 .as_ref()
                 .or({
-                    let mut file = k.default.clone();
-                    if let Some(f) = file.as_mut() {
-                        f.with_path(
-                            k.file_path
-                                .clone()
-                                .expect("file_path must be set for files"),
-                        )
-                    }
+                    let mut file = k.inner.default.clone();
+                    file.as_mut().map(|f| f.with_path(k.file_path));
                     file
                 }
                 .as_ref())
@@ -322,9 +307,10 @@ impl Kind {
                 .cloned()
                 .map(TrivialValue::MapStringString),
             Kind::MapStringFile(k) => k
+                .inner
                 .final_value
                 .as_ref()
-                .or(k.default.as_ref())
+                .or(k.inner.default.as_ref())
                 .cloned()
                 .map(TrivialValue::MapStringFile),
             Kind::Yaml(k) => k
@@ -336,22 +322,18 @@ impl Kind {
         }
     }
 
-    pub(crate) fn get_file_path(&self) -> Option<&PathBuf> {
+    pub(crate) fn get_file_path(&self) -> Option<PathBuf> {
         match self {
-            Kind::String(_) => None,
-            Kind::Bool(_) => None,
-            Kind::Number(_) => None,
-            Kind::File(k) => k.file_path.as_ref(),
-            Kind::MapStringString(_) => None,
-            Kind::MapStringFile(k) => k.file_path.as_ref(),
-            Kind::Yaml(_) => None,
+            Kind::File(k) => Some(k.file_path),
+            Kind::MapStringFile(k) => Some(k.file_path),
+            _ => None,
         }
     }
 
     pub(crate) fn set_file_path(&mut self, file_path: PathBuf) {
         match self {
-            Kind::File(k) => k.file_path = Some(file_path),
-            Kind::MapStringFile(k) => k.file_path = Some(file_path),
+            Kind::File(k) => k.file_path = file_path,
+            Kind::MapStringFile(k) => k.file_path = file_path,
             _ => {}
         }
     }

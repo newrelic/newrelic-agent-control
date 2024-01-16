@@ -14,7 +14,7 @@ use std::{collections::HashMap, str::FromStr};
 
 use super::restart_policy::BackoffDuration;
 use super::trivial_value::{FilePathWithContent, TrivialValue};
-use super::variable_spec::kind_value::KindValue;
+use super::variable_spec::kind_value::{KindValue, KindValueWithPath};
 use super::variable_spec::spec::EndSpec;
 use super::{
     agent_metadata::AgentMetadata,
@@ -288,15 +288,15 @@ fn update_specs(
 ) -> Result<(), AgentTypeError> {
     for (ref k, v) in values.into_iter() {
         let spec = agent_vars
-        .get_mut(k)
-        .ok_or_else(|| AgentTypeError::MissingAgentKey(k.clone()))?;
-    
-    match spec {
-        Spec::SpecEnd(EndSpec { kind, .. }) => kind.from_yaml_value(v)?,
-        Spec::SpecMapping(m) => {
+            .get_mut(k)
+            .ok_or_else(|| AgentTypeError::MissingAgentKey(k.clone()))?;
+
+        match spec {
+            Spec::SpecEnd(EndSpec { kind, .. }) => kind.from_yaml_value(v)?,
+            Spec::SpecMapping(m) => {
                 let v: HashMap<String, serde_yaml::Value> = serde_yaml::from_value(v)?;
                 update_specs(v, m)?
-            },
+            }
         }
     }
     Ok(())
@@ -376,26 +376,21 @@ impl EndSpec {
         match self.kind.variable_type() {
             // For MapStringFile and file the file_path includes the full path with agent_configs_path
             VariableType::MapStringFile => {
-                let inner_value: KindValue<HashMap<String, FilePathWithContent>> = (&self.kind)
+                let inner_value: KindValueWithPath<HashMap<String, FilePathWithContent>> = (&self.kind)
                     .try_into()
-                    .expect("A type of map[string]file must have a file path at this point");
-                if let Some(file_path) = inner_value.file_path {
-                    return Some(TrivialValue::String(
-                        file_path.to_string_lossy().to_string(),
-                    ));
-                }
-                inner_value.default.map(TrivialValue::MapStringFile).into()
+                    .expect("`VariableType::MapStringFile`s can always be converted to KindValueWithPath<HashMap<String, FilePathWithContent>>");
+
+                Some(TrivialValue::String(
+                    inner_value.file_path.to_string_lossy().into(),
+                ))
             }
             VariableType::File => {
-                let inner_value: KindValue<FilePathWithContent> = (&self.kind)
+                let inner_value: KindValueWithPath<FilePathWithContent> = (&self.kind)
                     .try_into()
-                    .expect("A type of file must have a file path at this point");
-                if let Some(file_path) = inner_value.file_path {
-                    return Some(TrivialValue::String(
-                        file_path.to_string_lossy().to_string(),
-                    ));
-                }
-                inner_value.default.map(TrivialValue::File).into()
+                    .expect("`VariableType::File`s can always be converted to KindValueWithPath<FilePathWithContent>");
+                Some(TrivialValue::String(
+                    inner_value.file_path.to_string_lossy().into(),
+                ))
             }
             _ => self.kind.get_final_value(),
         }
@@ -706,7 +701,6 @@ deployment:
                     required: false,
                     default: Some("nrdot".to_string()),
                     final_value: None,
-                    file_path: None,
                 }
                 .into(),
             },
@@ -722,7 +716,6 @@ deployment:
                 required: false,
                 default: Some("nrdot".to_string()),
                 final_value: None,
-                file_path: None,
             }
             .into(),
         };
@@ -766,7 +759,6 @@ deployment:
                         default: None,
                         required: true,
                         final_value: Some("/etc".to_string()),
-                        file_path: None,
                     }
                     .into(),
                 },
@@ -775,14 +767,16 @@ deployment:
                 "config".to_string(),
                 EndSpec {
                     description: "config".to_string(),
-                    kind: KindValue {
-                        required: true,
-                        default: None,
-                        final_value: Some(FilePathWithContent::new(
-                            "config2.yml".into(),
-                            "license_key: abc123\nstaging: true\n".to_string(),
-                        )),
-                        file_path: Some("config_path".into()),
+                    kind: KindValueWithPath {
+                        inner: KindValue {
+                            required: true,
+                            default: None,
+                            final_value: Some(FilePathWithContent::new(
+                                "config2.yml".into(),
+                                "license_key: abc123\nstaging: true\n".to_string(),
+                            )),
+                        },
+                        file_path: "config_path".into(),
                     }
                     .into(),
                 },

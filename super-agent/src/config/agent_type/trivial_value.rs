@@ -10,7 +10,6 @@ use serde::{Deserialize, Serialize};
 use super::{
     agent_types::VariableType,
     error::AgentTypeError,
-    variable_spec::{kind::Kind, spec::EndSpec},
 };
 
 /// Represents all the allowed types for a configuration defined in the spec value.
