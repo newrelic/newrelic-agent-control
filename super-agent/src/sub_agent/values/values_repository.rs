@@ -237,12 +237,11 @@ pub mod test {
         ValuesRepository, ValuesRepositoryError, ValuesRepositoryFile,
     };
     use mockall::{mock, predicate};
-    use serde_yaml::{Mapping, Value};
+    use serde_yaml::Value;
     use std::collections::HashMap;
     use std::fs::Permissions;
     use std::path::Path;
 
-    use crate::config::agent_type::trivial_value::TrivialValue;
     use crate::fs::file_reader::MockFSFileReader;
     use crate::super_agent::defaults::default_capabilities;
     #[cfg(target_family = "unix")]

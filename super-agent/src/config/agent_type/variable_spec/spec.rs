@@ -65,8 +65,9 @@ mod test {
 
     use super::EndSpec;
 
+    #[allow(private_bounds)] // Not sure how to solve this, so, for the moment...
     impl EndSpec {
-        pub fn new<T>(
+        pub(crate) fn new<T>(
             description: String,
             required: bool,
             default: Option<T>,
@@ -82,7 +83,7 @@ mod test {
             }
         }
 
-        pub fn new_with_file_path<T>(
+        pub(crate) fn new_with_file_path<T>(
             description: String,
             required: bool,
             default: Option<T>,

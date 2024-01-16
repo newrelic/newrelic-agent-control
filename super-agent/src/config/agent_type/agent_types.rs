@@ -6,15 +6,13 @@
 
 use crate::config::agent_type::variable_spec::spec::Spec;
 use crate::config::super_agent_configs::AgentTypeFQN;
-use serde::de::Error;
 use serde::{Deserialize, Deserializer};
 use std::fmt::Display;
 use std::path::PathBuf;
 use std::{collections::HashMap, str::FromStr};
 
 use super::restart_policy::BackoffDuration;
-use super::trivial_value::{FilePathWithContent, TrivialValue};
-use super::variable_spec::kind_value::{KindValue, KindValueWithPath};
+use super::trivial_value::TrivialValue;
 use super::variable_spec::spec::EndSpec;
 use super::{
     agent_metadata::AgentMetadata,
@@ -473,32 +471,32 @@ struct K8s {
 /// Will be converted to `system.logging.level` and can be used later in the AgentType_Meta part as `${system.logging.level}`.
 pub(crate) type NormalizedVariables = HashMap<String, EndSpec>;
 
-fn normalize_agent_spec(spec: AgentVariables) -> Result<NormalizedVariables, AgentTypeError> {
-    spec.0.into_iter().try_fold(HashMap::new(), |r, (k, v)| {
-        let n_spec = inner_normalize(k, v);
-        n_spec.iter().try_for_each(|(k, end_spec)| {
-            if end_spec.is_not_required_without_default() {
-                return Err(AgentTypeError::MissingDefaultWithKey(k.clone()));
-            }
-            Ok(())
-        })?;
-        Ok(r.into_iter().chain(n_spec).collect())
-    })
-}
+// fn normalize_agent_spec(spec: AgentVariables) -> Result<NormalizedVariables, AgentTypeError> {
+//     spec.0.into_iter().try_fold(HashMap::new(), |r, (k, v)| {
+//         let n_spec = inner_normalize(k, v);
+//         n_spec.iter().try_for_each(|(k, end_spec)| {
+//             if end_spec.is_not_required_without_default() {
+//                 return Err(AgentTypeError::MissingDefaultWithKey(k.clone()));
+//             }
+//             Ok(())
+//         })?;
+//         Ok(r.into_iter().chain(n_spec).collect())
+//     })
+// }
 
-fn inner_normalize(key: String, spec: Spec) -> NormalizedVariables {
-    let mut result = HashMap::new();
-    match spec {
-        Spec::SpecEnd(s) => _ = result.insert(key, s),
-        Spec::SpecMapping(m) => m.into_iter().for_each(|(k, v)| {
-            result.extend(inner_normalize(
-                key.clone() + TEMPLATE_KEY_SEPARATOR + &k,
-                v,
-            ))
-        }),
-    }
-    result
-}
+// fn inner_normalize(key: String, spec: Spec) -> NormalizedVariables {
+//     let mut result = HashMap::new();
+//     match spec {
+//         Spec::SpecEnd(s) => _ = result.insert(key, s),
+//         Spec::SpecMapping(m) => m.into_iter().for_each(|(k, v)| {
+//             result.extend(inner_normalize(
+//                 key.clone() + TEMPLATE_KEY_SEPARATOR + &k,
+//                 v,
+//             ))
+//         }),
+//     }
+//     result
+// }
 
 #[cfg(test)]
 pub mod tests {
@@ -507,7 +505,6 @@ pub mod tests {
             restart_policy::{BackoffStrategyConfig, BackoffStrategyType},
             runtime_config::{Args, Env, Executable},
             trivial_value::{Number, TrivialValue},
-            variable_spec::kind_value::KindValue,
         },
         agent_values::AgentValues,
     };
@@ -515,7 +512,6 @@ pub mod tests {
     use super::*;
     use crate::config::agent_type::restart_policy::RestartPolicyConfig;
     use crate::config::agent_type::trivial_value::FilePathWithContent;
-    use crate::config::agent_type::trivial_value::Number::PosInt;
     use serde_yaml::Error;
     use std::collections::HashMap as Map;
 

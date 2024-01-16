@@ -931,15 +931,15 @@ agents:
     // Test helpers
     ////////////////////////////////////////////////////////////////////////////////////
 
-    fn sub_agents_config_single_agent() -> SubAgentsConfig {
-        HashMap::from([(
-            AgentID::new("infra_agent").unwrap(),
-            SubAgentConfig {
-                agent_type: AgentTypeFQN::from("newrelic/com.newrelic.infrastructure_agent:0.0.1"),
-            },
-        )])
-        .into()
-    }
+    // fn sub_agents_config_single_agent() -> SubAgentsConfig {
+    //     HashMap::from([(
+    //         AgentID::new("infra_agent").unwrap(),
+    //         SubAgentConfig {
+    //             agent_type: AgentTypeFQN::from("newrelic/com.newrelic.infrastructure_agent:0.0.1"),
+    //         },
+    //     )])
+    //     .into()
+    // }
 
     fn sub_agents_default_config() -> SubAgentsConfig {
         HashMap::from([

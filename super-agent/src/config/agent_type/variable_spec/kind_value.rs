@@ -32,9 +32,9 @@ where
     pub(crate) fn not_required_without_default(&self) -> bool {
         !self.required && self.default.is_none()
     }
-    pub(crate) fn set_default_as_final(&mut self) {
-        self.final_value = self.default.take();
-    }
+    // pub(crate) fn set_default_as_final(&mut self) {
+    //     self.final_value = self.default.take();
+    // }
     pub(crate) fn set_final_value(&mut self, value: T) {
         self.final_value = Some(value);
     }

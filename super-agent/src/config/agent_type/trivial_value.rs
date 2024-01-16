@@ -7,10 +7,7 @@ use std::{
 use crate::config::agent_type::agent_types::AgentTypeEndSpec;
 use serde::{Deserialize, Serialize};
 
-use super::{
-    agent_types::VariableType,
-    error::AgentTypeError,
-};
+use super::{agent_types::VariableType, error::AgentTypeError};
 
 /// Represents all the allowed types for a configuration defined in the spec value.
 #[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
@@ -85,7 +82,6 @@ impl TrivialValue {
             | (TrivialValue::File(_), VariableType::File)
             | (TrivialValue::Yaml(_), VariableType::Yaml)
             | (TrivialValue::Number(_), VariableType::Number)
-            | (TrivialValue::Yaml(_), VariableType::Yaml)
             | (TrivialValue::MapStringString(_), VariableType::MapStringString)
             | (TrivialValue::MapStringFile(_), VariableType::MapStringFile) => Ok(self),
             (v, t) => Err(AgentTypeError::TypeMismatch {

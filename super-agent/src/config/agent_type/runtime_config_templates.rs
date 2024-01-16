@@ -315,12 +315,10 @@ impl Templateable for RuntimeConfig {
 #[cfg(test)]
 mod tests {
     use assert_matches::assert_matches;
-    use serde_yaml::Value;
 
     use crate::config::agent_type::restart_policy::{BackoffDuration, BackoffStrategyType};
     use crate::config::agent_type::trivial_value::FilePathWithContent;
     use crate::config::agent_type::trivial_value::Number::PosInt;
-    use crate::config::agent_type::variable_spec::kind_value::KindValue;
     use crate::config::agent_type::variable_spec::spec::EndSpec;
     use crate::config::agent_type::{
         agent_types::{TemplateableValue, VariableType},
@@ -746,7 +744,7 @@ mod tests {
             template_yaml_value_string("${bool.var}".into(), &variables).unwrap()
         );
         assert_eq!(
-            serde_yaml::Value::Number(serde_yaml::Number::try_from(42i32).unwrap()),
+            serde_yaml::Value::Number(serde_yaml::Number::from(42i32)),
             template_yaml_value_string("${number.var}".into(), &variables).unwrap()
         );
         assert_eq!(
@@ -803,12 +801,8 @@ mod tests {
         let value_var = EndSpec::new(String::default(), true, None, Some("Value".to_string()));
         let default_var = EndSpec::new(String::default(), true, Some("Default".to_string()), None);
 
-        let neither_value_nor_default = EndSpec::new(
-            String::default(),
-            true,
-            None::<String>,
-            None::<String>,
-        );
+        let neither_value_nor_default =
+            EndSpec::new(String::default(), true, None::<String>, None::<String>);
 
         let re = template_re();
         assert_eq!(

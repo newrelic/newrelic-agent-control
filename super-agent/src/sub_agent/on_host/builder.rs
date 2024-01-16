@@ -196,6 +196,14 @@ fn build_supervisors(
     Ok(supervisors)
 }
 
+fn get_hostname() -> String {
+    #[cfg(unix)]
+    return gethostname().unwrap_or_default().into_string().unwrap();
+
+    #[cfg(not(unix))]
+    return unimplemented!();
+}
+
 #[cfg(test)]
 mod test {
     use std::collections::HashMap;
@@ -216,7 +224,6 @@ mod test {
     use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::on_host::event_processor::test::MockEventProcessorMock;
     use crate::sub_agent::on_host::event_processor_builder::test::MockSubAgentEventProcessorBuilderMock;
-    use crate::sub_agent::values::values_repository::test::MockRemoteValuesRepositoryMock;
     use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
     use crate::{
         config::agent_type::runtime_config::OnHost,
@@ -415,12 +422,4 @@ mod test {
             },
         }
     }
-}
-
-fn get_hostname() -> String {
-    #[cfg(unix)]
-    return gethostname().unwrap_or_default().into_string().unwrap();
-
-    #[cfg(not(unix))]
-    return unimplemented!();
 }

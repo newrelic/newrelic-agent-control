@@ -1,17 +1,9 @@
-use serde::de::Error;
 use serde::{Deserialize, Serialize};
-use serde_yaml::Value;
 use std::collections::HashMap;
 use thiserror::Error;
 
-use super::agent_type::agent_types::{AgentVariables, FinalAgent};
-use super::agent_type::error::AgentTypeError;
-use super::agent_type::runtime_config_templates::TEMPLATE_KEY_SEPARATOR;
-use super::agent_type::trivial_value::{FilePathWithContent, Number, TrivialValue};
-use super::agent_type::variable_spec::kind_value::KindValue;
-use super::agent_type::variable_spec::spec::Spec;
+use super::agent_type::trivial_value::TrivialValue;
 
-use crate::config::agent_type::variable_spec::spec::EndSpec;
 /// User-provided config.
 ///
 /// User-provided configuration (normally via a YAML file) that must follow the tree-like structure of [`Agent`]'s [`variables`] and will be used to populate the [`Agent`]'s [ `runtime_config`] field to totally define a deployable Sub Agent.
@@ -96,11 +88,11 @@ pub struct AgentValues(HashMap<String, serde_yaml::Value>);
 #[derive(Debug, PartialEq, Deserialize, Serialize, Default, Clone)]
 pub struct NormalizedValues(HashMap<String, TrivialValue>);
 
-impl NormalizedValues {
-    pub(crate) fn get(&self, key: &str) -> Option<&TrivialValue> {
-        self.0.get(key)
-    }
-}
+// impl NormalizedValues {
+//     pub(crate) fn get(&self, key: &str) -> Option<&TrivialValue> {
+//         self.0.get(key)
+//     }
+// }
 
 #[derive(Error, Debug)]
 pub enum AgentValuesError {
@@ -116,14 +108,6 @@ impl AgentValues {
     // pub(crate) fn get_from_normalized(&self, normalized_prefix: &str) -> Option<TrivialValue> {
     //     get_from_normalized(&self.0, normalized_prefix)
     // }
-
-    pub(crate) fn new(values: HashMap<String, serde_yaml::Value>) -> Self {
-        Self(values)
-    }
-
-    pub(crate) fn get(&self, key: &str) -> Option<&Value> {
-        self.0.get(key)
-    }
 
     pub(crate) fn inner(self) -> HashMap<String, serde_yaml::Value> {
         self.0
@@ -264,9 +248,25 @@ impl TryFrom<String> for AgentValues {
 #[cfg(test)]
 mod tests {
 
-    use serde_yaml::Mapping;
+    use serde_yaml::{Mapping, Value};
+
+    use crate::config::agent_type::{
+        agent_types::FinalAgent,
+        trivial_value::FilePathWithContent,
+        variable_spec::spec::{EndSpec, Spec},
+    };
 
     use super::*;
+
+    impl AgentValues {
+        pub(crate) fn new(values: HashMap<String, serde_yaml::Value>) -> Self {
+            Self(values)
+        }
+
+        pub(crate) fn get(&self, key: &str) -> Option<&Value> {
+            self.0.get(key)
+        }
+    }
 
     // impl AgentValues {
     //     pub fn new(values: HashMap<String, TrivialValue>) -> Self {

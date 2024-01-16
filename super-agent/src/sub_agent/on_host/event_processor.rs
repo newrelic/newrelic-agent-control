@@ -108,13 +108,11 @@ pub mod test {
     use opamp_client::opamp::proto::RemoteConfigStatus;
     use opamp_client::opamp::proto::RemoteConfigStatuses::Failed;
     use opamp_client::StartedClient;
-    use serde_yaml::{Mapping, Value};
     use std::collections::HashMap;
     use std::sync::Arc;
     use std::thread;
     use std::thread::JoinHandle;
 
-    use crate::config::agent_type::trivial_value::TrivialValue;
     use crate::config::agent_values::AgentValues;
     use crate::event::SubAgentEvent::ConfigUpdated;
     use crate::opamp::remote_config_hash::test::MockHashRepositoryMock;
@@ -198,10 +196,7 @@ pub mod test {
             //     String::from("some_item"),
             //     TrivialValue::String(String::from("some_value")),
             // )])),
-            &AgentValues::new(HashMap::from([(
-                "some_item".into(),
-                "some_value".into(),
-            )])),
+            &AgentValues::new(HashMap::from([("some_item".into(), "some_value".into())])),
         );
 
         let remote_config = RemoteConfig {

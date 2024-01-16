@@ -211,41 +211,41 @@ impl Kind {
         }
     }
 
-    pub(crate) fn set_default_as_final(&mut self) {
-        match self {
-            Kind::String(k) => k.set_default_as_final(),
-            Kind::Bool(k) => k.set_default_as_final(),
-            Kind::Number(k) => k.set_default_as_final(),
-            Kind::File(k) => k.inner.set_default_as_final(),
-            Kind::MapStringString(k) => k.set_default_as_final(),
-            Kind::MapStringFile(k) => k.inner.set_default_as_final(),
-            Kind::Yaml(k) => k.set_default_as_final(),
-        }
-    }
+    // pub(crate) fn set_default_as_final(&mut self) {
+    //     match self {
+    //         Kind::String(k) => k.set_default_as_final(),
+    //         Kind::Bool(k) => k.set_default_as_final(),
+    //         Kind::Number(k) => k.set_default_as_final(),
+    //         Kind::File(k) => k.inner.set_default_as_final(),
+    //         Kind::MapStringString(k) => k.set_default_as_final(),
+    //         Kind::MapStringFile(k) => k.inner.set_default_as_final(),
+    //         Kind::Yaml(k) => k.set_default_as_final(),
+    //     }
+    // }
 
-    pub(crate) fn set_final_value(
-        &mut self,
-        final_value: TrivialValue,
-    ) -> Result<(), AgentTypeError> {
-        match (self, final_value) {
-            (Kind::String(k), TrivialValue::String(v)) => k.final_value = Some(v),
-            (Kind::Bool(k), TrivialValue::Bool(v)) => k.final_value = Some(v),
-            (Kind::Number(k), TrivialValue::Number(v)) => k.final_value = Some(v),
-            (Kind::File(k), TrivialValue::File(v)) => k.inner.final_value = Some(v),
-            (Kind::MapStringString(k), TrivialValue::MapStringString(v)) => k.final_value = Some(v),
-            (Kind::MapStringFile(k), TrivialValue::MapStringFile(v)) => {
-                k.inner.final_value = Some(v)
-            }
-            (Kind::Yaml(k), TrivialValue::Yaml(v)) => k.final_value = Some(v),
-            (k, v) => {
-                return Err(AgentTypeError::TypeMismatch {
-                    expected_type: k.variable_type(),
-                    actual_value: v,
-                })
-            }
-        }
-        Ok(())
-    }
+    // pub(crate) fn set_final_value(
+    //     &mut self,
+    //     final_value: TrivialValue,
+    // ) -> Result<(), AgentTypeError> {
+    //     match (self, final_value) {
+    //         (Kind::String(k), TrivialValue::String(v)) => k.final_value = Some(v),
+    //         (Kind::Bool(k), TrivialValue::Bool(v)) => k.final_value = Some(v),
+    //         (Kind::Number(k), TrivialValue::Number(v)) => k.final_value = Some(v),
+    //         (Kind::File(k), TrivialValue::File(v)) => k.inner.final_value = Some(v),
+    //         (Kind::MapStringString(k), TrivialValue::MapStringString(v)) => k.final_value = Some(v),
+    //         (Kind::MapStringFile(k), TrivialValue::MapStringFile(v)) => {
+    //             k.inner.final_value = Some(v)
+    //         }
+    //         (Kind::Yaml(k), TrivialValue::Yaml(v)) => k.final_value = Some(v),
+    //         (k, v) => {
+    //             return Err(AgentTypeError::TypeMismatch {
+    //                 expected_type: k.variable_type(),
+    //                 actual_value: v,
+    //             })
+    //         }
+    //     }
+    //     Ok(())
+    // }
 
     pub(crate) fn merge_with_yaml_value(
         &mut self,
@@ -264,7 +264,9 @@ impl Kind {
             Kind::MapStringFile(kv) => {
                 let mut files: HashMap<String, FilePathWithContent> =
                     serde_yaml::from_value(value)?;
-                files.values_mut().for_each(|f| f.with_path(kv.file_path.clone()));
+                files
+                    .values_mut()
+                    .for_each(|f| f.with_path(kv.file_path.clone()));
                 kv.inner.set_final_value(files)
             }
             Kind::Yaml(kv) => kv.set_final_value(value),
@@ -294,7 +296,9 @@ impl Kind {
                 .as_ref()
                 .or({
                     let mut file = k.inner.default.clone();
-                    file.as_mut().map(|f| f.with_path(k.file_path.clone()));
+                    if let Some(f) = file.as_mut() {
+                        f.with_path(k.file_path.clone())
+                    }
                     file
                 }
                 .as_ref())
