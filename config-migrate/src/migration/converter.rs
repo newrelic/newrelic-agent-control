@@ -5,7 +5,7 @@ use std::path::Path;
 
 use thiserror::Error;
 
-use newrelic_super_agent::config::agent_type::agent_types::{AgentTypeEndSpec, VariableType};
+use newrelic_super_agent::config::agent_type::agent_types::VariableType;
 use newrelic_super_agent::config::agent_type_registry::{
     AgentRegistry, AgentRepositoryError, LocalRegistry,
 };
@@ -79,10 +79,7 @@ impl<R: AgentRegistry, F: FileReader> ConfigConverter<R, F> {
                         .push(self.dir_to_agent_value_spec(agent_type_fqn, file_map.unwrap())?)
                 }
                 _ => {
-                    error!(
-                        "cannot handle variable type {:?}",
-                        spec.variable_type()
-                    )
+                    error!("cannot handle variable type {:?}", spec.variable_type())
                 }
             }
         }

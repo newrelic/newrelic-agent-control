@@ -202,6 +202,14 @@ fn build_supervisors(
     Ok(supervisors)
 }
 
+fn get_hostname() -> String {
+    #[cfg(unix)]
+    return gethostname().unwrap_or_default().into_string().unwrap();
+
+    #[cfg(not(unix))]
+    return unimplemented!();
+}
+
 #[cfg(test)]
 mod test {
     use std::collections::HashMap;
@@ -421,12 +429,4 @@ mod test {
             },
         }
     }
-}
-
-fn get_hostname() -> String {
-    #[cfg(unix)]
-    return gethostname().unwrap_or_default().into_string().unwrap();
-
-    #[cfg(not(unix))]
-    return unimplemented!();
 }

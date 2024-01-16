@@ -4,13 +4,7 @@ use std::{
     path::PathBuf,
 };
 
-use crate::config::agent_type::agent_types::AgentTypeEndSpec;
 use serde::{Deserialize, Serialize};
-
-use super::{
-    agent_types::VariableType,
-    error::AgentTypeError,
-};
 
 /// Represents all the allowed types for a configuration defined in the spec value.
 #[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
@@ -72,29 +66,6 @@ impl From<Map<String, FilePathWithContent>> for TrivialValue {
 }
 
 impl TrivialValue {
-    /// Checks the `TrivialValue` against the given [`VariableType`], erroring if they do not match.
-    ///
-    /// This is also in charge of converting a `TrivialValue::String` into a `TrivialValue::File`, using the actual string as the file content, if the given [`VariableType`] is `VariableType::File`.
-    pub fn check_type<T>(self, end_spec: &T) -> Result<Self, AgentTypeError>
-    where
-        T: AgentTypeEndSpec,
-    {
-        match (self.clone(), end_spec.variable_type()) {
-            (TrivialValue::String(_), VariableType::String)
-            | (TrivialValue::Bool(_), VariableType::Bool)
-            | (TrivialValue::File(_), VariableType::File)
-            | (TrivialValue::Yaml(_), VariableType::Yaml)
-            | (TrivialValue::Number(_), VariableType::Number)
-            | (TrivialValue::Yaml(_), VariableType::Yaml)
-            | (TrivialValue::MapStringString(_), VariableType::MapStringString)
-            | (TrivialValue::MapStringFile(_), VariableType::MapStringFile) => Ok(self),
-            (v, t) => Err(AgentTypeError::TypeMismatch {
-                expected_type: t,
-                actual_value: v,
-            }),
-        }
-    }
-
     /// If the trivial value is a yaml, it returns a copy the corresponding [serde_yaml::Value], returns None otherwise.
     pub fn to_yaml_value(&self) -> Option<serde_yaml::Value> {
         match self {
@@ -137,10 +108,12 @@ impl Display for TrivialValue {
 
 /// Represents a file path and its content.
 #[derive(Debug, PartialEq, Default, Clone, Deserialize, Serialize)]
+#[serde(from = "String")]
+#[serde(into = "String")]
 pub struct FilePathWithContent {
     #[serde(skip)]
     pub path: PathBuf,
-    // #[serde(flatten)]
+    #[serde(flatten)]
     pub content: String,
 }
 
@@ -150,6 +123,22 @@ impl FilePathWithContent {
     }
     pub fn with_path(&mut self, path: PathBuf) {
         self.path = path;
+    }
+}
+
+// The minimum information needed to create a FilePathWithContent is the contents
+impl From<String> for FilePathWithContent {
+    fn from(content: String) -> Self {
+        FilePathWithContent {
+            content,
+            ..Default::default()
+        }
+    }
+}
+
+impl From<FilePathWithContent> for String {
+    fn from(file: FilePathWithContent) -> Self {
+        file.content
     }
 }
 
@@ -186,26 +175,6 @@ impl From<serde_yaml::Number> for Number {
     }
 }
 
-// /// Represents a yaml value, holding both the string before deserializing and the [serde_yaml::Value] after.
-// #[derive(Debug, PartialEq, Default, Clone, Deserialize)]
-// pub struct YamlValue {
-//     #[serde(skip)]
-//     pub value: serde_yaml::Value,
-//     #[serde(flatten)]
-//     pub content: String,
-// }
-
-// impl TryFrom<String> for YamlValue {
-//     type Error = serde_yaml::Error;
-
-//     fn try_from(value: String) -> Result<Self, Self::Error> {
-//         Ok(Self {
-//             value: serde_yaml::from_str(value.as_str())?,
-//             content: value,
-//         })
-//     }
-// }
-
 #[cfg(test)]
 mod test {
     use super::FilePathWithContent;
@@ -213,9 +182,6 @@ mod test {
     #[test]
     fn test_file_path_with_contents() {
         let file = FilePathWithContent::new("path".into(), "file_content".to_string());
-        assert_eq!(
-            serde_yaml::to_string(&file).unwrap(),
-            "content: file_content\n"
-        );
+        assert_eq!(serde_yaml::to_string(&file).unwrap(), "file_content\n");
     }
 }

@@ -49,8 +49,14 @@ impl EndSpec {
         self.kind.merge_with_yaml_value(yaml)
     }
 
-    pub fn is_not_required_without_default(&self) -> bool {
-        self.kind.is_not_required_without_default()
+    /// get_template_value returns the replacement value that will be used to substitute
+    /// the placeholder from an agent_type when templating a config
+    pub fn get_template_value(&self) -> Option<TrivialValue> {
+        match self.get_file_path() {
+            // For MapStringFile and file the file_path includes the full path with agent_configs_path
+            Some(p) => Some(TrivialValue::String(p.to_string_lossy().into())),
+            _ => self.get_final_value(),
+        }
     }
 }
 
@@ -65,8 +71,9 @@ mod test {
 
     use super::EndSpec;
 
+    #[allow(private_bounds)] // Not sure how to solve this, so, for the moment...
     impl EndSpec {
-        pub fn new<T>(
+        pub(crate) fn new<T>(
             description: String,
             required: bool,
             default: Option<T>,
@@ -82,7 +89,7 @@ mod test {
             }
         }
 
-        pub fn new_with_file_path<T>(
+        pub(crate) fn new_with_file_path<T>(
             description: String,
             required: bool,
             default: Option<T>,

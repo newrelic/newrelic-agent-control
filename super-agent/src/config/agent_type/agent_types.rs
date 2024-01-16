@@ -6,15 +6,12 @@
 
 use crate::config::agent_type::variable_spec::spec::Spec;
 use crate::config::super_agent_configs::AgentTypeFQN;
-use serde::de::Error;
 use serde::{Deserialize, Deserializer};
 use std::fmt::Display;
 use std::path::PathBuf;
 use std::{collections::HashMap, str::FromStr};
 
 use super::restart_policy::BackoffDuration;
-use super::trivial_value::{FilePathWithContent, TrivialValue};
-use super::variable_spec::kind_value::{KindValue, KindValueWithPath};
 use super::variable_spec::spec::EndSpec;
 use super::{
     agent_metadata::AgentMetadata,
@@ -36,7 +33,6 @@ use opamp_client::operation::capabilities::Capabilities;
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct FinalAgent {
     pub metadata: AgentMetadata,
-    // pub variables: NormalizedVariables,
     pub variables: AgentVariables,
     pub runtime_config: RuntimeConfig,
     capabilities: Capabilities,
@@ -236,26 +232,7 @@ impl FinalAgent {
         values: AgentValues,
         agent_configs_path: Option<&str>,
     ) -> Result<FinalAgent, AgentTypeError> {
-        // let normalized_config = NormalizedSupervisorConfig::from(config);
-        // let validated_conf = validate_with_agent_type(normalized_config, &self)?;
-
         self.merge_variables_with_values(values)?;
-        // let config = config.normalize_with_agent_type(&mut self)?;
-
-        // let runtime_conf = self.runtime_config.template_with(validated_conf.clone())?;
-        // let mut spec = config.variables;
-
-        // // modifies variables final value with the one defined in the SupervisorConfig
-        // spec.0
-        //     .iter_mut()
-        //     .try_for_each(|(k, v)| -> Result<(), AgentTypeError> {
-        //         // let defined_value = config.get_from_normalized(k);
-        //         // v.kind.set_final_value(defined_value)?;
-        //         match config.get_from_normalized(k) {
-        //             Some(value) => v.kind.set_final_value(value),
-        //             None => Ok(v.kind.set_default_as_final()),
-        //         }
-        //     })?;
 
         let variables = if let Some(p) = agent_configs_path {
             let mut v = self.variables.clone().flatten();
@@ -275,7 +252,6 @@ impl FinalAgent {
 
         let populated_agent = FinalAgent {
             runtime_config: runtime_conf,
-            // variables: spec,
             ..self
         };
 
@@ -365,81 +341,6 @@ impl Display for VariableType {
     }
 }
 
-pub trait AgentTypeEndSpec {
-    fn variable_type(&self) -> VariableType;
-    fn file_path(&self) -> Option<String>;
-}
-
-impl EndSpec {
-    /// get_template_value returns the replacement value that will be used to substitute
-    /// the placeholder from an agent_type when templating a config
-    pub fn get_template_value(&self) -> Option<TrivialValue> {
-        match self.get_file_path() {
-            // For MapStringFile and file the file_path includes the full path with agent_configs_path
-            Some(p) => Some(TrivialValue::String(p.to_string_lossy().into())),
-            _ => self.get_final_value(),
-        }
-    }
-}
-
-// impl<'de> Deserialize<'de> for EndSpec {
-//     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-//     where
-//         D: Deserializer<'de>,
-//     {
-//         // temporal type for intermediate serialization
-//         #[derive(Debug, Deserialize)]
-//         struct IntermediateEndSpec {
-//             description: String,
-//             #[serde(rename = "type")]
-//             type_: VariableType,
-//             required: bool,
-//             default: Option<TrivialValue>,
-//             file_path: Option<String>,
-//         }
-
-//         impl AgentTypeEndSpec for IntermediateEndSpec {
-//             fn variable_type(&self) -> VariableType {
-//                 self.type_
-//             }
-
-//             fn file_path(&self) -> Option<String> {
-//                 self.file_path.as_ref().cloned()
-//             }
-//         }
-
-//         let intermediate_spec = IntermediateEndSpec::deserialize(deserializer)?;
-//         if intermediate_spec.default.is_none() && !intermediate_spec.required {
-//             return Err(D::Error::custom(AgentTypeError::MissingDefault));
-//         }
-//         let def_val = intermediate_spec
-//             .default
-//             .clone()
-//             .map(|d| d.check_type(&intermediate_spec))
-//             .transpose()
-//             .map_err(D::Error::custom)?;
-
-//         Ok(EndSpec {
-//             default: def_val,
-//             final_value: None,
-//             file_path: intermediate_spec.file_path,
-//             description: intermediate_spec.description,
-//             type_: intermediate_spec.type_,
-//             required: intermediate_spec.required,
-//         })
-//     }
-// }
-
-// impl AgentTypeEndSpec for EndSpec {
-//     fn variable_type(&self) -> VariableType {
-//         self.type_
-//     }
-
-//     fn file_path(&self) -> Option<String> {
-//         self.file_path.as_ref().cloned()
-//     }
-// }
-
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 struct K8s {
     crd: String,
@@ -473,33 +374,6 @@ struct K8s {
 /// Will be converted to `system.logging.level` and can be used later in the AgentType_Meta part as `${system.logging.level}`.
 pub(crate) type NormalizedVariables = HashMap<String, EndSpec>;
 
-fn normalize_agent_spec(spec: AgentVariables) -> Result<NormalizedVariables, AgentTypeError> {
-    spec.0.into_iter().try_fold(HashMap::new(), |r, (k, v)| {
-        let n_spec = inner_normalize(k, v);
-        n_spec.iter().try_for_each(|(k, end_spec)| {
-            if end_spec.is_not_required_without_default() {
-                return Err(AgentTypeError::MissingDefaultWithKey(k.clone()));
-            }
-            Ok(())
-        })?;
-        Ok(r.into_iter().chain(n_spec).collect())
-    })
-}
-
-fn inner_normalize(key: String, spec: Spec) -> NormalizedVariables {
-    let mut result = HashMap::new();
-    match spec {
-        Spec::SpecEnd(s) => _ = result.insert(key, s),
-        Spec::SpecMapping(m) => m.into_iter().for_each(|(k, v)| {
-            result.extend(inner_normalize(
-                key.clone() + TEMPLATE_KEY_SEPARATOR + &k,
-                v,
-            ))
-        }),
-    }
-    result
-}
-
 #[cfg(test)]
 pub mod tests {
     use crate::config::{
@@ -507,7 +381,6 @@ pub mod tests {
             restart_policy::{BackoffStrategyConfig, BackoffStrategyType},
             runtime_config::{Args, Env, Executable},
             trivial_value::{Number, TrivialValue},
-            variable_spec::kind_value::KindValue,
         },
         agent_values::AgentValues,
     };
@@ -515,24 +388,10 @@ pub mod tests {
     use super::*;
     use crate::config::agent_type::restart_policy::RestartPolicyConfig;
     use crate::config::agent_type::trivial_value::FilePathWithContent;
-    use crate::config::agent_type::trivial_value::Number::PosInt;
     use serde_yaml::Error;
     use std::collections::HashMap as Map;
 
     impl FinalAgent {
-        // pub fn new(
-        //     metadata: AgentMetadata,
-        //     variables: NormalizedVariables,
-        //     runtime_config: RuntimeConfig,
-        // ) -> FinalAgent {
-        //     FinalAgent {
-        //         metadata,
-        //         variables,
-        //         runtime_config,
-        //         capabilities: default_capabilities(),
-        //     }
-        // }
-
         pub fn set_capabilities(&mut self, capabilities: Capabilities) {
             self.capabilities = capabilities
         }
@@ -685,19 +544,10 @@ deployment:
                 false,
                 Some("nrdot".to_string()),
                 None,
-            ), // EndSpec {
-               //     description: "Name of the agent".to_string(),
-               //     kind: KindValue {
-               //         required: false,
-               //         default: Some("nrdot".to_string()),
-               //         final_value: None,
-               //     }
-               //     .into(),
-               // },
+            ),
         )]);
 
         // expect output to be the map
-
         assert_eq!(expected_map, given_agent.variables.clone().flatten());
 
         let expected_spec = EndSpec::new(
@@ -1006,10 +856,9 @@ variables:
     description: "Newrelic infra configuration yaml"
     type: file
     required: false
-    default:
-      content: |
-        license_key: abc123
-        staging: true
+    default: |
+      license_key: abc123
+      staging: true
     file_path: "config2.yml"
   config3:
     description: "Newrelic infra configuration yaml"
@@ -1020,9 +869,8 @@ variables:
     type: map[string]file
     required: true
     default:
-      kafka:
-        content: |
-          bootstrap: zookeeper
+      kafka: |
+        bootstrap: zookeeper
     file_path: "integrations.d"
 deployment:
   on_host:
@@ -1037,16 +885,13 @@ config3:
   log_level: trace
   forward: "true"
 integrations:
-  kafka.conf: 
-    content: |
-      strategy: bootstrap
-  redis.yml:
-    content: |
-      user: redis
-config:
-  content: | 
-    license_key: abc124
-    staging: false
+  kafka.conf: |
+    strategy: bootstrap
+  redis.yml: |
+    user: redis
+config: |
+  license_key: abc124
+  staging: false
 "#;
 
     #[test]
