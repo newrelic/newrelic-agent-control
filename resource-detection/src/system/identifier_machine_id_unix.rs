@@ -35,7 +35,7 @@ impl Default for IdentifierProviderMachineId<LocalFile> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use fs::MockLocalFile;
+    use fs::mock::MockLocalFile;
     use std::path::Path;
 
     impl<F> IdentifierProviderMachineId<F>

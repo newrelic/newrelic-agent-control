@@ -228,8 +228,8 @@ pub mod test {
     use fs::directory_manager::DirectoryManager;
     use fs::directory_manager::MockDirectoryManagerMock;
     use fs::file_reader::FileReader;
+    use fs::mock::MockLocalFile;
     use fs::writer_file::FileWriter;
-    use fs::MockLocalFile;
     use mockall::{mock, predicate};
     use std::collections::HashMap;
     use std::fs::Permissions;

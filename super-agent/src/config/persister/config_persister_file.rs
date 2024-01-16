@@ -203,8 +203,8 @@ mod test {
     use crate::config::super_agent_configs::AgentID;
     use fs::directory_manager::DirectoryManager;
     use fs::directory_manager::MockDirectoryManagerMock;
+    use fs::mock::MockLocalFile;
     use fs::writer_file::FileWriter;
-    use fs::MockLocalFile;
     use std::fs::Permissions;
     use std::io::ErrorKind;
     use std::path::{Path, PathBuf};

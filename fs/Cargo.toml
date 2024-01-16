@@ -11,3 +11,6 @@ mockall = "0.12.1"
 regex = "1.10.2"
 tempfile = "3.9.0"
 thiserror = "1.0.56"
+
+[features]
+mocks = []

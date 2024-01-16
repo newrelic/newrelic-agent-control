@@ -35,7 +35,7 @@ impl FileRenamer for LocalFile {
     }
 }
 
-use crate::MockLocalFile;
+use crate::mock::MockLocalFile;
 use mockall::predicate;
 use std::path::PathBuf;
 impl MockLocalFile {
