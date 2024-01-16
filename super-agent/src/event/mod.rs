@@ -19,3 +19,8 @@ pub enum SuperAgentEvent {
 pub enum SubAgentEvent {
     ConfigUpdated(AgentID),
 }
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum SubAgentInternalEvent {
+    StopRequested,
+}

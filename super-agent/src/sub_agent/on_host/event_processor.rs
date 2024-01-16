@@ -1,5 +1,5 @@
 use crate::event::channel::{EventConsumer, EventPublisher};
-use crate::event::{OpAMPEvent, SubAgentEvent};
+use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
 use crate::opamp::remote_config_hash::HashRepository;
 use crate::sub_agent::values::values_repository::ValuesRepository;
 use crate::sub_agent::SubAgentCallbacks;
@@ -27,6 +27,7 @@ where
 {
     pub(super) sub_agent_publisher: EventPublisher<SubAgentEvent>,
     pub(super) sub_agent_opamp_consumer: EventConsumer<OpAMPEvent>,
+    pub(super) sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
     pub(super) maybe_opamp_client: Option<C>,
     pub(super) sub_agent_remote_config_hash_repository: Arc<H>,
     pub(super) remote_values_repo: Arc<R>,
@@ -41,6 +42,7 @@ where
     pub fn new(
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
         sub_agent_opamp_consumer: EventConsumer<OpAMPEvent>,
+        sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
         maybe_opamp_client: Option<C>,
         sub_agent_remote_config_hash_repository: Arc<H>,
         remote_values_repo: Arc<R>,
@@ -48,6 +50,7 @@ where
         EventProcessor {
             sub_agent_publisher,
             sub_agent_opamp_consumer,
+            sub_agent_internal_consumer,
             maybe_opamp_client,
             sub_agent_remote_config_hash_repository,
             remote_values_repo,
@@ -71,7 +74,7 @@ where
                     recv(&self.sub_agent_opamp_consumer.as_ref()) -> opamp_event_res => {
                         match opamp_event_res {
                             Err(_) => {
-                                debug!("channel closed");
+                                debug!("sub_agent_opamp_consumer :: channel closed");
                                 break;
                             }
                             Ok(OpAMPEvent::InvalidRemoteConfigReceived(remote_config_error)) => {
@@ -87,6 +90,18 @@ where
                                 }
                             }
                         }
+                    },
+                    recv(&self.sub_agent_internal_consumer.as_ref()) -> sub_agent_internal_event_res => {
+                         match sub_agent_internal_event_res {
+                                 Err(_) => {
+                                debug!("sub_agent_internal_consumer :: channel closed");
+                                break;
+                            }
+                            Ok(SubAgentInternalEvent::StopRequested) => {
+                                debug!("sub_agent_internal_consumer :: StopRequested");
+                                break;
+                            }
+                         }
                     }
                 }
             }
@@ -150,12 +165,14 @@ pub mod test {
         let opamp_client = MockStartedOpAMPClientMock::new();
         let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
         let (sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
+        let (_sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let hash_repository = MockHashRepositoryMock::default();
         let values_repository = MockRemoteValuesRepositoryMock::default();
 
         let event_processor = EventProcessor::new(
             sub_agent_publisher,
             sub_agent_opamp_consumer,
+            sub_agent_internal_consumer,
             Some(opamp_client),
             Arc::new(hash_repository),
             Arc::new(values_repository),
@@ -179,6 +196,7 @@ pub mod test {
         let opamp_client = MockStartedOpAMPClientMock::new();
         let (sub_agent_publisher, sub_agent_consumer) = pub_sub();
         let (sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
+        let (_sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let mut hash_repository = MockHashRepositoryMock::default();
         let mut values_repository = MockRemoteValuesRepositoryMock::default();
 
@@ -208,6 +226,7 @@ pub mod test {
         let event_processor = EventProcessor::new(
             sub_agent_publisher,
             sub_agent_opamp_consumer,
+            sub_agent_internal_consumer,
             Some(opamp_client),
             Arc::new(hash_repository),
             Arc::new(values_repository),
@@ -239,6 +258,7 @@ pub mod test {
         let mut opamp_client = MockStartedOpAMPClientMock::new();
         let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
         let (sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
+        let (_sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let hash_repository = MockHashRepositoryMock::default();
         let values_repository = MockRemoteValuesRepositoryMock::default();
 
@@ -256,6 +276,7 @@ pub mod test {
         let event_processor = EventProcessor::new(
             sub_agent_publisher,
             sub_agent_opamp_consumer,
+            sub_agent_internal_consumer,
             Some(opamp_client),
             Arc::new(hash_repository),
             Arc::new(values_repository),

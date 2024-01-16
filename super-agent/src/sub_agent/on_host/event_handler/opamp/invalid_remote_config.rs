@@ -61,6 +61,7 @@ mod tests {
         let mut opamp_client = MockStartedOpAMPClientMock::new();
         let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
         let (_sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
+        let (_sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let hash_repository = MockHashRepositoryMock::default();
         let values_repository = MockRemoteValuesRepositoryMock::default();
 
@@ -80,6 +81,7 @@ mod tests {
         let event_processor = EventProcessor::new(
             sub_agent_publisher,
             sub_agent_opamp_consumer,
+            sub_agent_internal_consumer,
             Some(opamp_client),
             Arc::new(hash_repository),
             Arc::new(values_repository),
@@ -95,6 +97,7 @@ mod tests {
     fn test_no_opamp_should_panic() {
         let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
         let (_sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
+        let (_sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let hash_repository = MockHashRepositoryMock::default();
         let values_repository = MockRemoteValuesRepositoryMock::default();
 
@@ -104,6 +107,7 @@ mod tests {
         let event_processor = EventProcessor::new(
             sub_agent_publisher,
             sub_agent_opamp_consumer,
+            sub_agent_internal_consumer,
             None::<MockStartedOpAMPClientMock<SubAgentCallbacks>>,
             Arc::new(hash_repository),
             Arc::new(values_repository),

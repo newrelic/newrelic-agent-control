@@ -103,6 +103,7 @@ where
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
         let (sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
+        let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
 
         let maybe_opamp_client = build_opamp_and_start_client(
             sub_agent_opamp_publisher,
@@ -158,10 +159,16 @@ where
         let event_processor = self.event_processor_builder.build(
             sub_agent_publisher,
             sub_agent_opamp_consumer,
+            sub_agent_internal_consumer,
             maybe_opamp_client,
         );
 
-        Ok(SubAgentOnHost::new(agent_id, supervisors, event_processor))
+        Ok(SubAgentOnHost::new(
+            agent_id,
+            supervisors,
+            event_processor,
+            sub_agent_internal_publisher,
+        ))
     }
 }
 
@@ -200,6 +207,7 @@ fn build_supervisors(
 mod test {
     use std::collections::HashMap;
     use std::sync::mpsc::channel;
+    use std::thread;
 
     use nix::unistd::gethostname;
     use opamp_client::opamp::proto::RemoteConfigStatus;
@@ -281,7 +289,15 @@ mod test {
         sub_agent_event_processor.should_process(Some(started_client));
 
         let mut sub_agent_event_processor_builder = MockSubAgentEventProcessorBuilderMock::new();
-        sub_agent_event_processor_builder.should_build(sub_agent_event_processor);
+        sub_agent_event_processor_builder
+            .expect_build()
+            .once()
+            .return_once(move |_, _, consumer, _| {
+                thread::spawn(move || {
+                    _ = consumer.as_ref().recv();
+                });
+                sub_agent_event_processor
+            });
 
         let on_host_builder = OnHostSubAgentBuilder::new(
             Some(&opamp_builder),
