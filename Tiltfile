@@ -1,30 +1,55 @@
 # -*- mode: Python -*-
+#### Tilt args
 
-# Settings and defaults.
-settings = {
-  'namespace':'super-agent',
-  'cluster_context': 'minikube',
- 
-  # Use local charts       
-  # 'chart_repo':'../helm-charts/charts/',
-}
+# chart_source:
+#  - local: Use a local copy of the chart defined in 'local_chart_repo'.
+#  - branch: Git clones and uses the newrelic/helm-charts repo on a specific branch 'chart_repo_branch'.
+#  - helm-repo: Use the newrelic helm repo.
+config.define_string('chart_source')
+config.define_string('local_chart_repo')
+config.define_string('chart_repo_branch')
+config.define_string('namespace')
+config.define_string('helm_values_file')
+# build_with:
+#  - cargo: No crosscompilation, faster than docker
+#  - docker: Supports crosscompilaton
+config.define_string('build_with')
+config.define_string('arch')
 
-settings.update(read_json('local/tilt_option.json', default={}))
+cfg = config.parse()
 
-namespace=settings.get('namespace')
+######## Feature Branch Workaround ########
+
+force_workaround = True
+feature_branch = 'super-agent/fix-sub-agent-location'
+
+######## ########
+
 
 # Use explicitly allowed kubeconfigs as a safety measure.
-allow_k8s_contexts(settings.get('cluster_context'))
+allow_k8s_contexts('minikube')
 
-local_resource(
-    'build-binary',
-    cmd="make BUILD_MODE=debug BUILD_FEATURE=k8s build-super-agent",
-    deps=[
+#### Build SA binary
+build_with = cfg.get('build_with','docker')
+arch = cfg.get('arch','arm64')
+if build_with == 'cargo':
+  local_resource(
+      'build-binary',
+      cmd="cargo build --features=k8s && mkdir -p bin && mv target/debug/newrelic-super-agent bin/newrelic-super-agent-"+arch,
+      deps=[
         './super-agent',
-    ]
-)
+      ]
+  )
+else: 
+  local_resource(
+      'build-binary',
+      cmd="make BUILD_MODE=debug BUILD_FEATURE=k8s ARCH=%s build-super-agent" % arch,
+      deps=[
+        './super-agent',
+      ]
+  )
 
-# Build the final Docker image with the binary.
+#### Build the final Docker image with the binary.
 docker_build(
     'tilt.local/super-agent-dev',
     context='.',
@@ -33,18 +58,49 @@ docker_build(
 )
 
 load('ext://helm_resource', 'helm_repo','helm_resource')
+load('ext://git_resource', 'git_checkout')
 
-helm_repo('newrelic','https://helm-charts.newrelic.com')
-
-chart = settings.get('chart_repo','newrelic/')
 update_dependencies = False
 deps=[]
+chart = ''
 
-# Local chart config
-if chart != 'newrelic/':
-    update_dependencies = True
-    deps=[chart+'super-agent-deployment/templates'] # re-deploy chart if modified locally
+#### Pick the chart source
+chart_source = cfg.get('chart_source','helm-repo')
+if force_workaround:
+  chart_source = 'branch'
 
+if chart_source == 'local':
+  chart = cfg.get('local_chart_repo','../helm-charts/charts/')
+  update_dependencies = True
+  deps=[chart+'super-agent-deployment/templates']
+elif chart_source == 'branch':
+  branch = cfg.get('chart_repo_branch',feature_branch)
+  git_checkout('https://github.com/newrelic/helm-charts#'+branch, checkout_dir='local/helm-charts', unsafe_mode=False)
+  chart = 'local/helm-charts/charts/'
+  update_dependencies = True
+  deps=[chart+'super-agent-deployment/templates']
+elif chart_source == 'helm-repo':
+  chart = 'newrelic/'
+  helm_repo(
+    'newrelic',
+    'https://helm-charts.newrelic.com',
+    resource_name='newrelic-helm-repo',
+    )
+
+namespace=cfg.get('namespace', 'default')
+
+#### Adds the secret used by the e2e test to configure otel collector to send metrics.
+load('ext://secret', 'secret_from_dict')
+k8s_yaml(secret_from_dict(
+  name='test-env',
+  namespace=namespace,
+  inputs = {
+    'E2E_TEST_ID' : os.getenv('SCENARIO_TAG'),
+    'LICENSE_KEY' : os.getenv('LICENSE_KEY'),
+}))
+k8s_resource(new_name='e2e test secret',objects=['test-env:secret'])
+
+#### Installs charts
 helm_resource(
   'flux',
   chart+'super-agent',
@@ -56,9 +112,9 @@ helm_resource(
     '--version=>=0.0.0-beta',
     
     '--set=helm.create=false',
-    ]
+    ],
+  resource_deps=['newrelic-helm-repo']
 )
-
 helm_resource(
   'sa-deployment',
   chart+'super-agent-deployment',
@@ -74,15 +130,10 @@ helm_resource(
     '--set=image.repository=super-agent-dev',
     '--set=image.imagePullPolicy=Always',
 
-    '--values=local/super-agent-deployment-values.yml',
+    '--values=' + cfg.get('helm_values_file','local/super-agent-deployment.yml'),
     ],
   # Required to force build the image
   image_deps=['tilt.local/super-agent-dev'],
   image_keys=[('image.registry', 'image.repository', 'image.tag')],
-)
-
-# To make sure your binary is built before deploying.
-k8s_resource(
-    'sa-deployment',
-    resource_deps=['build-binary']
+  resource_deps=['super-agent','build-binary'],
 )
