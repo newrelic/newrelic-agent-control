@@ -78,7 +78,10 @@ impl<R: AgentRegistry> ConfigConverter<R> {
                         .push(self.dir_to_agent_value_spec(agent_type_fqn, file_map.unwrap())?)
                 }
                 _ => {
-                    error!("cannot handle variable type {:?}", spec.kind.variable_type())
+                    error!(
+                        "cannot handle variable type {:?}",
+                        spec.kind.variable_type()
+                    )
                 }
             }
         }

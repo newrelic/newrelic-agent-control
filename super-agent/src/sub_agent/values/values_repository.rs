@@ -374,10 +374,7 @@ pub mod test {
 
         let agent_values = repo.load(&agent_id, &final_agent).unwrap();
 
-        assert_eq!(
-            agent_values.get("some_config").unwrap(),
-            &Value::Bool(true)
-        );
+        assert_eq!(agent_values.get("some_config").unwrap(), &Value::Bool(true));
         assert_eq!(
             agent_values.get("another_item").unwrap(),
             &Value::Bool(false)
@@ -416,10 +413,7 @@ pub mod test {
 
         let agent_values = repo.load(&agent_id, &final_agent).unwrap();
 
-        assert_eq!(
-            agent_values.get("some_config").unwrap(),
-            &Value::Bool(true)
-        );
+        assert_eq!(agent_values.get("some_config").unwrap(), &Value::Bool(true));
         assert_eq!(
             agent_values.get("another_item").unwrap(),
             &Value::Bool(false)
@@ -463,10 +457,7 @@ pub mod test {
 
         let agent_values = repo.load(&agent_id, &final_agent).unwrap();
 
-        assert_eq!(
-            agent_values.get("some_config").unwrap(),
-            &Value::Bool(true)
-        );
+        assert_eq!(agent_values.get("some_config").unwrap(), &Value::Bool(true));
         assert_eq!(
             agent_values.get("another_item").unwrap(),
             &Value::Bool(false)

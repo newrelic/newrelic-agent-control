@@ -468,7 +468,8 @@ deployment:
     #[test]
     fn test_validate_with_agent_type() {
         let input_structure = serde_yaml::from_str::<AgentValues>(EXAMPLE_CONFIG_REPLACE).unwrap();
-        let mut agent_type = serde_yaml::from_str::<FinalAgent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
+        let mut agent_type =
+            serde_yaml::from_str::<FinalAgent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
 
         let expected = NormalizedValues(HashMap::from([
             (
@@ -546,7 +547,8 @@ deployment:
     fn test_validate_with_agent_type_missing_required() {
         let input_structure =
             serde_yaml::from_str::<AgentValues>(EXAMPLE_CONFIG_REPLACE_NOPATH).unwrap();
-        let mut agent_type = serde_yaml::from_str::<FinalAgent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
+        let mut agent_type =
+            serde_yaml::from_str::<FinalAgent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
 
         let actual = input_structure.normalize_with_agent_type(&mut agent_type);
 
@@ -570,7 +572,8 @@ deployment:
     fn test_validate_with_agent_type_wrong_value_type() {
         let input_structure =
             serde_yaml::from_str::<AgentValues>(EXAMPLE_CONFIG_REPLACE_WRONG_TYPE).unwrap();
-        let mut agent_type = serde_yaml::from_str::<FinalAgent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
+        let mut agent_type =
+            serde_yaml::from_str::<FinalAgent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
 
         let actual = input_structure.normalize_with_agent_type(&mut agent_type);
 

@@ -234,7 +234,9 @@ impl FinalAgent {
         //         }
         //     })?;
 
-        let runtime_conf = self.runtime_config.template_with(&self.variables.clone().flatten())?;
+        let runtime_conf = self
+            .runtime_config
+            .template_with(&self.variables.clone().flatten())?;
 
         let populated_agent = FinalAgent {
             runtime_config: runtime_conf,
