@@ -22,7 +22,6 @@ use crate::super_agent::super_agent::EffectiveAgentsError::{
     EffectiveAgentExists, EffectiveAgentNotFound,
 };
 use crossbeam::select;
-use futures::executor::block_on;
 use opamp_client::StartedClient;
 use std::collections::HashMap;
 use std::string::ToString;
@@ -132,8 +131,8 @@ where
                 last_error: "".to_string(),
                 start_time_unix_nano: 0,
             };
-            block_on(handle.set_health(health))?;
-            block_on(handle.stop())?;
+            crate::runtime::tokio_runtime().block_on(handle.set_health(health))?;
+            crate::runtime::tokio_runtime().block_on(handle.stop())?;
         }
 
         info!("Waiting for the output manager to finish");

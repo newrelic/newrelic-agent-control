@@ -26,8 +26,7 @@ compile_error!("Feature \"onhost\" and feature \"k8s\" cannot be enabled at the 
 #[cfg(all(not(feature = "onhost"), not(feature = "k8s")))]
 compile_error!("Either feature \"onhost\" or feature \"k8s\" must be enabled");
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> Result<(), Box<dyn Error>> {
     // init logging singleton
     Logging::try_init()?;
 
@@ -161,24 +160,24 @@ fn run_super_agent(
         config::super_agent_configs::AgentID, opamp::operations::build_opamp_and_start_client,
     };
 
+    let runtime = newrelic_super_agent::runtime::tokio_runtime();
+
     let hash_repository = HashRepositoryFile::default();
     let k8s_config = config_storer.load()?.k8s.ok_or(AgentError::K8sConfig())?;
 
-    let executor = Arc::new(
-        futures::executor::block_on(
-            newrelic_super_agent::k8s::executor::K8sExecutor::try_new_with_reflectors(
-                k8s_config.namespace.clone(),
-                k8s_config.cr_type_meta.clone(),
-            ),
+    let k8s_client = Arc::new(
+        newrelic_super_agent::k8s::client::SyncK8sClient::try_new_with_reflectors(
+            runtime,
+            k8s_config.namespace.clone(),
+            k8s_config.cr_type_meta.clone(),
         )
         .map_err(|e| AgentError::ExternalError(e.to_string()))?,
     );
 
-    let instance_id_getter =
-        futures::executor::block_on(ULIDInstanceIDGetter::try_with_identifiers(
-            executor.clone(),
-            instance_id::get_identifiers(k8s_config.cluster_name.clone()),
-        ))?;
+    let instance_id_getter = ULIDInstanceIDGetter::try_with_identifiers(
+        k8s_client.clone(),
+        instance_id::get_identifiers(k8s_config.cluster_name.clone()),
+    )?;
 
     /////////////////////////
 
@@ -187,9 +186,9 @@ fn run_super_agent(
     let sub_agent_builder = newrelic_super_agent::sub_agent::k8s::builder::K8sSubAgentBuilder::new(
         opamp_client_builder.as_ref(),
         &instance_id_getter,
-        executor.clone(),
+        k8s_client.clone(),
         &agents_assembler,
-        k8s_config.clone(),
+        k8s_config,
     );
 
     info!("Starting the super agent");
@@ -206,8 +205,8 @@ fn run_super_agent(
 
     let config_storer = Arc::new(config_storer);
 
-    let _started_gcc =
-        NotStartedK8sGarbageCollector::new(config_storer.clone(), executor.clone()).start();
+    let gcc = NotStartedK8sGarbageCollector::new(config_storer.clone(), k8s_client);
+    let _started_gcc = gcc.start();
 
     SuperAgent::new(
         maybe_client,

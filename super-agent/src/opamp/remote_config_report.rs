@@ -1,5 +1,4 @@
 use crate::opamp::remote_config_hash::Hash;
-use futures::executor::block_on;
 use opamp_client::opamp::proto::RemoteConfigStatus;
 use opamp_client::opamp::proto::RemoteConfigStatuses;
 use opamp_client::{error::ClientError, operation::callbacks::Callbacks, StartedClient};
@@ -65,9 +64,11 @@ where
     C: Callbacks,
     O: StartedClient<C>,
 {
-    block_on(opamp_client.set_remote_config_status(RemoteConfigStatus {
-        last_remote_config_hash: hash.get().into_bytes(),
-        status,
-        error_message: error_msg,
-    }))
+    crate::runtime::tokio_runtime().block_on(opamp_client.set_remote_config_status(
+        RemoteConfigStatus {
+            last_remote_config_hash: hash.get().into_bytes(),
+            status,
+            error_message: error_msg,
+        },
+    ))
 }

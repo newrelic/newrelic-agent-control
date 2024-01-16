@@ -13,7 +13,7 @@ pub const SUPER_AGENT_LOCAL_DATA_DIR: &str = "/etc/newrelic-super-agent";
 pub const SUPER_AGENT_IDENTIFIERS_PATH: &str = "/var/lib/newrelic-super-agent/identifiers.yaml";
 pub const REMOTE_AGENT_DATA_DIR: &str = "/var/lib/newrelic-super-agent/fleet/agents.d";
 pub const LOCAL_AGENT_DATA_DIR: &str = "/etc/newrelic-super-agent/fleet/agents.d";
-pub const VALUES_FILENAME: &str = "values.yml";
+pub const VALUES_PATH: &str = "values/values.yaml";
 pub const SUPER_AGENT_DATA_DIR: &str = "/var/lib/newrelic-super-agent";
 pub const GENERATED_FOLDER_NAME: &str = "auto-generated";
 

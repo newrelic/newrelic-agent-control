@@ -8,7 +8,7 @@ use thiserror::Error;
 use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
 use fs::writer_file::{FileWriter, WriteError};
 use newrelic_super_agent::config::super_agent_configs::AgentID;
-use newrelic_super_agent::super_agent::defaults::{LOCAL_AGENT_DATA_DIR, VALUES_FILENAME};
+use newrelic_super_agent::super_agent::defaults::{LOCAL_AGENT_DATA_DIR, VALUES_PATH};
 
 #[derive(Error, Debug)]
 pub enum PersistError {
@@ -66,7 +66,7 @@ where
             self.create_directory(&path)?;
         }
 
-        path.push(VALUES_FILENAME);
+        path.push(VALUES_PATH);
 
         Ok(self.write(path.as_path(), values_content)?)
     }

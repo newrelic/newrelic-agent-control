@@ -97,7 +97,7 @@ pub trait HashRepository {
     fn get(&self, agent_id: &AgentID) -> Result<Hash, HashRepositoryError>;
 }
 
-const HASH_FILE_EXTENSION: &str = "yaml";
+const HASH_FILE_NAME: &str = "hash.yaml";
 
 pub struct HashRepositoryFile<F = LocalFile, D = DirectoryManagerFs>
 where
@@ -169,7 +169,11 @@ where
     F: FileWriter + FileReader,
 {
     fn hash_file_path<'a>(&'a self, agent_id: &AgentID, path: &'a mut PathBuf) -> &Path {
-        let hash_file = format!("{}.{}", agent_id.get(), HASH_FILE_EXTENSION);
+        let hash_file = if agent_id.is_super_agent_id() {
+            HASH_FILE_NAME.to_string()
+        } else {
+            format!("{}/{}", agent_id.get(), HASH_FILE_NAME)
+        };
         path.push(hash_file);
         path
     }
@@ -192,10 +196,11 @@ pub mod test {
 
     use super::{
         ConfigState, Hash, HashRepository, HashRepositoryError, HashRepositoryFile,
-        DIRECTORY_PERMISSIONS, HASH_FILE_EXTENSION,
+        DIRECTORY_PERMISSIONS,
     };
     use crate::config::persister::config_persister_file::FILE_PERMISSIONS;
     use crate::config::super_agent_configs::AgentID;
+    use crate::opamp::remote_config_hash::HASH_FILE_NAME;
     use fs::directory_manager::mock::MockDirectoryManagerMock;
     use fs::directory_manager::DirectoryManager;
     use fs::file_reader::FileReader;
@@ -278,7 +283,7 @@ state: applied
 "#;
 
         let mut expected_path = some_path.clone();
-        expected_path.push(format!("{}.{}", agent_id.get(), HASH_FILE_EXTENSION));
+        expected_path.push(format!("{}/{}", agent_id.get(), HASH_FILE_NAME));
 
         file_rw.should_read(expected_path.as_path(), content.to_string());
         file_rw.should_write(
