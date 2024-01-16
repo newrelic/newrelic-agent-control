@@ -570,10 +570,8 @@ pub mod test {
         let remote_enabled = false;
 
         let agent_id = AgentID::new("some_agent_id").unwrap();
-        let agent_values = AgentValues::new(Value::Mapping(Mapping::from_iter([(
-            "one_item".into(),
-            "one value".into(),
-        )])));
+        let agent_values =
+            AgentValues::new(HashMap::from([("one_item".into(), "one value".into())]));
 
         dir_manager.should_delete(Path::new("some/remote/path/some-agent-id/values"));
         dir_manager.should_create(
@@ -608,10 +606,8 @@ pub mod test {
         let remote_enabled = false;
 
         let agent_id = AgentID::new("some_agent_id").unwrap();
-        let agent_values = AgentValues::new(Value::Mapping(Mapping::from_iter([(
-            "one_item".into(),
-            "one value".into(),
-        )])));
+        let agent_values =
+            AgentValues::new(HashMap::from([("one_item".into(), "one value".into())]));
 
         dir_manager.should_not_delete(
             Path::new("some/remote/path/some-agent-id/values"),
@@ -644,10 +640,8 @@ pub mod test {
         let remote_enabled = false;
 
         let agent_id = AgentID::new("some_agent_id").unwrap();
-        let agent_values = AgentValues::new(Value::Mapping(Mapping::from_iter([(
-            "one_item".into(),
-            "one value".into(),
-        )])));
+        let agent_values =
+            AgentValues::new(HashMap::from([("one_item".into(), "one value".into())]));
 
         dir_manager.should_delete(Path::new("some/remote/path/some-agent-id/values"));
         dir_manager.should_not_create(
@@ -683,10 +677,8 @@ pub mod test {
         let remote_enabled = false;
 
         let agent_id = AgentID::new("some_agent_id").unwrap();
-        let agent_values = AgentValues::new(Value::Mapping(Mapping::from_iter([(
-            "one_item".into(),
-            "one value".into(),
-        )])));
+        let agent_values =
+            AgentValues::new(HashMap::from([("one_item".into(), "one value".into())]));
 
         dir_manager.should_delete(Path::new("some/remote/path/some-agent-id/values"));
         dir_manager.should_create(
