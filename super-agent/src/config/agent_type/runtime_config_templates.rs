@@ -361,29 +361,11 @@ mod tests {
         let variables = NormalizedVariables::from([
             (
                 "name".to_string(),
-                EndSpec {
-                    description: String::default(),
-                    kind: KindValue {
-                        final_value: Some("Alice".to_string()),
-                        default: None,
-                        required: true,
-                        file_path: Some("some_path".into()),
-                    }
-                    .into(),
-                },
+                EndSpec::new(String::default(), true, None, Some("Alice".to_string())),
             ),
             (
                 "age".to_string(),
-                EndSpec {
-                    description: String::default(),
-                    kind: KindValue {
-                        final_value: None,
-                        default: Some(Number::PosInt(30)),
-                        required: false,
-                        file_path: Some("some_path".into()),
-                    }
-                    .into(),
-                },
+                EndSpec::new(String::default(), true, None, Some(Number::PosInt(30))),
             ),
         ]);
 
@@ -398,129 +380,70 @@ mod tests {
         let variables = NormalizedVariables::from([
             (
                 "path".to_string(),
-                EndSpec {
-                    description: String::default(),
-                    kind: KindValue {
-                        final_value: Some("/usr/bin/myapp".to_string()),
-                        default: None,
-                        required: true,
-                        file_path: Some("some_path".into()),
-                    }
-                    .into(),
-                },
+                EndSpec::new(
+                    String::default(),
+                    true,
+                    None,
+                    Some("/usr/bin/myapp".to_string()),
+                ),
             ),
             (
                 "args".to_string(),
-                EndSpec {
-                    description: String::default(),
-                    kind: KindValue {
-                        final_value: Some("--config /etc/myapp.conf".to_string()),
-                        default: None,
-                        required: true,
-                        file_path: Some("some_path".into()),
-                    }
-                    .into(),
-                },
+                EndSpec::new(
+                    String::default(),
+                    true,
+                    None,
+                    Some("--config /etc/myapp.conf".to_string()),
+                ),
             ),
             (
                 "env.MYAPP_PORT".to_string(),
-                EndSpec {
-                    description: String::default(),
-                    kind: KindValue {
-                        final_value: Some("8080".to_string()),
-                        default: None,
-                        required: true,
-                        file_path: Some("some_path".into()),
-                    }
-                    .into(),
-                },
+                EndSpec::new(String::default(), true, None, Some("8080".to_string())),
             ),
             (
                 "backoff.type".to_string(),
-                EndSpec {
-                    description: String::default(),
-                    kind: KindValue {
-                        final_value: Some("linear".to_string()),
-                        default: None,
-                        required: true,
-                        file_path: Some("some_path".into()),
-                    }
-                    .into(),
-                },
+                EndSpec::new(String::default(), true, None, Some("linear".to_string())),
             ),
             (
                 "backoff.delay".to_string(),
-                EndSpec {
-                    description: String::default(),
-                    kind: KindValue {
-                        final_value: Some("10s".to_string()),
-                        default: None,
-                        required: true,
-                        file_path: Some("some_path".into()),
-                    }
-                    .into(),
-                },
+                EndSpec::new(String::default(), true, None, Some("10s".to_string())),
             ),
             (
                 "backoff.retries".to_string(),
-                EndSpec {
-                    description: String::default(),
-                    kind: KindValue {
-                        final_value: Some(PosInt(30)),
-                        default: None,
-                        required: true,
-                        file_path: Some("some_path".into()),
-                    }
-                    .into(),
-                },
+                EndSpec::new(String::default(), true, None, Some(PosInt(30))),
             ),
             (
                 "backoff.interval".to_string(),
-                EndSpec {
-                    description: String::default(),
-                    kind: KindValue {
-                        final_value: Some("300s".to_string()),
-                        default: None,
-                        required: true,
-                        file_path: Some("some_path".into()),
-                    }
-                    .into(),
-                },
+                EndSpec::new(String::default(), true, None, Some("300s".to_string())),
             ),
             (
                 "config".to_string(),
-                EndSpec {
-                    description: "config".to_string(),
-                    kind: KindValue {
-                        final_value: Some(FilePathWithContent::new(
-                            "config2.yml".into(),
-                            "license_key: abc123\nstaging: true\n".to_string(),
-                        )),
-                        default: None,
-                        required: true,
-                        file_path: Some("config_path".into()),
-                    }
-                    .into(),
-                },
+                EndSpec::new_with_file_path(
+                    "config".to_string(),
+                    true,
+                    None,
+                    Some(FilePathWithContent::new(
+                        "config2.yml".into(),
+                        "license_key: abc123\nstaging: true\n".to_string(),
+                    )),
+                    "config_path".into(),
+                ),
             ),
             (
                 "integrations".to_string(),
-                EndSpec {
-                    description: "integrations".to_string(),
-                    kind: KindValue {
-                        final_value: Some(HashMap::from([(
-                            "kafka.yml".to_string(),
-                            FilePathWithContent::new(
-                                "config2.yml".into(),
-                                "license_key: abc123\nstaging: true\n".to_string(),
-                            ),
-                        )])),
-                        default: None,
-                        required: true,
-                        file_path: Some("integration_path".into()),
-                    }
-                    .into(),
-                },
+                EndSpec::new_with_file_path(
+                    "integrations".to_string(),
+                    true,
+                    None,
+                    Some(HashMap::from([(
+                        "kafka.yml".to_string(),
+                        FilePathWithContent::new(
+                            "config2.yml".into(),
+                            "license_key: abc123\nstaging: true\n".to_string(),
+                        ),
+                    )])),
+                    "integration_path".into(),
+                ),
             ),
         ]);
 
@@ -572,42 +495,20 @@ mod tests {
         let variables = NormalizedVariables::from([
             (
                 "change.me.string".to_string(),
-                EndSpec {
-                    description: String::default(),
-                    kind: KindValue {
-                        final_value: Some("CHANGED-STRING".to_string()),
-                        default: None,
-                        required: true,
-                        file_path: Some("some_path".into()),
-                    }
-                    .into(),
-                },
+                EndSpec::new(
+                    String::default(),
+                    true,
+                    None,
+                    Some("CHANGED-STRING".to_string()),
+                ),
             ),
             (
                 "change.me.bool".to_string(),
-                EndSpec {
-                    description: String::default(),
-                    kind: KindValue {
-                        final_value: Some(true),
-                        default: None,
-                        required: true,
-                        file_path: Some("some_path".into()),
-                    }
-                    .into(),
-                },
+                EndSpec::new(String::default(), true, None, Some(true)),
             ),
             (
                 "change.me.number".to_string(),
-                EndSpec {
-                    description: String::default(),
-                    kind: KindValue {
-                        final_value: Some(PosInt(42)),
-                        default: None,
-                        required: true,
-                        file_path: Some("some_path".into()),
-                    }
-                    .into(),
-                },
+                EndSpec::new(String::default(), true, None, Some(PosInt(42))),
             ),
         ]);
         let input: serde_yaml::Mapping = serde_yaml::from_str(
@@ -642,42 +543,20 @@ mod tests {
         let variables = NormalizedVariables::from([
             (
                 "change.me.string".to_string(),
-                EndSpec {
-                    description: String::default(),
-                    kind: KindValue {
-                        final_value: Some("CHANGED-STRING".to_string()),
-                        default: None,
-                        required: true,
-                        file_path: Some("some_path".into()),
-                    }
-                    .into(),
-                },
+                EndSpec::new(
+                    String::default(),
+                    true,
+                    None,
+                    Some("CHANGED-STRING".to_string()),
+                ),
             ),
             (
                 "change.me.bool".to_string(),
-                EndSpec {
-                    description: String::default(),
-                    kind: KindValue {
-                        final_value: Some(true),
-                        default: None,
-                        required: true,
-                        file_path: Some("some_path".into()),
-                    }
-                    .into(),
-                },
+                EndSpec::new(String::default(), true, None, Some(true)),
             ),
             (
                 "change.me.number".to_string(),
-                EndSpec {
-                    description: String::default(),
-                    kind: KindValue {
-                        final_value: Some(PosInt(42)),
-                        default: None,
-                        required: true,
-                        file_path: Some("some_path".into()),
-                    }
-                    .into(),
-                },
+                EndSpec::new(String::default(), true, None, Some(PosInt(42))),
             ),
         ]);
         let input: serde_yaml::Sequence = serde_yaml::from_str(
@@ -708,77 +587,46 @@ mod tests {
         let variables = NormalizedVariables::from([
             (
                 "change.me.string".to_string(),
-                EndSpec {
-                    description: String::default(),
-                    kind: KindValue {
-                        final_value: Some("CHANGED-STRING".to_string()),
-                        default: None,
-                        required: true,
-                        file_path: Some("some_path".into()),
-                    }
-                    .into(),
-                },
+                EndSpec::new(
+                    String::default(),
+                    true,
+                    None,
+                    Some("CHANGED-STRING".to_string()),
+                ),
             ),
             (
                 "change.me.bool".to_string(),
-                EndSpec {
-                    description: String::default(),
-                    kind: KindValue {
-                        final_value: Some(true),
-                        default: None,
-                        required: true,
-                        file_path: Some("some_path".into()),
-                    }
-                    .into(),
-                },
+                EndSpec::new(String::default(), true, None, Some(true)),
             ),
             (
                 "change.me.number".to_string(),
-                EndSpec {
-                    description: String::default(),
-                    kind: KindValue {
-                        final_value: Some(PosInt(42)),
-                        default: None,
-                        required: true,
-                        file_path: Some("some_path".into()),
-                    }
-                    .into(),
-                },
+                EndSpec::new(String::default(), true, None, Some(PosInt(42))),
             ),
             (
                 "change.me.yaml".to_string(),
-                EndSpec {
-                    description: String::default(),
-                    kind: KindValue {
-                        // final_value: Some(serde_yaml::to_value(r#"{"key": "value"}"#).unwrap()),
-                        final_value: Some(serde_yaml::Value::Mapping(
-                            serde_yaml::Mapping::from_iter([("key".into(), "value".into())]),
-                        )),
-                        default: None,
-                        required: true,
-                        file_path: Some("some_path".into()),
-                    }
-                    .into(),
-                },
+                EndSpec::new(
+                    String::default(),
+                    true,
+                    None,
+                    Some(serde_yaml::Value::Mapping(serde_yaml::Mapping::from_iter(
+                        [("key".into(), "value".into())],
+                    ))),
+                ),
             ),
             (
                 // Expansion inside variable's values is not supported.
                 "yaml.with.var.placeholder".to_string(),
-                EndSpec {
-                    description: String::default(),
-                    kind: KindValue {
-                        final_value: Some(serde_yaml::Value::Mapping(
-                            serde_yaml::Mapping::from_iter([(
-                                "this.will.not.be.expanded".into(),
-                                "${change.me.string}".into(),
-                            )]),
-                        )),
-                        default: None,
-                        required: true,
-                        file_path: Some("some_path".into()),
-                    }
-                    .into(),
-                },
+                EndSpec::new(
+                    String::default(),
+                    true,
+                    None,
+                    Some(serde_yaml::Value::Mapping(serde_yaml::Mapping::from_iter(
+                        [(
+                            "this.will.not.be.expanded".into(),
+                            "${change.me.string}".into(),
+                        )],
+                    ))),
+                ),
             ),
         ]);
         let input: serde_yaml::Value = serde_yaml::from_str(
@@ -845,70 +693,30 @@ mod tests {
         let variables = NormalizedVariables::from([
             (
                 "simple.string.var".to_string(),
-                EndSpec {
-                    description: String::default(),
-                    kind: KindValue {
-                        final_value: Some("Value".to_string()),
-                        default: None,
-                        required: true,
-                        file_path: Some("some_path".into()),
-                    }
-                    .into(),
-                },
+                EndSpec::new(String::default(), true, None, Some("Value".to_string())),
             ),
             (
                 "string.with.yaml.var".to_string(),
-                EndSpec {
-                    description: String::default(),
-                    kind: KindValue {
-                        final_value: Some("[Value]".to_string()),
-                        default: None,
-                        required: true,
-                        file_path: Some("some_path".into()),
-                    }
-                    .into(),
-                },
+                EndSpec::new(String::default(), true, None, Some("[Value]".to_string())),
             ),
             (
                 "bool.var".to_string(),
-                EndSpec {
-                    description: String::default(),
-                    kind: KindValue {
-                        final_value: Some(true),
-                        default: None,
-                        required: true,
-                        file_path: Some("some_path".into()),
-                    }
-                    .into(),
-                },
+                EndSpec::new(String::default(), true, None, Some(true)),
             ),
             (
                 "number.var".to_string(),
-                EndSpec {
-                    description: String::default(),
-                    kind: KindValue {
-                        final_value: Some(PosInt(42)),
-                        default: None,
-                        required: true,
-                        file_path: Some("some_path".into()),
-                    }
-                    .into(),
-                },
+                EndSpec::new(String::default(), true, None, Some(PosInt(42))),
             ),
             (
                 "yaml.var".to_string(),
-                EndSpec {
-                    description: String::default(),
-                    kind: KindValue {
-                        final_value: Some(serde_yaml::Value::Mapping(
-                            serde_yaml::Mapping::from_iter([("key".into(), "value".into())]),
-                        )),
-                        default: None,
-                        required: true,
-                        file_path: Some("some_path".into()),
-                    }
-                    .into(),
-                },
+                EndSpec::new(
+                    String::default(),
+                    true,
+                    None,
+                    Some(serde_yaml::Value::Mapping(serde_yaml::Mapping::from_iter(
+                        [("key".into(), "value".into())],
+                    ))),
+                ),
             ),
         ]);
 
@@ -975,22 +783,12 @@ mod tests {
     fn test_normalized_var() {
         let variables = NormalizedVariables::from([(
             "var.name".to_string(),
-            EndSpec {
-                description: String::default(),
-                kind: KindValue::<String> {
-                    final_value: None,
-                    default: None,
-                    required: true,
-                    file_path: None,
-                }
-                .into(),
-            },
+            EndSpec::new(String::default(), true, None, Some("Value".to_string())),
         )]);
 
         assert_eq!(
             normalized_var("var.name", &variables)
                 .unwrap()
-                .kind
                 .variable_type(),
             VariableType::String
         );
@@ -1002,36 +800,15 @@ mod tests {
 
     #[test]
     fn test_replace() {
-        let value_var = EndSpec {
-            description: String::default(),
-            kind: KindValue {
-                final_value: Some("Value".to_string()),
-                default: None,
-                required: true,
-                file_path: None,
-            }
-            .into(),
-        };
-        let default_var = EndSpec {
-            description: String::default(),
-            kind: KindValue {
-                default: Some("Default".to_string()),
-                final_value: None,
-                required: true,
-                file_path: None,
-            }
-            .into(),
-        };
-        let neither_value_nor_default = EndSpec {
-            description: String::default(),
-            kind: KindValue::<String> {
-                final_value: None,
-                default: None,
-                required: true,
-                file_path: None,
-            }
-            .into(),
-        };
+        let value_var = EndSpec::new(String::default(), true, None, Some("Value".to_string()));
+        let default_var = EndSpec::new(String::default(), true, Some("Default".to_string()), None);
+
+        let neither_value_nor_default = EndSpec::new(
+            String::default(),
+            true,
+            None::<String>,
+            None::<String>,
+        );
 
         let re = template_re();
         assert_eq!(
@@ -1072,16 +849,7 @@ objects:
         let value = "test_value";
         let variables = NormalizedVariables::from([(
             "any".to_string(),
-            EndSpec {
-                description: String::default(),
-                kind: KindValue {
-                    final_value: Some(value.to_string()),
-                    default: None,
-                    required: true,
-                    file_path: None,
-                }
-                .into(),
-            },
+            EndSpec::new(String::default(), true, None, Some(value.to_string())),
         )]);
 
         let k8s = k8s_template.template_with(&variables).unwrap();

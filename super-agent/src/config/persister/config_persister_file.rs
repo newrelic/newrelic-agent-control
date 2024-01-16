@@ -78,8 +78,8 @@ where
             .try_for_each(|(_fqn, end_spec)| {
                 self.write_file_values_to_file(
                     dest_path.as_path(),
-                    &end_spec.kind.variable_type(),
-                    &end_spec.kind.get_final_value(),
+                    &end_spec.variable_type(),
+                    &end_spec.get_final_value(),
                 )
             });
 

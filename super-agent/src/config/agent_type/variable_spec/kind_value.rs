@@ -73,3 +73,44 @@ where
         })
     }
 }
+
+#[cfg(test)]
+mod test {
+    use std::path::PathBuf;
+
+    use super::{KindValue, KindValueWithPath};
+
+    impl<T> KindValue<T>
+    where
+        T: PartialEq,
+    {
+        pub(crate) fn new(required: bool, default: Option<T>, final_value: Option<T>) -> Self {
+            Self {
+                required,
+                default,
+                final_value,
+            }
+        }
+    }
+
+    impl<T> KindValueWithPath<T>
+    where
+        T: PartialEq,
+    {
+        pub(crate) fn new(
+            required: bool,
+            default: Option<T>,
+            final_value: Option<T>,
+            file_path: PathBuf,
+        ) -> Self {
+            Self {
+                inner: KindValue {
+                    required,
+                    default,
+                    final_value,
+                },
+                file_path,
+            }
+        }
+    }
+}

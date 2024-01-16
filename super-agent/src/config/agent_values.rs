@@ -8,7 +8,6 @@ use super::agent_type::agent_types::{AgentVariables, FinalAgent};
 use super::agent_type::error::AgentTypeError;
 use super::agent_type::runtime_config_templates::TEMPLATE_KEY_SEPARATOR;
 use super::agent_type::trivial_value::{FilePathWithContent, Number, TrivialValue};
-use super::agent_type::variable_spec::kind::Kind;
 use super::agent_type::variable_spec::kind_value::KindValue;
 use super::agent_type::variable_spec::spec::Spec;
 
@@ -409,63 +408,53 @@ deployment:
                     Spec::SpecMapping(HashMap::from([
                         (
                             "path".to_string(),
-                            Spec::SpecEnd(EndSpec {
-                                description: "Path to the agent".to_string(),
-                                kind: Kind::String(KindValue {
-                                    required: true,
-                                    default: None,
-                                    final_value: Some("/etc".into()),
-                                    file_path: None,
-                                }),
-                            }),
+                            Spec::SpecEnd(EndSpec::new(
+                                "Path to the agent".to_string(),
+                                true,
+                                None,
+                                Some("/etc".to_string()),
+                            )),
                         ),
                         (
                             "args".to_string(),
-                            Spec::SpecEnd(EndSpec {
-                                description: "Args passed to the agent".to_string(),
-                                kind: Kind::String(KindValue {
-                                    required: true,
-                                    default: None,
-                                    final_value: Some("--verbose true".into()),
-                                    file_path: None,
-                                }),
-                            }),
+                            Spec::SpecEnd(EndSpec::new(
+                                "Args passed to the agent".to_string(),
+                                true,
+                                None,
+                                Some("--verbose true".to_string()),
+                            )),
                         ),
                     ])),
                 )])),
             ),
             (
                 "config".to_string(),
-                Spec::SpecEnd(EndSpec {
-                    description: "Path to the agent".to_string(),
-                    kind: Kind::File(KindValue {
-                        required: true,
-                        default: None,
-                        final_value: Some(FilePathWithContent::new(
-                            "newrelic-infra.yml".into(),
-                            "test".to_string(),
-                        )),
-                        file_path: Some("newrelic-infra.yml".into()),
-                    }),
-                }),
+                Spec::SpecEnd(EndSpec::new_with_file_path(
+                    "Path to the agent".to_string(),
+                    true,
+                    None,
+                    Some(FilePathWithContent::new(
+                        "newrelic-infra.yml".into(),
+                        "test".to_string(),
+                    )),
+                    "newrelic-infra.yml".into(),
+                )),
             ),
             (
                 "integrations".to_string(),
-                Spec::SpecEnd(EndSpec {
-                    description: "Newrelic integrations configuration yamls".to_string(),
-                    kind: Kind::MapStringFile(KindValue {
-                        required: true,
-                        default: None,
-                        final_value: Some(HashMap::from([(
-                            "kafka".into(),
-                            FilePathWithContent::new(
-                                "integrations.d".into(),
-                                "strategy: bootstrap\n".to_string(),
-                            ),
-                        )])),
-                        file_path: Some("integrations.d".into()),
-                    }),
-                }),
+                Spec::SpecEnd(EndSpec::new_with_file_path(
+                    "Newrelic integrations configuration yamls".to_string(),
+                    true,
+                    None,
+                    Some(HashMap::from([(
+                        "kafka".into(),
+                        FilePathWithContent::new(
+                            "integrations.d".into(),
+                            "strategy: bootstrap\n".to_string(),
+                        ),
+                    )])),
+                    "integrations.d".into(),
+                )),
             ),
         ]);
 

@@ -212,13 +212,14 @@ impl FinalAgent {
         values: AgentValues,
     ) -> Result<(), AgentTypeError> {
         update_specs(values.inner(), &mut self.variables.0)?;
+
         // No item must be left without a final value
         let not_populated = self
             .variables
             .clone()
             .flatten()
             .into_iter()
-            .filter_map(|(k, endspec)| endspec.kind.get_final_value().is_none().then_some(k))
+            .filter_map(|(k, endspec)| endspec.get_final_value().is_none().then_some(k))
             .collect::<Vec<_>>();
 
         if !not_populated.is_empty() {
@@ -259,10 +260,10 @@ impl FinalAgent {
         let variables = if let Some(p) = agent_configs_path {
             let mut v = self.variables.clone().flatten();
             v.values_mut().for_each(|v| {
-                if let Some(file_path) = v.kind.get_file_path() {
+                if let Some(file_path) = v.get_file_path() {
                     let mut new_file_path = PathBuf::from(p);
                     new_file_path.push(file_path);
-                    v.kind.set_file_path(new_file_path);
+                    v.set_file_path(new_file_path);
                 }
             });
             v
@@ -292,7 +293,7 @@ fn update_specs(
             .ok_or_else(|| AgentTypeError::MissingAgentKey(k.clone()))?;
 
         match spec {
-            Spec::SpecEnd(EndSpec { kind, .. }) => kind.from_yaml_value(v)?,
+            Spec::SpecEnd(e) => e.merge_with_yaml_value(v)?,
             Spec::SpecMapping(m) => {
                 let v: HashMap<String, serde_yaml::Value> = serde_yaml::from_value(v)?;
                 update_specs(v, m)?
@@ -373,26 +374,10 @@ impl EndSpec {
     /// get_template_value returns the replacement value that will be used to substitute
     /// the placeholder from an agent_type when templating a config
     pub fn get_template_value(&self) -> Option<TrivialValue> {
-        match self.kind.variable_type() {
+        match self.get_file_path() {
             // For MapStringFile and file the file_path includes the full path with agent_configs_path
-            VariableType::MapStringFile => {
-                let inner_value: KindValueWithPath<HashMap<String, FilePathWithContent>> = (&self.kind)
-                    .try_into()
-                    .expect("`VariableType::MapStringFile`s can always be converted to KindValueWithPath<HashMap<String, FilePathWithContent>>");
-
-                Some(TrivialValue::String(
-                    inner_value.file_path.to_string_lossy().into(),
-                ))
-            }
-            VariableType::File => {
-                let inner_value: KindValueWithPath<FilePathWithContent> = (&self.kind)
-                    .try_into()
-                    .expect("`VariableType::File`s can always be converted to KindValueWithPath<FilePathWithContent>");
-                Some(TrivialValue::String(
-                    inner_value.file_path.to_string_lossy().into(),
-                ))
-            }
-            _ => self.kind.get_final_value(),
+            Some(p) => Some(TrivialValue::String(p.to_string_lossy().into())),
+            _ => self.get_final_value(),
         }
     }
 }
@@ -492,7 +477,7 @@ fn normalize_agent_spec(spec: AgentVariables) -> Result<NormalizedVariables, Age
     spec.0.into_iter().try_fold(HashMap::new(), |r, (k, v)| {
         let n_spec = inner_normalize(k, v);
         n_spec.iter().try_for_each(|(k, end_spec)| {
-            if end_spec.kind.is_not_required_without_default() {
+            if end_spec.is_not_required_without_default() {
                 return Err(AgentTypeError::MissingDefaultWithKey(k.clone()));
             }
             Ok(())
@@ -521,7 +506,7 @@ pub mod tests {
         agent_type::{
             restart_policy::{BackoffStrategyConfig, BackoffStrategyType},
             runtime_config::{Args, Env, Executable},
-            trivial_value::TrivialValue,
+            trivial_value::{Number, TrivialValue},
             variable_spec::kind_value::KindValue,
         },
         agent_values::AgentValues,
@@ -695,30 +680,32 @@ deployment:
 
         let expected_map: Map<String, EndSpec> = Map::from([(
             "description.name".to_string(),
-            EndSpec {
-                description: "Name of the agent".to_string(),
-                kind: KindValue {
-                    required: false,
-                    default: Some("nrdot".to_string()),
-                    final_value: None,
-                }
-                .into(),
-            },
+            EndSpec::new(
+                "Name of the agent".to_string(),
+                false,
+                Some("nrdot".to_string()),
+                None,
+            ), // EndSpec {
+               //     description: "Name of the agent".to_string(),
+               //     kind: KindValue {
+               //         required: false,
+               //         default: Some("nrdot".to_string()),
+               //         final_value: None,
+               //     }
+               //     .into(),
+               // },
         )]);
 
         // expect output to be the map
 
         assert_eq!(expected_map, given_agent.variables.clone().flatten());
 
-        let expected_spec = EndSpec {
-            description: "Name of the agent".to_string(),
-            kind: KindValue {
-                required: false,
-                default: Some("nrdot".to_string()),
-                final_value: None,
-            }
-            .into(),
-        };
+        let expected_spec = EndSpec::new(
+            "Name of the agent".to_string(),
+            false,
+            Some("nrdot".to_string()),
+            None,
+        );
 
         assert_eq!(
             expected_spec,
@@ -753,139 +740,99 @@ deployment:
         let normalized_values = Map::from([
             (
                 "bin".to_string(),
-                EndSpec {
-                    description: "binary".to_string(),
-                    kind: KindValue {
-                        default: None,
-                        required: true,
-                        final_value: Some("/etc".to_string()),
-                    }
-                    .into(),
-                },
+                EndSpec::new("binary".to_string(), true, None, Some("/etc".to_string())),
             ),
             (
                 "config".to_string(),
-                EndSpec {
-                    description: "config".to_string(),
-                    kind: KindValueWithPath {
-                        inner: KindValue {
-                            required: true,
-                            default: None,
-                            final_value: Some(FilePathWithContent::new(
-                                "config2.yml".into(),
-                                "license_key: abc123\nstaging: true\n".to_string(),
-                            )),
-                        },
-                        file_path: "config_path".into(),
-                    }
-                    .into(),
-                },
+                EndSpec::new_with_file_path(
+                    "config".to_string(),
+                    true,
+                    None,
+                    Some(FilePathWithContent::new(
+                        "config2.yml".into(),
+                        "license_key: abc123\nstaging: true\n".to_string(),
+                    )),
+                    "config_path".into(),
+                ),
             ),
             (
                 "integrations".to_string(),
-                EndSpec {
-                    description: "integrations".to_string(),
-                    kind: KindValue {
-                        final_value: Some(HashMap::from([
-                            (
-                                "kafka.yml".to_string(),
-                                FilePathWithContent::new(
-                                    "config2.yml".into(),
-                                    "license_key: abc123\nstaging: true\n".to_string(),
-                                ),
+                EndSpec::new_with_file_path(
+                    "integrations".to_string(),
+                    true,
+                    None,
+                    Some(HashMap::from([
+                        (
+                            "kafka.yml".to_string(),
+                            FilePathWithContent::new(
+                                "config2.yml".into(),
+                                "license_key: abc123\nstaging: true\n".to_string(),
                             ),
-                            (
-                                "redis.yml".to_string(),
-                                FilePathWithContent::new(
-                                    "config2.yml".into(),
-                                    "license_key: abc123\nstaging: true\n".to_string(),
-                                ),
+                        ),
+                        (
+                            "redis.yml".to_string(),
+                            FilePathWithContent::new(
+                                "config2.yml".into(),
+                                "license_key: abc123\nstaging: true\n".to_string(),
                             ),
-                        ])),
-                        default: None,
-                        required: true,
-                        file_path: Some("integration_path".into()),
-                    }
-                    .into(),
-                },
+                        ),
+                    ])),
+                    "integration_path".into(),
+                ),
             ),
             (
                 "deployment.on_host.verbose".to_string(),
-                EndSpec {
-                    description: "verbosity".to_string(),
-                    kind: KindValue {
-                        default: None,
-                        required: true,
-                        final_value: Some("true".to_string()),
-                        file_path: None,
-                    }
-                    .into(),
-                },
+                EndSpec::new(
+                    "verbosity".to_string(),
+                    true,
+                    None,
+                    Some("true".to_string()),
+                ),
             ),
             (
                 "deployment.on_host.log_level".to_string(),
-                EndSpec {
-                    description: "log_level".to_string(),
-                    kind: KindValue {
-                        default: None,
-                        required: true,
-                        final_value: Some("trace".to_string()),
-                        file_path: None,
-                    }
-                    .into(),
-                },
+                EndSpec::new(
+                    "log_level".to_string(),
+                    true,
+                    None,
+                    Some("trace".to_string()),
+                ),
             ),
             (
                 "backoff.type".to_string(),
-                EndSpec {
-                    description: "backoff_type".to_string(),
-                    kind: KindValue {
-                        default: None,
-                        required: true,
-                        final_value: Some("exponential".to_string()),
-                        file_path: Some("some_path".into()),
-                    }
-                    .into(),
-                },
+                EndSpec::new(
+                    "backoff_type".to_string(),
+                    true,
+                    None,
+                    Some("exponential".to_string()),
+                ),
             ),
             (
                 "backoff.delay".to_string(),
-                EndSpec {
-                    description: "backoff_delay".to_string(),
-                    kind: KindValue {
-                        required: true,
-                        default: None,
-                        final_value: Some("10s".to_string()),
-                        file_path: Some("some_path".into()),
-                    }
-                    .into(),
-                },
+                EndSpec::new(
+                    "backoff_delay".to_string(),
+                    true,
+                    None,
+                    Some("10s".to_string()),
+                ),
             ),
             (
                 "backoff.retries".to_string(),
-                EndSpec {
-                    description: "backoff_retries".to_string(),
-                    kind: KindValue {
-                        default: None,
-                        required: true,
-                        final_value: Some(PosInt(30)),
-                        file_path: Some("some_path".into()),
-                    }
-                    .into(),
-                },
+                EndSpec::new(
+                    "backoff_retries".to_string(),
+                    true,
+                    None,
+                    Some(Number::PosInt(30)),
+                ),
             ),
             (
                 "backoff.interval".to_string(),
-                EndSpec {
-                    description: "backoff_interval".to_string(),
-                    kind: KindValue {
-                        default: None,
-                        required: true,
-                        final_value: Some("300s".to_string()),
-                        file_path: Some("some_path".into()),
-                    }
-                    .into(),
-                },
+                EndSpec::new(
+                    "backoff_interval".to_string(),
+                    true,
+                    None,
+                    Some("300s".to_string()),
+                ),
             ),
         ]);
 
@@ -964,81 +911,52 @@ deployment:
         let normalized_values = Map::from([
             (
                 "bin".to_string(),
-                EndSpec {
-                    description: "binary".to_string(),
-                    kind: KindValue {
-                        default: None,
-                        required: true,
-                        final_value: Some("/etc".to_string()),
-                        file_path: None,
-                    }
-                    .into(),
-                },
+                EndSpec::new("binary".to_string(), true, None, Some("/etc".to_string())),
             ),
             (
                 "deployment.on_host.verbose".to_string(),
-                EndSpec {
-                    description: "verbosity".to_string(),
-                    kind: KindValue {
-                        default: None,
-                        required: true,
-                        final_value: Some("true".to_string()),
-                        file_path: None,
-                    }
-                    .into(),
-                },
+                EndSpec::new(
+                    "verbosity".to_string(),
+                    true,
+                    None,
+                    Some("true".to_string()),
+                ),
             ),
             (
                 "backoff.type".to_string(),
-                EndSpec {
-                    description: "backoff_type".to_string(),
-                    kind: KindValue {
-                        default: None,
-                        required: true,
-                        final_value: Some("linear".to_string()),
-                        file_path: Some("some_path".into()),
-                    }
-                    .into(),
-                },
+                EndSpec::new(
+                    "backoff_type".to_string(),
+                    true,
+                    None,
+                    Some("linear".to_string()),
+                ),
             ),
             (
                 "backoff.delay".to_string(),
-                EndSpec {
-                    description: "backoff_delay".to_string(),
-                    kind: KindValue {
-                        default: None,
-                        required: true,
-                        final_value: Some("10s".to_string()),
-                        file_path: Some("some_path".into()),
-                    }
-                    .into(),
-                },
+                EndSpec::new(
+                    "backoff_delay".to_string(),
+                    true,
+                    None,
+                    Some("10s".to_string()),
+                ),
             ),
             (
                 "backoff.retries".to_string(),
-                EndSpec {
-                    description: "backoff_retries".to_string(),
-                    kind: KindValue {
-                        default: None,
-                        required: true,
-                        final_value: Some(PosInt(30)),
-                        file_path: Some("some_path".into()),
-                    }
-                    .into(),
-                },
+                EndSpec::new(
+                    "backoff_retries".to_string(),
+                    true,
+                    None,
+                    Some(Number::PosInt(30)),
+                ),
             ),
             (
                 "backoff.interval".to_string(),
-                EndSpec {
-                    description: "backoff_interval".to_string(),
-                    kind: KindValue {
-                        default: None,
-                        required: true,
-                        final_value: Some("300s".to_string()),
-                        file_path: Some("some_path".into()),
-                    }
-                    .into(),
-                },
+                EndSpec::new(
+                    "backoff_interval".to_string(),
+                    true,
+                    None,
+                    Some("300s".to_string()),
+                ),
             ),
         ]);
 
@@ -1190,7 +1108,6 @@ config:
                 .get_variables()
                 .get("config3")
                 .unwrap()
-                .kind
                 .get_final_value()
                 .as_ref()
                 .unwrap()
@@ -1202,7 +1119,6 @@ config:
                 .get_variables()
                 .get("config2")
                 .unwrap()
-                .kind
                 .get_final_value()
                 .as_ref()
                 .unwrap()
@@ -1214,7 +1130,6 @@ config:
                 .get_variables()
                 .get("config")
                 .unwrap()
-                .kind
                 .get_final_value()
                 .as_ref()
                 .unwrap()
@@ -1226,7 +1141,6 @@ config:
                 .get_variables()
                 .get("integrations")
                 .unwrap()
-                .kind
                 .get_final_value()
                 .as_ref()
                 .unwrap()
