@@ -70,10 +70,11 @@ deployment:
 "#;
 
 const AGENT_VALUES_SINGLE_FILE: &str = r#"
-config_file: |
-  license_key: 1234567890987654321
-  log:
-    level: debug
+config_file:
+  content: |
+    license_key: 1234567890987654321
+    log:
+      level: debug
 "#;
 
 const EXPECTED_CONTENT_SINGLE_FILE: &str = r#"license_key: 1234567890987654321

@@ -283,18 +283,20 @@ impl FinalAgent {
 }
 
 fn update_specs(
-    values: serde_yaml::Value,
+    values: HashMap<String, serde_yaml::Value>,
     agent_vars: &mut HashMap<String, Spec>,
 ) -> Result<(), AgentTypeError> {
-    let values: HashMap<String, serde_yaml::Value> = serde_yaml::from_value(values)?;
     for (ref k, v) in values.into_iter() {
         let spec = agent_vars
-            .get_mut(k)
-            .ok_or_else(|| AgentTypeError::MissingAgentKey(k.clone()))?;
-
-        match spec {
-            Spec::SpecEnd(EndSpec { kind, .. }) => kind.from_yaml_value(v)?,
-            Spec::SpecMapping(m) => update_specs(v, m)?,
+        .get_mut(k)
+        .ok_or_else(|| AgentTypeError::MissingAgentKey(k.clone()))?;
+    
+    match spec {
+        Spec::SpecEnd(EndSpec { kind, .. }) => kind.from_yaml_value(v)?,
+        Spec::SpecMapping(m) => {
+                let v: HashMap<String, serde_yaml::Value> = serde_yaml::from_value(v)?;
+                update_specs(v, m)?
+            },
         }
     }
     Ok(())

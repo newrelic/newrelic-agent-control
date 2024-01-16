@@ -115,10 +115,10 @@ mod tests {
         hash_repository.should_save_hash(&agent_id, &hash);
         values_repository.should_store_remote(
             &agent_id,
-            &AgentValues::new(Value::Mapping(Mapping::from_iter([(
+            &AgentValues::new(HashMap::from([(
                 "some_item".into(),
                 "some_value".into(),
-            )]))),
+            )])),
         );
 
         let remote_config = RemoteConfig {

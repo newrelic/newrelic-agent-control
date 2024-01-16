@@ -198,10 +198,10 @@ pub mod test {
             //     String::from("some_item"),
             //     TrivialValue::String(String::from("some_value")),
             // )])),
-            &AgentValues::new(Value::Mapping(Mapping::from_iter([(
-                Value::String("some_item".to_string()),
-                Value::String("some_value".to_string()),
-            )]))),
+            &AgentValues::new(HashMap::from([(
+                "some_item".into(),
+                "some_value".into(),
+            )])),
         );
 
         let remote_config = RemoteConfig {

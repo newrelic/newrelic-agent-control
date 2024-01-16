@@ -92,7 +92,7 @@ use crate::config::agent_type::variable_spec::spec::EndSpec;
 ///
 /// [agent_type]: crate::config::agent_type
 #[derive(Debug, PartialEq, Deserialize, Serialize, Default, Clone)]
-pub struct AgentValues(serde_yaml::Value);
+pub struct AgentValues(HashMap<String, serde_yaml::Value>);
 
 #[derive(Debug, PartialEq, Deserialize, Serialize, Default, Clone)]
 pub struct NormalizedValues(HashMap<String, TrivialValue>);
@@ -118,7 +118,7 @@ impl AgentValues {
     //     get_from_normalized(&self.0, normalized_prefix)
     // }
 
-    pub(crate) fn new(values: serde_yaml::Value) -> Self {
+    pub(crate) fn new(values: HashMap<String, serde_yaml::Value>) -> Self {
         Self(values)
     }
 
@@ -126,7 +126,7 @@ impl AgentValues {
         self.0.get(key)
     }
 
-    pub(crate) fn inner(self) -> serde_yaml::Value {
+    pub(crate) fn inner(self) -> HashMap<String, serde_yaml::Value> {
         self.0
     }
 
@@ -347,7 +347,7 @@ verbose: true
             (Value::String("verbose".to_string()), Value::Bool(true)),
         ]));
 
-        assert_eq!(actual.0, expected);
+        assert_eq!(actual.0, serde_yaml::from_value(expected).unwrap());
     }
 
     const EXAMPLE_CONFIG_REPLACE: &str = r#"
