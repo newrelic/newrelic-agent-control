@@ -97,6 +97,12 @@ pub struct AgentValues(serde_yaml::Value);
 #[derive(Debug, PartialEq, Deserialize, Serialize, Default, Clone)]
 pub struct NormalizedValues(HashMap<String, TrivialValue>);
 
+impl NormalizedValues {
+    pub(crate) fn get(&self, key: &str) -> Option<&TrivialValue> {
+        self.0.get(key)
+    }
+}
+
 #[derive(Error, Debug)]
 pub enum AgentValuesError {
     #[error("invalid agent values format: `{0}`")]
@@ -116,18 +122,44 @@ impl AgentValues {
         Self(values)
     }
 
+    pub(crate) fn get(&self, key: &str) -> Option<&Value> {
+        self.0.get(key)
+    }
+
     // pub(crate) fn flatten(&self) -> HashMap<String, TrivialValue> {
     //     let mut flattened = HashMap::default();
     //     inner_flatten(&self.0, &mut flattened, "".to_string());
     //     flattened
     // }
 
-    /// normalize_with_agent_type verifies that all required Agent variables are defined in the
-    /// SubAgentConfig and transforms the types with check_type
     pub(crate) fn normalize_with_agent_type(
-        mut self,
-        agent_type: &FinalAgent,
+        self,
+        agent_type: &mut FinalAgent,
     ) -> Result<NormalizedValues, AgentTypeError> {
+        let values = self.0;
+        let vars = &mut agent_type.variables.0;
+
+        // update specs with values
+        update_specs(values, vars)?;
+
+        // normalize values
+        let normalized = agent_type.variables.clone().flatten();
+
+        // build trivialvalues from endspecs
+        Ok(NormalizedValues(
+            normalized
+                .into_iter()
+                .map(|(k, v)| {
+                    (
+                        k,
+                        v.kind
+                            .get_final_value()
+                            .expect("EndSpec must contain values at this point"),
+                    )
+                })
+                .collect(),
+        ))
+
         // let mut normalized_values = HashMap::default();
         // for (k, v) in agent_type.variables.0.iter() {
         //     let value = get_from_normalized(&self.0, k);
@@ -142,8 +174,6 @@ impl AgentValues {
         //         let _ = update_from_normalized(&mut self.0, k, inner.clone().check_type(v)?);
         //     }
         // }
-
-        todo!("normalize_with_agent_type")
     }
 }
 
@@ -163,62 +193,6 @@ fn update_specs(
         }
     }
     Ok(())
-}
-
-impl From<AgentValues> for NormalizedValues {
-    fn from(value: AgentValues) -> Self {
-        let mut flattened = HashMap::default();
-        inner_flatten(&value.0, &mut flattened, "".to_string());
-        Self(flattened)
-    }
-}
-
-fn inner_flatten(
-    inner: &serde_yaml::Value,
-    flattened: &mut HashMap<String, TrivialValue>,
-    prefix: String,
-) {
-    match inner {
-        Value::Mapping(m) if m.keys().all(|s| s.is_string()) => {
-            for (k, v) in m.iter() {
-                let mut new_prefix = prefix.clone();
-                if !new_prefix.is_empty() {
-                    new_prefix.push_str(TEMPLATE_KEY_SEPARATOR);
-                }
-                new_prefix.push_str(k.as_str().expect("Keys for this mapping must be strings"));
-                inner_flatten(v, flattened, new_prefix);
-            }
-        }
-        Value::String(s) => {
-            flattened.insert(prefix, TrivialValue::String(s.clone()));
-        }
-        Value::Bool(b) => {
-            flattened.insert(prefix, TrivialValue::Bool(*b));
-        }
-        n @ Value::Number(_) => {
-            flattened.insert(
-                prefix,
-                TrivialValue::Number(serde_yaml::from_value(n.to_owned()).expect(
-                    "serde_yaml::Number must be convertible to our super-agent's Number type",
-                )),
-            );
-        }
-        otherwise => {
-            flattened.insert(prefix, TrivialValue::Yaml(otherwise.clone()));
-        } // Value::Sequence(s) => {
-          //     flattened.insert(
-          //         prefix,
-          //         TrivialValue::Sequence(
-          //             s.iter()
-          //                 .map(|v| TrivialValue::from(v.clone()))
-          //                 .collect(),
-          //         ),
-          //     );
-          // }
-          // Value::Null => {
-          //     flattened.insert(prefix, TrivialValue::Null);
-          // }
-    }
 }
 
 // fn normalize_values(
@@ -494,7 +468,7 @@ deployment:
     #[test]
     fn test_validate_with_agent_type() {
         let input_structure = serde_yaml::from_str::<AgentValues>(EXAMPLE_CONFIG_REPLACE).unwrap();
-        let agent_type = serde_yaml::from_str::<FinalAgent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
+        let mut agent_type = serde_yaml::from_str::<FinalAgent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
 
         let expected = NormalizedValues(HashMap::from([
             (
@@ -554,7 +528,7 @@ deployment:
         //     ),
         // ]);
         let actual = input_structure
-            .normalize_with_agent_type(&agent_type)
+            .normalize_with_agent_type(&mut agent_type)
             .unwrap();
 
         assert_eq!(expected, actual);
@@ -572,9 +546,9 @@ deployment:
     fn test_validate_with_agent_type_missing_required() {
         let input_structure =
             serde_yaml::from_str::<AgentValues>(EXAMPLE_CONFIG_REPLACE_NOPATH).unwrap();
-        let agent_type = serde_yaml::from_str::<FinalAgent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
+        let mut agent_type = serde_yaml::from_str::<FinalAgent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
 
-        let actual = input_structure.normalize_with_agent_type(&agent_type);
+        let actual = input_structure.normalize_with_agent_type(&mut agent_type);
 
         assert!(actual.is_err());
         assert_eq!(
@@ -596,9 +570,9 @@ deployment:
     fn test_validate_with_agent_type_wrong_value_type() {
         let input_structure =
             serde_yaml::from_str::<AgentValues>(EXAMPLE_CONFIG_REPLACE_WRONG_TYPE).unwrap();
-        let agent_type = serde_yaml::from_str::<FinalAgent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
+        let mut agent_type = serde_yaml::from_str::<FinalAgent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
 
-        let actual = input_structure.normalize_with_agent_type(&agent_type);
+        let actual = input_structure.normalize_with_agent_type(&mut agent_type);
 
         assert!(actual.is_err());
         assert_eq!(

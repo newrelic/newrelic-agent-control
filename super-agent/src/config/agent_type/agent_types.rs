@@ -202,8 +202,8 @@ impl FinalAgent {
         self.metadata.to_string().as_str().into()
     }
 
-    pub fn get_variables(&self) -> &NormalizedVariables {
-        &self.variables.flatten()
+    pub fn get_variables(&self) -> NormalizedVariables {
+        self.variables.clone().flatten()
     }
 
     #[cfg_attr(doc, aquamarine::aquamarine)]
@@ -211,34 +211,34 @@ impl FinalAgent {
     ///
     /// This method will return an error if the user-provided config does not conform to the agent type's spec.
     pub fn template_with(
-        self,
+        mut self,
         config: AgentValues,
         agent_configs_path: Option<&str>,
     ) -> Result<FinalAgent, AgentTypeError> {
         // let normalized_config = NormalizedSupervisorConfig::from(config);
         // let validated_conf = validate_with_agent_type(normalized_config, &self)?;
-        let config = config.normalize_with_agent_type(&self)?;
+        let config = config.normalize_with_agent_type(&mut self)?;
 
         // let runtime_conf = self.runtime_config.template_with(validated_conf.clone())?;
-        let mut spec = self.variables;
+        // let mut spec = config.variables;
 
-        // modifies variables final value with the one defined in the SupervisorConfig
-        spec.0
-            .iter_mut()
-            .try_for_each(|(k, v)| -> Result<(), AgentTypeError> {
-                // let defined_value = config.get_from_normalized(k);
-                // v.kind.set_final_value(defined_value)?;
-                match config.get_from_normalized(k) {
-                    Some(value) => v.kind.set_final_value(value),
-                    None => Ok(v.kind.set_default_as_final()),
-                }
-            })?;
+        // // modifies variables final value with the one defined in the SupervisorConfig
+        // spec.0
+        //     .iter_mut()
+        //     .try_for_each(|(k, v)| -> Result<(), AgentTypeError> {
+        //         // let defined_value = config.get_from_normalized(k);
+        //         // v.kind.set_final_value(defined_value)?;
+        //         match config.get_from_normalized(k) {
+        //             Some(value) => v.kind.set_final_value(value),
+        //             None => Ok(v.kind.set_default_as_final()),
+        //         }
+        //     })?;
 
-        let runtime_conf = self.runtime_config.template_with(&spec)?;
+        let runtime_conf = self.runtime_config.template_with(&self.variables.clone().flatten())?;
 
         let populated_agent = FinalAgent {
             runtime_config: runtime_conf,
-            variables: spec,
+            // variables: spec,
             ..self
         };
 
@@ -658,7 +658,7 @@ deployment:
 
         // expect output to be the map
 
-        assert_eq!(expected_map, given_agent.variables.flatten());
+        assert_eq!(expected_map, given_agent.variables.clone().flatten());
 
         let expected_spec = EndSpec {
             description: "Name of the agent".to_string(),

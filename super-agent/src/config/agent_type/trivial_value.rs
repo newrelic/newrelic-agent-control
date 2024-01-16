@@ -6,7 +6,7 @@ use std::{
 use crate::config::agent_type::agent_types::AgentTypeEndSpec;
 use serde::{Deserialize, Serialize};
 
-use super::{agent_types::VariableType, error::AgentTypeError};
+use super::{agent_types::VariableType, error::AgentTypeError, variable_spec::{spec::EndSpec, kind::Kind}};
 
 /// Represents all the allowed types for a configuration defined in the spec value.
 #[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]

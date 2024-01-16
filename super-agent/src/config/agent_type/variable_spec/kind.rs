@@ -264,27 +264,41 @@ impl Kind {
         match self {
             Kind::String(k) => k
                 .final_value
-                .or(k.default)
-                .clone()
+                .as_ref()
+                .or(k.default.as_ref())
+                .cloned()
                 .map(TrivialValue::String),
-            Kind::Bool(k) => k.final_value.or(k.default).clone().map(TrivialValue::Bool),
+            Kind::Bool(k) => k.final_value.or(k.default).map(TrivialValue::Bool),
             Kind::Number(k) => k
                 .final_value
-                .or(k.default)
-                .clone()
+                .as_ref()
+                .or(k.default.as_ref())
+                .cloned()
                 .map(TrivialValue::Number),
-            Kind::File(k) => k.final_value.or(k.default).clone().map(TrivialValue::File),
+            Kind::File(k) => k
+                .final_value
+                .as_ref()
+                .or(k.default.as_ref())
+                .cloned()
+                .map(TrivialValue::File),
             Kind::MapStringString(k) => k
                 .final_value
-                .or(k.default)
-                .clone()
+                .as_ref()
+                .or(k.default.as_ref())
+                .cloned()
                 .map(TrivialValue::MapStringString),
             Kind::MapStringFile(k) => k
                 .final_value
-                .or(k.default)
-                .clone()
+                .as_ref()
+                .or(k.default.as_ref())
+                .cloned()
                 .map(TrivialValue::MapStringFile),
-            Kind::Yaml(k) => k.final_value.or(k.default).clone().map(TrivialValue::Yaml),
+            Kind::Yaml(k) => k
+                .final_value
+                .as_ref()
+                .or(k.default.as_ref())
+                .cloned()
+                .map(TrivialValue::Yaml),
         }
     }
 }
