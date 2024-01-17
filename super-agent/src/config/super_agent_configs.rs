@@ -11,7 +11,7 @@ use thiserror::Error;
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
 use kube::core::TypeMeta;
 
-const AGENT_ID_MAX_LENGTH: usize = 63;
+const AGENT_ID_MAX_LENGTH: usize = 32;
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Hash, Eq)]
 #[serde(try_from = "String")]
@@ -19,7 +19,7 @@ pub struct AgentID(String);
 
 #[derive(Error, Debug)]
 pub enum AgentTypeError {
-    #[error("AgentID allows only RFC-1035 Label Names: 63 characters at most, contain alphanumeric only, start with alphabetic, and end with alphanumeric")]
+    #[error("AgentID must contain 32 characters at most, contain alphanumeric only, start with alphabetic, and end with alphanumeric")]
     InvalidAgentID,
     #[error("AgentID '{0}' is reserved")]
     InvalidAgentIDUsesReservedOne(String),
@@ -57,7 +57,8 @@ impl AgentID {
         self.0.eq(SUPER_AGENT_ID)
     }
     /// Checks if a string reference has valid format to build an [AgentID].
-    /// It needs to follow [RFC 1035 Label names](https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#rfc-1035-label-names).
+    /// It follows [RFC 1035 Label names](https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#rfc-1035-label-names),
+    /// and sets a shorter maximum length to avoid issues when the agent-id is used to compose names.
     fn check_string(s: &str) -> bool {
         s.len() <= AGENT_ID_MAX_LENGTH
             && s.starts_with(|c: char| c.is_alphabetic())
@@ -345,10 +346,10 @@ k8s:
         assert!(AgentID::try_from("a01b".to_string()).is_ok());
         assert!(AgentID::try_from("a-1-b".to_string()).is_ok());
         assert!(AgentID::try_from("a-1".to_string()).is_ok());
-        assert!(AgentID::try_from("a".repeat(63)).is_ok());
+        assert!(AgentID::try_from("a".repeat(32)).is_ok());
         assert!(AgentID::try_from("A".to_string()).is_err());
         assert!(AgentID::try_from("1a".to_string()).is_err());
-        assert!(AgentID::try_from("a".repeat(64)).is_err());
+        assert!(AgentID::try_from("a".repeat(33)).is_err());
         assert!(AgentID::try_from("abc012-".to_string()).is_err());
         assert!(AgentID::try_from("-abc012".to_string()).is_err());
         assert!(AgentID::try_from("-".to_string()).is_err());
@@ -387,7 +388,7 @@ k8s:
         assert!(actual
             .unwrap_err()
             .to_string()
-            .contains("AgentID allows only RFC-1035 Label Names: 63 characters at most, contain alphanumeric only, start with alphabetic, and end with alphanumeric"))
+            .contains("AgentID must contain 32 characters at most, contain alphanumeric only, start with alphabetic, and end with alphanumeric"))
     }
 
     #[test]
