@@ -897,10 +897,9 @@ variables:
     description: "Newrelic infra configuration yaml"
     type: file
     required: false
-    default:
-      content: |
-        license_key: abc123
-        staging: true
+    default: |
+      license_key: abc123
+      staging: true
     file_path: "config2.yml"
   config3:
     description: "Newrelic infra configuration yaml"
@@ -911,9 +910,8 @@ variables:
     type: map[string]file
     required: true
     default:
-      kafka:
-        content: |
-          bootstrap: zookeeper
+      kafka: |
+        bootstrap: zookeeper
     file_path: "integrations.d"
 deployment:
   on_host:
@@ -928,16 +926,13 @@ config3:
   log_level: trace
   forward: "true"
 integrations:
-  kafka.conf: 
-    content: |
-      strategy: bootstrap
-  redis.yml:
-    content: |
-      user: redis
-config:
-  content: | 
-    license_key: abc124
-    staging: false
+  kafka.conf: |
+    strategy: bootstrap
+  redis.yml: |
+    user: redis
+config: |
+  license_key: abc124
+  staging: false
 "#;
 
     #[test]

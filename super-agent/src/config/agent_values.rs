@@ -211,12 +211,11 @@ deployment:
   on_host:
     path: "/etc"
     args: --verbose true
-config: 
-  content: test
+config: |
+  test
 integrations:
-  kafka:
-    content: |
-      strategy: bootstrap
+  kafka: |
+    strategy: bootstrap
 "#;
     const EXAMPLE_AGENT_YAML_REPLACE: &str = r#"
 name: nrdot
@@ -292,7 +291,7 @@ deployment:
                     None,
                     Some(FilePathWithContent::new(
                         "newrelic-infra.yml".into(),
-                        "test".to_string(),
+                        "test\n".to_string(),
                     )),
                     "newrelic-infra.yml".into(),
                 )),
@@ -396,8 +395,8 @@ deployment:
       on_host:
         args: --verbose true
     integrations: {}
-    config: 
-      content: test
+    config: |
+      test
     "#;
 
     #[test]
@@ -417,8 +416,8 @@ deployment:
     }
 
     const EXAMPLE_CONFIG_REPLACE_WRONG_TYPE: &str = r#"
-    config: 
-      content: test
+    config: |
+      test
     deployment:
       on_host:
         path: true

@@ -133,10 +133,12 @@ impl Display for TrivialValue {
 
 /// Represents a file path and its content.
 #[derive(Debug, PartialEq, Default, Clone, Deserialize, Serialize)]
+#[serde(from = "String")]
+#[serde(into = "String")]
 pub struct FilePathWithContent {
     #[serde(skip)]
     pub path: PathBuf,
-    // #[serde(flatten)]
+    #[serde(flatten)]
     pub content: String,
 }
 
@@ -146,6 +148,22 @@ impl FilePathWithContent {
     }
     pub fn with_path(&mut self, path: PathBuf) {
         self.path = path;
+    }
+}
+
+// The minimum information needed to create a FilePathWithContent is the contents
+impl From<String> for FilePathWithContent {
+    fn from(content: String) -> Self {
+        FilePathWithContent {
+            content,
+            ..Default::default()
+        }
+    }
+}
+
+impl From<FilePathWithContent> for String {
+    fn from(file: FilePathWithContent) -> Self {
+        file.content
     }
 }
 
@@ -191,7 +209,7 @@ mod test {
         let file = FilePathWithContent::new("path".into(), "file_content".to_string());
         assert_eq!(
             serde_yaml::to_string(&file).unwrap(),
-            "content: file_content\n"
+            "file_content\n"
         );
     }
 }
