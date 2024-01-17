@@ -57,6 +57,9 @@ pub enum SubAgentError {
 
     #[error("Error publishing event: `{0}`")]
     EventPublisherError(#[from] EventPublisherError),
+
+    #[error("Error handling thread: `{0}`")]
+    PoisonError(String),
 }
 
 #[derive(Error, Debug)]

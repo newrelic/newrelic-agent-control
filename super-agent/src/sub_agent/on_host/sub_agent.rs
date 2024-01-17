@@ -1,6 +1,6 @@
 use std::thread::JoinHandle;
 
-use tracing::{debug, error};
+use tracing::debug;
 
 use super::supervisor::command_supervisor::SupervisorOnHost;
 use crate::config::super_agent_configs::AgentID;
@@ -94,32 +94,12 @@ where
 impl StartedSubAgent for SubAgentOnHost<Started, command_supervisor::Started> {
     fn stop(self) -> Result<Vec<JoinHandle<()>>, SubAgentError> {
         let stopped_supervisors = self.supervisors.into_iter().map(|s| s.stop()).collect();
-        let _ = self
-            .sub_agent_internal_publisher
-            .publish(SubAgentInternalEvent::StopRequested)
-            .map_err(|e| {
-                error!(
-                    "cannot publish StopRequested to sub_agent_internal_publisher: {}",
-                    e.to_string()
-                )
-            });
+        self.sub_agent_internal_publisher
+            .publish(SubAgentInternalEvent::StopRequested)?;
 
-        self.state.event_loop_handle.join().map_or_else(
-            |_| {
-                error!("unexpected error in event process join handle");
-            },
-            |res| match res {
-                Err(sub_agent_err) => {
-                    error!(
-                        "error stopping sub agent process loop: {}",
-                        sub_agent_err.to_string()
-                    )
-                }
-                Ok(()) => {
-                    debug!("sub agent process loop stopped successfully");
-                }
-            },
-        );
+        self.state.event_loop_handle.join().map_err(|_| {
+            SubAgentError::PoisonError(String::from("error handling event_loop_handle"))
+        })??;
 
         Ok(stopped_supervisors)
     }
@@ -129,7 +109,6 @@ impl StartedSubAgent for SubAgentOnHost<Started, command_supervisor::Started> {
 mod test {
     use crate::config::super_agent_configs::AgentID;
     use crate::event::channel::pub_sub;
-    use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::sub_agent::on_host::event_processor::test::MockEventProcessorMock;
     use crate::sub_agent::on_host::sub_agent::SubAgentOnHost;
     use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent, SubAgentCallbacks};
