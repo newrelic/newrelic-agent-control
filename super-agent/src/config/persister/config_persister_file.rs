@@ -240,7 +240,7 @@ mod test {
         let mut file_writer = MockLocalFile::new();
         let mut directory_manager = MockDirectoryManagerMock::new();
         let file_permissions = Permissions::from_mode(FILE_PERMISSIONS);
-        let agent_id = AgentID::new("SomeAgentID").unwrap();
+        let agent_id = AgentID::new("some-agent-id").unwrap();
         let mut agent_type: FinalAgent =
             serde_yaml::from_reader(AGENT_TYPE_MULTIPLE_FILES.as_bytes()).unwrap();
         let agent_values: AgentValues =
@@ -305,7 +305,7 @@ mod test {
         let mut file_writer = MockLocalFile::new();
         let mut directory_manager = MockDirectoryManagerMock::new();
         let file_permissions = Permissions::from_mode(FILE_PERMISSIONS);
-        let agent_id = AgentID::new("SomeAgentID").unwrap();
+        let agent_id = AgentID::new("some-agent-id").unwrap();
         let mut agent_type: FinalAgent =
             serde_yaml::from_reader(AGENT_TYPE_SINGLE_MAP_FILE.as_bytes()).unwrap();
         let agent_values: AgentValues =
@@ -391,7 +391,7 @@ mod test {
         let mut file_writer = MockLocalFile::new();
         let mut directory_manager = MockDirectoryManagerMock::new();
         let file_permissions = Permissions::from_mode(FILE_PERMISSIONS);
-        let agent_id = AgentID::new("SomeAgentID").unwrap();
+        let agent_id = AgentID::new("some-agent-id").unwrap();
         let mut agent_type: FinalAgent =
             serde_yaml::from_reader(AGENT_TYPE_MULTIPLE_MAP_FILE.as_bytes()).unwrap();
         let agent_values: AgentValues =
@@ -487,7 +487,7 @@ mod test {
         let generated_conf_path = PathBuf::from("some/path");
         let file_writer = MockLocalFile::new();
         let mut directory_manager = MockDirectoryManagerMock::new();
-        let agent_id = AgentID::new("SomeAgentID").unwrap();
+        let agent_id = AgentID::new("some-agent-id").unwrap();
         let mut agent_type: FinalAgent =
             serde_yaml::from_reader(AGENT_TYPE_SINGLE_FILE.as_bytes()).unwrap();
         let agent_values: AgentValues =
@@ -529,7 +529,7 @@ mod test {
         let generated_conf_path = PathBuf::from("some/path");
         let file_writer = MockLocalFile::new();
         let mut directory_manager = MockDirectoryManagerMock::new();
-        let agent_id = AgentID::new("SomeAgentID").unwrap();
+        let agent_id = AgentID::new("some-agent-id").unwrap();
         let mut agent_type: FinalAgent =
             serde_yaml::from_reader(AGENT_TYPE_SINGLE_FILE.as_bytes()).unwrap();
         let agent_values: AgentValues =
@@ -566,7 +566,7 @@ mod test {
         let persist_result = persister.persist_agent_config(&agent_id, &agent_type);
         assert!(persist_result.is_err());
         assert_eq!(
-            "directory error: `cannot create directory `some/path/SomeAgentID` : `oh now...``"
+            "directory error: `cannot create directory `some/path/some-agent-id` : `oh now...``"
                 .to_string(),
             persist_result.err().unwrap().to_string()
         );
@@ -577,7 +577,7 @@ mod test {
         let generated_conf_path = PathBuf::from("some/path");
         let file_writer = MockLocalFile::new();
         let mut directory_manager = MockDirectoryManagerMock::new();
-        let agent_id = AgentID::new("SomeAgentID").unwrap();
+        let agent_id = AgentID::new("some-agent-id").unwrap();
         let mut agent_type: FinalAgent =
             serde_yaml::from_reader(AGENT_TYPE_SINGLE_FILE.as_bytes()).unwrap();
         let agent_values: AgentValues =
@@ -609,7 +609,7 @@ mod test {
         let persist_result = persister.persist_agent_config(&agent_id, &agent_type);
         assert!(persist_result.is_err());
         assert_eq!(
-            "directory error: `cannot create directory `some/path/SomeAgentID` : `oh now...``"
+            "directory error: `cannot create directory `some/path/some-agent-id` : `oh now...``"
                 .to_string(),
             persist_result.err().unwrap().to_string()
         );
@@ -620,7 +620,7 @@ mod test {
         let generated_conf_path = PathBuf::from("some/path");
         let mut file_writer = MockLocalFile::new();
         let mut directory_manager = MockDirectoryManagerMock::new();
-        let agent_id = AgentID::new("SomeAgentID").unwrap();
+        let agent_id = AgentID::new("some-agent-id").unwrap();
         let mut agent_type: FinalAgent =
             serde_yaml::from_reader(AGENT_TYPE_MULTIPLE_FILES.as_bytes()).unwrap();
         let agent_values: AgentValues =
@@ -668,7 +668,7 @@ mod test {
         let generated_conf_path = PathBuf::from("some/path");
         let mut file_writer = MockLocalFile::new();
         let mut directory_manager = MockDirectoryManagerMock::new();
-        let agent_id = AgentID::new("SomeAgentID").unwrap();
+        let agent_id = AgentID::new("some-agent-id").unwrap();
         let mut agent_type: FinalAgent =
             serde_yaml::from_reader(AGENT_TYPE_SINGLE_MAP_FILE.as_bytes()).unwrap();
         let agent_values: AgentValues =
@@ -728,7 +728,7 @@ mod test {
     #[test]
     fn test_persister_with_custom_data_dir() {
         let custom_data_dir = PathBuf::from("some/data/dir");
-        let agent_id = AgentID::new("some_agent_id").unwrap();
+        let agent_id = AgentID::new("some-agent-id").unwrap();
         let persister = ConfigurationPersisterFile::new(custom_data_dir.as_path());
         let autogenerated_path = persister.autogenerated_path(&agent_id);
         let mut expected_path = PathBuf::from(custom_data_dir);
@@ -741,7 +741,7 @@ mod test {
     #[test]
     fn test_persister_with_custom_data_dir_disallow_dots() {
         let custom_data_dir = PathBuf::from("some/../../data/dir");
-        let agent_id = AgentID::new("some_agent_id").unwrap();
+        let agent_id = AgentID::new("some-agent-id").unwrap();
         let persister = ConfigurationPersisterFile::new(custom_data_dir.as_path());
         let autogenerated_path = persister.autogenerated_path(&agent_id);
         let mut expected_path = PathBuf::from(custom_data_dir);

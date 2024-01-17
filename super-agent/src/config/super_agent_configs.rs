@@ -11,13 +11,15 @@ use thiserror::Error;
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
 use kube::core::TypeMeta;
 
+const AGENT_ID_MAX_LENGTH: usize = 32;
+
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Hash, Eq)]
 #[serde(try_from = "String")]
 pub struct AgentID(String);
 
 #[derive(Error, Debug)]
 pub enum AgentTypeError {
-    #[error("AgentID allows only a-zA-Z0-9_-")]
+    #[error("AgentID must contain 32 characters at most, contain alphanumeric only, start with alphabetic, and end with alphanumeric")]
     InvalidAgentID,
     #[error("AgentID '{0}' is reserved")]
     InvalidAgentIDUsesReservedOne(String),
@@ -32,10 +34,7 @@ impl TryFrom<String> for AgentID {
             ));
         }
 
-        if str
-            .chars()
-            .all(|x| x.is_alphanumeric() || x.eq(&'_') || x.eq(&'-'))
-        {
+        if AgentID::check_string(&str) {
             Ok(AgentID(str))
         } else {
             Err(AgentTypeError::InvalidAgentID)
@@ -56,6 +55,16 @@ impl AgentID {
     }
     pub fn is_super_agent_id(&self) -> bool {
         self.0.eq(SUPER_AGENT_ID)
+    }
+    /// Checks if a string reference has valid format to build an [AgentID].
+    /// It follows [RFC 1035 Label names](https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#rfc-1035-label-names),
+    /// and sets a shorter maximum length to avoid issues when the agent-id is used to compose names.
+    fn check_string(s: &str) -> bool {
+        s.len() <= AGENT_ID_MAX_LENGTH
+            && s.starts_with(|c: char| c.is_alphabetic())
+            && s.ends_with(|c: char| c.is_alphanumeric())
+            && s.chars()
+                .all(|c| c.eq(&'-') || c.is_numeric() || (c.is_alphabetic() && c.is_lowercase()))
     }
 }
 
@@ -259,7 +268,7 @@ opamp:
   headers:
     some-key: some-value
 agents:
-  agent_1:
+  agent-1:
     agent_type: namespace/agent_type:0.0.1
 "#;
 
@@ -272,13 +281,13 @@ opamp:
 
     const EXAMPLE_SUBAGENTS_CONFIG: &str = r#"
 agents:
-  agent_1:
+  agent-1:
     agent_type: namespace/agent_type:0.0.1
 "#;
 
     const EXAMPLE_K8S_CONFIG: &str = r#"
 agents:
-  agent_1:
+  agent-1:
     agent_type: namespace/agent_type:0.0.1
 k8s:
   namespace: default
@@ -296,7 +305,7 @@ opamp:
   endpoint: http://localhost:8080/some/path
   some-key: some-value
 agents:
-  agent_1:
+  agent-1:
     agent_type: namespace/agent_type:0.0.1
 "#;
 
@@ -305,7 +314,7 @@ opamp:
   endpoint: http://localhost:8080/some/path
   some-key: some-value
 agents:
-  agent_1:
+  agent-1:
     agent_type: namespace/agent_type:0.0.1
     agent_random: true
 "#;
@@ -324,7 +333,7 @@ agents:
 
     const SUPERAGENT_CONFIG_MISSING_K8S_FIELDS: &str = r#"
 agents:
-  agent_1:
+  agent-1:
     agent_type: namespace/agent_type:0.0.1
 k8s:
   cluster_name: some-cluster
@@ -333,12 +342,20 @@ k8s:
 
     #[test]
     fn agent_id_validator() {
-        assert!(AgentID::try_from("abc012_-".to_string()).is_ok());
         assert!(AgentID::try_from("ab".to_string()).is_ok());
-        assert!(AgentID::try_from("01".to_string()).is_ok());
-        assert!(AgentID::try_from("-".to_string()).is_ok());
+        assert!(AgentID::try_from("a01b".to_string()).is_ok());
+        assert!(AgentID::try_from("a-1-b".to_string()).is_ok());
+        assert!(AgentID::try_from("a-1".to_string()).is_ok());
+        assert!(AgentID::try_from("a".repeat(32)).is_ok());
+        assert!(AgentID::try_from("A".to_string()).is_err());
+        assert!(AgentID::try_from("1a".to_string()).is_err());
+        assert!(AgentID::try_from("a".repeat(33)).is_err());
+        assert!(AgentID::try_from("abc012-".to_string()).is_err());
+        assert!(AgentID::try_from("-abc012".to_string()).is_err());
+        assert!(AgentID::try_from("-".to_string()).is_err());
+        assert!(AgentID::try_from("a.b".to_string()).is_err());
+        assert!(AgentID::try_from("a*b".to_string()).is_err());
         assert!(AgentID::try_from("abc012/".to_string()).is_err());
-        assert!(AgentID::try_from("abc012.".to_string()).is_err());
     }
 
     #[test]
@@ -371,7 +388,7 @@ k8s:
         assert!(actual
             .unwrap_err()
             .to_string()
-            .contains("AgentID allows only a-zA-Z0-9_- at line"))
+            .contains("AgentID must contain 32 characters at most, contain alphanumeric only, start with alphabetic, and end with alphanumeric"))
     }
 
     #[test]

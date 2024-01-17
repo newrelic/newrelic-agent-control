@@ -273,7 +273,7 @@ pub mod test {
         let some_path = PathBuf::from("some/path");
         let mut file_rw = MockLocalFile::new();
         let file_permissions = Permissions::from_mode(FILE_PERMISSIONS);
-        let agent_id = AgentID::new("SomeAgentID").unwrap();
+        let agent_id = AgentID::new("some-agent-id").unwrap();
         let mut hash = Hash::new("123456789".to_string());
         hash.apply();
 

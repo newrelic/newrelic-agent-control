@@ -54,11 +54,11 @@ pub(crate) mod tests {
         let agent_type_fqn = AgentTypeFQN::from("com.newrelic.infrastructure_agent:0.0.2");
         let agents_cfg = r#"
 agents:
-  infra_agent_a:
+  infra-agent-a:
     agent_type: "com.newrelic.infrastructure_agent:0.0.2"
-  infra_agent_b:
+  infra-agent-b:
     agent_type: "com.newrelic.infrastructure_agent:0.0.2"
-  not_infra_agent:
+  not-infra-agent:
     agent_type: "io.opentelemetry.collector:0.0.1"
 "#;
         let mut config_loader = MockSubAgentsConfigLoaderMock::new();
@@ -73,13 +73,13 @@ agents:
         let expected = SubAgentsConfig {
             agents: HashMap::from([
                 (
-                    AgentID::new("infra_agent_a").unwrap(),
+                    AgentID::new("infra-agent-a").unwrap(),
                     SubAgentConfig {
                         agent_type: AgentTypeFQN::from("com.newrelic.infrastructure_agent:0.0.2"),
                     },
                 ),
                 (
-                    AgentID::new("infra_agent_b").unwrap(),
+                    AgentID::new("infra-agent-b").unwrap(),
                     SubAgentConfig {
                         agent_type: AgentTypeFQN::from("com.newrelic.infrastructure_agent:0.0.2"),
                     },

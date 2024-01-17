@@ -123,7 +123,7 @@ mod test {
 
     #[test]
     fn test_events_are_processed() {
-        let agent_id = AgentID::new("some_agent_id").unwrap();
+        let agent_id = AgentID::new("some-agent-id").unwrap();
         let supervisors = Vec::default();
 
         let mut opamp_client: MockStartedOpAMPClientMock<SubAgentCallbacks> =

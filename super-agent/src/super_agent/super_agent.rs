@@ -506,7 +506,7 @@ mod tests {
             Ok(hash)
         });
 
-        // it should build two subagents: nrdot + infra_agent
+        // it should build two subagents: nrdot + infra-agent
         sub_agent_builder.should_build(2);
 
         sub_agents_config_store
@@ -582,7 +582,7 @@ mod tests {
             .times(1)
             .returning(|_, _| Ok(()));
 
-        // it should build two subagents: nrdot + infra_agent
+        // it should build two subagents: nrdot + infra-agent
         sub_agent_builder.should_build(2);
 
         let (super_agent_publisher, super_agent_consumer) = pub_sub();
@@ -609,7 +609,7 @@ mod tests {
                 "".to_string(),
                 r#"
 agents:
-  infra_agent:
+  infra-agent:
     agent_type: "newrelic/com.newrelic.infrastructure_agent:0.0.1"
 "#
                 .to_string(),
@@ -638,7 +638,7 @@ agents:
     //     started_client.should_stop(1);
     //
     //     //Sub Agent reload expectations
-    //     let agent_id_to_restart = AgentID::new("infra_agent").unwrap();
+    //     let agent_id_to_restart = AgentID::new("infra-agent").unwrap();
     //
     //     let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
     //     sub_agents_config_store
@@ -694,11 +694,11 @@ agents:
     //     // Sub Agents
     //     let sub_agents_config = sub_agents_config_single_agent();
     //
-    //     // it should build one subagent: infra_agent and be called a second time sending the error to opamp
+    //     // it should build one subagent: infra-agent and be called a second time sending the error to opamp
     //     sub_agent_builder.should_build(1);
     //     sub_agent_builder.should_not_build(1);
     //
-    //     let agent_id_to_restart = AgentID::new("infra_agent").unwrap();
+    //     let agent_id_to_restart = AgentID::new("infra-agent").unwrap();
     //     //Persister will fail loading new configuration
     //
     //     sub_agents_config_store
@@ -755,7 +755,7 @@ agents:
     //
     //     // recreate agent
     //     //Sub Agent reload expectations
-    //     let agent_id_to_restart = AgentID::new("infra_agent").unwrap();
+    //     let agent_id_to_restart = AgentID::new("infra-agent").unwrap();
     //
     //     let mut sub_agent_builder = MockSubAgentBuilderMock::new();
     //     // it should build three sub_agents (2 + 1)
@@ -870,7 +870,7 @@ agents:
 
         let mut running_sub_agents = sub_agents.unwrap().run().unwrap();
 
-        // just one agent, it should remove the infra_agent
+        // just one agent, it should remove the infra-agent
         let remote_config = RemoteConfig {
             agent_id: AgentID::new_super_agent_id(),
             hash: Hash::new("a-hash".to_string()),
@@ -898,7 +898,7 @@ agents:
 
         assert_eq!(running_sub_agents.len(), 1);
 
-        // remove nrdot and create new infra_agent sub_agent
+        // remove nrdot and create new infra-agent sub_agent
         let remote_config = RemoteConfig {
             agent_id: AgentID::new_super_agent_id(),
             hash: Hash::new("b-hash".to_string()),
@@ -906,7 +906,7 @@ agents:
                 "".to_string(),
                 r#"
 agents:
-  infra_agent:
+  infra-agent:
     agent_type: newrelic/com.newrelic.infrastructure_agent:0.0.1
 "#
                 .to_string(),
@@ -933,7 +933,7 @@ agents:
 
     fn sub_agents_config_single_agent() -> SubAgentsConfig {
         HashMap::from([(
-            AgentID::new("infra_agent").unwrap(),
+            AgentID::new("infra-agent").unwrap(),
             SubAgentConfig {
                 agent_type: AgentTypeFQN::from("newrelic/com.newrelic.infrastructure_agent:0.0.1"),
             },
@@ -944,7 +944,7 @@ agents:
     fn sub_agents_default_config() -> SubAgentsConfig {
         HashMap::from([
             (
-                AgentID::new("infra_agent").unwrap(),
+                AgentID::new("infra-agent").unwrap(),
                 SubAgentConfig {
                     agent_type: AgentTypeFQN::from(
                         "newrelic/com.newrelic.infrastructure_agent:0.0.1",
@@ -969,10 +969,10 @@ agents:
         let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
 
         // Given that we have 3 running Sub Agents
-        let sub_agent_id = AgentID::new("infra_agent").unwrap();
+        let sub_agent_id = AgentID::new("infra-agent").unwrap();
         let mut sub_agents = StartedSubAgents::from(HashMap::from([
             (
-                AgentID::new("fluent_bit").unwrap(),
+                AgentID::new("fluent-bit").unwrap(),
                 MockStartedSubAgent::new(),
             ),
             (sub_agent_id.clone(), MockStartedSubAgent::new()),
@@ -993,7 +993,7 @@ agents:
                 },
             ),
             (
-                AgentID::new("fluent_bit").unwrap(),
+                AgentID::new("fluent-bit").unwrap(),
                 SubAgentConfig {
                     agent_type: AgentTypeFQN::from("fqn_fluent_bit"),
                 },
@@ -1024,7 +1024,7 @@ agents:
             .get(&AgentID::new("nrdot").unwrap())
             .should_stop();
         sub_agents
-            .get(&AgentID::new("fluent_bit").unwrap())
+            .get(&AgentID::new("fluent-bit").unwrap())
             .should_stop();
 
         let (super_agent_publisher, super_agent_consumer) = pub_sub();
@@ -1046,7 +1046,7 @@ agents:
 
             sub_agent_publisher_clone
                 .publish(SubAgentEvent::ConfigUpdated(
-                    AgentID::new("infra_agent").unwrap(),
+                    AgentID::new("infra-agent").unwrap(),
                 ))
                 .unwrap();
 

@@ -235,7 +235,7 @@ mod test {
         let start_settings_infra = infra_agent_default_start_settings(&hostname);
 
         let final_agent = on_host_final_agent();
-        let sub_agent_id = AgentID::new("infra_agent").unwrap();
+        let sub_agent_id = AgentID::new("infra-agent").unwrap();
         let sub_agent_config = SubAgentConfig {
             agent_type: final_agent.agent_type().clone(),
         };
@@ -315,7 +315,7 @@ mod test {
         let hostname = gethostname().unwrap_or_default().into_string().unwrap();
         let start_settings_infra = infra_agent_default_start_settings(&hostname);
         let final_agent = on_host_final_agent();
-        let sub_agent_id = AgentID::new("infra_agent").unwrap();
+        let sub_agent_id = AgentID::new("infra-agent").unwrap();
         let sub_agent_config = SubAgentConfig {
             agent_type: final_agent.agent_type().clone(),
         };
