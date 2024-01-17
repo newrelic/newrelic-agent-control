@@ -182,26 +182,6 @@ impl From<serde_yaml::Number> for Number {
     }
 }
 
-// /// Represents a yaml value, holding both the string before deserializing and the [serde_yaml::Value] after.
-// #[derive(Debug, PartialEq, Default, Clone, Deserialize)]
-// pub struct YamlValue {
-//     #[serde(skip)]
-//     pub value: serde_yaml::Value,
-//     #[serde(flatten)]
-//     pub content: String,
-// }
-
-// impl TryFrom<String> for YamlValue {
-//     type Error = serde_yaml::Error;
-
-//     fn try_from(value: String) -> Result<Self, Self::Error> {
-//         Ok(Self {
-//             value: serde_yaml::from_str(value.as_str())?,
-//             content: value,
-//         })
-//     }
-// }
-
 #[cfg(test)]
 mod test {
     use super::FilePathWithContent;

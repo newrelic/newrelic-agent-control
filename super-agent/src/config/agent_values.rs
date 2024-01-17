@@ -88,12 +88,6 @@ pub struct AgentValues(HashMap<String, serde_yaml::Value>);
 #[derive(Debug, PartialEq, Deserialize, Serialize, Default, Clone)]
 pub struct NormalizedValues(HashMap<String, TrivialValue>);
 
-// impl NormalizedValues {
-//     pub(crate) fn get(&self, key: &str) -> Option<&TrivialValue> {
-//         self.0.get(key)
-//     }
-// }
-
 #[derive(Error, Debug)]
 pub enum AgentValuesError {
     #[error("invalid agent values format: `{0}`")]
@@ -101,108 +95,10 @@ pub enum AgentValuesError {
 }
 
 impl AgentValues {
-    /// get_from_normalized recursively searches for a TrivialValue given a normalized prefix. A
-    /// normalized prefix flattens a Map path in a single string in which each indirection is
-    /// denoted with the TEMPLATE_KEY_SEPARATOR.
-    /// If found, an owned value will be returned.
-    // pub(crate) fn get_from_normalized(&self, normalized_prefix: &str) -> Option<TrivialValue> {
-    //     get_from_normalized(&self.0, normalized_prefix)
-    // }
-
     pub(crate) fn inner(self) -> HashMap<String, serde_yaml::Value> {
         self.0
     }
-
-    // pub(crate) fn flatten(&self) -> HashMap<String, TrivialValue> {
-    //     let mut flattened = HashMap::default();
-    //     inner_flatten(&self.0, &mut flattened, "".to_string());
-    //     flattened
-    // }
-
-    // pub(crate) fn normalize_with_agent_type(
-    //     self,
-    //     agent_type: &mut FinalAgent,
-    // ) -> Result<NormalizedValues, AgentTypeError> {
-    //     agent_type.merge_variables_with_values(self)?;
-
-    //     // normalize values
-    //     let normalized = agent_type.variables.clone().flatten();
-
-    //     // build trivialvalues from endspecs
-    //     Ok(NormalizedValues(
-    //         normalized
-    //             .into_iter()
-    //             .map(|(k, v)| {
-    //                 (
-    //                     k,
-    //                     v.kind
-    //                         .get_final_value()
-    //                         .expect("EndSpec must contain values at this point"),
-    //                 )
-    //             })
-    //             .collect(),
-    //     ))
-
-    //     // let mut normalized_values = HashMap::default();
-    //     // for (k, v) in agent_type.variables.0.iter() {
-    //     //     let value = get_from_normalized(&self.0, k);
-
-    //     //     // required value but not defined in SubAgentConfig
-    //     //     if value.is_none() && v.kind.is_required() {
-    //     //         return Err(AgentTypeError::MissingAgentKey(k.clone()));
-    //     //     }
-
-    //     //     // check type matches agent one and apply transformations
-    //     //     if let Some(inner) = value {
-    //     //         let _ = update_from_normalized(&mut self.0, k, inner.clone().check_type(v)?);
-    //     //     }
-    //     // }
-    // }
 }
-
-// fn update_specs(
-//     values: serde_yaml::Value,
-//     agent_vars: &mut HashMap<String, Spec>,
-// ) -> Result<(), AgentTypeError> {
-//     let values: HashMap<String, Value> = serde_yaml::from_value(values)?;
-//     for (ref k, v) in values.into_iter() {
-//         let mut spec = agent_vars
-//             .get_mut(k)
-//             .ok_or_else(|| AgentTypeError::MissingAgentKey(k.clone()))?;
-
-//         match spec {
-//             Spec::SpecEnd(EndSpec { kind, .. }) => kind.from_yaml_value(v)?,
-//             Spec::SpecMapping(m) => update_specs(v, m)?,
-//         }
-//     }
-//     Ok(())
-// }
-
-// fn normalize_values(
-//     values: serde_yaml::Value,
-//     agent_vars: &HashMap<String, Spec>,
-// ) -> Result<HashMap<String, TrivialValue>, AgentTypeError> {
-//     let mut updated_spec = agent_vars.clone();
-//     let mut normalized_values = HashMap::default();
-
-//     // Attempt to get a HashMap<String, serde_yaml::Value> from the values and compare it with agent_vars
-//     let values: HashMap<String, Value> = serde_yaml::from_value(values)?;
-//     for (k, v) in values.into_iter() {
-//         let mut spec = agent_vars
-//             .get_mut(&k)
-//             .ok_or(AgentTypeError::MissingAgentKey(k.clone()))?;
-
-//         match spec {
-//             Spec::SpecEnd(EndSpec { kind, .. }) => {
-//                 kind.from_yaml_value(v)?
-//             }
-//             Spec::SpecMapping(m) =>
-//         }
-
-//     }
-
-//     Ok(normalized_values)
-// }
 
 impl TryFrom<String> for AgentValues {
     type Error = AgentValuesError;
@@ -211,39 +107,6 @@ impl TryFrom<String> for AgentValues {
         Ok(serde_yaml::from_str::<AgentValues>(value.as_str())?)
     }
 }
-
-/// get_from_normalized recursively searches for a TrivialValue given a normalized prefix.
-// fn get_from_normalized(
-//     inner: &Map<String, TrivialValue>,
-//     normalized_prefix: &str,
-// ) -> Option<TrivialValue> {
-//     let prefix = normalized_prefix.split_once(TEMPLATE_KEY_SEPARATOR);
-//     if let Some((key, suffix)) = prefix {
-//         if let Some(TrivialValue::Map(inner_map)) = inner.get(key) {
-//             return get_from_normalized(inner_map, suffix);
-//         }
-//     } else {
-//         return inner.get(normalized_prefix).cloned();
-//     }
-//     None
-// }
-
-/// update_from_normalized updates a TrivialValue given a normalized prefix.
-// fn update_from_normalized(
-//     inner: &mut HashMap<String, TrivialValue>,
-//     normalized_prefix: &str,
-//     value: TrivialValue,
-// ) -> Option<TrivialValue> {
-//     let prefix = normalized_prefix.split_once(TEMPLATE_KEY_SEPARATOR);
-//     if let Some((key, suffix)) = prefix {
-//         if let Some(TrivialValue::Map(inner_map)) = inner.get_mut(key) {
-//             return update_from_normalized(inner_map, suffix, value);
-//         }
-//     } else {
-//         return inner.insert(normalized_prefix.to_string(), value);
-//     }
-//     None
-// }
 
 #[cfg(test)]
 mod tests {
@@ -267,12 +130,6 @@ mod tests {
             self.0.get(key)
         }
     }
-
-    // impl AgentValues {
-    //     pub fn new(values: HashMap<String, TrivialValue>) -> Self {
-    //         Self(values)
-    //     }
-    // }
 
     const EXAMPLE_CONFIG: &str = r#"
 description:

@@ -211,42 +211,6 @@ impl Kind {
         }
     }
 
-    // pub(crate) fn set_default_as_final(&mut self) {
-    //     match self {
-    //         Kind::String(k) => k.set_default_as_final(),
-    //         Kind::Bool(k) => k.set_default_as_final(),
-    //         Kind::Number(k) => k.set_default_as_final(),
-    //         Kind::File(k) => k.inner.set_default_as_final(),
-    //         Kind::MapStringString(k) => k.set_default_as_final(),
-    //         Kind::MapStringFile(k) => k.inner.set_default_as_final(),
-    //         Kind::Yaml(k) => k.set_default_as_final(),
-    //     }
-    // }
-
-    // pub(crate) fn set_final_value(
-    //     &mut self,
-    //     final_value: TrivialValue,
-    // ) -> Result<(), AgentTypeError> {
-    //     match (self, final_value) {
-    //         (Kind::String(k), TrivialValue::String(v)) => k.final_value = Some(v),
-    //         (Kind::Bool(k), TrivialValue::Bool(v)) => k.final_value = Some(v),
-    //         (Kind::Number(k), TrivialValue::Number(v)) => k.final_value = Some(v),
-    //         (Kind::File(k), TrivialValue::File(v)) => k.inner.final_value = Some(v),
-    //         (Kind::MapStringString(k), TrivialValue::MapStringString(v)) => k.final_value = Some(v),
-    //         (Kind::MapStringFile(k), TrivialValue::MapStringFile(v)) => {
-    //             k.inner.final_value = Some(v)
-    //         }
-    //         (Kind::Yaml(k), TrivialValue::Yaml(v)) => k.final_value = Some(v),
-    //         (k, v) => {
-    //             return Err(AgentTypeError::TypeMismatch {
-    //                 expected_type: k.variable_type(),
-    //                 actual_value: v,
-    //             })
-    //         }
-    //     }
-    //     Ok(())
-    // }
-
     pub(crate) fn merge_with_yaml_value(
         &mut self,
         value: serde_yaml::Value,

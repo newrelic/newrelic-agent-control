@@ -234,26 +234,7 @@ impl FinalAgent {
         values: AgentValues,
         agent_configs_path: Option<&str>,
     ) -> Result<FinalAgent, AgentTypeError> {
-        // let normalized_config = NormalizedSupervisorConfig::from(config);
-        // let validated_conf = validate_with_agent_type(normalized_config, &self)?;
-
         self.merge_variables_with_values(values)?;
-        // let config = config.normalize_with_agent_type(&mut self)?;
-
-        // let runtime_conf = self.runtime_config.template_with(validated_conf.clone())?;
-        // let mut spec = config.variables;
-
-        // // modifies variables final value with the one defined in the SupervisorConfig
-        // spec.0
-        //     .iter_mut()
-        //     .try_for_each(|(k, v)| -> Result<(), AgentTypeError> {
-        //         // let defined_value = config.get_from_normalized(k);
-        //         // v.kind.set_final_value(defined_value)?;
-        //         match config.get_from_normalized(k) {
-        //             Some(value) => v.kind.set_final_value(value),
-        //             None => Ok(v.kind.set_default_as_final()),
-        //         }
-        //     })?;
 
         let variables = if let Some(p) = agent_configs_path {
             let mut v = self.variables.clone().flatten();
@@ -273,7 +254,6 @@ impl FinalAgent {
 
         let populated_agent = FinalAgent {
             runtime_config: runtime_conf,
-            // variables: spec,
             ..self
         };
 
@@ -380,64 +360,6 @@ impl EndSpec {
     }
 }
 
-// impl<'de> Deserialize<'de> for EndSpec {
-//     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-//     where
-//         D: Deserializer<'de>,
-//     {
-//         // temporal type for intermediate serialization
-//         #[derive(Debug, Deserialize)]
-//         struct IntermediateEndSpec {
-//             description: String,
-//             #[serde(rename = "type")]
-//             type_: VariableType,
-//             required: bool,
-//             default: Option<TrivialValue>,
-//             file_path: Option<String>,
-//         }
-
-//         impl AgentTypeEndSpec for IntermediateEndSpec {
-//             fn variable_type(&self) -> VariableType {
-//                 self.type_
-//             }
-
-//             fn file_path(&self) -> Option<String> {
-//                 self.file_path.as_ref().cloned()
-//             }
-//         }
-
-//         let intermediate_spec = IntermediateEndSpec::deserialize(deserializer)?;
-//         if intermediate_spec.default.is_none() && !intermediate_spec.required {
-//             return Err(D::Error::custom(AgentTypeError::MissingDefault));
-//         }
-//         let def_val = intermediate_spec
-//             .default
-//             .clone()
-//             .map(|d| d.check_type(&intermediate_spec))
-//             .transpose()
-//             .map_err(D::Error::custom)?;
-
-//         Ok(EndSpec {
-//             default: def_val,
-//             final_value: None,
-//             file_path: intermediate_spec.file_path,
-//             description: intermediate_spec.description,
-//             type_: intermediate_spec.type_,
-//             required: intermediate_spec.required,
-//         })
-//     }
-// }
-
-// impl AgentTypeEndSpec for EndSpec {
-//     fn variable_type(&self) -> VariableType {
-//         self.type_
-//     }
-
-//     fn file_path(&self) -> Option<String> {
-//         self.file_path.as_ref().cloned()
-//     }
-// }
-
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 struct K8s {
     crd: String,
@@ -470,33 +392,6 @@ struct K8s {
 ///
 /// Will be converted to `system.logging.level` and can be used later in the AgentType_Meta part as `${system.logging.level}`.
 pub(crate) type NormalizedVariables = HashMap<String, EndSpec>;
-
-// fn normalize_agent_spec(spec: AgentVariables) -> Result<NormalizedVariables, AgentTypeError> {
-//     spec.0.into_iter().try_fold(HashMap::new(), |r, (k, v)| {
-//         let n_spec = inner_normalize(k, v);
-//         n_spec.iter().try_for_each(|(k, end_spec)| {
-//             if end_spec.is_not_required_without_default() {
-//                 return Err(AgentTypeError::MissingDefaultWithKey(k.clone()));
-//             }
-//             Ok(())
-//         })?;
-//         Ok(r.into_iter().chain(n_spec).collect())
-//     })
-// }
-
-// fn inner_normalize(key: String, spec: Spec) -> NormalizedVariables {
-//     let mut result = HashMap::new();
-//     match spec {
-//         Spec::SpecEnd(s) => _ = result.insert(key, s),
-//         Spec::SpecMapping(m) => m.into_iter().for_each(|(k, v)| {
-//             result.extend(inner_normalize(
-//                 key.clone() + TEMPLATE_KEY_SEPARATOR + &k,
-//                 v,
-//             ))
-//         }),
-//     }
-//     result
-// }
 
 #[cfg(test)]
 pub mod tests {

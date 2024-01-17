@@ -329,31 +329,6 @@ mod tests {
 
     use super::*;
 
-    // impl EndSpec {
-    //     fn new_final<T>(final_value: T) -> Self {
-    //         Self {
-    //             description: String::default(),
-    //             kind: KindValue {
-    //                 final_value: Some(final_value),
-    //                 default: None,
-    //                 required: true,
-    //                 file_path: None,
-    //             }
-    //             .into(),
-    //         }
-    //     }
-    //     fn new_default<T>(default: T) -> Self {
-    //         Self {
-    //             type_,
-    //             final_value: None,
-    //             default: None,
-    //             description: String::default(),
-    //             required: false,
-    //             file_path: None,
-    //         }
-    //     }
-    // }
-
     #[test]
     fn test_template_string() {
         let variables = NormalizedVariables::from([
