@@ -5,7 +5,6 @@ use std::time::SystemTimeError;
 
 use crate::config::agent_values::AgentValuesError;
 use crate::config::persister::config_persister::PersistError;
-use crate::fs::file_reader::FileReaderError;
 use crate::opamp::instance_id;
 use crate::opamp::remote_config::RemoteConfigError;
 use crate::opamp::remote_config_hash::HashRepositoryError;
@@ -20,6 +19,7 @@ use crate::{
     },
     opamp::client_builder::OpAMPClientBuilderError,
 };
+use fs::file_reader::FileReaderError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]

@@ -14,7 +14,6 @@ use cloud::aws::detector::AWSDetectorError;
 use system::detector::SystemDetectorError;
 
 pub mod cloud;
-mod file_reader;
 pub mod system;
 
 pub mod common;
