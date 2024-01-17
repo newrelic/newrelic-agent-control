@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{fmt::Debug, path::PathBuf};
 
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -12,7 +12,7 @@ where
     pub(crate) required: bool,
     pub(crate) default: Option<T>,
     pub(crate) final_value: Option<T>,
-    // pub(crate) variants: Option<Vec<T>>,
+    pub(crate) variants: Vec<T>,
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
@@ -27,7 +27,7 @@ where
 
 impl<T> KindValue<T>
 where
-    T: PartialEq,
+    T: PartialEq + Debug,
 {
     pub(crate) fn not_required_without_default(&self) -> bool {
         !self.required && self.default.is_none()
@@ -35,12 +35,19 @@ where
     // pub(crate) fn set_default_as_final(&mut self) {
     //     self.final_value = self.default.take();
     // }
-    pub(crate) fn set_final_value(&mut self, value: T) {
+    pub(crate) fn set_final_value(&mut self, value: T) -> Result<(), AgentTypeError> {
+        if !self.is_valid_variant(&value) {
+            return Err(AgentTypeError::InvalidVariant(
+                format!("{value:?}"),
+                self.variants.iter().map(|v| format!("{v:?}")).collect(),
+            ));
+        }
         self.final_value = Some(value);
+        Ok(())
     }
-    // pub(crate) fn is_valid_variant(&self, value: T) -> bool {
-    //     self.variants.is_empty() || self.variants.iter().any(|v| v == &value)
-    // }
+    pub(crate) fn is_valid_variant(&self, value: &T) -> bool {
+        self.variants.is_empty() || self.variants.iter().any(|v| v == value)
+    }
 }
 
 impl<'de, T> Deserialize<'de> for KindValue<T>
@@ -56,7 +63,7 @@ where
         #[derive(Debug, Deserialize)]
         struct IntermediateValueKind<T> {
             default: Option<T>,
-            // variants: Option<Vec<T>>,
+            variants: Option<Vec<T>>,
             required: bool,
         }
 
@@ -69,7 +76,7 @@ where
             default: intermediate_spec.default,
             required: intermediate_spec.required,
             final_value: None,
-            // variants: intermediate_spec.variants,
+            variants: intermediate_spec.variants.unwrap_or(Vec::new()),
         })
     }
 }
@@ -89,6 +96,7 @@ mod test {
                 required,
                 default,
                 final_value,
+                variants: Vec::new(),
             }
         }
     }
@@ -108,6 +116,7 @@ mod test {
                     required,
                     default,
                     final_value,
+                    variants: Vec::new(),
                 },
                 file_path,
             }

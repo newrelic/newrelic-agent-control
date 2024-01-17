@@ -48,4 +48,7 @@ pub enum AgentTypeError {
 
     #[error("Unknown backoff strategy type: `{0}`")]
     UnknownBackoffStrategyType(String),
+
+    #[error("Invalid variant provided as a value: `{0}`. Variants allowed: {1:?}")]
+    InvalidVariant(String, Vec<String>),
 }

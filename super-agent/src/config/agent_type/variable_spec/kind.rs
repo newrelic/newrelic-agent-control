@@ -234,7 +234,7 @@ impl Kind {
                 kv.inner.set_final_value(files)
             }
             Kind::Yaml(kv) => kv.set_final_value(value),
-        };
+        }?;
         Ok(())
     }
 
