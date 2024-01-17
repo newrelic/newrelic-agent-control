@@ -122,4 +122,46 @@ mod test {
             }
         }
     }
+
+    #[test]
+    fn test_set_final_value_valid_variant() {
+        let mut kind_value: KindValue<i32> = KindValue {
+            required: true,
+            default: Some(1),
+            final_value: None,
+            variants: vec![1, 2, 3],
+        };
+
+        assert!(kind_value.set_final_value(2).is_ok());
+        assert_eq!(kind_value.final_value, Some(2));
+    }
+
+    #[test]
+    fn test_set_final_value_invalid_variant() {
+        let mut kind_value: KindValue<i32> = KindValue {
+            required: true,
+            default: Some(1),
+            final_value: None,
+            variants: vec![1, 2, 3],
+        };
+
+        assert_eq!(
+            kind_value.set_final_value(4).unwrap_err().to_string(),
+            r#"Invalid variant provided as a value: `4`. Variants allowed: ["1", "2", "3"]"#
+        );
+        assert_eq!(kind_value.final_value, None);
+    }
+
+    #[test]
+    fn test_set_final_value_no_variants() {
+        let mut kind_value: KindValue<i32> = KindValue {
+            required: true,
+            default: Some(1),
+            final_value: None,
+            variants: Vec::new(),
+        };
+
+        assert!(kind_value.set_final_value(2).is_ok());
+        assert_eq!(kind_value.final_value, Some(2));
+    }
 }
