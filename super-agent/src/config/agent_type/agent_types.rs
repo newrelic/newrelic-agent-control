@@ -1531,6 +1531,9 @@ restart_policy:
         let actual_exec = executable.executables.first().unwrap();
 
         assert_eq!(actual_exec.path.value, Some("/bin/echo".to_string()));
-        assert_eq!(actual_exec.args.value, Some(Args("exponential".to_string())));
+        assert_eq!(
+            actual_exec.args.value,
+            Some(Args("exponential".to_string()))
+        );
     }
 }
