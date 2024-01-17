@@ -4,12 +4,12 @@ use std::fs::Permissions;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 
+use ::fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
 use newrelic_super_agent::config::agent_type::agent_types::FinalAgent;
 use newrelic_super_agent::config::agent_values::AgentValues;
 use newrelic_super_agent::config::persister::config_persister::ConfigurationPersister;
 use newrelic_super_agent::config::persister::config_persister_file::ConfigurationPersisterFile;
 use newrelic_super_agent::config::super_agent_configs::AgentID;
-use newrelic_super_agent::fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
 
 #[test]
 // This test is the only one that writes to an actual file in the FS

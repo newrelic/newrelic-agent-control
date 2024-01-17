@@ -15,6 +15,7 @@ can be found at https://github.com/newrelic/newrelic-super-agent.
 {% for dep, licenseObj in dependencies %}
 {%- if dep is containing("newrelic_super_agent") %}{% continue %}{% endif -%}
 {%- if dep is containing("resource-detection") %}{% continue %}{% endif -%}
+{%- if dep is containing("fs") %}{% continue %}{% endif -%}
 {%- if dep is containing("config-migrate") %}{% continue %}{% endif -%}
 ## {{ dep | split(pat=" ") | first }} {{ dep | split(pat=" ") | last | replace(from="registry+https://github.com/rust-lang/crates.io-index", to="https://crates.io/crates/" ~ dep | split(pat=" ") | first ) }}
 

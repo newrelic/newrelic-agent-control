@@ -2,7 +2,6 @@ pub mod cli;
 pub mod config;
 pub mod context;
 pub mod event;
-pub mod fs;
 pub mod logging;
 pub mod opamp;
 pub mod runtime;

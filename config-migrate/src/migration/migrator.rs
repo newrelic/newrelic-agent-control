@@ -1,4 +1,3 @@
-use crate::fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
 #[cfg_attr(test, mockall_double::double)]
 use crate::migration::agent_config_getter::AgentConfigGetter;
 use crate::migration::config::MigrationAgentConfig;
@@ -8,6 +7,9 @@ use crate::migration::converter::ConversionError;
 use crate::migration::persister::values_persister_file::PersistError;
 #[cfg_attr(test, mockall_double::double)]
 use crate::migration::persister::values_persister_file::ValuesPersisterFile;
+use fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
+use fs::file_reader::FileReader;
+use fs::LocalFile;
 use log::{error, info};
 use newrelic_super_agent::config::agent_type_registry::{AgentRegistry, LocalRegistry};
 use newrelic_super_agent::config::error::SuperAgentConfigError;
@@ -33,15 +35,16 @@ pub struct ConfigMigrator<
     R: AgentRegistry,
     SL: SubAgentsConfigLoader + 'static,
     C: DirectoryManager,
+    F: FileReader,
 > {
-    config_converter: ConfigConverter<R>,
+    config_converter: ConfigConverter<R, F>,
     agent_config_getter: AgentConfigGetter<SL>,
     values_persister: ValuesPersisterFile<C>,
 }
 
-impl ConfigMigrator<LocalRegistry, SuperAgentConfigStoreFile, DirectoryManagerFs> {
+impl ConfigMigrator<LocalRegistry, SuperAgentConfigStoreFile, DirectoryManagerFs, LocalFile> {
     pub fn new(
-        config_converter: ConfigConverter<LocalRegistry>,
+        config_converter: ConfigConverter<LocalRegistry, LocalFile>,
         agent_config_getter: AgentConfigGetter<SuperAgentConfigStoreFile>,
         values_persister: ValuesPersisterFile<DirectoryManagerFs>,
     ) -> Self {

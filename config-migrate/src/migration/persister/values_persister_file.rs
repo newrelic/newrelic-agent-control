@@ -1,15 +1,12 @@
+use fs::LocalFile;
 use std::fs::Permissions;
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
-use crate::fs::directory_manager::{
-    DirectoryManagementError, DirectoryManager, DirectoryManagerFs,
-};
-use crate::fs::writer_file::WriteError;
-#[cfg_attr(test, mockall_double::double)]
-use crate::fs::writer_file::WriterFile;
+use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
+use fs::writer_file::{FileWriter, WriteError};
 use newrelic_super_agent::config::super_agent_configs::AgentID;
 use newrelic_super_agent::super_agent::defaults::{LOCAL_AGENT_DATA_DIR, VALUES_PATH};
 
@@ -27,11 +24,12 @@ pub(crate) const FILE_PERMISSIONS: u32 = 0o600;
 #[cfg(target_family = "unix")]
 const DIRECTORY_PERMISSIONS: u32 = 0o700;
 
-pub struct ValuesPersisterFile<C = DirectoryManagerFs>
+pub struct ValuesPersisterFile<C = DirectoryManagerFs, F = LocalFile>
 where
     C: DirectoryManager,
+    F: FileWriter,
 {
-    file_writer: WriterFile,
+    file_writer: F,
     directory_manager: C,
     local_agent_data_dir: PathBuf,
 }
@@ -39,7 +37,7 @@ where
 impl ValuesPersisterFile<DirectoryManagerFs> {
     pub fn new(data_dir: &Path) -> Self {
         ValuesPersisterFile {
-            file_writer: WriterFile::default(),
+            file_writer: LocalFile,
             directory_manager: DirectoryManagerFs::default(),
             local_agent_data_dir: PathBuf::from(data_dir),
         }

@@ -1,19 +1,20 @@
 use std::path::PathBuf;
 
-#[cfg_attr(test, mockall_double::double)]
-use crate::file_reader::FSFileReader;
+use fs::{file_reader::FileReader, LocalFile};
 
 use super::detector::SystemDetectorError;
 
 const MACHINE_ID_PATH: &str = "/etc/machine-id";
 
-pub(super) struct IdentifierProviderMachineId {
+pub(super) struct IdentifierProviderMachineId<F> {
     machine_id_path: PathBuf,
-    file_reader: FSFileReader,
+    file_reader: F,
 }
 
-#[cfg_attr(test, mockall::automock)]
-impl IdentifierProviderMachineId {
+impl<F> IdentifierProviderMachineId<F>
+where
+    F: FileReader,
+{
     pub(super) fn provide(&self) -> Result<String, SystemDetectorError> {
         self.file_reader
             .read(self.machine_id_path.as_path())
@@ -22,11 +23,11 @@ impl IdentifierProviderMachineId {
     }
 }
 
-impl Default for IdentifierProviderMachineId {
+impl Default for IdentifierProviderMachineId<LocalFile> {
     fn default() -> Self {
         Self {
             machine_id_path: PathBuf::from(MACHINE_ID_PATH),
-            file_reader: FSFileReader::default(),
+            file_reader: LocalFile,
         }
     }
 }
@@ -34,11 +35,14 @@ impl Default for IdentifierProviderMachineId {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::file_reader::MockFSFileReader;
+    use fs::mock::MockLocalFile;
     use std::path::Path;
 
-    impl IdentifierProviderMachineId {
-        fn new(some_path: &Path, file_reader: MockFSFileReader) -> Self {
+    impl<F> IdentifierProviderMachineId<F>
+    where
+        F: FileReader,
+    {
+        fn new(some_path: &Path, file_reader: F) -> Self {
             Self {
                 file_reader,
                 machine_id_path: PathBuf::from(some_path),
@@ -48,7 +52,7 @@ mod test {
 
     #[test]
     fn test_machine_id_is_retrieved() {
-        let mut file_reader = MockFSFileReader::default();
+        let mut file_reader = MockLocalFile::default();
 
         let path = PathBuf::from("/some/path");
         let expected_machine_id = String::from("some machine id");
@@ -63,7 +67,7 @@ mod test {
 
     #[test]
     fn test_error_retrieving_machine_id() {
-        let mut file_reader = MockFSFileReader::default();
+        let mut file_reader = MockLocalFile::default();
 
         let path = PathBuf::from("/some/path");
 
