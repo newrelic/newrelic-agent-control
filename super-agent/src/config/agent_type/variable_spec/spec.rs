@@ -48,10 +48,6 @@ impl EndSpec {
     pub fn merge_with_yaml_value(&mut self, yaml: serde_yaml::Value) -> Result<(), AgentTypeError> {
         self.kind.merge_with_yaml_value(yaml)
     }
-
-    pub fn is_not_required_without_default(&self) -> bool {
-        self.kind.is_not_required_without_default()
-    }
 }
 
 #[cfg(test)]

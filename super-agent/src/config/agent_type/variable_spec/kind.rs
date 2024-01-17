@@ -73,106 +73,6 @@ impl From<KindValue<serde_yaml::Value>> for Kind {
     }
 }
 
-/// Conversions from Kind to KindValue<T>
-
-impl TryFrom<&Kind> for KindValue<String> {
-    type Error = AgentTypeError;
-
-    fn try_from(kind: &Kind) -> Result<Self, Self::Error> {
-        match kind {
-            Kind::String(k) => Ok(k.clone()),
-            _ => Err(AgentTypeError::TypeMismatch {
-                expected_type: VariableType::String,
-                actual_value: kind.clone().get_final_value().unwrap(),
-            }),
-        }
-    }
-}
-
-impl TryFrom<&Kind> for KindValue<bool> {
-    type Error = AgentTypeError;
-
-    fn try_from(kind: &Kind) -> Result<Self, Self::Error> {
-        match kind {
-            Kind::Bool(k) => Ok(k.clone()),
-            _ => Err(AgentTypeError::TypeMismatch {
-                expected_type: VariableType::Bool,
-                actual_value: kind.clone().get_final_value().unwrap(),
-            }),
-        }
-    }
-}
-
-impl TryFrom<&Kind> for KindValue<Number> {
-    type Error = AgentTypeError;
-
-    fn try_from(kind: &Kind) -> Result<Self, Self::Error> {
-        match kind {
-            Kind::Number(k) => Ok(k.clone()),
-            _ => Err(AgentTypeError::TypeMismatch {
-                expected_type: VariableType::Number,
-                actual_value: kind.clone().get_final_value().unwrap(),
-            }),
-        }
-    }
-}
-
-impl TryFrom<&Kind> for KindValueWithPath<FilePathWithContent> {
-    type Error = AgentTypeError;
-
-    fn try_from(kind: &Kind) -> Result<Self, Self::Error> {
-        match kind {
-            Kind::File(k) => Ok(k.clone()),
-            _ => Err(AgentTypeError::TypeMismatch {
-                expected_type: VariableType::File,
-                actual_value: kind.clone().get_final_value().unwrap(),
-            }),
-        }
-    }
-}
-
-impl TryFrom<&Kind> for KindValue<HashMap<String, String>> {
-    type Error = AgentTypeError;
-
-    fn try_from(kind: &Kind) -> Result<Self, Self::Error> {
-        match kind {
-            Kind::MapStringString(k) => Ok(k.clone()),
-            _ => Err(AgentTypeError::TypeMismatch {
-                expected_type: VariableType::MapStringString,
-                actual_value: kind.clone().get_final_value().unwrap(),
-            }),
-        }
-    }
-}
-
-impl TryFrom<&Kind> for KindValueWithPath<HashMap<String, FilePathWithContent>> {
-    type Error = AgentTypeError;
-
-    fn try_from(kind: &Kind) -> Result<Self, Self::Error> {
-        match kind {
-            Kind::MapStringFile(k) => Ok(k.clone()),
-            _ => Err(AgentTypeError::TypeMismatch {
-                expected_type: VariableType::MapStringFile,
-                actual_value: kind.clone().get_final_value().unwrap(),
-            }),
-        }
-    }
-}
-
-impl TryFrom<&Kind> for KindValue<serde_yaml::Value> {
-    type Error = AgentTypeError;
-
-    fn try_from(kind: &Kind) -> Result<Self, Self::Error> {
-        match kind {
-            Kind::Yaml(k) => Ok(k.clone()),
-            _ => Err(AgentTypeError::TypeMismatch {
-                expected_type: VariableType::Yaml,
-                actual_value: kind.clone().get_final_value().unwrap(),
-            }),
-        }
-    }
-}
-
 /// The below methods are mostly concerned with delegating to the inner type on each `Kind` variant.
 /// It's a lot of boilerplate, but declarative and straight-forward.
 impl Kind {
@@ -196,18 +96,6 @@ impl Kind {
             Kind::MapStringString(k) => k.required,
             Kind::MapStringFile(k) => k.inner.required,
             Kind::Yaml(k) => k.required,
-        }
-    }
-
-    pub(crate) fn is_not_required_without_default(&self) -> bool {
-        match self {
-            Kind::String(k) => k.not_required_without_default(),
-            Kind::Bool(k) => k.not_required_without_default(),
-            Kind::Number(k) => k.not_required_without_default(),
-            Kind::File(k) => k.inner.not_required_without_default(),
-            Kind::MapStringString(k) => k.not_required_without_default(),
-            Kind::MapStringFile(k) => k.inner.not_required_without_default(),
-            Kind::Yaml(k) => k.not_required_without_default(),
         }
     }
 
