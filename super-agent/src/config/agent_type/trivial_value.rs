@@ -207,9 +207,6 @@ mod test {
     #[test]
     fn test_file_path_with_contents() {
         let file = FilePathWithContent::new("path".into(), "file_content".to_string());
-        assert_eq!(
-            serde_yaml::to_string(&file).unwrap(),
-            "file_content\n"
-        );
+        assert_eq!(serde_yaml::to_string(&file).unwrap(), "file_content\n");
     }
 }
