@@ -83,19 +83,19 @@ where
 {
     fn detect(&self) -> Result<Resource, DetectError> {
         if let Ok(resource) = self.aws_detector.detect() {
-            Ok(match_resource(resource, AWS_INSTANCE_ID, CLOUD_TYPE_AWS))
+            return Ok(match_resource(resource, AWS_INSTANCE_ID, CLOUD_TYPE_AWS));
         }
 
         if let Ok(resource) = self.azure_detector.detect() {
-            Ok(match_resource(
+            return Ok(match_resource(
                 resource,
                 AZURE_INSTANCE_ID,
                 CLOUD_TYPE_AZURE,
-            ))
+            ));
         }
 
         if let Ok(resource) = self.gcp_detector.detect() {
-            Ok(match_resource(resource, GCP_INSTANCE_ID, CLOUD_TYPE_GCP))
+            return Ok(match_resource(resource, GCP_INSTANCE_ID, CLOUD_TYPE_GCP));
         }
 
         Ok(Resource::new([
