@@ -103,14 +103,23 @@ impl StartedSubAgent for SubAgentOnHost<Started, command_supervisor::Started> {
                     e.to_string()
                 )
             });
-        match self.state.event_loop_handle.join().unwrap() {
-            Err(e) => {
-                error!("error stopping sub agent process loop: {}", e.to_string())
-            }
-            Ok(()) => {
-                debug!("sub agent process loop stopped successfully");
-            }
-        }
+
+        self.state.event_loop_handle.join().map_or_else(
+            |_| {
+                error!("unexpected error in event process join handle");
+            },
+            |res| match res {
+                Err(sub_agent_err) => {
+                    error!(
+                        "error stopping sub agent process loop: {}",
+                        sub_agent_err.to_string()
+                    )
+                }
+                Ok(()) => {
+                    debug!("sub agent process loop stopped successfully");
+                }
+            },
+        );
 
         Ok(stopped_supervisors)
     }
