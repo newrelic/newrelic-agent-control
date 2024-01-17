@@ -895,11 +895,6 @@ Distributed under the following license(s):
 * MIT
 
 
-## license (path+file:///Users/rcoll/Documents/github/newrelic/newrelic-super-agent/license)
-
-Distributed under the following license(s):
-
-
 ## linked-hash-map (https://crates.io/crates/linked-hash-map)
 
 Distributed under the following license(s):
