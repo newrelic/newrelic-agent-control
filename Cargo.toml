@@ -4,11 +4,9 @@ resolver = "2"
 members = [
     "config-migrate",
     "super-agent",
-    "resource-detection", "fs",
-]
-
-exclude = [
-    "license", # Rust tool that checks used third party licenses
+    "resource-detection",
+    "fs",
+    "license",
 ]
 
 [workspace.dependencies]
