@@ -253,7 +253,6 @@ impl Kind {
                 .or(k.default.as_ref())
                 .cloned()
                 .map(TrivialValue::Number),
-            // FIXME: This is bulls**t. Use KindValueWithFilePath which does not allow for empty paths
             Kind::File(k) => k
                 .inner
                 .final_value
