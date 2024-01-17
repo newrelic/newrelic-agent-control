@@ -28,14 +28,13 @@ lazy_static! {
     pub static ref TEMPLATES: Tera = {
         let args = Args::parse();
         let tpl_path = args.template_path;
-        let tera = match Tera::new(&tpl_path) {
+        match Tera::new(&tpl_path) {
             Ok(t) => t,
             Err(e) => {
                 println!("Parsing error(s): {}", e);
                 ::std::process::exit(1);
             }
-        };
-        tera
+        }
     };
 }
 
