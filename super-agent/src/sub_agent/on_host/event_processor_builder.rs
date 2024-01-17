@@ -1,5 +1,6 @@
+use crate::config::super_agent_configs::AgentID;
 use crate::event::channel::{EventConsumer, EventPublisher};
-use crate::event::{OpAMPEvent, SubAgentEvent};
+use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
 use crate::opamp::remote_config_hash::HashRepository;
 use crate::sub_agent::on_host::event_processor::{EventProcessor, SubAgentEventProcessor};
 use crate::sub_agent::values::values_repository::ValuesRepository;
@@ -11,12 +12,14 @@ pub trait SubAgentEventProcessorBuilder<C>
 where
     C: StartedClient<SubAgentCallbacks> + 'static,
 {
-    type SubAgentEventProcessor: SubAgentEventProcessor<C>;
+    type SubAgentEventProcessor: SubAgentEventProcessor;
 
     fn build(
         &self,
+        agent_id: AgentID,
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
         sub_agent_opamp_consumer: EventConsumer<OpAMPEvent>,
+        sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
         maybe_opamp_client: Option<C>,
     ) -> Self::SubAgentEventProcessor;
 }
@@ -53,16 +56,20 @@ where
 
     fn build(
         &self,
+        agent_id: AgentID,
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
         sub_agent_opamp_consumer: EventConsumer<OpAMPEvent>,
+        sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
         maybe_opamp_client: Option<C>,
     ) -> EventProcessor<C, H, R>
     where
         C: StartedClient<SubAgentCallbacks> + 'static,
     {
         EventProcessor::new(
+            agent_id,
             sub_agent_publisher,
             sub_agent_opamp_consumer,
+            sub_agent_internal_consumer,
             maybe_opamp_client,
             self.hash_repository.clone(),
             self.values_repository.clone(),
@@ -72,8 +79,9 @@ where
 
 #[cfg(test)]
 pub mod test {
+    use crate::config::super_agent_configs::AgentID;
     use crate::event::channel::{EventConsumer, EventPublisher};
-    use crate::event::{OpAMPEvent, SubAgentEvent};
+    use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
     use crate::sub_agent::on_host::event_processor::test::MockEventProcessorMock;
     use crate::sub_agent::on_host::event_processor_builder::SubAgentEventProcessorBuilder;
     use crate::sub_agent::SubAgentCallbacks;
@@ -91,12 +99,14 @@ pub mod test {
          where
             C: StartedClient<SubAgentCallbacks> + 'static
         {
-            type SubAgentEventProcessor = MockEventProcessorMock<C>;
+            type SubAgentEventProcessor = MockEventProcessorMock;
 
             fn build(
                 &self,
+                agent_id: AgentID,
                 sub_agent_publisher: EventPublisher<SubAgentEvent>,
                 sub_agent_opamp_consumer: EventConsumer<OpAMPEvent>,
+                sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
                 maybe_opamp_client: Option<C>,
             ) -><Self as SubAgentEventProcessorBuilder<C>>::SubAgentEventProcessor;
 
@@ -107,10 +117,10 @@ pub mod test {
     where
         C: StartedClient<SubAgentCallbacks> + Send + Sync + 'static,
     {
-        pub fn should_build(&mut self, processor: MockEventProcessorMock<C>) {
+        pub fn should_build(&mut self, processor: MockEventProcessorMock) {
             self.expect_build()
                 .once()
-                .return_once(move |_, _, _| processor);
+                .return_once(move |_, _, _, _, _| processor);
         }
     }
 }

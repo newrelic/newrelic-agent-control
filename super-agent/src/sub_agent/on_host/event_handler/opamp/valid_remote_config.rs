@@ -100,6 +100,7 @@ mod tests {
         let opamp_client = MockStartedOpAMPClientMock::new();
         let (sub_agent_publisher, sub_agent_consumer) = pub_sub();
         let (_sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
+        let (_sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let mut hash_repository = MockHashRepositoryMock::default();
         let mut values_repository = MockRemoteValuesRepositoryMock::default();
 
@@ -127,8 +128,10 @@ mod tests {
         };
 
         let event_processor = EventProcessor::new(
+            agent_id.clone(),
             sub_agent_publisher,
             sub_agent_opamp_consumer,
+            sub_agent_internal_consumer,
             Some(opamp_client),
             Arc::new(hash_repository),
             Arc::new(values_repository),
@@ -136,7 +139,7 @@ mod tests {
 
         event_processor.valid_remote_config(remote_config).unwrap();
 
-        let expected_event = ConfigUpdated(agent_id.clone());
+        let expected_event = ConfigUpdated(agent_id);
         assert_eq!(expected_event, sub_agent_consumer.as_ref().recv().unwrap());
     }
 
@@ -145,6 +148,7 @@ mod tests {
         let opamp_client = MockStartedOpAMPClientMock::new();
         let (sub_agent_publisher, sub_agent_consumer) = pub_sub();
         let (_sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
+        let (_sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let mut hash_repository = MockHashRepositoryMock::default();
         let mut values_repository = MockRemoteValuesRepositoryMock::default();
 
@@ -163,8 +167,10 @@ mod tests {
         };
 
         let event_processor = EventProcessor::new(
+            agent_id.clone(),
             sub_agent_publisher,
             sub_agent_opamp_consumer,
+            sub_agent_internal_consumer,
             Some(opamp_client),
             Arc::new(hash_repository),
             Arc::new(values_repository),
@@ -172,7 +178,7 @@ mod tests {
 
         event_processor.valid_remote_config(remote_config).unwrap();
 
-        let expected_event = ConfigUpdated(agent_id.clone());
+        let expected_event = ConfigUpdated(agent_id);
         assert_eq!(expected_event, sub_agent_consumer.as_ref().recv().unwrap());
     }
 
@@ -181,6 +187,7 @@ mod tests {
         let mut opamp_client = MockStartedOpAMPClientMock::new();
         let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
         let (_sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
+        let (_sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let mut hash_repository = MockHashRepositoryMock::default();
         let values_repository = MockRemoteValuesRepositoryMock::default();
 
@@ -213,8 +220,10 @@ mod tests {
         opamp_client.should_set_remote_config_status(status);
 
         let event_processor = EventProcessor::new(
+            agent_id,
             sub_agent_publisher,
             sub_agent_opamp_consumer,
+            sub_agent_internal_consumer,
             Some(opamp_client),
             Arc::new(hash_repository),
             Arc::new(values_repository),

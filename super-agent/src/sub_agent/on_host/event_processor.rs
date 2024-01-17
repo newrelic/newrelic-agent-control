@@ -1,6 +1,9 @@
+use crate::config::super_agent_configs::AgentID;
 use crate::event::channel::{EventConsumer, EventPublisher};
-use crate::event::{OpAMPEvent, SubAgentEvent};
+use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
+use crate::opamp::operations::stop_opamp_client;
 use crate::opamp::remote_config_hash::HashRepository;
+use crate::sub_agent::error::SubAgentError;
 use crate::sub_agent::values::values_repository::ValuesRepository;
 use crate::sub_agent::SubAgentCallbacks;
 use crossbeam::select;
@@ -12,11 +15,8 @@ use tracing::{debug, error};
 
 // This trait is meant for testing, there are no multiple implementations expected
 // It cannot be doubled as the implementation has a lifetime constraint
-pub trait SubAgentEventProcessor<C>
-where
-    C: StartedClient<SubAgentCallbacks> + 'static,
-{
-    fn process(self) -> JoinHandle<Option<C>>;
+pub trait SubAgentEventProcessor {
+    fn process(self) -> JoinHandle<Result<(), SubAgentError>>;
 }
 
 pub struct EventProcessor<C, H, R>
@@ -25,8 +25,10 @@ where
     H: HashRepository,
     R: ValuesRepository,
 {
+    agent_id: AgentID,
     pub(super) sub_agent_publisher: EventPublisher<SubAgentEvent>,
     pub(super) sub_agent_opamp_consumer: EventConsumer<OpAMPEvent>,
+    pub(super) sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
     pub(super) maybe_opamp_client: Option<C>,
     pub(super) sub_agent_remote_config_hash_repository: Arc<H>,
     pub(super) remote_values_repo: Arc<R>,
@@ -39,15 +41,19 @@ where
     R: ValuesRepository,
 {
     pub fn new(
+        agent_id: AgentID,
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
         sub_agent_opamp_consumer: EventConsumer<OpAMPEvent>,
+        sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
         maybe_opamp_client: Option<C>,
         sub_agent_remote_config_hash_repository: Arc<H>,
         remote_values_repo: Arc<R>,
     ) -> Self {
         EventProcessor {
+            agent_id,
             sub_agent_publisher,
             sub_agent_opamp_consumer,
+            sub_agent_internal_consumer,
             maybe_opamp_client,
             sub_agent_remote_config_hash_repository,
             remote_values_repo,
@@ -55,7 +61,7 @@ where
     }
 }
 
-impl<C, H, R> SubAgentEventProcessor<C> for EventProcessor<C, H, R>
+impl<C, H, R> SubAgentEventProcessor for EventProcessor<C, H, R>
 where
     C: StartedClient<SubAgentCallbacks> + 'static,
     H: HashRepository + Send + Sync + 'static,
@@ -64,14 +70,14 @@ where
     // process will process the Sub Agent OpAMP events and will return the OpAMP client
     // when processing ends.
     // It will end when sub_agent_opamp_publisher is closed
-    fn process(self) -> JoinHandle<Option<C>> {
+    fn process(self) -> JoinHandle<Result<(), SubAgentError>> {
         thread::spawn(move || {
             loop {
                 select! {
                     recv(&self.sub_agent_opamp_consumer.as_ref()) -> opamp_event_res => {
                         match opamp_event_res {
                             Err(_) => {
-                                debug!("channel closed");
+                                debug!("sub_agent_opamp_consumer :: channel closed");
                                 break;
                             }
                             Ok(OpAMPEvent::InvalidRemoteConfigReceived(remote_config_error)) => {
@@ -87,10 +93,22 @@ where
                                 }
                             }
                         }
+                    },
+                    recv(&self.sub_agent_internal_consumer.as_ref()) -> sub_agent_internal_event_res => {
+                         match sub_agent_internal_event_res {
+                                 Err(_) => {
+                                debug!("sub_agent_internal_consumer :: channel closed");
+                                break;
+                            }
+                            Ok(SubAgentInternalEvent::StopRequested) => {
+                                debug!("sub_agent_internal_consumer :: StopRequested");
+                                break;
+                            }
+                         }
                     }
                 }
             }
-            self.maybe_opamp_client
+            stop_opamp_client(self.maybe_opamp_client, &self.agent_id)
         })
     }
 }
@@ -107,7 +125,6 @@ pub mod test {
     use mockall::mock;
     use opamp_client::opamp::proto::RemoteConfigStatus;
     use opamp_client::opamp::proto::RemoteConfigStatuses::Failed;
-    use opamp_client::StartedClient;
     use std::collections::HashMap;
     use std::sync::Arc;
     use std::thread;
@@ -117,45 +134,47 @@ pub mod test {
     use crate::config::agent_values::AgentValues;
     use crate::event::SubAgentEvent::ConfigUpdated;
     use crate::opamp::remote_config_hash::test::MockHashRepositoryMock;
+    use crate::sub_agent::error::SubAgentError;
     use crate::sub_agent::values::values_repository::test::MockRemoteValuesRepositoryMock;
-    use crate::sub_agent::SubAgentCallbacks;
     use tracing_test::internal::logs_with_scope_contain;
     use tracing_test::traced_test;
 
     mock! {
-         pub EventProcessorMock<C> {}
+         pub EventProcessorMock {}
 
-        impl<C> SubAgentEventProcessor<C> for EventProcessorMock<C>
-        where
-            C: StartedClient<SubAgentCallbacks> + 'static,
+        impl SubAgentEventProcessor for EventProcessorMock
         {
-            fn process(self) -> JoinHandle<Option<C>>;
+            fn process(self) -> JoinHandle<Result<(), SubAgentError>>;
         }
     }
 
-    impl<C> MockEventProcessorMock<C>
-    where
-        C: StartedClient<SubAgentCallbacks> + 'static,
-    {
-        pub fn should_process(&mut self, maybe_client: Option<C>) {
+    impl MockEventProcessorMock {
+        pub fn should_process(&mut self) {
             self.expect_process()
                 .once()
-                .return_once(move || thread::spawn(move || maybe_client));
+                .return_once(move || thread::spawn(|| Ok(())));
         }
     }
 
     #[traced_test]
     #[test]
     fn test_event_loop_is_closed() {
-        let opamp_client = MockStartedOpAMPClientMock::new();
+        let mut opamp_client = MockStartedOpAMPClientMock::new();
         let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
         let (sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
+        let (_sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let hash_repository = MockHashRepositoryMock::default();
         let values_repository = MockRemoteValuesRepositoryMock::default();
 
+        //opamp client expects to be stopped
+        opamp_client.should_set_health(1);
+        opamp_client.should_stop(1);
+
         let event_processor = EventProcessor::new(
+            AgentID::new("agent-id").unwrap(),
             sub_agent_publisher,
             sub_agent_opamp_consumer,
+            sub_agent_internal_consumer,
             Some(opamp_client),
             Arc::new(hash_repository),
             Arc::new(values_repository),
@@ -176,9 +195,10 @@ pub mod test {
     #[traced_test]
     #[test]
     fn test_valid_config() {
-        let opamp_client = MockStartedOpAMPClientMock::new();
+        let mut opamp_client = MockStartedOpAMPClientMock::new();
         let (sub_agent_publisher, sub_agent_consumer) = pub_sub();
         let (sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
+        let (_sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let mut hash_repository = MockHashRepositoryMock::default();
         let mut values_repository = MockRemoteValuesRepositoryMock::default();
 
@@ -205,9 +225,15 @@ pub mod test {
             agent_id: agent_id.clone(),
         };
 
+        //opamp client expects to be stopped
+        opamp_client.should_set_health(1);
+        opamp_client.should_stop(1);
+
         let event_processor = EventProcessor::new(
+            agent_id.clone(),
             sub_agent_publisher,
             sub_agent_opamp_consumer,
+            sub_agent_internal_consumer,
             Some(opamp_client),
             Arc::new(hash_repository),
             Arc::new(values_repository),
@@ -239,6 +265,7 @@ pub mod test {
         let mut opamp_client = MockStartedOpAMPClientMock::new();
         let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
         let (sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
+        let (_sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let hash_repository = MockHashRepositoryMock::default();
         let values_repository = MockRemoteValuesRepositoryMock::default();
 
@@ -253,9 +280,15 @@ pub mod test {
             String::from("this is an error message"),
         );
 
+        //opamp client expects to be stopped
+        opamp_client.should_set_health(1);
+        opamp_client.should_stop(1);
+
         let event_processor = EventProcessor::new(
+            AgentID::new("agent-id").unwrap(),
             sub_agent_publisher,
             sub_agent_opamp_consumer,
+            sub_agent_internal_consumer,
             Some(opamp_client),
             Arc::new(hash_repository),
             Arc::new(values_repository),

@@ -44,6 +44,7 @@ where
 ////////////////////////////////////////////////////////////////////////////////////
 #[cfg(test)]
 mod tests {
+    use crate::config::super_agent_configs::AgentID;
     use crate::event::channel::pub_sub;
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::remote_config::RemoteConfigError::InvalidConfig;
@@ -61,6 +62,7 @@ mod tests {
         let mut opamp_client = MockStartedOpAMPClientMock::new();
         let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
         let (_sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
+        let (_sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let hash_repository = MockHashRepositoryMock::default();
         let values_repository = MockRemoteValuesRepositoryMock::default();
 
@@ -78,8 +80,10 @@ mod tests {
             InvalidConfig(String::from("some-hash"), String::from("some error"));
 
         let event_processor = EventProcessor::new(
+            AgentID::new("some-agent-id").unwrap(),
             sub_agent_publisher,
             sub_agent_opamp_consumer,
+            sub_agent_internal_consumer,
             Some(opamp_client),
             Arc::new(hash_repository),
             Arc::new(values_repository),
@@ -95,6 +99,7 @@ mod tests {
     fn test_no_opamp_should_panic() {
         let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
         let (_sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
+        let (_sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let hash_repository = MockHashRepositoryMock::default();
         let values_repository = MockRemoteValuesRepositoryMock::default();
 
@@ -102,8 +107,10 @@ mod tests {
             InvalidConfig(String::from("some-hash"), String::from("some error"));
 
         let event_processor = EventProcessor::new(
+            AgentID::new("some-agent-id").unwrap(),
             sub_agent_publisher,
             sub_agent_opamp_consumer,
+            sub_agent_internal_consumer,
             None::<MockStartedOpAMPClientMock<SubAgentCallbacks>>,
             Arc::new(hash_repository),
             Arc::new(values_repository),
