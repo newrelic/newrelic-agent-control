@@ -10,21 +10,21 @@ default-run = "newrelic-super-agent"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-clap = { version = "4.4.3", features = ["derive"] }
-serde = { version = "1.0.188", features = ["derive"] }
-thiserror = "1.0.47"
-nix = { version = "0.27.1", features = ["signal", "user", "hostname"] }
-log = { version = "0.4.20", features = ["kv_unstable"] }
-tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
-tracing = "0.1.37"
+clap = { workspace = true, features = ["derive"] }
+serde = { workspace = true, features = ["derive"] }
+thiserror = { workspace = true }
+nix = { workspace = true, features = ["signal", "user", "hostname"] }
+log = { workspace = true, features = ["kv_unstable"] }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+tracing = { workspace = true }
 ctrlc = { version = "3.4.0", features = ["termination"] }
-serde_yaml = "0.9.25"
-regex = "1.9.3"
+serde_yaml = { workspace = true }
+regex = { workspace = true }
 opamp-client = { git = "ssh://git@github.com/newrelic/opamp-rs.git", tag = "0.0.7" }
 futures = "0.3.28"
 async-trait = "0.1.71"
 tokio = "1.32.0"
-ulid = { version = "1.0.1", features = ["serde"] }
+ulid = { workspace = true, features = ["serde"] }
 openssl = { version = "0.10.57", features = ["vendored"] }
 aquamarine = "0.3.2"
 duration-str = "0.7.0"
@@ -49,19 +49,19 @@ either = { version = "1.9.0", optional = true }
 crossbeam = { version = "0.8.3", features = ["crossbeam-channel"] }
 
 [dev-dependencies]
-assert_cmd = "2.0.12"
-assert_fs = "1.0.13"
-bollard = "0.15.0"
-predicates = "3.0.3"
-tower-test = "0.4.0"
-http = "0.2.9"
-tempfile = "3.8.0"
-mockall = "0.11.4"
-schemars = "0.8.15"
-serde_json = "1.0.108"
-assert_matches = "1.5.0"
-mockall_double = "0.3.0"
-tracing-test = "0.2.4"
+assert_cmd = { workspace = true }
+assert_fs = { workspace = true }
+bollard = { workspace = true }
+predicates = { workspace = true }
+tower-test = { workspace = true }
+http = { workspace = true }
+tempfile = { workspace = true }
+mockall = { workspace = true }
+schemars = { workspace = true }
+serde_json = { workspace = true }
+assert_matches = { workspace = true }
+mockall_double = { workspace = true }
+tracing-test = { workspace = true }
 fs = {path = "../fs", features = ["mocks"]}
 
 
