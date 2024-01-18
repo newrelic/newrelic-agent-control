@@ -20,7 +20,7 @@ tracing = { workspace = true }
 ctrlc = { version = "3.4.0", features = ["termination"] }
 serde_yaml = { workspace = true }
 regex = { workspace = true }
-opamp-client = { git = "ssh://git@github.com/newrelic/opamp-rs.git", tag = "0.0.7" }
+opamp-client = { git = "ssh://git@github.com/newrelic/opamp-rs.git", tag = "0.0.8" }
 futures = "0.3.28"
 async-trait = "0.1.71"
 tokio = "1.32.0"
@@ -28,11 +28,11 @@ ulid = { workspace = true, features = ["serde"] }
 openssl = { version = "0.10.57", features = ["vendored"] }
 aquamarine = "0.3.2"
 duration-str = "0.7.0"
-fs = {path = "../fs"}
+fs = { path = "../fs" }
 
 # OnHost subagent dependencies
 # IMPORTANT: All onhost only deps needs to be `optional = true` so they won't be compiled by default
-resource-detection = {path = "../resource-detection"}
+resource-detection = { path = "../resource-detection" }
 
 # K8S subagent dependencies
 # IMPORTANT: All k8s only deps needs to be `optional = true` so they won't be compiled by default
@@ -61,7 +61,7 @@ serde_json = { workspace = true }
 assert_matches = { workspace = true }
 mockall_double = { workspace = true }
 tracing-test = { workspace = true }
-fs = {path = "../fs", features = ["mocks"]}
+fs = { path = "../fs", features = ["mocks"] }
 
 
 [[test]]
