@@ -1,5 +1,7 @@
+use http::HeaderMap;
 use std::time::Duration;
 use thiserror::Error;
+use tracing::error;
 
 /// An enumeration of potential errors related to the HTTP client.
 #[derive(Error, Debug)]
@@ -21,23 +23,35 @@ pub trait HttpClient {
 pub struct HttpClientUreq {
     client: ureq::Agent,
     url: String,
+    header_map: Option<HeaderMap>,
 }
 
 impl HttpClientUreq {
     /// Returns a new instance of HttpClientUreq
-    pub fn new(url: String, timeout: Duration) -> Self {
+    pub fn new(url: String, timeout: Duration, header_map: Option<HeaderMap>) -> Self {
         Self {
             client: ureq::AgentBuilder::new().timeout(timeout).build(),
             url,
+            header_map,
         }
     }
 }
 
 impl HttpClient for HttpClientUreq {
     fn get(&self) -> Result<http::Response<Vec<u8>>, HttpClientError> {
-        Ok(self
-            .client
-            .get(&self.url)
+        let mut req = self.client.get(&self.url);
+
+        if let Some(headers) = self.header_map.as_ref() {
+            for (header_name, header_value) in headers {
+                if let Ok(value) = header_value.to_str() {
+                    req = req.set(header_name.as_str(), value);
+                } else {
+                    error!("invalid header value for {}", header_name)
+                }
+            }
+        }
+
+        Ok(req
             .call()
             .map_err(|e| HttpClientError::UreqError(e.to_string()))?
             .into())
