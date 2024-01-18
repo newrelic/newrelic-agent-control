@@ -1370,4 +1370,90 @@ values:
         let spec = cr1.fields.get("spec").unwrap().clone();
         assert_eq!(expected_spec_value, spec);
     }
+
+    const AGENT_WITH_VARIANTS: &str = r#"
+name: variant-values
+namespace: newrelic
+version: 0.0.1
+variables:
+  restart_policy:
+    type:
+      description: "restart policy type"
+      type: string
+      required: false
+      variants: [fixed, linear]
+      default: exponential
+deployment:
+  on_host:
+      executables:
+      - path: /bin/echo
+        args: "${restart_policy.type}"
+"#;
+
+    const CONFIG_YAML_VALUES_VALID_VARIANT: &str = r#"
+restart_policy:
+    type: fixed
+"#;
+
+    const CONFIG_YAML_VALUES_INVALID_VARIANT: &str = r#"
+restart_policy:
+    type: random
+"#;
+
+    #[test]
+    fn test_agent_with_variants() {
+        let input_agent_type: FinalAgent = serde_yaml::from_str(AGENT_WITH_VARIANTS).unwrap();
+        let user_config: AgentValues = serde_yaml::from_str(CONFIG_YAML_VALUES_VALID_VARIANT)
+            .expect("Failed to parse user config");
+        let expanded_final_agent = input_agent_type.template_with(user_config, None).unwrap();
+
+        let executable = expanded_final_agent
+            .runtime_config
+            .deployment
+            .on_host
+            .unwrap();
+
+        let actual_exec = executable.executables.first().unwrap();
+
+        assert_eq!(actual_exec.path.value, Some("/bin/echo".to_string()));
+        assert_eq!(actual_exec.args.value, Some(Args("fixed".to_string())));
+    }
+
+    #[test]
+    fn test_agent_with_variants_invalid() {
+        let input_agent_type: FinalAgent = serde_yaml::from_str(AGENT_WITH_VARIANTS).unwrap();
+        let user_config: AgentValues = serde_yaml::from_str(CONFIG_YAML_VALUES_INVALID_VARIANT)
+            .expect("Failed to parse user config");
+        let expanded_final_agent = input_agent_type.template_with(user_config, None);
+
+        assert!(expanded_final_agent.is_err());
+        assert_eq!(
+            expanded_final_agent.unwrap_err().to_string(),
+            r#"Invalid variant provided as a value: `"random"`. Variants allowed: ["\"fixed\"", "\"linear\""]"#
+        );
+    }
+
+    #[test]
+    fn default_can_be_invalid_variant() {
+        let input_agent_type: FinalAgent = serde_yaml::from_str(AGENT_WITH_VARIANTS).unwrap();
+        let user_config = AgentValues::default();
+        let expanded_final_agent = input_agent_type.template_with(user_config, None);
+
+        assert!(expanded_final_agent.is_ok());
+
+        let executable = expanded_final_agent
+            .unwrap()
+            .runtime_config
+            .deployment
+            .on_host
+            .unwrap();
+
+        let actual_exec = executable.executables.first().unwrap();
+
+        assert_eq!(actual_exec.path.value, Some("/bin/echo".to_string()));
+        assert_eq!(
+            actual_exec.args.value,
+            Some(Args("exponential".to_string()))
+        );
+    }
 }
