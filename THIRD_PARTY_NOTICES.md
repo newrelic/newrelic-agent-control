@@ -172,13 +172,6 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
-## base64 (https://crates.io/crates/base64)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
 ## bitflags (https://crates.io/crates/bitflags)
 
 Distributed under the following license(s):
@@ -630,13 +623,6 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
-## hashbrown (https://crates.io/crates/hashbrown)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
 ## heck (https://crates.io/crates/heck)
 
 Distributed under the following license(s):
@@ -772,13 +758,6 @@ Distributed under the following license(s):
 * MIT
 
 
-## indexmap (https://crates.io/crates/indexmap)
-
-Distributed under the following license(s):
-* Apache-2.0
-* MIT
-
-
 ## instant (https://crates.io/crates/instant)
 
 Distributed under the following license(s):
@@ -786,13 +765,6 @@ Distributed under the following license(s):
 
 
 ## ipnet (https://crates.io/crates/ipnet)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## itertools (https://crates.io/crates/itertools)
 
 Distributed under the following license(s):
 * MIT
@@ -827,7 +799,7 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
-## jsonpath_lib (https://crates.io/crates/jsonpath_lib)
+## jsonpath-rust (https://crates.io/crates/jsonpath-rust)
 
 Distributed under the following license(s):
 * MIT
@@ -1329,13 +1301,6 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
-## regex-automata (https://crates.io/crates/regex-automata)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
 ## regex-syntax (https://crates.io/crates/regex-syntax)
 
 Distributed under the following license(s):
@@ -1547,13 +1512,6 @@ Distributed under the following license(s):
 
 
 ## smallvec (https://crates.io/crates/smallvec)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## socket2 (https://crates.io/crates/socket2)
 
 Distributed under the following license(s):
 * MIT
@@ -2042,7 +2000,7 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
-## windows (https://crates.io/crates/windows)
+## windows-core (https://crates.io/crates/windows-core)
 
 Distributed under the following license(s):
 * MIT
@@ -2178,6 +2136,14 @@ Distributed under the following license(s):
 ## winreg (https://crates.io/crates/winreg)
 
 Distributed under the following license(s):
+* MIT
+
+
+## zerocopy (https://crates.io/crates/zerocopy)
+
+Distributed under the following license(s):
+* BSD-2-Clause
+* Apache-2.0
 * MIT
 
 
