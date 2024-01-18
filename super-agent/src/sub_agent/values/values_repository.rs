@@ -247,7 +247,6 @@ pub mod test {
     use std::fs::Permissions;
     use std::path::Path;
 
-    use crate::fs::file_reader::MockFSFileReader;
     use crate::super_agent::defaults::default_capabilities;
     #[cfg(target_family = "unix")]
     use std::os::unix::fs::PermissionsExt;
@@ -569,7 +568,7 @@ pub mod test {
         let local_conf_path = Path::new("some/local/path");
         let remote_enabled = false;
 
-        let agent_id = AgentID::new("some_agent_id").unwrap();
+        let agent_id = AgentID::new("some-agent-id").unwrap();
         let agent_values =
             AgentValues::new(HashMap::from([("one_item".into(), "one value".into())]));
 
@@ -605,7 +604,7 @@ pub mod test {
         let local_conf_path = Path::new("some/local/path");
         let remote_enabled = false;
 
-        let agent_id = AgentID::new("some_agent_id").unwrap();
+        let agent_id = AgentID::new("some-agent-id").unwrap();
         let agent_values =
             AgentValues::new(HashMap::from([("one_item".into(), "one value".into())]));
 
@@ -639,7 +638,7 @@ pub mod test {
         let local_conf_path = Path::new("some/local/path");
         let remote_enabled = false;
 
-        let agent_id = AgentID::new("some_agent_id").unwrap();
+        let agent_id = AgentID::new("some-agent-id").unwrap();
         let agent_values =
             AgentValues::new(HashMap::from([("one_item".into(), "one value".into())]));
 
@@ -676,7 +675,7 @@ pub mod test {
         let local_conf_path = Path::new("some/local/path");
         let remote_enabled = false;
 
-        let agent_id = AgentID::new("some_agent_id").unwrap();
+        let agent_id = AgentID::new("some-agent-id").unwrap();
         let agent_values =
             AgentValues::new(HashMap::from([("one_item".into(), "one value".into())]));
 
