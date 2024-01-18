@@ -25,6 +25,7 @@
         - 15.2
         - 15.3
         - 15.4
+        - 15.5
 
 - src: "newrelic-super-agent_{version}_linux_{arch}.rpm"
   arch:
@@ -76,6 +77,7 @@
         - 15.2
         - 15.3
         - 15.4
+        - 15.5
 
 - src: "newrelic-super-agent_{version}_linux_{arch}.rpm.sum"
   arch:
@@ -90,6 +92,7 @@
         - 15.2
         - 15.3
         - 15.4
+        - 15.5
 
 - src: "newrelic-super-agent_{version}_linux_{arch}.rpm.sum"
   arch:
