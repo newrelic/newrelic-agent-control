@@ -5,7 +5,7 @@ use tracing::warn;
 use crate::cloud::aws::detector::AWSDetector;
 use crate::cloud::azure::detector::AzureDetector;
 use crate::cloud::gcp::detector::GCPDetector;
-use crate::cloud::http_client::{HttpClient, HttpClientUreq};
+use crate::cloud::http_client::HttpClientUreq;
 use crate::cloud::{
     AZURE_INSTANCE_ID, CLOUD_INSTANCE_ID, CLOUD_TYPE, CLOUD_TYPE_AWS, CLOUD_TYPE_AZURE,
     CLOUD_TYPE_GCP, CLOUD_TYPE_NO, GCP_INSTANCE_ID,
@@ -55,23 +55,21 @@ fn match_resource(
                 "{} instance ID should be in the attributes list. Check API permissions.",
                 cloud_type_const
             );
-            return Resource::new([
+            Resource::new([
                 (Key::from(CLOUD_INSTANCE_ID), Value::from("".to_string())),
                 (
                     Key::from(CLOUD_TYPE),
                     Value::from(CLOUD_TYPE_NO.to_string()),
                 ),
-            ]);
+            ])
         }
-        Some(cloud_id) => {
-            return Resource::new([
-                (Key::from(CLOUD_INSTANCE_ID), cloud_id),
-                (
-                    Key::from(CLOUD_TYPE),
-                    Value::from(cloud_type_const.to_string()),
-                ),
-            ]);
-        }
+        Some(cloud_id) => Resource::new([
+            (Key::from(CLOUD_INSTANCE_ID), cloud_id),
+            (
+                Key::from(CLOUD_TYPE),
+                Value::from(cloud_type_const.to_string()),
+            ),
+        ]),
     }
 }
 
@@ -114,6 +112,7 @@ mod test {
     use crate::cloud::aws::detector::AWSDetectorError;
     use crate::cloud::azure::detector::AzureDetectorError;
     use crate::cloud::gcp::detector::GCPDetectorError;
+    use crate::cloud::http_client::HttpClient;
     use crate::cloud::CLOUD_TYPE_GCP;
     use mockall::mock;
 
@@ -140,8 +139,8 @@ mod test {
     #[test]
     fn detect_aws_metadata() {
         let mut aws_detector_mock = MockDetectorMock::default();
-        let mut azure_detector_mock = MockDetectorMock::default();
-        let mut gcp_detector_mock = MockDetectorMock::default();
+        let azure_detector_mock = MockDetectorMock::default();
+        let gcp_detector_mock = MockDetectorMock::default();
 
         aws_detector_mock.expect_detect().once().returning(|| {
             Ok(Resource::new([(

@@ -21,6 +21,7 @@ impl Default for AWSDetector<HttpClientUreq> {
             http_client: HttpClientUreq::new(
                 IPV4_METADATA_ENDPOINT.to_string(),
                 DEFAULT_CLIENT_TIMEOUT,
+                None,
             ),
         }
     }

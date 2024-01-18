@@ -5,7 +5,7 @@ use resource_detection::cloud::azure::detector::AzureDetector;
 use resource_detection::cloud::cloud_id::detector::CloudIdDetector;
 use resource_detection::cloud::gcp::detector::GCPDetector;
 use resource_detection::cloud::http_client::HttpClientUreq;
-use resource_detection::cloud::{AWS_INSTANCE_ID, AZURE_INSTANCE_ID, CLOUD_INSTANCE_ID};
+use resource_detection::cloud::CLOUD_INSTANCE_ID;
 use resource_detection::system::{HOSTNAME_KEY, MACHINE_ID_KEY};
 use resource_detection::DetectError;
 use resource_detection::{system::detector::SystemDetector, Detector};
@@ -103,7 +103,7 @@ where
     }
 }
 
-#[derive(thiserror::Error, Debug)]
+#[derive(Error, Debug)]
 pub enum GetterError {
     #[error("failed to persist Data: `{0}`")]
     Persisting(#[from] StorerError),
@@ -121,23 +121,20 @@ mod test {
     use crate::opamp::instance_id::on_host::getter::IdentifiersProvider;
     use crate::opamp::instance_id::Identifiers;
     use mockall::mock;
-    use resource_detection::cloud::aws::detector::AWSDetectorError;
-    use resource_detection::cloud::cloud_id::detector::CloudIdDetector;
-    use resource_detection::cloud::http_client::HttpClientError;
     use resource_detection::{DetectError, Detector, Key, Resource, Value};
     use tracing_test::internal::logs_with_scope_contain;
     use tracing_test::traced_test;
 
     mock! {
         pub SystemDetectorMock {}
-        impl Detect for SystemDetectorMock {
+        impl Detector for SystemDetectorMock {
             fn detect(&self) -> Result<Resource, DetectError>;
         }
     }
 
     mock! {
         pub CloudDetectorMock {}
-        impl Detect for CloudDetectorMock {
+        impl Detector for CloudDetectorMock {
             fn detect(&self) -> Result<Resource, DetectError>;
         }
     }

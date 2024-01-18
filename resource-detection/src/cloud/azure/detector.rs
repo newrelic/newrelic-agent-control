@@ -1,4 +1,5 @@
 //! Azure EC2 instance id detector implementation
+use http::HeaderMap;
 use std::time::Duration;
 
 use thiserror::Error;
@@ -15,13 +16,22 @@ pub struct AzureDetector<C: HttpClient> {
 }
 
 const DEFAULT_CLIENT_TIMEOUT: Duration = Duration::from_secs(5);
+const HEADER_KEY: &str = "Metadata";
+const HEADER_VALUE: &str = "true";
 
 impl Default for AzureDetector<HttpClientUreq> {
     fn default() -> Self {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            HEADER_KEY,
+            HEADER_VALUE.parse().expect("constant valid value"),
+        );
+
         Self {
             http_client: HttpClientUreq::new(
                 IPV4_METADATA_ENDPOINT.to_string(),
                 DEFAULT_CLIENT_TIMEOUT,
+                Some(headers),
             ),
         }
     }

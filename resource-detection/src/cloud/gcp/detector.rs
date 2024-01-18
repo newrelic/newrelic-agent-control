@@ -1,12 +1,12 @@
 //! GCP instance id detector implementation
-use http::HeaderValue;
+use http::{HeaderMap, HeaderName};
 use std::time::Duration;
 
 use thiserror::Error;
 
 use crate::cloud::http_client::{HttpClient, HttpClientError, HttpClientUreq};
 use crate::cloud::GCP_INSTANCE_ID;
-use crate::{cloud::AWS_INSTANCE_ID, DetectError, Detector, Key, Resource, Value};
+use crate::{DetectError, Detector, Key, Resource, Value};
 
 use super::metadata::{GCPMetadata, IPV4_METADATA_ENDPOINT};
 
@@ -16,13 +16,22 @@ pub struct GCPDetector<C: HttpClient> {
 }
 
 const DEFAULT_CLIENT_TIMEOUT: Duration = Duration::from_secs(5);
+const HEADER_KEY: &str = "Metadata-Flavor";
+const HEADER_VALUE: &str = "Google";
 
 impl Default for GCPDetector<HttpClientUreq> {
     fn default() -> Self {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            HEADER_KEY,
+            HEADER_VALUE.parse().expect("constant valid value"),
+        );
+
         Self {
             http_client: HttpClientUreq::new(
                 IPV4_METADATA_ENDPOINT.to_string(),
                 DEFAULT_CLIENT_TIMEOUT,
+                Some(headers),
             ),
         }
     }
@@ -47,15 +56,10 @@ where
     C: HttpClient,
 {
     fn detect(&self) -> Result<Resource, DetectError> {
-        let mut response = self
+        let response = self
             .http_client
             .get()
             .map_err(GCPDetectorError::HttpError)?;
-
-        response.headers_mut().append(
-            "Metadata-Flavor",
-            HeaderValue::from_str("Google").expect("Header value \"Google\" failed to be computed"),
-        );
 
         // return error if status code is not within 200-299.
         if !response.status().is_success() {
