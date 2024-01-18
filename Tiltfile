@@ -46,7 +46,7 @@ if chart != 'newrelic/':
     deps=[chart+'super-agent-deployment/templates'] # re-deploy chart if modified locally
 
 helm_resource(
-  'sa-crd',
+  'flux',
   chart+'super-agent',
   namespace=namespace,
   release_name='sa',
