@@ -3,7 +3,6 @@ use std::{collections::HashMap, path::PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::config::agent_type::{
-    agent_types::VariableType,
     error::AgentTypeError,
     trivial_value::{FilePathWithContent, TrivialValue},
 };
@@ -12,7 +11,7 @@ use super::kind_value::{KindValue, KindValueWithPath};
 
 #[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 #[serde(tag = "type")]
-pub(super) enum Kind {
+pub enum Kind {
     #[serde(rename = "string")]
     String(KindValue<String>),
     #[serde(rename = "bool")]
@@ -76,17 +75,6 @@ impl From<KindValue<serde_yaml::Value>> for Kind {
 /// The below methods are mostly concerned with delegating to the inner type on each `Kind` variant.
 /// It's a lot of boilerplate, but declarative and straight-forward.
 impl Kind {
-    pub(crate) fn variable_type(&self) -> VariableType {
-        match self {
-            Kind::String(_) => VariableType::String,
-            Kind::Bool(_) => VariableType::Bool,
-            Kind::Number(_) => VariableType::Number,
-            Kind::File(_) => VariableType::File,
-            Kind::MapStringString(_) => VariableType::MapStringString,
-            Kind::MapStringFile(_) => VariableType::MapStringFile,
-            Kind::Yaml(_) => VariableType::Yaml,
-        }
-    }
     pub(crate) fn is_required(&self) -> bool {
         match self {
             Kind::String(k) => k.required,
@@ -179,16 +167,16 @@ impl Kind {
 
     pub(crate) fn get_file_path(&self) -> Option<&PathBuf> {
         match self {
-            Kind::File(k) => Some(&k.file_path),
-            Kind::MapStringFile(k) => Some(&k.file_path),
+            Kind::File(k) => Some(k.get_file_path()),
+            Kind::MapStringFile(k) => Some(k.get_file_path()),
             _ => None,
         }
     }
 
     pub(crate) fn set_file_path(&mut self, file_path: PathBuf) {
         match self {
-            Kind::File(k) => k.file_path = file_path,
-            Kind::MapStringFile(k) => k.file_path = file_path,
+            Kind::File(k) => k.set_file_path(file_path),
+            Kind::MapStringFile(k) => k.set_file_path(file_path),
             _ => {}
         }
     }

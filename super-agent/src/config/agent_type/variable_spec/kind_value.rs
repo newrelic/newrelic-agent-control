@@ -31,6 +31,21 @@ where
     pub(crate) fn set_final_value(&mut self, value: T) {
         self.final_value = Some(value);
     }
+    pub(crate) fn get_final_value(&self) -> Option<&T> {
+        self.final_value.as_ref()
+    }
+}
+
+impl<T> KindValueWithPath<T>
+where
+    T: PartialEq,
+{
+    pub(crate) fn get_file_path(&self) -> &PathBuf {
+        &self.file_path
+    }
+    pub(crate) fn set_file_path(&mut self, path: PathBuf) {
+        self.file_path = path;
+    }
 }
 
 impl<'de, T> Deserialize<'de> for KindValue<T>

@@ -2,9 +2,7 @@ use std::{collections::HashMap, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::config::agent_type::{
-    agent_types::VariableType, error::AgentTypeError, trivial_value::TrivialValue,
-};
+use crate::config::agent_type::{error::AgentTypeError, trivial_value::TrivialValue};
 
 use super::kind::Kind;
 
@@ -25,10 +23,6 @@ pub struct EndSpec {
 }
 
 impl EndSpec {
-    pub fn variable_type(&self) -> VariableType {
-        self.kind.variable_type()
-    }
-
     pub fn is_required(&self) -> bool {
         self.kind.is_required()
     }
@@ -58,6 +52,10 @@ impl EndSpec {
             _ => self.get_final_value(),
         }
     }
+
+    pub fn kind(&self) -> &Kind {
+        &self.kind
+    }
 }
 
 #[cfg(test)]
@@ -71,7 +69,6 @@ mod test {
 
     use super::EndSpec;
 
-    #[allow(private_bounds)] // Not sure how to solve this, so, for the moment...
     impl EndSpec {
         pub(crate) fn new<T>(
             description: String,

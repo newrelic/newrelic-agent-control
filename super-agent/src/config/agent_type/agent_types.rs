@@ -7,7 +7,6 @@
 use crate::config::agent_type::variable_spec::spec::Spec;
 use crate::config::super_agent_configs::AgentTypeFQN;
 use serde::{Deserialize, Deserializer};
-use std::fmt::Display;
 use std::path::PathBuf;
 use std::{collections::HashMap, str::FromStr};
 
@@ -301,44 +300,6 @@ fn inner_flatten(key: String, spec: Spec) -> HashMap<String, EndSpec> {
         }),
     }
     result
-}
-
-#[derive(Debug, PartialEq, Clone, Copy, Deserialize)]
-pub enum VariableType {
-    #[serde(rename = "string")]
-    String,
-    #[serde(rename = "bool")]
-    Bool,
-    #[serde(rename = "number")]
-    Number,
-    #[serde(rename = "file")]
-    File,
-    #[serde(rename = "map[string]string")]
-    MapStringString,
-    #[serde(rename = "map[string]file")]
-    MapStringFile,
-    // #[serde(rename = "map[string]number")]
-    // MapStringNumber,
-    // #[serde(rename = "map[string]bool")]
-    // MapStringBool,
-    #[serde(rename = "yaml")]
-    Yaml,
-}
-
-impl Display for VariableType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            VariableType::String => write!(f, "string"),
-            VariableType::Bool => write!(f, "bool"),
-            VariableType::Number => write!(f, "number"),
-            VariableType::File => write!(f, "file"),
-            VariableType::MapStringString => write!(f, "map[string]string"),
-            VariableType::MapStringFile => write!(f, "map[string]file"),
-            // VariableType::MapStringNumber => write!(f, "map[string]number"),
-            // VariableType::MapStringBool => write!(f, "map[string]bool"),
-            VariableType::Yaml => write!(f, "yaml"),
-        }
-    }
 }
 
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]

@@ -73,6 +73,20 @@ impl TrivialValue {
             _ => None,
         }
     }
+
+    pub fn as_file(&self) -> Option<&FilePathWithContent> {
+        match self {
+            Self::File(file) => Some(file),
+            _ => None,
+        }
+    }
+
+    pub fn as_map_string_file(&self) -> Option<&Map<String, FilePathWithContent>> {
+        match self {
+            Self::MapStringFile(map) => Some(map),
+            _ => None,
+        }
+    }
 }
 
 impl Display for TrivialValue {

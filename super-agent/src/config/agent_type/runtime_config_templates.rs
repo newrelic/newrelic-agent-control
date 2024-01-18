@@ -4,9 +4,10 @@ use std::sync::OnceLock;
 use regex::Regex;
 use tracing::warn;
 
+use super::variable_spec::kind::Kind;
 use super::variable_spec::spec::EndSpec;
 use super::{
-    agent_types::{NormalizedVariables, VariableType},
+    agent_types::NormalizedVariables,
     error::AgentTypeError,
     restart_policy::{BackoffStrategyConfig, RestartPolicyConfig},
     runtime_config::{
@@ -250,16 +251,13 @@ fn template_yaml_value_string(
     let var_value = var_spec
         .get_template_value()
         .ok_or(AgentTypeError::MissingAgentKey(var_name.to_string()))?;
-    match var_spec.variable_type() {
-        VariableType::Yaml => {
-            var_value
-                .to_yaml_value()
-                .ok_or(AgentTypeError::InvalidValueForSpec {
-                    key: var_name.to_string(),
-                    type_: VariableType::Yaml,
-                })
-        }
-        VariableType::Bool | VariableType::Number => {
+    match var_spec.kind() {
+        Kind::Yaml(y) => Ok(y
+            .get_final_value()
+            .cloned()
+            .expect("a final value must be present at this point")),
+
+        Kind::Bool(_) | Kind::Number(_) => {
             serde_yaml::from_str(var_value.to_string().as_str()).map_err(AgentTypeError::SerdeYaml)
         }
         _ => Ok(serde_yaml::Value::String(var_value.to_string())),
@@ -321,7 +319,7 @@ mod tests {
     use crate::config::agent_type::trivial_value::FilePathWithContent;
     use crate::config::agent_type::variable_spec::spec::EndSpec;
     use crate::config::agent_type::{
-        agent_types::{TemplateableValue, VariableType},
+        agent_types::TemplateableValue,
         runtime_config::{Args, Env},
     };
     use std::collections::HashMap;
@@ -758,11 +756,9 @@ mod tests {
             EndSpec::new(String::default(), true, None, Some("Value".to_string())),
         )]);
 
-        assert_eq!(
-            normalized_var("var.name", &variables)
-                .unwrap()
-                .variable_type(),
-            VariableType::String
+        assert_matches!(
+            normalized_var("var.name", &variables).unwrap().kind(),
+            Kind::String(_)
         );
         let key = assert_matches!(
             normalized_var("does.not.exists", &variables).err().unwrap(),

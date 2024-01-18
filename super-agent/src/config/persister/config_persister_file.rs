@@ -3,8 +3,9 @@ use std::fs::Permissions;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
-use crate::config::agent_type::agent_types::{FinalAgent, VariableType};
-use crate::config::agent_type::trivial_value::TrivialValue;
+use crate::config::agent_type::agent_types::FinalAgent;
+use crate::config::agent_type::variable_spec::kind::Kind;
+use crate::config::agent_type::variable_spec::spec::EndSpec;
 use crate::config::persister::config_persister::{ConfigurationPersister, PersistError};
 use crate::config::super_agent_configs::AgentID;
 use crate::super_agent::defaults::{GENERATED_FOLDER_NAME, SUPER_AGENT_DATA_DIR};
@@ -75,11 +76,7 @@ where
             .get_variables()
             .iter()
             .try_for_each(|(_fqn, end_spec)| {
-                self.write_file_values_to_file(
-                    dest_path.as_path(),
-                    &end_spec.variable_type(),
-                    &end_spec.get_final_value(),
-                )
+                self.write_file_values_to_file(dest_path.as_path(), end_spec)
             });
 
         Ok(writing_result?)
@@ -119,20 +116,27 @@ where
     fn write_file_values_to_file(
         &self,
         dest_path: &Path,
-        variable_type: &VariableType,
-        final_value: &Option<TrivialValue>,
+        end_spec: &EndSpec,
     ) -> Result<(), WriteError> {
-        match (&variable_type, &final_value) {
-            (VariableType::File, Some(TrivialValue::File(file_path_with_content))) => {
+        match end_spec.kind() {
+            Kind::File(_) => {
+                // retrieve the file path and content
+                let file_path_with_content = end_spec
+                    .get_final_value()
+                    .and_then(|t| t.as_file().cloned())
+                    .expect("A file must be present at this point");
                 // append file name to destination path and write the contents
+                let contents = file_path_with_content.content.as_str();
                 let mut file_dest_path = PathBuf::from(dest_path);
-                file_dest_path.push(&file_path_with_content.path);
-                self.write(
-                    file_dest_path.as_path(),
-                    file_path_with_content.content.as_str(),
-                )
+                file_dest_path.push(file_path_with_content.path.as_path());
+                self.write(file_dest_path.as_path(), contents) // This into() retrieves the contents
             }
-            (VariableType::MapStringFile, Some(TrivialValue::MapStringFile(files))) => {
+            Kind::MapStringFile(_) => {
+                let files = end_spec
+                    .get_final_value()
+                    .and_then(|t| t.as_map_string_file().cloned())
+                    .expect("A map of files must be present at this point")
+                    .to_owned();
                 // iterate all the files inside the map, append them the folder name, append them the file name
                 files
                     .iter()
