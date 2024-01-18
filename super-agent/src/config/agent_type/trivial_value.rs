@@ -16,7 +16,7 @@ pub enum TrivialValue {
     #[serde(skip)]
     Yaml(serde_yaml::Value),
     Bool(bool),
-    Number(Number),
+    Number(serde_yaml::Number),
     #[serde(skip)]
     MapStringString(Map<String, String>),
     #[serde(skip)]
@@ -47,8 +47,8 @@ impl From<bool> for TrivialValue {
     }
 }
 
-impl From<Number> for TrivialValue {
-    fn from(n: Number) -> Self {
+impl From<serde_yaml::Number> for TrivialValue {
+    fn from(n: serde_yaml::Number) -> Self {
         TrivialValue::Number(n)
     }
 }
@@ -139,39 +139,6 @@ impl From<String> for FilePathWithContent {
 impl From<FilePathWithContent> for String {
     fn from(file: FilePathWithContent) -> Self {
         file.content
-    }
-}
-
-/// Represents a numeric value, which can be either a positive integer, a negative integer or a float.
-#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
-#[serde(untagged)]
-pub enum Number {
-    PosInt(u64),
-    /// Always less than zero.
-    NegInt(i64),
-    /// May be infinite or NaN.
-    Float(f64),
-}
-
-impl Display for Number {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Number::PosInt(n) => write!(f, "{}", n),
-            Number::NegInt(n) => write!(f, "{}", n),
-            Number::Float(n) => write!(f, "{}", n),
-        }
-    }
-}
-
-impl From<serde_yaml::Number> for Number {
-    fn from(n: serde_yaml::Number) -> Self {
-        if n.is_u64() {
-            Number::PosInt(n.as_u64().expect("Number must be convertible to u64"))
-        } else if n.is_i64() {
-            Number::NegInt(n.as_i64().expect("Number must be convertible to i64"))
-        } else {
-            Number::Float(n.as_f64().expect("Number must be convertible to f64"))
-        }
     }
 }
 

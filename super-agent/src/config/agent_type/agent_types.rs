@@ -380,7 +380,7 @@ pub mod tests {
         agent_type::{
             restart_policy::{BackoffStrategyConfig, BackoffStrategyType},
             runtime_config::{Args, Env, Executable},
-            trivial_value::{Number, TrivialValue},
+            trivial_value::TrivialValue,
         },
         agent_values::AgentValues,
     };
@@ -388,7 +388,7 @@ pub mod tests {
     use super::*;
     use crate::config::agent_type::restart_policy::RestartPolicyConfig;
     use crate::config::agent_type::trivial_value::FilePathWithContent;
-    use serde_yaml::Error;
+    use serde_yaml::{Error, Number};
     use std::collections::HashMap as Map;
 
     impl FinalAgent {
@@ -672,7 +672,7 @@ deployment:
                     "backoff_retries".to_string(),
                     true,
                     None,
-                    Some(Number::PosInt(30)),
+                    Some(Number::from(30)),
                 ),
             ),
             (
@@ -796,7 +796,7 @@ deployment:
                     "backoff_retries".to_string(),
                     true,
                     None,
-                    Some(Number::PosInt(30)),
+                    Some(Number::from(30)),
                 ),
             ),
             (

@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::config::agent_type::{
     agent_types::VariableType,
     error::AgentTypeError,
-    trivial_value::{FilePathWithContent, Number, TrivialValue},
+    trivial_value::{FilePathWithContent, TrivialValue},
 };
 
 use super::kind_value::{KindValue, KindValueWithPath};
@@ -18,7 +18,7 @@ pub(super) enum Kind {
     #[serde(rename = "bool")]
     Bool(KindValue<bool>),
     #[serde(rename = "number")]
-    Number(KindValue<Number>),
+    Number(KindValue<serde_yaml::Number>),
     #[serde(rename = "file")]
     File(KindValueWithPath<FilePathWithContent>),
     #[serde(rename = "map[string]string")]
@@ -43,8 +43,8 @@ impl From<KindValue<bool>> for Kind {
     }
 }
 
-impl From<KindValue<Number>> for Kind {
-    fn from(kind_value: KindValue<Number>) -> Self {
+impl From<KindValue<serde_yaml::Number>> for Kind {
+    fn from(kind_value: KindValue<serde_yaml::Number>) -> Self {
         Kind::Number(kind_value)
     }
 }

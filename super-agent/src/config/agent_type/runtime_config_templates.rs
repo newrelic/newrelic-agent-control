@@ -315,15 +315,14 @@ impl Templateable for RuntimeConfig {
 #[cfg(test)]
 mod tests {
     use assert_matches::assert_matches;
+    use serde_yaml::Number;
 
     use crate::config::agent_type::restart_policy::{BackoffDuration, BackoffStrategyType};
     use crate::config::agent_type::trivial_value::FilePathWithContent;
-    use crate::config::agent_type::trivial_value::Number::PosInt;
     use crate::config::agent_type::variable_spec::spec::EndSpec;
     use crate::config::agent_type::{
         agent_types::{TemplateableValue, VariableType},
         runtime_config::{Args, Env},
-        trivial_value::Number,
     };
     use std::collections::HashMap;
 
@@ -338,7 +337,7 @@ mod tests {
             ),
             (
                 "age".to_string(),
-                EndSpec::new(String::default(), true, None, Some(Number::PosInt(30))),
+                EndSpec::new(String::default(), true, None, Some(Number::from(30))),
             ),
         ]);
 
@@ -383,7 +382,7 @@ mod tests {
             ),
             (
                 "backoff.retries".to_string(),
-                EndSpec::new(String::default(), true, None, Some(PosInt(30))),
+                EndSpec::new(String::default(), true, None, Some(Number::from(30))),
             ),
             (
                 "backoff.interval".to_string(),
@@ -481,7 +480,7 @@ mod tests {
             ),
             (
                 "change.me.number".to_string(),
-                EndSpec::new(String::default(), true, None, Some(PosInt(42))),
+                EndSpec::new(String::default(), true, None, Some(Number::from(42))),
             ),
         ]);
         let input: serde_yaml::Mapping = serde_yaml::from_str(
@@ -529,7 +528,7 @@ mod tests {
             ),
             (
                 "change.me.number".to_string(),
-                EndSpec::new(String::default(), true, None, Some(PosInt(42))),
+                EndSpec::new(String::default(), true, None, Some(Number::from(42))),
             ),
         ]);
         let input: serde_yaml::Sequence = serde_yaml::from_str(
@@ -573,7 +572,7 @@ mod tests {
             ),
             (
                 "change.me.number".to_string(),
-                EndSpec::new(String::default(), true, None, Some(PosInt(42))),
+                EndSpec::new(String::default(), true, None, Some(Number::from(42))),
             ),
             (
                 "change.me.yaml".to_string(),
@@ -678,7 +677,7 @@ mod tests {
             ),
             (
                 "number.var".to_string(),
-                EndSpec::new(String::default(), true, None, Some(PosInt(42))),
+                EndSpec::new(String::default(), true, None, Some(Number::from(42))),
             ),
             (
                 "yaml.var".to_string(),
