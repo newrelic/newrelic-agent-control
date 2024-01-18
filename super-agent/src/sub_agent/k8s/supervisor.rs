@@ -1,7 +1,8 @@
-use crate::config::agent_type::runtime_config::K8sObject;
-use crate::config::super_agent_configs::AgentID;
 use crate::k8s::error::K8sError;
 use crate::k8s::labels::Labels;
+use crate::{
+    agent_type_definition::runtime_config::K8sObject, config::super_agent_configs::AgentID,
+};
 use k8s_openapi::serde_json;
 use kube::{
     api::DynamicObject,
@@ -105,9 +106,10 @@ impl CRSupervisor {
 #[cfg(test)]
 pub mod test {
     use super::*;
-    use crate::config::agent_type::runtime_config::{K8sObject, K8sObjectMeta};
-    use crate::k8s::client::MockSyncK8sClient;
     use crate::k8s::labels::AGENT_ID_LABEL_KEY;
+    use crate::{
+        agent_type_definition::runtime_config::K8sObjectMeta, k8s::client::MockSyncK8sClient,
+    };
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
     use k8s_openapi::serde_json;
     use kube::core::TypeMeta;

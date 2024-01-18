@@ -1,3 +1,4 @@
+pub mod agent_type_definition;
 pub mod cli;
 pub mod config;
 pub mod context;

@@ -3,6 +3,8 @@ use resource_detection::DetectError;
 use std::fmt::Debug;
 use std::time::SystemTimeError;
 
+use crate::agent_type_definition::error::AgentTypeError;
+use crate::config::agent_type_registry::AgentRepositoryError;
 use crate::config::agent_values::AgentValuesError;
 use crate::config::persister::config_persister::PersistError;
 use crate::opamp::instance_id;
@@ -12,13 +14,7 @@ use crate::sub_agent::error::{SubAgentBuilderError, SubAgentCollectionError, Sub
 use crate::sub_agent::values::values_repository::ValuesRepositoryError;
 use crate::super_agent::effective_agents_assembler::EffectiveAgentsAssemblerError;
 use crate::super_agent::super_agent::EffectiveAgentsError;
-use crate::{
-    config::{
-        agent_type::error::AgentTypeError, agent_type_registry::AgentRepositoryError,
-        error::SuperAgentConfigError,
-    },
-    opamp::client_builder::OpAMPClientBuilderError,
-};
+use crate::{config::error::SuperAgentConfigError, opamp::client_builder::OpAMPClientBuilderError};
 use fs::file_reader::FileReaderError;
 use thiserror::Error;
 

@@ -1,5 +1,5 @@
 pub mod agent_metadata;
-pub mod agent_types;
+pub mod agent_type;
 pub mod error;
 pub mod restart_policy;
 pub mod runtime_config;

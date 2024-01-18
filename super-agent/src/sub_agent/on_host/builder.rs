@@ -4,7 +4,8 @@ use std::sync::Arc;
 #[cfg(unix)]
 use nix::unistd::gethostname;
 
-use crate::config::super_agent_configs::SubAgentConfig;
+use crate::agent_type_definition::agent_type::FinalAgent;
+use crate::config::super_agent_configs::{AgentID, SubAgentConfig};
 use crate::event::channel::{pub_sub, EventPublisher};
 use crate::event::SubAgentEvent;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
@@ -22,7 +23,6 @@ use crate::super_agent::effective_agents_assembler::{
     EffectiveAgentsAssembler, EffectiveAgentsAssemblerError,
 };
 use crate::{
-    config::{agent_type::agent_types::FinalAgent, super_agent_configs::AgentID},
     context::Context,
     opamp::client_builder::OpAMPClientBuilder,
     sub_agent::{
@@ -224,7 +224,9 @@ mod test {
         settings::{AgentDescription, DescriptionValueType, StartSettings},
     };
 
+    use crate::agent_type_definition::runtime_config::OnHost;
     use crate::event::channel::pub_sub;
+    use crate::opamp::client_builder::test::MockOpAMPClientBuilderMock;
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
     use crate::opamp::remote_config_hash::test::MockHashRepositoryMock;
@@ -232,10 +234,6 @@ mod test {
     use crate::sub_agent::on_host::event_processor::test::MockEventProcessorMock;
     use crate::sub_agent::on_host::event_processor_builder::test::MockSubAgentEventProcessorBuilderMock;
     use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
-    use crate::{
-        config::agent_type::runtime_config::OnHost,
-        opamp::client_builder::test::MockOpAMPClientBuilderMock,
-    };
 
     use super::*;
 

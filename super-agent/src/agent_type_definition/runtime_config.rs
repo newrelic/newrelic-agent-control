@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use serde::Deserialize;
 
-use super::{agent_types::TemplateableValue, restart_policy::RestartPolicyConfig};
+use super::{agent_type::TemplateableValue, restart_policy::RestartPolicyConfig};
 
 /// Strict structure that describes how to start a given agent with all needed binaries, arguments, env, etc.
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]

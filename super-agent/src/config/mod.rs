@@ -1,4 +1,3 @@
-pub mod agent_type;
 pub mod agent_type_registry;
 pub mod agent_values;
 pub mod error;

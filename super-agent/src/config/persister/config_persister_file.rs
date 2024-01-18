@@ -3,9 +3,9 @@ use std::fs::Permissions;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
-use crate::config::agent_type::agent_types::FinalAgent;
-use crate::config::agent_type::variable_spec::kind::Kind;
-use crate::config::agent_type::variable_spec::spec::EndSpec;
+use crate::agent_type_definition::agent_type::FinalAgent;
+use crate::agent_type_definition::variable_spec::kind::Kind;
+use crate::agent_type_definition::variable_spec::spec::EndSpec;
 use crate::config::persister::config_persister::{ConfigurationPersister, PersistError};
 use crate::config::super_agent_configs::AgentID;
 use crate::super_agent::defaults::{GENERATED_FOLDER_NAME, SUPER_AGENT_DATA_DIR};
@@ -193,6 +193,7 @@ where
 
 #[cfg(test)]
 mod test {
+    use crate::agent_type_definition::agent_type::FinalAgent;
     use crate::config::agent_values::AgentValues;
     use crate::config::persister::config_persister::ConfigurationPersister;
     use crate::config::persister::config_persister_file::{
@@ -207,7 +208,6 @@ mod test {
     use std::io::ErrorKind;
     use std::path::{Path, PathBuf};
 
-    use crate::config::agent_type::agent_types::FinalAgent;
     use fs::directory_manager::DirectoryManagementError::{
         ErrorCreatingDirectory, ErrorDeletingDirectory,
     };

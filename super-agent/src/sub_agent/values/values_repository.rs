@@ -1,3 +1,4 @@
+use crate::agent_type_definition::agent_type::FinalAgent;
 use crate::config::agent_values::AgentValues;
 use crate::config::super_agent_configs::AgentID;
 use crate::sub_agent::values::values_repository::ValuesRepositoryError::DeleteError;
@@ -7,7 +8,6 @@ use std::fs::Permissions;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
-use crate::config::agent_type::agent_types::FinalAgent;
 use crate::super_agent::defaults::{LOCAL_AGENT_DATA_DIR, REMOTE_AGENT_DATA_DIR, VALUES_PATH};
 use fs::file_reader::{FileReader, FileReaderError};
 use fs::writer_file::{FileWriter, WriteError};
@@ -227,7 +227,7 @@ where
 
 #[cfg(test)]
 pub mod test {
-    use crate::config::agent_type::agent_types::FinalAgent;
+    use crate::agent_type_definition::agent_type::FinalAgent;
     use crate::config::agent_values::AgentValues;
     use crate::config::super_agent_configs::AgentID;
     use crate::sub_agent::values::values_repository::{

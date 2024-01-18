@@ -2,11 +2,12 @@ use std::collections::HashMap;
 
 use thiserror::Error;
 
-use crate::super_agent::defaults::{
-    KUBERNETES_TYPE, NEWRELIC_INFRA_TYPE_1, NEWRELIC_INFRA_TYPE_2, NRDOT_TYPE,
+use crate::{
+    agent_type_definition::agent_type::FinalAgent,
+    super_agent::defaults::{
+        KUBERNETES_TYPE, NEWRELIC_INFRA_TYPE_1, NEWRELIC_INFRA_TYPE_2, NRDOT_TYPE,
+    },
 };
-
-use super::agent_type::agent_types::FinalAgent;
 
 #[derive(Error, Debug)]
 pub enum AgentRepositoryError {
@@ -82,8 +83,9 @@ impl LocalRegistry {
 
 #[cfg(test)]
 pub mod tests {
+    use crate::agent_type_definition::agent_type::{tests::AGENT_GIVEN_YAML, FinalAgent};
+
     use super::*;
-    use crate::config::agent_type::agent_types::tests::AGENT_GIVEN_YAML;
     use mockall::{mock, predicate};
 
     // Mock

@@ -5,7 +5,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 
 use ::fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
-use newrelic_super_agent::config::agent_type::agent_types::FinalAgent;
+use newrelic_super_agent::agent_type_definition::agent_type::FinalAgent;
 use newrelic_super_agent::config::agent_values::AgentValues;
 use newrelic_super_agent::config::persister::config_persister::ConfigurationPersister;
 use newrelic_super_agent::config::persister::config_persister_file::ConfigurationPersisterFile;

@@ -1,11 +1,11 @@
 use fs::LocalFile;
 use log::error;
+use newrelic_super_agent::agent_type_definition::variable_spec::kind::Kind;
 use std::collections::HashMap;
 use std::path::Path;
 
 use thiserror::Error;
 
-use newrelic_super_agent::config::agent_type::variable_spec::kind::Kind;
 use newrelic_super_agent::config::agent_type_registry::{
     AgentRegistry, AgentRepositoryError, LocalRegistry,
 };

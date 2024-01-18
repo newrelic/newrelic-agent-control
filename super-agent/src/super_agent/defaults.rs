@@ -178,13 +178,13 @@ deployment:
 
 #[cfg(test)]
 mod test {
-    use crate::config::agent_type::agent_types::FinalAgent;
+    use crate::agent_type_definition::agent_type::FinalAgent;
 
     #[test]
     fn test_parsable_configs() {
-        let _: FinalAgent = serde_yaml::from_str(super::NEWRELIC_INFRA_TYPE_1).unwrap();
-        let _: FinalAgent = serde_yaml::from_str(super::NEWRELIC_INFRA_TYPE_2).unwrap();
-        let _: FinalAgent = serde_yaml::from_str(super::NRDOT_TYPE).unwrap();
-        let _: FinalAgent = serde_yaml::from_str(super::KUBERNETES_TYPE).unwrap();
+        serde_yaml::from_str::<FinalAgent>(super::NEWRELIC_INFRA_TYPE_1).unwrap();
+        serde_yaml::from_str::<FinalAgent>(super::NEWRELIC_INFRA_TYPE_2).unwrap();
+        serde_yaml::from_str::<FinalAgent>(super::NRDOT_TYPE).unwrap();
+        serde_yaml::from_str::<FinalAgent>(super::KUBERNETES_TYPE).unwrap();
     }
 }

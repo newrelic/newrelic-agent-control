@@ -4,10 +4,10 @@ use std::sync::OnceLock;
 use regex::Regex;
 use tracing::warn;
 
+use super::agent_type::NormalizedVariables;
 use super::variable_spec::kind::Kind;
 use super::variable_spec::spec::EndSpec;
 use super::{
-    agent_types::NormalizedVariables,
     error::AgentTypeError,
     restart_policy::{BackoffStrategyConfig, RestartPolicyConfig},
     runtime_config::{
@@ -315,14 +315,14 @@ mod tests {
     use assert_matches::assert_matches;
     use serde_yaml::Number;
 
-    use crate::config::agent_type::restart_policy::{BackoffDuration, BackoffStrategyType};
-    use crate::config::agent_type::trivial_value::FilePathWithContent;
-    use crate::config::agent_type::variable_spec::spec::EndSpec;
-    use crate::config::agent_type::{
-        agent_types::TemplateableValue,
-        runtime_config::{Args, Env},
-    };
     use std::collections::HashMap;
+
+    use crate::agent_type_definition::{
+        agent_type::TemplateableValue,
+        restart_policy::{BackoffDuration, BackoffStrategyType},
+        runtime_config::{Args, Env},
+        trivial_value::FilePathWithContent,
+    };
 
     use super::*;
 

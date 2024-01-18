@@ -1,4 +1,4 @@
-use crate::config::agent_type::agent_types::FinalAgent;
+use crate::agent_type_definition::agent_type::FinalAgent;
 use crate::config::error::SuperAgentConfigError;
 use crate::config::store::{
     SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer, SuperAgentConfigStoreFile,

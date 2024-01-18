@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use thiserror::Error;
 
-use super::agent_type::trivial_value::TrivialValue;
+use crate::agent_type_definition::trivial_value::TrivialValue;
 
 /// User-provided config.
 ///
@@ -113,8 +113,8 @@ mod tests {
 
     use serde_yaml::{Mapping, Value};
 
-    use crate::config::agent_type::{
-        agent_types::FinalAgent,
+    use crate::agent_type_definition::{
+        agent_type::FinalAgent,
         trivial_value::FilePathWithContent,
         variable_spec::spec::{EndSpec, Spec},
     };

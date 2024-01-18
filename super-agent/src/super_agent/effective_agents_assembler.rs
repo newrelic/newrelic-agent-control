@@ -1,10 +1,10 @@
 use thiserror::Error;
 use tracing::error;
 
-use crate::config::agent_type::agent_types::FinalAgent;
+use crate::agent_type_definition::agent_type::FinalAgent;
+use crate::agent_type_definition::error::AgentTypeError;
 use crate::config::super_agent_configs::{AgentID, SubAgentConfig};
 use crate::config::{
-    agent_type::error::AgentTypeError,
     agent_type_registry::{AgentRegistry, AgentRepositoryError, LocalRegistry},
     persister::{
         config_persister::{ConfigurationPersister, PersistError},
@@ -164,9 +164,9 @@ pub(crate) mod tests {
     use mockall::{mock, predicate};
     use std::io::ErrorKind;
 
+    use crate::agent_type_definition::trivial_value::TrivialValue;
     use crate::config::agent_type_registry::tests::MockAgentRegistryMock;
     use crate::config::{
-        agent_type::{agent_types::FinalAgent, trivial_value::TrivialValue},
         agent_type_registry::AgentRegistry,
         agent_values::AgentValues,
         persister::config_persister::{

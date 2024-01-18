@@ -2,7 +2,7 @@ use std::{collections::HashMap, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::config::agent_type::{
+use crate::agent_type_definition::{
     error::AgentTypeError,
     trivial_value::{FilePathWithContent, TrivialValue},
 };

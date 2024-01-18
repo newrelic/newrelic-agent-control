@@ -4,14 +4,13 @@
 //!
 //! See [`Agent::template_with`] for a flowchart of the dataflow that ends in the final, enriched structure.
 
-use crate::config::agent_type::variable_spec::spec::Spec;
 use crate::config::super_agent_configs::AgentTypeFQN;
 use serde::{Deserialize, Deserializer};
 use std::path::PathBuf;
 use std::{collections::HashMap, str::FromStr};
 
 use super::restart_policy::BackoffDuration;
-use super::variable_spec::spec::EndSpec;
+use super::variable_spec::spec::{EndSpec, Spec};
 use super::{
     agent_metadata::AgentMetadata,
     error::AgentTypeError,
@@ -337,18 +336,14 @@ pub(crate) type NormalizedVariables = HashMap<String, EndSpec>;
 
 #[cfg(test)]
 pub mod tests {
-    use crate::config::{
-        agent_type::{
-            restart_policy::{BackoffStrategyConfig, BackoffStrategyType},
-            runtime_config::{Args, Env, Executable},
-            trivial_value::TrivialValue,
-        },
-        agent_values::AgentValues,
+
+    use crate::agent_type_definition::{
+        restart_policy::{BackoffStrategyConfig, BackoffStrategyType, RestartPolicyConfig},
+        runtime_config::Executable,
+        trivial_value::{FilePathWithContent, TrivialValue},
     };
 
     use super::*;
-    use crate::config::agent_type::restart_policy::RestartPolicyConfig;
-    use crate::config::agent_type::trivial_value::FilePathWithContent;
     use serde_yaml::{Error, Number};
     use std::collections::HashMap as Map;
 

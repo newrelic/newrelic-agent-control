@@ -2,7 +2,7 @@ use std::{collections::HashMap, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::config::agent_type::{error::AgentTypeError, trivial_value::TrivialValue};
+use crate::agent_type_definition::{error::AgentTypeError, trivial_value::TrivialValue};
 
 use super::kind::Kind;
 
@@ -62,7 +62,7 @@ impl EndSpec {
 mod test {
     use std::path::PathBuf;
 
-    use crate::config::agent_type::variable_spec::{
+    use crate::agent_type_definition::variable_spec::{
         kind::Kind,
         kind_value::{KindValue, KindValueWithPath},
     };

@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use crate::config::agent_type::agent_types::FinalAgent;
+use crate::agent_type_definition::agent_type::FinalAgent;
 use crate::config::super_agent_configs::AgentID;
 use fs::directory_manager::DirectoryManagementError;
 use fs::writer_file::WriteError;
@@ -36,7 +36,7 @@ pub trait ConfigurationPersister {
 
 #[cfg(test)]
 pub mod test {
-    use crate::config::agent_type::agent_types::FinalAgent;
+    use crate::agent_type_definition::agent_type::FinalAgent;
     use crate::config::super_agent_configs::AgentID;
     use fs::directory_manager::DirectoryManagementError::{
         ErrorCreatingDirectory, ErrorDeletingDirectory, InvalidDirectory,
