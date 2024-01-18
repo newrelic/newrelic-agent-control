@@ -118,5 +118,8 @@ jobs:
           minikube version: v1.32.0
           kubernetes version: 'v1.28.1' # Should we support a specific range of versions?
           driver: docker
+      - name: Install Tilt
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/tilt-dev/tilt/master/scripts/install.sh | bash
       - name: Run k8s integration tests
         run: make -C super-agent/test/k8s

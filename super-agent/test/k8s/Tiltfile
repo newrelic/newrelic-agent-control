@@ -1,0 +1,22 @@
+
+# -*- mode: Python -*-
+load('ext://helm_resource', 'helm_repo','helm_resource')
+helm_repo(
+  'newrelic',
+  'https://helm-charts.newrelic.com',
+  resource_name='newrelic-helm-repo',
+)
+  
+helm_resource(
+  'flux',
+  'newrelic/super-agent',
+  namespace='default',
+  release_name='flux',
+  flags=[
+    '--create-namespace',
+    '--version=>=0.0.0-beta',
+    
+    '--set=helm.create=false',
+    ],
+  resource_deps=['newrelic-helm-repo']
+)
