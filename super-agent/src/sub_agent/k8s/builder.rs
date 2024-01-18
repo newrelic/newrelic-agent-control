@@ -12,6 +12,7 @@ use crate::{
 };
 use kube::core::TypeMeta;
 use opamp_client::operation::callbacks::Callbacks;
+use opamp_client::operation::settings::DescriptionValueType;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
@@ -90,7 +91,7 @@ where
             &sub_agent_config.agent_type,
             HashMap::from([(
                 "cluster.name".to_string(),
-                self.k8s_config.cluster_name.clone().into(),
+                DescriptionValueType::String(self.k8s_config.cluster_name.to_string()),
             )]),
         )?;
 
@@ -163,6 +164,7 @@ mod test {
         sub_agent::{NotStartedSubAgent, StartedSubAgent},
     };
     use assert_matches::assert_matches;
+    use opamp_client::operation::settings::DescriptionValueType;
     use std::{collections::HashMap, sync::mpsc::channel};
 
     #[test]
@@ -179,7 +181,10 @@ mod test {
         let start_settings = start_settings(
             instance_id.to_string(),
             &sub_agent_config.agent_type,
-            HashMap::from([("cluster.name".to_string(), cluster_name.to_string().into())]),
+            HashMap::from([(
+                "cluster.name".to_string(),
+                DescriptionValueType::String(cluster_name.to_string()),
+            )]),
         );
 
         let mut started_client = MockStartedOpAMPClientMock::new();
@@ -249,6 +254,7 @@ mod test {
     #[test]
     fn build_start_fails() {
         let test_issue = "random issue";
+        let cluster_name = "test-cluster";
         let reported_message = "Supervisor run error: `the kube client returned an error: `while getting dynamic resource: random issue``";
 
         // opamp builder mock
@@ -262,7 +268,10 @@ mod test {
         let start_settings = start_settings(
             instance_id.to_string(),
             &sub_agent_config.agent_type,
-            HashMap::new(),
+            HashMap::from([(
+                "cluster.name".to_string(),
+                DescriptionValueType::String(cluster_name.to_string()),
+            )]),
         );
 
         let mut started_client = MockStartedOpAMPClientMock::new();
@@ -349,7 +358,10 @@ mod test {
         let start_settings = start_settings(
             instance_id.to_string(),
             &sub_agent_config.agent_type,
-            HashMap::from([("cluster.name".to_string(), cluster_name.to_string().into())]),
+            HashMap::from([(
+                "cluster.name".to_string(),
+                DescriptionValueType::String(cluster_name.to_string()),
+            )]),
         );
         opamp_builder.should_build_and_start(
             AgentID::new("k8s-test").unwrap(),
