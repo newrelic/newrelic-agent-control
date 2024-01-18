@@ -49,7 +49,7 @@ helm_resource(
   'flux',
   chart+'super-agent',
   namespace=namespace,
-  release_name='sa',
+  release_name='flux',
   update_dependencies=update_dependencies,
   flags=[
     '--create-namespace',
