@@ -179,9 +179,41 @@ fn run_super_agent(
         instance_id::get_identifiers(k8s_config.cluster_name.clone()),
     )?;
 
-    /////////////////////////
+    let agents_assembler = {
+        #[cfg(feature = "custom-local-path")]
+        {
+            use newrelic_super_agent::config::persister::config_persister_file::ConfigurationPersisterFile;
+            use newrelic_super_agent::super_agent::defaults::SUPER_AGENT_DATA_DIR;
 
-    let agents_assembler = LocalEffectiveAgentsAssembler::default();
+            let cli = Cli::init_super_agent_cli();
+            let mut values_repo = newrelic_super_agent::sub_agent::values::values_repository::ValuesRepositoryFile::default();
+            let mut config_persister = ConfigurationPersisterFile::default();
+            let mut temp_assembler = LocalEffectiveAgentsAssembler::default();
+
+            if let Some(base_dir) = cli.get_local_path() {
+                if base_dir.is_empty() {
+                    return Err(AgentError::InvalidArgumentError(
+                        "Base directory cannot be empty".to_string(),
+                    ));
+                }
+
+                values_repo = values_repo.with_base_dir(&base_dir);
+                config_persister = ConfigurationPersisterFile::new(std::path::Path::new(&format!(
+                    "{}{}",
+                    base_dir, SUPER_AGENT_DATA_DIR,
+                )));
+                temp_assembler = temp_assembler.with_base_dir(&base_dir);
+            }
+
+            temp_assembler
+                .with_values_repository(values_repo)
+                .with_config_persister(config_persister)
+        }
+        #[cfg(not(feature = "custom-local-path"))]
+        {
+            LocalEffectiveAgentsAssembler::default()
+        }
+    };
 
     let sub_agent_builder = newrelic_super_agent::sub_agent::k8s::builder::K8sSubAgentBuilder::new(
         opamp_client_builder.as_ref(),

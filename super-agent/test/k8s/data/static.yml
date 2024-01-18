@@ -1,0 +1,6 @@
+k8s:
+  namespace: default
+  cluster_name: minikube
+agents:
+  open-telemetry:
+    agent_type: "newrelic/io.k8s.opentelemetry.collector:0.0.1"

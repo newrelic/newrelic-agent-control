@@ -6,7 +6,11 @@ all: test-integration-minikube test-integration-k3s
 .PHONY: test-integration-minikube
 test-integration-minikube:
 	KUBECONFIG='./.kubeconfig-dev' minikube update-context
-	cargo test --features k8s k8s_ -- --ignored
+	helm repo add newrelic https://helm-charts.newrelic.com
+	helm repo update
+	helm upgrade --install super-agent newrelic/super-agent --set helm.create=false --devel
+	cargo test --features k8s,custom-local-path k8s_ -- --nocapture --ignored
+	helm uninstall super-agent
 
 .PHONY: test-integration-k3s
 test-integration-k3s:
