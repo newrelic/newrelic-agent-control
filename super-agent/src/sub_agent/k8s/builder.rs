@@ -88,7 +88,10 @@ where
             self.instance_id_getter,
             agent_id.clone(),
             &sub_agent_config.agent_type,
-            HashMap::from([]), // TODO: check if we need to set non_identifying_attributes
+            HashMap::from([(
+                "cluster.name".to_string(),
+                self.k8s_config.cluster_name.clone().into(),
+            )]),
         )?;
 
         let effective_agent = self
@@ -166,16 +169,17 @@ mod test {
     fn build_start_stop() {
         // opamp builder mock
         let instance_id = "k8s-test-instance-id";
+        let cluster_name = "test-cluster";
         let mut opamp_builder: MockOpAMPClientBuilderMock<MockCallbacksMock> =
             MockOpAMPClientBuilderMock::new();
         let final_agent = k8s_final_agent(true);
         let sub_agent_config = SubAgentConfig {
-            agent_type: final_agent.agent_type().clone(),
+            agent_type: final_agent.agent_type(),
         };
         let start_settings = start_settings(
             instance_id.to_string(),
             &sub_agent_config.agent_type,
-            HashMap::new(),
+            HashMap::from([("cluster.name".to_string(), cluster_name.to_string().into())]),
         );
 
         let mut started_client = MockStartedOpAMPClientMock::new();
@@ -214,7 +218,7 @@ mod test {
         );
 
         let k8s_config = K8sConfig {
-            cluster_name: "test-cluster".to_string(),
+            cluster_name: cluster_name.to_string(),
             namespace: "test-namespace".to_string(),
             cr_type_meta: K8sConfig::default().cr_type_meta,
         };
@@ -334,6 +338,8 @@ mod test {
     #[test]
     fn build_error_with_invalid_object_kind() {
         let instance_id = "k8s-test-instance-id";
+        let cluster_name = "cluster-name";
+
         let mut opamp_builder: MockOpAMPClientBuilderMock<MockCallbacksMock> =
             MockOpAMPClientBuilderMock::new();
         let final_agent = k8s_final_agent(false); // false indicates invalid kind
@@ -343,7 +349,7 @@ mod test {
         let start_settings = start_settings(
             instance_id.to_string(),
             &sub_agent_config.agent_type,
-            HashMap::new(),
+            HashMap::from([("cluster.name".to_string(), cluster_name.to_string().into())]),
         );
         opamp_builder.should_build_and_start(
             AgentID::new("k8s-test").unwrap(),
@@ -366,7 +372,7 @@ mod test {
         );
 
         let k8s_config = K8sConfig {
-            cluster_name: "test-cluster".to_string(),
+            cluster_name: cluster_name.to_string(),
             namespace: "test-namespace".to_string(),
             cr_type_meta: K8sConfig::default().cr_type_meta,
         };
