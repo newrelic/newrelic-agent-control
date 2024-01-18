@@ -17,13 +17,10 @@ namespace=settings.get('namespace')
 allow_k8s_contexts(settings.get('cluster_context'))
 
 local_resource(
-    'build-rust-binary',
+    'build-binary',
     cmd="make BUILD_MODE=debug BUILD_FEATURE=k8s build-super-agent",
     deps=[
-        './src',
-        'Cargo.toml',
-        'Cargo.lock',
-        'src'
+        './super-agent',
     ]
 )
 
@@ -32,6 +29,7 @@ docker_build(
     'tilt.local/super-agent-dev',
     context='.',
     dockerfile='./Dockerfile',
+    only = ['./bin','./Dockerfile', './Tiltfile']
 )
 
 load('ext://helm_resource', 'helm_repo','helm_resource')
@@ -48,10 +46,10 @@ if chart != 'newrelic/':
     deps=[chart+'super-agent-deployment/templates'] # re-deploy chart if modified locally
 
 helm_resource(
-  'super-agent',
+  'sa-crd',
   chart+'super-agent',
   namespace=namespace,
-  release_name='super-agent',
+  release_name='sa',
   update_dependencies=update_dependencies,
   flags=[
     '--create-namespace',
@@ -62,11 +60,11 @@ helm_resource(
 )
 
 helm_resource(
-  'super-agent-deployment',
+  'sa-deployment',
   chart+'super-agent-deployment',
   deps=deps, # re-deploy chart if modified locally
   namespace=namespace,
-  release_name='super-agent-deployment',
+  release_name='sa-deployment',
   update_dependencies=update_dependencies,
   flags=[
     '--create-namespace',
@@ -78,13 +76,13 @@ helm_resource(
 
     '--values=local/super-agent-deployment-values.yml',
     ],
-  # Required to force build the image 
+  # Required to force build the image
   image_deps=['tilt.local/super-agent-dev'],
   image_keys=[('image.registry', 'image.repository', 'image.tag')],
 )
 
 # To make sure your binary is built before deploying.
 k8s_resource(
-    'super-agent-deployment',
-    resource_deps=['build-rust-binary']
+    'sa-deployment',
+    resource_deps=['build-binary']
 )
