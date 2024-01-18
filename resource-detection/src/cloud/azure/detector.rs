@@ -1,10 +1,11 @@
 //! Azure EC2 instance id detector implementation
+use http::HeaderMap;
 use std::time::Duration;
 
 use thiserror::Error;
 
 use crate::cloud::http_client::{HttpClient, HttpClientError, HttpClientUreq};
-use crate::{cloud::AZURE_INSTANCE_ID, Detect, DetectError, Key, Resource, Value};
+use crate::{cloud::AZURE_INSTANCE_ID, DetectError, Detector, Key, Resource, Value};
 
 use super::metadata::{AzureMetadata, IPV4_METADATA_ENDPOINT};
 
@@ -15,13 +16,22 @@ pub struct AzureDetector<C: HttpClient> {
 }
 
 const DEFAULT_CLIENT_TIMEOUT: Duration = Duration::from_secs(5);
+const HEADER_KEY: &str = "Metadata";
+const HEADER_VALUE: &str = "true";
 
 impl Default for AzureDetector<HttpClientUreq> {
     fn default() -> Self {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            HEADER_KEY,
+            HEADER_VALUE.parse().expect("constant valid value"),
+        );
+
         Self {
             http_client: HttpClientUreq::new(
                 IPV4_METADATA_ENDPOINT.to_string(),
                 DEFAULT_CLIENT_TIMEOUT,
+                Some(headers),
             ),
         }
     }
@@ -41,7 +51,7 @@ pub enum AzureDetectorError {
     UnsuccessfulResponse(u16, String),
 }
 
-impl<C> Detect for AzureDetector<C>
+impl<C> Detector for AzureDetector<C>
 where
     C: HttpClient,
 {

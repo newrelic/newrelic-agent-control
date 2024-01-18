@@ -19,6 +19,8 @@ pub mod system;
 pub mod common;
 
 use crate::cloud::azure::detector::AzureDetectorError;
+use crate::cloud::cloud_id::detector::CloudIdDetectorError;
+use crate::cloud::gcp::detector::GCPDetectorError;
 pub use common::{Key, Value};
 
 /// The `Resource` struct encapsulates a detected resource as per some detection logic.
@@ -63,11 +65,17 @@ pub enum DetectError {
     /// Error for the Azure cloud implementation
     #[error("error detecting azure resources `{0}`")]
     AzureError(#[from] AzureDetectorError),
+    /// Error for the GCP cloud implementation
+    #[error("error detecting gcp resources `{0}`")]
+    GCPError(#[from] GCPDetectorError),
+    /// Unsuccessful cloud detection.
+    #[error("Non of the cloud API responded")]
+    CloudIdError(#[from] CloudIdDetectorError),
 }
 
 /// The `Detect` trait defines the detection interface to be implemented
 /// by types pertaining to resource detection.
-pub trait Detect {
+pub trait Detector {
     /// Returns a `Resource` structure detected by the implementer of this trait or
     /// DetectError if an error was found.
     fn detect(&self) -> Result<Resource, DetectError>;

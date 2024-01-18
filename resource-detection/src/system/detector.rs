@@ -1,7 +1,7 @@
 //! System resource detector implementation
 use fs::LocalFile;
 
-use crate::{Detect, DetectError, Key, Resource, Value};
+use crate::{DetectError, Detector, Key, Resource, Value};
 
 use super::{
     hostname::HostnameGetter, identifier_machine_id_unix::IdentifierProviderMachineId,
@@ -40,7 +40,7 @@ impl Default for SystemDetector {
 }
 
 /// Implementing the `Detect` trait for the `SystemDetector` struct.
-impl Detect for SystemDetector {
+impl Detector for SystemDetector {
     fn detect(&self) -> Result<Resource, DetectError> {
         Ok(Resource::new([
             (
