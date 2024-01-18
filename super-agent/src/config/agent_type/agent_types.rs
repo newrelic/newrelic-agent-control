@@ -207,7 +207,7 @@ impl FinalAgent {
         &mut self,
         values: AgentValues,
     ) -> Result<(), AgentTypeError> {
-        update_specs(values.inner(), &mut self.variables.0)?;
+        update_specs(values.into(), &mut self.variables.0)?;
 
         // No item must be left without a final value
         let not_populated = self

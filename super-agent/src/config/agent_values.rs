@@ -94,9 +94,9 @@ pub enum AgentValuesError {
     FormatError(#[from] serde_yaml::Error),
 }
 
-impl AgentValues {
-    pub(crate) fn inner(self) -> HashMap<String, serde_yaml::Value> {
-        self.0
+impl From<AgentValues> for HashMap<String, serde_yaml::Value> {
+    fn from(values: AgentValues) -> Self {
+        values.0
     }
 }
 
