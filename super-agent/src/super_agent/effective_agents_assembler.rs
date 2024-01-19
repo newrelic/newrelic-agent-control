@@ -137,11 +137,24 @@ where
         format!("{}/{}/{}", base_data_dir, GENERATED_FOLDER_NAME, agent_id)
     }
 
-    fn assemble_final_agent(
+    #[cfg(feature = "custom-local-path")]
+    pub fn with_base_dir(mut self, base_dir: &str) -> Self {
+        self.local_conf_path = Some(format!("{}{}", base_dir, SUPER_AGENT_DATA_DIR));
+        self
+    }
+}
+
+impl<R, C, D> EffectiveAgentsAssembler for LocalEffectiveAgentsAssembler<R, C, D>
+where
+    R: AgentRegistry,
+    C: ConfigurationPersister,
+    D: ValuesRepository,
+{
+    fn assemble_agent(
         &self,
         agent_id: &AgentID,
         agent_cfg: &SubAgentConfig,
-    ) -> Result<FinalAgent, EffectiveAgentsAssemblerError> {
+    ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError> {
         // Load agent type from repository and populate with values
         let final_agent = self.registry.get(&agent_cfg.agent_type)?;
 
@@ -166,31 +179,9 @@ where
         self.config_persister
             .persist_agent_config(agent_id, &populated_agent)?;
 
-        Ok(populated_agent)
-    }
-
-    #[cfg(feature = "custom-local-path")]
-    pub fn with_base_dir(mut self, base_dir: &str) -> Self {
-        self.local_conf_path = Some(format!("{}{}", base_dir, SUPER_AGENT_DATA_DIR));
-        self
-    }
-}
-
-impl<R, C, D> EffectiveAgentsAssembler for LocalEffectiveAgentsAssembler<R, C, D>
-where
-    R: AgentRegistry,
-    C: ConfigurationPersister,
-    D: ValuesRepository,
-{
-    fn assemble_agent(
-        &self,
-        agent_id: &AgentID,
-        agent_cfg: &SubAgentConfig,
-    ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError> {
         Ok(EffectiveAgent::new(
             agent_id.clone(),
-            self.assemble_final_agent(agent_id, agent_cfg)?
-                .runtime_config,
+            populated_agent.runtime_config,
         ))
     }
 }
@@ -204,6 +195,7 @@ pub(crate) mod tests {
     use mockall::{mock, predicate};
     use std::io::ErrorKind;
 
+    use crate::config::agent_type::runtime_config::Args;
     use crate::config::agent_type_registry::tests::MockAgentRegistryMock;
     use crate::config::{
         agent_type::{agent_types::FinalAgent, trivial_value::TrivialValue},
@@ -326,19 +318,23 @@ pub(crate) mod tests {
             false,
         );
 
-        let assembled_agent = assembler
-            .assemble_final_agent(&agent_id, &sub_agent_config)
+        let effective_agent = assembler
+            .assemble_agent(&agent_id, &sub_agent_config)
             .unwrap();
 
         assert_eq!(
-            TrivialValue::String("/some/path/config".into()),
-            assembled_agent
-                .variables
-                .get("config_path")
+            Args("--config_path=/some/path/config".into()),
+            effective_agent
+                .runtime_config
+                .deployment
+                .on_host
                 .unwrap()
-                .final_value
+                .executables
+                .get(0)
+                .unwrap()
+                .args
                 .clone()
-                .unwrap()
+                .get()
         );
     }
 
@@ -374,19 +370,23 @@ pub(crate) mod tests {
             true,
         );
 
-        let assembled_agent = assembler
-            .assemble_final_agent(&agent_id, &sub_agent_config)
+        let effective_agent = assembler
+            .assemble_agent(&agent_id, &sub_agent_config)
             .unwrap();
 
         assert_eq!(
-            TrivialValue::String("/some/path/config".into()),
-            assembled_agent
-                .variables
-                .get("config_path")
+            Args("--config_path=/some/path/config".into()),
+            effective_agent
+                .runtime_config
+                .deployment
+                .on_host
                 .unwrap()
-                .final_value
+                .executables
+                .get(0)
+                .unwrap()
+                .args
                 .clone()
-                .unwrap()
+                .get()
         );
     }
 
