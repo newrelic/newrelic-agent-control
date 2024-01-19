@@ -1,7 +1,10 @@
+use std::fmt::Display;
+
 use thiserror::Error;
 use tracing::error;
 
 use crate::config::agent_type::agent_types::FinalAgent;
+use crate::config::agent_type::runtime_config::RuntimeConfig;
 use crate::config::super_agent_configs::{AgentID, SubAgentConfig};
 use crate::config::{
     agent_type::error::AgentTypeError,
@@ -41,12 +44,37 @@ pub enum EffectiveAgentsAssemblerError {
     ValuesRepositoryError(#[from] ValuesRepositoryError),
 }
 
+#[derive(Clone)]
+pub struct EffectiveAgent {
+    agent_id: AgentID,
+    runtime_config: RuntimeConfig,
+}
+
+impl Display for EffectiveAgent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.agent_id.as_ref().to_string_lossy())
+    }
+}
+
+impl EffectiveAgent {
+    pub(crate) fn new(agent_id: AgentID, runtime_config: RuntimeConfig) -> Self {
+        Self {
+            agent_id,
+            runtime_config,
+        }
+    }
+
+    pub(crate) fn get_runtime_config(&self) -> &RuntimeConfig {
+        &self.runtime_config
+    }
+}
+
 pub trait EffectiveAgentsAssembler {
     fn assemble_agent(
         &self,
         agent_id: &AgentID,
         agent_cfg: &SubAgentConfig,
-    ) -> Result<FinalAgent, EffectiveAgentsAssemblerError>;
+    ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError>;
 }
 
 pub struct LocalEffectiveAgentsAssembler<R, C, D>
@@ -109,20 +137,7 @@ where
         format!("{}/{}/{}", base_data_dir, GENERATED_FOLDER_NAME, agent_id)
     }
 
-    #[cfg(feature = "custom-local-path")]
-    pub fn with_base_dir(mut self, base_dir: &str) -> Self {
-        self.local_conf_path = Some(format!("{}{}", base_dir, SUPER_AGENT_DATA_DIR));
-        self
-    }
-}
-
-impl<R, C, D> EffectiveAgentsAssembler for LocalEffectiveAgentsAssembler<R, C, D>
-where
-    R: AgentRegistry,
-    C: ConfigurationPersister,
-    D: ValuesRepository,
-{
-    fn assemble_agent(
+    fn assemble_final_agent(
         &self,
         agent_id: &AgentID,
         agent_cfg: &SubAgentConfig,
@@ -152,6 +167,31 @@ where
             .persist_agent_config(agent_id, &populated_agent)?;
 
         Ok(populated_agent)
+    }
+
+    #[cfg(feature = "custom-local-path")]
+    pub fn with_base_dir(mut self, base_dir: &str) -> Self {
+        self.local_conf_path = Some(format!("{}{}", base_dir, SUPER_AGENT_DATA_DIR));
+        self
+    }
+}
+
+impl<R, C, D> EffectiveAgentsAssembler for LocalEffectiveAgentsAssembler<R, C, D>
+where
+    R: AgentRegistry,
+    C: ConfigurationPersister,
+    D: ValuesRepository,
+{
+    fn assemble_agent(
+        &self,
+        agent_id: &AgentID,
+        agent_cfg: &SubAgentConfig,
+    ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError> {
+        Ok(EffectiveAgent::new(
+            agent_id.clone(),
+            self.assemble_final_agent(agent_id, agent_cfg)?
+                .runtime_config,
+        ))
     }
 }
 
@@ -187,7 +227,7 @@ pub(crate) mod tests {
                 &self,
                 agent_id: &AgentID,
                 agent_cfg: &SubAgentConfig,
-            ) -> Result<FinalAgent, EffectiveAgentsAssemblerError>;
+            ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError>;
         }
     }
 
@@ -196,7 +236,7 @@ pub(crate) mod tests {
             &mut self,
             agent_id: &AgentID,
             agent_cfg: &SubAgentConfig,
-            final_agent: FinalAgent,
+            efective_agent: EffectiveAgent,
         ) {
             self.expect_assemble_agent()
                 .once()
@@ -204,7 +244,7 @@ pub(crate) mod tests {
                     predicate::eq(agent_id.clone()),
                     predicate::eq(agent_cfg.clone()),
                 )
-                .returning(move |_, _| Ok(final_agent.clone()));
+                .returning(move |_, _| Ok(efective_agent.clone()));
         }
 
         #[allow(dead_code)]
@@ -287,7 +327,7 @@ pub(crate) mod tests {
         );
 
         let assembled_agent = assembler
-            .assemble_agent(&agent_id, &sub_agent_config)
+            .assemble_final_agent(&agent_id, &sub_agent_config)
             .unwrap();
 
         assert_eq!(
@@ -335,7 +375,7 @@ pub(crate) mod tests {
         );
 
         let assembled_agent = assembler
-            .assemble_agent(&agent_id, &sub_agent_config)
+            .assemble_final_agent(&agent_id, &sub_agent_config)
             .unwrap();
 
         assert_eq!(
