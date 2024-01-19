@@ -1,5 +1,11 @@
 
 # -*- mode: Python -*-
+
+# This Tiltfile is used by the integration tests to setup the environemnt.
+# Running `tilt ci` in this path will install all resources and waits for Pods to be Ready 
+# Currently:
+#  - Installs latest Flux version in our super-agent chart.
+
 load('ext://helm_resource', 'helm_repo','helm_resource')
 helm_repo(
   'newrelic',
