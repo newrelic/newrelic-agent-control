@@ -96,6 +96,7 @@ k8s_yaml(secret_from_dict(
   namespace=namespace,
   inputs = {
     'E2E_TEST_ID' : os.getenv('SCENARIO_TAG'),
+    'OTEL_ENDPOINT' : os.getenv('OTEL_ENDPOINT'),
     'LICENSE_KEY' : os.getenv('LICENSE_KEY'),
 }))
 k8s_resource(new_name='e2e test secret',objects=['test-env:secret'])

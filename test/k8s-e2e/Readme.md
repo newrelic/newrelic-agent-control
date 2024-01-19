@@ -4,6 +4,7 @@ This test are executed by the [newrelic-integration-e2e](https://github.com/newr
 
 # Run locally
 The test leverages the Tilt environment so all requirements to launch Tilt must be followed.
+Notice that the local execution expect to use Testing account.
 
 ```bash
 export ACCOUNT_ID=<NewRelic staging account number>

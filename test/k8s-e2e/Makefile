@@ -2,9 +2,10 @@
 all: local-e2e-test
 
 NEWRELIC_E2E ?= go run github.com/newrelic/newrelic-integration-e2e-action@latest
+OTEL_ENDPOINT := "https://staging-otlp.nr-data.net:4317"
 .PHONY: local-e2e-test
 local-e2e-test:
-	$(NEWRELIC_E2E) \
+	OTEL_ENDPOINT=$(OTEL_ENDPOINT) $(NEWRELIC_E2E) \
 		--commit_sha=local \
 		--retry_attempts=5 \
 		--retry_seconds=60 \

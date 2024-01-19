@@ -149,6 +149,9 @@ jobs:
           curl -fsSL https://raw.githubusercontent.com/tilt-dev/tilt/master/scripts/install.sh | bash
       - name: Run e2e-test
         uses: newrelic/newrelic-integration-e2e-action@v1
+        env:
+          # Sets the endpoint used by the collector
+          OTEL_ENDPOINT: "https://otlp.nr-data.net:4317"
         with:
           retry_seconds: 60
           retry_attempts: 10

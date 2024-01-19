@@ -31,7 +31,7 @@ config:
           config:
             exporters:
               otlp:
-                endpoint: https://otlp.nr-data.net:4317
+                endpoint: ${env:OTEL_ENDPOINT}
                 headers:
                   api-key: ${env:LICENSE_KEY}
             receivers:
@@ -74,7 +74,7 @@ config:
           config:
             exporters:
               otlp:
-                endpoint: https://otlp.nr-data.net:4317
+                endpoint: ${env:OTEL_ENDPOINT}
                 headers:
                   api-key: ${env:LICENSE_KEY}
             receivers:
@@ -117,7 +117,7 @@ config:
           config:
             exporters:
               otlp:
-                endpoint: https://otlp.nr-data.net:4317
+                endpoint: ${env:OTEL_ENDPOINT}
                 headers:
                   api-key: ${env:LICENSE_KEY}
             receivers:
