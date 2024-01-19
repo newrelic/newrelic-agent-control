@@ -20,8 +20,8 @@ cfg = config.parse()
 
 ######## Feature Branch Workaround ########
 
-force_workaround = True
-feature_branch = 'super-agent/fix-sub-agent-location'
+force_workaround = False
+feature_branch = '<feature-branch>'
 
 ######## ########
 
