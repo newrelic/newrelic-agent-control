@@ -217,7 +217,6 @@ mod test {
     };
 
     use crate::config::agent_type::agent_metadata::AgentMetadata;
-    use crate::config::super_agent_configs::AgentTypeFQN;
     use crate::event::channel::pub_sub;
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;

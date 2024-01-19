@@ -3,7 +3,6 @@ use std::fmt::Display;
 use thiserror::Error;
 use tracing::error;
 
-use crate::config::agent_type::agent_types::FinalAgent;
 use crate::config::agent_type::runtime_config::RuntimeConfig;
 use crate::config::super_agent_configs::{AgentID, SubAgentConfig};
 use crate::config::{
@@ -198,7 +197,7 @@ pub(crate) mod tests {
     use crate::config::agent_type::runtime_config::Args;
     use crate::config::agent_type_registry::tests::MockAgentRegistryMock;
     use crate::config::{
-        agent_type::{agent_types::FinalAgent, trivial_value::TrivialValue},
+        agent_type::agent_types::FinalAgent,
         agent_type_registry::AgentRegistry,
         agent_values::AgentValues,
         persister::config_persister::{
