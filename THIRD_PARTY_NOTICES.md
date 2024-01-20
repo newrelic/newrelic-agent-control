@@ -123,6 +123,20 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
+## assert_cmd (https://crates.io/crates/assert_cmd)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+## assert_matches (https://crates.io/crates/assert_matches)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
 ## async-compression (https://crates.io/crates/async-compression)
 
 Distributed under the following license(s):
@@ -135,6 +149,18 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 * MIT
 * Apache-2.0
+
+
+## async-stream (https://crates.io/crates/async-stream)
+
+Distributed under the following license(s):
+* MIT
+
+
+## async-stream-impl (https://crates.io/crates/async-stream-impl)
+
+Distributed under the following license(s):
+* MIT
 
 
 ## async-trait (https://crates.io/crates/async-trait)
@@ -190,6 +216,18 @@ Distributed under the following license(s):
 
 Distributed under the following license(s):
 * MIT
+* Apache-2.0
+
+
+## bollard (https://crates.io/crates/bollard)
+
+Distributed under the following license(s):
+* Apache-2.0
+
+
+## bollard-stubs (https://crates.io/crates/bollard-stubs)
+
+Distributed under the following license(s):
 * Apache-2.0
 
 
@@ -412,6 +450,12 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
+## doc-comment (https://crates.io/crates/doc-comment)
+
+Distributed under the following license(s):
+* MIT
+
+
 ## downcast (https://crates.io/crates/downcast)
 
 Distributed under the following license(s):
@@ -478,20 +522,6 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 * Apache-2.0
 * MIT
-
-
-## foreign-types (https://crates.io/crates/foreign-types)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## foreign-types-shared (https://crates.io/crates/foreign-types-shared)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
 
 
 ## form_urlencoded (https://crates.io/crates/form_urlencoded)
@@ -603,6 +633,12 @@ Distributed under the following license(s):
 * MIT
 
 
+## globwalk (https://crates.io/crates/globwalk)
+
+Distributed under the following license(s):
+* MIT
+
+
 ## h2 (https://crates.io/crates/h2)
 
 Distributed under the following license(s):
@@ -631,6 +667,13 @@ Distributed under the following license(s):
 
 
 ## hermit-abi (https://crates.io/crates/hermit-abi)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+## hex (https://crates.io/crates/hex)
 
 Distributed under the following license(s):
 * MIT
@@ -683,11 +726,12 @@ Distributed under the following license(s):
 * MIT
 
 
-## hyper-openssl (https://crates.io/crates/hyper-openssl)
+## hyper-rustls (https://crates.io/crates/hyper-rustls)
 
 Distributed under the following license(s):
-* MIT
 * Apache-2.0
+* ISC
+* MIT
 
 
 ## hyper-timeout (https://crates.io/crates/hyper-timeout)
@@ -697,11 +741,10 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
-## hyper-tls (https://crates.io/crates/hyper-tls)
+## hyperlocal (https://crates.io/crates/hyperlocal)
 
 Distributed under the following license(s):
 * MIT
-* Apache-2.0
 
 
 ## iana-time-zone (https://crates.io/crates/iana-time-zone)
@@ -867,19 +910,6 @@ Distributed under the following license(s):
 * MIT
 
 
-## linked-hash-map (https://crates.io/crates/linked-hash-map)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## linked_hash_set (https://crates.io/crates/linked_hash_set)
-
-Distributed under the following license(s):
-* Apache-2.0
-
-
 ## linux-raw-sys (https://crates.io/crates/linux-raw-sys)
 
 Distributed under the following license(s):
@@ -971,7 +1001,7 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
-## native-tls (https://crates.io/crates/native-tls)
+## mockall_double (https://crates.io/crates/mockall_double)
 
 Distributed under the following license(s):
 * MIT
@@ -1030,22 +1060,9 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
-## opamp-client (git+ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.8#5c23d459afb732877c1771d83032fc11233f79bf)
+## opamp-client (git+ssh://git@github.com/newrelic/opamp-rs.git?branch=build/remove-openssl-dep#feeb5e361e8ecd36939b6406ae977bd13b724ec0)
 
 Distributed under the following license(s):
-* Apache-2.0
-
-
-## openssl (https://crates.io/crates/openssl)
-
-Distributed under the following license(s):
-* Apache-2.0
-
-
-## openssl-macros (https://crates.io/crates/openssl-macros)
-
-Distributed under the following license(s):
-* MIT
 * Apache-2.0
 
 
@@ -1054,19 +1071,6 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 * MIT
 * Apache-2.0
-
-
-## openssl-src (https://crates.io/crates/openssl-src)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## openssl-sys (https://crates.io/crates/openssl-sys)
-
-Distributed under the following license(s):
-* MIT
 
 
 ## ordered-float (https://crates.io/crates/ordered-float)
@@ -1158,13 +1162,6 @@ Distributed under the following license(s):
 
 
 ## pin-utils (https://crates.io/crates/pin-utils)
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## pkg-config (https://crates.io/crates/pkg-config)
 
 Distributed under the following license(s):
 * MIT
@@ -1363,6 +1360,22 @@ Distributed under the following license(s):
 * MIT
 
 
+## rustls-native-certs (https://crates.io/crates/rustls-native-certs)
+
+Distributed under the following license(s):
+* Apache-2.0
+* ISC
+* MIT
+
+
+## rustls-pemfile (https://crates.io/crates/rustls-pemfile)
+
+Distributed under the following license(s):
+* Apache-2.0
+* ISC
+* MIT
+
+
 ## rustls-webpki (https://crates.io/crates/rustls-webpki)
 
 Distributed under the following license(s):
@@ -1471,7 +1484,21 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
+## serde_repr (https://crates.io/crates/serde_repr)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
 ## serde_urlencoded (https://crates.io/crates/serde_urlencoded)
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+## serde_with (https://crates.io/crates/serde_with)
 
 Distributed under the following license(s):
 * MIT
@@ -1654,17 +1681,23 @@ Distributed under the following license(s):
 * MIT
 
 
-## tokio-native-tls (https://crates.io/crates/tokio-native-tls)
-
-Distributed under the following license(s):
-* MIT
-
-
-## tokio-openssl (https://crates.io/crates/tokio-openssl)
+## tokio-rustls (https://crates.io/crates/tokio-rustls)
 
 Distributed under the following license(s):
 * MIT
 * Apache-2.0
+
+
+## tokio-stream (https://crates.io/crates/tokio-stream)
+
+Distributed under the following license(s):
+* MIT
+
+
+## tokio-test (https://crates.io/crates/tokio-test)
+
+Distributed under the following license(s):
+* MIT
 
 
 ## tokio-util (https://crates.io/crates/tokio-util)
@@ -1692,6 +1725,12 @@ Distributed under the following license(s):
 
 
 ## tower-service (https://crates.io/crates/tower-service)
+
+Distributed under the following license(s):
+* MIT
+
+
+## tower-test (https://crates.io/crates/tower-test)
 
 Distributed under the following license(s):
 * MIT
@@ -1882,14 +1921,14 @@ Distributed under the following license(s):
 * MIT
 
 
-## vcpkg (https://crates.io/crates/vcpkg)
+## version_check (https://crates.io/crates/version_check)
 
 Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
 
-## version_check (https://crates.io/crates/version_check)
+## wait-timeout (https://crates.io/crates/wait-timeout)
 
 Distributed under the following license(s):
 * MIT

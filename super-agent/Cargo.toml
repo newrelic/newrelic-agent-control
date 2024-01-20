@@ -20,12 +20,11 @@ tracing = { workspace = true }
 ctrlc = { version = "3.4.0", features = ["termination"] }
 serde_yaml = { workspace = true }
 regex = { workspace = true }
-opamp-client = { git = "ssh://git@github.com/newrelic/opamp-rs.git", tag = "0.0.8" }
+opamp-client = { git = "ssh://git@github.com/newrelic/opamp-rs.git", branch = "build/remove-openssl-dep" }
 futures = "0.3.28"
 async-trait = "0.1.71"
 tokio = "1.32.0"
 ulid = { workspace = true, features = ["serde"] }
-openssl = { version = "0.10.57", features = ["vendored"] }
 aquamarine = "0.3.2"
 duration-str = "0.7.0"
 fs = { path = "../fs" }
@@ -36,9 +35,8 @@ resource-detection = { path = "../resource-detection" }
 
 # K8S subagent dependencies
 # IMPORTANT: All k8s only deps needs to be `optional = true` so they won't be compiled by default
-kube = { version = "0.87.2", default-features = false, features = [
+kube = { version = "0.87.2", features = [
   "client",
-  "openssl-tls",
   "runtime",
   "derive",
 ], optional = true }

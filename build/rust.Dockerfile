@@ -6,10 +6,9 @@ RUN apt update && apt upgrade -y
 ARG ARCH_NAME
 RUN if [ "${ARCH_NAME}" = "aarch64" ]; then \
       # We assume the docker image's arch is x86_64, so cross-compiling for aarch64
-      apt install -y g++-aarch64-linux-gnu libc6-dev-arm64-cross pkg-config && \
+      apt install -y g++-aarch64-linux-gnu libc6-dev-arm64-cross && \
       rustup toolchain install stable-aarch64-unknown-linux-gnu --force-non-host; \
     fi
-RUN apt install -y libssl-dev
 RUN rustup target add "${ARCH_NAME}-unknown-linux-gnu"
 
 WORKDIR /usr/src/app
@@ -18,7 +17,7 @@ ENV CARGO_HOME=/usr/src/app/.cargo
 
 ENV ARCH_NAME=${ARCH_NAME} \
     # Generate static builds
-    # RUSTFLAGS="-C target-feature=+crt-static" \
+    RUSTFLAGS="-C target-feature=+crt-static" \
     # Use the correct linker for aarch64 target
     CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
     CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
