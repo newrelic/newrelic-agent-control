@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use thiserror::Error;
+use tracing::debug;
 
 use newrelic_super_agent::config::agent_type::variable_spec::kind::Kind;
 use newrelic_super_agent::config::agent_type_registry::{
@@ -79,7 +80,7 @@ impl<R: AgentRegistry, F: FileReader> ConfigConverter<R, F> {
                         .push(self.dir_to_agent_value_spec(agent_type_fqn, file_map.unwrap())?)
                 }
                 _ => {
-                    error!("cannot handle variable type {:?}", spec.kind())
+                    debug!("skipping variable {}", agent_type_fqn.as_string())
                 }
             }
         }
