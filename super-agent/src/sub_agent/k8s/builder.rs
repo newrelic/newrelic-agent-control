@@ -100,7 +100,7 @@ where
             .assemble_agent(&agent_id, sub_agent_config)?;
 
         let k8s_objects = effective_agent
-            .runtime_config
+            .get_runtime_config()
             .deployment
             .k8s
             .as_ref()
@@ -148,7 +148,7 @@ fn validate_k8s_objects(
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::config::agent_type::agent_types::FinalAgent;
+    use crate::config::agent_type::agent_metadata::AgentMetadata;
     use crate::config::agent_type::runtime_config::K8s;
     use crate::config::super_agent_configs::K8sConfig;
     use crate::event::channel::pub_sub;
@@ -158,6 +158,7 @@ mod test {
     use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
     use crate::opamp::operations::start_settings;
     use crate::super_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
+    use crate::super_agent::effective_agents_assembler::EffectiveAgent;
     use crate::{
         k8s::client::MockSyncK8sClient,
         opamp::client_builder::test::MockOpAMPClientBuilderMock,
@@ -174,9 +175,9 @@ mod test {
         let cluster_name = "test-cluster";
         let mut opamp_builder: MockOpAMPClientBuilderMock<MockCallbacksMock> =
             MockOpAMPClientBuilderMock::new();
-        let final_agent = k8s_final_agent(true);
+        let effective_agent = k8s_effective_agent(AgentID::new("k8s-test").unwrap(), true);
         let sub_agent_config = SubAgentConfig {
-            agent_type: final_agent.agent_type(),
+            agent_type: AgentMetadata::default().to_string().as_str().into(),
         };
         let start_settings = start_settings(
             instance_id.to_string(),
@@ -219,7 +220,7 @@ mod test {
         effective_agent_assembler.should_assemble_agent(
             &sub_agent_id,
             &sub_agent_config,
-            final_agent,
+            effective_agent,
         );
 
         let k8s_config = K8sConfig {
@@ -261,9 +262,9 @@ mod test {
         let instance_id = "k8s-test-instance-id";
         let mut opamp_builder: MockOpAMPClientBuilderMock<MockCallbacksMock> =
             MockOpAMPClientBuilderMock::new();
-        let final_agent = k8s_final_agent(true);
+        let effective_agent = k8s_effective_agent(AgentID::new("k8s-test").unwrap(), true);
         let sub_agent_config = SubAgentConfig {
-            agent_type: final_agent.agent_type().clone(),
+            agent_type: AgentMetadata::default().to_string().as_str().into(),
         };
         let start_settings = start_settings(
             instance_id.to_string(),
@@ -313,7 +314,7 @@ mod test {
         effective_agent_assembler.should_assemble_agent(
             &sub_agent_id,
             &sub_agent_config,
-            final_agent,
+            effective_agent,
         );
 
         let k8s_config = K8sConfig {
@@ -351,9 +352,9 @@ mod test {
 
         let mut opamp_builder: MockOpAMPClientBuilderMock<MockCallbacksMock> =
             MockOpAMPClientBuilderMock::new();
-        let final_agent = k8s_final_agent(false); // false indicates invalid kind
+        let effective_agent = k8s_effective_agent(AgentID::new("k8s-test").unwrap(), false);
         let sub_agent_config = SubAgentConfig {
-            agent_type: final_agent.agent_type().clone(),
+            agent_type: AgentMetadata::default().to_string().as_str().into(),
         };
         let start_settings = start_settings(
             instance_id.to_string(),
@@ -380,7 +381,7 @@ mod test {
         effective_agent_assembler.should_assemble_agent(
             &sub_agent_id,
             &sub_agent_config,
-            final_agent,
+            effective_agent,
         );
 
         let k8s_config = K8sConfig {
@@ -406,7 +407,7 @@ mod test {
         assert_matches!(error, SubAgentBuilderError::UnsupportedK8sObject(_));
     }
 
-    fn k8s_final_agent(valid_kind: bool) -> FinalAgent {
+    fn k8s_effective_agent(agent_id: AgentID, valid_kind: bool) -> EffectiveAgent {
         let kind = if valid_kind {
             "HelmRepository".to_string()
         } else {
@@ -422,8 +423,14 @@ mod test {
         let mut objects = HashMap::new();
         objects.insert("sample_object".to_string(), k8s_object);
 
-        let mut final_agent: FinalAgent = FinalAgent::default();
-        final_agent.runtime_config.deployment.k8s = Some(K8s { objects });
-        final_agent
+        EffectiveAgent::new(
+            agent_id,
+            crate::config::agent_type::runtime_config::RuntimeConfig {
+                deployment: crate::config::agent_type::runtime_config::Deployment {
+                    on_host: None,
+                    k8s: Some(K8s { objects }),
+                },
+            },
+        )
     }
 }

@@ -19,10 +19,10 @@ use crate::sub_agent::on_host::sub_agent::NotStarted;
 use crate::sub_agent::on_host::supervisor::command_supervisor;
 use crate::sub_agent::SubAgentCallbacks;
 use crate::super_agent::effective_agents_assembler::{
-    EffectiveAgentsAssembler, EffectiveAgentsAssemblerError,
+    EffectiveAgent, EffectiveAgentsAssembler, EffectiveAgentsAssemblerError,
 };
 use crate::{
-    config::{agent_type::agent_types::FinalAgent, super_agent_configs::AgentID},
+    config::super_agent_configs::AgentID,
     context::Context,
     opamp::client_builder::OpAMPClientBuilder,
     sub_agent::{
@@ -172,16 +172,16 @@ where
 }
 
 fn build_supervisors(
-    final_agent: FinalAgent,
+    effective_agent: EffectiveAgent,
     tx: std::sync::mpsc::Sender<AgentLog>,
 ) -> Result<Vec<SupervisorOnHost<command_supervisor::NotStarted>>, SubAgentError> {
-    let on_host = final_agent
-        .runtime_config
+    let on_host = effective_agent
+        .get_runtime_config()
         .deployment
         .on_host
         .clone()
         .ok_or(SubAgentError::ErrorCreatingSubAgent(
-            final_agent.agent_type().to_string(),
+            effective_agent.to_string(),
         ))?;
 
     let mut supervisors = Vec::new();
@@ -216,6 +216,7 @@ mod test {
         settings::{AgentDescription, DescriptionValueType, StartSettings},
     };
 
+    use crate::config::agent_type::agent_metadata::AgentMetadata;
     use crate::event::channel::pub_sub;
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
@@ -241,10 +242,10 @@ mod test {
         let hostname = gethostname().unwrap_or_default().into_string().unwrap();
         let start_settings_infra = infra_agent_default_start_settings(&hostname);
 
-        let final_agent = on_host_final_agent();
         let sub_agent_id = AgentID::new("infra-agent").unwrap();
+        let final_agent = on_host_final_agent(sub_agent_id.clone());
         let sub_agent_config = SubAgentConfig {
-            agent_type: final_agent.agent_type().clone(),
+            agent_type: AgentMetadata::default().to_string().as_str().into(),
         };
 
         let mut started_client = MockStartedOpAMPClientMock::new();
@@ -323,10 +324,10 @@ mod test {
         // Structures
         let hostname = gethostname().unwrap_or_default().into_string().unwrap();
         let start_settings_infra = infra_agent_default_start_settings(&hostname);
-        let final_agent = on_host_final_agent();
         let sub_agent_id = AgentID::new("infra-agent").unwrap();
+        let final_agent = on_host_final_agent(sub_agent_id.clone());
         let sub_agent_config = SubAgentConfig {
-            agent_type: final_agent.agent_type().clone(),
+            agent_type: AgentMetadata::default().to_string().as_str().into(),
         };
 
         // Expectations
@@ -378,12 +379,21 @@ mod test {
     }
 
     // HELPERS
-    fn on_host_final_agent() -> FinalAgent {
-        let mut final_agent: FinalAgent = FinalAgent::default();
-        final_agent.runtime_config.deployment.on_host = Some(OnHost {
-            executables: Vec::new(),
-        });
-        final_agent
+    #[cfg(test)]
+    fn on_host_final_agent(
+        agent_id: AgentID,
+    ) -> crate::super_agent::effective_agents_assembler::EffectiveAgent {
+        crate::super_agent::effective_agents_assembler::EffectiveAgent::new(
+            agent_id,
+            crate::config::agent_type::runtime_config::RuntimeConfig {
+                deployment: crate::config::agent_type::runtime_config::Deployment {
+                    on_host: Some(OnHost {
+                        executables: Vec::new(),
+                    }),
+                    k8s: None,
+                },
+            },
+        )
     }
 
     fn infra_agent_default_start_settings(hostname: &str) -> StartSettings {
