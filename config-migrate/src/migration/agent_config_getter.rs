@@ -1,6 +1,15 @@
 use newrelic_super_agent::config::error::SuperAgentConfigError;
 use newrelic_super_agent::config::store::{SubAgentsConfigLoader, SuperAgentConfigStoreFile};
 use newrelic_super_agent::config::super_agent_configs::{AgentTypeFQN, SubAgentsConfig};
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum ConversionError {
+    #[error("`{0}`")]
+    SuperAgentConfigError(#[from] SuperAgentConfigError),
+    #[error("No agents of type found on config")]
+    NoAgentsFound,
+}
 
 pub struct AgentConfigGetter<SL = SuperAgentConfigStoreFile>
 where
@@ -22,13 +31,16 @@ where
     pub fn get_agents_of_type(
         &self,
         agent_type: AgentTypeFQN,
-    ) -> Result<SubAgentsConfig, SuperAgentConfigError> {
+    ) -> Result<SubAgentsConfig, ConversionError> {
         let mut agents_config = self.sub_agents_config_loader.load()?;
 
         for agent in agents_config.agents.clone() {
             if agent.1.agent_type != agent_type {
                 agents_config.remove(&agent.0);
             }
+        }
+        if agents_config.agents.is_empty() {
+            return Err(ConversionError::NoAgentsFound);
         }
 
         Ok(agents_config)
@@ -90,5 +102,29 @@ agents:
 
         assert!(actual.is_ok());
         assert_eq!(actual.unwrap(), expected);
+    }
+
+    #[test]
+    fn load_agents_of_type_error() {
+        let agent_type_fqn = AgentTypeFQN::from("com.newrelic.infrastructure_agent:0.1.0");
+        let agents_cfg = r#"
+agents:
+  infra-agent-a:
+    agent_type: "com.newrelic.infrastructure_agent:0.0.2"
+  infra-agent-b:
+    agent_type: "com.newrelic.infrastructure_agent:0.0.2"
+  not-infra-agent:
+    agent_type: "io.opentelemetry.collector:0.0.1"
+"#;
+        let mut config_loader = MockSubAgentsConfigLoaderMock::new();
+        config_loader
+            .expect_load()
+            .times(1)
+            .returning(move || Ok(serde_yaml::from_str::<SubAgentsConfig>(agents_cfg).unwrap()));
+
+        let config_getter = AgentConfigGetter::new(config_loader);
+        let result = config_getter.get_agents_of_type(agent_type_fqn);
+
+        assert!(result.is_err())
     }
 }
