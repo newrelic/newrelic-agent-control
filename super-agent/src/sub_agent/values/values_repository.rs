@@ -8,7 +8,9 @@ use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 use crate::config::agent_type::agent_types::FinalAgent;
-use crate::super_agent::defaults::{LOCAL_AGENT_DATA_DIR, REMOTE_AGENT_DATA_DIR, VALUES_PATH};
+use crate::super_agent::defaults::{
+    LOCAL_AGENT_DATA_DIR, REMOTE_AGENT_DATA_DIR, VALUES_DIR, VALUES_FILE,
+};
 use fs::file_reader::{FileReader, FileReaderError};
 use fs::writer_file::{FileWriter, WriteError};
 use log::error;
@@ -113,8 +115,8 @@ where
 {
     pub fn get_values_file_path(&self, agent_id: &AgentID) -> PathBuf {
         PathBuf::from(format!(
-            "{}/{}/{}",
-            self.local_conf_path, agent_id, VALUES_PATH
+            "{}/{}/{}/{}",
+            self.local_conf_path, agent_id, VALUES_DIR, VALUES_FILE
         ))
     }
 
@@ -124,8 +126,8 @@ where
         // `get_values_file_path`, we put the values file inside its own directory, which will
         // be recreated each time a remote config is received, leaving the other files untouched.
         PathBuf::from(format!(
-            "{}/{}/{}",
-            self.remote_conf_path, agent_id, VALUES_PATH
+            "{}/{}/{}/{}",
+            self.remote_conf_path, agent_id, VALUES_DIR, VALUES_FILE
         ))
     }
 
