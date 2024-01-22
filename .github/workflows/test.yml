@@ -1,5 +1,3 @@
-permissions:
-  contents: read
 on:
 # TODO: validate when to trigger the pipeline
   push:
@@ -123,3 +121,11 @@ jobs:
           curl -fsSL https://raw.githubusercontent.com/tilt-dev/tilt/master/scripts/install.sh | bash
       - name: Run k8s integration tests
         run: make -C super-agent/test/k8s
+
+  onhost-e2e:
+    uses: ./.github/workflows/component_onhost_e2e.yaml
+    with:
+      TAG: "TODO_CHANGE_ME"
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.TMP_AWS_ROLE_ARN }}
+      AWS_VPC_SUBNET: ${{ secrets.TMP_AWS_VPC_SUBNET }}
