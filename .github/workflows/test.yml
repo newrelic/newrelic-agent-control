@@ -150,8 +150,10 @@ jobs:
       - name: Run e2e-test
         uses: newrelic/newrelic-integration-e2e-action@v1
         env:
-          # Sets the endpoint used by the collector
+          # Tilt configs
           OTEL_ENDPOINT: "https://otlp.nr-data.net:4317"
+          ARCH: amd64
+          BUILD_WITH: cargo
         with:
           retry_seconds: 60
           retry_attempts: 10

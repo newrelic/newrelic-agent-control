@@ -5,7 +5,7 @@ custom_test_key: test.key
 scenarios:
   - description: Deploy SA with multiple (3) Sub-Agents
     before:
-      - cd ../../ && tilt ci -- --helm_values_file "test/k8s-e2e/super-agent-deployment.yml" --arch amd64 --build_with cargo
+      - cd ../../ && SA_CHART_VALUES_FILE="test/k8s-e2e/super-agent-deployment.yml" tilt ci
     after:
       - kubectl logs -l app.kubernetes.io/name=super-agent-deployment --all-containers --prefix=true
       - kubectl logs -l app.kubernetes.io/name=opentelemetry-collector --all-containers --prefix=true

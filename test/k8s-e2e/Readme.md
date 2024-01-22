@@ -7,18 +7,15 @@ The test leverages the Tilt environment so all requirements to launch Tilt must 
 Notice that the local execution expect to use Testing account.
 
 ```bash
-export ACCOUNT_ID=<NewRelic staging account number>
-export API_REST_KEY=<NewRelic staging api rest key>
-export LICENSE_KEY=<NewRelic staging ingest key>
-ctlptl create registry ctlptl-registry --port=5005 && ctlptl create cluster minikube --registry=ctlptl-registry
+export ACCOUNT_ID=<NewRelic testing account number>
+export API_REST_KEY=<NewRelic testing api rest key>
+export LICENSE_KEY=<NewRelic testing ingest key>
+ctlptl create registry ctlptl-registry --port=5005
+ctlptl create cluster minikube --registry=ctlptl-registry
 make test/k8s-e2e
 ```
 
 # Feature branch workaround 
 
 A change on the SA could be not compatible with the latest released chart, so there is a workaround to execute the tests installing the charts from a feature branch in `https://github.com/newrelic/helm-charts`.
-In order to use the branch for the tests modify the following lines in the Tiltfile:
-```python
-force_workaround = True
-feature_branch = '<branch-name>'
-```
+In order to use the branch for the tests modify, use `chart_source = 'branch'` and `feature_branch = '<feature-branch>'` configurations in the Tiltfile.

@@ -57,7 +57,8 @@ We use [Minikube](https://minikube.sigs.k8s.io/docs/) and [Tilt](https://tilt.de
 Note: Adding the `'chart_repo'` setting, pointing to the [newrelic charts](https://github.com/newrelic/helm-charts/tree/master/charts) on a local path, allows to use local helm charts.
 #### Steps
 ```shell
-ctlptl create registry ctlptl-registry --port=5005 && ctlptl create cluster minikube --registry=ctlptl-registry
+ctlptl create registry ctlptl-registry --port=5005
+ctlptl create cluster minikube --registry=ctlptl-registry
 make tilt-up
 ```
 
