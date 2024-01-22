@@ -282,6 +282,10 @@ impl AsyncK8sClient {
         if !self.has_dynamic_object_changed(obj).await? {
             return Ok(());
         }
+        debug!(
+            "The k8s resource changed, re-applying it {:?}",
+            obj.metadata.name
+        );
         self.apply_dynamic_object(obj).await
     }
 

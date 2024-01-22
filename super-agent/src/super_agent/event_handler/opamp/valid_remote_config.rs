@@ -171,7 +171,7 @@ mod tests {
 
         // Create the Super Agent and rub Sub Agents
         let super_agent = SuperAgent::new_custom(
-            None,
+            &None,
             &hash_repository_mock,
             sub_agent_builder,
             sub_agents_config_store,
@@ -254,7 +254,7 @@ mod tests {
 
         // Create the Super Agent and rub Sub Agents
         let super_agent = SuperAgent::new_custom(
-            None,
+            &None,
             &hash_repository_mock,
             sub_agent_builder,
             sub_agents_config_store,

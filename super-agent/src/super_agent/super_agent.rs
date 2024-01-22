@@ -16,6 +16,7 @@ use crate::super_agent::error::AgentError;
 use crate::super_agent::super_agent::EffectiveAgentsError::{
     EffectiveAgentExists, EffectiveAgentNotFound,
 };
+use crate::utils::time::get_sys_time_nano;
 use crossbeam::select;
 use opamp_client::StartedClient;
 use std::collections::HashMap;
@@ -33,7 +34,7 @@ use super::store::{
     SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer, SuperAgentConfigStoreFile,
 };
 
-pub(super) type SuperAgentCallbacks = AgentCallbacks<SuperAgentRemoteConfigPublisher>;
+pub type SuperAgentCallbacks = AgentCallbacks<SuperAgentRemoteConfigPublisher>;
 
 pub struct SuperAgent<'a, S, O, HR = HashRepositoryFile, SL = SuperAgentConfigStoreFile>
 where
@@ -42,7 +43,7 @@ where
     SL: SubAgentsConfigStorer + SubAgentsConfigLoader + SubAgentsConfigDeleter,
     S: SubAgentBuilder,
 {
-    pub(super) opamp_client: Option<O>,
+    pub(super) opamp_client: &'a Option<O>,
     sub_agent_builder: S,
     remote_config_hash_repository: &'a HR,
     agent_id: AgentID,
@@ -57,7 +58,7 @@ where
     SL: SubAgentsConfigStorer + SubAgentsConfigLoader + SubAgentsConfigDeleter,
 {
     pub fn new(
-        opamp_client: Option<O>,
+        opamp_client: &'a Option<O>,
         remote_config_hash_repository: &'a HR,
         sub_agent_builder: S,
         sub_agents_config_store: Arc<SL>,
@@ -83,7 +84,7 @@ where
 
         let output_manager = StdEventReceiver::default().log(rx);
 
-        if let Some(opamp_handle) = &self.opamp_client {
+        if let Some(opamp_handle) = self.opamp_client {
             // TODO should we error on first launch with no hash file?
             let remote_config_hash = self
                 .remote_config_hash_repository
@@ -113,6 +114,16 @@ where
 
         // Run all the Sub Agents
         let running_sub_agents = not_started_sub_agents.run()?;
+        if let Some(handle) = self.opamp_client {
+            info!("Setting SA status to healthy since agent initialization worked");
+            let health = opamp_client::opamp::proto::AgentHealth {
+                healthy: true,
+                last_error: "".to_string(),
+                start_time_unix_nano: get_sys_time_nano()?,
+            };
+            crate::runtime::tokio_runtime().block_on(handle.set_health(health))?;
+        }
+
         self.process_events(
             super_agent_consumer,
             opamp_pub_sub.1,
@@ -120,17 +131,6 @@ where
             running_sub_agents,
             tx,
         )?;
-
-        if let Some(handle) = self.opamp_client {
-            info!("Stopping and setting to unhealthy the OpAMP Client");
-            let health = opamp_client::opamp::proto::AgentHealth {
-                healthy: false,
-                last_error: "".to_string(),
-                start_time_unix_nano: 0,
-            };
-            crate::runtime::tokio_runtime().block_on(handle.set_health(health))?;
-            crate::runtime::tokio_runtime().block_on(handle.stop())?;
-        }
 
         info!("Waiting for the output manager to finish");
         output_manager.join().unwrap();
@@ -428,7 +428,7 @@ mod tests {
         SL: SubAgentsConfigStorer + SubAgentsConfigLoader + SubAgentsConfigDeleter,
     {
         pub fn new_custom(
-            opamp_client: Option<O>,
+            opamp_client: &'a Option<O>,
             remote_config_hash_repository: &'a HR,
             sub_agent_builder: S,
             sub_agents_config_store: SL,
@@ -449,7 +449,6 @@ mod tests {
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         let mut started_client = MockStartedOpAMPClientMock::new();
         started_client.should_set_health(1);
-        started_client.should_stop(1);
 
         sub_agents_config_store
             .expect_load()
@@ -461,9 +460,10 @@ mod tests {
             Ok(hash)
         });
 
+        let opamp_client = Some(started_client);
         // no agents in the supervisor group
         let agent = SuperAgent::new_custom(
-            Some(started_client),
+            &opamp_client,
             &hash_repository_mock,
             MockSubAgentBuilderMock::new(),
             sub_agents_config_store,
@@ -489,7 +489,6 @@ mod tests {
         // Super Agent OpAMP
         let mut started_client = MockStartedOpAMPClientMock::new();
         started_client.should_set_health(1);
-        started_client.should_stop(1);
 
         hash_repository_mock.expect_get().times(1).returning(|_| {
             let mut hash = Hash::new("a-hash".to_string());
@@ -504,8 +503,9 @@ mod tests {
             .expect_load()
             .returning(move || Ok(sub_agents_config.clone()));
 
+        let opamp_client = Some(started_client);
         let agent = SuperAgent::new_custom(
-            Some(started_client),
+            &opamp_client,
             &hash_repository_mock,
             sub_agent_builder,
             sub_agents_config_store,
@@ -533,7 +533,6 @@ mod tests {
             .expect_set_remote_config_status()
             .times(2)
             .returning(|_| Ok(()));
-        started_client.should_stop(1);
 
         let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
         sub_agents_config_store
@@ -583,8 +582,9 @@ mod tests {
             let opamp_publisher = opamp_publisher.clone();
             move || {
                 // two agents in the supervisor group
+                let opamp_client = Some(started_client);
                 let agent = SuperAgent::new_custom(
-                    Some(started_client),
+                    &opamp_client,
                     &hash_repository_mock,
                     sub_agent_builder,
                     sub_agents_config_store,
@@ -669,7 +669,7 @@ agents:
 
         // Create the Super Agent and rub Sub Agents
         let super_agent = SuperAgent::new_custom(
-            None::<MockStartedOpAMPClientMock<SuperAgentCallbacks>>,
+            &None::<MockStartedOpAMPClientMock<SuperAgentCallbacks>>,
             &hash_repository_mock,
             sub_agent_builder,
             sub_agents_config_store,
@@ -811,9 +811,10 @@ agents:
         let (sub_agent_publisher, sub_agent_consumer) = pub_sub();
         let (_super_agent_opamp_publisher, super_agent_opamp_consumer) = pub_sub();
 
+        let opamp_client = Some(MockStartedOpAMPClientMock::new());
         // Create the Super Agent and run Sub Agents
         let super_agent = SuperAgent::new_custom(
-            Some(MockStartedOpAMPClientMock::new()),
+            &opamp_client,
             &hash_repository_mock,
             sub_agent_builder,
             sub_agents_config_store,

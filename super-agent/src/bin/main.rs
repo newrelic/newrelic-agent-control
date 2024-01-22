@@ -3,16 +3,17 @@ use newrelic_super_agent::event::SuperAgentEvent;
 #[cfg(feature = "k8s")]
 use newrelic_super_agent::opamp::instance_id;
 use newrelic_super_agent::opamp::instance_id::getter::ULIDInstanceIDGetter;
-
 use newrelic_super_agent::opamp::remote_config_hash::HashRepositoryFile;
-
 use newrelic_super_agent::super_agent::error::AgentError;
 use newrelic_super_agent::super_agent::opamp::client_builder::SuperAgentOpAMPHttpBuilder;
 use newrelic_super_agent::super_agent::store::{SuperAgentConfigLoader, SuperAgentConfigStoreFile};
+use newrelic_super_agent::super_agent::super_agent;
 use newrelic_super_agent::super_agent::super_agent::{super_agent_fqn, SuperAgent};
 use newrelic_super_agent::utils::hostname::HostnameGetter;
-use newrelic_super_agent::{cli::Cli, logging::Logging};
+use newrelic_super_agent::{cli::Cli, logging::Logging, runtime};
+use opamp_client::http::{HttpClientReqwest, StartedHttpClient};
 use opamp_client::operation::settings::DescriptionValueType;
+use opamp_client::{Client, StartedClient};
 use std::collections::HashMap;
 use std::error::Error;
 use std::ffi::OsString;
@@ -138,8 +139,8 @@ fn run_super_agent(
         values_repository.delete_remote_all()?;
     }
 
-    SuperAgent::new(
-        maybe_client,
+    let execution_result = SuperAgent::new(
+        &maybe_client,
         &hash_repository,
         sub_agent_builder,
         Arc::new(config_storer),
@@ -147,7 +148,13 @@ fn run_super_agent(
     .run(
         super_agent_consumer,
         (super_agent_opamp_publisher, super_agent_opamp_consumer),
-    )
+    );
+
+    if let Some(client) = maybe_client {
+        terminate_opamp_client_and_set_status(client, &execution_result)?;
+    }
+
+    execution_result
 }
 
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
@@ -244,13 +251,43 @@ fn run_super_agent(
     let gcc = NotStartedK8sGarbageCollector::new(config_storer.clone(), k8s_client);
     let _started_gcc = gcc.start();
 
-    SuperAgent::new(
-        maybe_client,
+    let execution_result = SuperAgent::new(
+        &maybe_client,
         &hash_repository,
         sub_agent_builder,
         config_storer,
     )
-    .run(super_agent_consumer, (opamp_publisher, opamp_consumer))
+    .run(super_agent_consumer, (opamp_publisher, opamp_consumer));
+
+    if let Some(client) = maybe_client {
+        terminate_opamp_client_and_set_status(client, &execution_result)?;
+    }
+
+    execution_result
+}
+
+fn terminate_opamp_client_and_set_status(
+    client: StartedHttpClient<super_agent::SuperAgentCallbacks, HttpClientReqwest>,
+    res: &Result<(), AgentError>,
+) -> Result<(), AgentError> {
+    info!(
+        "Stopping and setting the OpAMP Client health={}",
+        !res.is_err()
+    );
+
+    let mut last_error = "".to_string();
+    if let Err(err) = &res {
+        last_error = err.to_string();
+    }
+    let health = opamp_client::opamp::proto::AgentHealth {
+        healthy: !res.is_err(),
+        last_error,
+        start_time_unix_nano: 0,
+    };
+    runtime::tokio_runtime().block_on(client.set_health(health))?;
+    runtime::tokio_runtime().block_on(client.stop())?;
+
+    Ok(())
 }
 
 fn create_shutdown_signal_handler(

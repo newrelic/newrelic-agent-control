@@ -14,6 +14,7 @@ use crate::sub_agent::on_host::sub_agent::NotStarted;
 use crate::sub_agent::on_host::supervisor::command_supervisor;
 use crate::sub_agent::SubAgentCallbacks;
 use crate::super_agent::config::{AgentID, SubAgentConfig};
+use crate::utils::time::get_sys_time_nano;
 use crate::{
     context::Context,
     opamp::client_builder::OpAMPClientBuilder,
@@ -27,8 +28,11 @@ use crate::{
 use log::error;
 #[cfg(unix)]
 use nix::unistd::gethostname;
+use opamp_client::operation::settings::DescriptionValueType;
+use opamp_client::Client;
 use std::collections::HashMap;
 use std::sync::Arc;
+use EffectiveAgentsAssemblerError::RemoteConfigLoadError;
 
 use super::{
     sub_agent::SubAgentOnHost,
@@ -104,7 +108,10 @@ where
             self.instance_id_getter,
             agent_id.clone(),
             &sub_agent_config.agent_type,
-            HashMap::from([("host.name".to_string(), get_hostname().into())]),
+            HashMap::from([(
+                "host.name".to_string(),
+                DescriptionValueType::String(get_hostname().to_string()),
+            )]),
         )?;
 
         // try to build effective agent
@@ -417,9 +424,18 @@ mod test {
             capabilities,
             agent_description: AgentDescription {
                 identifying_attributes: HashMap::<String, DescriptionValueType>::from([
-                    ("service.name".to_string(), agent_type.into()),
-                    ("service.namespace".to_string(), agent_namespace.into()),
-                    ("service.version".to_string(), agent_version.into()),
+                    (
+                        "service.name".to_string(),
+                        DescriptionValueType::String(agent_type.to_string()),
+                    ),
+                    (
+                        "service.namespace".to_string(),
+                        DescriptionValueType::String(agent_namespace.to_string()),
+                    ),
+                    (
+                        "service.version".to_string(),
+                        DescriptionValueType::String(agent_version.to_string()),
+                    ),
                 ]),
                 non_identifying_attributes: HashMap::from([(
                     "host.name".to_string(),
