@@ -2,6 +2,10 @@ ARG RUST_VERSION=1.71.1
 #FROM rust:${RUST_VERSION}-buster
 FROM debian:jessie
 
+RUN echo "deb http://cdn-fastly.deb.debian.org/debian/ jessie main\n" > /etc/apt/sources.list
+RUN echo "deb http://security.debian.org/ jessie/updates main\n" >> /etc/apt/sources.list
+RUN echo "deb http://archive.debian.org/debian jessie-backports main\n" >> /etc/apt/sources.list
+
 RUN apt update && apt upgrade -y
 
 ARG ARCH_NAME
