@@ -10,7 +10,7 @@ that already has some defaults of our environment.
 Run provisioning:
 ```shell
 // You must have valid AWS credentials at this point
-TAG_OR_UNIQUE_NAME=release_1.0 make provision
+EC2_FILTERS=["arm64:ubuntu22"] TAG_OR_UNIQUE_NAME=release_1.0 make provision
 ```
 
 In the background, it automates the deployment of the [Otel-ec2](https://github.com/newrelic-experimental/otel-env-provisioner/tree/main/terraform/otel-ec2) Terraform module.
