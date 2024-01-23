@@ -1,4 +1,7 @@
-variable "ec2_super_agents" {
+variable "ec2_prefix" {
+  default = ""
+}
+variable "ec2_filters" {
   default = ""
 }
 variable "nr_license_key" {
@@ -30,7 +33,7 @@ variable "inventory_output" {
 }
 
 module "super_agent-env-provisioner" {
-  source             = "git::https://github.com/newrelic-experimental/otel-env-provisioner//terraform/otel-ec2?ref=NR-217272_add_ec2_filters"
+  source             = "git::https://github.com/newrelic-experimental/env-provisioner//terraform/otel-ec2?ref=NR-217272_add_ec2_filters"
   ec2_prefix         = var.ec2_prefix
   ec2_filters        = var.ec2_filters
   nr_license_key     = var.nr_license_key
