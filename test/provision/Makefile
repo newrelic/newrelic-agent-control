@@ -3,6 +3,7 @@ include ../Ansible.common
 
 TERRAFORM_DIR := ./terraform
 ANSIBLE_FOLDER := ./terraform
+EC2_FILTERS ?= [""]
 
 .DEFAULT_GOAL := provision
 
@@ -13,8 +14,7 @@ ifndef TAG_OR_UNIQUE_NAME
 endif
 	sed "s/TAG_OR_UNIQUE_NAME/${TAG_OR_UNIQUE_NAME}/g" "$(TERRAFORM_DIR)/terraform.backend.tf.dist" > "$(TERRAFORM_DIR)/terraform.backend.tf"
 	sed "s/TAG_OR_UNIQUE_NAME/${TAG_OR_UNIQUE_NAME}/g" "$(TERRAFORM_DIR)/caos-linux.auto.tfvars.dist" > "$(TERRAFORM_DIR)/caos.auto.tfvars"
-	EC2_FILTERS := $(or $(EC2_FILTERS),[""])
-	sed "s/EC2_FILTERS/${EC2_FILTERS}/g" "$(TERRAFORM_DIR)/caos-linux.auto.tfvars.dist" > "$(TERRAFORM_DIR)/caos.auto.tfvars"
+	sed "s/EC2_FILTERS_VALUE/$(EC2_FILTERS)/g" "$(TERRAFORM_DIR)/caos-linux.auto.tfvars.dist" > "$(TERRAFORM_DIR)/caos.auto.tfvars"
 
 .PHONY: provision
 provision: terraform/backend

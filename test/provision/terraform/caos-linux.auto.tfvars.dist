@@ -4,4 +4,4 @@ otlp_endpoint    = "staging-otlp.nr-data.net:4317"
 nr_license_key   = "******"
 ansible_playbook = "install-requirements.yml"
 ec2_prefix       = "TAG_OR_UNIQUE_NAME"
-ec2_filters      = EC2_FILTERS
+ec2_filters      = EC2_FILTERS_VALUE
