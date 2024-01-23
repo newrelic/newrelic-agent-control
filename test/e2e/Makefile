@@ -3,6 +3,8 @@ include ../Ansible.common
 .DEFAULT_GOAL := e2e
 
 ANSIBLE_FOLDER := $(CURDIR)/ansible
+ANSIBLE_FORKS ?= 5
+ANSIBLE_INVENTORY ?= $(ANSIBLE_FOLDER)/inventory.ec2
 LIMIT ?= "testing_hosts_linux"
 
 .PHONY: e2e
