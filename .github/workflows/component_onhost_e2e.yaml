@@ -12,10 +12,14 @@ on:
       TAG:
         required: true
         type: string
+      EC2_FILTERS:
+        required: false
+        type: string
 
 env:
   TAG: ${{ inputs.TAG }}
   TAG_OR_UNIQUE_NAME: ${{ inputs.TAG }}
+  EC2_FILTERS: ${{ inputs.EC2_FILTERS }}
 
 permissions:
   id-token: write
@@ -50,7 +54,7 @@ jobs:
         uses: newrelic/fargate-runner-action@main
         with:
           aws_region: us-east-2
-          container_make_target: "test/provision TF_VAR_inventory_output=/srv/runner/inventory/${{ env.TAG_OR_UNIQUE_NAME }}-inventory.ec2 TAG_OR_UNIQUE_NAME=${{ env.TAG_OR_UNIQUE_NAME }}"
+          container_make_target: "test/provision TF_VAR_inventory_output=/srv/runner/inventory/${{ env.TAG_OR_UNIQUE_NAME }}-inventory.ec2 TAG_OR_UNIQUE_NAME=${{ env.TAG_OR_UNIQUE_NAME }} EC2_FILTERS=${{ env.EC2_FILTERS }}"
           ecs_cluster_name: caos_super_agent_releases
           task_definition_name: super_agent-releases
           cloud_watch_logs_group_name: /ecs/test-prerelease-super_agent-releases

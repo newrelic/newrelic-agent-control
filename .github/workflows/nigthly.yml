@@ -23,3 +23,12 @@ jobs:
     with:
       image-tag: nightly
     secrets: inherit
+
+  onhost-e2e:
+    uses: ./.github/workflows/component_onhost_e2e.yaml
+    with:
+      TAG: "TODO_CHANGE_ME"
+      EC2_FILTERS: '[\"ubuntu\"]'
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.TMP_AWS_ROLE_ARN }}
+      AWS_VPC_SUBNET: ${{ secrets.TMP_AWS_VPC_SUBNET }}
