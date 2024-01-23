@@ -30,7 +30,10 @@ impl HttpClientUreq {
     /// Returns a new instance of HttpClientUreq
     pub fn new(url: String, timeout: Duration, header_map: Option<HeaderMap>) -> Self {
         Self {
-            client: ureq::AgentBuilder::new().timeout(timeout).build(),
+            client: ureq::AgentBuilder::new()
+                .timeout_connect(timeout)
+                .timeout(timeout)
+                .build(),
             url,
             header_map,
         }
