@@ -2,7 +2,7 @@ ARG RUST_VERSION=1.71.1
 #FROM rust:${RUST_VERSION}-buster
 FROM debian:jessie
 
-RUN #apt update && apt upgrade -y
+RUN apt update && apt upgrade -y
 
 ARG ARCH_NAME
 
