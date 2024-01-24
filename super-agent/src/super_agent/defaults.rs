@@ -124,7 +124,7 @@ variables:
 deployment:
   on_host:
     executables:
-      - path: /usr/local/bin/newrelic-infra
+      - path: /usr/bin/newrelic-infra
         args: "--config=${config_agent}"
         env: "NRIA_PLUGIN_DIR=${config_integrations} NRIA_LOGGING_CONFIGS_DIR=${config_logging}"
         restart_policy:
@@ -177,8 +177,8 @@ namespace: newrelic
 name: io.k8s.opentelemetry.collector # Changed to avoid collisions with the upper agent type
 version: 0.0.1
 variables:
-  config_file:
-    description: "Newrelic otel collector configuration path"
+  chart_values:
+    description: "Newrelic otel collector chart values"
     type: yaml
     required: true
 deployment:
@@ -214,8 +214,7 @@ deployment:
               retries: 3
               strategy: rollback
           values:
-            mode: deployment
-            config: ${config_file}
+            ${chart_values}
 "#;
 
 #[cfg(test)]
@@ -224,9 +223,9 @@ mod test {
 
     #[test]
     fn test_parsable_configs() {
-        let _: AgentType = serde_yaml::from_str(super::NEWRELIC_INFRA_TYPE_1).unwrap();
-        let _: AgentType = serde_yaml::from_str(super::NEWRELIC_INFRA_TYPE_2).unwrap();
-        let _: AgentType = serde_yaml::from_str(super::NRDOT_TYPE).unwrap();
-        let _: AgentType = serde_yaml::from_str(super::KUBERNETES_TYPE).unwrap();
+        serde_yaml::from_str::<AgentType>(super::NEWRELIC_INFRA_TYPE_1).unwrap();
+        serde_yaml::from_str::<AgentType>(super::NEWRELIC_INFRA_TYPE_2).unwrap();
+        serde_yaml::from_str::<AgentType>(super::NRDOT_TYPE).unwrap();
+        serde_yaml::from_str::<AgentType>(super::KUBERNETES_TYPE).unwrap();
     }
 }
