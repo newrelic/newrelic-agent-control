@@ -1,4 +1,4 @@
-chart_values: |
+chart_values:
   mode: deployment
   config:
     receivers:

@@ -20,7 +20,7 @@ config:
   subAgents: 
     open-telemetry: 
       content:
-        chart_values: |
+        chart_values:
           mode: deployment
           extraEnvsFrom:
             - secretRef:
@@ -63,7 +63,7 @@ config:
                     - prometheus
     open-telemetry-1: 
       content:
-        chart_values: |
+        chart_values:
           mode: deployment
           extraEnvsFrom:
             - secretRef:
@@ -106,7 +106,7 @@ config:
                     - prometheus
     open-telemetry-2: 
       content:
-        chart_values: |
+        chart_values:
           mode: deployment
           extraEnvsFrom:
             - secretRef:

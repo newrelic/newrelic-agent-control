@@ -8,7 +8,9 @@ use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 use crate::config::agent_type::agent_types::FinalAgent;
-use crate::super_agent::defaults::{LOCAL_AGENT_DATA_DIR, REMOTE_AGENT_DATA_DIR, VALUES_PATH};
+use crate::super_agent::defaults::{
+    LOCAL_AGENT_DATA_DIR, REMOTE_AGENT_DATA_DIR, VALUES_DIR, VALUES_FILE,
+};
 use fs::file_reader::{FileReader, FileReaderError};
 use fs::writer_file::{FileWriter, WriteError};
 use log::error;
@@ -113,8 +115,8 @@ where
 {
     pub fn get_values_file_path(&self, agent_id: &AgentID) -> PathBuf {
         PathBuf::from(format!(
-            "{}/{}/{}",
-            self.local_conf_path, agent_id, VALUES_PATH
+            "{}/{}/{}/{}",
+            self.local_conf_path, agent_id, VALUES_DIR, VALUES_FILE
         ))
     }
 
@@ -124,8 +126,8 @@ where
         // `get_values_file_path`, we put the values file inside its own directory, which will
         // be recreated each time a remote config is received, leaving the other files untouched.
         PathBuf::from(format!(
-            "{}/{}/{}",
-            self.remote_conf_path, agent_id, VALUES_PATH
+            "{}/{}/{}/{}",
+            self.remote_conf_path, agent_id, VALUES_DIR, VALUES_FILE
         ))
     }
 
@@ -242,11 +244,11 @@ pub mod test {
     use fs::mock::MockLocalFile;
     use fs::writer_file::FileWriter;
     use mockall::{mock, predicate};
+    use serde_yaml::Value;
     use std::collections::HashMap;
     use std::fs::Permissions;
     use std::path::Path;
 
-    use crate::config::agent_type::trivial_value::TrivialValue;
     use crate::super_agent::defaults::default_capabilities;
     #[cfg(target_family = "unix")]
     use std::os::unix::fs::PermissionsExt;
@@ -374,13 +376,10 @@ pub mod test {
 
         let agent_values = repo.load(&agent_id, &final_agent).unwrap();
 
+        assert_eq!(agent_values.get("some_config").unwrap(), &Value::Bool(true));
         assert_eq!(
-            agent_values.get_from_normalized("some_config").unwrap(),
-            TrivialValue::Bool(true)
-        );
-        assert_eq!(
-            agent_values.get_from_normalized("another_item").unwrap(),
-            TrivialValue::Bool(false)
+            agent_values.get("another_item").unwrap(),
+            &Value::Bool(false)
         );
     }
 
@@ -414,13 +413,10 @@ pub mod test {
 
         let agent_values = repo.load(&agent_id, &final_agent).unwrap();
 
+        assert_eq!(agent_values.get("some_config").unwrap(), &Value::Bool(true));
         assert_eq!(
-            agent_values.get_from_normalized("some_config").unwrap(),
-            TrivialValue::Bool(true)
-        );
-        assert_eq!(
-            agent_values.get_from_normalized("another_item").unwrap(),
-            TrivialValue::Bool(false)
+            agent_values.get("another_item").unwrap(),
+            &Value::Bool(false)
         );
     }
 
@@ -459,13 +455,10 @@ pub mod test {
 
         let agent_values = repo.load(&agent_id, &final_agent).unwrap();
 
+        assert_eq!(agent_values.get("some_config").unwrap(), &Value::Bool(true));
         assert_eq!(
-            agent_values.get_from_normalized("some_config").unwrap(),
-            TrivialValue::Bool(true)
-        );
-        assert_eq!(
-            agent_values.get_from_normalized("another_item").unwrap(),
-            TrivialValue::Bool(false)
+            agent_values.get("another_item").unwrap(),
+            &Value::Bool(false)
         );
     }
 
@@ -578,10 +571,8 @@ pub mod test {
         let remote_enabled = false;
 
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let agent_values = AgentValues::new(HashMap::from([(
-            "one_item".to_string(),
-            TrivialValue::String("one value".to_string()),
-        )]));
+        let agent_values =
+            AgentValues::new(HashMap::from([("one_item".into(), "one value".into())]));
 
         dir_manager.should_delete(Path::new("some/remote/path/some-agent-id/values"));
         dir_manager.should_create(
@@ -616,10 +607,8 @@ pub mod test {
         let remote_enabled = false;
 
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let agent_values = AgentValues::new(HashMap::from([(
-            "one_item".to_string(),
-            TrivialValue::String("one value".to_string()),
-        )]));
+        let agent_values =
+            AgentValues::new(HashMap::from([("one_item".into(), "one value".into())]));
 
         dir_manager.should_not_delete(
             Path::new("some/remote/path/some-agent-id/values"),
@@ -652,10 +641,8 @@ pub mod test {
         let remote_enabled = false;
 
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let agent_values = AgentValues::new(HashMap::from([(
-            "one_item".to_string(),
-            TrivialValue::String("one value".to_string()),
-        )]));
+        let agent_values =
+            AgentValues::new(HashMap::from([("one_item".into(), "one value".into())]));
 
         dir_manager.should_delete(Path::new("some/remote/path/some-agent-id/values"));
         dir_manager.should_not_create(
@@ -691,10 +678,8 @@ pub mod test {
         let remote_enabled = false;
 
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let agent_values = AgentValues::new(HashMap::from([(
-            "one_item".to_string(),
-            TrivialValue::String("one value".to_string()),
-        )]));
+        let agent_values =
+            AgentValues::new(HashMap::from([("one_item".into(), "one value".into())]));
 
         dir_manager.should_delete(Path::new("some/remote/path/some-agent-id/values"));
         dir_manager.should_create(

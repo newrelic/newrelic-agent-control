@@ -1633,7 +1633,7 @@ dependencies = [
 
 [[package]]
 name = "newrelic_super_agent"
-version = "0.6.2"
+version = "0.7.0"
 dependencies = [
  "aquamarine",
  "assert_cmd",

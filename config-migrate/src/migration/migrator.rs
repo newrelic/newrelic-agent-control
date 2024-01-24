@@ -15,11 +15,12 @@ use newrelic_super_agent::config::agent_type_registry::{AgentRegistry, LocalRegi
 use newrelic_super_agent::config::error::SuperAgentConfigError;
 use newrelic_super_agent::config::store::{SubAgentsConfigLoader, SuperAgentConfigStoreFile};
 use thiserror::Error;
+use tracing::debug;
 
 #[derive(Error, Debug)]
 pub enum MigratorError {
-    #[error("`{0}`")]
-    ConversionError(#[from] ConversionError),
+    #[error("")]
+    AgentTypeNotFoundOnConfig,
 
     #[error("`{0}`")]
     SuperAgentConfigError(#[from] SuperAgentConfigError),
@@ -29,6 +30,9 @@ pub enum MigratorError {
 
     #[error("error persisting values file: `{0}`")]
     PersistError(#[from] PersistError),
+
+    #[error("`{0}`")]
+    ConversionError(#[from] ConversionError),
 }
 
 pub struct ConfigMigrator<
@@ -59,15 +63,12 @@ impl ConfigMigrator<LocalRegistry, SuperAgentConfigStoreFile, DirectoryManagerFs
         let Ok(sub_agents_cfg) = self
             .agent_config_getter
             .get_agents_of_type(cfg.agent_type_fqn.clone())
-            .map_err(|e| {
-                error!("Error finding newrelic-super-agent config");
-                e
-            })
         else {
-            return Ok(());
+            return Err(MigratorError::AgentTypeNotFoundOnConfig);
         };
 
         for (agent_id, _) in sub_agents_cfg.agents {
+            debug!("preparing to migrate agent_id: {}", agent_id);
             match self.config_converter.convert(cfg) {
                 Ok(agent_variables) => {
                     let values_content = serde_yaml::to_string(&agent_variables)?;

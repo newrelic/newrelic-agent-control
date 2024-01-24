@@ -80,10 +80,7 @@ mod tests {
     use crate::event::SubAgentEvent::ConfigUpdated;
     use crate::sub_agent::on_host::event_processor::EventProcessor;
     use crate::{
-        config::{
-            agent_type::trivial_value::TrivialValue, agent_values::AgentValues,
-            super_agent_configs::AgentID,
-        },
+        config::{agent_values::AgentValues, super_agent_configs::AgentID},
         event::channel::pub_sub,
         opamp::{
             client_builder::test::MockStartedOpAMPClientMock,
@@ -115,10 +112,7 @@ mod tests {
         hash_repository.should_save_hash(&agent_id, &hash);
         values_repository.should_store_remote(
             &agent_id,
-            &AgentValues::new(HashMap::from([(
-                String::from("some_item"),
-                TrivialValue::String(String::from("some_value")),
-            )])),
+            &AgentValues::new(HashMap::from([("some_item".into(), "some_value".into())])),
         );
 
         let remote_config = RemoteConfig {
