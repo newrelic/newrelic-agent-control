@@ -249,9 +249,9 @@ impl AsyncK8sClient {
             })?
             .and_modify(|obj_old| {
                 obj_old.data = obj.data.clone();
-
-                // TODO not updating metadata for now as we cannot overwrite everything
-                // obj_old.metadata. = obj.clone().metadata;
+                // We are updating just particular metadata fields, the ones that are supported currently by the config
+                // Moreover, if you add a new one you need to consider them in has_dynamic_object_changed
+                obj_old.metadata.labels = obj.metadata.labels.clone();
             })
             .or_insert(|| obj.clone())
             .commit(&PostParams::default())
@@ -268,6 +268,9 @@ impl AsyncK8sClient {
             None => Ok(true),
             Some(obj_old) => {
                 if obj_old.data != obj.data {
+                    return Ok(true);
+                }
+                if obj_old.metadata.labels != obj.metadata.labels {
                     return Ok(true);
                 }
                 Ok(false)

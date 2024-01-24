@@ -190,12 +190,16 @@ deployment:
       repository:
         apiVersion: source.toolkit.fluxcd.io/v1beta2
         kind: HelmRepository
+        metadata:
+          name: ${nr-sub:agent_id}
         spec:
           interval: 3m
           url: https://open-telemetry.github.io/opentelemetry-helm-charts
       release:
         apiVersion: helm.toolkit.fluxcd.io/v2beta2
         kind: HelmRelease
+        metadata:
+          name: ${nr-sub:agent_id}
         spec:
           interval: 3m
           chart:
@@ -204,7 +208,7 @@ deployment:
               version: 0.78.3
               sourceRef:
                 kind: HelmRepository
-                name: open-telemetry # TODO now sub-agent name must be "open-telemetry" for this to work.
+                name: ${nr-sub:agent_id}
               interval: 3m
           install:
             remediation:

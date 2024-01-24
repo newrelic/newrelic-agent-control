@@ -9,7 +9,8 @@ use k8s_openapi::{
     api::core::v1::Namespace,
     apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition,
 };
-use kube::api::TypeMeta;
+use kube::api::{DynamicObject, TypeMeta};
+use kube::core::GroupVersion;
 use kube::{
     api::{Api, DeleteParams, Patch, PatchParams, PostParams},
     Client, CustomResource, CustomResourceExt,
@@ -23,12 +24,13 @@ use newrelic_super_agent::{
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::error::Error;
+use std::path::Path;
+use std::process::{Command, Stdio};
+use std::str::FromStr;
 use std::{collections::HashMap, env, fs::File, io::Write, sync::OnceLock, time::Duration};
 use tempfile::{tempdir, TempDir};
 use tokio::{runtime::Runtime, sync::OnceCell, time::timeout};
-
-use std::path::Path;
-use std::process::{Command, Stdio};
 
 const KUBECONFIG_PATH: &str = "test/k8s/.kubeconfig-dev";
 const K3S_BOOTSTRAP_TIMEOUT: u64 = 60;
@@ -331,6 +333,17 @@ pub fn foo_type_meta() -> TypeMeta {
         api_version: "newrelic.com/v1".to_string(),
         kind: "Foo".to_string(),
     }
+}
+
+pub async fn get_dynamic_api_foo(client: kube::Client, test_ns: String) -> Api<DynamicObject> {
+    let gvk = &GroupVersion::from_str(foo_type_meta().api_version.as_str())
+        .unwrap()
+        .with_kind(foo_type_meta().kind.as_str());
+    let (ar, _) = kube::discovery::pinned_kind(&client.to_owned(), gvk)
+        .await
+        .unwrap();
+    let api: Api<DynamicObject> = Api::namespaced_with(client.to_owned(), test_ns.as_str(), &ar);
+    api
 }
 
 static ONCE: OnceCell<()> = OnceCell::const_new();
