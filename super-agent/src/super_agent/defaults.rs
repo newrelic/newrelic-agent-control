@@ -60,7 +60,8 @@ variables:
     description: "Newrelic infra configuration"
     type: file
     required: false
-    default: ""
+    default: |
+      "content"
     file_path: "newrelic-infra.yml"
   config_ohis:
     description: "map of YAML configs for the OHIs"

@@ -627,183 +627,6 @@ agents:
         assert!(running_agent.join().is_ok())
     }
 
-    // #[test]
-    // fn restart_sub_agent() {
-    //     let sub_agent_hash_repository_mock = MockHashRepositoryMock::new();
-    //     let mut sub_agent_builder = MockSubAgentBuilderMock::new();
-    //
-    //     // Super Agent OpAMP
-    //     let mut started_client = MockStartedOpAMPClientMock::new();
-    //     started_client.should_set_health(1);
-    //     started_client.should_stop(1);
-    //
-    //     //Sub Agent reload expectations
-    //     let agent_id_to_restart = AgentID::new("infra-agent").unwrap();
-    //
-    //     let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
-    //     sub_agents_config_store
-    //         .expect_load()
-    //         .returning(|| Ok(sub_agents_default_config()));
-    //
-    //     let mut hash_repository_mock = MockHashRepositoryMock::new();
-    //     hash_repository_mock.expect_get().times(1).returning(|_| {
-    //         let mut hash = Hash::new("a-hash".to_string());
-    //         hash.apply();
-    //         Ok(hash)
-    //     });
-    //
-    //     // it should build three subagents (2 + 1 recreation)
-    //     sub_agent_builder.should_build(3);
-    //
-    //     let sub_agent_values_repo = MockRemoteValuesRepositoryMock::new();
-    //
-    //     // two agents in the supervisor group
-    //     let agent = SuperAgent::new_custom(
-    //         Some(started_client),
-    //         &hash_repository_mock,
-    //         sub_agent_builder,
-    //         sub_agents_config_store,
-    //         &sub_agent_hash_repository_mock,
-    //         sub_agent_values_repo,
-    //     );
-    //
-    //     let ctx = Context::new();
-    //     // restart agent after 50 milliseconds
-    //     send_event_after(
-    //         ctx.clone(),
-    //         SubAgentEvent::ConfigUpdated(agent_id_to_restart.clone()).into(),
-    //         Duration::from_millis(50),
-    //     );
-    //     // stop all agents after 100 milliseconds
-    //     send_event_after(
-    //         ctx.clone(),
-    //         SuperAgentEvent::StopRequested.into(),
-    //         Duration::from_millis(300),
-    //     );
-    //     assert!(agent.run(ctx).is_ok())
-    // }
-    //
-    // #[test]
-    // fn reload_sub_agent_config_error_on_assemble_new_config() {
-    //     let mut sub_agent_builder = MockSubAgentBuilderMock::new();
-    //     let sub_agent_hash_repository_mock = MockHashRepositoryMock::new();
-    //     let sub_agent_values_repo = MockRemoteValuesRepositoryMock::new();
-    //     let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
-    //     let mut hash_repository_mock = MockHashRepositoryMock::new();
-    //
-    //     // Sub Agents
-    //     let sub_agents_config = sub_agents_config_single_agent();
-    //
-    //     // it should build one subagent: infra-agent and be called a second time sending the error to opamp
-    //     sub_agent_builder.should_build(1);
-    //     sub_agent_builder.should_not_build(1);
-    //
-    //     let agent_id_to_restart = AgentID::new("infra-agent").unwrap();
-    //     //Persister will fail loading new configuration
-    //
-    //     sub_agents_config_store
-    //         .expect_load()
-    //         .times(2)
-    //         .returning(move || Ok(sub_agents_config.clone()));
-    //
-    //     hash_repository_mock.should_get_hash(
-    //         &AgentID::new_super_agent_id(),
-    //         Hash::applied("a-hash".to_string()),
-    //     );
-    //
-    //     // two agents in the supervisor group
-    //     let agent = SuperAgent::new_custom(
-    //         Some(MockStartedOpAMPClientMock::new()),
-    //         &hash_repository_mock,
-    //         sub_agent_builder,
-    //         sub_agents_config_store,
-    //         &sub_agent_hash_repository_mock,
-    //         sub_agent_values_repo,
-    //     );
-    //
-    //     let ctx = Context::new();
-    //     // restart agent after 50 milliseconds
-    //     send_event_after(
-    //         ctx.clone(),
-    //         SubAgentEvent::ConfigUpdated(agent_id_to_restart.clone()).into(),
-    //         Duration::from_millis(50),
-    //     );
-    //     // stop all agents after 100 milliseconds
-    //     send_event_after(
-    //         ctx.clone(),
-    //         SuperAgentEvent::StopRequested.into(),
-    //         Duration::from_millis(300),
-    //     );
-    //
-    //     let result = agent.run(ctx);
-    //
-    //     assert_eq!(
-    //         "``error creating Sub Agent: `error creating sub agent```".to_string(),
-    //         result.err().unwrap().to_string()
-    //     );
-    // }
-    //
-    // #[test]
-    // fn recreate_agent_no_errors() {
-    //     let sub_agent_hash_repository_mock = MockHashRepositoryMock::new();
-    //     let sub_agent_values_repo = MockRemoteValuesRepositoryMock::new();
-    //
-    //     // Super Agent OpAMP
-    //     let mut started_client = MockStartedOpAMPClientMock::new();
-    //     started_client.should_set_health(1);
-    //     started_client.should_stop(1);
-    //
-    //     // recreate agent
-    //     //Sub Agent reload expectations
-    //     let agent_id_to_restart = AgentID::new("infra-agent").unwrap();
-    //
-    //     let mut sub_agent_builder = MockSubAgentBuilderMock::new();
-    //     // it should build three sub_agents (2 + 1)
-    //     sub_agent_builder.should_build(3);
-    //
-    //     let mut hash_repository_mock = MockHashRepositoryMock::new();
-    //     hash_repository_mock.should_get_hash(
-    //         &AgentID::new_super_agent_id(),
-    //         Hash::applied("a-hash".to_string()),
-    //     );
-    //
-    //     let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
-    //     sub_agents_config_store
-    //         .expect_load()
-    //         .returning(|| Ok(sub_agents_default_config()));
-    //
-    //     let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
-    //     sub_agents_config_store
-    //         .expect_load()
-    //         .returning(|| Ok(sub_agents_default_config()));
-    //
-    //     // Create the Super Agent and rub Sub Agents
-    //     let super_agent = SuperAgent::new_custom(
-    //         Some(started_client),
-    //         &hash_repository_mock,
-    //         sub_agent_builder,
-    //         sub_agents_config_store,
-    //         &sub_agent_hash_repository_mock,
-    //         sub_agent_values_repo,
-    //     );
-    //
-    //     let ctx = Context::new();
-    //     // restart agent after 50 milliseconds
-    //     send_event_after(
-    //         ctx.clone(),
-    //         SubAgentEvent::ConfigUpdated(agent_id_to_restart.clone()).into(),
-    //         Duration::from_millis(50),
-    //     );
-    //     // stop all agents after 100 milliseconds
-    //     send_event_after(
-    //         ctx.clone(),
-    //         SuperAgentEvent::StopRequested.into(),
-    //         Duration::from_millis(100),
-    //     );
-    //
-    //     assert!(super_agent.run(ctx).is_ok());
-    // }
-
     #[test]
     fn create_stop_sub_agents_from_remote_config() {
         // Sub Agents
@@ -927,40 +750,6 @@ agents:
         assert!(running_sub_agents.stop().is_ok())
     }
 
-    ////////////////////////////////////////////////////////////////////////////////////
-    // Test helpers
-    ////////////////////////////////////////////////////////////////////////////////////
-
-    fn sub_agents_config_single_agent() -> SubAgentsConfig {
-        HashMap::from([(
-            AgentID::new("infra-agent").unwrap(),
-            SubAgentConfig {
-                agent_type: AgentTypeFQN::from("newrelic/com.newrelic.infrastructure_agent:0.0.1"),
-            },
-        )])
-        .into()
-    }
-
-    fn sub_agents_default_config() -> SubAgentsConfig {
-        HashMap::from([
-            (
-                AgentID::new("infra-agent").unwrap(),
-                SubAgentConfig {
-                    agent_type: AgentTypeFQN::from(
-                        "newrelic/com.newrelic.infrastructure_agent:0.0.1",
-                    ),
-                },
-            ),
-            (
-                AgentID::new("nrdot").unwrap(),
-                SubAgentConfig {
-                    agent_type: AgentTypeFQN::from("newrelic/io.opentelemetry.collector:0.0.1"),
-                },
-            ),
-        ])
-        .into()
-    }
-
     #[test]
     fn test_sub_agent_config_updated_should_recreate_sub_agent() {
         let (tx, _) = std::sync::mpsc::channel();
@@ -1064,5 +853,29 @@ agents:
                 tx,
             )
             .unwrap();
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////
+    // Test helpers
+    ////////////////////////////////////////////////////////////////////////////////////
+
+    fn sub_agents_default_config() -> SubAgentsConfig {
+        HashMap::from([
+            (
+                AgentID::new("infra-agent").unwrap(),
+                SubAgentConfig {
+                    agent_type: AgentTypeFQN::from(
+                        "newrelic/com.newrelic.infrastructure_agent:0.0.1",
+                    ),
+                },
+            ),
+            (
+                AgentID::new("nrdot").unwrap(),
+                SubAgentConfig {
+                    agent_type: AgentTypeFQN::from("newrelic/io.opentelemetry.collector:0.0.1"),
+                },
+            ),
+        ])
+        .into()
     }
 }

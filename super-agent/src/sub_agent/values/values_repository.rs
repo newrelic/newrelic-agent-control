@@ -244,11 +244,11 @@ pub mod test {
     use fs::mock::MockLocalFile;
     use fs::writer_file::FileWriter;
     use mockall::{mock, predicate};
+    use serde_yaml::Value;
     use std::collections::HashMap;
     use std::fs::Permissions;
     use std::path::Path;
 
-    use crate::config::agent_type::trivial_value::TrivialValue;
     use crate::super_agent::defaults::default_capabilities;
     #[cfg(target_family = "unix")]
     use std::os::unix::fs::PermissionsExt;
@@ -376,13 +376,10 @@ pub mod test {
 
         let agent_values = repo.load(&agent_id, &final_agent).unwrap();
 
+        assert_eq!(agent_values.get("some_config").unwrap(), &Value::Bool(true));
         assert_eq!(
-            agent_values.get_from_normalized("some_config").unwrap(),
-            TrivialValue::Bool(true)
-        );
-        assert_eq!(
-            agent_values.get_from_normalized("another_item").unwrap(),
-            TrivialValue::Bool(false)
+            agent_values.get("another_item").unwrap(),
+            &Value::Bool(false)
         );
     }
 
@@ -416,13 +413,10 @@ pub mod test {
 
         let agent_values = repo.load(&agent_id, &final_agent).unwrap();
 
+        assert_eq!(agent_values.get("some_config").unwrap(), &Value::Bool(true));
         assert_eq!(
-            agent_values.get_from_normalized("some_config").unwrap(),
-            TrivialValue::Bool(true)
-        );
-        assert_eq!(
-            agent_values.get_from_normalized("another_item").unwrap(),
-            TrivialValue::Bool(false)
+            agent_values.get("another_item").unwrap(),
+            &Value::Bool(false)
         );
     }
 
@@ -461,13 +455,10 @@ pub mod test {
 
         let agent_values = repo.load(&agent_id, &final_agent).unwrap();
 
+        assert_eq!(agent_values.get("some_config").unwrap(), &Value::Bool(true));
         assert_eq!(
-            agent_values.get_from_normalized("some_config").unwrap(),
-            TrivialValue::Bool(true)
-        );
-        assert_eq!(
-            agent_values.get_from_normalized("another_item").unwrap(),
-            TrivialValue::Bool(false)
+            agent_values.get("another_item").unwrap(),
+            &Value::Bool(false)
         );
     }
 
@@ -580,10 +571,8 @@ pub mod test {
         let remote_enabled = false;
 
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let agent_values = AgentValues::new(HashMap::from([(
-            "one_item".to_string(),
-            TrivialValue::String("one value".to_string()),
-        )]));
+        let agent_values =
+            AgentValues::new(HashMap::from([("one_item".into(), "one value".into())]));
 
         dir_manager.should_delete(Path::new("some/remote/path/some-agent-id/values"));
         dir_manager.should_create(
@@ -618,10 +607,8 @@ pub mod test {
         let remote_enabled = false;
 
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let agent_values = AgentValues::new(HashMap::from([(
-            "one_item".to_string(),
-            TrivialValue::String("one value".to_string()),
-        )]));
+        let agent_values =
+            AgentValues::new(HashMap::from([("one_item".into(), "one value".into())]));
 
         dir_manager.should_not_delete(
             Path::new("some/remote/path/some-agent-id/values"),
@@ -654,10 +641,8 @@ pub mod test {
         let remote_enabled = false;
 
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let agent_values = AgentValues::new(HashMap::from([(
-            "one_item".to_string(),
-            TrivialValue::String("one value".to_string()),
-        )]));
+        let agent_values =
+            AgentValues::new(HashMap::from([("one_item".into(), "one value".into())]));
 
         dir_manager.should_delete(Path::new("some/remote/path/some-agent-id/values"));
         dir_manager.should_not_create(
@@ -693,10 +678,8 @@ pub mod test {
         let remote_enabled = false;
 
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let agent_values = AgentValues::new(HashMap::from([(
-            "one_item".to_string(),
-            TrivialValue::String("one value".to_string()),
-        )]));
+        let agent_values =
+            AgentValues::new(HashMap::from([("one_item".into(), "one value".into())]));
 
         dir_manager.should_delete(Path::new("some/remote/path/some-agent-id/values"));
         dir_manager.should_create(

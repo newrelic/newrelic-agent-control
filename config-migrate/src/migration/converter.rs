@@ -6,7 +6,7 @@ use std::path::Path;
 use thiserror::Error;
 use tracing::debug;
 
-use newrelic_super_agent::config::agent_type::agent_types::{AgentTypeEndSpec, VariableType};
+use newrelic_super_agent::config::agent_type::variable_spec::kind::Kind;
 use newrelic_super_agent::config::agent_type_registry::{
     AgentRegistry, AgentRepositoryError, LocalRegistry,
 };
@@ -58,22 +58,22 @@ impl<R: AgentRegistry, F: FileReader> ConfigConverter<R, F> {
             .get(&migration_agent_config.get_agent_type_fqn())?;
 
         let mut agent_values_specs: Vec<HashMap<String, AgentValueSpec>> = Vec::new();
-        for (normalized_fqn, spec) in agent_type.variables.iter() {
+        for (normalized_fqn, spec) in agent_type.variables.flatten().iter() {
             let agent_type_fqn: AgentTypeFieldFQN = normalized_fqn.into();
-            match spec.variable_type() {
-                VariableType::File => {
+            match spec.kind() {
+                Kind::File(_) => {
                     // look for file mapping, if not found and required throw an error
                     let file_map = migration_agent_config.get_file(agent_type_fqn.clone());
-                    if spec.required && file_map.is_none() {
+                    if spec.is_required() && file_map.is_none() {
                         return Err(RequiredFileMappingNotFoundError);
                     }
                     agent_values_specs
                         .push(self.file_to_agent_value_spec(agent_type_fqn, file_map.unwrap())?)
                 }
-                VariableType::MapStringFile => {
+                Kind::MapStringFile(_) => {
                     // look for file mapping, if not found and required throw an error
                     let file_map = migration_agent_config.get_dir(agent_type_fqn.clone());
-                    if spec.required && file_map.is_none() {
+                    if spec.is_required() && file_map.is_none() {
                         return Err(RequiredFileMappingNotFoundError);
                     }
                     agent_values_specs

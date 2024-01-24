@@ -125,12 +125,12 @@ pub mod test {
     use mockall::mock;
     use opamp_client::opamp::proto::RemoteConfigStatus;
     use opamp_client::opamp::proto::RemoteConfigStatuses::Failed;
+    use opamp_client::StartedClient;
     use std::collections::HashMap;
     use std::sync::Arc;
     use std::thread;
     use std::thread::JoinHandle;
 
-    use crate::config::agent_type::trivial_value::TrivialValue;
     use crate::config::agent_values::AgentValues;
     use crate::event::SubAgentEvent::ConfigUpdated;
     use crate::opamp::remote_config_hash::test::MockHashRepositoryMock;
@@ -213,10 +213,11 @@ pub mod test {
         hash_repository.should_save_hash(&agent_id, &hash);
         values_repository.should_store_remote(
             &agent_id,
-            &AgentValues::new(HashMap::from([(
-                String::from("some_item"),
-                TrivialValue::String(String::from("some_value")),
-            )])),
+            // &AgentValues::new(HashMap::from([(
+            //     String::from("some_item"),
+            //     TrivialValue::String(String::from("some_value")),
+            // )])),
+            &AgentValues::new(HashMap::from([("some_item".into(), "some_value".into())])),
         );
 
         let remote_config = RemoteConfig {

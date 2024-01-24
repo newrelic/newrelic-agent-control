@@ -1,4 +1,4 @@
-config_file: |
+config_file:
   receivers:
     prometheus:
       config:
