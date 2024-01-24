@@ -1,0 +1,19 @@
+description: E2E Test
+
+custom_test_key: test.key
+
+scenarios:
+  - description: Deploy SA with multiple (3) Sub-Agents
+    before:
+      - cd ../../ && SA_CHART_VALUES_FILE="test/k8s-e2e/super-agent-deployment.yml" tilt ci
+    after:
+      - kubectl logs -l app.kubernetes.io/name=super-agent-deployment --all-containers --prefix=true
+      - kubectl logs -l app.kubernetes.io/name=opentelemetry-collector --all-containers --prefix=true
+      - kubectl get all -o wide
+      - cd ../../ && tilt down
+    tests:
+      nrqls:
+      # Checks that the metric exist for the test scenario, an extra where testKey=$SCENARIO_TAG is always added.
+      - query: "FROM Metric SELECT * WHERE metricName='otelcol_process_uptime' AND agent.id='open-telemetry'"
+      - query: "FROM Metric SELECT * WHERE metricName='otelcol_process_uptime' AND agent.id='open-telemetry-1'"
+      - query: "FROM Metric SELECT * WHERE metricName='otelcol_process_uptime' AND agent.id='open-telemetry-2'"

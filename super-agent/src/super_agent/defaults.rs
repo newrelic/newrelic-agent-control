@@ -177,8 +177,8 @@ namespace: newrelic
 name: io.k8s.opentelemetry.collector # Changed to avoid collisions with the upper agent type
 version: 0.0.1
 variables:
-  config_file:
-    description: "Newrelic otel collector configuration path"
+  chart_values:
+    description: "Newrelic otel collector chart values"
     type: yaml
     required: true
 deployment:
@@ -214,8 +214,7 @@ deployment:
               retries: 3
               strategy: rollback
           values:
-            mode: deployment
-            config: ${config_file}
+            ${chart_values}
 "#;
 
 #[cfg(test)]

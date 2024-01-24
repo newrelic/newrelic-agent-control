@@ -123,3 +123,42 @@ jobs:
           curl -fsSL https://raw.githubusercontent.com/tilt-dev/tilt/master/scripts/install.sh | bash
       - name: Run k8s integration tests
         run: make -C super-agent/test/k8s
+
+  # These tests are using (by default) the released charts
+  # In case a breaking change is introduced by the PR, a feature branch can be used as explained 
+  # in the test/k8s-e2e/Readme.md
+  k8s-e2-tests:
+    name: K8s e2e tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Give GitHub Actions access to private crates
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
+      - name: Setup Minikube
+        uses: manusa/actions-setup-minikube@v2.10.0
+        with:
+          minikube version: v1.32.0
+          kubernetes version: 'v1.28.1'
+          driver: docker
+      - name: Install Tilt
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/tilt-dev/tilt/master/scripts/install.sh | bash
+      - name: Run e2e-test
+        uses: newrelic/newrelic-integration-e2e-action@v1
+        env:
+          # Tilt configs
+          OTEL_ENDPOINT: "https://otlp.nr-data.net:4317"
+          ARCH: amd64
+          BUILD_WITH: cargo
+        with:
+          retry_seconds: 60
+          retry_attempts: 10
+          agent_enabled: false
+          spec_path: test/k8s-e2e/e2e-spec.yml
+          account_id: ${{ secrets.COREINT_E2E_ACCOUNT_ID }}
+          api_key: ${{ secrets.COREINT_E2E_API_KEY }}
+          license_key: ${{ secrets.COREINT_E2E_LICENSE_KEY }}
