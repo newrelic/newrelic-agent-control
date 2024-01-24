@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use thiserror::Error;
 
-use super::agent_type::trivial_value::TrivialValue;
+use crate::agent_type::trivial_value::TrivialValue;
 
 /// User-provided config.
 ///
@@ -113,10 +113,10 @@ mod tests {
 
     use serde_yaml::{Mapping, Value};
 
-    use crate::config::agent_type::{
-        agent_types::FinalAgent,
+    use crate::agent_type::{
+        definition::AgentType,
         trivial_value::FilePathWithContent,
-        variable_spec::spec::{EndSpec, Spec},
+        variable::definition::{VariableDefinition, VariableDefinitionTree},
     };
 
     use super::*;
@@ -253,18 +253,17 @@ deployment:
     #[test]
     fn test_update_specs() {
         let input_structure = serde_yaml::from_str::<AgentValues>(EXAMPLE_CONFIG_REPLACE).unwrap();
-        let mut agent_type =
-            serde_yaml::from_str::<FinalAgent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
+        let mut agent_type = serde_yaml::from_str::<AgentType>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
 
         let expected = HashMap::from([
             (
                 "deployment".to_string(),
-                Spec::SpecMapping(HashMap::from([(
+                VariableDefinitionTree::Mapping(HashMap::from([(
                     "on_host".to_string(),
-                    Spec::SpecMapping(HashMap::from([
+                    VariableDefinitionTree::Mapping(HashMap::from([
                         (
                             "path".to_string(),
-                            Spec::SpecEnd(EndSpec::new(
+                            VariableDefinitionTree::End(VariableDefinition::new(
                                 "Path to the agent".to_string(),
                                 true,
                                 None,
@@ -273,7 +272,7 @@ deployment:
                         ),
                         (
                             "args".to_string(),
-                            Spec::SpecEnd(EndSpec::new(
+                            VariableDefinitionTree::End(VariableDefinition::new(
                                 "Args passed to the agent".to_string(),
                                 true,
                                 None,
@@ -285,7 +284,7 @@ deployment:
             ),
             (
                 "config".to_string(),
-                Spec::SpecEnd(EndSpec::new_with_file_path(
+                VariableDefinitionTree::End(VariableDefinition::new_with_file_path(
                     "Path to the agent".to_string(),
                     true,
                     None,
@@ -298,7 +297,7 @@ deployment:
             ),
             (
                 "integrations".to_string(),
-                Spec::SpecEnd(EndSpec::new_with_file_path(
+                VariableDefinitionTree::End(VariableDefinition::new_with_file_path(
                     "Newrelic integrations configuration yamls".to_string(),
                     true,
                     None,
@@ -403,8 +402,7 @@ deployment:
     fn test_validate_with_agent_type_missing_required() {
         let input_structure =
             serde_yaml::from_str::<AgentValues>(EXAMPLE_CONFIG_REPLACE_NOPATH).unwrap();
-        let mut agent_type =
-            serde_yaml::from_str::<FinalAgent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
+        let mut agent_type = serde_yaml::from_str::<AgentType>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
 
         let actual = agent_type.merge_variables_with_values(input_structure);
 
@@ -429,8 +427,7 @@ deployment:
     fn test_validate_with_agent_type_wrong_value_type() {
         let input_structure =
             serde_yaml::from_str::<AgentValues>(EXAMPLE_CONFIG_REPLACE_WRONG_TYPE).unwrap();
-        let mut agent_type =
-            serde_yaml::from_str::<FinalAgent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
+        let mut agent_type = serde_yaml::from_str::<AgentType>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
 
         let actual = agent_type.merge_variables_with_values(input_structure);
 

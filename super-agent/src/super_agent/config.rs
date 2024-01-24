@@ -1,5 +1,4 @@
-use crate::config::error::SuperAgentConfigError;
-use crate::opamp::remote_config::RemoteConfig;
+use crate::opamp::remote_config::{RemoteConfig, RemoteConfigError};
 use crate::super_agent::defaults::{default_capabilities, SUPER_AGENT_ID};
 use opamp_client::operation::capabilities::Capabilities;
 use serde::{Deserialize, Serialize};
@@ -10,6 +9,8 @@ use thiserror::Error;
 
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
 use kube::core::TypeMeta;
+
+use super::store::SuperAgentConfigStoreError;
 
 const AGENT_ID_MAX_LENGTH: usize = 32;
 
@@ -23,6 +24,27 @@ pub enum AgentTypeError {
     InvalidAgentID,
     #[error("AgentID '{0}' is reserved")]
     InvalidAgentIDUsesReservedOne(String),
+}
+
+#[derive(Error, Debug)]
+pub enum SuperAgentConfigError {
+    #[error("error loading config: `{0}`")]
+    LoadConfigError(#[from] SuperAgentConfigStoreError),
+
+    #[error("cannot find config for agent: `{0}`")]
+    SubAgentNotFound(String),
+
+    #[error("sub agents configuration not found in the remote config map")]
+    SubAgentsNotFound,
+
+    #[error("configuration is not valid YAML: `{0}`")]
+    InvalidYamlConfiguration(#[from] serde_yaml::Error),
+
+    #[error("remote config error: `{0}`")]
+    RemoteConfigError(#[from] RemoteConfigError),
+
+    #[error("remote config error: `{0}`")]
+    IOError(#[from] std::io::Error),
 }
 
 impl TryFrom<String> for AgentID {

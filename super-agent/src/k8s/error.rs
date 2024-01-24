@@ -1,6 +1,7 @@
-use crate::config::error::SuperAgentConfigError;
 use kube::core::gvk::ParseGroupVersionError;
 use kube::{api, config::KubeconfigError};
+
+use crate::super_agent::config::SuperAgentConfigError;
 
 #[derive(thiserror::Error, Debug)]
 pub enum K8sError {

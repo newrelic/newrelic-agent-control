@@ -1,4 +1,3 @@
-use crate::config::super_agent_configs::{AgentID, OpAMPClientConfig};
 use crate::event::channel::EventPublisher;
 use crate::event::OpAMPEvent;
 use crate::opamp::callbacks::AgentCallbacks;
@@ -7,6 +6,7 @@ use crate::opamp::client_builder::{
 };
 use crate::sub_agent::opamp::remote_config_publisher::SubAgentRemoteConfigPublisher;
 use crate::sub_agent::SubAgentCallbacks;
+use crate::super_agent::config::{AgentID, OpAMPClientConfig};
 use crate::super_agent::opamp::client_builder::SuperAgentOpAMPHttpBuilder;
 use crate::utils::time::get_sys_time_nano;
 use opamp_client::http::{HttpClientReqwest, NotStartedHttpClient, StartedHttpClient};

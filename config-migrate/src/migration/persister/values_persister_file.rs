@@ -1,4 +1,5 @@
 use fs::LocalFile;
+use newrelic_super_agent::super_agent::config::AgentID;
 use std::fs::Permissions;
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::PermissionsExt;
@@ -8,7 +9,6 @@ use tracing::debug;
 
 use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
 use fs::writer_file::{FileWriter, WriteError};
-use newrelic_super_agent::config::super_agent_configs::AgentID;
 use newrelic_super_agent::super_agent::defaults::{LOCAL_AGENT_DATA_DIR, VALUES_DIR, VALUES_FILE};
 
 #[derive(Error, Debug)]

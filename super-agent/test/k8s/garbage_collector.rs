@@ -5,17 +5,17 @@ use k8s_openapi::{api::core::v1::ConfigMap, Resource};
 use kube::{api::Api, core::TypeMeta};
 use mockall::Sequence;
 use newrelic_super_agent::{
-    config::{
-        agent_type::runtime_config::K8sObject,
-        super_agent_configs::{AgentID, SuperAgentConfig},
-    },
+    agent_type::runtime_config::K8sObject,
     k8s::{client::SyncK8sClient, garbage_collector::NotStartedK8sGarbageCollector},
     opamp::instance_id::{
         getter::{InstanceIDGetter, ULIDInstanceIDGetter},
         Identifiers,
     },
     sub_agent::k8s::CRSupervisor,
-    super_agent::defaults::SUPER_AGENT_ID,
+    super_agent::{
+        config::{AgentID, SuperAgentConfig},
+        defaults::SUPER_AGENT_ID,
+    },
 };
 use std::{collections::HashMap, sync::Arc};
 

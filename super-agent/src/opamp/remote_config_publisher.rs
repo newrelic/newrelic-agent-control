@@ -1,14 +1,12 @@
-use std::str;
-use std::str::Utf8Error;
-
-use thiserror::Error;
-use tracing::{error, trace};
-
-use crate::config::super_agent_configs::AgentID;
 use crate::event::OpAMPEvent;
 use crate::opamp::remote_config::{ConfigMap, RemoteConfig, RemoteConfigError};
 use crate::opamp::remote_config_hash::Hash;
+use crate::super_agent::config::AgentID;
 use opamp_client::opamp::proto::AgentRemoteConfig;
+use std::str;
+use std::str::Utf8Error;
+use thiserror::Error;
+use tracing::{error, trace};
 //TODO this callbacks thing is just is a draft idea
 
 #[derive(Error, Debug)]

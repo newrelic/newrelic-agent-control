@@ -79,17 +79,15 @@ where
 mod test {
     use super::*;
     use crate::cloud::http_client::test::MockHttpClientMock;
-    use http::Response;
 
     #[test]
     fn detect_aws_metadata() {
         let mut client_mock = MockHttpClientMock::new();
         client_mock.expect_get().once().returning(|| {
-            Ok(Response::from(
-                http::Response::builder()
-                    .status(200)
-                    .body(
-                        r#"
+            Ok(http::Response::builder()
+                .status(200)
+                .body(
+                    r#"
     {
         "devpayProductCodes" : null,
         "marketplaceProductCodes" : [ "1abc2defghijklm3nopqrs4tu" ],
@@ -108,11 +106,10 @@ mod test {
         "region" : "us-west-2"
     }
     "#
-                        .as_bytes()
-                        .to_vec(),
-                    )
-                    .unwrap(),
-            ))
+                    .as_bytes()
+                    .to_vec(),
+                )
+                .unwrap())
         });
 
         let detector = AWSDetector {
@@ -131,12 +128,10 @@ mod test {
     fn detect_internal_http_error() {
         let mut client_mock = MockHttpClientMock::new();
         client_mock.expect_get().once().returning(|| {
-            Ok(Response::from(
-                http::Response::builder()
-                    .status(404)
-                    .body(r#""#.as_bytes().to_vec())
-                    .unwrap(),
-            ))
+            Ok(http::Response::builder()
+                .status(404)
+                .body(r#""#.as_bytes().to_vec())
+                .unwrap())
         });
 
         let detector = AWSDetector {
@@ -159,12 +154,10 @@ mod test {
     fn detect_json_error() {
         let mut client_mock = MockHttpClientMock::new();
         client_mock.expect_get().once().returning(|| {
-            Ok(Response::from(
-                http::Response::builder()
-                    .status(200)
-                    .body(r#"{ this is an invalid json right }"#.as_bytes().to_vec())
-                    .unwrap(),
-            ))
+            Ok(http::Response::builder()
+                .status(200)
+                .body(r#"{ this is an invalid json right }"#.as_bytes().to_vec())
+                .unwrap())
         });
 
         let detector = AWSDetector {

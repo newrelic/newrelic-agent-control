@@ -1,6 +1,6 @@
-use crate::config::super_agent_configs::AgentID;
 use crate::opamp::instance_id::getter::DataStored;
 use crate::opamp::instance_id::storer::InstanceIDStorer;
+use crate::super_agent::config::AgentID;
 use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
 use fs::file_reader::{FileReader, FileReaderError};
 use fs::writer_file::{FileWriter, WriteError};
@@ -127,11 +127,11 @@ where
 
 #[cfg(test)]
 mod test {
-    use crate::config::super_agent_configs::AgentID;
     use crate::opamp::instance_id::getter::DataStored;
     use crate::opamp::instance_id::on_host::storer::get_uild_path;
     use crate::opamp::instance_id::storer::InstanceIDStorer;
     use crate::opamp::instance_id::{Identifiers, InstanceID, Storer};
+    use crate::super_agent::config::AgentID;
     use crate::super_agent::defaults::{REMOTE_AGENT_DATA_DIR, SUPER_AGENT_IDENTIFIERS_PATH};
     use fs::directory_manager::mock::MockDirectoryManagerMock;
     use fs::mock::MockLocalFile;

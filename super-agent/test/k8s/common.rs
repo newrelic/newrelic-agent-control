@@ -14,18 +14,19 @@ use kube::{
     api::{Api, DeleteParams, Patch, PatchParams, PostParams},
     Client, CustomResource, CustomResourceExt,
 };
-use newrelic_super_agent::config::{
-    error::SuperAgentConfigError,
-    super_agent_configs::{AgentTypeError, SuperAgentConfig},
+use newrelic_super_agent::{
+    k8s::labels::Labels,
+    super_agent::{
+        config::{AgentID, AgentTypeError, SuperAgentConfig, SuperAgentConfigError},
+        store::SuperAgentConfigLoader,
+    },
 };
-use newrelic_super_agent::{config::super_agent_configs::AgentID, k8s::labels::Labels};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, env, fs, fs::File, io::Write, sync::OnceLock, time::Duration};
+use std::{collections::HashMap, env, fs::File, io::Write, sync::OnceLock, time::Duration};
 use tempfile::{tempdir, TempDir};
 use tokio::{runtime::Runtime, sync::OnceCell, time::timeout};
 
-use std::error::Error;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
@@ -389,7 +390,7 @@ use mockall::mock;
 mock! {
     pub SuperAgentConfigLoader {}
 
-    impl newrelic_super_agent::config::store::SuperAgentConfigLoader for SuperAgentConfigLoader {
+    impl SuperAgentConfigLoader for SuperAgentConfigLoader {
         fn load(&self) -> Result<SuperAgentConfig, SuperAgentConfigError>;
     }
 }

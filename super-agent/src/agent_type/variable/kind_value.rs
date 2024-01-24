@@ -2,7 +2,7 @@ use std::{fmt::Debug, path::PathBuf};
 
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::config::agent_type::error::AgentTypeError;
+use crate::agent_type::error::AgentTypeError;
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct KindValue<T>

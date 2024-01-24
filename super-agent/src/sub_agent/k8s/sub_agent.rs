@@ -1,6 +1,6 @@
 use crate::sub_agent::k8s::CRSupervisor;
+use crate::super_agent::config::AgentID;
 use crate::{
-    config::super_agent_configs::AgentID,
     opamp::operations::stop_opamp_client,
     sub_agent::{error::SubAgentError, NotStartedSubAgent, StartedSubAgent},
 };

@@ -1,8 +1,10 @@
 pub mod channel;
 
 /// EVENTS
-use crate::config::super_agent_configs::AgentID;
-use crate::opamp::remote_config::{RemoteConfig, RemoteConfigError};
+use crate::{
+    opamp::remote_config::{RemoteConfig, RemoteConfigError},
+    super_agent::config::AgentID,
+};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum OpAMPEvent {

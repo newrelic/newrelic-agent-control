@@ -1,18 +1,3 @@
-use fs::LocalFile;
-use log::error;
-use std::collections::HashMap;
-use std::path::Path;
-
-use thiserror::Error;
-use tracing::debug;
-
-use newrelic_super_agent::config::agent_type::variable_spec::kind::Kind;
-use newrelic_super_agent::config::agent_type_registry::{
-    AgentRegistry, AgentRepositoryError, LocalRegistry,
-};
-
-use fs::file_reader::{FileReader, FileReaderError};
-
 use crate::migration::agent_value_spec::AgentValueSpec::AgentValueSpecEnd;
 use crate::migration::agent_value_spec::{
     from_fqn_and_value, merge_agent_values, AgentValueError, AgentValueSpec,
@@ -20,6 +5,17 @@ use crate::migration::agent_value_spec::{
 use crate::migration::config::{AgentTypeFieldFQN, DirPath, FilePath, MigrationAgentConfig};
 use crate::migration::config::{FILE_SEPARATOR, FILE_SEPARATOR_REPLACE};
 use crate::migration::converter::ConversionError::RequiredFileMappingNotFoundError;
+use fs::file_reader::{FileReader, FileReaderError};
+use fs::LocalFile;
+use log::error;
+use newrelic_super_agent::agent_type::agent_type_registry::{
+    AgentRegistry, AgentRepositoryError, LocalRegistry,
+};
+use newrelic_super_agent::agent_type::variable::kind::Kind;
+use std::collections::HashMap;
+use std::path::Path;
+use thiserror::Error;
+use tracing::debug;
 
 #[derive(Error, Debug)]
 pub enum ConversionError {

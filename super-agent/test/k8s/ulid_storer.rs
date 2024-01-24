@@ -1,13 +1,13 @@
 use super::common::{block_on, tokio_runtime, K8sEnv};
 use k8s_openapi::api::core::v1::ConfigMap;
 use kube::Api;
-use newrelic_super_agent::config::super_agent_configs::AgentID;
 use newrelic_super_agent::k8s::client::SyncK8sClient;
 use newrelic_super_agent::k8s::labels::Labels;
 use newrelic_super_agent::opamp::instance_id::{
     getter::{InstanceIDGetter, ULIDInstanceIDGetter},
     Identifiers, CM_KEY,
 };
+use newrelic_super_agent::super_agent::config::AgentID;
 use std::sync::Arc;
 
 const AGENT_ID_TEST: &str = "agent-id-test";

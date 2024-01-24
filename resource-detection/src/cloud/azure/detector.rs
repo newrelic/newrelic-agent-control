@@ -89,7 +89,6 @@ where
 mod test {
     use super::*;
     use crate::cloud::http_client::test::MockHttpClientMock;
-    use http::Response;
 
     #[test]
     fn http_client_error() {
@@ -111,12 +110,12 @@ mod test {
     #[test]
     fn invalid_response_code() {
         let mut client_mock = MockHttpClientMock::new();
-        client_mock.should_get(Response::from(
+        client_mock.should_get(
             http::Response::builder()
                 .status(503)
                 .body("".as_bytes().to_vec())
                 .unwrap(),
-        ));
+        );
 
         let detector = AzureDetector {
             http_client: client_mock,
@@ -132,12 +131,12 @@ mod test {
     #[test]
     fn error_on_deserializing() {
         let mut client_mock = MockHttpClientMock::new();
-        client_mock.should_get(Response::from(
+        client_mock.should_get(
             http::Response::builder()
                 .status(200)
                 .body("bad:json".as_bytes().to_vec())
                 .unwrap(),
-        ));
+        );
 
         let detector = AzureDetector {
             http_client: client_mock,
@@ -154,12 +153,12 @@ mod test {
     fn detect_azure_metadata_from_windows_vm() {
         // https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service?tabs=windows
         let mut client_mock = MockHttpClientMock::new();
-        client_mock.should_get(Response::from(
+        client_mock.should_get(
             http::Response::builder()
                 .status(200)
                 .body(WINDOWS_VM_RESPONSE.as_bytes().to_vec())
                 .unwrap(),
-        ));
+        );
 
         let detector = AzureDetector {
             http_client: client_mock,
@@ -177,12 +176,12 @@ mod test {
     fn detect_azure_metadata_from_linux_vm() {
         // https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service?tabs=linux
         let mut client_mock = MockHttpClientMock::new();
-        client_mock.should_get(Response::from(
+        client_mock.should_get(
             http::Response::builder()
                 .status(200)
                 .body(LINUX_VM_RESPONSE.as_bytes().to_vec())
                 .unwrap(),
-        ));
+        );
 
         let detector = AzureDetector {
             http_client: client_mock,
@@ -196,7 +195,7 @@ mod test {
         )
     }
 
-    const LINUX_VM_RESPONSE: &'static str = r#"
+    const LINUX_VM_RESPONSE: &str = r#"
     {
     "compute": {
         "azEnvironment": "AZUREPUBLICCLOUD",
@@ -358,7 +357,7 @@ mod test {
 }
 "#;
 
-    const WINDOWS_VM_RESPONSE: &'static str = r#"
+    const WINDOWS_VM_RESPONSE: &str = r#"
   {
     "compute": {
         "azEnvironment": "AZUREPUBLICCLOUD",

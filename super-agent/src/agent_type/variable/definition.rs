@@ -2,7 +2,7 @@ use std::{collections::HashMap, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::config::agent_type::{error::AgentTypeError, trivial_value::TrivialValue};
+use crate::agent_type::{error::AgentTypeError, trivial_value::TrivialValue};
 
 use super::kind::Kind;
 
@@ -10,19 +10,19 @@ use super::kind::Kind;
 // so a recursive datatype is the answer!
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(untagged)]
-pub enum Spec {
-    SpecEnd(EndSpec),
-    SpecMapping(HashMap<String, Spec>),
+pub enum VariableDefinitionTree {
+    End(VariableDefinition),
+    Mapping(HashMap<String, VariableDefinitionTree>),
 }
 
 #[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
-pub struct EndSpec {
+pub struct VariableDefinition {
     pub(crate) description: String,
     #[serde(flatten)]
     kind: Kind,
 }
 
-impl EndSpec {
+impl VariableDefinition {
     pub fn is_required(&self) -> bool {
         self.kind.is_required()
     }
@@ -62,14 +62,14 @@ impl EndSpec {
 mod test {
     use std::path::PathBuf;
 
-    use crate::config::agent_type::variable_spec::{
+    use crate::agent_type::variable::{
         kind::Kind,
         kind_value::{KindValue, KindValueWithPath},
     };
 
-    use super::EndSpec;
+    use super::VariableDefinition;
 
-    impl EndSpec {
+    impl VariableDefinition {
         pub(crate) fn new<T>(
             description: String,
             required: bool,

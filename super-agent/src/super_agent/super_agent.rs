@@ -1,9 +1,4 @@
-use crate::config::agent_type::agent_types::FinalAgent;
-use crate::config::error::SuperAgentConfigError;
-use crate::config::store::{
-    SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer, SuperAgentConfigStoreFile,
-};
-use crate::config::super_agent_configs::{AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig};
+use crate::agent_type::definition::AgentType;
 use crate::event::channel::{pub_sub, EventConsumer, EventPublisher};
 use crate::opamp::callbacks::AgentCallbacks;
 use crate::opamp::remote_config::RemoteConfig;
@@ -30,7 +25,13 @@ use std::sync::Arc;
 use thiserror::Error;
 use tracing::{debug, error, info, warn};
 
+use super::config::{
+    AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig, SuperAgentConfigError,
+};
 use super::opamp::remote_config_publisher::SuperAgentRemoteConfigPublisher;
+use super::store::{
+    SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer, SuperAgentConfigStoreFile,
+};
 
 pub(super) type SuperAgentCallbacks = AgentCallbacks<SuperAgentRemoteConfigPublisher>;
 
@@ -360,7 +361,7 @@ pub fn super_agent_fqn() -> AgentTypeFQN {
 
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct EffectiveAgents {
-    pub agents: HashMap<AgentID, FinalAgent>,
+    pub agents: HashMap<AgentID, AgentType>,
 }
 
 #[derive(Error, Debug)]
@@ -372,18 +373,14 @@ pub enum EffectiveAgentsError {
 }
 
 impl EffectiveAgents {
-    pub fn get(&self, agent_id: &AgentID) -> Result<&FinalAgent, EffectiveAgentsError> {
+    pub fn get(&self, agent_id: &AgentID) -> Result<&AgentType, EffectiveAgentsError> {
         match self.agents.get(agent_id) {
             None => Err(EffectiveAgentNotFound(agent_id.to_string())),
             Some(agent) => Ok(agent),
         }
     }
 
-    pub fn add(
-        &mut self,
-        agent_id: AgentID,
-        agent: FinalAgent,
-    ) -> Result<(), EffectiveAgentsError> {
+    pub fn add(&mut self, agent_id: AgentID, agent: AgentType) -> Result<(), EffectiveAgentsError> {
         if self.get(&agent_id).is_ok() {
             return Err(EffectiveAgentExists(agent_id.to_string()));
         }
@@ -398,13 +395,6 @@ impl EffectiveAgents {
 
 #[cfg(test)]
 mod tests {
-    use crate::config::store::tests::MockSubAgentsConfigStore;
-    use crate::config::store::{
-        SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer,
-    };
-    use crate::config::super_agent_configs::{
-        AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig,
-    };
     use crate::event::channel::pub_sub;
     use crate::event::{OpAMPEvent, SubAgentEvent, SuperAgentEvent};
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
@@ -412,6 +402,11 @@ mod tests {
     use crate::opamp::remote_config_hash::test::MockHashRepositoryMock;
     use crate::opamp::remote_config_hash::{Hash, HashRepository};
     use crate::sub_agent::{test::MockSubAgentBuilderMock, SubAgentBuilder};
+    use crate::super_agent::config::{AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig};
+    use crate::super_agent::store::tests::MockSubAgentsConfigStore;
+    use crate::super_agent::store::{
+        SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer,
+    };
     use crate::super_agent::super_agent::SuperAgent;
     use mockall::predicate;
 
