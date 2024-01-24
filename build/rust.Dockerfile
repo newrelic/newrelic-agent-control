@@ -1,26 +1,31 @@
 ARG RUST_VERSION=1.71.1
 #FROM rust:${RUST_VERSION}-buster
-FROM debian:jessie
-
-RUN echo "deb http://cdn-fastly.deb.debian.org/debian/ jessie main\n" > /etc/apt/sources.list
-RUN echo "deb http://security.debian.org/ jessie/updates main\n" >> /etc/apt/sources.list
-RUN echo "deb http://archive.debian.org/debian jessie-backports main\n" >> /etc/apt/sources.list
-
-RUN apt update && apt upgrade -y
+FROM centos:centos7
 
 ARG ARCH_NAME
 
-RUN apt install curl
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-RUN rustup install ${RUST_VERSION}
-RUN rustup default ${RUST_VERSION}-${ARCH_NAME}-unknown-linux-gnu
+RUN yum update -y
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash -s -- -y # should be changed to not interactive installer
+RUN source "$HOME/.cargo/env"
+# RUN rustup install ${RUST_VERSION}
+#RUN rustup default 1.71.1-${ARCH_NAME}-unknown-linux-gnu
 
 RUN if [ "${ARCH_NAME}" = "aarch64" ]; then \
       # We assume the docker image's arch is x86_64, so cross-compiling for aarch64
-      apt install -y g++-aarch64-linux-gnu libc6-dev-arm64-cross pkg-config && \
+      yum -y install epel-release && \
+      yum install gcc-aarch64-linux-gnu pkgconfig -y && \
       rustup toolchain install stable-aarch64-unknown-linux-gnu --force-non-host; \
     fi
-RUN apt install -y libssl-dev
+#       yum install -y g++-aarch64-linux-gnu libc6-dev-arm64-cross pkg-config && \
+
+
+#RUN if [ "${ARCH_NAME}" = "x86_64" ]; then \
+#      # We assume the docker image's arch is x86_64, so cross-compiling for aarch64
+#      rpm -i g++-amd64-linux-gnu libc6-dev-amd64-cross pkg-config && \
+#      rustup toolchain install stable-aarch64-unknown-linux-gnu --force-non-host; \
+#    fi
+RUN yum install openssl-devel
 RUN rustup target add "${ARCH_NAME}-unknown-linux-gnu"
 
 WORKDIR /usr/src/app
