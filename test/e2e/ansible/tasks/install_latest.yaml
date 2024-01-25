@@ -1,0 +1,19 @@
+---
+- name: Update package repositories
+  include_role:
+    name: caos.ansible_roles.package_repo_update
+  vars:
+    repo_endpoint: "http://nr-downloads-ohai-testing.s3-website-us-east-1.amazonaws.com/preview"
+
+- name: Install SA package
+  include_role:
+    name: caos.ansible_roles.package_install
+  vars:
+    package: "newrelic-super-agent"
+
+- name: assert service status
+  include_role:
+    name: caos.ansible_roles.assert_service_status
+  vars:
+    services_running:
+      - "newrelic-super-agent.service"

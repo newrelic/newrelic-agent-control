@@ -1,0 +1,10 @@
+---
+- name: Basic installation
+  hosts: all
+
+  tasks:
+    - name: Installation
+      include_tasks: ./tasks/install_latest.yaml
+
+    - name: Cleanup
+      include_tasks: ./tasks/clean_all.yaml
