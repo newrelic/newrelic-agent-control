@@ -132,7 +132,7 @@ mod test {
 
         let mut to: HashMap<String, AgentValueSpec> = HashMap::new();
 
-        let _ = merge_agent_values_recursive(from, &mut to);
+        merge_agent_values_recursive(from, &mut to);
 
         println!("{:?}", to);
     }
@@ -168,7 +168,7 @@ mod test {
             ),
         ]);
 
-        let _ = merge_agent_values_recursive(from, &mut to);
+        merge_agent_values_recursive(from, &mut to);
 
         println!("{:?}", to);
     }
@@ -191,7 +191,7 @@ mod test {
             )])),
         )]);
 
-        let _ = merge_agent_values_recursive(from, &mut to);
+        merge_agent_values_recursive(from, &mut to);
 
         println!("{:?}", to);
     }

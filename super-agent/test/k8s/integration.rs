@@ -1,5 +1,4 @@
 use crate::common::{block_on, start_super_agent, K8sEnv};
-use newrelic_super_agent::opamp::client_builder::OpAMPClientBuilder;
 
 use std::error::Error;
 use std::path::Path;
@@ -13,7 +12,7 @@ use tokio::time::sleep;
 #[ignore = "needs a k8s cluster"]
 fn k8s_sub_agent_started() {
     let file_path = Path::new("test/k8s/data/static.yml");
-    let mut child = start_super_agent(&file_path, Some("test/k8s/data"));
+    let mut child = start_super_agent(file_path, Some("test/k8s/data"));
 
     // Setup k8s env
     let k8s = block_on(K8sEnv::new());

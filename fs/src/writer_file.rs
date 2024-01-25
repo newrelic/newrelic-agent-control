@@ -144,7 +144,7 @@ pub mod test {
 
         // Create writer and write to path with some permissions
         let some_permissions = Permissions::from_mode(0o645);
-        let writer = LocalFile::default();
+        let writer = LocalFile;
         let write_result = writer.write(
             path.as_path(),
             content.to_string(),
@@ -191,7 +191,7 @@ pub mod test {
         path.push(file_name);
 
         // Create writer and write to path
-        let writer = LocalFile::default();
+        let writer = LocalFile;
         let write_result = writer.write(
             path.as_path(),
             content.to_string(),
@@ -212,7 +212,7 @@ pub mod test {
         // Prepare temp path and folder name
         let file_name = "some/path/../../etc/passwd";
         let path = PathBuf::from(file_name);
-        let writer = LocalFile::default();
+        let writer = LocalFile;
 
         let result = writer.write(&path, "".to_string(), Permissions::from_mode(0o645));
 

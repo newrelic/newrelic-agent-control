@@ -1,4 +1,3 @@
-use newrelic_super_agent::config::agent_values::AgentValues;
 use std::fs;
 use std::fs::Permissions;
 #[cfg(target_family = "unix")]
@@ -6,10 +5,11 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 
 use ::fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
-use newrelic_super_agent::config::super_agent_configs::AgentID;
+use newrelic_super_agent::agent_type::agent_values::AgentValues;
 use newrelic_super_agent::sub_agent::values::values_repository::{
     ValuesRepository, ValuesRepositoryFile,
 };
+use newrelic_super_agent::super_agent::config::AgentID;
 
 // This test is the only one that writes to an actual file in the FS
 #[test]

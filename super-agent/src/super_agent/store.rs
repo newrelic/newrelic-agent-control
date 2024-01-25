@@ -1,12 +1,11 @@
-use crate::config::super_agent_configs::SuperAgentConfig;
-use crate::{config::error::SuperAgentConfigError, super_agent::defaults::SUPER_AGENT_DATA_DIR};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 use thiserror::Error;
 use tracing::warn;
 
-use super::super_agent_configs::SubAgentsConfig;
+use crate::super_agent::config::{SubAgentsConfig, SuperAgentConfig, SuperAgentConfigError};
+use crate::super_agent::defaults::SUPER_AGENT_DATA_DIR;
 
 #[derive(Error, Debug)]
 pub enum SuperAgentConfigStoreError {
@@ -138,15 +137,13 @@ impl SuperAgentConfigStoreFile {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use super::SuperAgentConfigError;
-    use super::{SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer};
-    use crate::config::{
-        store::{SuperAgentConfigLoader, SuperAgentConfigStoreFile},
-        super_agent_configs::{
-            AgentID, AgentTypeFQN, OpAMPClientConfig, SubAgentConfig, SubAgentsConfig,
-            SuperAgentConfig,
-        },
+    use crate::super_agent::config::{
+        AgentID, AgentTypeFQN, OpAMPClientConfig, SubAgentConfig, SubAgentsConfig, SuperAgentConfig,
     };
+
+    use super::SuperAgentConfigError;
+    use super::*;
+    use super::{SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer};
     use mockall::{mock, predicate};
     use std::{collections::HashMap, io::Write};
     use tempfile::NamedTempFile;

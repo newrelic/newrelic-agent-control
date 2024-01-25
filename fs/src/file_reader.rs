@@ -109,7 +109,7 @@ pub mod test {
 
     #[test]
     fn test_file_not_found_should_return_error() {
-        let reader = LocalFile::default();
+        let reader = LocalFile;
         let result = reader.read(Path::new("/a/path/that/does/not/exist"));
         assert!(result.is_err());
         assert_eq!(
@@ -120,7 +120,7 @@ pub mod test {
 
     #[test]
     fn test_dir_not_found_should_return_error() {
-        let reader = LocalFile::default();
+        let reader = LocalFile;
         let result = reader.read_dir(Path::new("/a/path/that/does/not/exist"));
         assert!(result.is_err());
         assert_eq!(

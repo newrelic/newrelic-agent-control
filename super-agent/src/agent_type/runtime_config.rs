@@ -2,11 +2,11 @@ use std::collections::HashMap;
 
 use serde::Deserialize;
 
-use super::{agent_types::TemplateableValue, restart_policy::RestartPolicyConfig};
+use super::{definition::TemplateableValue, restart_policy::RestartPolicyConfig};
 
 /// Strict structure that describes how to start a given agent with all needed binaries, arguments, env, etc.
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
-pub struct RuntimeConfig {
+pub struct Runtime {
     pub deployment: Deployment,
 }
 
@@ -128,7 +128,7 @@ deployment:
 
     #[test]
     fn test_k8s_object() {
-        let rtc: RuntimeConfig = serde_yaml::from_str(RUNTIME_WITH_K8S_DEPLOYMENT).unwrap();
+        let rtc: Runtime = serde_yaml::from_str(RUNTIME_WITH_K8S_DEPLOYMENT).unwrap();
         assert!(rtc.deployment.on_host.is_none());
         let k8s = rtc.deployment.k8s.unwrap();
         assert_eq!("Foo".to_string(), k8s.objects["cr1"].kind);

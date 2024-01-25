@@ -1,15 +1,14 @@
-use opamp_client::opamp::proto::{RemoteConfigStatus, RemoteConfigStatuses};
-use opamp_client::StartedClient;
-
 use crate::{
-    config::store::{SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer},
     opamp::{remote_config::RemoteConfigError, remote_config_hash::HashRepository},
     sub_agent::SubAgentBuilder,
     super_agent::{
         error::AgentError,
+        store::{SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer},
         super_agent::{SuperAgent, SuperAgentCallbacks},
     },
 };
+use opamp_client::opamp::proto::{RemoteConfigStatus, RemoteConfigStatuses};
+use opamp_client::StartedClient;
 
 impl<'a, S, O, HR, SL> SuperAgent<'a, S, O, HR, SL>
 where

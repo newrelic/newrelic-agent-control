@@ -1,3 +1,7 @@
+use crate::event::channel::EventPublisher;
+use crate::event::OpAMPEvent;
+use crate::opamp::instance_id;
+use crate::super_agent::config::{AgentID, OpAMPClientConfig};
 use opamp_client::error::{NotStartedClientError, StartedClientError};
 use opamp_client::http::{HttpClientError, HttpClientReqwest, HttpConfig};
 use opamp_client::operation::callbacks::Callbacks;
@@ -6,12 +10,6 @@ use opamp_client::StartedClient;
 use std::time::SystemTimeError;
 use thiserror::Error;
 use tracing::error;
-
-use crate::config::super_agent_configs::{AgentID, OpAMPClientConfig};
-
-use crate::event::channel::EventPublisher;
-use crate::event::OpAMPEvent;
-use crate::opamp::instance_id;
 
 #[derive(Error, Debug)]
 pub enum OpAMPClientBuilderError {

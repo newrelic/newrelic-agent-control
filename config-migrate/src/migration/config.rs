@@ -1,4 +1,4 @@
-use newrelic_super_agent::config::super_agent_configs::AgentTypeFQN;
+use newrelic_super_agent::super_agent::config::AgentTypeFQN;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};

@@ -4,8 +4,10 @@ use opamp_client::StartedClient;
 use tracing::{error, info};
 
 use crate::event::SubAgentEvent;
+use crate::super_agent::store::{
+    SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer,
+};
 use crate::{
-    config::store::{SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer},
     event::channel::EventPublisher,
     opamp::{
         remote_config::RemoteConfig,
@@ -103,10 +105,6 @@ mod tests {
     use std::collections::HashMap;
 
     use crate::{
-        config::{
-            store::tests::MockSubAgentsConfigStore,
-            super_agent_configs::{AgentID, SubAgentConfig, SubAgentsConfig},
-        },
         event::channel::pub_sub,
         opamp::{
             client_builder::test::MockStartedOpAMPClientMock,
@@ -117,7 +115,11 @@ mod tests {
             collection::StartedSubAgents,
             test::{MockStartedSubAgent, MockSubAgentBuilderMock},
         },
-        super_agent::super_agent::SuperAgent,
+        super_agent::{
+            config::{AgentID, SubAgentConfig, SubAgentsConfig},
+            store::tests::MockSubAgentsConfigStore,
+            super_agent::SuperAgent,
+        },
     };
     use opamp_client::opamp::proto::RemoteConfigStatus;
     use opamp_client::opamp::proto::RemoteConfigStatuses::{Applied, Applying, Failed};
