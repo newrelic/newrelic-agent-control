@@ -173,7 +173,7 @@ deployment:
 "#;
 
 // Kubernetes AgentType
-
+// TODO We need to unify the two agent types and remove this workaround
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
 pub(crate) const NRDOT_TYPE: &str = r#"
 namespace: newrelic

@@ -10,11 +10,11 @@ config:
     content:
       agents: 
         open-telemetry:
-          agent_type: "newrelic/io.k8s.opentelemetry.collector:0.0.1"
+          agent_type: "newrelic/io.opentelemetry.collector:0.0.1"
         open-telemetry-1:
-          agent_type: "newrelic/io.k8s.opentelemetry.collector:0.0.1"
+          agent_type: "newrelic/io.opentelemetry.collector:0.0.1"
         open-telemetry-2:
-          agent_type: "newrelic/io.k8s.opentelemetry.collector:0.0.1"
+          agent_type: "newrelic/io.opentelemetry.collector:0.0.1"
   # All sub-agents configs are similar, the goal is just to have the otel collector sending metrics
   # with metadata that helps to identify the instance. 
   subAgents: 
