@@ -1,4 +1,4 @@
-use opamp_client::error::{ClientError, NotStartedClientError, StartedClientError};
+use opamp_client::{ClientError, NotStartedClientError, StartedClientError};
 use resource_detection::DetectError;
 use std::fmt::Debug;
 use std::time::SystemTimeError;

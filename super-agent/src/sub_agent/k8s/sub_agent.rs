@@ -64,8 +64,8 @@ where
                     last_error: err.to_string(),
                     start_time_unix_nano: 0,
                 };
-                crate::runtime::tokio_runtime().block_on(handle.set_health(health))?;
-                crate::runtime::tokio_runtime().block_on(handle.stop())?;
+                handle.set_health(health)?;
+                handle.stop()?;
             }
             return Err(err);
         }
