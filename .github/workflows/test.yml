@@ -57,33 +57,7 @@ jobs:
         run: cargo test --locked --features=k8s --all-targets
       - name: Run onHost root-required tests only
         run: cargo test --locked --features=onhost --all-targets -- --skip no_root
-  # Windows and macos not required at the moment (ci failing while fetching
-  # private crates)
-  # os-check:
-  #   runs-on: ${{ matrix.os }}
-  #   name: ${{ matrix.os }} / stable
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       os: [macos-latest, windows-latest]
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #       with:
-  #         submodules: true
-  #     - name: Give GitHub Actions access to private crates
-  #       uses: webfactory/ssh-agent@v0.8.0
-  #       with:
-  #         ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
-  #     - name: Install stable
-  #       uses: dtolnay/rust-toolchain@4f366e621dc8fa63f557ca04b8f4361824a35a45
-  #     - name: cargo generate-lockfile
-  #       if: hashFiles('Cargo.lock') == ''
-  #       run: cargo generate-lockfile
-  #     - name: cargo test
-  #       run: cargo test --locked --all-features --all-targets -- --skip as_root
-  #       env:
-  #         # See: https://github.com/webfactory/ssh-agent#cargos-rust-private-dependencies-on-windows
-  #         CARGO_NET_GIT_FETCH_WITH_CLI: true
+  # TODO Windows and macos tests should be added whenever they are supported
 
   embedded:
     name: Unit test for embedded downloader
