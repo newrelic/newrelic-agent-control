@@ -4,6 +4,7 @@ use thiserror::Error;
 use tracing::error;
 
 use crate::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError, LocalRegistry};
+use crate::agent_type::definition::AgentAttributes;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::runtime_config::Runtime;
 use crate::sub_agent::values::values_repository::{
@@ -163,9 +164,13 @@ where
 
         let absolute_path = self.build_absolute_path(self.local_conf_path.as_ref(), agent_id);
 
+        let agent_attributes = AgentAttributes {
+            configs_path: Some(absolute_path.as_str()),
+            agent_id: agent_id.get(),
+        };
+
         // populate with values
-        let populated_agent =
-            final_agent.template_with(agent_values, Some(absolute_path.as_str()))?;
+        let populated_agent = final_agent.template_with(agent_values, Some(agent_attributes))?;
 
         // clean existing config files if any
         self.config_persister

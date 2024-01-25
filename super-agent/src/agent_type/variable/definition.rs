@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::agent_type::{error::AgentTypeError, trivial_value::TrivialValue};
 
-use super::kind::Kind;
+use super::{kind::Kind, kind_value::KindValue};
 
 // Spec can be an arbitrary number of nested mappings but all node terminal leaves are EndSpec,
 // so a recursive datatype is the answer!
@@ -35,8 +35,11 @@ impl VariableDefinition {
         self.kind.get_file_path()
     }
 
-    pub fn set_file_path(&mut self, path: PathBuf) {
-        self.kind.set_file_path(path)
+    pub fn extend_file_path(&mut self, mut path: PathBuf) {
+        if let Some(current_path) = self.get_file_path() {
+            path.push(current_path);
+            self.kind.set_file_path(path)
+        }
     }
 
     pub fn merge_with_yaml_value(&mut self, yaml: serde_yaml::Value) -> Result<(), AgentTypeError> {
@@ -55,6 +58,18 @@ impl VariableDefinition {
 
     pub fn kind(&self) -> &Kind {
         &self.kind
+    }
+}
+
+pub(crate) fn super_agent_variable(final_value: String) -> VariableDefinition {
+    VariableDefinition {
+        description: String::new(),
+        kind: Kind::String(KindValue {
+            required: false,
+            default: None,
+            final_value: Some(final_value),
+            variants: vec![],
+        }),
     }
 }
 

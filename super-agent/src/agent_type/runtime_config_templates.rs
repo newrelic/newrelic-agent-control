@@ -27,7 +27,7 @@ use super::{
 /// let result = re.find_iter(content).map(|i| i.as_str()).collect::<Vec<_>>();
 ///
 /// assert_eq!(result, vec!["${name.value}"]);
-const TEMPLATE_RE: &str = r"\$\{([a-zA-Z0-9\.\-_/]+)\}";
+const TEMPLATE_RE: &str = r"\$\{(nr[a-zA-Z\-]+:[a-zA-Z0-9\.\-_/]+)\}";
 const TEMPLATE_BEGIN: &str = "${";
 const TEMPLATE_END: char = '}';
 pub const TEMPLATE_KEY_SEPARATOR: &str = ".";

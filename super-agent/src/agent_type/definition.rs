@@ -10,7 +10,9 @@ use std::{collections::HashMap, str::FromStr};
 
 use super::agent_values::AgentValues;
 use super::restart_policy::BackoffDuration;
-use super::variable::definition::{VariableDefinition, VariableDefinitionTree};
+use super::variable::definition::{
+    super_agent_variable, VariableDefinition, VariableDefinitionTree,
+};
 use super::{
     agent_metadata::AgentMetadata,
     error::AgentTypeError,
@@ -22,6 +24,10 @@ use crate::super_agent::defaults::default_capabilities;
 use duration_str;
 use opamp_client::opamp::proto::AgentCapabilities;
 use opamp_client::operation::capabilities::Capabilities;
+
+const VARIABLES_AGENT_TYPE_NAMESPACE: &str = "nr-var";
+const VARIABLES_SUB_AGENT_NAMESPACE: &str = "nr-sub";
+const VARIABLES_SUB_AGENT_ID: &str = "agent_id";
 
 /// Configuration of the Agent Type, contains identification metadata, a set of variables that can be adjusted, and rules of how to start given agent binaries.
 ///
@@ -224,29 +230,20 @@ impl AgentType {
 
     /// template_with the [`RuntimeConfig`] object field of the [`Agent`] type with the user-provided config, which must abide by the agent type's defined [`AgentVariables`].
     ///
-    /// This method will return an error if the user-provided config does not conform to the agent type's spec.
+    /// This method will return an error if:
+    /// - Any user-provided config is not defined as a Variable in the Agent Type.
+    /// - A 'required' variable does not have a value.
     pub fn template_with(
         mut self,
         values: AgentValues,
-        agent_configs_path: Option<&str>,
+        // agent_configs_path: Option<&str>,
+        agent_attributes: Option<AgentAttributes>,
     ) -> Result<AgentType, AgentTypeError> {
         self.merge_variables_with_values(values)?;
 
-        let variables = if let Some(p) = agent_configs_path {
-            let mut v = self.variables.clone().flatten();
-            v.values_mut().for_each(|v| {
-                if let Some(file_path) = v.get_file_path() {
-                    let mut new_file_path = PathBuf::from(p);
-                    new_file_path.push(file_path);
-                    v.set_file_path(new_file_path);
-                }
-            });
-            v
-        } else {
-            self.variables.clone().flatten()
-        };
+        let namespaced_variables = self.build_namespaced_variables(agent_attributes);
 
-        let runtime_conf = self.runtime_config.template_with(&variables)?;
+        let runtime_conf = self.runtime_config.template_with(&namespaced_variables)?;
 
         let populated_agent = AgentType {
             runtime_config: runtime_conf,
@@ -255,6 +252,40 @@ impl AgentType {
 
         Ok(populated_agent)
     }
+
+    fn build_namespaced_variables(
+        &self,
+        agent_attributes: Option<AgentAttributes>,
+    ) -> HashMap<String, VariableDefinition> {
+        let variables = self.variables.clone().flatten();
+
+        let mut namespaced_variables: HashMap<String, VariableDefinition> = HashMap::new();
+
+        for (name, var) in variables.into_iter() {
+            namespaced_variables.insert(format!("{VARIABLES_AGENT_TYPE_NAMESPACE}:{name}"), var);
+        }
+
+        if let Some(attr) = agent_attributes {
+            if let Some(p) = attr.configs_path {
+                namespaced_variables
+                    .values_mut()
+                    .for_each(|v| v.extend_file_path(PathBuf::from(p)));
+            }
+
+            namespaced_variables.insert(
+                format!("{VARIABLES_SUB_AGENT_NAMESPACE}:{VARIABLES_SUB_AGENT_ID}"),
+                super_agent_variable(attr.agent_id),
+            );
+        }
+
+        namespaced_variables
+    }
+}
+
+#[derive(Debug, PartialEq, Clone, Default)]
+pub struct AgentAttributes<'a> {
+    pub configs_path: Option<&'a str>,
+    pub agent_id: String,
 }
 
 fn update_specs(
@@ -827,7 +858,7 @@ deployment:
   on_host:
     executables:
       - path: /usr/bin/newrelic-infra
-        args: "--config ${config} --config2 ${config2}"
+        args: "--config ${nr-var:config} --config2 ${nr-var:config2}"
         env: ""
 "#;
 
@@ -857,7 +888,13 @@ config: |
 
         // When populating values
         let actual = input_agent_type
-            .template_with(input_user_config, Some("an/agents-config/path"))
+            .template_with(
+                input_user_config,
+                Some(AgentAttributes {
+                    configs_path: Some("an/agents-config/path"),
+                    agent_id: "test".to_string(),
+                }),
+            )
             .expect("Failed to template_with the AgentType's runtime_config field");
 
         // Then we expected final values
@@ -1307,7 +1344,8 @@ deployment:
         apiVersion: group/version
         kind: ObjectKind
         spec:
-          values: ${config.values}
+          values: ${nr-var:config.values}
+          id: ${nr-sub:agent_id}
 "#;
 
     const K8S_CONFIG_YAML_VALUES: &str = r#"
@@ -1338,11 +1376,20 @@ values:
       - item2
       - item3_nested: value
   empty_key:
+id: test
 "#;
         let expected_spec_value: serde_yaml::Value =
             serde_yaml::from_str(expected_spec_yaml).unwrap();
 
-        let expanded_final_agent = input_agent_type.template_with(user_config, None).unwrap();
+        let expanded_final_agent = input_agent_type
+            .template_with(
+                user_config,
+                Some(AgentAttributes {
+                    agent_id: "test".to_string(),
+                    ..Default::default()
+                }),
+            )
+            .unwrap();
 
         let cr1 = expanded_final_agent
             .runtime_config
