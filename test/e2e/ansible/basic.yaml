@@ -1,10 +1,12 @@
 ---
 - name: Basic installation
-  hosts: all
+  hosts: testing_hosts_linux
+  become: true
+  gather_facts: yes
 
   tasks:
     - name: Installation
-      include_tasks: ./tasks/install_latest.yaml
+      include_tasks: ./tasks/install.yaml
 
     - name: Cleanup
       include_tasks: ./tasks/clean_all.yaml

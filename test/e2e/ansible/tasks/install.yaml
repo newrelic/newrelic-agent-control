@@ -1,10 +1,11 @@
 ---
 - name: Update package repositories
   include_role:
-    name: caos.ansible_roles.package_repo_update
+    name: caos.ansible_roles.nr_repo_setup
   vars:
-    repo_endpoint: "http://nr-downloads-ohai-testing.s3-website-us-east-1.amazonaws.com/preview"
+    repo_endpoint: "http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview"
 
+#TODO: add target version as env variable
 - name: Install SA package
   include_role:
     name: caos.ansible_roles.package_install
