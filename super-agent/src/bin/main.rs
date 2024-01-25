@@ -16,7 +16,7 @@ use opamp_client::operation::settings::DescriptionValueType;
 use std::collections::HashMap;
 use std::error::Error;
 use std::ffi::OsString;
-use std::sync::Arc;
+use std::sync::{Arc};
 use tracing::{error, info};
 
 #[cfg(all(feature = "onhost", feature = "k8s", not(feature = "ci")))]
@@ -161,7 +161,10 @@ fn run_super_agent(
     use newrelic_super_agent::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
     use newrelic_super_agent::super_agent::config::AgentID;
 
-    let runtime = newrelic_super_agent::runtime::tokio_runtime();
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
 
     let hash_repository = HashRepositoryFile::default();
     let k8s_config = config_storer.load()?.k8s.ok_or(AgentError::K8sConfig())?;
