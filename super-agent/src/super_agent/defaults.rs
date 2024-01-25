@@ -201,7 +201,7 @@ deployment:
           chart:
             spec:
               chart: opentelemetry-collector
-              version: 0.67.0
+              version: 0.78.3
               sourceRef:
                 kind: HelmRepository
                 name: open-telemetry # TODO now sub-agent name must be "open-telemetry" for this to work.
