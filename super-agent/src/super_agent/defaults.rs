@@ -134,6 +134,7 @@ deployment:
 "#;
 
 // NRDOT AgentType
+#[cfg(feature = "onhost")]
 pub(crate) const NRDOT_TYPE: &str = r#"
 namespace: newrelic
 name: io.opentelemetry.collector
@@ -172,9 +173,11 @@ deployment:
 "#;
 
 // Kubernetes AgentType
-pub(crate) const KUBERNETES_TYPE: &str = r#"
+// TODO We need to unify the two agent types and remove this workaround
+#[cfg(all(not(feature = "onhost"), feature = "k8s"))]
+pub(crate) const NRDOT_TYPE: &str = r#"
 namespace: newrelic
-name: io.k8s.opentelemetry.collector # Changed to avoid collisions with the upper agent type
+name: io.opentelemetry.collector 
 version: 0.0.1
 variables:
   chart_values:
@@ -226,6 +229,5 @@ mod test {
         serde_yaml::from_str::<AgentType>(super::NEWRELIC_INFRA_TYPE_1).unwrap();
         serde_yaml::from_str::<AgentType>(super::NEWRELIC_INFRA_TYPE_2).unwrap();
         serde_yaml::from_str::<AgentType>(super::NRDOT_TYPE).unwrap();
-        serde_yaml::from_str::<AgentType>(super::KUBERNETES_TYPE).unwrap();
     }
 }
