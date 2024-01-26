@@ -5,6 +5,7 @@ include ../Ansible.common
 ANSIBLE_FOLDER := $(CURDIR)/ansible
 ANSIBLE_FORKS ?= 5
 ANSIBLE_INVENTORY ?= $(ANSIBLE_FOLDER)/inventory.ec2
+ANSIBLE_PLAYBOOK ?= basic.yaml
 LIMIT ?= "testing_hosts_linux"
 
 .PHONY: e2e
@@ -13,7 +14,7 @@ e2e:
 	@ANSIBLE_DISPLAY_SKIPPED_HOSTS=NO ANSIBLE_DISPLAY_OK_HOSTS=NO ansible-playbook -f $(ANSIBLE_FORKS) \
  		-i $(ANSIBLE_INVENTORY) \
  		--limit=$(LIMIT) \
- 		$(ANSIBLE_FOLDER)/hello.yaml
+ 		$(ANSIBLE_FOLDER)/$(ANSIBLE_PLAYBOOK)
 
 .PHONY: clean
 clean:
