@@ -59,7 +59,6 @@ pub fn build_http_client(
 #[cfg(test)]
 pub(crate) mod test {
     use super::*;
-    use async_trait::async_trait;
     use mockall::{mock, predicate};
     use opamp_client::operation::settings::StartSettings;
     use opamp_client::ClientError;
