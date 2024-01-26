@@ -44,16 +44,16 @@ jobs:
           go-version: '~1.20'
           check-latest: true
 
-      # - name: Build binaries with GoReleaser
-      #   uses: goreleaser/goreleaser-action@v5
-      #   with:
-      #     distribution: goreleaser
-      #     version: latest
-      #     args: build --clean --debug --timeout 2h --single-target
-      #   env:
-      #     ARCH: "${{ matrix.arch }}"
-      #     GOARCH: "${{ matrix.arch }}"
-      #     GOOS: linux
+      - name: Build binaries with GoReleaser
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          distribution: goreleaser
+          version: latest
+          args: build --clean --debug --timeout 2h --single-target
+        env:
+          ARCH: "${{ matrix.arch }}"
+          GOARCH: "${{ matrix.arch }}"
+          GOOS: linux
 
       - name: Release packages with GoReleaser
         uses: goreleaser/goreleaser-action@v5
