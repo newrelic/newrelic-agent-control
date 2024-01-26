@@ -1,0 +1,78 @@
+name: . 🚀 🐧 🧾 Validate Prerelease Linux On Demand
+
+on:
+  workflow_dispatch:
+  push:
+#    inputs:
+#      branch:
+#        description: 'Branch to build from'
+#        required: true
+#      dest_prefix:
+#        description: 'Repo prefix'
+#        required: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Build and upload / ${{ matrix.arch }}
+    strategy:
+      matrix:
+        arch: [arm64, amd64]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Give GitHub Actions access to private crates
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
+
+#      - name: Verify version matches tag
+#        run: |
+#          NEWRELIC_SUPER_AGENT_VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml)
+#          if [ "${NEWRELIC_SUPER_AGENT_VERSION}" != "${{ github.ref_name }}" ]; then
+#            echo "Package version specified in Cargo.toml (${NEWRELIC_SUPER_AGENT_VERSION}) differs from tag (${{ github.event.release.tag_name }}), exiting"
+#            exit 1
+#          fi
+
+      - name: Tag current codebase
+        run: git tag 0.100.0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '~1.20'
+          check-latest: true
+
+      - name: Build binaries with GoReleaser
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          distribution: goreleaser
+          version: latest
+          args: build --clean --debug --timeout 2h --single-target
+        env:
+          ARCH: "${{ matrix.arch }}"
+          GOARCH: "${{ matrix.arch }}"
+          GOOS: linux
+
+      - name: Release packages with GoReleaser
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --snapshot --clean --debug --timeout 2h -f dist/config.yaml
+        env:
+          ARCH: "${{ matrix.arch }}"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GPG_PASSPHRASE: ${{ secrets.OHAI_GPG_PASSPHRASE }}
+          GPG_PRIVATE_KEY_BASE64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
+          GPG_MAIL: 'infrastructure-eng@newrelic.com'
+          NR_RELEASE_TAG: ${{ github.event.release.tag_name }}
+
+      - name: Upload assets to pipeline
+        uses: actions/upload-artifact@v4
+        with:
+          name: built-binaries
+          path: |
+            ./bin/*
+            ./dist/*
