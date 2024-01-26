@@ -44,16 +44,16 @@ jobs:
           go-version: '~1.20'
           check-latest: true
 
-      - name: Build binaries with GoReleaser
-        uses: goreleaser/goreleaser-action@v5
-        with:
-          distribution: goreleaser
-          version: latest
-          args: build --clean --debug --timeout 2h --single-target
-        env:
-          ARCH: "${{ matrix.arch }}"
-          GOARCH: "${{ matrix.arch }}"
-          GOOS: linux
+      # - name: Build binaries with GoReleaser
+      #   uses: goreleaser/goreleaser-action@v5
+      #   with:
+      #     distribution: goreleaser
+      #     version: latest
+      #     args: build --clean --debug --timeout 2h --single-target
+      #   env:
+      #     ARCH: "${{ matrix.arch }}"
+      #     GOARCH: "${{ matrix.arch }}"
+      #     GOOS: linux
 
       - name: Release packages with GoReleaser
         uses: goreleaser/goreleaser-action@v5
@@ -68,6 +68,8 @@ jobs:
           GPG_PRIVATE_KEY_BASE64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
           GPG_MAIL: 'infrastructure-eng@newrelic.com'
           NR_RELEASE_TAG: ${{ github.event.release.tag_name }}
+          GOARCH: "${{ matrix.arch }}"
+          GOOS: linux
 
       - name: Upload assets to pipeline
         uses: actions/upload-artifact@v4
