@@ -35,12 +35,12 @@ use tracing::{debug, warn};
 /// using the async client.
 pub struct SyncK8sClient {
     async_client: AsyncK8sClient,
-    runtime: &'static Runtime,
+    runtime: Runtime,
 }
 
 #[cfg_attr(test, mockall::automock)]
 impl SyncK8sClient {
-    pub fn try_new(runtime: &'static Runtime, namespace: String) -> Result<Self, K8sError> {
+    pub fn try_new(runtime: Runtime, namespace: String) -> Result<Self, K8sError> {
         Ok(Self {
             async_client: runtime.block_on(AsyncK8sClient::try_new(namespace))?,
             runtime,
@@ -48,7 +48,7 @@ impl SyncK8sClient {
     }
 
     pub fn try_new_with_reflectors(
-        runtime: &'static Runtime,
+        runtime: Runtime,
         namespace: String,
         cr_type_metas: Vec<TypeMeta>,
     ) -> Result<Self, K8sError> {
