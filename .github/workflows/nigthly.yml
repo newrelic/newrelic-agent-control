@@ -15,7 +15,7 @@ jobs:
       image-tag: nightly
       push: true
     secrets: inherit
-  
+
   security-scan:
     name: Security scan
     needs: [build-push]
@@ -28,6 +28,7 @@ jobs:
     uses: ./.github/workflows/component_onhost_e2e.yaml
     with:
       TAG: "TODO_CHANGE_ME"
+      UNIQUE_NAME: "nightly:e2e"
       EC2_FILTERS: '[\"ubuntu\"]'
     secrets:
       AWS_ROLE_ARN: ${{ secrets.TMP_AWS_ROLE_ARN }}
