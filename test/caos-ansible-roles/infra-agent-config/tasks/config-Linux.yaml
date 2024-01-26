@@ -1,5 +1,10 @@
 ---
 
+- name: ensure config folder exists
+  file:
+    path: "{{ infra_agent_config_path_linux | dirname }}"
+    state: directory
+
 - name: install infra-agent configuration file
   template:
     src: newrelic-infra.yml.j2
