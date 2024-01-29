@@ -63,13 +63,13 @@ jobs:
           args: release --snapshot --clean --debug --timeout 2h -f dist/config.yaml
         env:
           ARCH: "${{ matrix.arch }}"
+          GOARCH: "${{ matrix.arch }}"
+          GOOS: linux
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GPG_PASSPHRASE: ${{ secrets.OHAI_GPG_PASSPHRASE }}
           GPG_PRIVATE_KEY_BASE64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
           GPG_MAIL: 'infrastructure-eng@newrelic.com'
           NR_RELEASE_TAG: ${{ github.event.release.tag_name }}
-          GOARCH: "${{ matrix.arch }}"
-          GOOS: linux
 
       - name: Upload assets to pipeline
         uses: actions/upload-artifact@v4
