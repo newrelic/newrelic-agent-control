@@ -160,18 +160,22 @@ fn run_super_agent(
     use newrelic_super_agent::opamp::operations::build_opamp_and_start_client;
     use newrelic_super_agent::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
     use newrelic_super_agent::super_agent::config::AgentID;
+    use std::sync::OnceLock;
 
-    let runtime = tokio::runtime::Builder::new_multi_thread()
+    static RUNTIME_ONCE: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
+    let runtime = RUNTIME_ONCE.get_or_init(|| {
+        tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
-            .unwrap();
+            .unwrap()
+    });
 
     let hash_repository = HashRepositoryFile::default();
     let k8s_config = config_storer.load()?.k8s.ok_or(AgentError::K8sConfig())?;
 
     let k8s_client = Arc::new(
         newrelic_super_agent::k8s::client::SyncK8sClient::try_new_with_reflectors(
-            runtime,
+            &runtime,
             k8s_config.namespace.clone(),
             k8s_config.cr_type_meta.clone(),
         )
