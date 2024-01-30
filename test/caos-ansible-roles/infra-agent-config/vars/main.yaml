@@ -1,6 +1,6 @@
 ---
 # config path
-infra_agent_config_path_linux: "/etc/newrelic-infra.yml"
+infra_agent_config_path_linux: "/etc/newrelic-super-agent/fleet/agents.d/nr-infra-agent/values/values.yaml"
 
 # agent config:
 display_name: "{{ inventory_hostname }}"

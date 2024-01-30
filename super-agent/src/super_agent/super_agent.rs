@@ -72,10 +72,6 @@ where
         }
     }
 
-    fn agent_id(&self) -> &AgentID {
-        &self.agent_id
-    }
-
     pub fn run(
         self,
         super_agent_consumer: EventConsumer<SuperAgentEvent>,
@@ -91,7 +87,7 @@ where
             // TODO should we error on first launch with no hash file?
             let remote_config_hash = self
                 .remote_config_hash_repository
-                .get(self.agent_id())
+                .get(&self.agent_id)
                 .map_err(|e| {
                     warn!(
                         "OpAMP enabled but no previous remote configuration found: {}",
@@ -146,7 +142,7 @@ where
     pub(super) fn set_config_hash_as_applied(&self, hash: &mut Hash) -> Result<(), AgentError> {
         hash.apply();
         self.remote_config_hash_repository
-            .save(self.agent_id(), hash)?;
+            .save(&self.agent_id, hash)?;
 
         Ok(())
     }
@@ -345,7 +341,7 @@ where
         //
         Ok(self
             .remote_config_hash_repository
-            .save(self.agent_id(), &remote_config.hash)?)
+            .save(&self.agent_id, &remote_config.hash)?)
     }
 }
 
