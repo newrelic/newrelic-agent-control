@@ -231,12 +231,19 @@ impl AgentType {
     pub fn template_with(
         mut self,
         values: AgentValues,
-        // agent_configs_path: Option<&str>,
-        agent_attributes: Option<AgentAttributes>,
+        agent_attributes: AgentAttributes,
     ) -> Result<AgentType, AgentTypeError> {
         self.merge_variables_with_values(values)?;
 
-        let namespaced_variables = self.build_namespaced_variables(agent_attributes);
+        let mut namespaced_variables = HashMap::new();
+
+        for (name, var) in self.variables.clone().flatten().into_iter() {
+            namespaced_variables.insert(VariableNamespace::Variable.namespaced_name(&name), var);
+        }
+
+        namespaced_variables.extend(agent_attributes.sub_agent_variables());
+
+        namespaced_variables = agent_attributes.extend_file_paths(namespaced_variables);
 
         let runtime_conf = self.runtime_config.template_with(&namespaced_variables)?;
 
@@ -246,26 +253,6 @@ impl AgentType {
         };
 
         Ok(populated_agent)
-    }
-
-    fn build_namespaced_variables(
-        &self,
-        agent_attributes: Option<AgentAttributes>,
-    ) -> HashMap<String, VariableDefinition> {
-        let variables = self.variables.clone().flatten();
-
-        let mut namespaced_variables: HashMap<String, VariableDefinition> = HashMap::new();
-
-        for (name, var) in variables.into_iter() {
-            namespaced_variables.insert(VariableNamespace::Variable.namespaced_name(&name), var);
-        }
-
-        if let Some(attr) = agent_attributes {
-            namespaced_variables = attr.extend_file_paths(namespaced_variables);
-
-            namespaced_variables.extend(attr.sub_agent_variables());
-        }
-        namespaced_variables
     }
 }
 enum VariableNamespace {
@@ -890,10 +877,10 @@ config: |
         let actual = input_agent_type
             .template_with(
                 input_user_config,
-                Some(AgentAttributes {
+                AgentAttributes {
                     configs_path: Some("an/agents-config/path"),
                     agent_id: "test".to_string(),
-                }),
+                },
             )
             .expect("Failed to template_with the AgentType's runtime_config field");
 
@@ -1071,7 +1058,7 @@ backoff:
         };
 
         let actual = input_agent_type
-            .template_with(input_user_config, None)
+            .template_with(input_user_config, AgentAttributes::default())
             .expect("Failed to template_with the AgentType's runtime_config field");
 
         // println!("Output: {:#?}", actual);
@@ -1133,16 +1120,22 @@ backoff:
         let wrong_type =
             serde_yaml::from_str::<AgentValues>(WRONG_TYPE_BACKOFF_CONFIG_YAML).unwrap();
 
-        let actual = input_agent_type.clone().template_with(wrong_retries, None);
+        let actual = input_agent_type
+            .clone()
+            .template_with(wrong_retries, AgentAttributes::default());
         assert!(actual.is_err());
 
-        let actual = input_agent_type.clone().template_with(wrong_delay, None);
+        let actual = input_agent_type
+            .clone()
+            .template_with(wrong_delay, AgentAttributes::default());
         assert!(actual.is_err());
 
-        let actual = input_agent_type.clone().template_with(wrong_interval, None);
+        let actual = input_agent_type
+            .clone()
+            .template_with(wrong_interval, AgentAttributes::default());
         assert!(actual.is_err());
 
-        let actual = input_agent_type.template_with(wrong_type, None);
+        let actual = input_agent_type.template_with(wrong_type, AgentAttributes::default());
         assert!(actual.is_err());
     }
 
@@ -1221,7 +1214,7 @@ backoff:
         };
 
         let actual = input_agent_type
-            .template_with(input_user_config, None)
+            .template_with(input_user_config, AgentAttributes::default())
             .expect("Failed to template_with the AgentType's runtime_config field");
 
         // println!("Output: {:#?}", actual);
@@ -1295,10 +1288,10 @@ id: test
         let expanded_final_agent = input_agent_type
             .template_with(
                 user_config,
-                Some(AgentAttributes {
+                AgentAttributes {
                     agent_id: "test".to_string(),
                     ..Default::default()
-                }),
+                },
             )
             .unwrap();
 
@@ -1353,7 +1346,9 @@ restart_policy:
         let input_agent_type: AgentType = serde_yaml::from_str(AGENT_WITH_VARIANTS).unwrap();
         let user_config: AgentValues = serde_yaml::from_str(CONFIG_YAML_VALUES_VALID_VARIANT)
             .expect("Failed to parse user config");
-        let expanded_final_agent = input_agent_type.template_with(user_config, None).unwrap();
+        let expanded_final_agent = input_agent_type
+            .template_with(user_config, AgentAttributes::default())
+            .unwrap();
 
         let executable = expanded_final_agent
             .runtime_config
@@ -1372,7 +1367,8 @@ restart_policy:
         let input_agent_type: AgentType = serde_yaml::from_str(AGENT_WITH_VARIANTS).unwrap();
         let user_config: AgentValues = serde_yaml::from_str(CONFIG_YAML_VALUES_INVALID_VARIANT)
             .expect("Failed to parse user config");
-        let expanded_final_agent = input_agent_type.template_with(user_config, None);
+        let expanded_final_agent =
+            input_agent_type.template_with(user_config, AgentAttributes::default());
 
         assert!(expanded_final_agent.is_err());
         assert_eq!(
@@ -1385,7 +1381,8 @@ restart_policy:
     fn default_can_be_invalid_variant() {
         let input_agent_type: AgentType = serde_yaml::from_str(AGENT_WITH_VARIANTS).unwrap();
         let user_config = AgentValues::default();
-        let expanded_final_agent = input_agent_type.template_with(user_config, None);
+        let expanded_final_agent =
+            input_agent_type.template_with(user_config, AgentAttributes::default());
 
         assert!(expanded_final_agent.is_ok());
 

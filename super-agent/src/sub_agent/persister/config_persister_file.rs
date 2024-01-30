@@ -195,7 +195,7 @@ where
 #[cfg(test)]
 mod test {
     use crate::agent_type::agent_values::AgentValues;
-    use crate::agent_type::definition::AgentType;
+    use crate::agent_type::definition::{AgentAttributes, AgentType};
     use crate::sub_agent::persister::config_persister::ConfigurationPersister;
     use crate::sub_agent::persister::config_persister_file::{
         DIRECTORY_PERMISSIONS, FILE_PERMISSIONS,
@@ -252,7 +252,9 @@ mod test {
         agent_files_path.push(&agent_id);
 
         // populate agent type
-        agent_type = agent_type.template_with(agent_values, None).unwrap();
+        agent_type = agent_type
+            .template_with(agent_values, AgentAttributes::default())
+            .unwrap();
 
         // Expectations
         directory_manager.should_delete(agent_files_path.as_path());
@@ -317,7 +319,9 @@ mod test {
         agent_files_path.push(&agent_id);
 
         // populate agent type
-        agent_type = agent_type.template_with(agent_values, None).unwrap();
+        agent_type = agent_type
+            .template_with(agent_values, AgentAttributes::default())
+            .unwrap();
 
         // Expectations
         directory_manager.should_delete(agent_files_path.as_path());
@@ -403,7 +407,9 @@ mod test {
         agent_files_path.push(&agent_id);
 
         // populate agent type
-        agent_type = agent_type.template_with(agent_values, None).unwrap();
+        agent_type = agent_type
+            .template_with(agent_values, AgentAttributes::default())
+            .unwrap();
 
         // Expectations
         directory_manager.should_delete(agent_files_path.as_path());
@@ -499,7 +505,9 @@ mod test {
         agent_files_path.push(&agent_id);
 
         // populate agent type
-        agent_type = agent_type.template_with(agent_values, None).unwrap();
+        agent_type = agent_type
+            .template_with(agent_values, AgentAttributes::default())
+            .unwrap();
 
         // Expectations
         directory_manager.should_create(
@@ -541,7 +549,9 @@ mod test {
         agent_files_path.push(&agent_id);
 
         // populate agent type
-        agent_type = agent_type.template_with(agent_values, None).unwrap();
+        agent_type = agent_type
+            .template_with(agent_values, AgentAttributes::default())
+            .unwrap();
 
         // Expectations
         directory_manager.should_delete(agent_files_path.as_path());
@@ -589,7 +599,9 @@ mod test {
         agent_files_path.push(&agent_id);
 
         // populate agent type
-        agent_type = agent_type.template_with(agent_values, None).unwrap();
+        agent_type = agent_type
+            .template_with(agent_values, AgentAttributes::default())
+            .unwrap();
 
         // Expectations
         directory_manager.should_not_create(
@@ -632,7 +644,9 @@ mod test {
         agent_files_path.push(&agent_id);
 
         // populate agent type
-        agent_type = agent_type.template_with(agent_values, None).unwrap();
+        agent_type = agent_type
+            .template_with(agent_values, AgentAttributes::default())
+            .unwrap();
 
         // Expectations
         directory_manager.should_delete(agent_files_path.as_path());
@@ -680,7 +694,9 @@ mod test {
         agent_files_path.push(&agent_id);
 
         // populate agent type
-        agent_type = agent_type.template_with(agent_values, None).unwrap();
+        agent_type = agent_type
+            .template_with(agent_values, AgentAttributes::default())
+            .unwrap();
 
         // Expectations
         directory_manager.should_delete(agent_files_path.as_path());

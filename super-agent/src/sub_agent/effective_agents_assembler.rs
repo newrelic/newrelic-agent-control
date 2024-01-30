@@ -170,7 +170,7 @@ where
         };
 
         // populate with values
-        let populated_agent = final_agent.template_with(agent_values, Some(agent_attributes))?;
+        let populated_agent = final_agent.template_with(agent_values, agent_attributes)?;
 
         // clean existing config files if any
         self.config_persister
@@ -303,7 +303,7 @@ pub(crate) mod tests {
         sub_agent_values_repo.should_load(&agent_id, &final_agent, &agent_values);
         //From now on the EffectiveAgent is populated
         let populated_agent = final_agent
-            .template_with(agent_values.clone(), None)
+            .template_with(agent_values.clone(), AgentAttributes::default())
             .unwrap();
         config_persister.should_delete_agent_config(&agent_id, &populated_agent);
         config_persister.should_persist_agent_config(&agent_id, &populated_agent);
@@ -355,7 +355,7 @@ pub(crate) mod tests {
         sub_agent_values_repo.should_load(&agent_id, &final_agent, &agent_values);
         //From now on the EffectiveAgent is populated
         let populated_agent = final_agent
-            .template_with(agent_values.clone(), None)
+            .template_with(agent_values.clone(), AgentAttributes::default())
             .unwrap();
         config_persister.should_delete_agent_config(&agent_id, &populated_agent);
         config_persister.should_persist_agent_config(&agent_id, &populated_agent);
@@ -509,7 +509,7 @@ pub(crate) mod tests {
         sub_agent_values_repo.should_load(&agent_id, &final_agent, &agent_values);
         //From now on the EffectiveAgent is populated
         let populated_agent = final_agent
-            .template_with(agent_values.clone(), None)
+            .template_with(agent_values.clone(), AgentAttributes::default())
             .unwrap();
         let err = PersistError::DirectoryError(DirectoryManagementError::ErrorDeletingDirectory(
             "oh no...".to_string(),
@@ -552,7 +552,7 @@ pub(crate) mod tests {
         sub_agent_values_repo.should_load(&agent_id, &final_agent, &agent_values);
         //From now on the EffectiveAgent is populated
         let populated_agent = final_agent
-            .template_with(agent_values.clone(), None)
+            .template_with(agent_values.clone(), AgentAttributes::default())
             .unwrap();
         config_persister.should_delete_agent_config(&agent_id, &populated_agent);
         let err = PersistError::DirectoryError(DirectoryManagementError::ErrorDeletingDirectory(
