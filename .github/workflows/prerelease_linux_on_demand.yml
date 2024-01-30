@@ -15,9 +15,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
     name: Build and upload / ${{ matrix.arch }}
-    strategy:
-      matrix:
-        arch: [arm64, amd64]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -62,9 +59,9 @@ jobs:
           version: latest
           args: release --snapshot --clean --debug --timeout 2h
         env:
-          ARCH: "${{ matrix.arch }}"
-          GOARCH: "${{ matrix.arch }}"
-          GOOS: linux
+#          ARCH: "${{ matrix.arch }}"
+#          GOARCH: "${{ matrix.arch }}"
+#          GOOS: linux
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GPG_PASSPHRASE: ${{ secrets.OHAI_GPG_PASSPHRASE }}
           GPG_PRIVATE_KEY_BASE64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
