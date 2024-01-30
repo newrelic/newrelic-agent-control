@@ -175,7 +175,7 @@ fn run_super_agent(
 
     let k8s_client = Arc::new(
         newrelic_super_agent::k8s::client::SyncK8sClient::try_new_with_reflectors(
-            &runtime,
+            runtime,
             k8s_config.namespace.clone(),
             k8s_config.cr_type_meta.clone(),
         )
