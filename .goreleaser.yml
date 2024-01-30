@@ -4,6 +4,9 @@ builds:
     main: ./build/dummy.go
     goos:
       - linux
+    goarch:
+      - arm64
+      - amd64
     binary: newrelic-super-agent
     hooks:
       post:
@@ -23,6 +26,9 @@ builds:
     main: ./build/dummy.go
     goos:
       - linux
+    goarch:
+      - arm64
+      - amd64
     binary: newrelic-config-migrate
     hooks:
       post:
