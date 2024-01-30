@@ -357,7 +357,7 @@ fn inner_flatten(key: String, spec: VariableDefinitionTree) -> HashMap<String, V
 ///         default: info
 /// ```
 ///
-/// Will be converted to `system.logging.level` and can be used later in the AgentType_Meta part as `${system.logging.level}`.
+/// Will be converted to `system.logging.level` and can be used later in the AgentType_Meta part as `${nr-var:system.logging.level}`.
 pub(crate) type Variables = HashMap<String, VariableDefinition>;
 
 #[cfg(test)]
@@ -398,8 +398,8 @@ variables:
 deployment:
   on_host:
     executables:
-      - path: ${bin}/otelcol
-        args: "-c ${deployment.k8s.image}"
+      - path: ${nr-var:bin}/otelcol
+        args: "-c ${nr-var:deployment.k8s.image}"
         env: ""
         restart_policy:
           backoff_strategy:
@@ -407,8 +407,8 @@ deployment:
             backoff_delay: 1s
             max_retries: 3
             last_retry_interval: 30s
-      - path: ${bin}/otelcol-gw
-        args: "-c ${deployment.k8s.image}"
+      - path: ${nr-var:bin}/otelcol-gw
+        args: "-c ${nr-var:deployment.k8s.image}"
         env: ""
         restart_policy:
           backoff_strategy:
@@ -428,38 +428,10 @@ spec:
 deployment:
   on_host:
     executables:
-      - path: ${bin}/otelcol
-        args: "-c ${deployment.k8s.image}"
+      - path: ${nr-var:bin}/otelcol
+        args: "-c ${nr-var:deployment.k8s.image}"
         env: ""
 "#;
-
-    // FIXME: Adapt new structure
-    // #[test]
-    // fn test_basic_parsing() {
-    //     let agent: AgentTemplateable = serde_yaml::from_str(AGENT_GIVEN_YAML).unwrap();
-
-    //     assert_eq!("nrdot", agent.metadata.name);
-    //     assert_eq!("newrelic", agent.metadata.namespace);
-    //     assert_eq!("0.1.0", agent.metadata.version);
-
-    //     let on_host = agent.runtime_config.deployment.on_host.clone().unwrap();
-
-    //     assert_eq!("${bin}/otelcol", on_host.executables[0].path);
-    //     assert_eq!(
-    //         Args("-c ${deployment.k8s.image}".to_string()),
-    //         on_host.executables[0].args
-    //     );
-
-    //     // Restart restart policy values
-    //     assert_eq!(
-    //         BackoffStrategyConfigTemplateable::Fixed(BackoffStrategyInnerTemplateable {
-    //             backoff_delay: Duration::from_secs(1),
-    //             max_retries: 3,
-    //             last_retry_interval: Duration::from_secs(30),
-    //         }),
-    //         on_host.restart_policy.backoff_strategy
-    //     );
-    // }
 
     #[test]
     fn test_basic_agent_parsing() {
@@ -472,11 +444,11 @@ deployment:
         let on_host = agent.runtime_config.deployment.on_host.clone().unwrap();
 
         assert_eq!(
-            "${bin}/otelcol",
+            "${nr-var:bin}/otelcol",
             on_host.executables[0].clone().path.template
         );
         assert_eq!(
-            "-c ${deployment.k8s.image}".to_string(),
+            "-c ${nr-var:deployment.k8s.image}".to_string(),
             on_host.executables[0].clone().args.template
         );
 
@@ -550,19 +522,19 @@ deployment:
     #[test]
     fn test_replacer() {
         let exec = Executable {
-            path: TemplateableValue::from_template("${bin}/otelcol".to_string()),
+            path: TemplateableValue::from_template("${nr-var:bin}/otelcol".to_string()),
             args: TemplateableValue::from_template(
-                "--config ${config} --plugin_dir ${integrations} --verbose ${deployment.on_host.verbose} --logs ${deployment.on_host.log_level}"
+                "--config ${nr-var:config} --plugin_dir ${nr-var:integrations} --verbose ${nr-var:deployment.on_host.verbose} --logs ${nr-var:deployment.on_host.log_level}"
                     .to_string(),
             ),
             env: TemplateableValue::from_template("".to_string()),
             restart_policy: RestartPolicyConfig {
                 backoff_strategy: BackoffStrategyConfig {
-                    backoff_type: TemplateableValue::from_template("${backoff.type}".to_string()),
-                    backoff_delay: TemplateableValue::from_template("${backoff.delay}".to_string()),
-                    max_retries: TemplateableValue::from_template("${backoff.retries}".to_string()),
+                    backoff_type: TemplateableValue::from_template("${nr-var:backoff.type}".to_string()),
+                    backoff_delay: TemplateableValue::from_template("${nr-var:backoff.delay}".to_string()),
+                    max_retries: TemplateableValue::from_template("${nr-var:backoff.retries}".to_string()),
                     last_retry_interval: TemplateableValue::from_template(
-                        "${backoff.interval}".to_string(),
+                        "${nr-var:backoff.interval}".to_string(),
                     ),
                 },
                 restart_exit_codes: vec![],
@@ -571,11 +543,11 @@ deployment:
 
         let normalized_values = Map::from([
             (
-                "bin".to_string(),
+                "nr-var:bin".to_string(),
                 VariableDefinition::new("binary".to_string(), true, None, Some("/etc".to_string())),
             ),
             (
-                "config".to_string(),
+                "nr-var:config".to_string(),
                 VariableDefinition::new_with_file_path(
                     "config".to_string(),
                     true,
@@ -588,7 +560,7 @@ deployment:
                 ),
             ),
             (
-                "integrations".to_string(),
+                "nr-var:integrations".to_string(),
                 VariableDefinition::new_with_file_path(
                     "integrations".to_string(),
                     true,
@@ -613,7 +585,7 @@ deployment:
                 ),
             ),
             (
-                "deployment.on_host.verbose".to_string(),
+                "nr-var:deployment.on_host.verbose".to_string(),
                 VariableDefinition::new(
                     "verbosity".to_string(),
                     true,
@@ -622,7 +594,7 @@ deployment:
                 ),
             ),
             (
-                "deployment.on_host.log_level".to_string(),
+                "nr-var:deployment.on_host.log_level".to_string(),
                 VariableDefinition::new(
                     "log_level".to_string(),
                     true,
@@ -631,7 +603,7 @@ deployment:
                 ),
             ),
             (
-                "backoff.type".to_string(),
+                "nr-var:backoff.type".to_string(),
                 VariableDefinition::new(
                     "backoff_type".to_string(),
                     true,
@@ -640,7 +612,7 @@ deployment:
                 ),
             ),
             (
-                "backoff.delay".to_string(),
+                "nr-var:backoff.delay".to_string(),
                 VariableDefinition::new(
                     "backoff_delay".to_string(),
                     true,
@@ -649,7 +621,7 @@ deployment:
                 ),
             ),
             (
-                "backoff.retries".to_string(),
+                "nr-var:backoff.retries".to_string(),
                 VariableDefinition::new(
                     "backoff_retries".to_string(),
                     true,
@@ -658,7 +630,7 @@ deployment:
                 ),
             ),
             (
-                "backoff.interval".to_string(),
+                "nr-var:backoff.interval".to_string(),
                 VariableDefinition::new(
                     "backoff_interval".to_string(),
                     true,
@@ -673,12 +645,12 @@ deployment:
         let exec_expected = Executable {
             path: TemplateableValue {
                 value: Some("/etc/otelcol".to_string()),
-                template: "${bin}/otelcol".to_string(),
+                template: "${nr-var:bin}/otelcol".to_string(),
             },
             args: TemplateableValue {
                 value: Some(Args("--config config_path --plugin_dir integration_path --verbose true --logs trace".to_string())),
                 template:
-                    "--config ${config} --plugin_dir ${integrations} --verbose ${deployment.on_host.verbose} --logs ${deployment.on_host.log_level}"
+                    "--config ${nr-var:config} --plugin_dir ${nr-var:integrations} --verbose ${nr-var:deployment.on_host.verbose} --logs ${nr-var:deployment.on_host.log_level}"
                         .to_string(),
             },
             env: TemplateableValue {
@@ -689,19 +661,19 @@ deployment:
                 backoff_strategy: BackoffStrategyConfig {
                     backoff_type: TemplateableValue {
                         value: Some(BackoffStrategyType::Exponential),
-                        template: "${backoff.type}".to_string(),
+                        template: "${nr-var:backoff.type}".to_string(),
                     },
                     backoff_delay: TemplateableValue {
                         value: Some(BackoffDuration::from_secs(10)),
-                        template: "${backoff.delay}".to_string(),
+                        template: "${nr-var:backoff.delay}".to_string(),
                     },
                     max_retries: TemplateableValue {
                         value: Some(30),
-                        template: "${backoff.retries}".to_string(),
+                        template: "${nr-var:backoff.retries}".to_string(),
                     },
                     last_retry_interval: TemplateableValue {
                         value: Some(BackoffDuration::from_secs(300)),
-                        template: "${backoff.interval}".to_string(),
+                        template: "${nr-var:backoff.interval}".to_string(),
                     },
                 },
                 restart_exit_codes: vec![],
@@ -714,25 +686,25 @@ deployment:
     #[test]
     fn test_replacer_two_same() {
         let exec = Executable {
-            path: TemplateableValue::from_template("${bin}/otelcol".to_string()),
-            args: TemplateableValue::from_template("--verbose ${deployment.on_host.verbose} --verbose_again ${deployment.on_host.verbose}".to_string()),
+            path: TemplateableValue::from_template("${nr-var:bin}/otelcol".to_string()),
+            args: TemplateableValue::from_template("--verbose ${nr-var:deployment.on_host.verbose} --verbose_again ${nr-var:deployment.on_host.verbose}".to_string()),
             env: TemplateableValue::from_template("".to_string()),
             restart_policy: RestartPolicyConfig {
                 backoff_strategy: BackoffStrategyConfig {
                     backoff_type: TemplateableValue::from_template(
-                        "${backoff.type}"
+                        "${nr-var:backoff.type}"
                             .to_string(),
                     ),
                     backoff_delay: TemplateableValue::from_template(
-                        "${backoff.delay}"
+                        "${nr-var:backoff.delay}"
                             .to_string(),
                     ),
                     max_retries: TemplateableValue::from_template(
-                        "${backoff.retries}"
+                        "${nr-var:backoff.retries}"
                             .to_string(),
                     ),
                     last_retry_interval: TemplateableValue::from_template(
-                        "${backoff.interval}"
+                        "${nr-var:backoff.interval}"
                             .to_string(),
                     ),
                 },
@@ -742,11 +714,11 @@ deployment:
 
         let normalized_values = Map::from([
             (
-                "bin".to_string(),
+                "nr-var:bin".to_string(),
                 VariableDefinition::new("binary".to_string(), true, None, Some("/etc".to_string())),
             ),
             (
-                "deployment.on_host.verbose".to_string(),
+                "nr-var:deployment.on_host.verbose".to_string(),
                 VariableDefinition::new(
                     "verbosity".to_string(),
                     true,
@@ -755,7 +727,7 @@ deployment:
                 ),
             ),
             (
-                "backoff.type".to_string(),
+                "nr-var:backoff.type".to_string(),
                 VariableDefinition::new(
                     "backoff_type".to_string(),
                     true,
@@ -764,7 +736,7 @@ deployment:
                 ),
             ),
             (
-                "backoff.delay".to_string(),
+                "nr-var:backoff.delay".to_string(),
                 VariableDefinition::new(
                     "backoff_delay".to_string(),
                     true,
@@ -773,7 +745,7 @@ deployment:
                 ),
             ),
             (
-                "backoff.retries".to_string(),
+                "nr-var:backoff.retries".to_string(),
                 VariableDefinition::new(
                     "backoff_retries".to_string(),
                     true,
@@ -782,7 +754,7 @@ deployment:
                 ),
             ),
             (
-                "backoff.interval".to_string(),
+                "nr-var:backoff.interval".to_string(),
                 VariableDefinition::new(
                     "backoff_interval".to_string(),
                     true,
@@ -795,26 +767,26 @@ deployment:
         let exec_actual = exec.template_with(&normalized_values).unwrap();
 
         let exec_expected = Executable {
-            path: TemplateableValue { value: Some("/etc/otelcol".to_string()), template: "${bin}/otelcol".to_string() },
-            args: TemplateableValue { value: Some(Args("--verbose true --verbose_again true".to_string())), template: "--verbose ${deployment.on_host.verbose} --verbose_again ${deployment.on_host.verbose}".to_string() },
+            path: TemplateableValue { value: Some("/etc/otelcol".to_string()), template: "${nr-var:bin}/otelcol".to_string() },
+            args: TemplateableValue { value: Some(Args("--verbose true --verbose_again true".to_string())), template: "--verbose ${nr-var:deployment.on_host.verbose} --verbose_again ${nr-var:deployment.on_host.verbose}".to_string() },
             env: TemplateableValue { value: Some(Env("".to_string())), template: "".to_string() },
             restart_policy: RestartPolicyConfig {
                 backoff_strategy: BackoffStrategyConfig {
                     backoff_type: TemplateableValue {
                         value: Some(BackoffStrategyType::Linear),
-                        template: "${backoff.type}".to_string(),
+                        template: "${nr-var:backoff.type}".to_string(),
                     },
                     backoff_delay: TemplateableValue {
                         value: Some(BackoffDuration::from_secs(10)),
-                        template: "${backoff.delay}".to_string(),
+                        template: "${nr-var:backoff.delay}".to_string(),
                     },
                     max_retries: TemplateableValue {
                         value: Some(30),
-                        template: "${backoff.retries}".to_string(),
+                        template: "${nr-var:backoff.retries}".to_string(),
                     },
                     last_retry_interval: TemplateableValue {
                         value: Some(BackoffDuration::from_secs(300)),
-                        template: "${backoff.interval}".to_string(),
+                        template: "${nr-var:backoff.interval}".to_string(),
                     },
                 },
                 restart_exit_codes: vec![],
@@ -1028,10 +1000,10 @@ deployment:
         env: ""
         restart_policy:
           backoff_strategy:
-            type: ${backoff.type}
-            backoff_delay: ${backoff.delay}
-            max_retries: ${backoff.retries}
-            last_retry_interval: ${backoff.interval}
+            type: ${nr-var:backoff.type}
+            backoff_delay: ${nr-var:backoff.delay}
+            max_retries: ${nr-var:backoff.retries}
+            last_retry_interval: ${nr-var:backoff.interval}
 "#;
 
     const BACKOFF_CONFIG_YAML: &str = r#"
@@ -1054,19 +1026,19 @@ backoff:
         let expected_backoff = BackoffStrategyConfig {
             backoff_type: TemplateableValue {
                 value: Some(BackoffStrategyType::Linear),
-                template: "${backoff.type}".to_string(),
+                template: "${nr-var:backoff.type}".to_string(),
             },
             backoff_delay: TemplateableValue {
                 value: Some(BackoffDuration::from_secs(10)),
-                template: "${backoff.delay}".to_string(),
+                template: "${nr-var:backoff.delay}".to_string(),
             },
             max_retries: TemplateableValue {
                 value: Some(30),
-                template: "${backoff.retries}".to_string(),
+                template: "${nr-var:backoff.retries}".to_string(),
             },
             last_retry_interval: TemplateableValue {
                 value: Some(BackoffDuration::from_secs(300)),
-                template: "${backoff.interval}".to_string(),
+                template: "${nr-var:backoff.interval}".to_string(),
             },
         };
 
@@ -1180,9 +1152,9 @@ deployment:
         restart_policy:
           backoff_strategy:
             type: fixed
-            backoff_delay: ${backoff.delay}
-            max_retries: ${backoff.retries}
-            last_retry_interval: ${backoff.interval}
+            backoff_delay: ${nr-var:backoff.delay}
+            max_retries: ${nr-var:backoff.retries}
+            last_retry_interval: ${nr-var:backoff.interval}
 "#;
 
     const STRING_DURATIONS_CONFIG_YAML: &str = r#"
@@ -1208,15 +1180,15 @@ backoff:
             },
             backoff_delay: TemplateableValue {
                 value: Some(BackoffDuration::from_secs((10 * 60) + 30)),
-                template: "${backoff.delay}".to_string(),
+                template: "${nr-var:backoff.delay}".to_string(),
             },
             max_retries: TemplateableValue {
                 value: Some(30),
-                template: "${backoff.retries}".to_string(),
+                template: "${nr-var:backoff.retries}".to_string(),
             },
             last_retry_interval: TemplateableValue {
                 value: Some(BackoffDuration::from_secs(300)),
-                template: "${backoff.interval}".to_string(),
+                template: "${nr-var:backoff.interval}".to_string(),
             },
         };
 
@@ -1335,7 +1307,7 @@ deployment:
   on_host:
       executables:
       - path: /bin/echo
-        args: "${restart_policy.type}"
+        args: "${nr-var:restart_policy.type}"
 "#;
 
     const CONFIG_YAML_VALUES_VALID_VARIANT: &str = r#"
