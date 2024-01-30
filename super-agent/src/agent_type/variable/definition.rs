@@ -23,6 +23,18 @@ pub struct VariableDefinition {
 }
 
 impl VariableDefinition {
+    pub fn new_sub_agent_variable(final_value: String) -> Self {
+        Self {
+            description: String::new(),
+            kind: Kind::String(KindValue {
+                required: false,
+                default: None,
+                final_value: Some(final_value),
+                variants: vec![],
+            }),
+        }
+    }
+
     pub fn is_required(&self) -> bool {
         self.kind.is_required()
     }
@@ -58,18 +70,6 @@ impl VariableDefinition {
 
     pub fn kind(&self) -> &Kind {
         &self.kind
-    }
-}
-
-pub(crate) fn super_agent_variable(final_value: String) -> VariableDefinition {
-    VariableDefinition {
-        description: String::new(),
-        kind: Kind::String(KindValue {
-            required: false,
-            default: None,
-            final_value: Some(final_value),
-            variants: vec![],
-        }),
     }
 }
 

@@ -10,24 +10,19 @@ use std::{collections::HashMap, str::FromStr};
 
 use super::agent_values::AgentValues;
 use super::restart_policy::BackoffDuration;
-use super::variable::definition::{
-    super_agent_variable, VariableDefinition, VariableDefinitionTree,
-};
+use super::variable::definition::{VariableDefinition, VariableDefinitionTree};
 use super::{
     agent_metadata::AgentMetadata,
     error::AgentTypeError,
     runtime_config::{Args, Env, Runtime},
     runtime_config_templates::{Templateable, TEMPLATE_KEY_SEPARATOR},
 };
+use crate::opamp::remote_config_hash::Hash;
 use crate::super_agent::config::AgentTypeFQN;
 use crate::super_agent::defaults::default_capabilities;
 use duration_str;
 use opamp_client::opamp::proto::AgentCapabilities;
 use opamp_client::operation::capabilities::Capabilities;
-
-const VARIABLES_AGENT_TYPE_NAMESPACE: &str = "nr-var";
-const VARIABLES_SUB_AGENT_NAMESPACE: &str = "nr-sub";
-const VARIABLES_SUB_AGENT_ID: &str = "agent_id";
 
 /// Configuration of the Agent Type, contains identification metadata, a set of variables that can be adjusted, and rules of how to start given agent binaries.
 ///
@@ -262,23 +257,33 @@ impl AgentType {
         let mut namespaced_variables: HashMap<String, VariableDefinition> = HashMap::new();
 
         for (name, var) in variables.into_iter() {
-            namespaced_variables.insert(format!("{VARIABLES_AGENT_TYPE_NAMESPACE}:{name}"), var);
+            namespaced_variables.insert(VariableNamespace::Variable.namespaced_name(&name), var);
         }
 
         if let Some(attr) = agent_attributes {
-            if let Some(p) = attr.configs_path {
-                namespaced_variables
-                    .values_mut()
-                    .for_each(|v| v.extend_file_path(PathBuf::from(p)));
-            }
+            namespaced_variables = attr.extend_file_paths(namespaced_variables);
 
-            namespaced_variables.insert(
-                format!("{VARIABLES_SUB_AGENT_NAMESPACE}:{VARIABLES_SUB_AGENT_ID}"),
-                super_agent_variable(attr.agent_id),
-            );
+            namespaced_variables.extend(attr.sub_agent_variables());
         }
-
         namespaced_variables
+    }
+}
+enum VariableNamespace {
+    Variable,
+    SubAgent,
+}
+
+impl VariableNamespace {
+    const PREFIX: &'static str = "nr-";
+    const VARIABLE: &'static str = "var";
+    const SUB_AGENT: &'static str = "sub";
+
+    fn namespaced_name(&self, variable_name: &str) -> String {
+        let ns = match self {
+            Self::Variable => Self::VARIABLE,
+            Self::SubAgent => Self::SUB_AGENT,
+        };
+        format!("{}{ns}:{variable_name}", Self::PREFIX)
     }
 }
 
@@ -286,6 +291,29 @@ impl AgentType {
 pub struct AgentAttributes<'a> {
     pub configs_path: Option<&'a str>,
     pub agent_id: String,
+}
+
+impl<'a> AgentAttributes<'a> {
+    const VARIABLE_SUB_AGENT_ID: &'static str = "agent_id";
+
+    fn sub_agent_variables(&self) -> HashMap<String, VariableDefinition> {
+        HashMap::from([(
+            VariableNamespace::SubAgent.namespaced_name(Self::VARIABLE_SUB_AGENT_ID),
+            VariableDefinition::new_sub_agent_variable(self.agent_id.clone()),
+        )])
+    }
+
+    fn extend_file_paths(
+        &self,
+        mut variables: HashMap<String, VariableDefinition>,
+    ) -> HashMap<String, VariableDefinition> {
+        if let Some(p) = self.configs_path {
+            variables
+                .values_mut()
+                .for_each(|v| v.extend_file_path(PathBuf::from(p)));
+        }
+        variables
+    }
 }
 
 fn update_specs(
