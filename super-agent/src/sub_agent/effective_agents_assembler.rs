@@ -593,7 +593,7 @@ deployment:
   on_host:
     executables:
       - path: /opt/first 
-        args: "--config_path=${config_path}"
+        args: "--config_path=${nr-var:config_path}"
         env: ""
 "#;
 
