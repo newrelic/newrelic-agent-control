@@ -16,7 +16,7 @@ use opamp_client::operation::settings::DescriptionValueType;
 use std::collections::HashMap;
 use std::error::Error;
 use std::ffi::OsString;
-use std::sync::{Arc};
+use std::sync::Arc;
 use tracing::{error, info};
 
 #[cfg(all(feature = "onhost", feature = "k8s", not(feature = "ci")))]
