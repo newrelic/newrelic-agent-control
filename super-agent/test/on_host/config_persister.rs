@@ -30,7 +30,7 @@ fn test_configuration_persister_single_file() {
     let agent_values: AgentValues =
         serde_yaml::from_reader(AGENT_VALUES_SINGLE_FILE.as_bytes()).unwrap();
     agent_type = agent_type
-        .template_with(agent_values, AgentAttributes::default())
+        .template(agent_values, AgentAttributes::default())
         .unwrap();
 
     assert!(persister

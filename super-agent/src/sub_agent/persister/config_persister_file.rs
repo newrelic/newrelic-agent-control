@@ -253,7 +253,7 @@ mod test {
 
         // populate agent type
         agent_type = agent_type
-            .template_with(agent_values, AgentAttributes::default())
+            .template(agent_values, AgentAttributes::default())
             .unwrap();
 
         // Expectations
@@ -320,7 +320,7 @@ mod test {
 
         // populate agent type
         agent_type = agent_type
-            .template_with(agent_values, AgentAttributes::default())
+            .template(agent_values, AgentAttributes::default())
             .unwrap();
 
         // Expectations
@@ -408,7 +408,7 @@ mod test {
 
         // populate agent type
         agent_type = agent_type
-            .template_with(agent_values, AgentAttributes::default())
+            .template(agent_values, AgentAttributes::default())
             .unwrap();
 
         // Expectations
@@ -506,7 +506,7 @@ mod test {
 
         // populate agent type
         agent_type = agent_type
-            .template_with(agent_values, AgentAttributes::default())
+            .template(agent_values, AgentAttributes::default())
             .unwrap();
 
         // Expectations
@@ -550,7 +550,7 @@ mod test {
 
         // populate agent type
         agent_type = agent_type
-            .template_with(agent_values, AgentAttributes::default())
+            .template(agent_values, AgentAttributes::default())
             .unwrap();
 
         // Expectations
@@ -600,7 +600,7 @@ mod test {
 
         // populate agent type
         agent_type = agent_type
-            .template_with(agent_values, AgentAttributes::default())
+            .template(agent_values, AgentAttributes::default())
             .unwrap();
 
         // Expectations
@@ -645,7 +645,7 @@ mod test {
 
         // populate agent type
         agent_type = agent_type
-            .template_with(agent_values, AgentAttributes::default())
+            .template(agent_values, AgentAttributes::default())
             .unwrap();
 
         // Expectations
@@ -695,7 +695,7 @@ mod test {
 
         // populate agent type
         agent_type = agent_type
-            .template_with(agent_values, AgentAttributes::default())
+            .template(agent_values, AgentAttributes::default())
             .unwrap();
 
         // Expectations

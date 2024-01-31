@@ -23,7 +23,7 @@ pub struct VariableDefinition {
 }
 
 impl VariableDefinition {
-    pub fn new_sub_agent_variable(final_value: String) -> Self {
+    pub fn new_sub_agent_string_variable(final_value: String) -> Self {
         Self {
             description: String::new(),
             kind: Kind::String(KindValue {
