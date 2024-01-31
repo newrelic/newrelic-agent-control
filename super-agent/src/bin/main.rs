@@ -162,6 +162,10 @@ fn run_super_agent(
     use newrelic_super_agent::super_agent::config::AgentID;
     use std::sync::OnceLock;
 
+
+/// Returns a static reference to a tokio runtime initialized on first usage.
+/// It uses the default tokio configuration (the same that #[tokio::main]).
+// TODO: avoid the need of this global reference
     static RUNTIME_ONCE: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
     let runtime = RUNTIME_ONCE.get_or_init(|| {
         tokio::runtime::Builder::new_multi_thread()
