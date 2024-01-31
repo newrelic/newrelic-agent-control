@@ -160,8 +160,18 @@ fn run_super_agent(
     use newrelic_super_agent::opamp::operations::build_opamp_and_start_client;
     use newrelic_super_agent::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
     use newrelic_super_agent::super_agent::config::AgentID;
+    use std::sync::OnceLock;
 
-    let runtime = newrelic_super_agent::runtime::tokio_runtime();
+    /// Returns a static reference to a tokio runtime initialized on first usage.
+    /// It uses the default tokio configuration (the same that #[tokio::main]).
+    // TODO: avoid the need of this global reference
+    static RUNTIME_ONCE: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
+    let runtime = RUNTIME_ONCE.get_or_init(|| {
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+    });
 
     let hash_repository = HashRepositoryFile::default();
     let k8s_config = config_storer.load()?.k8s.ok_or(AgentError::K8sConfig())?;

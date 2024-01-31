@@ -19,16 +19,14 @@ where
     ) -> Result<(), AgentError> {
         if self.maybe_opamp_client.is_some() {
             if let RemoteConfigError::InvalidConfig(hash, error) = remote_config_error {
-                crate::runtime::tokio_runtime().block_on(
-                    self.maybe_opamp_client
-                        .as_ref()
-                        .unwrap()
-                        .set_remote_config_status(RemoteConfigStatus {
-                            last_remote_config_hash: hash.into_bytes(),
-                            error_message: error,
-                            status: RemoteConfigStatuses::Failed as i32,
-                        }),
-                )?;
+                self.maybe_opamp_client
+                    .as_ref()
+                    .unwrap()
+                    .set_remote_config_status(RemoteConfigStatus {
+                        last_remote_config_hash: hash.into_bytes(),
+                        error_message: error,
+                        status: RemoteConfigStatuses::Failed as i32,
+                    })?;
                 Ok(())
             } else {
                 unreachable!()

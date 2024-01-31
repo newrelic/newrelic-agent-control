@@ -1,4 +1,5 @@
-use opamp_client::error::{ClientError, NotStartedClientError, StartedClientError};
+use opamp_client::StartedClientError;
+use opamp_client::{ClientError, NotStartedClientError};
 use std::time::SystemTimeError;
 
 use crate::agent_type::agent_values::AgentValuesError;

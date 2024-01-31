@@ -110,27 +110,7 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
-## aquamarine https://crates.io/crates/aquamarine
-
-Distributed under the following license(s):
-* MIT
-
-
 ## arrayvec https://crates.io/crates/arrayvec
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## async-compression https://crates.io/crates/async-compression
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## async-recursion https://crates.io/crates/async-recursion
 
 Distributed under the following license(s):
 * MIT
@@ -263,13 +243,6 @@ Distributed under the following license(s):
 
 
 ## colorchoice https://crates.io/crates/colorchoice
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## core-foundation https://crates.io/crates/core-foundation
 
 Distributed under the following license(s):
 * MIT
@@ -438,22 +411,7 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
-## encoding_rs https://crates.io/crates/encoding_rs
-
-Distributed under the following license(s):
-* Apache-2.0
-* MIT
-* BSD-3-Clause
-
-
 ## equivalent https://crates.io/crates/equivalent
-
-Distributed under the following license(s):
-* Apache-2.0
-* MIT
-
-
-## fastrand https://crates.io/crates/fastrand
 
 Distributed under the following license(s):
 * Apache-2.0
@@ -697,13 +655,6 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
-## hyper-tls https://crates.io/crates/hyper-tls
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
 ## iana-time-zone https://crates.io/crates/iana-time-zone
 
 Distributed under the following license(s):
@@ -739,18 +690,6 @@ Distributed under the following license(s):
 * MIT
 
 
-## include_dir https://crates.io/crates/include_dir
-
-Distributed under the following license(s):
-* MIT
-
-
-## include_dir_macros https://crates.io/crates/include_dir_macros
-
-Distributed under the following license(s):
-* MIT
-
-
 ## indexmap https://crates.io/crates/indexmap
 
 Distributed under the following license(s):
@@ -762,13 +701,6 @@ Distributed under the following license(s):
 
 Distributed under the following license(s):
 * BSD-3-Clause
-
-
-## ipnet https://crates.io/crates/ipnet
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
 
 
 ## itertools https://crates.io/crates/itertools
@@ -880,14 +812,6 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
-## linux-raw-sys https://crates.io/crates/linux-raw-sys
-
-Distributed under the following license(s):
-* Apache-2.0 WITH LLVM-exception
-* Apache-2.0
-* MIT
-
-
 ## lock_api https://crates.io/crates/lock_api
 
 Distributed under the following license(s):
@@ -950,28 +874,7 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
-## mockall https://crates.io/crates/mockall
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
 ## mockall_derive https://crates.io/crates/mockall_derive
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## mockall_derive https://crates.io/crates/mockall_derive
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## native-tls https://crates.io/crates/native-tls
 
 Distributed under the following license(s):
 * MIT
@@ -1030,7 +933,7 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
-## opamp-client git+ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.8
+## opamp-client git+ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.10
 
 Distributed under the following license(s):
 * Apache-2.0
@@ -1043,20 +946,6 @@ Distributed under the following license(s):
 
 
 ## openssl-macros https://crates.io/crates/openssl-macros
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## openssl-probe https://crates.io/crates/openssl-probe
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## openssl-src https://crates.io/crates/openssl-src
 
 Distributed under the following license(s):
 * MIT
@@ -1192,13 +1081,6 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
-## predicates https://crates.io/crates/predicates
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
 ## predicates-core https://crates.io/crates/predicates-core
 
 Distributed under the following license(s):
@@ -1207,20 +1089,6 @@ Distributed under the following license(s):
 
 
 ## predicates-tree https://crates.io/crates/predicates-tree
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## proc-macro-error https://crates.io/crates/proc-macro-error
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## proc-macro-error-attr https://crates.io/crates/proc-macro-error-attr
 
 Distributed under the following license(s):
 * MIT
@@ -1315,13 +1183,6 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
-## reqwest https://crates.io/crates/reqwest
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
 ## ring https://crates.io/crates/ring
 
 Distributed under the following license(s):
@@ -1345,14 +1206,6 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 * MIT
 * Apache-2.0
-
-
-## rustix https://crates.io/crates/rustix
-
-Distributed under the following license(s):
-* Apache-2.0 WITH LLVM-exception
-* Apache-2.0
-* MIT
 
 
 ## rustls https://crates.io/crates/rustls
@@ -1380,12 +1233,6 @@ Distributed under the following license(s):
 
 Distributed under the following license(s):
 * Unlicense
-* MIT
-
-
-## schannel https://crates.io/crates/schannel
-
-Distributed under the following license(s):
 * MIT
 
 
@@ -1423,20 +1270,6 @@ Distributed under the following license(s):
 * MIT
 
 
-## security-framework https://crates.io/crates/security-framework
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## security-framework-sys https://crates.io/crates/security-framework-sys
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
 ## serde https://crates.io/crates/serde
 
 Distributed under the following license(s):
@@ -1465,13 +1298,6 @@ Distributed under the following license(s):
 
 
 ## serde_json https://crates.io/crates/serde_json
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## serde_urlencoded https://crates.io/crates/serde_urlencoded
 
 Distributed under the following license(s):
 * MIT
@@ -1545,27 +1371,6 @@ Distributed under the following license(s):
 
 
 ## syn https://crates.io/crates/syn
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## system-configuration https://crates.io/crates/system-configuration
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## system-configuration-sys https://crates.io/crates/system-configuration-sys
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## tempfile https://crates.io/crates/tempfile
 
 Distributed under the following license(s):
 * MIT
@@ -1649,12 +1454,6 @@ Distributed under the following license(s):
 
 
 ## tokio-macros https://crates.io/crates/tokio-macros
-
-Distributed under the following license(s):
-* MIT
-
-
-## tokio-native-tls https://crates.io/crates/tokio-native-tls
 
 Distributed under the following license(s):
 * MIT
@@ -1931,13 +1730,6 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
-## wasm-bindgen-futures https://crates.io/crates/wasm-bindgen-futures
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
 ## wasm-bindgen-macro https://crates.io/crates/wasm-bindgen-macro
 
 Distributed under the following license(s):
@@ -1953,13 +1745,6 @@ Distributed under the following license(s):
 
 
 ## wasm-bindgen-shared https://crates.io/crates/wasm-bindgen-shared
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## web-sys https://crates.io/crates/web-sys
 
 Distributed under the following license(s):
 * MIT
@@ -2131,12 +1916,6 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 * MIT
 * Apache-2.0
-
-
-## winreg https://crates.io/crates/winreg
-
-Distributed under the following license(s):
-* MIT
 
 
 ## zerocopy https://crates.io/crates/zerocopy

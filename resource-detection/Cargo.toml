@@ -7,12 +7,10 @@ authors = ["The New Relic Core Agent & Open Standards (CAOS) Team"]
 publish = false
 
 [dependencies]
-mockall = { workspace = true }
 nix = { workspace = true, features = ["hostname"] }
 serde = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
 tracing = { workspace = true }
-ulid = { workspace = true }
 serde_json = { workspace = true }
 http = { workspace = true }
 bytes = "1.5.0"
@@ -21,3 +19,4 @@ fs = {path = "../fs/"}
 
 [dev-dependencies]
 fs = { path = "../fs", features = ["mocks"] }
+mockall = { workspace = true }
