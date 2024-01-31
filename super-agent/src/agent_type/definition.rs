@@ -1249,7 +1249,8 @@ deployment:
         kind: ObjectKind
         spec:
           values: ${nr-var:config.values}
-          id: ${nr-sub:agent_id}
+          from_sub_agent: ${nr-sub:agent_id}
+          collision_avoided: ${config.values}-${env:agent_id}
 "#;
 
     const K8S_CONFIG_YAML_VALUES: &str = r#"
@@ -1280,7 +1281,8 @@ values:
       - item2
       - item3_nested: value
   empty_key:
-id: test
+from_sub_agent: test
+collision_avoided: ${config.values}-${env:agent_id}
 "#;
         let expected_spec_value: serde_yaml::Value =
             serde_yaml::from_str(expected_spec_yaml).unwrap();
