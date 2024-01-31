@@ -410,7 +410,7 @@ k8s:
         assert!(actual
             .unwrap_err()
             .to_string()
-            .contains("AgentID must contain 32 characters at most, contain alphanumeric only, start with alphabetic, and end with alphanumeric"))
+            .contains("AgentID must contain 32 characters at most, contain alphanumeric characters or dashes only, start with alphabetic, and end with alphanumeric"))
     }
 
     #[test]
