@@ -288,7 +288,7 @@ pub struct AgentAttributes {
 impl AgentAttributes {
     const VARIABLE_SUB_AGENT_ID: &'static str = "agent_id";
 
-    /// returns the varialbes from the sub-agent attributes sourece 'nr-sub'.
+    /// returns the variables from the sub-agent attributes source 'nr-sub'.
     fn sub_agent_variables(&self) -> HashMap<String, VariableDefinition> {
         HashMap::from([(
             VariableNamespace::SubAgent.namespaced_name(Self::VARIABLE_SUB_AGENT_ID),
