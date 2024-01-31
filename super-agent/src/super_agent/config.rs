@@ -20,7 +20,7 @@ pub struct AgentID(String);
 
 #[derive(Error, Debug)]
 pub enum AgentTypeError {
-    #[error("AgentID must contain 32 characters at most, contain alphanumeric only, start with alphabetic, and end with alphanumeric")]
+    #[error("AgentID must contain 32 characters at most, contain alphanumeric characters or dashes only, start with alphabetic, and end with alphanumeric")]
     InvalidAgentID,
     #[error("AgentID '{0}' is reserved")]
     InvalidAgentIDUsesReservedOne(String),
@@ -83,10 +83,10 @@ impl AgentID {
     /// and sets a shorter maximum length to avoid issues when the agent-id is used to compose names.
     fn check_string(s: &str) -> bool {
         s.len() <= AGENT_ID_MAX_LENGTH
-            && s.starts_with(|c: char| c.is_alphabetic())
-            && s.ends_with(|c: char| c.is_alphanumeric())
+            && s.starts_with(|c: char| c.is_ascii_alphabetic())
+            && s.ends_with(|c: char| c.is_ascii_alphanumeric())
             && s.chars()
-                .all(|c| c.eq(&'-') || c.is_numeric() || (c.is_alphabetic() && c.is_lowercase()))
+                .all(|c| c.eq(&'-') || c.is_ascii_digit() || (c.is_ascii_alphabetic() && c.is_ascii_lowercase()))
     }
 }
 
