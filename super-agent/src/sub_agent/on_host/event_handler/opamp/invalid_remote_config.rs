@@ -19,16 +19,14 @@ where
     ) -> Result<(), AgentError> {
         if self.maybe_opamp_client.is_some() {
             if let RemoteConfigError::InvalidConfig(hash, error) = remote_config_error {
-                crate::runtime::tokio_runtime().block_on(
-                    self.maybe_opamp_client
-                        .as_ref()
-                        .unwrap()
-                        .set_remote_config_status(RemoteConfigStatus {
-                            last_remote_config_hash: hash.into_bytes(),
-                            error_message: error,
-                            status: RemoteConfigStatuses::Failed as i32,
-                        }),
-                )?;
+                self.maybe_opamp_client
+                    .as_ref()
+                    .unwrap()
+                    .set_remote_config_status(RemoteConfigStatus {
+                        last_remote_config_hash: hash.into_bytes(),
+                        error_message: error,
+                        status: RemoteConfigStatuses::Failed as i32,
+                    })?;
                 Ok(())
             } else {
                 unreachable!()
@@ -44,7 +42,6 @@ where
 ////////////////////////////////////////////////////////////////////////////////////
 #[cfg(test)]
 mod tests {
-    use crate::config::super_agent_configs::AgentID;
     use crate::event::channel::pub_sub;
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::remote_config::RemoteConfigError::InvalidConfig;
@@ -53,6 +50,7 @@ mod tests {
     use crate::sub_agent::on_host::event_processor::EventProcessor;
     use crate::sub_agent::values::values_repository::test::MockRemoteValuesRepositoryMock;
     use crate::sub_agent::SubAgentCallbacks;
+    use crate::super_agent::config::AgentID;
     use opamp_client::opamp::proto::RemoteConfigStatus;
     use opamp_client::opamp::proto::RemoteConfigStatuses::Failed;
     use std::sync::Arc;

@@ -4,21 +4,20 @@
 //!
 //! See [`Agent::template_with`] for a flowchart of the dataflow that ends in the final, enriched structure.
 
+use serde::{Deserialize, Deserializer};
+use std::path::PathBuf;
 use std::{collections::HashMap, str::FromStr};
 
-use crate::config::super_agent_configs::AgentTypeFQN;
-use serde::de::Error;
-use serde::{Deserialize, Deserializer};
-
+use super::agent_values::AgentValues;
 use super::restart_policy::BackoffDuration;
+use super::variable::definition::{VariableDefinition, VariableDefinitionTree};
 use super::{
     agent_metadata::AgentMetadata,
     error::AgentTypeError,
-    runtime_config::{Args, Env, RuntimeConfig},
+    runtime_config::{Args, Env, Runtime},
     runtime_config_templates::{Templateable, TEMPLATE_KEY_SEPARATOR},
-    trivial_value::TrivialValue,
 };
-use crate::config::agent_values::AgentValues;
+use crate::super_agent::config::AgentTypeFQN;
 use crate::super_agent::defaults::default_capabilities;
 use duration_str;
 use opamp_client::opamp::proto::AgentCapabilities;
@@ -30,14 +29,14 @@ use opamp_client::operation::capabilities::Capabilities;
 ///
 /// See also [`RawAgent`] and the [`FinalAgent::try_from`] implementation.
 #[derive(Debug, PartialEq, Clone, Default)]
-pub struct FinalAgent {
+pub struct AgentType {
     pub metadata: AgentMetadata,
-    pub variables: NormalizedVariables,
-    pub runtime_config: RuntimeConfig,
+    pub variables: VariableTree,
+    pub runtime_config: Runtime,
     capabilities: Capabilities,
 }
 
-impl FinalAgent {
+impl AgentType {
     pub fn has_remote_management(&self) -> bool {
         self.capabilities
             .has_capability(AgentCapabilities::AcceptsRemoteConfig)
@@ -50,7 +49,7 @@ pub struct TemplateableValue<T> {
     template: String,
 }
 
-impl<'de> Deserialize<'de> for FinalAgent {
+impl<'de> Deserialize<'de> for AgentType {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
@@ -60,14 +59,15 @@ impl<'de> Deserialize<'de> for FinalAgent {
         struct RawAgent {
             #[serde(flatten)]
             metadata: AgentMetadata,
-            variables: AgentVariables,
+            variables: VariableTree,
             #[serde(default, flatten)]
-            runtime_config: RuntimeConfig,
+            runtime_config: Runtime,
         }
 
         let raw_agent = RawAgent::deserialize(deserializer)?;
         Ok(Self {
-            variables: normalize_agent_spec(raw_agent.variables).map_err(D::Error::custom)?,
+            // variables: normalize_agent_spec(raw_agent.variables).map_err(D::Error::custom)?,
+            variables: raw_agent.variables,
             metadata: raw_agent.metadata,
             runtime_config: raw_agent.runtime_config, // FIXME: make it actual implementation
             capabilities: default_capabilities(),
@@ -138,7 +138,7 @@ impl<S> Templateable for TemplateableValue<S>
 where
     S: FromStr + Default,
 {
-    fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         let templated_string = self.template.clone().template_with(variables)?;
         let value = if templated_string.is_empty() {
             S::default()
@@ -155,7 +155,7 @@ where
 }
 
 impl Templateable for TemplateableValue<Env> {
-    fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         let templated_string = self.template.clone().template_with(variables)?;
         Ok(Self {
             template: self.template,
@@ -165,7 +165,7 @@ impl Templateable for TemplateableValue<Env> {
 }
 
 impl Templateable for TemplateableValue<Args> {
-    fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         let templated_string = self.template.clone().template_with(variables)?;
         Ok(Self {
             template: self.template,
@@ -175,7 +175,7 @@ impl Templateable for TemplateableValue<Args> {
 }
 
 impl Templateable for TemplateableValue<BackoffDuration> {
-    fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         let templated_string = self.template.clone().template_with(variables)?;
         let value = if templated_string.is_empty() {
             BackoffDuration::default()
@@ -192,50 +192,64 @@ impl Templateable for TemplateableValue<BackoffDuration> {
     }
 }
 
-impl FinalAgent {
+impl AgentType {
     pub fn agent_type(&self) -> AgentTypeFQN {
         self.metadata.to_string().as_str().into()
     }
 
-    pub fn get_variables(&self) -> &NormalizedVariables {
-        &self.variables
+    pub fn get_variables(&self) -> Variables {
+        self.variables.clone().flatten()
     }
 
-    #[cfg_attr(doc, aquamarine::aquamarine)]
+    pub fn merge_variables_with_values(
+        &mut self,
+        values: AgentValues,
+    ) -> Result<(), AgentTypeError> {
+        update_specs(values.into(), &mut self.variables.0)?;
+
+        // No item must be left without a final value
+        let not_populated = self
+            .variables
+            .clone()
+            .flatten()
+            .into_iter()
+            .filter_map(|(k, endspec)| endspec.get_final_value().is_none().then_some(k))
+            .collect::<Vec<_>>();
+
+        if !not_populated.is_empty() {
+            return Err(AgentTypeError::ValuesNotPopulated(not_populated));
+        }
+        Ok(())
+    }
+
     /// template_with the [`RuntimeConfig`] object field of the [`Agent`] type with the user-provided config, which must abide by the agent type's defined [`AgentVariables`].
     ///
     /// This method will return an error if the user-provided config does not conform to the agent type's spec.
     pub fn template_with(
-        self,
-        config: AgentValues,
+        mut self,
+        values: AgentValues,
         agent_configs_path: Option<&str>,
-    ) -> Result<FinalAgent, AgentTypeError> {
-        // let normalized_config = NormalizedSupervisorConfig::from(config);
-        // let validated_conf = validate_with_agent_type(normalized_config, &self)?;
-        let config = config.normalize_with_agent_type(&self)?;
+    ) -> Result<AgentType, AgentTypeError> {
+        self.merge_variables_with_values(values)?;
 
-        // let runtime_conf = self.runtime_config.template_with(validated_conf.clone())?;
-        let mut spec = self.variables;
+        let variables = if let Some(p) = agent_configs_path {
+            let mut v = self.variables.clone().flatten();
+            v.values_mut().for_each(|v| {
+                if let Some(file_path) = v.get_file_path() {
+                    let mut new_file_path = PathBuf::from(p);
+                    new_file_path.push(file_path);
+                    v.set_file_path(new_file_path);
+                }
+            });
+            v
+        } else {
+            self.variables.clone().flatten()
+        };
 
-        // modifies variables final value with the one defined in the SupervisorConfig
-        spec.iter_mut().for_each(|(k, v)| {
-            let defined_value = config.get_from_normalized(k);
+        let runtime_conf = self.runtime_config.template_with(&variables)?;
 
-            if v.file_path.is_some() && agent_configs_path.is_some() {
-                v.file_path = v.file_path.as_ref().and_then(|file_path| {
-                    agent_configs_path.map(|agent_path| format!("{agent_path}/{file_path}"))
-                });
-            }
-
-            // TODO: understand why we need to redo this or in EndSpec::get_template_value()
-            v.final_value = defined_value.or(v.default.clone());
-        });
-
-        let runtime_conf = self.runtime_config.template_with(&spec)?;
-
-        let populated_agent = FinalAgent {
+        let populated_agent = AgentType {
             runtime_config: runtime_conf,
-            variables: spec,
             ..self
         };
 
@@ -243,134 +257,48 @@ impl FinalAgent {
     }
 }
 
+fn update_specs(
+    values: HashMap<String, serde_yaml::Value>,
+    agent_vars: &mut HashMap<String, VariableDefinitionTree>,
+) -> Result<(), AgentTypeError> {
+    for (ref k, v) in values.into_iter() {
+        let spec = agent_vars
+            .get_mut(k)
+            .ok_or_else(|| AgentTypeError::MissingAgentKey(k.clone()))?;
+
+        match spec {
+            VariableDefinitionTree::End(e) => e.merge_with_yaml_value(v)?,
+            VariableDefinitionTree::Mapping(m) => {
+                let v: HashMap<String, serde_yaml::Value> = serde_yaml::from_value(v)?;
+                update_specs(v, m)?
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Flexible tree-like structure that contains variables definitions, that can later be changed by the end user via [`AgentValues`].
-type AgentVariables = HashMap<String, Spec>;
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+pub struct VariableTree(pub(crate) HashMap<String, VariableDefinitionTree>);
 
-pub trait AgentTypeEndSpec {
-    fn variable_type(&self) -> VariableType;
-    fn file_path(&self) -> Option<String>;
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct EndSpec {
-    pub(crate) description: String,
-    pub type_: VariableType,
-    pub required: bool,
-    pub default: Option<TrivialValue>,
-    pub file_path: Option<String>,
-    /// The actual value that will be used by the agent. This will be either the user-provided value or, if not provided and not marked as [`required`], the default value.
-    pub final_value: Option<TrivialValue>,
-}
-
-impl EndSpec {
-    /// get_template_value returns the replacement value that will be used to substitute
-    /// the placeholder from an agent_type when templating a config
-    pub fn get_template_value(&self) -> Option<TrivialValue> {
-        match self.type_ {
-            // For MapStringFile and file the file_path includes the full path with agent_configs_path
-            VariableType::MapStringFile | VariableType::File => {
-                if let Some(file_path) = self.file_path.as_ref() {
-                    return Some(TrivialValue::String(file_path.to_string()));
-                }
-                self.default.clone()
-            }
-            _ => self.final_value.as_ref().or(self.default.as_ref()).cloned(),
-        }
+impl VariableTree {
+    pub fn flatten(self) -> HashMap<String, VariableDefinition> {
+        self.0
+            .into_iter()
+            .flat_map(|(k, v)| inner_flatten(k, v))
+            .collect()
     }
 }
 
-impl<'de> Deserialize<'de> for EndSpec {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        // temporal type for intermediate serialization
-        #[derive(Debug, Deserialize)]
-        struct IntermediateEndSpec {
-            description: String,
-            #[serde(rename = "type")]
-            type_: VariableType,
-            required: bool,
-            default: Option<TrivialValue>,
-            file_path: Option<String>,
-        }
-
-        impl AgentTypeEndSpec for IntermediateEndSpec {
-            fn variable_type(&self) -> VariableType {
-                self.type_
-            }
-
-            fn file_path(&self) -> Option<String> {
-                self.file_path.as_ref().cloned()
-            }
-        }
-
-        let intermediate_spec = IntermediateEndSpec::deserialize(deserializer)?;
-        if intermediate_spec.default.is_none() && !intermediate_spec.required {
-            return Err(D::Error::custom(AgentTypeError::MissingDefault));
-        }
-        let def_val = intermediate_spec
-            .default
-            .clone()
-            .map(|d| d.check_type(&intermediate_spec))
-            .transpose()
-            .map_err(D::Error::custom)?;
-
-        Ok(EndSpec {
-            default: def_val,
-            final_value: None,
-            file_path: intermediate_spec.file_path,
-            description: intermediate_spec.description,
-            type_: intermediate_spec.type_,
-            required: intermediate_spec.required,
-        })
+fn inner_flatten(key: String, spec: VariableDefinitionTree) -> HashMap<String, VariableDefinition> {
+    let mut result = HashMap::new();
+    match spec {
+        VariableDefinitionTree::End(s) => _ = result.insert(key, s),
+        VariableDefinitionTree::Mapping(m) => m.into_iter().for_each(|(k, v)| {
+            result.extend(inner_flatten(key.clone() + TEMPLATE_KEY_SEPARATOR + &k, v))
+        }),
     }
-}
-
-impl AgentTypeEndSpec for EndSpec {
-    fn variable_type(&self) -> VariableType {
-        self.type_
-    }
-
-    fn file_path(&self) -> Option<String> {
-        self.file_path.as_ref().cloned()
-    }
-}
-
-#[derive(Debug, PartialEq, Clone, Copy, Deserialize)]
-pub enum VariableType {
-    #[serde(rename = "string")]
-    String,
-    #[serde(rename = "bool")]
-    Bool,
-    #[serde(rename = "number")]
-    Number,
-    #[serde(rename = "file")]
-    File,
-    #[serde(rename = "map[string]string")]
-    MapStringString,
-    #[serde(rename = "map[string]file")]
-    MapStringFile,
-    // #[serde(rename = "map[string]number")]
-    // MapStringNumber,
-    // #[serde(rename = "map[string]bool")]
-    // MapStringBool,
-    #[serde(rename = "yaml")]
-    Yaml,
-}
-
-#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
-struct K8s {
-    crd: String,
-}
-
-// Spec can be an arbitrary number of nested mappings but all node terminal leaves are EndSpec,
-// so a recursive datatype is the answer!
-#[derive(Debug, Deserialize, PartialEq)]
-#[serde(untagged)]
-enum Spec {
-    SpecEnd(EndSpec),
-    SpecMapping(HashMap<String, Spec>),
+    result
 }
 
 /// The normalized version of the [`AgentVariables`] tree.
@@ -399,73 +327,29 @@ enum Spec {
 /// ```
 ///
 /// Will be converted to `system.logging.level` and can be used later in the AgentType_Meta part as `${system.logging.level}`.
-pub(crate) type NormalizedVariables = HashMap<String, EndSpec>;
-
-fn normalize_agent_spec(spec: AgentVariables) -> Result<NormalizedVariables, AgentTypeError> {
-    spec.into_iter().try_fold(HashMap::new(), |r, (k, v)| {
-        let n_spec = inner_normalize(k, v);
-        n_spec.iter().try_for_each(|(k, end_spec)| {
-            if end_spec.default.is_none() && !end_spec.required {
-                return Err(AgentTypeError::MissingDefaultWithKey(k.clone()));
-            }
-            Ok(())
-        })?;
-        Ok(r.into_iter().chain(n_spec).collect())
-    })
-}
-
-fn inner_normalize(key: String, spec: Spec) -> NormalizedVariables {
-    let mut result = HashMap::new();
-    match spec {
-        Spec::SpecEnd(s) => _ = result.insert(key, s),
-        Spec::SpecMapping(m) => m.into_iter().for_each(|(k, v)| {
-            result.extend(inner_normalize(
-                key.clone() + TEMPLATE_KEY_SEPARATOR + &k,
-                v,
-            ))
-        }),
-    }
-    result
-}
+pub(crate) type Variables = HashMap<String, VariableDefinition>;
 
 #[cfg(test)]
 pub mod tests {
-    use crate::config::{
-        agent_type::{
-            restart_policy::{BackoffStrategyConfig, BackoffStrategyType},
-            runtime_config::{Args, Env, Executable},
-        },
-        agent_values::AgentValues,
+
+    use crate::agent_type::{
+        restart_policy::{BackoffStrategyConfig, BackoffStrategyType, RestartPolicyConfig},
+        runtime_config::Executable,
+        trivial_value::{FilePathWithContent, TrivialValue},
     };
 
     use super::*;
-    use crate::config::agent_type::restart_policy::RestartPolicyConfig;
-    use crate::config::agent_type::trivial_value::FilePathWithContent;
-    use crate::config::agent_type::trivial_value::N::PosInt;
-    use serde_yaml::Error;
+    use serde_yaml::{Error, Number};
     use std::collections::HashMap as Map;
 
-    impl FinalAgent {
-        pub fn new(
-            metadata: AgentMetadata,
-            variables: NormalizedVariables,
-            runtime_config: RuntimeConfig,
-        ) -> FinalAgent {
-            FinalAgent {
-                metadata,
-                variables,
-                runtime_config,
-                capabilities: default_capabilities(),
-            }
-        }
-
+    impl AgentType {
         pub fn set_capabilities(&mut self, capabilities: Capabilities) {
             self.capabilities = capabilities
         }
 
         /// Retrieve the `variables` field of the agent type at the specified key, if any.
-        pub fn get_variable(self, path: String) -> Option<EndSpec> {
-            self.variables.get(&path).cloned()
+        pub fn get_variable(self, path: String) -> Option<VariableDefinition> {
+            self.variables.flatten().get(&path).cloned()
         }
     }
 
@@ -548,7 +432,7 @@ deployment:
 
     #[test]
     fn test_basic_agent_parsing() {
-        let agent: FinalAgent = serde_yaml::from_str(AGENT_GIVEN_YAML).unwrap();
+        let agent: AgentType = serde_yaml::from_str(AGENT_GIVEN_YAML).unwrap();
 
         assert_eq!("nrdot", agent.metadata.name);
         assert_eq!("newrelic", agent.metadata.namespace);
@@ -588,7 +472,7 @@ deployment:
 
     #[test]
     fn test_bad_parsing() {
-        let raw_agent_err: Result<FinalAgent, Error> = serde_yaml::from_str(AGENT_GIVEN_BAD_YAML);
+        let raw_agent_err: Result<AgentType, Error> = serde_yaml::from_str(AGENT_GIVEN_BAD_YAML);
 
         assert!(raw_agent_err.is_err());
         println!("{:?}", raw_agent_err);
@@ -602,32 +486,27 @@ deployment:
     fn test_normalize_agent_spec() {
         // create AgentSpec
 
-        let given_agent: FinalAgent = serde_yaml::from_str(AGENT_GIVEN_YAML).unwrap();
+        let given_agent: AgentType = serde_yaml::from_str(AGENT_GIVEN_YAML).unwrap();
 
-        let expected_map: Map<String, EndSpec> = Map::from([(
+        let expected_map: Map<String, VariableDefinition> = Map::from([(
             "description.name".to_string(),
-            EndSpec {
-                description: "Name of the agent".to_string(),
-                type_: VariableType::String,
-                required: false,
-                default: Some(TrivialValue::String("nrdot".to_string())),
-                final_value: None,
-                file_path: None,
-            },
+            VariableDefinition::new(
+                "Name of the agent".to_string(),
+                false,
+                Some("nrdot".to_string()),
+                None,
+            ),
         )]);
 
         // expect output to be the map
+        assert_eq!(expected_map, given_agent.variables.clone().flatten());
 
-        assert_eq!(expected_map, given_agent.variables);
-
-        let expected_spec = EndSpec {
-            description: "Name of the agent".to_string(),
-            type_: VariableType::String,
-            required: false,
-            default: Some(TrivialValue::String("nrdot".to_string())),
-            final_value: None,
-            file_path: None,
-        };
+        let expected_spec = VariableDefinition::new(
+            "Name of the agent".to_string(),
+            false,
+            Some("nrdot".to_string()),
+            None,
+        );
 
         assert_eq!(
             expected_spec,
@@ -662,120 +541,99 @@ deployment:
         let normalized_values = Map::from([
             (
                 "bin".to_string(),
-                EndSpec {
-                    default: None,
-                    description: "binary".to_string(),
-                    type_: VariableType::String,
-                    required: true,
-                    final_value: Some(TrivialValue::String("/etc".to_string())),
-                    file_path: None,
-                },
+                VariableDefinition::new("binary".to_string(), true, None, Some("/etc".to_string())),
             ),
             (
                 "config".to_string(),
-                EndSpec {
-                    default: None,
-                    description: "config".to_string(),
-                    type_: VariableType::File,
-                    required: true,
-                    final_value: Some(TrivialValue::File(FilePathWithContent::new(
-                        "config2.yml".to_string(),
+                VariableDefinition::new_with_file_path(
+                    "config".to_string(),
+                    true,
+                    None,
+                    Some(FilePathWithContent::new(
+                        "config2.yml".into(),
                         "license_key: abc123\nstaging: true\n".to_string(),
-                    ))),
-                    file_path: Some("config_path".to_string()),
-                },
+                    )),
+                    "config_path".into(),
+                ),
             ),
             (
                 "integrations".to_string(),
-                EndSpec {
-                    final_value: Some(TrivialValue::Map(HashMap::from([
+                VariableDefinition::new_with_file_path(
+                    "integrations".to_string(),
+                    true,
+                    None,
+                    Some(HashMap::from([
                         (
                             "kafka.yml".to_string(),
-                            TrivialValue::File(FilePathWithContent::new(
-                                "config2.yml".to_string(),
+                            FilePathWithContent::new(
+                                "config2.yml".into(),
                                 "license_key: abc123\nstaging: true\n".to_string(),
-                            )),
+                            ),
                         ),
                         (
                             "redis.yml".to_string(),
-                            TrivialValue::File(FilePathWithContent::new(
-                                "config2.yml".to_string(),
+                            FilePathWithContent::new(
+                                "config2.yml".into(),
                                 "license_key: abc123\nstaging: true\n".to_string(),
-                            )),
+                            ),
                         ),
-                    ]))),
-                    default: None,
-                    description: "integrations".to_string(),
-                    type_: VariableType::MapStringFile,
-                    required: true,
-                    file_path: Some("integration_path".to_string()),
-                },
+                    ])),
+                    "integration_path".into(),
+                ),
             ),
             (
                 "deployment.on_host.verbose".to_string(),
-                EndSpec {
-                    default: None,
-                    description: "verbosity".to_string(),
-                    type_: VariableType::String,
-                    required: true,
-                    final_value: Some(TrivialValue::String("true".to_string())),
-                    file_path: None,
-                },
+                VariableDefinition::new(
+                    "verbosity".to_string(),
+                    true,
+                    None,
+                    Some("true".to_string()),
+                ),
             ),
             (
                 "deployment.on_host.log_level".to_string(),
-                EndSpec {
-                    default: None,
-                    description: "log_level".to_string(),
-                    type_: VariableType::String,
-                    required: true,
-                    final_value: Some(TrivialValue::String("trace".to_string())),
-                    file_path: None,
-                },
+                VariableDefinition::new(
+                    "log_level".to_string(),
+                    true,
+                    None,
+                    Some("trace".to_string()),
+                ),
             ),
             (
                 "backoff.type".to_string(),
-                EndSpec {
-                    default: None,
-                    description: "backoff_type".to_string(),
-                    type_: VariableType::String,
-                    required: true,
-                    final_value: Some(TrivialValue::String("exponential".to_string())),
-                    file_path: Some("some_path".to_string()),
-                },
+                VariableDefinition::new(
+                    "backoff_type".to_string(),
+                    true,
+                    None,
+                    Some("exponential".to_string()),
+                ),
             ),
             (
                 "backoff.delay".to_string(),
-                EndSpec {
-                    default: None,
-                    description: "backoff_delay".to_string(),
-                    type_: VariableType::String,
-                    required: true,
-                    final_value: Some(TrivialValue::String("10s".to_string())),
-                    file_path: Some("some_path".to_string()),
-                },
+                VariableDefinition::new(
+                    "backoff_delay".to_string(),
+                    true,
+                    None,
+                    Some("10s".to_string()),
+                ),
             ),
             (
                 "backoff.retries".to_string(),
-                EndSpec {
-                    default: None,
-                    description: "backoff_retries".to_string(),
-                    type_: VariableType::String,
-                    required: true,
-                    final_value: Some(TrivialValue::Number(PosInt(30))),
-                    file_path: Some("some_path".to_string()),
-                },
+                VariableDefinition::new(
+                    "backoff_retries".to_string(),
+                    true,
+                    None,
+                    Some(Number::from(30)),
+                ),
             ),
             (
                 "backoff.interval".to_string(),
-                EndSpec {
-                    default: None,
-                    description: "backoff_interval".to_string(),
-                    type_: VariableType::Number,
-                    required: true,
-                    final_value: Some(TrivialValue::String("300s".to_string())),
-                    file_path: Some("some_path".to_string()),
-                },
+                VariableDefinition::new(
+                    "backoff_interval".to_string(),
+                    true,
+                    None,
+                    Some("300s".to_string()),
+                ),
             ),
         ]);
 
@@ -854,69 +712,52 @@ deployment:
         let normalized_values = Map::from([
             (
                 "bin".to_string(),
-                EndSpec {
-                    default: None,
-                    description: "binary".to_string(),
-                    type_: VariableType::String,
-                    required: true,
-                    final_value: Some(TrivialValue::String("/etc".to_string())),
-                    file_path: None,
-                },
+                VariableDefinition::new("binary".to_string(), true, None, Some("/etc".to_string())),
             ),
             (
                 "deployment.on_host.verbose".to_string(),
-                EndSpec {
-                    default: None,
-                    description: "verbosity".to_string(),
-                    type_: VariableType::String,
-                    required: true,
-                    final_value: Some(TrivialValue::String("true".to_string())),
-                    file_path: None,
-                },
+                VariableDefinition::new(
+                    "verbosity".to_string(),
+                    true,
+                    None,
+                    Some("true".to_string()),
+                ),
             ),
             (
                 "backoff.type".to_string(),
-                EndSpec {
-                    default: None,
-                    description: "backoff_type".to_string(),
-                    type_: VariableType::String,
-                    required: true,
-                    final_value: Some(TrivialValue::String("linear".to_string())),
-                    file_path: Some("some_path".to_string()),
-                },
+                VariableDefinition::new(
+                    "backoff_type".to_string(),
+                    true,
+                    None,
+                    Some("linear".to_string()),
+                ),
             ),
             (
                 "backoff.delay".to_string(),
-                EndSpec {
-                    default: None,
-                    description: "backoff_delay".to_string(),
-                    type_: VariableType::String,
-                    required: true,
-                    final_value: Some(TrivialValue::String("10s".to_string())),
-                    file_path: Some("some_path".to_string()),
-                },
+                VariableDefinition::new(
+                    "backoff_delay".to_string(),
+                    true,
+                    None,
+                    Some("10s".to_string()),
+                ),
             ),
             (
                 "backoff.retries".to_string(),
-                EndSpec {
-                    default: None,
-                    description: "backoff_retries".to_string(),
-                    type_: VariableType::String,
-                    required: true,
-                    final_value: Some(TrivialValue::Number(PosInt(30))),
-                    file_path: Some("some_path".to_string()),
-                },
+                VariableDefinition::new(
+                    "backoff_retries".to_string(),
+                    true,
+                    None,
+                    Some(Number::from(30)),
+                ),
             ),
             (
                 "backoff.interval".to_string(),
-                EndSpec {
-                    default: None,
-                    description: "backoff_interval".to_string(),
-                    type_: VariableType::Number,
-                    required: true,
-                    final_value: Some(TrivialValue::String("300s".to_string())),
-                    file_path: Some("some_path".to_string()),
-                },
+                VariableDefinition::new(
+                    "backoff_interval".to_string(),
+                    true,
+                    None,
+                    Some("300s".to_string()),
+                ),
             ),
         ]);
 
@@ -967,8 +808,8 @@ variables:
     type: file
     required: false
     default: |
-        license_key: abc123
-        staging: true
+      license_key: abc123
+      staging: true
     file_path: "config2.yml"
   config3:
     description: "Newrelic infra configuration yaml"
@@ -999,16 +840,16 @@ integrations:
     strategy: bootstrap
   redis.yml: |
     user: redis
-config: | 
-    license_key: abc124
-    staging: false
+config: |
+  license_key: abc124
+  staging: false
 "#;
 
     #[test]
     fn test_template_with_runtime_field_and_agent_configs_path() {
         // Having Agent Type
         let input_agent_type =
-            serde_yaml::from_str::<FinalAgent>(GIVEN_NEWRELIC_INFRA_YAML).unwrap();
+            serde_yaml::from_str::<AgentType>(GIVEN_NEWRELIC_INFRA_YAML).unwrap();
 
         // And Agent Values
         let input_user_config =
@@ -1021,43 +862,38 @@ config: |
 
         // Then we expected final values
         // MapStringString
-        let expected_config_3 = TrivialValue::Map(HashMap::from([
-            (
-                "log_level".to_string(),
-                TrivialValue::String("trace".to_string()),
-            ),
-            (
-                "forward".to_string(),
-                TrivialValue::String("true".to_string()),
-            ),
-        ]));
+        let expected_config_3: TrivialValue = HashMap::from([
+            ("log_level".to_string(), "trace".to_string()),
+            ("forward".to_string(), "true".to_string()),
+        ])
+        .into();
         // File with default
-        let expected_config_2 = TrivialValue::File(FilePathWithContent::new(
-            "config2.yml".to_string(),
+        let expected_config_2: TrivialValue = FilePathWithContent::new(
+            "config2.yml".into(),
             "license_key: abc123\nstaging: true\n".to_string(),
-        ));
+        )
+        .into();
         // File with values
-        let expected_config = TrivialValue::File(FilePathWithContent::new(
-            "config.yml".to_string(),
+        let expected_config: TrivialValue = FilePathWithContent::new(
+            "config.yml".into(),
             "license_key: abc124\nstaging: false\n".to_string(),
-        ));
+        )
+        .into();
         // MapStringFile
-        let expected_integrations = TrivialValue::Map(HashMap::from([
+        let expected_integrations: TrivialValue = HashMap::from([
             (
                 "kafka.conf".to_string(),
-                TrivialValue::File(FilePathWithContent::new(
-                    "integrations.d".to_string(),
+                FilePathWithContent::new(
+                    "integrations.d".into(),
                     "strategy: bootstrap\n".to_string(),
-                )),
+                ),
             ),
             (
                 "redis.yml".to_string(),
-                TrivialValue::File(FilePathWithContent::new(
-                    "integrations.d".to_string(),
-                    "user: redis\n".to_string(),
-                )),
+                FilePathWithContent::new("integrations.d".into(), "user: redis\n".to_string()),
             ),
-        ]));
+        ])
+        .into();
 
         let expected_executable_args_with_abs_pat =
             "--config an/agents-config/path/config.yml --config2 an/agents-config/path/config2.yml";
@@ -1068,7 +904,7 @@ config: |
                 .get_variables()
                 .get("config3")
                 .unwrap()
-                .final_value
+                .get_final_value()
                 .as_ref()
                 .unwrap()
                 .clone()
@@ -1079,7 +915,7 @@ config: |
                 .get_variables()
                 .get("config2")
                 .unwrap()
-                .final_value
+                .get_final_value()
                 .as_ref()
                 .unwrap()
                 .clone()
@@ -1090,7 +926,7 @@ config: |
                 .get_variables()
                 .get("config")
                 .unwrap()
-                .final_value
+                .get_final_value()
                 .as_ref()
                 .unwrap()
                 .clone()
@@ -1101,7 +937,7 @@ config: |
                 .get_variables()
                 .get("integrations")
                 .unwrap()
-                .final_value
+                .get_final_value()
                 .as_ref()
                 .unwrap()
                 .clone()
@@ -1172,7 +1008,7 @@ backoff:
     #[test]
     fn test_backoff_config() {
         let input_agent_type =
-            serde_yaml::from_str::<FinalAgent>(AGENT_BACKOFF_TEMPLATE_YAML).unwrap();
+            serde_yaml::from_str::<AgentType>(AGENT_BACKOFF_TEMPLATE_YAML).unwrap();
         // println!("Input: {:#?}", input_agent_type);
 
         let input_user_config = serde_yaml::from_str::<AgentValues>(BACKOFF_CONFIG_YAML).unwrap();
@@ -1249,7 +1085,7 @@ backoff:
     #[test]
     fn test_negative_backoff_configs() {
         let input_agent_type =
-            serde_yaml::from_str::<FinalAgent>(AGENT_BACKOFF_TEMPLATE_YAML).unwrap();
+            serde_yaml::from_str::<AgentType>(AGENT_BACKOFF_TEMPLATE_YAML).unwrap();
 
         let wrong_retries =
             serde_yaml::from_str::<AgentValues>(WRONG_RETRIES_BACKOFF_CONFIG_YAML).unwrap();
@@ -1273,95 +1109,6 @@ backoff:
         assert!(actual.is_err());
     }
 
-    // Obsolete test
-
-    /*
-    const EXAMPLE_AGENT_YAML_REPLACE_WITH_DEFAULT: &str = r#"
-    name: nrdot
-    namespace: newrelic
-    version: 0.1.0
-    variables:
-      config:
-        description: "Path to the agent"
-        type: file
-        required: false
-        default: "test"
-      deployment:
-        on_host:
-          path:
-            description: "Path to the agent"
-            type: string
-            required: false
-            default: "/default_path"
-          args:
-            description: "Args passed to the agent"
-            type: string
-            required: false
-            default: "--verbose true"
-      integrations:
-        description: "Newrelic integrations configuration yamls"
-        type: map[string]file
-        required: false
-        default:
-          kafka: |
-            bootstrap: zookeeper
-    deployment:
-      on_host:
-        executables:
-          - path: ${deployment.on_host.args}/otelcol
-            args: "-c ${deployment.on_host.args}"
-            env: ""
-    "#;
-    #[test]
-    fn test_validate_with_default() {
-        let input_structure =
-            serde_yaml::from_str::<SupervisorConfig>("").unwrap();
-        let agent_type =
-            serde_yaml::from_str::<Agent>(EXAMPLE_AGENT_YAML_REPLACE_WITH_DEFAULT).unwrap();
-        let expected = Map::from([
-            (
-                "deployment.on_host.args".to_string(),
-                TrivialValue::String("--verbose true".to_string()),
-            ),
-            (
-                "deployment.on_host.path".to_string(),
-                TrivialValue::String("/default_path".to_string()),
-            ),
-            (
-                "config".to_string(),
-                TrivialValue::File(FilePathWithContent::new("test".to_string())),
-            ),
-            (
-                "integrations".to_string(),
-                TrivialValue::Map(Map::from([(
-                    "kafka".to_string(),
-                    TrivialValue::File(FilePathWithContent::new(
-                        "bootstrap: zookeeper\n".to_string(),
-                    )),
-                )])),
-            ),
-        ]);
-        let actual = agent_type
-            .populate(input_structure)
-            .expect("Failed to populate the AgentType's runtime_config field");
-        expected.iter().for_each(|(key, expected_value)|{
-            let actual_value = actual.clone().get_variables(key.to_string()).unwrap().final_value;
-            if let Some(TrivialValue::File(actual_file)) = actual_value {
-                let TrivialValue::File(expected_file) = expected_value else { unreachable!() };
-                assert_eq!(expected_file.content, actual_file.content);
-            } else if let Some(TrivialValue::Map(actual_map)) = actual_value {
-                actual_map.iter().for_each(|(a,actual_map)|{
-                    let TrivialValue::File(actual_file) = actual_map else { unreachable!() };
-                    let TrivialValue::Map(expected_map) = expected_value else { unreachable!() };
-                    let TrivialValue::File(expected_file) = expected_map.get(a).unwrap() else { unreachable!() };
-                    assert_eq!(expected_file.content, actual_file.content);
-                });
-            } else {
-                assert_eq!(*expected_value, actual_value.unwrap())
-            }
-        });
-    }
-    */
     const AGENT_STRING_DURATIONS_TEMPLATE_YAML: &str = r#"
 name: nrdot
 namespace: newrelic
@@ -1412,7 +1159,7 @@ backoff:
     #[test]
     fn test_string_backoff_config() {
         let input_agent_type =
-            serde_yaml::from_str::<FinalAgent>(AGENT_STRING_DURATIONS_TEMPLATE_YAML).unwrap();
+            serde_yaml::from_str::<AgentType>(AGENT_STRING_DURATIONS_TEMPLATE_YAML).unwrap();
 
         let input_user_config =
             serde_yaml::from_str::<AgentValues>(STRING_DURATIONS_CONFIG_YAML).unwrap();
@@ -1476,7 +1223,7 @@ deployment:
 
     const K8S_CONFIG_YAML_VALUES: &str = r#"
 config:
-  values: |
+  values:
     key: value
     another_key:
       nested: nested_value
@@ -1489,7 +1236,7 @@ config:
 
     #[test]
     fn test_k8s_config_yaml_variables() {
-        let input_agent_type: FinalAgent =
+        let input_agent_type: AgentType =
             serde_yaml::from_str(K8S_AGENT_TYPE_YAML_VARIABLES).unwrap();
         let user_config: AgentValues = serde_yaml::from_str(K8S_CONFIG_YAML_VALUES).unwrap();
         let expected_spec_yaml = r#"
@@ -1523,5 +1270,91 @@ values:
 
         let spec = cr1.fields.get("spec").unwrap().clone();
         assert_eq!(expected_spec_value, spec);
+    }
+
+    const AGENT_WITH_VARIANTS: &str = r#"
+name: variant-values
+namespace: newrelic
+version: 0.0.1
+variables:
+  restart_policy:
+    type:
+      description: "restart policy type"
+      type: string
+      required: false
+      variants: [fixed, linear]
+      default: exponential
+deployment:
+  on_host:
+      executables:
+      - path: /bin/echo
+        args: "${restart_policy.type}"
+"#;
+
+    const CONFIG_YAML_VALUES_VALID_VARIANT: &str = r#"
+restart_policy:
+    type: fixed
+"#;
+
+    const CONFIG_YAML_VALUES_INVALID_VARIANT: &str = r#"
+restart_policy:
+    type: random
+"#;
+
+    #[test]
+    fn test_agent_with_variants() {
+        let input_agent_type: AgentType = serde_yaml::from_str(AGENT_WITH_VARIANTS).unwrap();
+        let user_config: AgentValues = serde_yaml::from_str(CONFIG_YAML_VALUES_VALID_VARIANT)
+            .expect("Failed to parse user config");
+        let expanded_final_agent = input_agent_type.template_with(user_config, None).unwrap();
+
+        let executable = expanded_final_agent
+            .runtime_config
+            .deployment
+            .on_host
+            .unwrap();
+
+        let actual_exec = executable.executables.first().unwrap();
+
+        assert_eq!(actual_exec.path.value, Some("/bin/echo".to_string()));
+        assert_eq!(actual_exec.args.value, Some(Args("fixed".to_string())));
+    }
+
+    #[test]
+    fn test_agent_with_variants_invalid() {
+        let input_agent_type: AgentType = serde_yaml::from_str(AGENT_WITH_VARIANTS).unwrap();
+        let user_config: AgentValues = serde_yaml::from_str(CONFIG_YAML_VALUES_INVALID_VARIANT)
+            .expect("Failed to parse user config");
+        let expanded_final_agent = input_agent_type.template_with(user_config, None);
+
+        assert!(expanded_final_agent.is_err());
+        assert_eq!(
+            expanded_final_agent.unwrap_err().to_string(),
+            r#"Invalid variant provided as a value: `"random"`. Variants allowed: ["\"fixed\"", "\"linear\""]"#
+        );
+    }
+
+    #[test]
+    fn default_can_be_invalid_variant() {
+        let input_agent_type: AgentType = serde_yaml::from_str(AGENT_WITH_VARIANTS).unwrap();
+        let user_config = AgentValues::default();
+        let expanded_final_agent = input_agent_type.template_with(user_config, None);
+
+        assert!(expanded_final_agent.is_ok());
+
+        let executable = expanded_final_agent
+            .unwrap()
+            .runtime_config
+            .deployment
+            .on_host
+            .unwrap();
+
+        let actual_exec = executable.executables.first().unwrap();
+
+        assert_eq!(actual_exec.path.value, Some("/bin/echo".to_string()));
+        assert_eq!(
+            actual_exec.args.value,
+            Some(Args("exponential".to_string()))
+        );
     }
 }

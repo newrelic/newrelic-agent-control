@@ -5,11 +5,11 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 
 use ::fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
-use newrelic_super_agent::config::agent_type::agent_types::FinalAgent;
-use newrelic_super_agent::config::agent_values::AgentValues;
-use newrelic_super_agent::config::persister::config_persister::ConfigurationPersister;
-use newrelic_super_agent::config::persister::config_persister_file::ConfigurationPersisterFile;
-use newrelic_super_agent::config::super_agent_configs::AgentID;
+use newrelic_super_agent::agent_type::agent_values::AgentValues;
+use newrelic_super_agent::agent_type::definition::AgentType;
+use newrelic_super_agent::sub_agent::persister::config_persister::ConfigurationPersister;
+use newrelic_super_agent::sub_agent::persister::config_persister_file::ConfigurationPersisterFile;
+use newrelic_super_agent::super_agent::config::AgentID;
 
 #[test]
 // This test is the only one that writes to an actual file in the FS
@@ -25,7 +25,7 @@ fn test_configuration_persister_single_file() {
     let persister = ConfigurationPersisterFile::new(temp_path.as_path());
     let agent_id = AgentID::new("some-agent-id").unwrap();
 
-    let mut agent_type: FinalAgent =
+    let mut agent_type: AgentType =
         serde_yaml::from_reader(AGENT_TYPE_SINGLE_FILE.as_bytes()).unwrap();
     let agent_values: AgentValues =
         serde_yaml::from_reader(AGENT_VALUES_SINGLE_FILE.as_bytes()).unwrap();

@@ -1,9 +1,9 @@
+use crate::agent_type::agent_values::AgentValues;
 use crate::event::SubAgentEvent;
 use crate::sub_agent::error::SubAgentError;
 use crate::sub_agent::on_host::event_processor::EventProcessor;
 use crate::sub_agent::SubAgentCallbacks;
 use crate::{
-    config::agent_values::AgentValues,
     opamp::{
         remote_config::RemoteConfig, remote_config_hash::HashRepository,
         remote_config_report::report_remote_config_status_error,
@@ -74,16 +74,11 @@ where
 ////////////////////////////////////////////////////////////////////////////////////
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-    use std::sync::Arc;
-
+    use crate::agent_type::agent_values::AgentValues;
     use crate::event::SubAgentEvent::ConfigUpdated;
     use crate::sub_agent::on_host::event_processor::EventProcessor;
+    use crate::super_agent::config::AgentID;
     use crate::{
-        config::{
-            agent_type::trivial_value::TrivialValue, agent_values::AgentValues,
-            super_agent_configs::AgentID,
-        },
         event::channel::pub_sub,
         opamp::{
             client_builder::test::MockStartedOpAMPClientMock,
@@ -94,6 +89,8 @@ mod tests {
     };
     use opamp_client::opamp::proto::RemoteConfigStatus;
     use opamp_client::opamp::proto::RemoteConfigStatuses::Failed;
+    use std::collections::HashMap;
+    use std::sync::Arc;
 
     #[test]
     fn test_valid_config_not_empty() {
@@ -115,10 +112,7 @@ mod tests {
         hash_repository.should_save_hash(&agent_id, &hash);
         values_repository.should_store_remote(
             &agent_id,
-            &AgentValues::new(HashMap::from([(
-                String::from("some_item"),
-                TrivialValue::String(String::from("some_value")),
-            )])),
+            &AgentValues::new(HashMap::from([("some_item".into(), "some_value".into())])),
         );
 
         let remote_config = RemoteConfig {

@@ -1,5 +1,6 @@
-use crate::config::super_agent_configs::AgentID;
 use std::collections::BTreeMap;
+
+use crate::super_agent::config::AgentID;
 
 pub const MANAGED_BY_KEY: &str = "app.kubernetes.io/managed-by";
 pub const MANAGED_BY_VAL: &str = "newrelic-super-agent";
@@ -53,7 +54,7 @@ impl Labels {
 pub(crate) mod test {
     use std::collections::BTreeMap;
 
-    use crate::config::super_agent_configs::AgentID;
+    use crate::super_agent::config::AgentID;
 
     use super::{Labels, AGENT_ID_LABEL_KEY, MANAGED_BY_KEY, MANAGED_BY_VAL};
 

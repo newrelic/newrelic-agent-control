@@ -1,4 +1,3 @@
-use newrelic_super_agent::config::store::{SuperAgentConfigLoader, SuperAgentConfigStoreFile};
 use newrelic_super_agent::event::channel::{pub_sub, EventConsumer, EventPublisher};
 use newrelic_super_agent::event::SuperAgentEvent;
 #[cfg(feature = "k8s")]
@@ -7,9 +6,9 @@ use newrelic_super_agent::opamp::instance_id::getter::ULIDInstanceIDGetter;
 
 use newrelic_super_agent::opamp::remote_config_hash::HashRepositoryFile;
 
-use newrelic_super_agent::super_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use newrelic_super_agent::super_agent::error::AgentError;
 use newrelic_super_agent::super_agent::opamp::client_builder::SuperAgentOpAMPHttpBuilder;
+use newrelic_super_agent::super_agent::store::{SuperAgentConfigLoader, SuperAgentConfigStoreFile};
 use newrelic_super_agent::super_agent::super_agent::{super_agent_fqn, SuperAgent};
 use newrelic_super_agent::utils::hostname::HostnameGetter;
 use newrelic_super_agent::{cli::Cli, logging::Logging};
@@ -82,11 +81,13 @@ fn run_super_agent(
     opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
 ) -> Result<(), AgentError> {
     use newrelic_super_agent::opamp::instance_id::IdentifiersProvider;
+    use newrelic_super_agent::opamp::operations::build_opamp_and_start_client;
+    use newrelic_super_agent::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
     use newrelic_super_agent::sub_agent::values::values_repository::{
         ValuesRepository, ValuesRepositoryFile,
     };
+    use newrelic_super_agent::super_agent::config::AgentID;
     use newrelic_super_agent::{
-        config::super_agent_configs::AgentID, opamp::operations::build_opamp_and_start_client,
         sub_agent::on_host::event_processor_builder::EventProcessorBuilder,
         sub_agent::opamp::client_builder::SubAgentOpAMPHttpBuilder,
     };
@@ -156,11 +157,21 @@ fn run_super_agent(
     opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
 ) -> Result<(), AgentError> {
     use newrelic_super_agent::k8s::garbage_collector::NotStartedK8sGarbageCollector;
-    use newrelic_super_agent::{
-        config::super_agent_configs::AgentID, opamp::operations::build_opamp_and_start_client,
-    };
+    use newrelic_super_agent::opamp::operations::build_opamp_and_start_client;
+    use newrelic_super_agent::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
+    use newrelic_super_agent::super_agent::config::AgentID;
+    use std::sync::OnceLock;
 
-    let runtime = newrelic_super_agent::runtime::tokio_runtime();
+    /// Returns a static reference to a tokio runtime initialized on first usage.
+    /// It uses the default tokio configuration (the same that #[tokio::main]).
+    // TODO: avoid the need of this global reference
+    static RUNTIME_ONCE: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
+    let runtime = RUNTIME_ONCE.get_or_init(|| {
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+    });
 
     let hash_repository = HashRepositoryFile::default();
     let k8s_config = config_storer.load()?.k8s.ok_or(AgentError::K8sConfig())?;
@@ -182,7 +193,7 @@ fn run_super_agent(
     let agents_assembler = {
         #[cfg(feature = "custom-local-path")]
         {
-            use newrelic_super_agent::config::persister::config_persister_file::ConfigurationPersisterFile;
+            use newrelic_super_agent::sub_agent::persister::config_persister_file::ConfigurationPersisterFile;
             use newrelic_super_agent::super_agent::defaults::SUPER_AGENT_DATA_DIR;
 
             let cli = Cli::init_super_agent_cli();
@@ -197,12 +208,12 @@ fn run_super_agent(
                     ));
                 }
 
-                values_repo = values_repo.with_base_dir(&base_dir);
+                values_repo = values_repo.with_base_dir(base_dir);
                 config_persister = ConfigurationPersisterFile::new(std::path::Path::new(&format!(
                     "{}{}",
                     base_dir, SUPER_AGENT_DATA_DIR,
                 )));
-                temp_assembler = temp_assembler.with_base_dir(&base_dir);
+                temp_assembler = temp_assembler.with_base_dir(base_dir);
             }
 
             temp_assembler

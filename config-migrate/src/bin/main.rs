@@ -3,12 +3,12 @@ use config_migrate::migration::agent_config_getter::AgentConfigGetter;
 use config_migrate::migration::config::MigrationConfig;
 use config_migrate::migration::converter::ConfigConverter;
 use config_migrate::migration::defaults::NEWRELIC_INFRA_AGENT_TYPE_CONFIG_MAPPING;
-use config_migrate::migration::migrator::ConfigMigrator;
+use config_migrate::migration::migrator::{ConfigMigrator, MigratorError};
 use config_migrate::migration::persister::legacy_config_renamer::LegacyConfigRenamer;
 use config_migrate::migration::persister::values_persister_file::ValuesPersisterFile;
-use log::info;
-use newrelic_super_agent::config::store::SuperAgentConfigStoreFile;
+use log::{debug, info};
 use newrelic_super_agent::logging::Logging;
+use newrelic_super_agent::super_agent::store::SuperAgentConfigStoreFile;
 use std::error::Error;
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -32,15 +32,27 @@ fn main() -> Result<(), Box<dyn Error>> {
     let legacy_config_renamer = LegacyConfigRenamer::default();
 
     for cfg in config.configs {
-        config_migrator.migrate(&cfg)?;
-
-        for (_, dir_path) in cfg.dirs_map {
-            legacy_config_renamer.rename_path(dir_path.as_str())?;
+        debug!("Checking configurations for {}", cfg.agent_type_fqn);
+        match config_migrator.migrate(&cfg) {
+            Ok(_) => {
+                for (_, dir_path) in cfg.dirs_map {
+                    legacy_config_renamer.rename_path(dir_path.as_str())?;
+                }
+                for (_, file_path) in cfg.files_map {
+                    legacy_config_renamer.rename_path(file_path.as_str())?;
+                }
+                info!("Old config files and paths renamed");
+            }
+            Err(MigratorError::AgentTypeNotFoundOnConfig) => {
+                debug!(
+                    "No agents of agent_type {} found on config, skipping",
+                    cfg.agent_type_fqn.clone()
+                );
+            }
+            Err(e) => {
+                return Err(Box::new(e));
+            }
         }
-        for (_, file_path) in cfg.files_map {
-            legacy_config_renamer.rename_path(file_path.as_str())?;
-        }
-        info!("Old config files and paths renamed");
     }
     info!("Config files successfully converted");
 

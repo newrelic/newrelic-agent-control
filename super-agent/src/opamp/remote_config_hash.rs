@@ -1,5 +1,4 @@
-use crate::config::persister::config_persister_file::FILE_PERMISSIONS;
-use crate::config::super_agent_configs::AgentID;
+use crate::super_agent::config::AgentID;
 use crate::super_agent::defaults::{REMOTE_AGENT_DATA_DIR, SUPER_AGENT_DATA_DIR};
 use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
 use fs::file_reader::{FileReader, FileReaderError};
@@ -181,6 +180,8 @@ where
     // Wrapper for linux with unix specific permissions
     #[cfg(target_family = "unix")]
     fn write(&self, path: &Path, content: String) -> Result<(), WriteError> {
+        use crate::sub_agent::values::values_repository::FILE_PERMISSIONS;
+
         self.file_rw
             .write(path, content, Permissions::from_mode(FILE_PERMISSIONS))
     }
@@ -191,16 +192,14 @@ where
 ////////////////////////////////////////////////////////////////////////////////////
 #[cfg(test)]
 pub mod test {
-    #[cfg(target_family = "unix")]
-    use std::os::unix::fs::PermissionsExt;
-
     use super::{
         ConfigState, Hash, HashRepository, HashRepositoryError, HashRepositoryFile,
         DIRECTORY_PERMISSIONS,
     };
-    use crate::config::persister::config_persister_file::FILE_PERMISSIONS;
-    use crate::config::super_agent_configs::AgentID;
-    use crate::opamp::remote_config_hash::HASH_FILE_NAME;
+    use crate::{
+        opamp::remote_config_hash::HASH_FILE_NAME,
+        sub_agent::values::values_repository::FILE_PERMISSIONS, super_agent::config::AgentID,
+    };
     use fs::directory_manager::mock::MockDirectoryManagerMock;
     use fs::directory_manager::DirectoryManager;
     use fs::file_reader::FileReader;
@@ -208,6 +207,8 @@ pub mod test {
     use fs::writer_file::FileWriter;
     use mockall::{mock, predicate};
     use std::fs::Permissions;
+    #[cfg(target_family = "unix")]
+    use std::os::unix::fs::PermissionsExt;
     use std::path::PathBuf;
 
     impl Hash {

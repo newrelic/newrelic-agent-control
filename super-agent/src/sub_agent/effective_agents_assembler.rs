@@ -1,23 +1,22 @@
+use std::fmt::Display;
+
 use thiserror::Error;
 use tracing::error;
 
-use crate::config::agent_type::agent_types::FinalAgent;
-use crate::config::super_agent_configs::{AgentID, SubAgentConfig};
-use crate::config::{
-    agent_type::error::AgentTypeError,
-    agent_type_registry::{AgentRegistry, AgentRepositoryError, LocalRegistry},
-    persister::{
-        config_persister::{ConfigurationPersister, PersistError},
-        config_persister_file::ConfigurationPersisterFile,
-    },
-};
+use crate::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError, LocalRegistry};
+use crate::agent_type::error::AgentTypeError;
+use crate::agent_type::runtime_config::Runtime;
 use crate::sub_agent::values::values_repository::{
     ValuesRepository, ValuesRepositoryError, ValuesRepositoryFile,
 };
+use crate::super_agent::config::{AgentID, SubAgentConfig};
 use crate::super_agent::defaults::{GENERATED_FOLDER_NAME, SUPER_AGENT_DATA_DIR};
 use crate::super_agent::super_agent::EffectiveAgentsError;
 
 use fs::{directory_manager::DirectoryManagerFs, file_reader::FileReaderError, LocalFile};
+
+use super::persister::config_persister::{ConfigurationPersister, PersistError};
+use super::persister::config_persister_file::ConfigurationPersisterFile;
 
 #[derive(Error, Debug)]
 pub enum EffectiveAgentsAssemblerError {
@@ -41,12 +40,37 @@ pub enum EffectiveAgentsAssemblerError {
     ValuesRepositoryError(#[from] ValuesRepositoryError),
 }
 
+#[derive(Clone)]
+pub struct EffectiveAgent {
+    agent_id: AgentID,
+    runtime_config: Runtime,
+}
+
+impl Display for EffectiveAgent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.agent_id.as_ref().to_string_lossy())
+    }
+}
+
+impl EffectiveAgent {
+    pub(crate) fn new(agent_id: AgentID, runtime_config: Runtime) -> Self {
+        Self {
+            agent_id,
+            runtime_config,
+        }
+    }
+
+    pub(crate) fn get_runtime_config(&self) -> &Runtime {
+        &self.runtime_config
+    }
+}
+
 pub trait EffectiveAgentsAssembler {
     fn assemble_agent(
         &self,
         agent_id: &AgentID,
         agent_cfg: &SubAgentConfig,
-    ) -> Result<FinalAgent, EffectiveAgentsAssemblerError>;
+    ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError>;
 }
 
 pub struct LocalEffectiveAgentsAssembler<R, C, D>
@@ -126,7 +150,7 @@ where
         &self,
         agent_id: &AgentID,
         agent_cfg: &SubAgentConfig,
-    ) -> Result<FinalAgent, EffectiveAgentsAssemblerError> {
+    ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError> {
         // Load agent type from repository and populate with values
         let final_agent = self.registry.get(&agent_cfg.agent_type)?;
 
@@ -151,7 +175,10 @@ where
         self.config_persister
             .persist_agent_config(agent_id, &populated_agent)?;
 
-        Ok(populated_agent)
+        Ok(EffectiveAgent::new(
+            agent_id.clone(),
+            populated_agent.runtime_config,
+        ))
     }
 }
 
@@ -164,17 +191,14 @@ pub(crate) mod tests {
     use mockall::{mock, predicate};
     use std::io::ErrorKind;
 
-    use crate::config::agent_type_registry::tests::MockAgentRegistryMock;
-    use crate::config::{
-        agent_type::{agent_types::FinalAgent, trivial_value::TrivialValue},
-        agent_type_registry::AgentRegistry,
-        agent_values::AgentValues,
-        persister::config_persister::{
-            test::MockConfigurationPersisterMock, ConfigurationPersister,
-        },
-        super_agent_configs::{AgentID, SubAgentConfig},
-    };
+    use crate::agent_type::agent_values::AgentValues;
+    use crate::agent_type::definition::AgentType;
+    use crate::agent_type::runtime_config::Args;
     use crate::sub_agent::values::values_repository::test::MockRemoteValuesRepositoryMock;
+    use crate::{
+        agent_type::agent_type_registry::tests::MockAgentRegistryMock,
+        sub_agent::persister::config_persister::test::MockConfigurationPersisterMock,
+    };
     use fs::{directory_manager::DirectoryManagementError, writer_file::WriteError};
 
     use super::*;
@@ -187,7 +211,7 @@ pub(crate) mod tests {
                 &self,
                 agent_id: &AgentID,
                 agent_cfg: &SubAgentConfig,
-            ) -> Result<FinalAgent, EffectiveAgentsAssemblerError>;
+            ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError>;
         }
     }
 
@@ -196,7 +220,7 @@ pub(crate) mod tests {
             &mut self,
             agent_id: &AgentID,
             agent_cfg: &SubAgentConfig,
-            final_agent: FinalAgent,
+            efective_agent: EffectiveAgent,
         ) {
             self.expect_assemble_agent()
                 .once()
@@ -204,7 +228,7 @@ pub(crate) mod tests {
                     predicate::eq(agent_id.clone()),
                     predicate::eq(agent_cfg.clone()),
                 )
-                .returning(move |_, _| Ok(final_agent.clone()));
+                .returning(move |_, _| Ok(efective_agent.clone()));
         }
 
         #[allow(dead_code)]
@@ -261,7 +285,7 @@ pub(crate) mod tests {
 
         // Objects
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let final_agent: FinalAgent = serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
+        let final_agent: AgentType = serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
         let agent_values: AgentValues = serde_yaml::from_reader(AGENT_VALUES.as_bytes()).unwrap();
         let sub_agent_config = SubAgentConfig {
             agent_type: "some_fqn".into(),
@@ -286,19 +310,23 @@ pub(crate) mod tests {
             false,
         );
 
-        let assembled_agent = assembler
+        let effective_agent = assembler
             .assemble_agent(&agent_id, &sub_agent_config)
             .unwrap();
 
         assert_eq!(
-            TrivialValue::String("/some/path/config".into()),
-            assembled_agent
-                .variables
-                .get("config_path")
+            Args("--config_path=/some/path/config".into()),
+            effective_agent
+                .runtime_config
+                .deployment
+                .on_host
                 .unwrap()
-                .final_value
+                .executables
+                .first()
+                .unwrap()
+                .args
                 .clone()
-                .unwrap()
+                .get()
         );
     }
 
@@ -311,7 +339,7 @@ pub(crate) mod tests {
 
         // Objects
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let final_agent: FinalAgent = serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
+        let final_agent: AgentType = serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
         let agent_values: AgentValues = serde_yaml::from_reader(AGENT_VALUES.as_bytes()).unwrap();
         let sub_agent_config = SubAgentConfig {
             agent_type: "some_fqn".into(),
@@ -334,19 +362,23 @@ pub(crate) mod tests {
             true,
         );
 
-        let assembled_agent = assembler
+        let effective_agent = assembler
             .assemble_agent(&agent_id, &sub_agent_config)
             .unwrap();
 
         assert_eq!(
-            TrivialValue::String("/some/path/config".into()),
-            assembled_agent
-                .variables
-                .get("config_path")
+            Args("--config_path=/some/path/config".into()),
+            effective_agent
+                .runtime_config
+                .deployment
+                .on_host
                 .unwrap()
-                .final_value
+                .executables
+                .first()
+                .unwrap()
+                .args
                 .clone()
-                .unwrap()
+                .get()
         );
     }
 
@@ -391,7 +423,7 @@ pub(crate) mod tests {
 
         // Objects
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let final_agent: FinalAgent = serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
+        let final_agent: AgentType = serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
         let sub_agent_config = SubAgentConfig {
             agent_type: "some_fqn".into(),
         };
@@ -426,7 +458,7 @@ pub(crate) mod tests {
 
         // Objects
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let final_agent: FinalAgent = serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
+        let final_agent: AgentType = serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
         let sub_agent_config = SubAgentConfig {
             agent_type: "some_fqn".into(),
         };
@@ -461,7 +493,7 @@ pub(crate) mod tests {
 
         // Objects
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let final_agent: FinalAgent = serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
+        let final_agent: AgentType = serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
         let agent_values: AgentValues = serde_yaml::from_reader(AGENT_VALUES.as_bytes()).unwrap();
         let sub_agent_config = SubAgentConfig {
             agent_type: "some_fqn".into(),
@@ -504,7 +536,7 @@ pub(crate) mod tests {
 
         // Objects
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let final_agent: FinalAgent = serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
+        let final_agent: AgentType = serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
         let agent_values: AgentValues = serde_yaml::from_reader(AGENT_VALUES.as_bytes()).unwrap();
         let sub_agent_config = SubAgentConfig {
             agent_type: "some_fqn".into(),

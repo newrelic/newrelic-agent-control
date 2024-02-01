@@ -11,15 +11,16 @@ use fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
 use fs::file_reader::FileReader;
 use fs::LocalFile;
 use log::{error, info};
-use newrelic_super_agent::config::agent_type_registry::{AgentRegistry, LocalRegistry};
-use newrelic_super_agent::config::error::SuperAgentConfigError;
-use newrelic_super_agent::config::store::{SubAgentsConfigLoader, SuperAgentConfigStoreFile};
+use newrelic_super_agent::agent_type::agent_type_registry::{AgentRegistry, LocalRegistry};
+use newrelic_super_agent::super_agent::config::SuperAgentConfigError;
+use newrelic_super_agent::super_agent::store::{SubAgentsConfigLoader, SuperAgentConfigStoreFile};
 use thiserror::Error;
+use tracing::debug;
 
 #[derive(Error, Debug)]
 pub enum MigratorError {
-    #[error("`{0}`")]
-    ConversionError(#[from] ConversionError),
+    #[error("")]
+    AgentTypeNotFoundOnConfig,
 
     #[error("`{0}`")]
     SuperAgentConfigError(#[from] SuperAgentConfigError),
@@ -29,6 +30,9 @@ pub enum MigratorError {
 
     #[error("error persisting values file: `{0}`")]
     PersistError(#[from] PersistError),
+
+    #[error("`{0}`")]
+    ConversionError(#[from] ConversionError),
 }
 
 pub struct ConfigMigrator<
@@ -59,15 +63,12 @@ impl ConfigMigrator<LocalRegistry, SuperAgentConfigStoreFile, DirectoryManagerFs
         let Ok(sub_agents_cfg) = self
             .agent_config_getter
             .get_agents_of_type(cfg.agent_type_fqn.clone())
-            .map_err(|e| {
-                error!("Error finding newrelic-super-agent config");
-                e
-            })
         else {
-            return Ok(());
+            return Err(MigratorError::AgentTypeNotFoundOnConfig);
         };
 
         for (agent_id, _) in sub_agents_cfg.agents {
+            debug!("preparing to migrate agent_id: {}", agent_id);
             match self.config_converter.convert(cfg) {
                 Ok(agent_variables) => {
                     let values_content = serde_yaml::to_string(&agent_variables)?;
@@ -94,7 +95,7 @@ mod test {
     use crate::migration::migrator::ConfigMigrator;
     use crate::migration::persister::values_persister_file::MockValuesPersisterFile;
     use mockall::predicate;
-    use newrelic_super_agent::config::super_agent_configs::{
+    use newrelic_super_agent::super_agent::config::{
         AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig,
     };
     use std::collections::HashMap;
@@ -116,8 +117,7 @@ mod test {
                     agent_type: AgentTypeFQN::from("com.newrelic.infrastructure_agent:0.0.2"),
                 },
             ),
-        ])
-        .into();
+        ]);
 
         let mut agent_config_getter = MockAgentConfigGetter::default();
         agent_config_getter

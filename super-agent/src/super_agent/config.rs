@@ -1,5 +1,4 @@
-use crate::config::error::SuperAgentConfigError;
-use crate::opamp::remote_config::RemoteConfig;
+use crate::opamp::remote_config::{RemoteConfig, RemoteConfigError};
 use crate::super_agent::defaults::{default_capabilities, SUPER_AGENT_ID};
 use opamp_client::operation::capabilities::Capabilities;
 use serde::{Deserialize, Serialize};
@@ -11,6 +10,8 @@ use thiserror::Error;
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
 use kube::core::TypeMeta;
 
+use super::store::SuperAgentConfigStoreError;
+
 const AGENT_ID_MAX_LENGTH: usize = 32;
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Hash, Eq)]
@@ -19,10 +20,31 @@ pub struct AgentID(String);
 
 #[derive(Error, Debug)]
 pub enum AgentTypeError {
-    #[error("AgentID must contain 32 characters at most, contain alphanumeric only, start with alphabetic, and end with alphanumeric")]
+    #[error("AgentID must contain 32 characters at most, contain alphanumeric characters or dashes only, start with alphabetic, and end with alphanumeric")]
     InvalidAgentID,
     #[error("AgentID '{0}' is reserved")]
     InvalidAgentIDUsesReservedOne(String),
+}
+
+#[derive(Error, Debug)]
+pub enum SuperAgentConfigError {
+    #[error("error loading config: `{0}`")]
+    LoadConfigError(#[from] SuperAgentConfigStoreError),
+
+    #[error("cannot find config for agent: `{0}`")]
+    SubAgentNotFound(String),
+
+    #[error("sub agents configuration not found in the remote config map")]
+    SubAgentsNotFound,
+
+    #[error("configuration is not valid YAML: `{0}`")]
+    InvalidYamlConfiguration(#[from] serde_yaml::Error),
+
+    #[error("remote config error: `{0}`")]
+    RemoteConfigError(#[from] RemoteConfigError),
+
+    #[error("remote config error: `{0}`")]
+    IOError(#[from] std::io::Error),
 }
 
 impl TryFrom<String> for AgentID {
@@ -61,10 +83,10 @@ impl AgentID {
     /// and sets a shorter maximum length to avoid issues when the agent-id is used to compose names.
     fn check_string(s: &str) -> bool {
         s.len() <= AGENT_ID_MAX_LENGTH
-            && s.starts_with(|c: char| c.is_alphabetic())
-            && s.ends_with(|c: char| c.is_alphanumeric())
+            && s.starts_with(|c: char| c.is_ascii_alphabetic())
+            && s.ends_with(|c: char| c.is_ascii_alphanumeric())
             && s.chars()
-                .all(|c| c.eq(&'-') || c.is_numeric() || (c.is_alphabetic() && c.is_lowercase()))
+                .all(|c| c.eq(&'-') || c.is_ascii_digit() || c.is_ascii_lowercase())
     }
 }
 
@@ -347,6 +369,7 @@ k8s:
         assert!(AgentID::try_from("a-1-b".to_string()).is_ok());
         assert!(AgentID::try_from("a-1".to_string()).is_ok());
         assert!(AgentID::try_from("a".repeat(32)).is_ok());
+
         assert!(AgentID::try_from("A".to_string()).is_err());
         assert!(AgentID::try_from("1a".to_string()).is_err());
         assert!(AgentID::try_from("a".repeat(33)).is_err());
@@ -356,6 +379,12 @@ k8s:
         assert!(AgentID::try_from("a.b".to_string()).is_err());
         assert!(AgentID::try_from("a*b".to_string()).is_err());
         assert!(AgentID::try_from("abc012/".to_string()).is_err());
+        assert!(AgentID::try_from("/abc012".to_string()).is_err());
+        assert!(AgentID::try_from("abc/012".to_string()).is_err());
+        assert!(AgentID::try_from("aBc012".to_string()).is_err());
+        assert!(AgentID::try_from("京bc012".to_string()).is_err());
+        assert!(AgentID::try_from("s京123-12".to_string()).is_err());
+        assert!(AgentID::try_from("super-agent-①".to_string()).is_err());
     }
 
     #[test]
@@ -388,7 +417,7 @@ k8s:
         assert!(actual
             .unwrap_err()
             .to_string()
-            .contains("AgentID must contain 32 characters at most, contain alphanumeric only, start with alphabetic, and end with alphanumeric"))
+            .contains("AgentID must contain 32 characters at most, contain alphanumeric characters or dashes only, start with alphabetic, and end with alphanumeric"))
     }
 
     #[test]

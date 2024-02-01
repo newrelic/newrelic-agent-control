@@ -13,7 +13,8 @@ pub const SUPER_AGENT_LOCAL_DATA_DIR: &str = "/etc/newrelic-super-agent";
 pub const SUPER_AGENT_IDENTIFIERS_PATH: &str = "/var/lib/newrelic-super-agent/identifiers.yaml";
 pub const REMOTE_AGENT_DATA_DIR: &str = "/var/lib/newrelic-super-agent/fleet/agents.d";
 pub const LOCAL_AGENT_DATA_DIR: &str = "/etc/newrelic-super-agent/fleet/agents.d";
-pub const VALUES_PATH: &str = "values/values.yaml";
+pub const VALUES_DIR: &str = "values";
+pub const VALUES_FILE: &str = "values.yaml";
 pub const SUPER_AGENT_DATA_DIR: &str = "/var/lib/newrelic-super-agent";
 pub const GENERATED_FOLDER_NAME: &str = "auto-generated";
 
@@ -59,7 +60,8 @@ variables:
     description: "Newrelic infra configuration"
     type: file
     required: false
-    default: ""
+    default: |
+      "content"
     file_path: "newrelic-infra.yml"
   config_ohis:
     description: "map of YAML configs for the OHIs"
@@ -90,7 +92,49 @@ deployment:
             backoff_delay: ${backoff_delay}
 "#;
 
+// Infrastructure_agent AgentType
+pub(crate) const NEWRELIC_INFRA_TYPE_3: &str = r#"
+namespace: newrelic
+name: com.newrelic.infrastructure_agent
+version: 0.1.0
+variables:
+  config_agent:
+    description: "Newrelic infra configuration"
+    type: file
+    required: false
+    default: ""
+    file_path: "newrelic-infra.yml"
+  config_integrations:
+    description: "map of YAML configs for the OHIs"
+    type: map[string]file
+    required: false
+    default: {}
+    file_path: "integrations.d"
+  config_logging:
+    description: "map of YAML config for logging"
+    type: map[string]file
+    required: false
+    default: {}
+    file_path: "logging.d"
+  backoff_delay:
+    description: "seconds until next retry if agent fails to start"
+    type: string
+    required: false
+    default: 20s
+deployment:
+  on_host:
+    executables:
+      - path: /usr/bin/newrelic-infra
+        args: "--config=${config_agent}"
+        env: "NRIA_PLUGIN_DIR=${config_integrations} NRIA_LOGGING_CONFIGS_DIR=${config_logging}"
+        restart_policy:
+          backoff_strategy:
+            type: fixed
+            backoff_delay: ${backoff_delay}
+"#;
+
 // NRDOT AgentType
+#[cfg(feature = "onhost")]
 pub(crate) const NRDOT_TYPE: &str = r#"
 namespace: newrelic
 name: io.opentelemetry.collector
@@ -129,13 +173,15 @@ deployment:
 "#;
 
 // Kubernetes AgentType
-pub(crate) const KUBERNETES_TYPE: &str = r#"
+// TODO We need to unify the two agent types and remove this workaround
+#[cfg(all(not(feature = "onhost"), feature = "k8s"))]
+pub(crate) const NRDOT_TYPE: &str = r#"
 namespace: newrelic
-name: io.k8s.opentelemetry.collector # Changed to avoid collisions with the upper agent type
+name: io.opentelemetry.collector 
 version: 0.0.1
 variables:
-  config_file:
-    description: "Newrelic otel collector configuration path"
+  chart_values:
+    description: "Newrelic otel collector chart values"
     type: yaml
     required: true
 deployment:
@@ -155,7 +201,7 @@ deployment:
           chart:
             spec:
               chart: opentelemetry-collector
-              version: 0.67.0
+              version: 0.78.3
               sourceRef:
                 kind: HelmRepository
                 name: open-telemetry # TODO now sub-agent name must be "open-telemetry" for this to work.
@@ -171,19 +217,17 @@ deployment:
               retries: 3
               strategy: rollback
           values:
-            mode: deployment
-            config: ${config_file}
+            ${chart_values}
 "#;
 
 #[cfg(test)]
 mod test {
-    use crate::config::agent_type::agent_types::FinalAgent;
+    use crate::agent_type::definition::AgentType;
 
     #[test]
     fn test_parsable_configs() {
-        let _: FinalAgent = serde_yaml::from_str(super::NEWRELIC_INFRA_TYPE_1).unwrap();
-        let _: FinalAgent = serde_yaml::from_str(super::NEWRELIC_INFRA_TYPE_2).unwrap();
-        let _: FinalAgent = serde_yaml::from_str(super::NRDOT_TYPE).unwrap();
-        let _: FinalAgent = serde_yaml::from_str(super::KUBERNETES_TYPE).unwrap();
+        serde_yaml::from_str::<AgentType>(super::NEWRELIC_INFRA_TYPE_1).unwrap();
+        serde_yaml::from_str::<AgentType>(super::NEWRELIC_INFRA_TYPE_2).unwrap();
+        serde_yaml::from_str::<AgentType>(super::NRDOT_TYPE).unwrap();
     }
 }

@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use crate::config::super_agent_configs::AgentID;
 use crate::k8s;
 use crate::k8s::labels::Labels;
 use crate::opamp::instance_id::getter::DataStored;
 use crate::opamp::instance_id::storer::InstanceIDStorer;
+use crate::super_agent::config::AgentID;
 use tracing::debug;
 
 #[cfg_attr(test, mockall_double::double)]
@@ -83,13 +83,13 @@ fn build_cm_name(prefix: &String, agent_id: &str) -> String {
 #[cfg(test)]
 pub mod test {
     use super::{Storer, CM_KEY};
-    use crate::config::super_agent_configs::AgentID;
     use crate::k8s::client::MockSyncK8sClient;
     use crate::k8s::error::K8sError;
     use crate::k8s::labels::Labels;
     use crate::opamp::instance_id::getter::DataStored;
     use crate::opamp::instance_id::storer::InstanceIDStorer;
     use crate::opamp::instance_id::InstanceID;
+    use crate::super_agent::config::AgentID;
     use mockall::predicate;
     use std::sync::Arc;
 

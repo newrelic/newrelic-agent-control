@@ -4,13 +4,13 @@ use std::sync::OnceLock;
 use regex::Regex;
 use tracing::warn;
 
+use super::definition::Variables;
+use super::variable::definition::VariableDefinition;
+use super::variable::kind::Kind;
 use super::{
-    agent_types::{EndSpec, NormalizedVariables, VariableType},
     error::AgentTypeError,
     restart_policy::{BackoffStrategyConfig, RestartPolicyConfig},
-    runtime_config::{
-        Deployment, Executable, K8s, K8sObject, K8sObjectMeta, OnHost, RuntimeConfig,
-    },
+    runtime_config::{Deployment, Executable, K8s, K8sObject, K8sObjectMeta, OnHost, Runtime},
 };
 
 /// Regex that extracts the template values from a string.
@@ -51,8 +51,8 @@ fn template_trim(s: &str) -> &str {
 /// Returns a variable reference from the provided set if it exists, it returns an error otherwise.
 fn normalized_var<'a>(
     name: &str,
-    variables: &'a NormalizedVariables,
-) -> Result<&'a EndSpec, AgentTypeError> {
+    variables: &'a Variables,
+) -> Result<&'a VariableDefinition, AgentTypeError> {
     variables
         .get(name)
         .ok_or(AgentTypeError::MissingTemplateKey(name.to_string()))
@@ -64,7 +64,7 @@ fn replace(
     re: &Regex,
     s: &str,
     var_name: &str,
-    normalized_var: &EndSpec,
+    normalized_var: &VariableDefinition,
 ) -> Result<String, AgentTypeError> {
     let value = normalized_var
         .get_template_value()
@@ -75,13 +75,13 @@ fn replace(
 }
 
 pub trait Templateable {
-    fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError>
+    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError>
     where
         Self: std::marker::Sized;
 }
 
 impl Templateable for Executable {
-    fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         Ok(Self {
             path: self.path.template_with(variables)?,
             args: self.args.template_with(variables)?,
@@ -93,12 +93,12 @@ impl Templateable for Executable {
 
 // The actual std type that has a meaningful implementation of Templateable
 impl Templateable for String {
-    fn template_with(self, variables: &NormalizedVariables) -> Result<String, AgentTypeError> {
+    fn template_with(self, variables: &Variables) -> Result<String, AgentTypeError> {
         template_string(self, variables)
     }
 }
 
-fn template_string(s: String, variables: &NormalizedVariables) -> Result<String, AgentTypeError> {
+fn template_string(s: String, variables: &Variables) -> Result<String, AgentTypeError> {
     let re = template_re();
     re.find_iter(&s)
         .map(|i| i.as_str())
@@ -109,7 +109,7 @@ fn template_string(s: String, variables: &NormalizedVariables) -> Result<String,
 }
 
 impl Templateable for OnHost {
-    fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         Ok(Self {
             executables: self
                 .executables
@@ -121,7 +121,7 @@ impl Templateable for OnHost {
 }
 
 impl Templateable for RestartPolicyConfig {
-    fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         Ok(Self {
             backoff_strategy: self.backoff_strategy.template_with(variables)?,
             restart_exit_codes: self.restart_exit_codes, // TODO Not templating this for now!
@@ -130,7 +130,7 @@ impl Templateable for RestartPolicyConfig {
 }
 
 impl Templateable for BackoffStrategyConfig {
-    fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         let backoff_type = self.backoff_type.template_with(variables)?;
         let backoff_delay = self.backoff_delay.template_with(variables)?;
         let max_retries = self.max_retries.template_with(variables)?;
@@ -152,7 +152,7 @@ impl Templateable for BackoffStrategyConfig {
 }
 
 impl Templateable for K8s {
-    fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         Ok(Self {
             objects: self
                 .objects
@@ -164,7 +164,7 @@ impl Templateable for K8s {
 }
 
 impl Templateable for K8sObject {
-    fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         let metadata = self
             .metadata
             .map(|m| m.template_with(variables))
@@ -180,7 +180,7 @@ impl Templateable for K8sObject {
 }
 
 impl Templateable for K8sObjectMeta {
-    fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         Ok(Self {
             labels: self
                 .labels
@@ -192,7 +192,7 @@ impl Templateable for K8sObjectMeta {
 }
 
 impl Templateable for serde_yaml::Value {
-    fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         let templated_value = match self {
             serde_yaml::Value::Mapping(m) => {
                 serde_yaml::Value::Mapping(m.template_with(variables)?)
@@ -209,7 +209,7 @@ impl Templateable for serde_yaml::Value {
 }
 
 impl Templateable for serde_yaml::Mapping {
-    fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         self.into_iter()
             .map(|(k, v)| Ok((k, v.template_with(variables)?)))
             .collect()
@@ -217,7 +217,7 @@ impl Templateable for serde_yaml::Mapping {
 }
 
 impl Templateable for serde_yaml::Sequence {
-    fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         self.into_iter()
             .map(|v| v.template_with(variables))
             .collect()
@@ -236,7 +236,7 @@ impl Templateable for serde_yaml::Sequence {
 /// ```
 fn template_yaml_value_string(
     s: String,
-    variables: &NormalizedVariables,
+    variables: &Variables,
 ) -> Result<serde_yaml::Value, AgentTypeError> {
     // When there is more content than a variable template, template as a regular string.
     if !only_template_var_re().is_match(s.as_str()) {
@@ -249,16 +249,13 @@ fn template_yaml_value_string(
     let var_value = var_spec
         .get_template_value()
         .ok_or(AgentTypeError::MissingAgentKey(var_name.to_string()))?;
-    match var_spec.type_ {
-        VariableType::Yaml => {
-            var_value
-                .to_yaml_value()
-                .ok_or(AgentTypeError::InvalidValueForSpec {
-                    key: var_name.to_string(),
-                    type_: VariableType::Yaml,
-                })
-        }
-        VariableType::Bool | VariableType::Number => {
+    match var_spec.kind() {
+        Kind::Yaml(y) => Ok(y
+            .get_final_value()
+            .cloned()
+            .expect("a final value must be present at this point")),
+
+        Kind::Bool(_) | Kind::Number(_) => {
             serde_yaml::from_str(var_value.to_string().as_str()).map_err(AgentTypeError::SerdeYaml)
         }
         _ => Ok(serde_yaml::Value::String(var_value.to_string())),
@@ -266,7 +263,7 @@ fn template_yaml_value_string(
 }
 
 impl Templateable for Deployment {
-    fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         /*
         `self.on_host` has type `Option<OnHost>`
 
@@ -303,8 +300,8 @@ impl Templateable for Deployment {
     }
 }
 
-impl Templateable for RuntimeConfig {
-    fn template_with(self, variables: &NormalizedVariables) -> Result<Self, AgentTypeError> {
+impl Templateable for Runtime {
+    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         Ok(Self {
             deployment: self.deployment.template_with(variables)?,
         })
@@ -314,56 +311,29 @@ impl Templateable for RuntimeConfig {
 #[cfg(test)]
 mod tests {
     use assert_matches::assert_matches;
+    use serde_yaml::Number;
 
-    use crate::config::agent_type::restart_policy::{BackoffDuration, BackoffStrategyType};
-    use crate::config::agent_type::trivial_value::FilePathWithContent;
-    use crate::config::agent_type::trivial_value::N::PosInt;
-    use crate::config::agent_type::{
-        agent_types::{EndSpec, TemplateableValue, VariableType},
-        runtime_config::{Args, Env},
-        trivial_value::{TrivialValue, N},
-    };
     use std::collections::HashMap;
+
+    use crate::agent_type::{
+        definition::TemplateableValue,
+        restart_policy::{BackoffDuration, BackoffStrategyType},
+        runtime_config::{Args, Env},
+        trivial_value::FilePathWithContent,
+    };
 
     use super::*;
 
-    impl EndSpec {
-        fn default_with_type(type_: VariableType) -> Self {
-            Self {
-                type_,
-                final_value: None,
-                default: None,
-                description: String::default(),
-                required: false,
-                file_path: None,
-            }
-        }
-    }
-
     #[test]
     fn test_template_string() {
-        let variables = NormalizedVariables::from([
+        let variables = Variables::from([
             (
                 "name".to_string(),
-                EndSpec {
-                    final_value: Some(TrivialValue::String("Alice".to_string())),
-                    default: None,
-                    type_: VariableType::String,
-                    description: String::default(),
-                    required: true,
-                    file_path: Some("some_path".to_string()),
-                },
+                VariableDefinition::new(String::default(), true, None, Some("Alice".to_string())),
             ),
             (
                 "age".to_string(),
-                EndSpec {
-                    final_value: None,
-                    default: Some(TrivialValue::Number(N::PosInt(30))),
-                    type_: VariableType::Number,
-                    description: String::default(),
-                    required: false,
-                    file_path: Some("some_path".to_string()),
-                },
+                VariableDefinition::new(String::default(), true, None, Some(Number::from(30))),
             ),
         ]);
 
@@ -375,114 +345,73 @@ mod tests {
 
     #[test]
     fn test_template_executable() {
-        let variables = NormalizedVariables::from([
+        let variables = Variables::from([
             (
                 "path".to_string(),
-                EndSpec {
-                    final_value: Some(TrivialValue::String("/usr/bin/myapp".to_string())),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::String,
-                    file_path: Some("some_path".to_string()),
-                },
+                VariableDefinition::new(
+                    String::default(),
+                    true,
+                    None,
+                    Some("/usr/bin/myapp".to_string()),
+                ),
             ),
             (
                 "args".to_string(),
-                EndSpec {
-                    final_value: Some(TrivialValue::String("--config /etc/myapp.conf".to_string())),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::String,
-                    file_path: Some("some_path".to_string()),
-                },
+                VariableDefinition::new(
+                    String::default(),
+                    true,
+                    None,
+                    Some("--config /etc/myapp.conf".to_string()),
+                ),
             ),
             (
                 "env.MYAPP_PORT".to_string(),
-                EndSpec {
-                    final_value: Some(TrivialValue::Number(N::PosInt(8080))),
-                    default: None,
-                    description: String::default(),
-                    required: true,
-                    type_: VariableType::Number,
-                    file_path: Some("some_path".to_string()),
-                },
+                VariableDefinition::new(String::default(), true, None, Some("8080".to_string())),
             ),
             (
                 "backoff.type".to_string(),
-                EndSpec {
-                    final_value: Some(TrivialValue::String("linear".to_string())),
-                    default: None,
-                    description: "backoff_type".to_string(),
-                    type_: VariableType::String,
-                    required: true,
-                    file_path: Some("some_path".to_string()),
-                },
+                VariableDefinition::new(String::default(), true, None, Some("linear".to_string())),
             ),
             (
                 "backoff.delay".to_string(),
-                EndSpec {
-                    final_value: Some(TrivialValue::String("10s".to_string())),
-                    default: None,
-                    description: "backoff_delay".to_string(),
-                    type_: VariableType::String,
-                    required: true,
-                    file_path: Some("some_path".to_string()),
-                },
+                VariableDefinition::new(String::default(), true, None, Some("10s".to_string())),
             ),
             (
                 "backoff.retries".to_string(),
-                EndSpec {
-                    final_value: Some(TrivialValue::Number(PosInt(30))),
-                    default: None,
-                    description: "backoff_retries".to_string(),
-                    type_: VariableType::String,
-                    required: true,
-                    file_path: Some("some_path".to_string()),
-                },
+                VariableDefinition::new(String::default(), true, None, Some(Number::from(30))),
             ),
             (
                 "backoff.interval".to_string(),
-                EndSpec {
-                    final_value: Some(TrivialValue::String("300s".to_string())),
-                    default: None,
-                    description: "backoff_interval".to_string(),
-                    type_: VariableType::Number,
-                    required: true,
-                    file_path: Some("some_path".to_string()),
-                },
+                VariableDefinition::new(String::default(), true, None, Some("300s".to_string())),
             ),
             (
                 "config".to_string(),
-                EndSpec {
-                    final_value: Some(TrivialValue::File(FilePathWithContent::new(
-                        "config2.yml".to_string(),
+                VariableDefinition::new_with_file_path(
+                    "config".to_string(),
+                    true,
+                    None,
+                    Some(FilePathWithContent::new(
+                        "config2.yml".into(),
                         "license_key: abc123\nstaging: true\n".to_string(),
-                    ))),
-                    default: None,
-                    description: "config".to_string(),
-                    type_: VariableType::File,
-                    required: true,
-                    file_path: Some("config_path".to_string()),
-                },
+                    )),
+                    "config_path".into(),
+                ),
             ),
             (
                 "integrations".to_string(),
-                EndSpec {
-                    final_value: Some(TrivialValue::Map(HashMap::from([(
+                VariableDefinition::new_with_file_path(
+                    "integrations".to_string(),
+                    true,
+                    None,
+                    Some(HashMap::from([(
                         "kafka.yml".to_string(),
-                        TrivialValue::File(FilePathWithContent::new(
-                            "config2.yml".to_string(),
+                        FilePathWithContent::new(
+                            "config2.yml".into(),
                             "license_key: abc123\nstaging: true\n".to_string(),
-                        )),
-                    )]))),
-                    default: None,
-                    description: "integrations".to_string(),
-                    type_: VariableType::MapStringFile,
-                    required: true,
-                    file_path: Some("integration_path".to_string()),
-                },
+                        ),
+                    )])),
+                    "integration_path".into(),
+                ),
             ),
         ]);
 
@@ -531,27 +460,23 @@ mod tests {
 
     #[test]
     fn test_template_value_mapping() {
-        let variables = NormalizedVariables::from([
+        let variables = Variables::from([
             (
                 "change.me.string".to_string(),
-                EndSpec {
-                    final_value: Some(TrivialValue::String("CHANGED-STRING".to_string())),
-                    ..EndSpec::default_with_type(VariableType::String)
-                },
+                VariableDefinition::new(
+                    String::default(),
+                    true,
+                    None,
+                    Some("CHANGED-STRING".to_string()),
+                ),
             ),
             (
                 "change.me.bool".to_string(),
-                EndSpec {
-                    final_value: Some(TrivialValue::Bool(true)),
-                    ..EndSpec::default_with_type(VariableType::Bool)
-                },
+                VariableDefinition::new(String::default(), true, None, Some(true)),
             ),
             (
                 "change.me.number".to_string(),
-                EndSpec {
-                    final_value: Some(TrivialValue::Number(PosInt(42))),
-                    ..EndSpec::default_with_type(VariableType::Number)
-                },
+                VariableDefinition::new(String::default(), true, None, Some(Number::from(42))),
             ),
         ]);
         let input: serde_yaml::Mapping = serde_yaml::from_str(
@@ -583,27 +508,23 @@ mod tests {
 
     #[test]
     fn test_template_value_sequence() {
-        let variables = NormalizedVariables::from([
+        let variables = Variables::from([
             (
                 "change.me.string".to_string(),
-                EndSpec {
-                    final_value: Some(TrivialValue::String("CHANGED-STRING".to_string())),
-                    ..EndSpec::default_with_type(VariableType::String)
-                },
+                VariableDefinition::new(
+                    String::default(),
+                    true,
+                    None,
+                    Some("CHANGED-STRING".to_string()),
+                ),
             ),
             (
                 "change.me.bool".to_string(),
-                EndSpec {
-                    final_value: Some(TrivialValue::Bool(true)),
-                    ..EndSpec::default_with_type(VariableType::Bool)
-                },
+                VariableDefinition::new(String::default(), true, None, Some(true)),
             ),
             (
                 "change.me.number".to_string(),
-                EndSpec {
-                    final_value: Some(TrivialValue::Number(PosInt(42))),
-                    ..EndSpec::default_with_type(VariableType::Number)
-                },
+                VariableDefinition::new(String::default(), true, None, Some(Number::from(42))),
             ),
         ]);
         let input: serde_yaml::Sequence = serde_yaml::from_str(
@@ -631,49 +552,49 @@ mod tests {
 
     #[test]
     fn test_template_yaml() {
-        let variables = NormalizedVariables::from([
+        let variables = Variables::from([
             (
                 "change.me.string".to_string(),
-                EndSpec {
-                    final_value: Some(TrivialValue::String("CHANGED-STRING".to_string())),
-                    ..EndSpec::default_with_type(VariableType::String)
-                },
+                VariableDefinition::new(
+                    String::default(),
+                    true,
+                    None,
+                    Some("CHANGED-STRING".to_string()),
+                ),
             ),
             (
                 "change.me.bool".to_string(),
-                EndSpec {
-                    final_value: Some(TrivialValue::Bool(true)),
-                    ..EndSpec::default_with_type(VariableType::Bool)
-                },
+                VariableDefinition::new(String::default(), true, None, Some(true)),
             ),
             (
                 "change.me.number".to_string(),
-                EndSpec {
-                    final_value: Some(TrivialValue::Number(PosInt(42))),
-                    ..EndSpec::default_with_type(VariableType::Number)
-                },
+                VariableDefinition::new(String::default(), true, None, Some(Number::from(42))),
             ),
             (
                 "change.me.yaml".to_string(),
-                EndSpec {
-                    final_value: Some(TrivialValue::Yaml(
-                        r#"{"key": "value"}"#.to_string().try_into().unwrap(),
-                    )),
-                    ..EndSpec::default_with_type(VariableType::Yaml)
-                },
+                VariableDefinition::new(
+                    String::default(),
+                    true,
+                    None,
+                    Some(serde_yaml::Value::Mapping(serde_yaml::Mapping::from_iter(
+                        [("key".into(), "value".into())],
+                    ))),
+                ),
             ),
             (
                 // Expansion inside variable's values is not supported.
                 "yaml.with.var.placeholder".to_string(),
-                EndSpec {
-                    final_value: Some(TrivialValue::Yaml(
-                        r#"{"this.will.not.be.expanded": "${change.me.string}"}"#
-                            .to_string()
-                            .try_into()
-                            .unwrap(),
-                    )),
-                    ..EndSpec::default_with_type(VariableType::Yaml)
-                },
+                VariableDefinition::new(
+                    String::default(),
+                    true,
+                    None,
+                    Some(serde_yaml::Value::Mapping(serde_yaml::Mapping::from_iter(
+                        [(
+                            "this.will.not.be.expanded".into(),
+                            "${change.me.string}".into(),
+                        )],
+                    ))),
+                ),
             ),
         ]);
         let input: serde_yaml::Value = serde_yaml::from_str(
@@ -726,8 +647,8 @@ mod tests {
           key: value
         another_yaml:
           "this.will.not.be.expanded": "${change.me.string}" # A variable inside another other variable value is not expanded
-        string_key: "here, the value {\"key\": \"value\"} is encoded as string because it is not alone"
-        "#,
+        string_key: "here, the value key: value\n is encoded as string because it is not alone"
+        "#, // FIXME? Note line above, the "key: value\n" part was replaced!!
         )
         .unwrap();
 
@@ -737,43 +658,33 @@ mod tests {
 
     #[test]
     fn test_template_yaml_value_string() {
-        let variables = NormalizedVariables::from([
+        let variables = Variables::from([
             (
                 "simple.string.var".to_string(),
-                EndSpec {
-                    final_value: Some(TrivialValue::String("Value".into())),
-                    ..EndSpec::default_with_type(VariableType::String)
-                },
+                VariableDefinition::new(String::default(), true, None, Some("Value".to_string())),
             ),
             (
                 "string.with.yaml.var".to_string(),
-                EndSpec {
-                    final_value: Some(TrivialValue::String("[Value]".into())),
-                    ..EndSpec::default_with_type(VariableType::String)
-                },
+                VariableDefinition::new(String::default(), true, None, Some("[Value]".to_string())),
             ),
             (
                 "bool.var".to_string(),
-                EndSpec {
-                    final_value: Some(TrivialValue::Bool(true)),
-                    ..EndSpec::default_with_type(VariableType::Bool)
-                },
+                VariableDefinition::new(String::default(), true, None, Some(true)),
             ),
             (
                 "number.var".to_string(),
-                EndSpec {
-                    final_value: Some(TrivialValue::Number(PosInt(42))),
-                    ..EndSpec::default_with_type(VariableType::Number)
-                },
+                VariableDefinition::new(String::default(), true, None, Some(Number::from(42))),
             ),
             (
                 "yaml.var".to_string(),
-                EndSpec {
-                    final_value: Some(TrivialValue::Yaml(
-                        r#"{"key": "value"}"#.to_string().try_into().unwrap(),
-                    )),
-                    ..EndSpec::default_with_type(VariableType::Yaml)
-                },
+                VariableDefinition::new(
+                    String::default(),
+                    true,
+                    None,
+                    Some(serde_yaml::Value::Mapping(serde_yaml::Mapping::from_iter(
+                        [("key".into(), "value".into())],
+                    ))),
+                ),
             ),
         ]);
 
@@ -803,7 +714,7 @@ mod tests {
             template_yaml_value_string("${bool.var}".into(), &variables).unwrap()
         );
         assert_eq!(
-            serde_yaml::Value::Number(serde_yaml::Number::try_from(42i32).unwrap()),
+            serde_yaml::Value::Number(serde_yaml::Number::from(42i32)),
             template_yaml_value_string("${number.var}".into(), &variables).unwrap()
         );
         assert_eq!(
@@ -831,21 +742,21 @@ mod tests {
             m.get("key").unwrap().clone()
         );
         assert_eq!(
-            serde_yaml::Value::String(r#"x: {"key": "value"}"#.into()),
+            serde_yaml::Value::String("x: key: value\n".into()), // FIXME? Consder if this is ok.
             template_yaml_value_string("x: ${yaml.var}".into(), &variables).unwrap()
         )
     }
 
     #[test]
     fn test_normalized_var() {
-        let variables = NormalizedVariables::from([(
+        let variables = Variables::from([(
             "var.name".to_string(),
-            EndSpec::default_with_type(VariableType::String),
+            VariableDefinition::new(String::default(), true, None, Some("Value".to_string())),
         )]);
 
-        assert_eq!(
-            normalized_var("var.name", &variables).unwrap().type_,
-            VariableType::String
+        assert_matches!(
+            normalized_var("var.name", &variables).unwrap().kind(),
+            Kind::String(_)
         );
         let key = assert_matches!(
             normalized_var("does.not.exists", &variables).err().unwrap(),
@@ -855,15 +766,13 @@ mod tests {
 
     #[test]
     fn test_replace() {
-        let value_var = EndSpec {
-            final_value: Some(TrivialValue::String("Value".into())),
-            ..EndSpec::default_with_type(VariableType::String)
-        };
-        let default_var = EndSpec {
-            default: Some(TrivialValue::String("Default".into())),
-            ..EndSpec::default_with_type(VariableType::String)
-        };
-        let neither_value_nor_default = EndSpec::default_with_type(VariableType::String);
+        let value_var =
+            VariableDefinition::new(String::default(), true, None, Some("Value".to_string()));
+        let default_var =
+            VariableDefinition::new(String::default(), true, Some("Default".to_string()), None);
+
+        let neither_value_nor_default =
+            VariableDefinition::new(String::default(), true, None::<String>, None::<String>);
 
         let re = template_re();
         assert_eq!(
@@ -902,16 +811,9 @@ objects:
         .unwrap();
 
         let value = "test_value";
-        let variables = NormalizedVariables::from([(
+        let variables = Variables::from([(
             "any".to_string(),
-            EndSpec {
-                final_value: Some(TrivialValue::String(value.to_string())),
-                default: None,
-                description: String::default(),
-                required: true,
-                type_: VariableType::String,
-                file_path: None,
-            },
+            VariableDefinition::new(String::default(), true, None, Some(value.to_string())),
         )]);
 
         let k8s = k8s_template.template_with(&variables).unwrap();

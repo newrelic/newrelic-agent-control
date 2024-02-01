@@ -1,7 +1,7 @@
 [package]
 name = "newrelic_super_agent"
 description = "New Relic Super Agent Limited Preview"
-version = "0.6.2"
+version = "0.7.0"
 edition = "2021"
 authors = ["The New Relic Core Agent & Open Standards (CAOS) Team"]
 publish = false
@@ -20,12 +20,11 @@ tracing = { workspace = true }
 ctrlc = { version = "3.4.0", features = ["termination"] }
 serde_yaml = { workspace = true }
 regex = { workspace = true }
-opamp-client = { git = "ssh://git@github.com/newrelic/opamp-rs.git", branch = "build/remove-openssl-dep" }
-futures = "0.3.28"
-async-trait = "0.1.71"
-tokio = "1.32.0"
+opamp-client = { git = "ssh://git@github.com/newrelic/opamp-rs.git", tag = "0.0.11", features = ["sync-http"], default-features = false  }
+futures = { version = "0.3.28", optional = true }
+async-trait = { version = "0.1.71", optional = true }
+tokio = { version = "1.32.0", optional = true, features = ["rt-multi-thread", "macros"] }
 ulid = { workspace = true, features = ["serde"] }
-aquamarine = "0.3.2"
 duration-str = "0.7.0"
 fs = { path = "../fs" }
 
@@ -80,7 +79,7 @@ path = "src/bin/main.rs"
 
 [features]
 onhost = []
-k8s = ["dep:kube", "dep:k8s-openapi", "dep:either"]
+k8s = ["dep:kube", "dep:k8s-openapi", "dep:either", "dep:futures", "dep:async-trait", "dep:tokio"]
 custom-local-path = []
 # feature ci allows calling --all-features (needed on the test pipelines) and not failing to compile
 ci = []

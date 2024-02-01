@@ -1,5 +1,5 @@
 ---
 
-- include: "config-{{ ansible_system }}.yaml"
+- include_tasks: "config-{{ ansible_system }}.yaml"
 
 ...

@@ -1,4 +1,3 @@
-use crate::config::super_agent_configs::AgentID;
 use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
 use crate::opamp::operations::stop_opamp_client;
@@ -6,6 +5,7 @@ use crate::opamp::remote_config_hash::HashRepository;
 use crate::sub_agent::error::SubAgentError;
 use crate::sub_agent::values::values_repository::ValuesRepository;
 use crate::sub_agent::SubAgentCallbacks;
+use crate::super_agent::config::AgentID;
 use crossbeam::select;
 use opamp_client::StartedClient;
 use std::sync::Arc;
@@ -115,13 +115,14 @@ where
 
 #[cfg(test)]
 pub mod test {
-    use crate::config::super_agent_configs::AgentID;
+    use crate::agent_type::agent_values::AgentValues;
     use crate::event::channel::pub_sub;
     use crate::event::OpAMPEvent;
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::remote_config::{ConfigMap, RemoteConfig, RemoteConfigError};
     use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::on_host::event_processor::{EventProcessor, SubAgentEventProcessor};
+    use crate::super_agent::config::AgentID;
     use mockall::mock;
     use opamp_client::opamp::proto::RemoteConfigStatus;
     use opamp_client::opamp::proto::RemoteConfigStatuses::Failed;
@@ -130,8 +131,6 @@ pub mod test {
     use std::thread;
     use std::thread::JoinHandle;
 
-    use crate::config::agent_type::trivial_value::TrivialValue;
-    use crate::config::agent_values::AgentValues;
     use crate::event::SubAgentEvent::ConfigUpdated;
     use crate::opamp::remote_config_hash::test::MockHashRepositoryMock;
     use crate::sub_agent::error::SubAgentError;
@@ -213,10 +212,11 @@ pub mod test {
         hash_repository.should_save_hash(&agent_id, &hash);
         values_repository.should_store_remote(
             &agent_id,
-            &AgentValues::new(HashMap::from([(
-                String::from("some_item"),
-                TrivialValue::String(String::from("some_value")),
-            )])),
+            // &AgentValues::new(HashMap::from([(
+            //     String::from("some_item"),
+            //     TrivialValue::String(String::from("some_value")),
+            // )])),
+            &AgentValues::new(HashMap::from([("some_item".into(), "some_value".into())])),
         );
 
         let remote_config = RemoteConfig {

@@ -1,5 +1,5 @@
 //! GCP instance id detector implementation
-use http::{HeaderMap, HeaderName};
+use http::HeaderMap;
 use std::time::Duration;
 
 use thiserror::Error;
@@ -89,17 +89,15 @@ where
 mod test {
     use super::*;
     use crate::cloud::http_client::test::MockHttpClientMock;
-    use http::Response;
 
     #[test]
     fn detect_gcp_metadata() {
         let mut client_mock = MockHttpClientMock::new();
         client_mock.expect_get().once().returning(|| {
-            Ok(Response::from(
-                http::Response::builder()
-                    .status(200)
-                    .body(
-                        r#"
+            Ok(http::Response::builder()
+                .status(200)
+                .body(
+                    r#"
 {
 		"attributes": {},
 		"cpuPlatform": "Intel Haswell",
@@ -153,11 +151,10 @@ mod test {
 		"zone": "projects/260890654058/zones/us-central1-c"
 	}
     "#
-                        .as_bytes()
-                        .to_vec(),
-                    )
-                    .unwrap(),
-            ))
+                    .as_bytes()
+                    .to_vec(),
+                )
+                .unwrap())
         });
 
         let detector = GCPDetector {
@@ -176,12 +173,10 @@ mod test {
     fn detect_internal_http_error() {
         let mut client_mock = MockHttpClientMock::new();
         client_mock.expect_get().once().returning(|| {
-            Ok(Response::from(
-                http::Response::builder()
-                    .status(404)
-                    .body(r#""#.as_bytes().to_vec())
-                    .unwrap(),
-            ))
+            Ok(http::Response::builder()
+                .status(404)
+                .body(r#""#.as_bytes().to_vec())
+                .unwrap())
         });
 
         let detector = GCPDetector {
@@ -204,12 +199,10 @@ mod test {
     fn detect_json_error() {
         let mut client_mock = MockHttpClientMock::new();
         client_mock.expect_get().once().returning(|| {
-            Ok(Response::from(
-                http::Response::builder()
-                    .status(200)
-                    .body(r#"{ this is an invalid json right }"#.as_bytes().to_vec())
-                    .unwrap(),
-            ))
+            Ok(http::Response::builder()
+                .status(200)
+                .body(r#"{ this is an invalid json right }"#.as_bytes().to_vec())
+                .unwrap())
         });
 
         let detector = GCPDetector {

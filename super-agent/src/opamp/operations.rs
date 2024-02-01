@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
 use crate::{
-    config::super_agent_configs::{AgentID, AgentTypeFQN},
     event::{channel::EventPublisher, OpAMPEvent},
     sub_agent::error::SubAgentError,
+    super_agent::config::{AgentID, AgentTypeFQN},
     utils::time::get_sys_time_nano,
 };
 use opamp_client::opamp::proto::AgentHealth;
@@ -102,12 +102,12 @@ pub fn stop_opamp_client<CB: Callbacks, C: StartedClient<CB>>(
             "Stopping OpAMP client for supervised agent type: {}",
             agent_id
         );
-        crate::runtime::tokio_runtime().block_on(client.set_health(AgentHealth {
+        client.set_health(AgentHealth {
             healthy: false,
             start_time_unix_nano: get_sys_time_nano()?,
             last_error: "".to_string(),
-        }))?;
-        crate::runtime::tokio_runtime().block_on(client.stop())?;
+        })?;
+        client.stop()?;
     }
     Ok(())
 }

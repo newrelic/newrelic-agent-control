@@ -1,17 +1,3 @@
-use fs::LocalFile;
-use log::error;
-use std::collections::HashMap;
-use std::path::Path;
-
-use thiserror::Error;
-
-use newrelic_super_agent::config::agent_type::agent_types::{AgentTypeEndSpec, VariableType};
-use newrelic_super_agent::config::agent_type_registry::{
-    AgentRegistry, AgentRepositoryError, LocalRegistry,
-};
-
-use fs::file_reader::{FileReader, FileReaderError};
-
 use crate::migration::agent_value_spec::AgentValueSpec::AgentValueSpecEnd;
 use crate::migration::agent_value_spec::{
     from_fqn_and_value, merge_agent_values, AgentValueError, AgentValueSpec,
@@ -19,6 +5,17 @@ use crate::migration::agent_value_spec::{
 use crate::migration::config::{AgentTypeFieldFQN, DirPath, FilePath, MigrationAgentConfig};
 use crate::migration::config::{FILE_SEPARATOR, FILE_SEPARATOR_REPLACE};
 use crate::migration::converter::ConversionError::RequiredFileMappingNotFoundError;
+use fs::file_reader::{FileReader, FileReaderError};
+use fs::LocalFile;
+use log::error;
+use newrelic_super_agent::agent_type::agent_type_registry::{
+    AgentRegistry, AgentRepositoryError, LocalRegistry,
+};
+use newrelic_super_agent::agent_type::variable::kind::Kind;
+use std::collections::HashMap;
+use std::path::Path;
+use thiserror::Error;
+use tracing::debug;
 
 #[derive(Error, Debug)]
 pub enum ConversionError {
@@ -57,29 +54,29 @@ impl<R: AgentRegistry, F: FileReader> ConfigConverter<R, F> {
             .get(&migration_agent_config.get_agent_type_fqn())?;
 
         let mut agent_values_specs: Vec<HashMap<String, AgentValueSpec>> = Vec::new();
-        for (normalized_fqn, spec) in agent_type.variables.iter() {
+        for (normalized_fqn, spec) in agent_type.variables.flatten().iter() {
             let agent_type_fqn: AgentTypeFieldFQN = normalized_fqn.into();
-            match spec.variable_type() {
-                VariableType::File => {
+            match spec.kind() {
+                Kind::File(_) => {
                     // look for file mapping, if not found and required throw an error
                     let file_map = migration_agent_config.get_file(agent_type_fqn.clone());
-                    if spec.required && file_map.is_none() {
+                    if spec.is_required() && file_map.is_none() {
                         return Err(RequiredFileMappingNotFoundError);
                     }
                     agent_values_specs
                         .push(self.file_to_agent_value_spec(agent_type_fqn, file_map.unwrap())?)
                 }
-                VariableType::MapStringFile => {
+                Kind::MapStringFile(_) => {
                     // look for file mapping, if not found and required throw an error
                     let file_map = migration_agent_config.get_dir(agent_type_fqn.clone());
-                    if spec.required && file_map.is_none() {
+                    if spec.is_required() && file_map.is_none() {
                         return Err(RequiredFileMappingNotFoundError);
                     }
                     agent_values_specs
                         .push(self.dir_to_agent_value_spec(agent_type_fqn, file_map.unwrap())?)
                 }
                 _ => {
-                    error!("cannot handle variable type {:?}", spec.variable_type())
+                    debug!("skipping variable {}", agent_type_fqn.as_string())
                 }
             }
         }

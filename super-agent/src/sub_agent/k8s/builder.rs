@@ -1,11 +1,12 @@
 use super::sub_agent::NotStartedSubAgentK8s;
-use crate::config::super_agent_configs::{K8sConfig, SubAgentConfig};
+use crate::agent_type::runtime_config::K8sObject;
 use crate::event::channel::{pub_sub, EventPublisher};
 use crate::event::SubAgentEvent;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_opamp_and_start_client;
+use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssembler;
+use crate::super_agent::config::{AgentID, K8sConfig, SubAgentConfig};
 use crate::{
-    config::super_agent_configs::AgentID,
     opamp::client_builder::OpAMPClientBuilder,
     sub_agent::k8s::supervisor::CRSupervisor,
     sub_agent::{error::SubAgentBuilderError, logger::AgentLog, SubAgentBuilder},
@@ -16,10 +17,8 @@ use opamp_client::operation::settings::DescriptionValueType;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use crate::config::agent_type::runtime_config::K8sObject;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use crate::super_agent::effective_agents_assembler::EffectiveAgentsAssembler;
 
 pub struct K8sSubAgentBuilder<'a, C, O, I, A>
 where
@@ -100,7 +99,7 @@ where
             .assemble_agent(&agent_id, sub_agent_config)?;
 
         let k8s_objects = effective_agent
-            .runtime_config
+            .get_runtime_config()
             .deployment
             .k8s
             .as_ref()
@@ -148,16 +147,16 @@ fn validate_k8s_objects(
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::config::agent_type::agent_types::FinalAgent;
-    use crate::config::agent_type::runtime_config::K8s;
-    use crate::config::super_agent_configs::K8sConfig;
+    use crate::agent_type::agent_metadata::AgentMetadata;
+    use crate::agent_type::runtime_config::{Deployment, K8s, Runtime};
     use crate::event::channel::pub_sub;
     use crate::k8s::error::K8sError;
     use crate::opamp::callbacks::tests::MockCallbacksMock;
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
     use crate::opamp::operations::start_settings;
-    use crate::super_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
+    use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
+    use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
     use crate::{
         k8s::client::MockSyncK8sClient,
         opamp::client_builder::test::MockOpAMPClientBuilderMock,
@@ -174,9 +173,9 @@ mod test {
         let cluster_name = "test-cluster";
         let mut opamp_builder: MockOpAMPClientBuilderMock<MockCallbacksMock> =
             MockOpAMPClientBuilderMock::new();
-        let final_agent = k8s_final_agent(true);
+        let effective_agent = k8s_effective_agent(AgentID::new("k8s-test").unwrap(), true);
         let sub_agent_config = SubAgentConfig {
-            agent_type: final_agent.agent_type(),
+            agent_type: AgentMetadata::default().to_string().as_str().into(),
         };
         let start_settings = start_settings(
             instance_id.to_string(),
@@ -219,7 +218,7 @@ mod test {
         effective_agent_assembler.should_assemble_agent(
             &sub_agent_id,
             &sub_agent_config,
-            final_agent,
+            effective_agent,
         );
 
         let k8s_config = K8sConfig {
@@ -261,9 +260,9 @@ mod test {
         let instance_id = "k8s-test-instance-id";
         let mut opamp_builder: MockOpAMPClientBuilderMock<MockCallbacksMock> =
             MockOpAMPClientBuilderMock::new();
-        let final_agent = k8s_final_agent(true);
+        let effective_agent = k8s_effective_agent(AgentID::new("k8s-test").unwrap(), true);
         let sub_agent_config = SubAgentConfig {
-            agent_type: final_agent.agent_type().clone(),
+            agent_type: AgentMetadata::default().to_string().as_str().into(),
         };
         let start_settings = start_settings(
             instance_id.to_string(),
@@ -313,7 +312,7 @@ mod test {
         effective_agent_assembler.should_assemble_agent(
             &sub_agent_id,
             &sub_agent_config,
-            final_agent,
+            effective_agent,
         );
 
         let k8s_config = K8sConfig {
@@ -351,9 +350,9 @@ mod test {
 
         let mut opamp_builder: MockOpAMPClientBuilderMock<MockCallbacksMock> =
             MockOpAMPClientBuilderMock::new();
-        let final_agent = k8s_final_agent(false); // false indicates invalid kind
+        let effective_agent = k8s_effective_agent(AgentID::new("k8s-test").unwrap(), false);
         let sub_agent_config = SubAgentConfig {
-            agent_type: final_agent.agent_type().clone(),
+            agent_type: AgentMetadata::default().to_string().as_str().into(),
         };
         let start_settings = start_settings(
             instance_id.to_string(),
@@ -380,7 +379,7 @@ mod test {
         effective_agent_assembler.should_assemble_agent(
             &sub_agent_id,
             &sub_agent_config,
-            final_agent,
+            effective_agent,
         );
 
         let k8s_config = K8sConfig {
@@ -406,7 +405,7 @@ mod test {
         assert_matches!(error, SubAgentBuilderError::UnsupportedK8sObject(_));
     }
 
-    fn k8s_final_agent(valid_kind: bool) -> FinalAgent {
+    fn k8s_effective_agent(agent_id: AgentID, valid_kind: bool) -> EffectiveAgent {
         let kind = if valid_kind {
             "HelmRepository".to_string()
         } else {
@@ -422,8 +421,14 @@ mod test {
         let mut objects = HashMap::new();
         objects.insert("sample_object".to_string(), k8s_object);
 
-        let mut final_agent: FinalAgent = FinalAgent::default();
-        final_agent.runtime_config.deployment.k8s = Some(K8s { objects });
-        final_agent
+        EffectiveAgent::new(
+            agent_id,
+            Runtime {
+                deployment: Deployment {
+                    on_host: None,
+                    k8s: Some(K8s { objects }),
+                },
+            },
+        )
     }
 }

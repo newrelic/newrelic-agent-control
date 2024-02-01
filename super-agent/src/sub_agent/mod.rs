@@ -1,8 +1,10 @@
 // Common subagent modules
 pub mod collection;
+pub mod effective_agents_assembler;
 pub mod error;
 pub mod logger;
 pub mod opamp;
+pub mod persister;
 pub mod restart_policy;
 pub mod values;
 
@@ -15,11 +17,10 @@ pub mod k8s;
 use std::thread::JoinHandle;
 
 // CRATE TRAITS
-use crate::config::super_agent_configs::AgentID;
-use crate::config::super_agent_configs::SubAgentConfig;
 use crate::event::channel::EventPublisher;
 use crate::event::SubAgentEvent;
 use crate::opamp::callbacks::AgentCallbacks;
+use crate::super_agent::config::{AgentID, SubAgentConfig};
 
 use self::logger::AgentLog;
 use self::opamp::remote_config_publisher::SubAgentRemoteConfigPublisher;
