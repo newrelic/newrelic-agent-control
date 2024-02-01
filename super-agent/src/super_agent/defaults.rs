@@ -184,6 +184,11 @@ variables:
     description: "Newrelic otel collector chart values"
     type: yaml
     required: true
+  chart_version:
+    description: "Newrelic otel collector chart version"
+    type: string
+    required: true
+    default: "0.78.3"
 deployment:
   k8s:
     objects:
@@ -201,7 +206,7 @@ deployment:
           chart:
             spec:
               chart: opentelemetry-collector
-              version: 0.78.3
+              version: ${chart_version}
               sourceRef:
                 kind: HelmRepository
                 name: open-telemetry # TODO now sub-agent name must be "open-telemetry" for this to work.
