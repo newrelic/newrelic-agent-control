@@ -1,4 +1,7 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -47,10 +50,9 @@ impl VariableDefinition {
         self.kind.get_file_path()
     }
 
-    pub fn extend_file_path(&mut self, mut path: PathBuf) {
+    pub fn extend_file_path(&mut self, path: &Path) {
         if let Some(current_path) = self.get_file_path() {
-            path.push(current_path);
-            self.kind.set_file_path(path)
+            self.kind.set_file_path(path.join(current_path))
         }
     }
 

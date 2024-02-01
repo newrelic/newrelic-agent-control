@@ -304,7 +304,7 @@ impl AgentAttributes {
         if let Some(path) = self.generated_configs_path.as_ref() {
             variables
                 .values_mut()
-                .for_each(|v| v.extend_file_path(path.clone()));
+                .for_each(|v| v.extend_file_path(path.as_path()));
         }
         variables
     }
