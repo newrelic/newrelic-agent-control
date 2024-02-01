@@ -1,9 +1,11 @@
 use std::fmt::Display;
+use std::path::PathBuf;
 
 use thiserror::Error;
 use tracing::error;
 
 use crate::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError, LocalRegistry};
+use crate::agent_type::definition::AgentAttributes;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::runtime_config::Runtime;
 use crate::sub_agent::values::values_repository::{
@@ -125,12 +127,15 @@ where
         self
     }
 
-    pub fn build_absolute_path(&self, path: Option<&String>, agent_id: &AgentID) -> String {
+    pub fn build_absolute_path(&self, path: Option<&String>, agent_id: &AgentID) -> PathBuf {
         let base_data_dir = match path {
             Some(p) => p,
             None => SUPER_AGENT_DATA_DIR,
         };
-        format!("{}/{}/{}", base_data_dir, GENERATED_FOLDER_NAME, agent_id)
+        PathBuf::from(format!(
+            "{}/{}/{}",
+            base_data_dir, GENERATED_FOLDER_NAME, agent_id
+        ))
     }
 
     #[cfg(feature = "custom-local-path")]
@@ -161,11 +166,15 @@ where
 
         let agent_values = self.values_repository.load(agent_id, &final_agent)?;
 
-        let absolute_path = self.build_absolute_path(self.local_conf_path.as_ref(), agent_id);
+        let generated_conf_path = self.build_absolute_path(self.local_conf_path.as_ref(), agent_id);
+
+        let agent_attributes = AgentAttributes {
+            generated_configs_path: Some(generated_conf_path),
+            agent_id: agent_id.get(),
+        };
 
         // populate with values
-        let populated_agent =
-            final_agent.template_with(agent_values, Some(absolute_path.as_str()))?;
+        let populated_agent = final_agent.template(agent_values, agent_attributes)?;
 
         // clean existing config files if any
         self.config_persister
@@ -298,7 +307,7 @@ pub(crate) mod tests {
         sub_agent_values_repo.should_load(&agent_id, &final_agent, &agent_values);
         //From now on the EffectiveAgent is populated
         let populated_agent = final_agent
-            .template_with(agent_values.clone(), None)
+            .template(agent_values.clone(), AgentAttributes::default())
             .unwrap();
         config_persister.should_delete_agent_config(&agent_id, &populated_agent);
         config_persister.should_persist_agent_config(&agent_id, &populated_agent);
@@ -350,7 +359,7 @@ pub(crate) mod tests {
         sub_agent_values_repo.should_load(&agent_id, &final_agent, &agent_values);
         //From now on the EffectiveAgent is populated
         let populated_agent = final_agent
-            .template_with(agent_values.clone(), None)
+            .template(agent_values.clone(), AgentAttributes::default())
             .unwrap();
         config_persister.should_delete_agent_config(&agent_id, &populated_agent);
         config_persister.should_persist_agent_config(&agent_id, &populated_agent);
@@ -504,7 +513,7 @@ pub(crate) mod tests {
         sub_agent_values_repo.should_load(&agent_id, &final_agent, &agent_values);
         //From now on the EffectiveAgent is populated
         let populated_agent = final_agent
-            .template_with(agent_values.clone(), None)
+            .template(agent_values.clone(), AgentAttributes::default())
             .unwrap();
         let err = PersistError::DirectoryError(DirectoryManagementError::ErrorDeletingDirectory(
             "oh no...".to_string(),
@@ -547,7 +556,7 @@ pub(crate) mod tests {
         sub_agent_values_repo.should_load(&agent_id, &final_agent, &agent_values);
         //From now on the EffectiveAgent is populated
         let populated_agent = final_agent
-            .template_with(agent_values.clone(), None)
+            .template(agent_values.clone(), AgentAttributes::default())
             .unwrap();
         config_persister.should_delete_agent_config(&agent_id, &populated_agent);
         let err = PersistError::DirectoryError(DirectoryManagementError::ErrorDeletingDirectory(
@@ -588,7 +597,7 @@ deployment:
   on_host:
     executables:
       - path: /opt/first 
-        args: "--config_path=${config_path}"
+        args: "--config_path=${nr-var:config_path}"
         env: ""
 "#;
 

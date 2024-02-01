@@ -1,10 +1,13 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 use serde::{Deserialize, Serialize};
 
 use crate::agent_type::{error::AgentTypeError, trivial_value::TrivialValue};
 
-use super::kind::Kind;
+use super::{kind::Kind, kind_value::KindValue};
 
 // Spec can be an arbitrary number of nested mappings but all node terminal leaves are EndSpec,
 // so a recursive datatype is the answer!
@@ -23,6 +26,18 @@ pub struct VariableDefinition {
 }
 
 impl VariableDefinition {
+    pub fn new_sub_agent_string_variable(final_value: String) -> Self {
+        Self {
+            description: String::new(),
+            kind: Kind::String(KindValue {
+                required: false,
+                default: None,
+                final_value: Some(final_value),
+                variants: vec![],
+            }),
+        }
+    }
+
     pub fn is_required(&self) -> bool {
         self.kind.is_required()
     }
@@ -35,8 +50,10 @@ impl VariableDefinition {
         self.kind.get_file_path()
     }
 
-    pub fn set_file_path(&mut self, path: PathBuf) {
-        self.kind.set_file_path(path)
+    pub fn extend_file_path(&mut self, path: &Path) {
+        if let Some(current_path) = self.get_file_path() {
+            self.kind.set_file_path(path.join(current_path))
+        }
     }
 
     pub fn merge_with_yaml_value(&mut self, yaml: serde_yaml::Value) -> Result<(), AgentTypeError> {
