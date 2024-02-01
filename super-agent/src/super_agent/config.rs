@@ -85,11 +85,8 @@ impl AgentID {
         s.len() <= AGENT_ID_MAX_LENGTH
             && s.starts_with(|c: char| c.is_ascii_alphabetic())
             && s.ends_with(|c: char| c.is_ascii_alphanumeric())
-            && s.chars().all(|c| {
-                c.eq(&'-')
-                    || c.is_ascii_digit()
-                    || (c.is_ascii_alphabetic() && c.is_ascii_lowercase())
-            })
+            && s.chars()
+                .all(|c| c.eq(&'-') || c.is_ascii_digit() || c.is_ascii_lowercase())
     }
 }
 
