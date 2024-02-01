@@ -369,6 +369,7 @@ k8s:
         assert!(AgentID::try_from("a-1-b".to_string()).is_ok());
         assert!(AgentID::try_from("a-1".to_string()).is_ok());
         assert!(AgentID::try_from("a".repeat(32)).is_ok());
+
         assert!(AgentID::try_from("A".to_string()).is_err());
         assert!(AgentID::try_from("1a".to_string()).is_err());
         assert!(AgentID::try_from("a".repeat(33)).is_err());
@@ -378,6 +379,12 @@ k8s:
         assert!(AgentID::try_from("a.b".to_string()).is_err());
         assert!(AgentID::try_from("a*b".to_string()).is_err());
         assert!(AgentID::try_from("abc012/".to_string()).is_err());
+        assert!(AgentID::try_from("/abc012".to_string()).is_err());
+        assert!(AgentID::try_from("abc/012".to_string()).is_err());
+        assert!(AgentID::try_from("aBc012".to_string()).is_err());
+        assert!(AgentID::try_from("京bc012".to_string()).is_err());
+        assert!(AgentID::try_from("s京123-12".to_string()).is_err());
+        assert!(AgentID::try_from("super-agent-①".to_string()).is_err());
     }
 
     #[test]
