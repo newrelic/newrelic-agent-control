@@ -20,7 +20,7 @@ pub struct AgentID(String);
 
 #[derive(Error, Debug)]
 pub enum AgentTypeError {
-    #[error("AgentID must contain 32 characters at most, contain alphanumeric only, start with alphabetic, and end with alphanumeric")]
+    #[error("AgentID must contain 32 characters at most, contain alphanumeric characters or dashes only, start with alphabetic, and end with alphanumeric")]
     InvalidAgentID,
     #[error("AgentID '{0}' is reserved")]
     InvalidAgentIDUsesReservedOne(String),
@@ -83,10 +83,10 @@ impl AgentID {
     /// and sets a shorter maximum length to avoid issues when the agent-id is used to compose names.
     fn check_string(s: &str) -> bool {
         s.len() <= AGENT_ID_MAX_LENGTH
-            && s.starts_with(|c: char| c.is_alphabetic())
-            && s.ends_with(|c: char| c.is_alphanumeric())
+            && s.starts_with(|c: char| c.is_ascii_alphabetic())
+            && s.ends_with(|c: char| c.is_ascii_alphanumeric())
             && s.chars()
-                .all(|c| c.eq(&'-') || c.is_numeric() || (c.is_alphabetic() && c.is_lowercase()))
+                .all(|c| c.eq(&'-') || c.is_ascii_digit() || c.is_ascii_lowercase())
     }
 }
 
@@ -369,6 +369,7 @@ k8s:
         assert!(AgentID::try_from("a-1-b".to_string()).is_ok());
         assert!(AgentID::try_from("a-1".to_string()).is_ok());
         assert!(AgentID::try_from("a".repeat(32)).is_ok());
+
         assert!(AgentID::try_from("A".to_string()).is_err());
         assert!(AgentID::try_from("1a".to_string()).is_err());
         assert!(AgentID::try_from("a".repeat(33)).is_err());
@@ -378,6 +379,12 @@ k8s:
         assert!(AgentID::try_from("a.b".to_string()).is_err());
         assert!(AgentID::try_from("a*b".to_string()).is_err());
         assert!(AgentID::try_from("abc012/".to_string()).is_err());
+        assert!(AgentID::try_from("/abc012".to_string()).is_err());
+        assert!(AgentID::try_from("abc/012".to_string()).is_err());
+        assert!(AgentID::try_from("aBc012".to_string()).is_err());
+        assert!(AgentID::try_from("京bc012".to_string()).is_err());
+        assert!(AgentID::try_from("s京123-12".to_string()).is_err());
+        assert!(AgentID::try_from("super-agent-①".to_string()).is_err());
     }
 
     #[test]
@@ -410,7 +417,7 @@ k8s:
         assert!(actual
             .unwrap_err()
             .to_string()
-            .contains("AgentID must contain 32 characters at most, contain alphanumeric only, start with alphabetic, and end with alphanumeric"))
+            .contains("AgentID must contain 32 characters at most, contain alphanumeric characters or dashes only, start with alphabetic, and end with alphanumeric"))
     }
 
     #[test]
