@@ -26,6 +26,7 @@ async-trait = { version = "0.1.71", optional = true }
 tokio = { version = "1.32.0", optional = true, features = ["rt-multi-thread", "macros"] }
 ulid = { workspace = true, features = ["serde"] }
 duration-str = "0.7.0"
+openssl = { version = "0.10.57", features = ["vendored"] }
 fs = { path = "../fs" }
 
 # OnHost subagent dependencies
