@@ -1,4 +1,82 @@
 ec2_super_agents = {
+  "super_agent-TAG_OR_UNIQUE_NAME-amd64:ubuntu16.04" = {
+    ami             = "ami-0d563aeddd4be7fff"
+    subnet          = "subnet-09b64de757828cdd4"
+    security_groups = ["sg-044ef7bc34691164a"]
+    key_name        = "caos-dev-arm"
+    instance_type   = "t3a.small"
+    username        = "ubuntu"
+    python          = "/usr/bin/python3"
+    platform        = "linux"
+    tags            = {
+      "otel_role" = "agent"
+    }
+  }
+  "super_agent-TAG_OR_UNIQUE_NAME-arm64:ubuntu16.04" = {
+    ami             = "ami-0bff25b43a4479334"
+    subnet          = "subnet-09b64de757828cdd4"
+    security_groups = ["sg-044ef7bc34691164a"]
+    key_name        = "caos-dev-arm"
+    instance_type   = "t4g.small"
+    username        = "ubuntu"
+    python          = "/usr/bin/python3"
+    platform        = "linux"
+    tags            = {
+      "otel_role" = "agent"
+    }
+  }
+  "super_agent-TAG_OR_UNIQUE_NAME-amd64:ubuntu18.04" = {
+    ami             = "ami-0600b1bef20a0c212"
+    subnet          = "subnet-09b64de757828cdd4"
+    security_groups = ["sg-044ef7bc34691164a"]
+    key_name        = "caos-dev-arm"
+    instance_type   = "t3a.small"
+    username        = "ubuntu"
+    python          = "/usr/bin/python3"
+    platform        = "linux"
+    tags            = {
+      "otel_role" = "agent"
+    }
+  }
+  "super_agent-TAG_OR_UNIQUE_NAME-arm64:ubuntu18.04" = {
+    ami             = "ami-09ee3570b9d8bc8cc"
+    subnet          = "subnet-09b64de757828cdd4"
+    security_groups = ["sg-044ef7bc34691164a"]
+    key_name        = "caos-dev-arm"
+    instance_type   = "t4g.small"
+    username        = "ubuntu"
+    python          = "/usr/bin/python3"
+    platform        = "linux"
+    tags            = {
+      "otel_role" = "agent"
+    }
+  }
+  "super_agent-TAG_OR_UNIQUE_NAME-amd64:ubuntu20.04" = {
+    ami             = "ami-03b6c8bd55e00d5ed"
+    subnet          = "subnet-09b64de757828cdd4"
+    security_groups = ["sg-044ef7bc34691164a"]
+    key_name        = "caos-dev-arm"
+    instance_type   = "t3a.small"
+    username        = "ubuntu"
+    python          = "/usr/bin/python3"
+    platform        = "linux"
+    tags            = {
+      "otel_role" = "agent"
+    }
+  }
+  "super_agent-TAG_OR_UNIQUE_NAME-arm64:ubuntu20.04" = {
+    ami             = "ami-0b0c8ae527978b689"
+    subnet          = "subnet-09b64de757828cdd4"
+    security_groups = ["sg-044ef7bc34691164a"]
+    key_name        = "caos-dev-arm"
+    instance_type   = "t4g.small"
+    username        = "ubuntu"
+    python          = "/usr/bin/python3"
+    platform        = "linux"
+    tags            = {
+      "otel_role" = "agent"
+    }
+  }
   "super_agent-TAG_OR_UNIQUE_NAME-amd64:ubuntu22.04" = {
     ami             = "ami-0aeb7c931a5a61206"
     subnet          = "subnet-09b64de757828cdd4"
