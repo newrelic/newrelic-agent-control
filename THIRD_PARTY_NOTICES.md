@@ -952,6 +952,13 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
+## openssl-src https://crates.io/crates/openssl-src
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
 ## openssl-sys https://crates.io/crates/openssl-sys
 
 Distributed under the following license(s):
