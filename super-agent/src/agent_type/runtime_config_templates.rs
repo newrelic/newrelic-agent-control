@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, HashMap};
+use std::process::id;
 use std::sync::OnceLock;
 
 use regex::Regex;
@@ -20,14 +21,14 @@ use super::{
 /// ```
 /// use regex::Regex;
 ///
-/// const TEMPLATE_RE: &str = r"\$\{([a-zA-Z0-9\.\-_/]+)\}";
+/// const TEMPLATE_RE: &str = r"\$\{(nr-[a-z]+:[a-zA-Z0-9\.\-_/]+)\}";
 /// let re = Regex::new(TEMPLATE_RE).unwrap();
-/// let content = "Hello ${name.value}!";
+/// let content = "Hello ${nr-var:name.value}!";
 ///
 /// let result = re.find_iter(content).map(|i| i.as_str()).collect::<Vec<_>>();
 ///
-/// assert_eq!(result, vec!["${name.value}"]);
-const TEMPLATE_RE: &str = r"\$\{([a-zA-Z0-9\.\-_/]+)\}";
+/// assert_eq!(result, vec!["${nr-var:name.value}"]);
+const TEMPLATE_RE: &str = r"\$\{(nr-[a-z]+:[a-zA-Z0-9\.\-_/]+)\}";
 const TEMPLATE_BEGIN: &str = "${";
 const TEMPLATE_END: char = '}';
 pub const TEMPLATE_KEY_SEPARATOR: &str = ".";
@@ -165,15 +166,10 @@ impl Templateable for K8s {
 
 impl Templateable for K8sObject {
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
-        let metadata = self
-            .metadata
-            .map(|m| m.template_with(variables))
-            .transpose()?;
-
         Ok(Self {
             api_version: self.api_version.clone(),
             kind: self.kind.clone(),
-            metadata,
+            metadata: self.metadata.template_with(variables)?,
             fields: self.fields.template_with(variables)?,
         })
     }
@@ -187,6 +183,7 @@ impl Templateable for K8sObjectMeta {
                 .into_iter()
                 .map(|(k, v)| Ok((k.template_with(variables)?, v.template_with(variables)?)))
                 .collect::<Result<BTreeMap<String, String>, AgentTypeError>>()?,
+            name: self.name.template_with(variables)?,
         })
     }
 }
@@ -328,16 +325,16 @@ mod tests {
     fn test_template_string() {
         let variables = Variables::from([
             (
-                "name".to_string(),
+                "nr-var:name".to_string(),
                 VariableDefinition::new(String::default(), true, None, Some("Alice".to_string())),
             ),
             (
-                "age".to_string(),
+                "nr-var:age".to_string(),
                 VariableDefinition::new(String::default(), true, None, Some(Number::from(30))),
             ),
         ]);
 
-        let input = "Hello ${name}! You are ${age} years old.".to_string();
+        let input = "Hello ${nr-var:name}! You are ${nr-var:age} years old.".to_string();
         let expected_output = "Hello Alice! You are 30 years old.".to_string();
         let actual_output = template_string(input, &variables).unwrap();
         assert_eq!(actual_output, expected_output);
@@ -347,7 +344,7 @@ mod tests {
     fn test_template_executable() {
         let variables = Variables::from([
             (
-                "path".to_string(),
+                "nr-var:path".to_string(),
                 VariableDefinition::new(
                     String::default(),
                     true,
@@ -356,7 +353,7 @@ mod tests {
                 ),
             ),
             (
-                "args".to_string(),
+                "nr-var:args".to_string(),
                 VariableDefinition::new(
                     String::default(),
                     true,
@@ -365,27 +362,27 @@ mod tests {
                 ),
             ),
             (
-                "env.MYAPP_PORT".to_string(),
+                "nr-var:env.MYAPP_PORT".to_string(),
                 VariableDefinition::new(String::default(), true, None, Some("8080".to_string())),
             ),
             (
-                "backoff.type".to_string(),
+                "nr-var:backoff.type".to_string(),
                 VariableDefinition::new(String::default(), true, None, Some("linear".to_string())),
             ),
             (
-                "backoff.delay".to_string(),
+                "nr-var:backoff.delay".to_string(),
                 VariableDefinition::new(String::default(), true, None, Some("10s".to_string())),
             ),
             (
-                "backoff.retries".to_string(),
+                "nr-var:backoff.retries".to_string(),
                 VariableDefinition::new(String::default(), true, None, Some(Number::from(30))),
             ),
             (
-                "backoff.interval".to_string(),
+                "nr-var:backoff.interval".to_string(),
                 VariableDefinition::new(String::default(), true, None, Some("300s".to_string())),
             ),
             (
-                "config".to_string(),
+                "nr-var:config".to_string(),
                 VariableDefinition::new_with_file_path(
                     "config".to_string(),
                     true,
@@ -398,7 +395,7 @@ mod tests {
                 ),
             ),
             (
-                "integrations".to_string(),
+                "nr-var:integrations".to_string(),
                 VariableDefinition::new_with_file_path(
                     "integrations".to_string(),
                     true,
@@ -416,16 +413,26 @@ mod tests {
         ]);
 
         let input = Executable {
-            path: TemplateableValue::from_template("${path}".to_string()),
-            args: TemplateableValue::from_template("${args} ${config} ${integrations}".to_string()),
-            env: TemplateableValue::from_template("MYAPP_PORT=${env.MYAPP_PORT}".to_string()),
+            path: TemplateableValue::from_template("${nr-var:path}".to_string()),
+            args: TemplateableValue::from_template(
+                "${nr-var:args} ${nr-var:config} ${nr-var:integrations}".to_string(),
+            ),
+            env: TemplateableValue::from_template(
+                "MYAPP_PORT=${nr-var:env.MYAPP_PORT}".to_string(),
+            ),
             restart_policy: RestartPolicyConfig {
                 backoff_strategy: BackoffStrategyConfig {
-                    backoff_type: TemplateableValue::from_template("${backoff.type}".to_string()),
-                    backoff_delay: TemplateableValue::from_template("${backoff.delay}".to_string()),
-                    max_retries: TemplateableValue::from_template("${backoff.retries}".to_string()),
+                    backoff_type: TemplateableValue::from_template(
+                        "${nr-var:backoff.type}".to_string(),
+                    ),
+                    backoff_delay: TemplateableValue::from_template(
+                        "${nr-var:backoff.delay}".to_string(),
+                    ),
+                    max_retries: TemplateableValue::from_template(
+                        "${nr-var:backoff.retries}".to_string(),
+                    ),
                     last_retry_interval: TemplateableValue::from_template(
-                        "${backoff.interval}".to_string(),
+                        "${nr-var:backoff.interval}".to_string(),
                     ),
                 },
                 restart_exit_codes: vec![],
@@ -433,23 +440,23 @@ mod tests {
         };
         let expected_output = Executable {
             path: TemplateableValue::new("/usr/bin/myapp".to_string())
-                .with_template("${path}".to_string()),
+                .with_template("${nr-var:path}".to_string()),
             args: TemplateableValue::new(Args(
                 "--config /etc/myapp.conf config_path integration_path".to_string(),
             ))
-            .with_template("${args} ${config} ${integrations}".to_string()),
+            .with_template("${nr-var:args} ${nr-var:config} ${nr-var:integrations}".to_string()),
             env: TemplateableValue::new(Env("MYAPP_PORT=8080".to_string()))
-                .with_template("MYAPP_PORT=${env.MYAPP_PORT}".to_string()),
+                .with_template("MYAPP_PORT=${nr-var:env.MYAPP_PORT}".to_string()),
             restart_policy: RestartPolicyConfig {
                 backoff_strategy: BackoffStrategyConfig {
                     backoff_type: TemplateableValue::new(BackoffStrategyType::Linear)
-                        .with_template("${backoff.type}".to_string()),
+                        .with_template("${nr-var:backoff.type}".to_string()),
                     backoff_delay: TemplateableValue::new(BackoffDuration::from_secs(10))
-                        .with_template("${backoff.delay}".to_string()),
+                        .with_template("${nr-var:backoff.delay}".to_string()),
                     max_retries: TemplateableValue::new(30)
-                        .with_template("${backoff.retries}".to_string()),
+                        .with_template("${nr-var:backoff.retries}".to_string()),
                     last_retry_interval: TemplateableValue::new(BackoffDuration::from_secs(300))
-                        .with_template("${backoff.interval}".to_string()),
+                        .with_template("${nr-var:backoff.interval}".to_string()),
                 },
                 restart_exit_codes: vec![],
             },
@@ -462,7 +469,7 @@ mod tests {
     fn test_template_value_mapping() {
         let variables = Variables::from([
             (
-                "change.me.string".to_string(),
+                "nr-var:change.me.string".to_string(),
                 VariableDefinition::new(
                     String::default(),
                     true,
@@ -471,22 +478,22 @@ mod tests {
                 ),
             ),
             (
-                "change.me.bool".to_string(),
+                "nr-var:change.me.bool".to_string(),
                 VariableDefinition::new(String::default(), true, None, Some(true)),
             ),
             (
-                "change.me.number".to_string(),
+                "nr-var:change.me.number".to_string(),
                 VariableDefinition::new(String::default(), true, None, Some(Number::from(42))),
             ),
         ]);
         let input: serde_yaml::Mapping = serde_yaml::from_str(
             r#"
-        a_string: "${change.me.string}"
-        a_boolean: "${change.me.bool}"
-        a_number: "${change.me.number}"
-        ${change.me.string}: "Do not scape me"
-        ${change.me.bool}: "Do not scape me"
-        ${change.me.number}: "Do not scape me"
+        a_string: "${nr-var:change.me.string}"
+        a_boolean: "${nr-var:change.me.bool}"
+        a_number: "${nr-var:change.me.number}"
+        ${nr-var:change.me.string}: "Do not scape me"
+        ${nr-var:change.me.bool}: "Do not scape me"
+        ${nr-var:change.me.number}: "Do not scape me"
         "#,
         )
         .unwrap();
@@ -495,9 +502,9 @@ mod tests {
         a_string: "CHANGED-STRING"
         a_boolean: true
         a_number: 42
-        ${change.me.string}: "Do not scape me"
-        ${change.me.bool}: "Do not scape me"
-        ${change.me.number}: "Do not scape me"
+        ${nr-var:change.me.string}: "Do not scape me"
+        ${nr-var:change.me.bool}: "Do not scape me"
+        ${nr-var:change.me.number}: "Do not scape me"
         "#,
         )
         .unwrap();
@@ -510,7 +517,7 @@ mod tests {
     fn test_template_value_sequence() {
         let variables = Variables::from([
             (
-                "change.me.string".to_string(),
+                "nr-var:change.me.string".to_string(),
                 VariableDefinition::new(
                     String::default(),
                     true,
@@ -519,19 +526,19 @@ mod tests {
                 ),
             ),
             (
-                "change.me.bool".to_string(),
+                "nr-var:change.me.bool".to_string(),
                 VariableDefinition::new(String::default(), true, None, Some(true)),
             ),
             (
-                "change.me.number".to_string(),
+                "nr-var:change.me.number".to_string(),
                 VariableDefinition::new(String::default(), true, None, Some(Number::from(42))),
             ),
         ]);
         let input: serde_yaml::Sequence = serde_yaml::from_str(
             r#"
-        - ${change.me.string}
-        - ${change.me.bool}
-        - ${change.me.number}
+        - ${nr-var:change.me.string}
+        - ${nr-var:change.me.bool}
+        - ${nr-var:change.me.number}
         - Do not scape me
         "#,
         )
@@ -554,7 +561,7 @@ mod tests {
     fn test_template_yaml() {
         let variables = Variables::from([
             (
-                "change.me.string".to_string(),
+                "nr-var:change.me.string".to_string(),
                 VariableDefinition::new(
                     String::default(),
                     true,
@@ -563,15 +570,15 @@ mod tests {
                 ),
             ),
             (
-                "change.me.bool".to_string(),
+                "nr-var:change.me.bool".to_string(),
                 VariableDefinition::new(String::default(), true, None, Some(true)),
             ),
             (
-                "change.me.number".to_string(),
+                "nr-var:change.me.number".to_string(),
                 VariableDefinition::new(String::default(), true, None, Some(Number::from(42))),
             ),
             (
-                "change.me.yaml".to_string(),
+                "nr-var:change.me.yaml".to_string(),
                 VariableDefinition::new(
                     String::default(),
                     true,
@@ -583,7 +590,7 @@ mod tests {
             ),
             (
                 // Expansion inside variable's values is not supported.
-                "yaml.with.var.placeholder".to_string(),
+                "nr-var:yaml.with.var.placeholder".to_string(),
                 VariableDefinition::new(
                     String::default(),
                     true,
@@ -591,7 +598,7 @@ mod tests {
                     Some(serde_yaml::Value::Mapping(serde_yaml::Mapping::from_iter(
                         [(
                             "this.will.not.be.expanded".into(),
-                            "${change.me.string}".into(),
+                            "${nr-var:change.me.string}".into(),
                         )],
                     ))),
                 ),
@@ -600,25 +607,25 @@ mod tests {
         let input: serde_yaml::Value = serde_yaml::from_str(
             r#"
         an_object:
-            a_string: ${change.me.string}
-            a_boolean: ${change.me.bool}
-            a_number: ${change.me.number}
+            a_string: ${nr-var:change.me.string}
+            a_boolean: ${nr-var:change.me.bool}
+            a_number: ${nr-var:change.me.number}
         a_sequence:
-            - ${change.me.string}
-            - ${change.me.bool}
-            - ${change.me.number}
+            - ${nr-var:change.me.string}
+            - ${nr-var:change.me.bool}
+            - ${nr-var:change.me.number}
         a_nested_object:
             with_nested_sequence:
-                - a_string: ${change.me.string}
-                - a_boolean: ${change.me.bool}
-                - a_number: ${change.me.number}
-                - a_yaml: ${change.me.yaml}
-        a_string: ${change.me.string}
-        a_boolean: ${change.me.bool}
-        a_number: ${change.me.number}
-        a_yaml: ${change.me.yaml}
-        another_yaml: ${yaml.with.var.placeholder} # A variable inside another variable value is not expanded
-        string_key: "here, the value ${change.me.yaml} is encoded as string because it is not alone"
+                - a_string: ${nr-var:change.me.string}
+                - a_boolean: ${nr-var:change.me.bool}
+                - a_number: ${nr-var:change.me.number}
+                - a_yaml: ${nr-var:change.me.yaml}
+        a_string: ${nr-var:change.me.string}
+        a_boolean: ${nr-var:change.me.bool}
+        a_number: ${nr-var:change.me.number}
+        a_yaml: ${nr-var:change.me.yaml}
+        another_yaml: ${nr-var:yaml.with.var.placeholder} # A variable inside another variable value is not expanded
+        string_key: "here, the value ${nr-var:change.me.yaml} is encoded as string because it is not alone"
         "#,
         )
         .unwrap();
@@ -646,7 +653,7 @@ mod tests {
         a_yaml:
           key: value
         another_yaml:
-          "this.will.not.be.expanded": "${change.me.string}" # A variable inside another other variable value is not expanded
+          "this.will.not.be.expanded": "${nr-var:change.me.string}" # A variable inside another other variable value is not expanded
         string_key: "here, the value key: value\n is encoded as string because it is not alone"
         "#, // FIXME? Note line above, the "key: value\n" part was replaced!!
         )
@@ -660,23 +667,23 @@ mod tests {
     fn test_template_yaml_value_string() {
         let variables = Variables::from([
             (
-                "simple.string.var".to_string(),
+                "nr-var:simple.string.var".to_string(),
                 VariableDefinition::new(String::default(), true, None, Some("Value".to_string())),
             ),
             (
-                "string.with.yaml.var".to_string(),
+                "nr-var:string.with.yaml.var".to_string(),
                 VariableDefinition::new(String::default(), true, None, Some("[Value]".to_string())),
             ),
             (
-                "bool.var".to_string(),
+                "nr-var:bool.var".to_string(),
                 VariableDefinition::new(String::default(), true, None, Some(true)),
             ),
             (
-                "number.var".to_string(),
+                "nr-var:number.var".to_string(),
                 VariableDefinition::new(String::default(), true, None, Some(Number::from(42))),
             ),
             (
-                "yaml.var".to_string(),
+                "nr-var:yaml.var".to_string(),
                 VariableDefinition::new(
                     String::default(),
                     true,
@@ -690,51 +697,55 @@ mod tests {
 
         assert_eq!(
             serde_yaml::Value::String("Value".into()),
-            template_yaml_value_string("${simple.string.var}".into(), &variables).unwrap()
+            template_yaml_value_string("${nr-var:simple.string.var}".into(), &variables).unwrap()
         );
         assert_eq!(
             serde_yaml::Value::String("var=Value".into()),
-            template_yaml_value_string("var=${simple.string.var}".into(), &variables).unwrap()
+            template_yaml_value_string("var=${nr-var:simple.string.var}".into(), &variables)
+                .unwrap()
         );
         assert_eq!(
             serde_yaml::Value::String("ValueValue".into()),
             template_yaml_value_string(
-                "${simple.string.var}${simple.string.var}".into(),
+                "${nr-var:simple.string.var}${nr-var:simple.string.var}".into(),
                 &variables
             )
             .unwrap()
         );
         assert_eq!(
             serde_yaml::Value::String("[Value]".into()),
-            template_yaml_value_string("${string.with.yaml.var}".into(), &variables).unwrap()
+            template_yaml_value_string("${nr-var:string.with.yaml.var}".into(), &variables)
+                .unwrap()
         );
         // yaml, bool and number values are got when the corresponding variable is "alone".
         assert_eq!(
             serde_yaml::Value::Bool(true),
-            template_yaml_value_string("${bool.var}".into(), &variables).unwrap()
+            template_yaml_value_string("${nr-var:bool.var}".into(), &variables).unwrap()
         );
         assert_eq!(
             serde_yaml::Value::Number(serde_yaml::Number::from(42i32)),
-            template_yaml_value_string("${number.var}".into(), &variables).unwrap()
+            template_yaml_value_string("${nr-var:number.var}".into(), &variables).unwrap()
         );
         assert_eq!(
             serde_yaml::Value::String("truetrue".into()),
-            template_yaml_value_string("${bool.var}${bool.var}".into(), &variables).unwrap()
+            template_yaml_value_string("${nr-var:bool.var}${nr-var:bool.var}".into(), &variables)
+                .unwrap()
         );
         assert_eq!(
             serde_yaml::Value::String("true42".into()),
-            template_yaml_value_string("${bool.var}${number.var}".into(), &variables).unwrap()
+            template_yaml_value_string("${nr-var:bool.var}${nr-var:number.var}".into(), &variables)
+                .unwrap()
         );
         assert_eq!(
             serde_yaml::Value::String("the 42 Value is true".into()),
             template_yaml_value_string(
-                "the ${number.var} ${simple.string.var} is ${bool.var}".into(),
+                "the ${nr-var:number.var} ${nr-var:simple.string.var} is ${nr-var:bool.var}".into(),
                 &variables
             )
             .unwrap()
         );
         let m = assert_matches!(
-            template_yaml_value_string("${yaml.var}".into(), &variables).unwrap(),
+            template_yaml_value_string("${nr-var:yaml.var}".into(), &variables).unwrap(),
             serde_yaml::Value::Mapping(m) => m
         );
         assert_eq!(
@@ -743,19 +754,21 @@ mod tests {
         );
         assert_eq!(
             serde_yaml::Value::String("x: key: value\n".into()), // FIXME? Consder if this is ok.
-            template_yaml_value_string("x: ${yaml.var}".into(), &variables).unwrap()
+            template_yaml_value_string("x: ${nr-var:yaml.var}".into(), &variables).unwrap()
         )
     }
 
     #[test]
     fn test_normalized_var() {
         let variables = Variables::from([(
-            "var.name".to_string(),
+            "nr-var:var.name".to_string(),
             VariableDefinition::new(String::default(), true, None, Some("Value".to_string())),
         )]);
 
         assert_matches!(
-            normalized_var("var.name", &variables).unwrap().kind(),
+            normalized_var("nr-var:var.name", &variables)
+                .unwrap()
+                .kind(),
             Kind::String(_)
         );
         let key = assert_matches!(
@@ -776,22 +789,23 @@ mod tests {
 
         let re = template_re();
         assert_eq!(
-            "Value-${other}".to_string(),
-            replace(re, "${any}-${other}", "any", &value_var).unwrap()
+            "Value-${nr-var:other}".to_string(),
+            replace(re, "${nr-var:any}-${nr-var:other}", "any", &value_var).unwrap()
         );
         assert_eq!(
-            "Default-${other}".to_string(),
-            replace(re, "${any}-${other}", "any", &default_var).unwrap()
+            "Default-${nr-var:other}".to_string(),
+            replace(re, "${nr-var:any}-${nr-var:other}", "any", &default_var).unwrap()
         );
         let key = assert_matches!(
-            replace(re, "${any}-x", "any", &neither_value_nor_default).err().unwrap(),
+            replace(re, "${nr-var:any}-x", "any", &neither_value_nor_default).err().unwrap(),
             AgentTypeError::MissingTemplateKey(s) => s);
         assert_eq!("any".to_string(), key);
     }
 
     #[test]
     fn test_template_k8s() {
-        let untouched_val = "${any} no templated";
+        let untouched_val = "${nr-var:any} no templated";
+        let test_agent_id = "id";
         let k8s_template: K8s = serde_yaml::from_str(
             format!(
                 r#"
@@ -800,10 +814,11 @@ objects:
     apiVersion: {untouched_val} 
     kind: {untouched_val} 
     metadata:
+      name: ${{nr-sub:agent_id}}
       labels:
-        foo: ${{any}}
-        ${{any}}: bar
-    spec: ${{any}}
+        foo: ${{nr-var:any}}
+        ${{nr-var:any}}: bar
+    spec: ${{nr-var:any}}
 "#
             )
             .as_str(),
@@ -811,10 +826,16 @@ objects:
         .unwrap();
 
         let value = "test_value";
-        let variables = Variables::from([(
-            "any".to_string(),
-            VariableDefinition::new(String::default(), true, None, Some(value.to_string())),
-        )]);
+        let variables = Variables::from([
+            (
+                "nr-var:any".to_string(),
+                VariableDefinition::new(String::default(), true, None, Some(value.to_string())),
+            ),
+            (
+                "nr-sub:agent_id".to_string(),
+                VariableDefinition::new_sub_agent_string_variable(test_agent_id.to_string()),
+            ),
+        ]);
 
         let k8s = k8s_template.template_with(&variables).unwrap();
 
@@ -827,8 +848,11 @@ objects:
         // Expect template works on fields.
         assert_eq!(cr1.fields.get("spec").unwrap(), value);
 
+        // Expect template works on name.
+        assert_eq!(cr1.metadata.name, test_agent_id);
+
         // Expect template works on labels.
-        let labels = cr1.metadata.unwrap().labels;
+        let labels = cr1.metadata.labels;
         assert_eq!(labels.get("foo").unwrap(), value);
         assert_eq!(labels.get(value).unwrap(), "bar");
     }

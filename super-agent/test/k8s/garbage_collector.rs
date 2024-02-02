@@ -36,6 +36,7 @@ fn k8s_garbage_collector_cleans_removed_agent() {
         .unwrap(),
     );
 
+    let resource_name = "test-different-from-agent-id";
     let s = CRSupervisor::new(
         agent_id.clone(),
         k8s_client.clone(),
@@ -48,9 +49,12 @@ apiVersion: {}
 kind: {}
 spec:
     data: test
+metadata:
+  name: {}
         "#,
                     foo_type_meta().api_version,
-                    foo_type_meta().kind
+                    foo_type_meta().kind,
+                    resource_name,
                 )
                 .as_str(),
             )
@@ -98,7 +102,7 @@ agents:
     // are missing in the cluster.
     gc.collect().unwrap();
     let api: Api<Foo> = Api::namespaced(test.client.clone(), &test_ns);
-    block_on(api.get(agent_id)).expect("CR should exist");
+    block_on(api.get(resource_name)).expect("CR should exist");
     assert_eq!(
         agent_ulid,
         instance_id_getter.get(agent_id).unwrap(),
@@ -107,7 +111,7 @@ agents:
 
     // Expect that the current_agent is removed on the second call.
     gc.collect().unwrap();
-    block_on(api.get(agent_id)).expect_err("CR should be removed");
+    block_on(api.get(resource_name)).expect_err("CR should be removed");
     assert_ne!(
         agent_ulid,
         instance_id_getter.get(agent_id).unwrap(),

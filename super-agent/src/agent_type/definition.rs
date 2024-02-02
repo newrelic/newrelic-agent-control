@@ -222,31 +222,32 @@ impl AgentType {
         Ok(())
     }
 
-    /// template_with the [`RuntimeConfig`] object field of the [`Agent`] type with the user-provided config, which must abide by the agent type's defined [`AgentVariables`].
+    /// template the [`RuntimeConfig`] object field of the [`Agent`] type with the user-provided config, which must abide by the agent type's defined [`AgentVariables`].
+    /// It uses [`AgentAttributes`] to build sub-agent variables, for example nr-sub:agent_id.
     ///
-    /// This method will return an error if the user-provided config does not conform to the agent type's spec.
-    pub fn template_with(
+    /// This method will return an error if:
+    /// - Any user-provided config is not defined as a Variable in the Agent Type.
+    /// - A 'required' variable does not have a value.
+    pub fn template(
         mut self,
         values: AgentValues,
-        agent_configs_path: Option<&str>,
+        agent_attributes: AgentAttributes,
     ) -> Result<AgentType, AgentTypeError> {
+        // Build variables.
         self.merge_variables_with_values(values)?;
 
-        let variables = if let Some(p) = agent_configs_path {
-            let mut v = self.variables.clone().flatten();
-            v.values_mut().for_each(|v| {
-                if let Some(file_path) = v.get_file_path() {
-                    let mut new_file_path = PathBuf::from(p);
-                    new_file_path.push(file_path);
-                    v.set_file_path(new_file_path);
-                }
-            });
-            v
-        } else {
-            self.variables.clone().flatten()
-        };
+        let mut namespaced_variables = HashMap::new();
 
-        let runtime_conf = self.runtime_config.template_with(&variables)?;
+        for (name, var) in self.variables.clone().flatten().into_iter() {
+            namespaced_variables.insert(VariableNamespace::Variable.namespaced_name(&name), var);
+        }
+
+        namespaced_variables.extend(agent_attributes.sub_agent_variables());
+
+        namespaced_variables = agent_attributes.extend_file_paths(namespaced_variables);
+
+        // Template with variables.
+        let runtime_conf = self.runtime_config.template_with(&namespaced_variables)?;
 
         let populated_agent = AgentType {
             runtime_config: runtime_conf,
@@ -254,6 +255,58 @@ impl AgentType {
         };
 
         Ok(populated_agent)
+    }
+}
+enum VariableNamespace {
+    Variable,
+    SubAgent,
+}
+
+impl VariableNamespace {
+    const PREFIX: &'static str = "nr-";
+    const VARIABLE: &'static str = "var";
+    const SUB_AGENT: &'static str = "sub";
+
+    fn namespaced_name(&self, variable_name: &str) -> String {
+        let ns = match self {
+            Self::Variable => Self::VARIABLE,
+            Self::SubAgent => Self::SUB_AGENT,
+        };
+        format!("{}{ns}:{variable_name}", Self::PREFIX)
+    }
+}
+
+/// contains any attribute from the sub-agent that is used to build or modify variables used to template the AgentType.
+#[derive(Debug, PartialEq, Clone, Default)]
+pub struct AgentAttributes {
+    /// sub-agent generated config path
+    pub generated_configs_path: Option<PathBuf>,
+    /// sub-agent Agent ID
+    pub agent_id: String,
+}
+
+impl AgentAttributes {
+    const VARIABLE_SUB_AGENT_ID: &'static str = "agent_id";
+
+    /// returns the variables from the sub-agent attributes source 'nr-sub'.
+    fn sub_agent_variables(&self) -> HashMap<String, VariableDefinition> {
+        HashMap::from([(
+            VariableNamespace::SubAgent.namespaced_name(Self::VARIABLE_SUB_AGENT_ID),
+            VariableDefinition::new_sub_agent_string_variable(self.agent_id.clone()),
+        )])
+    }
+
+    /// extends the path of all variables that have a kind with path, with the sub agent generated config path.
+    fn extend_file_paths(
+        &self,
+        mut variables: HashMap<String, VariableDefinition>,
+    ) -> HashMap<String, VariableDefinition> {
+        if let Some(path) = self.generated_configs_path.as_ref() {
+            variables
+                .values_mut()
+                .for_each(|v| v.extend_file_path(path.as_path()));
+        }
+        variables
     }
 }
 
@@ -326,7 +379,7 @@ fn inner_flatten(key: String, spec: VariableDefinitionTree) -> HashMap<String, V
 ///         default: info
 /// ```
 ///
-/// Will be converted to `system.logging.level` and can be used later in the AgentType_Meta part as `${system.logging.level}`.
+/// Will be converted to `system.logging.level` and can be used later in the AgentType_Meta part as `${nr-var:system.logging.level}`.
 pub(crate) type Variables = HashMap<String, VariableDefinition>;
 
 #[cfg(test)]
@@ -367,8 +420,8 @@ variables:
 deployment:
   on_host:
     executables:
-      - path: ${bin}/otelcol
-        args: "-c ${deployment.k8s.image}"
+      - path: ${nr-var:bin}/otelcol
+        args: "-c ${nr-var:deployment.k8s.image}"
         env: ""
         restart_policy:
           backoff_strategy:
@@ -376,8 +429,8 @@ deployment:
             backoff_delay: 1s
             max_retries: 3
             last_retry_interval: 30s
-      - path: ${bin}/otelcol-gw
-        args: "-c ${deployment.k8s.image}"
+      - path: ${nr-var:bin}/otelcol-gw
+        args: "-c ${nr-var:deployment.k8s.image}"
         env: ""
         restart_policy:
           backoff_strategy:
@@ -397,38 +450,10 @@ spec:
 deployment:
   on_host:
     executables:
-      - path: ${bin}/otelcol
-        args: "-c ${deployment.k8s.image}"
+      - path: ${nr-var:bin}/otelcol
+        args: "-c ${nr-var:deployment.k8s.image}"
         env: ""
 "#;
-
-    // FIXME: Adapt new structure
-    // #[test]
-    // fn test_basic_parsing() {
-    //     let agent: AgentTemplateable = serde_yaml::from_str(AGENT_GIVEN_YAML).unwrap();
-
-    //     assert_eq!("nrdot", agent.metadata.name);
-    //     assert_eq!("newrelic", agent.metadata.namespace);
-    //     assert_eq!("0.1.0", agent.metadata.version);
-
-    //     let on_host = agent.runtime_config.deployment.on_host.clone().unwrap();
-
-    //     assert_eq!("${bin}/otelcol", on_host.executables[0].path);
-    //     assert_eq!(
-    //         Args("-c ${deployment.k8s.image}".to_string()),
-    //         on_host.executables[0].args
-    //     );
-
-    //     // Restart restart policy values
-    //     assert_eq!(
-    //         BackoffStrategyConfigTemplateable::Fixed(BackoffStrategyInnerTemplateable {
-    //             backoff_delay: Duration::from_secs(1),
-    //             max_retries: 3,
-    //             last_retry_interval: Duration::from_secs(30),
-    //         }),
-    //         on_host.restart_policy.backoff_strategy
-    //     );
-    // }
 
     #[test]
     fn test_basic_agent_parsing() {
@@ -441,11 +466,11 @@ deployment:
         let on_host = agent.runtime_config.deployment.on_host.clone().unwrap();
 
         assert_eq!(
-            "${bin}/otelcol",
+            "${nr-var:bin}/otelcol",
             on_host.executables[0].clone().path.template
         );
         assert_eq!(
-            "-c ${deployment.k8s.image}".to_string(),
+            "-c ${nr-var:deployment.k8s.image}".to_string(),
             on_host.executables[0].clone().args.template
         );
 
@@ -519,19 +544,19 @@ deployment:
     #[test]
     fn test_replacer() {
         let exec = Executable {
-            path: TemplateableValue::from_template("${bin}/otelcol".to_string()),
+            path: TemplateableValue::from_template("${nr-var:bin}/otelcol".to_string()),
             args: TemplateableValue::from_template(
-                "--config ${config} --plugin_dir ${integrations} --verbose ${deployment.on_host.verbose} --logs ${deployment.on_host.log_level}"
+                "--config ${nr-var:config} --plugin_dir ${nr-var:integrations} --verbose ${nr-var:deployment.on_host.verbose} --logs ${nr-var:deployment.on_host.log_level}"
                     .to_string(),
             ),
             env: TemplateableValue::from_template("".to_string()),
             restart_policy: RestartPolicyConfig {
                 backoff_strategy: BackoffStrategyConfig {
-                    backoff_type: TemplateableValue::from_template("${backoff.type}".to_string()),
-                    backoff_delay: TemplateableValue::from_template("${backoff.delay}".to_string()),
-                    max_retries: TemplateableValue::from_template("${backoff.retries}".to_string()),
+                    backoff_type: TemplateableValue::from_template("${nr-var:backoff.type}".to_string()),
+                    backoff_delay: TemplateableValue::from_template("${nr-var:backoff.delay}".to_string()),
+                    max_retries: TemplateableValue::from_template("${nr-var:backoff.retries}".to_string()),
                     last_retry_interval: TemplateableValue::from_template(
-                        "${backoff.interval}".to_string(),
+                        "${nr-var:backoff.interval}".to_string(),
                     ),
                 },
                 restart_exit_codes: vec![],
@@ -540,11 +565,11 @@ deployment:
 
         let normalized_values = Map::from([
             (
-                "bin".to_string(),
+                "nr-var:bin".to_string(),
                 VariableDefinition::new("binary".to_string(), true, None, Some("/etc".to_string())),
             ),
             (
-                "config".to_string(),
+                "nr-var:config".to_string(),
                 VariableDefinition::new_with_file_path(
                     "config".to_string(),
                     true,
@@ -557,7 +582,7 @@ deployment:
                 ),
             ),
             (
-                "integrations".to_string(),
+                "nr-var:integrations".to_string(),
                 VariableDefinition::new_with_file_path(
                     "integrations".to_string(),
                     true,
@@ -582,7 +607,7 @@ deployment:
                 ),
             ),
             (
-                "deployment.on_host.verbose".to_string(),
+                "nr-var:deployment.on_host.verbose".to_string(),
                 VariableDefinition::new(
                     "verbosity".to_string(),
                     true,
@@ -591,7 +616,7 @@ deployment:
                 ),
             ),
             (
-                "deployment.on_host.log_level".to_string(),
+                "nr-var:deployment.on_host.log_level".to_string(),
                 VariableDefinition::new(
                     "log_level".to_string(),
                     true,
@@ -600,7 +625,7 @@ deployment:
                 ),
             ),
             (
-                "backoff.type".to_string(),
+                "nr-var:backoff.type".to_string(),
                 VariableDefinition::new(
                     "backoff_type".to_string(),
                     true,
@@ -609,7 +634,7 @@ deployment:
                 ),
             ),
             (
-                "backoff.delay".to_string(),
+                "nr-var:backoff.delay".to_string(),
                 VariableDefinition::new(
                     "backoff_delay".to_string(),
                     true,
@@ -618,7 +643,7 @@ deployment:
                 ),
             ),
             (
-                "backoff.retries".to_string(),
+                "nr-var:backoff.retries".to_string(),
                 VariableDefinition::new(
                     "backoff_retries".to_string(),
                     true,
@@ -627,7 +652,7 @@ deployment:
                 ),
             ),
             (
-                "backoff.interval".to_string(),
+                "nr-var:backoff.interval".to_string(),
                 VariableDefinition::new(
                     "backoff_interval".to_string(),
                     true,
@@ -642,12 +667,12 @@ deployment:
         let exec_expected = Executable {
             path: TemplateableValue {
                 value: Some("/etc/otelcol".to_string()),
-                template: "${bin}/otelcol".to_string(),
+                template: "${nr-var:bin}/otelcol".to_string(),
             },
             args: TemplateableValue {
                 value: Some(Args("--config config_path --plugin_dir integration_path --verbose true --logs trace".to_string())),
                 template:
-                    "--config ${config} --plugin_dir ${integrations} --verbose ${deployment.on_host.verbose} --logs ${deployment.on_host.log_level}"
+                    "--config ${nr-var:config} --plugin_dir ${nr-var:integrations} --verbose ${nr-var:deployment.on_host.verbose} --logs ${nr-var:deployment.on_host.log_level}"
                         .to_string(),
             },
             env: TemplateableValue {
@@ -658,19 +683,19 @@ deployment:
                 backoff_strategy: BackoffStrategyConfig {
                     backoff_type: TemplateableValue {
                         value: Some(BackoffStrategyType::Exponential),
-                        template: "${backoff.type}".to_string(),
+                        template: "${nr-var:backoff.type}".to_string(),
                     },
                     backoff_delay: TemplateableValue {
                         value: Some(BackoffDuration::from_secs(10)),
-                        template: "${backoff.delay}".to_string(),
+                        template: "${nr-var:backoff.delay}".to_string(),
                     },
                     max_retries: TemplateableValue {
                         value: Some(30),
-                        template: "${backoff.retries}".to_string(),
+                        template: "${nr-var:backoff.retries}".to_string(),
                     },
                     last_retry_interval: TemplateableValue {
                         value: Some(BackoffDuration::from_secs(300)),
-                        template: "${backoff.interval}".to_string(),
+                        template: "${nr-var:backoff.interval}".to_string(),
                     },
                 },
                 restart_exit_codes: vec![],
@@ -683,25 +708,25 @@ deployment:
     #[test]
     fn test_replacer_two_same() {
         let exec = Executable {
-            path: TemplateableValue::from_template("${bin}/otelcol".to_string()),
-            args: TemplateableValue::from_template("--verbose ${deployment.on_host.verbose} --verbose_again ${deployment.on_host.verbose}".to_string()),
+            path: TemplateableValue::from_template("${nr-var:bin}/otelcol".to_string()),
+            args: TemplateableValue::from_template("--verbose ${nr-var:deployment.on_host.verbose} --verbose_again ${nr-var:deployment.on_host.verbose}".to_string()),
             env: TemplateableValue::from_template("".to_string()),
             restart_policy: RestartPolicyConfig {
                 backoff_strategy: BackoffStrategyConfig {
                     backoff_type: TemplateableValue::from_template(
-                        "${backoff.type}"
+                        "${nr-var:backoff.type}"
                             .to_string(),
                     ),
                     backoff_delay: TemplateableValue::from_template(
-                        "${backoff.delay}"
+                        "${nr-var:backoff.delay}"
                             .to_string(),
                     ),
                     max_retries: TemplateableValue::from_template(
-                        "${backoff.retries}"
+                        "${nr-var:backoff.retries}"
                             .to_string(),
                     ),
                     last_retry_interval: TemplateableValue::from_template(
-                        "${backoff.interval}"
+                        "${nr-var:backoff.interval}"
                             .to_string(),
                     ),
                 },
@@ -711,11 +736,11 @@ deployment:
 
         let normalized_values = Map::from([
             (
-                "bin".to_string(),
+                "nr-var:bin".to_string(),
                 VariableDefinition::new("binary".to_string(), true, None, Some("/etc".to_string())),
             ),
             (
-                "deployment.on_host.verbose".to_string(),
+                "nr-var:deployment.on_host.verbose".to_string(),
                 VariableDefinition::new(
                     "verbosity".to_string(),
                     true,
@@ -724,7 +749,7 @@ deployment:
                 ),
             ),
             (
-                "backoff.type".to_string(),
+                "nr-var:backoff.type".to_string(),
                 VariableDefinition::new(
                     "backoff_type".to_string(),
                     true,
@@ -733,7 +758,7 @@ deployment:
                 ),
             ),
             (
-                "backoff.delay".to_string(),
+                "nr-var:backoff.delay".to_string(),
                 VariableDefinition::new(
                     "backoff_delay".to_string(),
                     true,
@@ -742,7 +767,7 @@ deployment:
                 ),
             ),
             (
-                "backoff.retries".to_string(),
+                "nr-var:backoff.retries".to_string(),
                 VariableDefinition::new(
                     "backoff_retries".to_string(),
                     true,
@@ -751,7 +776,7 @@ deployment:
                 ),
             ),
             (
-                "backoff.interval".to_string(),
+                "nr-var:backoff.interval".to_string(),
                 VariableDefinition::new(
                     "backoff_interval".to_string(),
                     true,
@@ -764,26 +789,26 @@ deployment:
         let exec_actual = exec.template_with(&normalized_values).unwrap();
 
         let exec_expected = Executable {
-            path: TemplateableValue { value: Some("/etc/otelcol".to_string()), template: "${bin}/otelcol".to_string() },
-            args: TemplateableValue { value: Some(Args("--verbose true --verbose_again true".to_string())), template: "--verbose ${deployment.on_host.verbose} --verbose_again ${deployment.on_host.verbose}".to_string() },
+            path: TemplateableValue { value: Some("/etc/otelcol".to_string()), template: "${nr-var:bin}/otelcol".to_string() },
+            args: TemplateableValue { value: Some(Args("--verbose true --verbose_again true".to_string())), template: "--verbose ${nr-var:deployment.on_host.verbose} --verbose_again ${nr-var:deployment.on_host.verbose}".to_string() },
             env: TemplateableValue { value: Some(Env("".to_string())), template: "".to_string() },
             restart_policy: RestartPolicyConfig {
                 backoff_strategy: BackoffStrategyConfig {
                     backoff_type: TemplateableValue {
                         value: Some(BackoffStrategyType::Linear),
-                        template: "${backoff.type}".to_string(),
+                        template: "${nr-var:backoff.type}".to_string(),
                     },
                     backoff_delay: TemplateableValue {
                         value: Some(BackoffDuration::from_secs(10)),
-                        template: "${backoff.delay}".to_string(),
+                        template: "${nr-var:backoff.delay}".to_string(),
                     },
                     max_retries: TemplateableValue {
                         value: Some(30),
-                        template: "${backoff.retries}".to_string(),
+                        template: "${nr-var:backoff.retries}".to_string(),
                     },
                     last_retry_interval: TemplateableValue {
                         value: Some(BackoffDuration::from_secs(300)),
-                        template: "${backoff.interval}".to_string(),
+                        template: "${nr-var:backoff.interval}".to_string(),
                     },
                 },
                 restart_exit_codes: vec![],
@@ -827,7 +852,7 @@ deployment:
   on_host:
     executables:
       - path: /usr/bin/newrelic-infra
-        args: "--config ${config} --config2 ${config2}"
+        args: "--config ${nr-var:config} --config2 ${nr-var:config2}"
         env: ""
 "#;
 
@@ -857,7 +882,13 @@ config: |
 
         // When populating values
         let actual = input_agent_type
-            .template_with(input_user_config, Some("an/agents-config/path"))
+            .template(
+                input_user_config,
+                AgentAttributes {
+                    generated_configs_path: Some(PathBuf::from("an/agents-config/path")),
+                    agent_id: "test".to_string(),
+                },
+            )
             .expect("Failed to template_with the AgentType's runtime_config field");
 
         // Then we expected final values
@@ -991,10 +1022,10 @@ deployment:
         env: ""
         restart_policy:
           backoff_strategy:
-            type: ${backoff.type}
-            backoff_delay: ${backoff.delay}
-            max_retries: ${backoff.retries}
-            last_retry_interval: ${backoff.interval}
+            type: ${nr-var:backoff.type}
+            backoff_delay: ${nr-var:backoff.delay}
+            max_retries: ${nr-var:backoff.retries}
+            last_retry_interval: ${nr-var:backoff.interval}
 "#;
 
     const BACKOFF_CONFIG_YAML: &str = r#"
@@ -1017,24 +1048,24 @@ backoff:
         let expected_backoff = BackoffStrategyConfig {
             backoff_type: TemplateableValue {
                 value: Some(BackoffStrategyType::Linear),
-                template: "${backoff.type}".to_string(),
+                template: "${nr-var:backoff.type}".to_string(),
             },
             backoff_delay: TemplateableValue {
                 value: Some(BackoffDuration::from_secs(10)),
-                template: "${backoff.delay}".to_string(),
+                template: "${nr-var:backoff.delay}".to_string(),
             },
             max_retries: TemplateableValue {
                 value: Some(30),
-                template: "${backoff.retries}".to_string(),
+                template: "${nr-var:backoff.retries}".to_string(),
             },
             last_retry_interval: TemplateableValue {
                 value: Some(BackoffDuration::from_secs(300)),
-                template: "${backoff.interval}".to_string(),
+                template: "${nr-var:backoff.interval}".to_string(),
             },
         };
 
         let actual = input_agent_type
-            .template_with(input_user_config, None)
+            .template(input_user_config, AgentAttributes::default())
             .expect("Failed to template_with the AgentType's runtime_config field");
 
         // println!("Output: {:#?}", actual);
@@ -1096,16 +1127,22 @@ backoff:
         let wrong_type =
             serde_yaml::from_str::<AgentValues>(WRONG_TYPE_BACKOFF_CONFIG_YAML).unwrap();
 
-        let actual = input_agent_type.clone().template_with(wrong_retries, None);
+        let actual = input_agent_type
+            .clone()
+            .template(wrong_retries, AgentAttributes::default());
         assert!(actual.is_err());
 
-        let actual = input_agent_type.clone().template_with(wrong_delay, None);
+        let actual = input_agent_type
+            .clone()
+            .template(wrong_delay, AgentAttributes::default());
         assert!(actual.is_err());
 
-        let actual = input_agent_type.clone().template_with(wrong_interval, None);
+        let actual = input_agent_type
+            .clone()
+            .template(wrong_interval, AgentAttributes::default());
         assert!(actual.is_err());
 
-        let actual = input_agent_type.template_with(wrong_type, None);
+        let actual = input_agent_type.template(wrong_type, AgentAttributes::default());
         assert!(actual.is_err());
     }
 
@@ -1143,9 +1180,9 @@ deployment:
         restart_policy:
           backoff_strategy:
             type: fixed
-            backoff_delay: ${backoff.delay}
-            max_retries: ${backoff.retries}
-            last_retry_interval: ${backoff.interval}
+            backoff_delay: ${nr-var:backoff.delay}
+            max_retries: ${nr-var:backoff.retries}
+            last_retry_interval: ${nr-var:backoff.interval}
 "#;
 
     const STRING_DURATIONS_CONFIG_YAML: &str = r#"
@@ -1171,20 +1208,20 @@ backoff:
             },
             backoff_delay: TemplateableValue {
                 value: Some(BackoffDuration::from_secs((10 * 60) + 30)),
-                template: "${backoff.delay}".to_string(),
+                template: "${nr-var:backoff.delay}".to_string(),
             },
             max_retries: TemplateableValue {
                 value: Some(30),
-                template: "${backoff.retries}".to_string(),
+                template: "${nr-var:backoff.retries}".to_string(),
             },
             last_retry_interval: TemplateableValue {
                 value: Some(BackoffDuration::from_secs(300)),
-                template: "${backoff.interval}".to_string(),
+                template: "${nr-var:backoff.interval}".to_string(),
             },
         };
 
         let actual = input_agent_type
-            .template_with(input_user_config, None)
+            .template(input_user_config, AgentAttributes::default())
             .expect("Failed to template_with the AgentType's runtime_config field");
 
         // println!("Output: {:#?}", actual);
@@ -1217,8 +1254,12 @@ deployment:
       cr1:
         apiVersion: group/version
         kind: ObjectKind
+        metadata:
+          name: test
         spec:
-          values: ${config.values}
+          values: ${nr-var:config.values}
+          from_sub_agent: ${nr-sub:agent_id}
+          collision_avoided: ${config.values}-${env:agent_id}
 "#;
 
     const K8S_CONFIG_YAML_VALUES: &str = r#"
@@ -1249,11 +1290,21 @@ values:
       - item2
       - item3_nested: value
   empty_key:
+from_sub_agent: test
+collision_avoided: ${config.values}-${env:agent_id}
 "#;
         let expected_spec_value: serde_yaml::Value =
             serde_yaml::from_str(expected_spec_yaml).unwrap();
 
-        let expanded_final_agent = input_agent_type.template_with(user_config, None).unwrap();
+        let expanded_final_agent = input_agent_type
+            .template(
+                user_config,
+                AgentAttributes {
+                    agent_id: "test".to_string(),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
 
         let cr1 = expanded_final_agent
             .runtime_config
@@ -1288,7 +1339,7 @@ deployment:
   on_host:
       executables:
       - path: /bin/echo
-        args: "${restart_policy.type}"
+        args: "${nr-var:restart_policy.type}"
 "#;
 
     const CONFIG_YAML_VALUES_VALID_VARIANT: &str = r#"
@@ -1306,7 +1357,9 @@ restart_policy:
         let input_agent_type: AgentType = serde_yaml::from_str(AGENT_WITH_VARIANTS).unwrap();
         let user_config: AgentValues = serde_yaml::from_str(CONFIG_YAML_VALUES_VALID_VARIANT)
             .expect("Failed to parse user config");
-        let expanded_final_agent = input_agent_type.template_with(user_config, None).unwrap();
+        let expanded_final_agent = input_agent_type
+            .template(user_config, AgentAttributes::default())
+            .unwrap();
 
         let executable = expanded_final_agent
             .runtime_config
@@ -1325,7 +1378,8 @@ restart_policy:
         let input_agent_type: AgentType = serde_yaml::from_str(AGENT_WITH_VARIANTS).unwrap();
         let user_config: AgentValues = serde_yaml::from_str(CONFIG_YAML_VALUES_INVALID_VARIANT)
             .expect("Failed to parse user config");
-        let expanded_final_agent = input_agent_type.template_with(user_config, None);
+        let expanded_final_agent =
+            input_agent_type.template(user_config, AgentAttributes::default());
 
         assert!(expanded_final_agent.is_err());
         assert_eq!(
@@ -1338,7 +1392,8 @@ restart_policy:
     fn default_can_be_invalid_variant() {
         let input_agent_type: AgentType = serde_yaml::from_str(AGENT_WITH_VARIANTS).unwrap();
         let user_config = AgentValues::default();
-        let expanded_final_agent = input_agent_type.template_with(user_config, None);
+        let expanded_final_agent =
+            input_agent_type.template(user_config, AgentAttributes::default());
 
         assert!(expanded_final_agent.is_ok());
 

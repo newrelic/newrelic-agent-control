@@ -43,7 +43,7 @@ deployment:
   on_host:
     executables:
       - path: /usr/bin/newrelic-infra
-        args: "--config=${config_file}"
+        args: "--config=${nr-var:config_file}"
         restart_policy:
           backoff_strategy:
             type: fixed
@@ -84,12 +84,12 @@ deployment:
   on_host:
     executables:
       - path: /usr/bin/newrelic-infra
-        args: "--config=${config_agent}"
-        env: "NRIA_PLUGIN_DIR=${config_ohis} NRIA_LOGGING_CONFIGS_DIR=${logging}"
+        args: "--config=${nr-var:config_agent}"
+        env: "NRIA_PLUGIN_DIR=${nr-var:config_ohis} NRIA_LOGGING_CONFIGS_DIR=${nr-var:logging}"
         restart_policy:
           backoff_strategy:
             type: fixed
-            backoff_delay: ${backoff_delay}
+            backoff_delay: ${nr-var:backoff_delay}
 "#;
 
 // Infrastructure_agent AgentType
@@ -125,12 +125,12 @@ deployment:
   on_host:
     executables:
       - path: /usr/bin/newrelic-infra
-        args: "--config=${config_agent}"
-        env: "NRIA_PLUGIN_DIR=${config_integrations} NRIA_LOGGING_CONFIGS_DIR=${config_logging}"
+        args: "--config=${nr-var:config_agent}"
+        env: "NRIA_PLUGIN_DIR=${nr-var:config_integrations} NRIA_LOGGING_CONFIGS_DIR=${nr-var:config_logging}"
         restart_policy:
           backoff_strategy:
             type: fixed
-            backoff_delay: ${backoff_delay}
+            backoff_delay: ${nr-var:backoff_delay}
 "#;
 
 // NRDOT AgentType
@@ -164,12 +164,12 @@ deployment:
   on_host:
     executables:
       - path: /usr/bin/nr-otel-collector
-        args: "--config=${config_file} --feature-gates=-pkg.translator.prometheus.NormalizeName"
-        env: "OTEL_EXPORTER_OTLP_ENDPOINT=${otel_exporter_otlp_endpoint} NEW_RELIC_MEMORY_LIMIT_MIB=${new_relic_memory_limit_mib}"
+        args: "--config=${nr-var:config_file} --feature-gates=-pkg.translator.prometheus.NormalizeName"
+        env: "OTEL_EXPORTER_OTLP_ENDPOINT=${nr-var:otel_exporter_otlp_endpoint} NEW_RELIC_MEMORY_LIMIT_MIB=${nr-var:new_relic_memory_limit_mib}"
         restart_policy:
           backoff_strategy:
             type: fixed
-            backoff_delay: ${backoff_delay}
+            backoff_delay: ${nr-var:backoff_delay}
 "#;
 
 // Kubernetes AgentType
@@ -190,12 +190,16 @@ deployment:
       repository:
         apiVersion: source.toolkit.fluxcd.io/v1beta2
         kind: HelmRepository
+        metadata:
+          name: ${nr-sub:agent_id}
         spec:
           interval: 3m
           url: https://open-telemetry.github.io/opentelemetry-helm-charts
       release:
         apiVersion: helm.toolkit.fluxcd.io/v2beta2
         kind: HelmRelease
+        metadata:
+          name: ${nr-sub:agent_id}
         spec:
           interval: 3m
           chart:
@@ -204,7 +208,7 @@ deployment:
               version: 0.78.3
               sourceRef:
                 kind: HelmRepository
-                name: open-telemetry # TODO now sub-agent name must be "open-telemetry" for this to work.
+                name: ${nr-sub:agent_id}
               interval: 3m
           install:
             remediation:
@@ -217,7 +221,7 @@ deployment:
               retries: 3
               strategy: rollback
           values:
-            ${chart_values}
+            ${nr-var:chart_values}
 "#;
 
 #[cfg(test)]
