@@ -833,12 +833,7 @@ objects:
             ),
             (
                 "nr-sub:agent_id".to_string(),
-                VariableDefinition::new(
-                    String::default(),
-                    true,
-                    None,
-                    Some(test_agent_id.to_string()),
-                ),
+                VariableDefinition::new_sub_agent_string_variable(test_agent_id.to_string()),
             ),
         ]);
 
