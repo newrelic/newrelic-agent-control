@@ -1,11 +1,9 @@
 use crate::common::{block_on, start_super_agent, K8sEnv};
-
+use k8s_openapi::api::apps::v1::Deployment;
+use kube::{api::Api, Client};
 use std::error::Error;
 use std::path::Path;
 use std::time::Duration;
-
-use k8s_openapi::api::apps::v1::Deployment;
-use kube::{api::Api, Client};
 use tokio::time::sleep;
 
 #[test]
@@ -17,22 +15,36 @@ fn k8s_sub_agent_started() {
     // Setup k8s env
     let k8s = block_on(K8sEnv::new());
 
-    let deployment_name = "open-telemetry-opentelemetry-collector";
+    let deployment_name = "my-agent-id-opentelemetry-collector";
+    let deployment_name_2 = "my-agent-id-2-opentelemetry-collector";
+
     let namespace = "default";
     let max_retries = 30;
     let duration = Duration::from_millis(5000);
 
-    // Check deployment is created with retry.
-    let result = block_on(check_deployment_exists(
-        k8s.client.clone(),
-        deployment_name,
-        namespace,
-        max_retries,
-        duration,
-    ));
-
+    // Check deployment for first Agent is created with retry.
     assert!(
-        result.is_ok(),
+        block_on(check_deployment_exists(
+            k8s.client.clone(),
+            deployment_name,
+            namespace,
+            max_retries,
+            duration,
+        ))
+        .is_ok(),
+        "Deployment does not exist or could not be verified"
+    );
+
+    // Check deployment for second Agent is created with retry.
+    assert!(
+        block_on(check_deployment_exists(
+            k8s.client.clone(),
+            deployment_name_2,
+            namespace,
+            max_retries,
+            duration,
+        ))
+        .is_ok(),
         "Deployment does not exist or could not be verified"
     );
 

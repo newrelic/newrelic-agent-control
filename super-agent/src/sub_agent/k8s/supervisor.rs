@@ -53,7 +53,10 @@ impl CRSupervisor {
     pub fn apply(&self) -> Result<(), SupervisorError> {
         let resources = self.build_dynamic_objects()?;
         for res in resources {
-            debug!("Applying k8s object for {}", self.agent_id,);
+            debug!(
+                "Applying k8s object {:?} for {}",
+                res.metadata, self.agent_id,
+            );
             trace!("K8s object: {:?}", res);
             self.k8s_client.apply_dynamic_object_if_changed(&res)?;
         }
@@ -78,13 +81,12 @@ impl CRSupervisor {
         };
 
         let mut labels = Labels::new(&self.agent_id);
-        if let Some(metadata) = &k8s_obj.metadata {
-            // Merge default labels with the ones coming from the config with default labels taking precedence.
-            labels.append_extra_labels(&metadata.labels);
-        }
+
+        // Merge default labels with the ones coming from the config with default labels taking precedence.
+        labels.append_extra_labels(&k8s_obj.metadata.labels);
 
         let metadata = ObjectMeta {
-            name: Some(self.agent_id.to_string()),
+            name: Some(k8s_obj.metadata.name.clone()),
             namespace: Some(self.k8s_client.default_namespace().to_string()),
             labels: Some(labels.get()),
             ..Default::default()
@@ -115,13 +117,14 @@ pub mod test {
 
     const TEST_API_VERSION: &str = "test/v1";
     const TEST_KIND: &str = "test";
-    const NAMESPACE: &str = "default";
+    const TEST_NAMESPACE: &str = "default";
+    const TEST_NAME: &str = "test-name";
 
     fn k8s_object() -> K8sObject {
         K8sObject {
             api_version: TEST_API_VERSION.to_string(),
             kind: TEST_KIND.to_string(),
-            metadata: Some(K8sObjectMeta {
+            metadata: K8sObjectMeta {
                 labels: BTreeMap::from([
                     ("custom-label".to_string(), "values".to_string()),
                     (
@@ -129,7 +132,8 @@ pub mod test {
                         "to be overwritten".to_string(),
                     ),
                 ]),
-            }),
+                name: TEST_NAME.to_string(),
+            },
             ..Default::default()
         }
     }
@@ -141,7 +145,7 @@ pub mod test {
         let agent_id = AgentID::new("test").unwrap();
 
         let mut labels = Labels::new(&agent_id);
-        labels.append_extra_labels(&k8s_object().metadata.unwrap().labels);
+        labels.append_extra_labels(&k8s_object().metadata.labels);
 
         let expected = DynamicObject {
             types: Some(TypeMeta {
@@ -149,8 +153,8 @@ pub mod test {
                 kind: TEST_KIND.to_string(),
             }),
             metadata: ObjectMeta {
-                name: Some(agent_id.get()),
-                namespace: Some(NAMESPACE.to_string()),
+                name: Some(TEST_NAME.to_string()),
+                namespace: Some(TEST_NAMESPACE.to_string()),
                 labels: Some(labels.get()),
                 ..Default::default()
             },
@@ -158,7 +162,7 @@ pub mod test {
         };
         mock_k8s_client
             .expect_default_namespace()
-            .return_const(NAMESPACE.to_string());
+            .return_const(TEST_NAMESPACE.to_string());
 
         mock_k8s_client
             .expect_apply_dynamic_object_if_changed()

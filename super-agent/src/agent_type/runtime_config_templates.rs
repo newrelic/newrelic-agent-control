@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, HashMap};
+use std::process::id;
 use std::sync::OnceLock;
 
 use regex::Regex;
@@ -165,15 +166,10 @@ impl Templateable for K8s {
 
 impl Templateable for K8sObject {
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
-        let metadata = self
-            .metadata
-            .map(|m| m.template_with(variables))
-            .transpose()?;
-
         Ok(Self {
             api_version: self.api_version.clone(),
             kind: self.kind.clone(),
-            metadata,
+            metadata: self.metadata.template_with(variables)?,
             fields: self.fields.template_with(variables)?,
         })
     }
@@ -187,6 +183,7 @@ impl Templateable for K8sObjectMeta {
                 .into_iter()
                 .map(|(k, v)| Ok((k.template_with(variables)?, v.template_with(variables)?)))
                 .collect::<Result<BTreeMap<String, String>, AgentTypeError>>()?,
+            name: self.name.template_with(variables)?,
         })
     }
 }
@@ -808,6 +805,7 @@ mod tests {
     #[test]
     fn test_template_k8s() {
         let untouched_val = "${nr-var:any} no templated";
+        let test_agent_id = "id";
         let k8s_template: K8s = serde_yaml::from_str(
             format!(
                 r#"
@@ -816,6 +814,7 @@ objects:
     apiVersion: {untouched_val} 
     kind: {untouched_val} 
     metadata:
+      name: ${{nr-sub:agent_id}}
       labels:
         foo: ${{nr-var:any}}
         ${{nr-var:any}}: bar
@@ -827,10 +826,16 @@ objects:
         .unwrap();
 
         let value = "test_value";
-        let variables = Variables::from([(
-            "nr-var:any".to_string(),
-            VariableDefinition::new(String::default(), true, None, Some(value.to_string())),
-        )]);
+        let variables = Variables::from([
+            (
+                "nr-var:any".to_string(),
+                VariableDefinition::new(String::default(), true, None, Some(value.to_string())),
+            ),
+            (
+                "nr-sub:agent_id".to_string(),
+                VariableDefinition::new_sub_agent_string_variable(test_agent_id.to_string()),
+            ),
+        ]);
 
         let k8s = k8s_template.template_with(&variables).unwrap();
 
@@ -843,8 +848,11 @@ objects:
         // Expect template works on fields.
         assert_eq!(cr1.fields.get("spec").unwrap(), value);
 
+        // Expect template works on name.
+        assert_eq!(cr1.metadata.name, test_agent_id);
+
         // Expect template works on labels.
-        let labels = cr1.metadata.unwrap().labels;
+        let labels = cr1.metadata.labels;
         assert_eq!(labels.get("foo").unwrap(), value);
         assert_eq!(labels.get(value).unwrap(), "bar");
     }

@@ -1254,6 +1254,8 @@ deployment:
       cr1:
         apiVersion: group/version
         kind: ObjectKind
+        metadata:
+          name: test
         spec:
           values: ${nr-var:config.values}
           from_sub_agent: ${nr-sub:agent_id}
