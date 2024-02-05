@@ -1,0 +1,103 @@
+---
+- name: test configuration
+  hosts: testing_hosts_linux
+  become: true
+  gather_facts: yes
+
+  tasks:
+    - name: Installation
+      include_tasks: ./tasks/install.yaml
+
+    - name: Setup Infra Agent config
+      include_role:
+        name: infra-agent-config
+
+    - name: Setup NR Otel Collector config
+      include_role:
+        name:  nr-otel-collector-config
+
+    - name: Setup NR Super Agent config
+      include_role:
+        name: super-agent-config
+
+    - name: Restart New Relic Super Agent
+      ansible.builtin.service:
+        name: newrelic-super-agent
+        state: restarted
+
+    - name: Get Hostname
+      include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
+      vars:
+        agent_identifier_path: "/var/lib/newrelic-super-agent/identifiers.yaml"
+        identifier_field: "hostname"
+
+    - name: Register Hostname result
+      shell: "echo \"{{ field_result.stdout }}\""
+      register: hostname
+
+    - name: Get NR Super Agent ULID
+      include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
+      vars:
+        agent_identifier_path: "/var/lib/newrelic-super-agent/identifiers.yaml"
+        identifier_field: "ulid"
+
+    - name: Register NR Super Agent ULID result
+      shell: "echo \"{{ field_result.stdout }}\""
+      register: super_agent_ulid
+
+    - name: Get Infra agent ULID
+      include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
+      vars:
+        agent_identifier_path: "/var/lib/newrelic-super-agent/fleet/agents.d/nr-infra-agent/identifiers.yaml"
+        identifier_field: "ulid"
+
+    - name: Register Infra agent ULID result
+      shell: "echo \"{{ field_result.stdout }}\""
+      register: infra_agent_ulid
+
+    - name: Get NR Otel Collector ULID
+      include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
+      vars:
+        agent_identifier_path: "/var/lib/newrelic-super-agent/fleet/agents.d/nr-otel-collector/identifiers.yaml"
+        identifier_field: "ulid"
+
+    - name: Register Otel Collector ULID result
+      shell: "echo \"{{ field_result.stdout }}\""
+      register: otel_agent_ulid
+
+    - name: Wait for 60 seconds so the agents are registered on the Fleet
+      pause:
+        seconds: 60
+
+    - name: Assert agents exist and are healthy
+      block:
+        - name: API REQUEST
+          include_role:
+            name: caos.ansible_roles.fleet_api_request
+          vars:
+            assert_agents_healthy:
+              uuids: ["{{ infra_agent_ulid.stdout }}", "{{ otel_agent_ulid.stdout }}", "{{ super_agent_ulid.stdout }}"]
+              host: "{{ hostname.stdout }}"
+              enabled: true
+
+    - name: Check infra-agent values file doesn't exist
+      stat:
+        path: "/var/lib/newrelic-super-agent/fleet/agents.d/nr-infra-agent/values/values.yaml"
+      register: infra_agent_values
+
+    - name: Check otel-collector values file doesn't exist
+      stat:
+        path: "/var/lib/newrelic-super-agent/fleet/agents.d/nr-otel-collector/values/values.yaml"
+      register: otel_collector_values
+
+    - name: Check super-agent values file doesn't exist
+      stat:
+        path: "/var/lib/newrelic-super-agent/fleet/values/values.yaml"
+      register: super_agent_values
+
+    - name: ensure values files don't exist
+      assert:
+        that: "not super_agent_values.stat.exists and not otel_collector_values.stat.exists and not infra_agent_values.stat.exists"
+
+    - name: Cleanup
+      include_tasks: ./tasks/clean_all.yaml
