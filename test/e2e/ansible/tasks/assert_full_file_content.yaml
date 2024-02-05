@@ -1,0 +1,11 @@
+---
+- name: assert on config content
+  shell: cat {{ file_path }}
+  register: file_content
+
+- name: assert on content
+  assert:
+    that: "{{ file_content.stdout == expected_content }}"
+    msg: "{{ file_path }} doesn't have expected content"
+
+...

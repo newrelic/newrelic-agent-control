@@ -1,0 +1,2 @@
+super_agent_config_file: /etc/newrelic-super-agent/config.yaml
+super_agent_remote_config_file: /var/lib/newrelic-super-agent/config.yaml
