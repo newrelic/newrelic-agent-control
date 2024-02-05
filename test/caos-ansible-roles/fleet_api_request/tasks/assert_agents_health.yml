@@ -16,7 +16,7 @@
     fail_msg: "Expected agents count to be '{{ assert_agents_health.ulids | length }}', but got {{ filtered_by_ulid_healthy.msg | length }}"
   when: assert_agents_health.healthy
 
-- name: Filter agents by provided ulids and host and being healthy
+- name: Filter agents by provided ulids and host and being unhealthy
   ansible.builtin.debug:
     msg: "{{ response.json | to_json | from_json | community.general.json_query(server_name_query) }}"
   vars:
