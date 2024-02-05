@@ -1,0 +1,30 @@
+---
+
+- name: Fleet API Create configuration
+  include_role:
+    name: caos.ansible_roles.graphql_request
+    apply:
+      become: false
+  vars:
+    - graphql_query: |
+        mutation createConfiguration {
+          createConfiguration(
+            accountId: {{ create_remote_configuration.account_id }}
+              configuration: { name: "{{ create_remote_configuration.config_name }}" }
+          ) {
+            id
+          }
+        }
+
+- name: fail if errors are present
+  fail:
+    msg: "error creating configuration: {{ response | community.general.json_query('json.errors[*].message') | join(', ') }}"
+  when: '"errors" in response.json'
+
+# output facts
+- name: set config id
+  ansible.builtin.set_fact: {"{{ create_remote_configuration.config_id_fact }}": "{{ response | community.general.json_query(query) }}"}
+  vars:
+    query: "json.data.createConfiguration.id"
+
+...

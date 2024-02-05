@@ -1,0 +1,25 @@
+---
+
+- name: Fleet API Deploy configuration to Fleet
+  include_role:
+    name: caos.ansible_roles.graphql_request
+    apply:
+      become: false
+  vars:
+    - graphql_query: |
+        mutation {
+          deployFleetConfigurations(
+            accountId: {{ deploy_config_to_fleet.account_id }}
+            fleetGuid: "{{ deploy_config_to_fleet.fleet_guid }}"
+            configurationRevisions: { configurationId: {{ deploy_config_to_fleet.config_id }}, revisionNumber: {{ deploy_config_to_fleet.config_revision }} }
+          ) {
+              fleetGuid
+          }
+        }
+
+- name: fail if errors are present
+  fail:
+    msg: "error creating configuration revision: {{ response | community.general.json_query('json.errors[*].message') | join(', ') }}"
+  when: '"errors" in response.json'
+
+...

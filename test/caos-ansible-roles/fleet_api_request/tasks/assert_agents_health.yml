@@ -1,0 +1,33 @@
+---
+
+- include_tasks: get_agents.yml
+
+- name: Filter agents by provided ulids and host and being healthy
+  ansible.builtin.debug:
+    msg: "{{ response.json | to_json | from_json | community.general.json_query(server_name_query) }}"
+  vars:
+    server_name_query: "data.account.agents.results[?contains(`{{ assert_agents_health.ulids | to_json }}`, uid) && host.name=='{{assert_agents_health.host}}' && healthy]"
+  register: filtered_by_ulid_healthy
+  when: assert_agents_health.healthy
+
+- name: "assert that agents matching expectations is as expected"
+  assert:
+    that:  filtered_by_ulid_healthy.msg | length  == assert_agents_health.ulids | length
+    fail_msg: "Expected agents count to be '{{ assert_agents_health.ulids | length }}', but got {{ filtered_by_ulid_healthy.msg | length }}"
+  when: assert_agents_health.healthy
+
+- name: Filter agents by provided ulids and host and being healthy
+  ansible.builtin.debug:
+    msg: "{{ response.json | to_json | from_json | community.general.json_query(server_name_query) }}"
+  vars:
+    server_name_query: "data.account.agents.results[?contains(`{{ assert_agents_health.ulids | to_json }}`, uid) && host.name=='{{assert_agents_health.host}}' && !healthy]"
+  register: filtered_by_ulid_unhealthy
+  when: not assert_agents_health.healthy
+
+- name: "assert that agents matching expectations is as expected"
+  assert:
+    that:  filtered_by_ulid_unhealthy.msg | length  == assert_agents_health.ulids | length
+    fail_msg: "Expected agents count to be '{{ assert_agents_health.ulids | length }}', but got {{ filtered_by_ulid_unhealthy.msg | length }}"
+  when: not assert_agents_health.healthy
+
+...

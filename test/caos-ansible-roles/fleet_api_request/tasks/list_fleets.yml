@@ -1,0 +1,33 @@
+---
+
+- name: Fleet API Get Fleets
+  include_role:
+    name: caos.ansible_roles.graphql_request
+    apply:
+      become: false
+  vars:
+    - graphql_query: |
+        {
+          account {
+            fleets {
+              results{
+                fleetGuid
+                name
+                agentType
+                remoteConfigurations{
+                  configurationId
+                  configurationName
+                  revisionNumber
+                  content
+                }
+              }
+            }
+          }
+        }
+
+- name: fail if errors are present
+  fail:
+    msg: "error creating configuration revision: {{ response | community.general.json_query('json.errors[*].message') | join(', ') }}"
+  when: '"errors" in response.json'
+
+...

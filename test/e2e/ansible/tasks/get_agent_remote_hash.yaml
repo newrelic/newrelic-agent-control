@@ -1,0 +1,14 @@
+---
+
+- name: get Agent
+  include_role:
+    name: fleet_api_request
+  vars:
+    get_agent:
+      agent_ulid: "{{ agent_ulid }}"
+      agent_fact: "agent_for_hash"
+
+- name: filter fleet by agent_type
+  ansible.builtin.set_fact: {"{{ agent_hash_fact }}": "{{ agent_for_hash.lastRemoteConfigHash }}"}
+
+...

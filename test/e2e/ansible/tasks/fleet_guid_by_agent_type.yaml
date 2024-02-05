@@ -1,0 +1,14 @@
+---
+
+- name: get fleets
+  include_role:
+    name: fleet_api_request
+  vars:
+    list_fleets: true
+
+- name: filter fleet by agent_type
+  ansible.builtin.set_fact: {"{{ fleet_guid_fact }}": "{{ response | community.general.json_query(query) | first }}"}
+  vars:
+    query: "json.data.account.fleets.results[?agentType=='{{ agent_type }}'].fleetGuid"
+
+...

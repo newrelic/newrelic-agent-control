@@ -1,0 +1,38 @@
+---
+
+- name: Fleet API Create configuration revision
+  include_role:
+    name: caos.ansible_roles.graphql_request
+    apply:
+      become: false
+  vars:
+    - graphql_query: |
+        mutation {
+          createConfigurationRevision(
+            accountId: {{ create_remote_configuration_revision.account_id }}
+            configurationRevision: {
+              configurationId: {{ create_remote_configuration_revision.config_id }}
+                content: "{{ create_remote_configuration_revision.content }}"
+                contentType: YAML
+            }
+          ) {
+              configurationId
+              configurationName
+              contentType
+              content
+              revisionNumber
+              createdAt
+          }
+        }
+
+- name: fail if errors are present
+  fail:
+    msg: "error creating configuration revision: {{ response | community.general.json_query('json.errors[*].message') | join(', ') }}"
+  when: '"errors" in response.json'
+
+- name: set config revision
+  ansible.builtin.set_fact: {"{{ create_remote_configuration_revision.config_revision_fact }}": "{{ response | community.general.json_query(query) }}"}
+  vars:
+    query: "json.data.createConfigurationRevision.revisionNumber"
+
+...
