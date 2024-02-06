@@ -20,10 +20,15 @@ tracing = { workspace = true }
 ctrlc = { version = "3.4.0", features = ["termination"] }
 serde_yaml = { workspace = true }
 regex = { workspace = true }
-opamp-client = { git = "ssh://git@github.com/newrelic/opamp-rs.git", tag = "0.0.10", features = ["sync-http"], default-features = false  }
+opamp-client = { git = "ssh://git@github.com/newrelic/opamp-rs.git", tag = "0.0.11", features = [
+  "sync-http",
+], default-features = false }
 futures = { version = "0.3.28", optional = true }
 async-trait = { version = "0.1.71", optional = true }
-tokio = { version = "1.32.0", optional = true, features = ["rt-multi-thread", "macros"] }
+tokio = { version = "1.32.0", optional = true, features = [
+  "rt-multi-thread",
+  "macros",
+] }
 ulid = { workspace = true, features = ["serde"] }
 duration-str = "0.7.0"
 openssl = { version = "0.10.57", features = ["vendored"] }
@@ -35,12 +40,7 @@ resource-detection = { path = "../resource-detection" }
 
 # K8S subagent dependencies
 # IMPORTANT: All k8s only deps needs to be `optional = true` so they won't be compiled by default
-kube = { version = "0.87.2", default-features = false, features = [
-  "client",
-  "openssl-tls",
-  "runtime",
-  "derive",
-], optional = true }
+kube = { version = "0.87.2", features = ["runtime", "derive"], optional = true }
 k8s-openapi = { version = "0.20.0", features = ["latest"], optional = true }
 either = { version = "1.9.0", optional = true }
 crossbeam = { version = "0.8.3", features = ["crossbeam-channel"] }
@@ -81,7 +81,14 @@ path = "src/bin/main.rs"
 
 [features]
 onhost = []
-k8s = ["dep:kube", "dep:k8s-openapi", "dep:either", "dep:futures", "dep:async-trait", "dep:tokio"]
+k8s = [
+  "dep:kube",
+  "dep:k8s-openapi",
+  "dep:either",
+  "dep:futures",
+  "dep:async-trait",
+  "dep:tokio",
+]
 custom-local-path = []
 # feature ci allows calling --all-features (needed on the test pipelines) and not failing to compile
 ci = []
