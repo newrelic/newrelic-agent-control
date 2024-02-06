@@ -26,8 +26,6 @@ pub trait ConfigurationPersister {
         agent_id: &AgentID,
         agent_type: &AgentType,
     ) -> Result<(), PersistError>;
-    // clean all agents configurations
-    fn delete_all_configs(&self) -> Result<(), PersistError>;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -106,7 +104,6 @@ pub mod test {
         impl ConfigurationPersister for ConfigurationPersisterMock {
              fn persist_agent_config(&self, agent_id: &AgentID, agent_type: &AgentType) -> Result<(), PersistError>;
              fn delete_agent_config(&self, agent_id: &AgentID, agent_type: &AgentType) -> Result<(), PersistError>;
-             fn delete_all_configs(&self) -> Result<(), PersistError>;
         }
     }
 
@@ -188,18 +185,6 @@ pub mod test {
             self.expect_delete_agent_config()
                 .once()
                 .returning(move |_, _| Err(err.clone()));
-        }
-
-        #[allow(dead_code)]
-        pub fn should_delete_all_configs(&mut self) {
-            self.expect_delete_all_configs().once().returning(|| Ok(()));
-        }
-
-        #[allow(dead_code)]
-        pub fn should_delete_all_configs_times(&mut self, times: usize) {
-            self.expect_delete_all_configs()
-                .times(times)
-                .returning(|| Ok(()));
         }
     }
 }
