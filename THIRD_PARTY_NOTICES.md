@@ -445,20 +445,6 @@ Distributed under the following license(s):
 * MIT
 
 
-## foreign-types https://crates.io/crates/foreign-types
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## foreign-types-shared https://crates.io/crates/foreign-types-shared
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
 ## form_urlencoded https://crates.io/crates/form_urlencoded
 
 Distributed under the following license(s):
@@ -941,37 +927,11 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
-## openssl https://crates.io/crates/openssl
-
-Distributed under the following license(s):
-* Apache-2.0
-
-
-## openssl-macros https://crates.io/crates/openssl-macros
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
 ## openssl-probe https://crates.io/crates/openssl-probe
 
 Distributed under the following license(s):
 * MIT
 * Apache-2.0
-
-
-## openssl-src https://crates.io/crates/openssl-src
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## openssl-sys https://crates.io/crates/openssl-sys
-
-Distributed under the following license(s):
-* MIT
 
 
 ## ordered-float https://crates.io/crates/ordered-float
@@ -1063,13 +1023,6 @@ Distributed under the following license(s):
 
 
 ## pin-utils https://crates.io/crates/pin-utils
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## pkg-config https://crates.io/crates/pkg-config
 
 Distributed under the following license(s):
 * MIT
@@ -1731,13 +1684,6 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 * Apache-2.0
 * MIT
-
-
-## vcpkg https://crates.io/crates/vcpkg
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
 
 
 ## version_check https://crates.io/crates/version_check
