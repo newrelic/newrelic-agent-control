@@ -216,15 +216,23 @@ deployment:
                 name: ${nr-sub:agent_id}
               interval: 3m
           install:
+            # Wait are disabled to avoid blocking the modifications/deletions of this CR while in reconciling state.
+            disableWait: true
+            disableWaitForJobs: true
             remediation:
               retries: 3
             replace: true
           upgrade:
+            disableWait: true
+            disableWaitForJobs: true
             cleanupOnFail: true
             force: true
             remediation:
               retries: 3
               strategy: rollback
+          rollback:
+            disableWait: true
+            disableWaitForJobs: true
           values:
             ${nr-var:chart_values}
 "#;
