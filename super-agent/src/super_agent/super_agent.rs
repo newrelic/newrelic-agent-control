@@ -75,7 +75,7 @@ where
     pub fn run(
         self,
         super_agent_consumer: EventConsumer<SuperAgentEvent>,
-        opamp_pub_sub: EventConsumer<OpAMPEvent>,
+        super_agent_opamp_consumer: EventConsumer<OpAMPEvent>,
     ) -> Result<(), AgentError> {
         info!("Creating agent's communication channels");
         // Channel will be closed when tx is dropped and no reference to it is alive
@@ -115,7 +115,7 @@ where
         let running_sub_agents = not_started_sub_agents.run()?;
         self.process_events(
             super_agent_consumer,
-            opamp_pub_sub,
+            super_agent_opamp_consumer,
             (sub_agent_publisher, sub_agent_consumer),
             running_sub_agents,
             tx,
