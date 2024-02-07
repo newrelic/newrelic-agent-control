@@ -210,7 +210,7 @@ deployment:
           chart:
             spec:
               chart: opentelemetry-collector
-              version: ${chart_version}
+              version: ${nr-var:chart_version}
               sourceRef:
                 kind: HelmRepository
                 name: ${nr-sub:agent_id}
