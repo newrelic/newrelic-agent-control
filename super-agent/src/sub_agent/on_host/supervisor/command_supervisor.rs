@@ -198,7 +198,7 @@ fn wait_for_termination(
 ) -> JoinHandle<()> {
     thread::spawn(move || {
         let (lck, cvar) = Context::get_lock_cvar(&ctx);
-        _ = cvar.wait_while(lck.lock().unwrap(), |finish| !*finish);
+        drop(cvar.wait_while(lck.lock().unwrap(), |finish| !*finish));
 
         if let Some(pid) = *current_pid.lock().unwrap() {
             _ = ProcessTerminator::new(pid).shutdown(|| wait_exit_timeout_default(shutdown_ctx));
