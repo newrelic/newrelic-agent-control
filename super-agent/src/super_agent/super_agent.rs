@@ -75,7 +75,7 @@ where
     pub fn run(
         self,
         super_agent_consumer: EventConsumer<SuperAgentEvent>,
-        opamp_pub_sub: (EventPublisher<OpAMPEvent>, EventConsumer<OpAMPEvent>),
+        super_agent_opamp_consumer: EventConsumer<OpAMPEvent>,
     ) -> Result<(), AgentError> {
         info!("Creating agent's communication channels");
         // Channel will be closed when tx is dropped and no reference to it is alive
@@ -115,7 +115,7 @@ where
         let running_sub_agents = not_started_sub_agents.run()?;
         self.process_events(
             super_agent_consumer,
-            opamp_pub_sub.1,
+            super_agent_opamp_consumer,
             (sub_agent_publisher, sub_agent_consumer),
             running_sub_agents,
             tx,
@@ -271,7 +271,7 @@ where
     }
 
     // apply a remote config to the running sub agents
-    pub(super) fn apply_remote_config(
+    pub(super) fn apply_remote_super_agent_config(
         &self,
         remote_config: RemoteConfig,
         tx: Sender<AgentLog>,
@@ -475,7 +475,7 @@ mod tests {
             .publish(SuperAgentEvent::StopRequested)
             .unwrap();
 
-        assert!(agent.run(super_agent_consumer, pub_sub()).is_ok())
+        assert!(agent.run(super_agent_consumer, pub_sub().1).is_ok())
     }
 
     #[test]
@@ -517,7 +517,7 @@ mod tests {
             .publish(SuperAgentEvent::StopRequested)
             .unwrap();
 
-        assert!(agent.run(super_agent_consumer, pub_sub()).is_ok())
+        assert!(agent.run(super_agent_consumer, pub_sub().1).is_ok())
     }
 
     #[test]
@@ -589,7 +589,7 @@ mod tests {
                     sub_agent_builder,
                     sub_agents_config_store,
                 );
-                agent.run(super_agent_consumer, (opamp_publisher, opamp_consumer))
+                agent.run(super_agent_consumer, opamp_consumer)
             }
         });
 
@@ -702,7 +702,7 @@ agents:
         assert_eq!(running_sub_agents.len(), 2);
 
         super_agent
-            .apply_remote_config(
+            .apply_remote_super_agent_config(
                 remote_config,
                 tx.clone(),
                 &mut running_sub_agents,
@@ -728,7 +728,7 @@ agents:
         };
 
         super_agent
-            .apply_remote_config(
+            .apply_remote_super_agent_config(
                 remote_config,
                 tx,
                 &mut running_sub_agents,

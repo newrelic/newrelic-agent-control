@@ -73,25 +73,28 @@ where
         info!("Applying SuperAgent remote config");
         report_remote_config_status_applying(opamp_client, &remote_config.hash)?;
 
-        if let Err(err) = self.apply_remote_config(
+        match self.apply_remote_super_agent_config(
             remote_config.clone(),
             tx,
             running_sub_agents,
             sub_agent_publisher,
         ) {
-            let error_message = format!("Error applying Super Agent remote config: {}", err);
-            error!(error_message);
-            Ok(report_remote_config_status_error(
-                opamp_client,
-                &remote_config.hash,
-                error_message,
-            )?)
-        } else {
-            self.set_config_hash_as_applied(&mut remote_config.hash)?;
-            Ok(report_remote_config_status_applied(
-                opamp_client,
-                &remote_config.hash,
-            )?)
+            Err(err) => {
+                let error_message = format!("Error applying Super Agent remote config: {}", err);
+                error!(error_message);
+                Ok(report_remote_config_status_error(
+                    opamp_client,
+                    &remote_config.hash,
+                    error_message,
+                )?)
+            }
+            Ok(()) => {
+                self.set_config_hash_as_applied(&mut remote_config.hash)?;
+                Ok(report_remote_config_status_applied(
+                    opamp_client,
+                    &remote_config.hash,
+                )?)
+            }
         }
     }
 }

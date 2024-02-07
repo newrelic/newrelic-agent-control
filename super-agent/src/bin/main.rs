@@ -144,10 +144,7 @@ fn run_super_agent(
         sub_agent_builder,
         Arc::new(config_storer),
     )
-    .run(
-        super_agent_consumer,
-        (super_agent_opamp_publisher, super_agent_opamp_consumer),
-    )
+    .run(super_agent_consumer, super_agent_opamp_consumer)
 }
 
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
@@ -260,7 +257,7 @@ fn run_super_agent(
         sub_agent_builder,
         config_storer,
     )
-    .run(super_agent_consumer, (opamp_publisher, opamp_consumer))
+    .run(super_agent_consumer, opamp_consumer)
 }
 
 fn create_shutdown_signal_handler(
