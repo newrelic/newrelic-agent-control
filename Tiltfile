@@ -137,5 +137,5 @@ helm_resource(
   # Required to force build the image
   image_deps=['tilt.local/super-agent-dev'],
   image_keys=[('image.registry', 'image.repository', 'image.tag')],
-  resource_deps=['super-agent','build-binary'],
+  resource_deps=['flux','build-binary'],
 )
