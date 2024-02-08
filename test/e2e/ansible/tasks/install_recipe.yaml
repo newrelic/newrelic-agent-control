@@ -1,0 +1,6 @@
+---
+- name: Install recipe
+  include_role:
+    name: newrelic.newrelic_install
+    apply:
+      environment: "{{ env_vars }}"
