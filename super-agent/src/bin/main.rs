@@ -3,9 +3,7 @@ use newrelic_super_agent::event::SuperAgentEvent;
 #[cfg(feature = "k8s")]
 use newrelic_super_agent::opamp::instance_id;
 use newrelic_super_agent::opamp::instance_id::getter::ULIDInstanceIDGetter;
-
 use newrelic_super_agent::opamp::remote_config_hash::HashRepositoryFile;
-
 use newrelic_super_agent::super_agent::error::AgentError;
 use newrelic_super_agent::super_agent::opamp::client_builder::SuperAgentOpAMPHttpBuilder;
 use newrelic_super_agent::super_agent::store::{SuperAgentConfigLoader, SuperAgentConfigStoreFile};
@@ -51,7 +49,12 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut super_agent_config_storer = SuperAgentConfigStoreFile::new(&cli.get_config_path());
 
-    let super_agent_config = super_agent_config_storer.load()?;
+    let super_agent_config = super_agent_config_storer.load().inspect_err(|err| {
+        error!(
+            "The super agent failed to load its config: {}",
+            err.to_string()
+        )
+    })?;
 
     let opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder> = super_agent_config
         .opamp
@@ -60,7 +63,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // enable remote config store
     if opamp_client_builder.is_some() {
-        super_agent_config_storer = super_agent_config_storer.with_remote()?;
+        super_agent_config_storer = super_agent_config_storer.with_remote();
     }
 
     #[cfg(any(feature = "onhost", feature = "k8s"))]
@@ -68,7 +71,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         super_agent_config_storer,
         super_agent_consumer,
         opamp_client_builder,
-    )?);
+    )
+    .inspect_err(|err| {
+        error!(
+            "The super agent main process exited with an error: {}",
+            err.to_string()
+        )
+    })?);
 
     #[cfg(all(not(feature = "onhost"), not(feature = "k8s")))]
     Ok(())

@@ -1,4 +1,4 @@
-ARG RUST_VERSION=1.75.0
+ARG RUST_VERSION=1.76.0
 FROM rust:${RUST_VERSION}-buster
 
 RUN apt update && apt upgrade -y

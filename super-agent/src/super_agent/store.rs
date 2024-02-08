@@ -86,14 +86,14 @@ impl SuperAgentConfigStoreFile {
         }
     }
 
-    pub fn with_remote(self) -> Result<Self, SuperAgentConfigStoreError> {
+    pub fn with_remote(self) -> Self {
         let remote_path = format!("{}/{}", SUPER_AGENT_DATA_DIR, "config.yaml");
 
-        Ok(Self {
+        Self {
             local_path: self.local_path,
             remote_path: Some(Path::new(&remote_path).to_path_buf()),
             rw_lock: RwLock::new(()),
-        })
+        }
     }
 
     fn _load_config(&self) -> Result<SuperAgentConfig, SuperAgentConfigStoreError> {

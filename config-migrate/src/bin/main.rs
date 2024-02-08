@@ -22,7 +22,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let cli = Cli::init_config_migrate_cli();
     let local_config_path = cli.get_config_path();
     let super_agent_config_loader =
-        SuperAgentConfigStoreFile::new(&local_config_path).with_remote()?;
+        SuperAgentConfigStoreFile::new(&local_config_path).with_remote();
     let config_migrator = ConfigMigrator::new(
         ConfigConverter::default(),
         AgentConfigGetter::new(super_agent_config_loader),
