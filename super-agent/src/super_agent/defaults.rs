@@ -198,7 +198,11 @@ deployment:
         metadata:
           name: ${nr-sub:agent_id}
         spec:
-          interval: 3m
+          # Increasing the interval to 30 minutes because the HelmRepository is not as prone to frequent changes
+          # as HelmRelease objects might be. Given repositories typically have fewer updates than the resources
+          # they trigger, a longer interval helps in reducing unnecessary load on the cluster without significantly
+          # delaying the application of important updates.
+          interval: 30m
           url: https://open-telemetry.github.io/opentelemetry-helm-charts
       release:
         apiVersion: helm.toolkit.fluxcd.io/v2beta2
