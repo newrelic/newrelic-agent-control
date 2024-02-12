@@ -1,0 +1,69 @@
+---
+- name: test configuration
+  hosts: testing_hosts_linux
+  become: true
+  gather_facts: yes
+
+  tasks:
+    - name: Install infra-agent then super-agent recipe
+      include_tasks: ./tasks/install_recipe.yaml
+      vars:
+        targets:
+          - infrastructure
+          - logs
+          - super-agent
+          # - logs-super-agent
+        env_vars:
+          NEW_RELIC_API_KEY: "{{ nr_api_key }}"
+          NEW_RELIC_ACCOUNT_ID: "{{ nr_account_id | int }}"
+          NEW_RELIC_REGION: "STAGING"
+          NEW_RELIC_DOWNLOAD_URL: "https://nr-downloads-ohai-staging.s3.amazonaws.com/"
+          NR_CLI_FLEET_ENABLED: true
+          NR_CLI_HOST_MONITORING_SOURCE: newrelic
+
+    - name: Modify infra-agent type to 0.1.0
+      include_role:
+        name: super-agent-config
+      vars:
+        infra_agent_type_version: "0.1.0"
+
+    - name: Run migration script
+      shell: /usr/bin/newrelic-config-migrate
+
+    - name: Check infra-agent values file exists
+      stat:
+        path: "/etc/newrelic-super-agent/fleet/agents.d/nr-infra-agent/values/values.yaml"
+      register: infra_agent_values
+      failed_when: not infra_agent_values.stat.exists
+
+    - name: Restart New Relic Super Agent
+      ansible.builtin.service:
+        name: newrelic-super-agent
+        state: restarted
+
+    - name: Assert nr-infra-agent auto-generated file is the same as migrated
+      include_tasks: ./tasks/assert_generated_file_same_as_migrated.yaml
+      vars:
+        generated_file_path: "/var/lib/newrelic-super-agent/auto-generated/nr-infra-agent/newrelic-infra.yml"
+        migrated_file_path: "/etc/newrelic-infra.yml.bck"
+
+    - name: Assert nr-infra-agent auto-generated file is the same as migrated
+      include_tasks: ./tasks/assert_generated_file_same_as_migrated.yaml
+      vars:
+        generated_file_path: "/var/lib/newrelic-super-agent/auto-generated/nr-infra-agent/integrations.d/docker-config.yml"
+        migrated_file_path: "/etc/newrelic-infra/integrations.d.bck/docker-config.yml"
+
+    - name: Assert nr-infra-agent auto-generated file is the same as migrated
+      include_tasks: ./tasks/assert_generated_file_same_as_migrated.yaml
+      vars:
+        generated_file_path: "/var/lib/newrelic-super-agent/auto-generated/nr-infra-agent/logging.d/logging.yml"
+        migrated_file_path: "/etc/newrelic-infra/logging.d.bck/logging.yml"
+
+    - name: Assert Super Agent and Agents are running
+      include_role:
+        name: caos.ansible_roles.assert_process_running
+      vars:
+        processes_running:
+          - "^/usr/bin/newrelic-super-agent"
+          - "^/usr/bin/newrelic-infra"
+          - "^/usr/bin/nr-otel-collector"
