@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 set -e
 
-RUST_VERSION="1.71.1"
-
 # compile production version of rust agent
 
 if [ "$ARCH" = "arm64" ];then
