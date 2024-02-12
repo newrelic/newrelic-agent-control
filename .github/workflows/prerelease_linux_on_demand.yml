@@ -3,6 +3,8 @@ name: . 🚀 🐧 🧾 Validate Prerelease Linux On Demand
 on:
   workflow_dispatch:
   push:
+    branches:
+      - main
 
 jobs:
   build:
