@@ -27,7 +27,7 @@ jobs:
   onhost-e2e:
     uses: ./.github/workflows/component_onhost_e2e.yaml
     with:
-      TAG: "TODO_CHANGE_ME"
+      TAG: "0.7.1"
       UNIQUE_NAME: "nightly:e2e"
       EC2_FILTERS: '[\"ubuntu\"]'
     secrets:
