@@ -5,7 +5,7 @@ include ../Ansible.common
 ANSIBLE_FOLDER := $(CURDIR)/ansible
 ANSIBLE_FORKS ?= 5
 ANSIBLE_INVENTORY ?= $(ANSIBLE_FOLDER)/inventory.ec2
-ANSIBLE_PLAYBOOK ?= basic.yaml
+ANSIBLE_PLAYBOOK ?= test.yaml
 LIMIT ?= "testing_hosts_linux"
 
 .PHONY: e2e
