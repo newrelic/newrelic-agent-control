@@ -1,12 +1,14 @@
-use crate::config::store::{SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer};
-use crate::config::super_agent_configs::AgentID;
 use crate::event::channel::EventPublisher;
 use crate::event::SubAgentEvent;
 use crate::opamp::remote_config_hash::HashRepository;
 use crate::sub_agent::collection::StartedSubAgents;
 use crate::sub_agent::logger::AgentLog;
 use crate::sub_agent::{NotStartedSubAgent, SubAgentBuilder};
+use crate::super_agent::config::AgentID;
 use crate::super_agent::error::AgentError;
+use crate::super_agent::store::{
+    SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer,
+};
 use crate::super_agent::super_agent::{SuperAgent, SuperAgentCallbacks};
 use opamp_client::StartedClient;
 use std::sync::mpsc::Sender;

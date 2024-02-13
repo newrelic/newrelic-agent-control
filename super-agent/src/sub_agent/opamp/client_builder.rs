@@ -1,4 +1,3 @@
-use crate::config::super_agent_configs::{AgentID, OpAMPClientConfig};
 use crate::event::channel::EventPublisher;
 use crate::event::OpAMPEvent;
 use crate::opamp::callbacks::AgentCallbacks;
@@ -7,9 +6,10 @@ use crate::opamp::client_builder::{
 };
 use crate::sub_agent::opamp::remote_config_publisher::SubAgentRemoteConfigPublisher;
 use crate::sub_agent::SubAgentCallbacks;
+use crate::super_agent::config::{AgentID, OpAMPClientConfig};
 use crate::super_agent::opamp::client_builder::SuperAgentOpAMPHttpBuilder;
 use crate::utils::time::get_sys_time_nano;
-use opamp_client::http::{HttpClientReqwest, NotStartedHttpClient, StartedHttpClient};
+use opamp_client::http::{HttpClientUreq, NotStartedHttpClient, StartedHttpClient};
 use opamp_client::opamp::proto::AgentHealth;
 use opamp_client::operation::settings::StartSettings;
 use opamp_client::{Client, NotStartedClient};
@@ -34,7 +34,7 @@ impl<'a> From<&'a SuperAgentOpAMPHttpBuilder> for SubAgentOpAMPHttpBuilder {
 }
 
 impl OpAMPClientBuilder<SubAgentCallbacks> for SubAgentOpAMPHttpBuilder {
-    type Client = StartedHttpClient<SubAgentCallbacks, HttpClientReqwest>;
+    type Client = StartedHttpClient<SubAgentCallbacks, HttpClientUreq>;
     fn build_and_start(
         &self,
         opamp_publisher: EventPublisher<OpAMPEvent>,
@@ -46,16 +46,15 @@ impl OpAMPClientBuilder<SubAgentCallbacks> for SubAgentOpAMPHttpBuilder {
         let callbacks = AgentCallbacks::new(agent_id, remote_config_publisher);
 
         let not_started_client = NotStartedHttpClient::new(http_client);
-        let started_client = crate::runtime::tokio_runtime()
-            .block_on(not_started_client.start(callbacks, start_settings))?;
+        let started_client = not_started_client.start(callbacks, start_settings)?;
 
         // TODO remove opamp health from here, it should be done outside
         // set OpAMP health
-        crate::runtime::tokio_runtime().block_on(started_client.set_health(AgentHealth {
+        started_client.set_health(AgentHealth {
             healthy: true,
             start_time_unix_nano: get_sys_time_nano()?,
             last_error: "".to_string(),
-        }))?;
+        })?;
 
         Ok(started_client)
     }

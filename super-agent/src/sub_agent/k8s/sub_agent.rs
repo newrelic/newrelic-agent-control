@@ -1,6 +1,6 @@
 use crate::sub_agent::k8s::CRSupervisor;
+use crate::super_agent::config::AgentID;
 use crate::{
-    config::super_agent_configs::AgentID,
     opamp::operations::stop_opamp_client,
     sub_agent::{error::SubAgentError, NotStartedSubAgent, StartedSubAgent},
 };
@@ -64,8 +64,8 @@ where
                     last_error: err.to_string(),
                     start_time_unix_nano: 0,
                 };
-                crate::runtime::tokio_runtime().block_on(handle.set_health(health))?;
-                crate::runtime::tokio_runtime().block_on(handle.stop())?;
+                handle.set_health(health)?;
+                handle.stop()?;
             }
             return Err(err);
         }

@@ -2,10 +2,7 @@ use super::{
     error::K8sError,
     labels::{Labels, AGENT_ID_LABEL_KEY},
 };
-use crate::{
-    config::{store::SuperAgentConfigLoader, super_agent_configs::AgentID},
-    super_agent,
-};
+use crate::super_agent::{self, config::AgentID, store::SuperAgentConfigLoader};
 use crossbeam::{
     channel::{tick, unbounded, Sender},
     select,
@@ -137,10 +134,10 @@ where
 #[cfg(test)]
 pub(crate) mod test {
     use super::NotStartedK8sGarbageCollector;
-    use crate::config::store::MockSuperAgentConfigLoader;
-    use crate::config::super_agent_configs::AgentID;
     use crate::k8s::labels::{Labels, AGENT_ID_LABEL_KEY};
+    use crate::super_agent::config::{AgentID, SuperAgentConfigError};
     use crate::super_agent::defaults::SUPER_AGENT_ID;
+    use crate::super_agent::store::MockSuperAgentConfigLoader;
     use std::sync::Arc;
     use std::time::Duration;
 
@@ -154,7 +151,7 @@ pub(crate) mod test {
         // Expect the gc runs more than 10 times if interval is 1ms and runs for at least 100ms.
         cs.expect_load().times(10..).returning(move || {
             // returning any error for simplicity
-            Err(crate::config::error::SuperAgentConfigError::SubAgentNotFound(String::new()))
+            Err(SuperAgentConfigError::SubAgentNotFound(String::new()))
         });
 
         let started_gc =

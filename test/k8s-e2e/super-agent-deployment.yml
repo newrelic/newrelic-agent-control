@@ -1,0 +1,149 @@
+global:
+  cluster: "e2e-tests"
+
+extraEnv:
+- name: LOG_LEVEL
+  value: "newrelic_super_agent=debug,"
+
+config:
+  superAgent:
+    content:
+      agents: 
+        open-telemetry:
+          agent_type: "newrelic/io.opentelemetry.collector:0.0.1"
+        open-telemetry-1:
+          agent_type: "newrelic/io.opentelemetry.collector:0.0.1"
+        open-telemetry-2:
+          agent_type: "newrelic/io.opentelemetry.collector:0.0.1"
+  # All sub-agents configs are similar, the goal is just to have the otel collector sending metrics
+  # with metadata that helps to identify the instance. 
+  subAgents: 
+    open-telemetry: 
+      content:
+        chart_values:
+          mode: deployment
+          extraEnvsFrom:
+            - secretRef:
+                name: test-env
+          config:
+            exporters:
+              otlp:
+                endpoint: ${env:OTEL_ENDPOINT}
+                headers:
+                  api-key: ${env:LICENSE_KEY}
+            receivers:
+              prometheus:
+                config:
+                  scrape_configs:
+                    - job_name: opentelemetry-collector
+                      scrape_interval: 10s
+                      static_configs:
+                        - targets:
+                            - ${env:MY_POD_IP}:8888
+            processors:
+              resource:
+                attributes:
+                  - key: test.key
+                    value: ${env:E2E_TEST_ID}
+                    action: upsert
+                  - key: agent.id
+                    value: open-telemetry
+                    action: upsert
+            service:
+              telemetry:
+                metrics:
+                  address: ${env:MY_POD_IP}:8888
+              pipelines:
+                metrics:
+                  exporters:
+                    - otlp
+                  processors:
+                    - resource
+                  receivers:
+                    - prometheus
+    open-telemetry-1: 
+      content:
+        chart_values:
+          mode: deployment
+          extraEnvsFrom:
+            - secretRef:
+                name: test-env
+          config:
+            exporters:
+              otlp:
+                endpoint: ${env:OTEL_ENDPOINT}
+                headers:
+                  api-key: ${env:LICENSE_KEY}
+            receivers:
+              prometheus:
+                config:
+                  scrape_configs:
+                    - job_name: opentelemetry-collector
+                      scrape_interval: 10s
+                      static_configs:
+                        - targets:
+                            - ${env:MY_POD_IP}:8888
+            processors:
+              resource:
+                attributes:
+                  - key: test.key
+                    value: ${env:E2E_TEST_ID}
+                    action: upsert
+                  - key: agent.id
+                    value: open-telemetry-1
+                    action: upsert
+            service:
+              telemetry:
+                metrics:
+                  address: ${env:MY_POD_IP}:8888
+              pipelines:
+                metrics:
+                  exporters:
+                    - otlp
+                  processors:
+                    - resource
+                  receivers:
+                    - prometheus
+    open-telemetry-2: 
+      content:
+        chart_values:
+          mode: deployment
+          extraEnvsFrom:
+            - secretRef:
+                name: test-env
+          config:
+            exporters:
+              otlp:
+                endpoint: ${env:OTEL_ENDPOINT}
+                headers:
+                  api-key: ${env:LICENSE_KEY}
+            receivers:
+              prometheus:
+                config:
+                  scrape_configs:
+                    - job_name: opentelemetry-collector
+                      scrape_interval: 10s
+                      static_configs:
+                        - targets:
+                            - ${env:MY_POD_IP}:8888
+            processors:
+              resource:
+                attributes:
+                  - key: test.key
+                    value: ${env:E2E_TEST_ID}
+                    action: upsert
+                  - key: agent.id
+                    value: open-telemetry-2
+                    action: upsert
+            service:
+              telemetry:
+                metrics:
+                  address: ${env:MY_POD_IP}:8888
+              pipelines:
+                metrics:
+                  exporters:
+                    - otlp
+                  processors:
+                    - resource
+                  receivers:
+                    - prometheus

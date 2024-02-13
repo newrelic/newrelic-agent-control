@@ -1,16 +1,18 @@
-use opamp_client::error::{ClientError, NotStartedClientError, StartedClientError};
+use opamp_client::StartedClientError;
+use opamp_client::{ClientError, NotStartedClientError};
 use std::time::SystemTimeError;
 
-use crate::config::error::SuperAgentConfigError;
+use crate::agent_type::agent_values::AgentValuesError;
 use crate::opamp::client_builder::OpAMPClientBuilderError;
 use crate::opamp::remote_config_hash::HashRepositoryError;
-use crate::super_agent::effective_agents_assembler::EffectiveAgentsAssemblerError;
 
-use crate::config::agent_values::AgentValuesError;
 use crate::event::channel::EventPublisherError;
 use crate::opamp::remote_config::RemoteConfigError;
 use crate::sub_agent::values::values_repository::ValuesRepositoryError;
+use crate::super_agent::config::SuperAgentConfigError;
 use thiserror::Error;
+
+use super::effective_agents_assembler::EffectiveAgentsAssemblerError;
 
 #[derive(Error, Debug)]
 pub enum SubAgentError {

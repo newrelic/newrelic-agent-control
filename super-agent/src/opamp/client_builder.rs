@@ -1,28 +1,28 @@
-use opamp_client::error::{NotStartedClientError, StartedClientError};
-use opamp_client::http::{HttpClientError, HttpClientReqwest, HttpConfig};
-use opamp_client::operation::callbacks::Callbacks;
-use opamp_client::operation::settings::StartSettings;
-use opamp_client::StartedClient;
-use std::time::SystemTimeError;
-use thiserror::Error;
-use tracing::error;
-
-use crate::config::super_agent_configs::{AgentID, OpAMPClientConfig};
-
 use crate::event::channel::EventPublisher;
 use crate::event::OpAMPEvent;
 use crate::opamp::instance_id;
+use crate::super_agent::config::{AgentID, OpAMPClientConfig};
+use opamp_client::http::config::HttpConfigError;
+use opamp_client::http::{HttpClientError, HttpClientUreq, HttpConfig};
+use opamp_client::operation::callbacks::Callbacks;
+use opamp_client::operation::settings::StartSettings;
+use opamp_client::{NotStartedClientError, StartedClient, StartedClientError};
+use std::time::SystemTimeError;
+use thiserror::Error;
+use tracing::error;
 
 #[derive(Error, Debug)]
 pub enum OpAMPClientBuilderError {
     #[error("unable to create OpAMP HTTP client: `{0}`")]
     HttpClientError(#[from] HttpClientError),
+    #[error("invalid HTTP configuration: `{0}`")]
+    HttpConfigError(#[from] HttpConfigError),
     #[error("`{0}`")]
     NotStartedClientError(#[from] NotStartedClientError),
     #[error("`{0}`")]
     StartedClientError(#[from] StartedClientError),
     #[error("`{0}`")]
-    StartedOpAMPlientError(#[from] opamp_client::error::ClientError),
+    StartedOpAMPlientError(#[from] opamp_client::ClientError),
     #[error("system time error: `{0}`")]
     SystemTimeError(#[from] SystemTimeError),
     #[error("error getting agent ulid: `{0}`")]
@@ -42,7 +42,7 @@ pub trait OpAMPClientBuilder<CB: Callbacks> {
 
 pub fn build_http_client(
     config: &OpAMPClientConfig,
-) -> Result<HttpClientReqwest, OpAMPClientBuilderError> {
+) -> Result<HttpClientUreq, OpAMPClientBuilderError> {
     let headers = config.headers.clone().unwrap_or_default();
     let headers: Vec<(&str, &str)> = headers
         .iter()
@@ -50,7 +50,7 @@ pub fn build_http_client(
         .collect();
 
     let http_client =
-        HttpClientReqwest::new(HttpConfig::new(config.endpoint.as_str())?.with_headers(headers)?)?;
+        HttpClientUreq::new(HttpConfig::new(config.endpoint.as_str())?.with_headers(headers)?)?;
 
     Ok(http_client)
 }
@@ -58,52 +58,48 @@ pub fn build_http_client(
 #[cfg(test)]
 pub(crate) mod test {
     use super::*;
-    use async_trait::async_trait;
     use mockall::{mock, predicate};
-    use opamp_client::error::ClientError;
     use opamp_client::operation::settings::StartSettings;
+    use opamp_client::ClientError;
     use opamp_client::{
-        error::{ClientResult, NotStartedClientResult, StartedClientResult},
         opamp::proto::{AgentDescription, AgentHealth, RemoteConfigStatus},
-        Client, NotStartedClient, StartedClient,
+        Client, ClientResult, NotStartedClient, NotStartedClientResult, StartedClient,
+        StartedClientResult,
     };
 
     mock! {
         pub NotStartedOpAMPClientMock {}
-        #[async_trait]
         impl NotStartedClient for NotStartedOpAMPClientMock
          {
             type StartedClient<C: Callbacks + Send + Sync + 'static> = MockStartedOpAMPClientMock<C>;
-            async fn start<C: Callbacks + Send + Sync + 'static>(self, callbacks: C, start_settings: StartSettings ) -> NotStartedClientResult<<Self as NotStartedClient>::StartedClient<C>>;
+            fn start<C: Callbacks + Send + Sync + 'static>(self, callbacks: C, start_settings: StartSettings ) -> NotStartedClientResult<<Self as NotStartedClient>::StartedClient<C>>;
         }
     }
 
     mock! {
         pub StartedOpAMPClientMock<C> where C: Callbacks {}
 
-        #[async_trait]
         impl<C> StartedClient<C> for StartedOpAMPClientMock<C>
             where
             C: Callbacks + Send + Sync + 'static {
 
-            async fn stop(self) -> StartedClientResult<()>;
+            fn stop(self) -> StartedClientResult<()>;
         }
 
-        #[async_trait]
         impl<C> Client for StartedOpAMPClientMock<C>
         where
         C: Callbacks + Send + Sync + 'static {
 
-            async fn set_agent_description(
+             fn set_agent_description(
                 &self,
                 description: AgentDescription,
             ) -> ClientResult<()>;
 
-            async fn set_health(&self, health: AgentHealth) -> ClientResult<()>;
+             fn set_health(&self, health: AgentHealth) -> ClientResult<()>;
 
-            async fn update_effective_config(&self) -> ClientResult<()>;
+             fn update_effective_config(&self) -> ClientResult<()>;
 
-            async fn set_remote_config_status(&self, status: RemoteConfigStatus) -> ClientResult<()>;
+             fn set_remote_config_status(&self, status: RemoteConfigStatus) -> ClientResult<()>;
         }
     }
 
@@ -137,8 +133,11 @@ pub(crate) mod test {
         #[allow(dead_code)]
         pub fn should_not_stop(&mut self, times: usize, status_code: u16, error_msg: String) {
             self.expect_stop().times(times).returning(move || {
-                Err(StartedClientError::SenderError(
-                    HttpClientError::UnsuccessfulResponse(status_code, error_msg.clone()),
+                Err(StartedClientError::SyncClientError(
+                    ClientError::SenderError(HttpClientError::UnsuccessfulResponse(
+                        status_code,
+                        error_msg.clone(),
+                    )),
                 ))
             });
         }

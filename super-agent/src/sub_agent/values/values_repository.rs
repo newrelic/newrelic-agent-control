@@ -1,13 +1,13 @@
-use crate::config::agent_values::AgentValues;
-use crate::config::super_agent_configs::AgentID;
+use crate::agent_type::agent_values::AgentValues;
+use crate::agent_type::definition::AgentType;
 use crate::sub_agent::values::values_repository::ValuesRepositoryError::DeleteError;
+use crate::super_agent::config::AgentID;
 use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
 use fs::LocalFile;
 use std::fs::Permissions;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
-use crate::config::agent_type::agent_types::FinalAgent;
 use crate::super_agent::defaults::{
     LOCAL_AGENT_DATA_DIR, REMOTE_AGENT_DATA_DIR, VALUES_DIR, VALUES_FILE,
 };
@@ -42,7 +42,7 @@ pub trait ValuesRepository {
     fn load(
         &self,
         agent_id: &AgentID,
-        final_agent: &FinalAgent,
+        final_agent: &AgentType,
     ) -> Result<AgentValues, ValuesRepositoryError>;
 
     fn store_remote(
@@ -158,7 +158,7 @@ where
     fn load(
         &self,
         agent_id: &AgentID,
-        agent_type: &FinalAgent,
+        agent_type: &AgentType,
     ) -> Result<AgentValues, ValuesRepositoryError> {
         let mut values_result: Option<String> = None;
 
@@ -229,12 +229,12 @@ where
 
 #[cfg(test)]
 pub mod test {
-    use crate::config::agent_type::agent_types::FinalAgent;
-    use crate::config::agent_values::AgentValues;
-    use crate::config::super_agent_configs::AgentID;
+    use crate::agent_type::agent_values::AgentValues;
+    use crate::agent_type::definition::AgentType;
     use crate::sub_agent::values::values_repository::{
         ValuesRepository, ValuesRepositoryError, ValuesRepositoryFile,
     };
+    use crate::super_agent::config::AgentID;
     use fs::directory_manager::mock::MockDirectoryManagerMock;
     use fs::directory_manager::DirectoryManagementError::{
         ErrorCreatingDirectory, ErrorDeletingDirectory,
@@ -244,11 +244,11 @@ pub mod test {
     use fs::mock::MockLocalFile;
     use fs::writer_file::FileWriter;
     use mockall::{mock, predicate};
+    use serde_yaml::Value;
     use std::collections::HashMap;
     use std::fs::Permissions;
     use std::path::Path;
 
-    use crate::config::agent_type::trivial_value::TrivialValue;
     use crate::super_agent::defaults::default_capabilities;
     #[cfg(target_family = "unix")]
     use std::os::unix::fs::PermissionsExt;
@@ -287,7 +287,7 @@ pub mod test {
              fn load(
                 &self,
                 agent_id: &AgentID,
-                final_agent: &FinalAgent,
+                final_agent: &AgentType,
             ) -> Result<AgentValues, ValuesRepositoryError>;
             fn delete_remote_all(&self) -> Result<(), ValuesRepositoryError>;
             fn delete_remote(&self, agent_id: &AgentID) -> Result<(), ValuesRepositoryError>;
@@ -298,7 +298,7 @@ pub mod test {
         pub fn should_load(
             &mut self,
             agent_id: &AgentID,
-            final_agent: &FinalAgent,
+            final_agent: &AgentType,
             agent_values: &AgentValues,
         ) {
             let agent_values = agent_values.clone();
@@ -311,7 +311,7 @@ pub mod test {
                 .returning(move |_, _| Ok(agent_values.clone()));
         }
 
-        pub fn should_not_load(&mut self, agent_id: &AgentID, final_agent: &FinalAgent) {
+        pub fn should_not_load(&mut self, agent_id: &AgentID, final_agent: &AgentType) {
             self.expect_load()
                 .once()
                 .with(
@@ -356,7 +356,7 @@ pub mod test {
         let remote_enabled = true;
 
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let mut final_agent = FinalAgent::default();
+        let mut final_agent = AgentType::default();
         final_agent.set_capabilities(default_capabilities());
 
         let agent_values_content = "some_config: true\nanother_item: false";
@@ -376,13 +376,10 @@ pub mod test {
 
         let agent_values = repo.load(&agent_id, &final_agent).unwrap();
 
+        assert_eq!(agent_values.get("some_config").unwrap(), &Value::Bool(true));
         assert_eq!(
-            agent_values.get_from_normalized("some_config").unwrap(),
-            TrivialValue::Bool(true)
-        );
-        assert_eq!(
-            agent_values.get_from_normalized("another_item").unwrap(),
-            TrivialValue::Bool(false)
+            agent_values.get("another_item").unwrap(),
+            &Value::Bool(false)
         );
     }
 
@@ -396,13 +393,13 @@ pub mod test {
         let remote_enabled = false;
 
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let mut final_agent = FinalAgent::default();
+        let mut final_agent = AgentType::default();
         final_agent.set_capabilities(default_capabilities());
 
         let agent_values_content = "some_config: true\nanother_item: false";
 
         file_rw.should_read(
-            &Path::new("some/local/path/some-agent-id/values/values.yaml"),
+            Path::new("some/local/path/some-agent-id/values/values.yaml"),
             agent_values_content.to_string(),
         );
 
@@ -416,13 +413,10 @@ pub mod test {
 
         let agent_values = repo.load(&agent_id, &final_agent).unwrap();
 
+        assert_eq!(agent_values.get("some_config").unwrap(), &Value::Bool(true));
         assert_eq!(
-            agent_values.get_from_normalized("some_config").unwrap(),
-            TrivialValue::Bool(true)
-        );
-        assert_eq!(
-            agent_values.get_from_normalized("another_item").unwrap(),
-            TrivialValue::Bool(false)
+            agent_values.get("another_item").unwrap(),
+            &Value::Bool(false)
         );
     }
 
@@ -436,18 +430,18 @@ pub mod test {
         let remote_enabled = true;
 
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let mut final_agent = FinalAgent::default();
+        let mut final_agent = AgentType::default();
         final_agent.set_capabilities(default_capabilities());
 
         let agent_values_content = "some_config: true\nanother_item: false";
 
         file_rw.should_not_read_file_not_found(
-            &Path::new("some/remote/path/some-agent-id/values/values.yaml"),
+            Path::new("some/remote/path/some-agent-id/values/values.yaml"),
             "some_error_message".to_string(),
         );
 
         file_rw.should_read(
-            &Path::new("some/local/path/some-agent-id/values/values.yaml"),
+            Path::new("some/local/path/some-agent-id/values/values.yaml"),
             agent_values_content.to_string(),
         );
 
@@ -461,13 +455,10 @@ pub mod test {
 
         let agent_values = repo.load(&agent_id, &final_agent).unwrap();
 
+        assert_eq!(agent_values.get("some_config").unwrap(), &Value::Bool(true));
         assert_eq!(
-            agent_values.get_from_normalized("some_config").unwrap(),
-            TrivialValue::Bool(true)
-        );
-        assert_eq!(
-            agent_values.get_from_normalized("another_item").unwrap(),
-            TrivialValue::Bool(false)
+            agent_values.get("another_item").unwrap(),
+            &Value::Bool(false)
         );
     }
 
@@ -481,11 +472,11 @@ pub mod test {
         let remote_enabled = false;
 
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let mut final_agent = FinalAgent::default();
+        let mut final_agent = AgentType::default();
         final_agent.set_capabilities(default_capabilities());
 
         file_rw.should_not_read_file_not_found(
-            &Path::new("some/local/path/some-agent-id/values/values.yaml"),
+            Path::new("some/local/path/some-agent-id/values/values.yaml"),
             "some message".to_string(),
         );
 
@@ -512,10 +503,10 @@ pub mod test {
         let remote_enabled = true;
 
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let mut final_agent = FinalAgent::default();
+        let mut final_agent = AgentType::default();
         final_agent.set_capabilities(default_capabilities());
 
-        file_rw.should_not_read_io_error(&Path::new(
+        file_rw.should_not_read_io_error(Path::new(
             "some/remote/path/some-agent-id/values/values.yaml",
         ));
 
@@ -546,10 +537,10 @@ pub mod test {
         let remote_enabled = false;
 
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let mut final_agent = FinalAgent::default();
+        let mut final_agent = AgentType::default();
         final_agent.set_capabilities(default_capabilities());
 
-        file_rw.should_not_read_io_error(&Path::new(
+        file_rw.should_not_read_io_error(Path::new(
             "some/local/path/some-agent-id/values/values.yaml",
         ));
 
@@ -580,10 +571,8 @@ pub mod test {
         let remote_enabled = false;
 
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let agent_values = AgentValues::new(HashMap::from([(
-            "one_item".to_string(),
-            TrivialValue::String("one value".to_string()),
-        )]));
+        let agent_values =
+            AgentValues::new(HashMap::from([("one_item".into(), "one value".into())]));
 
         dir_manager.should_delete(Path::new("some/remote/path/some-agent-id/values"));
         dir_manager.should_create(
@@ -618,10 +607,8 @@ pub mod test {
         let remote_enabled = false;
 
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let agent_values = AgentValues::new(HashMap::from([(
-            "one_item".to_string(),
-            TrivialValue::String("one value".to_string()),
-        )]));
+        let agent_values =
+            AgentValues::new(HashMap::from([("one_item".into(), "one value".into())]));
 
         dir_manager.should_not_delete(
             Path::new("some/remote/path/some-agent-id/values"),
@@ -654,10 +641,8 @@ pub mod test {
         let remote_enabled = false;
 
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let agent_values = AgentValues::new(HashMap::from([(
-            "one_item".to_string(),
-            TrivialValue::String("one value".to_string()),
-        )]));
+        let agent_values =
+            AgentValues::new(HashMap::from([("one_item".into(), "one value".into())]));
 
         dir_manager.should_delete(Path::new("some/remote/path/some-agent-id/values"));
         dir_manager.should_not_create(
@@ -693,10 +678,8 @@ pub mod test {
         let remote_enabled = false;
 
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let agent_values = AgentValues::new(HashMap::from([(
-            "one_item".to_string(),
-            TrivialValue::String("one value".to_string()),
-        )]));
+        let agent_values =
+            AgentValues::new(HashMap::from([("one_item".into(), "one value".into())]));
 
         dir_manager.should_delete(Path::new("some/remote/path/some-agent-id/values"));
         dir_manager.should_create(

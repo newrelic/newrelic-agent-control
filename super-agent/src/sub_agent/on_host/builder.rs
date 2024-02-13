@@ -1,10 +1,3 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-
-#[cfg(unix)]
-use nix::unistd::gethostname;
-
-use crate::config::super_agent_configs::SubAgentConfig;
 use crate::event::channel::{pub_sub, EventPublisher};
 use crate::event::SubAgentEvent;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
@@ -13,16 +6,15 @@ use crate::opamp::remote_config_hash::HashRepository;
 use crate::opamp::remote_config_report::{
     report_remote_config_status_applied, report_remote_config_status_error,
 };
-
+use crate::sub_agent::effective_agents_assembler::{
+    EffectiveAgent, EffectiveAgentsAssembler, EffectiveAgentsAssemblerError,
+};
 use crate::sub_agent::on_host::event_processor_builder::SubAgentEventProcessorBuilder;
 use crate::sub_agent::on_host::sub_agent::NotStarted;
 use crate::sub_agent::on_host::supervisor::command_supervisor;
 use crate::sub_agent::SubAgentCallbacks;
-use crate::super_agent::effective_agents_assembler::{
-    EffectiveAgent, EffectiveAgentsAssembler, EffectiveAgentsAssemblerError,
-};
+use crate::super_agent::config::{AgentID, SubAgentConfig};
 use crate::{
-    config::super_agent_configs::AgentID,
     context::Context,
     opamp::client_builder::OpAMPClientBuilder,
     sub_agent::{
@@ -33,7 +25,10 @@ use crate::{
     },
 };
 use log::error;
-use EffectiveAgentsAssemblerError::RemoteConfigLoadError;
+#[cfg(unix)]
+use nix::unistd::gethostname;
+use std::collections::HashMap;
+use std::sync::Arc;
 
 use super::{
     sub_agent::SubAgentOnHost,
@@ -128,7 +123,9 @@ where
 
             if let Some(mut hash) = remote_config_hash {
                 // send to opamp the remote config error in case it happens
-                if let Err(RemoteConfigLoadError(error)) = effective_agent_res.as_ref() {
+                if let Err(EffectiveAgentsAssemblerError::RemoteConfigLoadError(error)) =
+                    effective_agent_res.as_ref()
+                {
                     report_remote_config_status_error(opamp_client, &hash, error.clone())?;
                     // report the failed status for remote config and let the opamp client
                     // running with no supervisors so the configuration can be fixed
@@ -202,12 +199,30 @@ fn build_supervisors(
     Ok(supervisors)
 }
 
+fn get_hostname() -> String {
+    #[cfg(unix)]
+    return gethostname().unwrap_or_default().into_string().unwrap();
+
+    #[cfg(not(unix))]
+    return unimplemented!();
+}
+
 #[cfg(test)]
 mod test {
-    use std::collections::HashMap;
-    use std::sync::mpsc::channel;
-    use std::thread;
-
+    use super::*;
+    use crate::agent_type::agent_metadata::AgentMetadata;
+    use crate::agent_type::runtime_config::{Deployment, OnHost, Runtime};
+    use crate::event::channel::pub_sub;
+    use crate::opamp::client_builder::test::MockOpAMPClientBuilderMock;
+    use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
+    use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
+    use crate::opamp::remote_config_hash::test::MockHashRepositoryMock;
+    use crate::opamp::remote_config_hash::Hash;
+    use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
+    use crate::sub_agent::on_host::event_processor::test::MockEventProcessorMock;
+    use crate::sub_agent::on_host::event_processor_builder::test::MockSubAgentEventProcessorBuilderMock;
+    use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
+    use crate::super_agent::defaults::default_capabilities;
     use nix::unistd::gethostname;
     use opamp_client::opamp::proto::RemoteConfigStatus;
     use opamp_client::opamp::proto::RemoteConfigStatuses::Failed;
@@ -215,25 +230,9 @@ mod test {
         capabilities::Capabilities,
         settings::{AgentDescription, DescriptionValueType, StartSettings},
     };
-
-    use crate::config::agent_type::agent_metadata::AgentMetadata;
-    use crate::event::channel::pub_sub;
-    use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
-    use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
-    use crate::opamp::remote_config_hash::test::MockHashRepositoryMock;
-    use crate::opamp::remote_config_hash::Hash;
-    use crate::sub_agent::on_host::event_processor::test::MockEventProcessorMock;
-    use crate::sub_agent::on_host::event_processor_builder::test::MockSubAgentEventProcessorBuilderMock;
-    use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
-    use crate::{
-        config::agent_type::runtime_config::OnHost,
-        opamp::client_builder::test::MockOpAMPClientBuilderMock,
-    };
-
-    use super::*;
-
-    use crate::super_agent::defaults::default_capabilities;
-    use crate::super_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
+    use std::collections::HashMap;
+    use std::sync::mpsc::channel;
+    use std::thread;
 
     #[test]
     fn build_start_stop() {
@@ -380,13 +379,11 @@ mod test {
 
     // HELPERS
     #[cfg(test)]
-    fn on_host_final_agent(
-        agent_id: AgentID,
-    ) -> crate::super_agent::effective_agents_assembler::EffectiveAgent {
-        crate::super_agent::effective_agents_assembler::EffectiveAgent::new(
+    fn on_host_final_agent(agent_id: AgentID) -> EffectiveAgent {
+        EffectiveAgent::new(
             agent_id,
-            crate::config::agent_type::runtime_config::RuntimeConfig {
-                deployment: crate::config::agent_type::runtime_config::Deployment {
+            Runtime {
+                deployment: Deployment {
                     on_host: Some(OnHost {
                         executables: Vec::new(),
                     }),
@@ -431,12 +428,4 @@ mod test {
             },
         }
     }
-}
-
-fn get_hostname() -> String {
-    #[cfg(unix)]
-    return gethostname().unwrap_or_default().into_string().unwrap();
-
-    #[cfg(not(unix))]
-    return unimplemented!();
 }

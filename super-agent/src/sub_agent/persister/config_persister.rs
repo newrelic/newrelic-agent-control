@@ -1,7 +1,7 @@
 use thiserror::Error;
 
-use crate::config::agent_type::agent_types::FinalAgent;
-use crate::config::super_agent_configs::AgentID;
+use crate::agent_type::definition::AgentType;
+use crate::super_agent::config::AgentID;
 use fs::directory_manager::DirectoryManagementError;
 use fs::writer_file::WriteError;
 
@@ -18,16 +18,14 @@ pub trait ConfigurationPersister {
     fn persist_agent_config(
         &self,
         agent_id: &AgentID,
-        agent_type: &FinalAgent,
+        agent_type: &AgentType,
     ) -> Result<(), PersistError>;
 
     fn delete_agent_config(
         &self,
         agent_id: &AgentID,
-        agent_type: &FinalAgent,
+        agent_type: &AgentType,
     ) -> Result<(), PersistError>;
-    // clean all agents configurations
-    fn delete_all_configs(&self) -> Result<(), PersistError>;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -36,8 +34,8 @@ pub trait ConfigurationPersister {
 
 #[cfg(test)]
 pub mod test {
-    use crate::config::agent_type::agent_types::FinalAgent;
-    use crate::config::super_agent_configs::AgentID;
+    use crate::agent_type::definition::AgentType;
+    use crate::super_agent::config::AgentID;
     use fs::directory_manager::DirectoryManagementError::{
         ErrorCreatingDirectory, ErrorDeletingDirectory, InvalidDirectory,
     };
@@ -104,14 +102,13 @@ pub mod test {
         pub(crate) ConfigurationPersisterMock {}
 
         impl ConfigurationPersister for ConfigurationPersisterMock {
-             fn persist_agent_config(&self, agent_id: &AgentID, agent_type: &FinalAgent) -> Result<(), PersistError>;
-             fn delete_agent_config(&self, agent_id: &AgentID, agent_type: &FinalAgent) -> Result<(), PersistError>;
-             fn delete_all_configs(&self) -> Result<(), PersistError>;
+             fn persist_agent_config(&self, agent_id: &AgentID, agent_type: &AgentType) -> Result<(), PersistError>;
+             fn delete_agent_config(&self, agent_id: &AgentID, agent_type: &AgentType) -> Result<(), PersistError>;
         }
     }
 
     impl MockConfigurationPersisterMock {
-        pub fn should_persist_agent_config(&mut self, agent_id: &AgentID, agent_type: &FinalAgent) {
+        pub fn should_persist_agent_config(&mut self, agent_id: &AgentID, agent_type: &AgentType) {
             self.expect_persist_agent_config()
                 .once()
                 .with(
@@ -124,7 +121,7 @@ pub mod test {
         pub fn should_not_persist_agent_config(
             &mut self,
             agent_id: &AgentID,
-            final_agent: &FinalAgent,
+            final_agent: &AgentType,
             err: PersistError,
         ) {
             self.expect_persist_agent_config()
@@ -150,7 +147,7 @@ pub mod test {
                 .once()
                 .returning(move |_, _| Err(err.clone()));
         }
-        pub fn should_delete_agent_config(&mut self, agent_id: &AgentID, final_agent: &FinalAgent) {
+        pub fn should_delete_agent_config(&mut self, agent_id: &AgentID, final_agent: &AgentType) {
             self.expect_delete_agent_config()
                 .once()
                 .with(
@@ -163,7 +160,7 @@ pub mod test {
         pub fn should_not_delete_agent_config(
             &mut self,
             agent_id: &AgentID,
-            final_agent: &FinalAgent,
+            final_agent: &AgentType,
             err: PersistError,
         ) {
             self.expect_delete_agent_config()
@@ -188,18 +185,6 @@ pub mod test {
             self.expect_delete_agent_config()
                 .once()
                 .returning(move |_, _| Err(err.clone()));
-        }
-
-        #[allow(dead_code)]
-        pub fn should_delete_all_configs(&mut self) {
-            self.expect_delete_all_configs().once().returning(|| Ok(()));
-        }
-
-        #[allow(dead_code)]
-        pub fn should_delete_all_configs_times(&mut self, times: usize) {
-            self.expect_delete_all_configs()
-                .times(times)
-                .returning(|| Ok(()));
         }
     }
 }

@@ -1,6 +1,5 @@
 use super::{GetterError, Identifiers};
-use crate::config::super_agent_configs::AgentID;
-use crate::opamp::instance_id::storer::InstanceIDStorer;
+use crate::{opamp::instance_id::storer::InstanceIDStorer, super_agent::config::AgentID};
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 use tracing::debug;

@@ -43,7 +43,7 @@ deployment:
   on_host:
     executables:
       - path: /usr/bin/newrelic-infra
-        args: "--config=${config_file}"
+        args: "--config=${nr-var:config_file}"
         restart_policy:
           backoff_strategy:
             type: fixed
@@ -60,7 +60,8 @@ variables:
     description: "Newrelic infra configuration"
     type: file
     required: false
-    default: ""
+    default: |
+      "content"
     file_path: "newrelic-infra.yml"
   config_ohis:
     description: "map of YAML configs for the OHIs"
@@ -83,12 +84,12 @@ deployment:
   on_host:
     executables:
       - path: /usr/bin/newrelic-infra
-        args: "--config=${config_agent}"
-        env: "NRIA_PLUGIN_DIR=${config_ohis} NRIA_LOGGING_CONFIGS_DIR=${logging}"
+        args: "--config=${nr-var:config_agent}"
+        env: "NRIA_PLUGIN_DIR=${nr-var:config_ohis} NRIA_LOGGING_CONFIGS_DIR=${nr-var:logging}"
         restart_policy:
           backoff_strategy:
             type: fixed
-            backoff_delay: ${backoff_delay}
+            backoff_delay: ${nr-var:backoff_delay}
 "#;
 
 // Infrastructure_agent AgentType
@@ -124,15 +125,16 @@ deployment:
   on_host:
     executables:
       - path: /usr/bin/newrelic-infra
-        args: "--config=${config_agent}"
-        env: "NRIA_PLUGIN_DIR=${config_integrations} NRIA_LOGGING_CONFIGS_DIR=${config_logging}"
+        args: "--config=${nr-var:config_agent}"
+        env: "NRIA_PLUGIN_DIR=${nr-var:config_integrations} NRIA_LOGGING_CONFIGS_DIR=${nr-var:config_logging}"
         restart_policy:
           backoff_strategy:
             type: fixed
-            backoff_delay: ${backoff_delay}
+            backoff_delay: ${nr-var:backoff_delay}
 "#;
 
 // NRDOT AgentType
+#[cfg(feature = "onhost")]
 pub(crate) const NRDOT_TYPE: &str = r#"
 namespace: newrelic
 name: io.opentelemetry.collector
@@ -162,70 +164,91 @@ deployment:
   on_host:
     executables:
       - path: /usr/bin/nr-otel-collector
-        args: "--config=${config_file} --feature-gates=-pkg.translator.prometheus.NormalizeName"
-        env: "OTEL_EXPORTER_OTLP_ENDPOINT=${otel_exporter_otlp_endpoint} NEW_RELIC_MEMORY_LIMIT_MIB=${new_relic_memory_limit_mib}"
+        args: "--config=${nr-var:config_file} --feature-gates=-pkg.translator.prometheus.NormalizeName"
+        env: "OTEL_EXPORTER_OTLP_ENDPOINT=${nr-var:otel_exporter_otlp_endpoint} NEW_RELIC_MEMORY_LIMIT_MIB=${nr-var:new_relic_memory_limit_mib}"
         restart_policy:
           backoff_strategy:
             type: fixed
-            backoff_delay: ${backoff_delay}
+            backoff_delay: ${nr-var:backoff_delay}
 "#;
 
 // Kubernetes AgentType
-pub(crate) const KUBERNETES_TYPE: &str = r#"
+// TODO We need to unify the two agent types and remove this workaround
+#[cfg(all(not(feature = "onhost"), feature = "k8s"))]
+pub(crate) const NRDOT_TYPE: &str = r#"
 namespace: newrelic
-name: io.k8s.opentelemetry.collector # Changed to avoid collisions with the upper agent type
+name: io.opentelemetry.collector 
 version: 0.0.1
 variables:
-  config_file:
-    description: "Newrelic otel collector configuration path"
+  chart_values:
+    description: "Newrelic otel collector chart values"
     type: yaml
     required: true
+  chart_version:
+    description: "Newrelic otel collector chart version"
+    type: string
+    required: true
+    default: "0.78.3"
 deployment:
   k8s:
     objects:
       repository:
         apiVersion: source.toolkit.fluxcd.io/v1beta2
         kind: HelmRepository
+        metadata:
+          name: ${nr-sub:agent_id}
         spec:
-          interval: 3m
+          # Increasing the interval to 30 minutes because the HelmRepository is not as prone to frequent changes
+          # as HelmRelease objects might be. Given repositories typically have fewer updates than the resources
+          # they trigger, a longer interval helps in reducing unnecessary load on the cluster without significantly
+          # delaying the application of important updates.
+          interval: 30m
           url: https://open-telemetry.github.io/opentelemetry-helm-charts
       release:
         apiVersion: helm.toolkit.fluxcd.io/v2beta2
         kind: HelmRelease
+        metadata:
+          name: ${nr-sub:agent_id}
         spec:
           interval: 3m
           chart:
             spec:
               chart: opentelemetry-collector
-              version: 0.67.0
+              version: ${nr-var:chart_version}
               sourceRef:
                 kind: HelmRepository
-                name: open-telemetry # TODO now sub-agent name must be "open-telemetry" for this to work.
+                name: ${nr-sub:agent_id}
               interval: 3m
           install:
+            # Wait are disabled to avoid blocking the modifications/deletions of this CR while in reconciling state.
+            disableWait: true
+            disableWaitForJobs: true
             remediation:
               retries: 3
             replace: true
           upgrade:
+            disableWait: true
+            disableWaitForJobs: true
             cleanupOnFail: true
             force: true
             remediation:
               retries: 3
               strategy: rollback
+          rollback:
+            disableWait: true
+            disableWaitForJobs: true
           values:
-            mode: deployment
-            config: ${config_file}
+            ${nr-var:chart_values}
 "#;
 
 #[cfg(test)]
 mod test {
-    use crate::config::agent_type::agent_types::FinalAgent;
+    use crate::agent_type::definition::AgentType;
 
     #[test]
     fn test_parsable_configs() {
-        let _: FinalAgent = serde_yaml::from_str(super::NEWRELIC_INFRA_TYPE_1).unwrap();
-        let _: FinalAgent = serde_yaml::from_str(super::NEWRELIC_INFRA_TYPE_2).unwrap();
-        let _: FinalAgent = serde_yaml::from_str(super::NRDOT_TYPE).unwrap();
-        let _: FinalAgent = serde_yaml::from_str(super::KUBERNETES_TYPE).unwrap();
+        serde_yaml::from_str::<AgentType>(super::NEWRELIC_INFRA_TYPE_1).unwrap();
+        serde_yaml::from_str::<AgentType>(super::NEWRELIC_INFRA_TYPE_2).unwrap();
+        serde_yaml::from_str::<AgentType>(super::NRDOT_TYPE).unwrap();
     }
 }

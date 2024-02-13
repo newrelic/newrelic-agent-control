@@ -1,15 +1,14 @@
-use opamp_client::opamp::proto::{RemoteConfigStatus, RemoteConfigStatuses};
-use opamp_client::StartedClient;
-
 use crate::{
-    config::store::{SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer},
     opamp::{remote_config::RemoteConfigError, remote_config_hash::HashRepository},
     sub_agent::SubAgentBuilder,
     super_agent::{
         error::AgentError,
+        store::{SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer},
         super_agent::{SuperAgent, SuperAgentCallbacks},
     },
 };
+use opamp_client::opamp::proto::{RemoteConfigStatus, RemoteConfigStatuses};
+use opamp_client::StartedClient;
 
 impl<'a, S, O, HR, SL> SuperAgent<'a, S, O, HR, SL>
 where
@@ -36,13 +35,11 @@ where
         remote_config_err: RemoteConfigError,
     ) -> Result<(), AgentError> {
         if let RemoteConfigError::InvalidConfig(hash, error) = remote_config_err {
-            crate::runtime::tokio_runtime().block_on(opamp_client.set_remote_config_status(
-                RemoteConfigStatus {
-                    last_remote_config_hash: hash.into_bytes(),
-                    error_message: error,
-                    status: RemoteConfigStatuses::Failed as i32,
-                },
-            ))?;
+            opamp_client.set_remote_config_status(RemoteConfigStatus {
+                last_remote_config_hash: hash.into_bytes(),
+                error_message: error,
+                status: RemoteConfigStatuses::Failed as i32,
+            })?;
             Ok(())
         } else {
             unreachable!()

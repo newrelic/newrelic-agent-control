@@ -3,10 +3,10 @@ use std::thread::JoinHandle;
 use tracing::debug;
 
 use super::supervisor::command_supervisor::SupervisorOnHost;
-use crate::config::super_agent_configs::AgentID;
 use crate::event::channel::EventPublisher;
 use crate::event::SubAgentInternalEvent;
 use crate::sub_agent::error::SubAgentError;
+use crate::super_agent::config::AgentID;
 
 use super::supervisor::command_supervisor;
 use crate::sub_agent::on_host::event_processor::SubAgentEventProcessor;
@@ -107,11 +107,11 @@ impl StartedSubAgent for SubAgentOnHost<Started, command_supervisor::Started> {
 
 #[cfg(test)]
 mod test {
-    use crate::config::super_agent_configs::AgentID;
     use crate::event::channel::pub_sub;
     use crate::sub_agent::on_host::event_processor::test::MockEventProcessorMock;
     use crate::sub_agent::on_host::sub_agent::SubAgentOnHost;
-    use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent, SubAgentCallbacks};
+    use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
+    use crate::super_agent::config::AgentID;
     use std::thread::sleep;
     use std::time::Duration;
 

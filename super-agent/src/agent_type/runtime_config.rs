@@ -2,11 +2,11 @@ use std::collections::HashMap;
 
 use serde::Deserialize;
 
-use super::{agent_types::TemplateableValue, restart_policy::RestartPolicyConfig};
+use super::{definition::TemplateableValue, restart_policy::RestartPolicyConfig};
 
 /// Strict structure that describes how to start a given agent with all needed binaries, arguments, env, etc.
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
-pub struct RuntimeConfig {
+pub struct Runtime {
     pub deployment: Deployment,
 }
 
@@ -82,9 +82,7 @@ pub struct K8sObject {
     #[serde(rename = "apiVersion")]
     pub api_version: String,
     pub kind: String,
-    // Is expected that metadata is populated inside the SA so is allowed
-    // to be empty on the config.
-    pub metadata: Option<K8sObjectMeta>,
+    pub metadata: K8sObjectMeta,
     #[serde(default, flatten)]
     pub fields: serde_yaml::Mapping,
 }
@@ -94,6 +92,7 @@ pub struct K8sObject {
 pub struct K8sObjectMeta {
     #[serde(default)]
     pub labels: std::collections::BTreeMap<String, String>,
+    pub name: String,
 }
 
 #[cfg(test)]
@@ -107,20 +106,27 @@ deployment:
       cr1:
         apiVersion: super_agent.version/v0beta1
         kind: Foo
+        metadata:
+          name: test
         spec:
           anyKey: any-value
       cr2:
         apiVersion: super_agent.version/v0beta1
         kind: Foo2
+        metadata:
+          name: test
         # no additional fields
       cr3:
         apiVersion: super_agent.version/v0beta1
         kind: Foo
+        metadata:
+          name: test
         key: value # no spec field
       cr4:
         apiVersion: super_agent.version/v0beta1
         kind: Foo
         metadata:
+          name: test
           labels:
             foo: bar
         key: value # no spec field
@@ -128,7 +134,7 @@ deployment:
 
     #[test]
     fn test_k8s_object() {
-        let rtc: RuntimeConfig = serde_yaml::from_str(RUNTIME_WITH_K8S_DEPLOYMENT).unwrap();
+        let rtc: Runtime = serde_yaml::from_str(RUNTIME_WITH_K8S_DEPLOYMENT).unwrap();
         assert!(rtc.deployment.on_host.is_none());
         let k8s = rtc.deployment.k8s.unwrap();
         assert_eq!("Foo".to_string(), k8s.objects["cr1"].kind);
@@ -154,7 +160,9 @@ deployment:
 
         assert_eq!(
             "bar",
-            &k8s.objects["cr4"].metadata.clone().unwrap().labels["foo"].clone()
+            &k8s.objects["cr4"].metadata.clone().labels["foo"].clone()
         );
+
+        assert_eq!("test", &k8s.objects["cr4"].metadata.clone().name);
     }
 }

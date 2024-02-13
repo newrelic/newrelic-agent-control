@@ -1,0 +1,440 @@
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use thiserror::Error;
+
+use crate::agent_type::trivial_value::TrivialValue;
+
+/// User-provided config.
+///
+/// User-provided configuration (normally via a YAML file) that must follow the tree-like structure of [`Agent`]'s [`variables`] and will be used to populate the [`Agent`]'s [ `runtime_config`] field to totally define a deployable Sub Agent.
+///
+/// The below example in YAML format:
+///
+/// ```yaml
+/// system:
+///  logging:
+///    level: debug
+///
+///
+/// custom_envs:
+///   file: /tmp/aux.txt
+/// ```
+///
+/// Coupled with a specification of an agent type like this one:
+///
+/// ```yaml
+/// name: nrdot
+/// namespace: newrelic
+/// version: 0.1.0
+///
+/// variables:
+///  system:
+///   logging:
+///     level:
+///      description: "Logging level"
+///      type: string
+///      required: true
+///  custom_envs:
+///     description: "Logging level"
+///     type: map[string]string
+///     required: true
+///
+/// deployment:
+///   on_host:
+///     executables:
+///       - path: "/etc/otelcol"
+///         args: "--log-level debug"
+///         env: "{custom_envs}"
+///     # the health of nrdot is determined by whether the agent process
+///     # is up and alive
+///     health:
+///       strategy: process
+/// ```
+///
+/// Will produce the following end result:
+///
+/// ```yaml
+/// name: nrdot
+/// namespace: newrelic
+/// version: 0.1.0
+///
+/// variables:
+///   system:
+///     logging:
+///       level:
+///         description: "Logging level"
+///         type: string
+///         required: true
+///         default:
+///         final_value: debug
+///
+/// deployment:
+///   on_host:
+///     executables:
+///       - path: "/etc/otelcol"
+///         args: "--log-level debug"
+///     # the health of nrdot is determined by whether the agent process
+///     # is up and alive
+///     health:
+///       strategy: process
+/// ```
+///
+/// Please see the tests in the sources for more examples.
+///
+/// [agent_type]: crate::config::agent_type
+#[derive(Debug, PartialEq, Deserialize, Serialize, Default, Clone)]
+pub struct AgentValues(HashMap<String, serde_yaml::Value>);
+
+#[derive(Debug, PartialEq, Deserialize, Serialize, Default, Clone)]
+pub struct NormalizedValues(HashMap<String, TrivialValue>);
+
+#[derive(Error, Debug)]
+pub enum AgentValuesError {
+    #[error("invalid agent values format: `{0}`")]
+    FormatError(#[from] serde_yaml::Error),
+}
+
+impl From<AgentValues> for HashMap<String, serde_yaml::Value> {
+    fn from(values: AgentValues) -> Self {
+        values.0
+    }
+}
+
+impl TryFrom<String> for AgentValues {
+    type Error = AgentValuesError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Ok(serde_yaml::from_str::<AgentValues>(value.as_str())?)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use serde_yaml::{Mapping, Value};
+
+    use crate::agent_type::{
+        definition::AgentType,
+        trivial_value::FilePathWithContent,
+        variable::definition::{VariableDefinition, VariableDefinitionTree},
+    };
+
+    use super::*;
+
+    impl AgentValues {
+        pub(crate) fn new(values: HashMap<String, serde_yaml::Value>) -> Self {
+            Self(values)
+        }
+
+        pub(crate) fn get(&self, key: &str) -> Option<&Value> {
+            self.0.get(key)
+        }
+    }
+
+    const EXAMPLE_CONFIG: &str = r#"
+description:
+  name: newrelic-infra
+  float_val: 0.14
+  logs: -4
+configuration: |
+  license: abc123
+  staging: true
+  extra_list:
+    key: value
+    key2: value2
+config:
+  envs:
+    name: newrelic-infra
+    name2: newrelic-infra2
+verbose: true
+"#;
+
+    #[test]
+    fn example_config() {
+        let actual = serde_yaml::from_str::<AgentValues>(EXAMPLE_CONFIG);
+
+        assert!(actual.is_ok());
+    }
+
+    #[test]
+    fn test_agent_values() {
+        let actual = serde_yaml::from_str::<AgentValues>(EXAMPLE_CONFIG).unwrap();
+        let expected = Value::Mapping(Mapping::from_iter([
+            (
+                Value::String("description".to_string()),
+                Value::Mapping(Mapping::from_iter([
+                    (
+                        Value::String("name".to_string()),
+                        Value::String("newrelic-infra".to_string()),
+                    ),
+                    (
+                        Value::String("float_val".to_string()),
+                        Value::Number(serde_yaml::Number::from(0.14_f64)),
+                    ),
+                    (
+                        Value::String("logs".to_string()),
+                        Value::Number(serde_yaml::Number::from(-4_i64)),
+                    ),
+                ])),
+            ),
+            (
+                Value::String("configuration".to_string()),
+                Value::String(
+                    "license: abc123\nstaging: true\nextra_list:\n  key: value\n  key2: value2\n"
+                        .to_string(),
+                ),
+            ),
+            (
+                Value::String("config".to_string()),
+                Value::Mapping(Mapping::from_iter([(
+                    Value::String("envs".to_string()),
+                    Value::Mapping(Mapping::from_iter([
+                        (
+                            Value::String("name".to_string()),
+                            Value::String("newrelic-infra".to_string()),
+                        ),
+                        (
+                            Value::String("name2".to_string()),
+                            Value::String("newrelic-infra2".to_string()),
+                        ),
+                    ])),
+                )])),
+            ),
+            (Value::String("verbose".to_string()), Value::Bool(true)),
+        ]));
+
+        assert_eq!(actual.0, serde_yaml::from_value(expected).unwrap());
+    }
+
+    const EXAMPLE_CONFIG_REPLACE: &str = r#"
+deployment:
+  on_host:
+    path: "/etc"
+    args: --verbose true
+config: |
+  test
+integrations:
+  kafka: |
+    strategy: bootstrap
+"#;
+    const EXAMPLE_AGENT_YAML_REPLACE: &str = r#"
+name: nrdot
+namespace: newrelic
+version: 0.1.0
+variables:
+  config:
+    description: "Path to the agent"
+    type: file
+    required: true
+    file_path: "newrelic-infra.yml"
+  deployment:
+    on_host:
+      path:
+        description: "Path to the agent"
+        type: string
+        required: true
+      args:
+        description: "Args passed to the agent"
+        type: string
+        required: true
+  integrations:
+    description: "Newrelic integrations configuration yamls"
+    type: map[string]file
+    required: true
+    file_path: integrations.d
+deployment:
+  on_host:
+    executables:
+      - path: ${deployment.on_host.path}/otelcol
+        args: "-c ${deployment.on_host.args}"
+        env: ""
+"#;
+
+    #[test]
+    fn test_update_specs() {
+        let input_structure = serde_yaml::from_str::<AgentValues>(EXAMPLE_CONFIG_REPLACE).unwrap();
+        let mut agent_type = serde_yaml::from_str::<AgentType>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
+
+        let expected = HashMap::from([
+            (
+                "deployment".to_string(),
+                VariableDefinitionTree::Mapping(HashMap::from([(
+                    "on_host".to_string(),
+                    VariableDefinitionTree::Mapping(HashMap::from([
+                        (
+                            "path".to_string(),
+                            VariableDefinitionTree::End(VariableDefinition::new(
+                                "Path to the agent".to_string(),
+                                true,
+                                None,
+                                Some("/etc".to_string()),
+                            )),
+                        ),
+                        (
+                            "args".to_string(),
+                            VariableDefinitionTree::End(VariableDefinition::new(
+                                "Args passed to the agent".to_string(),
+                                true,
+                                None,
+                                Some("--verbose true".to_string()),
+                            )),
+                        ),
+                    ])),
+                )])),
+            ),
+            (
+                "config".to_string(),
+                VariableDefinitionTree::End(VariableDefinition::new_with_file_path(
+                    "Path to the agent".to_string(),
+                    true,
+                    None,
+                    Some(FilePathWithContent::new(
+                        "newrelic-infra.yml".into(),
+                        "test\n".to_string(),
+                    )),
+                    "newrelic-infra.yml".into(),
+                )),
+            ),
+            (
+                "integrations".to_string(),
+                VariableDefinitionTree::End(VariableDefinition::new_with_file_path(
+                    "Newrelic integrations configuration yamls".to_string(),
+                    true,
+                    None,
+                    Some(HashMap::from([(
+                        "kafka".into(),
+                        FilePathWithContent::new(
+                            "integrations.d".into(),
+                            "strategy: bootstrap\n".to_string(),
+                        ),
+                    )])),
+                    "integrations.d".into(),
+                )),
+            ),
+        ]);
+
+        agent_type
+            .merge_variables_with_values(input_structure)
+            .unwrap();
+
+        assert_eq!(expected, agent_type.variables.0);
+    }
+
+    // Obsoleted test
+    // #[test]
+    // fn test_validate_with_agent_type() {
+    //     let input_structure = serde_yaml::from_str::<AgentValues>(EXAMPLE_CONFIG_REPLACE).unwrap();
+    //     let mut agent_type =
+    //         serde_yaml::from_str::<FinalAgent>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
+
+    //     let expected = NormalizedValues(HashMap::from([
+    //         (
+    //             "deployment.on_host.path".to_string(),
+    //             TrivialValue::String("/etc".to_string()),
+    //         ),
+    //         (
+    //             "deployment.on_host.args".to_string(),
+    //             TrivialValue::String("--verbose true".to_string()),
+    //         ),
+    //         (
+    //             "config".to_string(),
+    //             TrivialValue::File(FilePathWithContent::new(
+    //                 "newrelic-infra.yml".into(),
+    //                 "test".to_string(),
+    //             )),
+    //         ),
+    //         (
+    //             "integrations.kafka".to_string(),
+    //             TrivialValue::File(FilePathWithContent::new(
+    //                 "integrations.d".into(),
+    //                 "strategy: bootstrap\n".to_string(),
+    //             )),
+    //         ),
+    //     ]));
+
+    //     // let expected = Map::from([
+    //     //     (
+    //     //         "deployment".to_string(),
+    //     //         TrivialValue::Map(Map::from([(
+    //     //             "on_host".to_string(),
+    //     //             TrivialValue::Map(Map::from([
+    //     //                 (
+    //     //                     "args".to_string(),
+    //     //                     TrivialValue::String("--verbose true".to_string()),
+    //     //                 ),
+    //     //                 ("path".to_string(), TrivialValue::String("/etc".to_string())),
+    //     //             ])),
+    //     //         )])),
+    //     //     ),
+    //     //     (
+    //     //         "config".to_string(),
+    //     //         TrivialValue::File(FilePathWithContent::new(
+    //     //             "newrelic-infra.yml".to_string(),
+    //     //             "test".to_string(),
+    //     //         )),
+    //     //     ),
+    //     //     (
+    //     //         "integrations".to_string(),
+    //     //         TrivialValue::Map(Map::from([(
+    //     //             "kafka".to_string(),
+    //     //             TrivialValue::File(FilePathWithContent::new(
+    //     //                 "integrations.d".to_string(),
+    //     //                 "strategy: bootstrap\n".to_string(),
+    //     //             )),
+    //     //         )])),
+    //     //     ),
+    //     // ]);
+    //     agent_type.merge_variables_with_values(input_structure).unwrap();
+
+    //     assert_eq!(expected, actual);
+    // }
+
+    const EXAMPLE_CONFIG_REPLACE_NOPATH: &str = r#"
+    deployment:
+      on_host:
+        args: --verbose true
+    integrations: {}
+    config: |
+      test
+    "#;
+
+    #[test]
+    fn test_validate_with_agent_type_missing_required() {
+        let input_structure =
+            serde_yaml::from_str::<AgentValues>(EXAMPLE_CONFIG_REPLACE_NOPATH).unwrap();
+        let mut agent_type = serde_yaml::from_str::<AgentType>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
+
+        let actual = agent_type.merge_variables_with_values(input_structure);
+
+        assert!(actual.is_err());
+        assert_eq!(
+            r#"Not all values for this agent type have been populated: ["deployment.on_host.path"]"#,
+            format!("{}", actual.unwrap_err())
+        );
+    }
+
+    const EXAMPLE_CONFIG_REPLACE_WRONG_TYPE: &str = r#"
+    config: |
+      test
+    deployment:
+      on_host:
+        path: true
+        args: --verbose true
+    integrations: {}
+    "#;
+
+    #[test]
+    fn test_validate_with_agent_type_wrong_value_type() {
+        let input_structure =
+            serde_yaml::from_str::<AgentValues>(EXAMPLE_CONFIG_REPLACE_WRONG_TYPE).unwrap();
+        let mut agent_type = serde_yaml::from_str::<AgentType>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
+
+        let actual = agent_type.merge_variables_with_values(input_structure);
+
+        assert!(actual.is_err());
+        assert_eq!(
+            format!("{}", actual.unwrap_err()),
+            "Error while parsing: `invalid type: boolean `true`, expected a string`"
+        );
+    }
+}

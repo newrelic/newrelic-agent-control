@@ -1,6 +1,5 @@
-use crate::config::super_agent_configs::AgentID;
-use crate::opamp::remote_config::RemoteConfigError;
 use crate::opamp::remote_config_publisher::RemoteConfigPublisher;
+use crate::{opamp::remote_config::RemoteConfigError, super_agent::config::AgentID};
 use log::trace;
 use opamp_client::{
     error::ConnectionError,

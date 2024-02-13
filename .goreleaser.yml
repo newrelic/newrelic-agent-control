@@ -2,11 +2,11 @@ project_name: newrelic-super-agent
 builds:
   - id: newrelic-super-agent
     main: ./build/dummy.go
+    goos:
+      - linux
     goarch:
       - arm64
       - amd64
-    goos:
-      - linux
     binary: newrelic-super-agent
     hooks:
       post:
@@ -24,11 +24,11 @@ builds:
             - ARCH={{ .Arch }}
   - id: newrelic-config-migrate
     main: ./build/dummy.go
+    goos:
+      - linux
     goarch:
       - arm64
       - amd64
-    goos:
-      - linux
     binary: newrelic-config-migrate
     hooks:
       post:

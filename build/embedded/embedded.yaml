@@ -11,7 +11,7 @@ staging_url: https://nr-downloads-ohai-staging.s3.amazonaws.com/infrastructure_a
 # Individual entries may override any of the values defined above.
 artifacts:
   - name: newrelic-infra
-    version: 1.47.2
+    version: 1.48.4
     url: https://github.com/newrelic/infrastructure-agent/releases/download/{{.Version | trimv}}/newrelic-infra_systemd_{{.Version | trimv}}_{{.Arch}}.deb
     files:
       # infra-agent
@@ -24,13 +24,13 @@ artifacts:
 
       # integrations
       - name: nri-docker binary
-        src: var/db/newrelic-infra/newrelic-integrations/bin/nri-docker
+        src: opt/newrelic-infra/newrelic-integrations/bin/nri-docker
       - name: nri-docker config
         src: etc/newrelic-infra/integrations.d/docker-config.yml
       - name: nri-prometheus binary
-        src: var/db/newrelic-infra/newrelic-integrations/bin/nri-prometheus
+        src: opt/newrelic-infra/newrelic-integrations/bin/nri-prometheus
       - name: nri-flex binary
-        src: var/db/newrelic-infra/newrelic-integrations/bin/nri-flex
+        src: opt/newrelic-infra/newrelic-integrations/bin/nri-flex
       # fluent-bit conf
       - name: fb parsers.conf
         src: var/db/newrelic-infra/newrelic-integrations/logging/parsers.conf

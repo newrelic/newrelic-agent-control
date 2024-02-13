@@ -4,8 +4,10 @@ use opamp_client::StartedClient;
 use tracing::{error, info};
 
 use crate::event::SubAgentEvent;
+use crate::super_agent::store::{
+    SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer,
+};
 use crate::{
-    config::store::{SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer},
     event::channel::EventPublisher,
     opamp::{
         remote_config::RemoteConfig,
@@ -71,25 +73,28 @@ where
         info!("Applying SuperAgent remote config");
         report_remote_config_status_applying(opamp_client, &remote_config.hash)?;
 
-        if let Err(err) = self.apply_remote_config(
+        match self.apply_remote_super_agent_config(
             remote_config.clone(),
             tx,
             running_sub_agents,
             sub_agent_publisher,
         ) {
-            let error_message = format!("Error applying Super Agent remote config: {}", err);
-            error!(error_message);
-            Ok(report_remote_config_status_error(
-                opamp_client,
-                &remote_config.hash,
-                error_message,
-            )?)
-        } else {
-            self.set_config_hash_as_applied(&mut remote_config.hash)?;
-            Ok(report_remote_config_status_applied(
-                opamp_client,
-                &remote_config.hash,
-            )?)
+            Err(err) => {
+                let error_message = format!("Error applying Super Agent remote config: {}", err);
+                error!(error_message);
+                Ok(report_remote_config_status_error(
+                    opamp_client,
+                    &remote_config.hash,
+                    error_message,
+                )?)
+            }
+            Ok(()) => {
+                self.set_config_hash_as_applied(&mut remote_config.hash)?;
+                Ok(report_remote_config_status_applied(
+                    opamp_client,
+                    &remote_config.hash,
+                )?)
+            }
         }
     }
 }
@@ -103,10 +108,6 @@ mod tests {
     use std::collections::HashMap;
 
     use crate::{
-        config::{
-            store::tests::MockSubAgentsConfigStore,
-            super_agent_configs::{AgentID, SubAgentConfig, SubAgentsConfig},
-        },
         event::channel::pub_sub,
         opamp::{
             client_builder::test::MockStartedOpAMPClientMock,
@@ -117,7 +118,11 @@ mod tests {
             collection::StartedSubAgents,
             test::{MockStartedSubAgent, MockSubAgentBuilderMock},
         },
-        super_agent::super_agent::SuperAgent,
+        super_agent::{
+            config::{AgentID, SubAgentConfig, SubAgentsConfig},
+            store::tests::MockSubAgentsConfigStore,
+            super_agent::SuperAgent,
+        },
     };
     use opamp_client::opamp::proto::RemoteConfigStatus;
     use opamp_client::opamp::proto::RemoteConfigStatuses::{Applied, Applying, Failed};

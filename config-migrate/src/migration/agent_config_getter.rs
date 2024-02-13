@@ -1,6 +1,7 @@
-use newrelic_super_agent::config::error::SuperAgentConfigError;
-use newrelic_super_agent::config::store::{SubAgentsConfigLoader, SuperAgentConfigStoreFile};
-use newrelic_super_agent::config::super_agent_configs::{AgentTypeFQN, SubAgentsConfig};
+use newrelic_super_agent::super_agent::{
+    config::{AgentTypeFQN, SubAgentsConfig, SuperAgentConfigError},
+    store::{SubAgentsConfigLoader, SuperAgentConfigStoreFile},
+};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -51,7 +52,9 @@ where
 pub(crate) mod tests {
     use super::*;
     use mockall::mock;
-    use newrelic_super_agent::config::super_agent_configs::{AgentID, SubAgentConfig};
+    use newrelic_super_agent::super_agent::config::{
+        AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig,
+    };
     use std::collections::HashMap;
 
     mock! {
@@ -96,8 +99,7 @@ agents:
                         agent_type: AgentTypeFQN::from("com.newrelic.infrastructure_agent:0.0.2"),
                     },
                 ),
-            ])
-            .into(),
+            ]),
         };
 
         assert!(actual.is_ok());

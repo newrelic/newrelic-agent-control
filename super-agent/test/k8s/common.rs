@@ -9,25 +9,28 @@ use k8s_openapi::{
     api::core::v1::Namespace,
     apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition,
 };
-use kube::api::TypeMeta;
+use kube::api::{DynamicObject, TypeMeta};
+use kube::core::GroupVersion;
 use kube::{
     api::{Api, DeleteParams, Patch, PatchParams, PostParams},
     Client, CustomResource, CustomResourceExt,
 };
-use newrelic_super_agent::config::{
-    error::SuperAgentConfigError,
-    super_agent_configs::{AgentTypeError, SuperAgentConfig},
+use newrelic_super_agent::{
+    k8s::labels::Labels,
+    super_agent::{
+        config::{AgentID, AgentTypeError, SuperAgentConfig, SuperAgentConfigError},
+        store::SuperAgentConfigLoader,
+    },
 };
-use newrelic_super_agent::{config::super_agent_configs::AgentID, k8s::labels::Labels};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, env, fs, fs::File, io::Write, sync::OnceLock, time::Duration};
-use tempfile::{tempdir, TempDir};
-use tokio::{runtime::Runtime, sync::OnceCell, time::timeout};
-
 use std::error::Error;
 use std::path::Path;
 use std::process::{Command, Stdio};
+use std::str::FromStr;
+use std::{collections::HashMap, env, fs::File, io::Write, sync::OnceLock, time::Duration};
+use tempfile::{tempdir, TempDir};
+use tokio::{runtime::Runtime, sync::OnceCell, time::timeout};
 
 const KUBECONFIG_PATH: &str = "test/k8s/.kubeconfig-dev";
 const K3S_BOOTSTRAP_TIMEOUT: u64 = 60;
@@ -332,6 +335,17 @@ pub fn foo_type_meta() -> TypeMeta {
     }
 }
 
+pub async fn get_dynamic_api_foo(client: kube::Client, test_ns: String) -> Api<DynamicObject> {
+    let gvk = &GroupVersion::from_str(foo_type_meta().api_version.as_str())
+        .unwrap()
+        .with_kind(foo_type_meta().kind.as_str());
+    let (ar, _) = kube::discovery::pinned_kind(&client.to_owned(), gvk)
+        .await
+        .unwrap();
+    let api: Api<DynamicObject> = Api::namespaced_with(client.to_owned(), test_ns.as_str(), &ar);
+    api
+}
+
 static ONCE: OnceCell<()> = OnceCell::const_new();
 
 /// Create the Foo CRD for testing purposes.The CRD is not cleaned on test termination (for simplicity) so all tests
@@ -389,7 +403,7 @@ use mockall::mock;
 mock! {
     pub SuperAgentConfigLoader {}
 
-    impl newrelic_super_agent::config::store::SuperAgentConfigLoader for SuperAgentConfigLoader {
+    impl SuperAgentConfigLoader for SuperAgentConfigLoader {
         fn load(&self) -> Result<SuperAgentConfig, SuperAgentConfigError>;
     }
 }

@@ -1,25 +1,24 @@
 use std::fmt::Display;
+use std::path::PathBuf;
 
 use thiserror::Error;
 use tracing::error;
 
-use crate::config::agent_type::runtime_config::RuntimeConfig;
-use crate::config::super_agent_configs::{AgentID, SubAgentConfig};
-use crate::config::{
-    agent_type::error::AgentTypeError,
-    agent_type_registry::{AgentRegistry, AgentRepositoryError, LocalRegistry},
-    persister::{
-        config_persister::{ConfigurationPersister, PersistError},
-        config_persister_file::ConfigurationPersisterFile,
-    },
-};
+use crate::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError, LocalRegistry};
+use crate::agent_type::definition::AgentAttributes;
+use crate::agent_type::error::AgentTypeError;
+use crate::agent_type::runtime_config::Runtime;
 use crate::sub_agent::values::values_repository::{
     ValuesRepository, ValuesRepositoryError, ValuesRepositoryFile,
 };
+use crate::super_agent::config::{AgentID, SubAgentConfig};
 use crate::super_agent::defaults::{GENERATED_FOLDER_NAME, SUPER_AGENT_DATA_DIR};
 use crate::super_agent::super_agent::EffectiveAgentsError;
 
 use fs::{directory_manager::DirectoryManagerFs, file_reader::FileReaderError, LocalFile};
+
+use super::persister::config_persister::{ConfigurationPersister, PersistError};
+use super::persister::config_persister_file::ConfigurationPersisterFile;
 
 #[derive(Error, Debug)]
 pub enum EffectiveAgentsAssemblerError {
@@ -46,7 +45,7 @@ pub enum EffectiveAgentsAssemblerError {
 #[derive(Clone)]
 pub struct EffectiveAgent {
     agent_id: AgentID,
-    runtime_config: RuntimeConfig,
+    runtime_config: Runtime,
 }
 
 impl Display for EffectiveAgent {
@@ -56,14 +55,14 @@ impl Display for EffectiveAgent {
 }
 
 impl EffectiveAgent {
-    pub(crate) fn new(agent_id: AgentID, runtime_config: RuntimeConfig) -> Self {
+    pub(crate) fn new(agent_id: AgentID, runtime_config: Runtime) -> Self {
         Self {
             agent_id,
             runtime_config,
         }
     }
 
-    pub(crate) fn get_runtime_config(&self) -> &RuntimeConfig {
+    pub(crate) fn get_runtime_config(&self) -> &Runtime {
         &self.runtime_config
     }
 }
@@ -128,12 +127,15 @@ where
         self
     }
 
-    pub fn build_absolute_path(&self, path: Option<&String>, agent_id: &AgentID) -> String {
+    pub fn build_absolute_path(&self, path: Option<&String>, agent_id: &AgentID) -> PathBuf {
         let base_data_dir = match path {
             Some(p) => p,
             None => SUPER_AGENT_DATA_DIR,
         };
-        format!("{}/{}/{}", base_data_dir, GENERATED_FOLDER_NAME, agent_id)
+        PathBuf::from(format!(
+            "{}/{}/{}",
+            base_data_dir, GENERATED_FOLDER_NAME, agent_id
+        ))
     }
 
     #[cfg(feature = "custom-local-path")]
@@ -164,11 +166,15 @@ where
 
         let agent_values = self.values_repository.load(agent_id, &final_agent)?;
 
-        let absolute_path = self.build_absolute_path(self.local_conf_path.as_ref(), agent_id);
+        let generated_conf_path = self.build_absolute_path(self.local_conf_path.as_ref(), agent_id);
+
+        let agent_attributes = AgentAttributes {
+            generated_configs_path: Some(generated_conf_path),
+            agent_id: agent_id.get(),
+        };
 
         // populate with values
-        let populated_agent =
-            final_agent.template_with(agent_values, Some(absolute_path.as_str()))?;
+        let populated_agent = final_agent.template(agent_values, agent_attributes)?;
 
         // clean existing config files if any
         self.config_persister
@@ -194,18 +200,14 @@ pub(crate) mod tests {
     use mockall::{mock, predicate};
     use std::io::ErrorKind;
 
-    use crate::config::agent_type::runtime_config::Args;
-    use crate::config::agent_type_registry::tests::MockAgentRegistryMock;
-    use crate::config::{
-        agent_type::agent_types::FinalAgent,
-        agent_type_registry::AgentRegistry,
-        agent_values::AgentValues,
-        persister::config_persister::{
-            test::MockConfigurationPersisterMock, ConfigurationPersister,
-        },
-        super_agent_configs::{AgentID, SubAgentConfig},
-    };
+    use crate::agent_type::agent_values::AgentValues;
+    use crate::agent_type::definition::AgentType;
+    use crate::agent_type::runtime_config::Args;
     use crate::sub_agent::values::values_repository::test::MockRemoteValuesRepositoryMock;
+    use crate::{
+        agent_type::agent_type_registry::tests::MockAgentRegistryMock,
+        sub_agent::persister::config_persister::test::MockConfigurationPersisterMock,
+    };
     use fs::{directory_manager::DirectoryManagementError, writer_file::WriteError};
 
     use super::*;
@@ -292,7 +294,7 @@ pub(crate) mod tests {
 
         // Objects
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let final_agent: FinalAgent = serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
+        let final_agent: AgentType = serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
         let agent_values: AgentValues = serde_yaml::from_reader(AGENT_VALUES.as_bytes()).unwrap();
         let sub_agent_config = SubAgentConfig {
             agent_type: "some_fqn".into(),
@@ -305,7 +307,7 @@ pub(crate) mod tests {
         sub_agent_values_repo.should_load(&agent_id, &final_agent, &agent_values);
         //From now on the EffectiveAgent is populated
         let populated_agent = final_agent
-            .template_with(agent_values.clone(), None)
+            .template(agent_values.clone(), AgentAttributes::default())
             .unwrap();
         config_persister.should_delete_agent_config(&agent_id, &populated_agent);
         config_persister.should_persist_agent_config(&agent_id, &populated_agent);
@@ -329,7 +331,7 @@ pub(crate) mod tests {
                 .on_host
                 .unwrap()
                 .executables
-                .get(0)
+                .first()
                 .unwrap()
                 .args
                 .clone()
@@ -346,7 +348,7 @@ pub(crate) mod tests {
 
         // Objects
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let final_agent: FinalAgent = serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
+        let final_agent: AgentType = serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
         let agent_values: AgentValues = serde_yaml::from_reader(AGENT_VALUES.as_bytes()).unwrap();
         let sub_agent_config = SubAgentConfig {
             agent_type: "some_fqn".into(),
@@ -357,7 +359,7 @@ pub(crate) mod tests {
         sub_agent_values_repo.should_load(&agent_id, &final_agent, &agent_values);
         //From now on the EffectiveAgent is populated
         let populated_agent = final_agent
-            .template_with(agent_values.clone(), None)
+            .template(agent_values.clone(), AgentAttributes::default())
             .unwrap();
         config_persister.should_delete_agent_config(&agent_id, &populated_agent);
         config_persister.should_persist_agent_config(&agent_id, &populated_agent);
@@ -381,7 +383,7 @@ pub(crate) mod tests {
                 .on_host
                 .unwrap()
                 .executables
-                .get(0)
+                .first()
                 .unwrap()
                 .args
                 .clone()
@@ -430,7 +432,7 @@ pub(crate) mod tests {
 
         // Objects
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let final_agent: FinalAgent = serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
+        let final_agent: AgentType = serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
         let sub_agent_config = SubAgentConfig {
             agent_type: "some_fqn".into(),
         };
@@ -465,7 +467,7 @@ pub(crate) mod tests {
 
         // Objects
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let final_agent: FinalAgent = serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
+        let final_agent: AgentType = serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
         let sub_agent_config = SubAgentConfig {
             agent_type: "some_fqn".into(),
         };
@@ -500,7 +502,7 @@ pub(crate) mod tests {
 
         // Objects
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let final_agent: FinalAgent = serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
+        let final_agent: AgentType = serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
         let agent_values: AgentValues = serde_yaml::from_reader(AGENT_VALUES.as_bytes()).unwrap();
         let sub_agent_config = SubAgentConfig {
             agent_type: "some_fqn".into(),
@@ -511,7 +513,7 @@ pub(crate) mod tests {
         sub_agent_values_repo.should_load(&agent_id, &final_agent, &agent_values);
         //From now on the EffectiveAgent is populated
         let populated_agent = final_agent
-            .template_with(agent_values.clone(), None)
+            .template(agent_values.clone(), AgentAttributes::default())
             .unwrap();
         let err = PersistError::DirectoryError(DirectoryManagementError::ErrorDeletingDirectory(
             "oh no...".to_string(),
@@ -543,7 +545,7 @@ pub(crate) mod tests {
 
         // Objects
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let final_agent: FinalAgent = serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
+        let final_agent: AgentType = serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
         let agent_values: AgentValues = serde_yaml::from_reader(AGENT_VALUES.as_bytes()).unwrap();
         let sub_agent_config = SubAgentConfig {
             agent_type: "some_fqn".into(),
@@ -554,7 +556,7 @@ pub(crate) mod tests {
         sub_agent_values_repo.should_load(&agent_id, &final_agent, &agent_values);
         //From now on the EffectiveAgent is populated
         let populated_agent = final_agent
-            .template_with(agent_values.clone(), None)
+            .template(agent_values.clone(), AgentAttributes::default())
             .unwrap();
         config_persister.should_delete_agent_config(&agent_id, &populated_agent);
         let err = PersistError::DirectoryError(DirectoryManagementError::ErrorDeletingDirectory(
@@ -595,7 +597,7 @@ deployment:
   on_host:
     executables:
       - path: /opt/first 
-        args: "--config_path=${config_path}"
+        args: "--config_path=${nr-var:config_path}"
         env: ""
 "#;
 

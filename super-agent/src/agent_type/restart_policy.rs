@@ -4,7 +4,7 @@ use crate::sub_agent::restart_policy::{Backoff, BackoffStrategy, RestartPolicy};
 use duration_str::deserialize_duration;
 use serde::Deserialize;
 
-use super::{agent_types::TemplateableValue, error::AgentTypeError};
+use super::{definition::TemplateableValue, error::AgentTypeError};
 
 #[derive(Debug, Deserialize, PartialEq, Clone, Default)]
 pub struct RestartPolicyConfig {
@@ -133,7 +133,7 @@ fn realize_backoff_config(i: &BackoffStrategyConfig) -> Backoff {
 
 #[cfg(test)]
 mod test {
-    use crate::config::agent_type::agent_types::TemplateableValue;
+    use crate::agent_type::definition::TemplateableValue;
 
     use super::{BackoffStrategyConfig, BackoffStrategyType};
 

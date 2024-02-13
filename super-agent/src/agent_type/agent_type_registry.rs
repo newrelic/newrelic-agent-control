@@ -1,13 +1,11 @@
-use std::collections::HashMap;
-
-use thiserror::Error;
-
-use crate::super_agent::defaults::{
-    KUBERNETES_TYPE, NEWRELIC_INFRA_TYPE_1, NEWRELIC_INFRA_TYPE_2, NEWRELIC_INFRA_TYPE_3,
-    NRDOT_TYPE,
+use crate::{
+    agent_type::definition::AgentType,
+    super_agent::defaults::{
+        NEWRELIC_INFRA_TYPE_1, NEWRELIC_INFRA_TYPE_2, NEWRELIC_INFRA_TYPE_3, NRDOT_TYPE,
+    },
 };
-
-use super::agent_type::agent_types::FinalAgent;
+use std::collections::HashMap;
+use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum AgentRepositoryError {
@@ -21,11 +19,11 @@ pub enum AgentRepositoryError {
 pub trait AgentRegistry {
     // get returns an Agent type given a definition.
     // TODO: evaluate if returning an owned value is needed, CoW?
-    fn get(&self, name: &str) -> Result<FinalAgent, AgentRepositoryError>;
+    fn get(&self, name: &str) -> Result<AgentType, AgentRepositoryError>;
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct LocalRegistry(HashMap<String, FinalAgent>);
+pub struct LocalRegistry(HashMap<String, AgentType>);
 
 impl Default for LocalRegistry {
     // default returns the LocalRegistry loaded with the defined default agents
@@ -44,9 +42,6 @@ impl Default for LocalRegistry {
         local_agent_type_repository
             .store_from_yaml(NRDOT_TYPE.as_bytes())
             .unwrap();
-        local_agent_type_repository
-            .store_from_yaml(KUBERNETES_TYPE.as_bytes())
-            .unwrap();
 
         local_agent_type_repository
     }
@@ -54,7 +49,7 @@ impl Default for LocalRegistry {
 
 impl LocalRegistry {
     pub fn store_from_yaml(&mut self, agent_bytes: &[u8]) -> Result<(), AgentRepositoryError> {
-        let agent: FinalAgent = serde_yaml::from_reader(agent_bytes)?;
+        let agent: AgentType = serde_yaml::from_reader(agent_bytes)?;
         // TODO: The usage of `insert` allows to insert the same agent metadata without failing, it just overwrites it.
         //  We should consider a way to check if an agent already exists and fail.
         //  See issue #82766 <https://github.com/rust-lang/rust/issues/82766> as a potential solution.
@@ -64,7 +59,7 @@ impl LocalRegistry {
 }
 
 impl AgentRegistry for LocalRegistry {
-    fn get(&self, name: &str) -> Result<FinalAgent, AgentRepositoryError> {
+    fn get(&self, name: &str) -> Result<AgentType, AgentRepositoryError> {
         match self.0.get(name) {
             None => Err(AgentRepositoryError::NotFound),
             Some(final_agent) => Ok(final_agent.clone()),
@@ -73,7 +68,7 @@ impl AgentRegistry for LocalRegistry {
 }
 
 impl LocalRegistry {
-    pub fn new<A: IntoIterator<Item = FinalAgent>>(agents: A) -> Self {
+    pub fn new<A: IntoIterator<Item = AgentType>>(agents: A) -> Self {
         let mut registry = LocalRegistry::default();
 
         for agent in agents {
@@ -86,8 +81,9 @@ impl LocalRegistry {
 
 #[cfg(test)]
 pub mod tests {
+    use crate::agent_type::definition::tests::AGENT_GIVEN_YAML;
+
     use super::*;
-    use crate::config::agent_type::agent_types::tests::AGENT_GIVEN_YAML;
     use mockall::{mock, predicate};
 
     // Mock
@@ -95,12 +91,12 @@ pub mod tests {
         pub AgentRegistryMock {}
 
         impl AgentRegistry for AgentRegistryMock  {
-            fn get(&self, name: &str) -> Result<FinalAgent, AgentRepositoryError>;
+            fn get(&self, name: &str) -> Result<AgentType, AgentRepositoryError>;
         }
     }
 
     impl MockAgentRegistryMock {
-        pub fn should_get(&mut self, name: String, final_agent: &FinalAgent) {
+        pub fn should_get(&mut self, name: String, final_agent: &AgentType) {
             let final_agent = final_agent.clone();
             self.expect_get()
                 .with(predicate::eq(name.clone()))
@@ -120,7 +116,7 @@ pub mod tests {
         pub fn store_with_key(
             &mut self,
             key: String,
-            agent: FinalAgent,
+            agent: AgentType,
         ) -> Result<(), AgentRepositoryError> {
             Ok(_ = self.0.insert(key, agent))
         }
@@ -129,7 +125,7 @@ pub mod tests {
     #[test]
     fn default_local_registry() {
         let registry = LocalRegistry::default();
-        assert_eq!(registry.0.len(), 5)
+        assert_eq!(registry.0.len(), 4)
     }
 
     #[test]

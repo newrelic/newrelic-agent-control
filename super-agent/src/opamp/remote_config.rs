@@ -1,11 +1,9 @@
+use crate::opamp::remote_config_hash::Hash;
+use crate::super_agent::config::AgentID;
+use opamp_client::opamp::proto::AgentConfigMap;
 use std::collections::HashMap;
 use std::str::Utf8Error;
-
-use opamp_client::opamp::proto::AgentConfigMap;
 use thiserror::Error;
-
-use crate::config::super_agent_configs::AgentID;
-use crate::opamp::remote_config_hash::Hash;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct RemoteConfig {
