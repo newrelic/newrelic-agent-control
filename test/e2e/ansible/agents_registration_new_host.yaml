@@ -1,0 +1,9 @@
+---
+- name: test configuration
+  hosts: testing_hosts_linux
+  become: true
+  gather_facts: yes
+
+  tasks:
+    - name: Fresh Super Agent installation
+      include_tasks: ./tasks/fresh_super_agent_installation_{{ ansible_system }}.yaml

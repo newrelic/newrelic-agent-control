@@ -6,5 +6,6 @@
     regexp: "{{ item.name }}"
     replace: '{{ item.val }}'
   loop: "{{ nr_otel_collector_config_vars }}"
+  no_log: true
 
 ...

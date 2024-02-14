@@ -1,0 +1,21 @@
+---
+
+- name: Fleet API Authorize Agent
+  include_role:
+    name: caos.ansible_roles.graphql_request
+    apply:
+      become: false
+  vars:
+    - graphql_query: |
+        mutation {
+          setAgentAuthState(accountId:{{ authorize_agent.account_id }},authState:AUTHORIZED,agentUid:"{{ authorize_agent.agent_ulid }}") {
+            state
+          }
+        }
+
+- name: fail if errors are present
+  fail:
+    msg: "error authorizing agent: {{ response | community.general.json_query('json.errors[*].message') | join(', ') }}"
+  when: '"errors" in response.json'
+
+...

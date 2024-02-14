@@ -1,0 +1,9 @@
+---
+- name: Agents registration new host
+  import_playbook: agents_registration_new_host.yaml
+
+- name: Super Agent valid remote config
+  import_playbook: super_agent_valid_remote_config.yaml
+
+- name: Migration Script Execution
+  import_playbook: migration_script_execution.yaml

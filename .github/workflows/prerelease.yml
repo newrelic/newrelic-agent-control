@@ -149,6 +149,16 @@ jobs:
           local_packages_path:  "/srv/dist/"
           apt_skip_mirror: false
 
+  onhost-e2e:
+    uses: ./.github/workflows/component_onhost_e2e.yaml
+    needs: [upload]
+    with:
+      TAG: ${{ github.event.inputs.tag || github.event.release.tag_name }}
+      UNIQUE_NAME: "onhost:e2e:${{ github.event.inputs.tag || github.event.release.tag_name }}"
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.TMP_AWS_ROLE_ARN }}
+      AWS_VPC_SUBNET: ${{ secrets.TMP_AWS_VPC_SUBNET }}
+
   molecule-packaging-tests:
     uses: ./.github/workflows/component_molecule_packaging.yml
     needs: [upload]

@@ -1,0 +1,21 @@
+---
+- include_tasks: assert_agents_health.yml
+  when: assert_agents_health.ulids | length > 0
+
+- include_tasks: create_configuration.yml
+  when: create_remote_configuration.account_id | string | length > 0
+
+- include_tasks: create_configuration_revision.yml
+  when: create_remote_configuration_revision.account_id | string | length > 0
+
+- include_tasks: list_fleets.yml
+  when: list_fleets
+
+- include_tasks: deploy_config_to_fleet.yml
+  when: deploy_config_to_fleet.account_id | string | length > 0
+
+- include_tasks: authorize_agent.yml
+  when: authorize_agent.account_id | string | length > 0
+
+- include_tasks: get_agent.yml
+  when: get_agent.agent_ulid | length > 0

@@ -1,0 +1,57 @@
+---
+
+- name: Fleet API Get Agent
+  include_role:
+    name: caos.ansible_roles.graphql_request
+    apply:
+      become: false
+  vars:
+    - graphql_query: |
+        {
+          account  {
+              agent(agentUid: "{{ get_agent.agent_ulid }}"){
+                  accountId
+                  type
+                  createdAt
+                  lastRemoteConfigHash
+                  fleet{
+                      fleetGuid
+                      agentType
+                      name
+                      remoteConfigurations{
+                        configurationId
+                        revisionNumber
+                        configurationName
+                        content
+                      }
+                  }
+                  remoteConfigurations{
+                      configurationId
+                      revisionNumber
+                      configurationName
+                      content
+                  }
+                  lastSeen
+                  lastError
+                  healthy
+                  host{
+                      name
+                  }
+              }
+          }
+        }
+
+
+- name: fail if errors are present
+  fail:
+    msg: "error creating configuration revision: {{ response | community.general.json_query('json.errors[*].message') | join(', ') }}"
+  when: '"errors" in response.json'
+
+# output facts
+- name: set agent
+  ansible.builtin.set_fact: {"{{ get_agent.agent_fact }}": "{{ response | community.general.json_query(query) }}"}
+  vars:
+    query: "json.data.account.agent"
+
+
+...
