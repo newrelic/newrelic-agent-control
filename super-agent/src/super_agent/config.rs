@@ -29,7 +29,7 @@ pub enum AgentTypeError {
 
 #[derive(Error, Debug)]
 pub enum SuperAgentConfigError {
-    #[error("error loading config: `{0}`")]
+    #[error("error loading the super agent config: `{0}`")]
     LoadConfigError(#[from] SuperAgentConfigStoreError),
 
     #[error("cannot find config for agent: `{0}`")]
