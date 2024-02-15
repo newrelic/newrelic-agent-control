@@ -78,6 +78,10 @@ variable "secret_name_crowdstrike_customer_id" {
   default = "caos/canaries/crowdstrike_falcon_customer_id-f7n7rI"
 }
 
+variable "secret_name_crowdstrike_ansible_role_key" {
+  default = "caos/crowdstrike/ansible-role-key-DPyrW4"
+}
+
 ####
 
 variable "task_container_image" {

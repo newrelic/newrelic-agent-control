@@ -76,6 +76,10 @@ module "super_agent_infra" {
         {
           "name" : "CROWDSTRIKE_CUSTOMER_ID",
           "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_crowdstrike_customer_id}" 
+        },
+        {
+          "name" : "CROWDSTRIKE_ANSIBLE_ROLE_KEY",
+          "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_crowdstrike_ansible_role_key}"
         }
       ]
     task_custom_policies = [
@@ -100,7 +104,8 @@ module "super_agent_infra" {
                   "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_docker_password}",
                   "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_crowdstrike_client_id}",
                   "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_crowdstrike_client_secret}",
-                  "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_crowdstrike_customer_id}"
+                  "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_crowdstrike_customer_id}",
+                  "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_crowdstrike_ansible_role_key}"
                 ]
               }
             ]
