@@ -1,6 +1,7 @@
 use std::{collections::HashMap, thread, time::Duration};
 
-use newrelic_super_agent::{context::Context, logging::Logging};
+use newrelic_super_agent::context::Context;
+use newrelic_super_agent::logging::LoggingConfig;
 
 use newrelic_super_agent::sub_agent::logger::{EventLogger, StdEventReceiver};
 use newrelic_super_agent::sub_agent::on_host::supervisor::command_supervisor::{
@@ -14,7 +15,7 @@ static INIT_LOGGER: Once = Once::new();
 
 pub fn init_logger() {
     INIT_LOGGER.call_once(|| {
-        Logging::try_init().unwrap();
+        LoggingConfig::default().try_init().unwrap();
     });
 }
 

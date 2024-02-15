@@ -217,6 +217,7 @@ agents:
                 headers: None,
             }),
             k8s: None,
+            ..Default::default()
         };
 
         assert!(actual.is_ok());
