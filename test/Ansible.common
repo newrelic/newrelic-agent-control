@@ -13,7 +13,12 @@ $(ROLES_PATH) $(COLLECTIONS_PATH):
 
 .PHONY: ansible/dependencies
 ansible/dependencies: $(ROLES_PATH) $(COLLECTIONS_PATH)
+ifeq (,$(wildcard $(ANSIBLE_ENV_SCRIPT)))
 	sh $(ANSIBLE_ENV_SCRIPT)
+else
+	ansible-galaxy role install -r $(REQUIREMENTS_FILE) -p $(ROLES_PATH)
+	ansible-galaxy collection install -r $(REQUIREMENTS_FILE) -p $(COLLECTIONS_PATH)
+endif
 
 .PHONY: ansible/clean
 ansible/clean:
