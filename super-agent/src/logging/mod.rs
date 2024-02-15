@@ -18,21 +18,9 @@ pub enum LoggingError {
 ///
 /// # Fields:
 /// - `format`: Specifies the `LoggingFormat` the application will use for logging.
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, PartialEq, Clone, Default)]
 pub struct LoggingConfig {
     pub(crate) format: LoggingFormat,
-}
-
-/// Provides default values for `LoggingConfig`.
-impl Default for LoggingConfig {
-    fn default() -> Self {
-        LoggingConfig {
-            format: LoggingFormat {
-                target: false,
-                timestamp: TimestampFormat::default(),
-            },
-        }
-    }
 }
 
 /// Represents a custom time stamp format for logging.
@@ -55,7 +43,7 @@ impl Default for TimestampFormat {
 /// # Fields:
 /// - `target`: A bool that indicates whether or not the target of the trace event will be included in the formatted output.
 /// - `timestamp`: Specifies a `TimestampFormat` the application will use for logging timestamps.
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, PartialEq, Clone, Default)]
 pub struct LoggingFormat {
     pub(crate) target: bool,
     #[serde(default)]
