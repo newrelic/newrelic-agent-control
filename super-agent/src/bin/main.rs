@@ -27,11 +27,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     let cli = Cli::init_super_agent_cli();
 
     if cli.print_debug_info() {
-        eprintln!("Printing debug info");
-        eprintln!("CLI: {:#?}", cli);
+        println!("Printing debug info");
+        println!("CLI: {:#?}", cli);
 
         #[cfg(feature = "onhost")]
-        eprintln!("Feature: onhost");
+        println!("Feature: onhost");
         #[cfg(feature = "k8s")]
         println!("Feature: k8s");
 
