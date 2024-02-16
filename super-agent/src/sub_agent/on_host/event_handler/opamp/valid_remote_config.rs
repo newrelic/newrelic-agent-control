@@ -50,11 +50,11 @@ where
                     self.sub_agent_remote_config_hash_repository
                         .save(&remote_config.agent_id, &remote_config.hash)?;
 
-                    report_remote_config_status_error(
+                    let _ = report_remote_config_status_error(
                         self.maybe_opamp_client.as_ref().unwrap(),
                         &remote_config.hash,
                         format!("Error applying Sub Agent remote config: {}", err),
-                    )?;
+                    ).map_err(|err| tracing::error!("error while sending opamp remote config: {}", err));
                     return Err(err.into());
                 }
                 Ok(agent_values) => self

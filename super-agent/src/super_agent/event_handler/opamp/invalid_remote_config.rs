@@ -35,11 +35,11 @@ where
         remote_config_err: RemoteConfigError,
     ) -> Result<(), AgentError> {
         if let RemoteConfigError::InvalidConfig(hash, error) = remote_config_err {
-            opamp_client.set_remote_config_status(RemoteConfigStatus {
+            let _ = opamp_client.set_remote_config_status(RemoteConfigStatus {
                 last_remote_config_hash: hash.into_bytes(),
                 error_message: error,
                 status: RemoteConfigStatuses::Failed as i32,
-            })?;
+            }).map_err(|err| tracing::error!("error while sending opamp remote config: {}", err));
             Ok(())
         } else {
             unreachable!()
