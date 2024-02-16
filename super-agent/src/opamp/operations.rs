@@ -102,11 +102,11 @@ pub fn stop_opamp_client<CB: Callbacks, C: StartedClient<CB>>(
             "Stopping OpAMP client for supervised agent type: {}",
             agent_id
         );
-        client.set_health(AgentHealth {
+        let _ = client.set_health(AgentHealth {
             healthy: false,
             start_time_unix_nano: get_sys_time_nano()?,
             last_error: "".to_string(),
-        })?;
+        }).map_err(|err| tracing::error!("error while sending opamp health: {}", err));
         client.stop()?;
     }
     Ok(())

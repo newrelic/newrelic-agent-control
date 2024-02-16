@@ -50,11 +50,11 @@ impl OpAMPClientBuilder<SubAgentCallbacks> for SubAgentOpAMPHttpBuilder {
 
         // TODO remove opamp health from here, it should be done outside
         // set OpAMP health
-        started_client.set_health(AgentHealth {
+        let _ = started_client.set_health(AgentHealth {
             healthy: true,
             start_time_unix_nano: get_sys_time_nano()?,
             last_error: "".to_string(),
-        })?;
+        }).map_err(|err| tracing::error!("error while sending opamp health: {}", err));
 
         Ok(started_client)
     }

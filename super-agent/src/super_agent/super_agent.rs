@@ -128,7 +128,7 @@ where
                 last_error: "".to_string(),
                 start_time_unix_nano: 0,
             };
-            handle.set_health(health)?;
+            let _ = handle.set_health(health)?;
             handle.stop()?;
         }
 

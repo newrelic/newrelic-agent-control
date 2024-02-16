@@ -22,7 +22,7 @@ pub enum OpAMPClientBuilderError {
     #[error("`{0}`")]
     StartedClientError(#[from] StartedClientError),
     #[error("`{0}`")]
-    StartedOpAMPlientError(#[from] opamp_client::ClientError),
+    StartedOpAMPClientError(#[from] opamp_client::ClientError),
     #[error("system time error: `{0}`")]
     SystemTimeError(#[from] SystemTimeError),
     #[error("error getting agent ulid: `{0}`")]
