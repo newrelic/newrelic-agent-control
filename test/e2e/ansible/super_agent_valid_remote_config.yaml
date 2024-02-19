@@ -20,7 +20,7 @@
 
       - name: set remote config name
         set_fact:
-          remote_config_name: "caos-automated-test-{{ ansible_date_time.iso8601_micro | to_uuid }}"
+          remote_config_name: "caos-automated-test-super-agent-config-{{ ansible_date_time.iso8601_micro | to_uuid }}"
 
       - name: create remote configuration
         include_role:

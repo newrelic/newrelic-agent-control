@@ -23,8 +23,9 @@ ifndef NEW_RELIC_API_KEY
 	exit 1
 endif
 
+# if you want to hide OK, add ANSIBLE_DISPLAY_OK_HOSTS=NO
 	$(MAKE) ansible/dependencies ANSIBLE_FOLDER=$(ANSIBLE_FOLDER)
-	@ANSIBLE_DISPLAY_SKIPPED_HOSTS=NO ANSIBLE_DISPLAY_OK_HOSTS=NO ansible-playbook -f $(ANSIBLE_FORKS) \
+	@ANSIBLE_DISPLAY_SKIPPED_HOSTS=NO ansible-playbook -f $(ANSIBLE_FORKS) \
  		-i $(ANSIBLE_INVENTORY) \
  		--limit=$(LIMIT) \
  		-e nr_license_key=$(NR_LICENSE_KEY) \

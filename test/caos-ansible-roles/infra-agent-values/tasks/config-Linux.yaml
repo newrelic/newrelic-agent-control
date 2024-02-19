@@ -1,0 +1,21 @@
+---
+
+- name: create infra-agent values folder
+  ansible.builtin.file:
+    path: "{{ infra_agent_values_folder_path_linux }}"
+    state: directory
+    owner: root
+    group: root
+    mode: 0644
+  no_log: true
+
+- name: create infra-agent values file
+  template:
+    src: newrelic-infra.yml.j2
+    dest: "{{ infra_agent_values_folder_path_linux }}/values.yaml"
+    owner: root
+    group: root
+    mode: 0644
+  no_log: false
+
+...

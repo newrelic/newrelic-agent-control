@@ -1,0 +1,114 @@
+---
+- name: test configuration
+  hosts: testing_hosts_linux
+  become: true
+  gather_facts: yes
+  no_log: false
+
+  tasks:
+    - name: Fresh Super Agent installation
+      include_tasks: ./tasks/fresh_super_agent_installation_{{ ansible_system }}.yaml
+      vars:
+        infra_agent_type_version: "0.1.0"
+
+    - name: Setup Infra Agent values
+      include_role:
+        name: infra-agent-values
+
+    - name: Restart New Relic Super Agent
+      ansible.builtin.service:
+        name: newrelic-super-agent
+        state: restarted
+
+    - name: Assert Super Agent and Agents are running
+      include_role:
+        name: caos.ansible_roles.assert_process_running
+      vars:
+        processes_running:
+          - "^/usr/bin/newrelic-super-agent"
+          - "^/usr/bin/newrelic-infra"
+          - "^/usr/bin/nr-otel-collector"
+
+    - name: set remote config name
+      set_fact:
+        remote_config_name: "caos-automated-test-sub-agent-config-{{ ansible_date_time.iso8601_micro | to_uuid }}" # rename this in all playbooks
+
+    - name: set display_name
+      set_fact:
+        generated_display_name: "caos-{{ ansible_date_time.iso8601_micro | to_uuid }}" # rename this in all playbooks
+
+
+    - name: create remote configuration
+      include_role:
+        name: fleet_api_request
+      vars:
+        create_remote_configuration:
+          account_id: "{{ nr_account_id | int }}"
+          config_name: "{{ remote_config_name }}"
+          config_id_fact: "created_config_id"
+
+    - name: create remote configuration for newrelic-infra
+      include_role:
+        name: fleet_api_request
+      vars:
+        create_remote_configuration_revision:
+          account_id: "{{ nr_account_id | int }}"
+          config_id: "{{ created_config_id }}"
+          # multiline config breaks graphql request
+          content: 'config_agent: |\n  staging: true\n  license_key: {{ nr_license_key }}\n  display_name: {{ generated_display_name }}'
+          config_revision_fact: "created_config_revision"
+
+    - name: get fleet guid for Sub Agent
+      include_tasks: ./tasks/fleet_guid_by_agent_type.yaml
+      vars:
+        fleet_guid_fact: fleet_guid
+        agent_type: "NEWRELIC_INFRA"
+
+    - name: deploy config to fleet
+      include_role:
+        name: fleet_api_request
+      vars:
+        deploy_config_to_fleet:
+          account_id: "{{ nr_account_id | int }}"
+          fleet_guid: "{{ fleet_guid }}"
+          config_id: "{{ created_config_id | int }}"
+          config_revision: "{{ created_config_revision | int }}"
+
+    - name: Get NR Super Agent ULID
+      include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
+      vars:
+        agent_identifier_path: "/var/lib/newrelic-super-agent/fleet/agents.d/nr-infra-agent/identifiers.yaml"
+        identifier_field: "ulid"
+        identifier_field_fact: "sub_agent_ulid"
+
+    - name: authorize Sub Agent
+      include_role:
+        name: fleet_api_request
+      vars:
+        authorize_agent:
+          account_id: "{{ nr_account_id | int }}"
+          agent_ulid: "{{ sub_agent_ulid }}"
+
+    - name: Wait for a few seconds for the config to be present
+      stat:
+        path: "{{ sub_agent_remote_config_folder }}/nr-infra-agent/values/values.yaml"
+      register: result
+      until: result.stat.exists
+      retries: 5
+      delay: 5
+
+    - name: Pause for 15 seconds to let config be updated
+      ansible.builtin.pause:
+        seconds: 15
+
+    - name: assert on config content
+      include_tasks: ./tasks/assert_full_file_content.yaml
+      vars:
+        file_path: "{{ sub_agent_remote_config_folder }}/nr-infra-agent/values/values.yaml"
+        expected_content: "config_agent: |-\n  staging: true\n  license_key: {{ nr_license_key }}\n  display_name: {{ generated_display_name }}"
+
+    - name: assert on generated config content
+      include_tasks: ./tasks/assert_full_file_content.yaml
+      vars:
+        file_path: "{{ sub_agent_generated_config_folder }}/nr-infra-agent/newrelic-infra.yml"
+        expected_content: "staging: true\nlicense_key: {{ nr_license_key }}\ndisplay_name: {{ generated_display_name }}"
