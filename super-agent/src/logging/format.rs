@@ -22,6 +22,7 @@ impl Default for TimestampFormat {
 /// - `timestamp`: Specifies a `TimestampFormat` the application will use for logging timestamps.
 #[derive(Debug, Deserialize, PartialEq, Clone, Default)]
 pub struct LoggingFormat {
+    #[serde(default)]
     pub(crate) target: bool,
     #[serde(default)]
     pub(crate) timestamp: TimestampFormat,

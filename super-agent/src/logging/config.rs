@@ -1,3 +1,4 @@
+use log::debug;
 use serde::Deserialize;
 use std::fmt::Debug;
 use std::str::FromStr;
@@ -29,6 +30,7 @@ pub enum LoggingError {
 /// - `format`: Specifies the `LoggingFormat` the application will use for logging.
 #[derive(Debug, Deserialize, PartialEq, Clone, Default)]
 pub struct LoggingConfig {
+    #[serde(default)]
     pub(crate) format: LoggingFormat,
     #[serde(default)]
     pub(crate) level: LogLevel,
@@ -44,17 +46,17 @@ impl LoggingConfig {
         let level = self.level.as_level();
 
         // Construct the file logging layer and its worker guard, if file logging is enabled.
-        // Note we can actually specify different settings for each layer (log level, format, etc)
+        // Note we can actually specify different settings for each layer (log level, format, etc),
+        // hence we repeat the logic here.
         let (file_layer, guard) = match self.file.setup() {
             None => (None, None),
             Some((file_writer, guard)) => {
                 let file_layer = tracing_subscriber::fmt::layer()
+                    .with_writer(file_writer)
+                    .with_ansi(false) // Disable colors for file
                     .with_target(target)
                     .with_timer(ChronoLocal::new(timestamp_fmt.clone()))
                     .fmt_fields(PrettyFields::new())
-                    .with_ansi(false) // Disable colors for file
-                    .with_writer(file_writer)
-                    .with_filter(LevelFilter::from(level))
                     .with_filter(
                         EnvFilter::builder()
                             .with_default_directive(level.into())
@@ -66,11 +68,10 @@ impl LoggingConfig {
         };
 
         let console_layer = tracing_subscriber::fmt::layer()
-            .with_target(target)
-            .with_timer(ChronoLocal::new(timestamp_fmt))
-            .fmt_fields(PrettyFields::new())
             .with_writer(std::io::stdout)
-            .with_filter(LevelFilter::from(level))
+            .with_target(target)
+            .with_timer(ChronoLocal::new(timestamp_fmt.clone()))
+            .fmt_fields(PrettyFields::new())
             .with_filter(
                 EnvFilter::builder()
                     .with_default_directive(level.into())
@@ -91,6 +92,7 @@ impl LoggingConfig {
                 )
             })?;
 
+        debug!("Logging initialized successfully");
         Ok(guard)
     }
 }

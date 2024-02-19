@@ -31,7 +31,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let super_agent_config = super_agent_config_storer.load()?;
 
     // init logging singleton
-    super_agent_config.log.try_init()?;
+    // If file logging is enabled, this will return a `WorkerGuard` value that needs to persist
+    // as long as we want the logs to be written to file, hence, we assign it here so it is dropped
+    // when the program exits.
+    let _guard = super_agent_config.log.try_init()?;
 
     if cli.print_debug_info() {
         println!("Printing debug info");
@@ -98,7 +101,8 @@ fn run_super_agent(
 
     #[cfg(unix)]
     if !nix::unistd::Uid::effective().is_root() {
-        panic!("Program must run as root");
+        error!("Program must run as root");
+        std::process::exit(1);
     }
 
     let instance_id_getter = ULIDInstanceIDGetter::default()
