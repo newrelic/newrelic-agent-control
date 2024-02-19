@@ -17,6 +17,8 @@ pub const VALUES_DIR: &str = "values";
 pub const VALUES_FILE: &str = "values.yaml";
 pub const SUPER_AGENT_DATA_DIR: &str = "/var/lib/newrelic-super-agent";
 pub const GENERATED_FOLDER_NAME: &str = "auto-generated";
+pub const SUPER_AGENT_LOG_DIR: &str = "/var/log/newrelic-super-agent";
+pub const SUPER_AGENT_LOG_FILENAME: &str = "newrelic-super-agent.log";
 
 pub fn default_capabilities() -> Capabilities {
     capabilities!(
