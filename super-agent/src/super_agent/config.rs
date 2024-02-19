@@ -1,4 +1,4 @@
-use crate::logging::LoggingConfig;
+use crate::logging::config::LoggingConfig;
 use crate::opamp::remote_config::{RemoteConfig, RemoteConfigError};
 use crate::super_agent::defaults::{default_capabilities, SUPER_AGENT_ID};
 use opamp_client::operation::capabilities::Capabilities;
@@ -286,7 +286,7 @@ impl AgentTypeFQN {
 #[cfg(test)]
 pub(crate) mod test {
 
-    use crate::logging::{LoggingFormat, TimestampFormat};
+    use crate::logging::format::{LoggingFormat, TimestampFormat};
 
     use super::*;
 
