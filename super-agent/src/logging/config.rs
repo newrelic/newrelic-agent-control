@@ -4,9 +4,12 @@ use std::str::FromStr;
 use thiserror::Error;
 use tracing::metadata::LevelFilter;
 use tracing::Level;
+use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::fmt::format::PrettyFields;
 use tracing_subscriber::fmt::time::ChronoLocal;
-use tracing_subscriber::EnvFilter;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::{EnvFilter, Layer};
 
 use super::file_logging::FileLoggingConfig;
 use super::format::LoggingFormat;
@@ -27,45 +30,73 @@ pub enum LoggingError {
 #[derive(Debug, Deserialize, PartialEq, Clone, Default)]
 pub struct LoggingConfig {
     pub(crate) format: LoggingFormat,
-    level: LogLevel,
     #[serde(default)]
-    file: FileLoggingConfig,
+    pub(crate) level: LogLevel,
+    #[serde(default)]
+    pub(crate) file: FileLoggingConfig,
 }
 
 impl LoggingConfig {
     /// Attempts to initialize the logging subscriber with the inner configuration.
-    pub fn try_init(self) -> Result<(), LoggingError> {
+    pub fn try_init(self) -> Result<Option<WorkerGuard>, LoggingError> {
         let target = self.format.target;
         let timestamp_fmt = self.format.timestamp.0;
         let level = self.level.as_level();
 
+        // Construct the file logging layer and its worker guard, if file logging is enabled.
+        // Note we can actually specify different settings for each layer (log level, format, etc)
         let (file_layer, guard) = match self.file.setup() {
             None => (None, None),
-            Some((file_writer, guard)) => (Some(_), Some(guard)),
+            Some((file_writer, guard)) => {
+                let file_layer = tracing_subscriber::fmt::layer()
+                    .with_target(target)
+                    .with_timer(ChronoLocal::new(timestamp_fmt.clone()))
+                    .fmt_fields(PrettyFields::new())
+                    .with_ansi(false) // Disable colors for file
+                    .with_writer(file_writer)
+                    .with_filter(LevelFilter::from(level))
+                    .with_filter(
+                        EnvFilter::builder()
+                            .with_default_directive(level.into())
+                            .with_env_var("LOG_LEVEL")
+                            .from_env_lossy(),
+                    );
+                (Some(file_layer), Some(guard))
+            }
         };
 
-        tracing_subscriber::fmt()
+        let console_layer = tracing_subscriber::fmt::layer()
             .with_target(target)
-            .with_max_level(level)
-            .with_env_filter(
+            .with_timer(ChronoLocal::new(timestamp_fmt))
+            .fmt_fields(PrettyFields::new())
+            .with_writer(std::io::stdout)
+            .with_filter(LevelFilter::from(level))
+            .with_filter(
                 EnvFilter::builder()
                     .with_default_directive(level.into())
                     .with_env_var("LOG_LEVEL")
                     .from_env_lossy(),
-            )
-            .with_timer(ChronoLocal::new(timestamp_fmt))
-            .fmt_fields(PrettyFields::new())
+            );
+
+        // a `Layer` wrapped in an `Option` such as the above defined `file_layer` also implements
+        // the `Layer` trait. This allows individual layers to be enabled or disabled at runtime
+        // while always producing a `Subscriber` of the same type.
+        tracing_subscriber::Registry::default()
+            .with(console_layer)
+            .with(file_layer)
             .try_init()
             .map_err(|_| {
                 LoggingError::TryInitError(
                     "unable to set agent global logging subscriber".to_string(),
                 )
-            })
+            })?;
+
+        Ok(guard)
     }
 }
 
 #[derive(Debug, PartialEq, Clone)]
-struct LogLevel(Level);
+pub(crate) struct LogLevel(Level);
 
 impl LogLevel {
     fn as_level(&self) -> Level {

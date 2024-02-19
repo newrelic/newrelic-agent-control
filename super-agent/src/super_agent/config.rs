@@ -549,7 +549,8 @@ k8s:
                 format: LoggingFormat {
                     target: true,
                     timestamp: TimestampFormat("%Y".to_string())
-                }
+                },
+                ..Default::default()
             }
         );
     }
