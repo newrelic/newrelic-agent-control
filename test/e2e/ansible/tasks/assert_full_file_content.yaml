@@ -5,7 +5,7 @@
 
 - name: assert on content
   assert:
-    that: "{{ file_content.stdout == expected_content }}"
-    msg: "{{ file_path }} doesn't have expected content"
+    that: "{{ file_content.stdout | trim  == expected_content | trim  }}"
+    msg: "{{ file_path }} doesn't have expected content '{{ file_content.stdout }}' != '{{ expected_content }}'"
 
 ...
