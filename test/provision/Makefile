@@ -17,7 +17,7 @@ endif
 
 .PHONY: provision
 provision: terraform/backend
-	$(MAKE) ansible/dependencies ANSIBLE_FOLDER=$(ANSIBLE_FOLDER)
+	$(MAKE) ansible/dependencies ANSIBLE_FOLDER=$(ANSIBLE_FOLDER) ANSIBLE_ENV_SCRIPT=$(ANSIBLE_FOLDER)/set_ansible_env.sh
 	terraform -chdir=$(TERRAFORM_DIR) init -reconfigure && \
 	terraform -chdir=$(TERRAFORM_DIR) apply -auto-approve
 
