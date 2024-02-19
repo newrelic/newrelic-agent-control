@@ -1,7 +1,8 @@
 use crate::{
     agent_type::definition::AgentType,
     super_agent::defaults::{
-        NEWRELIC_INFRA_TYPE_1, NEWRELIC_INFRA_TYPE_2, NEWRELIC_INFRA_TYPE_3, NRDOT_TYPE,
+        NEWRELIC_INFRA_TYPE_1, NEWRELIC_INFRA_TYPE_2, NEWRELIC_INFRA_TYPE_3, NRDOT_TYPE_1,
+        NRDOT_TYPE_2,
     },
 };
 use log::debug;
@@ -41,7 +42,10 @@ impl Default for LocalRegistry {
             .store_from_yaml(NEWRELIC_INFRA_TYPE_3.as_bytes())
             .unwrap();
         local_agent_type_repository
-            .store_from_yaml(NRDOT_TYPE.as_bytes())
+            .store_from_yaml(NRDOT_TYPE_1.as_bytes())
+            .unwrap();
+        local_agent_type_repository
+            .store_from_yaml(NRDOT_TYPE_2.as_bytes())
             .unwrap();
 
         if let Ok(file) =
@@ -134,7 +138,7 @@ pub mod tests {
     #[test]
     fn default_local_registry() {
         let registry = LocalRegistry::default();
-        assert_eq!(registry.0.len(), 4)
+        assert_eq!(registry.0.len(), 5)
     }
 
     #[test]

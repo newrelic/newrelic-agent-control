@@ -135,7 +135,7 @@ deployment:
 
 // NRDOT AgentType
 #[cfg(feature = "onhost")]
-pub(crate) const NRDOT_TYPE: &str = r#"
+pub(crate) const NRDOT_TYPE_1: &str = r#"
 namespace: newrelic
 name: io.opentelemetry.collector
 version: 0.0.1
@@ -172,10 +172,39 @@ deployment:
             backoff_delay: ${nr-var:backoff_delay}
 "#;
 
+// NRDOT AgentType
+pub(crate) const NRDOT_TYPE_2: &str = r#"
+namespace: newrelic
+name: io.opentelemetry.collector
+version: 0.1.0
+variables:
+  config:
+    description: "Newrelic otel collector configuration"
+    type: file
+    required: false
+    default: ""
+    file_path: "config.yaml"
+  backoff_delay:
+    description: "seconds until next retry if agent fails to start"
+    type: string
+    required: false
+    default: 20s
+deployment:
+  on_host:
+    executables:
+      - path: /usr/bin/nr-otel-collector
+        args: "--config=${nr-var:config} --feature-gates=-pkg.translator.prometheus.NormalizeName"
+        env: ""
+        restart_policy:
+          backoff_strategy:
+            type: fixed
+            backoff_delay: ${nr-var:backoff_delay}
+"#;
+
 // Kubernetes AgentType
 // TODO We need to unify the two agent types and remove this workaround
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
-pub(crate) const NRDOT_TYPE: &str = r#"
+pub(crate) const NRDOT_TYPE_1: &str = r#"
 namespace: newrelic
 name: io.opentelemetry.collector 
 version: 0.0.1
@@ -249,6 +278,6 @@ mod test {
     fn test_parsable_configs() {
         serde_yaml::from_str::<AgentType>(super::NEWRELIC_INFRA_TYPE_1).unwrap();
         serde_yaml::from_str::<AgentType>(super::NEWRELIC_INFRA_TYPE_2).unwrap();
-        serde_yaml::from_str::<AgentType>(super::NRDOT_TYPE).unwrap();
+        serde_yaml::from_str::<AgentType>(super::NRDOT_TYPE_1).unwrap();
     }
 }
