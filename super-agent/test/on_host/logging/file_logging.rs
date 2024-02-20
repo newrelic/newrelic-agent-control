@@ -40,6 +40,9 @@ fn default_log_level_no_root() {
             .unwrap(),
         );
 
+    // Let's wait for a second so the flushed contents arrive to the files
+    std::thread::sleep(Duration::from_secs(1));
+
     // Now, we assert that the file(s) created are present and contain the expected content
     let dir: Vec<_> = read_dir(LOG_FILE_LOCATION)
         .unwrap()
@@ -94,6 +97,9 @@ fn default_log_level_as_root() {
             )
             .unwrap(),
         );
+
+    // Let's wait for a second so the flushed contents arrive to the files
+    std::thread::sleep(Duration::from_secs(1));
 
     // Now, we assert that the file(s) created are present and contain the expected content
     let dir: Vec<_> = read_dir(LOG_FILE_LOCATION)
