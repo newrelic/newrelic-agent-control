@@ -44,27 +44,27 @@ impl LoggingConfig {
         let timestamp_fmt = self.format.timestamp.0;
         let level = self.level.as_level();
 
-        // Construct the file logging layer and its worker guard, if file logging is enabled.
+        // Construct the file logging layer and its worker guard, only if file logging is enabled.
         // Note we can actually specify different settings for each layer (log level, format, etc),
         // hence we repeat the logic here.
-        let (file_layer, guard) = match self.file.setup() {
-            None => (None, None),
-            Some((file_writer, guard)) => {
-                let file_layer = tracing_subscriber::fmt::layer()
-                    .with_writer(file_writer)
-                    .with_ansi(false) // Disable colors for file
-                    .with_target(target)
-                    .with_timer(ChronoLocal::new(timestamp_fmt.clone()))
-                    .fmt_fields(PrettyFields::new())
-                    .with_filter(
-                        EnvFilter::builder()
-                            .with_default_directive(level.into())
-                            .with_env_var("LOG_LEVEL")
-                            .from_env_lossy(),
-                    );
-                (Some(file_layer), Some(guard))
-            }
-        };
+        let (file_layer, guard) =
+            self.file
+                .setup()
+                .map_or(Default::default(), |(file_writer, guard)| {
+                    let file_layer = tracing_subscriber::fmt::layer()
+                        .with_writer(file_writer)
+                        .with_ansi(false) // Disable colors for file
+                        .with_target(target)
+                        .with_timer(ChronoLocal::new(timestamp_fmt.clone()))
+                        .fmt_fields(PrettyFields::new())
+                        .with_filter(
+                            EnvFilter::builder()
+                                .with_default_directive(level.into())
+                                .with_env_var("LOG_LEVEL")
+                                .from_env_lossy(),
+                        );
+                    (Some(file_layer), Some(guard))
+                });
 
         let console_layer = tracing_subscriber::fmt::layer()
             .with_writer(std::io::stdout)
