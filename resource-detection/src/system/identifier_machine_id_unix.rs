@@ -4,7 +4,7 @@ use fs::{file_reader::FileReader, LocalFile};
 
 use super::detector::SystemDetectorError;
 
-const MACHINE_ID_PATH: &str = "/etc/machine-id";
+const MACHINE_ID_PATH: &str = "/tmp/machine-id";
 
 pub(super) struct IdentifierProviderMachineId<F> {
     machine_id_path: PathBuf,
