@@ -13,7 +13,7 @@ fn cmd_with_config_file(file_path: &Path) -> Command {
 }
 
 #[test]
-fn default_log_level() {
+fn default_log_level_no_root() {
     let mut cmd = cmd_with_config_file(Path::new(LOG_FILE_CONFIG));
 
     // Expecting to fail as non_root
@@ -60,4 +60,61 @@ fn default_log_level() {
     assert!(actual.contains("INFO Creating the signal handler"));
     assert!(actual.contains("INFO Creating the global context"));
     assert!(actual.contains("ERROR Program must run as root"));
+}
+
+#[test]
+fn default_log_level_as_root() {
+    let mut cmd = cmd_with_config_file(Path::new(LOG_FILE_CONFIG));
+
+    // Expecting to fail as non_root
+    // Asserting content is logged to stdout as well
+    cmd.assert()
+        .failure()
+        .stdout(
+            predicate::str::is_match(
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Creating the signal handler",
+            )
+            .unwrap(),
+        )
+        .stdout(
+            predicate::str::is_match(
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Creating the global context",
+            )
+            .unwrap(),
+        )
+        .stdout(
+            predicate::str::is_match(
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Starting the super agent",
+            )
+            .unwrap(),
+        )
+        .stdout(
+            predicate::str::is_match(
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Starting the supervisor group",
+            )
+            .unwrap(),
+        );
+
+    // Now, we assert that the file(s) created are present and contain the expected content
+    let dir: Vec<_> = read_dir("test/on_host/logging/test")
+        .unwrap()
+        // We unwrap each entry to be able to order it
+        .map(|entry| entry.unwrap())
+        .filter(|entry| entry.file_name().ne(".gitkeep"))
+        .collect();
+    // if sorting is needed, use
+    // dir.sort_by_key(|f| f.path());
+
+    // We append the contents of the files in order
+    let mut actual = String::new();
+    for file in dir {
+        actual.push_str(&std::fs::read_to_string(file.path()).unwrap());
+        // And delete the file
+        std::fs::remove_file(file.path()).unwrap();
+    }
+
+    assert!(actual.contains("INFO Creating the signal handler"));
+    assert!(actual.contains("INFO Creating the global context"));
+    assert!(actual.contains("INFO Starting the super agent"));
+    assert!(actual.contains("INFO Starting the supervisor group"));
 }
