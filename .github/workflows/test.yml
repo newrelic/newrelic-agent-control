@@ -31,7 +31,7 @@ jobs:
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
       - name: Run tests onHost excluding root-required tests
-        run: CARGO_FLAGS="--locked --features=onhost --all-targets -- --skip as_root" make super-agent/test/on_host
+        run: CARGO_ARGS="--locked --features=onhost --all-targets -- --skip as_root" make super-agent
       - name: Run tests onK8s
         run: cargo test --locked --features=k8s  --all-targets
       - name: Run documentation tests onhost
@@ -56,7 +56,7 @@ jobs:
       - name: Run k8s root-required tests only
         run: cargo test --locked --features=k8s --all-targets
       - name: Run onHost root-required tests only
-        run: CARGO_FLAGS="--locked --features=onhost --all-targets -- --skip no_root" make super-agent/test/on_host
+        run: CARGO_ARGS="--locked --features=onhost --all-targets -- --skip no_root" make super-agent
 
   embedded:
     name: Unit test for embedded downloader
