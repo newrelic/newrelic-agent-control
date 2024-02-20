@@ -43,7 +43,6 @@ kube = { version = "0.87.2", features = ["runtime", "derive"], optional = true }
 k8s-openapi = { version = "0.20.0", features = ["latest"], optional = true }
 either = { version = "1.9.0", optional = true }
 crossbeam = { version = "0.8.3", features = ["crossbeam-channel"] }
-wiremock = "0.6.0"
 
 [dev-dependencies]
 assert_cmd = { workspace = true }
@@ -65,6 +64,8 @@ tokio = { version = "1.32.0", features = [
   "rt-multi-thread",
   "macros",
 ] }
+wiremock = "0.6.0"
+konst = "0.3.8"
 
 
 [[test]]
@@ -84,7 +85,6 @@ name = "newrelic-super-agent"
 path = "src/bin/main.rs"
 
 [features]
-default = ["onhost"]
 onhost = []
 k8s = [
   "dep:kube",

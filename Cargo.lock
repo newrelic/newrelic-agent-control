@@ -1641,6 +1641,7 @@ dependencies = [
  "http 0.2.11",
  "hyper 0.14.28",
  "k8s-openapi",
+ "konst",
  "kube",
  "log",
  "mockall",
