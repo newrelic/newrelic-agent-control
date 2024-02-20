@@ -10,14 +10,14 @@ use tracing_appender::non_blocking::{NonBlocking, WorkerGuard};
 pub(crate) struct FileLoggingConfig {
     enable: bool,
     #[serde(default)]
-    file_path: LogFilePath,
+    path: LogFilePath,
 }
 
 impl FileLoggingConfig {
     pub(super) fn setup(self) -> Option<(NonBlocking, WorkerGuard)> {
         self.enable.then(|| {
             let file_appender =
-                tracing_appender::rolling::hourly(self.file_path.parent, self.file_path.file_name);
+                tracing_appender::rolling::hourly(self.path.parent, self.path.file_name);
             tracing_appender::non_blocking(file_appender)
         })
     }
