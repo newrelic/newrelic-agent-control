@@ -3,6 +3,7 @@ use predicates::prelude::predicate;
 use std::{fs::read_dir, path::Path, time::Duration};
 
 const LOG_FILE_CONFIG: &str = "test/on_host/logging/configs/file_logging.yaml";
+const LOG_FILE_LOCATION: &str = "test/on_host/logging/test/logs";
 
 fn cmd_with_config_file(file_path: &Path) -> Command {
     let mut cmd = Command::cargo_bin("newrelic-super-agent").unwrap();
@@ -53,9 +54,9 @@ fn default_log_level_no_root() {
     let mut actual = String::new();
     for file in dir {
         actual.push_str(&std::fs::read_to_string(file.path()).unwrap());
-        // And delete the file
-        std::fs::remove_file(file.path()).unwrap();
     }
+    // We delete the created directory
+    std::fs::remove_dir_all(LOG_FILE_LOCATION).unwrap();
 
     assert!(actual.contains("INFO Creating the signal handler"));
     assert!(actual.contains("INFO Creating the global context"));
@@ -96,7 +97,7 @@ fn default_log_level_as_root() {
         );
 
     // Now, we assert that the file(s) created are present and contain the expected content
-    let dir: Vec<_> = read_dir("test/on_host/logging/test")
+    let dir: Vec<_> = read_dir(LOG_FILE_LOCATION)
         .unwrap()
         // We unwrap each entry to be able to order it
         .map(|entry| entry.unwrap())
@@ -109,9 +110,9 @@ fn default_log_level_as_root() {
     let mut actual = String::new();
     for file in dir {
         actual.push_str(&std::fs::read_to_string(file.path()).unwrap());
-        // And delete the file
-        std::fs::remove_file(file.path()).unwrap();
     }
+    // We delete the created directory
+    std::fs::remove_dir_all(LOG_FILE_LOCATION).unwrap();
 
     assert!(actual.contains("INFO Creating the signal handler"));
     assert!(actual.contains("INFO Creating the global context"));
