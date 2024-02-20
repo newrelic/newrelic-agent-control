@@ -41,11 +41,10 @@ fn default_log_level_no_root() {
         );
 
     // Now, we assert that the file(s) created are present and contain the expected content
-    let dir: Vec<_> = read_dir("test/on_host/logging/test")
+    let dir: Vec<_> = read_dir(LOG_FILE_LOCATION)
         .unwrap()
         // We unwrap each entry to be able to order it
         .map(|entry| entry.unwrap())
-        .filter(|entry| entry.file_name().ne(".gitkeep"))
         .collect();
     // if sorting is needed, use
     // dir.sort_by_key(|f| f.path());
@@ -101,7 +100,6 @@ fn default_log_level_as_root() {
         .unwrap()
         // We unwrap each entry to be able to order it
         .map(|entry| entry.unwrap())
-        .filter(|entry| entry.file_name().ne(".gitkeep"))
         .collect();
     // if sorting is needed, use
     // dir.sort_by_key(|f| f.path());

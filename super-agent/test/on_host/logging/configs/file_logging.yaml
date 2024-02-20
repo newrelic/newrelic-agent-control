@@ -1,4 +1,4 @@
 log:
   file:
     enable: true
-    file_path: "test/on_host/logging/test/logs/test.log"
+    path: "test/on_host/logging/test/logs/test.log"
