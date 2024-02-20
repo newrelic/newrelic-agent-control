@@ -69,7 +69,7 @@ impl LoggingConfig {
         let console_layer = tracing_subscriber::fmt::layer()
             .with_writer(std::io::stdout)
             .with_target(target)
-            .with_timer(ChronoLocal::new(timestamp_fmt.clone()))
+            .with_timer(ChronoLocal::new(timestamp_fmt))
             .fmt_fields(PrettyFields::new())
             .with_filter(
                 EnvFilter::builder()
