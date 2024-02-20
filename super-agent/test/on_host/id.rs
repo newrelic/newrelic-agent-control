@@ -9,6 +9,8 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 // endpoint specified by the TEST_IPV4_METADATA_ENDPOINT environment variable. Required format of
 // the TEST_IPV4_METADATA_ENDPOINT: "http://address/endpoint". For example: "http://127.0.0.1:4343/testing_metadata_endpoint"
 // Note that if the environment variable is not defined, the test will fail.
+// only unix: /etc/machine-id
+#[cfg(target_family = "unix")]
 #[tokio::test]
 async fn test_cloud_id() {
     let (mut address, endpoint) =
