@@ -20,12 +20,6 @@ pub enum K8sError {
     #[error("cannot post object `{0}`")]
     CommitError(#[from] api::entry::CommitError),
 
-    #[error("the cm data is malformed")]
-    CMMalformed(),
-
-    #[error("the cm key is missing")]
-    KeyIsMissing(),
-
     #[error("the kind of the cr is missing")]
     MissingKind(),
 
@@ -43,4 +37,7 @@ pub enum K8sError {
 
     #[error("garbage collector failed loading config store: `{0}`")]
     LoadingConfigStore(#[from] SuperAgentConfigError),
+
+    #[error("failed to parse yaml: {0}")]
+    FailedToParseYaml(#[from] serde_yaml::Error),
 }

@@ -6,7 +6,9 @@ use kube::{api::Api, core::TypeMeta};
 use mockall::Sequence;
 use newrelic_super_agent::{
     agent_type::runtime_config::K8sObject,
-    k8s::{client::SyncK8sClient, garbage_collector::NotStartedK8sGarbageCollector},
+    k8s::{
+        client::SyncK8sClient, garbage_collector::NotStartedK8sGarbageCollector, store::K8sStore,
+    },
     opamp::instance_id::{
         getter::{InstanceIDGetter, ULIDInstanceIDGetter},
         Identifiers,
@@ -65,8 +67,10 @@ metadata:
     // Creates the Foo CR correctly tagged.
     s.apply().unwrap();
 
+    let k8s_store = Arc::new(K8sStore::new(k8s_client.clone()));
+
     let instance_id_getter =
-        ULIDInstanceIDGetter::try_with_identifiers(k8s_client.clone(), Identifiers::default())
+        ULIDInstanceIDGetter::try_with_identifiers(k8s_store.clone(), Identifiers::default())
             .unwrap();
 
     // Creates ULID CM correctly tagged.
@@ -191,8 +195,10 @@ fn k8s_garbage_collector_does_not_remove_super_agent() {
         )
         .unwrap(),
     );
+    let k8s_store = Arc::new(K8sStore::new(k8s_client.clone()));
+
     let instance_id_getter =
-        ULIDInstanceIDGetter::try_with_identifiers(k8s_client.clone(), Identifiers::default())
+        ULIDInstanceIDGetter::try_with_identifiers(k8s_store.clone(), Identifiers::default())
             .unwrap();
 
     let sa_ulid = instance_id_getter.get(sa_id).unwrap();
