@@ -1,3 +1,4 @@
+use newrelic_super_agent::cli::Cli;
 use newrelic_super_agent::event::channel::{pub_sub, EventConsumer, EventPublisher};
 use newrelic_super_agent::event::SuperAgentEvent;
 #[cfg(feature = "k8s")]
@@ -9,7 +10,6 @@ use newrelic_super_agent::super_agent::opamp::client_builder::SuperAgentOpAMPHtt
 use newrelic_super_agent::super_agent::store::{SuperAgentConfigLoader, SuperAgentConfigStoreFile};
 use newrelic_super_agent::super_agent::super_agent::{super_agent_fqn, SuperAgent};
 use newrelic_super_agent::utils::hostname::HostnameGetter;
-use newrelic_super_agent::{cli::Cli, logging::Logging};
 use opamp_client::operation::settings::DescriptionValueType;
 use std::collections::HashMap;
 use std::error::Error;
@@ -24,10 +24,14 @@ compile_error!("Feature \"onhost\" and feature \"k8s\" cannot be enabled at the 
 compile_error!("Either feature \"onhost\" or feature \"k8s\" must be enabled");
 
 fn main() -> Result<(), Box<dyn Error>> {
-    // init logging singleton
-    Logging::try_init()?;
-
     let cli = Cli::init_super_agent_cli();
+
+    let mut super_agent_config_storer = SuperAgentConfigStoreFile::new(&cli.get_config_path());
+
+    let super_agent_config = super_agent_config_storer.load()?;
+
+    // init logging singleton
+    super_agent_config.log.try_init()?;
 
     if cli.print_debug_info() {
         println!("Printing debug info");
@@ -46,15 +50,6 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     info!("Creating the signal handler");
     create_shutdown_signal_handler(super_agent_publisher)?;
-
-    let mut super_agent_config_storer = SuperAgentConfigStoreFile::new(&cli.get_config_path());
-
-    let super_agent_config = super_agent_config_storer.load().inspect_err(|err| {
-        error!(
-            "The super agent failed to load its config: {}",
-            err.to_string()
-        )
-    })?;
 
     let opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder> = super_agent_config
         .opamp

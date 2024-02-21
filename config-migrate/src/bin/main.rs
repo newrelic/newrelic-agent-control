@@ -7,13 +7,13 @@ use config_migrate::migration::migrator::{ConfigMigrator, MigratorError};
 use config_migrate::migration::persister::legacy_config_renamer::LegacyConfigRenamer;
 use config_migrate::migration::persister::values_persister_file::ValuesPersisterFile;
 use log::{debug, info};
-use newrelic_super_agent::logging::Logging;
+use newrelic_super_agent::logging::LoggingConfig;
 use newrelic_super_agent::super_agent::store::SuperAgentConfigStoreFile;
 use std::error::Error;
 
 fn main() -> Result<(), Box<dyn Error>> {
     // init logging singleton
-    Logging::try_init()?;
+    LoggingConfig::default().try_init()?;
 
     info!("Starting conversion tool...");
 
