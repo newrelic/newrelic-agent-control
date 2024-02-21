@@ -1,6 +1,6 @@
 use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
-use crate::opamp::remote_config_hash::HashRepository;
+use crate::opamp::hash_repository::HashRepository;
 use crate::sub_agent::on_host::event_processor::{EventProcessor, SubAgentEventProcessor};
 use crate::sub_agent::values::values_repository::ValuesRepository;
 use crate::sub_agent::SubAgentCallbacks;
