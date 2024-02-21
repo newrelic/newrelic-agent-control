@@ -286,7 +286,12 @@ impl AgentTypeFQN {
 #[cfg(test)]
 pub(crate) mod test {
 
-    use crate::logging::format::{LoggingFormat, TimestampFormat};
+    use std::path::PathBuf;
+
+    use crate::logging::{
+        file_logging::{FileLoggingConfig, LogFilePath},
+        format::{LoggingFormat, TimestampFormat},
+    };
 
     use super::*;
 
@@ -370,6 +375,21 @@ agents:
 k8s:
   cluster_name: some-cluster
   # the namespace is missing :(
+"#;
+
+    const SUPERAGENT_BAD_FILE_LOGGING_CONFIG: &str = r#"
+log:
+  file:
+    path: /some/path
+agents: {}
+"#;
+
+    const SUPERAGENT_FILE_LOGGING_CONFIG: &str = r#"
+log:
+  file:
+    enable: true
+    path: /some/path
+agents: {}
 "#;
 
     #[test]
@@ -551,6 +571,29 @@ k8s:
                     timestamp: TimestampFormat("%Y".to_string())
                 },
                 ..Default::default()
+            }
+        );
+    }
+
+    #[test]
+    fn log_path_but_not_enabled_should_error() {
+        let config = serde_yaml::from_str::<SuperAgentConfig>(SUPERAGENT_BAD_FILE_LOGGING_CONFIG);
+        assert!(config.is_err());
+        assert_eq!(
+            config.unwrap_err().to_string(),
+            "log.file: missing field `enable` at line 4 column 5"
+        );
+    }
+
+    #[test]
+    fn good_file_logging_config() {
+        let config = serde_yaml::from_str::<SuperAgentConfig>(SUPERAGENT_FILE_LOGGING_CONFIG);
+        assert!(config.is_ok());
+        assert_eq!(
+            config.unwrap().log.file,
+            FileLoggingConfig {
+                enable: true,
+                path: LogFilePath::try_from(PathBuf::from("/some/path")).unwrap(),
             }
         );
     }

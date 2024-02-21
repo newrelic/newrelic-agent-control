@@ -8,9 +8,9 @@ use super::config::LoggingError;
 use tracing_appender::non_blocking::{NonBlocking, WorkerGuard};
 #[derive(Debug, Deserialize, Default, PartialEq, Clone)]
 pub(crate) struct FileLoggingConfig {
-    enable: bool,
+    pub(crate) enable: bool,
     #[serde(default)]
-    path: LogFilePath,
+    pub(crate) path: LogFilePath,
 }
 
 impl FileLoggingConfig {
@@ -25,7 +25,7 @@ impl FileLoggingConfig {
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(try_from = "PathBuf")]
-struct LogFilePath {
+pub(crate) struct LogFilePath {
     parent: PathBuf,
     file_name: PathBuf,
 }
