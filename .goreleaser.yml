@@ -22,6 +22,7 @@ builds:
         - cmd: sh ./build/scripts/download_embedded.sh
           env:
             - ARCH={{ .Arch }}
+        - cmd: sh ./build/scripts/download_collector_config.sh
   - id: newrelic-config-migrate
     main: ./build/dummy.go
     goos:
@@ -140,12 +141,9 @@ nfpms:
       # NR Otel Collector
       - src: build/embedded/artifacts/{{- .Arch }}/nr-otel-collector/nr-otel-collector
         dst: /usr/bin/nr-otel-collector
-      - src: build/embedded/artifacts/{{- .Arch }}/nr-otel-collector/nr-otel-collector.conf
-        dst: /etc/nr-otel-collector/nr-otel-collector.conf
-        type: config
-      - src: build/embedded/artifacts/{{- .Arch }}/nr-otel-collector/config.yaml
-        dst: /etc/nr-otel-collector/config.yaml
-        type: config
+      - src: build/examples/
+        dst: /etc/newrelic-super-agent/examples
+
 
     scripts:
       postinstall: build/package/postinstall.sh
