@@ -31,7 +31,7 @@ jobs:
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
       - name: Run tests onHost excluding root-required tests
-        run: cargo test --locked --features=onhost --all-targets -- --skip as_root
+        run: CARGO_ARGS="--locked --features=onhost --all-targets -- --skip as_root" make super-agent
       - name: Run tests onK8s
         run: cargo test --locked --features=k8s  --all-targets
       - name: Run documentation tests onhost
@@ -56,8 +56,7 @@ jobs:
       - name: Run k8s root-required tests only
         run: cargo test --locked --features=k8s --all-targets
       - name: Run onHost root-required tests only
-        run: cargo test --locked --features=onhost --all-targets -- --skip no_root
-  # TODO Windows and macos tests should be added whenever they are supported
+        run: CARGO_ARGS="--locked --features=onhost --all-targets -- --skip no_root" make super-agent
 
   embedded:
     name: Unit test for embedded downloader
@@ -101,7 +100,7 @@ jobs:
         run: make -C super-agent/test/k8s
 
   # These tests are using (by default) the released charts
-  # In case a breaking change is introduced by the PR, a feature branch can be used as explained 
+  # In case a breaking change is introduced by the PR, a feature branch can be used as explained
   # in the test/k8s-e2e/Readme.md
   k8s-e2-tests:
     name: K8s e2e tests
