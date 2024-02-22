@@ -4,7 +4,20 @@ use std::{fs::read_dir, path::Path, time::Duration};
 use tempfile::TempDir;
 
 const LOG_FILE_CONFIG: &str = "test/on_host/logging/configs/file_logging.yaml";
-// const LOG_FILE_LOCATION: &str = "test/on_host/logging/test/logs";
+const LOG_FILE_LOCATION: &str = "test/on_host/logging/test/logs";
+
+fn build_logging_config(config_path: &Path, log_path: &Path) {
+    let config = format!(
+        r#"
+        log:
+            file: 
+              enable: true
+              path: {}
+        "#,
+        log_path.to_string_lossy()
+    );
+    std::fs::write(config_path, config).unwrap();
+}
 
 fn cmd_with_config_file(file_path: &Path) -> Command {
     let mut cmd = Command::cargo_bin("newrelic-super-agent").unwrap();
@@ -17,9 +30,14 @@ fn cmd_with_config_file(file_path: &Path) -> Command {
 #[test]
 fn default_log_level_no_root() {
     let dir = TempDir::new().unwrap();
-    let file_path = dir.path().join("super_agent.log");
+    let config_path = dir.path().join("super_agent.yaml");
+    let log_dir = dir.path().join("log");
+    let log_path = log_dir.join("super_agent.log");
 
-    let mut cmd = cmd_with_config_file(&file_path);
+    // Write the config file
+    build_logging_config(&config_path, &log_path);
+
+    let mut cmd = cmd_with_config_file(&config_path);
 
     // Expecting to fail as non_root
     // Asserting content is logged to stdout as well
@@ -47,8 +65,8 @@ fn default_log_level_no_root() {
     // Let's wait for a second so the flushed contents arrive to the files
     std::thread::sleep(Duration::from_secs(1));
 
-    // Now, we assert that the file(s) created are present and contain the expected content
-    let dir: Vec<_> = read_dir(dir.path())
+    // Now, we assert that the file(s) created are present and have the expected content
+    let dir: Vec<_> = read_dir(log_dir)
         .unwrap()
         // We unwrap each entry to be able to order it
         .map(|entry| entry.unwrap())
@@ -61,8 +79,6 @@ fn default_log_level_no_root() {
     for file in dir {
         actual.push_str(&std::fs::read_to_string(file.path()).unwrap());
     }
-    // We delete the created directory
-    // std::fs::remove_dir_all(LOG_FILE_LOCATION).unwrap();
 
     assert!(actual.contains("INFO Creating the signal handler"));
     assert!(actual.contains("INFO Creating the global context"));
@@ -71,7 +87,15 @@ fn default_log_level_no_root() {
 
 #[test]
 fn default_log_level_as_root() {
-    let mut cmd = cmd_with_config_file(Path::new(LOG_FILE_CONFIG));
+    let dir = TempDir::new().unwrap();
+    let config_path = dir.path().join("super_agent.yaml");
+    let log_dir = dir.path().join("log");
+    let log_path = log_dir.join("super_agent.log");
+
+    // Write the config file
+    build_logging_config(&config_path, &log_path);
+
+    let mut cmd = cmd_with_config_file(&config_path);
 
     // Expecting to fail as non_root
     // Asserting content is logged to stdout as well
@@ -105,8 +129,8 @@ fn default_log_level_as_root() {
     // Let's wait for a second so the flushed contents arrive to the files
     std::thread::sleep(Duration::from_secs(1));
 
-    // Now, we assert that the file(s) created are present and contain the expected content
-    let dir: Vec<_> = read_dir(LOG_FILE_LOCATION)
+    // Now, we assert that the file(s) created are present and have the expected content
+    let dir: Vec<_> = read_dir(log_dir)
         .unwrap()
         // We unwrap each entry to be able to order it
         .map(|entry| entry.unwrap())
@@ -119,8 +143,6 @@ fn default_log_level_as_root() {
     for file in dir {
         actual.push_str(&std::fs::read_to_string(file.path()).unwrap());
     }
-    // We delete the created directory
-    std::fs::remove_dir_all(LOG_FILE_LOCATION).unwrap();
 
     assert!(actual.contains("INFO Creating the signal handler"));
     assert!(actual.contains("INFO Creating the global context"));
