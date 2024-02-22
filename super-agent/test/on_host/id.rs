@@ -35,9 +35,12 @@ async fn test_cloud_id() {
         ),
     ];
 
-    for (metadata_endpoint, expected_cloud_id) in cloud_data {
+    for (metadata_response, expected_cloud_id) in cloud_data {
+        // all responses are mapped to the same endpoint, thus all cloud detectors will be able to
+        // fetch some data. Note, that only the cloud detector able to parse the corresponding
+        // metadata, should succeed.
         let endpoint_mock = Mock::given(method("GET")).and(path(endpoint)).respond_with(
-            ResponseTemplate::new(200).set_body_raw(metadata_endpoint, "application/json"),
+            ResponseTemplate::new(200).set_body_raw(metadata_response, "application/json"),
         );
         let mock_guard = mock_server.register_as_scoped(endpoint_mock).await;
 
