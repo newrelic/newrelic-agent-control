@@ -1,0 +1,10 @@
+---
+
+- name: get process pid
+  shell: pgrep -f -x '{{ command_line }}'
+  register: pgrep
+
+- name: set pid as fact
+  ansible.builtin.set_fact: {"{{ process_pid_fact }}": "{{ pgrep.stdout }}"}
+
+...
