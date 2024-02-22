@@ -5,7 +5,7 @@ use crate::sub_agent::on_host::event_processor::EventProcessor;
 use crate::sub_agent::SubAgentCallbacks;
 use crate::{
     opamp::{
-        remote_config::RemoteConfig, remote_config_hash::HashRepository,
+        hash_repository::HashRepository, remote_config::RemoteConfig,
         remote_config_report::report_remote_config_status_error,
     },
     sub_agent::values::values_repository::ValuesRepository,
@@ -82,8 +82,9 @@ mod tests {
         event::channel::pub_sub,
         opamp::{
             client_builder::test::MockStartedOpAMPClientMock,
+            hash_repository::repository::test::MockHashRepositoryMock,
             remote_config::{ConfigMap, RemoteConfig},
-            remote_config_hash::{test::MockHashRepositoryMock, Hash},
+            remote_config_hash::Hash,
         },
         sub_agent::values::values_repository::test::MockRemoteValuesRepositoryMock,
     };
