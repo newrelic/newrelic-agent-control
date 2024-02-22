@@ -1,4 +1,0 @@
-log:
-  file:
-    enable: true
-    path: "test/on_host/logging/test/logs/test.log"

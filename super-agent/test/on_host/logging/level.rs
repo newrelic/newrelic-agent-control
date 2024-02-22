@@ -1,9 +1,10 @@
 use assert_cmd::Command;
 use predicates::prelude::predicate;
 use std::{path::Path, time::Duration};
+use tempfile::TempDir;
 
-const EMPTY_CONFIG_FILE: &str = "test/on_host/logging/configs/empty_config.yaml";
-const DEBUG_LEVEL_FILE: &str = "test/on_host/logging/configs/debug_level.yaml";
+const EMPTY_CONFIG: &str = "# Empty config";
+const DEBUG_LEVEL_CONFIG: &str = "log:\n  level: debug";
 
 fn cmd_with_config_file(file_path: &Path) -> Command {
     let mut cmd = Command::cargo_bin("newrelic-super-agent").unwrap();
@@ -15,7 +16,11 @@ fn cmd_with_config_file(file_path: &Path) -> Command {
 
 #[test]
 fn default_log_level_no_root() {
-    let mut cmd = cmd_with_config_file(Path::new(EMPTY_CONFIG_FILE));
+    let dir = TempDir::new().unwrap();
+    let config_path = dir.path().join("super_agent.yaml");
+    std::fs::write(&config_path, EMPTY_CONFIG).unwrap();
+
+    let mut cmd = cmd_with_config_file(&config_path);
     // Expecting to fail as non_root
     cmd.assert()
         .failure()
@@ -40,7 +45,11 @@ fn default_log_level_no_root() {
 }
 #[test]
 fn default_log_level_as_root() {
-    let mut cmd = cmd_with_config_file(Path::new(EMPTY_CONFIG_FILE));
+    let dir = TempDir::new().unwrap();
+    let config_path = dir.path().join("super_agent.yaml");
+    std::fs::write(&config_path, EMPTY_CONFIG).unwrap();
+
+    let mut cmd = cmd_with_config_file(&config_path);
     // Expecting to fail as non_root
     cmd.assert()
         .failure()
@@ -72,7 +81,12 @@ fn default_log_level_as_root() {
 
 #[test]
 fn debug_log_level_no_root() {
-    let mut cmd = cmd_with_config_file(Path::new(DEBUG_LEVEL_FILE));
+    let dir = TempDir::new().unwrap();
+    let config_path = dir.path().join("super_agent.yaml");
+    std::fs::write(&config_path, DEBUG_LEVEL_CONFIG).unwrap();
+
+    let mut cmd = cmd_with_config_file(&config_path);
+
     // Expecting to fail as non_root
     cmd.assert()
         .failure()
@@ -104,7 +118,12 @@ fn debug_log_level_no_root() {
 
 #[test]
 fn debug_log_level_as_root() {
-    let mut cmd = cmd_with_config_file(Path::new(DEBUG_LEVEL_FILE));
+    let dir = TempDir::new().unwrap();
+    let config_path = dir.path().join("super_agent.yaml");
+    std::fs::write(&config_path, DEBUG_LEVEL_CONFIG).unwrap();
+
+    let mut cmd = cmd_with_config_file(&config_path);
+
     // Expecting to fail as non_root
     cmd.assert()
         .failure()

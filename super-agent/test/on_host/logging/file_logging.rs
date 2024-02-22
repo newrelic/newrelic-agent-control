@@ -3,9 +3,6 @@ use predicates::prelude::predicate;
 use std::{fs::read_dir, path::Path, time::Duration};
 use tempfile::TempDir;
 
-const LOG_FILE_CONFIG: &str = "test/on_host/logging/configs/file_logging.yaml";
-const LOG_FILE_LOCATION: &str = "test/on_host/logging/test/logs";
-
 fn build_logging_config(config_path: &Path, log_path: &Path) {
     let config = format!(
         r#"
