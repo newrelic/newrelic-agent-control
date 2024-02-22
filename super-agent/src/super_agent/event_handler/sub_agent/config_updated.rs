@@ -1,6 +1,6 @@
 use crate::event::channel::EventPublisher;
 use crate::event::SubAgentEvent;
-use crate::opamp::remote_config_hash::HashRepository;
+use crate::opamp::hash_repository::HashRepository;
 use crate::sub_agent::collection::StartedSubAgents;
 use crate::sub_agent::logger::AgentLog;
 use crate::sub_agent::{NotStartedSubAgent, SubAgentBuilder};
