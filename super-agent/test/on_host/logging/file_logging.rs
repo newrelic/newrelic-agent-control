@@ -1,9 +1,10 @@
 use assert_cmd::Command;
 use predicates::prelude::predicate;
 use std::{fs::read_dir, path::Path, time::Duration};
+use tempfile::TempDir;
 
 const LOG_FILE_CONFIG: &str = "test/on_host/logging/configs/file_logging.yaml";
-const LOG_FILE_LOCATION: &str = "test/on_host/logging/test/logs";
+// const LOG_FILE_LOCATION: &str = "test/on_host/logging/test/logs";
 
 fn cmd_with_config_file(file_path: &Path) -> Command {
     let mut cmd = Command::cargo_bin("newrelic-super-agent").unwrap();
@@ -15,7 +16,10 @@ fn cmd_with_config_file(file_path: &Path) -> Command {
 
 #[test]
 fn default_log_level_no_root() {
-    let mut cmd = cmd_with_config_file(Path::new(LOG_FILE_CONFIG));
+    let dir = TempDir::new().unwrap();
+    let file_path = dir.path().join("super_agent.log");
+
+    let mut cmd = cmd_with_config_file(&file_path);
 
     // Expecting to fail as non_root
     // Asserting content is logged to stdout as well
@@ -44,7 +48,7 @@ fn default_log_level_no_root() {
     std::thread::sleep(Duration::from_secs(1));
 
     // Now, we assert that the file(s) created are present and contain the expected content
-    let dir: Vec<_> = read_dir(LOG_FILE_LOCATION)
+    let dir: Vec<_> = read_dir(dir.path())
         .unwrap()
         // We unwrap each entry to be able to order it
         .map(|entry| entry.unwrap())
@@ -58,7 +62,7 @@ fn default_log_level_no_root() {
         actual.push_str(&std::fs::read_to_string(file.path()).unwrap());
     }
     // We delete the created directory
-    std::fs::remove_dir_all(LOG_FILE_LOCATION).unwrap();
+    // std::fs::remove_dir_all(LOG_FILE_LOCATION).unwrap();
 
     assert!(actual.contains("INFO Creating the signal handler"));
     assert!(actual.contains("INFO Creating the global context"));
