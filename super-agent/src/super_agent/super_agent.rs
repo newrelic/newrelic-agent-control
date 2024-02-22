@@ -1,8 +1,9 @@
 use crate::agent_type::definition::AgentType;
 use crate::event::channel::{pub_sub, EventConsumer, EventPublisher};
 use crate::opamp::callbacks::AgentCallbacks;
+use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::remote_config::RemoteConfig;
-use crate::opamp::remote_config_hash::{Hash, HashRepository, HashRepositoryFile};
+use crate::opamp::remote_config_hash::Hash;
 use crate::opamp::remote_config_report::report_remote_config_status_applied;
 use crate::sub_agent::collection::{NotStartedSubAgents, StartedSubAgents};
 use crate::sub_agent::error::SubAgentBuilderError;
@@ -35,7 +36,7 @@ use super::store::{
 
 pub(super) type SuperAgentCallbacks = AgentCallbacks<SuperAgentRemoteConfigPublisher>;
 
-pub struct SuperAgent<'a, S, O, HR = HashRepositoryFile, SL = SuperAgentConfigStoreFile>
+pub struct SuperAgent<'a, S, O, HR, SL = SuperAgentConfigStoreFile>
 where
     O: StartedClient<SuperAgentCallbacks>,
     HR: HashRepository,
@@ -394,9 +395,10 @@ mod tests {
     use crate::event::channel::pub_sub;
     use crate::event::{OpAMPEvent, SubAgentEvent, SuperAgentEvent};
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
+    use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
+    use crate::opamp::hash_repository::HashRepository;
     use crate::opamp::remote_config::{ConfigMap, RemoteConfig};
-    use crate::opamp::remote_config_hash::test::MockHashRepositoryMock;
-    use crate::opamp::remote_config_hash::{Hash, HashRepository};
+    use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::{test::MockSubAgentBuilderMock, SubAgentBuilder};
     use crate::super_agent::config::{AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig};
     use crate::super_agent::store::tests::MockSubAgentsConfigStore;

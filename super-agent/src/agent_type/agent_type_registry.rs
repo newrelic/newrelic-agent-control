@@ -4,6 +4,7 @@ use crate::{
         NEWRELIC_INFRA_TYPE_1, NEWRELIC_INFRA_TYPE_2, NEWRELIC_INFRA_TYPE_3, NRDOT_TYPE,
     },
 };
+use log::debug;
 use std::collections::HashMap;
 use thiserror::Error;
 
@@ -42,6 +43,14 @@ impl Default for LocalRegistry {
         local_agent_type_repository
             .store_from_yaml(NRDOT_TYPE.as_bytes())
             .unwrap();
+
+        if let Ok(file) =
+            std::fs::read_to_string("/etc/newrelic-super-agent/dynamic-agent-type.yaml")
+        {
+            _ = local_agent_type_repository
+                .store_from_yaml(file.as_bytes())
+                .inspect_err(|e| debug!("Could not add dynamic-agent-type.yaml: {e}"));
+        }
 
         local_agent_type_repository
     }
