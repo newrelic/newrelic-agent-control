@@ -204,7 +204,7 @@ deployment:
 // Kubernetes AgentType
 // TODO We need to unify the two agent types and remove this workaround
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
-pub(crate) const NRDOT_TYPE_1: &str = r#"
+pub(crate) const NRDOT_TYPE_0_0_1: &str = r#"
 namespace: newrelic
 name: io.opentelemetry.collector 
 version: 0.0.1
