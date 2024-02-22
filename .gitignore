@@ -41,3 +41,6 @@ local/
 
 # targets created for goreleaser
 /target-*
+
+# temp folder to store building temporary files
+/build-tmp

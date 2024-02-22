@@ -61,6 +61,12 @@ assert_matches = { workspace = true }
 mockall_double = { workspace = true }
 tracing-test = { workspace = true }
 fs = { path = "../fs", features = ["mocks"] }
+tokio = { version = "1.32.0", features = [
+  "rt-multi-thread",
+  "macros",
+] }
+wiremock = "0.6.0"
+konst = "0.3.8"
 
 
 [[test]]

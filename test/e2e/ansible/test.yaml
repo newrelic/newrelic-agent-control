@@ -1,6 +1,6 @@
 ---
 - name: Agents registration new host
-  import_playbook: agents_registration_new_host.yaml
+  import_playbook: agents_registration_unregistration.yaml
 
 - name: Super Agent valid remote config
   import_playbook: super_agent_valid_remote_config.yaml
