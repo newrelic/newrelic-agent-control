@@ -4,7 +4,7 @@ use std::time::SystemTimeError;
 
 use crate::agent_type::agent_values::AgentValuesError;
 use crate::opamp::client_builder::OpAMPClientBuilderError;
-use crate::opamp::remote_config_hash::HashRepositoryError;
+use crate::opamp::hash_repository::HashRepositoryError;
 
 use crate::event::channel::EventPublisherError;
 use crate::opamp::remote_config::RemoteConfigError;

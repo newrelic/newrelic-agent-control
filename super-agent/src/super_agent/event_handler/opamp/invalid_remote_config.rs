@@ -1,5 +1,5 @@
 use crate::{
-    opamp::{remote_config::RemoteConfigError, remote_config_hash::HashRepository},
+    opamp::{hash_repository::HashRepository, remote_config::RemoteConfigError},
     sub_agent::SubAgentBuilder,
     super_agent::{
         error::AgentError,
