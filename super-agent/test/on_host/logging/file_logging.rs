@@ -1,0 +1,148 @@
+use assert_cmd::Command;
+use predicates::prelude::predicate;
+use std::{fs::read_dir, path::Path, time::Duration};
+use tempfile::TempDir;
+
+fn build_logging_config(config_path: &Path, log_path: &Path) {
+    let config = format!(
+        r#"
+        log:
+            file: 
+              enable: true
+              path: {}
+        "#,
+        log_path.to_string_lossy()
+    );
+    std::fs::write(config_path, config).unwrap();
+}
+
+fn cmd_with_config_file(file_path: &Path) -> Command {
+    let mut cmd = Command::cargo_bin("newrelic-super-agent").unwrap();
+    cmd.arg("--config").arg(file_path);
+    // cmd_assert is not made for long running programs, so we kill it anyway after 1 second
+    cmd.timeout(Duration::from_secs(1));
+    cmd
+}
+
+#[test]
+fn default_log_level_no_root() {
+    let dir = TempDir::new().unwrap();
+    let config_path = dir.path().join("super_agent.yaml");
+    let log_dir = dir.path().join("log");
+    let log_path = log_dir.join("super_agent.log");
+
+    // Write the config file
+    build_logging_config(&config_path, &log_path);
+
+    let mut cmd = cmd_with_config_file(&config_path);
+
+    // Expecting to fail as non_root
+    // Asserting content is logged to stdout as well
+    cmd.assert()
+        .failure()
+        .stdout(
+            predicate::str::is_match(
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Creating the signal handler",
+            )
+            .unwrap(),
+        )
+        .stdout(
+            predicate::str::is_match(
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Creating the global context",
+            )
+            .unwrap(),
+        )
+        .stdout(
+            predicate::str::is_match(
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*ERROR.*Program must run as root",
+            )
+            .unwrap(),
+        );
+
+    // Let's wait for a second so the flushed contents arrive to the files
+    std::thread::sleep(Duration::from_secs(1));
+
+    // Now, we assert that the file(s) created are present and have the expected content
+    let dir: Vec<_> = read_dir(log_dir)
+        .unwrap()
+        // We unwrap each entry to be able to order it
+        .map(|entry| entry.unwrap())
+        .collect();
+    // if sorting is needed, use
+    // dir.sort_by_key(|f| f.path());
+
+    // We append the contents of the files in order
+    let mut actual = String::new();
+    for file in dir {
+        actual.push_str(&std::fs::read_to_string(file.path()).unwrap());
+    }
+
+    assert!(actual.contains("INFO Creating the signal handler"));
+    assert!(actual.contains("INFO Creating the global context"));
+    assert!(actual.contains("ERROR Program must run as root"));
+}
+
+#[test]
+fn default_log_level_as_root() {
+    let dir = TempDir::new().unwrap();
+    let config_path = dir.path().join("super_agent.yaml");
+    let log_dir = dir.path().join("log");
+    let log_path = log_dir.join("super_agent.log");
+
+    // Write the config file
+    build_logging_config(&config_path, &log_path);
+
+    let mut cmd = cmd_with_config_file(&config_path);
+
+    // Expecting to fail as non_root
+    // Asserting content is logged to stdout as well
+    cmd.assert()
+        .failure()
+        .stdout(
+            predicate::str::is_match(
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Creating the signal handler",
+            )
+            .unwrap(),
+        )
+        .stdout(
+            predicate::str::is_match(
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Creating the global context",
+            )
+            .unwrap(),
+        )
+        .stdout(
+            predicate::str::is_match(
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Starting the super agent",
+            )
+            .unwrap(),
+        )
+        .stdout(
+            predicate::str::is_match(
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Starting the supervisor group",
+            )
+            .unwrap(),
+        );
+
+    // Let's wait for a second so the flushed contents arrive to the files
+    std::thread::sleep(Duration::from_secs(1));
+
+    // Now, we assert that the file(s) created are present and have the expected content
+    let dir: Vec<_> = read_dir(log_dir)
+        .unwrap()
+        // We unwrap each entry to be able to order it
+        .map(|entry| entry.unwrap())
+        .collect();
+    // if sorting is needed, use
+    // dir.sort_by_key(|f| f.path());
+
+    // We append the contents of the files in order
+    let mut actual = String::new();
+    for file in dir {
+        actual.push_str(&std::fs::read_to_string(file.path()).unwrap());
+    }
+
+    assert!(actual.contains("INFO Creating the signal handler"));
+    assert!(actual.contains("INFO Creating the global context"));
+    assert!(actual.contains("INFO Starting the super agent"));
+    assert!(actual.contains("INFO Starting the supervisor group"));
+}

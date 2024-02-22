@@ -1,0 +1,160 @@
+use assert_cmd::Command;
+use predicates::prelude::predicate;
+use std::{path::Path, time::Duration};
+use tempfile::TempDir;
+
+const EMPTY_CONFIG: &str = "# Empty config";
+const DEBUG_LEVEL_CONFIG: &str = "log:\n  level: debug";
+
+fn cmd_with_config_file(file_path: &Path) -> Command {
+    let mut cmd = Command::cargo_bin("newrelic-super-agent").unwrap();
+    cmd.arg("--config").arg(file_path);
+    // cmd_assert is not made for long running programs, so we kill it anyway after 1 second
+    cmd.timeout(Duration::from_secs(1));
+    cmd
+}
+
+#[test]
+fn default_log_level_no_root() {
+    let dir = TempDir::new().unwrap();
+    let config_path = dir.path().join("super_agent.yaml");
+    std::fs::write(&config_path, EMPTY_CONFIG).unwrap();
+
+    let mut cmd = cmd_with_config_file(&config_path);
+    // Expecting to fail as non_root
+    cmd.assert()
+        .failure()
+        .stdout(
+            predicate::str::is_match(
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Creating the signal handler",
+            )
+            .unwrap(),
+        )
+        .stdout(
+            predicate::str::is_match(
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Creating the global context",
+            )
+            .unwrap(),
+        )
+        .stdout(
+            predicate::str::is_match(
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*ERROR.*Program must run as root",
+            )
+            .unwrap(),
+        );
+}
+#[test]
+fn default_log_level_as_root() {
+    let dir = TempDir::new().unwrap();
+    let config_path = dir.path().join("super_agent.yaml");
+    std::fs::write(&config_path, EMPTY_CONFIG).unwrap();
+
+    let mut cmd = cmd_with_config_file(&config_path);
+    // Expecting to fail as non_root
+    cmd.assert()
+        .failure()
+        .stdout(
+            predicate::str::is_match(
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Creating the signal handler",
+            )
+            .unwrap(),
+        )
+        .stdout(
+            predicate::str::is_match(
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Creating the global context",
+            )
+            .unwrap(),
+        )
+        .stdout(
+            predicate::str::is_match(
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Starting the super agent",
+            )
+            .unwrap(),
+        )
+        .stdout(
+            predicate::str::is_match(
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Starting the supervisor group",
+            )
+            .unwrap(),
+        );
+}
+
+#[test]
+fn debug_log_level_no_root() {
+    let dir = TempDir::new().unwrap();
+    let config_path = dir.path().join("super_agent.yaml");
+    std::fs::write(&config_path, DEBUG_LEVEL_CONFIG).unwrap();
+
+    let mut cmd = cmd_with_config_file(&config_path);
+
+    // Expecting to fail as non_root
+    cmd.assert()
+        .failure()
+        .stdout(
+            predicate::str::is_match(
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*DEBUG.*Logging initialized successfully",
+            )
+            .unwrap(),
+        )
+        .stdout(
+            predicate::str::is_match(
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Creating the signal handler",
+            )
+            .unwrap(),
+        )
+        .stdout(
+            predicate::str::is_match(
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Creating the global context",
+            )
+            .unwrap(),
+        )
+        .stdout(
+            predicate::str::is_match(
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*ERROR.*Program must run as root",
+            )
+            .unwrap(),
+        );
+}
+
+#[test]
+fn debug_log_level_as_root() {
+    let dir = TempDir::new().unwrap();
+    let config_path = dir.path().join("super_agent.yaml");
+    std::fs::write(&config_path, DEBUG_LEVEL_CONFIG).unwrap();
+
+    let mut cmd = cmd_with_config_file(&config_path);
+
+    // Expecting to fail as non_root
+    cmd.assert()
+        .failure()
+        .stdout(
+            predicate::str::is_match(
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*DEBUG.*Logging initialized successfully",
+            )
+            .unwrap(),
+        )
+        .stdout(
+            predicate::str::is_match(
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Creating the signal handler",
+            )
+            .unwrap(),
+        )
+        .stdout(
+            predicate::str::is_match(
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Creating the global context",
+            )
+            .unwrap(),
+        )
+        .stdout(
+            predicate::str::is_match(
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Starting the super agent",
+            )
+            .unwrap(),
+        )
+        .stdout(
+            predicate::str::is_match(
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Starting the supervisor group",
+            )
+            .unwrap(),
+        );
+}

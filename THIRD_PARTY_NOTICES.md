@@ -1531,6 +1531,12 @@ Distributed under the following license(s):
 * MIT
 
 
+## tracing-appender https://crates.io/crates/tracing-appender
+
+Distributed under the following license(s):
+* MIT
+
+
 ## tracing-attributes https://crates.io/crates/tracing-attributes
 
 Distributed under the following license(s):

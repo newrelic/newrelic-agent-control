@@ -1,7 +1,7 @@
 use std::{collections::HashMap, thread, time::Duration};
 
 use newrelic_super_agent::context::Context;
-use newrelic_super_agent::logging::LoggingConfig;
+use newrelic_super_agent::logging::config::LoggingConfig;
 
 use newrelic_super_agent::sub_agent::logger::{EventLogger, StdEventReceiver};
 use newrelic_super_agent::sub_agent::on_host::supervisor::command_supervisor::{

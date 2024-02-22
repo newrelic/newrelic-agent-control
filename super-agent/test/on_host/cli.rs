@@ -32,7 +32,7 @@ fn does_not_run_if_no_root() -> Result<(), Box<dyn std::error::Error>> {
     cmd.arg("--config").arg(file_path);
     cmd.assert()
         .failure()
-        .stderr(predicate::str::contains("Program must run as root"));
+        .stdout(predicate::str::contains("Program must run as root"));
     Ok(())
 }
 
