@@ -9,7 +9,7 @@
     mode: 0644
     force: true
   no_log: true
-  when: empty_agents|bool == false
+  when: not empty_agents | bool
 
 - name: install super-agent configuration file without agents
   template:
@@ -20,6 +20,6 @@
     mode: 0644
     force: true
   no_log: true
-  when: empty_agents|bool == true
+  when: empty_agents | bool
 
 ...
