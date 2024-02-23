@@ -88,6 +88,7 @@ fn run_super_agent(
     use newrelic_super_agent::opamp::instance_id::IdentifiersProvider;
     use newrelic_super_agent::opamp::operations::build_opamp_and_start_client;
     use newrelic_super_agent::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
+    use newrelic_super_agent::sub_agent::persister::config_persister_file::ConfigurationPersisterFile;
     use newrelic_super_agent::sub_agent::values::values_repository::{
         ValuesRepository, ValuesRepositoryFile,
     };
@@ -107,7 +108,9 @@ fn run_super_agent(
         .with_identifiers(IdentifiersProvider::default().provide().unwrap_or_default());
 
     let hash_repository = HashRepositoryFile::default();
-    let agents_assembler = LocalEffectiveAgentsAssembler::default().with_remote();
+    let agents_assembler = LocalEffectiveAgentsAssembler::default()
+        .with_remote()
+        .with_config_persister(ConfigurationPersisterFile::default());
     // HashRepo and ValuesRepo needs to be shared between threads
     let sub_agent_hash_repository = Arc::new(HashRepositoryFile::new_sub_agent_repository());
     let values_repository = Arc::new(ValuesRepositoryFile::default());
@@ -202,12 +205,8 @@ fn run_super_agent(
     let agents_assembler = {
         #[cfg(feature = "custom-local-path")]
         {
-            use newrelic_super_agent::sub_agent::persister::config_persister_file::ConfigurationPersisterFile;
-            use newrelic_super_agent::super_agent::defaults::SUPER_AGENT_DATA_DIR;
-
             let cli = Cli::init_super_agent_cli();
             let mut values_repo = newrelic_super_agent::sub_agent::values::values_repository::ValuesRepositoryFile::default();
-            let mut config_persister = ConfigurationPersisterFile::default();
             let mut temp_assembler = LocalEffectiveAgentsAssembler::default();
 
             if let Some(base_dir) = cli.get_local_path() {
@@ -218,16 +217,10 @@ fn run_super_agent(
                 }
 
                 values_repo = values_repo.with_base_dir(base_dir);
-                config_persister = ConfigurationPersisterFile::new(std::path::Path::new(&format!(
-                    "{}{}",
-                    base_dir, SUPER_AGENT_DATA_DIR,
-                )));
                 temp_assembler = temp_assembler.with_base_dir(base_dir);
             }
 
-            temp_assembler
-                .with_values_repository(values_repo)
-                .with_config_persister(config_persister)
+            temp_assembler.with_values_repository(values_repo)
         }
         #[cfg(not(feature = "custom-local-path"))]
         {
