@@ -7,3 +7,9 @@
 
 - name: Migration Script Execution
   import_playbook: migration_script_execution.yaml
+
+- name: Sub Agents invalid remote config
+  import_playbook: sub_agent_invalid_remote_config.yaml
+
+- name: Super Agent remote config flows
+  import_playbook: super_agent_remote_config_flows.yaml
