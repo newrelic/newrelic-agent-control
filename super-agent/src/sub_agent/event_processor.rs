@@ -26,12 +26,12 @@ where
     R: ValuesRepository,
 {
     agent_id: AgentID,
-    pub(super) sub_agent_publisher: EventPublisher<SubAgentEvent>,
-    pub(super) sub_agent_opamp_consumer: EventConsumer<OpAMPEvent>,
-    pub(super) sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
-    pub(super) maybe_opamp_client: Option<C>,
-    pub(super) sub_agent_remote_config_hash_repository: Arc<H>,
-    pub(super) remote_values_repo: Arc<R>,
+    pub(crate) sub_agent_publisher: EventPublisher<SubAgentEvent>,
+    pub(crate) sub_agent_opamp_consumer: EventConsumer<OpAMPEvent>,
+    pub(crate) sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
+    pub(crate) sub_agent_remote_config_hash_repository: Arc<H>,
+    pub(crate) remote_values_repo: Arc<R>,
+    pub(crate) maybe_opamp_client: Option<C>,
 }
 
 impl<C, H, R> EventProcessor<C, H, R>
@@ -81,13 +81,13 @@ where
                                 break;
                             }
                             Ok(OpAMPEvent::InvalidRemoteConfigReceived(remote_config_error)) => {
-                                debug!("invalid remote config received");
+                                debug!("invalid remote config received for: {}", self.agent_id);
                                 if let Err(e) = self.invalid_remote_config(remote_config_error){
                                     error!("error processing invalid remote config: {}",e.to_string())
                                 }
                             }
                             Ok(OpAMPEvent::ValidRemoteConfigReceived(remote_config)) => {
-                                debug!("valid remote config received");
+                                debug!("valid remote config received for: {}", self.agent_id);
                                 if let Err(e) = self.valid_remote_config(remote_config){
                                      error!("error processing valid remote config: {}",e.to_string())
                                 }
@@ -96,7 +96,7 @@ where
                     },
                     recv(&self.sub_agent_internal_consumer.as_ref()) -> sub_agent_internal_event_res => {
                          match sub_agent_internal_event_res {
-                                 Err(_) => {
+                            Err(_) => {
                                 debug!("sub_agent_internal_consumer :: channel closed");
                                 break;
                             }
@@ -121,7 +121,7 @@ pub mod test {
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::remote_config::{ConfigMap, RemoteConfig, RemoteConfigError};
     use crate::opamp::remote_config_hash::Hash;
-    use crate::sub_agent::on_host::event_processor::{EventProcessor, SubAgentEventProcessor};
+    use crate::sub_agent::event_processor::{EventProcessor, SubAgentEventProcessor};
     use crate::super_agent::config::AgentID;
     use mockall::mock;
     use opamp_client::opamp::proto::RemoteConfigStatus;
@@ -186,8 +186,8 @@ pub mod test {
         handle.join().unwrap().unwrap();
 
         assert!(logs_with_scope_contain(
-            "DEBUG newrelic_super_agent::sub_agent::on_host::event_processor",
-            "channel closed"
+            "DEBUG newrelic_super_agent::sub_agent::event_processor",
+            "channel closed",
         ));
     }
 
@@ -251,7 +251,7 @@ pub mod test {
         handle.join().unwrap().unwrap();
 
         assert!(logs_with_scope_contain(
-            "DEBUG newrelic_super_agent::sub_agent::on_host::event_processor",
+            "DEBUG newrelic_super_agent::sub_agent::event_processor",
             "valid remote config received",
         ));
 
@@ -306,7 +306,7 @@ pub mod test {
         handle.join().unwrap().unwrap();
 
         assert!(logs_with_scope_contain(
-            "DEBUG newrelic_super_agent::sub_agent::on_host::event_processor",
+            "DEBUG newrelic_super_agent::sub_agent::event_processor",
             "invalid remote config received",
         ));
     }

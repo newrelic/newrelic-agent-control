@@ -9,7 +9,7 @@ use crate::sub_agent::error::SubAgentError;
 use crate::super_agent::config::AgentID;
 
 use super::supervisor::command_supervisor;
-use crate::sub_agent::on_host::event_processor::SubAgentEventProcessor;
+use crate::sub_agent::event_processor::SubAgentEventProcessor;
 use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -108,7 +108,7 @@ impl StartedSubAgent for SubAgentOnHost<Started, command_supervisor::Started> {
 #[cfg(test)]
 mod test {
     use crate::event::channel::pub_sub;
-    use crate::sub_agent::on_host::event_processor::test::MockEventProcessorMock;
+    use crate::sub_agent::event_processor::test::MockEventProcessorMock;
     use crate::sub_agent::on_host::sub_agent::SubAgentOnHost;
     use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
     use crate::super_agent::config::AgentID;

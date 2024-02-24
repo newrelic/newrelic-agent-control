@@ -2,17 +2,19 @@
 pub mod collection;
 pub mod effective_agents_assembler;
 pub mod error;
+mod event_handler;
+pub mod event_processor;
+pub mod event_processor_builder;
 pub mod logger;
 pub mod opamp;
 pub mod persister;
 pub mod restart_policy;
 pub mod values;
 
-#[cfg(feature = "onhost")]
-pub mod on_host;
-
 #[cfg(feature = "k8s")]
 pub mod k8s;
+#[cfg(feature = "onhost")]
+pub mod on_host;
 
 use std::thread::JoinHandle;
 

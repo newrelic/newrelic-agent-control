@@ -67,12 +67,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         super_agent_consumer,
         opamp_client_builder,
     )
-    .inspect_err(|err| {
-        error!(
+        .inspect_err(|err| {
+            error!(
             "The super agent main process exited with an error: {}",
             err.to_string()
         )
-    })?);
+        })?);
 
     #[cfg(all(not(feature = "onhost"), not(feature = "k8s")))]
     Ok(())
@@ -94,7 +94,7 @@ fn run_super_agent(
     };
     use newrelic_super_agent::super_agent::config::AgentID;
     use newrelic_super_agent::{
-        sub_agent::on_host::event_processor_builder::EventProcessorBuilder,
+        sub_agent::event_processor_builder::EventProcessorBuilder,
         sub_agent::opamp::client_builder::SubAgentOpAMPHttpBuilder,
     };
 
@@ -153,7 +153,7 @@ fn run_super_agent(
         sub_agent_builder,
         Arc::new(config_storer),
     )
-    .run(super_agent_consumer, super_agent_opamp_consumer)
+        .run(super_agent_consumer, super_agent_opamp_consumer)
 }
 
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
@@ -190,7 +190,7 @@ fn run_super_agent(
             k8s_config.namespace.clone(),
             k8s_config.cr_type_meta.clone(),
         )
-        .map_err(|e| AgentError::ExternalError(e.to_string()))?,
+            .map_err(|e| AgentError::ExternalError(e.to_string()))?,
     );
 
     let k8s_store = Arc::new(K8sStore::new(k8s_client.clone()));
@@ -262,7 +262,7 @@ fn run_super_agent(
         sub_agent_builder,
         config_storer,
     )
-    .run(super_agent_consumer, opamp_consumer)
+        .run(super_agent_consumer, opamp_consumer)
 }
 
 fn create_shutdown_signal_handler(
@@ -273,10 +273,10 @@ fn create_shutdown_signal_handler(
             .publish(SuperAgentEvent::StopRequested)
             .map_err(|_| error!("Could not send super agent stop request"));
     })
-    .map_err(|e| {
-        error!("Could not set signal handler: {}", e);
-        e
-    })?;
+        .map_err(|e| {
+            error!("Could not set signal handler: {}", e);
+            e
+        })?;
 
     Ok(())
 }

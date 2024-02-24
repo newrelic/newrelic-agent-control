@@ -2,7 +2,7 @@ use opamp_client::opamp::proto::{RemoteConfigStatus, RemoteConfigStatuses};
 use opamp_client::StartedClient;
 
 use crate::opamp::hash_repository::HashRepository;
-use crate::sub_agent::on_host::event_processor::EventProcessor;
+use crate::sub_agent::event_processor::EventProcessor;
 use crate::sub_agent::values::values_repository::ValuesRepository;
 use crate::sub_agent::SubAgentCallbacks;
 use crate::{opamp::remote_config::RemoteConfigError, super_agent::error::AgentError};
@@ -44,7 +44,7 @@ mod tests {
     use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
     use crate::opamp::remote_config::RemoteConfigError::InvalidConfig;
     use crate::opamp::remote_config_hash::Hash;
-    use crate::sub_agent::on_host::event_processor::EventProcessor;
+    use crate::sub_agent::event_processor::EventProcessor;
     use crate::sub_agent::values::values_repository::test::MockRemoteValuesRepositoryMock;
     use crate::sub_agent::SubAgentCallbacks;
     use crate::super_agent::config::AgentID;

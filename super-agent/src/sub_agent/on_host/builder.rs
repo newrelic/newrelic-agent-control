@@ -9,7 +9,7 @@ use crate::opamp::remote_config_report::{
 use crate::sub_agent::effective_agents_assembler::{
     EffectiveAgent, EffectiveAgentsAssembler, EffectiveAgentsAssemblerError,
 };
-use crate::sub_agent::on_host::event_processor_builder::SubAgentEventProcessorBuilder;
+use crate::sub_agent::event_processor_builder::SubAgentEventProcessorBuilder;
 use crate::sub_agent::on_host::sub_agent::NotStarted;
 use crate::sub_agent::on_host::supervisor::command_supervisor;
 use crate::sub_agent::SubAgentCallbacks;
@@ -219,8 +219,8 @@ mod test {
     use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
     use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
-    use crate::sub_agent::on_host::event_processor::test::MockEventProcessorMock;
-    use crate::sub_agent::on_host::event_processor_builder::test::MockSubAgentEventProcessorBuilderMock;
+    use crate::sub_agent::event_processor::test::MockEventProcessorMock;
+    use crate::sub_agent::event_processor_builder::test::MockSubAgentEventProcessorBuilderMock;
     use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
     use crate::super_agent::defaults::default_capabilities;
     use nix::unistd::gethostname;

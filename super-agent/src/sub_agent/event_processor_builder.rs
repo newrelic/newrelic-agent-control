@@ -1,7 +1,7 @@
 use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
 use crate::opamp::hash_repository::HashRepository;
-use crate::sub_agent::on_host::event_processor::{EventProcessor, SubAgentEventProcessor};
+use crate::sub_agent::event_processor::{EventProcessor, SubAgentEventProcessor};
 use crate::sub_agent::values::values_repository::ValuesRepository;
 use crate::sub_agent::SubAgentCallbacks;
 use crate::super_agent::config::AgentID;
@@ -81,8 +81,8 @@ where
 pub mod test {
     use crate::event::channel::{EventConsumer, EventPublisher};
     use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
-    use crate::sub_agent::on_host::event_processor::test::MockEventProcessorMock;
-    use crate::sub_agent::on_host::event_processor_builder::SubAgentEventProcessorBuilder;
+    use crate::sub_agent::event_processor::test::MockEventProcessorMock;
+    use crate::sub_agent::event_processor_builder::SubAgentEventProcessorBuilder;
     use crate::sub_agent::SubAgentCallbacks;
     use crate::super_agent::config::AgentID;
     use mockall::mock;
