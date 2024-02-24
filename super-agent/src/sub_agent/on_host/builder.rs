@@ -1,3 +1,9 @@
+use super::{
+    sub_agent::SubAgentOnHost,
+    supervisor::{
+        command_supervisor::SupervisorOnHost, command_supervisor_config::SupervisorConfigOnHost,
+    },
+};
 use crate::agent_type::environment::Environment;
 use crate::event::channel::{pub_sub, EventPublisher};
 use crate::event::SubAgentEvent;
@@ -9,8 +15,8 @@ use crate::opamp::remote_config_report::{
 };
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
 use crate::sub_agent::event_processor_builder::SubAgentEventProcessorBuilder;
-use crate::sub_agent::on_host::sub_agent::NotStarted;
 use crate::sub_agent::on_host::supervisor::command_supervisor;
+use crate::sub_agent::NotStarted;
 use crate::sub_agent::SubAgentCallbacks;
 use crate::super_agent::config::{AgentID, SubAgentConfig};
 use crate::{
@@ -28,13 +34,6 @@ use nix::unistd::gethostname;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{error, warn};
-
-use super::{
-    sub_agent::SubAgentOnHost,
-    supervisor::{
-        command_supervisor::SupervisorOnHost, command_supervisor_config::SupervisorConfigOnHost,
-    },
-};
 
 pub struct OnHostSubAgentBuilder<'a, O, I, HR, A, E>
 where
@@ -232,7 +231,6 @@ mod test {
     };
     use std::collections::HashMap;
     use std::sync::mpsc::channel;
-    use std::thread;
 
     #[test]
     fn build_start_stop() {
@@ -278,19 +276,8 @@ mod test {
             final_agent,
         );
 
-        let mut sub_agent_event_processor = MockEventProcessorMock::default();
-        sub_agent_event_processor.should_process();
-
         let mut sub_agent_event_processor_builder = MockSubAgentEventProcessorBuilderMock::new();
-        sub_agent_event_processor_builder
-            .expect_build()
-            .once()
-            .return_once(move |_, _, _, consumer, _| {
-                thread::spawn(move || {
-                    _ = consumer.as_ref().recv();
-                });
-                sub_agent_event_processor
-            });
+        sub_agent_event_processor_builder.should_return_event_processor_with_consumer();
 
         let on_host_builder = OnHostSubAgentBuilder::new(
             Some(&opamp_builder),
@@ -360,10 +347,8 @@ mod test {
             Hash::failed("a-hash".to_string(), "this is an error message".to_string());
         hash_repository_mock.should_get_hash(&sub_agent_id, failed_hash);
 
-        let sub_agent_event_processor = MockEventProcessorMock::default();
-
         let mut sub_agent_event_processor_builder = MockSubAgentEventProcessorBuilderMock::new();
-        sub_agent_event_processor_builder.should_build(sub_agent_event_processor);
+        sub_agent_event_processor_builder.should_build(MockEventProcessorMock::default());
 
         // Sub Agent Builder
         let on_host_builder = OnHostSubAgentBuilder::new(

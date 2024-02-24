@@ -1,37 +1,32 @@
-use super::supervisor::command_supervisor;
+use std::thread::JoinHandle;
+
+use tracing::debug;
+
 use super::supervisor::command_supervisor::SupervisorOnHost;
 use crate::event::channel::EventPublisher;
 use crate::event::SubAgentInternalEvent;
 use crate::sub_agent::error::SubAgentError;
-use crate::sub_agent::event_processor::SubAgentEventProcessor;
-use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
 use crate::super_agent::config::AgentID;
-use std::thread::JoinHandle;
-use tracing::debug;
+
+use super::supervisor::command_supervisor;
+use crate::sub_agent::event_processor::SubAgentEventProcessor;
+use crate::sub_agent::{NotStarted, Started};
+use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
 
 ////////////////////////////////////////////////////////////////////////////////////
-// States for Started/Not Started Sub Agents
-////////////////////////////////////////////////////////////////////////////////////
-pub struct NotStarted<E>
-where
-    E: SubAgentEventProcessor,
-{
-    event_processor: E,
-}
-
-pub struct Started {
-    event_loop_handle: JoinHandle<Result<(), SubAgentError>>,
-}
-
-////////////////////////////////////////////////////////////////////////////////////
-// Not Started SubAgent On Host
-// C: OpAMP Client
+// SubAgent On Host
 ////////////////////////////////////////////////////////////////////////////////////
 pub struct SubAgentOnHost<S, V> {
     supervisors: Vec<SupervisorOnHost<V>>,
     agent_id: AgentID,
     sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     state: S,
+}
+
+impl<S, V> SubAgentOnHost<S, V> {
+    pub fn agent_id(&self) -> &AgentID {
+        &self.agent_id
+    }
 }
 
 impl<E> SubAgentOnHost<NotStarted<E>, command_supervisor::NotStarted>

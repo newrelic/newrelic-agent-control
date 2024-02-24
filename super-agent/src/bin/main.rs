@@ -4,6 +4,8 @@ use newrelic_super_agent::event::SuperAgentEvent;
 use newrelic_super_agent::opamp::instance_id::getter::ULIDInstanceIDGetter;
 use newrelic_super_agent::opamp::instance_id::Identifiers;
 use newrelic_super_agent::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
+use newrelic_super_agent::sub_agent::event_processor_builder::EventProcessorBuilder;
+use newrelic_super_agent::sub_agent::opamp::client_builder::SubAgentOpAMPHttpBuilder;
 use newrelic_super_agent::sub_agent::values::values_repository::ValuesRepositoryFile;
 use newrelic_super_agent::super_agent::error::AgentError;
 use newrelic_super_agent::super_agent::opamp::client_builder::SuperAgentOpAMPHttpBuilder;
@@ -107,10 +109,6 @@ fn run_super_agent(
     use newrelic_super_agent::sub_agent::persister::config_persister_file::ConfigurationPersisterFile;
     use newrelic_super_agent::sub_agent::values::values_repository::ValuesRepository;
     use newrelic_super_agent::super_agent::config::AgentID;
-    use newrelic_super_agent::{
-        sub_agent::event_processor_builder::EventProcessorBuilder,
-        sub_agent::opamp::client_builder::SubAgentOpAMPHttpBuilder,
-    };
 
     #[cfg(unix)]
     if !nix::unistd::Uid::effective().is_root() {
@@ -203,8 +201,8 @@ fn run_super_agent(
             .unwrap()
     });
 
+    info!("Starting the k8s client");
     let k8s_config = config_storer.load()?.k8s.ok_or(AgentError::K8sConfig())?;
-
     let k8s_client = Arc::new(
         newrelic_super_agent::k8s::client::SyncK8sClient::try_new_with_reflectors(
             runtime,
@@ -216,7 +214,10 @@ fn run_super_agent(
 
     let k8s_store = Arc::new(K8sStore::new(k8s_client.clone()));
 
+    // TODO There is no difference between the two objects,
+    // we have two since the super_agent doesn't accept an Arc
     let hash_repository = HashRepositoryConfigMap::new(k8s_store.clone());
+    let sub_agent_hash_repository = Arc::new(HashRepositoryConfigMap::new(k8s_store.clone()));
 
     let identifiers = instance_id::get_identifiers(k8s_config.cluster_name.clone());
     //Print identifiers for troubleshooting
@@ -225,7 +226,7 @@ fn run_super_agent(
     let instance_id_getter =
         ULIDInstanceIDGetter::try_with_identifiers(k8s_store.clone(), identifiers)?;
 
-    let (agents_assembler, _values_repository )=
+    let (agents_assembler, values_repository )=
         // TODO we need to garbage collect this once we are no longer checking local files
         {
             #[cfg(feature = "custom-local-path")]
@@ -239,11 +240,21 @@ fn run_super_agent(
             )
         };
 
+    let sub_agent_event_processor_builder =
+        EventProcessorBuilder::new(sub_agent_hash_repository.clone(), values_repository.clone());
+
+    let sub_agent_opamp_builder = opamp_client_builder
+        .as_ref()
+        .map(SubAgentOpAMPHttpBuilder::from);
+
+    info!("Creating the k8s sub_agent builder");
     let sub_agent_builder = newrelic_super_agent::sub_agent::k8s::builder::K8sSubAgentBuilder::new(
-        opamp_client_builder.as_ref(),
+        sub_agent_opamp_builder.as_ref(),
         &instance_id_getter,
         k8s_client.clone(),
+        sub_agent_hash_repository.clone(),
         &agents_assembler,
+        &sub_agent_event_processor_builder,
         k8s_config.clone(),
     );
 

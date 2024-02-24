@@ -1,120 +1,77 @@
+use crate::event::channel::EventPublisher;
+use crate::event::SubAgentInternalEvent;
+use crate::sub_agent::event_processor::SubAgentEventProcessor;
 use crate::sub_agent::k8s::CRSupervisor;
+use crate::sub_agent::{error::SubAgentError, NotStartedSubAgent, StartedSubAgent};
+use crate::sub_agent::{NotStarted, Started};
 use crate::super_agent::config::AgentID;
-use crate::{
-    opamp::operations::stop_opamp_client,
-    sub_agent::{error::SubAgentError, NotStartedSubAgent, StartedSubAgent},
-};
-use opamp_client::{operation::callbacks::Callbacks, StartedClient};
 use tracing::debug;
 
 ////////////////////////////////////////////////////////////////////////////////////
-// Not Started SubAgent On K8s
-// C: OpAMP Client
+// SubAgent On K8s
 ////////////////////////////////////////////////////////////////////////////////////
-pub struct NotStartedSubAgentK8s<CB, C>
-where
-    CB: Callbacks,
-    C: StartedClient<CB>,
-{
+pub struct SubAgentK8s<S> {
     agent_id: AgentID,
-    opamp_client: Option<C>,
-    supervisor: CRSupervisor,
-
-    // Needed to include this in the struct to avoid the compiler complaining about not using the type parameter `C`.
-    // It's actually used as a generic parameter for the `OpAMPClientBuilder` instance bound by type parameter `O`.
-    // Feel free to remove this when the actual implementations (Callbacks instance for K8s agents) make it redundant!
-    _callbacks: std::marker::PhantomData<CB>,
+    supervisor: Option<CRSupervisor>,
+    sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
+    state: S,
 }
 
-impl<CB, C> NotStartedSubAgentK8s<CB, C>
+impl<E> SubAgentK8s<NotStarted<E>>
 where
-    CB: Callbacks,
-    C: StartedClient<CB>,
+    E: SubAgentEventProcessor,
 {
-    pub fn new(agent_id: AgentID, opamp_client: Option<C>, supervisor: CRSupervisor) -> Self {
-        NotStartedSubAgentK8s {
+    pub fn new(
+        agent_id: AgentID,
+        event_processor: E,
+        sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
+        supervisor: Option<CRSupervisor>,
+    ) -> Self {
+        SubAgentK8s {
             agent_id,
-            opamp_client,
             supervisor,
-            _callbacks: std::marker::PhantomData,
+            sub_agent_internal_publisher,
+            state: NotStarted { event_processor },
         }
     }
 }
 
-impl<CB, C> NotStartedSubAgent for NotStartedSubAgentK8s<CB, C>
+impl<E> NotStartedSubAgent for SubAgentK8s<NotStarted<E>>
 where
-    CB: Callbacks,
-    C: StartedClient<CB>,
+    E: SubAgentEventProcessor,
 {
-    type StartedSubAgent = StartedSubAgentK8s<CB, C>;
+    type StartedSubAgent = SubAgentK8s<Started>;
 
     fn run(self) -> Result<Self::StartedSubAgent, SubAgentError> {
-        if let Err(err) = self
-            .supervisor
-            .apply()
-            .map_err(SubAgentError::SupervisorError)
-        {
-            debug!(
-                "The creation of the resources failed for '{}': '{}'",
-                self.agent_id, err
-            );
-            if let Some(handle) = self.opamp_client {
-                let health = opamp_client::opamp::proto::AgentHealth {
-                    healthy: false,
-                    last_error: err.to_string(),
-                    start_time_unix_nano: 0,
-                };
-                handle.set_health(health)?;
-                handle.stop()?;
-            }
-            return Err(err);
+        if let Some(cr_supervisor) = &self.supervisor {
+            cr_supervisor.apply().inspect_err(|err| {
+                debug!(
+                    "The creation of the resources failed for '{}': '{}'",
+                    self.agent_id, err
+                )
+            })?;
         }
 
-        Ok(StartedSubAgentK8s::new(self.agent_id, self.opamp_client))
+        Ok(SubAgentK8s {
+            agent_id: self.agent_id,
+            supervisor: self.supervisor,
+            sub_agent_internal_publisher: self.sub_agent_internal_publisher,
+            state: Started {
+                event_loop_handle: self.state.event_processor.process(),
+            },
+        })
     }
 }
 
-////////////////////////////////////////////////////////////////////////////////////
-// Started SubAgent On K8s
-// C: OpAMP Client
-// S: Supervisor Trait
-////////////////////////////////////////////////////////////////////////////////////
-pub struct StartedSubAgentK8s<CB, C>
-where
-    CB: Callbacks,
-    C: StartedClient<CB>,
-{
-    agent_id: AgentID,
-    opamp_client: Option<C>,
-
-    // Needed to include this in the struct to avoid the compiler complaining about not using the type parameter `C`.
-    // It's actually used as a generic parameter for the `OpAMPClientBuilder` instance bound by type parameter `O`.
-    // Feel free to remove this when the actual implementations (Callbacks instance for K8s agents) make it redundant!
-    _callbacks: std::marker::PhantomData<CB>,
-}
-
-impl<CB, C> StartedSubAgentK8s<CB, C>
-where
-    CB: Callbacks,
-    C: StartedClient<CB>,
-{
-    fn new(agent_id: AgentID, opamp_client: Option<C>) -> Self {
-        StartedSubAgentK8s {
-            agent_id,
-            opamp_client,
-            _callbacks: std::marker::PhantomData,
-        }
-    }
-}
-
-impl<CB, C> StartedSubAgent for StartedSubAgentK8s<CB, C>
-where
-    CB: Callbacks,
-    C: StartedClient<CB>,
-{
-    // Stop does not deletes directly the CR. It will be the garbage collector doing so if needed.
+impl StartedSubAgent for SubAgentK8s<Started> {
+    // Stop does not delete directly the CR. It will be the garbage collector doing so if needed.
     fn stop(self) -> Result<Vec<std::thread::JoinHandle<()>>, SubAgentError> {
-        stop_opamp_client(self.opamp_client, &self.agent_id)?;
+        self.sub_agent_internal_publisher
+            .publish(SubAgentInternalEvent::StopRequested)?;
+
+        self.state.event_loop_handle.join().map_err(|_| {
+            SubAgentError::PoisonError(String::from("error handling event_loop_handle"))
+        })??;
         Ok(vec![])
     }
 }

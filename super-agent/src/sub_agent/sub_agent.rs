@@ -2,6 +2,8 @@ use crate::event::channel::EventPublisher;
 use crate::event::SubAgentEvent;
 use crate::opamp::callbacks::AgentCallbacks;
 use crate::sub_agent::error;
+use crate::sub_agent::error::SubAgentError;
+use crate::sub_agent::event_processor::SubAgentEventProcessor;
 use crate::sub_agent::logger::AgentLog;
 use crate::sub_agent::opamp::remote_config_publisher::SubAgentRemoteConfigPublisher;
 use crate::super_agent::config::{AgentID, SubAgentConfig};
@@ -33,9 +35,25 @@ pub trait SubAgentBuilder {
     ) -> Result<Self::NotStartedSubAgent, error::SubAgentBuilderError>;
 }
 
+////////////////////////////////////////////////////////////////////////////////////
+// States for Started/Not Started Sub Agents
+////////////////////////////////////////////////////////////////////////////////////
+pub struct NotStarted<E>
+where
+    E: SubAgentEventProcessor,
+{
+    pub(crate) event_processor: E,
+}
+
+pub struct Started {
+    pub(crate) event_loop_handle: JoinHandle<Result<(), SubAgentError>>,
+}
+
 #[cfg(test)]
 pub mod test {
     use super::*;
+    use crate::sub_agent::error::SubAgentBuilderError;
+    use crate::sub_agent::error::SubAgentError::ErrorCreatingSubAgent;
     use mockall::{mock, predicate};
 
     mock! {
@@ -119,6 +137,14 @@ pub mod test {
                     predicate::always(),
                 )
                 .return_once(move |_, _, _, _| Ok(sub_agent));
+        }
+
+        pub(crate) fn should_not_build(&mut self, times: usize) {
+            self.expect_build().times(times).returning(|_, _, _, _| {
+                Err(SubAgentBuilderError::SubAgent(ErrorCreatingSubAgent(
+                    "error creating sub agent".to_string(),
+                )))
+            });
         }
     }
 }

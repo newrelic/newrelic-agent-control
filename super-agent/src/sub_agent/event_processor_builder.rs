@@ -87,6 +87,7 @@ pub mod test {
     use crate::super_agent::config::AgentID;
     use mockall::mock;
     use opamp_client::StartedClient;
+    use std::thread;
 
     mock! {
 
@@ -121,6 +122,20 @@ pub mod test {
             self.expect_build()
                 .once()
                 .return_once(move |_, _, _, _, _| processor);
+        }
+
+        pub fn should_return_event_processor_with_consumer(&mut self) {
+            let mut sub_agent_event_processor = MockEventProcessorMock::default();
+            sub_agent_event_processor.should_process();
+
+            self.expect_build()
+                .once()
+                .return_once(move |_, _, _, consumer, _| {
+                    thread::spawn(move || {
+                        _ = consumer.as_ref().recv();
+                    });
+                    sub_agent_event_processor
+                });
         }
     }
 }
