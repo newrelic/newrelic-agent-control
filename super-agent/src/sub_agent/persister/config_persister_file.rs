@@ -190,7 +190,8 @@ where
 #[cfg(test)]
 mod test {
     use crate::agent_type::agent_values::AgentValues;
-    use crate::agent_type::definition::{AgentAttributes, AgentType};
+    use crate::agent_type::definition::{AgentAttributes, AgentType, RawAgentType};
+    use crate::agent_type::environment::Environment;
     use crate::sub_agent::persister::config_persister::ConfigurationPersister;
     use crate::sub_agent::persister::config_persister_file::{
         DIRECTORY_PERMISSIONS, FILE_PERMISSIONS,
@@ -238,8 +239,9 @@ mod test {
         let mut directory_manager = MockDirectoryManagerMock::new();
         let file_permissions = Permissions::from_mode(FILE_PERMISSIONS);
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let mut agent_type: AgentType =
+        let raw_agent_type: RawAgentType =
             serde_yaml::from_reader(AGENT_TYPE_MULTIPLE_FILES.as_bytes()).unwrap();
+        let mut agent_type = raw_agent_type.try_build(&Environment::OnHost).unwrap();
         let agent_values: AgentValues =
             serde_yaml::from_reader(AGENT_VALUES_MULTIPLE_FILES.as_bytes()).unwrap();
 
@@ -305,8 +307,9 @@ mod test {
         let mut directory_manager = MockDirectoryManagerMock::new();
         let file_permissions = Permissions::from_mode(FILE_PERMISSIONS);
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let mut agent_type: AgentType =
+        let raw_agent_type: RawAgentType =
             serde_yaml::from_reader(AGENT_TYPE_SINGLE_MAP_FILE.as_bytes()).unwrap();
+        let mut agent_type = raw_agent_type.try_build(&Environment::OnHost).unwrap();
         let agent_values: AgentValues =
             serde_yaml::from_reader(AGENT_VALUES_SINGLE_MAP_FILE.as_bytes()).unwrap();
 
@@ -393,8 +396,9 @@ mod test {
         let mut directory_manager = MockDirectoryManagerMock::new();
         let file_permissions = Permissions::from_mode(FILE_PERMISSIONS);
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let mut agent_type: AgentType =
+        let raw_agent_type: RawAgentType =
             serde_yaml::from_reader(AGENT_TYPE_MULTIPLE_MAP_FILE.as_bytes()).unwrap();
+        let mut agent_type = raw_agent_type.try_build(&Environment::OnHost).unwrap();
         let agent_values: AgentValues =
             serde_yaml::from_reader(AGENT_VALUES_MULTIPLE_MAP_FILE.as_bytes()).unwrap();
 
@@ -491,8 +495,9 @@ mod test {
         let file_writer = MockLocalFile::new();
         let mut directory_manager = MockDirectoryManagerMock::new();
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let mut agent_type: AgentType =
+        let raw_agent_type: RawAgentType =
             serde_yaml::from_reader(AGENT_TYPE_SINGLE_FILE.as_bytes()).unwrap();
+        let mut agent_type = raw_agent_type.try_build(&Environment::OnHost).unwrap();
         let agent_values: AgentValues =
             serde_yaml::from_reader(AGENT_VALUES_SINGLE_FILE.as_bytes()).unwrap();
 
@@ -535,8 +540,9 @@ mod test {
         let file_writer = MockLocalFile::new();
         let mut directory_manager = MockDirectoryManagerMock::new();
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let mut agent_type: AgentType =
+        let raw_agent_type: RawAgentType =
             serde_yaml::from_reader(AGENT_TYPE_SINGLE_FILE.as_bytes()).unwrap();
+        let mut agent_type = raw_agent_type.try_build(&Environment::OnHost).unwrap();
         let agent_values: AgentValues =
             serde_yaml::from_reader(AGENT_VALUES_SINGLE_FILE.as_bytes()).unwrap();
 
@@ -585,8 +591,9 @@ mod test {
         let file_writer = MockLocalFile::new();
         let mut directory_manager = MockDirectoryManagerMock::new();
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let mut agent_type: AgentType =
+        let raw_agent_type: RawAgentType =
             serde_yaml::from_reader(AGENT_TYPE_SINGLE_FILE.as_bytes()).unwrap();
+        let mut agent_type = raw_agent_type.try_build(&Environment::OnHost).unwrap();
         let agent_values: AgentValues =
             serde_yaml::from_reader(AGENT_VALUES_SINGLE_FILE.as_bytes()).unwrap();
 
@@ -630,8 +637,9 @@ mod test {
         let mut file_writer = MockLocalFile::new();
         let mut directory_manager = MockDirectoryManagerMock::new();
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let mut agent_type: AgentType =
+        let raw_agent_type: RawAgentType =
             serde_yaml::from_reader(AGENT_TYPE_MULTIPLE_FILES.as_bytes()).unwrap();
+        let mut agent_type = raw_agent_type.try_build(&Environment::OnHost).unwrap();
         let agent_values: AgentValues =
             serde_yaml::from_reader(AGENT_VALUES_MULTIPLE_FILES.as_bytes()).unwrap();
 
@@ -680,8 +688,9 @@ mod test {
         let mut file_writer = MockLocalFile::new();
         let mut directory_manager = MockDirectoryManagerMock::new();
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let mut agent_type: AgentType =
+        let raw_agent_type: RawAgentType =
             serde_yaml::from_reader(AGENT_TYPE_SINGLE_MAP_FILE.as_bytes()).unwrap();
+        let mut agent_type = raw_agent_type.try_build(&Environment::OnHost).unwrap();
         let agent_values: AgentValues =
             serde_yaml::from_reader(AGENT_VALUES_SINGLE_MAP_FILE.as_bytes()).unwrap();
 

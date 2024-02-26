@@ -114,7 +114,8 @@ mod tests {
     use serde_yaml::{Mapping, Value};
 
     use crate::agent_type::{
-        definition::AgentType,
+        definition::RawAgentType,
+        environment::Environment,
         trivial_value::FilePathWithContent,
         variable::definition::{VariableDefinition, VariableDefinitionTree},
     };
@@ -253,7 +254,10 @@ deployment:
     #[test]
     fn test_update_specs() {
         let input_structure = serde_yaml::from_str::<AgentValues>(EXAMPLE_CONFIG_REPLACE).unwrap();
-        let mut agent_type = serde_yaml::from_str::<AgentType>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
+        let mut agent_type = serde_yaml::from_str::<RawAgentType>(EXAMPLE_AGENT_YAML_REPLACE)
+            .unwrap()
+            .try_build(&Environment::OnHost)
+            .unwrap();
 
         let expected = HashMap::from([
             (
@@ -333,7 +337,10 @@ deployment:
     fn test_validate_with_agent_type_missing_required() {
         let input_structure =
             serde_yaml::from_str::<AgentValues>(EXAMPLE_CONFIG_REPLACE_NOPATH).unwrap();
-        let mut agent_type = serde_yaml::from_str::<AgentType>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
+        let mut agent_type = serde_yaml::from_str::<RawAgentType>(EXAMPLE_AGENT_YAML_REPLACE)
+            .unwrap()
+            .try_build(&Environment::OnHost)
+            .unwrap();
 
         let actual = agent_type.merge_variables_with_values(input_structure);
 
@@ -358,7 +365,10 @@ deployment:
     fn test_validate_with_agent_type_wrong_value_type() {
         let input_structure =
             serde_yaml::from_str::<AgentValues>(EXAMPLE_CONFIG_REPLACE_WRONG_TYPE).unwrap();
-        let mut agent_type = serde_yaml::from_str::<AgentType>(EXAMPLE_AGENT_YAML_REPLACE).unwrap();
+        let mut agent_type = serde_yaml::from_str::<RawAgentType>(EXAMPLE_AGENT_YAML_REPLACE)
+            .unwrap()
+            .try_build(&Environment::OnHost)
+            .unwrap();
 
         let actual = agent_type.merge_variables_with_values(input_structure);
 
