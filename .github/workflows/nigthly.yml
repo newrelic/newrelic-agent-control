@@ -5,7 +5,8 @@ name: Nightly release
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 4 * * *"
+    # Scheduled to run at 4 a.m on every day-of-week from Monday through Friday.
+    - cron: "0 4 * * 1-5"
 
 jobs:
   build-push:
