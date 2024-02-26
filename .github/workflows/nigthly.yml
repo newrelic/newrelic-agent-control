@@ -30,6 +30,7 @@ jobs:
       TAG: "0.7.1"
       UNIQUE_NAME: "nightly:e2e"
       EC2_FILTERS: '[\"ubuntu\"]'
+      FORCE_CLEANUP: true
     secrets:
       AWS_ROLE_ARN: ${{ secrets.TMP_AWS_ROLE_ARN }}
       AWS_VPC_SUBNET: ${{ secrets.TMP_AWS_VPC_SUBNET }}
