@@ -13,7 +13,7 @@
 
     - name: Setup Infra Agent values
       include_role:
-        name: infra-agent-values
+        name: infra-agent-config
 
     - name: Restart New Relic Super Agent
       ansible.builtin.service:
