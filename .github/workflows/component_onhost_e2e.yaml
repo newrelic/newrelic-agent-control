@@ -34,7 +34,7 @@ permissions:
 
 jobs:
   infra:
-    name: Prepare infra
+    name: Provision infra and run OnHost E2E tests
 
     runs-on: ubuntu-20.04
 
