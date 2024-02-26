@@ -24,7 +24,6 @@ use newrelic_super_agent::{
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::error::Error;
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::str::FromStr;

@@ -1,11 +1,9 @@
 use crate::k8s;
+use crate::k8s::store::K8sStore;
 use crate::opamp::instance_id::getter::ULIDInstanceIDGetter;
 use crate::opamp::instance_id::k8s::storer::{Storer, StorerError};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-
-#[cfg_attr(test, mockall_double::double)]
-use crate::k8s::client::SyncK8sClient;
 
 #[derive(Default, Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct Identifiers {
@@ -27,9 +25,9 @@ pub enum GetterError {
 
 impl ULIDInstanceIDGetter<Storer> {
     pub fn try_with_identifiers(
-        k8s_client: Arc<SyncK8sClient>,
+        k8s_store: Arc<K8sStore>,
         identifiers: Identifiers,
     ) -> Result<Self, GetterError> {
-        Ok(Self::new(Storer::new(k8s_client), identifiers))
+        Ok(Self::new(Storer::new(k8s_store), identifiers))
     }
 }

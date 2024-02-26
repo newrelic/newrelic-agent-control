@@ -49,6 +49,8 @@ fn k8s_sub_agent_started() {
     );
 
     child.kill().expect("Failed to kill child process");
+
+    // TODO Clean resources after finish when working with this test in the future.
 }
 
 async fn check_deployment_exists(

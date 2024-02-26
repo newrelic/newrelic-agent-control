@@ -160,7 +160,8 @@ fn run_super_agent(
     opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
 ) -> Result<(), AgentError> {
     use newrelic_super_agent::k8s::garbage_collector::NotStartedK8sGarbageCollector;
-    use newrelic_super_agent::opamp::hash_repository::HashRepositoryFile;
+    use newrelic_super_agent::k8s::store::K8sStore;
+    use newrelic_super_agent::opamp::hash_repository::HashRepositoryConfigMap;
     use newrelic_super_agent::opamp::instance_id;
     use newrelic_super_agent::opamp::operations::build_opamp_and_start_client;
     use newrelic_super_agent::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
@@ -178,7 +179,6 @@ fn run_super_agent(
             .unwrap()
     });
 
-    let hash_repository = HashRepositoryFile::default();
     let k8s_config = config_storer.load()?.k8s.ok_or(AgentError::K8sConfig())?;
 
     let k8s_client = Arc::new(
@@ -190,8 +190,12 @@ fn run_super_agent(
         .map_err(|e| AgentError::ExternalError(e.to_string()))?,
     );
 
+    let k8s_store = Arc::new(K8sStore::new(k8s_client.clone()));
+
+    let hash_repository = HashRepositoryConfigMap::new(k8s_store.clone());
+
     let instance_id_getter = ULIDInstanceIDGetter::try_with_identifiers(
-        k8s_client.clone(),
+        k8s_store.clone(),
         instance_id::get_identifiers(k8s_config.cluster_name.clone()),
     )?;
 
