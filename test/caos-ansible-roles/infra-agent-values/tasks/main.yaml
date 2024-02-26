@@ -1,5 +1,0 @@
----
-
-- include_tasks: "config-{{ ansible_system }}.yaml"
-
-...
