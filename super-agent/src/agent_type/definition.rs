@@ -9,6 +9,7 @@ use std::path::PathBuf;
 use std::{collections::HashMap, str::FromStr};
 
 use super::agent_values::AgentValues;
+use super::environment::Environment;
 use super::restart_policy::BackoffDuration;
 use super::variable::definition::{VariableDefinition, VariableDefinitionTree};
 use super::{
