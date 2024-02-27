@@ -12,9 +12,6 @@ use tracing::debug;
 pub enum HashRepositoryError {
     #[error("failed to persist on Config Map {0}")]
     FailedToPersistK8s(#[from] k8s::Error),
-
-    #[error("entry not found")]
-    NotFound,
 }
 
 pub struct HashRepositoryConfigMap {
@@ -36,13 +33,12 @@ impl HashRepository for HashRepositoryConfigMap {
         Ok(())
     }
 
-    fn get(&self, agent_id: &AgentID) -> Result<Hash, HashRepositoryError> {
+    fn get(&self, agent_id: &AgentID) -> Result<Option<Hash>, HashRepositoryError> {
         debug!("getting remote config hash of agent_id: {}", agent_id);
 
-        if let Some(hash) = self.k8s_store.get(agent_id, STORE_KEY_REMOTE_CONFIG_HASH)? {
-            return Ok(hash);
+        match self.k8s_store.get(agent_id, STORE_KEY_REMOTE_CONFIG_HASH)? {
+            Some(hash) => Ok(Some(hash)),
+            None => Ok(None),
         }
-
-        Err(HashRepositoryError::NotFound)
     }
 }

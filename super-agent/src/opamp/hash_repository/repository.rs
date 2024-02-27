@@ -4,7 +4,7 @@ use crate::super_agent::config::AgentID;
 
 pub trait HashRepository {
     fn save(&self, agent_id: &AgentID, hash: &Hash) -> Result<(), HashRepositoryError>;
-    fn get(&self, agent_id: &AgentID) -> Result<Hash, HashRepositoryError>;
+    fn get(&self, agent_id: &AgentID) -> Result<Option<Hash>, HashRepositoryError>;
 }
 
 #[cfg(test)]
@@ -19,7 +19,7 @@ pub mod test {
 
             fn save(&self, agent_id: &AgentID, hash:&Hash) -> Result<(), HashRepositoryError>;
 
-            fn get(&self, agent_id: &AgentID) -> Result<Hash, HashRepositoryError>;
+            fn get(&self, agent_id: &AgentID) -> Result<Option<Hash>, HashRepositoryError>;
         }
     }
 
@@ -28,7 +28,7 @@ pub mod test {
             self.expect_get()
                 .with(predicate::eq(agent_id.clone()))
                 .once()
-                .returning(move |_| Ok(hash.clone()));
+                .returning(move |_| Ok(Some(hash.clone())));
         }
         pub fn should_save_hash(&mut self, agent_id: &AgentID, hash: &Hash) {
             self.expect_save()

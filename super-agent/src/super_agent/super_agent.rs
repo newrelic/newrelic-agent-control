@@ -85,22 +85,18 @@ where
         let output_manager = StdEventReceiver::default().log(rx);
 
         if let Some(opamp_handle) = &self.opamp_client {
-            // TODO should we error on first launch with no hash file?
-            let remote_config_hash = self
-                .remote_config_hash_repository
-                .get(&self.agent_id)
-                .map_err(|e| {
-                    warn!(
-                        "OpAMP enabled but no previous remote configuration found: {}",
-                        e
-                    )
-                })
-                .ok();
-
-            if let Some(mut hash) = remote_config_hash {
-                if !hash.is_applied() {
-                    report_remote_config_status_applied(opamp_handle, &hash)?;
-                    self.set_config_hash_as_applied(&mut hash)?;
+            match self.remote_config_hash_repository.get(&self.agent_id) {
+                Err(e) => {
+                    error!("Failed getting remote config hash from the store: {}", e);
+                }
+                Ok(Some(mut hash)) => {
+                    if !hash.is_applied() {
+                        report_remote_config_status_applied(opamp_handle, &hash)?;
+                        self.set_config_hash_as_applied(&mut hash)?;
+                    }
+                }
+                Ok(None) => {
+                    warn!("OpAMP enabled but no previous remote configuration found");
                 }
             }
         }
@@ -460,7 +456,7 @@ mod tests {
         hash_repository_mock.expect_get().times(1).returning(|_| {
             let mut hash = Hash::new("a-hash".to_string());
             hash.apply();
-            Ok(hash)
+            Ok(Some(hash))
         });
 
         // no agents in the supervisor group
@@ -496,7 +492,7 @@ mod tests {
         hash_repository_mock.expect_get().times(1).returning(|_| {
             let mut hash = Hash::new("a-hash".to_string());
             hash.apply();
-            Ok(hash)
+            Ok(Some(hash))
         });
 
         // it should build two subagents: nrdot + infra-agent
@@ -554,7 +550,7 @@ mod tests {
             .returning(|_| {
                 let mut hash = Hash::new("a-hash".to_string());
                 hash.apply();
-                Ok(hash)
+                Ok(Some(hash))
             });
 
         hash_repository_mock
