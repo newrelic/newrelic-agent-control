@@ -82,7 +82,7 @@ where
     D: ValuesRepository,
 {
     registry: R,
-    config_persister: C,
+    config_persister: Option<C>,
     values_repository: D,
     remote_enabled: bool,
     local_conf_path: Option<String>,
@@ -98,7 +98,7 @@ impl Default
     fn default() -> Self {
         LocalEffectiveAgentsAssembler {
             registry: LocalRegistry::default(),
-            config_persister: ConfigurationPersisterFile::default(),
+            config_persister: None,
             values_repository: ValuesRepositoryFile::default().with_remote(),
             remote_enabled: false,
             local_conf_path: None,
@@ -112,19 +112,25 @@ where
     C: ConfigurationPersister,
     D: ValuesRepository,
 {
-    pub fn with_remote(mut self) -> LocalEffectiveAgentsAssembler<R, C, D> {
-        self.remote_enabled = true;
-        self
+    pub fn with_remote(self) -> LocalEffectiveAgentsAssembler<R, C, D> {
+        Self {
+            remote_enabled: true,
+            ..self
+        }
     }
 
-    pub fn with_values_repository(mut self, values_repository: D) -> Self {
-        self.values_repository = values_repository;
-        self
+    pub fn with_values_repository(self, values_repository: D) -> Self {
+        Self {
+            values_repository,
+            ..self
+        }
     }
 
-    pub fn with_config_persister(mut self, config_persister: C) -> Self {
-        self.config_persister = config_persister;
-        self
+    pub fn with_config_persister(self, config_persister: C) -> Self {
+        Self {
+            config_persister: config_persister.into(),
+            ..self
+        }
     }
 
     pub fn build_absolute_path(&self, path: Option<&String>, agent_id: &AgentID) -> PathBuf {
@@ -139,9 +145,11 @@ where
     }
 
     #[cfg(feature = "custom-local-path")]
-    pub fn with_base_dir(mut self, base_dir: &str) -> Self {
-        self.local_conf_path = Some(format!("{}{}", base_dir, SUPER_AGENT_DATA_DIR));
-        self
+    pub fn with_base_dir(self, base_dir: &str) -> Self {
+        Self {
+            local_conf_path: Some(format!("{}{}", base_dir, SUPER_AGENT_DATA_DIR)),
+            ..self
+        }
     }
 }
 
@@ -166,23 +174,23 @@ where
 
         let agent_values = self.values_repository.load(agent_id, &final_agent)?;
 
-        let generated_conf_path = self.build_absolute_path(self.local_conf_path.as_ref(), agent_id);
-
         let agent_attributes = AgentAttributes {
-            generated_configs_path: Some(generated_conf_path),
+            // This is needed to create path for "file" variables, not used in k8s.
+            generated_configs_path: self
+                .build_absolute_path(self.local_conf_path.as_ref(), agent_id),
             agent_id: agent_id.get(),
         };
 
         // populate with values
         let populated_agent = final_agent.template(agent_values, agent_attributes)?;
 
-        // clean existing config files if any
-        self.config_persister
-            .delete_agent_config(agent_id, &populated_agent)?;
-
-        // persist config if agent requires it
-        self.config_persister
-            .persist_agent_config(agent_id, &populated_agent)?;
+        // Use the configuration persister if present to manage agent configuration files
+        if let Some(persister) = &self.config_persister {
+            // clean existing config files if any
+            persister.delete_agent_config(agent_id, &populated_agent)?;
+            // persist config if agent requires it
+            persister.persist_agent_config(agent_id, &populated_agent)?;
+        }
 
         Ok(EffectiveAgent::new(
             agent_id.clone(),
@@ -271,7 +279,7 @@ pub(crate) mod tests {
     {
         pub fn new(
             registry: R,
-            config_persister: C,
+            config_persister: Option<C>,
             remote_values_repo: D,
             opamp_enabled: bool,
         ) -> Self {
@@ -314,7 +322,7 @@ pub(crate) mod tests {
 
         let assembler = LocalEffectiveAgentsAssembler::new(
             registry,
-            config_persister,
+            config_persister.into(),
             sub_agent_values_repo,
             false,
         );
@@ -366,7 +374,7 @@ pub(crate) mod tests {
 
         let assembler = LocalEffectiveAgentsAssembler::new(
             registry,
-            config_persister,
+            Some(config_persister),
             sub_agent_values_repo,
             true,
         );
@@ -409,7 +417,7 @@ pub(crate) mod tests {
 
         let assembler = LocalEffectiveAgentsAssembler::new(
             registry,
-            config_persister,
+            Some(config_persister),
             sub_agent_values_repo,
             false,
         );
@@ -444,7 +452,7 @@ pub(crate) mod tests {
 
         let assembler = LocalEffectiveAgentsAssembler::new(
             registry,
-            config_persister,
+            Some(config_persister),
             sub_agent_values_repo,
             false,
         );
@@ -479,7 +487,7 @@ pub(crate) mod tests {
 
         let assembler = LocalEffectiveAgentsAssembler::new(
             registry,
-            config_persister,
+            Some(config_persister),
             sub_agent_values_repo,
             false,
         );
@@ -522,7 +530,7 @@ pub(crate) mod tests {
 
         let assembler = LocalEffectiveAgentsAssembler::new(
             registry,
-            config_persister,
+            Some(config_persister),
             sub_agent_values_repo,
             true,
         );
@@ -566,7 +574,7 @@ pub(crate) mod tests {
 
         let assembler = LocalEffectiveAgentsAssembler::new(
             registry,
-            config_persister,
+            Some(config_persister),
             sub_agent_values_repo,
             true,
         );
@@ -578,6 +586,39 @@ pub(crate) mod tests {
             "error assembling agents: `directory error: `cannot delete directory: `oh no...```",
             result.err().unwrap().to_string()
         );
+    }
+
+    #[test]
+    fn test_assemble_agent_without_config_persister() {
+        let mut registry = MockAgentRegistryMock::new();
+        let mut sub_agent_values_repo = MockRemoteValuesRepositoryMock::new();
+
+        let agent_id = AgentID::new("some-agent-id").unwrap();
+        let final_agent: AgentType = serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
+        let agent_values: AgentValues = serde_yaml::from_reader(AGENT_VALUES.as_bytes()).unwrap();
+        let sub_agent_config = SubAgentConfig {
+            agent_type: "some_fqn".into(),
+        };
+
+        //Delete remote as opamp is disabled
+        sub_agent_values_repo.should_delete_remote(&agent_id);
+        registry.should_get("some_fqn".to_string(), &final_agent);
+        sub_agent_values_repo.should_load(&agent_id, &final_agent, &agent_values);
+        let populated_agent = final_agent
+            .template(agent_values.clone(), AgentAttributes::default())
+            .unwrap();
+
+        // Create an instance of the assembler with config_persister set to None
+        let assembler = LocalEffectiveAgentsAssembler::new(
+            registry,
+            None::<MockConfigurationPersisterMock>,
+            sub_agent_values_repo,
+            false,
+        );
+
+        let result = assembler.assemble_agent(&agent_id, &sub_agent_config);
+
+        assert!(result.is_ok());
     }
 
     ////////////////////////////////////////////////////////////////////////////////////

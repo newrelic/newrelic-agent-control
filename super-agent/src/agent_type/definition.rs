@@ -280,7 +280,7 @@ impl VariableNamespace {
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct AgentAttributes {
     /// sub-agent generated config path
-    pub generated_configs_path: Option<PathBuf>,
+    pub generated_configs_path: PathBuf,
     /// sub-agent Agent ID
     pub agent_id: String,
 }
@@ -301,11 +301,9 @@ impl AgentAttributes {
         &self,
         mut variables: HashMap<String, VariableDefinition>,
     ) -> HashMap<String, VariableDefinition> {
-        if let Some(path) = self.generated_configs_path.as_ref() {
-            variables
-                .values_mut()
-                .for_each(|v| v.extend_file_path(path.as_path()));
-        }
+        variables
+            .values_mut()
+            .for_each(|v| v.extend_file_path(self.generated_configs_path.as_path()));
         variables
     }
 }
@@ -885,7 +883,7 @@ config: |
             .template(
                 input_user_config,
                 AgentAttributes {
-                    generated_configs_path: Some(PathBuf::from("an/agents-config/path")),
+                    generated_configs_path: PathBuf::from("an/agents-config/path"),
                     agent_id: "test".to_string(),
                 },
             )
