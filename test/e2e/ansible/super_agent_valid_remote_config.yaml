@@ -185,7 +185,7 @@
       pause:
         seconds: 30
 
-    - name: Assert Super Agent and Infra Agent are running and Collector is not
+    - name: Assert Super Agent and Collector are running and Infra Agent is not
       include_role:
         name: caos.ansible_roles.assert_process_running
       vars:
