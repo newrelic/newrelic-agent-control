@@ -13,10 +13,10 @@ use crate::{
 use opamp_client::StartedClient;
 
 impl<C, S, R> EventProcessor<C, S, R>
-    where
-        C: StartedClient<SubAgentCallbacks> + 'static,
-        S: HashRepository,
-        R: ValuesRepository,
+where
+    C: StartedClient<SubAgentCallbacks> + 'static,
+    S: HashRepository,
+    R: ValuesRepository,
 {
     pub(crate) fn valid_remote_config(
         &self,
