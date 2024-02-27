@@ -29,9 +29,9 @@ where
     pub(crate) sub_agent_publisher: EventPublisher<SubAgentEvent>,
     pub(crate) sub_agent_opamp_consumer: EventConsumer<OpAMPEvent>,
     pub(crate) sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
+    pub(crate) maybe_opamp_client: Option<C>,
     pub(crate) sub_agent_remote_config_hash_repository: Arc<H>,
     pub(crate) remote_values_repo: Arc<R>,
-    pub(crate) maybe_opamp_client: Option<C>,
 }
 
 impl<C, H, R> EventProcessor<C, H, R>
