@@ -10,7 +10,7 @@ fn cmd_with_config_file(file_path: &Path) -> Command {
     let mut cmd = Command::cargo_bin("newrelic-super-agent").unwrap();
     cmd.arg("--config").arg(file_path);
     // cmd_assert is not made for long running programs, so we kill it anyway after 1 second
-    cmd.timeout(Duration::from_secs(1));
+    cmd.timeout(Duration::from_secs(2));
     cmd
 }
 
@@ -26,23 +26,18 @@ fn default_log_level_no_root() {
         .failure()
         .stdout(
             predicate::str::is_match(
-                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Creating the signal handler",
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*New Relic Super Agent Version: .*, Rust Version: .*, GitCommit: .*, BuildDate: .*",
             )
-            .unwrap(),
-        )
-        .stdout(
-            predicate::str::is_match(
-                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Creating the global context",
-            )
-            .unwrap(),
+                .unwrap(),
         )
         .stdout(
             predicate::str::is_match(
                 r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*ERROR.*Program must run as root",
             )
-            .unwrap(),
+                .unwrap(),
         );
 }
+
 #[test]
 fn default_log_level_as_root() {
     let dir = TempDir::new().unwrap();
@@ -55,27 +50,21 @@ fn default_log_level_as_root() {
         .failure()
         .stdout(
             predicate::str::is_match(
-                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Creating the signal handler",
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*New Relic Super Agent Version: .*, Rust Version: .*, GitCommit: .*, BuildDate: .*",
             )
-            .unwrap(),
-        )
-        .stdout(
-            predicate::str::is_match(
-                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Creating the global context",
-            )
-            .unwrap(),
+                .unwrap(),
         )
         .stdout(
             predicate::str::is_match(
                 r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Starting the super agent",
             )
-            .unwrap(),
+                .unwrap(),
         )
         .stdout(
             predicate::str::is_match(
                 r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Starting the supervisor group",
             )
-            .unwrap(),
+                .unwrap(),
         );
 }
 
@@ -98,13 +87,13 @@ fn debug_log_level_no_root() {
         )
         .stdout(
             predicate::str::is_match(
-                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Creating the signal handler",
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*DEBUG.*Creating the signal handler",
             )
             .unwrap(),
         )
         .stdout(
             predicate::str::is_match(
-                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Creating the global context",
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*DEBUG.*Creating the global context",
             )
             .unwrap(),
         )
@@ -135,13 +124,13 @@ fn debug_log_level_as_root() {
         )
         .stdout(
             predicate::str::is_match(
-                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Creating the signal handler",
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*DEBUG.*Creating the signal handler",
             )
             .unwrap(),
         )
         .stdout(
             predicate::str::is_match(
-                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Creating the global context",
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*DEBUG.*Creating the global context",
             )
             .unwrap(),
         )

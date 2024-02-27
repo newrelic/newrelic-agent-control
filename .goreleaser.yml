@@ -15,6 +15,7 @@ builds:
             - ARCH={{ .Arch }}
             - BUILD_FEATURE=onhost
             - BIN=newrelic-super-agent
+            - SUPER_AGENT_VERSION={{ .Version }}
         - cmd: sh ./build/scripts/replace_go_with_rust.sh
           env:
             - ARCH={{ .Arch }}
@@ -38,6 +39,7 @@ builds:
             - ARCH={{ .Arch }}
             - BUILD_FEATURE=onhost
             - BIN=newrelic-config-migrate
+            - SUPER_AGENT_VERSION={{ .Version }}
         - cmd: sh ./build/scripts/replace_go_with_rust.sh
           env:
             - ARCH={{ .Arch }}
@@ -176,8 +178,7 @@ nfpms:
     license: Apache 2.0
 
 signs:
-  -
-    id: checksums
+  - id: checksums
 
     # Path to the checksum command.
     cmd: ./build/scripts/generate_checksum.sh
@@ -185,8 +186,7 @@ signs:
       "-f", "{{ .Env.artifact }}",
     ]
     artifacts: all
-  -
-    id: signing
+  - id: signing
 
     # Path to the signature command.
     cmd: ./build/scripts/signing/sign.sh

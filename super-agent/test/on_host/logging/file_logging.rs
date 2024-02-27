@@ -42,25 +42,19 @@ fn default_log_level_no_root() {
         .failure()
         .stdout(
             predicate::str::is_match(
-                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Creating the signal handler",
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*New Relic Super Agent Version: .*, Rust Version: .*, GitCommit: .*, BuildDate: .*",
             )
-            .unwrap(),
-        )
-        .stdout(
-            predicate::str::is_match(
-                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Creating the global context",
-            )
-            .unwrap(),
+                .unwrap(),
         )
         .stdout(
             predicate::str::is_match(
                 r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*ERROR.*Program must run as root",
             )
-            .unwrap(),
+                .unwrap(),
         );
 
     // Let's wait for a second so the flushed contents arrive to the files
-    std::thread::sleep(Duration::from_secs(1));
+    std::thread::sleep(Duration::from_secs(2));
 
     // Now, we assert that the file(s) created are present and have the expected content
     let dir: Vec<_> = read_dir(log_dir)
@@ -77,8 +71,6 @@ fn default_log_level_no_root() {
         actual.push_str(&std::fs::read_to_string(file.path()).unwrap());
     }
 
-    assert!(actual.contains("INFO Creating the signal handler"));
-    assert!(actual.contains("INFO Creating the global context"));
     assert!(actual.contains("ERROR Program must run as root"));
 }
 
@@ -100,27 +92,21 @@ fn default_log_level_as_root() {
         .failure()
         .stdout(
             predicate::str::is_match(
-                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Creating the signal handler",
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*New Relic Super Agent Version: .*, Rust Version: .*, GitCommit: .*, BuildDate: .*",
             )
-            .unwrap(),
-        )
-        .stdout(
-            predicate::str::is_match(
-                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Creating the global context",
-            )
-            .unwrap(),
+                .unwrap(),
         )
         .stdout(
             predicate::str::is_match(
                 r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Starting the super agent",
             )
-            .unwrap(),
+                .unwrap(),
         )
         .stdout(
             predicate::str::is_match(
                 r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Starting the supervisor group",
             )
-            .unwrap(),
+                .unwrap(),
         );
 
     // Let's wait for a second so the flushed contents arrive to the files
@@ -141,8 +127,7 @@ fn default_log_level_as_root() {
         actual.push_str(&std::fs::read_to_string(file.path()).unwrap());
     }
 
-    assert!(actual.contains("INFO Creating the signal handler"));
-    assert!(actual.contains("INFO Creating the global context"));
+    assert!(actual.contains("INFO Instance Identifiers:"));
     assert!(actual.contains("INFO Starting the super agent"));
     assert!(actual.contains("INFO Starting the supervisor group"));
 }
