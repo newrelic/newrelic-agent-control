@@ -14,7 +14,7 @@ use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssemblerError;
 use crate::sub_agent::error::{SubAgentBuilderError, SubAgentCollectionError, SubAgentError};
 use crate::sub_agent::persister::config_persister::PersistError;
 use crate::sub_agent::values::values_repository::ValuesRepositoryError;
-use crate::super_agent::super_agent::EffectiveAgentsError;
+use crate::super_agent::EffectiveAgentsError;
 use fs::file_reader::FileReaderError;
 use thiserror::Error;
 

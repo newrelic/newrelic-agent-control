@@ -2,8 +2,8 @@ use opamp_client::opamp::proto::{RemoteConfigStatus, RemoteConfigStatuses};
 use opamp_client::StartedClient;
 
 use crate::opamp::hash_repository::HashRepository;
-use crate::sub_agent::event_processor::EventProcessor;
 use crate::sub_agent::values::values_repository::ValuesRepository;
+use crate::sub_agent::EventProcessor;
 use crate::sub_agent::SubAgentCallbacks;
 use crate::{opamp::remote_config::RemoteConfigError, super_agent::error::AgentError};
 

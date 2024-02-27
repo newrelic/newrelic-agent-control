@@ -1,5 +1,13 @@
+use super::config::{
+    AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig, SuperAgentConfigError,
+};
+use super::opamp::remote_config_publisher::SuperAgentRemoteConfigPublisher;
+use super::store::{
+    SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer, SuperAgentConfigStoreFile,
+};
 use crate::agent_type::definition::AgentType;
 use crate::event::channel::{pub_sub, EventConsumer, EventPublisher};
+use crate::event::{OpAMPEvent, SubAgentEvent, SuperAgentEvent};
 use crate::opamp::callbacks::AgentCallbacks;
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::remote_config::RemoteConfig;
@@ -8,15 +16,11 @@ use crate::opamp::remote_config_report::report_remote_config_status_applied;
 use crate::sub_agent::collection::{NotStartedSubAgents, StartedSubAgents};
 use crate::sub_agent::error::SubAgentBuilderError;
 use crate::sub_agent::logger::{AgentLog, EventLogger, StdEventReceiver};
-use crate::sub_agent::SubAgentBuilder;
-
-use crate::event::{OpAMPEvent, SubAgentEvent, SuperAgentEvent};
 use crate::sub_agent::NotStartedSubAgent;
+use crate::sub_agent::SubAgentBuilder;
 use crate::super_agent::defaults::{SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION};
 use crate::super_agent::error::AgentError;
-use crate::super_agent::super_agent::EffectiveAgentsError::{
-    EffectiveAgentExists, EffectiveAgentNotFound,
-};
+use crate::super_agent::EffectiveAgentsError::{EffectiveAgentExists, EffectiveAgentNotFound};
 use crossbeam::select;
 use opamp_client::StartedClient;
 use std::collections::HashMap;
@@ -25,14 +29,6 @@ use std::sync::mpsc::{self, Sender};
 use std::sync::Arc;
 use thiserror::Error;
 use tracing::{debug, error, info, warn};
-
-use super::config::{
-    AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig, SuperAgentConfigError,
-};
-use super::opamp::remote_config_publisher::SuperAgentRemoteConfigPublisher;
-use super::store::{
-    SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer, SuperAgentConfigStoreFile,
-};
 
 pub(super) type SuperAgentCallbacks = AgentCallbacks<SuperAgentRemoteConfigPublisher>;
 
@@ -405,7 +401,7 @@ mod tests {
     use crate::super_agent::store::{
         SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer,
     };
-    use crate::super_agent::super_agent::SuperAgent;
+    use crate::super_agent::SuperAgent;
     use mockall::predicate;
 
     use crate::sub_agent::collection::StartedSubAgents;
