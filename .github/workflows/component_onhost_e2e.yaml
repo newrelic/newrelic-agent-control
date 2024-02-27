@@ -20,7 +20,7 @@ on:
         type: string
       FORCE_CLEANUP:
         required: false
-        type: bool
+        type: boolean
         default: false
 
 env:
