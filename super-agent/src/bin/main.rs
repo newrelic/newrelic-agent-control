@@ -94,7 +94,7 @@ fn run_super_agent(
     };
     use newrelic_super_agent::super_agent::config::AgentID;
     use newrelic_super_agent::{
-        sub_agent::on_host::event_processor_builder::EventProcessorBuilder,
+        sub_agent::event_processor_builder::EventProcessorBuilder,
         sub_agent::opamp::client_builder::SubAgentOpAMPHttpBuilder,
     };
 

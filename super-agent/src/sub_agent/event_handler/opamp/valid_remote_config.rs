@@ -1,7 +1,7 @@
 use crate::agent_type::agent_values::AgentValues;
 use crate::event::SubAgentEvent;
 use crate::sub_agent::error::SubAgentError;
-use crate::sub_agent::on_host::event_processor::EventProcessor;
+use crate::sub_agent::event_processor::EventProcessor;
 use crate::sub_agent::SubAgentCallbacks;
 use crate::{
     opamp::{
@@ -76,7 +76,7 @@ where
 mod tests {
     use crate::agent_type::agent_values::AgentValues;
     use crate::event::SubAgentEvent::ConfigUpdated;
-    use crate::sub_agent::on_host::event_processor::EventProcessor;
+    use crate::sub_agent::event_processor::EventProcessor;
     use crate::super_agent::config::AgentID;
     use crate::{
         event::channel::pub_sub,

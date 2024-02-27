@@ -385,7 +385,6 @@ impl AsyncK8sClient {
                 metadata: ObjectMeta {
                     name: Some(configmap_name.to_string()),
                     labels: Some(labels.clone()),
-                    // TODO The deployment should be the owner of this object
                     ..ObjectMeta::default()
                 },
                 ..Default::default()
