@@ -9,7 +9,7 @@ use crate::super_agent::error::AgentError;
 use crate::super_agent::store::{
     SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer,
 };
-use crate::super_agent::super_agent::{SuperAgent, SuperAgentCallbacks};
+use crate::super_agent::{SuperAgent, SuperAgentCallbacks};
 use opamp_client::StartedClient;
 use std::sync::mpsc::Sender;
 

@@ -5,5 +5,6 @@ pub(super) mod event_handler;
 pub mod opamp;
 pub mod store;
 
+pub use super_agent::*;
 #[allow(clippy::module_inception)]
-pub mod super_agent;
+mod super_agent;

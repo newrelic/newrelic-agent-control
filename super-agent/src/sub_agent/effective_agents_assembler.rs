@@ -13,7 +13,7 @@ use crate::sub_agent::values::values_repository::{
 };
 use crate::super_agent::config::{AgentID, SubAgentConfig};
 use crate::super_agent::defaults::{GENERATED_FOLDER_NAME, SUPER_AGENT_DATA_DIR};
-use crate::super_agent::super_agent::EffectiveAgentsError;
+use crate::super_agent::EffectiveAgentsError;
 
 use fs::{directory_manager::DirectoryManagerFs, file_reader::FileReaderError, LocalFile};
 
