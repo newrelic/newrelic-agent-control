@@ -7,4 +7,4 @@
 #   nr-infra-agent:
 #     agent_type: "newrelic/com.newrelic.infrastructure_agent:0.0.1"
 #   nr-otel-collector:
-#     agent_type: "newrelic/io.opentelemetry.collector:0.0.1"
+#     agent_type: "newrelic/io.opentelemetry.collector:0.1.0"

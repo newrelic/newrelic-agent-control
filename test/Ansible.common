@@ -1,16 +1,21 @@
 ANSIBLE_FOLDER ?= $(CURDIR)
-REQUIREMENTS_FILE ?= $(ANSIBLE_FOLDER)/requirements.yml
 
-ROLES_PATH:=$(ANSIBLE_FOLDER)/roles
-COLLECTIONS_PATH:=$(ANSIBLE_FOLDER)/collections
+export REQUIREMENTS_FILE ?= $(ANSIBLE_FOLDER)/requirements.yml
+export ROLES_PATH:=$(ANSIBLE_FOLDER)/roles
+export COLLECTIONS_PATH:=$(ANSIBLE_FOLDER)/collections
+export CROWDSTRIKE_ROLE_PULL_KEY := $(HOME)/.ssh/crowdstrike_ansible_role_key
 
 $(ROLES_PATH) $(COLLECTIONS_PATH):
 	@mkdir -p $@
 
 .PHONY: ansible/dependencies
 ansible/dependencies: $(ROLES_PATH) $(COLLECTIONS_PATH)
+ifdef ANSIBLE_ENV_SCRIPT
+	sh $(ANSIBLE_ENV_SCRIPT)
+else
 	ansible-galaxy role install -r $(REQUIREMENTS_FILE) -p $(ROLES_PATH)
 	ansible-galaxy collection install -r $(REQUIREMENTS_FILE) -p $(COLLECTIONS_PATH)
+endif
 
 .PHONY: ansible/clean
 ansible/clean:

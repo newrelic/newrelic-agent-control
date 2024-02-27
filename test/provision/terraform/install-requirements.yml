@@ -41,7 +41,7 @@
 
     - name: Install CrowdStrike Falcon
       include_role:
-        name: caos.ansible_roles.install_crowdstrike_falcon
+        name: newrelic.crowdstrike_provision.install_crowdstrike_falcon
 
     - name: Configure hostname
       include_role:

@@ -353,17 +353,21 @@ impl AsyncK8sClient {
         key: &str,
     ) -> Result<Option<String>, K8sError> {
         let cm_client: Api<ConfigMap> = Api::<ConfigMap>::default_namespaced(self.client.clone());
-        let cm_res = cm_client.get_opt(configmap_name).await?;
 
-        match cm_res {
-            Some(cm) => {
-                let data = cm.data.ok_or(K8sError::CMMalformed())?;
-                let value = data.get(key).ok_or(K8sError::KeyIsMissing())?;
-
-                Ok(Some(value.to_string()))
+        if let Some(cm) = cm_client.get_opt(configmap_name).await? {
+            if let Some(data) = cm.data {
+                if let Some(key) = data.get(key) {
+                    return Ok(Some(key.clone()));
+                }
+                debug!("ConfigMap {} missing key {}", configmap_name, key)
+            } else {
+                debug!("ConfigMap {} missing data", configmap_name)
             }
-            None => Ok(None),
+        } else {
+            debug!("ConfigMap {} not found", configmap_name)
         }
+
+        Ok(None)
     }
 
     pub async fn set_configmap_key(

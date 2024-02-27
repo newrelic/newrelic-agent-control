@@ -1,8 +1,8 @@
 use crate::event::channel::{pub_sub, EventPublisher};
 use crate::event::SubAgentEvent;
+use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_opamp_and_start_client;
-use crate::opamp::remote_config_hash::HashRepository;
 use crate::opamp::remote_config_report::{
     report_remote_config_status_applied, report_remote_config_status_error,
 };
@@ -215,8 +215,8 @@ mod test {
     use crate::event::channel::pub_sub;
     use crate::opamp::client_builder::test::MockOpAMPClientBuilderMock;
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
+    use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
     use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
-    use crate::opamp::remote_config_hash::test::MockHashRepositoryMock;
     use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
     use crate::sub_agent::on_host::event_processor::test::MockEventProcessorMock;

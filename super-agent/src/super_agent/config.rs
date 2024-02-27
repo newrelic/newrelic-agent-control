@@ -1,3 +1,4 @@
+use crate::logging::config::LoggingConfig;
 use crate::opamp::remote_config::{RemoteConfig, RemoteConfigError};
 use crate::super_agent::defaults::{default_capabilities, SUPER_AGENT_ID};
 use opamp_client::operation::capabilities::Capabilities;
@@ -28,7 +29,7 @@ pub enum AgentTypeError {
 
 #[derive(Error, Debug)]
 pub enum SuperAgentConfigError {
-    #[error("error loading config: `{0}`")]
+    #[error("error loading the super agent config: `{0}`")]
     LoadConfigError(#[from] SuperAgentConfigStoreError),
 
     #[error("cannot find config for agent: `{0}`")]
@@ -153,6 +154,9 @@ impl TryFrom<&RemoteConfig> for SubAgentsConfig {
 #[derive(Debug, Deserialize, Default, PartialEq, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct SuperAgentConfig {
+    #[serde(default)]
+    pub log: LoggingConfig,
+
     /// agents is a map of agent types to their specific configuration (if any).
     #[serde(flatten)]
     pub agents: SubAgentsConfig,
@@ -282,6 +286,13 @@ impl AgentTypeFQN {
 #[cfg(test)]
 pub(crate) mod test {
 
+    use std::path::PathBuf;
+
+    use crate::logging::{
+        file_logging::{FileLoggingConfig, LogFilePath},
+        format::{LoggingFormat, TimestampFormat},
+    };
+
     use super::*;
 
     const EXAMPLE_SUPERAGENT_CONFIG: &str = r#"
@@ -289,6 +300,10 @@ opamp:
   endpoint: http://localhost:8080/some/path
   headers:
     some-key: some-value
+log:
+  format:
+    target: true
+    timestamp: "%Y"
 agents:
   agent-1:
     agent_type: namespace/agent_type:0.0.1
@@ -360,6 +375,21 @@ agents:
 k8s:
   cluster_name: some-cluster
   # the namespace is missing :(
+"#;
+
+    const SUPERAGENT_BAD_FILE_LOGGING_CONFIG: &str = r#"
+log:
+  file:
+    path: /some/path
+agents: {}
+"#;
+
+    const SUPERAGENT_FILE_LOGGING_CONFIG: &str = r#"
+log:
+  file:
+    enable: true
+    path: /some/path
+agents: {}
 "#;
 
     #[test]
@@ -523,5 +553,48 @@ k8s:
         assert_eq!(fqn.namespace(), "only_namespace");
         assert_eq!(fqn.name(), "");
         assert_eq!(fqn.version(), "");
+    }
+
+    #[test]
+    fn test_logging_config() {
+        let default_config =
+            serde_yaml::from_str::<SuperAgentConfig>(EXAMPLE_SUPERAGENT_CONFIG_NO_AGENTS);
+        assert!(default_config.is_ok());
+        let custom_config = serde_yaml::from_str::<SuperAgentConfig>(EXAMPLE_SUPERAGENT_CONFIG);
+        assert!(custom_config.is_ok());
+        assert_eq!(default_config.unwrap().log, LoggingConfig::default());
+        assert_eq!(
+            custom_config.unwrap().log,
+            LoggingConfig {
+                format: LoggingFormat {
+                    target: true,
+                    timestamp: TimestampFormat("%Y".to_string())
+                },
+                ..Default::default()
+            }
+        );
+    }
+
+    #[test]
+    fn log_path_but_not_enabled_should_error() {
+        let config = serde_yaml::from_str::<SuperAgentConfig>(SUPERAGENT_BAD_FILE_LOGGING_CONFIG);
+        assert!(config.is_err());
+        assert_eq!(
+            config.unwrap_err().to_string(),
+            "log.file: missing field `enable` at line 4 column 5"
+        );
+    }
+
+    #[test]
+    fn good_file_logging_config() {
+        let config = serde_yaml::from_str::<SuperAgentConfig>(SUPERAGENT_FILE_LOGGING_CONFIG);
+        assert!(config.is_ok());
+        assert_eq!(
+            config.unwrap().log.file,
+            FileLoggingConfig {
+                enable: true,
+                path: LogFilePath::try_from(PathBuf::from("/some/path")).unwrap(),
+            }
+        );
     }
 }

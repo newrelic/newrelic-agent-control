@@ -1,9 +1,11 @@
 use crate::{
     agent_type::definition::AgentType,
     super_agent::defaults::{
-        NEWRELIC_INFRA_TYPE_1, NEWRELIC_INFRA_TYPE_2, NEWRELIC_INFRA_TYPE_3, NRDOT_TYPE,
+        NEWRELIC_INFRA_TYPE_0_0_1, NEWRELIC_INFRA_TYPE_0_0_2, NEWRELIC_INFRA_TYPE_0_1_0,
+        NRDOT_TYPE_0_0_1, NRDOT_TYPE_0_1_0,
     },
 };
+use log::debug;
 use std::collections::HashMap;
 use thiserror::Error;
 
@@ -31,17 +33,28 @@ impl Default for LocalRegistry {
         let mut local_agent_type_repository = LocalRegistry(HashMap::new());
         // save to unwrap(), default agent cannot be changed inline
         local_agent_type_repository
-            .store_from_yaml(NEWRELIC_INFRA_TYPE_1.as_bytes())
+            .store_from_yaml(NEWRELIC_INFRA_TYPE_0_0_1.as_bytes())
             .unwrap();
         local_agent_type_repository
-            .store_from_yaml(NEWRELIC_INFRA_TYPE_2.as_bytes())
+            .store_from_yaml(NEWRELIC_INFRA_TYPE_0_0_2.as_bytes())
             .unwrap();
         local_agent_type_repository
-            .store_from_yaml(NEWRELIC_INFRA_TYPE_3.as_bytes())
+            .store_from_yaml(NEWRELIC_INFRA_TYPE_0_1_0.as_bytes())
             .unwrap();
         local_agent_type_repository
-            .store_from_yaml(NRDOT_TYPE.as_bytes())
+            .store_from_yaml(NRDOT_TYPE_0_0_1.as_bytes())
             .unwrap();
+        local_agent_type_repository
+            .store_from_yaml(NRDOT_TYPE_0_1_0.as_bytes())
+            .unwrap();
+
+        if let Ok(file) =
+            std::fs::read_to_string("/etc/newrelic-super-agent/dynamic-agent-type.yaml")
+        {
+            _ = local_agent_type_repository
+                .store_from_yaml(file.as_bytes())
+                .inspect_err(|e| debug!("Could not add dynamic-agent-type.yaml: {e}"));
+        }
 
         local_agent_type_repository
     }
@@ -125,7 +138,7 @@ pub mod tests {
     #[test]
     fn default_local_registry() {
         let registry = LocalRegistry::default();
-        assert_eq!(registry.0.len(), 4)
+        assert_eq!(registry.0.len(), 5)
     }
 
     #[test]

@@ -1,6 +1,6 @@
 ---
 
-- name: install super-agent configuration file
+- name: install super-agent configuration file with infra-agent and nrdot
   template:
     src: newrelic-super-agent.yaml.j2
     dest: "{{ super_agent_config_path_linux }}"
@@ -9,5 +9,17 @@
     mode: 0644
     force: true
   no_log: true
+  when: not empty_agents | bool
+
+- name: install super-agent configuration file without agents
+  template:
+    src: empty-super-agent.yaml.j2
+    dest: "{{ super_agent_config_path_linux }}"
+    owner: root
+    group: root
+    mode: 0644
+    force: true
+  no_log: true
+  when: empty_agents | bool
 
 ...

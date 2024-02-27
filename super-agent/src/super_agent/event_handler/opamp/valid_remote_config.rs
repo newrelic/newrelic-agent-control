@@ -10,8 +10,8 @@ use crate::super_agent::store::{
 use crate::{
     event::channel::EventPublisher,
     opamp::{
+        hash_repository::HashRepository,
         remote_config::RemoteConfig,
-        remote_config_hash::HashRepository,
         remote_config_report::{
             report_remote_config_status_applied, report_remote_config_status_applying,
             report_remote_config_status_error,
@@ -111,8 +111,9 @@ mod tests {
         event::channel::pub_sub,
         opamp::{
             client_builder::test::MockStartedOpAMPClientMock,
+            hash_repository::repository::test::MockHashRepositoryMock,
             remote_config::{ConfigMap, RemoteConfig},
-            remote_config_hash::{test::MockHashRepositoryMock, Hash},
+            remote_config_hash::Hash,
         },
         sub_agent::{
             collection::StartedSubAgents,

@@ -1,7 +1,7 @@
 use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
+use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::operations::stop_opamp_client;
-use crate::opamp::remote_config_hash::HashRepository;
 use crate::sub_agent::error::SubAgentError;
 use crate::sub_agent::values::values_repository::ValuesRepository;
 use crate::sub_agent::SubAgentCallbacks;
@@ -132,7 +132,7 @@ pub mod test {
     use std::thread::JoinHandle;
 
     use crate::event::SubAgentEvent::ConfigUpdated;
-    use crate::opamp::remote_config_hash::test::MockHashRepositoryMock;
+    use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
     use crate::sub_agent::error::SubAgentError;
     use crate::sub_agent::values::values_repository::test::MockRemoteValuesRepositoryMock;
     use tracing_test::internal::logs_with_scope_contain;

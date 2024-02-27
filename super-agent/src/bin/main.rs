@@ -1,15 +1,12 @@
+use newrelic_super_agent::cli::Cli;
 use newrelic_super_agent::event::channel::{pub_sub, EventConsumer, EventPublisher};
 use newrelic_super_agent::event::SuperAgentEvent;
-#[cfg(feature = "k8s")]
-use newrelic_super_agent::opamp::instance_id;
 use newrelic_super_agent::opamp::instance_id::getter::ULIDInstanceIDGetter;
-use newrelic_super_agent::opamp::remote_config_hash::HashRepositoryFile;
 use newrelic_super_agent::super_agent::error::AgentError;
 use newrelic_super_agent::super_agent::opamp::client_builder::SuperAgentOpAMPHttpBuilder;
 use newrelic_super_agent::super_agent::store::{SuperAgentConfigLoader, SuperAgentConfigStoreFile};
 use newrelic_super_agent::super_agent::super_agent::{super_agent_fqn, SuperAgent};
 use newrelic_super_agent::utils::hostname::HostnameGetter;
-use newrelic_super_agent::{cli::Cli, logging::Logging};
 use opamp_client::operation::settings::DescriptionValueType;
 use std::collections::HashMap;
 use std::error::Error;
@@ -24,10 +21,17 @@ compile_error!("Feature \"onhost\" and feature \"k8s\" cannot be enabled at the 
 compile_error!("Either feature \"onhost\" or feature \"k8s\" must be enabled");
 
 fn main() -> Result<(), Box<dyn Error>> {
-    // init logging singleton
-    Logging::try_init()?;
-
     let cli = Cli::init_super_agent_cli();
+
+    let mut super_agent_config_storer = SuperAgentConfigStoreFile::new(&cli.get_config_path());
+
+    let super_agent_config = super_agent_config_storer.load()?;
+
+    // init logging singleton
+    // If file logging is enabled, this will return a `WorkerGuard` value that needs to persist
+    // as long as we want the logs to be written to file, hence, we assign it here so it is dropped
+    // when the program exits.
+    let _guard = super_agent_config.log.try_init()?;
 
     if cli.print_debug_info() {
         println!("Printing debug info");
@@ -46,15 +50,6 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     info!("Creating the signal handler");
     create_shutdown_signal_handler(super_agent_publisher)?;
-
-    let mut super_agent_config_storer = SuperAgentConfigStoreFile::new(&cli.get_config_path());
-
-    let super_agent_config = super_agent_config_storer.load().inspect_err(|err| {
-        error!(
-            "The super agent failed to load its config: {}",
-            err.to_string()
-        )
-    })?;
 
     let opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder> = super_agent_config
         .opamp
@@ -89,6 +84,7 @@ fn run_super_agent(
     super_agent_consumer: EventConsumer<SuperAgentEvent>,
     opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
 ) -> Result<(), AgentError> {
+    use newrelic_super_agent::opamp::hash_repository::HashRepositoryFile;
     use newrelic_super_agent::opamp::instance_id::IdentifiersProvider;
     use newrelic_super_agent::opamp::operations::build_opamp_and_start_client;
     use newrelic_super_agent::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
@@ -103,7 +99,8 @@ fn run_super_agent(
 
     #[cfg(unix)]
     if !nix::unistd::Uid::effective().is_root() {
-        panic!("Program must run as root");
+        error!("Program must run as root");
+        std::process::exit(1);
     }
 
     let instance_id_getter = ULIDInstanceIDGetter::default()
@@ -163,6 +160,9 @@ fn run_super_agent(
     opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
 ) -> Result<(), AgentError> {
     use newrelic_super_agent::k8s::garbage_collector::NotStartedK8sGarbageCollector;
+    use newrelic_super_agent::k8s::store::K8sStore;
+    use newrelic_super_agent::opamp::hash_repository::HashRepositoryConfigMap;
+    use newrelic_super_agent::opamp::instance_id;
     use newrelic_super_agent::opamp::operations::build_opamp_and_start_client;
     use newrelic_super_agent::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
     use newrelic_super_agent::super_agent::config::AgentID;
@@ -179,7 +179,6 @@ fn run_super_agent(
             .unwrap()
     });
 
-    let hash_repository = HashRepositoryFile::default();
     let k8s_config = config_storer.load()?.k8s.ok_or(AgentError::K8sConfig())?;
 
     let k8s_client = Arc::new(
@@ -191,8 +190,12 @@ fn run_super_agent(
         .map_err(|e| AgentError::ExternalError(e.to_string()))?,
     );
 
+    let k8s_store = Arc::new(K8sStore::new(k8s_client.clone()));
+
+    let hash_repository = HashRepositoryConfigMap::new(k8s_store.clone());
+
     let instance_id_getter = ULIDInstanceIDGetter::try_with_identifiers(
-        k8s_client.clone(),
+        k8s_store.clone(),
         instance_id::get_identifiers(k8s_config.cluster_name.clone()),
     )?;
 
