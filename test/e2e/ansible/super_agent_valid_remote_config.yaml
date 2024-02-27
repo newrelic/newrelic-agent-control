@@ -6,150 +6,229 @@
 
   tasks:
 
-      - name: Fresh Super Agent installation
-        include_tasks: ./tasks/fresh_super_agent_installation_{{ ansible_system }}.yaml
-        vars:
-          infra_agent_type_version: "0.1.0"
+    - name: Fresh Super Agent installation
+      include_tasks: ./tasks/fresh_super_agent_installation_{{ ansible_system }}.yaml
+      vars:
+        infra_agent_type_version: "0.1.0"
 
-      - name: Assert Super Agent and Agents are running
-        include_role:
-          name: caos.ansible_roles.assert_process_running
-        vars:
-          processes_running:
-            - "^/usr/bin/newrelic-super-agent"
-            - "^/usr/bin/newrelic-infra"
-            - "^/usr/bin/nr-otel-collector"
+    - name: Assert Super Agent and Agents are running
+      include_role:
+        name: caos.ansible_roles.assert_process_running
+      vars:
+        processes_running:
+          - "^/usr/bin/newrelic-super-agent"
+          - "^/usr/bin/newrelic-infra"
+          - "^/usr/bin/nr-otel-collector"
 
-      - name: set remote config name
-        set_fact:
-          remote_config_name: "caos-automated-test-{{ ansible_date_time.iso8601_micro | to_uuid }}"
+    - name: set remote config name
+      set_fact:
+        remote_config_name: "caos-automated-test-{{ ansible_date_time.iso8601_micro | to_uuid }}"
 
-      - name: create remote configuration
-        include_role:
-          name: fleet_api_request
-        vars:
-          create_remote_configuration:
-            account_id: "{{ nr_account_id | int }}"
-            config_name: "{{ remote_config_name }}"
-            config_id_fact: "created_config_id"
+    - name: create remote configuration
+      include_role:
+        name: fleet_api_request
+      vars:
+        create_remote_configuration:
+          account_id: "{{ nr_account_id | int }}"
+          config_name: "{{ remote_config_name }}"
+          config_id_fact: "created_config_id"
 
-      - name: create remote configuration revision (only infra agent)
-        include_role:
-          name: fleet_api_request
-        vars:
-          create_remote_configuration_revision:
-            account_id: "{{ nr_account_id | int }}"
-            config_id: "{{ created_config_id }}"
-            # multiline config breaks graphql request
-            content: 'agents:\n  nr-infra-agent:\n    agent_type: \"newrelic/com.newrelic.infrastructure_agent:0.1.0\"\n'
-            config_revision_fact: "created_config_revision"
+    - name: create remote configuration revision (only infra agent)
+      include_role:
+        name: fleet_api_request
+      vars:
+        create_remote_configuration_revision:
+          account_id: "{{ nr_account_id | int }}"
+          config_id: "{{ created_config_id }}"
+          # multiline config breaks graphql request
+          content: 'agents:\n  nr-infra-agent:\n    agent_type: \"newrelic/com.newrelic.infrastructure_agent:0.1.0\"\n'
+          config_revision_fact: "created_config_revision"
 
-      - name: get fleet guid for Super Agent
-        include_tasks: ./tasks/fleet_guid_by_agent_type.yaml
-        vars:
-          fleet_guid_fact: fleet_guid
-          agent_type: "NEWRELIC_SUPER"
+    - name: get fleet guid for Super Agent
+      include_tasks: ./tasks/fleet_guid_by_agent_type.yaml
+      vars:
+        fleet_guid_fact: fleet_guid
+        agent_type: "NEWRELIC_SUPER"
 
-      - name: deploy config to fleet
-        include_role:
-          name: fleet_api_request
-        vars:
-          deploy_config_to_fleet:
-            account_id: "{{ nr_account_id | int }}"
-            fleet_guid: "{{ fleet_guid }}"
-            config_id: "{{ created_config_id | int }}"
-            config_revision: "{{ created_config_revision | int }}"
+    - name: deploy config to fleet
+      include_role:
+        name: fleet_api_request
+      vars:
+        deploy_config_to_fleet:
+          account_id: "{{ nr_account_id | int }}"
+          fleet_guid: "{{ fleet_guid }}"
+          config_id: "{{ created_config_id | int }}"
+          config_revision: "{{ created_config_revision | int }}"
 
-      - name: Get NR Super Agent ULID
-        include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
-        vars:
-          agent_identifier_path: "/var/lib/newrelic-super-agent/identifiers.yaml"
-          identifier_field: "ulid"
-          identifier_field_fact: "super_agent_ulid"
+    - name: Get NR Super Agent ULID
+      include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
+      vars:
+        agent_identifier_path: "/var/lib/newrelic-super-agent/identifiers.yaml"
+        identifier_field: "ulid"
+        identifier_field_fact: "super_agent_ulid"
 
-      - name: authorize Super Agent
-        include_role:
-          name: fleet_api_request
-        vars:
-          authorize_agent:
-            account_id: "{{ nr_account_id | int }}"
-            agent_ulid: "{{ super_agent_ulid }}"
-
-      - name: Wait for a few seconds for the config to be present
-        stat:
-          path: "{{ super_agent_remote_config_file }}"
-        register: result
-        until: result.stat.exists
-        retries: 10
-        delay: 5
-
-      - name: Assert Super Agent and Infra Agent are running and Collector is not
-        include_role:
-          name: caos.ansible_roles.assert_process_running
-        vars:
-          processes_running:
-            - "^/usr/bin/newrelic-super-agent"
-            - "^/usr/bin/newrelic-infra"
-          processes_not_running:
-            - "^/usr/bin/nr-otel-collector"
-
-      - name: assert on config content
-        include_tasks: ./tasks/assert_full_file_content.yaml
-        vars:
-          file_path: "{{ super_agent_remote_config_file }}"
-          expected_content: "agents:\n  nr-infra-agent:\n    agent_type: newrelic/com.newrelic.infrastructure_agent:0.1.0"
-
-      - name: Get Local NR Super Agent Hash
-        include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
-        vars:
-          agent_identifier_path: "/var/lib/newrelic-super-agent/hash.yaml"
-          identifier_field: "hash"
-          identifier_field_fact: "super_agent_hash"
-
-      - name: Get Super Agent remote hash
-        include_tasks: ./tasks/get_agent_remote_hash.yaml
-        vars:
+    - name: authorize Super Agent
+      include_role:
+        name: fleet_api_request
+      vars:
+        authorize_agent:
+          account_id: "{{ nr_account_id | int }}"
           agent_ulid: "{{ super_agent_ulid }}"
-          agent_hash_fact: "super_agent_remote_hash"
 
-      - name: assert that Super Agent config hash is correct
-        assert:
-          that: super_agent_remote_hash == super_agent_hash
-          msg: Super Agent local hash {{ super_agent_hash }} does not match remote {{  super_agent_remote_hash }}
+    - name: Wait for a few seconds for the config to be present
+      stat:
+        path: "{{ super_agent_remote_config_file }}"
+      register: result
+      until: result.stat.exists
+      retries: 10
+      delay: 5
 
-      - name: create remote configuration revision (remove remote config)
-        include_role:
-          name: fleet_api_request
-        vars:
-          create_remote_configuration_revision:
-            account_id: "{{ nr_account_id | int }}"
-            config_id: "{{ created_config_id }}"
-            content: ''
-            config_revision_fact: "no_remote_config"
+    - name: Assert Super Agent and Infra Agent are running and Collector is not
+      include_role:
+        name: caos.ansible_roles.assert_process_running
+      vars:
+        processes_running:
+          - "^/usr/bin/newrelic-super-agent"
+          - "^/usr/bin/newrelic-infra"
+        processes_not_running:
+          - "^/usr/bin/nr-otel-collector"
 
-      - name: deploy config to fleet
-        include_role:
-          name: fleet_api_request
-        vars:
-          deploy_config_to_fleet:
-            account_id: "{{ nr_account_id | int }}"
-            fleet_guid: "{{ fleet_guid }}"
-            config_id: "{{ created_config_id | int }}"
-            config_revision: "{{ no_remote_config | int }}"
+    - name: assert on config content
+      include_tasks: ./tasks/assert_full_file_content.yaml
+      vars:
+        file_path: "{{ super_agent_remote_config_file }}"
+        expected_content: "agents:\n  nr-infra-agent:\n    agent_type: newrelic/com.newrelic.infrastructure_agent:0.1.0"
 
-      - name: Wait for a few seconds for the remote config to be removed
-        stat:
-          path: "{{ super_agent_remote_config_file }}"
-        register: result
-        until: not result.stat.exists
-        retries: 5
-        delay: 5
+    - name: Get Local NR Super Agent Hash
+      include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
+      vars:
+        agent_identifier_path: "/var/lib/newrelic-super-agent/hash.yaml"
+        identifier_field: "hash"
+        identifier_field_fact: "super_agent_hash"
 
-      - name: Assert Super Agent and Agents are running back from local config
-        include_role:
-          name: caos.ansible_roles.assert_process_running
-        vars:
-          processes_running:
-            - "^/usr/bin/newrelic-super-agent"
-            - "^/usr/bin/newrelic-infra"
-            - "^/usr/bin/nr-otel-collector"
+    - name: Get Super Agent remote hash
+      include_tasks: ./tasks/get_agent_remote_hash.yaml
+      vars:
+        agent_ulid: "{{ super_agent_ulid }}"
+        agent_hash_fact: "super_agent_remote_hash"
+
+    - name: assert that Super Agent config hash is correct
+      assert:
+        that: super_agent_remote_hash == super_agent_hash
+        msg: Super Agent local hash {{ super_agent_hash }} does not match remote {{  super_agent_remote_hash }}
+
+    # Now we will stop the Super Agent and push a new remote config
+    # The Super Agent should get the new config and apply it
+    - name: Stop Super Agent
+      include_role:
+        name: caos.ansible_roles.service_status
+      vars:
+        service_name: "newrelic-super-agent"
+        action: "stop"
+
+    - name: create remote configuration revision (remove remote config)
+      include_role:
+        name: fleet_api_request
+      vars:
+        create_remote_configuration_revision:
+          account_id: "{{ nr_account_id | int }}"
+          config_id: "{{ created_config_id }}"
+          content: 'agents:\n  nr-otel-collector:\n    agent_type: \"newrelic/io.opentelemetry.collector:0.0.1\"\n'
+          config_revision_fact: "config_just_nrdot"
+
+    - name: deploy config to fleet
+      include_role:
+        name: fleet_api_request
+      vars:
+        deploy_config_to_fleet:
+          account_id: "{{ nr_account_id | int }}"
+          fleet_guid: "{{ fleet_guid }}"
+          config_id: "{{ created_config_id | int }}"
+          config_revision: "{{ config_just_nrdot | int }}"
+
+    - name: Start Super Agent
+      include_role:
+        name: caos.ansible_roles.service_status
+      vars:
+        service_name: "newrelic-super-agent"
+        action: "start"
+
+    - name: Wait for 30 seconds so new config is applied
+      pause:
+        seconds: 30
+
+    - name: Assert Super Agent and Infra Agent are running and Collector is not
+      include_role:
+        name: caos.ansible_roles.assert_process_running
+      vars:
+        processes_running:
+          - "^/usr/bin/newrelic-super-agent"
+          - "^/usr/bin/nr-otel-collector"
+        processes_not_running:
+          - "^/usr/bin/newrelic-infra"
+
+    - name: assert on config content
+      include_tasks: ./tasks/assert_full_file_content.yaml
+      vars:
+        file_path: "{{ super_agent_remote_config_file }}"
+        expected_content: "agents:\n  nr-otel-collector:\n    agent_type: newrelic/io.opentelemetry.collector:0.0.1"
+
+    # Let's restart the Super Agent and ensure it uses the remote config
+    - name: Restart Super Agent
+      include_role:
+        name: caos.ansible_roles.service_status
+      vars:
+        service_name: "newrelic-super-agent"
+        action: "restart"
+
+    - name: Wait for 30 seconds so new config is applied
+      pause:
+        seconds: 30
+
+    - name: Assert Super Agent and Infra Agent are running and Collector is not
+      include_role:
+        name: caos.ansible_roles.assert_process_running
+      vars:
+        processes_running:
+          - "^/usr/bin/newrelic-super-agent"
+          - "^/usr/bin/nr-otel-collector"
+        processes_not_running:
+          - "^/usr/bin/newrelic-infra"
+
+    # Delete remote config to assert on falling back to local one
+    - name: create remote configuration revision (remove remote config)
+      include_role:
+        name: fleet_api_request
+      vars:
+        create_remote_configuration_revision:
+          account_id: "{{ nr_account_id | int }}"
+          config_id: "{{ created_config_id }}"
+          content: ''
+          config_revision_fact: "no_remote_config"
+
+    - name: deploy config to fleet
+      include_role:
+        name: fleet_api_request
+      vars:
+        deploy_config_to_fleet:
+          account_id: "{{ nr_account_id | int }}"
+          fleet_guid: "{{ fleet_guid }}"
+          config_id: "{{ created_config_id | int }}"
+          config_revision: "{{ no_remote_config | int }}"
+
+    - name: Wait for a few seconds for the remote config to be removed
+      stat:
+        path: "{{ super_agent_remote_config_file }}"
+      register: result
+      until: not result.stat.exists
+      retries: 5
+      delay: 5
+
+    - name: Assert Super Agent and Agents are running back from local config
+      include_role:
+        name: caos.ansible_roles.assert_process_running
+      vars:
+        processes_running:
+          - "^/usr/bin/newrelic-super-agent"
+          - "^/usr/bin/newrelic-infra"
+          - "^/usr/bin/nr-otel-collector"
