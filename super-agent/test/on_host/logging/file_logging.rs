@@ -42,13 +42,7 @@ fn default_log_level_no_root() {
         .failure()
         .stdout(
             predicate::str::is_match(
-                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Creating the signal handler",
-            )
-            .unwrap(),
-        )
-        .stdout(
-            predicate::str::is_match(
-                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Creating the global context",
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Starting NewRelic Super Agent",
             )
             .unwrap(),
         )
@@ -77,8 +71,7 @@ fn default_log_level_no_root() {
         actual.push_str(&std::fs::read_to_string(file.path()).unwrap());
     }
 
-    assert!(actual.contains("INFO Creating the signal handler"));
-    assert!(actual.contains("INFO Creating the global context"));
+    assert!(actual.contains("INFO Starting NewRelic Super Agent"));
     assert!(actual.contains("ERROR Program must run as root"));
 }
 

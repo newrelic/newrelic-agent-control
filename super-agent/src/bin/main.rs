@@ -25,14 +25,20 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut super_agent_config_storer = SuperAgentConfigStoreFile::new(&cli.get_config_path());
 
-    let super_agent_config = super_agent_config_storer.load()?;
+    let super_agent_config = super_agent_config_storer.load().inspect_err(|err| {
+        error!(
+            "Could not read Super Agent config from {}: {}",
+            super_agent_config_storer.config_path().to_string_lossy(),
+            err.to_string()
+        )
+    })?;
 
     // init logging singleton
     // If file logging is enabled, this will return a `WorkerGuard` value that needs to persist
     // as long as we want the logs to be written to file, hence, we assign it here so it is dropped
     // when the program exits.
     let _guard = super_agent_config.log.try_init()?;
-    info!("Starting NewRelic Super Agent.");
+    info!("Starting NewRelic Super Agent");
 
     if cli.print_debug_info() {
         println!("Printing debug info");

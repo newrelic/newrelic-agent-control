@@ -24,7 +24,7 @@ use crate::{
         SubAgentBuilder,
     },
 };
-use log::{error, warn};
+use log::warn;
 #[cfg(unix)]
 use nix::unistd::gethostname;
 use std::collections::HashMap;

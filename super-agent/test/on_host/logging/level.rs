@@ -26,13 +26,7 @@ fn default_log_level_no_root() {
         .failure()
         .stdout(
             predicate::str::is_match(
-                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Creating the signal handler",
-            )
-            .unwrap(),
-        )
-        .stdout(
-            predicate::str::is_match(
-                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Creating the global context",
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Starting NewRelic Super Agent",
             )
             .unwrap(),
         )
@@ -55,19 +49,7 @@ fn default_log_level_as_root() {
         .failure()
         .stdout(
             predicate::str::is_match(
-                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Creating the signal handler",
-            )
-            .unwrap(),
-        )
-        .stdout(
-            predicate::str::is_match(
-                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Creating the global context",
-            )
-            .unwrap(),
-        )
-        .stdout(
-            predicate::str::is_match(
-                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Starting the super agent",
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Starting NewRelic Super Agent",
             )
             .unwrap(),
         )
@@ -98,13 +80,13 @@ fn debug_log_level_no_root() {
         )
         .stdout(
             predicate::str::is_match(
-                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Creating the signal handler",
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*DEBUG.*Creating the signal handler",
             )
             .unwrap(),
         )
         .stdout(
             predicate::str::is_match(
-                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Creating the global context",
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*DEBUG.*Creating the global context",
             )
             .unwrap(),
         )
@@ -135,19 +117,19 @@ fn debug_log_level_as_root() {
         )
         .stdout(
             predicate::str::is_match(
-                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Creating the signal handler",
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*DEBUG.*Creating the signal handler",
             )
             .unwrap(),
         )
         .stdout(
             predicate::str::is_match(
-                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Creating the global context",
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*DEBUG.*Creating the global context",
             )
             .unwrap(),
         )
         .stdout(
             predicate::str::is_match(
-                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Starting the super agent",
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Starting NewRelic Super Agent",
             )
             .unwrap(),
         )
