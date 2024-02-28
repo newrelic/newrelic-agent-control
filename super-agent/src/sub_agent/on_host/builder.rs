@@ -24,7 +24,7 @@ use crate::{
         SubAgentBuilder,
     },
 };
-use log::error;
+use log::{error, warn};
 #[cfg(unix)]
 use nix::unistd::gethostname;
 use std::collections::HashMap;
@@ -115,33 +115,30 @@ where
         let mut has_supervisors = true;
 
         if let Some(opamp_client) = &maybe_opamp_client {
-            let remote_config_hash = self
-                .hash_repository
-                .get(&agent_id)
-                .map_err(|e| error!("hash repository error: {}", e))
-                .ok();
-
-            if let Some(mut hash) = remote_config_hash {
-                // send to opamp the remote config error in case it happens
-                if let Err(EffectiveAgentsAssemblerError::RemoteConfigLoadError(error)) =
-                    effective_agent_res.as_ref()
-                {
-                    report_remote_config_status_error(opamp_client, &hash, error.clone())?;
-                    // report the failed status for remote config and let the opamp client
-                    // running with no supervisors so the configuration can be fixed
-                    has_supervisors = false;
-                } else if hash.is_applying() {
-                    report_remote_config_status_applied(opamp_client, &hash)?;
-                    hash.apply();
-                    self.hash_repository.save(&agent_id, &hash)?;
-                } else if hash.is_failed() {
-                    // failed hash always has the error message
-                    let error_message = hash.error_message().unwrap();
-                    report_remote_config_status_error(
-                        opamp_client,
-                        &hash,
-                        error_message.to_string(),
-                    )?;
+            match self.hash_repository.get(&agent_id) {
+                Err(e) => error!("hash repository error: {}", e),
+                Ok(None) => warn!("hash repository not found for agent: {}", &agent_id),
+                Ok(Some(mut hash)) => {
+                    if let Err(EffectiveAgentsAssemblerError::RemoteConfigLoadError(error)) =
+                        effective_agent_res.as_ref()
+                    {
+                        report_remote_config_status_error(opamp_client, &hash, error.clone())?;
+                        // report the failed status for remote config and let the opamp client
+                        // running with no supervisors so the configuration can be fixed
+                        has_supervisors = false;
+                    } else if hash.is_applying() {
+                        report_remote_config_status_applied(opamp_client, &hash)?;
+                        hash.apply();
+                        self.hash_repository.save(&agent_id, &hash)?;
+                    } else if hash.is_failed() {
+                        // failed hash always has the error message
+                        let error_message = hash.error_message().unwrap();
+                        report_remote_config_status_error(
+                            opamp_client,
+                            &hash,
+                            error_message.to_string(),
+                        )?;
+                    }
                 }
             }
         }
@@ -263,7 +260,7 @@ mod test {
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         hash_repository_mock.expect_get().times(1).returning(|_| {
             let hash = Hash::new("a-hash".to_string());
-            Ok(hash)
+            Ok(Some(hash))
         });
         hash_repository_mock
             .expect_save()

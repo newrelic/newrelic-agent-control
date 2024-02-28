@@ -86,7 +86,7 @@ where
         Ok(writing_result?)
     }
 
-    fn get(&self, agent_id: &AgentID) -> Result<Hash, HashRepositoryError> {
+    fn get(&self, agent_id: &AgentID) -> Result<Option<Hash>, HashRepositoryError> {
         let mut conf_path = self.conf_path.clone();
         let hash_path = self.hash_file_path(agent_id, &mut conf_path);
         debug!("Reading hash file at {}", hash_path.to_string_lossy());
@@ -198,6 +198,6 @@ state: applied
         assert!(result.is_ok());
 
         let result = hash_repository.get(&agent_id);
-        assert_eq!(hash, result.unwrap());
+        assert_eq!(Some(hash), result.unwrap());
     }
 }

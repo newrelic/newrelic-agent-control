@@ -73,14 +73,16 @@ fn k8s_hash_repository_config_map() {
 
     let hash_repository = HashRepositoryConfigMap::new(k8s_store);
 
+    assert_eq!(None, hash_repository.get(&agent_id_1).unwrap());
+
     let hash_1 = Hash::new("hash-test".to_string());
     hash_repository.save(&agent_id_1, &hash_1).unwrap();
-    let loaded_hash_1 = hash_repository.get(&agent_id_1).unwrap();
+    let loaded_hash_1 = hash_repository.get(&agent_id_1).unwrap().unwrap();
     assert_eq!(hash_1, loaded_hash_1);
 
     let hash2 = Hash::new("hash-test2".to_string());
     hash_repository.save(&agent_id_2, &hash2).unwrap();
-    let loaded_hash_2 = hash_repository.get(&agent_id_2).unwrap();
+    let loaded_hash_2 = hash_repository.get(&agent_id_2).unwrap().unwrap();
     assert_eq!(hash2, loaded_hash_2);
 
     let cm_client: Api<ConfigMap> =
@@ -114,7 +116,7 @@ fn k8s_multiple_store_entries() {
     let instance_id_created = instance_id_getter.get(&agent_id).unwrap();
 
     // Assert from loaded entries
-    assert_eq!(hash, hash_repository.get(&agent_id).unwrap());
+    assert_eq!(Some(hash), hash_repository.get(&agent_id).unwrap());
     assert_eq!(
         instance_id_created,
         instance_id_getter.get(&agent_id).unwrap()
