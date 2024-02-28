@@ -20,6 +20,10 @@
         name: newrelic-super-agent
         state: restarted
 
+    - name: Wait for a few seconds to ensure ULID recreation process skipped
+      ansible.builtin.pause:
+        seconds: 30
+
     - name: Assert Super Agent and Agents are running
       include_role:
         name: caos.ansible_roles.assert_process_running
@@ -28,6 +32,17 @@
           - "^/usr/bin/newrelic-super-agent"
           - "^/usr/bin/newrelic-infra"
           - "^/usr/bin/nr-otel-collector"
+
+    - name: Get Infra agent ULID
+      include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
+      vars:
+        agent_identifier_path: "/var/lib/newrelic-super-agent/fleet/agents.d/nr-infra-agent/identifiers.yaml"
+        identifier_field: "ulid"
+        identifier_field_fact: "infra_agent_ulid_restart"
+
+    - name: assert the persisted Infra agent ULID is the same
+      assert:
+        that: "{{ infra_agent_ulid_restart == infra_agent_ulid }}"
 
     - name: set remote config name
       set_fact:
@@ -74,20 +89,19 @@
           config_id: "{{ created_config_id | int }}"
           config_revision: "{{ created_config_revision | int }}"
 
-    - name: Get NR Super Agent ULID
-      include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
+    - name: get the infra agent pid
+      include_tasks: ./tasks/process_pid_{{ ansible_system }}.yaml
       vars:
-        agent_identifier_path: "/var/lib/newrelic-super-agent/fleet/agents.d/nr-infra-agent/identifiers.yaml"
-        identifier_field: "ulid"
-        identifier_field_fact: "sub_agent_ulid"
+        command_line: "/usr/bin/newrelic-infra --config.*"
+        process_pid_fact: process_pid
 
-    - name: authorize Sub Agent
+    - name: authorize Infra Agent
       include_role:
         name: fleet_api_request
       vars:
         authorize_agent:
           account_id: "{{ nr_account_id | int }}"
-          agent_ulid: "{{ sub_agent_ulid }}"
+          agent_ulid: "{{ infra_agent_ulid_restart }}"
 
     - name: Wait for a few seconds for the config to be present
       stat:
@@ -97,9 +111,9 @@
       retries: 5
       delay: 5
 
-    - name: Pause for 15 seconds to let config be updated
+    - name: Pause for 40 seconds to let config be updated
       ansible.builtin.pause:
-        seconds: 15
+        seconds: 40
 
     - name: assert on config content
       include_tasks: ./tasks/assert_full_file_content.yaml
@@ -112,3 +126,31 @@
       vars:
         file_path: "{{ sub_agent_generated_config_folder }}/nr-infra-agent/newrelic-infra.yml"
         expected_content: "staging: true\nlicense_key: {{ nr_license_key }}\ndisplay_name: {{ generated_display_name }}"
+
+    - name: assert the infra agent is running
+      include_role:
+        name: caos.ansible_roles.assert_process_running
+      vars:
+        processes_running:
+          - "^/usr/bin/newrelic-infra"
+
+    - name: get the infra agent pid
+      include_tasks: ./tasks/process_pid_{{ ansible_system }}.yaml
+      vars:
+        command_line: "/usr/bin/newrelic-infra --config.*"
+        process_pid_fact: new_process_pid
+
+    - name: assert the previous and current pid are different
+      assert:
+        that: "{{ new_process_pid != process_pid }}"
+
+    - name: Get Infra agent ULID
+      include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
+      vars:
+        agent_identifier_path: "/var/lib/newrelic-super-agent/fleet/agents.d/nr-infra-agent/identifiers.yaml"
+        identifier_field: "ulid"
+        identifier_field_fact: "infra_agent_ulid_new_config"
+
+    - name: assert the persisted Infra agent ULID is the same
+      assert:
+        that: "{{ infra_agent_ulid_restart == infra_agent_ulid_new_config }}"

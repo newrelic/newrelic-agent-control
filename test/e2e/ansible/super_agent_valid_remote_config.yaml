@@ -20,6 +20,48 @@
           - "^/usr/bin/newrelic-infra"
           - "^/usr/bin/nr-otel-collector"
 
+    - name: Restart New Relic Super Agent to check ULIDs keep the same
+      ansible.builtin.service:
+        name: newrelic-super-agent
+        state: restarted
+
+    - name: Wait for a few seconds to ensure ULID recreation process skipped
+      ansible.builtin.pause:
+        seconds: 30
+
+    - name: Get NR Super Agent ULID
+      include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
+      vars:
+        agent_identifier_path: "/var/lib/newrelic-super-agent/identifiers.yaml"
+        identifier_field: "ulid"
+        identifier_field_fact: "super_agent_ulid_restart"
+
+    - name: Get Infra agent ULID
+      include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
+      vars:
+        agent_identifier_path: "/var/lib/newrelic-super-agent/fleet/agents.d/nr-infra-agent/identifiers.yaml"
+        identifier_field: "ulid"
+        identifier_field_fact: "infra_agent_ulid_restart"
+
+    - name: Get NR Otel Collector ULID
+      include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
+      vars:
+        agent_identifier_path: "/var/lib/newrelic-super-agent/fleet/agents.d/nr-otel-collector/identifiers.yaml"
+        identifier_field: "ulid"
+        identifier_field_fact: "otel_agent_ulid_restart"
+
+    - name: assert the persisted Super Agent ULID is the same
+      assert:
+        that: "{{ super_agent_ulid_restart == super_agent_ulid }}"
+
+    - name: assert the persisted Infra agent ULID is the same
+      assert:
+        that: "{{ infra_agent_ulid_restart == infra_agent_ulid }}"
+
+    - name: assert the persisted NR Otel Collector ULID is the same
+      assert:
+        that: "{{ otel_agent_ulid_restart == otel_agent_ulid }}"
+
     - name: set remote config name
       set_fact:
         remote_config_name: "caos-automated-test-super-agent-config-{{ ansible_date_time.iso8601_micro | to_uuid }}"
