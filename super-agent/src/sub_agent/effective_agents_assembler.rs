@@ -81,24 +81,22 @@ where
     values_repository: D,
     remote_enabled: bool,
     local_conf_path: Option<String>,
-    environment: Environment,
 }
 
-impl
-    LocalEffectiveAgentsAssembler<
+impl Default
+    for LocalEffectiveAgentsAssembler<
         LocalRegistry,
         ConfigurationPersisterFile,
         ValuesRepositoryFile<LocalFile, DirectoryManagerFs>,
     >
 {
-    pub fn new(environment: Environment) -> Self {
-        Self {
+    fn default() -> Self {
+        LocalEffectiveAgentsAssembler {
             registry: LocalRegistry::default(),
             config_persister: None,
             values_repository: ValuesRepositoryFile::default().with_remote(),
             remote_enabled: false,
             local_conf_path: None,
-            environment,
         }
     }
 }
@@ -305,7 +303,6 @@ pub(crate) mod tests {
             config_persister: Option<C>,
             remote_values_repo: D,
             opamp_enabled: bool,
-            environment: Environment,
         ) -> Self {
             Self {
                 registry,
@@ -313,7 +310,6 @@ pub(crate) mod tests {
                 values_repository: remote_values_repo,
                 remote_enabled: opamp_enabled,
                 local_conf_path: None,
-                environment,
             }
         }
     }
@@ -353,7 +349,6 @@ pub(crate) mod tests {
             config_persister.into(),
             sub_agent_values_repo,
             false,
-            environment,
         );
 
         let effective_agent = assembler
@@ -409,7 +404,6 @@ pub(crate) mod tests {
             Some(config_persister),
             sub_agent_values_repo,
             true,
-            environment,
         );
 
         let effective_agent = assembler
@@ -453,7 +447,6 @@ pub(crate) mod tests {
             Some(config_persister),
             sub_agent_values_repo,
             false,
-            Environment::OnHost,
         );
 
         let result = assembler.assemble_agent(&agent_id, &sub_agent_config, &Environment::OnHost);
@@ -490,7 +483,6 @@ pub(crate) mod tests {
             Some(config_persister),
             sub_agent_values_repo,
             false,
-            Environment::OnHost,
         );
 
         let result = assembler.assemble_agent(&agent_id, &sub_agent_config, &Environment::OnHost);
@@ -529,7 +521,6 @@ pub(crate) mod tests {
             Some(config_persister),
             sub_agent_values_repo,
             false,
-            environment,
         );
 
         let result = assembler.assemble_agent(&agent_id, &sub_agent_config, &environment);
@@ -576,7 +567,6 @@ pub(crate) mod tests {
             Some(config_persister),
             sub_agent_values_repo,
             true,
-            environment,
         );
 
         let result = assembler.assemble_agent(&agent_id, &sub_agent_config, &environment);
@@ -624,7 +614,6 @@ pub(crate) mod tests {
             Some(config_persister),
             sub_agent_values_repo,
             true,
-            environment,
         );
 
         let result = assembler.assemble_agent(&agent_id, &sub_agent_config, &environment);
@@ -665,7 +654,6 @@ pub(crate) mod tests {
             None::<MockConfigurationPersisterMock>,
             sub_agent_values_repo,
             false,
-            environment,
         );
 
         let result = assembler.assemble_agent(&agent_id, &sub_agent_config, &environment);
