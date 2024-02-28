@@ -1,5 +1,7 @@
 super_agent_config_file: /etc/newrelic-super-agent/config.yaml
 super_agent_remote_config_file: /var/lib/newrelic-super-agent/config.yaml
+super_agent_identifiers_file_tpl: /var/lib/newrelic-super-agent/identifiers.yaml
+super_agent_hash_file_tpl: /var/lib/newrelic-super-agent/hash.yaml
 sub_agent_remote_config_folder: /var/lib/newrelic-super-agent/fleet/agents.d
 sub_agent_generated_config_folder: /var/lib/newrelic-super-agent/auto-generated
 sub_agent_remote_config_file_tpl: /var/lib/newrelic-super-agent/fleet/agents.d/AGENT_ID/values/values.yaml

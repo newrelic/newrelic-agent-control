@@ -36,7 +36,7 @@
     - name: Get Infra agent ULID
       include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
       vars:
-        agent_identifier_path: "/var/lib/newrelic-super-agent/fleet/agents.d/nr-infra-agent/identifiers.yaml"
+        agent_identifier_path: "{{ sub_agent_identifiers_file_tpl | replace('AGENT_ID','nr-infra-agent') }}"
         identifier_field: "ulid"
         identifier_field_fact: "infra_agent_ulid_restart"
 
@@ -147,7 +147,7 @@
     - name: Get Infra agent ULID
       include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
       vars:
-        agent_identifier_path: "/var/lib/newrelic-super-agent/fleet/agents.d/nr-infra-agent/identifiers.yaml"
+        agent_identifier_path: "{{ sub_agent_identifiers_file_tpl | replace('AGENT_ID','nr-infra-agent') }}"
         identifier_field: "ulid"
         identifier_field_fact: "infra_agent_ulid_new_config"
 

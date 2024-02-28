@@ -32,21 +32,21 @@
     - name: Get NR Super Agent ULID
       include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
       vars:
-        agent_identifier_path: "/var/lib/newrelic-super-agent/identifiers.yaml"
+        agent_identifier_path: "{{ super_agent_identifiers_file_tpl }}"
         identifier_field: "ulid"
         identifier_field_fact: "super_agent_ulid_restart"
 
     - name: Get Infra agent ULID
       include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
       vars:
-        agent_identifier_path: "/var/lib/newrelic-super-agent/fleet/agents.d/nr-infra-agent/identifiers.yaml"
+        agent_identifier_path: "{{ sub_agent_identifiers_file_tpl | replace('AGENT_ID','nr-infra-agent') }}"
         identifier_field: "ulid"
         identifier_field_fact: "infra_agent_ulid_restart"
 
     - name: Get NR Otel Collector ULID
       include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
       vars:
-        agent_identifier_path: "/var/lib/newrelic-super-agent/fleet/agents.d/nr-otel-collector/identifiers.yaml"
+        agent_identifier_path: "{{ sub_agent_identifiers_file_tpl | replace('AGENT_ID','nr-otel-collector') }}"
         identifier_field: "ulid"
         identifier_field_fact: "otel_agent_ulid_restart"
 
@@ -105,7 +105,7 @@
     - name: Get NR Super Agent ULID
       include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
       vars:
-        agent_identifier_path: "/var/lib/newrelic-super-agent/identifiers.yaml"
+        agent_identifier_path: "{{ super_agent_identifiers_file_tpl }}"
         identifier_field: "ulid"
         identifier_field_fact: "super_agent_ulid"
 
@@ -144,7 +144,7 @@
     - name: Get Local NR Super Agent Hash
       include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
       vars:
-        agent_identifier_path: "/var/lib/newrelic-super-agent/hash.yaml"
+        agent_identifier_path: "{{ super_agent_hash_file_tpl }}"
         identifier_field: "hash"
         identifier_field_fact: "super_agent_hash"
 
