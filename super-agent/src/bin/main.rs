@@ -101,7 +101,6 @@ fn run_super_agent(
     super_agent_consumer: EventConsumer<SuperAgentEvent>,
     opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
 ) -> Result<(), AgentError> {
-    use newrelic_super_agent::agent_type::environment::Environment;
     use newrelic_super_agent::opamp::hash_repository::HashRepositoryFile;
     use newrelic_super_agent::opamp::instance_id::IdentifiersProvider;
     use newrelic_super_agent::opamp::operations::build_opamp_and_start_client;
@@ -126,7 +125,7 @@ fn run_super_agent(
     let instance_id_getter = ULIDInstanceIDGetter::default().with_identifiers(identifiers);
 
     let hash_repository = HashRepositoryFile::default();
-    let agents_assembler = LocalEffectiveAgentsAssembler::new(Environment::OnHost)
+    let agents_assembler = LocalEffectiveAgentsAssembler::default()
         .with_remote()
         .with_config_persister(ConfigurationPersisterFile::default());
     // HashRepo and ValuesRepo needs to be shared between threads
@@ -185,7 +184,6 @@ fn run_super_agent(
     super_agent_consumer: EventConsumer<SuperAgentEvent>,
     opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
 ) -> Result<(), AgentError> {
-    use newrelic_super_agent::agent_type::environment::Environment;
     use newrelic_super_agent::k8s::garbage_collector::NotStartedK8sGarbageCollector;
     use newrelic_super_agent::k8s::store::K8sStore;
     use newrelic_super_agent::opamp::hash_repository::HashRepositoryConfigMap;
@@ -236,7 +234,7 @@ fn run_super_agent(
             }
             #[cfg(not(feature = "custom-local-path"))]
             (
-                LocalEffectiveAgentsAssembler::new(Environment::K8s).with_remote(),
+                LocalEffectiveAgentsAssembler::default().with_remote(),
                 Arc::new(ValuesRepositoryFile::default().with_remote()),
             )
         };
@@ -303,7 +301,7 @@ fn custom_local_path() -> (
     >,
     Arc<ValuesRepositoryFile<fs::LocalFile, fs::directory_manager::DirectoryManagerFs>>,
 ){
-    let mut agents_assembler = LocalEffectiveAgentsAssembler::new(Environment::K8s).with_remote();
+    let mut agents_assembler = LocalEffectiveAgentsAssembler::default().with_remote();
     let mut values_repository = Arc::new(ValuesRepositoryFile::default().with_remote());
 
     if let Some(base_dir) = Cli::init_super_agent_cli().get_local_path() {
