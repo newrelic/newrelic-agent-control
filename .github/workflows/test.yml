@@ -1,8 +1,9 @@
 permissions:
   contents: read
 on:
-# TODO: validate when to trigger the pipeline
+  # TODO: validate when to trigger the pipeline
   push:
+  merge_group:
 # See https://docs.github.com/en/actions/using-jobs/using-concurrency
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -14,7 +15,7 @@ jobs:
     name: ubuntu / ${{ matrix.toolchain }}
     strategy:
       matrix:
-        toolchain: [stable, beta]
+        toolchain: [ stable, beta ]
     steps:
       - uses: actions/checkout@v4
         with:
