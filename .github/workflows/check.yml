@@ -2,6 +2,7 @@ permissions:
   contents: read
 on:
   pull_request:
+  merge_group:
   push:
     branches:
       - main
@@ -45,7 +46,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        toolchain: [stable, beta]
+        toolchain: [ stable, beta ]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -94,7 +95,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        msrv: [1.76.0]
+        msrv: [ 1.76.0 ]
     name: ubuntu / ${{ matrix.msrv }}
     steps:
       - uses: actions/checkout@v4
