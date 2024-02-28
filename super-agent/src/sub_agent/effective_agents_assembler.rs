@@ -68,6 +68,7 @@ pub trait EffectiveAgentsAssembler {
         &self,
         agent_id: &AgentID,
         agent_cfg: &SubAgentConfig,
+        environment: &Environment,
     ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError>;
 }
 
@@ -82,24 +83,22 @@ where
     values_repository: D,
     remote_enabled: bool,
     local_conf_path: Option<String>,
-    environment: Environment,
 }
 
-impl
-    LocalEffectiveAgentsAssembler<
+impl Default
+    for LocalEffectiveAgentsAssembler<
         LocalRegistry,
         ConfigurationPersisterFile,
         ValuesRepositoryFile<LocalFile, DirectoryManagerFs>,
     >
 {
-    pub fn new(environment: Environment) -> Self {
-        Self {
+    fn default() -> Self {
+        LocalEffectiveAgentsAssembler {
             registry: LocalRegistry::default(),
             config_persister: None,
             values_repository: ValuesRepositoryFile::default().with_remote(),
             remote_enabled: false,
             local_conf_path: None,
-            environment,
         }
     }
 }
@@ -162,11 +161,12 @@ where
         &self,
         agent_id: &AgentID,
         agent_cfg: &SubAgentConfig,
+        environment: &Environment,
     ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError> {
         // Load the agent type definition
         let agent_type_definition = self.registry.get(&agent_cfg.agent_type)?;
         // Build the corresponding agent type
-        let agent_type = agent_type_definition.try_build(&self.environment)?;
+        let agent_type = agent_type_definition.try_build(environment)?;
 
         // Delete remote values if not supported
         if !self.remote_enabled || !agent_type.has_remote_management() {
@@ -232,6 +232,7 @@ pub(crate) mod tests {
                 &self,
                 agent_id: &AgentID,
                 agent_cfg: &SubAgentConfig,
+                environment: &Environment,
             ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError>;
         }
     }
@@ -241,6 +242,7 @@ pub(crate) mod tests {
             &mut self,
             agent_id: &AgentID,
             agent_cfg: &SubAgentConfig,
+            environment: &Environment,
             efective_agent: EffectiveAgent,
         ) {
             self.expect_assemble_agent()
@@ -248,8 +250,9 @@ pub(crate) mod tests {
                 .with(
                     predicate::eq(agent_id.clone()),
                     predicate::eq(agent_cfg.clone()),
+                    predicate::eq(environment.clone()),
                 )
-                .returning(move |_, _| Ok(efective_agent.clone()));
+                .returning(move |_, _, _| Ok(efective_agent.clone()));
         }
 
         #[allow(dead_code)]
@@ -257,6 +260,7 @@ pub(crate) mod tests {
             &mut self,
             agent_id: &AgentID,
             agent_cfg: &SubAgentConfig,
+            environment: &Environment,
             err_kind: ErrorKind,
         ) {
             self.expect_assemble_agent()
@@ -264,8 +268,9 @@ pub(crate) mod tests {
                 .with(
                     predicate::eq(agent_id.clone()),
                     predicate::eq(agent_cfg.clone()),
+                    predicate::eq(environment.clone()),
                 )
-                .returning(move |_, _| {
+                .returning(move |_, _, _| {
                     Err(EffectiveAgentsAssemblerError::ConfigurationPersisterError(
                         PersistError::FileError(WriteError::ErrorCreatingFile(
                             std::io::Error::from(err_kind),
@@ -286,7 +291,6 @@ pub(crate) mod tests {
             config_persister: Option<C>,
             remote_values_repo: D,
             opamp_enabled: bool,
-            environment: Environment,
         ) -> Self {
             Self {
                 registry,
@@ -294,7 +298,6 @@ pub(crate) mod tests {
                 values_repository: remote_values_repo,
                 remote_enabled: opamp_enabled,
                 local_conf_path: None,
-                environment,
             }
         }
     }
@@ -337,11 +340,10 @@ pub(crate) mod tests {
             config_persister.into(),
             sub_agent_values_repo,
             false,
-            environment,
         );
 
         let effective_agent = assembler
-            .assemble_agent(&agent_id, &sub_agent_config)
+            .assemble_agent(&agent_id, &sub_agent_config, &environment)
             .unwrap();
 
         assert_eq!(
@@ -396,11 +398,10 @@ pub(crate) mod tests {
             Some(config_persister),
             sub_agent_values_repo,
             true,
-            environment,
         );
 
         let effective_agent = assembler
-            .assemble_agent(&agent_id, &sub_agent_config)
+            .assemble_agent(&agent_id, &sub_agent_config, &environment)
             .unwrap();
 
         assert_eq!(
@@ -440,10 +441,9 @@ pub(crate) mod tests {
             Some(config_persister),
             sub_agent_values_repo,
             false,
-            Environment::OnHost,
         );
 
-        let result = assembler.assemble_agent(&agent_id, &sub_agent_config);
+        let result = assembler.assemble_agent(&agent_id, &sub_agent_config, &Environment::OnHost);
 
         assert!(result.is_err());
         assert_eq!(
@@ -477,10 +477,9 @@ pub(crate) mod tests {
             Some(config_persister),
             sub_agent_values_repo,
             false,
-            Environment::OnHost,
         );
 
-        let result = assembler.assemble_agent(&agent_id, &sub_agent_config);
+        let result = assembler.assemble_agent(&agent_id, &sub_agent_config, &Environment::OnHost);
 
         assert!(result.is_err());
         assert_eq!(
@@ -519,10 +518,9 @@ pub(crate) mod tests {
             Some(config_persister),
             sub_agent_values_repo,
             false,
-            environment,
         );
 
-        let result = assembler.assemble_agent(&agent_id, &sub_agent_config);
+        let result = assembler.assemble_agent(&agent_id, &sub_agent_config, &environment);
 
         assert!(result.is_err());
         assert_eq!(
@@ -569,10 +567,9 @@ pub(crate) mod tests {
             Some(config_persister),
             sub_agent_values_repo,
             true,
-            environment,
         );
 
-        let result = assembler.assemble_agent(&agent_id, &sub_agent_config);
+        let result = assembler.assemble_agent(&agent_id, &sub_agent_config, &environment);
 
         assert!(result.is_err());
         assert_eq!(
@@ -620,10 +617,9 @@ pub(crate) mod tests {
             Some(config_persister),
             sub_agent_values_repo,
             true,
-            environment,
         );
 
-        let result = assembler.assemble_agent(&agent_id, &sub_agent_config);
+        let result = assembler.assemble_agent(&agent_id, &sub_agent_config, &environment);
 
         assert!(result.is_err());
         assert_eq!(
@@ -664,10 +660,9 @@ pub(crate) mod tests {
             None::<MockConfigurationPersisterMock>,
             sub_agent_values_repo,
             false,
-            environment,
         );
 
-        let result = assembler.assemble_agent(&agent_id, &sub_agent_config);
+        let result = assembler.assemble_agent(&agent_id, &sub_agent_config, &environment);
 
         assert!(result.is_ok());
     }
