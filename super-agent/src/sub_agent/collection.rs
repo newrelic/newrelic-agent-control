@@ -55,17 +55,9 @@ where
             handle.join().map_or_else(
                 |_err| {
                     // let error: &dyn std::error::Error = &err;
-                    error!(
-                        supervisor = agent_id.to_string(),
-                        msg = "stopped with error",
-                    )
+                    error!("Supervisor for {} stopped with error", agent_id,)
                 },
-                |_| {
-                    info!(
-                        supervisor = agent_id.to_string(),
-                        msg = "stopped successfully"
-                    )
-                },
+                |_| info!("Supervisor for {} stopped successfully", agent_id),
             )
         });
         Ok(())

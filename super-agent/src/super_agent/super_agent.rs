@@ -104,9 +104,9 @@ where
         let not_started_sub_agents =
             self.load_sub_agents(sub_agents_config, &tx, sub_agent_publisher.clone())?;
 
+        info!("Agents supervisor runtime successfully started.");
         // Run all the Sub Agents
         let running_sub_agents = not_started_sub_agents.run()?;
-        info!("Agents supervisor runtime successfully started.");
         self.process_events(
             super_agent_consumer,
             super_agent_opamp_consumer,

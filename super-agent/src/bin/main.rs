@@ -270,6 +270,7 @@ fn create_shutdown_signal_handler(
     publisher: EventPublisher<SuperAgentEvent>,
 ) -> Result<(), ctrlc::Error> {
     ctrlc::set_handler(move || {
+        info!("Received SIGINT (Ctrl-C). Stopping super agent.");
         let _ = publisher
             .publish(SuperAgentEvent::StopRequested)
             .map_err(|_| error!("Could not send super agent stop request"));
