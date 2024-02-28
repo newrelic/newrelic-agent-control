@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::ffi::OsString;
 use std::sync::Arc;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 #[cfg(all(feature = "onhost", feature = "k8s", not(feature = "ci")))]
 compile_error!("Feature \"onhost\" and feature \"k8s\" cannot be enabled at the same time");
@@ -32,6 +32,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // as long as we want the logs to be written to file, hence, we assign it here so it is dropped
     // when the program exits.
     let _guard = super_agent_config.log.try_init()?;
+    info!("Starting NewRelic Super Agent.");
 
     if cli.print_debug_info() {
         println!("Printing debug info");
@@ -45,10 +46,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         return Ok(());
     }
 
-    info!("Creating the global context");
+    debug!("Creating the global context");
     let (super_agent_publisher, super_agent_consumer) = pub_sub();
 
-    info!("Creating the signal handler");
+    debug!("Creating the signal handler");
     create_shutdown_signal_handler(super_agent_publisher)?;
 
     let opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder> = super_agent_config
@@ -62,7 +63,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     #[cfg(any(feature = "onhost", feature = "k8s"))]
-    return Ok(run_super_agent(
+    run_super_agent(
         super_agent_config_storer,
         super_agent_consumer,
         opamp_client_builder,
@@ -72,9 +73,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             "The super agent main process exited with an error: {}",
             err.to_string()
         )
-    })?);
+    })?;
 
-    #[cfg(all(not(feature = "onhost"), not(feature = "k8s")))]
+    info!("Exiting gracefully.");
     Ok(())
 }
 
@@ -129,8 +130,6 @@ fn run_super_agent(
             &sub_agent_event_processor_builder,
         );
 
-    info!("Starting the super agent");
-
     let (super_agent_opamp_publisher, super_agent_opamp_consumer) = pub_sub();
 
     let maybe_client = build_opamp_and_start_client(
@@ -144,7 +143,10 @@ fn run_super_agent(
 
     if maybe_client.is_none() {
         // Delete remote values
+        info!("No OpAMP settings configured. Cleaning remote configs.");
         values_repository.delete_remote_all()?;
+    } else {
+        info!("Super Agent OpAMP client started.");
     }
 
     SuperAgent::new(
@@ -236,7 +238,6 @@ fn run_super_agent(
         k8s_config.clone(),
     );
 
-    info!("Starting the super agent");
     let (opamp_publisher, opamp_consumer) = pub_sub();
 
     let mut non_identifying_attributes = super_agent_opamp_non_identifying_attributes();

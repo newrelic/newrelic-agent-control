@@ -28,7 +28,7 @@ use std::string::ToString;
 use std::sync::mpsc::{self, Sender};
 use std::sync::Arc;
 use thiserror::Error;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, trace, warn};
 
 pub(super) type SuperAgentCallbacks = AgentCallbacks<SuperAgentRemoteConfigPublisher>;
 
@@ -74,7 +74,7 @@ where
         super_agent_consumer: EventConsumer<SuperAgentEvent>,
         super_agent_opamp_consumer: EventConsumer<OpAMPEvent>,
     ) -> Result<(), AgentError> {
-        info!("Creating agent's communication channels");
+        debug!("Creating agent's communication channels");
         // Channel will be closed when tx is dropped and no reference to it is alive
         let (tx, rx) = mpsc::channel();
 
@@ -83,7 +83,7 @@ where
         if let Some(opamp_handle) = &self.opamp_client {
             match self.remote_config_hash_repository.get(&self.agent_id) {
                 Err(e) => {
-                    error!("Failed getting remote config hash from the store: {}", e);
+                    warn!("Failed getting remote config hash from the store: {}", e);
                 }
                 Ok(Some(mut hash)) => {
                     if !hash.is_applied() {
@@ -97,7 +97,7 @@ where
             }
         }
 
-        info!("Starting the supervisor group.");
+        info!("Starting the agents supervisor runtime.");
         let (sub_agent_publisher, sub_agent_consumer) = pub_sub();
         let sub_agents_config = &self.sub_agents_config_store.load()?;
 
@@ -106,6 +106,7 @@ where
 
         // Run all the Sub Agents
         let running_sub_agents = not_started_sub_agents.run()?;
+        info!("Agents supervisor runtime successfully started.");
         self.process_events(
             super_agent_consumer,
             super_agent_opamp_consumer,
@@ -125,10 +126,10 @@ where
             handle.stop()?;
         }
 
-        info!("Waiting for the output manager to finish");
+        debug!("Waiting for the output manager to finish");
         output_manager.join().unwrap();
 
-        info!("SuperAgent finished");
+        info!("SuperAgent stopped.");
         Ok(())
     }
 
@@ -224,32 +225,43 @@ where
         >,
         tx: Sender<AgentLog>,
     ) -> Result<(), AgentError> {
+        debug!("Listening for events from agents");
         loop {
             select! {
                 recv(super_agent_opamp_consumer.as_ref()) -> opamp_event => {
+                    debug!("Received OpAMP event");
                     match opamp_event.unwrap() {
                         OpAMPEvent::InvalidRemoteConfigReceived(
                             remote_config_error,
                         ) => {
+                            warn!("Invalid remote config received");
+                            trace!("Remote config error: {:?}", remote_config_error);
                             self.invalid_remote_config(remote_config_error)?
                         }
                         OpAMPEvent::ValidRemoteConfigReceived(remote_config) => {
+                            debug!("Valid remote config received");
+                            trace!("Remote config: {:?}", remote_config);
                             self.valid_remote_config(remote_config, sub_agent_pub_sub.0.clone(), &mut sub_agents, tx.clone())?
                         }
                     }
 
                 },
                 recv(super_agent_consumer.as_ref()) -> _super_agent_event => {
-                        drop(tx); //drop the main channel sender to stop listener
-                        break sub_agents.stop()?;
+                    debug!("Received SuperAgent event");
+                    trace!("SuperAgent event receive attempt: {:?}", _super_agent_event);
+                    drop(tx); //drop the main channel sender to stop listener
+                    break sub_agents.stop()?;
                 },
                 recv(sub_agent_pub_sub.1.as_ref()) -> sub_agent_event_res => {
+                    debug!("Received SubAgent event");
+                    trace!("SubAgent event receive attempt: {:?}", sub_agent_event_res);
                     match sub_agent_event_res {
                         Err(_) => {
                             // TODO is it worth to log this?
                             debug!("channel closed");
                         },
                         Ok(sub_agent_event) => {
+                            trace!("SubAgent event: {:?}", sub_agent_event);
                             match sub_agent_event{
                                 SubAgentEvent::ConfigUpdated(agent_id) => {
                                     self.sub_agent_config_updated(agent_id,tx.clone(),sub_agent_pub_sub.0.clone(),&mut sub_agents)?
