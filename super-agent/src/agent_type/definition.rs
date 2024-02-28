@@ -38,7 +38,9 @@ pub struct AgentTypeDefinition {
 impl AgentTypeDefinition {
     /// Builds the [AgentType] corresponding to the current [AgentTypeDefinition], considering the provided [super::deployment::Deployment].
     pub fn try_build(self, _environment: &Environment) -> Result<AgentType, AgentTypeError> {
-        // TODO: the [AgentType] variables will different depending on the provided environment.
+        // TODO: the [AgentType] variables will be different depending on the provided environment.
+        // This could return an error if the agent type is not correct, given the provided environment.
+        // TODO: check if it should be part of the effective_agent_assembler service.
         Ok(AgentType {
             variables: self.variables,
             metadata: self.metadata,
