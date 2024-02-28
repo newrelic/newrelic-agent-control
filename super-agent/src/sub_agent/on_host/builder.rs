@@ -116,7 +116,7 @@ where
 
         if let Some(opamp_client) = &maybe_opamp_client {
             match self.hash_repository.get(&agent_id) {
-                Err(e) => error!("hash repository error: {}", e),
+                Err(e) => warn!("hash repository error: {}", e),
                 Ok(None) => warn!("hash repository not found for agent: {}", &agent_id),
                 Ok(Some(mut hash)) => {
                     if let Err(EffectiveAgentsAssemblerError::RemoteConfigLoadError(error)) =
