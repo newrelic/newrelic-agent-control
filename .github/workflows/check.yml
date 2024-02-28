@@ -28,7 +28,7 @@ jobs:
         with:
           submodules: true
       - name: Give GitHub Actions access to private crates
-        uses: webfactory/ssh-agent@v0.8.0
+        uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
       - name: Install stable
@@ -52,7 +52,7 @@ jobs:
         with:
           submodules: true
       - name: Give GitHub Actions access to private crates
-        uses: webfactory/ssh-agent@v0.8.0
+        uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
       - name: Install ${{ matrix.toolchain }}
@@ -78,7 +78,7 @@ jobs:
         with:
           submodules: true
       - name: Give GitHub Actions access to private crates
-        uses: webfactory/ssh-agent@v0.8.0
+        uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
       - name: Install nightly
@@ -102,7 +102,7 @@ jobs:
         with:
           submodules: true
       - name: Give GitHub Actions access to private crates
-        uses: webfactory/ssh-agent@v0.8.0
+        uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
       - name: Install ${{ matrix.msrv }}
@@ -124,7 +124,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Give GitHub Actions access to private crates
-        uses: webfactory/ssh-agent@v0.8.0
+        uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
       - name: Check security and licensing

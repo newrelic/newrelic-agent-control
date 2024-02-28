@@ -21,7 +21,7 @@ jobs:
         with:
           submodules: true
       - name: Give GitHub Actions access to private crates
-        uses: webfactory/ssh-agent@v0.8.0
+        uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
       - name: Install ${{ matrix.toolchain }}
@@ -51,7 +51,7 @@ jobs:
         with:
           submodules: true
       - name: Give GitHub Actions access to private crates
-        uses: webfactory/ssh-agent@v0.8.0
+        uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
       - name: Run k8s root-required tests only
@@ -65,7 +65,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Give GitHub Actions access to private crates
-        uses: webfactory/ssh-agent@v0.8.0
+        uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
       - name: Install Go
@@ -83,7 +83,7 @@ jobs:
         with:
           submodules: true
       - name: Give GitHub Actions access to private crates
-        uses: webfactory/ssh-agent@v0.8.0
+        uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
       - name: Setup Minikube
@@ -111,7 +111,7 @@ jobs:
         with:
           submodules: true
       - name: Give GitHub Actions access to private crates
-        uses: webfactory/ssh-agent@v0.8.0
+        uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
       - name: Setup Minikube
