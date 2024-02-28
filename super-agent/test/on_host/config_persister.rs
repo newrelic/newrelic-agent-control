@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use ::fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
 use newrelic_super_agent::agent_type::agent_values::AgentValues;
-use newrelic_super_agent::agent_type::definition::{AgentAttributes, RawAgentType};
+use newrelic_super_agent::agent_type::definition::{AgentAttributes, AgentTypeDefinition};
 use newrelic_super_agent::agent_type::environment::Environment;
 use newrelic_super_agent::sub_agent::persister::config_persister::ConfigurationPersister;
 use newrelic_super_agent::sub_agent::persister::config_persister_file::ConfigurationPersisterFile;
@@ -26,9 +26,11 @@ fn test_configuration_persister_single_file() {
     let persister = ConfigurationPersisterFile::new(temp_path.as_path());
     let agent_id = AgentID::new("some-agent-id").unwrap();
 
-    let raw_agent_type: RawAgentType =
+    let agent_type_definition: AgentTypeDefinition =
         serde_yaml::from_reader(AGENT_TYPE_SINGLE_FILE.as_bytes()).unwrap();
-    let mut agent_type = raw_agent_type.try_build(&Environment::OnHost).unwrap();
+    let mut agent_type = agent_type_definition
+        .try_build(&Environment::OnHost)
+        .unwrap();
     let agent_values: AgentValues =
         serde_yaml::from_reader(AGENT_VALUES_SINGLE_FILE.as_bytes()).unwrap();
     agent_type = agent_type

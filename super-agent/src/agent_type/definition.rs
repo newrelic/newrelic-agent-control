@@ -24,9 +24,33 @@ use duration_str;
 use opamp_client::opamp::proto::AgentCapabilities;
 use opamp_client::operation::capabilities::Capabilities;
 
+/// AgentTypeDefinition represents the definition of an [AgentType]. It defines the variables and runtime for any supported
+/// environment.
+#[derive(Debug, PartialEq, Clone, Default, Deserialize)]
+pub struct AgentTypeDefinition {
+    #[serde(flatten)]
+    pub metadata: AgentMetadata,
+    pub variables: VariableTree,
+    #[serde(default, flatten)]
+    pub runtime_config: Runtime,
+}
+
+impl AgentTypeDefinition {
+    /// Builds the [AgentType] corresponding to the current [AgentTypeDefinition], considering the provided [super::deployment::Deployment].
+    pub fn try_build(self, _environment: &Environment) -> Result<AgentType, AgentTypeError> {
+        // TODO: the [AgentType] variables will different depending on the provided environment.
+        Ok(AgentType {
+            variables: self.variables,
+            metadata: self.metadata,
+            runtime_config: self.runtime_config,
+            capabilities: default_capabilities(),
+        })
+    }
+}
+
 /// Configuration of the Agent Type, contains identification metadata, a set of variables that can be adjusted, and rules of how to execute agents.
 ///
-/// This is the final representation of the agent type once it has been parsed (first into a [`RawAgentType`]), and it is aware of the corresponding deployment.
+/// This is the final representation of the agent type once it has been parsed (first into a [`AgentTypeDefinition`]), and it is aware of the corresponding environment.
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct AgentType {
     pub metadata: AgentMetadata,
@@ -39,28 +63,6 @@ pub struct AgentType {
 pub struct TemplateableValue<T> {
     value: Option<T>,
     template: String,
-}
-
-#[derive(Debug, PartialEq, Clone, Default, Deserialize)]
-pub struct RawAgentType {
-    #[serde(flatten)]
-    pub metadata: AgentMetadata,
-    pub variables: VariableTree,
-    #[serde(default, flatten)]
-    pub runtime_config: Runtime,
-}
-
-impl RawAgentType {
-    /// Builds the [AgentType] corresponding to the current [RawAgentType], considering the provided [super::deployment::Deployment].
-    pub fn try_build(self, _environment: &Environment) -> Result<AgentType, AgentTypeError> {
-        // TODO: the [AgentType] variables will different depending on the provided environment.
-        Ok(AgentType {
-            variables: self.variables,
-            metadata: self.metadata,
-            runtime_config: self.runtime_config,
-            capabilities: default_capabilities(),
-        })
-    }
 }
 
 impl<'de, T> Deserialize<'de> for TemplateableValue<T> {
@@ -459,7 +461,7 @@ deployment:
 
     #[test]
     fn test_basic_agent_parsing() {
-        let agent: RawAgentType = serde_yaml::from_str(AGENT_GIVEN_YAML).unwrap();
+        let agent: AgentTypeDefinition = serde_yaml::from_str(AGENT_GIVEN_YAML).unwrap();
 
         assert_eq!("nrdot", agent.metadata.name);
         assert_eq!("newrelic", agent.metadata.namespace);
@@ -499,7 +501,8 @@ deployment:
 
     #[test]
     fn test_bad_parsing() {
-        let raw_agent_err: Result<RawAgentType, Error> = serde_yaml::from_str(AGENT_GIVEN_BAD_YAML);
+        let raw_agent_err: Result<AgentTypeDefinition, Error> =
+            serde_yaml::from_str(AGENT_GIVEN_BAD_YAML);
 
         assert!(raw_agent_err.is_err());
         println!("{:?}", raw_agent_err);
@@ -513,7 +516,7 @@ deployment:
     fn test_normalize_agent_spec() {
         // create AgentSpec
 
-        let given_agent = serde_yaml::from_str::<RawAgentType>(AGENT_GIVEN_YAML)
+        let given_agent = serde_yaml::from_str::<AgentTypeDefinition>(AGENT_GIVEN_YAML)
             .unwrap()
             .try_build(&Environment::OnHost)
             .unwrap();
@@ -878,10 +881,11 @@ config: |
     #[test]
     fn test_template_with_runtime_field_and_agent_configs_path() {
         // Having Agent Type
-        let input_agent_type = serde_yaml::from_str::<RawAgentType>(GIVEN_NEWRELIC_INFRA_YAML)
-            .unwrap()
-            .try_build(&Environment::OnHost)
-            .unwrap();
+        let input_agent_type =
+            serde_yaml::from_str::<AgentTypeDefinition>(GIVEN_NEWRELIC_INFRA_YAML)
+                .unwrap()
+                .try_build(&Environment::OnHost)
+                .unwrap();
 
         // And Agent Values
         let input_user_config =
@@ -1045,10 +1049,11 @@ backoff:
 
     #[test]
     fn test_backoff_config() {
-        let input_agent_type = serde_yaml::from_str::<RawAgentType>(AGENT_BACKOFF_TEMPLATE_YAML)
-            .unwrap()
-            .try_build(&Environment::OnHost)
-            .unwrap();
+        let input_agent_type =
+            serde_yaml::from_str::<AgentTypeDefinition>(AGENT_BACKOFF_TEMPLATE_YAML)
+                .unwrap()
+                .try_build(&Environment::OnHost)
+                .unwrap();
         // println!("Input: {:#?}", input_agent_type);
 
         let input_user_config = serde_yaml::from_str::<AgentValues>(BACKOFF_CONFIG_YAML).unwrap();
@@ -1124,10 +1129,11 @@ backoff:
 
     #[test]
     fn test_negative_backoff_configs() {
-        let input_agent_type = serde_yaml::from_str::<RawAgentType>(AGENT_BACKOFF_TEMPLATE_YAML)
-            .unwrap()
-            .try_build(&Environment::OnHost)
-            .unwrap();
+        let input_agent_type =
+            serde_yaml::from_str::<AgentTypeDefinition>(AGENT_BACKOFF_TEMPLATE_YAML)
+                .unwrap()
+                .try_build(&Environment::OnHost)
+                .unwrap();
 
         let wrong_retries =
             serde_yaml::from_str::<AgentValues>(WRONG_RETRIES_BACKOFF_CONFIG_YAML).unwrap();
@@ -1207,7 +1213,7 @@ backoff:
     #[test]
     fn test_string_backoff_config() {
         let input_agent_type =
-            serde_yaml::from_str::<RawAgentType>(AGENT_STRING_DURATIONS_TEMPLATE_YAML)
+            serde_yaml::from_str::<AgentTypeDefinition>(AGENT_STRING_DURATIONS_TEMPLATE_YAML)
                 .unwrap()
                 .try_build(&Environment::OnHost)
                 .unwrap();
@@ -1291,10 +1297,11 @@ config:
 
     #[test]
     fn test_k8s_config_yaml_variables() {
-        let input_agent_type = serde_yaml::from_str::<RawAgentType>(K8S_AGENT_TYPE_YAML_VARIABLES)
-            .unwrap()
-            .try_build(&Environment::K8s)
-            .unwrap();
+        let input_agent_type =
+            serde_yaml::from_str::<AgentTypeDefinition>(K8S_AGENT_TYPE_YAML_VARIABLES)
+                .unwrap()
+                .try_build(&Environment::K8s)
+                .unwrap();
         let user_config: AgentValues = serde_yaml::from_str(K8S_CONFIG_YAML_VALUES).unwrap();
         let expected_spec_yaml = r#"
 values:
@@ -1370,7 +1377,7 @@ restart_policy:
 
     #[test]
     fn test_agent_with_variants() {
-        let input_agent_type = serde_yaml::from_str::<RawAgentType>(AGENT_WITH_VARIANTS)
+        let input_agent_type = serde_yaml::from_str::<AgentTypeDefinition>(AGENT_WITH_VARIANTS)
             .unwrap()
             .try_build(&Environment::OnHost)
             .unwrap();
@@ -1394,7 +1401,7 @@ restart_policy:
 
     #[test]
     fn test_agent_with_variants_invalid() {
-        let input_agent_type = serde_yaml::from_str::<RawAgentType>(AGENT_WITH_VARIANTS)
+        let input_agent_type = serde_yaml::from_str::<AgentTypeDefinition>(AGENT_WITH_VARIANTS)
             .unwrap()
             .try_build(&Environment::OnHost)
             .unwrap();
@@ -1412,7 +1419,7 @@ restart_policy:
 
     #[test]
     fn default_can_be_invalid_variant() {
-        let input_agent_type = serde_yaml::from_str::<RawAgentType>(AGENT_WITH_VARIANTS)
+        let input_agent_type = serde_yaml::from_str::<AgentTypeDefinition>(AGENT_WITH_VARIANTS)
             .unwrap()
             .try_build(&Environment::OnHost)
             .unwrap();

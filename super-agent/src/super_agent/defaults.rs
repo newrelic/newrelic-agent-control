@@ -274,12 +274,12 @@ deployment:
 
 #[cfg(test)]
 mod test {
-    use crate::agent_type::definition::RawAgentType;
+    use crate::agent_type::definition::AgentTypeDefinition;
 
     #[test]
     fn test_parsable_configs() {
-        serde_yaml::from_str::<RawAgentType>(super::NEWRELIC_INFRA_TYPE_0_0_1).unwrap();
-        serde_yaml::from_str::<RawAgentType>(super::NEWRELIC_INFRA_TYPE_0_0_2).unwrap();
-        serde_yaml::from_str::<RawAgentType>(super::NRDOT_TYPE_0_0_1).unwrap();
+        serde_yaml::from_str::<AgentTypeDefinition>(super::NEWRELIC_INFRA_TYPE_0_0_1).unwrap();
+        serde_yaml::from_str::<AgentTypeDefinition>(super::NEWRELIC_INFRA_TYPE_0_0_2).unwrap();
+        serde_yaml::from_str::<AgentTypeDefinition>(super::NRDOT_TYPE_0_0_1).unwrap();
     }
 }
