@@ -66,14 +66,22 @@ nfpms:
 
     contents:
       # Newrelic Super Agent
+      - dst: /etc/newrelic-super-agent
+        type: dir
+        file_info:
+          mode: 0700
       - src: build/package/config.yaml
         dst: /etc/newrelic-super-agent/config.yaml
         type: config
+        file_info:
+          mode: 0600
       - src: build/package/newrelic-super-agent.service
         dst: /lib/systemd/system/newrelic-super-agent.service
       - src: build/package/newrelic-super-agent.conf
         dst: /etc/newrelic-super-agent/newrelic-super-agent.conf
         type: config|noreplace
+        file_info:
+          mode: 0600
       - dst: /etc/newrelic-super-agent/fleet/agents.d
         type: dir
         file_info:
@@ -176,8 +184,7 @@ nfpms:
     license: Apache 2.0
 
 signs:
-  -
-    id: checksums
+  - id: checksums
 
     # Path to the checksum command.
     cmd: ./build/scripts/generate_checksum.sh
@@ -185,8 +192,7 @@ signs:
       "-f", "{{ .Env.artifact }}",
     ]
     artifacts: all
-  -
-    id: signing
+  - id: signing
 
     # Path to the signature command.
     cmd: ./build/scripts/signing/sign.sh
