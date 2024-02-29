@@ -18,6 +18,11 @@ on:
       EC2_FILTERS:
         required: false
         type: string
+      REPO_ENDPOINT:
+        required: false
+        type: string
+        description: 'Repository endpoint to fetch packages from'
+        default: "https://download.newrelic.com/preview"
       FORCE_CLEANUP:
         required: false
         type: boolean
@@ -82,7 +87,7 @@ jobs:
         uses: newrelic/fargate-runner-action@main
         with:
           aws_region: us-east-2
-          container_make_target: "test/e2e ANSIBLE_INVENTORY='/srv/runner/inventory/${{ env.UNIQUE_NAME }}-inventory.ec2'"
+          container_make_target: "test/e2e REPO_ENDPOINT=${{ inputs.REPO_ENDPOINT }} ANSIBLE_INVENTORY='/srv/runner/inventory/${{ env.UNIQUE_NAME }}-inventory.ec2'"
           ecs_cluster_name: caos_super_agent_releases
           task_definition_name: super_agent-releases
           cloud_watch_logs_group_name: /ecs/test-prerelease-super_agent-releases

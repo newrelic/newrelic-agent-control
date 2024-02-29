@@ -3,7 +3,7 @@
   include_role:
     name: caos.ansible_roles.nr_repo_setup
   vars:
-    repo_endpoint: "http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview"
+    repo_endpoint: {{ repo_endpoint }}
 
 #TODO: add target version as env variable
 - name: Install SA package

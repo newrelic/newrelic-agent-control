@@ -25,13 +25,75 @@ jobs:
       image-tag: nightly
     secrets: inherit
 
+  build-nightly:
+    runs-on: ubuntu-latest
+    name: Build and upload packages to testing bucket
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Give GitHub Actions access to private crates
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
+
+      - name: Tag current codebase
+        run: git tag 0.100.0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '~1.20'
+          check-latest: true
+
+      - name: Release packages with GoReleaser
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --snapshot --clean --debug --timeout 2h
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GPG_PASSPHRASE: ${{ secrets.OHAI_GPG_PASSPHRASE }}
+          GPG_PRIVATE_KEY_BASE64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
+          GPG_MAIL: 'infrastructure-eng@newrelic.com'
+          NR_RELEASE_TAG: ${{ github.event.release.tag_name }}
+
+      - name: Publish rpm to S3 action
+        uses: newrelic/infrastructure-publish-action@v1
+        with:
+          tag: ${{ github.event.release.tag_name }}
+          app_name: "newrelic-super-agent"
+          repo_name: "newrelic/newrelic-super-agent"
+          schema: "custom-local"
+          schema_path: "/srv/build/upload-schema-linux-rpm-nightly.yml"
+          aws_access_key_id: ${{ secrets.OHAI_AWS_ACCESS_KEY_ID_TESTING }}
+          aws_secret_access_key: ${{ secrets.OHAI_AWS_SECRET_ACCESS_KEY_TESTING }}
+          aws_s3_bucket_name: "nr-downloads-ohai-testing"
+          aws_s3_lock_bucket_name: "onhost-ci-lock-testing"
+          access_point_host: "testing"
+          run_id: ${{ github.run_id }}
+          aws_region: "us-east-1"
+          aws_role_session_name: ${{ secrets.OHAI_AWS_ROLE_SESSION_NAME_TESTING }}
+          aws_role_arn: ${{ secrets.OHAI_AWS_ROLE_ARN_TESTING }}
+          # used for signing package stuff
+          gpg_passphrase: ${{ secrets.OHAI_GPG_PASSPHRASE }}
+          gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
+          disable_lock: false
+          dest_prefix: "super-agent-nightlies/"
+          local_packages_path:  "./dist/"
+          apt_skip_mirror: false
+
+
   onhost-e2e:
     uses: ./.github/workflows/component_onhost_e2e.yaml
+    needs: [build-nightly]
     with:
-      TAG: "0.7.1"
+      TAG: "0.100.1"
       UNIQUE_NAME: "nightly:e2e"
       EC2_FILTERS: '[\"ubuntu\"]'
       FORCE_CLEANUP: true
+      REPOSITORY_ENDPOINT: "http://nr-downloads-ohai-testing.s3-website-us-east-1.amazonaws.com/super-agent-nightlies"
     secrets:
       AWS_ROLE_ARN: ${{ secrets.TMP_AWS_ROLE_ARN }}
       AWS_VPC_SUBNET: ${{ secrets.TMP_AWS_VPC_SUBNET }}

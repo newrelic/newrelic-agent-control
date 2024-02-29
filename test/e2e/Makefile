@@ -7,6 +7,7 @@ ANSIBLE_FORKS ?= 5
 ANSIBLE_INVENTORY ?= $(ANSIBLE_FOLDER)/inventory.ec2
 ANSIBLE_PLAYBOOK ?= test.yaml
 LIMIT ?= "testing_hosts_linux"
+REPOSITORY_ENDPOINT ?= "https://download.newrelic.com/preview"
 
 .PHONY: e2e
 e2e:
@@ -31,6 +32,7 @@ endif
  		-e nr_license_key=$(NR_LICENSE_KEY) \
         -e nr_api_key=$(NEW_RELIC_API_KEY) \
         -e nr_account_id=$(NEW_RELIC_ACCOUNT_ID) \
+        -e repo_endpoint=$(REPOSITORY_ENDPOINT) \
  		$(ANSIBLE_FOLDER)/$(ANSIBLE_PLAYBOOK)
 
 .PHONY: clean
