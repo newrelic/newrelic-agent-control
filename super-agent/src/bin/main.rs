@@ -2,17 +2,19 @@ use newrelic_super_agent::cli::Cli;
 use newrelic_super_agent::event::channel::{pub_sub, EventConsumer, EventPublisher};
 use newrelic_super_agent::event::SuperAgentEvent;
 use newrelic_super_agent::opamp::instance_id::getter::ULIDInstanceIDGetter;
+use newrelic_super_agent::opamp::instance_id::Identifiers;
 use newrelic_super_agent::super_agent::error::AgentError;
 use newrelic_super_agent::super_agent::opamp::client_builder::SuperAgentOpAMPHttpBuilder;
 use newrelic_super_agent::super_agent::store::{SuperAgentConfigLoader, SuperAgentConfigStoreFile};
 use newrelic_super_agent::super_agent::{super_agent_fqn, SuperAgent};
+use newrelic_super_agent::utils::binary_metadata::binary_metadata;
 use newrelic_super_agent::utils::hostname::HostnameGetter;
 use opamp_client::operation::settings::DescriptionValueType;
 use std::collections::HashMap;
 use std::error::Error;
 use std::ffi::OsString;
 use std::sync::Arc;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 #[cfg(all(feature = "onhost", feature = "k8s", not(feature = "ci")))]
 compile_error!("Feature \"onhost\" and feature \"k8s\" cannot be enabled at the same time");
@@ -22,6 +24,11 @@ compile_error!("Either feature \"onhost\" or feature \"k8s\" must be enabled");
 
 fn main() -> Result<(), Box<dyn Error>> {
     let cli = Cli::init_super_agent_cli();
+
+    if cli.print_version() {
+        println!("{}", binary_metadata());
+        return Ok(());
+    }
 
     let mut super_agent_config_storer = SuperAgentConfigStoreFile::new(&cli.get_config_path());
 
@@ -33,6 +40,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // when the program exits.
     let _guard = super_agent_config.log.try_init()?;
 
+    info!("{}", binary_metadata());
     if cli.print_debug_info() {
         println!("Printing debug info");
         println!("CLI: {:#?}", cli);
@@ -45,10 +53,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         return Ok(());
     }
 
-    info!("Creating the global context");
+    debug!("Creating the global context");
     let (super_agent_publisher, super_agent_consumer) = pub_sub();
 
-    info!("Creating the signal handler");
+    debug!("Creating the signal handler");
     create_shutdown_signal_handler(super_agent_publisher)?;
 
     let opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder> = super_agent_config
@@ -104,8 +112,11 @@ fn run_super_agent(
         std::process::exit(1);
     }
 
-    let instance_id_getter = ULIDInstanceIDGetter::default()
-        .with_identifiers(IdentifiersProvider::default().provide().unwrap_or_default());
+    let identifiers = IdentifiersProvider::default().provide().unwrap_or_default();
+    //Print identifiers for troubleshooting
+    print_identifiers(&identifiers);
+
+    let instance_id_getter = ULIDInstanceIDGetter::default().with_identifiers(identifiers);
 
     let hash_repository = HashRepositoryFile::default();
     let agents_assembler = LocalEffectiveAgentsAssembler::default()
@@ -156,6 +167,10 @@ fn run_super_agent(
     .run(super_agent_consumer, super_agent_opamp_consumer)
 }
 
+fn print_identifiers(identifiers: &Identifiers) {
+    info!("Instance Identifiers: {}", identifiers);
+}
+
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
 fn run_super_agent(
     config_storer: SuperAgentConfigStoreFile,
@@ -197,10 +212,12 @@ fn run_super_agent(
 
     let hash_repository = HashRepositoryConfigMap::new(k8s_store.clone());
 
-    let instance_id_getter = ULIDInstanceIDGetter::try_with_identifiers(
-        k8s_store.clone(),
-        instance_id::get_identifiers(k8s_config.cluster_name.clone()),
-    )?;
+    let identifiers = instance_id::get_identifiers(k8s_config.cluster_name.clone());
+    //Print identifiers for troubleshooting
+    print_identifiers(&identifiers);
+
+    let instance_id_getter =
+        ULIDInstanceIDGetter::try_with_identifiers(k8s_store.clone(), identifiers)?;
 
     let agents_assembler = {
         #[cfg(feature = "custom-local-path")]
