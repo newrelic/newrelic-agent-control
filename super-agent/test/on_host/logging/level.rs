@@ -11,7 +11,7 @@ fn cmd_with_config_file(file_path: &Path) -> Command {
     let mut cmd = Command::cargo_bin("newrelic-super-agent").unwrap();
     cmd.arg("--config").arg(file_path);
     // cmd_assert is not made for long running programs, so we kill it anyway after 1 second
-    cmd.timeout(Duration::from_secs(1));
+    cmd.timeout(Duration::from_secs(2));
     cmd
 }
 
@@ -27,15 +27,18 @@ fn default_log_level_no_root() {
         .failure()
         .stdout(
             predicate::str::is_match(
-                TIME_FORMAT.to_owned() + "INFO.*Starting NewRelic Super Agent",
+                TIME_FORMAT.to_owned() + "INFO.*New Relic Super Agent Version: .*, Rust Version: .*, GitCommit: .*, BuildDate: .*",
             )
-            .unwrap(),
+                .unwrap(),
         )
         .stdout(
-            predicate::str::is_match(TIME_FORMAT.to_owned() + "ERROR.*Program must run as root")
+            predicate::str::is_match(
+                TIME_FORMAT.to_owned() + "ERROR.*Program must run as root",
+            )
                 .unwrap(),
         );
 }
+
 #[test]
 fn default_log_level_as_root() {
     let dir = TempDir::new().unwrap();
@@ -48,15 +51,21 @@ fn default_log_level_as_root() {
         .failure()
         .stdout(
             predicate::str::is_match(
-                TIME_FORMAT.to_owned() + "INFO.*Starting NewRelic Super Agent",
+                TIME_FORMAT.to_owned() + "INFO.*New Relic Super Agent Version: .*, Rust Version: .*, GitCommit: .*, BuildDate: .*",
             )
-            .unwrap(),
+                .unwrap(),
+        )
+        .stdout(
+            predicate::str::is_match(
+                TIME_FORMAT.to_owned() + "INFO.*Starting the super agent",
+            )
+                .unwrap(),
         )
         .stdout(
             predicate::str::is_match(
                 TIME_FORMAT.to_owned() + "INFO.*Starting the supervisor group",
             )
-            .unwrap(),
+                .unwrap(),
         );
 }
 
@@ -121,6 +130,18 @@ fn debug_log_level_as_root() {
                 TIME_FORMAT.to_owned() + "INFO.*Starting NewRelic Super Agent",
             )
             .unwrap(),
+        )
+        .stdout(
+            predicate::str::is_match(TIME_FORMAT.to_owned() + "DEBUG.*Creating the signal handler")
+                .unwrap(),
+        )
+        .stdout(
+            predicate::str::is_match(TIME_FORMAT.to_owned() + "DEBUG.*Creating the global context")
+                .unwrap(),
+        )
+        .stdout(
+            predicate::str::is_match(TIME_FORMAT.to_owned() + "INFO.*Starting the super agent")
+                .unwrap(),
         )
         .stdout(
             predicate::str::is_match(

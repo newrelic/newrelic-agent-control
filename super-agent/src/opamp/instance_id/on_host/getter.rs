@@ -10,6 +10,7 @@ use resource_detection::system::{HOSTNAME_KEY, MACHINE_ID_KEY};
 use resource_detection::DetectError;
 use resource_detection::{system::detector::SystemDetector, Detector};
 use serde::{Deserialize, Serialize};
+use std::fmt::{Display, Formatter};
 use thiserror::Error;
 use tracing::error;
 
@@ -27,6 +28,16 @@ pub struct Identifiers {
     pub hostname: String,
     pub machine_id: String,
     pub cloud_instance_id: String,
+}
+
+impl Display for Identifiers {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "hostname = '{}', machine_id = '{}', cloud_instance_id = '{}'",
+            self.hostname, self.machine_id, self.cloud_instance_id
+        )
+    }
 }
 
 pub struct IdentifiersProvider<
@@ -117,7 +128,6 @@ impl Default for ULIDInstanceIDGetter<Storer> {
 
 #[cfg(test)]
 mod test {
-
     use crate::opamp::instance_id::on_host::getter::IdentifiersProvider;
     use crate::opamp::instance_id::Identifiers;
     use mockall::mock;
@@ -181,7 +191,7 @@ mod test {
         assert_eq!(expected_identifiers, identifiers);
         assert!(logs_with_scope_contain(
             "test_hostname_error_will_return_empty_hostname",
-            "cannot get hostname identifier"
+            "cannot get hostname identifier",
         ));
     }
 
@@ -215,7 +225,7 @@ mod test {
         assert_eq!(expected_identifiers, identifiers);
         assert!(logs_with_scope_contain(
             "test_machine_id_error_will_return_empty_machine_id",
-            "cannot get machine_id identifier"
+            "cannot get machine_id identifier",
         ));
     }
 

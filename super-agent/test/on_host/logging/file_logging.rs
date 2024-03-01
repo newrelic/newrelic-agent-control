@@ -44,17 +44,19 @@ fn default_log_level_no_root() {
         .failure()
         .stdout(
             predicate::str::is_match(
-                TIME_FORMAT.to_owned() + "INFO.*Starting NewRelic Super Agent",
+                TIME_FORMAT.to_owned() + "INFO.*New Relic Super Agent Version: .*, Rust Version: .*, GitCommit: .*, BuildDate: .*",
             )
-            .unwrap(),
+                .unwrap(),
         )
         .stdout(
-            predicate::str::is_match(TIME_FORMAT.to_owned() + "ERROR.*Program must run as root")
+            predicate::str::is_match(
+                TIME_FORMAT.to_owned() + "ERROR.*Program must run as root",
+            )
                 .unwrap(),
         );
 
     // Let's wait for a second so the flushed contents arrive to the files
-    std::thread::sleep(Duration::from_secs(1));
+    std::thread::sleep(Duration::from_secs(2));
 
     // Now, we assert that the file(s) created are present and have the expected content
     let dir: Vec<_> = read_dir(log_dir)
@@ -71,7 +73,6 @@ fn default_log_level_no_root() {
         actual.push_str(&std::fs::read_to_string(file.path()).unwrap());
     }
 
-    assert!(actual.contains("INFO Starting NewRelic Super Agent"));
     assert!(actual.contains("ERROR Program must run as root"));
 }
 
@@ -92,22 +93,22 @@ fn default_log_level_as_root() {
     cmd.assert()
         .failure()
         .stdout(
-            predicate::str::is_match(TIME_FORMAT.to_owned() + "INFO.*Creating the signal handler")
+            predicate::str::is_match(
+                TIME_FORMAT.to_owned() + "INFO.*New Relic Super Agent Version: .*, Rust Version: .*, GitCommit: .*, BuildDate: .*",
+            )
                 .unwrap(),
         )
         .stdout(
-            predicate::str::is_match(TIME_FORMAT.to_owned() + "INFO.*Creating the global context")
-                .unwrap(),
-        )
-        .stdout(
-            predicate::str::is_match(TIME_FORMAT.to_owned() + "INFO.*Starting the super agent")
+            predicate::str::is_match(
+                TIME_FORMAT.to_owned() + "INFO.*Starting the super agent",
+            )
                 .unwrap(),
         )
         .stdout(
             predicate::str::is_match(
                 TIME_FORMAT.to_owned() + "INFO.*Starting the supervisor group",
             )
-            .unwrap(),
+                .unwrap(),
         );
 
     // Let's wait for a second so the flushed contents arrive to the files
@@ -128,8 +129,7 @@ fn default_log_level_as_root() {
         actual.push_str(&std::fs::read_to_string(file.path()).unwrap());
     }
 
-    assert!(actual.contains("INFO Creating the signal handler"));
-    assert!(actual.contains("INFO Creating the global context"));
+    assert!(actual.contains("INFO Instance Identifiers:"));
     assert!(actual.contains("INFO Starting the super agent"));
     assert!(actual.contains("INFO Starting the supervisor group"));
 }

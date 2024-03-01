@@ -58,21 +58,15 @@ fn runs_as_root() -> Result<(), Box<dyn std::error::Error>> {
         .failure()
         .stdout(
             predicate::str::is_match(
-                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Creating the signal handler",
+                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*New Relic Super Agent Version: .*, Rust Version: .*, GitCommit: .*, BuildDate: .*",
             )
-            .unwrap(),
-        )
-        .stdout(
-            predicate::str::is_match(
-                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Creating the global context",
-            )
-            .unwrap(),
+                .unwrap(),
         )
         .stdout(
             predicate::str::is_match(
                 r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Starting the super agent",
             )
-            .unwrap(),
+                .unwrap(),
         );
     // No supervisor group so we don't check for it.
     Ok(())
@@ -110,21 +104,15 @@ log:
         .failure()
         .stdout(
             predicate::str::is_match(
-                r".*(\d{4}).*INFO.*newrelic_super_agent.*Creating the signal handler",
+                r".*(\d{4}).*INFO.*New Relic Super Agent Version: .*, Rust Version: .*, GitCommit: .*, BuildDate: .*",
             )
-            .unwrap(),
-        )
-        .stdout(
-            predicate::str::is_match(
-                r".*(\d{4}).*INFO.*newrelic_super_agent.*Creating the global context",
-            )
-            .unwrap(),
+                .unwrap(),
         )
         .stdout(
             predicate::str::is_match(
                 r".*(\d{4}).*INFO.*newrelic_super_agent.*Starting the super agent",
             )
-            .unwrap(),
+                .unwrap(),
         );
     // No supervisor group so we don't check for it.
     Ok(())
