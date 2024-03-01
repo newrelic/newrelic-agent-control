@@ -3,6 +3,8 @@ use newrelic_super_agent::event::channel::{pub_sub, EventConsumer, EventPublishe
 use newrelic_super_agent::event::SuperAgentEvent;
 use newrelic_super_agent::opamp::instance_id::getter::ULIDInstanceIDGetter;
 use newrelic_super_agent::opamp::instance_id::Identifiers;
+use newrelic_super_agent::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
+use newrelic_super_agent::sub_agent::values::values_repository::ValuesRepositoryFile;
 use newrelic_super_agent::super_agent::error::AgentError;
 use newrelic_super_agent::super_agent::opamp::client_builder::SuperAgentOpAMPHttpBuilder;
 use newrelic_super_agent::super_agent::store::{SuperAgentConfigLoader, SuperAgentConfigStoreFile};
@@ -95,11 +97,8 @@ fn run_super_agent(
     use newrelic_super_agent::opamp::hash_repository::HashRepositoryFile;
     use newrelic_super_agent::opamp::instance_id::IdentifiersProvider;
     use newrelic_super_agent::opamp::operations::build_opamp_and_start_client;
-    use newrelic_super_agent::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
     use newrelic_super_agent::sub_agent::persister::config_persister_file::ConfigurationPersisterFile;
-    use newrelic_super_agent::sub_agent::values::values_repository::{
-        ValuesRepository, ValuesRepositoryFile,
-    };
+    use newrelic_super_agent::sub_agent::values::values_repository::ValuesRepository;
     use newrelic_super_agent::super_agent::config::AgentID;
     use newrelic_super_agent::{
         sub_agent::event_processor_builder::EventProcessorBuilder,
@@ -182,7 +181,6 @@ fn run_super_agent(
     use newrelic_super_agent::opamp::hash_repository::HashRepositoryConfigMap;
     use newrelic_super_agent::opamp::instance_id;
     use newrelic_super_agent::opamp::operations::build_opamp_and_start_client;
-    use newrelic_super_agent::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
     use newrelic_super_agent::super_agent::config::AgentID;
     use std::sync::OnceLock;
 
@@ -219,31 +217,19 @@ fn run_super_agent(
     let instance_id_getter =
         ULIDInstanceIDGetter::try_with_identifiers(k8s_store.clone(), identifiers)?;
 
-    let agents_assembler = {
-        #[cfg(feature = "custom-local-path")]
+    let (agents_assembler, _values_repository )=
+        // TODO we need to garbage collect this once we are no longer checking local files
         {
-            let cli = Cli::init_super_agent_cli();
-            let mut values_repo = newrelic_super_agent::sub_agent::values::values_repository::ValuesRepositoryFile::default();
-            let mut temp_assembler = LocalEffectiveAgentsAssembler::default();
-
-            if let Some(base_dir) = cli.get_local_path() {
-                if base_dir.is_empty() {
-                    return Err(AgentError::InvalidArgumentError(
-                        "Base directory cannot be empty".to_string(),
-                    ));
-                }
-
-                values_repo = values_repo.with_base_dir(base_dir);
-                temp_assembler = temp_assembler.with_base_dir(base_dir);
+            #[cfg(feature = "custom-local-path")]
+            {
+                custom_local_path()
             }
-
-            temp_assembler.with_values_repository(values_repo)
-        }
-        #[cfg(not(feature = "custom-local-path"))]
-        {
-            LocalEffectiveAgentsAssembler::default()
-        }
-    };
+            #[cfg(not(feature = "custom-local-path"))]
+            (
+                LocalEffectiveAgentsAssembler::default().with_remote(),
+                Arc::new(ValuesRepositoryFile::default().with_remote()),
+            )
+        };
 
     let sub_agent_builder = newrelic_super_agent::sub_agent::k8s::builder::K8sSubAgentBuilder::new(
         opamp_client_builder.as_ref(),
@@ -296,6 +282,40 @@ fn create_shutdown_signal_handler(
     })?;
 
     Ok(())
+}
+
+#[cfg(feature = "custom-local-path")]
+fn custom_local_path() -> (
+    LocalEffectiveAgentsAssembler<
+        newrelic_super_agent::agent_type::agent_type_registry::LocalRegistry,
+        newrelic_super_agent::sub_agent::persister::config_persister_file::ConfigurationPersisterFile,
+        ValuesRepositoryFile<fs::LocalFile, fs::directory_manager::DirectoryManagerFs>,
+    >,
+    Arc<ValuesRepositoryFile<fs::LocalFile, fs::directory_manager::DirectoryManagerFs>>,
+){
+    let mut agents_assembler = LocalEffectiveAgentsAssembler::default().with_remote();
+    let mut values_repository = Arc::new(ValuesRepositoryFile::default().with_remote());
+
+    if let Some(base_dir) = Cli::init_super_agent_cli().get_local_path() {
+        if base_dir.is_empty() {
+            error!("Base directory cannot be empty");
+            return (agents_assembler, values_repository);
+        }
+
+        agents_assembler = agents_assembler
+            .with_base_dir(base_dir)
+            .with_values_repository(
+                ValuesRepositoryFile::default()
+                    .with_remote()
+                    .with_base_dir(base_dir),
+            );
+        values_repository = Arc::new(
+            ValuesRepositoryFile::default()
+                .with_remote()
+                .with_base_dir(base_dir),
+        );
+    }
+    return (agents_assembler, values_repository);
 }
 
 fn super_agent_opamp_non_identifying_attributes() -> HashMap<String, DescriptionValueType> {
