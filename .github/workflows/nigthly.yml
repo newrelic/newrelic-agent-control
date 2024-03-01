@@ -4,9 +4,16 @@ name: Nightly release
 
 on:
   workflow_dispatch:
+    inputs:
+      tag:
+        required: false
+        type: string
+        description: 'Nightly Release tag'
+        default: "0.100.0"
   schedule:
     # Scheduled to run at 4 a.m on every day-of-week from Monday through Friday.
     - cron: "0 4 * * 1-5"
+
 
 jobs:
   build-push:
@@ -39,7 +46,7 @@ jobs:
           ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
 
       - name: Tag current codebase
-        run: git tag 0.100.0
+        run: git tag "${{ github.event.inputs.tag }}"
 
       - uses: actions/setup-go@v5
         with:
@@ -57,12 +64,12 @@ jobs:
           GPG_PASSPHRASE: ${{ secrets.OHAI_GPG_PASSPHRASE }}
           GPG_PRIVATE_KEY_BASE64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
           GPG_MAIL: 'infrastructure-eng@newrelic.com'
-          NR_RELEASE_TAG: ${{ github.event.release.tag_name }}
+          NR_RELEASE_TAG: ${{ github.event.inputs.tag }}
 
       - name: Publish rpm to S3 action
         uses: newrelic/infrastructure-publish-action@v1
         with:
-          tag: 0.100.0
+          tag: "${{ github.event.inputs.tag }}"
           app_name: "newrelic-super-agent"
           repo_name: "newrelic/newrelic-super-agent"
           schema: "custom-local"
@@ -89,7 +96,7 @@ jobs:
     uses: ./.github/workflows/component_onhost_e2e.yaml
     needs: [build-nightly]
     with:
-      TAG: "0.100.1"
+      TAG: "${{ github.event.inputs.tag }}"
       UNIQUE_NAME: "nightly:e2e"
       EC2_FILTERS: '[\"al-2023\"]'
       FORCE_CLEANUP: true
