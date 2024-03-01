@@ -41,6 +41,8 @@ fn does_not_run_if_no_root() -> Result<(), Box<dyn std::error::Error>> {
 fn runs_as_root() -> Result<(), Box<dyn std::error::Error>> {
     use std::time::Duration;
 
+    use crate::logging::level::TIME_FORMAT;
+
     let dir = TempDir::new()?;
     let file_path = create_simple_config(&dir, r"agents: {}")?;
 
@@ -58,13 +60,13 @@ fn runs_as_root() -> Result<(), Box<dyn std::error::Error>> {
         .failure()
         .stdout(
             predicate::str::is_match(
-                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*New Relic Super Agent Version: .*, Rust Version: .*, GitCommit: .*, BuildDate: .*",
+                TIME_FORMAT.to_owned() + "INFO.*New Relic Super Agent Version: .*, Rust Version: .*, GitCommit: .*, BuildDate: .*",
             )
                 .unwrap(),
         )
         .stdout(
             predicate::str::is_match(
-                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Starting the super agent",
+                TIME_FORMAT.to_owned() + "INFO.*Starting NewRelic Super Agent",
             )
                 .unwrap(),
         );
@@ -110,7 +112,7 @@ log:
         )
         .stdout(
             predicate::str::is_match(
-                r".*(\d{4}).*INFO.*newrelic_super_agent.*Starting the super agent",
+                r".*(\d{4}).*INFO.*newrelic_super_agent.*Starting NewRelic Super Agent",
             )
                 .unwrap(),
         );

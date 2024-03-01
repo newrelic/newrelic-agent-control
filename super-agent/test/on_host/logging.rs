@@ -1,2 +1,2 @@
 mod file_logging;
-mod level;
+pub(crate) mod level;

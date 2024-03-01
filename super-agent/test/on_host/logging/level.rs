@@ -5,7 +5,7 @@ use tempfile::TempDir;
 
 const EMPTY_CONFIG: &str = "# Empty config";
 const DEBUG_LEVEL_CONFIG: &str = "log:\n  level: debug";
-pub(super) const TIME_FORMAT: &str = r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*";
+pub(crate) const TIME_FORMAT: &str = r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*";
 
 fn cmd_with_config_file(file_path: &Path) -> Command {
     let mut cmd = Command::cargo_bin("newrelic-super-agent").unwrap();
