@@ -81,7 +81,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         )
     })?;
 
-    info!("Exiting gracefully.");
+    info!("Exiting gracefully");
     Ok(())
 }
 
@@ -149,10 +149,10 @@ fn run_super_agent(
 
     if maybe_client.is_none() {
         // Delete remote values
-        info!("No OpAMP settings configured. Cleaning remote configs.");
+        info!("No OpAMP settings configured. Cleaning remote configs");
         values_repository.delete_remote_all()?;
     } else {
-        info!("Super Agent OpAMP client started.");
+        info!("Super Agent OpAMP client started");
     }
 
     SuperAgent::new(
@@ -276,7 +276,7 @@ fn create_shutdown_signal_handler(
     publisher: EventPublisher<SuperAgentEvent>,
 ) -> Result<(), ctrlc::Error> {
     ctrlc::set_handler(move || {
-        info!("Received SIGINT (Ctrl-C). Stopping super agent.");
+        info!("Received SIGINT (Ctrl-C). Stopping super agent");
         let _ = publisher
             .publish(SuperAgentEvent::StopRequested)
             .map_err(|_| error!("Could not send super agent stop request"));

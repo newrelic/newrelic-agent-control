@@ -101,13 +101,13 @@ fn log_on_http_status_code(err: &ConnectionError) {
     {
         const STATUS_CODE_MSG: &str = "Received HTTP status code";
         match code {
-            400 => error!("{STATUS_CODE_MSG} {code} ({reason}). The request was malformed. Possible reason: invalid ULID."),
-            401 => error!("{STATUS_CODE_MSG} {code} ({reason}). Check for missing or invalid license key."
+            400 => error!("{STATUS_CODE_MSG} {code} ({reason}). The request was malformed. Possible reason: invalid ULID"),
+            401 => error!("{STATUS_CODE_MSG} {code} ({reason}). Check for missing or invalid license key"
             ),
-            403 => error!("{STATUS_CODE_MSG} {code} ({reason}). The account provided is not allowed to use this resource."),
-            404 => error!("{STATUS_CODE_MSG} {code} ({reason}). The requested resource was not found."),
-            415 => error!("{STATUS_CODE_MSG} {code} ({reason}). Content-Type or Content-Encoding for the HTTP request was wrong."),
-            500 => error!("{STATUS_CODE_MSG} {code} ({reason}). Server-side problem."),
+            403 => error!("{STATUS_CODE_MSG} {code} ({reason}). The account provided is not allowed to use this resource"),
+            404 => error!("{STATUS_CODE_MSG} {code} ({reason}). The requested resource was not found"),
+            415 => error!("{STATUS_CODE_MSG} {code} ({reason}). Content-Type or Content-Encoding for the HTTP request was wrong"),
+            500 => error!("{STATUS_CODE_MSG} {code} ({reason}). Server-side problem"),
             _ => error!("{STATUS_CODE_MSG} {code} ({reason}). Reasons unknown"),
         }
     }

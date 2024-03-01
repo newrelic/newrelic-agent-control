@@ -52,7 +52,7 @@ fn match_resource(
     match resource.get(cloud_instance_id_const.into()) {
         None => {
             warn!(
-                "{} instance ID should be in the attributes list. Check API permissions.",
+                "{} instance ID should be in the attributes list. Check API permissions",
                 cloud_type_const
             );
             Resource::new([

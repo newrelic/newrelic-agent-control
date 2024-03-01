@@ -97,14 +97,14 @@ where
             }
         }
 
-        info!("Starting the agents supervisor runtime.");
+        info!("Starting the agents supervisor runtime");
         let (sub_agent_publisher, sub_agent_consumer) = pub_sub();
         let sub_agents_config = &self.sub_agents_config_store.load()?;
 
         let not_started_sub_agents =
             self.load_sub_agents(sub_agents_config, &tx, sub_agent_publisher.clone())?;
 
-        info!("Agents supervisor runtime successfully started.");
+        info!("Agents supervisor runtime successfully started");
         // Run all the Sub Agents
         let running_sub_agents = not_started_sub_agents.run()?;
         self.process_events(
@@ -129,7 +129,7 @@ where
         debug!("Waiting for the output manager to finish");
         output_manager.join().unwrap();
 
-        info!("SuperAgent stopped.");
+        info!("SuperAgent stopped");
         Ok(())
     }
 
