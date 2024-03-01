@@ -6,12 +6,10 @@
 
 - name: Copy each file over that matches the given pattern
   ansible.builtin.copy:
-    src: "{{ item }}"
+    src: "/etc/newrelic-super-agent/examples/values-nr-otel-collector-agent-linux-0.1.0.yaml"
     dest: "{{ nr_otel_collector_config_path_linux }}"
     owner: "root"
     mode: 0600
-  with_fileglob:
-    - "/etc/newrelic-super-agent/examples/values-nr-otel-collector-agent-linux-*"
 
 - name: Replace the env variables in nr-otel-collector config
   ansible.builtin.replace:
