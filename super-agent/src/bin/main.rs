@@ -82,7 +82,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     #[cfg(any(feature = "onhost", feature = "k8s"))]
     run_super_agent(
-        super_agent_config_storer,
+        Arc::new(super_agent_config_storer),
         super_agent_consumer,
         opamp_client_builder,
     )
@@ -99,7 +99,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 #[cfg(feature = "onhost")]
 fn run_super_agent(
-    config_storer: SuperAgentConfigStoreFile,
+    config_storer: Arc<SuperAgentConfigStoreFile>,
     super_agent_consumer: EventConsumer<SuperAgentEvent>,
     opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
 ) -> Result<(), AgentError> {
@@ -123,7 +123,7 @@ fn run_super_agent(
 
     let instance_id_getter = ULIDInstanceIDGetter::default().with_identifiers(identifiers);
 
-    let hash_repository = HashRepositoryFile::default();
+    let hash_repository = Arc::new(HashRepositoryFile::default());
     let agents_assembler = LocalEffectiveAgentsAssembler::default()
         .with_remote()
         .with_renderer(
@@ -169,9 +169,9 @@ fn run_super_agent(
 
     SuperAgent::new(
         maybe_client,
-        &hash_repository,
+        hash_repository,
         sub_agent_builder,
-        Arc::new(config_storer),
+        config_storer,
     )
     .run(super_agent_consumer, super_agent_opamp_consumer)
 }
@@ -182,7 +182,7 @@ fn print_identifiers(identifiers: &Identifiers) {
 
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
 fn run_super_agent(
-    config_storer: SuperAgentConfigStoreFile,
+    config_storer: Arc<SuperAgentConfigStoreFile>,
     super_agent_consumer: EventConsumer<SuperAgentEvent>,
     opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
 ) -> Result<(), AgentError> {
@@ -218,10 +218,7 @@ fn run_super_agent(
 
     let k8s_store = Arc::new(K8sStore::new(k8s_client.clone()));
 
-    // TODO There is no difference between the two objects,
-    // we have two since the super_agent doesn't accept an Arc
-    let hash_repository = HashRepositoryConfigMap::new(k8s_store.clone());
-    let sub_agent_hash_repository = Arc::new(HashRepositoryConfigMap::new(k8s_store.clone()));
+    let hash_repository = Arc::new(HashRepositoryConfigMap::new(k8s_store.clone()));
 
     let identifiers = instance_id::get_identifiers(k8s_config.cluster_name.clone());
     //Print identifiers for troubleshooting
@@ -245,7 +242,7 @@ fn run_super_agent(
         };
 
     let sub_agent_event_processor_builder =
-        EventProcessorBuilder::new(sub_agent_hash_repository.clone(), values_repository.clone());
+        EventProcessorBuilder::new(hash_repository.clone(), values_repository.clone());
 
     let sub_agent_opamp_builder = opamp_client_builder
         .as_ref()
@@ -256,7 +253,7 @@ fn run_super_agent(
         sub_agent_opamp_builder.as_ref(),
         &instance_id_getter,
         k8s_client.clone(),
-        sub_agent_hash_repository.clone(),
+        hash_repository.clone(),
         &agents_assembler,
         &sub_agent_event_processor_builder,
         k8s_config.clone(),
@@ -276,14 +273,12 @@ fn run_super_agent(
         non_identifying_attributes,
     )?;
 
-    let config_storer = Arc::new(config_storer);
-
     let gcc = NotStartedK8sGarbageCollector::new(config_storer.clone(), k8s_client);
     let _started_gcc = gcc.start();
 
     SuperAgent::new(
         maybe_client,
-        &hash_repository,
+        hash_repository,
         sub_agent_builder,
         config_storer,
     )

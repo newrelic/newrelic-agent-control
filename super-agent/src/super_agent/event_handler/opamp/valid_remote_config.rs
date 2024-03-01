@@ -22,7 +22,7 @@ use crate::{
     },
 };
 
-impl<'a, S, O, HR, SL> SuperAgent<'a, S, O, HR, SL>
+impl<S, O, HR, SL> SuperAgent<S, O, HR, SL>
 where
     O: StartedClient<SuperAgentCallbacks>,
     HR: HashRepository,
@@ -98,6 +98,7 @@ where
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
+    use std::sync::Arc;
 
     use crate::{
         event::channel::pub_sub,
@@ -127,7 +128,7 @@ mod tests {
         // Mocked services
         let sub_agent_builder = MockSubAgentBuilderMock::new();
         let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
-        let hash_repository_mock = MockHashRepositoryMock::new();
+        let hash_repository_mock = Arc::new(MockHashRepositoryMock::new());
         let mut started_client = MockStartedOpAMPClientMock::new();
 
         // Structs
@@ -167,7 +168,7 @@ mod tests {
         // Create the Super Agent and rub Sub Agents
         let super_agent = SuperAgent::new_custom(
             None,
-            &hash_repository_mock,
+            hash_repository_mock,
             sub_agent_builder,
             sub_agents_config_store,
         );
@@ -248,7 +249,7 @@ mod tests {
         // Create the Super Agent and rub Sub Agents
         let super_agent = SuperAgent::new_custom(
             None,
-            &hash_repository_mock,
+            Arc::new(hash_repository_mock),
             sub_agent_builder,
             sub_agents_config_store,
         );
