@@ -234,13 +234,12 @@ where
                         OpAMPEvent::InvalidRemoteConfigReceived(
                             remote_config_error,
                         ) => {
-                            warn!("Invalid remote config received");
-                            trace!("Remote config error: {:?}", remote_config_error);
+                            warn!("Invalid remote config received: {remote_config_error}");
                             self.invalid_remote_config(remote_config_error)?
                         }
                         OpAMPEvent::ValidRemoteConfigReceived(remote_config) => {
                             debug!("Valid remote config received");
-                            trace!("Remote config: {:?}", remote_config);
+                            trace!("Remote config: {remote_config:?}");
                             self.valid_remote_config(remote_config, sub_agent_pub_sub.0.clone(), &mut sub_agents, tx.clone())?
                         }
                     }
