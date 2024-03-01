@@ -66,6 +66,12 @@ jobs:
           GPG_MAIL: 'infrastructure-eng@newrelic.com'
           NR_RELEASE_TAG: ${{ github.event.inputs.tag }}
 
+      - name: Show files
+        run: ls -al
+
+      - name: Show files
+        run: ls -al ./dist
+
       - name: Publish rpm to S3 action
         uses: newrelic/infrastructure-publish-action@v1
         with:
@@ -88,7 +94,7 @@ jobs:
           gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
           disable_lock: false
           dest_prefix: "super-agent-nightlies/"
-          local_packages_path:  "./dist/"
+          local_packages_path:  "/srv/dist/"
           apt_skip_mirror: false
 
 
