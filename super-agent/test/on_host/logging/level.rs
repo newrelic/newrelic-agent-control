@@ -140,12 +140,8 @@ fn debug_log_level_as_root() {
                 .unwrap(),
         )
         .stdout(
-            predicate::str::is_match(TIME_FORMAT.to_owned() + "INFO.*Starting the super agent")
-                .unwrap(),
-        )
-        .stdout(
             predicate::str::is_match(
-                TIME_FORMAT.to_owned() + "INFO.*Starting the supervisor group",
+                TIME_FORMAT.to_owned() + "INFO.*Starting the agents supervisor runtime",
             )
             .unwrap(),
         );
