@@ -124,6 +124,6 @@ fn default_log_level_as_root() {
     }
 
     assert!(actual.contains("INFO Instance Identifiers:"));
-    assert!(actual.contains("INFO Starting the super agent"));
+    assert!(actual.contains("INFO Starting NewRelic Super Agent"));
     assert!(actual.contains("INFO Starting the supervisor group"));
 }

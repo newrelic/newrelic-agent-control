@@ -57,7 +57,7 @@ fn default_log_level_as_root() {
         )
         .stdout(
             predicate::str::is_match(
-                TIME_FORMAT.to_owned() + "INFO.*Starting the super agent",
+                TIME_FORMAT.to_owned() + "INFO.*Starting NewRelic Super Agent",
             )
                 .unwrap(),
         )
