@@ -4,12 +4,6 @@ name: Nightly release
 
 on:
   workflow_dispatch:
-    inputs:
-      tag:
-        required: false
-        type: string
-        description: 'Nightly Release tag'
-        default: "0.100.0"
   schedule:
     # Scheduled to run at 4 a.m on every day-of-week from Monday through Friday.
     - cron: "0 4 * * 1-5"
@@ -46,7 +40,7 @@ jobs:
           ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
 
       - name: Set the value of the release tag
-        run: echo "tag=$(echo ${{ github.event.inputs.tag }}-$(date +'%d'))" >> $GITHUB_ENV
+        run: echo "tag=$(echo 0.100.$(date +'%d'))" >> $GITHUB_ENV
       - id: set-output
         run: echo "::set-output name=tag::${{ env.tag }}"
 

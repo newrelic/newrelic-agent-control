@@ -2,13 +2,16 @@ use clap::Parser;
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)] // Read from `Cargo.toml`
+#[command(author, about, long_about = None)] // Read from `Cargo.toml`
 pub struct Cli {
     #[arg(short, long, default_value_t = String::from("/etc/newrelic-super-agent/config.yaml"))]
     config: String,
 
     #[arg(long)]
     print_debug_info: bool,
+
+    #[arg(long)]
+    version: bool,
 
     #[cfg(feature = "custom-local-path")]
     #[arg(long)]
@@ -24,6 +27,10 @@ impl Cli {
 
     pub fn get_config_path(&self) -> PathBuf {
         PathBuf::from(&self.config)
+    }
+
+    pub fn print_version(&self) -> bool {
+        self.version
     }
 
     pub fn print_debug_info(&self) -> bool {
