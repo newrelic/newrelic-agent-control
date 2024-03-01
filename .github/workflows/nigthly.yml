@@ -66,7 +66,7 @@ jobs:
           app_name: "newrelic-super-agent"
           repo_name: "newrelic/newrelic-super-agent"
           schema: "custom-local"
-          schema_path: "/srv/build/upload-schema-linux-rpm-nightly.yml"
+          schema_path: "./build/upload-schema-linux-rpm-nightly.yml"
           aws_access_key_id: ${{ secrets.OHAI_AWS_ACCESS_KEY_ID_TESTING }}
           aws_secret_access_key: ${{ secrets.OHAI_AWS_SECRET_ACCESS_KEY_TESTING }}
           aws_s3_bucket_name: "nr-downloads-ohai-testing"
