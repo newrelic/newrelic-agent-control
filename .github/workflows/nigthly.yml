@@ -45,8 +45,13 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
 
+      - name: Set the value of the release tag
+        run: echo "tag=$(echo ${{ github.event.inputs.tag }}-$(date +'%d'))" >> $GITHUB_ENV
+      - id: set-output
+        run: echo "::set-output name=tag::${{ env.tag }}"
+
       - name: Tag current codebase
-        run: git tag "${{ github.event.inputs.tag }}"
+        run: git tag "${{ env.tag }}"
 
       - uses: actions/setup-go@v5
         with:
@@ -64,18 +69,12 @@ jobs:
           GPG_PASSPHRASE: ${{ secrets.OHAI_GPG_PASSPHRASE }}
           GPG_PRIVATE_KEY_BASE64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
           GPG_MAIL: 'infrastructure-eng@newrelic.com'
-          NR_RELEASE_TAG: ${{ github.event.inputs.tag }}
-
-      - name: Show files
-        run: ls -al
-
-      - name: Show files
-        run: ls -al ./dist
+          NR_RELEASE_TAG: ${{ env.tag }}
 
       - name: Publish rpm to S3 action
         uses: newrelic/infrastructure-publish-action@v1
         with:
-          tag: "${{ github.event.inputs.tag }}"
+          tag: "${{ env.tag }}"
           app_name: "newrelic-super-agent"
           repo_name: "newrelic/newrelic-super-agent"
           schema: "custom-local"
@@ -102,7 +101,7 @@ jobs:
     uses: ./.github/workflows/component_onhost_e2e.yaml
     needs: [build-nightly]
     with:
-      TAG: "${{ github.event.inputs.tag }}"
+      TAG: "${{ needs.build-nightly.outputs.tag }}"
       UNIQUE_NAME: "nightly:e2e"
       EC2_FILTERS: '[\"al-2023\"]'
       FORCE_CLEANUP: true
