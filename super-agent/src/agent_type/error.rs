@@ -2,6 +2,8 @@ use std::io;
 
 use thiserror::Error;
 
+use crate::sub_agent::persister::config_persister::PersistError;
+
 use super::trivial_value::TrivialValue;
 
 /// The different error types to be returned by operations involving the [`Agent`] type.
@@ -51,4 +53,6 @@ pub enum AgentTypeError {
 
     #[error("Invalid variant provided as a value: `{0}`. Variants allowed: {1:?}")]
     InvalidVariant(String, Vec<String>),
+    #[error("error assembling agents: `{0}`")]
+    ConfigurationPersisterError(#[from] PersistError),
 }

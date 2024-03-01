@@ -8,6 +8,7 @@ use crate::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError
 use crate::agent_type::definition::{AgentAttributes, AgentType, AgentTypeDefinition};
 use crate::agent_type::environment::Environment;
 use crate::agent_type::error::AgentTypeError;
+use crate::agent_type::renderer::{Renderer, TemplateRenderer};
 use crate::agent_type::runtime_config::Runtime;
 use crate::sub_agent::values::values_repository::{
     ValuesRepository, ValuesRepositoryError, ValuesRepositoryFile,
@@ -70,44 +71,44 @@ pub trait EffectiveAgentsAssembler {
     ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError>;
 }
 
-pub struct LocalEffectiveAgentsAssembler<R, C, D>
+pub struct LocalEffectiveAgentsAssembler<R, D, N>
 where
     R: AgentRegistry,
-    C: ConfigurationPersister,
     D: ValuesRepository,
+    N: Renderer,
 {
     registry: R,
-    config_persister: Option<C>,
     values_repository: D,
     remote_enabled: bool,
     local_conf_path: Option<String>,
+    renderer: N,
 }
 
 impl Default
     for LocalEffectiveAgentsAssembler<
         LocalRegistry,
-        ConfigurationPersisterFile,
         ValuesRepositoryFile<LocalFile, DirectoryManagerFs>,
+        TemplateRenderer<ConfigurationPersisterFile>,
     >
 {
     fn default() -> Self {
         LocalEffectiveAgentsAssembler {
             registry: LocalRegistry::default(),
-            config_persister: None,
             values_repository: ValuesRepositoryFile::default().with_remote(),
             remote_enabled: false,
             local_conf_path: None,
+            renderer: TemplateRenderer::default(),
         }
     }
 }
 
-impl<R, C, D> LocalEffectiveAgentsAssembler<R, C, D>
+impl<R, D, N> LocalEffectiveAgentsAssembler<R, D, N>
 where
     R: AgentRegistry,
-    C: ConfigurationPersister,
     D: ValuesRepository,
+    N: Renderer,
 {
-    pub fn with_remote(self) -> LocalEffectiveAgentsAssembler<R, C, D> {
+    pub fn with_remote(self) -> LocalEffectiveAgentsAssembler<R, D, N> {
         Self {
             remote_enabled: true,
             ..self
@@ -121,11 +122,8 @@ where
         }
     }
 
-    pub fn with_config_persister(self, config_persister: C) -> Self {
-        Self {
-            config_persister: config_persister.into(),
-            ..self
-        }
+    pub fn with_renderer(self, renderer: N) -> Self {
+        Self { renderer, ..self }
     }
 
     pub fn build_absolute_path(&self, path: Option<&String>, agent_id: &AgentID) -> PathBuf {
@@ -148,11 +146,11 @@ where
     }
 }
 
-impl<R, C, D> EffectiveAgentsAssembler for LocalEffectiveAgentsAssembler<R, C, D>
+impl<R, D, N> EffectiveAgentsAssembler for LocalEffectiveAgentsAssembler<R, D, N>
 where
     R: AgentRegistry,
-    C: ConfigurationPersister,
     D: ValuesRepository,
+    N: Renderer,
 {
     /// Load an agent type from the registry and populate it with values
     fn assemble_agent(
@@ -182,22 +180,11 @@ where
             agent_id: agent_id.get(),
         };
 
-        // Populate the agent type with values
-        // TODO: should template return a different type?
-        let populated_agent = agent_type.template(values, attributes)?;
+        let runtime_config = self
+            .renderer
+            .render(agent_id, agent_type, values, attributes)?;
 
-        // Use the configuration persister if present to manage agent configuration files
-        if let Some(persister) = &self.config_persister {
-            // clean existing config files if any
-            persister.delete_agent_config(agent_id, &populated_agent)?;
-            // persist config if agent requires it
-            persister.persist_agent_config(agent_id, &populated_agent)?;
-        }
-
-        Ok(EffectiveAgent::new(
-            agent_id.clone(),
-            populated_agent.runtime_config,
-        ))
+        Ok(EffectiveAgent::new(agent_id.clone(), runtime_config))
     }
 }
 
