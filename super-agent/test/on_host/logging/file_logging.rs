@@ -3,6 +3,8 @@ use predicates::prelude::predicate;
 use std::{fs::read_dir, path::Path, time::Duration};
 use tempfile::TempDir;
 
+use crate::logging::level::TIME_FORMAT;
+
 fn build_logging_config(config_path: &Path, log_path: &Path) {
     let config = format!(
         r#"
@@ -42,15 +44,13 @@ fn default_log_level_no_root() {
         .failure()
         .stdout(
             predicate::str::is_match(
-                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Starting NewRelic Super Agent",
+                TIME_FORMAT.to_owned() + "INFO.*Starting NewRelic Super Agent",
             )
             .unwrap(),
         )
         .stdout(
-            predicate::str::is_match(
-                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*ERROR.*Program must run as root",
-            )
-            .unwrap(),
+            predicate::str::is_match(TIME_FORMAT.to_owned() + "ERROR.*Program must run as root")
+                .unwrap(),
         );
 
     // Let's wait for a second so the flushed contents arrive to the files
@@ -92,26 +92,20 @@ fn default_log_level_as_root() {
     cmd.assert()
         .failure()
         .stdout(
-            predicate::str::is_match(
-                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Creating the signal handler",
-            )
-            .unwrap(),
+            predicate::str::is_match(TIME_FORMAT.to_owned() + "INFO.*Creating the signal handler")
+                .unwrap(),
+        )
+        .stdout(
+            predicate::str::is_match(TIME_FORMAT.to_owned() + "INFO.*Creating the global context")
+                .unwrap(),
+        )
+        .stdout(
+            predicate::str::is_match(TIME_FORMAT.to_owned() + "INFO.*Starting the super agent")
+                .unwrap(),
         )
         .stdout(
             predicate::str::is_match(
-                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Creating the global context",
-            )
-            .unwrap(),
-        )
-        .stdout(
-            predicate::str::is_match(
-                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Starting the super agent",
-            )
-            .unwrap(),
-        )
-        .stdout(
-            predicate::str::is_match(
-                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Starting the supervisor group",
+                TIME_FORMAT.to_owned() + "INFO.*Starting the supervisor group",
             )
             .unwrap(),
         );
