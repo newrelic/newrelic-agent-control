@@ -1,0 +1,36 @@
+#######################
+  # NIGHTLY SCHEMA #
+#######################
+
+---
+- src: "newrelic-super-agent_{version}_linux_{arch}.rpm"
+  arch:
+    - x86_64
+    - arm64
+  uploads:
+    - type: yum
+      dest: "{dest_prefix}linux/yum/amazonlinux/{os_version}/{arch}/"
+      os_version:
+        - 2023
+
+#########################
+  # UPLOAD CHECKSUMS #
+#########################
+
+- src: "newrelic-super-agent_{version}_linux_{arch}.rpm.sum"
+  arch:
+    - x86_64
+  uploads:
+    - type: file
+      dest: "{dest_prefix}linux/yum/amazonlinux/{os_version}/{arch}/{src}"
+      os_version:
+        - 2023
+
+- src: "newrelic-super-agent_{version}_linux_{arch}.rpm.sum"
+  arch:
+    - arm64
+  uploads:
+    - type: file
+      dest: "{dest_prefix}linux/yum/amazonlinux/{os_version}/aarch64/{src}"
+      os_version:
+        - 2023
