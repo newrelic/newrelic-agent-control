@@ -1,4 +1,8 @@
 ---
+- name: ensure config folder exists
+  file:
+    path: "{{ nr_otel_collector_config_path_linux | dirname }}"
+    state: directory
 
 - name: Copy each file over that matches the given pattern
   ansible.builtin.copy:
