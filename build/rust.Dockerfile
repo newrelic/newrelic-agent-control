@@ -21,7 +21,7 @@ ENV CARGO_HOME=/usr/src/app/.cargo
 
 ENV ARCH_NAME=${ARCH_NAME} \
     # Generate static builds
-    RUSTFLAGS="-C target-feature=+crt-static" \
+    RUSTFLAGS="-C target-feature=+crt-static -C stack-protector=strong" \
     # Use the correct linker for targets
     # x86_64
     CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=x86_64-linux-gnu-gcc \
