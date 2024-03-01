@@ -58,7 +58,7 @@ jobs:
         with:
           distribution: goreleaser
           version: latest
-          args: release --clean --debug --timeout 2h
+          args: release --skip=publish --clean --debug --timeout 2h
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GPG_PASSPHRASE: ${{ secrets.OHAI_GPG_PASSPHRASE }}
