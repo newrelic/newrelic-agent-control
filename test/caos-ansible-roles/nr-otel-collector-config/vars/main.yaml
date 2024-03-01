@@ -1,6 +1,6 @@
 ---
 # config path
-nr_otel_collector_config_path_linux: "/etc/nr-otel-collector/config.yaml"
+nr_otel_collector_config_path_linux: "/etc/newrelic-super-agent/fleet/agents.d/nr-otel-collector/values/values.yaml"
 
 # nr-otel-collector config:
 nr_otel_collector_memory_limit: 100
