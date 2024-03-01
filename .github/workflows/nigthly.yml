@@ -62,7 +62,7 @@ jobs:
       - name: Publish rpm to S3 action
         uses: newrelic/infrastructure-publish-action@v1
         with:
-          tag: ${{ github.event.release.tag_name }}
+          tag: 0.100.0
           app_name: "newrelic-super-agent"
           repo_name: "newrelic/newrelic-super-agent"
           schema: "custom-local"
@@ -91,7 +91,7 @@ jobs:
     with:
       TAG: "0.100.1"
       UNIQUE_NAME: "nightly:e2e"
-      EC2_FILTERS: '[\"ubuntu\"]'
+      EC2_FILTERS: '[\"al-2023\"]'
       FORCE_CLEANUP: true
       REPOSITORY_ENDPOINT: "http://nr-downloads-ohai-testing.s3-website-us-east-1.amazonaws.com/super-agent-nightlies"
     secrets:
