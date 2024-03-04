@@ -297,16 +297,12 @@ fn create_shutdown_signal_handler(
 }
 
 #[cfg(feature = "custom-local-path")]
+use newrelic_super_agent::sub_agent::effective_agents_assembler::LocalSubAgentsAssembler;
+#[cfg(feature = "custom-local-path")]
 fn custom_local_path() -> (
-    LocalEffectiveAgentsAssembler<
-        newrelic_super_agent::agent_type::agent_type_registry::LocalRegistry,
-        ValuesRepositoryFile<fs::LocalFile, fs::directory_manager::DirectoryManagerFs>,
-        newrelic_super_agent::agent_type::renderer::TemplateRenderer<
-        newrelic_super_agent::sub_agent::persister::config_persister_file::ConfigurationPersisterFile,
-        >,
-    >,
+    LocalSubAgentsAssembler,
     Arc<ValuesRepositoryFile<fs::LocalFile, fs::directory_manager::DirectoryManagerFs>>,
-){
+) {
     let mut agents_assembler = LocalEffectiveAgentsAssembler::default().with_remote();
     let mut values_repository = Arc::new(ValuesRepositoryFile::default().with_remote());
 

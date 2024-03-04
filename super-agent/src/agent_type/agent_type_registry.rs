@@ -8,8 +8,6 @@ use tracing::debug;
 
 use super::definition::AgentTypeDefinition;
 
-use super::definition::AgentTypeDefinition;
-
 #[derive(Error, Debug)]
 pub enum AgentRepositoryError {
     #[error("agent not found")]

@@ -81,13 +81,14 @@ where
     renderer: N,
 }
 
-impl Default
-    for LocalEffectiveAgentsAssembler<
-        LocalRegistry,
-        ValuesRepositoryFile<LocalFile, DirectoryManagerFs>,
-        TemplateRenderer<ConfigurationPersisterFile>,
-    >
-{
+/// Type alias for the LocalEffectiveAgentsAssembler using local registry and files for values repository and configuration persistence.
+pub type LocalSubAgentsAssembler = LocalEffectiveAgentsAssembler<
+    LocalRegistry,
+    ValuesRepositoryFile<LocalFile, DirectoryManagerFs>,
+    TemplateRenderer<ConfigurationPersisterFile>,
+>;
+
+impl Default for LocalSubAgentsAssembler {
     fn default() -> Self {
         LocalEffectiveAgentsAssembler {
             registry: LocalRegistry::default(),
