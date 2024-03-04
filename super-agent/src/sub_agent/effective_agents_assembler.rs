@@ -13,7 +13,6 @@ use crate::sub_agent::values::values_repository::{
 };
 use crate::super_agent::config::{AgentID, SubAgentConfig};
 use crate::super_agent::defaults::{GENERATED_FOLDER_NAME, SUPER_AGENT_DATA_DIR};
-use crate::super_agent::EffectiveAgentsError;
 
 use fs::{directory_manager::DirectoryManagerFs, file_reader::FileReaderError, LocalFile};
 
@@ -32,10 +31,6 @@ pub enum EffectiveAgentsAssemblerError {
     SerdeYamlError(#[from] serde_yaml::Error),
     #[error("error assembling agents: `{0}`")]
     AgentTypeError(#[from] AgentTypeError),
-    #[error("error assembling agents: `{0}`")]
-    EffectiveAgentsError(#[from] EffectiveAgentsError),
-    #[error("could not get path string")]
-    BadPath,
     #[error("cannot load remote config: `{0}`")]
     RemoteConfigLoadError(String),
     #[error("values error: `{0}`")]
