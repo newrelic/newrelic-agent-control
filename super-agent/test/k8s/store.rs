@@ -22,7 +22,7 @@ const AGENT_ID_2: &str = "agent-different-id-test";
 #[ignore = "needs k8s cluster"]
 fn k8s_instance_id_store() {
     // This test covers the happy path of ULIDInstanceIDGetter on K8s.
-    // It checks that with same AgentID the the Ulid is the same and if different the ULID is different
+    // It checks that with same AgentID the Ulid is the same and if different the ULID is different
 
     let mut test = block_on(K8sEnv::new());
     let test_ns = block_on(test.test_namespace());
@@ -61,7 +61,7 @@ fn k8s_instance_id_store() {
 #[ignore = "needs k8s cluster"]
 fn k8s_hash_repository_config_map() {
     // This test covers the happy path of HashRepositoryConfigMap on K8s.
-    // It checks that with same AgentID the the Hash is the same and if different the Hash is different
+    // It checks that with same AgentID the Hash is the same and if different the Hash is different
 
     let mut test = block_on(K8sEnv::new());
     let test_ns = block_on(test.test_namespace());

@@ -1,13 +1,10 @@
-use std::collections::HashMap;
-
-use tracing::{debug, error, info};
-
-use crate::super_agent::config::AgentID;
-
 use super::{
     error::{SubAgentCollectionError, SubAgentError},
     NotStartedSubAgent, StartedSubAgent,
 };
+use crate::super_agent::config::AgentID;
+use std::collections::HashMap;
+use tracing::{debug, error, info};
 
 pub(crate) struct NotStartedSubAgents<S>(HashMap<AgentID, S>)
 where
