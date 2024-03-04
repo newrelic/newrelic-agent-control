@@ -20,7 +20,6 @@ use crate::sub_agent::NotStartedSubAgent;
 use crate::sub_agent::SubAgentBuilder;
 use crate::super_agent::defaults::{SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION};
 use crate::super_agent::error::AgentError;
-use crate::super_agent::EffectiveAgentsError::{EffectiveAgentExists, EffectiveAgentNotFound};
 use crossbeam::select;
 use opamp_client::StartedClient;
 use std::collections::HashMap;
@@ -346,36 +345,6 @@ pub fn super_agent_fqn() -> AgentTypeFQN {
         )
         .as_str(),
     )
-}
-
-#[derive(Debug, Default, PartialEq, Clone)]
-pub struct EffectiveAgents {
-    pub agents: HashMap<AgentID, AgentType>,
-}
-
-#[derive(Error, Debug)]
-pub enum EffectiveAgentsError {
-    #[error("effective agent `{0}` not found")]
-    EffectiveAgentNotFound(String),
-    #[error("effective agent `{0}` already exists")]
-    EffectiveAgentExists(String),
-}
-
-impl EffectiveAgents {
-    pub fn get(&self, agent_id: &AgentID) -> Result<&AgentType, EffectiveAgentsError> {
-        match self.agents.get(agent_id) {
-            None => Err(EffectiveAgentNotFound(agent_id.to_string())),
-            Some(agent) => Ok(agent),
-        }
-    }
-
-    pub fn add(&mut self, agent_id: AgentID, agent: AgentType) -> Result<(), EffectiveAgentsError> {
-        if self.get(&agent_id).is_ok() {
-            return Err(EffectiveAgentExists(agent_id.to_string()));
-        }
-        self.agents.insert(agent_id, agent);
-        Ok(())
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////

@@ -14,7 +14,6 @@ use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssemblerError;
 use crate::sub_agent::error::{SubAgentBuilderError, SubAgentCollectionError, SubAgentError};
 use crate::sub_agent::persister::config_persister::PersistError;
 use crate::sub_agent::values::values_repository::ValuesRepositoryError;
-use crate::super_agent::EffectiveAgentsError;
 use fs::file_reader::FileReaderError;
 use thiserror::Error;
 
@@ -60,9 +59,6 @@ pub enum AgentError {
 
     #[error("error getting agent ulid: `{0}`")]
     GetUlidError(#[from] instance_id::GetterError),
-
-    #[error("`Effective agent error: {0}`")]
-    EffectiveAgentsError(#[from] EffectiveAgentsError),
 
     #[error("`Sub Agent error: {0}`")]
     SubAgentError(#[from] SubAgentError),
