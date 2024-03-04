@@ -31,8 +31,6 @@ pub enum EffectiveAgentsAssemblerError {
     SerdeYamlError(#[from] serde_yaml::Error),
     #[error("error assembling agents: `{0}`")]
     AgentTypeError(#[from] AgentTypeError),
-    #[error("cannot load remote config: `{0}`")]
-    RemoteConfigLoadError(String),
     #[error("values error: `{0}`")]
     ValuesRepositoryError(#[from] ValuesRepositoryError),
 }
