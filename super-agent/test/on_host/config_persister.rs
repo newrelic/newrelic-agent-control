@@ -8,6 +8,7 @@ use ::fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
 use newrelic_super_agent::agent_type::agent_values::AgentValues;
 use newrelic_super_agent::agent_type::definition::{AgentAttributes, AgentTypeDefinition};
 use newrelic_super_agent::agent_type::environment::Environment;
+use newrelic_super_agent::sub_agent::effective_agents_assembler::build_agent_type;
 use newrelic_super_agent::sub_agent::persister::config_persister::ConfigurationPersister;
 use newrelic_super_agent::sub_agent::persister::config_persister_file::ConfigurationPersisterFile;
 use newrelic_super_agent::super_agent::config::AgentID;
@@ -28,9 +29,7 @@ fn test_configuration_persister_single_file() {
 
     let agent_type_definition: AgentTypeDefinition =
         serde_yaml::from_reader(AGENT_TYPE_SINGLE_FILE.as_bytes()).unwrap();
-    let mut agent_type = agent_type_definition
-        .try_build(&Environment::OnHost)
-        .unwrap();
+    let mut agent_type = build_agent_type(agent_type_definition, &Environment::OnHost).unwrap();
     let agent_values: AgentValues =
         serde_yaml::from_reader(AGENT_VALUES_SINGLE_FILE.as_bytes()).unwrap();
     agent_type = agent_type

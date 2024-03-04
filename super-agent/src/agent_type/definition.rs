@@ -35,21 +35,6 @@ pub struct AgentTypeDefinition {
     pub runtime_config: Runtime,
 }
 
-impl AgentTypeDefinition {
-    /// Builds the [AgentType] corresponding to the current [AgentTypeDefinition], considering the provided [super::deployment::Deployment].
-    pub fn try_build(self, _environment: &Environment) -> Result<AgentType, AgentTypeError> {
-        // TODO: the [AgentType] variables will be different depending on the provided environment.
-        // This could return an error if the agent type is not correct, given the provided environment.
-        // TODO: check if it should be part of the effective_agent_assembler service.
-        Ok(AgentType {
-            variables: self.variables,
-            metadata: self.metadata,
-            runtime_config: self.runtime_config,
-            capabilities: default_capabilities(),
-        })
-    }
-}
-
 /// Configuration of the Agent Type, contains identification metadata, a set of variables that can be adjusted, and rules of how to execute agents.
 ///
 /// This is the final representation of the agent type once it has been parsed (first into a [`AgentTypeDefinition`]), and it is aware of the corresponding environment.
@@ -185,6 +170,15 @@ impl Templateable for TemplateableValue<BackoffDuration> {
 }
 
 impl AgentType {
+    pub fn new(metadata: AgentMetadata, variables: VariableTree, runtime_config: Runtime) -> Self {
+        Self {
+            metadata,
+            variables,
+            runtime_config,
+            capabilities: default_capabilities(), // TODO: can capabilities be set in AgentTypeDefinition?
+        }
+    }
+
     pub fn has_remote_management(&self) -> bool {
         self.capabilities
             .has_capability(AgentCapabilities::AcceptsRemoteConfig)
@@ -391,10 +385,13 @@ pub(crate) type Variables = HashMap<String, VariableDefinition>;
 #[cfg(test)]
 pub mod tests {
 
-    use crate::agent_type::{
-        restart_policy::{BackoffStrategyConfig, BackoffStrategyType, RestartPolicyConfig},
-        runtime_config::Executable,
-        trivial_value::{FilePathWithContent, TrivialValue},
+    use crate::{
+        agent_type::{
+            restart_policy::{BackoffStrategyConfig, BackoffStrategyType, RestartPolicyConfig},
+            runtime_config::Executable,
+            trivial_value::{FilePathWithContent, TrivialValue},
+        },
+        sub_agent::effective_agents_assembler::build_agent_type,
     };
 
     use super::*;
@@ -402,6 +399,16 @@ pub mod tests {
     use std::collections::HashMap as Map;
 
     impl AgentType {
+        /// Builds a testing agent-type given the yaml definitiona and the environment.
+        ///
+        /// # Panics
+        ///
+        /// The function will panic if the definition is not valid or not compatible with the environment.
+        pub fn build_for_testing(yaml_definition: &str, environment: &Environment) -> Self {
+            let definition = serde_yaml::from_str::<AgentTypeDefinition>(yaml_definition).unwrap();
+            build_agent_type(definition, environment).unwrap()
+        }
+
         pub fn set_capabilities(&mut self, capabilities: Capabilities) {
             self.capabilities = capabilities
         }
@@ -518,10 +525,7 @@ deployment:
     fn test_normalize_agent_spec() {
         // create AgentSpec
 
-        let given_agent = serde_yaml::from_str::<AgentTypeDefinition>(AGENT_GIVEN_YAML)
-            .unwrap()
-            .try_build(&Environment::OnHost)
-            .unwrap();
+        let given_agent = AgentType::build_for_testing(AGENT_GIVEN_YAML, &Environment::OnHost);
 
         let expected_map: Map<String, VariableDefinition> = Map::from([(
             "description.name".to_string(),
@@ -884,10 +888,7 @@ config: |
     fn test_template_with_runtime_field_and_agent_configs_path() {
         // Having Agent Type
         let input_agent_type =
-            serde_yaml::from_str::<AgentTypeDefinition>(GIVEN_NEWRELIC_INFRA_YAML)
-                .unwrap()
-                .try_build(&Environment::OnHost)
-                .unwrap();
+            AgentType::build_for_testing(GIVEN_NEWRELIC_INFRA_YAML, &Environment::OnHost);
 
         // And Agent Values
         let input_user_config =
@@ -1052,10 +1053,7 @@ backoff:
     #[test]
     fn test_backoff_config() {
         let input_agent_type =
-            serde_yaml::from_str::<AgentTypeDefinition>(AGENT_BACKOFF_TEMPLATE_YAML)
-                .unwrap()
-                .try_build(&Environment::OnHost)
-                .unwrap();
+            AgentType::build_for_testing(AGENT_BACKOFF_TEMPLATE_YAML, &Environment::OnHost);
         // println!("Input: {:#?}", input_agent_type);
 
         let input_user_config = serde_yaml::from_str::<AgentValues>(BACKOFF_CONFIG_YAML).unwrap();
@@ -1131,11 +1129,7 @@ backoff:
 
     #[test]
     fn test_negative_backoff_configs() {
-        let input_agent_type =
-            serde_yaml::from_str::<AgentTypeDefinition>(AGENT_BACKOFF_TEMPLATE_YAML)
-                .unwrap()
-                .try_build(&Environment::OnHost)
-                .unwrap();
+        let input_agent_type = AgentType::build_for_testing(AGENT_GIVEN_YAML, &Environment::OnHost);
 
         let wrong_retries =
             serde_yaml::from_str::<AgentValues>(WRONG_RETRIES_BACKOFF_CONFIG_YAML).unwrap();
@@ -1214,11 +1208,10 @@ backoff:
 
     #[test]
     fn test_string_backoff_config() {
-        let input_agent_type =
-            serde_yaml::from_str::<AgentTypeDefinition>(AGENT_STRING_DURATIONS_TEMPLATE_YAML)
-                .unwrap()
-                .try_build(&Environment::OnHost)
-                .unwrap();
+        let input_agent_type = AgentType::build_for_testing(
+            AGENT_STRING_DURATIONS_TEMPLATE_YAML,
+            &Environment::OnHost,
+        );
 
         let input_user_config =
             serde_yaml::from_str::<AgentValues>(STRING_DURATIONS_CONFIG_YAML).unwrap();
@@ -1300,10 +1293,7 @@ config:
     #[test]
     fn test_k8s_config_yaml_variables() {
         let input_agent_type =
-            serde_yaml::from_str::<AgentTypeDefinition>(K8S_AGENT_TYPE_YAML_VARIABLES)
-                .unwrap()
-                .try_build(&Environment::K8s)
-                .unwrap();
+            AgentType::build_for_testing(K8S_AGENT_TYPE_YAML_VARIABLES, &Environment::K8s);
         let user_config: AgentValues = serde_yaml::from_str(K8S_CONFIG_YAML_VALUES).unwrap();
         let expected_spec_yaml = r#"
 values:
@@ -1379,10 +1369,8 @@ restart_policy:
 
     #[test]
     fn test_agent_with_variants() {
-        let input_agent_type = serde_yaml::from_str::<AgentTypeDefinition>(AGENT_WITH_VARIANTS)
-            .unwrap()
-            .try_build(&Environment::OnHost)
-            .unwrap();
+        let input_agent_type =
+            AgentType::build_for_testing(AGENT_WITH_VARIANTS, &Environment::OnHost);
         let user_config: AgentValues = serde_yaml::from_str(CONFIG_YAML_VALUES_VALID_VARIANT)
             .expect("Failed to parse user config");
         let expanded_final_agent = input_agent_type
@@ -1403,10 +1391,8 @@ restart_policy:
 
     #[test]
     fn test_agent_with_variants_invalid() {
-        let input_agent_type = serde_yaml::from_str::<AgentTypeDefinition>(AGENT_WITH_VARIANTS)
-            .unwrap()
-            .try_build(&Environment::OnHost)
-            .unwrap();
+        let input_agent_type =
+            AgentType::build_for_testing(AGENT_WITH_VARIANTS, &Environment::OnHost);
         let user_config: AgentValues = serde_yaml::from_str(CONFIG_YAML_VALUES_INVALID_VARIANT)
             .expect("Failed to parse user config");
         let expanded_final_agent =
@@ -1421,10 +1407,8 @@ restart_policy:
 
     #[test]
     fn default_can_be_invalid_variant() {
-        let input_agent_type = serde_yaml::from_str::<AgentTypeDefinition>(AGENT_WITH_VARIANTS)
-            .unwrap()
-            .try_build(&Environment::OnHost)
-            .unwrap();
+        let input_agent_type =
+            AgentType::build_for_testing(AGENT_WITH_VARIANTS, &Environment::OnHost);
         let user_config = AgentValues::default();
         let expanded_final_agent =
             input_agent_type.template(user_config, AgentAttributes::default());

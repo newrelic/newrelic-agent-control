@@ -5,7 +5,7 @@ use thiserror::Error;
 use tracing::error;
 
 use crate::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError, LocalRegistry};
-use crate::agent_type::definition::AgentAttributes;
+use crate::agent_type::definition::{AgentAttributes, AgentType, AgentTypeDefinition};
 use crate::agent_type::environment::Environment;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::runtime_config::Runtime;
@@ -166,7 +166,7 @@ where
         // Load the agent type definition
         let agent_type_definition = self.registry.get(&agent_cfg.agent_type)?;
         // Build the corresponding agent type
-        let agent_type = agent_type_definition.try_build(environment)?;
+        let agent_type = build_agent_type(agent_type_definition, environment)?;
 
         // Delete remote values if not supported
         if !self.remote_enabled || !agent_type.has_remote_management() {
@@ -201,6 +201,20 @@ where
             populated_agent.runtime_config,
         ))
     }
+}
+
+/// Builds an [AgentType] given the provided [AgentTypeDefinition] and environment.
+pub fn build_agent_type(
+    definition: AgentTypeDefinition,
+    _environment: &Environment,
+) -> Result<AgentType, EffectiveAgentsAssemblerError> {
+    // TODO: the [AgentType] variables will be different depending on the provided environment.
+    // This could return an error if the agent type is not correct, given the provided environment.
+    Ok(AgentType::new(
+        definition.metadata,
+        definition.variables,
+        definition.runtime_config,
+    ))
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -314,10 +328,7 @@ pub(crate) mod tests {
         let environment = Environment::OnHost;
         let agent_type_definition: AgentTypeDefinition =
             serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
-        let final_agent = agent_type_definition
-            .clone()
-            .try_build(&environment)
-            .unwrap();
+        let final_agent = build_agent_type(agent_type_definition.clone(), &environment).unwrap();
         let agent_values: AgentValues = serde_yaml::from_reader(AGENT_VALUES.as_bytes()).unwrap();
         let sub_agent_config = SubAgentConfig {
             agent_type: "some_fqn".into(),
@@ -374,10 +385,7 @@ pub(crate) mod tests {
         let agent_type_definition: AgentTypeDefinition =
             serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
         let environment = Environment::OnHost;
-        let final_agent = agent_type_definition
-            .clone()
-            .try_build(&environment)
-            .unwrap();
+        let final_agent = build_agent_type(agent_type_definition.clone(), &environment).unwrap();
         let agent_values: AgentValues = serde_yaml::from_reader(AGENT_VALUES.as_bytes()).unwrap();
         let sub_agent_config = SubAgentConfig {
             agent_type: "some_fqn".into(),
@@ -500,10 +508,7 @@ pub(crate) mod tests {
         let agent_type_definition: AgentTypeDefinition =
             serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
         let environment = Environment::OnHost;
-        let final_agent = agent_type_definition
-            .clone()
-            .try_build(&environment)
-            .unwrap();
+        let final_agent = build_agent_type(agent_type_definition.clone(), &environment).unwrap();
         let sub_agent_config = SubAgentConfig {
             agent_type: "some_fqn".into(),
         };
@@ -541,10 +546,7 @@ pub(crate) mod tests {
         let agent_type_definition: AgentTypeDefinition =
             serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
         let environment = Environment::OnHost;
-        let final_agent = agent_type_definition
-            .clone()
-            .try_build(&environment)
-            .unwrap();
+        let final_agent = build_agent_type(agent_type_definition.clone(), &environment).unwrap();
         let agent_values: AgentValues = serde_yaml::from_reader(AGENT_VALUES.as_bytes()).unwrap();
         let sub_agent_config = SubAgentConfig {
             agent_type: "some_fqn".into(),
@@ -590,10 +592,7 @@ pub(crate) mod tests {
         let agent_type_definition: AgentTypeDefinition =
             serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
         let environment = Environment::OnHost;
-        let final_agent = agent_type_definition
-            .clone()
-            .try_build(&environment)
-            .unwrap();
+        let final_agent = build_agent_type(agent_type_definition.clone(), &environment).unwrap();
         let agent_values: AgentValues = serde_yaml::from_reader(AGENT_VALUES.as_bytes()).unwrap();
         let sub_agent_config = SubAgentConfig {
             agent_type: "some_fqn".into(),
@@ -637,10 +636,7 @@ pub(crate) mod tests {
         let agent_type_definition: AgentTypeDefinition =
             serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
         let environment = Environment::OnHost;
-        let final_agent = agent_type_definition
-            .clone()
-            .try_build(&environment)
-            .unwrap();
+        let final_agent = build_agent_type(agent_type_definition.clone(), &environment).unwrap();
         let agent_values: AgentValues = serde_yaml::from_reader(AGENT_VALUES.as_bytes()).unwrap();
         let sub_agent_config = SubAgentConfig {
             agent_type: "some_fqn".into(),
