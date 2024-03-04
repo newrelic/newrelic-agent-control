@@ -1,16 +1,13 @@
-use std::thread::JoinHandle;
-
-use tracing::debug;
-
+use super::supervisor::command_supervisor;
 use super::supervisor::command_supervisor::SupervisorOnHost;
 use crate::event::channel::EventPublisher;
 use crate::event::SubAgentInternalEvent;
 use crate::sub_agent::error::SubAgentError;
-use crate::super_agent::config::AgentID;
-
-use super::supervisor::command_supervisor;
 use crate::sub_agent::event_processor::SubAgentEventProcessor;
 use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
+use crate::super_agent::config::AgentID;
+use std::thread::JoinHandle;
+use tracing::debug;
 
 ////////////////////////////////////////////////////////////////////////////////////
 // States for Started/Not Started Sub Agents
@@ -35,12 +32,6 @@ pub struct SubAgentOnHost<S, V> {
     agent_id: AgentID,
     sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     state: S,
-}
-
-impl<S, V> SubAgentOnHost<S, V> {
-    pub fn agent_id(&self) -> &AgentID {
-        &self.agent_id
-    }
 }
 
 impl<E> SubAgentOnHost<NotStarted<E>, command_supervisor::NotStarted>
