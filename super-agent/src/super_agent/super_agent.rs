@@ -5,7 +5,6 @@ use super::opamp::remote_config_publisher::SuperAgentRemoteConfigPublisher;
 use super::store::{
     SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer, SuperAgentConfigStoreFile,
 };
-use crate::agent_type::definition::AgentType;
 use crate::event::channel::{pub_sub, EventConsumer, EventPublisher};
 use crate::event::{OpAMPEvent, SubAgentEvent, SuperAgentEvent};
 use crate::opamp::callbacks::AgentCallbacks;
@@ -26,7 +25,6 @@ use std::collections::HashMap;
 use std::string::ToString;
 use std::sync::mpsc::{self, Sender};
 use std::sync::Arc;
-use thiserror::Error;
 use tracing::{debug, error, info, warn};
 
 pub(super) type SuperAgentCallbacks = AgentCallbacks<SuperAgentRemoteConfigPublisher>;
