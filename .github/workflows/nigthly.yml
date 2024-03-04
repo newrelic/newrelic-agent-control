@@ -29,6 +29,8 @@ jobs:
   build-nightly:
     runs-on: ubuntu-latest
     name: Build and upload packages to testing bucket
+    outputs:
+      tag: ${{ steps.generate-tag.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -41,8 +43,9 @@ jobs:
 
       - name: Set the value of the release tag
         run: echo "tag=$(echo 0.100.$(date +'%d'))" >> $GITHUB_ENV
-      - id: set-output
-        run: echo "::set-output name=tag::${{ env.tag }}"
+
+      - id: generate-tag
+        run: echo "tag=${{ env.tag }}" >> "$GITHUB_OUTPUT"
 
       - name: Tag current codebase
         run: git tag "${{ env.tag }}"
