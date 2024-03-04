@@ -46,5 +46,5 @@ local/
 /build-tmp
 # ignore all examples in this folder...
 /build/examples/**
-# ...except for the README
-!/build/examples/README.md
+# ...except for the gitkeep file
+!/build/examples/.gitkeep
