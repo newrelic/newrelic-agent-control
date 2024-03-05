@@ -1,4 +1,14 @@
 ---
+- name: ensure config folder exists
+  file:
+    path: "{{ nr_otel_collector_config_path_linux | dirname }}"
+    state: directory
+
+- name: Copy values file
+  file:
+    src: /etc/newrelic-super-agent/examples/values-nr-otel-collector-agent-linux-0.1.0.yaml
+    path: "{{ nr_otel_collector_config_path_linux }}"
+    state: hard
 
 - name: Replace the env variables in nr-otel-collector config
   ansible.builtin.replace:
