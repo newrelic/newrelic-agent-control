@@ -318,6 +318,7 @@ mod tests {
             thread::sleep(Duration::from_millis(15));
         }
 
+        // Log output corresponding to 1 base execution + 3 retries
         tracing_test::internal::logs_assert(
             "DEBUG newrelic_super_agent::sub_agent::on_host::command::logging::logger",
             |lines| match lines.iter().filter(|line| line.contains("hello!")).count() {
