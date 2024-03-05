@@ -23,11 +23,10 @@ use crate::{
     sub_agent::{error::SubAgentBuilderError, logger::AgentLog, SubAgentBuilder},
 };
 use kube::core::TypeMeta;
-use log::{error, warn};
 use opamp_client::operation::settings::DescriptionValueType;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use tracing::debug;
+use tracing::{debug, error, warn};
 
 pub struct K8sSubAgentBuilder<'a, O, I, HR, A, E>
 where
@@ -113,7 +112,7 @@ where
             &agent_id,
             sub_agent_config,
             &Environment::K8s,
-        )?;
+        );
 
         let mut has_supervisors = true;
 
@@ -123,10 +122,12 @@ where
                 Err(e) => error!("hash repository error: {}", e),
                 Ok(None) => warn!("hash repository not found for agent: {}", &agent_id),
                 Ok(Some(mut hash)) => {
-                    if let Err(EffectiveAgentsAssemblerError::RemoteConfigLoadError(error)) =
-                        effective_agent_res.as_ref()
-                    {
-                        report_remote_config_status_error(opamp_client, &hash, error.clone())?;
+                    if let Err(err) = effective_agent_res.as_ref() {
+                        report_remote_config_status_error(opamp_client, &hash, err.to_string())?;
+                        tracing::error!(
+                            "Failed to assemble agent  {}, running  without supervisors",
+                            agent_id
+                        );
                         // report the failed status for remote config and let the opamp client
                         // running with no supervisors so the configuration can be fixed
                         has_supervisors = false;
@@ -147,11 +148,13 @@ where
             }
         }
 
+        // When running with no CRSupervisor only the opamp server is enabled.
+        // This behaviour is needed to allow a subAgent to download a fixed configuration.
         let supervisor: Option<CRSupervisor> = match has_supervisors {
             false => None,
             true => build_cr_supervisors(
                 &agent_id,
-                effective_agent_res,
+                effective_agent_res?,
                 self.k8s_client.clone(),
                 &self.k8s_config,
             )?,
@@ -176,13 +179,13 @@ where
 
 fn build_cr_supervisors(
     agent_id: &AgentID,
-    effective_agent_res: Result<EffectiveAgent, EffectiveAgentsAssemblerError>,
+    effective_agent: EffectiveAgent,
     k8s_client: Arc<SyncK8sClient>,
     k8s_config: &K8sConfig,
 ) -> Result<Option<CRSupervisor>, SubAgentBuilderError> {
     debug!("Building CR supervisors {}", agent_id);
 
-    let k8s_objects = effective_agent_res?
+    let k8s_objects = effective_agent
         .get_runtime_config()
         .deployment
         .k8s

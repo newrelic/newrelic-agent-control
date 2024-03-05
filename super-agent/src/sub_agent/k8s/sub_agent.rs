@@ -5,7 +5,7 @@ use crate::sub_agent::k8s::CRSupervisor;
 use crate::sub_agent::{error::SubAgentError, NotStartedSubAgent, StartedSubAgent};
 use crate::sub_agent::{NotStarted, Started};
 use crate::super_agent::config::AgentID;
-use tracing::debug;
+use tracing::{debug, error};
 
 ////////////////////////////////////////////////////////////////////////////////////
 // SubAgent On K8s
@@ -42,10 +42,13 @@ where
 {
     type StartedSubAgent = SubAgentK8s<Started>;
 
+    // Run has two main duties:
+    // - it starts the supervisors if any
+    // - it starts processing events (internal and opamp ones)
     fn run(self) -> Result<Self::StartedSubAgent, SubAgentError> {
         if let Some(cr_supervisor) = &self.supervisor {
             cr_supervisor.apply().inspect_err(|err| {
-                debug!(
+                error!(
                     "The creation of the resources failed for '{}': '{}'",
                     self.agent_id, err
                 )
