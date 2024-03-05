@@ -7,9 +7,7 @@ use crate::opamp::operations::build_opamp_and_start_client;
 use crate::opamp::remote_config_report::{
     report_remote_config_status_applied, report_remote_config_status_error,
 };
-use crate::sub_agent::effective_agents_assembler::{
-    EffectiveAgent, EffectiveAgentsAssembler, EffectiveAgentsAssemblerError,
-};
+use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
 use crate::sub_agent::event_processor_builder::SubAgentEventProcessorBuilder;
 use crate::sub_agent::on_host::sub_agent::NotStarted;
 use crate::sub_agent::on_host::supervisor::command_supervisor;
@@ -25,11 +23,11 @@ use crate::{
         SubAgentBuilder,
     },
 };
-use log::warn;
 #[cfg(unix)]
 use nix::unistd::gethostname;
 use std::collections::HashMap;
 use std::sync::Arc;
+use tracing::{error, warn};
 
 use super::{
     sub_agent::SubAgentOnHost,
@@ -122,10 +120,12 @@ where
                 Err(e) => warn!("hash repository error for agent {}: {}", &agent_id, e),
                 Ok(None) => warn!("hash repository not found for agent: {}", &agent_id),
                 Ok(Some(mut hash)) => {
-                    if let Err(EffectiveAgentsAssemblerError::RemoteConfigLoadError(error)) =
-                        effective_agent_res.as_ref()
-                    {
-                        report_remote_config_status_error(opamp_client, &hash, error.clone())?;
+                    if let Err(err) = effective_agent_res.as_ref() {
+                        report_remote_config_status_error(opamp_client, &hash, err.to_string())?;
+                        error!(
+                            "Failed to assemble agent  {}, running  without supervisors",
+                            agent_id
+                        );
                         // report the failed status for remote config and let the opamp client
                         // running with no supervisors so the configuration can be fixed
                         has_supervisors = false;
