@@ -5,7 +5,8 @@ use thiserror::Error;
 use tracing::error;
 
 use crate::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError, LocalRegistry};
-use crate::agent_type::definition::AgentAttributes;
+use crate::agent_type::definition::{AgentAttributes, AgentType, AgentTypeDefinition};
+use crate::agent_type::environment::Environment;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::runtime_config::Runtime;
 use crate::sub_agent::values::values_repository::{
@@ -67,6 +68,7 @@ pub trait EffectiveAgentsAssembler {
         &self,
         agent_id: &AgentID,
         agent_cfg: &SubAgentConfig,
+        environment: &Environment,
     ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError>;
 }
 
@@ -154,30 +156,37 @@ where
     C: ConfigurationPersister,
     D: ValuesRepository,
 {
+    /// Load an agent type from the registry and populate it with values
     fn assemble_agent(
         &self,
         agent_id: &AgentID,
         agent_cfg: &SubAgentConfig,
+        environment: &Environment,
     ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError> {
-        // Load agent type from repository and populate with values
-        let final_agent = self.registry.get(&agent_cfg.agent_type)?;
+        // Load the agent type definition
+        let agent_type_definition = self.registry.get(&agent_cfg.agent_type)?;
+        // Build the corresponding agent type
+        let agent_type = build_agent_type(agent_type_definition, environment)?;
 
-        // delete remote values if not supported
-        if !self.remote_enabled || !final_agent.has_remote_management() {
+        // Delete remote values if not supported
+        if !self.remote_enabled || !agent_type.has_remote_management() {
             self.values_repository.delete_remote(agent_id)?;
         }
 
-        let agent_values = self.values_repository.load(agent_id, &final_agent)?;
+        // Load the values
+        let values = self.values_repository.load(agent_id, &agent_type)?;
 
-        let agent_attributes = AgentAttributes {
+        // Build the agent attributes
+        let attributes = AgentAttributes {
             // This is needed to create path for "file" variables, not used in k8s.
             generated_configs_path: self
                 .build_absolute_path(self.local_conf_path.as_ref(), agent_id),
             agent_id: agent_id.get(),
         };
 
-        // populate with values
-        let populated_agent = final_agent.template(agent_values, agent_attributes)?;
+        // Populate the agent type with values
+        // TODO: should template return a different type?
+        let populated_agent = agent_type.template(values, attributes)?;
 
         // Use the configuration persister if present to manage agent configuration files
         if let Some(persister) = &self.config_persister {
@@ -194,6 +203,20 @@ where
     }
 }
 
+/// Builds an [AgentType] given the provided [AgentTypeDefinition] and environment.
+pub fn build_agent_type(
+    definition: AgentTypeDefinition,
+    _environment: &Environment,
+) -> Result<AgentType, EffectiveAgentsAssemblerError> {
+    // TODO: the [AgentType] variables will be different depending on the provided environment.
+    // This could return an error if the agent type is not correct, given the provided environment.
+    Ok(AgentType::new(
+        definition.metadata,
+        definition.variables,
+        definition.runtime_config,
+    ))
+}
+
 ////////////////////////////////////////////////////////////////////////////////////
 // Tests
 ////////////////////////////////////////////////////////////////////////////////////
@@ -204,7 +227,7 @@ pub(crate) mod tests {
     use std::io::ErrorKind;
 
     use crate::agent_type::agent_values::AgentValues;
-    use crate::agent_type::definition::AgentType;
+    use crate::agent_type::definition::AgentTypeDefinition;
     use crate::agent_type::runtime_config::Args;
     use crate::sub_agent::values::values_repository::test::MockRemoteValuesRepositoryMock;
     use crate::{
@@ -223,6 +246,7 @@ pub(crate) mod tests {
                 &self,
                 agent_id: &AgentID,
                 agent_cfg: &SubAgentConfig,
+                environment: &Environment,
             ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError>;
         }
     }
@@ -232,6 +256,7 @@ pub(crate) mod tests {
             &mut self,
             agent_id: &AgentID,
             agent_cfg: &SubAgentConfig,
+            environment: &Environment,
             efective_agent: EffectiveAgent,
         ) {
             self.expect_assemble_agent()
@@ -239,8 +264,9 @@ pub(crate) mod tests {
                 .with(
                     predicate::eq(agent_id.clone()),
                     predicate::eq(agent_cfg.clone()),
+                    predicate::eq(environment.clone()),
                 )
-                .returning(move |_, _| Ok(efective_agent.clone()));
+                .returning(move |_, _, _| Ok(efective_agent.clone()));
         }
 
         #[allow(dead_code)]
@@ -248,6 +274,7 @@ pub(crate) mod tests {
             &mut self,
             agent_id: &AgentID,
             agent_cfg: &SubAgentConfig,
+            environment: &Environment,
             err_kind: ErrorKind,
         ) {
             self.expect_assemble_agent()
@@ -255,8 +282,9 @@ pub(crate) mod tests {
                 .with(
                     predicate::eq(agent_id.clone()),
                     predicate::eq(agent_cfg.clone()),
+                    predicate::eq(environment.clone()),
                 )
-                .returning(move |_, _| {
+                .returning(move |_, _, _| {
                     Err(EffectiveAgentsAssemblerError::ConfigurationPersisterError(
                         PersistError::FileError(WriteError::ErrorCreatingFile(
                             std::io::Error::from(err_kind),
@@ -272,7 +300,7 @@ pub(crate) mod tests {
         C: ConfigurationPersister,
         D: ValuesRepository,
     {
-        pub fn new(
+        pub fn new_for_testing(
             registry: R,
             config_persister: Option<C>,
             remote_values_repo: D,
@@ -297,14 +325,17 @@ pub(crate) mod tests {
 
         // Objects
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let final_agent: AgentType = serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
+        let environment = Environment::OnHost;
+        let agent_type_definition: AgentTypeDefinition =
+            serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
+        let final_agent = build_agent_type(agent_type_definition.clone(), &environment).unwrap();
         let agent_values: AgentValues = serde_yaml::from_reader(AGENT_VALUES.as_bytes()).unwrap();
         let sub_agent_config = SubAgentConfig {
             agent_type: "some_fqn".into(),
         };
 
         //Expectations
-        registry.should_get("some_fqn".to_string(), &final_agent);
+        registry.should_get("some_fqn".to_string(), &agent_type_definition);
         //Delete remote as opamp is disabled
         sub_agent_values_repo.should_delete_remote(&agent_id);
         sub_agent_values_repo.should_load(&agent_id, &final_agent, &agent_values);
@@ -315,7 +346,7 @@ pub(crate) mod tests {
         config_persister.should_delete_agent_config(&agent_id, &populated_agent);
         config_persister.should_persist_agent_config(&agent_id, &populated_agent);
 
-        let assembler = LocalEffectiveAgentsAssembler::new(
+        let assembler = LocalEffectiveAgentsAssembler::new_for_testing(
             registry,
             config_persister.into(),
             sub_agent_values_repo,
@@ -323,7 +354,7 @@ pub(crate) mod tests {
         );
 
         let effective_agent = assembler
-            .assemble_agent(&agent_id, &sub_agent_config)
+            .assemble_agent(&agent_id, &sub_agent_config, &environment)
             .unwrap();
 
         assert_eq!(
@@ -351,14 +382,17 @@ pub(crate) mod tests {
 
         // Objects
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let final_agent: AgentType = serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
+        let agent_type_definition: AgentTypeDefinition =
+            serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
+        let environment = Environment::OnHost;
+        let final_agent = build_agent_type(agent_type_definition.clone(), &environment).unwrap();
         let agent_values: AgentValues = serde_yaml::from_reader(AGENT_VALUES.as_bytes()).unwrap();
         let sub_agent_config = SubAgentConfig {
             agent_type: "some_fqn".into(),
         };
 
         //Expectations
-        registry.should_get("some_fqn".to_string(), &final_agent);
+        registry.should_get("some_fqn".to_string(), &agent_type_definition);
         sub_agent_values_repo.should_load(&agent_id, &final_agent, &agent_values);
         //From now on the EffectiveAgent is populated
         let populated_agent = final_agent
@@ -367,7 +401,7 @@ pub(crate) mod tests {
         config_persister.should_delete_agent_config(&agent_id, &populated_agent);
         config_persister.should_persist_agent_config(&agent_id, &populated_agent);
 
-        let assembler = LocalEffectiveAgentsAssembler::new(
+        let assembler = LocalEffectiveAgentsAssembler::new_for_testing(
             registry,
             Some(config_persister),
             sub_agent_values_repo,
@@ -375,7 +409,7 @@ pub(crate) mod tests {
         );
 
         let effective_agent = assembler
-            .assemble_agent(&agent_id, &sub_agent_config)
+            .assemble_agent(&agent_id, &sub_agent_config, &environment)
             .unwrap();
 
         assert_eq!(
@@ -410,14 +444,14 @@ pub(crate) mod tests {
         //Expectations
         registry.should_not_get("some_fqn".to_string());
 
-        let assembler = LocalEffectiveAgentsAssembler::new(
+        let assembler = LocalEffectiveAgentsAssembler::new_for_testing(
             registry,
             Some(config_persister),
             sub_agent_values_repo,
             false,
         );
 
-        let result = assembler.assemble_agent(&agent_id, &sub_agent_config);
+        let result = assembler.assemble_agent(&agent_id, &sub_agent_config, &Environment::OnHost);
 
         assert!(result.is_err());
         assert_eq!(
@@ -435,24 +469,25 @@ pub(crate) mod tests {
 
         // Objects
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let final_agent: AgentType = serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
+        let agent_type_definition: AgentTypeDefinition =
+            serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
         let sub_agent_config = SubAgentConfig {
             agent_type: "some_fqn".into(),
         };
 
         //Expectations
-        registry.should_get("some_fqn".to_string(), &final_agent);
+        registry.should_get("some_fqn".to_string(), &agent_type_definition);
         //Delete remote as opamp is disabled
         sub_agent_values_repo.should_not_delete_remote(&agent_id);
 
-        let assembler = LocalEffectiveAgentsAssembler::new(
+        let assembler = LocalEffectiveAgentsAssembler::new_for_testing(
             registry,
             Some(config_persister),
             sub_agent_values_repo,
             false,
         );
 
-        let result = assembler.assemble_agent(&agent_id, &sub_agent_config);
+        let result = assembler.assemble_agent(&agent_id, &sub_agent_config, &Environment::OnHost);
 
         assert!(result.is_err());
         assert_eq!(
@@ -470,24 +505,27 @@ pub(crate) mod tests {
 
         // Objects
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let final_agent: AgentType = serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
+        let agent_type_definition: AgentTypeDefinition =
+            serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
+        let environment = Environment::OnHost;
+        let final_agent = build_agent_type(agent_type_definition.clone(), &environment).unwrap();
         let sub_agent_config = SubAgentConfig {
             agent_type: "some_fqn".into(),
         };
 
         //Expectations
-        registry.should_get("some_fqn".to_string(), &final_agent);
+        registry.should_get("some_fqn".to_string(), &agent_type_definition);
         sub_agent_values_repo.should_delete_remote(&agent_id);
         sub_agent_values_repo.should_not_load(&agent_id, &final_agent);
 
-        let assembler = LocalEffectiveAgentsAssembler::new(
+        let assembler = LocalEffectiveAgentsAssembler::new_for_testing(
             registry,
             Some(config_persister),
             sub_agent_values_repo,
             false,
         );
 
-        let result = assembler.assemble_agent(&agent_id, &sub_agent_config);
+        let result = assembler.assemble_agent(&agent_id, &sub_agent_config, &environment);
 
         assert!(result.is_err());
         assert_eq!(
@@ -505,14 +543,17 @@ pub(crate) mod tests {
 
         // Objects
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let final_agent: AgentType = serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
+        let agent_type_definition: AgentTypeDefinition =
+            serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
+        let environment = Environment::OnHost;
+        let final_agent = build_agent_type(agent_type_definition.clone(), &environment).unwrap();
         let agent_values: AgentValues = serde_yaml::from_reader(AGENT_VALUES.as_bytes()).unwrap();
         let sub_agent_config = SubAgentConfig {
             agent_type: "some_fqn".into(),
         };
 
         //Expectations
-        registry.should_get("some_fqn".to_string(), &final_agent);
+        registry.should_get("some_fqn".to_string(), &agent_type_definition);
         sub_agent_values_repo.should_load(&agent_id, &final_agent, &agent_values);
         //From now on the EffectiveAgent is populated
         let populated_agent = final_agent
@@ -523,14 +564,14 @@ pub(crate) mod tests {
         ));
         config_persister.should_not_delete_agent_config(&agent_id, &populated_agent, err);
 
-        let assembler = LocalEffectiveAgentsAssembler::new(
+        let assembler = LocalEffectiveAgentsAssembler::new_for_testing(
             registry,
             Some(config_persister),
             sub_agent_values_repo,
             true,
         );
 
-        let result = assembler.assemble_agent(&agent_id, &sub_agent_config);
+        let result = assembler.assemble_agent(&agent_id, &sub_agent_config, &environment);
 
         assert!(result.is_err());
         assert_eq!(
@@ -548,14 +589,17 @@ pub(crate) mod tests {
 
         // Objects
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let final_agent: AgentType = serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
+        let agent_type_definition: AgentTypeDefinition =
+            serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
+        let environment = Environment::OnHost;
+        let final_agent = build_agent_type(agent_type_definition.clone(), &environment).unwrap();
         let agent_values: AgentValues = serde_yaml::from_reader(AGENT_VALUES.as_bytes()).unwrap();
         let sub_agent_config = SubAgentConfig {
             agent_type: "some_fqn".into(),
         };
 
         //Expectations
-        registry.should_get("some_fqn".to_string(), &final_agent);
+        registry.should_get("some_fqn".to_string(), &agent_type_definition);
         sub_agent_values_repo.should_load(&agent_id, &final_agent, &agent_values);
         //From now on the EffectiveAgent is populated
         let populated_agent = final_agent
@@ -567,14 +611,14 @@ pub(crate) mod tests {
         ));
         config_persister.should_not_persist_agent_config(&agent_id, &populated_agent, err);
 
-        let assembler = LocalEffectiveAgentsAssembler::new(
+        let assembler = LocalEffectiveAgentsAssembler::new_for_testing(
             registry,
             Some(config_persister),
             sub_agent_values_repo,
             true,
         );
 
-        let result = assembler.assemble_agent(&agent_id, &sub_agent_config);
+        let result = assembler.assemble_agent(&agent_id, &sub_agent_config, &environment);
 
         assert!(result.is_err());
         assert_eq!(
@@ -589,7 +633,10 @@ pub(crate) mod tests {
         let mut sub_agent_values_repo = MockRemoteValuesRepositoryMock::new();
 
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let final_agent: AgentType = serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
+        let agent_type_definition: AgentTypeDefinition =
+            serde_yaml::from_reader(AGENT_TYPE.as_bytes()).unwrap();
+        let environment = Environment::OnHost;
+        let final_agent = build_agent_type(agent_type_definition.clone(), &environment).unwrap();
         let agent_values: AgentValues = serde_yaml::from_reader(AGENT_VALUES.as_bytes()).unwrap();
         let sub_agent_config = SubAgentConfig {
             agent_type: "some_fqn".into(),
@@ -597,21 +644,21 @@ pub(crate) mod tests {
 
         //Delete remote as opamp is disabled
         sub_agent_values_repo.should_delete_remote(&agent_id);
-        registry.should_get("some_fqn".to_string(), &final_agent);
+        registry.should_get("some_fqn".to_string(), &agent_type_definition);
         sub_agent_values_repo.should_load(&agent_id, &final_agent, &agent_values);
-        let populated_agent = final_agent
+        let _populated_agent = final_agent
             .template(agent_values.clone(), AgentAttributes::default())
             .unwrap();
 
         // Create an instance of the assembler with config_persister set to None
-        let assembler = LocalEffectiveAgentsAssembler::new(
+        let assembler = LocalEffectiveAgentsAssembler::new_for_testing(
             registry,
             None::<MockConfigurationPersisterMock>,
             sub_agent_values_repo,
             false,
         );
 
-        let result = assembler.assemble_agent(&agent_id, &sub_agent_config);
+        let result = assembler.assemble_agent(&agent_id, &sub_agent_config, &environment);
 
         assert!(result.is_ok());
     }

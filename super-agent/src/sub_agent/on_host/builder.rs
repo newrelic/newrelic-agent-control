@@ -1,3 +1,4 @@
+use crate::agent_type::environment::Environment;
 use crate::event::channel::{pub_sub, EventPublisher};
 use crate::event::SubAgentEvent;
 use crate::opamp::hash_repository::HashRepository;
@@ -108,9 +109,11 @@ where
         )?;
 
         // try to build effective agent
-        let effective_agent_res = self
-            .effective_agent_assembler
-            .assemble_agent(&agent_id, sub_agent_config);
+        let effective_agent_res = self.effective_agent_assembler.assemble_agent(
+            &agent_id,
+            sub_agent_config,
+            &Environment::OnHost,
+        );
 
         let mut has_supervisors = true;
 
@@ -271,6 +274,7 @@ mod test {
         effective_agent_assembler.should_assemble_agent(
             &sub_agent_id,
             &sub_agent_config,
+            &Environment::OnHost,
             final_agent,
         );
 
@@ -347,6 +351,7 @@ mod test {
         effective_agent_assembler.should_assemble_agent(
             &sub_agent_id,
             &sub_agent_config,
+            &Environment::OnHost,
             final_agent,
         );
 

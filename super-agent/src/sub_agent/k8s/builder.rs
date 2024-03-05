@@ -1,4 +1,5 @@
 use super::sub_agent::NotStartedSubAgentK8s;
+use crate::agent_type::environment::Environment;
 use crate::agent_type::runtime_config::K8sObject;
 use crate::event::channel::{pub_sub, EventPublisher};
 use crate::event::SubAgentEvent;
@@ -94,9 +95,11 @@ where
             )]),
         )?;
 
-        let effective_agent = self
-            .effective_agent_assembler
-            .assemble_agent(&agent_id, sub_agent_config)?;
+        let effective_agent = self.effective_agent_assembler.assemble_agent(
+            &agent_id,
+            sub_agent_config,
+            &Environment::K8s,
+        )?;
 
         let k8s_objects = effective_agent
             .get_runtime_config()
@@ -218,6 +221,7 @@ mod test {
         effective_agent_assembler.should_assemble_agent(
             &sub_agent_id,
             &sub_agent_config,
+            &Environment::K8s,
             effective_agent,
         );
 
@@ -312,6 +316,7 @@ mod test {
         effective_agent_assembler.should_assemble_agent(
             &sub_agent_id,
             &sub_agent_config,
+            &Environment::K8s,
             effective_agent,
         );
 
@@ -379,6 +384,7 @@ mod test {
         effective_agent_assembler.should_assemble_agent(
             &sub_agent_id,
             &sub_agent_config,
+            &Environment::K8s,
             effective_agent,
         );
 

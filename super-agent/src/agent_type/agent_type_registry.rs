@@ -1,13 +1,12 @@
-use crate::{
-    agent_type::definition::AgentType,
-    super_agent::defaults::{
-        NEWRELIC_INFRA_TYPE_0_0_1, NEWRELIC_INFRA_TYPE_0_0_2, NEWRELIC_INFRA_TYPE_0_1_0,
-        NRDOT_TYPE_0_0_1, NRDOT_TYPE_0_1_0,
-    },
+use crate::super_agent::defaults::{
+    NEWRELIC_INFRA_TYPE_0_0_1, NEWRELIC_INFRA_TYPE_0_0_2, NEWRELIC_INFRA_TYPE_0_1_0,
+    NRDOT_TYPE_0_0_1, NRDOT_TYPE_0_1_0,
 };
 use log::debug;
 use std::collections::HashMap;
 use thiserror::Error;
+
+use super::definition::AgentTypeDefinition;
 
 #[derive(Error, Debug)]
 pub enum AgentRepositoryError {
@@ -21,11 +20,11 @@ pub enum AgentRepositoryError {
 pub trait AgentRegistry {
     // get returns an Agent type given a definition.
     // TODO: evaluate if returning an owned value is needed, CoW?
-    fn get(&self, name: &str) -> Result<AgentType, AgentRepositoryError>;
+    fn get(&self, name: &str) -> Result<AgentTypeDefinition, AgentRepositoryError>;
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct LocalRegistry(HashMap<String, AgentType>);
+pub struct LocalRegistry(HashMap<String, AgentTypeDefinition>);
 
 impl Default for LocalRegistry {
     // default returns the LocalRegistry loaded with the defined default agents
@@ -62,7 +61,7 @@ impl Default for LocalRegistry {
 
 impl LocalRegistry {
     pub fn store_from_yaml(&mut self, agent_bytes: &[u8]) -> Result<(), AgentRepositoryError> {
-        let agent: AgentType = serde_yaml::from_reader(agent_bytes)?;
+        let agent: AgentTypeDefinition = serde_yaml::from_reader(agent_bytes)?;
         // TODO: The usage of `insert` allows to insert the same agent metadata without failing, it just overwrites it.
         //  We should consider a way to check if an agent already exists and fail.
         //  See issue #82766 <https://github.com/rust-lang/rust/issues/82766> as a potential solution.
@@ -72,7 +71,7 @@ impl LocalRegistry {
 }
 
 impl AgentRegistry for LocalRegistry {
-    fn get(&self, name: &str) -> Result<AgentType, AgentRepositoryError> {
+    fn get(&self, name: &str) -> Result<AgentTypeDefinition, AgentRepositoryError> {
         match self.0.get(name) {
             None => Err(AgentRepositoryError::NotFound),
             Some(final_agent) => Ok(final_agent.clone()),
@@ -81,7 +80,7 @@ impl AgentRegistry for LocalRegistry {
 }
 
 impl LocalRegistry {
-    pub fn new<A: IntoIterator<Item = AgentType>>(agents: A) -> Self {
+    pub fn new<A: IntoIterator<Item = AgentTypeDefinition>>(agents: A) -> Self {
         let mut registry = LocalRegistry::default();
 
         for agent in agents {
@@ -104,12 +103,12 @@ pub mod tests {
         pub AgentRegistryMock {}
 
         impl AgentRegistry for AgentRegistryMock  {
-            fn get(&self, name: &str) -> Result<AgentType, AgentRepositoryError>;
+            fn get(&self, name: &str) -> Result<AgentTypeDefinition, AgentRepositoryError>;
         }
     }
 
     impl MockAgentRegistryMock {
-        pub fn should_get(&mut self, name: String, final_agent: &AgentType) {
+        pub fn should_get(&mut self, name: String, final_agent: &AgentTypeDefinition) {
             let final_agent = final_agent.clone();
             self.expect_get()
                 .with(predicate::eq(name.clone()))
@@ -129,7 +128,7 @@ pub mod tests {
         pub fn store_with_key(
             &mut self,
             key: String,
-            agent: AgentType,
+            agent: AgentTypeDefinition,
         ) -> Result<(), AgentRepositoryError> {
             Ok(_ = self.0.insert(key, agent))
         }
