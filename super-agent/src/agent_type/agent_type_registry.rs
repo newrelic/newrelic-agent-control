@@ -2,9 +2,9 @@ use crate::super_agent::defaults::{
     NEWRELIC_INFRA_TYPE_0_0_1, NEWRELIC_INFRA_TYPE_0_0_2, NEWRELIC_INFRA_TYPE_0_1_0,
     NRDOT_TYPE_0_0_1, NRDOT_TYPE_0_1_0,
 };
-use log::debug;
 use std::collections::HashMap;
 use thiserror::Error;
+use tracing::debug;
 
 use super::definition::AgentTypeDefinition;
 

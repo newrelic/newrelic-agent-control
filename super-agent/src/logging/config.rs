@@ -1,8 +1,8 @@
-use log::debug;
 use serde::Deserialize;
 use std::fmt::Debug;
 use std::str::FromStr;
 use thiserror::Error;
+use tracing::debug;
 use tracing::Level;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::fmt::format::PrettyFields;

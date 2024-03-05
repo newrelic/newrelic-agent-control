@@ -421,7 +421,6 @@ dependencies = [
  "clap",
  "fs",
  "http 0.2.12",
- "log",
  "mockall",
  "mockall_double",
  "newrelic_super_agent",
@@ -1540,9 +1539,6 @@ name = "log"
 version = "0.4.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90ed8c1e510134f979dbc4f070f87d4313098b704861a105fe34231c70a3901c"
-dependencies = [
- "value-bag",
-]
 
 [[package]]
 name = "matchers"
@@ -1651,7 +1647,6 @@ dependencies = [
  "k8s-openapi",
  "konst",
  "kube",
- "log",
  "mockall",
  "mockall_double",
  "nix 0.28.0",
@@ -3066,12 +3061,6 @@ name = "valuable"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "830b7e5d4d90034032940e4ace0d9a9a057e7a45cd94e6c007832e39edb82f6d"
-
-[[package]]
-name = "value-bag"
-version = "1.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "126e423afe2dd9ac52142e7e9d5ce4135d7e13776c529d27fd6bc49f19e3280b"
 
 [[package]]
 name = "version_check"
