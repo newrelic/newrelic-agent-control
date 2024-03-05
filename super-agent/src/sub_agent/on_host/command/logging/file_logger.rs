@@ -4,11 +4,12 @@ use tracing_appender::{
     non_blocking::{NonBlocking, WorkerGuard},
     rolling::RollingFileAppender,
 };
-use tracing_subscriber::{fmt::format::DefaultFields, FmtSubscriber};
+use tracing_subscriber::{
+    fmt::format::{DefaultFields, Format, Full},
+    FmtSubscriber,
+};
 
 use crate::super_agent::{config::AgentID, defaults::SUB_AGENT_LOG_DIR};
-
-use super::format::SubAgentFileLogger;
 
 pub(crate) struct FileSystemLoggers {
     out: FileLogger,
@@ -70,7 +71,7 @@ where
 }
 
 pub struct FileLogger {
-    file_subscriber: FmtSubscriber<DefaultFields, SubAgentFileLogger, LevelFilter, NonBlocking>,
+    file_subscriber: FmtSubscriber<DefaultFields, Format<Full, ()>, LevelFilter, NonBlocking>,
     _guard: WorkerGuard,
 }
 
@@ -105,7 +106,10 @@ where
     fn from(appender: W) -> Self {
         let (non_blocking, _guard) = tracing_appender::non_blocking(appender);
         let file_subscriber = tracing_subscriber::fmt()
-            .event_format(SubAgentFileLogger)
+            .with_ansi(false)
+            .with_target(false)
+            .with_level(false)
+            .without_time()
             .with_writer(non_blocking)
             .finish();
         Self {

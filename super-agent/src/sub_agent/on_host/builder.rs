@@ -18,7 +18,6 @@ use crate::{
     opamp::client_builder::OpAMPClientBuilder,
     sub_agent::{
         error::{SubAgentBuilderError, SubAgentError},
-        logger::AgentLog,
         restart_policy::RestartPolicy,
         SubAgentBuilder,
     },
@@ -92,7 +91,6 @@ where
         &self,
         agent_id: AgentID,
         sub_agent_config: &SubAgentConfig,
-        tx: std::sync::mpsc::Sender<AgentLog>,
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
         let (sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
@@ -149,7 +147,7 @@ where
 
         let supervisors = match has_supervisors {
             false => Vec::new(),
-            true => build_supervisors(effective_agent_res?, tx)?,
+            true => build_supervisors(effective_agent_res?)?,
         };
 
         let event_processor = self.event_processor_builder.build(
@@ -171,7 +169,6 @@ where
 
 fn build_supervisors(
     effective_agent: EffectiveAgent,
-    tx: std::sync::mpsc::Sender<AgentLog>,
 ) -> Result<Vec<SupervisorOnHost<command_supervisor::NotStarted>>, SubAgentError> {
     let agent_id = effective_agent.get_agent_id();
     let on_host = effective_agent
@@ -194,7 +191,6 @@ fn build_supervisors(
             agent_id.clone(),
             exec_data,
             Context::new(),
-            tx.clone(),
             restart_policy,
             file_logging,
         );
@@ -237,7 +233,6 @@ mod test {
         settings::{AgentDescription, DescriptionValueType, StartSettings},
     };
     use std::collections::HashMap;
-    use std::sync::mpsc::channel;
     use std::thread;
 
     #[test]
@@ -306,10 +301,8 @@ mod test {
             &sub_agent_event_processor_builder,
         );
 
-        let (tx, _rx) = channel();
-
         assert!(on_host_builder
-            .build(sub_agent_id, &sub_agent_config, tx, opamp_publisher)
+            .build(sub_agent_id, &sub_agent_config, opamp_publisher)
             .unwrap()
             .run()
             .unwrap()
@@ -320,7 +313,6 @@ mod test {
     #[test]
     fn test_builder_should_report_failed_config() {
         let (opamp_publisher, _opamp_consumer) = pub_sub();
-        let (tx, _rx) = channel();
         // Mocks
         let mut opamp_builder = MockOpAMPClientBuilderMock::new();
         let mut hash_repository_mock = MockHashRepositoryMock::new();
@@ -381,7 +373,7 @@ mod test {
         );
 
         assert!(on_host_builder
-            .build(sub_agent_id, &sub_agent_config, tx, opamp_publisher)
+            .build(sub_agent_id, &sub_agent_config, opamp_publisher)
             .is_ok());
     }
 

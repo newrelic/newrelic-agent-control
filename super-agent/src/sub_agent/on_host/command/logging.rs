@@ -1,4 +1,3 @@
 pub mod file_logger;
-mod format;
-mod handle;
+pub(crate) mod logger;
 pub(crate) mod thread;

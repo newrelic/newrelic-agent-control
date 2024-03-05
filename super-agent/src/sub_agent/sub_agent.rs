@@ -2,7 +2,6 @@ use crate::event::channel::EventPublisher;
 use crate::event::SubAgentEvent;
 use crate::opamp::callbacks::AgentCallbacks;
 use crate::sub_agent::error;
-use crate::sub_agent::logger::AgentLog;
 use crate::sub_agent::opamp::remote_config_publisher::SubAgentRemoteConfigPublisher;
 use crate::super_agent::config::{AgentID, SubAgentConfig};
 use std::thread::JoinHandle;
@@ -28,7 +27,6 @@ pub trait SubAgentBuilder {
         &self,
         agent_id: AgentID,
         sub_agent_config: &SubAgentConfig,
-        tx: std::sync::mpsc::Sender<AgentLog>,
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
     ) -> Result<Self::NotStartedSubAgent, error::SubAgentBuilderError>;
 }
@@ -80,7 +78,6 @@ pub mod test {
                 &self,
                 agent_id: AgentID,
                 sub_agent_config: &SubAgentConfig,
-                tx: std::sync::mpsc::Sender<AgentLog>,
                 sub_agent_publisher: EventPublisher<SubAgentEvent>,
             ) -> Result<<Self as SubAgentBuilder>::NotStartedSubAgent, error::SubAgentBuilderError>;
         }
@@ -90,7 +87,7 @@ pub mod test {
         // should_build provides a helper method to create a subagent which runs and stops
         // successfully
         pub(crate) fn should_build(&mut self, times: usize) {
-            self.expect_build().times(times).returning(|_, _, _, _| {
+            self.expect_build().times(times).returning(|_, _, _| {
                 let mut not_started_sub_agent = MockNotStartedSubAgent::new();
                 not_started_sub_agent.expect_run().times(1).returning(|| {
                     let mut started_agent = MockStartedSubAgent::new();
@@ -116,9 +113,8 @@ pub mod test {
                     predicate::eq(agent_id.clone()),
                     predicate::eq(sub_agent_config),
                     predicate::always(),
-                    predicate::always(),
                 )
-                .return_once(move |_, _, _, _| Ok(sub_agent));
+                .return_once(move |_, _, _| Ok(sub_agent));
         }
     }
 }

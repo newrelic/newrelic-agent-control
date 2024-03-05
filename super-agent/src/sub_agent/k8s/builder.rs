@@ -10,7 +10,7 @@ use crate::super_agent::config::{AgentID, K8sConfig, SubAgentConfig};
 use crate::{
     opamp::client_builder::OpAMPClientBuilder,
     sub_agent::k8s::supervisor::CRSupervisor,
-    sub_agent::{error::SubAgentBuilderError, logger::AgentLog, SubAgentBuilder},
+    sub_agent::{error::SubAgentBuilderError, SubAgentBuilder},
 };
 use kube::core::TypeMeta;
 use opamp_client::operation::callbacks::Callbacks;
@@ -78,7 +78,6 @@ where
         &self,
         agent_id: AgentID,
         sub_agent_config: &SubAgentConfig,
-        _tx: std::sync::mpsc::Sender<AgentLog>,
         _sub_agent_publisher: EventPublisher<SubAgentEvent>,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
         let (sub_agent_opamp_publisher, _sub_agent_opamp_consumer) = pub_sub();
@@ -167,7 +166,7 @@ mod test {
     };
     use assert_matches::assert_matches;
     use opamp_client::operation::settings::DescriptionValueType;
-    use std::{collections::HashMap, sync::mpsc::channel};
+    use std::collections::HashMap;
 
     #[test]
     fn build_start_stop() {
@@ -239,13 +238,11 @@ mod test {
             k8s_config,
         );
 
-        let (tx, _) = channel();
         let (super_agent_publisher, _super_agent_consumer) = pub_sub();
         let started_agent = builder
             .build(
                 AgentID::new("k8s-test").unwrap(),
                 &sub_agent_config,
-                tx,
                 super_agent_publisher,
             )
             .unwrap() // Not started agent
@@ -334,13 +331,11 @@ mod test {
             k8s_config,
         );
 
-        let (tx, _) = channel();
         let (super_agent_publisher, _super_agent_consumer) = pub_sub();
         assert!(builder
             .build(
                 AgentID::new("k8s-test").unwrap(),
                 &sub_agent_config,
-                tx,
                 super_agent_publisher,
             )
             .unwrap() // Not started agent
@@ -402,9 +397,8 @@ mod test {
             k8s_config,
         );
 
-        let (tx, _) = channel();
         let (opamp_publisher, _opamp_consumer) = pub_sub();
-        let build_result = builder.build(sub_agent_id, &sub_agent_config, tx, opamp_publisher);
+        let build_result = builder.build(sub_agent_id, &sub_agent_config, opamp_publisher);
 
         let error = build_result.err().expect("Expected an error");
 
