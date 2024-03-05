@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use serde::Deserialize;
 
-use crate::super_agent::defaults::{SUPER_AGENT_DATA_DIR, SUPER_AGENT_LOG_FILENAME};
+use crate::super_agent::defaults::{SUPER_AGENT_LOG_DIR, SUPER_AGENT_LOG_FILENAME};
 
 use super::config::LoggingError;
 use tracing_appender::non_blocking::{NonBlocking, WorkerGuard};
@@ -33,7 +33,7 @@ pub(crate) struct LogFilePath {
 impl Default for LogFilePath {
     fn default() -> Self {
         Self {
-            parent: PathBuf::from(SUPER_AGENT_DATA_DIR),
+            parent: PathBuf::from(SUPER_AGENT_LOG_DIR),
             file_name: PathBuf::from(SUPER_AGENT_LOG_FILENAME),
         }
     }
