@@ -22,11 +22,11 @@ use crate::{
         SubAgentBuilder,
     },
 };
-use log::warn;
 #[cfg(unix)]
 use nix::unistd::gethostname;
 use std::collections::HashMap;
 use std::sync::Arc;
+use tracing::{error, warn};
 
 use super::{
     sub_agent::SubAgentOnHost,
