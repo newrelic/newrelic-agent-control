@@ -96,6 +96,10 @@ impl SuperAgentConfigStoreFile {
         }
     }
 
+    pub fn config_path(&self) -> &Path {
+        self.remote_path.as_ref().unwrap_or(&self.local_path)
+    }
+
     fn _load_config(&self) -> Result<SuperAgentConfig, SuperAgentConfigStoreError> {
         let _read_guard = self.rw_lock.read().unwrap();
         let local_config_file = std::fs::File::open(&self.local_path)?;

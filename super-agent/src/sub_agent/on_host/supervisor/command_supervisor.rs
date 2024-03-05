@@ -103,6 +103,7 @@ impl SupervisorOnHost<Started> {
 // launch_process starts a new process with a streamed channel and sets its current pid
 // into the provided variable. It waits until the process exits.
 fn start_command<R>(
+    id: String,
     not_started_command: R,
     pid: Arc<Mutex<Option<u32>>>,
     tx: Sender<AgentLog>,
@@ -111,7 +112,9 @@ where
     R: NotStartedCommand,
 {
     // run and stream the process
-    let streaming = not_started_command.start()?.stream(tx)?;
+    let started = not_started_command.start()?;
+    info!("Supervisor process for {} started", id);
+    let streaming = started.stream(tx)?;
 
     // set current running pid
     *pid.lock().unwrap() = Some(streaming.get_pid());
@@ -141,8 +144,8 @@ fn start_process_thread(not_started_supervisor: SupervisorOnHost<NotStarted>) ->
             }
 
             info!(
-                supervisor = not_started_supervisor.id(),
-                msg = "Starting supervisor process"
+                "Starting supervisor process {}",
+                not_started_supervisor.id()
             );
 
             shutdown_ctx.reset().unwrap();
@@ -150,7 +153,9 @@ fn start_process_thread(not_started_supervisor: SupervisorOnHost<NotStarted>) ->
             // std::os::unix::process::ExitStatusExt to get the code with the method into_raw
             let not_started_command = not_started_supervisor.not_started_command();
             let id = not_started_supervisor.id();
+
             let exit_code = start_command(
+                id.clone(),
                 not_started_command.with_metadata(not_started_supervisor.metadata()),
                 current_pid.clone(),
                 not_started_supervisor.snd.clone(),

@@ -34,13 +34,20 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut super_agent_config_storer = SuperAgentConfigStoreFile::new(&cli.get_config_path());
 
-    let super_agent_config = super_agent_config_storer.load()?;
+    let super_agent_config = super_agent_config_storer.load().inspect_err(|err| {
+        error!(
+            "Could not read Super Agent config from {}: {}",
+            super_agent_config_storer.config_path().to_string_lossy(),
+            err
+        )
+    })?;
 
     // init logging singleton
     // If file logging is enabled, this will return a `WorkerGuard` value that needs to persist
     // as long as we want the logs to be written to file, hence, we assign it here so it is dropped
     // when the program exits.
     let _guard = super_agent_config.log.try_init()?;
+    info!("Starting NewRelic Super Agent");
 
     info!("{}", binary_metadata());
     if cli.print_debug_info() {
@@ -72,7 +79,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     #[cfg(any(feature = "onhost", feature = "k8s"))]
-    return Ok(run_super_agent(
+    run_super_agent(
         super_agent_config_storer,
         super_agent_consumer,
         opamp_client_builder,
@@ -82,9 +89,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             "The super agent main process exited with an error: {}",
             err.to_string()
         )
-    })?);
+    })?;
 
-    #[cfg(all(not(feature = "onhost"), not(feature = "k8s")))]
+    info!("Exiting gracefully");
     Ok(())
 }
 
@@ -139,8 +146,6 @@ fn run_super_agent(
             &sub_agent_event_processor_builder,
         );
 
-    info!("Starting the super agent");
-
     let (super_agent_opamp_publisher, super_agent_opamp_consumer) = pub_sub();
 
     let maybe_client = build_opamp_and_start_client(
@@ -154,7 +159,10 @@ fn run_super_agent(
 
     if maybe_client.is_none() {
         // Delete remote values
+        info!("No OpAMP settings configured. Cleaning remote configs");
         values_repository.delete_remote_all()?;
+    } else {
+        info!("Super Agent OpAMP client started");
     }
 
     SuperAgent::new(
@@ -239,7 +247,6 @@ fn run_super_agent(
         k8s_config.clone(),
     );
 
-    info!("Starting the super agent");
     let (opamp_publisher, opamp_consumer) = pub_sub();
 
     let mut non_identifying_attributes = super_agent_opamp_non_identifying_attributes();
@@ -272,6 +279,7 @@ fn create_shutdown_signal_handler(
     publisher: EventPublisher<SuperAgentEvent>,
 ) -> Result<(), ctrlc::Error> {
     ctrlc::set_handler(move || {
+        info!("Received SIGINT (Ctrl-C). Stopping super agent");
         let _ = publisher
             .publish(SuperAgentEvent::StopRequested)
             .map_err(|_| error!("Could not send super agent stop request"));

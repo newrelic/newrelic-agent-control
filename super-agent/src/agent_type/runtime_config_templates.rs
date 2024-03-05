@@ -144,7 +144,7 @@ impl Templateable for BackoffStrategyConfig {
         };
 
         if !result.are_values_in_sync_with_type() {
-            warn!("Backoff strategy type is set to `none`, but some of the backoff strategy fields are set. They will be ignored.");
+            warn!("Backoff strategy type is set to `none`, but some of the backoff strategy fields are set. They will be ignored");
         }
 
         Ok(result)

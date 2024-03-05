@@ -1,7 +1,7 @@
 use std::thread::JoinHandle;
 use std::{sync::mpsc::Receiver, thread::spawn};
 
-use tracing::info;
+use tracing::debug;
 
 /// Stream of outputs, either stdout or stderr
 #[derive(Debug)]
@@ -56,10 +56,10 @@ impl EventLogger for StdEventReceiver {
                     // For the moment we log all sub-agent logs as info.
                     // We should define a feature to add pattern matching per agent_type in order
                     // so we can emit each log line with its correct type.
-                    info!(command = event.metadata.values(), log)
+                    debug!(command = event.metadata.values(), log)
                 }
                 LogOutput::Stderr(log) => {
-                    info!(command = event.metadata.values(), log)
+                    debug!(command = event.metadata.values(), log)
                 }
             })
         })

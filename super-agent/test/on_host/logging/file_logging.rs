@@ -3,6 +3,8 @@ use predicates::prelude::predicate;
 use std::{fs::read_dir, path::Path, time::Duration};
 use tempfile::TempDir;
 
+use crate::logging::level::TIME_FORMAT;
+
 fn build_logging_config(config_path: &Path, log_path: &Path) {
     let config = format!(
         r#"
@@ -42,13 +44,13 @@ fn default_log_level_no_root() {
         .failure()
         .stdout(
             predicate::str::is_match(
-                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*New Relic Super Agent Version: .*, Rust Version: .*, GitCommit: .*, BuildDate: .*",
+                TIME_FORMAT.to_owned() + "INFO.*New Relic Super Agent Version: .*, Rust Version: .*, GitCommit: .*, BuildDate: .*",
             )
                 .unwrap(),
         )
         .stdout(
             predicate::str::is_match(
-                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*ERROR.*Program must run as root",
+                TIME_FORMAT.to_owned() + "ERROR.*Program must run as root",
             )
                 .unwrap(),
         );
@@ -92,19 +94,13 @@ fn default_log_level_as_root() {
         .failure()
         .stdout(
             predicate::str::is_match(
-                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*New Relic Super Agent Version: .*, Rust Version: .*, GitCommit: .*, BuildDate: .*",
+                TIME_FORMAT.to_owned() + "INFO.*New Relic Super Agent Version: .*, Rust Version: .*, GitCommit: .*, BuildDate: .*",
             )
                 .unwrap(),
         )
         .stdout(
             predicate::str::is_match(
-                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Starting the super agent",
-            )
-                .unwrap(),
-        )
-        .stdout(
-            predicate::str::is_match(
-                r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*INFO.*Starting the supervisor group",
+                TIME_FORMAT.to_owned() + "INFO.*Starting the agents supervisor runtime",
             )
                 .unwrap(),
         );
@@ -128,6 +124,6 @@ fn default_log_level_as_root() {
     }
 
     assert!(actual.contains("INFO Instance Identifiers:"));
-    assert!(actual.contains("INFO Starting the super agent"));
-    assert!(actual.contains("INFO Starting the supervisor group"));
+    assert!(actual.contains("INFO Starting NewRelic Super Agent"));
+    assert!(actual.contains("INFO Starting the agents supervisor runtime"));
 }
