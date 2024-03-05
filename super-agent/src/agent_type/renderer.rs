@@ -3,10 +3,8 @@ use crate::{
 };
 
 use super::{
-    agent_values::AgentValues,
-    definition::{AgentAttributes, AgentType},
-    error::AgentTypeError,
-    runtime_config::Runtime,
+    agent_attributes::AgentAttributes, agent_values::AgentValues, definition::AgentType,
+    error::AgentTypeError, runtime_config::Runtime,
 };
 
 /// Defines how to render an AgentType and obtain the runtime configuration needed to execute a sub agent.

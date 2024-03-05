@@ -4,8 +4,9 @@ use std::path::PathBuf;
 use thiserror::Error;
 use tracing::error;
 
+use crate::agent_type::agent_attributes::AgentAttributes;
 use crate::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError, LocalRegistry};
-use crate::agent_type::definition::{AgentAttributes, AgentType, AgentTypeDefinition};
+use crate::agent_type::definition::{AgentType, AgentTypeDefinition};
 use crate::agent_type::environment::Environment;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::renderer::{Renderer, TemplateRenderer};

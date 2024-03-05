@@ -5,17 +5,20 @@
 //! See [`Agent::template_with`] for a flowchart of the dataflow that ends in the final, enriched structure.
 
 use serde::{Deserialize, Deserializer};
-use std::path::PathBuf;
 use std::{collections::HashMap, str::FromStr};
 
+use super::agent_attributes::AgentAttributes;
 use super::agent_values::AgentValues;
-use super::restart_policy::{BackoffDelay, BackoffLastRetryInterval, MaxRetries};
-use super::variable::definition::{VariableDefinition, VariableDefinitionTree};
 use super::{
     agent_metadata::AgentMetadata,
     error::AgentTypeError,
+    restart_policy::{BackoffDelay, BackoffLastRetryInterval, MaxRetries},
     runtime_config::{Args, Env, Runtime},
     runtime_config_templates::{Templateable, TEMPLATE_KEY_SEPARATOR},
+    variable::{
+        definition::{VariableDefinition, VariableDefinitionTree},
+        namespace::Namespace,
+    },
 };
 use crate::super_agent::config::AgentTypeFQN;
 use crate::super_agent::defaults::default_capabilities;
@@ -265,7 +268,7 @@ impl AgentType {
         let mut namespaced_variables = HashMap::new();
 
         for (name, var) in self.variables.clone().flatten().into_iter() {
-            namespaced_variables.insert(VariableNamespace::Variable.namespaced_name(&name), var);
+            namespaced_variables.insert(Namespace::Variable.namespaced_name(&name), var);
         }
 
         namespaced_variables.extend(agent_attributes.sub_agent_variables());
@@ -281,56 +284,6 @@ impl AgentType {
         };
 
         Ok(populated_agent)
-    }
-}
-enum VariableNamespace {
-    Variable,
-    SubAgent,
-}
-
-impl VariableNamespace {
-    const PREFIX: &'static str = "nr-";
-    const VARIABLE: &'static str = "var";
-    const SUB_AGENT: &'static str = "sub";
-
-    fn namespaced_name(&self, variable_name: &str) -> String {
-        let ns = match self {
-            Self::Variable => Self::VARIABLE,
-            Self::SubAgent => Self::SUB_AGENT,
-        };
-        format!("{}{ns}:{variable_name}", Self::PREFIX)
-    }
-}
-
-/// contains any attribute from the sub-agent that is used to build or modify variables used to template the AgentType.
-#[derive(Debug, PartialEq, Clone, Default)]
-pub struct AgentAttributes {
-    /// sub-agent generated config path
-    pub generated_configs_path: PathBuf,
-    /// sub-agent Agent ID
-    pub agent_id: String,
-}
-
-impl AgentAttributes {
-    const VARIABLE_SUB_AGENT_ID: &'static str = "agent_id";
-
-    /// returns the variables from the sub-agent attributes source 'nr-sub'.
-    fn sub_agent_variables(&self) -> HashMap<String, VariableDefinition> {
-        HashMap::from([(
-            VariableNamespace::SubAgent.namespaced_name(Self::VARIABLE_SUB_AGENT_ID),
-            VariableDefinition::new_sub_agent_string_variable(self.agent_id.clone()),
-        )])
-    }
-
-    /// extends the path of all variables that have a kind with path, with the sub agent generated config path.
-    fn extend_file_paths(
-        &self,
-        mut variables: HashMap<String, VariableDefinition>,
-    ) -> HashMap<String, VariableDefinition> {
-        variables
-            .values_mut()
-            .for_each(|v| v.extend_file_path(self.generated_configs_path.as_path()));
-        variables
     }
 }
 
@@ -436,7 +389,7 @@ pub mod tests {
 
     use super::*;
     use serde_yaml::{Error, Number};
-    use std::collections::HashMap as Map;
+    use std::{collections::HashMap as Map, path::PathBuf};
 
     impl AgentType {
         /// Builds a testing agent-type given the yaml definitiona and the environment.

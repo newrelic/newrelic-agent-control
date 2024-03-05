@@ -189,8 +189,9 @@ where
 
 #[cfg(test)]
 mod test {
+    use crate::agent_type::agent_attributes::AgentAttributes;
     use crate::agent_type::agent_values::AgentValues;
-    use crate::agent_type::definition::{AgentAttributes, AgentType};
+    use crate::agent_type::definition::AgentType;
     use crate::agent_type::environment::Environment;
     use crate::sub_agent::persister::config_persister::ConfigurationPersister;
     use crate::sub_agent::persister::config_persister_file::{
