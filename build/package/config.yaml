@@ -3,7 +3,7 @@
 #   headers:
 #     api-key: API_KEY_HERE
 
-# agents:
+agents: {}
 #   nr-infra-agent:
 #     agent_type: "newrelic/com.newrelic.infrastructure_agent:0.0.1"
 #   nr-otel-collector:

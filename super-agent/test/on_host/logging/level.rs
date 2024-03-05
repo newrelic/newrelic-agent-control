@@ -3,10 +3,14 @@ use predicates::prelude::predicate;
 use std::{path::Path, time::Duration};
 use tempfile::TempDir;
 
-const EMPTY_CONFIG: &str = "# Empty config";
-const DEBUG_LEVEL_CONFIG: &str = "log:\n  level: debug";
+#[cfg(test)]
+const EMPTY_CONFIG: &str = "# Empty config\nagents: {}";
+#[cfg(test)]
+const DEBUG_LEVEL_CONFIG: &str = "agents: {}\nlog:\n  level: debug";
+#[cfg(test)]
 pub(crate) const TIME_FORMAT: &str = r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*";
 
+#[cfg(test)]
 fn cmd_with_config_file(file_path: &Path) -> Command {
     let mut cmd = Command::cargo_bin("newrelic-super-agent").unwrap();
     cmd.arg("--config").arg(file_path);
