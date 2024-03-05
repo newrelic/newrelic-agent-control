@@ -38,7 +38,7 @@ fn test_configuration_persister_single_file() {
         .unwrap();
 
     assert!(persister
-        .persist_agent_config(&agent_id.clone(), &agent_type)
+        .persist_agent_config(&agent_id.clone(), &agent_type.get_variables())
         .is_ok());
 
     temp_path.push("auto-generated");

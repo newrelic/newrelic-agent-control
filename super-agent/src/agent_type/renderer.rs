@@ -183,8 +183,8 @@ config_path: /some/path/config
             .unwrap();
 
         let mut persister = MockConfigurationPersisterMock::new();
-        persister.should_delete_agent_config(&agent_id, &populated_agent);
-        persister.should_persist_agent_config(&agent_id, &populated_agent);
+        persister.should_delete_agent_config(&agent_id, &populated_agent.get_variables());
+        persister.should_persist_agent_config(&agent_id, &populated_agent.get_variables());
 
         let renderer = TemplateRenderer {
             persister: Some(persister),
@@ -224,7 +224,7 @@ config_path: /some/path/config
         let err = PersistError::DirectoryError(DirectoryManagementError::ErrorDeletingDirectory(
             "oh no...".to_string(),
         ));
-        persister.should_not_delete_agent_config(&agent_id, &populated_agent, err);
+        persister.should_not_delete_agent_config(&agent_id, &populated_agent.get_variables(), err);
 
         let renderer = TemplateRenderer {
             persister: Some(persister),
@@ -256,8 +256,8 @@ config_path: /some/path/config
         let err = PersistError::DirectoryError(DirectoryManagementError::ErrorDeletingDirectory(
             "oh no...".to_string(),
         ));
-        persister.should_delete_agent_config(&agent_id, &populated_agent);
-        persister.should_not_persist_agent_config(&agent_id, &populated_agent, err);
+        persister.should_delete_agent_config(&agent_id, &populated_agent.get_variables());
+        persister.should_not_persist_agent_config(&agent_id, &populated_agent.get_variables(), err);
 
         let renderer = TemplateRenderer {
             persister: Some(persister),

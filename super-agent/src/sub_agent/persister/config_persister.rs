@@ -1,6 +1,8 @@
+use std::collections::HashMap;
+
 use thiserror::Error;
 
-use crate::agent_type::definition::AgentType;
+use crate::agent_type::variable::definition::VariableDefinition;
 use crate::super_agent::config::AgentID;
 use fs::directory_manager::DirectoryManagementError;
 use fs::writer_file::WriteError;
@@ -18,13 +20,13 @@ pub trait ConfigurationPersister {
     fn persist_agent_config(
         &self,
         agent_id: &AgentID,
-        agent_type: &AgentType,
+        variables: &HashMap<String, VariableDefinition>,
     ) -> Result<(), PersistError>;
 
     fn delete_agent_config(
         &self,
         agent_id: &AgentID,
-        agent_type: &AgentType,
+        variables: &HashMap<String, VariableDefinition>,
     ) -> Result<(), PersistError>;
 }
 
@@ -35,6 +37,7 @@ pub trait ConfigurationPersister {
 #[cfg(test)]
 pub mod test {
     use crate::agent_type::definition::AgentType;
+    use crate::agent_type::variable::definition::VariableDefinition;
     use crate::super_agent::config::AgentID;
     use fs::directory_manager::DirectoryManagementError::{
         ErrorCreatingDirectory, ErrorDeletingDirectory, InvalidDirectory,
@@ -43,6 +46,7 @@ pub mod test {
     use fs::writer_file::WriteError;
     use fs::writer_file::WriteError::InvalidPath;
     use mockall::{mock, predicate};
+    use std::collections::HashMap;
     use std::io::{Error, ErrorKind};
 
     use super::{ConfigurationPersister, PersistError};
@@ -102,18 +106,22 @@ pub mod test {
         pub(crate) ConfigurationPersisterMock {}
 
         impl ConfigurationPersister for ConfigurationPersisterMock {
-             fn persist_agent_config(&self, agent_id: &AgentID, agent_type: &AgentType) -> Result<(), PersistError>;
-             fn delete_agent_config(&self, agent_id: &AgentID, agent_type: &AgentType) -> Result<(), PersistError>;
+             fn persist_agent_config(&self, agent_id: &AgentID, variables: &HashMap<String, VariableDefinition>) -> Result<(), PersistError>;
+             fn delete_agent_config(&self, agent_id: &AgentID, variables: &HashMap<String, VariableDefinition>) -> Result<(), PersistError>;
         }
     }
 
     impl MockConfigurationPersisterMock {
-        pub fn should_persist_agent_config(&mut self, agent_id: &AgentID, agent_type: &AgentType) {
+        pub fn should_persist_agent_config(
+            &mut self,
+            agent_id: &AgentID,
+            variables: &HashMap<String, VariableDefinition>,
+        ) {
             self.expect_persist_agent_config()
                 .once()
                 .with(
                     predicate::eq(agent_id.clone()),
-                    predicate::eq(agent_type.clone()),
+                    predicate::eq(variables.clone()),
                 )
                 .returning(|_, _| Ok(()));
         }
@@ -121,14 +129,14 @@ pub mod test {
         pub fn should_not_persist_agent_config(
             &mut self,
             agent_id: &AgentID,
-            final_agent: &AgentType,
+            variables: &HashMap<String, VariableDefinition>,
             err: PersistError,
         ) {
             self.expect_persist_agent_config()
                 .once()
                 .with(
                     predicate::eq(agent_id.clone()),
-                    predicate::eq(final_agent.clone()),
+                    predicate::eq(variables.clone()),
                 )
                 .once()
                 .returning(move |_, _| Err(err.clone()));
@@ -147,12 +155,16 @@ pub mod test {
                 .once()
                 .returning(move |_, _| Err(err.clone()));
         }
-        pub fn should_delete_agent_config(&mut self, agent_id: &AgentID, final_agent: &AgentType) {
+        pub fn should_delete_agent_config(
+            &mut self,
+            agent_id: &AgentID,
+            variables: &HashMap<String, VariableDefinition>,
+        ) {
             self.expect_delete_agent_config()
                 .once()
                 .with(
                     predicate::eq(agent_id.clone()),
-                    predicate::eq(final_agent.clone()),
+                    predicate::eq(variables.clone()),
                 )
                 .returning(|_, _| Ok(()));
         }
@@ -160,14 +172,14 @@ pub mod test {
         pub fn should_not_delete_agent_config(
             &mut self,
             agent_id: &AgentID,
-            final_agent: &AgentType,
+            variables: &HashMap<String, VariableDefinition>,
             err: PersistError,
         ) {
             self.expect_delete_agent_config()
                 .once()
                 .with(
                     predicate::eq(agent_id.clone()),
-                    predicate::eq(final_agent.clone()),
+                    predicate::eq(variables.clone()),
                 )
                 .returning(move |_, _| Err(err.clone()));
         }
