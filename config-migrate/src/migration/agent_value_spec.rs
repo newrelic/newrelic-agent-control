@@ -3,10 +3,10 @@ use crate::migration::agent_value_spec::AgentValueSpec::{
 };
 use crate::migration::config::AgentTypeFieldFQN;
 use crate::migration::config::{FILE_SEPARATOR, FILE_SEPARATOR_REPLACE};
-use log::error;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use thiserror::Error;
+use tracing::error;
 
 #[derive(Error, Debug)]
 pub enum AgentValueError {

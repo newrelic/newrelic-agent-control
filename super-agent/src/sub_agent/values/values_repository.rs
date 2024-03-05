@@ -13,9 +13,9 @@ use crate::super_agent::defaults::{
 };
 use fs::file_reader::{FileReader, FileReaderError};
 use fs::writer_file::{FileWriter, WriteError};
-use log::error;
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::PermissionsExt;
+use tracing::error;
 
 #[cfg(target_family = "unix")]
 pub(crate) const FILE_PERMISSIONS: u32 = 0o600;

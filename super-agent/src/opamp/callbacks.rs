@@ -1,6 +1,5 @@
 use crate::opamp::remote_config_publisher::RemoteConfigPublisher;
 use crate::{opamp::remote_config::RemoteConfigError, super_agent::config::AgentID};
-use log::trace;
 use opamp_client::{
     error::ConnectionError,
     http::HttpClientError,
@@ -12,7 +11,7 @@ use opamp_client::{
 use std::str;
 use std::str::Utf8Error;
 use thiserror::Error;
-use tracing::error;
+use tracing::{error, trace};
 
 #[derive(Debug, Error)]
 pub enum AgentCallbacksError {

@@ -1760,13 +1760,6 @@ Distributed under the following license(s):
 * MIT
 
 
-## value-bag https://crates.io/crates/value-bag
-
-Distributed under the following license(s):
-* Apache-2.0
-* MIT
-
-
 ## version_check https://crates.io/crates/version_check
 
 Distributed under the following license(s):

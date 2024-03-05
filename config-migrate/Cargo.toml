@@ -14,7 +14,6 @@ regex = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
 nix = { workspace = true, features = ["signal", "user", "hostname"] }
-log = { workspace = true, features = ["kv_unstable"] }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 tracing = { workspace = true }
 serde_yaml = { workspace = true }

@@ -7,7 +7,6 @@ use crate::migration::config::{FILE_SEPARATOR, FILE_SEPARATOR_REPLACE};
 use crate::migration::converter::ConversionError::RequiredFileMappingNotFoundError;
 use fs::file_reader::{FileReader, FileReaderError};
 use fs::LocalFile;
-use log::error;
 use newrelic_super_agent::agent_type::agent_type_registry::{
     AgentRegistry, AgentRepositoryError, LocalRegistry,
 };
@@ -15,7 +14,7 @@ use newrelic_super_agent::agent_type::variable::kind::Kind;
 use std::collections::HashMap;
 use std::path::Path;
 use thiserror::Error;
-use tracing::debug;
+use tracing::{debug, error};
 
 #[derive(Error, Debug)]
 pub enum ConversionError {

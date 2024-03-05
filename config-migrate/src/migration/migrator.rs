@@ -10,12 +10,11 @@ use crate::migration::persister::values_persister_file::ValuesPersisterFile;
 use fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
 use fs::file_reader::FileReader;
 use fs::LocalFile;
-use log::{error, info};
 use newrelic_super_agent::agent_type::agent_type_registry::{AgentRegistry, LocalRegistry};
 use newrelic_super_agent::super_agent::config::SuperAgentConfigError;
 use newrelic_super_agent::super_agent::store::{SubAgentsConfigLoader, SuperAgentConfigStoreFile};
 use thiserror::Error;
-use tracing::debug;
+use tracing::{debug, error, info};
 
 #[derive(Error, Debug)]
 pub enum MigratorError {
