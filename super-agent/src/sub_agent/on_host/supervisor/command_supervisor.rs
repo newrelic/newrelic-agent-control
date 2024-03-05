@@ -1,5 +1,3 @@
-use std::ffi::OsStr;
-use std::path::Path;
 use std::process::ExitStatus;
 use std::{
     ops::Deref,
@@ -21,6 +19,7 @@ use crate::sub_agent::on_host::command::shutdown::{
 };
 use crate::sub_agent::on_host::supervisor::command_supervisor_config::SupervisorConfigOnHost;
 use crate::sub_agent::on_host::supervisor::error::SupervisorError;
+use crate::super_agent::config::AgentID;
 use tracing::{error, info};
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -46,8 +45,16 @@ impl SupervisorOnHost<NotStarted> {
         }
     }
 
-    pub fn id(&self) -> String {
+    pub fn id(&self) -> AgentID {
+        self.state.config.id.clone()
+    }
+
+    pub fn bin(&self) -> String {
         self.state.config.bin.clone()
+    }
+
+    pub fn logs_to_file(&self) -> bool {
+        self.state.config.log_to_file
     }
 
     pub fn run(self) -> Result<SupervisorOnHost<Started>, SupervisorError> {
@@ -64,18 +71,17 @@ impl SupervisorOnHost<NotStarted> {
     pub fn not_started_command(&self) -> CommandOS<command_os::NotStarted> {
         //TODO extract to to a builder so we can mock it
         CommandOS::<command_os::NotStarted>::new(
+            self.state.config.id.clone(),
             &self.state.config.bin,
             &self.state.config.args,
             &self.state.config.env,
+            self.logs_to_file(),
         )
     }
 
     pub fn metadata(&self) -> Metadata {
         Metadata::new(
-            Path::new(&self.state.config.bin)
-                .file_name()
-                .unwrap_or(OsStr::new("not found"))
-                .to_string_lossy(),
+            self.state.config.id.clone(), // AGENT ID
         )
     }
 }
@@ -152,24 +158,28 @@ fn start_process_thread(not_started_supervisor: SupervisorOnHost<NotStarted>) ->
             // Signals return exit_code 0, if in the future we need to act on them we can import
             // std::os::unix::process::ExitStatusExt to get the code with the method into_raw
             let not_started_command = not_started_supervisor.not_started_command();
+            let bin = not_started_supervisor.bin();
             let id = not_started_supervisor.id();
 
             let exit_code = start_command(
-                id.clone(),
+                id.to_string(),
                 not_started_command.with_metadata(not_started_supervisor.metadata()),
                 current_pid.clone(),
                 not_started_supervisor.snd.clone(),
             )
             .map_err(|err| {
                 error!(
-                    supervisor = id,
-                    "Error while launching supervisor process: {}", err
+                    id = id.to_string(),
+                    supervisor = bin,
+                    "Error while launching supervisor process: {}",
+                    err
                 );
             })
             .map(|exit_code| {
                 if !exit_code.success() {
                     error!(
-                        supervisor = id,
+                        id = id.to_string(),
+                        supervisor = bin,
                         exit_code = exit_code.code(),
                         "Supervisor process exited unsuccessfully"
                     )
@@ -213,11 +223,11 @@ fn wait_for_termination(
 
 #[cfg(test)]
 pub mod sleep_supervisor_tests {
-    use std::collections::HashMap;
     use std::sync::mpsc::Sender;
 
     use super::SupervisorOnHost;
     use super::{NotStarted, SupervisorConfigOnHost};
+    use crate::sub_agent::on_host::supervisor::command_supervisor_config::ExecutableData;
     use crate::sub_agent::restart_policy::{BackoffStrategy, RestartPolicy};
     use crate::{context::Context, sub_agent::logger::AgentLog};
 
@@ -225,13 +235,15 @@ pub mod sleep_supervisor_tests {
         tx: Sender<AgentLog>,
         seconds: u32,
     ) -> SupervisorOnHost<NotStarted> {
+        let exec = ExecutableData::new("sh".to_owned())
+            .with_args(vec!["-c".to_owned(), format!("sleep {}", seconds)]);
         let config = SupervisorConfigOnHost::new(
-            "sh".to_owned(),
-            vec!["-c".to_string(), format!("sleep {}", seconds)],
+            "sleep-supervisor".to_owned().try_into().unwrap(),
+            exec,
             Context::new(),
-            HashMap::new(),
             tx.clone(),
             RestartPolicy::new(BackoffStrategy::None, Vec::new()),
+            false,
         );
         SupervisorOnHost::new(config)
     }
@@ -241,8 +253,8 @@ pub mod sleep_supervisor_tests {
 mod tests {
     use super::*;
     use crate::sub_agent::logger::LogOutput;
+    use crate::sub_agent::on_host::supervisor::command_supervisor_config::ExecutableData;
     use crate::sub_agent::restart_policy::{Backoff, BackoffStrategy, RestartPolicy};
-    use std::collections::HashMap;
     use std::time::{Duration, Instant};
 
     #[test]
@@ -254,13 +266,15 @@ mod tests {
             .with_max_retries(3)
             .with_last_retry_interval(Duration::new(30, 0));
 
+        let exec = ExecutableData::new("wrong-command".to_owned()).with_args(vec!["x".to_owned()]);
+
         let config = SupervisorConfigOnHost::new(
-            "wrong-command".to_owned(),
-            vec!["x".to_owned()],
+            "wrong-command".to_owned().try_into().unwrap(),
+            exec,
             Context::new(),
-            HashMap::new(),
             tx.clone(),
             RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]),
+            false,
         );
         let agent = SupervisorOnHost::new(config);
 
@@ -283,13 +297,15 @@ mod tests {
             .with_max_retries(3)
             .with_last_retry_interval(Duration::new(30, 0));
 
+        let exec = ExecutableData::new("wrong-command".to_owned()).with_args(vec!["x".to_owned()]);
+
         let config = SupervisorConfigOnHost::new(
-            "wrong-command".to_owned(),
-            vec!["x".to_owned()],
+            "wrong-command".to_owned().try_into().unwrap(),
+            exec,
             Context::new(),
-            HashMap::new(),
             tx.clone(),
             RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]),
+            false,
         );
         let agent = SupervisorOnHost::new(config);
 
@@ -311,13 +327,15 @@ mod tests {
             .with_max_retries(3)
             .with_last_retry_interval(Duration::new(30, 0));
 
+        let exec = ExecutableData::new("echo".to_owned()).with_args(vec!["hello!".to_owned()]);
+
         let config = SupervisorConfigOnHost::new(
-            "echo".to_owned(),
-            vec!["hello!".to_owned()],
+            "echo".to_owned().try_into().unwrap(),
+            exec,
             Context::new(),
-            HashMap::new(),
             tx,
             RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]),
+            false,
         );
         let agent = SupervisorOnHost::new(config);
 

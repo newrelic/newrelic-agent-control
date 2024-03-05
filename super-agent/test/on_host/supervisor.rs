@@ -1,4 +1,4 @@
-use std::{collections::HashMap, thread, time::Duration};
+use std::{thread, time::Duration};
 
 use newrelic_super_agent::context::Context;
 use newrelic_super_agent::logging::config::LoggingConfig;
@@ -25,6 +25,8 @@ pub fn init_logger() {
 fn test_supervisors() {
     use std::thread::JoinHandle;
 
+    use newrelic_super_agent::sub_agent::on_host::supervisor::command_supervisor_config::ExecutableData;
+
     init_logger();
 
     // Create streaming channel
@@ -32,13 +34,18 @@ fn test_supervisors() {
 
     let logger = StdEventReceiver::default();
 
+    let agent_id = "sleep-test".to_string().try_into().unwrap();
+
+    let exec = ExecutableData::new("sh".to_string())
+        .with_args(vec!["-c".to_string(), "sleep 2".to_string()]);
+
     let conf = SupervisorConfigOnHost::new(
-        "sh".to_string(),
-        vec!["-c".to_string(), "sleep 2".to_string()],
+        agent_id,
+        exec,
         Context::new(),
-        HashMap::default(),
         tx,
         RestartPolicy::default(),
+        false,
     );
 
     // Create 50 supervisors

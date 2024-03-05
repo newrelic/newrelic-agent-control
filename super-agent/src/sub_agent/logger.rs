@@ -1,7 +1,10 @@
+use std::collections::HashMap;
 use std::thread::JoinHandle;
 use std::{sync::mpsc::Receiver, thread::spawn};
 
 use tracing::debug;
+
+use crate::super_agent::config::AgentID;
 
 /// Stream of outputs, either stdout or stderr
 #[derive(Debug)]
@@ -10,20 +13,41 @@ pub enum LogOutput {
     Stderr(String),
 }
 
-// TODO/N2H: Switch to HashMap so it can use a list of key/values
-#[derive(Default, Debug, Clone, PartialEq)]
-pub struct Metadata(String);
+#[derive(Debug, Clone, PartialEq)]
+pub struct Metadata {
+    agent_id: AgentID,
+    labels: HashMap<String, String>,
+}
 
 impl Metadata {
-    pub fn new<V>(value: V) -> Self
-    where
-        V: ToString,
-    {
-        Metadata(value.to_string())
+    pub fn new(agent_id: AgentID) -> Self {
+        Metadata {
+            agent_id,
+            labels: HashMap::default(),
+        }
     }
 
-    pub fn values(self) -> String {
-        self.0
+    pub fn with_labels<M, K, V>(self, labels: M) -> Self
+    where
+        M: IntoIterator<Item = (K, V)>,
+        K: ToString,
+        V: ToString,
+    {
+        Self {
+            labels: labels
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect(),
+            ..self
+        }
+    }
+
+    pub fn get_agent_id(&self) -> &AgentID {
+        &self.agent_id
+    }
+
+    pub fn get_labels(&self, key: &str) -> Option<&String> {
+        self.labels.get(key)
     }
 }
 
@@ -56,10 +80,10 @@ impl EventLogger for StdEventReceiver {
                     // For the moment we log all sub-agent logs as info.
                     // We should define a feature to add pattern matching per agent_type in order
                     // so we can emit each log line with its correct type.
-                    debug!(command = event.metadata.values(), log)
+                    debug!(agent_id = event.metadata.get_agent_id().to_string(), log)
                 }
                 LogOutput::Stderr(log) => {
-                    debug!(command = event.metadata.values(), log)
+                    debug!(command = event.metadata.get_agent_id().to_string(), log)
                 }
             })
         })

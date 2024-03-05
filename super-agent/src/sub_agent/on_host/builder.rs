@@ -29,6 +29,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{error, warn};
 
+use super::supervisor::command_supervisor_config::ExecutableData;
 use super::{
     sub_agent::SubAgentOnHost,
     supervisor::{
@@ -172,6 +173,7 @@ fn build_supervisors(
     effective_agent: EffectiveAgent,
     tx: std::sync::mpsc::Sender<AgentLog>,
 ) -> Result<Vec<SupervisorOnHost<command_supervisor::NotStarted>>, SubAgentError> {
+    let agent_id = effective_agent.get_agent_id();
     let on_host = effective_agent
         .get_runtime_config()
         .deployment
@@ -180,17 +182,21 @@ fn build_supervisors(
         .ok_or(SubAgentError::ErrorCreatingSubAgent(
             effective_agent.to_string(),
         ))?;
+    let file_logging = on_host.enable_file_logging.get();
 
     let mut supervisors = Vec::new();
     for exec in on_host.executables {
         let restart_policy: RestartPolicy = exec.restart_policy.into();
+        let exec_data = ExecutableData::new(exec.path.get())
+            .with_args(exec.args.get().into_vector())
+            .with_env(exec.env.get().into_map());
         let config = SupervisorConfigOnHost::new(
-            exec.path.get(),
-            exec.args.get().into_vector(),
+            agent_id.clone(),
+            exec_data,
             Context::new(),
-            exec.env.get().into_map(),
             tx.clone(),
             restart_policy,
+            file_logging,
         );
 
         let not_started_supervisor = SupervisorOnHost::new(config);
@@ -382,12 +388,15 @@ mod test {
     // HELPERS
     #[cfg(test)]
     fn on_host_final_agent(agent_id: AgentID) -> EffectiveAgent {
+        use crate::agent_type::definition::TemplateableValue;
+
         EffectiveAgent::new(
             agent_id,
             Runtime {
                 deployment: Deployment {
                     on_host: Some(OnHost {
                         executables: Vec::new(),
+                        enable_file_logging: TemplateableValue::new(false),
                     }),
                     k8s: None,
                 },
