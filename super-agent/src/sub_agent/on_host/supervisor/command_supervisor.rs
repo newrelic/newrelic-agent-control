@@ -231,6 +231,8 @@ pub mod sleep_supervisor_tests {
 
 #[cfg(test)]
 mod tests {
+    use tracing_test::traced_test;
+
     use super::*;
     use crate::sub_agent::on_host::supervisor::command_supervisor_config::ExecutableData;
     use crate::sub_agent::restart_policy::{Backoff, BackoffStrategy, RestartPolicy};
@@ -291,52 +293,41 @@ mod tests {
         assert!(timer.elapsed() < Duration::from_secs(10));
     }
 
-    // #[test]
-    // fn test_supervisor_fixed_backoff_retry_3_times() {
-    //     let (tx, rx) = std::sync::mpsc::channel();
+    #[test]
+    #[traced_test]
+    fn test_supervisor_fixed_backoff_retry_3_times() {
+        let backoff = Backoff::new()
+            .with_initial_delay(Duration::new(0, 100))
+            .with_max_retries(3)
+            .with_last_retry_interval(Duration::new(30, 0));
 
-    //     let backoff = Backoff::new()
-    //         .with_initial_delay(Duration::new(0, 100))
-    //         .with_max_retries(3)
-    //         .with_last_retry_interval(Duration::new(30, 0));
+        let exec = ExecutableData::new("echo".to_owned()).with_args(vec!["hello!".to_owned()]);
 
-    //     let exec = ExecutableData::new("echo".to_owned()).with_args(vec!["hello!".to_owned()]);
+        let config = SupervisorConfigOnHost::new(
+            "echo".to_owned().try_into().unwrap(),
+            exec,
+            Context::new(),
+            RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]),
+            false,
+        );
+        let agent = SupervisorOnHost::new(config);
 
-    //     let config = SupervisorConfigOnHost::new(
-    //         "echo".to_owned().try_into().unwrap(),
-    //         exec,
-    //         Context::new(),
-    //         tx,
-    //         RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]),
-    //         false,
-    //     );
-    //     let agent = SupervisorOnHost::new(config);
+        let agent = agent.run().unwrap();
 
-    //     let agent = agent.run().unwrap();
+        while !agent.state.handle.is_finished() {
+            thread::sleep(Duration::from_millis(15));
+        }
 
-    //     let stream = thread::spawn(move || {
-    //         let mut stdout_actual = Vec::new();
-
-    //         loop {
-    //             match rx.recv() {
-    //                 Err(_) => break,
-    //                 Ok(event) => match event.output {
-    //                     LogOutput::Stdout(line) => stdout_actual.push(line),
-    //                     LogOutput::Stderr(_) => (),
-    //                 },
-    //             }
-    //         }
-
-    //         stdout_actual
-    //     });
-
-    //     while !agent.state.handle.is_finished() {
-    //         thread::sleep(Duration::from_millis(15));
-    //     }
-
-    //     let stdout = stream.join().unwrap();
-
-    //     // 1 base execution + 3 retries
-    //     assert_eq!(4, stdout.len());
-    // }
+        tracing_test::internal::logs_assert(
+            "DEBUG newrelic_super_agent::sub_agent::on_host::command::logging::logger",
+            |lines| match lines.iter().filter(|line| line.contains("hello!")).count() {
+                4 => Ok(()),
+                n => Err(format!(
+                    "Expected 4 lines with 'hello!' corresponding to 1 run + 3 retries, got {}",
+                    n
+                )),
+            },
+        )
+        .unwrap();
+    }
 }
