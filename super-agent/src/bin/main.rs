@@ -38,7 +38,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         error!(
             "Could not read Super Agent config from {}: {}",
             super_agent_config_storer.config_path().to_string_lossy(),
-            err.to_string()
+            err
         )
     })?;
 
