@@ -207,6 +207,12 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
+## cfg_aliases https://crates.io/crates/cfg_aliases
+
+Distributed under the following license(s):
+* MIT
+
+
 ## chrono https://crates.io/crates/chrono
 
 Distributed under the following license(s):
@@ -560,12 +566,6 @@ Distributed under the following license(s):
 * MIT
 
 
-## h2 https://crates.io/crates/h2
-
-Distributed under the following license(s):
-* MIT
-
-
 ## hashbrown https://crates.io/crates/hashbrown
 
 Distributed under the following license(s):
@@ -892,6 +892,12 @@ Distributed under the following license(s):
 * MIT
 
 
+## nix https://crates.io/crates/nix
+
+Distributed under the following license(s):
+* MIT
+
+
 ## nom https://crates.io/crates/nom
 
 Distributed under the following license(s):
@@ -1209,6 +1215,14 @@ Distributed under the following license(s):
 * MIT
 
 
+## rustls https://crates.io/crates/rustls
+
+Distributed under the following license(s):
+* Apache-2.0
+* ISC
+* MIT
+
+
 ## rustls-native-certs https://crates.io/crates/rustls-native-certs
 
 Distributed under the following license(s):
@@ -1223,6 +1237,19 @@ Distributed under the following license(s):
 * Apache-2.0
 * ISC
 * MIT
+
+
+## rustls-pki-types https://crates.io/crates/rustls-pki-types
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+## rustls-webpki https://crates.io/crates/rustls-webpki
+
+Distributed under the following license(s):
+* ISC
 
 
 ## rustls-webpki https://crates.io/crates/rustls-webpki
@@ -1390,6 +1417,18 @@ Distributed under the following license(s):
 
 Distributed under the following license(s):
 * MIT
+
+
+## strsim https://crates.io/crates/strsim
+
+Distributed under the following license(s):
+* MIT
+
+
+## subtle https://crates.io/crates/subtle
+
+Distributed under the following license(s):
+* BSD-3-Clause
 
 
 ## syn https://crates.io/crates/syn
