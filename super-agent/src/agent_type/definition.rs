@@ -9,6 +9,7 @@ use std::path::PathBuf;
 use std::{collections::HashMap, str::FromStr};
 
 use super::agent_values::AgentValues;
+use super::restart_policy::{BackoffDelay, BackoffLastRetryInterval};
 use super::variable::definition::{VariableDefinition, VariableDefinitionTree};
 use super::{
     agent_metadata::AgentMetadata,
@@ -16,7 +17,6 @@ use super::{
     runtime_config::{Args, Env, Runtime},
     runtime_config_templates::{Templateable, TEMPLATE_KEY_SEPARATOR},
 };
-use crate::agent_type::restart_policy::{BackoffDelay, BackoffLastRetryInterval};
 use crate::super_agent::config::AgentTypeFQN;
 use crate::super_agent::defaults::default_capabilities;
 use duration_str;

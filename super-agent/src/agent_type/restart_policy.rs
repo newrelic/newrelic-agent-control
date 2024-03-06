@@ -1,4 +1,4 @@
-use std::{str::FromStr, time::Duration};
+use std::{marker::PhantomData, str::FromStr, time::Duration};
 
 use crate::sub_agent::restart_policy::{Backoff, BackoffStrategy, RestartPolicy};
 use duration_str::deserialize_duration;
@@ -22,65 +22,69 @@ pub(super) const BACKOFF_DELAY: Duration = Duration::from_secs(2);
 pub(super) const BACKOFF_MAX_RETRIES: usize = 0;
 pub(super) const BACKOFF_LAST_RETRY_INTERVAL: Duration = Duration::from_secs(600);
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
-pub struct BackoffDelay(#[serde(deserialize_with = "deserialize_duration")] Duration);
+#[derive(Debug, PartialEq, Clone)]
+pub struct BODelay;
+#[derive(Debug, PartialEq, Clone)]
+pub struct BOLastRetryInterval;
 
-impl BackoffDelay {
+#[derive(Debug, Deserialize, PartialEq, Clone)]
+pub struct BackoffDuration<T> {
+    #[serde(deserialize_with = "deserialize_duration")]
+    duration: Duration,
+    #[serde(skip)]
+    _duration_type: PhantomData<T>,
+}
+
+pub type BackoffDelay = BackoffDuration<BODelay>;
+pub type BackoffLastRetryInterval = BackoffDuration<BOLastRetryInterval>;
+
+#[cfg(test)]
+impl<T> BackoffDuration<T> {
     pub fn new(value: Duration) -> Self {
-        Self(value)
+        Self {
+            duration: value,
+            _duration_type: PhantomData,
+        }
     }
 
     pub fn from_secs(value: u64) -> Self {
-        Self(Duration::from_secs(value))
+        Self {
+            duration: Duration::from_secs(value),
+            _duration_type: PhantomData,
+        }
     }
 }
 
-impl Default for BackoffDelay {
+impl Default for BackoffDuration<BODelay> {
     fn default() -> Self {
-        Self(BACKOFF_DELAY)
+        Self {
+            duration: BACKOFF_DELAY,
+            _duration_type: PhantomData,
+        }
     }
 }
 
-impl From<Duration> for BackoffDelay {
-    fn from(value: Duration) -> Self {
-        Self(value)
-    }
-}
-
-impl From<BackoffDelay> for Duration {
-    fn from(value: BackoffDelay) -> Self {
-        value.0
-    }
-}
-
-#[derive(Debug, Deserialize, PartialEq, Clone)]
-pub struct BackoffLastRetryInterval(#[serde(deserialize_with = "deserialize_duration")] Duration);
-
-impl BackoffLastRetryInterval {
-    pub fn new(value: Duration) -> Self {
-        Self(value)
-    }
-
-    pub fn from_secs(value: u64) -> Self {
-        Self(Duration::from_secs(value))
-    }
-}
-
-impl Default for BackoffLastRetryInterval {
+impl Default for BackoffDuration<BOLastRetryInterval> {
     fn default() -> Self {
-        Self(BACKOFF_LAST_RETRY_INTERVAL)
+        Self {
+            duration: BACKOFF_LAST_RETRY_INTERVAL,
+            _duration_type: PhantomData,
+        }
     }
 }
 
-impl From<Duration> for BackoffLastRetryInterval {
+impl<T> From<Duration> for BackoffDuration<T> {
     fn from(value: Duration) -> Self {
-        Self(value)
+        Self {
+            duration: value,
+            _duration_type: PhantomData,
+        }
     }
 }
 
-impl From<BackoffLastRetryInterval> for Duration {
-    fn from(value: BackoffLastRetryInterval) -> Self {
-        value.0
+impl<T> From<BackoffDuration<T>> for Duration {
+    fn from(value: BackoffDuration<T>) -> Self {
+        value.duration
     }
 }
 
