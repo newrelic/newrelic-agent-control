@@ -311,13 +311,13 @@ mod tests {
 
     use std::collections::HashMap;
 
+    use crate::agent_type::restart_policy::{BackoffDelay, BackoffLastRetryInterval};
     use crate::agent_type::{
         definition::TemplateableValue,
-        restart_policy::{ BackoffStrategyType},
+        restart_policy::BackoffStrategyType,
         runtime_config::{Args, Env},
         trivial_value::FilePathWithContent,
     };
-    use crate::agent_type::restart_policy::{BackoffDelay, BackoffLastRetryInterval};
 
     use super::*;
 
@@ -455,8 +455,10 @@ mod tests {
                         .with_template("${nr-var:backoff.delay}".to_string()),
                     max_retries: TemplateableValue::new(30)
                         .with_template("${nr-var:backoff.retries}".to_string()),
-                    last_retry_interval: TemplateableValue::new(BackoffLastRetryInterval::from_secs(300))
-                        .with_template("${nr-var:backoff.interval}".to_string()),
+                    last_retry_interval: TemplateableValue::new(
+                        BackoffLastRetryInterval::from_secs(300),
+                    )
+                    .with_template("${nr-var:backoff.interval}".to_string()),
                 },
                 restart_exit_codes: vec![],
             },

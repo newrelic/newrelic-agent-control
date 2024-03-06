@@ -16,12 +16,12 @@ use super::{
     runtime_config::{Args, Env, Runtime},
     runtime_config_templates::{Templateable, TEMPLATE_KEY_SEPARATOR},
 };
+use crate::agent_type::restart_policy::{BackoffDelay, BackoffLastRetryInterval};
 use crate::super_agent::config::AgentTypeFQN;
 use crate::super_agent::defaults::default_capabilities;
 use duration_str;
 use opamp_client::opamp::proto::AgentCapabilities;
 use opamp_client::operation::capabilities::Capabilities;
-use crate::agent_type::restart_policy::{BackoffDelay, BackoffLastRetryInterval};
 
 /// AgentTypeDefinition represents the definition of an [AgentType]. It defines the variables and runtime for any supported
 /// environment.
