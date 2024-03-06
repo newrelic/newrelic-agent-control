@@ -313,10 +313,11 @@ mod tests {
 
     use crate::agent_type::{
         definition::TemplateableValue,
-        restart_policy::{BackoffDuration, BackoffStrategyType},
+        restart_policy::{ BackoffStrategyType},
         runtime_config::{Args, Env},
         trivial_value::FilePathWithContent,
     };
+    use crate::agent_type::restart_policy::{BackoffDelay, BackoffLastRetryInterval};
 
     use super::*;
 
@@ -450,11 +451,11 @@ mod tests {
                 backoff_strategy: BackoffStrategyConfig {
                     backoff_type: TemplateableValue::new(BackoffStrategyType::Linear)
                         .with_template("${nr-var:backoff.type}".to_string()),
-                    backoff_delay: TemplateableValue::new(BackoffDuration::from_secs(10))
+                    backoff_delay: TemplateableValue::new(BackoffDelay::from_secs(10))
                         .with_template("${nr-var:backoff.delay}".to_string()),
                     max_retries: TemplateableValue::new(30)
                         .with_template("${nr-var:backoff.retries}".to_string()),
-                    last_retry_interval: TemplateableValue::new(BackoffDuration::from_secs(300))
+                    last_retry_interval: TemplateableValue::new(BackoffLastRetryInterval::from_secs(300))
                         .with_template("${nr-var:backoff.interval}".to_string()),
                 },
                 restart_exit_codes: vec![],

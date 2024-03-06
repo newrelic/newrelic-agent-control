@@ -22,10 +22,10 @@ const BACKOFF_DELAY: Duration = Duration::from_secs(2);
 const BACKOFF_MAX_RETRIES: usize = 0;
 const BACKOFF_LAST_RETRY_INTERVAL: Duration = Duration::from_secs(600);
 
-#[derive(Debug, Default, Deserialize, PartialEq, Clone)]
-pub struct BackoffDuration(#[serde(deserialize_with = "deserialize_duration")] Duration);
+#[derive(Debug, Deserialize, PartialEq, Clone)]
+pub struct BackoffDelay(#[serde(deserialize_with = "deserialize_duration")] Duration);
 
-impl BackoffDuration {
+impl BackoffDelay {
     pub fn new(value: Duration) -> Self {
         Self(value)
     }
@@ -35,14 +35,51 @@ impl BackoffDuration {
     }
 }
 
-impl From<Duration> for BackoffDuration {
+impl Default for BackoffDelay {
+    fn default() -> Self {
+        Self(BACKOFF_DELAY)
+    }
+}
+
+impl From<Duration> for BackoffDelay {
     fn from(value: Duration) -> Self {
         Self(value)
     }
 }
 
-impl From<BackoffDuration> for Duration {
-    fn from(value: BackoffDuration) -> Self {
+impl From<BackoffDelay> for Duration {
+    fn from(value: BackoffDelay) -> Self {
+        value.0
+    }
+}
+
+#[derive(Debug, Deserialize, PartialEq, Clone)]
+pub struct BackoffLastRetryInterval(#[serde(deserialize_with = "deserialize_duration")] Duration);
+
+impl BackoffLastRetryInterval {
+    pub fn new(value: Duration) -> Self {
+        Self(value)
+    }
+
+    pub fn from_secs(value: u64) -> Self {
+        Self(Duration::from_secs(value))
+    }
+}
+
+impl Default for BackoffLastRetryInterval {
+    fn default() -> Self {
+        Self(BACKOFF_LAST_RETRY_INTERVAL)
+    }
+}
+
+impl From<Duration> for BackoffLastRetryInterval {
+    fn from(value: Duration) -> Self {
+        Self(value)
+    }
+}
+
+impl From<BackoffLastRetryInterval> for Duration {
+    fn from(value: BackoffLastRetryInterval) -> Self {
         value.0
     }
 }
@@ -52,9 +89,9 @@ impl From<BackoffDuration> for Duration {
 pub struct BackoffStrategyConfig {
     #[serde(rename = "type")]
     pub backoff_type: TemplateableValue<BackoffStrategyType>,
-    pub backoff_delay: TemplateableValue<BackoffDuration>,
+    pub backoff_delay: TemplateableValue<BackoffDelay>,
     pub max_retries: TemplateableValue<usize>,
-    pub last_retry_interval: TemplateableValue<BackoffDuration>,
+    pub last_retry_interval: TemplateableValue<BackoffLastRetryInterval>,
 }
 
 impl BackoffStrategyConfig {

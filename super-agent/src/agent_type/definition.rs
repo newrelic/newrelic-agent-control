@@ -9,7 +9,6 @@ use std::path::PathBuf;
 use std::{collections::HashMap, str::FromStr};
 
 use super::agent_values::AgentValues;
-use super::restart_policy::BackoffDuration;
 use super::variable::definition::{VariableDefinition, VariableDefinitionTree};
 use super::{
     agent_metadata::AgentMetadata,
@@ -22,6 +21,7 @@ use crate::super_agent::defaults::default_capabilities;
 use duration_str;
 use opamp_client::opamp::proto::AgentCapabilities;
 use opamp_client::operation::capabilities::Capabilities;
+use crate::agent_type::restart_policy::{BackoffDelay, BackoffLastRetryInterval};
 
 /// AgentTypeDefinition represents the definition of an [AgentType]. It defines the variables and runtime for any supported
 /// environment.
@@ -150,15 +150,33 @@ impl Templateable for TemplateableValue<Args> {
     }
 }
 
-impl Templateable for TemplateableValue<BackoffDuration> {
+impl Templateable for TemplateableValue<BackoffDelay> {
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         let templated_string = self.template.clone().template_with(variables)?;
         let value = if templated_string.is_empty() {
-            BackoffDuration::default()
+            BackoffDelay::default()
         } else {
             // Attempt to parse a simple number as seconds
             duration_str::parse(&templated_string)
-                .map(BackoffDuration::from)
+                .map(BackoffDelay::from)
+                .map_err(|_| AgentTypeError::ValueNotParseableFromString(templated_string))?
+        };
+        Ok(Self {
+            template: self.template,
+            value: Some(value),
+        })
+    }
+}
+
+impl Templateable for TemplateableValue<BackoffLastRetryInterval> {
+    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+        let templated_string = self.template.clone().template_with(variables)?;
+        let value = if templated_string.is_empty() {
+            BackoffLastRetryInterval::default()
+        } else {
+            // Attempt to parse a simple number as seconds
+            duration_str::parse(&templated_string)
+                .map(BackoffLastRetryInterval::from)
                 .map_err(|_| AgentTypeError::ValueNotParseableFromString(templated_string))?
         };
         Ok(Self {
@@ -700,7 +718,7 @@ deployment:
                         template: "${nr-var:backoff.type}".to_string(),
                     },
                     backoff_delay: TemplateableValue {
-                        value: Some(BackoffDuration::from_secs(10)),
+                        value: Some(BackoffDelay::from_secs(10)),
                         template: "${nr-var:backoff.delay}".to_string(),
                     },
                     max_retries: TemplateableValue {
@@ -708,7 +726,7 @@ deployment:
                         template: "${nr-var:backoff.retries}".to_string(),
                     },
                     last_retry_interval: TemplateableValue {
-                        value: Some(BackoffDuration::from_secs(300)),
+                        value: Some(BackoffLastRetryInterval::from_secs(300)),
                         template: "${nr-var:backoff.interval}".to_string(),
                     },
                 },
@@ -813,7 +831,7 @@ deployment:
                         template: "${nr-var:backoff.type}".to_string(),
                     },
                     backoff_delay: TemplateableValue {
-                        value: Some(BackoffDuration::from_secs(10)),
+                        value: Some(BackoffDelay::from_secs(10)),
                         template: "${nr-var:backoff.delay}".to_string(),
                     },
                     max_retries: TemplateableValue {
@@ -821,7 +839,7 @@ deployment:
                         template: "${nr-var:backoff.retries}".to_string(),
                     },
                     last_retry_interval: TemplateableValue {
-                        value: Some(BackoffDuration::from_secs(300)),
+                        value: Some(BackoffLastRetryInterval::from_secs(300)),
                         template: "${nr-var:backoff.interval}".to_string(),
                     },
                 },
@@ -1065,7 +1083,7 @@ backoff:
                 template: "${nr-var:backoff.type}".to_string(),
             },
             backoff_delay: TemplateableValue {
-                value: Some(BackoffDuration::from_secs(10)),
+                value: Some(BackoffDelay::from_secs(10)),
                 template: "${nr-var:backoff.delay}".to_string(),
             },
             max_retries: TemplateableValue {
@@ -1073,7 +1091,7 @@ backoff:
                 template: "${nr-var:backoff.retries}".to_string(),
             },
             last_retry_interval: TemplateableValue {
-                value: Some(BackoffDuration::from_secs(300)),
+                value: Some(BackoffLastRetryInterval::from_secs(300)),
                 template: "${nr-var:backoff.interval}".to_string(),
             },
         };
@@ -1222,7 +1240,7 @@ backoff:
                 template: "fixed".to_string(),
             },
             backoff_delay: TemplateableValue {
-                value: Some(BackoffDuration::from_secs((10 * 60) + 30)),
+                value: Some(BackoffDelay::from_secs((10 * 60) + 30)),
                 template: "${nr-var:backoff.delay}".to_string(),
             },
             max_retries: TemplateableValue {
@@ -1230,7 +1248,7 @@ backoff:
                 template: "${nr-var:backoff.retries}".to_string(),
             },
             last_retry_interval: TemplateableValue {
-                value: Some(BackoffDuration::from_secs(300)),
+                value: Some(BackoffLastRetryInterval::from_secs(300)),
                 template: "${nr-var:backoff.interval}".to_string(),
             },
         };
