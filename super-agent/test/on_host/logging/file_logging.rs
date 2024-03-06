@@ -66,7 +66,8 @@ fn default_log_level_no_root() {
     for file in dir {
         assert!(file
             .path()
-            .to_string_lossy()
+            .to_str()
+            .unwrap()
             .contains(log_path.to_str().unwrap()));
     }
 }
@@ -111,7 +112,8 @@ fn default_log_level_as_root() {
     for file in dir {
         assert!(file
             .path()
-            .to_string_lossy()
+            .to_str()
+            .unwrap()
             .contains(log_path.to_str().unwrap()));
     }
 }
