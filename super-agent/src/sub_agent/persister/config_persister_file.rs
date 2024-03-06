@@ -187,8 +187,6 @@ where
 
 #[cfg(test)]
 mod test {
-    use crate::agent_type::agent_attributes::AgentAttributes;
-    use crate::agent_type::agent_values::AgentValues;
     use crate::agent_type::definition::AgentType;
     use crate::agent_type::environment::Environment;
     use crate::sub_agent::persister::config_persister::ConfigurationPersister;
@@ -238,18 +236,12 @@ mod test {
         let mut directory_manager = MockDirectoryManagerMock::new();
         let file_permissions = Permissions::from_mode(FILE_PERMISSIONS);
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let mut agent_type =
+        let agent_type =
             AgentType::build_for_testing(AGENT_TYPE_MULTIPLE_FILES, &Environment::OnHost);
-        let agent_values: AgentValues =
-            serde_yaml::from_reader(AGENT_VALUES_MULTIPLE_FILES.as_bytes()).unwrap();
+        let filled_variables = agent_type.fill_variables(AGENT_VALUES_MULTIPLE_FILES);
 
         let mut agent_files_path = generated_conf_path.clone();
         agent_files_path.push(&agent_id);
-
-        // populate agent type
-        agent_type = agent_type
-            .template(agent_values, AgentAttributes::default())
-            .unwrap();
 
         // Expectations
         directory_manager.should_delete(agent_files_path.as_path());
@@ -294,7 +286,7 @@ mod test {
         );
 
         assert!(persister
-            .persist_agent_config(&agent_id, &agent_type.get_variables())
+            .persist_agent_config(&agent_id, &filled_variables)
             .is_ok());
     }
 
@@ -305,18 +297,12 @@ mod test {
         let mut directory_manager = MockDirectoryManagerMock::new();
         let file_permissions = Permissions::from_mode(FILE_PERMISSIONS);
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let mut agent_type =
+        let agent_type =
             AgentType::build_for_testing(AGENT_TYPE_SINGLE_MAP_FILE, &Environment::OnHost);
-        let agent_values: AgentValues =
-            serde_yaml::from_reader(AGENT_VALUES_SINGLE_MAP_FILE.as_bytes()).unwrap();
+        let filled_variables = agent_type.fill_variables(AGENT_VALUES_SINGLE_MAP_FILE);
 
         let mut agent_files_path = generated_conf_path.clone();
         agent_files_path.push(&agent_id);
-
-        // populate agent type
-        agent_type = agent_type
-            .template(agent_values, AgentAttributes::default())
-            .unwrap();
 
         // Expectations
         directory_manager.should_delete(agent_files_path.as_path());
@@ -382,7 +368,7 @@ mod test {
         );
 
         assert!(persister
-            .persist_agent_config(&agent_id, &agent_type.get_variables())
+            .persist_agent_config(&agent_id, &filled_variables)
             .is_ok());
     }
 
@@ -393,18 +379,12 @@ mod test {
         let mut directory_manager = MockDirectoryManagerMock::new();
         let file_permissions = Permissions::from_mode(FILE_PERMISSIONS);
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let mut agent_type =
+        let agent_type =
             AgentType::build_for_testing(AGENT_TYPE_MULTIPLE_MAP_FILE, &Environment::OnHost);
-        let agent_values: AgentValues =
-            serde_yaml::from_reader(AGENT_VALUES_MULTIPLE_MAP_FILE.as_bytes()).unwrap();
+        let filled_variables = agent_type.fill_variables(AGENT_VALUES_MULTIPLE_MAP_FILE);
 
         let mut agent_files_path = generated_conf_path.clone();
         agent_files_path.push(&agent_id);
-
-        // populate agent type
-        agent_type = agent_type
-            .template(agent_values, AgentAttributes::default())
-            .unwrap();
 
         // Expectations
         directory_manager.should_delete(agent_files_path.as_path());
@@ -481,7 +461,7 @@ mod test {
         );
 
         assert!(persister
-            .persist_agent_config(&agent_id, &agent_type.get_variables())
+            .persist_agent_config(&agent_id, &filled_variables)
             .is_ok());
     }
 
@@ -491,18 +471,11 @@ mod test {
         let file_writer = MockLocalFile::new();
         let mut directory_manager = MockDirectoryManagerMock::new();
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let mut agent_type =
-            AgentType::build_for_testing(AGENT_TYPE_SINGLE_FILE, &Environment::OnHost);
-        let agent_values: AgentValues =
-            serde_yaml::from_reader(AGENT_VALUES_SINGLE_FILE.as_bytes()).unwrap();
+        let agent_type = AgentType::build_for_testing(AGENT_TYPE_SINGLE_FILE, &Environment::OnHost);
+        let filled_variables = agent_type.fill_variables(AGENT_VALUES_SINGLE_FILE);
 
         let mut agent_files_path = generated_conf_path.clone();
         agent_files_path.push(&agent_id);
-
-        // populate agent type
-        agent_type = agent_type
-            .template(agent_values, AgentAttributes::default())
-            .unwrap();
 
         // Expectations
         directory_manager.should_create(
@@ -521,7 +494,7 @@ mod test {
             generated_conf_path.as_path(),
         );
 
-        let result = persister.persist_agent_config(&agent_id, &agent_type.get_variables());
+        let result = persister.persist_agent_config(&agent_id, &filled_variables);
         assert!(result.is_err());
         assert_eq!(
             "directory error: `cannot delete directory: `oh now...``".to_string(),
@@ -535,18 +508,11 @@ mod test {
         let file_writer = MockLocalFile::new();
         let mut directory_manager = MockDirectoryManagerMock::new();
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let mut agent_type =
-            AgentType::build_for_testing(AGENT_TYPE_SINGLE_FILE, &Environment::OnHost);
-        let agent_values: AgentValues =
-            serde_yaml::from_reader(AGENT_VALUES_SINGLE_FILE.as_bytes()).unwrap();
+        let agent_type = AgentType::build_for_testing(AGENT_TYPE_SINGLE_FILE, &Environment::OnHost);
+        let filled_variables = agent_type.fill_variables(AGENT_VALUES_SINGLE_FILE);
 
         let mut agent_files_path = generated_conf_path.clone();
         agent_files_path.push(&agent_id);
-
-        // populate agent type
-        agent_type = agent_type
-            .template(agent_values, AgentAttributes::default())
-            .unwrap();
 
         // Expectations
         directory_manager.should_delete(agent_files_path.as_path());
@@ -570,7 +536,7 @@ mod test {
             generated_conf_path.as_path(),
         );
 
-        let persist_result = persister.persist_agent_config(&agent_id, &agent_type.get_variables());
+        let persist_result = persister.persist_agent_config(&agent_id, &filled_variables);
         assert!(persist_result.is_err());
         assert_eq!(
             "directory error: `cannot create directory `some/path/some-agent-id` : `oh now...``"
@@ -585,18 +551,11 @@ mod test {
         let file_writer = MockLocalFile::new();
         let mut directory_manager = MockDirectoryManagerMock::new();
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let mut agent_type =
-            AgentType::build_for_testing(AGENT_TYPE_SINGLE_FILE, &Environment::OnHost);
-        let agent_values: AgentValues =
-            serde_yaml::from_reader(AGENT_VALUES_SINGLE_FILE.as_bytes()).unwrap();
+        let agent_type = AgentType::build_for_testing(AGENT_TYPE_SINGLE_FILE, &Environment::OnHost);
+        let filled_variables = agent_type.fill_variables(AGENT_VALUES_SINGLE_FILE);
 
         let mut agent_files_path = generated_conf_path.clone();
         agent_files_path.push(&agent_id);
-
-        // populate agent type
-        agent_type = agent_type
-            .template(agent_values, AgentAttributes::default())
-            .unwrap();
 
         // Expectations
         directory_manager.should_not_create(
@@ -615,7 +574,7 @@ mod test {
             generated_conf_path.as_path(),
         );
 
-        let persist_result = persister.persist_agent_config(&agent_id, &agent_type.get_variables());
+        let persist_result = persister.persist_agent_config(&agent_id, &filled_variables);
         assert!(persist_result.is_err());
         assert_eq!(
             "directory error: `cannot create directory `some/path/some-agent-id` : `oh now...``"
@@ -630,18 +589,12 @@ mod test {
         let mut file_writer = MockLocalFile::new();
         let mut directory_manager = MockDirectoryManagerMock::new();
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let mut agent_type =
+        let agent_type =
             AgentType::build_for_testing(AGENT_TYPE_MULTIPLE_FILES, &Environment::OnHost);
-        let agent_values: AgentValues =
-            serde_yaml::from_reader(AGENT_VALUES_MULTIPLE_FILES.as_bytes()).unwrap();
+        let filled_variables = agent_type.fill_variables(AGENT_VALUES_MULTIPLE_FILES);
 
         let mut agent_files_path = generated_conf_path.clone();
         agent_files_path.push(&agent_id);
-
-        // populate agent type
-        agent_type = agent_type
-            .template(agent_values, AgentAttributes::default())
-            .unwrap();
 
         // Expectations
         directory_manager.should_delete(agent_files_path.as_path());
@@ -666,7 +619,7 @@ mod test {
             generated_conf_path.as_path(),
         );
 
-        let persist_result = persister.persist_agent_config(&agent_id, &agent_type.get_variables());
+        let persist_result = persister.persist_agent_config(&agent_id, &filled_variables);
         assert!(persist_result.is_err());
         assert_eq!(
             "file error: `error creating file: `permission denied``".to_string(),
@@ -680,18 +633,12 @@ mod test {
         let mut file_writer = MockLocalFile::new();
         let mut directory_manager = MockDirectoryManagerMock::new();
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let mut agent_type =
+        let agent_type =
             AgentType::build_for_testing(AGENT_TYPE_SINGLE_MAP_FILE, &Environment::OnHost);
-        let agent_values: AgentValues =
-            serde_yaml::from_reader(AGENT_VALUES_SINGLE_MAP_FILE.as_bytes()).unwrap();
+        let filled_variables = agent_type.fill_variables(AGENT_VALUES_SINGLE_MAP_FILE);
 
         let mut agent_files_path = generated_conf_path.clone();
         agent_files_path.push(&agent_id);
-
-        // populate agent type
-        agent_type = agent_type
-            .template(agent_values, AgentAttributes::default())
-            .unwrap();
 
         // Expectations
         directory_manager.should_delete(agent_files_path.as_path());
@@ -730,8 +677,7 @@ mod test {
             generated_conf_path.as_path(),
         );
 
-        let persist_result =
-            persister.persist_agent_config(&agent_id.clone(), &agent_type.get_variables());
+        let persist_result = persister.persist_agent_config(&agent_id.clone(), &filled_variables);
         assert!(persist_result.is_err());
         assert_eq!(
             "file error: `error creating file: `entity already exists``".to_string(),

@@ -5,7 +5,6 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 
 use ::fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
-use newrelic_super_agent::agent_type::agent_attributes::AgentAttributes;
 use newrelic_super_agent::agent_type::agent_values::AgentValues;
 use newrelic_super_agent::agent_type::definition::AgentTypeDefinition;
 use newrelic_super_agent::agent_type::environment::Environment;
@@ -30,15 +29,17 @@ fn test_configuration_persister_single_file() {
 
     let agent_type_definition: AgentTypeDefinition =
         serde_yaml::from_reader(AGENT_TYPE_SINGLE_FILE.as_bytes()).unwrap();
-    let mut agent_type = build_agent_type(agent_type_definition, &Environment::OnHost).unwrap();
+    let agent_type = build_agent_type(agent_type_definition, &Environment::OnHost).unwrap();
     let agent_values: AgentValues =
         serde_yaml::from_reader(AGENT_VALUES_SINGLE_FILE.as_bytes()).unwrap();
-    agent_type = agent_type
-        .template(agent_values, AgentAttributes::default())
-        .unwrap();
+    let filled_variables = agent_type
+        .variables
+        .fill_with_values(agent_values)
+        .unwrap()
+        .flatten();
 
     assert!(persister
-        .persist_agent_config(&agent_id.clone(), &agent_type.get_variables())
+        .persist_agent_config(&agent_id.clone(), &filled_variables)
         .is_ok());
 
     temp_path.push("auto-generated");
