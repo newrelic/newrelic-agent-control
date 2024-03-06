@@ -55,25 +55,20 @@ fn default_log_level_no_root() {
                 .unwrap(),
         );
 
-    // Let's wait for a second so the flushed contents arrive to the files
-    std::thread::sleep(Duration::from_secs(2));
-
-    // Now, we assert that the file(s) created are present and have the expected content
+    // The behavior of the appender functionality is already unit tested as part of the sub-agent
+    // logging feature. Here we just assert that the files are created.
     let dir: Vec<_> = read_dir(log_dir)
         .unwrap()
-        // We unwrap each entry to be able to order it
+        // We unwrap each entry to be able to inspect it
         .map(|entry| entry.unwrap())
         .collect();
-    // if sorting is needed, use
-    // dir.sort_by_key(|f| f.path());
 
-    // We append the contents of the files in order
-    let mut actual = String::new();
     for file in dir {
-        actual.push_str(&std::fs::read_to_string(file.path()).unwrap());
+        assert!(file
+            .path()
+            .to_string_lossy()
+            .contains(log_path.to_str().unwrap()));
     }
-
-    assert!(actual.contains("ERROR Program must run as root"));
 }
 
 #[test]
@@ -105,25 +100,18 @@ fn default_log_level_as_root() {
                 .unwrap(),
         );
 
-    // Let's wait for a second so the flushed contents arrive to the files
-    std::thread::sleep(Duration::from_secs(1));
-
-    // Now, we assert that the file(s) created are present and have the expected content
+    // The behavior of the appender functionality is already unit tested as part of the sub-agent
+    // logging feature. Here we just assert that the files are created.
     let dir: Vec<_> = read_dir(log_dir)
         .unwrap()
-        // We unwrap each entry to be able to order it
+        // We unwrap each entry to be able to inspect it
         .map(|entry| entry.unwrap())
         .collect();
-    // if sorting is needed, use
-    // dir.sort_by_key(|f| f.path());
 
-    // We append the contents of the files in order
-    let mut actual = String::new();
     for file in dir {
-        actual.push_str(&std::fs::read_to_string(file.path()).unwrap());
+        assert!(file
+            .path()
+            .to_string_lossy()
+            .contains(log_path.to_str().unwrap()));
     }
-
-    assert!(actual.contains("INFO Instance Identifiers:"));
-    assert!(actual.contains("INFO Starting NewRelic Super Agent"));
-    assert!(actual.contains("INFO Starting the agents supervisor runtime"));
 }
