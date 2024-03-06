@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 
 #[derive(Clone, Debug)]
 pub struct RestartPolicy {
-    backoff: BackoffStrategy,
+    pub(super) backoff: BackoffStrategy,
     // If empty all codes trigger restart if populated, only the existing codes will.
     restart_exit_codes: Vec<i32>,
 }
@@ -43,7 +43,7 @@ impl Default for RestartPolicy {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum BackoffStrategy {
     Fixed(Backoff),
     Linear(Backoff),
@@ -78,7 +78,7 @@ impl BackoffStrategy {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Backoff {
     last_retry: Instant,
     tries: usize,

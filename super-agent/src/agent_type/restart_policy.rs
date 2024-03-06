@@ -23,9 +23,9 @@ pub(super) const BACKOFF_MAX_RETRIES: usize = 0;
 pub(super) const BACKOFF_LAST_RETRY_INTERVAL: Duration = Duration::from_secs(600);
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct BODelay;
+pub(super) struct BODelay;
 #[derive(Debug, PartialEq, Clone)]
-pub struct BOLastRetryInterval;
+pub(super) struct BOLastRetryInterval;
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct BackoffDuration<T> {
@@ -35,8 +35,8 @@ pub struct BackoffDuration<T> {
     _duration_type: PhantomData<T>,
 }
 
-pub type BackoffDelay = BackoffDuration<BODelay>;
-pub type BackoffLastRetryInterval = BackoffDuration<BOLastRetryInterval>;
+pub(super) type BackoffDelay = BackoffDuration<BODelay>;
+pub(super) type BackoffLastRetryInterval = BackoffDuration<BOLastRetryInterval>;
 
 #[cfg(test)]
 impl<T> BackoffDuration<T> {
@@ -93,9 +93,9 @@ impl<T> From<BackoffDuration<T>> for Duration {
 pub struct BackoffStrategyConfig {
     #[serde(rename = "type")]
     pub backoff_type: TemplateableValue<BackoffStrategyType>,
-    pub backoff_delay: TemplateableValue<BackoffDelay>,
+    pub(super) backoff_delay: TemplateableValue<BackoffDelay>,
     pub max_retries: TemplateableValue<usize>,
-    pub last_retry_interval: TemplateableValue<BackoffLastRetryInterval>,
+    pub(super) last_retry_interval: TemplateableValue<BackoffLastRetryInterval>,
 }
 
 impl BackoffStrategyConfig {
