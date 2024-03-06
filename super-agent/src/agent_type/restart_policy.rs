@@ -18,9 +18,9 @@ pub struct RestartPolicyConfig {
 Default values for supervisor restarts
 TODO: refine values with real executions
 */
-const BACKOFF_DELAY: Duration = Duration::from_secs(2);
-const BACKOFF_MAX_RETRIES: usize = 0;
-const BACKOFF_LAST_RETRY_INTERVAL: Duration = Duration::from_secs(600);
+pub(super) const BACKOFF_DELAY: Duration = Duration::from_secs(2);
+pub(super) const BACKOFF_MAX_RETRIES: usize = 0;
+pub(super) const BACKOFF_LAST_RETRY_INTERVAL: Duration = Duration::from_secs(600);
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct BackoffDelay(#[serde(deserialize_with = "deserialize_duration")] Duration);

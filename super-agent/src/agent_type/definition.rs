@@ -405,7 +405,10 @@ pub mod tests {
     use crate::{
         agent_type::{
             environment::Environment,
-            restart_policy::{BackoffStrategyConfig, BackoffStrategyType, RestartPolicyConfig},
+            restart_policy::{
+                BackoffStrategyConfig, BackoffStrategyType, RestartPolicyConfig, BACKOFF_DELAY,
+                BACKOFF_LAST_RETRY_INTERVAL, BACKOFF_MAX_RETRIES,
+            },
             runtime_config::Executable,
             trivial_value::{FilePathWithContent, TrivialValue},
         },
@@ -486,6 +489,36 @@ deployment:
         env: ""
 "#;
 
+    pub const AGENT_OMITTED_FIELDS_YAML: &str = r#"
+name: nrdot
+namespace: newrelic
+version: 0.1.0
+variables:
+  description:
+    name:
+      description: "Name of the agent"
+      type: string
+      required: false
+      default: nrdot
+deployment:
+  on_host:
+    executables:
+      - path: ${nr-var:bin}/otelcol
+        args: "-c ${nr-var:deployment.k8s.image}"
+        env: ""
+        restart_policy:
+          backoff_strategy:
+            type: fixed
+            backoff_delay: 1s
+            max_retries: 3
+            last_retry_interval: 30s
+      - path: ${nr-var:bin}/otelcol-gw
+        args: "-c ${nr-var:deployment.k8s.image}"
+        env: ""
+        restart_policy:
+          backoff_strategy:
+            type: linear
+"#;
     #[test]
     fn test_basic_agent_parsing() {
         let agent: AgentTypeDefinition = serde_yaml::from_str(AGENT_GIVEN_YAML).unwrap();
@@ -521,6 +554,46 @@ deployment:
                 backoff_delay: TemplateableValue::from_template("3s".to_string()),
                 max_retries: TemplateableValue::from_template("8".to_string()),
                 last_retry_interval: TemplateableValue::from_template("60s".to_string()),
+            },
+            on_host.executables[1].restart_policy.backoff_strategy
+        );
+    }
+
+    #[test]
+    fn test_sgent_parsing_omitted_fields() {
+        let agent: AgentTypeDefinition = serde_yaml::from_str(AGENT_OMITTED_FIELDS_YAML).unwrap();
+
+        assert_eq!("nrdot", agent.metadata.name);
+        assert_eq!("newrelic", agent.metadata.namespace);
+        assert_eq!("0.1.0", agent.metadata.version);
+
+        let on_host = agent.runtime_config.deployment.on_host.clone().unwrap();
+
+        assert_eq!(
+            "${nr-var:bin}/otelcol",
+            on_host.executables[0].clone().path.template
+        );
+        assert_eq!(
+            "-c ${nr-var:deployment.k8s.image}".to_string(),
+            on_host.executables[0].clone().args.template
+        );
+
+        // Restart policy values
+        assert_eq!(
+            BackoffStrategyConfig {
+                backoff_type: TemplateableValue::from_template("fixed".to_string()),
+                backoff_delay: TemplateableValue::from_template("1s".to_string()),
+                max_retries: TemplateableValue::from_template("3".to_string()),
+                last_retry_interval: TemplateableValue::from_template("30s".to_string()),
+            },
+            on_host.executables[0].restart_policy.backoff_strategy
+        );
+        assert_eq!(
+            BackoffStrategyConfig {
+                backoff_type: TemplateableValue::from_template("linear".to_string()),
+                backoff_delay: TemplateableValue::new(BACKOFF_DELAY.into()),
+                max_retries: TemplateableValue::new(BACKOFF_MAX_RETRIES),
+                last_retry_interval: TemplateableValue::new(BACKOFF_LAST_RETRY_INTERVAL.into()),
             },
             on_host.executables[1].restart_policy.backoff_strategy
         );
