@@ -10,9 +10,11 @@ pub(crate) fn spawn_logger<R>(handle: R, loggers: Vec<Logger>)
 where
     R: Read + Send + 'static,
 {
-    // Forward to an inner function that returns the thread handles,
-    // for ease of testing log outputs (we wait on them)
-    spawn_logger_inner(handle, loggers);
+    if !loggers.is_empty() {
+        // Forward to an inner function that returns the thread handles,
+        // for ease of testing log outputs (we wait on them)
+        spawn_logger_inner(handle, loggers);
+    }
 }
 
 fn spawn_logger_inner<R>(handle: R, loggers: Vec<Logger>) -> (JoinHandle<()>, Vec<JoinHandle<()>>)
@@ -104,7 +106,9 @@ mod test {
 
     #[test]
     fn spawn_empty_logger() {
-        let read_mock = MockReadMock::new();
+        let mut read_mock = MockReadMock::new();
+        // Current implementation should never actually read when passing an empty logger list
+        read_mock.expect_read().never();
 
         let loggers = vec![];
 
