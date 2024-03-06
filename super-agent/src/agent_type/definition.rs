@@ -560,7 +560,7 @@ deployment:
     }
 
     #[test]
-    fn test_sgent_parsing_omitted_fields() {
+    fn test_sgent_parsing_omitted_fields_use_defaults() {
         let agent: AgentTypeDefinition = serde_yaml::from_str(AGENT_OMITTED_FIELDS_YAML).unwrap();
 
         assert_eq!("nrdot", agent.metadata.name);
