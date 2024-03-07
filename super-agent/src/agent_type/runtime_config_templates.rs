@@ -453,7 +453,7 @@ mod tests {
                         .with_template("${nr-var:backoff.type}".to_string()),
                     backoff_delay: TemplateableValue::new(BackoffDelay::from_secs(10))
                         .with_template("${nr-var:backoff.delay}".to_string()),
-                    max_retries: TemplateableValue::new(30)
+                    max_retries: TemplateableValue::new(30.into())
                         .with_template("${nr-var:backoff.retries}".to_string()),
                     last_retry_interval: TemplateableValue::new(
                         BackoffLastRetryInterval::from_secs(300),

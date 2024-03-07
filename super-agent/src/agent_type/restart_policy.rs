@@ -89,12 +89,33 @@ impl<T> From<BackoffDuration<T>> for Duration {
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
+pub struct MaxRetries(usize);
+
+impl Default for MaxRetries {
+    fn default() -> Self {
+        Self(DEFAULT_BACKOFF_MAX_RETRIES)
+    }
+}
+
+impl From<usize> for MaxRetries {
+    fn from(value: usize) -> Self {
+        Self(value)
+    }
+}
+
+impl From<MaxRetries> for usize {
+    fn from(value: MaxRetries) -> Self {
+        value.0
+    }
+}
+
+#[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(default)]
 pub struct BackoffStrategyConfig {
     #[serde(rename = "type")]
     pub backoff_type: TemplateableValue<BackoffStrategyType>,
     pub(super) backoff_delay: TemplateableValue<BackoffDelay>,
-    pub max_retries: TemplateableValue<usize>,
+    pub max_retries: TemplateableValue<MaxRetries>,
     pub(super) last_retry_interval: TemplateableValue<BackoffLastRetryInterval>,
 }
 
@@ -159,7 +180,7 @@ impl Default for BackoffStrategyConfig {
         Self {
             backoff_type: TemplateableValue::new(BackoffStrategyType::Linear),
             backoff_delay: TemplateableValue::new(DEFAULT_BACKOFF_DELAY.into()),
-            max_retries: TemplateableValue::new(DEFAULT_BACKOFF_MAX_RETRIES),
+            max_retries: TemplateableValue::new(DEFAULT_BACKOFF_MAX_RETRIES.into()),
             last_retry_interval: TemplateableValue::new(DEFAULT_BACKOFF_LAST_RETRY_INTERVAL.into()),
         }
     }
@@ -168,7 +189,7 @@ impl Default for BackoffStrategyConfig {
 fn realize_backoff_config(i: &BackoffStrategyConfig) -> Backoff {
     Backoff::new()
         .with_initial_delay(i.backoff_delay.clone().get().into())
-        .with_max_retries(i.max_retries.clone().get())
+        .with_max_retries(i.max_retries.clone().get().into())
         .with_last_retry_interval(i.last_retry_interval.clone().get().into())
 }
 
