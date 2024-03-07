@@ -1,7 +1,11 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, path::PathBuf};
 
 use crate::{
-    sub_agent::persister::config_persister::ConfigurationPersister, super_agent::config::AgentID,
+    sub_agent::persister::config_persister::ConfigurationPersister,
+    super_agent::{
+        config::AgentID,
+        defaults::{GENERATED_FOLDER_NAME, SUPER_AGENT_DATA_DIR},
+    },
 };
 
 use super::{
@@ -28,6 +32,7 @@ pub trait Renderer {
 
 pub struct TemplateRenderer<C: ConfigurationPersister> {
     persister: Option<C>,
+    config_base_dir: String,
 }
 
 impl<C: ConfigurationPersister> Renderer for TemplateRenderer<C> {
@@ -50,7 +55,9 @@ impl<C: ConfigurationPersister> Renderer for TemplateRenderer<C> {
         // If another kind with specific actions is introduced, the kind definition should be refactored to allow
         // performing additional actions when filling variables with values.
         if let Some(persister) = &self.persister {
-            filled_variables = attributes.extend_file_paths(filled_variables);
+            let sub_agent_config_path = self.subagent_config_path(agent_id);
+            filled_variables =
+                Self::extend_variables_file_path(sub_agent_config_path, filled_variables);
             persister.delete_agent_config(agent_id, &filled_variables)?;
             persister.persist_agent_config(agent_id, &filled_variables)?;
         }
@@ -66,13 +73,46 @@ impl<C: ConfigurationPersister> Renderer for TemplateRenderer<C> {
 
 impl<C: ConfigurationPersister> Default for TemplateRenderer<C> {
     fn default() -> Self {
-        Self { persister: None }
+        Self {
+            persister: None,
+            config_base_dir: SUPER_AGENT_DATA_DIR.to_string(),
+        }
     }
 }
 
 impl<C: ConfigurationPersister> TemplateRenderer<C> {
     pub fn with_config_persister(self, c: C) -> Self {
-        Self { persister: Some(c) }
+        Self {
+            persister: Some(c),
+            ..self
+        }
+    }
+
+    /// Returns a [TemplateRenderer] whose `config_base_dir has the provided `base_dir` prepended.
+    pub fn with_base_dir(self, base_dir: &str) -> Self {
+        Self {
+            config_base_dir: format!("{}{}", base_dir, SUPER_AGENT_DATA_DIR),
+            ..self
+        }
+    }
+
+    // Returns the config path for a sub-agent.
+    fn subagent_config_path(&self, agent_id: &AgentID) -> PathBuf {
+        PathBuf::from(format!(
+            "{}/{}/{}",
+            self.config_base_dir, GENERATED_FOLDER_NAME, agent_id
+        ))
+    }
+
+    // Extends the path of all variables with the sub-agent generated config path.
+    fn extend_variables_file_path(
+        config_path: PathBuf,
+        mut variables: HashMap<String, VariableDefinition>,
+    ) -> HashMap<String, VariableDefinition> {
+        for var in variables.values_mut() {
+            var.extend_file_path(config_path.as_path());
+        }
+        variables
     }
 
     fn check_all_vars_are_populated(
@@ -108,8 +148,6 @@ impl<C: ConfigurationPersister> TemplateRenderer<C> {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::path::PathBuf;
-
     use assert_matches::assert_matches;
     use mockall::{mock, predicate};
 
@@ -176,7 +214,6 @@ pub(crate) mod tests {
 
     fn testing_agent_attributes(agent_id: &AgentID) -> AgentAttributes {
         AgentAttributes {
-            generated_configs_path: PathBuf::from(format!("{ABS_PATH}/{agent_id}")),
             agent_id: agent_id.to_string(),
         }
     }
@@ -241,27 +278,35 @@ pub(crate) mod tests {
         let agent_type = AgentType::build_for_testing(AGENT_TYPE_WITH_FILES, &Environment::OnHost);
         let values = testing_values(AGENT_VALUES_WITH_FILES);
         let attributes = testing_agent_attributes(&agent_id);
+        // The persister should receive filled variables with the path expanded.
+        let path_as_string =
+            format!("{ABS_PATH}{SUPER_AGENT_DATA_DIR}/{GENERATED_FOLDER_NAME}/some-agent-id");
+        let subagent_config_path = path_as_string.as_str();
         let filled_variables = agent_type
             .variables
             .clone()
             .fill_with_values(values.clone())
             .unwrap()
             .flatten();
-        let expanded_path_filled_variables = attributes.extend_file_paths(filled_variables.clone());
+        let expanded_path_filled_variables =
+            TemplateRenderer::<MockConfigurationPersisterMock>::extend_variables_file_path(
+                PathBuf::from(subagent_config_path),
+                filled_variables.clone(),
+            );
 
         let mut persister = MockConfigurationPersisterMock::new();
         persister.should_delete_agent_config(&agent_id, &expanded_path_filled_variables);
         persister.should_persist_agent_config(&agent_id, &expanded_path_filled_variables);
 
-        let renderer = TemplateRenderer {
-            persister: Some(persister),
-        };
+        let renderer = TemplateRenderer::default()
+            .with_config_persister(persister)
+            .with_base_dir(ABS_PATH);
+
         let runtime_config = renderer
             .render(&agent_id, agent_type, values, attributes)
             .unwrap();
-        println!("{:?}", runtime_config);
         assert_eq!(
-            Args("--config1 /abs-path/some-agent-id/config1.yml --config2 /abs-path/some-agent-id/config2.d".into()),
+            Args(format!("--config1 {subagent_config_path}/config1.yml --config2 {subagent_config_path}/config2.d")),
             runtime_config
                 .deployment
                 .on_host
@@ -294,9 +339,7 @@ pub(crate) mod tests {
         ));
         persister.should_not_delete_agent_config(&agent_id, &filled_variables, err);
 
-        let renderer = TemplateRenderer {
-            persister: Some(persister),
-        };
+        let renderer = TemplateRenderer::default().with_config_persister(persister);
         let expected_error = renderer
             .render(&agent_id, agent_type, values, attributes)
             .err()
@@ -327,9 +370,7 @@ pub(crate) mod tests {
         persister.should_delete_agent_config(&agent_id, &filled_variables);
         persister.should_not_persist_agent_config(&agent_id, &filled_variables, err);
 
-        let renderer = TemplateRenderer {
-            persister: Some(persister),
-        };
+        let renderer = TemplateRenderer::default().with_config_persister(persister);
 
         let expected_error = renderer
             .render(&agent_id, agent_type, values, attributes)

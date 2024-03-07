@@ -1,5 +1,4 @@
 use std::fmt::Display;
-use std::path::PathBuf;
 
 use thiserror::Error;
 use tracing::error;
@@ -15,10 +14,10 @@ use crate::sub_agent::values::values_repository::{
     ValuesRepository, ValuesRepositoryError, ValuesRepositoryFile,
 };
 use crate::super_agent::config::{AgentID, SubAgentConfig};
-use crate::super_agent::defaults::{GENERATED_FOLDER_NAME, SUPER_AGENT_DATA_DIR};
 
 use fs::{directory_manager::DirectoryManagerFs, file_reader::FileReaderError, LocalFile};
 
+use super::persister::config_persister::ConfigurationPersister;
 use super::persister::config_persister_file::ConfigurationPersisterFile;
 
 #[derive(Error, Debug)]
@@ -78,7 +77,6 @@ where
     registry: R,
     values_repository: D,
     remote_enabled: bool,
-    local_conf_path: Option<String>,
     renderer: N,
 }
 
@@ -95,7 +93,6 @@ impl Default for LocalSubAgentsAssembler {
             registry: LocalRegistry::default(),
             values_repository: ValuesRepositoryFile::default().with_remote(),
             remote_enabled: false,
-            local_conf_path: None,
             renderer: TemplateRenderer::default(),
         }
     }
@@ -123,25 +120,6 @@ where
 
     pub fn with_renderer(self, renderer: N) -> Self {
         Self { renderer, ..self }
-    }
-
-    pub fn build_absolute_path(&self, path: Option<&String>, agent_id: &AgentID) -> PathBuf {
-        let base_data_dir = match path {
-            Some(p) => p,
-            None => SUPER_AGENT_DATA_DIR,
-        };
-        PathBuf::from(format!(
-            "{}/{}/{}",
-            base_data_dir, GENERATED_FOLDER_NAME, agent_id
-        ))
-    }
-
-    #[cfg(feature = "custom-local-path")]
-    pub fn with_base_dir(self, base_dir: &str) -> Self {
-        Self {
-            local_conf_path: Some(format!("{}{}", base_dir, SUPER_AGENT_DATA_DIR)),
-            ..self
-        }
     }
 }
 
@@ -173,9 +151,6 @@ where
 
         // Build the agent attributes
         let attributes = AgentAttributes {
-            // This is needed to create path for "file" variables, not used in k8s.
-            generated_configs_path: self
-                .build_absolute_path(self.local_conf_path.as_ref(), agent_id),
             agent_id: agent_id.get(),
         };
 
@@ -267,7 +242,6 @@ pub(crate) mod tests {
                 values_repository: remote_values_repo,
                 remote_enabled: opamp_enabled,
                 renderer,
-                local_conf_path: None,
             }
         }
     }
@@ -290,10 +264,6 @@ pub(crate) mod tests {
     fn testing_agent_attributes(agent_id: &AgentID) -> AgentAttributes {
         AgentAttributes {
             agent_id: agent_id.to_string(),
-            generated_configs_path: PathBuf::from(format!(
-                "/var/lib/newrelic-super-agent/auto-generated/{}",
-                agent_id,
-            )),
         }
     }
 

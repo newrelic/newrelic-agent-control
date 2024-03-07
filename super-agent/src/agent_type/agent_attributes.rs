@@ -1,12 +1,10 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::collections::HashMap;
 
 use super::variable::{definition::VariableDefinition, namespace::Namespace};
 
 /// contains any attribute from the sub-agent that is used to build or modify variables used to template the AgentType.
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct AgentAttributes {
-    /// sub-agent generated config path
-    pub generated_configs_path: PathBuf,
     /// sub-agent Agent ID
     pub agent_id: String,
 }
@@ -20,16 +18,5 @@ impl AgentAttributes {
             Namespace::SubAgent.namespaced_name(Self::VARIABLE_SUB_AGENT_ID),
             VariableDefinition::new_sub_agent_string_variable(self.agent_id.clone()),
         )])
-    }
-
-    /// extends the path of all variables that have a kind with path, with the sub agent generated config path.
-    pub fn extend_file_paths(
-        &self,
-        mut variables: HashMap<String, VariableDefinition>,
-    ) -> HashMap<String, VariableDefinition> {
-        variables
-            .values_mut()
-            .for_each(|v| v.extend_file_path(self.generated_configs_path.as_path()));
-        variables
     }
 }
