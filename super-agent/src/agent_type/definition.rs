@@ -406,8 +406,9 @@ pub mod tests {
         agent_type::{
             environment::Environment,
             restart_policy::{
-                BackoffStrategyConfig, BackoffStrategyType, RestartPolicyConfig, BACKOFF_DELAY,
-                BACKOFF_LAST_RETRY_INTERVAL, BACKOFF_MAX_RETRIES,
+                BackoffStrategyConfig, BackoffStrategyType, RestartPolicyConfig,
+                DEFAULT_BACKOFF_DELAY, DEFAULT_BACKOFF_LAST_RETRY_INTERVAL,
+                DEFAULT_BACKOFF_MAX_RETRIES,
             },
             runtime_config::Executable,
             trivial_value::{FilePathWithContent, TrivialValue},
@@ -591,9 +592,11 @@ deployment:
         assert_eq!(
             BackoffStrategyConfig {
                 backoff_type: TemplateableValue::from_template("linear".to_string()),
-                backoff_delay: TemplateableValue::new(BACKOFF_DELAY.into()),
-                max_retries: TemplateableValue::new(BACKOFF_MAX_RETRIES),
-                last_retry_interval: TemplateableValue::new(BACKOFF_LAST_RETRY_INTERVAL.into()),
+                backoff_delay: TemplateableValue::new(DEFAULT_BACKOFF_DELAY.into()),
+                max_retries: TemplateableValue::new(DEFAULT_BACKOFF_MAX_RETRIES),
+                last_retry_interval: TemplateableValue::new(
+                    DEFAULT_BACKOFF_LAST_RETRY_INTERVAL.into()
+                ),
             },
             on_host.executables[1].restart_policy.backoff_strategy
         );

@@ -18,9 +18,9 @@ pub struct RestartPolicyConfig {
 Default values for supervisor restarts
 TODO: refine values with real executions
 */
-pub(super) const BACKOFF_DELAY: Duration = Duration::from_secs(2);
-pub(super) const BACKOFF_MAX_RETRIES: usize = 0;
-pub(super) const BACKOFF_LAST_RETRY_INTERVAL: Duration = Duration::from_secs(600);
+pub(super) const DEFAULT_BACKOFF_DELAY: Duration = Duration::from_secs(2);
+pub(super) const DEFAULT_BACKOFF_MAX_RETRIES: usize = 0;
+pub(super) const DEFAULT_BACKOFF_LAST_RETRY_INTERVAL: Duration = Duration::from_secs(600);
 
 #[derive(Debug, PartialEq, Clone)]
 pub(super) struct BODelay;
@@ -58,7 +58,7 @@ impl<T> BackoffDuration<T> {
 impl Default for BackoffDuration<BODelay> {
     fn default() -> Self {
         Self {
-            duration: BACKOFF_DELAY,
+            duration: DEFAULT_BACKOFF_DELAY,
             _duration_type: PhantomData,
         }
     }
@@ -67,7 +67,7 @@ impl Default for BackoffDuration<BODelay> {
 impl Default for BackoffDuration<BOLastRetryInterval> {
     fn default() -> Self {
         Self {
-            duration: BACKOFF_LAST_RETRY_INTERVAL,
+            duration: DEFAULT_BACKOFF_LAST_RETRY_INTERVAL,
             _duration_type: PhantomData,
         }
     }
@@ -158,9 +158,9 @@ impl Default for BackoffStrategyConfig {
     fn default() -> Self {
         Self {
             backoff_type: TemplateableValue::new(BackoffStrategyType::Linear),
-            backoff_delay: TemplateableValue::new(BACKOFF_DELAY.into()),
-            max_retries: TemplateableValue::new(BACKOFF_MAX_RETRIES),
-            last_retry_interval: TemplateableValue::new(BACKOFF_LAST_RETRY_INTERVAL.into()),
+            backoff_delay: TemplateableValue::new(DEFAULT_BACKOFF_DELAY.into()),
+            max_retries: TemplateableValue::new(DEFAULT_BACKOFF_MAX_RETRIES),
+            last_retry_interval: TemplateableValue::new(DEFAULT_BACKOFF_LAST_RETRY_INTERVAL.into()),
         }
     }
 }
