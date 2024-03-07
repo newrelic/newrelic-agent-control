@@ -17,7 +17,6 @@ use crate::super_agent::config::{AgentID, SubAgentConfig};
 
 use fs::{directory_manager::DirectoryManagerFs, file_reader::FileReaderError, LocalFile};
 
-use super::persister::config_persister::ConfigurationPersister;
 use super::persister::config_persister_file::ConfigurationPersisterFile;
 
 #[derive(Error, Debug)]
