@@ -115,7 +115,6 @@ impl Display for AgentID {
 /// SubAgentsConfig represents the configuration for the sub agents.
 #[derive(Debug, Deserialize, Serialize, Default, PartialEq, Clone)]
 pub struct SubAgentsConfig {
-    #[serde(default)]
     pub agents: HashMap<AgentID, SubAgentConfig>,
 }
 
@@ -316,6 +315,14 @@ opamp:
     some-key: some-value
 "#;
 
+    const EXAMPLE_SUPERAGENT_CONFIG_EMPTY_AGENTS: &str = r#"
+opamp:
+  endpoint: http://localhost:8080/some/path
+  headers:
+    some-key: some-value
+agents: {}
+"#;
+
     const EXAMPLE_SUBAGENTS_CONFIG: &str = r#"
 agents:
   agent-1:
@@ -423,7 +430,10 @@ agents: {}
         assert!(serde_yaml::from_str::<SubAgentsConfig>(EXAMPLE_SUBAGENTS_CONFIG).is_ok());
         assert!(serde_yaml::from_str::<SubAgentsConfig>(EXAMPLE_K8S_CONFIG).is_ok());
         assert!(
-            serde_yaml::from_str::<SuperAgentConfig>(EXAMPLE_SUPERAGENT_CONFIG_NO_AGENTS).is_ok()
+            serde_yaml::from_str::<SubAgentsConfig>(EXAMPLE_SUPERAGENT_CONFIG_EMPTY_AGENTS).is_ok()
+        );
+        assert!(
+            serde_yaml::from_str::<SuperAgentConfig>(EXAMPLE_SUPERAGENT_CONFIG_NO_AGENTS).is_err()
         );
         assert!(serde_yaml::from_str::<SubAgentsConfig>(EXAMPLE_SUBAGENTS_CONFIG).is_ok())
     }
@@ -558,7 +568,7 @@ agents: {}
     #[test]
     fn test_logging_config() {
         let default_config =
-            serde_yaml::from_str::<SuperAgentConfig>(EXAMPLE_SUPERAGENT_CONFIG_NO_AGENTS);
+            serde_yaml::from_str::<SuperAgentConfig>(EXAMPLE_SUPERAGENT_CONFIG_EMPTY_AGENTS);
         assert!(default_config.is_ok());
         let custom_config = serde_yaml::from_str::<SuperAgentConfig>(EXAMPLE_SUPERAGENT_CONFIG);
         assert!(custom_config.is_ok());
