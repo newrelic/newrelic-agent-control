@@ -1,20 +1,21 @@
 ---
-- name: ensure config folder exists
+
+- name: Ensure the folder for values file exists
   file:
-    path: "{{ nr_otel_collector_config_path_linux | dirname }}"
+    path: "{{ nr_otel_collector_values_file | dirname }}"
     state: directory
 
-- name: Copy values file
+- name: Copy NR Otel Collector example values config
   file:
-    src: /etc/newrelic-super-agent/examples/values-nr-otel-collector-agent-linux-0.1.0.yaml
-    path: "{{ nr_otel_collector_config_path_linux }}"
+    src: "{{ super_agent_examples_path }}/{{ nr_otel_collector_example_conf }}"
+    path: "{{ nr_otel_collector_values_file }}"
     state: hard
 
-- name: Replace the env variables in nr-otel-collector config
-  ansible.builtin.replace:
-    path: "{{ nr_otel_collector_config_path_linux }}"
-    regexp: "{{ item.name }}"
-    replace: '{{ item.val }}'
+- name: Ensure the necessary env variables are present in the Super Agent Systemd config file
+  ansible.builtin.lineinfile:
+    path: "{{ super_agent_service_config_path }}"
+    regexp: '^{{ item.name }}='
+    line: "{{ item.name }}={{ item.val }}"
   loop: "{{ nr_otel_collector_config_vars }}"
   no_log: true
 

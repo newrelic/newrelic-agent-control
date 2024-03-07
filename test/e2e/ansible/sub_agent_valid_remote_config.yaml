@@ -1,5 +1,5 @@
 ---
-- name: test configuration
+- name: Sub Agent valid remote config
   hosts: testing_hosts_linux
   become: true
   gather_facts: yes
@@ -10,6 +10,7 @@
       include_tasks: ./tasks/fresh_super_agent_installation_{{ ansible_system }}.yaml
       vars:
         infra_agent_type_version: "0.1.0"
+        otel_agent_type_version: "0.1.0"
 
     - name: Setup Infra Agent values
       include_role:
