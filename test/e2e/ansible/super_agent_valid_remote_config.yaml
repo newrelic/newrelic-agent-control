@@ -1,5 +1,5 @@
 ---
-- name: test configuration
+- name: Super Agent Valid Remote Config
   hosts: testing_hosts_linux
   become: true
   gather_facts: yes
@@ -10,6 +10,7 @@
       include_tasks: ./tasks/fresh_super_agent_installation_{{ ansible_system }}.yaml
       vars:
         infra_agent_type_version: "0.1.0"
+        otel_agent_type_version: "0.1.0"
 
     - name: Assert Super Agent and Agents are running
       include_role:
@@ -175,7 +176,7 @@
         create_remote_configuration_revision:
           account_id: "{{ nr_account_id | int }}"
           config_id: "{{ created_config_id }}"
-          content: 'agents:\n  nr-otel-collector:\n    agent_type: \"newrelic/io.opentelemetry.collector:0.0.1\"\n'
+          content: 'agents:\n  nr-otel-collector:\n    agent_type: \"newrelic/io.opentelemetry.collector:0.1.0\"\n'
           config_revision_fact: "config_just_nrdot"
 
     - name: deploy config to fleet
@@ -199,7 +200,7 @@
       pause:
         seconds: 30
 
-    - name: Assert Super Agent and Infra Agent are running and Collector is not
+    - name: Assert Super Agent and Collector are running and Infra Agent is not 1
       include_role:
         name: caos.ansible_roles.assert_process_running
       vars:
@@ -213,7 +214,7 @@
       include_tasks: ./tasks/assert_full_file_content.yaml
       vars:
         file_path: "{{ super_agent_remote_config_file }}"
-        expected_content: "agents:\n  nr-otel-collector:\n    agent_type: newrelic/io.opentelemetry.collector:0.0.1"
+        expected_content: "agents:\n  nr-otel-collector:\n    agent_type: newrelic/io.opentelemetry.collector:0.1.0"
 
     # Let's restart the Super Agent and ensure it uses the remote config
     - name: Restart Super Agent
@@ -227,7 +228,7 @@
       pause:
         seconds: 30
 
-    - name: Assert Super Agent and Collector are running and Infra Agent is not
+    - name: Assert Super Agent and Collector are running and Infra Agent is not 2
       include_role:
         name: caos.ansible_roles.assert_process_running
       vars:

@@ -1,6 +1,11 @@
 ---
-# config path
-nr_otel_collector_config_path_linux: "/etc/newrelic-super-agent/fleet/agents.d/nr-otel-collector/values/values.yaml"
+# config file
+super_agent_examples_path: "/etc/newrelic-super-agent/examples"
+super_agent_service_config_path: "/etc/newrelic-super-agent/newrelic-super-agent.conf"
+nr_otel_collector_agent_name: "nr-otel-collector"
+nr_otel_collector_agent_type_version: "0.1.0"
+nr_otel_collector_values_file: "/etc/newrelic-super-agent/fleet/agents.d/{{ nr_otel_collector_agent_name }}/values/values.yaml"
+nr_otel_collector_example_conf: "values-nr-otel-collector-agent-linux-{{ nr_otel_collector_agent_type_version }}.yaml"
 
 # nr-otel-collector config:
 nr_otel_collector_memory_limit: 100
@@ -9,11 +14,11 @@ nr_otel_collector_license_key: ""
 
 
 nr_otel_collector_config_vars:
-  - name: '\$\{NEW_RELIC_MEMORY_LIMIT_MIB\}'
+  - name: 'NEW_RELIC_MEMORY_LIMIT_MIB'
     val: "{{ nr_otel_collector_memory_limit }}"
-  - name: '\$\{OTEL_EXPORTER_OTLP_ENDPOINT\}'
+  - name: 'OTEL_EXPORTER_OTLP_ENDPOINT'
     val: "{{ nr_otel_collector_otlp_endpoint }}"
-  - name: '\$\{NEW_RELIC_LICENSE_KEY\}'
-    val: "{{ nr_otel_collector_license_key }}"
+  - name: 'NEW_RELIC_LICENSE_KEY'
+    val: "{{ nr_license_key }}"
 
 ...
