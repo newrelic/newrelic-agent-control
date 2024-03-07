@@ -22,10 +22,21 @@ pub(super) const DEFAULT_BACKOFF_DELAY: Duration = Duration::from_secs(2);
 pub(super) const DEFAULT_BACKOFF_MAX_RETRIES: usize = 0;
 pub(super) const DEFAULT_BACKOFF_LAST_RETRY_INTERVAL: Duration = Duration::from_secs(600);
 
+mod private {
+    pub trait Sealed {}
+    impl Sealed for super::Delay {}
+    impl Sealed for super::LastRetryInterval {}
+}
+
 #[derive(Debug, PartialEq, Clone)]
-pub(super) struct BODelay;
+pub(super) struct Delay;
 #[derive(Debug, PartialEq, Clone)]
-pub(super) struct BOLastRetryInterval;
+pub(super) struct LastRetryInterval;
+
+pub trait BackoffDurationT: private::Sealed {}
+
+impl BackoffDurationT for Delay {}
+impl BackoffDurationT for LastRetryInterval {}
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct BackoffDuration<T> {
@@ -35,11 +46,11 @@ pub struct BackoffDuration<T> {
     _duration_type: PhantomData<T>,
 }
 
-pub(super) type BackoffDelay = BackoffDuration<BODelay>;
-pub(super) type BackoffLastRetryInterval = BackoffDuration<BOLastRetryInterval>;
+pub(super) type BackoffDelay = BackoffDuration<Delay>;
+pub(super) type BackoffLastRetryInterval = BackoffDuration<LastRetryInterval>;
 
 #[cfg(test)]
-impl<T> BackoffDuration<T> {
+impl<T: BackoffDurationT> BackoffDuration<T> {
     pub fn new(value: Duration) -> Self {
         Self {
             duration: value,
@@ -55,7 +66,7 @@ impl<T> BackoffDuration<T> {
     }
 }
 
-impl Default for BackoffDuration<BODelay> {
+impl Default for BackoffDelay {
     fn default() -> Self {
         Self {
             duration: DEFAULT_BACKOFF_DELAY,
@@ -64,7 +75,7 @@ impl Default for BackoffDuration<BODelay> {
     }
 }
 
-impl Default for BackoffDuration<BOLastRetryInterval> {
+impl Default for BackoffLastRetryInterval {
     fn default() -> Self {
         Self {
             duration: DEFAULT_BACKOFF_LAST_RETRY_INTERVAL,
