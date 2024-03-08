@@ -25,6 +25,8 @@ use std::collections::HashMap;
 use std::string::ToString;
 use std::sync::Arc;
 use tracing::{debug, info, trace, warn};
+use crate::utils::time::get_sys_time_nano;
+
 
 pub(super) type SuperAgentCallbacks = AgentCallbacks<SuperAgentRemoteConfigPublisher>;
 
@@ -99,6 +101,18 @@ where
         info!("Agents supervisor runtime successfully started");
         // Run all the Sub Agents
         let running_sub_agents = not_started_sub_agents.run()?;
+
+        // TODO: This will change when we define health change events
+        if let Some(handle) = &self.opamp_client {
+            info!("Sending super-agent health");
+            let health = opamp_client::opamp::proto::AgentHealth {
+                healthy: true,
+                start_time_unix_nano: get_sys_time_nano()?,
+                last_error: "".to_string(),
+            };
+            handle.set_health(health)?;
+        }
+
         self.process_events(
             super_agent_consumer,
             super_agent_opamp_consumer,
@@ -399,7 +413,7 @@ mod tests {
         let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         let mut started_client = MockStartedOpAMPClientMock::new();
-        started_client.should_set_health(1);
+        started_client.should_set_health(2);
         started_client.should_stop(1);
 
         sub_agents_config_store
@@ -439,7 +453,7 @@ mod tests {
 
         // Super Agent OpAMP
         let mut started_client = MockStartedOpAMPClientMock::new();
-        started_client.should_set_health(1);
+        started_client.should_set_health(2);
         started_client.should_stop(1);
 
         hash_repository_mock.expect_get().times(1).returning(|_| {
@@ -478,7 +492,7 @@ mod tests {
 
         // Super Agent OpAMP
         let mut started_client = MockStartedOpAMPClientMock::new();
-        started_client.should_set_health(1);
+        started_client.should_set_health(2);
         // applying and applied
         started_client
             .expect_set_remote_config_status()
