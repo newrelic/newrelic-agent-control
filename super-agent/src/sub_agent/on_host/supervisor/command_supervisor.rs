@@ -192,7 +192,7 @@ fn start_process_thread(not_started_supervisor: SupervisorOnHost<NotStarted>) ->
                 break;
             }
 
-            warn!("Restarting supervisor for {id}...");
+            info!("Restarting supervisor for {id}...");
 
             restart_policy.backoff(|duration| {
                 // early exit if supervisor timeout is canceled
