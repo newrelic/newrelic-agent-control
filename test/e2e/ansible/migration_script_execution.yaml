@@ -1,10 +1,13 @@
 ---
-- name: test configuration
+- name: Migration script execution
   hosts: testing_hosts_linux
   become: true
   gather_facts: yes
 
   tasks:
+    - name: Cleanup
+      include_tasks: ./tasks/clean_all.yaml
+
     - name: Install infra-agent then super-agent recipe
       include_tasks: ./tasks/install_recipe.yaml
       vars:

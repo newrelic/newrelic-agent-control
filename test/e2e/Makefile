@@ -8,6 +8,8 @@ ANSIBLE_INVENTORY ?= $(ANSIBLE_FOLDER)/inventory.ec2
 ANSIBLE_PLAYBOOK ?= test.yaml
 LIMIT ?= "testing_hosts_linux"
 REPOSITORY_ENDPOINT ?= "https://download.newrelic.com/preview"
+NR_OTEL_COLLECTOR_OTLP_ENDPOINT ?= "staging-otlp.nr-data.net:4317"
+OPAMP_ENDPOINT ?= "https://opamp.staging-service.newrelic.com/v1/opamp"
 
 .PHONY: e2e
 e2e:
@@ -33,6 +35,8 @@ endif
         -e nr_api_key=$(NEW_RELIC_API_KEY) \
         -e nr_account_id=$(NEW_RELIC_ACCOUNT_ID) \
         -e repo_endpoint=$(REPOSITORY_ENDPOINT) \
+        -e nr_otel_collector_otlp_endpoint=$(NR_OTEL_COLLECTOR_OTLP_ENDPOINT) \
+        -e opamp_endpoint=${OPAMP_ENDPOINT} \
  		$(ANSIBLE_FOLDER)/$(ANSIBLE_PLAYBOOK)
 
 .PHONY: clean
