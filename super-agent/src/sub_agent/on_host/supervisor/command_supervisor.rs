@@ -1,9 +1,3 @@
-use std::process::ExitStatus;
-use std::{
-    ops::Deref,
-    sync::{Arc, Mutex},
-    thread::{self, JoinHandle},
-};
 use crate::context::Context;
 use crate::sub_agent::on_host::command::command::{
     CommandError, CommandTerminator, NotStartedCommand, StartedCommand,
@@ -17,6 +11,12 @@ use crate::sub_agent::on_host::supervisor::command_supervisor_config::Supervisor
 use crate::sub_agent::on_host::supervisor::error::SupervisorError;
 use crate::sub_agent::restart_policy::BackoffStrategy;
 use crate::super_agent::config::AgentID;
+use std::process::ExitStatus;
+use std::{
+    ops::Deref,
+    sync::{Arc, Mutex},
+    thread::{self, JoinHandle},
+};
 use tracing::{error, info, warn};
 
 ////////////////////////////////////////////////////////////////////////////////////
