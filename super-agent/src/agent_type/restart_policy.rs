@@ -18,14 +18,14 @@ pub struct RestartPolicyConfig {
 Default values for supervisor restarts
 TODO: refine values with real executions
 */
-const BACKOFF_DELAY: Duration = Duration::from_secs(2);
-const BACKOFF_MAX_RETRIES: usize = 0;
-const BACKOFF_LAST_RETRY_INTERVAL: Duration = Duration::from_secs(600);
+pub(super) const DEFAULT_BACKOFF_DELAY: Duration = Duration::from_secs(2);
+pub(super) const DEFAULT_BACKOFF_MAX_RETRIES: usize = 0;
+pub(super) const DEFAULT_BACKOFF_LAST_RETRY_INTERVAL: Duration = Duration::from_secs(600);
 
-#[derive(Debug, Default, Deserialize, PartialEq, Clone)]
-pub struct BackoffDuration(#[serde(deserialize_with = "deserialize_duration")] Duration);
+#[derive(Debug, Deserialize, PartialEq, Clone)]
+pub struct BackoffDelay(#[serde(deserialize_with = "deserialize_duration")] Duration);
 
-impl BackoffDuration {
+impl BackoffDelay {
     pub fn new(value: Duration) -> Self {
         Self(value)
     }
@@ -35,14 +35,72 @@ impl BackoffDuration {
     }
 }
 
-impl From<Duration> for BackoffDuration {
+impl Default for BackoffDelay {
+    fn default() -> Self {
+        Self(DEFAULT_BACKOFF_DELAY)
+    }
+}
+
+impl From<Duration> for BackoffDelay {
     fn from(value: Duration) -> Self {
         Self(value)
     }
 }
 
-impl From<BackoffDuration> for Duration {
-    fn from(value: BackoffDuration) -> Self {
+impl From<BackoffDelay> for Duration {
+    fn from(value: BackoffDelay) -> Self {
+        value.0
+    }
+}
+
+#[derive(Debug, Deserialize, PartialEq, Clone)]
+pub struct BackoffLastRetryInterval(#[serde(deserialize_with = "deserialize_duration")] Duration);
+
+impl BackoffLastRetryInterval {
+    pub fn new(value: Duration) -> Self {
+        Self(value)
+    }
+
+    pub fn from_secs(value: u64) -> Self {
+        Self(Duration::from_secs(value))
+    }
+}
+
+impl Default for BackoffLastRetryInterval {
+    fn default() -> Self {
+        Self(DEFAULT_BACKOFF_LAST_RETRY_INTERVAL)
+    }
+}
+
+impl From<Duration> for BackoffLastRetryInterval {
+    fn from(value: Duration) -> Self {
+        Self(value)
+    }
+}
+
+impl From<BackoffLastRetryInterval> for Duration {
+    fn from(value: BackoffLastRetryInterval) -> Self {
+        value.0
+    }
+}
+
+#[derive(Debug, Deserialize, PartialEq, Clone)]
+pub struct MaxRetries(usize);
+
+impl Default for MaxRetries {
+    fn default() -> Self {
+        Self(DEFAULT_BACKOFF_MAX_RETRIES)
+    }
+}
+
+impl From<usize> for MaxRetries {
+    fn from(value: usize) -> Self {
+        Self(value)
+    }
+}
+
+impl From<MaxRetries> for usize {
+    fn from(value: MaxRetries) -> Self {
         value.0
     }
 }
@@ -52,9 +110,9 @@ impl From<BackoffDuration> for Duration {
 pub struct BackoffStrategyConfig {
     #[serde(rename = "type")]
     pub backoff_type: TemplateableValue<BackoffStrategyType>,
-    pub backoff_delay: TemplateableValue<BackoffDuration>,
-    pub max_retries: TemplateableValue<usize>,
-    pub last_retry_interval: TemplateableValue<BackoffDuration>,
+    pub(super) backoff_delay: TemplateableValue<BackoffDelay>,
+    pub max_retries: TemplateableValue<MaxRetries>,
+    pub(super) last_retry_interval: TemplateableValue<BackoffLastRetryInterval>,
 }
 
 impl BackoffStrategyConfig {
@@ -117,9 +175,9 @@ impl Default for BackoffStrategyConfig {
     fn default() -> Self {
         Self {
             backoff_type: TemplateableValue::new(BackoffStrategyType::Linear),
-            backoff_delay: TemplateableValue::new(BACKOFF_DELAY.into()),
-            max_retries: TemplateableValue::new(BACKOFF_MAX_RETRIES),
-            last_retry_interval: TemplateableValue::new(BACKOFF_LAST_RETRY_INTERVAL.into()),
+            backoff_delay: TemplateableValue::new(DEFAULT_BACKOFF_DELAY.into()),
+            max_retries: TemplateableValue::new(DEFAULT_BACKOFF_MAX_RETRIES.into()),
+            last_retry_interval: TemplateableValue::new(DEFAULT_BACKOFF_LAST_RETRY_INTERVAL.into()),
         }
     }
 }
@@ -127,7 +185,7 @@ impl Default for BackoffStrategyConfig {
 fn realize_backoff_config(i: &BackoffStrategyConfig) -> Backoff {
     Backoff::new()
         .with_initial_delay(i.backoff_delay.clone().get().into())
-        .with_max_retries(i.max_retries.clone().get())
+        .with_max_retries(i.max_retries.clone().get().into())
         .with_last_retry_interval(i.last_retry_interval.clone().get().into())
 }
 
