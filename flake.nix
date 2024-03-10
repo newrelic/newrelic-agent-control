@@ -100,8 +100,12 @@
             third-party-notices = {
               enable = true;
               name = "third-party-notices";
-              entry = "${pkgs.gnumake}/bin/make -C license third-party-notices-check";
-              language = "rust";
+              entry = ''${pkgs.writeShellScriptBin "third-party-notices" ''
+                  export LICENSES=$(${pkgs.cargo-deny}/bin/cargo-deny --all-features --manifest-path ./Cargo.toml list -l crate -f json)
+                  cargo run --all-features -- --dependencies "$(printf "%s " $LICENSES)" --output-file "./THIRD_PARTY_NOTICES.md"
+                  git diff --name-only | grep -q "THIRD_PARTY_NOTICES.md" && { echo "Third party notices out of date, please run \"make -C license third-party-notices\" and commit the changes in this PR.";  exit 1; } || exit 0
+                ''}/bin/third-party-notices'';
+              # language = "rust";
               pass_filenames = false;
               # For more options, check docs:
               # https://github.com/cachix/pre-commit-hooks.nix#custom-hooks

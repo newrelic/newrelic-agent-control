@@ -2,6 +2,7 @@ use crossbeam::channel::{unbounded, Receiver, Sender};
 use thiserror::Error;
 
 pub struct EventConsumer<E>(Receiver<E>);
+#[derive(Debug)]
 pub struct EventPublisher<E>(Sender<E>);
 
 #[derive(Debug, Error)]

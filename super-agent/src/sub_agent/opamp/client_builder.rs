@@ -13,8 +13,10 @@ use opamp_client::http::{HttpClientUreq, NotStartedHttpClient, StartedHttpClient
 use opamp_client::opamp::proto::AgentHealth;
 use opamp_client::operation::settings::StartSettings;
 use opamp_client::{Client, NotStartedClient};
+use tracing::instrument;
 
 /// OpAMPBuilderCfg
+#[derive(Debug)]
 pub struct SubAgentOpAMPHttpBuilder {
     config: OpAMPClientConfig,
 }
@@ -35,6 +37,8 @@ impl<'a> From<&'a SuperAgentOpAMPHttpBuilder> for SubAgentOpAMPHttpBuilder {
 
 impl OpAMPClientBuilder<SubAgentCallbacks> for SubAgentOpAMPHttpBuilder {
     type Client = StartedHttpClient<SubAgentCallbacks, HttpClientUreq>;
+
+    #[instrument]
     fn build_and_start(
         &self,
         opamp_publisher: EventPublisher<OpAMPEvent>,
