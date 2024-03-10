@@ -21,6 +21,8 @@ pub enum LoggingError {
     TryInitError(String),
     #[error("invalid logging file path: `{0}`")]
     InvalidFilePath(String),
+    #[error("could not build tracer: `{0}`")]
+    OtlpTrace(#[from] opentelemetry::trace::TraceError),
 }
 
 /// Defines the logging configuration for an application.
@@ -78,12 +80,20 @@ impl LoggingConfig {
                     .from_env_lossy(),
             );
 
+        // let otel_exporter = opentelemetry_otlp::new_exporter().http();
+        let otel_tracer = opentelemetry_otlp::new_pipeline()
+            .tracing()
+            .with_exporter(opentelemetry_otlp::new_exporter().http())
+            .install_simple()?;
+        let otel_layer = tracing_opentelemetry::layer().with_tracer(otel_tracer);
+
         // a `Layer` wrapped in an `Option` such as the above defined `file_layer` also implements
         // the `Layer` trait. This allows individual layers to be enabled or disabled at runtime
         // while always producing a `Subscriber` of the same type.
         tracing_subscriber::Registry::default()
             .with(console_layer)
             .with(file_layer)
+            .with(otel_layer)
             .try_init()
             .map_err(|_| {
                 LoggingError::TryInitError(

@@ -117,6 +117,18 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
+## async-stream https://crates.io/crates/async-stream
+
+Distributed under the following license(s):
+* MIT
+
+
+## async-stream-impl https://crates.io/crates/async-stream-impl
+
+Distributed under the following license(s):
+* MIT
+
+
 ## async-trait https://crates.io/crates/async-trait
 
 Distributed under the following license(s):
@@ -128,6 +140,18 @@ Distributed under the following license(s):
 
 Distributed under the following license(s):
 * Apache-2.0
+* MIT
+
+
+## axum https://crates.io/crates/axum
+
+Distributed under the following license(s):
+* MIT
+
+
+## axum-core https://crates.io/crates/axum-core
+
+Distributed under the following license(s):
 * MIT
 
 
@@ -430,6 +454,14 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
+## encoding_rs https://crates.io/crates/encoding_rs
+
+Distributed under the following license(s):
+* Apache-2.0
+* MIT
+* BSD-3-Clause
+
+
 ## equivalent https://crates.io/crates/equivalent
 
 Distributed under the following license(s):
@@ -553,6 +585,13 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
+## glob https://crates.io/crates/glob
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
 ## globset https://crates.io/crates/globset
 
 Distributed under the following license(s):
@@ -564,6 +603,19 @@ Distributed under the following license(s):
 
 Distributed under the following license(s):
 * MIT
+
+
+## h2 https://crates.io/crates/h2
+
+Distributed under the following license(s):
+* MIT
+
+
+## hashbrown https://crates.io/crates/hashbrown
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
 
 
 ## hashbrown https://crates.io/crates/hashbrown
@@ -697,10 +749,24 @@ Distributed under the following license(s):
 * MIT
 
 
+## indexmap https://crates.io/crates/indexmap
+
+Distributed under the following license(s):
+* Apache-2.0
+* MIT
+
+
 ## instant https://crates.io/crates/instant
 
 Distributed under the following license(s):
 * BSD-3-Clause
+
+
+## ipnet https://crates.io/crates/ipnet
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
 
 
 ## itertools https://crates.io/crates/itertools
@@ -837,6 +903,13 @@ Distributed under the following license(s):
 * MIT
 
 
+## matchit https://crates.io/crates/matchit
+
+Distributed under the following license(s):
+* MIT
+* BSD-3-Clause
+
+
 ## memchr https://crates.io/crates/memchr
 
 Distributed under the following license(s):
@@ -962,6 +1035,48 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 * MIT
 * Apache-2.0
+
+
+## opentelemetry https://crates.io/crates/opentelemetry
+
+Distributed under the following license(s):
+* Apache-2.0
+
+
+## opentelemetry-http https://crates.io/crates/opentelemetry-http
+
+Distributed under the following license(s):
+* Apache-2.0
+
+
+## opentelemetry-otlp https://crates.io/crates/opentelemetry-otlp
+
+Distributed under the following license(s):
+* Apache-2.0
+
+
+## opentelemetry-proto https://crates.io/crates/opentelemetry-proto
+
+Distributed under the following license(s):
+* Apache-2.0
+
+
+## opentelemetry-semantic-conventions https://crates.io/crates/opentelemetry-semantic-conventions
+
+Distributed under the following license(s):
+* Apache-2.0
+
+
+## opentelemetry_sdk https://crates.io/crates/opentelemetry_sdk
+
+Distributed under the following license(s):
+* Apache-2.0
+
+
+## ordered-float https://crates.io/crates/ordered-float
+
+Distributed under the following license(s):
+* MIT
 
 
 ## ordered-float https://crates.io/crates/ordered-float
@@ -1107,6 +1222,18 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
+## prost https://crates.io/crates/prost
+
+Distributed under the following license(s):
+* Apache-2.0
+
+
+## prost-derive https://crates.io/crates/prost-derive
+
+Distributed under the following license(s):
+* Apache-2.0
+
+
 ## prost-derive https://crates.io/crates/prost-derive
 
 Distributed under the following license(s):
@@ -1176,6 +1303,13 @@ Distributed under the following license(s):
 
 
 ## regex-syntax https://crates.io/crates/regex-syntax
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+## reqwest https://crates.io/crates/reqwest
 
 Distributed under the following license(s):
 * MIT
@@ -1256,6 +1390,13 @@ Distributed under the following license(s):
 
 Distributed under the following license(s):
 * ISC
+
+
+## rustversion https://crates.io/crates/rustversion
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
 
 
 ## ryu https://crates.io/crates/ryu
@@ -1360,6 +1501,13 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
+## serde_urlencoded https://crates.io/crates/serde_urlencoded
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
 ## serde_yaml https://crates.io/crates/serde_yaml
 
 Distributed under the following license(s):
@@ -1439,6 +1587,26 @@ Distributed under the following license(s):
 
 
 ## syn https://crates.io/crates/syn
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+## sync_wrapper https://crates.io/crates/sync_wrapper
+
+Distributed under the following license(s):
+* Apache-2.0
+
+
+## system-configuration https://crates.io/crates/system-configuration
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+## system-configuration-sys https://crates.io/crates/system-configuration-sys
 
 Distributed under the following license(s):
 * MIT
@@ -1534,7 +1702,19 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
+## tokio-stream https://crates.io/crates/tokio-stream
+
+Distributed under the following license(s):
+* MIT
+
+
 ## tokio-util https://crates.io/crates/tokio-util
+
+Distributed under the following license(s):
+* MIT
+
+
+## tonic https://crates.io/crates/tonic
 
 Distributed under the following license(s):
 * MIT
@@ -1589,6 +1769,12 @@ Distributed under the following license(s):
 
 
 ## tracing-log https://crates.io/crates/tracing-log
+
+Distributed under the following license(s):
+* MIT
+
+
+## tracing-opentelemetry https://crates.io/crates/tracing-opentelemetry
 
 Distributed under the following license(s):
 * MIT
@@ -1747,6 +1933,12 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
+## urlencoding https://crates.io/crates/urlencoding
+
+Distributed under the following license(s):
+* MIT
+
+
 ## utf8parse https://crates.io/crates/utf8parse
 
 Distributed under the following license(s):
@@ -1802,6 +1994,13 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
+## wasm-bindgen-futures https://crates.io/crates/wasm-bindgen-futures
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
 ## wasm-bindgen-macro https://crates.io/crates/wasm-bindgen-macro
 
 Distributed under the following license(s):
@@ -1817,6 +2016,13 @@ Distributed under the following license(s):
 
 
 ## wasm-bindgen-shared https://crates.io/crates/wasm-bindgen-shared
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+## web-sys https://crates.io/crates/web-sys
 
 Distributed under the following license(s):
 * MIT
@@ -1995,6 +2201,12 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 * MIT
 * Apache-2.0
+
+
+## winreg https://crates.io/crates/winreg
+
+Distributed under the following license(s):
+* MIT
 
 
 ## zerocopy https://crates.io/crates/zerocopy

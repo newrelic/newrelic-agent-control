@@ -20,13 +20,13 @@ ctrlc = { version = "3.4.0", features = ["termination"] }
 serde_yaml = { workspace = true }
 regex = { workspace = true }
 opamp-client = { git = "ssh://git@github.com/newrelic/opamp-rs.git", tag = "0.0.11", features = [
-    "sync-http",
+  "sync-http",
 ], default-features = false }
 futures = { version = "0.3.28", optional = true }
 async-trait = { version = "0.1.71", optional = true }
 tokio = { version = "1.35.1", optional = true, features = [
-    "rt-multi-thread",
-    "macros",
+  "rt-multi-thread",
+  "macros",
 ] }
 ulid = { workspace = true, features = ["serde"] }
 duration-str = "0.7.0"
@@ -44,6 +44,15 @@ k8s-openapi = { version = "0.21.1", features = ["latest"], optional = true }
 either = { version = "1.9.0", optional = true }
 crossbeam = { version = "0.8.3", features = ["crossbeam-channel"] }
 tracing-appender = "0.2.3"
+opentelemetry-otlp = { version = "0.15.0", features = [
+  "http-proto",
+  "reqwest-rustls",
+  "reqwest-blocking-client",
+] }
+opentelemetry-http = "0.11.0"
+opentelemetry_sdk = "0.22.1"
+opentelemetry = "0.22.0"
+tracing-opentelemetry = "0.23.0"
 
 [dev-dependencies]
 assert_cmd = { workspace = true }
@@ -61,10 +70,7 @@ assert_matches = { workspace = true }
 mockall_double = { workspace = true }
 tracing-test = { workspace = true }
 fs = { path = "../fs", features = ["mocks"] }
-tokio = { version = "1.32.0", features = [
-    "rt-multi-thread",
-    "macros",
-] }
+tokio = { version = "1.32.0", features = ["rt-multi-thread", "macros"] }
 wiremock = "0.6.0"
 
 
@@ -87,12 +93,12 @@ path = "src/bin/main.rs"
 [features]
 onhost = []
 k8s = [
-    "dep:kube",
-    "dep:k8s-openapi",
-    "dep:either",
-    "dep:futures",
-    "dep:async-trait",
-    "dep:tokio",
+  "dep:kube",
+  "dep:k8s-openapi",
+  "dep:either",
+  "dep:futures",
+  "dep:async-trait",
+  "dep:tokio",
 ]
 custom-local-path = []
 # feature ci allows calling --all-features (needed on the test pipelines) and not failing to compile
