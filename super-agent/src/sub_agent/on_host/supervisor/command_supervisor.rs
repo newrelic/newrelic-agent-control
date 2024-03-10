@@ -4,9 +4,7 @@ use std::{
     sync::{Arc, Mutex},
     thread::{self, JoinHandle},
 };
-
 use crate::context::Context;
-
 use crate::sub_agent::on_host::command::command::{
     CommandError, CommandTerminator, NotStartedCommand, StartedCommand,
 };
@@ -17,8 +15,9 @@ use crate::sub_agent::on_host::command::shutdown::{
 };
 use crate::sub_agent::on_host::supervisor::command_supervisor_config::SupervisorConfigOnHost;
 use crate::sub_agent::on_host::supervisor::error::SupervisorError;
+use crate::sub_agent::restart_policy::BackoffStrategy;
 use crate::super_agent::config::AgentID;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 ////////////////////////////////////////////////////////////////////////////////////
 // States for Started/Not Started supervisor
@@ -179,8 +178,14 @@ fn start_process_thread(not_started_supervisor: SupervisorOnHost<NotStarted>) ->
 
             // check if restart policy needs to be applied
             if !restart_policy.should_retry(exit_code.unwrap_or_default()) {
+                // Log if we are not restarting anymore due to the restart policy being broken
+                if restart_policy.backoff != BackoffStrategy::None {
+                    warn!("Supervisor for {id} won't restart anymore due to having exceeded its restart policy");
+                }
                 break;
             }
+
+            info!("Restarting supervisor for {id}...");
 
             restart_policy.backoff(|duration| {
                 // early exit if supervisor timeout is canceled

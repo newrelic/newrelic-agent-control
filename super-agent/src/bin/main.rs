@@ -101,6 +101,7 @@ fn run_super_agent(
     super_agent_consumer: EventConsumer<SuperAgentEvent>,
     opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
 ) -> Result<(), AgentError> {
+    use newrelic_super_agent::agent_type::renderer::TemplateRenderer;
     use newrelic_super_agent::opamp::hash_repository::HashRepositoryFile;
     use newrelic_super_agent::opamp::instance_id::IdentifiersProvider;
     use newrelic_super_agent::opamp::operations::build_opamp_and_start_client;
@@ -127,7 +128,10 @@ fn run_super_agent(
     let hash_repository = HashRepositoryFile::default();
     let agents_assembler = LocalEffectiveAgentsAssembler::default()
         .with_remote()
-        .with_config_persister(ConfigurationPersisterFile::default());
+        .with_renderer(
+            TemplateRenderer::default()
+                .with_config_persister(ConfigurationPersisterFile::default()),
+        );
     // HashRepo and ValuesRepo needs to be shared between threads
     let sub_agent_hash_repository = Arc::new(HashRepositoryFile::new_sub_agent_repository());
     let values_repository = Arc::new(ValuesRepositoryFile::default());
@@ -293,14 +297,12 @@ fn create_shutdown_signal_handler(
 }
 
 #[cfg(feature = "custom-local-path")]
+use newrelic_super_agent::sub_agent::effective_agents_assembler::LocalSubAgentsAssembler;
+#[cfg(feature = "custom-local-path")]
 fn custom_local_path() -> (
-    LocalEffectiveAgentsAssembler<
-        newrelic_super_agent::agent_type::agent_type_registry::LocalRegistry,
-        newrelic_super_agent::sub_agent::persister::config_persister_file::ConfigurationPersisterFile,
-        ValuesRepositoryFile<fs::LocalFile, fs::directory_manager::DirectoryManagerFs>,
-    >,
+    LocalSubAgentsAssembler,
     Arc<ValuesRepositoryFile<fs::LocalFile, fs::directory_manager::DirectoryManagerFs>>,
-){
+) {
     let mut agents_assembler = LocalEffectiveAgentsAssembler::default().with_remote();
     let mut values_repository = Arc::new(ValuesRepositoryFile::default().with_remote());
 
