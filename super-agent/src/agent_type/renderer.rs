@@ -88,6 +88,7 @@ impl<C: ConfigurationPersister> TemplateRenderer<C> {
         }
     }
 
+    #[cfg(feature = "custom-local-path")]
     /// Returns a [TemplateRenderer] whose `config_base_dir has the provided `base_dir` prepended.
     pub fn with_base_dir(self, base_dir: &str) -> Self {
         Self {
@@ -206,8 +207,6 @@ pub(crate) mod tests {
         }
     }
 
-    const ABS_PATH: &str = "/abs-path";
-
     fn testing_values(yaml_values: &str) -> AgentValues {
         serde_yaml::from_str(yaml_values).unwrap()
     }
@@ -280,7 +279,7 @@ pub(crate) mod tests {
         let attributes = testing_agent_attributes(&agent_id);
         // The persister should receive filled variables with the path expanded.
         let path_as_string =
-            format!("{ABS_PATH}{SUPER_AGENT_DATA_DIR}/{GENERATED_FOLDER_NAME}/some-agent-id");
+            format!("{SUPER_AGENT_DATA_DIR}/{GENERATED_FOLDER_NAME}/some-agent-id");
         let subagent_config_path = path_as_string.as_str();
         let filled_variables = agent_type
             .variables
@@ -298,9 +297,7 @@ pub(crate) mod tests {
         persister.should_delete_agent_config(&agent_id, &expanded_path_filled_variables);
         persister.should_persist_agent_config(&agent_id, &expanded_path_filled_variables);
 
-        let renderer = TemplateRenderer::default()
-            .with_config_persister(persister)
-            .with_base_dir(ABS_PATH);
+        let renderer = TemplateRenderer::default().with_config_persister(persister);
 
         let runtime_config = renderer
             .render(&agent_id, agent_type, values, attributes)
