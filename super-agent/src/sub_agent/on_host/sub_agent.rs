@@ -64,13 +64,13 @@ where
             })
             .collect::<Result<Vec<_>, _>>()?;
 
+        let event_loop_handle = self.state.event_processor.process();
+
         let started_sub_agent = SubAgentOnHost {
             supervisors: started_supervisors,
             agent_id: self.agent_id,
             sub_agent_internal_publisher: self.sub_agent_internal_publisher,
-            state: Started {
-                event_loop_handle: self.state.event_processor.process(),
-            },
+            state: Started { event_loop_handle },
         };
 
         Ok(started_sub_agent)

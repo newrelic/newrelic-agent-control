@@ -5,7 +5,7 @@ use crate::sub_agent::k8s::CRSupervisor;
 use crate::sub_agent::{error::SubAgentError, NotStartedSubAgent, StartedSubAgent};
 use crate::sub_agent::{NotStarted, Started};
 use crate::super_agent::config::AgentID;
-use tracing::{debug, error};
+use tracing::error;
 
 ////////////////////////////////////////////////////////////////////////////////////
 // SubAgent On K8s
@@ -55,13 +55,13 @@ where
             })?;
         }
 
+        let event_loop_handle = self.state.event_processor.process();
+
         Ok(SubAgentK8s {
             agent_id: self.agent_id,
             supervisor: self.supervisor,
             sub_agent_internal_publisher: self.sub_agent_internal_publisher,
-            state: Started {
-                event_loop_handle: self.state.event_processor.process(),
-            },
+            state: Started { event_loop_handle },
         })
     }
 }

@@ -11,9 +11,7 @@ use crate::opamp::operations::build_opamp_and_start_client;
 use crate::opamp::remote_config_report::{
     report_remote_config_status_applied, report_remote_config_status_error,
 };
-use crate::sub_agent::effective_agents_assembler::{
-    EffectiveAgent, EffectiveAgentsAssembler, EffectiveAgentsAssemblerError,
-};
+use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
 use crate::sub_agent::event_processor_builder::SubAgentEventProcessorBuilder;
 use crate::sub_agent::{NotStarted, SubAgentCallbacks};
 use crate::super_agent::config::{AgentID, K8sConfig, SubAgentConfig};
@@ -124,8 +122,8 @@ where
                 Ok(Some(mut hash)) => {
                     if let Err(err) = effective_agent_res.as_ref() {
                         report_remote_config_status_error(opamp_client, &hash, err.to_string())?;
-                        tracing::error!(
-                            "Failed to assemble agent  {}, running  without supervisors",
+                        error!(
+                            "Failed to assemble agent {} and to create supervisors, only the opamp client will be listening for a fixed configuration",
                             agent_id
                         );
                         // report the failed status for remote config and let the opamp client
@@ -152,12 +150,12 @@ where
         // This behaviour is needed to allow a subAgent to download a fixed configuration.
         let supervisor: Option<CRSupervisor> = match has_supervisors {
             false => None,
-            true => build_cr_supervisors(
+            true => Some(build_cr_supervisors(
                 &agent_id,
                 effective_agent_res?,
                 self.k8s_client.clone(),
                 &self.k8s_config,
-            )?,
+            )?),
         };
 
         let event_processor = self.event_processor_builder.build(
@@ -182,7 +180,7 @@ fn build_cr_supervisors(
     effective_agent: EffectiveAgent,
     k8s_client: Arc<SyncK8sClient>,
     k8s_config: &K8sConfig,
-) -> Result<Option<CRSupervisor>, SubAgentBuilderError> {
+) -> Result<CRSupervisor, SubAgentBuilderError> {
     debug!("Building CR supervisors {}", agent_id);
 
     let k8s_objects = effective_agent
@@ -200,11 +198,7 @@ fn build_cr_supervisors(
     validate_k8s_objects(&k8s_objects, &k8s_config.cr_type_meta)?;
 
     // Clone the k8s_client on each build.
-    Ok(Some(CRSupervisor::new(
-        agent_id.clone(),
-        k8s_client,
-        k8s_objects,
-    )))
+    Ok(CRSupervisor::new(agent_id.clone(), k8s_client, k8s_objects))
 }
 
 fn validate_k8s_objects(

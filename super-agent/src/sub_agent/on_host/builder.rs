@@ -122,7 +122,7 @@ where
                     if let Err(err) = effective_agent_res.as_ref() {
                         report_remote_config_status_error(opamp_client, &hash, err.to_string())?;
                         error!(
-                            "Failed to assemble agent  {}, running  without supervisors",
+                            "Failed to assemble agent {} and to create supervisors, only the opamp client will be listening for a fixed configuration",
                             agent_id
                         );
                         // report the failed status for remote config and let the opamp client
