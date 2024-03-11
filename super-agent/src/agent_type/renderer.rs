@@ -138,10 +138,10 @@ impl<C: ConfigurationPersister> TemplateRenderer<C> {
             .into_iter()
             .map(|(name, var)| (Namespace::Variable.namespaced_name(&name), var));
         // Get the namespaced variables from sub-agent attributes
-        let sub_agent_attrs_iter = attributes.sub_agent_variables().into_iter();
+        let sub_agent_vars_iter = attributes.sub_agent_variables().into_iter();
         // Join all variables together
         vars_iter
-            .chain(sub_agent_attrs_iter)
+            .chain(sub_agent_vars_iter)
             .collect::<HashMap<String, VariableDefinition>>()
     }
 }

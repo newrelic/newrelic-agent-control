@@ -14,7 +14,7 @@ impl Namespace {
             Self::Variable => Self::VARIABLE,
             Self::SubAgent => Self::SUB_AGENT,
         };
-        format!("{}{ns}:{name}", Self::PREFIX)
+        format!("{}{}:{}", Self::PREFIX, ns, name)
     }
 }
 #[cfg(test)]
