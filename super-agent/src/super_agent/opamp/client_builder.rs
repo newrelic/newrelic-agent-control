@@ -9,7 +9,7 @@ use crate::super_agent::opamp::remote_config_publisher::SuperAgentRemoteConfigPu
 use crate::super_agent::SuperAgentCallbacks;
 use crate::utils::time::get_sys_time_nano;
 use opamp_client::http::{HttpClientUreq, NotStartedHttpClient, StartedHttpClient};
-use opamp_client::opamp::proto::AgentHealth;
+use opamp_client::opamp::proto::ComponentHealth;
 use opamp_client::operation::settings::StartSettings;
 use opamp_client::{Client, NotStartedClient};
 
@@ -43,10 +43,11 @@ impl OpAMPClientBuilder<SuperAgentCallbacks> for SuperAgentOpAMPHttpBuilder {
         let started_client = not_started_client.start(callbacks, start_settings)?;
         // TODO remove opamp health from here, it should be done outside
         // set OpAMP health
-        started_client.set_health(AgentHealth {
+        started_client.set_health(ComponentHealth {
             healthy: true,
             start_time_unix_nano: get_sys_time_nano()?,
             last_error: "".to_string(),
+            ..Default::default()
         })?;
         Ok(started_client)
     }
