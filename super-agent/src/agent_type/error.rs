@@ -55,4 +55,7 @@ pub enum AgentTypeError {
     InvalidVariant(String, Vec<String>),
     #[error("error assembling agents: `{0}`")]
     ConfigurationPersisterError(#[from] PersistError),
+
+    #[error("Conflicting variable definition: `{0}`")]
+    ConflictingVariableDefinition(String),
 }

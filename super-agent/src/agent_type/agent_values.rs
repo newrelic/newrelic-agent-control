@@ -28,16 +28,17 @@ use crate::agent_type::trivial_value::TrivialValue;
 /// version: 0.1.0
 ///
 /// variables:
-///  system:
-///   logging:
-///     level:
+///  common:
+///   system:
+///    logging:
+///      level:
+///       description: "Logging level"
+///       type: string
+///       required: true
+///   custom_envs:
 ///      description: "Logging level"
-///      type: string
+///      type: map[string]string
 ///      required: true
-///  custom_envs:
-///     description: "Logging level"
-///     type: map[string]string
-///     required: true
 ///
 /// deployment:
 ///   on_host:
@@ -223,26 +224,27 @@ name: nrdot
 namespace: newrelic
 version: 0.1.0
 variables:
-  config:
-    description: "Path to the agent"
-    type: file
-    required: true
-    file_path: "newrelic-infra.yml"
-  deployment:
-    on_host:
-      path:
-        description: "Path to the agent"
-        type: string
-        required: true
-      args:
-        description: "Args passed to the agent"
-        type: string
-        required: true
-  integrations:
-    description: "Newrelic integrations configuration yamls"
-    type: map[string]file
-    required: true
-    file_path: integrations.d
+  common:
+    config:
+      description: "Path to the agent"
+      type: file
+      required: true
+      file_path: "newrelic-infra.yml"
+    deployment:
+      on_host:
+        path:
+          description: "Path to the agent"
+          type: string
+          required: true
+        args:
+          description: "Args passed to the agent"
+          type: string
+          required: true
+    integrations:
+      description: "Newrelic integrations configuration yamls"
+      type: map[string]file
+      required: true
+      file_path: integrations.d
 deployment:
   on_host:
     executables:

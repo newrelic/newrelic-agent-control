@@ -9,7 +9,7 @@ use crate::agent_type::definition::{AgentType, AgentTypeDefinition};
 use crate::agent_type::environment::Environment;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::renderer::{Renderer, TemplateRenderer};
-use crate::agent_type::runtime_config::Runtime;
+use crate::agent_type::runtime_config::{Deployment, Runtime};
 use crate::sub_agent::values::values_repository::{
     ValuesRepository, ValuesRepositoryError, ValuesRepositoryFile,
 };
@@ -29,8 +29,16 @@ pub enum EffectiveAgentsAssemblerError {
     SerdeYamlError(#[from] serde_yaml::Error),
     #[error("error assembling agents: `{0}`")]
     AgentTypeError(#[from] AgentTypeError),
+    #[error("error assembling agents: `{0}`")]
+    AgentTypeDefinitionError(#[from] AgentTypeDefinitionError),
     #[error("values error: `{0}`")]
     ValuesRepositoryError(#[from] ValuesRepositoryError),
+}
+
+#[derive(Error, Debug)]
+pub enum AgentTypeDefinitionError {
+    #[error("invalid agent-type for `{0}` environment: `{1}")]
+    EnvironmentError(AgentTypeError, Environment),
 }
 
 #[derive(Clone)]
@@ -168,14 +176,40 @@ where
 /// Builds an [AgentType] given the provided [AgentTypeDefinition] and environment.
 pub fn build_agent_type(
     definition: AgentTypeDefinition,
-    _environment: &Environment,
-) -> Result<AgentType, EffectiveAgentsAssemblerError> {
-    // TODO: the [AgentType] variables will be different depending on the provided environment.
-    // This could return an error if the agent type is not correct, given the provided environment.
+    environment: &Environment,
+) -> Result<AgentType, AgentTypeDefinitionError> {
+    // Select vars and runtime config according to the environment
+    let (specific_vars, runtime_config) = match environment {
+        Environment::K8s => (
+            definition.variables.k8s,
+            Runtime {
+                deployment: Deployment {
+                    on_host: None,
+                    ..definition.runtime_config.deployment
+                },
+            },
+        ),
+        Environment::OnHost => (
+            definition.variables.on_host,
+            Runtime {
+                deployment: Deployment {
+                    k8s: None,
+                    ..definition.runtime_config.deployment
+                },
+            },
+        ),
+    };
+    // Merge common and specific variables
+    let merged_variables = definition
+        .variables
+        .common
+        .merge(specific_vars)
+        .map_err(|err| AgentTypeDefinitionError::EnvironmentError(err, environment.clone()))?;
+
     Ok(AgentType::new(
         definition.metadata,
-        definition.variables,
-        definition.runtime_config,
+        merged_variables,
+        runtime_config,
     ))
 }
 
@@ -185,6 +219,7 @@ pub fn build_agent_type(
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use assert_matches::assert_matches;
     use mockall::{mock, predicate};
 
     use crate::agent_type::agent_type_registry::tests::MockAgentRegistryMock;
@@ -466,4 +501,108 @@ pub(crate) mod tests {
             result.err().unwrap().to_string()
         );
     }
+
+    #[test]
+    fn test_build_agent_type() {
+        let definition =
+            serde_yaml::from_str::<AgentTypeDefinition>(AGENT_TYPE_DEFINITION).unwrap();
+
+        let k8s_agent_type = build_agent_type(definition.clone(), &Environment::K8s).unwrap();
+        let k8s_vars = k8s_agent_type.variables.flatten();
+        assert!(k8s_vars.contains_key("config.really_common"));
+        let var = k8s_vars.get("config.var").unwrap();
+        assert_eq!("K8s var".to_string(), var.description);
+        assert!(
+            k8s_agent_type.runtime_config.deployment.on_host.is_none(),
+            "OnHost deployment for k8s should be none"
+        );
+
+        let on_host_agent_type = build_agent_type(definition, &Environment::OnHost).unwrap();
+        let on_host_vars = on_host_agent_type.variables.flatten();
+        assert!(on_host_vars.contains_key("config.really_common"));
+        let var = on_host_vars.get("config.var").unwrap();
+        assert_eq!("OnHost var".to_string(), var.description);
+        assert!(
+            on_host_agent_type.runtime_config.deployment.k8s.is_none(),
+            "K8s deployment for on_host should be none"
+        );
+    }
+
+    #[test]
+    fn test_build_agent_type_error() {
+        let definition =
+            serde_yaml::from_str::<AgentTypeDefinition>(CONFLICTING_AGENT_TYPE_DEFINITION).unwrap();
+
+        let expected_err = build_agent_type(definition, &Environment::K8s)
+            .err()
+            .unwrap();
+        assert_matches!(expected_err, AgentTypeDefinitionError::EnvironmentError(err, env) => {
+            assert_matches!(err, AgentTypeError::ConflictingVariableDefinition(key) => {
+                assert_eq!("config.var".to_string(), key);
+            });
+            assert_matches!(env, Environment::K8s);
+        });
+    }
+
+    const AGENT_TYPE_DEFINITION: &str = r#"
+name: common
+namespace: newrelic
+version: 0.0.1
+variables:
+  common:
+    config:
+      really_common:
+        description: "Common var"
+        type: string
+        required: true
+  k8s:
+    config:
+      var:
+        description: "K8s var"
+        type: string
+        required: true
+  on_host:
+    config:
+      var:
+        description: "OnHost var"
+        type: string
+        required: true
+deployment:
+  runtime:
+    on_host:
+      executables:
+        - path: /some/path
+          args: "${nr-var:config.really_common} ${config.var}"
+    k8s:
+      objects:
+        chart:
+          apiVersion: some.api.version/v1
+          kind: SomeKind
+          metadata:
+            name: ${nr-sub:agent_id}
+          spec:
+            some_key: ${nr-var:config.really_common}
+            other: ${nr-avar:config.var}
+"#;
+
+    const CONFLICTING_AGENT_TYPE_DEFINITION: &str = r#"
+name: common
+namespace: newrelic
+version: 0.0.1
+variables:
+  common:
+    config:
+      var:
+        description: "Common variable"
+        type: string
+        required: true
+  k8s:
+    config:
+      var:
+        description: "K8s variable"
+        type: string
+        required: true
+deployment:
+  runtime:
+"#;
 }

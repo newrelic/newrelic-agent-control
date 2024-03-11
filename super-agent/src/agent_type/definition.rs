@@ -27,9 +27,20 @@ use opamp_client::operation::capabilities::Capabilities;
 pub struct AgentTypeDefinition {
     #[serde(flatten)]
     pub metadata: AgentMetadata,
-    pub variables: VariableTree,
+    pub variables: AgentTypeVariables,
     #[serde(default, flatten)]
     pub runtime_config: Runtime,
+}
+
+/// Contains the variable definitions that can be defined in an [AgentTypeDefinition].
+#[derive(Debug, Clone, PartialEq, Default, Deserialize)]
+pub struct AgentTypeVariables {
+    #[serde(default)]
+    pub common: VariableTree,
+    #[serde(default)]
+    pub k8s: VariableTree,
+    #[serde(default)]
+    pub on_host: VariableTree,
 }
 
 /// Configuration of the Agent Type, contains identification metadata, a set of variables that can be adjusted, and rules of how to execute agents.
@@ -226,17 +237,6 @@ impl AgentType {
     }
 }
 
-/// Contains the variable definitions an AgentType can define.
-#[derive(Debug, Clone, PartialEq, Default, Deserialize)]
-pub struct AgentTypeVariables {
-    #[serde(default)]
-    common: VariableTree,
-    #[serde(default)]
-    k8s: VariableTree,
-    #[serde(default)]
-    on_host: VariableTree,
-}
-
 /// Flexible tree-like structure that contains variables definitions, that can later be changed by the end user via [`AgentValues`].
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 pub struct VariableTree(pub(crate) HashMap<String, VariableDefinitionTree>);
@@ -254,6 +254,48 @@ impl VariableTree {
         let mut vars = self.0.clone();
         update_specs(values.into(), &mut vars)?;
         Ok(Self(vars))
+    }
+
+    /// Merges the current [VariableTree] with another, returning an error if any key overlaps.
+    pub fn merge(self, variables: Self) -> Result<Self, AgentTypeError> {
+        Ok(Self(
+            Self::merge_inner(&self.0, &variables.0)
+                .map_err(AgentTypeError::ConflictingVariableDefinition)?,
+        ))
+    }
+
+    /// Merges recursively two inner hashmaps if there is no conflicting key.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an String error containing the full path of the first conflicting key if any
+    /// [VariableDefinitionTree::End] overlaps.
+    fn merge_inner(
+        a: &HashMap<String, VariableDefinitionTree>,
+        b: &HashMap<String, VariableDefinitionTree>,
+    ) -> Result<HashMap<String, VariableDefinitionTree>, String> {
+        let mut merged = a.clone();
+        for (key, value) in b {
+            if let Some(overlapping) = merged.get(key) {
+                match (overlapping, value) {
+                    (
+                        VariableDefinitionTree::Mapping(inner_a),
+                        VariableDefinitionTree::Mapping(inner_b),
+                    ) => {
+                        let merged_inner = Self::merge_inner(inner_a, inner_b)
+                            .map_err(|err| format!("{key}.{err}"))?;
+                        merged.insert(
+                            key.to_owned(),
+                            VariableDefinitionTree::Mapping(merged_inner),
+                        );
+                    }
+                    (_, _) => return Err(key.into()),
+                }
+            } else {
+                merged.insert(key.into(), value.clone());
+            }
+        }
+        Ok(merged)
     }
 }
 
@@ -304,13 +346,14 @@ fn inner_flatten(key: String, spec: VariableDefinitionTree) -> HashMap<String, V
 ///
 /// ```yaml
 /// variables:
-///   system:
-///     logging:
-///       level:
-///         description: "Logging level"
-///         type: string
-///         required: false
-///         default: info
+///   common:
+///     system:
+///       logging:
+///         level:
+///           description: "Logging level"
+///           type: string
+///           required: false
+///           default: info
 /// ```
 ///
 /// Will be converted to `system.logging.level` and can be used later in the AgentType_Meta part as `${nr-var:system.logging.level}`.
@@ -334,6 +377,7 @@ pub mod tests {
     };
 
     use super::*;
+    use assert_matches::assert_matches;
     use serde_yaml::{Error, Number};
     use std::collections::HashMap as Map;
 
@@ -377,12 +421,13 @@ name: nrdot
 namespace: newrelic
 version: 0.1.0
 variables:
-  description:
-    name:
-      description: "Name of the agent"
-      type: string
-      required: false
-      default: nrdot
+  common:
+    description:
+      name:
+        description: "Name of the agent"
+        type: string
+        required: false
+        default: nrdot
 deployment:
   on_host:
     executables:
@@ -815,31 +860,32 @@ name: newrelic-infra
 namespace: newrelic
 version: 1.39.1
 variables:
-  config:
-    description: "Newrelic infra configuration yaml"
-    type: file
-    required: true
-    file_path: "config.yml"
-  config2:
-    description: "Newrelic infra configuration yaml"
-    type: file
-    required: false
-    default: |
-      license_key: abc123
-      staging: true
-    file_path: "config2.yml"
-  config3:
-    description: "Newrelic infra configuration yaml"
-    type: map[string]string
-    required: true
-  integrations:
-    description: "Newrelic integrations configuration yamls"
-    type: map[string]file
-    required: true
-    default:
-      kafka: |
-        bootstrap: zookeeper
-    file_path: "integrations.d"
+  common:
+    config:
+      description: "Newrelic infra configuration yaml"
+      type: file
+      required: true
+      file_path: "config.yml"
+    config2:
+      description: "Newrelic infra configuration yaml"
+      type: file
+      required: false
+      default: |
+        license_key: abc123
+        staging: true
+      file_path: "config2.yml"
+    config3:
+      description: "Newrelic infra configuration yaml"
+      type: map[string]string
+      required: true
+    integrations:
+      description: "Newrelic integrations configuration yamls"
+      type: map[string]file
+      required: true
+      default:
+        kafka: |
+          bootstrap: zookeeper
+      file_path: "integrations.d"
 deployment:
   on_host:
     executables:
@@ -951,13 +997,14 @@ name: variant-values
 namespace: newrelic
 version: 0.0.1
 variables:
-  restart_policy:
-    type:
-      description: "restart policy type"
-      type: string
-      required: false
-      variants: [fixed, linear]
-      default: exponential
+  common:
+    restart_policy:
+      type:
+        description: "restart policy type"
+        type: string
+        required: false
+        variants: [fixed, linear]
+        default: exponential
 deployment:
   on_host:
       executables:
@@ -1021,5 +1068,156 @@ restart_policy:
             "exponential".to_string(),
             var.get_final_value().unwrap().to_string()
         );
+    }
+
+    #[test]
+    fn test_merge_variable_tree() {
+        let a = r#"
+config:
+  general:
+    description: "General"
+    type: string
+    required: true
+common:
+  description: "Common"
+  type: string
+  required: true
+"#;
+        let b = r#"
+config:
+  specific:
+    description: "Specific"
+    type: string
+    required: true
+env:
+  key:
+    description: "key"
+    type: string
+    required: true
+"#;
+        let expected = r#"
+config:
+  general:
+    description: "General"
+    type: string
+    required: true
+  specific:
+    description: "Specific"
+    type: string
+    required: true
+common:
+  description: "Common"
+  type: string
+  required: true
+env:
+  key:
+    description: "key"
+    type: string
+    required: true
+"#;
+        let a: VariableTree = serde_yaml::from_str(a).unwrap();
+        let b: VariableTree = serde_yaml::from_str(b).unwrap();
+        let expected: VariableTree = serde_yaml::from_str(expected).unwrap();
+
+        assert_eq!(expected, a.merge(b).unwrap());
+    }
+
+    #[test]
+    fn test_merge_variable_tree_errors() {
+        struct TestCase {
+            name: &'static str,
+            a: &'static str,
+            b: &'static str,
+            conflicting_key: &'static str,
+        }
+        impl TestCase {
+            fn run(&self) {
+                let a: VariableTree = serde_yaml::from_str(self.a).unwrap();
+                let b: VariableTree = serde_yaml::from_str(self.b).unwrap();
+                let err = a.merge(b).err().unwrap();
+                assert_matches!(err, AgentTypeError::ConflictingVariableDefinition(k) => {
+                    assert_eq!(self.conflicting_key, k, "{}", self.name);
+                })
+            }
+        }
+        let test_cases = vec![
+            TestCase {
+                name: "Conflicting leaves",
+                a: r#"
+config:
+  general:
+    description: "General"
+    type: string
+    required: true
+"#,
+                b: r#"
+config:
+  general:
+    description: "General"
+    type: string
+    required: true
+"#,
+                conflicting_key: "config.general",
+            },
+            TestCase {
+                name: "Conflicting branch with leave",
+                a: r#"
+var:
+  nested:
+    description: "Nested"
+    type: string
+    required: true
+"#,
+                b: r#"
+var:
+  description: "var"
+  type: string
+  required: true
+"#,
+                conflicting_key: "var",
+            },
+            TestCase {
+                name: "Conflicting leave with branch",
+                a: r#"
+var:
+  description: "var"
+  type: string
+  required: true
+"#,
+                b: r#"
+var:
+  nested:
+    description: "Nested"
+    type: string
+    required: true
+"#,
+                conflicting_key: "var",
+            },
+            TestCase {
+                name: "Conflicting branch and leave nested",
+                a: r#"
+var:
+  several:
+    nested:
+      levels:
+        description: "levels"
+        type: string
+        required: true
+"#,
+                b: r#"
+var:
+  several:
+    nested:
+      description: "nested"
+      type: string
+      required: true
+"#,
+                conflicting_key: "var.several.nested",
+            },
+        ];
+
+        for test_case in test_cases {
+            test_case.run();
+        }
     }
 }

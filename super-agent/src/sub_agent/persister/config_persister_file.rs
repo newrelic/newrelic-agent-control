@@ -716,11 +716,12 @@ namespace: newrelic
 name: com.newrelic.infrastructure_agent
 version: 0.0.1
 variables:
-  config_file:
-    description: "Newrelic infra configuration path"
-    type: file
-    required: true
-    file_path: newrelic-infra.yml
+  on_host:
+    config_file:
+      description: "Newrelic infra configuration path"
+      type: file
+      required: true
+      file_path: newrelic-infra.yml
 deployment:
   on_host:
     executables:
@@ -745,25 +746,27 @@ namespace: newrelic
 name: com.newrelic.infrastructure_agent
 version: 0.0.1
 variables:
-  config_file1:
-    description: "Newrelic infra configuration path"
-    type: file
-    required: true
-    file_path: newrelic-infra-1.yml
-  config_file2:
-    description: "Newrelic infra configuration path"
-    type: file
-    required: true
-    file_path: newrelic-infra-2.yml
-  config_file3:
-    description: "Newrelic infra configuration path"
-    type: file
-    required: false
-    file_path: newrelic-infra-3.yml
-    default: |
-      license_key: 33333333333333333
-      log:
-        level: trace
+  common:
+    config_file1:
+      description: "Newrelic infra configuration path"
+      type: file
+      required: true
+      file_path: newrelic-infra-1.yml
+    config_file2:
+      description: "Newrelic infra configuration path"
+      type: file
+      required: true
+      file_path: newrelic-infra-2.yml
+  on_host:
+    config_file3:
+      description: "Newrelic infra configuration path"
+      type: file
+      required: false
+      file_path: newrelic-infra-3.yml
+      default: |
+        license_key: 33333333333333333
+        log:
+          level: trace
 deployment:
   on_host:
     executables:
@@ -792,11 +795,12 @@ namespace: newrelic
 name: com.newrelic.infrastructure_agent
 version: 0.0.1
 variables:
-  integrations:
-    description: "Newrelic infra configuration path"
-    type: map[string]file
-    required: true
-    file_path: integrations.d
+  common:
+    integrations:
+      description: "Newrelic infra configuration path"
+      type: map[string]file
+      required: true
+      file_path: integrations.d
 deployment:
   on_host:
     executables:
@@ -829,20 +833,21 @@ namespace: newrelic
 name: com.newrelic.infrastructure_agent
 version: 0.0.1
 variables:
-  integrations:
-    description: "Newrelic infra configuration path"
-    type: map[string]file
-    required: true
-    file_path: integrations.d
-  logging:
-    description: "Newrelic infra configuration path"
-    type: map[string]file
-    required: true
-    file_path: logging.d
-  config3:
-    description: "some config map"
-    type: map[string]string
-    required: true
+  on_host:
+    integrations:
+      description: "Newrelic infra configuration path"
+      type: map[string]file
+      required: true
+      file_path: integrations.d
+    logging:
+      description: "Newrelic infra configuration path"
+      type: map[string]file
+      required: true
+      file_path: logging.d
+    config3:
+      description: "some config map"
+      type: map[string]string
+      required: true
 deployment:
   on_host:
     executables:
