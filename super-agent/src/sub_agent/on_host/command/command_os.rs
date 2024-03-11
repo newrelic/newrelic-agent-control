@@ -197,15 +197,13 @@ impl CommandOS<Sync> {
 
 #[cfg(test)]
 mod tests {
-    use std::io;
     #[cfg(target_family = "unix")]
     use std::os::unix::process::ExitStatusExt;
     #[cfg(target_family = "windows")]
     use std::os::windows::process::ExitStatusExt;
-    use std::sync::{Arc, Mutex};
 
     use super::{CommandError, NotStartedCommand, StartedCommand};
-    use std::{io::Write, process::ExitStatus};
+    use std::process::ExitStatus;
 
     // MockedCommandExector returns an error on start if fail is true
     // It can be used to mock process spawn
@@ -238,22 +236,6 @@ mod tests {
 
         fn stream(self) -> Result<Self::StartedCommand, CommandError> {
             Ok(self)
-        }
-    }
-
-    // Testing the file logging
-    struct FileWriterMock(Arc<Mutex<Vec<String>>>);
-
-    impl Write for FileWriterMock {
-        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-            // Trimming the string in this mock as line breaks are for files
-            let s = String::from_utf8_lossy(buf).trim().to_string();
-            self.0.lock().unwrap().push(s);
-            Ok(buf.len())
-        }
-
-        fn flush(&mut self) -> io::Result<()> {
-            Ok(())
         }
     }
 
