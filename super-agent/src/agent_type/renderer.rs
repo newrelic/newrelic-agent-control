@@ -58,7 +58,7 @@ impl<C: ConfigurationPersister> Renderer for TemplateRenderer<C> {
             let sub_agent_config_path = self.subagent_config_path(agent_id);
             filled_variables =
                 Self::extend_variables_file_path(sub_agent_config_path, filled_variables);
-            persister.delete_agent_config(agent_id, &filled_variables)?;
+            persister.delete_agent_config(agent_id)?;
             persister.persist_agent_config(agent_id, &filled_variables)?;
         }
 
