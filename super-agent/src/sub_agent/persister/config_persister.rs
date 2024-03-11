@@ -152,23 +152,14 @@ pub mod test {
                 .once()
                 .returning(move |_, _| Err(err.clone()));
         }
-        pub fn should_delete_agent_config(
-            &mut self,
-            agent_id: &AgentID,
-            variables: &HashMap<String, VariableDefinition>,
-        ) {
+        pub fn should_delete_agent_config(&mut self, agent_id: &AgentID) {
             self.expect_delete_agent_config()
                 .once()
                 .with(predicate::eq(agent_id.clone()))
                 .returning(|_| Ok(()));
         }
 
-        pub fn should_not_delete_agent_config(
-            &mut self,
-            agent_id: &AgentID,
-            variables: &HashMap<String, VariableDefinition>,
-            err: PersistError,
-        ) {
+        pub fn should_not_delete_agent_config(&mut self, agent_id: &AgentID, err: PersistError) {
             self.expect_delete_agent_config()
                 .once()
                 .with(predicate::eq(agent_id.clone()))
