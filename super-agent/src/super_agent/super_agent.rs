@@ -70,7 +70,7 @@ where
         super_agent_consumer: EventConsumer<SuperAgentEvent>,
         super_agent_opamp_consumer: EventConsumer<OpAMPEvent>,
     ) -> Result<(), AgentError> {
-        info!("Creating agent's communication channels");
+        debug!("Creating agent's communication channels");
         if let Some(opamp_handle) = &self.opamp_client {
             match self.remote_config_hash_repository.get(&self.agent_id) {
                 Err(e) => {
