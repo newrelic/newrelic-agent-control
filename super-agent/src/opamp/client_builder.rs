@@ -111,13 +111,6 @@ pub(crate) mod test {
             self.expect_set_health().times(times).returning(|_| Ok(()));
         }
 
-        pub fn should_set_specific_health(&mut self, times: usize, health: AgentHealth) {
-            self.expect_set_health()
-                .with(predicate::eq(health))
-                .times(times)
-                .returning(|_| Ok(()));
-        }
-
         #[allow(dead_code)]
         pub fn should_not_set_health(&mut self, times: usize, status_code: u16, error_msg: String) {
             self.expect_set_health().times(times).returning(move |_| {

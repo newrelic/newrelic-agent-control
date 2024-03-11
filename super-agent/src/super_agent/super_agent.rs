@@ -90,6 +90,7 @@ where
 
         info!("Starting the agents supervisor runtime");
         let (sub_agent_publisher, sub_agent_consumer) = pub_sub();
+
         let sub_agents_config = &self.sub_agents_config_store.load()?;
 
         let not_started_sub_agents =
