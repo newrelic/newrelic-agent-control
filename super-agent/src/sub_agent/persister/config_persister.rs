@@ -16,6 +16,8 @@ pub enum PersistError {
     FileError(#[from] WriteError),
 }
 
+/// ConfigurationPersister defines the functions to persist and delete the values provided in `variables` whose
+/// kind requires persistence.
 pub trait ConfigurationPersister {
     fn persist_agent_config(
         &self,
