@@ -115,10 +115,11 @@ where
 
         if let Some(handle) = self.opamp_client {
             info!("Stopping and setting to unhealthy the OpAMP Client");
-            let health = opamp_client::opamp::proto::AgentHealth {
+            let health = opamp_client::opamp::proto::ComponentHealth {
                 healthy: false,
                 last_error: "".to_string(),
                 start_time_unix_nano: 0,
+                ..Default::default()
             };
             handle.set_health(health)?;
             handle.stop()?;
