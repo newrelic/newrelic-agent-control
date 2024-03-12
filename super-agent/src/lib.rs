@@ -6,6 +6,7 @@ pub mod logging;
 pub mod opamp;
 pub mod sub_agent;
 pub mod super_agent;
+pub mod usage_data_retrieval;
 pub mod utils;
 
 #[cfg(feature = "k8s")]

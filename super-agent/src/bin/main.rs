@@ -9,6 +9,7 @@ use newrelic_super_agent::super_agent::error::AgentError;
 use newrelic_super_agent::super_agent::opamp::client_builder::SuperAgentOpAMPHttpBuilder;
 use newrelic_super_agent::super_agent::store::{SuperAgentConfigLoader, SuperAgentConfigStoreFile};
 use newrelic_super_agent::super_agent::{super_agent_fqn, SuperAgent};
+use newrelic_super_agent::usage_data_retrieval::retrieve_usage_data;
 use newrelic_super_agent::utils::binary_metadata::binary_metadata;
 use newrelic_super_agent::utils::hostname::HostnameGetter;
 use opamp_client::operation::settings::DescriptionValueType;
@@ -26,6 +27,8 @@ compile_error!("Either feature \"onhost\" or feature \"k8s\" must be enabled");
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    retrieve_usage_data(None);
+
     let cli = Cli::init_super_agent_cli();
 
     if cli.print_version() {
