@@ -11,7 +11,7 @@ use crate::super_agent::store::{
 use crate::super_agent::{SuperAgent, SuperAgentCallbacks};
 use opamp_client::StartedClient;
 
-impl<'a, S, O, HR, SL> SuperAgent<'a, S, O, HR, SL>
+impl<S, O, HR, SL> SuperAgent<S, O, HR, SL>
 where
     O: StartedClient<SuperAgentCallbacks>,
     HR: HashRepository,

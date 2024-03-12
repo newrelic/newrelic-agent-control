@@ -28,7 +28,7 @@ use tracing::{debug, info, trace, warn};
 
 pub(super) type SuperAgentCallbacks = AgentCallbacks<SuperAgentRemoteConfigPublisher>;
 
-pub struct SuperAgent<'a, S, O, HR, SL = SuperAgentConfigStoreFile>
+pub struct SuperAgent<S, O, HR, SL = SuperAgentConfigStoreFile>
 where
     O: StartedClient<SuperAgentCallbacks>,
     HR: HashRepository,
@@ -37,12 +37,12 @@ where
 {
     pub(super) opamp_client: Option<O>,
     sub_agent_builder: S,
-    remote_config_hash_repository: &'a HR,
+    remote_config_hash_repository: Arc<HR>,
     agent_id: AgentID,
     pub(super) sub_agents_config_store: Arc<SL>,
 }
 
-impl<'a, S, O, HR, SL> SuperAgent<'a, S, O, HR, SL>
+impl<S, O, HR, SL> SuperAgent<S, O, HR, SL>
 where
     O: StartedClient<SuperAgentCallbacks>,
     HR: HashRepository,
@@ -51,7 +51,7 @@ where
 {
     pub fn new(
         opamp_client: Option<O>,
-        remote_config_hash_repository: &'a HR,
+        remote_config_hash_repository: Arc<HR>,
         sub_agent_builder: S,
         sub_agents_config_store: Arc<SL>,
     ) -> Self {
@@ -102,7 +102,8 @@ where
         self.process_events(
             super_agent_consumer,
             super_agent_opamp_consumer,
-            (sub_agent_publisher, sub_agent_consumer),
+            sub_agent_publisher,
+            sub_agent_consumer,
             running_sub_agents,
         )?;
 
@@ -203,7 +204,8 @@ where
         &self,
         super_agent_consumer: EventConsumer<SuperAgentEvent>,
         super_agent_opamp_consumer: EventConsumer<OpAMPEvent>,
-        sub_agent_pub_sub: (EventPublisher<SubAgentEvent>, EventConsumer<SubAgentEvent>),
+        sub_agent_publisher: EventPublisher<SubAgentEvent>,
+        sub_agent_consumer: EventConsumer<SubAgentEvent>,
         mut sub_agents: StartedSubAgents<
             <<S as SubAgentBuilder>::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
@@ -221,7 +223,7 @@ where
                             self.invalid_remote_config(remote_config_error)?
                         }
                         OpAMPEvent::ValidRemoteConfigReceived(remote_config) => {
-                            self.valid_remote_config(remote_config, sub_agent_pub_sub.0.clone(), &mut sub_agents )?
+                            self.valid_remote_config(remote_config, sub_agent_publisher.clone(), &mut sub_agents )?
                         }
                     }
 
@@ -229,7 +231,7 @@ where
                 recv(super_agent_consumer.as_ref()) -> _super_agent_event => {
                         break sub_agents.stop()?;
                 },
-                recv(sub_agent_pub_sub.1.as_ref()) -> sub_agent_event_res => {
+                recv(sub_agent_consumer.as_ref()) -> sub_agent_event_res => {
                     debug!("Received SubAgent event");
                     trace!("SubAgent event receive attempt: {:?}", sub_agent_event_res);
                     match sub_agent_event_res {
@@ -241,7 +243,7 @@ where
                             trace!("SubAgent event: {:?}", sub_agent_event);
                             match sub_agent_event{
                                 SubAgentEvent::ConfigUpdated(agent_id) => {
-                                    self.sub_agent_config_updated(agent_id,sub_agent_pub_sub.0.clone(),&mut sub_agents)?
+                                    self.sub_agent_config_updated(agent_id,sub_agent_publisher.clone(),&mut sub_agents)?
                                 }
                             }
                         }
@@ -369,7 +371,7 @@ mod tests {
     ////////////////////////////////////////////////////////////////////////////////////
     // Custom Agent constructor for tests
     ////////////////////////////////////////////////////////////////////////////////////
-    impl<'a, S, O, HR, SL> SuperAgent<'a, S, O, HR, SL>
+    impl<S, O, HR, SL> SuperAgent<S, O, HR, SL>
     where
         O: StartedClient<SuperAgentCallbacks>,
         HR: HashRepository,
@@ -378,7 +380,7 @@ mod tests {
     {
         pub fn new_custom(
             opamp_client: Option<O>,
-            remote_config_hash_repository: &'a HR,
+            remote_config_hash_repository: Arc<HR>,
             sub_agent_builder: S,
             sub_agents_config_store: SL,
         ) -> Self {
@@ -413,7 +415,7 @@ mod tests {
         // no agents in the supervisor group
         let agent = SuperAgent::new_custom(
             Some(started_client),
-            &hash_repository_mock,
+            Arc::new(hash_repository_mock),
             MockSubAgentBuilderMock::new(),
             sub_agents_config_store,
         );
@@ -455,7 +457,7 @@ mod tests {
 
         let agent = SuperAgent::new_custom(
             Some(started_client),
-            &hash_repository_mock,
+            Arc::new(hash_repository_mock),
             sub_agent_builder,
             sub_agents_config_store,
         );
@@ -534,7 +536,7 @@ mod tests {
                 // two agents in the supervisor group
                 let agent = SuperAgent::new_custom(
                     Some(started_client),
-                    &hash_repository_mock,
+                    Arc::new(hash_repository_mock),
                     sub_agent_builder,
                     sub_agents_config_store,
                 );
@@ -619,7 +621,7 @@ agents:
         // Create the Super Agent and rub Sub Agents
         let super_agent = SuperAgent::new_custom(
             None::<MockStartedOpAMPClientMock<SuperAgentCallbacks>>,
-            &hash_repository_mock,
+            Arc::new(hash_repository_mock),
             sub_agent_builder,
             sub_agents_config_store,
         );
@@ -687,7 +689,7 @@ agents:
 
     #[test]
     fn test_sub_agent_config_updated_should_recreate_sub_agent() {
-        let hash_repository_mock = MockHashRepositoryMock::new();
+        let hash_repository_mock = Arc::new(MockHashRepositoryMock::new());
         let mut sub_agent_builder = MockSubAgentBuilderMock::new();
         let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
 
@@ -757,7 +759,7 @@ agents:
         // Create the Super Agent and run Sub Agents
         let super_agent = SuperAgent::new_custom(
             Some(MockStartedOpAMPClientMock::new()),
-            &hash_repository_mock,
+            hash_repository_mock,
             sub_agent_builder,
             sub_agents_config_store,
         );
@@ -782,7 +784,8 @@ agents:
             .process_events(
                 super_agent_consumer,
                 super_agent_opamp_consumer,
-                (sub_agent_publisher, sub_agent_consumer),
+                sub_agent_publisher,
+                sub_agent_consumer,
                 sub_agents,
             )
             .unwrap();
