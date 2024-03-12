@@ -25,11 +25,7 @@ pub trait ConfigurationPersister {
         variables: &HashMap<String, VariableDefinition>,
     ) -> Result<(), PersistError>;
 
-    fn delete_agent_config(
-        &self,
-        agent_id: &AgentID,
-        variables: &HashMap<String, VariableDefinition>,
-    ) -> Result<(), PersistError>;
+    fn delete_agent_config(&self, agent_id: &AgentID) -> Result<(), PersistError>;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -108,7 +104,7 @@ pub mod test {
 
         impl ConfigurationPersister for ConfigurationPersisterMock {
              fn persist_agent_config(&self, agent_id: &AgentID, variables: &HashMap<String, VariableDefinition>) -> Result<(), PersistError>;
-             fn delete_agent_config(&self, agent_id: &AgentID, variables: &HashMap<String, VariableDefinition>) -> Result<(), PersistError>;
+             fn delete_agent_config(&self, agent_id: &AgentID) -> Result<(), PersistError>;
         }
     }
 
@@ -156,40 +152,25 @@ pub mod test {
                 .once()
                 .returning(move |_, _| Err(err.clone()));
         }
-        pub fn should_delete_agent_config(
-            &mut self,
-            agent_id: &AgentID,
-            variables: &HashMap<String, VariableDefinition>,
-        ) {
+        pub fn should_delete_agent_config(&mut self, agent_id: &AgentID) {
             self.expect_delete_agent_config()
                 .once()
-                .with(
-                    predicate::eq(agent_id.clone()),
-                    predicate::eq(variables.clone()),
-                )
-                .returning(|_, _| Ok(()));
+                .with(predicate::eq(agent_id.clone()))
+                .returning(|_| Ok(()));
         }
 
-        pub fn should_not_delete_agent_config(
-            &mut self,
-            agent_id: &AgentID,
-            variables: &HashMap<String, VariableDefinition>,
-            err: PersistError,
-        ) {
+        pub fn should_not_delete_agent_config(&mut self, agent_id: &AgentID, err: PersistError) {
             self.expect_delete_agent_config()
                 .once()
-                .with(
-                    predicate::eq(agent_id.clone()),
-                    predicate::eq(variables.clone()),
-                )
-                .returning(move |_, _| Err(err.clone()));
+                .with(predicate::eq(agent_id.clone()))
+                .returning(move |_| Err(err.clone()));
         }
 
         #[allow(dead_code)]
         pub fn should_delete_any_agent_config(&mut self, times: usize) {
             self.expect_delete_agent_config()
                 .times(times)
-                .returning(|_, _| Ok(()));
+                .returning(|_| Ok(()));
         }
 
         // cannot assert on what is cleaned because of hashmap order
@@ -197,7 +178,7 @@ pub mod test {
         pub fn should_not_delete_any_agent_config(&mut self, err: PersistError) {
             self.expect_delete_agent_config()
                 .once()
-                .returning(move |_, _| Err(err.clone()));
+                .returning(move |_| Err(err.clone()));
         }
     }
 }

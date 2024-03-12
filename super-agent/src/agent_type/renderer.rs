@@ -58,7 +58,7 @@ impl<C: ConfigurationPersister> Renderer for TemplateRenderer<C> {
             let sub_agent_config_path = self.subagent_config_path(agent_id);
             filled_variables =
                 Self::extend_variables_file_path(sub_agent_config_path, filled_variables);
-            persister.delete_agent_config(agent_id, &filled_variables)?;
+            persister.delete_agent_config(agent_id)?;
             persister.persist_agent_config(agent_id, &filled_variables)?;
         }
 
@@ -294,7 +294,7 @@ pub(crate) mod tests {
             );
 
         let mut persister = MockConfigurationPersisterMock::new();
-        persister.should_delete_agent_config(&agent_id, &expanded_path_filled_variables);
+        persister.should_delete_agent_config(&agent_id);
         persister.should_persist_agent_config(&agent_id, &expanded_path_filled_variables);
 
         let renderer = TemplateRenderer::default().with_config_persister(persister);
@@ -323,18 +323,12 @@ pub(crate) mod tests {
         let agent_type = AgentType::build_for_testing(SIMPLE_AGENT_TYPE, &Environment::OnHost);
         let values = testing_values(SIMPLE_AGENT_VALUES);
         let attributes = testing_agent_attributes(&agent_id);
-        let filled_variables = agent_type
-            .variables
-            .clone()
-            .fill_with_values(values.clone())
-            .unwrap()
-            .flatten();
 
         let mut persister = MockConfigurationPersisterMock::new();
         let err = PersistError::DirectoryError(DirectoryManagementError::ErrorDeletingDirectory(
             "oh no...".to_string(),
         ));
-        persister.should_not_delete_agent_config(&agent_id, &filled_variables, err);
+        persister.should_not_delete_agent_config(&agent_id, err);
 
         let renderer = TemplateRenderer::default().with_config_persister(persister);
         let expected_error = renderer
@@ -364,7 +358,7 @@ pub(crate) mod tests {
         let err = PersistError::DirectoryError(DirectoryManagementError::ErrorDeletingDirectory(
             "oh no...".to_string(),
         ));
-        persister.should_delete_agent_config(&agent_id, &filled_variables);
+        persister.should_delete_agent_config(&agent_id);
         persister.should_not_persist_agent_config(&agent_id, &filled_variables, err);
 
         let renderer = TemplateRenderer::default().with_config_persister(persister);
