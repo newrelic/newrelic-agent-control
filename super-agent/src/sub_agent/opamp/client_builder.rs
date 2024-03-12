@@ -10,7 +10,7 @@ use crate::super_agent::config::{AgentID, OpAMPClientConfig};
 use crate::super_agent::opamp::client_builder::SuperAgentOpAMPHttpBuilder;
 use opamp_client::http::{HttpClientUreq, NotStartedHttpClient, StartedHttpClient};
 use opamp_client::operation::settings::StartSettings;
-use opamp_client::{Client, NotStartedClient};
+use opamp_client::NotStartedClient;
 
 /// OpAMPBuilderCfg
 pub struct SubAgentOpAMPHttpBuilder {

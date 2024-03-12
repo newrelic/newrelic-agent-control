@@ -19,14 +19,13 @@ use crate::sub_agent::SubAgentBuilder;
 use crate::sub_agent::NotStartedSubAgent;
 use crate::super_agent::defaults::{SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION};
 use crate::super_agent::error::AgentError;
+use crate::utils::time::get_sys_time_nano;
 use crossbeam::select;
 use opamp_client::StartedClient;
 use std::collections::HashMap;
 use std::string::ToString;
 use std::sync::Arc;
 use tracing::{debug, info, trace, warn};
-use crate::utils::time::get_sys_time_nano;
-
 
 pub(super) type SuperAgentCallbacks = AgentCallbacks<SuperAgentRemoteConfigPublisher>;
 
