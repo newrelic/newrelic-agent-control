@@ -141,7 +141,7 @@ deployment:
 "#;
 
 // Infrastructure_agent AgentType
-pub(crate) const NEWRELIC_INFRA_TYPE_4: &str = r#"
+pub(crate) const NEWRELIC_INFRA_TYPE_0_1_1: &str = r#"
 namespace: newrelic
 name: com.newrelic.infrastructure_agent
 version: 0.1.1
