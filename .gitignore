@@ -48,3 +48,7 @@ local/
 /build/examples/**
 # ...except for the gitkeep file
 !/build/examples/.gitkeep
+
+# Nix-related
+.direnv
+.pre-commit-config.yaml
