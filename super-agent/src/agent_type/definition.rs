@@ -276,23 +276,22 @@ impl VariableTree {
     ) -> Result<HashMap<String, VariableDefinitionTree>, String> {
         let mut merged = a.clone();
         for (key, value) in b {
-            if let Some(overlapping) = merged.get(key) {
-                match (overlapping, value) {
-                    (
-                        VariableDefinitionTree::Mapping(inner_a),
-                        VariableDefinitionTree::Mapping(inner_b),
-                    ) => {
-                        let merged_inner = Self::merge_inner(inner_a, inner_b)
-                            .map_err(|err| format!("{key}.{err}"))?;
-                        merged.insert(
-                            key.to_owned(),
-                            VariableDefinitionTree::Mapping(merged_inner),
-                        );
-                    }
-                    (_, _) => return Err(key.into()),
+            match (merged.get(key), value) {
+                // Include the value when its key doesn't overlap.
+                (None, _) => {
+                    merged.insert(key.into(), value.clone());
                 }
-            } else {
-                merged.insert(key.into(), value.clone());
+                // Merge overlapping mappings.
+                (
+                    Some(VariableDefinitionTree::Mapping(inner_a)),
+                    VariableDefinitionTree::Mapping(inner_b),
+                ) => {
+                    let merged_inner = Self::merge_inner(inner_a, inner_b)
+                        .map_err(|err| format!("{key}.{err}"))?;
+                    merged.insert(key.clone(), VariableDefinitionTree::Mapping(merged_inner));
+                }
+                // Any other option implies a overlapping end (conflicting key).
+                (Some(_), _) => return Err(key.into()),
             }
         }
         Ok(merged)
