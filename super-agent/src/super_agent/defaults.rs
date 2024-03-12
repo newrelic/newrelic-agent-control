@@ -40,11 +40,11 @@ variables:
     description: "Newrelic infra configuration path"
     type: string
     required: false
-    default: /etc/newrelic-infra.yml
+    default: /opt/homebrew/etc/newrelic-infra/newrelic-infra.yml
 deployment:
   on_host:
     executables:
-      - path: /usr/bin/newrelic-infra
+      - path: /opt/homebrew/bin/newrelic-infra
         args: "--config=${nr-var:config_file}"
         restart_policy:
           backoff_strategy:
