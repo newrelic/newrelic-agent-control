@@ -1,10 +1,15 @@
+use opentelemetry::KeyValue;
+use opentelemetry_sdk::metrics::reader::{DefaultAggregationSelector, DefaultTemporalitySelector};
+use opentelemetry_sdk::Resource;
 use serde::Deserialize;
 use std::fmt::Debug;
 use std::str::FromStr;
+use std::time::Duration;
 use thiserror::Error;
 use tracing::debug;
 use tracing::Level;
 use tracing_appender::non_blocking::WorkerGuard;
+use tracing_opentelemetry::MetricsLayer;
 use tracing_subscriber::fmt::format::PrettyFields;
 use tracing_subscriber::fmt::time::ChronoLocal;
 use tracing_subscriber::layer::SubscriberExt;
@@ -23,6 +28,8 @@ pub enum LoggingError {
     InvalidFilePath(String),
     #[error("could not build tracer: `{0}`")]
     OtlpTrace(#[from] opentelemetry::trace::TraceError),
+    #[error("could not build meter: `{0}`")]
+    OtlpMetric(#[from] opentelemetry::metrics::MetricsError),
 }
 
 /// Defines the logging configuration for an application.
@@ -80,12 +87,30 @@ impl LoggingConfig {
                     .from_env_lossy(),
             );
 
-        // let otel_exporter = opentelemetry_otlp::new_exporter().http();
+        // Traces
         let otel_tracer = opentelemetry_otlp::new_pipeline()
             .tracing()
             .with_exporter(opentelemetry_otlp::new_exporter().http())
             .install_batch(opentelemetry_sdk::runtime::Tokio)?;
-        let otel_layer = tracing_opentelemetry::layer().with_tracer(otel_tracer);
+        let otel_traces_layer = tracing_opentelemetry::layer().with_tracer(otel_tracer);
+
+        // Metrics
+        let meter = opentelemetry_otlp::new_pipeline()
+            .metrics(opentelemetry_sdk::runtime::Tokio)
+            .with_exporter(
+                opentelemetry_otlp::new_exporter().http(), // can also config it using with_* functions like the tracing part above.
+            )
+            .with_resource(Resource::new(vec![KeyValue::new(
+                "service.name",
+                "newrelic-super-agent",
+            )]))
+            .with_period(Duration::from_secs(3))
+            .with_timeout(Duration::from_secs(10))
+            .with_aggregation_selector(DefaultAggregationSelector::new())
+            .with_temporality_selector(DefaultTemporalitySelector::new())
+            .build()?;
+
+        let otel_metrics_layer = MetricsLayer::new(meter);
 
         // a `Layer` wrapped in an `Option` such as the above defined `file_layer` also implements
         // the `Layer` trait. This allows individual layers to be enabled or disabled at runtime
@@ -93,7 +118,8 @@ impl LoggingConfig {
         tracing_subscriber::Registry::default()
             .with(console_layer)
             .with(file_layer)
-            .with(otel_layer)
+            .with(otel_traces_layer)
+            .with(otel_metrics_layer)
             .try_init()
             .map_err(|_| {
                 LoggingError::TryInitError(
