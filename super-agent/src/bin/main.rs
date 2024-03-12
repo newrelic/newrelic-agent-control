@@ -314,6 +314,8 @@ fn custom_local_path() -> (
     LocalSubAgentsAssembler,
     Arc<ValuesRepositoryFile<fs::LocalFile, fs::directory_manager::DirectoryManagerFs>>,
 ) {
+    use newrelic_super_agent::agent_type::renderer::TemplateRenderer;
+
     let mut agents_assembler = LocalEffectiveAgentsAssembler::default().with_remote();
     let mut values_repository = Arc::new(ValuesRepositoryFile::default().with_remote());
 
@@ -324,7 +326,7 @@ fn custom_local_path() -> (
         }
 
         agents_assembler = agents_assembler
-            .with_base_dir(base_dir)
+            .with_renderer(TemplateRenderer::default().with_base_dir(base_dir))
             .with_values_repository(
                 ValuesRepositoryFile::default()
                     .with_remote()
@@ -336,7 +338,7 @@ fn custom_local_path() -> (
                 .with_base_dir(base_dir),
         );
     }
-    return (agents_assembler, values_repository);
+    (agents_assembler, values_repository)
 }
 
 fn super_agent_opamp_non_identifying_attributes() -> HashMap<String, DescriptionValueType> {

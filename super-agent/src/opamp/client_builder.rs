@@ -62,7 +62,7 @@ pub(crate) mod test {
     use opamp_client::operation::settings::StartSettings;
     use opamp_client::ClientError;
     use opamp_client::{
-        opamp::proto::{AgentDescription, AgentHealth, RemoteConfigStatus},
+        opamp::proto::{AgentDescription, ComponentHealth, RemoteConfigStatus},
         Client, ClientResult, NotStartedClient, NotStartedClientResult, StartedClient,
         StartedClientResult,
     };
@@ -95,7 +95,7 @@ pub(crate) mod test {
                 description: AgentDescription,
             ) -> ClientResult<()>;
 
-             fn set_health(&self, health: AgentHealth) -> ClientResult<()>;
+             fn set_health(&self, health: ComponentHealth) -> ClientResult<()>;
 
              fn update_effective_config(&self) -> ClientResult<()>;
 

@@ -1,3 +1,4 @@
+pub mod agent_attributes;
 pub mod agent_metadata;
 pub mod agent_type_registry;
 pub mod agent_values;
