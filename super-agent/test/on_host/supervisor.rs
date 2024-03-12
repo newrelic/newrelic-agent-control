@@ -3,7 +3,6 @@ use std::{thread, time::Duration};
 use newrelic_super_agent::context::Context;
 use newrelic_super_agent::logging::config::LoggingConfig;
 
-use newrelic_super_agent::sub_agent::logger::{EventLogger, StdEventReceiver};
 use newrelic_super_agent::sub_agent::on_host::supervisor::command_supervisor::{
     NotStarted, SupervisorOnHost,
 };
@@ -29,11 +28,6 @@ fn test_supervisors() {
 
     init_logger();
 
-    // Create streaming channel
-    let (tx, rx) = std::sync::mpsc::channel();
-
-    let logger = StdEventReceiver::default();
-
     let agent_id = "sleep-test".to_string().try_into().unwrap();
 
     let exec = ExecutableData::new("sh".to_string())
@@ -43,7 +37,6 @@ fn test_supervisors() {
         agent_id,
         exec,
         Context::new(),
-        tx,
         RestartPolicy::default(),
         false,
     );
@@ -63,9 +56,6 @@ fn test_supervisors() {
         .map(|agent| agent.run().unwrap())
         .collect::<Vec<_>>();
 
-    // Get any outputs in the background
-    let handle_logger = logger.log(rx);
-
     // Sleep for a while
     thread::sleep(Duration::from_secs(1));
 
@@ -79,6 +69,4 @@ fn test_supervisors() {
     );
 
     drop(conf);
-    // ensure logger was terminated
-    handle_logger.join().unwrap();
 }

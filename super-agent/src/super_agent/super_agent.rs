@@ -14,16 +14,15 @@ use crate::opamp::remote_config_hash::Hash;
 use crate::opamp::remote_config_report::report_remote_config_status_applied;
 use crate::sub_agent::collection::{NotStartedSubAgents, StartedSubAgents};
 use crate::sub_agent::error::SubAgentBuilderError;
-use crate::sub_agent::logger::{AgentLog, EventLogger, StdEventReceiver};
-use crate::sub_agent::NotStartedSubAgent;
 use crate::sub_agent::SubAgentBuilder;
+
+use crate::sub_agent::NotStartedSubAgent;
 use crate::super_agent::defaults::{SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION};
 use crate::super_agent::error::AgentError;
 use crossbeam::select;
 use opamp_client::StartedClient;
 use std::collections::HashMap;
 use std::string::ToString;
-use std::sync::mpsc::{self, Sender};
 use std::sync::Arc;
 use tracing::{debug, info, trace, warn};
 
@@ -72,11 +71,6 @@ where
         super_agent_opamp_consumer: EventConsumer<OpAMPEvent>,
     ) -> Result<(), AgentError> {
         debug!("Creating agent's communication channels");
-        // Channel will be closed when tx is dropped and no reference to it is alive
-        let (tx, rx) = mpsc::channel();
-
-        let output_manager = StdEventReceiver::default().log(rx);
-
         if let Some(opamp_handle) = &self.opamp_client {
             match self.remote_config_hash_repository.get(&self.agent_id) {
                 Err(e) => {
@@ -100,7 +94,7 @@ where
         let sub_agents_config = &self.sub_agents_config_store.load()?;
 
         let not_started_sub_agents =
-            self.load_sub_agents(sub_agents_config, &tx, sub_agent_publisher.clone())?;
+            self.load_sub_agents(sub_agents_config, sub_agent_publisher.clone())?;
 
         info!("Agents supervisor runtime successfully started");
         // Run all the Sub Agents
@@ -110,7 +104,6 @@ where
             super_agent_opamp_consumer,
             (sub_agent_publisher, sub_agent_consumer),
             running_sub_agents,
-            tx,
         )?;
 
         if let Some(handle) = self.opamp_client {
@@ -124,10 +117,7 @@ where
             handle.stop()?;
         }
 
-        debug!("Waiting for the output manager to finish");
-        output_manager.join().unwrap();
-
-        info!("SuperAgent stopped");
+        info!("SuperAgent finished");
         Ok(())
     }
 
@@ -144,7 +134,6 @@ where
     fn load_sub_agents(
         &self,
         sub_agents_config: &SubAgentsConfig,
-        tx: &Sender<AgentLog>,
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
     ) -> Result<NotStartedSubAgents<S::NotStartedSubAgent>, AgentError> {
         Ok(NotStartedSubAgents::from(
@@ -157,7 +146,6 @@ where
                     let not_started_agent = self.sub_agent_builder.build(
                         agent_id.clone(),
                         sub_agent_config,
-                        tx.clone(),
                         sub_agent_publisher.clone(),
                     )?;
                     Ok((agent_id.clone(), not_started_agent))
@@ -175,7 +163,6 @@ where
         &self,
         agent_id: AgentID,
         sub_agent_config: &SubAgentConfig,
-        tx: Sender<AgentLog>,
         running_sub_agents: &mut StartedSubAgents<
             <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
@@ -186,7 +173,6 @@ where
         self.create_sub_agent(
             agent_id,
             sub_agent_config,
-            tx,
             running_sub_agents,
             sub_agent_publisher,
         )
@@ -197,7 +183,6 @@ where
         &self,
         agent_id: AgentID,
         sub_agent_config: &SubAgentConfig,
-        tx: Sender<AgentLog>,
         running_sub_agents: &mut StartedSubAgents<
             <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
@@ -206,7 +191,7 @@ where
         running_sub_agents.insert(
             agent_id.clone(),
             self.sub_agent_builder
-                .build(agent_id, sub_agent_config, tx, sub_agent_publisher)?
+                .build(agent_id, sub_agent_config, sub_agent_publisher)?
                 .run()?,
         );
 
@@ -221,7 +206,6 @@ where
         mut sub_agents: StartedSubAgents<
             <<S as SubAgentBuilder>::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
-        tx: Sender<AgentLog>,
     ) -> Result<(), AgentError> {
         debug!("Listening for events from agents");
         loop {
@@ -236,18 +220,13 @@ where
                             self.invalid_remote_config(remote_config_error)?
                         }
                         OpAMPEvent::ValidRemoteConfigReceived(remote_config) => {
-                            debug!("Valid remote config received");
-                            trace!("Remote config: {remote_config:?}");
-                            self.valid_remote_config(remote_config, sub_agent_pub_sub.0.clone(), &mut sub_agents, tx.clone())?
+                            self.valid_remote_config(remote_config, sub_agent_pub_sub.0.clone(), &mut sub_agents )?
                         }
                     }
 
                 },
                 recv(super_agent_consumer.as_ref()) -> _super_agent_event => {
-                    debug!("Received SuperAgent event");
-                    trace!("SuperAgent event receive attempt: {:?}", _super_agent_event);
-                    drop(tx); //drop the main channel sender to stop listener
-                    break sub_agents.stop()?;
+                        break sub_agents.stop()?;
                 },
                 recv(sub_agent_pub_sub.1.as_ref()) -> sub_agent_event_res => {
                     debug!("Received SubAgent event");
@@ -261,7 +240,7 @@ where
                             trace!("SubAgent event: {:?}", sub_agent_event);
                             match sub_agent_event{
                                 SubAgentEvent::ConfigUpdated(agent_id) => {
-                                    self.sub_agent_config_updated(agent_id,tx.clone(),sub_agent_pub_sub.0.clone(),&mut sub_agents)?
+                                    self.sub_agent_config_updated(agent_id,sub_agent_pub_sub.0.clone(),&mut sub_agents)?
                                 }
                             }
                         }
@@ -276,7 +255,6 @@ where
     pub(super) fn apply_remote_super_agent_config(
         &self,
         remote_config: RemoteConfig,
-        tx: Sender<AgentLog>,
         running_sub_agents: &mut StartedSubAgents<
             <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
@@ -304,7 +282,6 @@ where
                         return self.recreate_sub_agent(
                             agent_id.clone(),
                             agent_config,
-                            tx.clone(),
                             running_sub_agents,
                             sub_agent_publisher.clone(),
                         );
@@ -317,7 +294,6 @@ where
                 self.create_sub_agent(
                     agent_id.clone(),
                     agent_config,
-                    tx.clone(),
                     running_sub_agents,
                     sub_agent_publisher.clone(),
                 )
@@ -383,7 +359,6 @@ mod tests {
     use crate::sub_agent::test::{MockNotStartedSubAgent, MockStartedSubAgent};
     use opamp_client::StartedClient;
     use std::collections::HashMap;
-    use std::sync::mpsc;
     use std::sync::Arc;
     use std::thread::{sleep, spawn};
     use std::time::Duration;
@@ -648,12 +623,9 @@ agents:
             sub_agents_config_store,
         );
 
-        let (tx, _) = mpsc::channel();
-
         let (opamp_publisher, _opamp_consumer) = pub_sub();
 
-        let sub_agents =
-            super_agent.load_sub_agents(&sub_agents_config, &tx, opamp_publisher.clone());
+        let sub_agents = super_agent.load_sub_agents(&sub_agents_config, opamp_publisher.clone());
 
         let mut running_sub_agents = sub_agents.unwrap().run().unwrap();
 
@@ -677,7 +649,6 @@ agents:
         super_agent
             .apply_remote_super_agent_config(
                 remote_config,
-                tx.clone(),
                 &mut running_sub_agents,
                 opamp_publisher.clone(),
             )
@@ -703,7 +674,6 @@ agents:
         super_agent
             .apply_remote_super_agent_config(
                 remote_config,
-                tx,
                 &mut running_sub_agents,
                 opamp_publisher.clone(),
             )
@@ -716,7 +686,6 @@ agents:
 
     #[test]
     fn test_sub_agent_config_updated_should_recreate_sub_agent() {
-        let (tx, _) = std::sync::mpsc::channel();
         let hash_repository_mock = MockHashRepositoryMock::new();
         let mut sub_agent_builder = MockSubAgentBuilderMock::new();
         let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
@@ -814,7 +783,6 @@ agents:
                 super_agent_opamp_consumer,
                 (sub_agent_publisher, sub_agent_consumer),
                 sub_agents,
-                tx,
             )
             .unwrap();
     }

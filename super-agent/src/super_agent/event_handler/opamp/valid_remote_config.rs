@@ -1,5 +1,3 @@
-use std::sync::mpsc::Sender;
-
 use opamp_client::StartedClient;
 use tracing::{error, info};
 
@@ -17,9 +15,7 @@ use crate::{
             report_remote_config_status_error,
         },
     },
-    sub_agent::{
-        collection::StartedSubAgents, logger::AgentLog, NotStartedSubAgent, SubAgentBuilder,
-    },
+    sub_agent::{collection::StartedSubAgents, NotStartedSubAgent, SubAgentBuilder},
     super_agent::{
         error::AgentError,
         super_agent::{SuperAgent, SuperAgentCallbacks},
@@ -40,13 +36,11 @@ where
         sub_agents: &mut StartedSubAgents<
             <<S as SubAgentBuilder>::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
-        tx: Sender<AgentLog>,
     ) -> Result<(), AgentError> {
         if let Some(opamp_client) = &self.opamp_client {
             self.process_super_agent_remote_config(
                 opamp_client,
                 &mut remote_config,
-                tx.clone(),
                 sub_agents,
                 sub_agent_publisher.clone(),
             )
@@ -64,7 +58,6 @@ where
         &self,
         opamp_client: &O,
         remote_config: &mut RemoteConfig,
-        tx: Sender<AgentLog>,
         running_sub_agents: &mut StartedSubAgents<
             <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
@@ -75,7 +68,6 @@ where
 
         match self.apply_remote_super_agent_config(
             remote_config.clone(),
-            tx,
             running_sub_agents,
             sub_agent_publisher,
         ) {
@@ -132,7 +124,6 @@ mod tests {
     // not apply it nor crash execution.
     #[test]
     fn super_agent_invalid_remote_config_should_be_reported_as_failed() {
-        let (tx, _) = std::sync::mpsc::channel();
         // Mocked services
         let sub_agent_builder = MockSubAgentBuilderMock::new();
         let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
@@ -186,7 +177,6 @@ mod tests {
             .process_super_agent_remote_config(
                 &started_client,
                 &mut remote_config,
-                tx,
                 &mut running_sub_agents,
                 opamp_publisher,
             )
@@ -195,7 +185,6 @@ mod tests {
 
     #[test]
     fn super_agent_valid_remote_config_should_be_reported_as_applied() {
-        let (tx, _) = std::sync::mpsc::channel();
         // Mocked services
         let sub_agent_builder = MockSubAgentBuilderMock::new();
         let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
@@ -269,7 +258,6 @@ mod tests {
             .process_super_agent_remote_config(
                 &started_client,
                 &mut remote_config,
-                tx,
                 &mut running_sub_agents,
                 opamp_publisher,
             )

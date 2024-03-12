@@ -1,15 +1,11 @@
 use std::{
     ffi::OsStr,
     process::{Child, Command, ExitStatus, Stdio},
-    sync::mpsc::Sender,
 };
 
-use crate::{
-    sub_agent::logger::{AgentLog, Metadata},
-    super_agent::{
-        config::AgentID,
-        defaults::{STDERR_LOG_PREFIX, STDOUT_LOG_PREFIX},
-    },
+use crate::super_agent::{
+    config::AgentID,
+    defaults::{STDERR_LOG_PREFIX, STDOUT_LOG_PREFIX},
 };
 
 use super::{
@@ -17,6 +13,7 @@ use super::{
     logging::{
         self,
         file_logger::{FileAppender, FileLogger, FileSystemLoggers},
+        logger::Logger,
     },
 };
 
@@ -40,7 +37,7 @@ pub struct Sync {
 // Command OS
 ////////////////////////////////////////////////////////////////////////////////////
 pub struct CommandOS<S> {
-    metadata: Metadata,
+    agent_id: AgentID,
     state: S,
 }
 
@@ -68,38 +65,28 @@ impl CommandOS<NotStarted> {
             .stderr(Stdio::piped());
 
         Self {
+            agent_id,
             state: NotStarted { cmd, logs_to_file },
-            metadata: Metadata::new(agent_id),
         }
-    }
-
-    // TODO: move to builder?
-    pub fn with_metadata(self, metadata: Metadata) -> Self {
-        Self { metadata, ..self }
-    }
-
-    // TODO: I assume this is the agent id?
-    pub fn id(&self) -> String {
-        self.metadata.get_agent_id().to_string()
     }
 }
 
 impl NotStartedCommand for CommandOS<NotStarted> {
     type StartedCommand = CommandOS<Started>;
     fn start(mut self) -> Result<CommandOS<Started>, CommandError> {
+        let agent_id = self.agent_id;
         let loggers = self.state.logs_to_file.then(|| {
-            let agent_id = self.metadata.get_agent_id();
             FileSystemLoggers::new(
-                file_logger(agent_id, STDOUT_LOG_PREFIX),
-                file_logger(agent_id, STDERR_LOG_PREFIX),
+                file_logger(&agent_id, STDOUT_LOG_PREFIX),
+                file_logger(&agent_id, STDERR_LOG_PREFIX),
             )
         });
         Ok(CommandOS {
+            agent_id,
             state: Started {
                 process: self.state.cmd.spawn()?,
                 loggers,
             },
-            metadata: self.metadata,
         })
     }
 }
@@ -119,7 +106,7 @@ impl StartedCommand for CommandOS<Started> {
         self.state.process.id()
     }
 
-    fn stream(mut self, snd: Sender<AgentLog>) -> Result<Self, CommandError> {
+    fn stream(mut self) -> Result<Self, CommandError> {
         let stdout = self
             .state
             .process
@@ -134,18 +121,20 @@ impl StartedCommand for CommandOS<Started> {
             .take()
             .ok_or(CommandError::StreamPipeError("stderr".to_string()))?;
 
-        let fields: Metadata = self.metadata.clone();
+        let mut stdout_loggers = vec![Logger::Stdout];
+        let mut stderr_loggers = vec![Logger::Stderr];
 
-        let (out, err) = self.state.loggers.take().map_or(Default::default(), |l| {
+        if let Some(l) = self.state.loggers.take() {
             let (out, err) = l.into_loggers();
-            (Some(out), Some(err))
-        });
+            stdout_loggers.push(out.into());
+            stderr_loggers.push(err.into());
+        };
 
         // Read stdout and send to the channel
-        logging::thread::spawn_logger(fields.clone(), snd.clone(), stdout.into(), out);
+        logging::thread::spawn_logger(stdout, stdout_loggers);
 
         // Read stderr and send to the channel
-        logging::thread::spawn_logger(fields.clone(), snd.clone(), stderr.into(), err);
+        logging::thread::spawn_logger(stderr, stderr_loggers);
 
         Ok(self)
     }
@@ -167,11 +156,11 @@ impl CommandOS<NotStarted> {
             .logs_to_file
             .then(|| FileSystemLoggers::new(out, err));
         Ok(CommandOS {
+            agent_id: self.agent_id,
             state: Started {
                 process: self.state.cmd.spawn()?,
                 loggers,
             },
-            metadata: self.metadata,
         })
     }
 }
@@ -200,216 +189,8 @@ impl CommandOS<Sync> {
             .stderr(Stdio::piped());
 
         Self {
+            agent_id,
             state: Sync { cmd },
-            metadata: Metadata::new(agent_id),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::io;
-    #[cfg(target_family = "unix")]
-    use std::os::unix::process::ExitStatusExt;
-    #[cfg(target_family = "windows")]
-    use std::os::windows::process::ExitStatusExt;
-    use std::sync::{Arc, Mutex};
-
-    use tracing::info;
-
-    use crate::sub_agent::on_host::command::logging::file_logger::{
-        FileAppender, FileSystemLoggers,
-    };
-    use crate::sub_agent::{logger::LogOutput, on_host::command::logging::file_logger::FileLogger};
-
-    use super::{CommandError, NotStartedCommand, StartedCommand};
-    use std::sync::mpsc::Sender;
-    use std::{io::Write, process::ExitStatus};
-
-    use super::{AgentLog, Metadata};
-
-    // MockedCommandExector returns an error on start if fail is true
-    // It can be used to mock process spawn
-    type MockedCommandExecutor = bool;
-
-    #[derive(Default)]
-    pub struct MockedCommandHandler {
-        loggers: Option<FileSystemLoggers>,
-    }
-
-    impl NotStartedCommand for MockedCommandExecutor {
-        type StartedCommand = MockedCommandHandler;
-
-        fn start(self) -> Result<Self::StartedCommand, CommandError> {
-            if self {
-                Err(CommandError::ProcessError(ExitStatus::from_raw(1)))
-            } else {
-                Ok(MockedCommandHandler::default())
-            }
-        }
-    }
-
-    impl StartedCommand for MockedCommandHandler {
-        type StartedCommand = MockedCommandHandler;
-        fn wait(self) -> Result<ExitStatus, CommandError> {
-            Ok(ExitStatus::from_raw(0))
-        }
-
-        fn get_pid(&self) -> u32 {
-            0
-        }
-
-        fn stream(mut self, snd: Sender<AgentLog>) -> Result<Self::StartedCommand, CommandError> {
-            let metadata = Metadata::from(&self);
-            let (out, err) = self.loggers.take().map_or(Default::default(), |l| {
-                let (out, err) = l.into_loggers();
-                (Some(out), Some(err))
-            });
-
-            let guard = out.map(FileLogger::set_file_logging);
-            (0..9).for_each(|i| {
-                let line = format!("This is line {}", i);
-                info!(file_log_line = line);
-                snd.send(AgentLog {
-                    output: LogOutput::Stdout(line),
-                    metadata: metadata.clone(),
-                })
-                .unwrap();
-            });
-            drop(guard);
-
-            let guard = err.map(FileLogger::set_file_logging);
-            (0..9).for_each(|i| {
-                let line = format!("This is error {}", i);
-                info!(file_log_line = line);
-                snd.send(AgentLog {
-                    output: LogOutput::Stderr(line),
-                    metadata: metadata.clone(),
-                })
-                .unwrap()
-            });
-            drop(guard);
-
-            Ok(self)
-        }
-    }
-
-    // Testing the file logging
-    struct FileWriterMock(Arc<Mutex<Vec<String>>>);
-
-    impl Write for FileWriterMock {
-        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-            // Trimming the string in this mock as line breaks are for files
-            let s = String::from_utf8_lossy(buf).trim().to_string();
-            self.0.lock().unwrap().push(s);
-            Ok(buf.len())
-        }
-
-        fn flush(&mut self) -> io::Result<()> {
-            Ok(())
-        }
-    }
-
-    #[test]
-    fn start_stop() {
-        let cmds: Vec<MockedCommandExecutor> = vec![true, false, true, true, false];
-
-        assert_eq!(
-            cmds.iter()
-                .map(|cmd| cmd.start())
-                .filter(Result::is_ok)
-                .count(),
-            2
-        )
-    }
-
-    impl From<&MockedCommandHandler> for Metadata {
-        fn from(_value: &MockedCommandHandler) -> Self {
-            Metadata::new("mocked-id".to_owned().try_into().unwrap())
-        }
-    }
-
-    #[test]
-    fn stream() {
-        let cmd = MockedCommandHandler::default();
-        let (tx, rx) = std::sync::mpsc::channel();
-
-        cmd.stream(tx).unwrap();
-
-        let mut stdout_expected = Vec::new();
-        let mut stderr_expected = Vec::new();
-        // Populate expected results in a similar way as the mocked streamer
-        (0..9).for_each(|i| stdout_expected.push(format!("This is line {}", i)));
-        (0..9).for_each(|i| stderr_expected.push(format!("This is error {}", i)));
-
-        let mut stdout_result = Vec::new();
-        let mut stderr_result = Vec::new();
-        // Receive actual data from streamer
-        rx.iter().for_each(|event| {
-            assert_eq!(
-                Metadata::new("mocked-id".to_owned().try_into().unwrap()),
-                event.metadata
-            );
-            match event.output {
-                LogOutput::Stdout(line) => stdout_result.push(line),
-                LogOutput::Stderr(line) => stderr_result.push(line),
-            }
-        });
-
-        assert_eq!(stdout_expected, stdout_result);
-        assert_eq!(stderr_expected, stderr_result);
-    }
-
-    #[test]
-    fn stream_file_logging() {
-        // Inner writer mocks
-        let stdout = Arc::new(Mutex::new(Vec::new()));
-        let stderr = Arc::new(Mutex::new(Vec::new()));
-
-        // Writer mocks
-        let stdout_writer = FileWriterMock(stdout.clone());
-        let stderr_writer = FileWriterMock(stderr.clone());
-
-        // Generate appenders for mocks
-        let stdout_appender = FileAppender::from(stdout_writer);
-        let stderr_appender = FileAppender::from(stderr_writer);
-
-        // Get actual loggers
-        let stdout_logger = FileLogger::from(stdout_appender);
-        let stderr_logger = FileLogger::from(stderr_appender);
-
-        let cmd = MockedCommandHandler {
-            loggers: Some(FileSystemLoggers::new(stdout_logger, stderr_logger)),
-        };
-
-        let (tx, rx) = std::sync::mpsc::channel();
-
-        // Stream with the mock loggers provided
-        cmd.stream(tx).unwrap();
-
-        // Expected contents
-        let mut stdout_expected = Vec::new();
-        let mut stderr_expected = Vec::new();
-        // Populate expected results in a similar way as the mocked file_logger
-        (0..9).for_each(|i| stdout_expected.push(format!("This is line {}", i)));
-        (0..9).for_each(|i| stderr_expected.push(format!("This is error {}", i)));
-
-        // Receive actual data from streamer
-        rx.iter().for_each(|event| {
-            // Receive the data over the channel but do nothing with this
-            assert_eq!(
-                Metadata::new("mocked-id".to_owned().try_into().unwrap()),
-                event.metadata
-            );
-        });
-
-        // Check the contents of the file logger
-        let stdout = stdout.lock().unwrap();
-        assert_eq!(stdout_expected, *stdout);
-        drop(stdout);
-
-        let stderr = stderr.lock().unwrap();
-        assert_eq!(stderr_expected, *stderr);
-        drop(stderr);
     }
 }

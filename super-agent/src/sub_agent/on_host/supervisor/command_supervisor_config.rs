@@ -1,10 +1,8 @@
 use std::collections::HashMap;
 
-use std::sync::mpsc::Sender;
-
+use crate::context::Context;
 use crate::sub_agent::restart_policy::RestartPolicy;
 use crate::super_agent::config::AgentID;
-use crate::{context::Context, sub_agent::logger::AgentLog};
 
 #[derive(Debug, Clone)]
 pub struct SupervisorConfigOnHost {
@@ -13,7 +11,6 @@ pub struct SupervisorConfigOnHost {
     pub(crate) bin: String,
     pub(super) args: Vec<String>,
     pub(super) env: HashMap<String, String>,
-    pub(super) snd: Sender<AgentLog>,
     pub(super) restart_policy: RestartPolicy,
     pub(super) log_to_file: bool,
 }
@@ -23,7 +20,6 @@ impl SupervisorConfigOnHost {
         id: AgentID,
         exec: ExecutableData,
         ctx: Context<bool>,
-        snd: Sender<AgentLog>,
         restart_policy: RestartPolicy,
         log_to_file: bool,
     ) -> Self {
@@ -34,7 +30,6 @@ impl SupervisorConfigOnHost {
             bin,
             args,
             env,
-            snd,
             restart_policy,
             log_to_file,
         }
