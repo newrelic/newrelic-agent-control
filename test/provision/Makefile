@@ -3,7 +3,7 @@ include ../Ansible.common
 
 TERRAFORM_DIR := ./terraform
 ANSIBLE_FOLDER := ./terraform
-EC2_FILTERS ?= '[\"ubuntu\", \"centos7\", \"centos8\", \"centos-stream\", \"sles-15.1\", \"sles-15.2\", \"sles-15.3\",  \"sles-15.4\", \"sles-15.5\", \"redhat\", \"debian-buster\", \"debian-bullseye\", \"debian-bookworm\", \"al\"]'
+EC2_FILTERS ?= [\"ubuntu\", \"centos7\", \"centos8\", \"centos-stream\", \"sles-15.3\",  \"sles-15.4\", \"sles-15.5\", \"redhat\", \"debian-buster\", \"debian-bullseye\", \"debian-bookworm\", \"al\"]
 
 .DEFAULT_GOAL := provision
 
