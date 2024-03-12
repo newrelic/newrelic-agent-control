@@ -24,7 +24,8 @@ compile_error!("Feature \"onhost\" and feature \"k8s\" cannot be enabled at the 
 #[cfg(all(not(feature = "onhost"), not(feature = "k8s")))]
 compile_error!("Either feature \"onhost\" or feature \"k8s\" must be enabled");
 
-fn main() -> Result<(), Box<dyn Error>> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
     let cli = Cli::init_super_agent_cli();
 
     if cli.print_version() {

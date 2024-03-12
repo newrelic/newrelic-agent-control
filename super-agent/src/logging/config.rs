@@ -84,7 +84,7 @@ impl LoggingConfig {
         let otel_tracer = opentelemetry_otlp::new_pipeline()
             .tracing()
             .with_exporter(opentelemetry_otlp::new_exporter().http())
-            .install_simple()?;
+            .install_batch(opentelemetry_sdk::runtime::Tokio)?;
         let otel_layer = tracing_opentelemetry::layer().with_tracer(otel_tracer);
 
         // a `Layer` wrapped in an `Option` such as the above defined `file_layer` also implements

@@ -1960,12 +1960,16 @@ dependencies = [
  "futures-executor",
  "futures-util",
  "glob",
+ "http 0.2.12",
  "once_cell",
  "opentelemetry",
+ "opentelemetry-http",
  "ordered-float 4.2.0",
  "percent-encoding",
  "rand",
  "thiserror",
+ "tokio",
+ "tokio-stream",
 ]
 
 [[package]]
