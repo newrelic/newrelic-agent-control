@@ -102,7 +102,7 @@
         that: not result.stat.exists
 
     - name: get latest logs from the Super Agent
-      shell: 'journalctl -u newrelic-super-agent --since "5min ago" | grep -E "Error applying Super Agent remote config: could not resolve config: .configuration is not valid YAML: .missing field .agents"'
+      shell: 'journalctl -u newrelic-super-agent --since "1min ago" | grep -E "Error applying Super Agent remote config: could not resolve config: .configuration is not valid YAML: .missing field .agents"'
       register: journalctl_log
 
     - name: Assert Super Agent and Agents are still running
@@ -152,9 +152,9 @@
           config_id: "{{ created_config_id | int }}"
           config_revision: "{{ created_config_revision_2 | int }}"
 
-    - name: Wait for a few seconds for the config to be retrieved
+    - name: Wait for a few seconds for the config to be retrieved and big enough to distinguish the logs
       ansible.builtin.pause:
-        seconds: 20
+        seconds: 60
 
     - name: Check for Super Agent remote config
       stat:
@@ -166,7 +166,7 @@
         that: not result.stat.exists
 
     - name: get latest logs from the Super Agent
-      shell: 'journalctl -u newrelic-super-agent --since "5min ago" | grep -E "Error applying Super Agent remote config: could not resolve config: .configuration is not valid YAML: .missing field .agents"'
+      shell: 'journalctl -u newrelic-super-agent --since "1min ago" | grep -E "Error applying Super Agent remote config: .config assembler error: .error assembling agents: .agent not found..."'
       register: journalctl_log
 
     - name: Assert Super Agent and Agents are still running
