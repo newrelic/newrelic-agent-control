@@ -56,6 +56,10 @@ impl EffectiveAgent {
     pub(crate) fn get_runtime_config(&self) -> &Runtime {
         &self.runtime_config
     }
+
+    pub(crate) fn get_agent_id(&self) -> &AgentID {
+        &self.agent_id
+    }
 }
 
 pub trait EffectiveAgentsAssembler {

@@ -116,6 +116,7 @@ impl Templateable for OnHost {
                 .into_iter()
                 .map(|e| e.template_with(variables))
                 .collect::<Result<Vec<Executable>, AgentTypeError>>()?,
+            enable_file_logging: self.enable_file_logging.template_with(variables)?,
         })
     }
 }

@@ -19,11 +19,18 @@ where
 fn non_blocking_runner() {
     use std::collections::HashMap;
 
+    let agent_id = "sleep-test".to_string().try_into().unwrap();
     let mut sleep_cmd = Command::new("sleep");
     sleep_cmd.arg("5");
 
     let agent = NonSupervisor {
-        cmd: CommandOS::<NotStarted>::new("sleep", ["5"], HashMap::from([("TEST", "TEST")])),
+        cmd: CommandOS::<NotStarted>::new(
+            agent_id,
+            "sleep",
+            ["5"],
+            HashMap::from([("TEST", "TEST")]),
+            false,
+        ),
     };
 
     let started_cmd = agent.cmd.start().unwrap();

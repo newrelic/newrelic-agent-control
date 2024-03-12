@@ -22,6 +22,8 @@ pub struct Deployment {
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub struct OnHost {
     pub executables: Vec<Executable>,
+    #[serde(default)]
+    pub enable_file_logging: TemplateableValue<bool>,
 }
 
 /* FIXME: This is not TEMPLATEABLE for the moment, we need to think what would be the strategy here and clarify:

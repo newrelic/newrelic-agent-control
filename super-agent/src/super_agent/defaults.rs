@@ -8,7 +8,7 @@ pub const SUPER_AGENT_NAMESPACE: &str = "newrelic";
 pub const SUPER_AGENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 // Paths
-
+pub const SUB_AGENT_DIRECTORY: &str = "agents.d";
 pub const SUPER_AGENT_LOCAL_DATA_DIR: &str = "/etc/newrelic-super-agent";
 pub const SUPER_AGENT_IDENTIFIERS_PATH: &str = "/var/lib/newrelic-super-agent/identifiers.yaml";
 pub const REMOTE_AGENT_DATA_DIR: &str = "/var/lib/newrelic-super-agent/fleet/agents.d";
@@ -17,8 +17,13 @@ pub const VALUES_DIR: &str = "values";
 pub const VALUES_FILE: &str = "values.yaml";
 pub const SUPER_AGENT_DATA_DIR: &str = "/var/lib/newrelic-super-agent";
 pub const GENERATED_FOLDER_NAME: &str = "auto-generated";
+
+// Logging constants
 pub const SUPER_AGENT_LOG_DIR: &str = "/var/log/newrelic-super-agent";
 pub const SUPER_AGENT_LOG_FILENAME: &str = "newrelic-super-agent.log";
+pub const SUB_AGENT_LOG_DIR: &str = "/var/log/newrelic-super-agent/fleet/agents.d";
+pub const STDOUT_LOG_PREFIX: &str = "stdout.log";
+pub const STDERR_LOG_PREFIX: &str = "stderr.log";
 
 pub fn default_capabilities() -> Capabilities {
     capabilities!(
@@ -125,6 +130,53 @@ variables:
     default: 20s
 deployment:
   on_host:
+    executables:
+      - path: /usr/bin/newrelic-infra
+        args: "--config=${nr-var:config_agent}"
+        env: "NRIA_PLUGIN_DIR=${nr-var:config_integrations} NRIA_LOGGING_CONFIGS_DIR=${nr-var:config_logging}"
+        restart_policy:
+          backoff_strategy:
+            type: fixed
+            backoff_delay: ${nr-var:backoff_delay}
+"#;
+
+// Infrastructure_agent AgentType
+pub(crate) const NEWRELIC_INFRA_TYPE_4: &str = r#"
+namespace: newrelic
+name: com.newrelic.infrastructure_agent
+version: 0.1.1
+variables:
+  config_agent:
+    description: "Newrelic infra configuration"
+    type: file
+    required: false
+    default: ""
+    file_path: "newrelic-infra.yml"
+  config_integrations:
+    description: "map of YAML configs for the OHIs"
+    type: map[string]file
+    required: false
+    default: {}
+    file_path: "integrations.d"
+  config_logging:
+    description: "map of YAML config for logging"
+    type: map[string]file
+    required: false
+    default: {}
+    file_path: "logging.d"
+  backoff_delay:
+    description: "seconds until next retry if agent fails to start"
+    type: string
+    required: false
+    default: 20s
+  enable_file_logging:
+    description: "enable logging the on host executables' logs to files"
+    type: bool
+    required: false
+    default: false
+deployment:
+  on_host:
+    enable_file_logging: ${nr-var:enable_file_logging}
     executables:
       - path: /usr/bin/newrelic-infra
         args: "--config=${nr-var:config_agent}"

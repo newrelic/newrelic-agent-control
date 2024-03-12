@@ -1,16 +1,4 @@
-use std::ffi::OsStr;
-use std::path::Path;
-use std::process::ExitStatus;
-use std::{
-    ops::Deref,
-    sync::mpsc::Sender,
-    sync::{Arc, Mutex},
-    thread::{self, JoinHandle},
-};
-
 use crate::context::Context;
-use crate::sub_agent::logger::{AgentLog, Metadata};
-
 use crate::sub_agent::on_host::command::command::{
     CommandError, CommandTerminator, NotStartedCommand, StartedCommand,
 };
@@ -22,6 +10,13 @@ use crate::sub_agent::on_host::command::shutdown::{
 use crate::sub_agent::on_host::supervisor::command_supervisor_config::SupervisorConfigOnHost;
 use crate::sub_agent::on_host::supervisor::error::SupervisorError;
 use crate::sub_agent::restart_policy::BackoffStrategy;
+use crate::super_agent::config::AgentID;
+use std::process::ExitStatus;
+use std::{
+    ops::Deref,
+    sync::{Arc, Mutex},
+    thread::{self, JoinHandle},
+};
 use tracing::{error, info, warn};
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -47,8 +42,16 @@ impl SupervisorOnHost<NotStarted> {
         }
     }
 
-    pub fn id(&self) -> String {
+    pub fn id(&self) -> AgentID {
+        self.state.config.id.clone()
+    }
+
+    pub fn bin(&self) -> String {
         self.state.config.bin.clone()
+    }
+
+    pub fn logs_to_file(&self) -> bool {
+        self.state.config.log_to_file
     }
 
     pub fn run(self) -> Result<SupervisorOnHost<Started>, SupervisorError> {
@@ -65,18 +68,11 @@ impl SupervisorOnHost<NotStarted> {
     pub fn not_started_command(&self) -> CommandOS<command_os::NotStarted> {
         //TODO extract to to a builder so we can mock it
         CommandOS::<command_os::NotStarted>::new(
+            self.state.config.id.clone(),
             &self.state.config.bin,
             &self.state.config.args,
             &self.state.config.env,
-        )
-    }
-
-    pub fn metadata(&self) -> Metadata {
-        Metadata::new(
-            Path::new(&self.state.config.bin)
-                .file_name()
-                .unwrap_or(OsStr::new("not found"))
-                .to_string_lossy(),
+            self.logs_to_file(),
         )
     }
 }
@@ -104,18 +100,16 @@ impl SupervisorOnHost<Started> {
 // launch_process starts a new process with a streamed channel and sets its current pid
 // into the provided variable. It waits until the process exits.
 fn start_command<R>(
-    id: String,
     not_started_command: R,
     pid: Arc<Mutex<Option<u32>>>,
-    tx: Sender<AgentLog>,
 ) -> Result<ExitStatus, CommandError>
 where
     R: NotStartedCommand,
 {
     // run and stream the process
     let started = not_started_command.start()?;
-    info!("Supervisor process for {} started", id);
-    let streaming = started.stream(tx)?;
+
+    let streaming = started.stream()?;
 
     // set current running pid
     *pid.lock().unwrap() = Some(streaming.get_pid());
@@ -145,38 +139,37 @@ fn start_process_thread(not_started_supervisor: SupervisorOnHost<NotStarted>) ->
             }
 
             info!(
-                "Starting supervisor process {}",
-                not_started_supervisor.id()
+                id = not_started_supervisor.id().to_string(),
+                supervisor = not_started_supervisor.bin(),
+                msg = "Starting supervisor process"
             );
 
             shutdown_ctx.reset().unwrap();
             // Signals return exit_code 0, if in the future we need to act on them we can import
             // std::os::unix::process::ExitStatusExt to get the code with the method into_raw
             let not_started_command = not_started_supervisor.not_started_command();
+            let bin = not_started_supervisor.bin();
             let id = not_started_supervisor.id();
-
-            let exit_code = start_command(
-                id.clone(),
-                not_started_command.with_metadata(not_started_supervisor.metadata()),
-                current_pid.clone(),
-                not_started_supervisor.snd.clone(),
-            )
-            .map_err(|err| {
-                error!(
-                    supervisor = id,
-                    "Error while launching supervisor process: {}", err
-                );
-            })
-            .map(|exit_code| {
-                if !exit_code.success() {
+            let exit_code = start_command(not_started_command, current_pid.clone())
+                .map_err(|err| {
                     error!(
-                        supervisor = id,
-                        exit_code = exit_code.code(),
-                        "Supervisor process exited unsuccessfully"
-                    )
-                }
-                exit_code.code()
-            });
+                        id = id.to_string(),
+                        supervisor = bin,
+                        "Error while launching supervisor process: {}",
+                        err
+                    );
+                })
+                .map(|exit_code| {
+                    if !exit_code.success() {
+                        error!(
+                            id = id.to_string(),
+                            supervisor = bin,
+                            exit_code = exit_code.code(),
+                            "Supervisor process exited unsuccessfully"
+                        )
+                    }
+                    exit_code.code()
+                });
 
             // canceling the shutdown ctx must be done before getting current_pid lock
             // as it locked by the wait_for_termination function
@@ -220,25 +213,22 @@ fn wait_for_termination(
 
 #[cfg(test)]
 pub mod sleep_supervisor_tests {
-    use std::collections::HashMap;
-    use std::sync::mpsc::Sender;
 
     use super::SupervisorOnHost;
     use super::{NotStarted, SupervisorConfigOnHost};
+    use crate::context::Context;
+    use crate::sub_agent::on_host::supervisor::command_supervisor_config::ExecutableData;
     use crate::sub_agent::restart_policy::{BackoffStrategy, RestartPolicy};
-    use crate::{context::Context, sub_agent::logger::AgentLog};
 
-    pub fn new_sleep_supervisor(
-        tx: Sender<AgentLog>,
-        seconds: u32,
-    ) -> SupervisorOnHost<NotStarted> {
+    pub fn new_sleep_supervisor(seconds: u32) -> SupervisorOnHost<NotStarted> {
+        let exec = ExecutableData::new("sh".to_owned())
+            .with_args(vec!["-c".to_owned(), format!("sleep {}", seconds)]);
         let config = SupervisorConfigOnHost::new(
-            "sh".to_owned(),
-            vec!["-c".to_string(), format!("sleep {}", seconds)],
+            "sleep-supervisor".to_owned().try_into().unwrap(),
+            exec,
             Context::new(),
-            HashMap::new(),
-            tx.clone(),
             RestartPolicy::new(BackoffStrategy::None, Vec::new()),
+            false,
         );
         SupervisorOnHost::new(config)
     }
@@ -246,28 +236,28 @@ pub mod sleep_supervisor_tests {
 
 #[cfg(test)]
 mod tests {
+    use tracing_test::traced_test;
+
     use super::*;
-    use crate::sub_agent::logger::LogOutput;
+    use crate::sub_agent::on_host::supervisor::command_supervisor_config::ExecutableData;
     use crate::sub_agent::restart_policy::{Backoff, BackoffStrategy, RestartPolicy};
-    use std::collections::HashMap;
     use std::time::{Duration, Instant};
 
     #[test]
     fn test_supervisor_retries_and_exits_on_wrong_command() {
-        let (tx, _) = std::sync::mpsc::channel();
-
         let backoff = Backoff::new()
             .with_initial_delay(Duration::new(0, 100))
             .with_max_retries(3)
             .with_last_retry_interval(Duration::new(30, 0));
 
+        let exec = ExecutableData::new("wrong-command".to_owned()).with_args(vec!["x".to_owned()]);
+
         let config = SupervisorConfigOnHost::new(
-            "wrong-command".to_owned(),
-            vec!["x".to_owned()],
+            "wrong-command".to_owned().try_into().unwrap(),
+            exec,
             Context::new(),
-            HashMap::new(),
-            tx.clone(),
             RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]),
+            false,
         );
         let agent = SupervisorOnHost::new(config);
 
@@ -280,8 +270,6 @@ mod tests {
 
     #[test]
     fn test_supervisor_restart_policy_early_exit() {
-        let (tx, _) = std::sync::mpsc::channel();
-
         let timer = Instant::now();
 
         // set a fixed backoff of 10 seconds
@@ -290,13 +278,14 @@ mod tests {
             .with_max_retries(3)
             .with_last_retry_interval(Duration::new(30, 0));
 
+        let exec = ExecutableData::new("wrong-command".to_owned()).with_args(vec!["x".to_owned()]);
+
         let config = SupervisorConfigOnHost::new(
-            "wrong-command".to_owned(),
-            vec!["x".to_owned()],
+            "wrong-command".to_owned().try_into().unwrap(),
+            exec,
             Context::new(),
-            HashMap::new(),
-            tx.clone(),
             RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]),
+            false,
         );
         let agent = SupervisorOnHost::new(config);
 
@@ -310,49 +299,41 @@ mod tests {
     }
 
     #[test]
+    #[traced_test]
     fn test_supervisor_fixed_backoff_retry_3_times() {
-        let (tx, rx) = std::sync::mpsc::channel();
-
         let backoff = Backoff::new()
             .with_initial_delay(Duration::new(0, 100))
             .with_max_retries(3)
             .with_last_retry_interval(Duration::new(30, 0));
 
+        let exec = ExecutableData::new("echo".to_owned()).with_args(vec!["hello!".to_owned()]);
+
         let config = SupervisorConfigOnHost::new(
-            "echo".to_owned(),
-            vec!["hello!".to_owned()],
+            "echo".to_owned().try_into().unwrap(),
+            exec,
             Context::new(),
-            HashMap::new(),
-            tx,
             RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]),
+            false,
         );
         let agent = SupervisorOnHost::new(config);
 
         let agent = agent.run().unwrap();
 
-        let stream = thread::spawn(move || {
-            let mut stdout_actual = Vec::new();
-
-            loop {
-                match rx.recv() {
-                    Err(_) => break,
-                    Ok(event) => match event.output {
-                        LogOutput::Stdout(line) => stdout_actual.push(line),
-                        LogOutput::Stderr(_) => (),
-                    },
-                }
-            }
-
-            stdout_actual
-        });
-
         while !agent.state.handle.is_finished() {
             thread::sleep(Duration::from_millis(15));
         }
 
-        let stdout = stream.join().unwrap();
-
-        // 1 base execution + 3 retries
-        assert_eq!(4, stdout.len());
+        // Log output corresponding to 1 base execution + 3 retries
+        tracing_test::internal::logs_assert(
+            "DEBUG newrelic_super_agent::sub_agent::on_host::command::logging::logger",
+            |lines| match lines.iter().filter(|line| line.contains("hello!")).count() {
+                4 => Ok(()),
+                n => Err(format!(
+                    "Expected 4 lines with 'hello!' corresponding to 1 run + 3 retries, got {}",
+                    n
+                )),
+            },
+        )
+        .unwrap();
     }
 }
