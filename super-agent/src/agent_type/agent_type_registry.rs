@@ -140,7 +140,7 @@ pub mod tests {
     #[test]
     fn default_local_registry() {
         let registry = LocalRegistry::default();
-        assert_eq!(registry.0.len(), 5)
+        assert_eq!(registry.0.len(), 6)
     }
 
     #[test]
