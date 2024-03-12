@@ -1,6 +1,6 @@
 use crate::super_agent::defaults::{
     NEWRELIC_INFRA_TYPE_0_0_1, NEWRELIC_INFRA_TYPE_0_0_2, NEWRELIC_INFRA_TYPE_0_1_0,
-    NRDOT_TYPE_0_0_1, NRDOT_TYPE_0_1_0,
+    NEWRELIC_INFRA_TYPE_0_1_1, NRDOT_TYPE_0_0_1, NRDOT_TYPE_0_1_0,
 };
 use std::collections::HashMap;
 use thiserror::Error;
@@ -39,6 +39,9 @@ impl Default for LocalRegistry {
             .unwrap();
         local_agent_type_repository
             .store_from_yaml(NEWRELIC_INFRA_TYPE_0_1_0.as_bytes())
+            .unwrap();
+        local_agent_type_repository
+            .store_from_yaml(NEWRELIC_INFRA_TYPE_0_1_1.as_bytes())
             .unwrap();
         local_agent_type_repository
             .store_from_yaml(NRDOT_TYPE_0_0_1.as_bytes())
