@@ -1,6 +1,7 @@
 use opentelemetry::KeyValue;
 use opentelemetry_sdk::metrics::reader::{DefaultAggregationSelector, DefaultTemporalitySelector};
-use opentelemetry_sdk::Resource;
+use opentelemetry_sdk::trace::{RandomIdGenerator, Sampler};
+use opentelemetry_sdk::{trace, Resource};
 use serde::Deserialize;
 use std::fmt::Debug;
 use std::str::FromStr;
@@ -91,6 +92,18 @@ impl LoggingConfig {
         let otel_tracer = opentelemetry_otlp::new_pipeline()
             .tracing()
             .with_exporter(opentelemetry_otlp::new_exporter().http())
+            .with_trace_config(
+                trace::config()
+                    .with_sampler(Sampler::AlwaysOn)
+                    .with_id_generator(RandomIdGenerator::default())
+                    .with_max_attributes_per_span(64)
+                    .with_max_attributes_per_span(16)
+                    .with_max_events_per_span(16)
+                    .with_resource(Resource::new(vec![KeyValue::new(
+                        "service.name",
+                        "newrelic-super-agent",
+                    )])),
+            )
             .install_batch(opentelemetry_sdk::runtime::Tokio)?;
         let otel_traces_layer = tracing_opentelemetry::layer().with_tracer(otel_tracer);
 
