@@ -74,16 +74,6 @@ pub fn retrieve_usage_data(pid: Option<u32>) {
                 agent.version = "0.10.0"
             );
 
-            // Let's print it for now:
-            warn!(
-                "CPU: {:.2}%, Resident Memory: {:.2} MB, Virtual Memory: {:.2} MB, Uptime: {} seconds",
-                cpu_usage,
-                resident_memory_usage as f64 / (1024.0 * 1024.0),
-                virtual_memory_usage as f64 / (1024.0 * 1024.0),
-                uptime_seconds);
-
-            // todo!("Send metrics");
-
             // Sleep for 1 second
             thread::sleep(Duration::from_secs(1));
         }
