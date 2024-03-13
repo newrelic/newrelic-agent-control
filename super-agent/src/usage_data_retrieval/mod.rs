@@ -40,6 +40,31 @@ pub fn retrieve_usage_data(pid: Option<u32>) {
 
             let uptime_seconds = startup_time.elapsed().as_secs();
 
+            warn!(
+                monotonic_counter.uptime = uptime_seconds,
+                agent.name = "super-agent",
+                agent._type = "super-agent",
+                agent.version = "0.10.0"
+            );
+            warn!(
+                histogram.cpu_usage = cpu_usage,
+                agent.name = "super-agent",
+                agent._type = "super-agent",
+                agent.version = "0.10.0"
+            );
+            warn!(
+                histogram.resident_memory_usage = resident_memory_usage as f64 / (1024.0 * 1024.0),
+                agent.name = "super-agent",
+                agent._type = "super-agent",
+                agent.version = "0.10.0"
+            );
+            warn!(
+                histogram.virtual_memory_usage = virtual_memory_usage as f64 / (1024.0 * 1024.0),
+                agent.name = "super-agent",
+                agent._type = "super-agent",
+                agent.version = "0.10.0"
+            );
+
             // Let's print it for now:
             warn!(
                 "CPU: {:.2}%, Resident Memory: {:.2} MB, Virtual Memory: {:.2} MB, Uptime: {} seconds",
