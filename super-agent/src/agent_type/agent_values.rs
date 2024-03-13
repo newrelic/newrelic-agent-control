@@ -36,7 +36,7 @@ use crate::agent_type::trivial_value::TrivialValue;
 ///       type: string
 ///       required: true
 ///   custom_envs:
-///      description: "Logging level"
+///      description: "Custom envs"
 ///      type: map[string]string
 ///      required: true
 ///

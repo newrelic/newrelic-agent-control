@@ -290,7 +290,7 @@ impl VariableTree {
                         .map_err(|err| format!("{key}.{err}"))?;
                     merged.insert(key.clone(), VariableDefinitionTree::Mapping(merged_inner));
                 }
-                // Any other option implies a overlapping end (conflicting key).
+                // Any other option implies an overlapping end (conflicting key).
                 (Some(_), _) => return Err(key.into()),
             }
         }
