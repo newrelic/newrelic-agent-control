@@ -40,6 +40,15 @@ pub fn retrieve_usage_data(pid: Option<u32>) {
 
             let uptime_seconds = startup_time.elapsed().as_secs();
 
+            /*
+            To publish a new metric, add a key-value pair to your tracing::Event that contains following prefixes:
+
+            - monotonic_counter. (non-negative numbers): Used when the counter should only ever increase
+            - counter.: Used when the counter can go up or down
+            - histogram.: Used to report arbitrary values that are likely to be statistically meaningful
+
+            Ref: https://docs.rs/tracing-opentelemetry/latest/tracing_opentelemetry/struct.MetricsLayer.html#usage
+            */
             warn!(
                 monotonic_counter.uptime = uptime_seconds,
                 agent.name = "super-agent",
