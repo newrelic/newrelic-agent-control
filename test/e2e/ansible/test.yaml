@@ -5,8 +5,15 @@
 - name: Super Agent valid remote config
   import_playbook: super_agent_valid_remote_config.yaml
 
+- name: Super Agent invalid remote config
+  import_playbook: super_agent_invalid_remote_config.yaml
+
 - name: Migration Script Execution
   import_playbook: migration_script_execution.yaml
 
 - name: Sub Agents invalid remote config
+  import_playbook: sub_agent_valid_remote_config.yaml
+
+- name: Sub Agents invalid remote config
   import_playbook: sub_agent_invalid_remote_config.yaml
+

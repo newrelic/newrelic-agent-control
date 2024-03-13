@@ -33,7 +33,7 @@
     - name: Get NR Super Agent ULID
       include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
       vars:
-        agent_identifier_path: "{{ super_agent_identifiers_file_tpl }}"
+        agent_identifier_path: "{{ super_agent_identifiers_file }}"
         identifier_field: "ulid"
         identifier_field_fact: "super_agent_ulid_restart"
 
@@ -106,7 +106,7 @@
     - name: Get NR Super Agent ULID
       include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
       vars:
-        agent_identifier_path: "{{ super_agent_identifiers_file_tpl }}"
+        agent_identifier_path: "{{ super_agent_identifiers_file }}"
         identifier_field: "ulid"
         identifier_field_fact: "super_agent_ulid"
 
