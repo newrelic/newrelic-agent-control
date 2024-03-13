@@ -126,6 +126,9 @@ impl LoggingConfig {
 
         let otel_metrics_layer = MetricsLayer::new(meter);
 
+        // Tokio cnsole subscriber layer for debugging async memory leak
+        let tokio_console_layer = console_subscriber::spawn();
+
         // a `Layer` wrapped in an `Option` such as the above defined `file_layer` also implements
         // the `Layer` trait. This allows individual layers to be enabled or disabled at runtime
         // while always producing a `Subscriber` of the same type.
@@ -134,6 +137,7 @@ impl LoggingConfig {
             .with(file_layer)
             .with(otel_traces_layer)
             .with(otel_metrics_layer)
+            .with(tokio_console_layer)
             .try_init()
             .map_err(|_| {
                 LoggingError::TryInitError(
