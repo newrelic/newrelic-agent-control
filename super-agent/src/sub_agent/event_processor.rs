@@ -8,7 +8,7 @@ use crate::sub_agent::SubAgentCallbacks;
 use crate::super_agent::config::AgentID;
 use crate::utils::time::get_sys_time_nano;
 use crossbeam::select;
-use opamp_client::opamp::proto::AgentHealth;
+use opamp_client::opamp::proto::ComponentHealth;
 use opamp_client::StartedClient;
 use std::sync::Arc;
 use std::thread;
@@ -80,10 +80,11 @@ where
                     "Stopping OpAMP client for supervised agent type: {}",
                     self.agent_id
                 );
-                client.set_health(AgentHealth {
-                    healthy: false,
+                client.set_health(ComponentHealth {
+                    healthy: true,
                     start_time_unix_nano: get_sys_time_nano()?,
                     last_error: "".to_string(),
+                    ..Default::default()
                 })?;
             }
 

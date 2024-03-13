@@ -104,10 +104,11 @@ where
         // TODO: This will change when we define health change events
         if let Some(handle) = &self.opamp_client {
             info!("Sending super-agent health");
-            let health = opamp_client::opamp::proto::AgentHealth {
+            let health = opamp_client::opamp::proto::ComponentHealth {
                 healthy: true,
                 start_time_unix_nano: get_sys_time_nano()?,
                 last_error: "".to_string(),
+                ..Default::default()
             };
             handle.set_health(health)?;
         }
