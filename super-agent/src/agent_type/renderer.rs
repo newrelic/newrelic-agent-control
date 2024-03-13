@@ -511,15 +511,16 @@ namespace: newrelic
 name: first
 version: 0.1.0
 variables:
-  config_path:
-    description: "config file string"
-    type: string
-    required: true
-  config_argument:
-    description: "config argument"
-    type: string
-    required: false
-    default: bar
+  common:
+    config_path:
+      description: "config file string"
+      type: string
+      required: true
+    config_argument:
+      description: "config argument"
+      type: string
+      required: false
+      default: bar
 deployment:
   on_host:
     executables:
@@ -541,16 +542,17 @@ name: newrelic-infra
 namespace: newrelic
 version: 1.39.1
 variables:
-  config1:
-    description: "One config file"
-    type: file
-    required: true
-    file_path: "config1.yml"
-  config2:
-    description: "Set of config files"
-    type: map[string]file
-    required: true
-    file_path: "config2.d"
+  common:
+    config1:
+      description: "One config file"
+      type: file
+      required: true
+      file_path: "config1.yml"
+    config2:
+      description: "Set of config files"
+      type: map[string]file
+      required: true
+      file_path: "config2.d"
 deployment:
   on_host:
     executables:
@@ -575,26 +577,27 @@ name: nrdot
 namespace: newrelic
 version: 0.1.0
 variables:
-  backoff:
-    delay:
-      description: "Backoff delay"
-      type: string
-      required: false
-      default: 1s
-    retries:
-      description: "Backoff retries"
-      type: number
-      required: false
-      default: 3
-    interval:
-      description: "Backoff interval"
-      type: string
-      required: false
-      default: 30s
-    type:
-      description: "Backoff strategy type"
-      type: string
-      required: true
+  on_host:
+    backoff:
+      delay:
+        description: "Backoff delay"
+        type: string
+        required: false
+        default: 1s
+      retries:
+        description: "Backoff retries"
+        type: number
+        required: false
+        default: 3
+      interval:
+        description: "Backoff interval"
+        type: string
+        required: false
+        default: 30s
+      type:
+        description: "Backoff strategy type"
+        type: string
+        required: true
 deployment:
   on_host:
     executables:
@@ -661,11 +664,12 @@ name: k8s-agent-type
 namespace: newrelic
 version: 0.0.1
 variables:
-  config:
-    values:
-      description: "yaml values"
-      type: yaml
-      required: true
+  k8s:
+    config:
+      values:
+        description: "yaml values"
+        type: yaml
+        required: true
 deployment:
   k8s:
     objects:

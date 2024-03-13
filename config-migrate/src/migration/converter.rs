@@ -10,7 +10,11 @@ use fs::LocalFile;
 use newrelic_super_agent::agent_type::agent_type_registry::{
     AgentRegistry, AgentRepositoryError, LocalRegistry,
 };
+use newrelic_super_agent::agent_type::environment::Environment;
 use newrelic_super_agent::agent_type::variable::kind::Kind;
+use newrelic_super_agent::sub_agent::effective_agents_assembler::{
+    build_agent_type, AgentTypeDefinitionError,
+};
 use std::collections::HashMap;
 use std::path::Path;
 use thiserror::Error;
@@ -24,6 +28,8 @@ pub enum ConversionError {
     ConvertFileError(#[from] FileReaderError),
     #[error("`{0}`")]
     AgentValueError(#[from] AgentValueError),
+    #[error("`{0}`")]
+    AgentTypeDefinitionError(#[from] AgentTypeDefinitionError),
     #[error("cannot find required file map")]
     RequiredFileMappingNotFoundError,
 }
@@ -48,10 +54,11 @@ impl<R: AgentRegistry, F: FileReader> ConfigConverter<R, F> {
         &self,
         migration_agent_config: &MigrationAgentConfig,
     ) -> Result<HashMap<String, AgentValueSpec>, ConversionError> {
-        let agent_type = self
+        let agent_type_definition = self
             .agent_registry
             .get(&migration_agent_config.get_agent_type_fqn())?;
 
+        let agent_type = build_agent_type(agent_type_definition, &Environment::OnHost)?;
         let mut agent_values_specs: Vec<HashMap<String, AgentValueSpec>> = Vec::new();
         for (normalized_fqn, spec) in agent_type.variables.flatten().iter() {
             let agent_type_fqn: AgentTypeFieldFQN = normalized_fqn.into();

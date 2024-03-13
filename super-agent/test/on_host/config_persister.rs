@@ -60,11 +60,12 @@ namespace: newrelic
 name: com.newrelic.infrastructure_agent
 version: 0.0.1
 variables:
-  config_file:
-    description: "Newrelic infra configuration path"
-    type: file
-    required: true
-    file_path: newrelic-infra.yml
+  on_host:
+    config_file:
+      description: "Newrelic infra configuration path"
+      type: file
+      required: true
+      file_path: newrelic-infra.yml
 deployment:
   on_host:
     executables:
