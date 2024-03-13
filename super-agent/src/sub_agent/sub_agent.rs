@@ -1,14 +1,14 @@
 use crate::event::channel::EventPublisher;
 use crate::event::SubAgentEvent;
 use crate::opamp::callbacks::AgentCallbacks;
+use crate::opamp::remote_config_publisher::OpAMPRemoteConfigPublisher;
 use crate::sub_agent::error;
 use crate::sub_agent::error::SubAgentError;
 use crate::sub_agent::event_processor::SubAgentEventProcessor;
-use crate::sub_agent::opamp::remote_config_publisher::SubAgentRemoteConfigPublisher;
 use crate::super_agent::config::{AgentID, SubAgentConfig};
 use std::thread::JoinHandle;
 
-pub(crate) type SubAgentCallbacks = AgentCallbacks<SubAgentRemoteConfigPublisher>;
+pub(crate) type SubAgentCallbacks = AgentCallbacks<OpAMPRemoteConfigPublisher>;
 
 /// The Runner trait defines the entry-point interface for a supervisor. Exposes a run method that will start the supervised processes' execution.
 pub trait NotStartedSubAgent {

@@ -1,3 +1,4 @@
+use crate::event::channel::EventPublisher;
 use crate::event::OpAMPEvent;
 use crate::opamp::remote_config::{ConfigMap, RemoteConfig, RemoteConfigError};
 use crate::opamp::remote_config_hash::Hash;
@@ -71,5 +72,31 @@ pub trait RemoteConfigPublisher {
             return self.publish_event(event);
         }
         Err(RemoteConfigPublisherError::EmptyRemoteConfig)
+    }
+}
+
+pub struct OpAMPRemoteConfigPublisher {
+    publisher: EventPublisher<OpAMPEvent>,
+}
+
+impl OpAMPRemoteConfigPublisher {
+    pub fn new(publisher: EventPublisher<OpAMPEvent>) -> Self {
+        Self { publisher }
+    }
+}
+
+impl RemoteConfigPublisher for OpAMPRemoteConfigPublisher {
+    fn on_config_ok(&self, remote_config: RemoteConfig) -> OpAMPEvent {
+        OpAMPEvent::ValidRemoteConfigReceived(remote_config)
+    }
+
+    fn on_config_err(&self, err: RemoteConfigError) -> OpAMPEvent {
+        OpAMPEvent::InvalidRemoteConfigReceived(err)
+    }
+
+    fn publish_event(&self, opamp_event: OpAMPEvent) -> Result<(), RemoteConfigPublisherError> {
+        self.publisher
+            .publish(opamp_event)
+            .map_err(|_| RemoteConfigPublisherError::PublishEventError)
     }
 }
