@@ -104,7 +104,8 @@ impl LoggingConfig {
                         "newrelic-super-agent",
                     )])),
             )
-            .install_batch(opentelemetry_sdk::runtime::Tokio)?;
+            // .install_batch(opentelemetry_sdk::runtime::Tokio)?;
+            .install_simple()?;
         let otel_traces_layer = tracing_opentelemetry::layer().with_tracer(otel_tracer);
 
         // Metrics
