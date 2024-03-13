@@ -61,7 +61,7 @@ paths:
                         healthy: false
                         health_check_method: "http"
                         last_error: "The sub-agent exceeded the number of retries defined in its restart policy."
-                        status: "unregistred"
+                        status: "unregistered"
         '500':
           description: Internal Server Error
           content:
