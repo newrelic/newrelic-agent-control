@@ -1,7 +1,6 @@
 use super::config::{
     AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig, SuperAgentConfigError,
 };
-use super::opamp::remote_config_publisher::SuperAgentRemoteConfigPublisher;
 use super::store::{
     SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer, SuperAgentConfigStoreFile,
 };
@@ -11,6 +10,7 @@ use crate::opamp::callbacks::AgentCallbacks;
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::remote_config::RemoteConfig;
 use crate::opamp::remote_config_hash::Hash;
+use crate::opamp::remote_config_publisher::OpAMPRemoteConfigPublisher;
 use crate::opamp::remote_config_report::report_remote_config_status_applied;
 use crate::sub_agent::collection::{NotStartedSubAgents, StartedSubAgents};
 use crate::sub_agent::error::SubAgentBuilderError;
@@ -27,7 +27,7 @@ use std::string::ToString;
 use std::sync::Arc;
 use tracing::{debug, info, trace, warn};
 
-pub(super) type SuperAgentCallbacks = AgentCallbacks<SuperAgentRemoteConfigPublisher>;
+pub(super) type SuperAgentCallbacks = AgentCallbacks<OpAMPRemoteConfigPublisher>;
 
 pub struct SuperAgent<S, O, HR, SL = SuperAgentConfigStoreFile>
 where

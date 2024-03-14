@@ -1,14 +1,13 @@
 use newrelic_super_agent::cli::Cli;
 use newrelic_super_agent::event::channel::{pub_sub, EventConsumer, EventPublisher};
 use newrelic_super_agent::event::SuperAgentEvent;
+use newrelic_super_agent::opamp::client_builder::OpAMPHttpClientBuilder;
 use newrelic_super_agent::opamp::instance_id::getter::ULIDInstanceIDGetter;
 use newrelic_super_agent::opamp::instance_id::Identifiers;
 use newrelic_super_agent::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use newrelic_super_agent::sub_agent::event_processor_builder::EventProcessorBuilder;
-use newrelic_super_agent::sub_agent::opamp::client_builder::SubAgentOpAMPHttpBuilder;
 use newrelic_super_agent::sub_agent::values::values_repository::ValuesRepositoryFile;
 use newrelic_super_agent::super_agent::error::AgentError;
-use newrelic_super_agent::super_agent::opamp::client_builder::SuperAgentOpAMPHttpBuilder;
 use newrelic_super_agent::super_agent::store::{SuperAgentConfigLoader, SuperAgentConfigStoreFile};
 use newrelic_super_agent::super_agent::{super_agent_fqn, SuperAgent};
 use newrelic_super_agent::utils::binary_metadata::binary_metadata;
@@ -70,10 +69,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     debug!("Creating the signal handler");
     create_shutdown_signal_handler(super_agent_publisher)?;
 
-    let opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder> = super_agent_config
+    let opamp_client_builder: Option<OpAMPHttpClientBuilder> = super_agent_config
         .opamp
         .as_ref()
-        .map(|opamp_config| SuperAgentOpAMPHttpBuilder::new(opamp_config.clone()));
+        .map(|opamp_config| OpAMPHttpClientBuilder::new(opamp_config.clone()));
 
     // enable remote config store
     if opamp_client_builder.is_some() {
@@ -101,7 +100,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 fn run_super_agent(
     config_storer: Arc<SuperAgentConfigStoreFile>,
     super_agent_consumer: EventConsumer<SuperAgentEvent>,
-    opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
+    opamp_client_builder: Option<OpAMPHttpClientBuilder>,
 ) -> Result<(), AgentError> {
     use newrelic_super_agent::agent_type::renderer::TemplateRenderer;
     use newrelic_super_agent::opamp::hash_repository::HashRepositoryFile;
@@ -136,12 +135,9 @@ fn run_super_agent(
     let sub_agent_event_processor_builder =
         EventProcessorBuilder::new(sub_agent_hash_repository.clone(), values_repository.clone());
 
-    let sub_agent_opamp_builder = opamp_client_builder
-        .as_ref()
-        .map(SubAgentOpAMPHttpBuilder::from);
     let sub_agent_builder =
         newrelic_super_agent::sub_agent::on_host::builder::OnHostSubAgentBuilder::new(
-            sub_agent_opamp_builder.as_ref(),
+            opamp_client_builder.as_ref(),
             &instance_id_getter,
             sub_agent_hash_repository,
             &agents_assembler,
@@ -184,7 +180,7 @@ fn print_identifiers(identifiers: &Identifiers) {
 fn run_super_agent(
     config_storer: Arc<SuperAgentConfigStoreFile>,
     super_agent_consumer: EventConsumer<SuperAgentEvent>,
-    opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
+    opamp_client_builder: Option<OpAMPHttpClientBuilder>,
 ) -> Result<(), AgentError> {
     use newrelic_super_agent::k8s::garbage_collector::NotStartedK8sGarbageCollector;
     use newrelic_super_agent::k8s::store::K8sStore;
@@ -244,13 +240,9 @@ fn run_super_agent(
     let sub_agent_event_processor_builder =
         EventProcessorBuilder::new(hash_repository.clone(), values_repository.clone());
 
-    let sub_agent_opamp_builder = opamp_client_builder
-        .as_ref()
-        .map(SubAgentOpAMPHttpBuilder::from);
-
     info!("Creating the k8s sub_agent builder");
     let sub_agent_builder = newrelic_super_agent::sub_agent::k8s::builder::K8sSubAgentBuilder::new(
-        sub_agent_opamp_builder.as_ref(),
+        opamp_client_builder.as_ref(),
         &instance_id_getter,
         k8s_client.clone(),
         hash_repository.clone(),
