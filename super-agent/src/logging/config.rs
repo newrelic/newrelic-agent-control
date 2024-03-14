@@ -126,8 +126,11 @@ impl LoggingConfig {
 
         let otel_metrics_layer = MetricsLayer::new(meter);
 
-        // Tokio cnsole subscriber layer for debugging async memory leak
-        let tokio_console_layer = console_subscriber::spawn();
+        // Tokio console subscriber layer for debugging async memory leak
+        // This is commented out as it requires the nightly Rust compiler.
+        // To compile with this enabled, use the following command:
+        // `RUSTFLAGS="--cfg tokio_unstable" cargo +nightly build --features onhost --release`
+        // let tokio_console_layer = console_subscriber::spawn();
 
         // a `Layer` wrapped in an `Option` such as the above defined `file_layer` also implements
         // the `Layer` trait. This allows individual layers to be enabled or disabled at runtime
@@ -137,7 +140,7 @@ impl LoggingConfig {
             .with(file_layer)
             .with(otel_traces_layer)
             .with(otel_metrics_layer)
-            .with(tokio_console_layer)
+            // .with(tokio_console_layer) // See above (line 129) to know how to enable this.
             .try_init()
             .map_err(|_| {
                 LoggingError::TryInitError(
