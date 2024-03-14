@@ -15,6 +15,7 @@ use crate::opamp::remote_config_report::report_remote_config_status_applied;
 use crate::sub_agent::collection::{NotStartedSubAgents, StartedSubAgents};
 use crate::sub_agent::error::SubAgentBuilderError;
 use crate::sub_agent::logger::{AgentLog, EventLogger, StdEventReceiver};
+
 use crate::sub_agent::NotStartedSubAgent;
 use crate::sub_agent::SubAgentBuilder;
 use crate::super_agent::defaults::{SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION};

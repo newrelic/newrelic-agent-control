@@ -5,6 +5,16 @@ use newrelic_super_agent::opamp::instance_id::getter::ULIDInstanceIDGetter;
 use newrelic_super_agent::opamp::instance_id::Identifiers;
 use newrelic_super_agent::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use newrelic_super_agent::sub_agent::values::values_repository::ValuesRepositoryFile;
+
+use chrono::Utc;
+use http::HeaderMap;
+use jsonwebtoken::Algorithm::RS256;
+use newrelic_super_agent::auth::authenticator::HttpAuthenticator;
+use newrelic_super_agent::auth::http_client::HttpClientUreq;
+use newrelic_super_agent::auth::jwt::PrivateKeyJwtSigner;
+use newrelic_super_agent::auth::token::{TokenRetriever, TokenRetrieverWithCache};
+use newrelic_super_agent::auth::ClientID;
+
 use newrelic_super_agent::super_agent::error::AgentError;
 use newrelic_super_agent::super_agent::opamp::client_builder::SuperAgentOpAMPHttpBuilder;
 use newrelic_super_agent::super_agent::store::{SuperAgentConfigLoader, SuperAgentConfigStoreFile};
@@ -15,7 +25,10 @@ use opamp_client::operation::settings::DescriptionValueType;
 use std::collections::HashMap;
 use std::error::Error;
 use std::ffi::OsString;
+use std::fs::read_to_string;
+use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 use tracing::{debug, error, info};
 
 #[cfg(all(feature = "onhost", feature = "k8s", not(feature = "ci")))]
@@ -68,10 +81,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     debug!("Creating the signal handler");
     create_shutdown_signal_handler(super_agent_publisher)?;
 
-    let opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder> = super_agent_config
-        .opamp
-        .as_ref()
-        .map(|opamp_config| SuperAgentOpAMPHttpBuilder::new(opamp_config.clone()));
+    let opamp_client_builder = super_agent_config.opamp.as_ref().map(|opamp_config| {
+        let token_retriever = Arc::new(create_token_retriever(
+            opamp_config.auth_client_id.clone(),
+            opamp_config.private_key_path.clone(),
+        ));
+        SuperAgentOpAMPHttpBuilder::new(opamp_config.clone(), token_retriever.clone())
+    });
 
     // enable remote config store
     if opamp_client_builder.is_some() {
@@ -95,11 +111,36 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+fn create_token_retriever(
+    client_id: ClientID,
+    private_key_path: PathBuf,
+) -> TokenRetrieverWithCache<PrivateKeyJwtSigner, HttpAuthenticator<HttpClientUreq>> {
+    // TODO <Auth POC> No error control for POC
+    let private_key = read_to_string(private_key_path).expect("Could not read private key");
+    let algorithm = RS256;
+    let jwt_signer = PrivateKeyJwtSigner::new(private_key.to_string(), algorithm);
+    let auth_expiration_in_seconds = 30;
+    let timeout = Duration::from_secs(30);
+    let auth_http_client = HttpClientUreq::new(
+        String::from("https://staging-system-identity-poc.vip.cf.nr-ops.net/oauth/token"),
+        timeout,
+        HeaderMap::default(),
+    );
+    let authenticator = HttpAuthenticator::new(auth_http_client);
+
+    TokenRetrieverWithCache::new(
+        client_id,
+        auth_expiration_in_seconds,
+        jwt_signer,
+        authenticator,
+    )
+}
+
 #[cfg(feature = "onhost")]
-fn run_super_agent(
+fn run_super_agent<T: TokenRetriever + Send + Sync + 'static>(
     config_storer: SuperAgentConfigStoreFile,
     super_agent_consumer: EventConsumer<SuperAgentEvent>,
-    opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
+    opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder<T>>,
 ) -> Result<(), AgentError> {
     use newrelic_super_agent::opamp::hash_repository::HashRepositoryFile;
     use newrelic_super_agent::opamp::instance_id::IdentifiersProvider;
@@ -179,10 +220,10 @@ fn print_identifiers(identifiers: &Identifiers) {
 }
 
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
-fn run_super_agent(
+fn run_super_agent<T: TokenRetriever + Send + Sync + 'static>(
     config_storer: SuperAgentConfigStoreFile,
     super_agent_consumer: EventConsumer<SuperAgentEvent>,
-    opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder>,
+    opamp_client_builder: Option<SuperAgentOpAMPHttpBuilder<T>>,
 ) -> Result<(), AgentError> {
     use newrelic_super_agent::k8s::garbage_collector::NotStartedK8sGarbageCollector;
     use newrelic_super_agent::k8s::store::K8sStore;

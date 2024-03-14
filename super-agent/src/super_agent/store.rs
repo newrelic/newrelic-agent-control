@@ -148,6 +148,7 @@ pub(crate) mod tests {
     use super::SuperAgentConfigError;
     use super::*;
     use super::{SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer};
+    use crate::auth::ClientID;
     use mockall::{mock, predicate};
     use std::{collections::HashMap, io::Write};
     use tempfile::NamedTempFile;
@@ -219,6 +220,8 @@ agents:
             opamp: Some(OpAMPClientConfig {
                 endpoint: "http://127.0.0.1/v1/opamp".to_string(),
                 headers: None,
+                auth_client_id: ClientID::from(""),
+                private_key_path: PathBuf::from(""),
             }),
             k8s: None,
             ..Default::default()

@@ -1,3 +1,4 @@
+pub(super) mod auth_http_client;
 pub mod callbacks;
 pub mod client_builder;
 pub mod hash_repository;

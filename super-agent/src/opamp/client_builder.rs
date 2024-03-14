@@ -1,12 +1,16 @@
+use crate::auth::token::TokenRetriever;
 use crate::event::channel::EventPublisher;
 use crate::event::OpAMPEvent;
+use crate::opamp::auth_http_client::AuthHttpClient;
 use crate::opamp::instance_id;
 use crate::super_agent::config::{AgentID, OpAMPClientConfig};
 use opamp_client::http::config::HttpConfigError;
+use opamp_client::http::http_client::HttpClient;
 use opamp_client::http::{HttpClientError, HttpClientUreq, HttpConfig};
 use opamp_client::operation::callbacks::Callbacks;
 use opamp_client::operation::settings::StartSettings;
 use opamp_client::{NotStartedClientError, StartedClient, StartedClientError};
+use std::sync::Arc;
 use std::time::SystemTimeError;
 use thiserror::Error;
 use tracing::error;
@@ -40,19 +44,22 @@ pub trait OpAMPClientBuilder<CB: Callbacks> {
     ) -> Result<Self::Client, OpAMPClientBuilderError>;
 }
 
-pub fn build_http_client(
+pub fn build_http_client<T: TokenRetriever>(
     config: &OpAMPClientConfig,
-) -> Result<HttpClientUreq, OpAMPClientBuilderError> {
+    token_retriever: Arc<T>,
+) -> Result<AuthHttpClient<T>, OpAMPClientBuilderError> {
     let headers = config.headers.clone().unwrap_or_default();
     let headers: Vec<(&str, &str)> = headers
         .iter()
         .map(|(h, v)| (h.as_str(), v.as_str()))
         .collect();
 
-    let http_client =
+    let ureq_http_client =
         HttpClientUreq::new(HttpConfig::new(config.endpoint.as_str())?.with_headers(headers)?)?;
 
-    Ok(http_client)
+    let auth_http_client = AuthHttpClient::new(ureq_http_client, token_retriever);
+
+    Ok(auth_http_client)
 }
 
 #[cfg(test)]

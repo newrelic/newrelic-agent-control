@@ -4,10 +4,11 @@ use crate::super_agent::defaults::{default_capabilities, SUPER_AGENT_ID};
 use opamp_client::operation::capabilities::Capabilities;
 use serde::{Deserialize, Serialize};
 use std::ops::{Deref, DerefMut};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::{collections::HashMap, fmt::Display};
 use thiserror::Error;
 
+use crate::auth::ClientID;
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
 use kube::core::TypeMeta;
 
@@ -234,6 +235,8 @@ pub struct SubAgentConfig {
 pub struct OpAMPClientConfig {
     pub endpoint: String,
     pub headers: Option<HashMap<String, String>>,
+    pub auth_client_id: ClientID,
+    pub private_key_path: PathBuf,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
