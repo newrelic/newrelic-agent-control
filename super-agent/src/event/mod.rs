@@ -21,13 +21,13 @@ pub enum SuperAgentEvent {
 #[derive(Clone, Debug, PartialEq)]
 pub enum SubAgentEvent {
     ConfigUpdated(AgentID),
-    SubAgentHealthy(AgentID),
-    SubAgentUnhealthy(AgentID, LastErrorMessage),
+    SubAgentBecameHealthy(AgentID),
+    SubAgentBecameUnhealthy(AgentID, LastErrorMessage),
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum SubAgentInternalEvent {
     StopRequested,
-    UnhealthyAgent(LastErrorMessage),
-    HealthyAgent,
+    AgentBecameUnhealthy(LastErrorMessage),
+    AgentBecameHealthy,
 }

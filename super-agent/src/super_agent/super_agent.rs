@@ -254,10 +254,10 @@ where
                                 SubAgentEvent::ConfigUpdated(agent_id) => {
                                     self.sub_agent_config_updated(agent_id,sub_agent_publisher.clone(),&mut sub_agents)?
                                 },
-                                SubAgentEvent::SubAgentHealthy(agent_id) => {
+                                SubAgentEvent::SubAgentBecameHealthy(agent_id) => {
                                     debug!(agent_id = agent_id.to_string() ,"sub agent is healthy");
                                 },
-                                SubAgentEvent::SubAgentUnhealthy(agent_id,msg) => {
+                                SubAgentEvent::SubAgentBecameUnhealthy(agent_id,msg) => {
                                     debug!(agent_id = agent_id.to_string(), error_message = msg,"sub agent is unhealthy");
                                 },
                             }

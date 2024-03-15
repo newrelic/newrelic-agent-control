@@ -124,12 +124,12 @@ where
                                 debug!("sub_agent_internal_consumer :: StopRequested");
                                 break;
                             },
-                            Ok(SubAgentInternalEvent::UnhealthyAgent(msg))=>{
+                            Ok(SubAgentInternalEvent::AgentBecameUnhealthy(msg))=>{
                                 debug!("sub_agent_internal_consumer :: UnhealthyAgent");
                                 let _ = self.unhealthy(msg).inspect_err(|e| error!("error processing unhealthy status: {}",e));
 
                             }
-                            Ok(SubAgentInternalEvent::HealthyAgent)=>{
+                            Ok(SubAgentInternalEvent::AgentBecameHealthy)=>{
                                 debug!("sub_agent_internal_consumer :: HealthyAgent");
                                let _ = self.healthy().inspect_err(|e| error!("error processing healthy status: {}",e));
                             }

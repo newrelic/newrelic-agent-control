@@ -161,7 +161,7 @@ fn start_process_thread(
             let id = not_started_supervisor.id();
 
             let _ = internal_event_publisher
-                .publish(SubAgentInternalEvent::HealthyAgent)
+                .publish(SubAgentInternalEvent::AgentBecameHealthy)
                 .inspect_err(|e| {
                     error!(
                         err = e.to_string(),
@@ -181,7 +181,7 @@ fn start_process_thread(
                 .map(|exit_code| {
                     if !exit_code.success() {
                         let _ = internal_event_publisher
-                            .publish(SubAgentInternalEvent::UnhealthyAgent(format!(
+                            .publish(SubAgentInternalEvent::AgentBecameUnhealthy(format!(
                                 "process exited with code: {}",
                                 exit_code
                             )))

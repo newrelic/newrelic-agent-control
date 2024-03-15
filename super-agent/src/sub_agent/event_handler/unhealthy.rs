@@ -1,4 +1,4 @@
-use crate::event::SubAgentEvent::SubAgentUnhealthy;
+use crate::event::SubAgentEvent::SubAgentBecameUnhealthy;
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::LastErrorMessage;
 use crate::sub_agent::error::SubAgentError;
@@ -24,7 +24,7 @@ where
             };
             client.set_health(health)?;
             self.sub_agent_publisher
-                .publish(SubAgentUnhealthy(self.agent_id(), error_message))?;
+                .publish(SubAgentBecameUnhealthy(self.agent_id(), error_message))?;
             Ok(())
         } else {
             unreachable!()
