@@ -35,13 +35,14 @@ where
         remote_config_err: RemoteConfigError,
     ) -> Result<(), AgentError> {
         if let RemoteConfigError::InvalidConfig(hash, error) = remote_config_err {
+            let error_message = format!("invalid remote config: {}", error);
             opamp_client.set_remote_config_status(RemoteConfigStatus {
                 last_remote_config_hash: hash.into_bytes(),
-                error_message: error.clone(),
+                error_message: error,
                 status: RemoteConfigStatuses::Failed as i32,
             })?;
             // report unhealthy so the customers can know that the remote config is invalid
-            self.report_unhealthy(format!("invalid remote config: {}", error))?;
+            self.report_unhealthy(error_message)?;
 
             Ok(())
         } else {
