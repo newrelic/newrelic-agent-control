@@ -1,6 +1,5 @@
-use crate::event::SubAgentEvent::SubAgentBecameUnhealthy;
+use crate::event::SubAgentEvent::SubAgentBecameHealthy;
 use crate::opamp::hash_repository::HashRepository;
-use crate::opamp::LastErrorMessage;
 use crate::sub_agent::error::SubAgentError;
 use crate::sub_agent::event_processor::EventProcessor;
 use crate::sub_agent::values::values_repository::ValuesRepository;
@@ -14,17 +13,17 @@ where
     H: HashRepository,
     R: ValuesRepository,
 {
-    pub(crate) fn unhealthy(&self, error_message: LastErrorMessage) -> Result<(), SubAgentError> {
+    pub(crate) fn on_became_healthy(&self) -> Result<(), SubAgentError> {
         if let Some(client) = self.maybe_opamp_client.as_ref() {
             let health = opamp_client::opamp::proto::ComponentHealth {
-                healthy: false,
+                healthy: true,
                 start_time_unix_nano: get_sys_time_nano()?,
-                last_error: error_message.clone(),
+                last_error: "".to_string(),
                 ..Default::default()
             };
             client.set_health(health)?;
             self.sub_agent_publisher
-                .publish(SubAgentBecameUnhealthy(self.agent_id(), error_message))?;
+                .publish(SubAgentBecameHealthy(self.agent_id()))?;
             Ok(())
         } else {
             unreachable!()
