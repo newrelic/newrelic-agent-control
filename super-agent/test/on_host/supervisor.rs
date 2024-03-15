@@ -3,6 +3,7 @@ use std::{thread, time::Duration};
 use newrelic_super_agent::context::Context;
 use newrelic_super_agent::logging::config::LoggingConfig;
 
+use newrelic_super_agent::event::channel::pub_sub;
 use newrelic_super_agent::sub_agent::on_host::supervisor::command_supervisor::{
     NotStarted, SupervisorOnHost,
 };
@@ -50,10 +51,12 @@ fn test_supervisors() {
         )
         .collect();
 
+    let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
+
     // Run all the supervisors, getting handles
     let handles = agents
         .into_iter()
-        .map(|agent| agent.run().unwrap())
+        .map(|agent| agent.run(sub_agent_internal_publisher.clone()).unwrap())
         .collect::<Vec<_>>();
 
     // Sleep for a while

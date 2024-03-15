@@ -1,5 +1,6 @@
 pub mod channel;
 
+use crate::opamp::LastErrorMessage;
 /// EVENTS
 use crate::{
     opamp::remote_config::{RemoteConfig, RemoteConfigError},
@@ -20,9 +21,13 @@ pub enum SuperAgentEvent {
 #[derive(Clone, Debug, PartialEq)]
 pub enum SubAgentEvent {
     ConfigUpdated(AgentID),
+    SubAgentHealthy(AgentID),
+    SubAgentUnhealthy(AgentID, LastErrorMessage),
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum SubAgentInternalEvent {
     StopRequested,
+    UnhealthyAgent(LastErrorMessage),
+    HealthyAgent,
 }

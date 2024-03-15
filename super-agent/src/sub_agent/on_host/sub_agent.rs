@@ -60,7 +60,7 @@ where
             .into_iter()
             .map(|s| {
                 debug!("Running supervisor {} for {}", s.id(), self.agent_id);
-                s.run()
+                s.run(self.sub_agent_internal_publisher.clone())
             })
             .collect::<Result<Vec<_>, _>>()?;
 
