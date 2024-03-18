@@ -31,7 +31,7 @@ pub struct AgentTypeDefinition {
     pub variables: AgentTypeVariables,
     #[serde(default, flatten)]
     pub runtime_config: Runtime,
-    pub health: HealthConfig,
+    pub health: Option<HealthConfig>,
 }
 
 /// Contains the variable definitions that can be defined in an [AgentTypeDefinition].

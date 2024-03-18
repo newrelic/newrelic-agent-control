@@ -21,7 +21,9 @@ pub struct HealthConfig {
 /// Enumeration representing the possible types of health checks.
 ///
 /// Variants include `HttpHealth` and `ExecHealth`, corresponding to health checks via HTTP and execute command, respectively.
+#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 enum HealthCheck {
+    #[default]
     HttpHealth,
     ExecHealth,
 }
@@ -29,6 +31,7 @@ enum HealthCheck {
 /// Represents an HTTP-based health check.
 ///
 /// For further details, refer to [Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/).
+#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub struct HttpHealth {
     /// The HTTP path to check for the health check.
     path: String,
@@ -43,6 +46,7 @@ pub struct HttpHealth {
 /// Represents a health check based on an executed command.
 ///
 /// For further details, refer to [Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/).
+#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub struct ExecHealth {
     /// The command to be executed for the health check.
     command: Vec<String>,
