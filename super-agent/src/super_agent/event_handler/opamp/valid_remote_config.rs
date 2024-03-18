@@ -29,6 +29,11 @@ where
     S: SubAgentBuilder,
     SL: SubAgentsConfigStorer + SubAgentsConfigLoader + SubAgentsConfigDeleter,
 {
+    // Super Agent on remote config
+    // Configuration will be reported as applying to OpAMP
+    // Valid configuration will be applied and reported as applied to OpAMP
+    // Invalid configuration will not be applied and therefore it will not break the execution
+    // of the Super Agent. It will be logged and reported as failed to OpAMP
     pub(crate) fn valid_remote_config(
         &self,
         mut remote_config: RemoteConfig,
@@ -37,38 +42,16 @@ where
             <<S as SubAgentBuilder>::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
     ) -> Result<(), AgentError> {
-        if let Some(opamp_client) = &self.opamp_client {
-            self.process_super_agent_remote_config(
-                opamp_client,
-                &mut remote_config,
-                sub_agents,
-                sub_agent_publisher.clone(),
-            )
-        } else {
-            unreachable!("got remote config without OpAMP being enabled")
-        }
-    }
+        let Some(opamp_client) = &self.opamp_client else {
+            unreachable!("got remote config without OpAMP being enabled");
+        };
 
-    // Super Agent on remote config
-    // Configuration will be reported as applying to OpAMP
-    // Valid configuration will be applied and reported as applied to OpAMP
-    // Invalid configuration will not be applied and therefore it will not break the execution
-    // of the Super Agent. It will be logged and reported as failed to OpAMP
-    fn process_super_agent_remote_config(
-        &self,
-        opamp_client: &O,
-        remote_config: &mut RemoteConfig,
-        running_sub_agents: &mut StartedSubAgents<
-            <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
-        >,
-        sub_agent_publisher: EventPublisher<SubAgentEvent>,
-    ) -> Result<(), AgentError> {
         info!("Applying SuperAgent remote config");
         report_remote_config_status_applying(opamp_client, &remote_config.hash)?;
 
         match self.apply_remote_super_agent_config(
             remote_config.clone(),
-            running_sub_agents,
+            sub_agents,
             sub_agent_publisher,
         ) {
             Err(err) => {

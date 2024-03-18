@@ -21,33 +21,24 @@ where
         &self,
         remote_config_error: RemoteConfigError,
     ) -> Result<(), AgentError> {
-        if let Some(opamp_client) = &self.opamp_client {
-            self.process_super_agent_remote_config_error(opamp_client, remote_config_error)
-        } else {
-            unreachable!("got remote config without OpAMP being enabled")
-        }
-    }
+        let Some(opamp_client) = &self.opamp_client else {
+            unreachable!();
+        };
 
-    // Super Agent on remote config
-    fn process_super_agent_remote_config_error(
-        &self,
-        opamp_client: &O,
-        remote_config_err: RemoteConfigError,
-    ) -> Result<(), AgentError> {
-        if let RemoteConfigError::InvalidConfig(hash, error) = remote_config_err {
-            let error_message = format!("invalid remote config: {}", error);
-            opamp_client.set_remote_config_status(RemoteConfigStatus {
-                last_remote_config_hash: hash.into_bytes(),
-                error_message: error,
-                status: RemoteConfigStatuses::Failed as i32,
-            })?;
-            // report unhealthy so the customers can know that the remote config is invalid
-            self.report_unhealthy(error_message)?;
+        let RemoteConfigError::InvalidConfig(hash, error) = remote_config_error else {
+            unreachable!();
+        };
 
-            Ok(())
-        } else {
-            unreachable!()
-        }
+        let error_message = format!("invalid remote config: {}", error);
+        opamp_client.set_remote_config_status(RemoteConfigStatus {
+            last_remote_config_hash: hash.into_bytes(),
+            error_message: error,
+            status: RemoteConfigStatuses::Failed as i32,
+        })?;
+        // report unhealthy so the customers can know that the remote config is invalid
+        self.report_unhealthy(error_message)?;
+
+        Ok(())
     }
 }
 
