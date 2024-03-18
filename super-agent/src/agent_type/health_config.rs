@@ -64,8 +64,10 @@ pub(super) struct HttpHealth {
 /// For further details, refer to [Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/).
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub(super) struct ExecHealth {
-    /// The command to be executed for the health check.
-    command: Vec<String>,
+    /// The binary path to be executed for the health check.
+    path: String,
+    /// Arguments provided to the executed command.
+    args: Vec<String>,
 }
 
 impl Templateable for HealthConfig {
