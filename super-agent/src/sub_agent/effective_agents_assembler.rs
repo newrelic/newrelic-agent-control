@@ -1,20 +1,19 @@
 use std::fmt::Display;
-use std::path::PathBuf;
 
 use thiserror::Error;
 use tracing::error;
 
+use crate::agent_type::agent_attributes::AgentAttributes;
 use crate::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError, LocalRegistry};
-use crate::agent_type::definition::{AgentAttributes, AgentType, AgentTypeDefinition};
+use crate::agent_type::definition::{AgentType, AgentTypeDefinition};
 use crate::agent_type::environment::Environment;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::renderer::{Renderer, TemplateRenderer};
-use crate::agent_type::runtime_config::Runtime;
+use crate::agent_type::runtime_config::{Deployment, Runtime};
 use crate::sub_agent::values::values_repository::{
     ValuesRepository, ValuesRepositoryError, ValuesRepositoryFile,
 };
 use crate::super_agent::config::{AgentID, SubAgentConfig};
-use crate::super_agent::defaults::{GENERATED_FOLDER_NAME, SUPER_AGENT_DATA_DIR};
 
 use fs::{directory_manager::DirectoryManagerFs, file_reader::FileReaderError, LocalFile};
 
@@ -30,8 +29,16 @@ pub enum EffectiveAgentsAssemblerError {
     SerdeYamlError(#[from] serde_yaml::Error),
     #[error("error assembling agents: `{0}`")]
     AgentTypeError(#[from] AgentTypeError),
+    #[error("error assembling agents: `{0}`")]
+    AgentTypeDefinitionError(#[from] AgentTypeDefinitionError),
     #[error("values error: `{0}`")]
     ValuesRepositoryError(#[from] ValuesRepositoryError),
+}
+
+#[derive(Error, Debug)]
+pub enum AgentTypeDefinitionError {
+    #[error("invalid agent-type for `{0}` environment: `{1}")]
+    EnvironmentError(AgentTypeError, Environment),
 }
 
 #[derive(Clone)]
@@ -57,6 +64,10 @@ impl EffectiveAgent {
     pub(crate) fn get_runtime_config(&self) -> &Runtime {
         &self.runtime_config
     }
+
+    pub(crate) fn get_agent_id(&self) -> &AgentID {
+        &self.agent_id
+    }
 }
 
 pub trait EffectiveAgentsAssembler {
@@ -77,7 +88,6 @@ where
     registry: R,
     values_repository: D,
     remote_enabled: bool,
-    local_conf_path: Option<String>,
     renderer: N,
 }
 
@@ -94,7 +104,6 @@ impl Default for LocalSubAgentsAssembler {
             registry: LocalRegistry::default(),
             values_repository: ValuesRepositoryFile::default().with_remote(),
             remote_enabled: false,
-            local_conf_path: None,
             renderer: TemplateRenderer::default(),
         }
     }
@@ -122,25 +131,6 @@ where
 
     pub fn with_renderer(self, renderer: N) -> Self {
         Self { renderer, ..self }
-    }
-
-    pub fn build_absolute_path(&self, path: Option<&String>, agent_id: &AgentID) -> PathBuf {
-        let base_data_dir = match path {
-            Some(p) => p,
-            None => SUPER_AGENT_DATA_DIR,
-        };
-        PathBuf::from(format!(
-            "{}/{}/{}",
-            base_data_dir, GENERATED_FOLDER_NAME, agent_id
-        ))
-    }
-
-    #[cfg(feature = "custom-local-path")]
-    pub fn with_base_dir(self, base_dir: &str) -> Self {
-        Self {
-            local_conf_path: Some(format!("{}{}", base_dir, SUPER_AGENT_DATA_DIR)),
-            ..self
-        }
     }
 }
 
@@ -172,9 +162,6 @@ where
 
         // Build the agent attributes
         let attributes = AgentAttributes {
-            // This is needed to create path for "file" variables, not used in k8s.
-            generated_configs_path: self
-                .build_absolute_path(self.local_conf_path.as_ref(), agent_id),
             agent_id: agent_id.get(),
         };
 
@@ -189,14 +176,40 @@ where
 /// Builds an [AgentType] given the provided [AgentTypeDefinition] and environment.
 pub fn build_agent_type(
     definition: AgentTypeDefinition,
-    _environment: &Environment,
-) -> Result<AgentType, EffectiveAgentsAssemblerError> {
-    // TODO: the [AgentType] variables will be different depending on the provided environment.
-    // This could return an error if the agent type is not correct, given the provided environment.
+    environment: &Environment,
+) -> Result<AgentType, AgentTypeDefinitionError> {
+    // Select vars and runtime config according to the environment
+    let (specific_vars, runtime_config) = match environment {
+        Environment::K8s => (
+            definition.variables.k8s,
+            Runtime {
+                deployment: Deployment {
+                    on_host: None,
+                    ..definition.runtime_config.deployment
+                },
+            },
+        ),
+        Environment::OnHost => (
+            definition.variables.on_host,
+            Runtime {
+                deployment: Deployment {
+                    k8s: None,
+                    ..definition.runtime_config.deployment
+                },
+            },
+        ),
+    };
+    // Merge common and specific variables
+    let merged_variables = definition
+        .variables
+        .common
+        .merge(specific_vars)
+        .map_err(|err| AgentTypeDefinitionError::EnvironmentError(err, environment.clone()))?;
+
     Ok(AgentType::new(
         definition.metadata,
-        definition.variables,
-        definition.runtime_config,
+        merged_variables,
+        runtime_config,
     ))
 }
 
@@ -206,6 +219,7 @@ pub fn build_agent_type(
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use assert_matches::assert_matches;
     use mockall::{mock, predicate};
 
     use crate::agent_type::agent_type_registry::tests::MockAgentRegistryMock;
@@ -266,7 +280,6 @@ pub(crate) mod tests {
                 values_repository: remote_values_repo,
                 remote_enabled: opamp_enabled,
                 renderer,
-                local_conf_path: None,
             }
         }
     }
@@ -289,10 +302,6 @@ pub(crate) mod tests {
     fn testing_agent_attributes(agent_id: &AgentID) -> AgentAttributes {
         AgentAttributes {
             agent_id: agent_id.to_string(),
-            generated_configs_path: PathBuf::from(format!(
-                "/var/lib/newrelic-super-agent/auto-generated/{}",
-                agent_id,
-            )),
         }
     }
 
@@ -492,4 +501,108 @@ pub(crate) mod tests {
             result.err().unwrap().to_string()
         );
     }
+
+    #[test]
+    fn test_build_agent_type() {
+        let definition =
+            serde_yaml::from_str::<AgentTypeDefinition>(AGENT_TYPE_DEFINITION).unwrap();
+
+        let k8s_agent_type = build_agent_type(definition.clone(), &Environment::K8s).unwrap();
+        let k8s_vars = k8s_agent_type.variables.flatten();
+        assert!(k8s_vars.contains_key("config.really_common"));
+        let var = k8s_vars.get("config.var").unwrap();
+        assert_eq!("K8s var".to_string(), var.description);
+        assert!(
+            k8s_agent_type.runtime_config.deployment.on_host.is_none(),
+            "OnHost deployment for k8s should be none"
+        );
+
+        let on_host_agent_type = build_agent_type(definition, &Environment::OnHost).unwrap();
+        let on_host_vars = on_host_agent_type.variables.flatten();
+        assert!(on_host_vars.contains_key("config.really_common"));
+        let var = on_host_vars.get("config.var").unwrap();
+        assert_eq!("OnHost var".to_string(), var.description);
+        assert!(
+            on_host_agent_type.runtime_config.deployment.k8s.is_none(),
+            "K8s deployment for on_host should be none"
+        );
+    }
+
+    #[test]
+    fn test_build_agent_type_error() {
+        let definition =
+            serde_yaml::from_str::<AgentTypeDefinition>(CONFLICTING_AGENT_TYPE_DEFINITION).unwrap();
+
+        let expected_err = build_agent_type(definition, &Environment::K8s)
+            .err()
+            .unwrap();
+        assert_matches!(expected_err, AgentTypeDefinitionError::EnvironmentError(err, env) => {
+            assert_matches!(err, AgentTypeError::ConflictingVariableDefinition(key) => {
+                assert_eq!("config.var".to_string(), key);
+            });
+            assert_matches!(env, Environment::K8s);
+        });
+    }
+
+    const AGENT_TYPE_DEFINITION: &str = r#"
+name: common
+namespace: newrelic
+version: 0.0.1
+variables:
+  common:
+    config:
+      really_common:
+        description: "Common var"
+        type: string
+        required: true
+  k8s:
+    config:
+      var:
+        description: "K8s var"
+        type: string
+        required: true
+  on_host:
+    config:
+      var:
+        description: "OnHost var"
+        type: string
+        required: true
+deployment:
+  runtime:
+    on_host:
+      executables:
+        - path: /some/path
+          args: "${nr-var:config.really_common} ${config.var}"
+    k8s:
+      objects:
+        chart:
+          apiVersion: some.api.version/v1
+          kind: SomeKind
+          metadata:
+            name: ${nr-sub:agent_id}
+          spec:
+            some_key: ${nr-var:config.really_common}
+            other: ${nr-avar:config.var}
+"#;
+
+    const CONFLICTING_AGENT_TYPE_DEFINITION: &str = r#"
+name: common
+namespace: newrelic
+version: 0.0.1
+variables:
+  common:
+    config:
+      var:
+        description: "Common variable"
+        type: string
+        required: true
+  k8s:
+    config:
+      var:
+        description: "K8s variable"
+        type: string
+        required: true
+deployment:
+  runtime:
+"#;
 }

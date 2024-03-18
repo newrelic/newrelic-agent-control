@@ -52,23 +52,6 @@ where
     }
 }
 
-/// Builds and start an OpAMP client when a builder is provided.
-pub fn start_opamp_client<CB: Callbacks, O: OpAMPClientBuilder<CB>>(
-    opamp_publisher: EventPublisher<OpAMPEvent>,
-    opamp_builder: Option<&O>,
-    agent_id: AgentID,
-    start_settings: StartSettings,
-) -> Result<Option<O::Client>, OpAMPClientBuilderError> {
-    match opamp_builder {
-        Some(builder) => Ok(Some(builder.build_and_start(
-            opamp_publisher,
-            agent_id,
-            start_settings,
-        )?)),
-        None => Ok(None),
-    }
-}
-
 /// Builds the OpAMP StartSettings corresponding to the provided arguments for any sub agent.
 pub fn start_settings(
     instance_id: String,

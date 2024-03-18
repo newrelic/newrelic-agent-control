@@ -28,16 +28,17 @@ use crate::agent_type::trivial_value::TrivialValue;
 /// version: 0.1.0
 ///
 /// variables:
-///  system:
-///   logging:
-///     level:
-///      description: "Logging level"
-///      type: string
+///  common:
+///   system:
+///    logging:
+///      level:
+///       description: "Logging level"
+///       type: string
+///       required: true
+///   custom_envs:
+///      description: "Custom envs"
+///      type: map[string]string
 ///      required: true
-///  custom_envs:
-///     description: "Logging level"
-///     type: map[string]string
-///     required: true
 ///
 /// deployment:
 ///   on_host:
@@ -223,26 +224,27 @@ name: nrdot
 namespace: newrelic
 version: 0.1.0
 variables:
-  config:
-    description: "Path to the agent"
-    type: file
-    required: true
-    file_path: "newrelic-infra.yml"
-  deployment:
-    on_host:
-      path:
-        description: "Path to the agent"
-        type: string
-        required: true
-      args:
-        description: "Args passed to the agent"
-        type: string
-        required: true
-  integrations:
-    description: "Newrelic integrations configuration yamls"
-    type: map[string]file
-    required: true
-    file_path: integrations.d
+  common:
+    config:
+      description: "Path to the agent"
+      type: file
+      required: true
+      file_path: "newrelic-infra.yml"
+    deployment:
+      on_host:
+        path:
+          description: "Path to the agent"
+          type: string
+          required: true
+        args:
+          description: "Args passed to the agent"
+          type: string
+          required: true
+    integrations:
+      description: "Newrelic integrations configuration yamls"
+      type: map[string]file
+      required: true
+      file_path: integrations.d
 deployment:
   on_host:
     executables:
@@ -254,7 +256,7 @@ deployment:
     #[test]
     fn test_update_specs() {
         let input_structure = serde_yaml::from_str::<AgentValues>(EXAMPLE_CONFIG_REPLACE).unwrap();
-        let mut agent_type =
+        let agent_type =
             AgentType::build_for_testing(EXAMPLE_AGENT_YAML_REPLACE, &Environment::OnHost);
 
         let expected = HashMap::from([
@@ -315,36 +317,12 @@ deployment:
             ),
         ]);
 
-        agent_type
-            .merge_variables_with_values(input_structure)
+        let filled_variables = agent_type
+            .variables
+            .fill_with_values(input_structure)
             .unwrap();
 
-        assert_eq!(expected, agent_type.variables.0);
-    }
-
-    const EXAMPLE_CONFIG_REPLACE_NOPATH: &str = r#"
-    deployment:
-      on_host:
-        args: --verbose true
-    integrations: {}
-    config: |
-      test
-    "#;
-
-    #[test]
-    fn test_validate_with_agent_type_missing_required() {
-        let input_structure =
-            serde_yaml::from_str::<AgentValues>(EXAMPLE_CONFIG_REPLACE_NOPATH).unwrap();
-        let mut agent_type =
-            AgentType::build_for_testing(EXAMPLE_AGENT_YAML_REPLACE, &Environment::OnHost);
-
-        let actual = agent_type.merge_variables_with_values(input_structure);
-
-        assert!(actual.is_err());
-        assert_eq!(
-            r#"Not all values for this agent type have been populated: ["deployment.on_host.path"]"#,
-            format!("{}", actual.unwrap_err())
-        );
+        assert_eq!(expected, filled_variables.0);
     }
 
     const EXAMPLE_CONFIG_REPLACE_WRONG_TYPE: &str = r#"
@@ -361,14 +339,14 @@ deployment:
     fn test_validate_with_agent_type_wrong_value_type() {
         let input_structure =
             serde_yaml::from_str::<AgentValues>(EXAMPLE_CONFIG_REPLACE_WRONG_TYPE).unwrap();
-        let mut agent_type =
+        let agent_type =
             AgentType::build_for_testing(EXAMPLE_AGENT_YAML_REPLACE, &Environment::OnHost);
 
-        let actual = agent_type.merge_variables_with_values(input_structure);
+        let result = agent_type.variables.fill_with_values(input_structure);
 
-        assert!(actual.is_err());
+        assert!(result.is_err());
         assert_eq!(
-            format!("{}", actual.unwrap_err()),
+            format!("{}", result.unwrap_err()),
             "Error while parsing: `invalid type: boolean `true`, expected a string`"
         );
     }

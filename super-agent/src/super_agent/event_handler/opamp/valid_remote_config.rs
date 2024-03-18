@@ -1,5 +1,3 @@
-use std::sync::mpsc::Sender;
-
 use opamp_client::StartedClient;
 use tracing::{error, info};
 
@@ -17,22 +15,25 @@ use crate::{
             report_remote_config_status_error,
         },
     },
-    sub_agent::{
-        collection::StartedSubAgents, logger::AgentLog, NotStartedSubAgent, SubAgentBuilder,
-    },
+    sub_agent::{collection::StartedSubAgents, NotStartedSubAgent, SubAgentBuilder},
     super_agent::{
         error::AgentError,
         super_agent::{SuperAgent, SuperAgentCallbacks},
     },
 };
 
-impl<'a, S, O, HR, SL> SuperAgent<'a, S, O, HR, SL>
+impl<S, O, HR, SL> SuperAgent<S, O, HR, SL>
 where
     O: StartedClient<SuperAgentCallbacks>,
     HR: HashRepository,
     S: SubAgentBuilder,
     SL: SubAgentsConfigStorer + SubAgentsConfigLoader + SubAgentsConfigDeleter,
 {
+    // Super Agent on remote config
+    // Configuration will be reported as applying to OpAMP
+    // Valid configuration will be applied and reported as applied to OpAMP
+    // Invalid configuration will not be applied and therefore it will not break the execution
+    // of the Super Agent. It will be logged and reported as failed to OpAMP
     pub(crate) fn valid_remote_config(
         &self,
         mut remote_config: RemoteConfig,
@@ -40,60 +41,33 @@ where
         sub_agents: &mut StartedSubAgents<
             <<S as SubAgentBuilder>::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
-        tx: Sender<AgentLog>,
     ) -> Result<(), AgentError> {
-        if let Some(opamp_client) = &self.opamp_client {
-            self.process_super_agent_remote_config(
-                opamp_client,
-                &mut remote_config,
-                tx.clone(),
-                sub_agents,
-                sub_agent_publisher.clone(),
-            )
-        } else {
-            unreachable!("got remote config without OpAMP being enabled")
-        }
-    }
+        let Some(opamp_client) = &self.opamp_client else {
+            unreachable!("got remote config without OpAMP being enabled");
+        };
 
-    // Super Agent on remote config
-    // Configuration will be reported as applying to OpAMP
-    // Valid configuration will be applied and reported as applied to OpAMP
-    // Invalid configuration will not be applied and therefore it will not break the execution
-    // of the Super Agent. It will be logged and reported as failed to OpAMP
-    fn process_super_agent_remote_config(
-        &self,
-        opamp_client: &O,
-        remote_config: &mut RemoteConfig,
-        tx: Sender<AgentLog>,
-        running_sub_agents: &mut StartedSubAgents<
-            <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
-        >,
-        sub_agent_publisher: EventPublisher<SubAgentEvent>,
-    ) -> Result<(), AgentError> {
         info!("Applying SuperAgent remote config");
         report_remote_config_status_applying(opamp_client, &remote_config.hash)?;
 
         match self.apply_remote_super_agent_config(
             remote_config.clone(),
-            tx,
-            running_sub_agents,
+            sub_agents,
             sub_agent_publisher,
         ) {
             Err(err) => {
                 let error_message = format!("Error applying Super Agent remote config: {}", err);
                 error!(error_message);
-                Ok(report_remote_config_status_error(
+                report_remote_config_status_error(
                     opamp_client,
                     &remote_config.hash,
-                    error_message,
-                )?)
+                    error_message.clone(),
+                )?;
+                Ok(self.report_unhealthy(error_message)?)
             }
             Ok(()) => {
                 self.set_config_hash_as_applied(&mut remote_config.hash)?;
-                Ok(report_remote_config_status_applied(
-                    opamp_client,
-                    &remote_config.hash,
-                )?)
+                report_remote_config_status_applied(opamp_client, &remote_config.hash)?;
+                Ok(self.report_healthy()?)
             }
         }
     }
@@ -106,6 +80,7 @@ where
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
+    use std::sync::Arc;
 
     use crate::{
         event::channel::pub_sub,
@@ -132,18 +107,17 @@ mod tests {
     // not apply it nor crash execution.
     #[test]
     fn super_agent_invalid_remote_config_should_be_reported_as_failed() {
-        let (tx, _) = std::sync::mpsc::channel();
         // Mocked services
         let sub_agent_builder = MockSubAgentBuilderMock::new();
         let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
-        let hash_repository_mock = MockHashRepositoryMock::new();
+        let hash_repository_mock = Arc::new(MockHashRepositoryMock::new());
         let mut started_client = MockStartedOpAMPClientMock::new();
 
         // Structs
         let mut running_sub_agents = StartedSubAgents::default();
         let old_sub_agents_config = SubAgentsConfig::default();
         let agent_id = AgentID::new_super_agent_id();
-        let mut remote_config = RemoteConfig {
+        let remote_config = RemoteConfig {
             agent_id,
             hash: Hash::new("this-is-a-hash".to_string()),
             config_map: ConfigMap::new(HashMap::from([(
@@ -173,29 +147,24 @@ mod tests {
         };
         started_client.should_set_remote_config_status(status);
 
+        started_client.should_set_unhealthy();
+
         // Create the Super Agent and rub Sub Agents
         let super_agent = SuperAgent::new_custom(
-            None,
-            &hash_repository_mock,
+            Some(started_client),
+            hash_repository_mock,
             sub_agent_builder,
             sub_agents_config_store,
         );
 
         let (opamp_publisher, _opamp_consumer) = pub_sub();
         super_agent
-            .process_super_agent_remote_config(
-                &started_client,
-                &mut remote_config,
-                tx,
-                &mut running_sub_agents,
-                opamp_publisher,
-            )
+            .valid_remote_config(remote_config, opamp_publisher, &mut running_sub_agents)
             .unwrap();
     }
 
     #[test]
     fn super_agent_valid_remote_config_should_be_reported_as_applied() {
-        let (tx, _) = std::sync::mpsc::channel();
         // Mocked services
         let sub_agent_builder = MockSubAgentBuilderMock::new();
         let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
@@ -218,7 +187,7 @@ mod tests {
         )]));
 
         let agent_id = AgentID::new_super_agent_id();
-        let mut remote_config = RemoteConfig {
+        let remote_config = RemoteConfig {
             agent_id,
             hash: Hash::new("this-is-a-hash".to_string()),
             config_map: ConfigMap::new(HashMap::from([("".to_string(), "agents: {}".to_string())])),
@@ -256,23 +225,19 @@ mod tests {
         };
         started_client.should_set_remote_config_status(status);
 
+        started_client.should_set_healthy();
+
         // Create the Super Agent and rub Sub Agents
         let super_agent = SuperAgent::new_custom(
-            None,
-            &hash_repository_mock,
+            Some(started_client),
+            Arc::new(hash_repository_mock),
             sub_agent_builder,
             sub_agents_config_store,
         );
 
         let (opamp_publisher, _opamp_consumer) = pub_sub();
         super_agent
-            .process_super_agent_remote_config(
-                &started_client,
-                &mut remote_config,
-                tx,
-                &mut running_sub_agents,
-                opamp_publisher,
-            )
+            .valid_remote_config(remote_config, opamp_publisher, &mut running_sub_agents)
             .unwrap();
     }
 }

@@ -1,9 +1,11 @@
 use newrelic_super_agent::sub_agent::on_host::command::command::SyncCommandRunner;
 use newrelic_super_agent::sub_agent::on_host::command::command_os::{CommandOS, Sync};
+use newrelic_super_agent::super_agent::config::AgentID;
 use std::collections::HashMap;
 
 // blocking supervisor
 struct BlockingSupervisor {
+    agent_id: AgentID,
     agent_bin: String,
     agent_args: Vec<String>,
     agent_env: HashMap<String, String>,
@@ -11,7 +13,12 @@ struct BlockingSupervisor {
 
 impl From<&BlockingSupervisor> for CommandOS<Sync> {
     fn from(value: &BlockingSupervisor) -> Self {
-        CommandOS::<Sync>::new(&value.agent_bin, &value.agent_args, &value.agent_env)
+        CommandOS::<Sync>::new(
+            value.agent_id.clone(),
+            &value.agent_bin,
+            &value.agent_args,
+            &value.agent_env,
+        )
     }
 }
 
@@ -19,6 +26,7 @@ impl From<&BlockingSupervisor> for CommandOS<Sync> {
 fn blocking_stop_runner() {
     let mut agent = BlockingSupervisor {
         // provide invalid argument to sleep command
+        agent_id: "sleep-test".to_string().try_into().unwrap(),
         agent_bin: "sleep".to_string(),
         agent_args: vec!["fdsa".to_string()],
         agent_env: HashMap::default(),

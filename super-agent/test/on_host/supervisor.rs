@@ -1,9 +1,9 @@
-use std::{collections::HashMap, thread, time::Duration};
+use std::{thread, time::Duration};
 
 use newrelic_super_agent::context::Context;
 use newrelic_super_agent::logging::config::LoggingConfig;
 
-use newrelic_super_agent::sub_agent::logger::{EventLogger, StdEventReceiver};
+use newrelic_super_agent::event::channel::pub_sub;
 use newrelic_super_agent::sub_agent::on_host::supervisor::command_supervisor::{
     NotStarted, SupervisorOnHost,
 };
@@ -25,20 +25,21 @@ pub fn init_logger() {
 fn test_supervisors() {
     use std::thread::JoinHandle;
 
+    use newrelic_super_agent::sub_agent::on_host::supervisor::command_supervisor_config::ExecutableData;
+
     init_logger();
 
-    // Create streaming channel
-    let (tx, rx) = std::sync::mpsc::channel();
+    let agent_id = "sleep-test".to_string().try_into().unwrap();
 
-    let logger = StdEventReceiver::default();
+    let exec = ExecutableData::new("sh".to_string())
+        .with_args(vec!["-c".to_string(), "sleep 2".to_string()]);
 
     let conf = SupervisorConfigOnHost::new(
-        "sh".to_string(),
-        vec!["-c".to_string(), "sleep 2".to_string()],
+        agent_id,
+        exec,
         Context::new(),
-        HashMap::default(),
-        tx,
         RestartPolicy::default(),
+        false,
     );
 
     // Create 50 supervisors
@@ -50,14 +51,13 @@ fn test_supervisors() {
         )
         .collect();
 
+    let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
+
     // Run all the supervisors, getting handles
     let handles = agents
         .into_iter()
-        .map(|agent| agent.run().unwrap())
+        .map(|agent| agent.run(sub_agent_internal_publisher.clone()).unwrap())
         .collect::<Vec<_>>();
-
-    // Get any outputs in the background
-    let handle_logger = logger.log(rx);
 
     // Sleep for a while
     thread::sleep(Duration::from_secs(1));
@@ -72,6 +72,4 @@ fn test_supervisors() {
     );
 
     drop(conf);
-    // ensure logger was terminated
-    handle_logger.join().unwrap();
 }

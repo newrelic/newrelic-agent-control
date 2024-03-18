@@ -2,10 +2,11 @@ use opamp_client::opamp::proto::{RemoteConfigStatus, RemoteConfigStatuses};
 use opamp_client::StartedClient;
 
 use crate::opamp::hash_repository::HashRepository;
+use crate::opamp::remote_config::RemoteConfigError;
+use crate::sub_agent::error::SubAgentError;
 use crate::sub_agent::event_processor::EventProcessor;
 use crate::sub_agent::values::values_repository::ValuesRepository;
 use crate::sub_agent::SubAgentCallbacks;
-use crate::{opamp::remote_config::RemoteConfigError, super_agent::error::AgentError};
 
 impl<C, H, R> EventProcessor<C, H, R>
 where
@@ -16,7 +17,7 @@ where
     pub(crate) fn invalid_remote_config(
         &self,
         remote_config_error: RemoteConfigError,
-    ) -> Result<(), AgentError> {
+    ) -> Result<(), SubAgentError> {
         if let Some(client) = self.maybe_opamp_client.as_ref() {
             if let RemoteConfigError::InvalidConfig(hash, error) = remote_config_error {
                 client.set_remote_config_status(RemoteConfigStatus {

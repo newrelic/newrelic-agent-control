@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use ::fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
 use newrelic_super_agent::agent_type::agent_values::AgentValues;
-use newrelic_super_agent::agent_type::definition::{AgentAttributes, AgentTypeDefinition};
+use newrelic_super_agent::agent_type::definition::AgentTypeDefinition;
 use newrelic_super_agent::agent_type::environment::Environment;
 use newrelic_super_agent::sub_agent::effective_agents_assembler::build_agent_type;
 use newrelic_super_agent::sub_agent::persister::config_persister::ConfigurationPersister;
@@ -29,15 +29,17 @@ fn test_configuration_persister_single_file() {
 
     let agent_type_definition: AgentTypeDefinition =
         serde_yaml::from_reader(AGENT_TYPE_SINGLE_FILE.as_bytes()).unwrap();
-    let mut agent_type = build_agent_type(agent_type_definition, &Environment::OnHost).unwrap();
+    let agent_type = build_agent_type(agent_type_definition, &Environment::OnHost).unwrap();
     let agent_values: AgentValues =
         serde_yaml::from_reader(AGENT_VALUES_SINGLE_FILE.as_bytes()).unwrap();
-    agent_type = agent_type
-        .template(agent_values, AgentAttributes::default())
-        .unwrap();
+    let filled_variables = agent_type
+        .variables
+        .fill_with_values(agent_values)
+        .unwrap()
+        .flatten();
 
     assert!(persister
-        .persist_agent_config(&agent_id.clone(), &agent_type)
+        .persist_agent_config(&agent_id.clone(), &filled_variables)
         .is_ok());
 
     temp_path.push("auto-generated");
@@ -58,11 +60,12 @@ namespace: newrelic
 name: com.newrelic.infrastructure_agent
 version: 0.0.1
 variables:
-  config_file:
-    description: "Newrelic infra configuration path"
-    type: file
-    required: true
-    file_path: newrelic-infra.yml
+  on_host:
+    config_file:
+      description: "Newrelic infra configuration path"
+      type: file
+      required: true
+      file_path: newrelic-infra.yml
 deployment:
   on_host:
     executables:

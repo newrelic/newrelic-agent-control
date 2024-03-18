@@ -1,21 +1,19 @@
 //! This module contains the definitions of the SubAgent's Agent Type, which is the type of agent that the Super Agent will be running.
-//!
 //! The reasoning behind this is that the Super Agent will be able to run different types of agents, and each type of agent will have its own configuration. Supporting generic agent functionalities, the user can both define its own agent types and provide a config that implement this agent type, and the New Relic Super Agent will spawn a Supervisor which will be able to run it.
 //!
 //! See [`Agent::template_with`] for a flowchart of the dataflow that ends in the final, enriched structure.
 
 use serde::{Deserialize, Deserializer};
-use std::path::PathBuf;
 use std::{collections::HashMap, str::FromStr};
 
 use super::agent_values::AgentValues;
-use super::restart_policy::{BackoffDelay, BackoffLastRetryInterval, MaxRetries};
-use super::variable::definition::{VariableDefinition, VariableDefinitionTree};
 use super::{
     agent_metadata::AgentMetadata,
     error::AgentTypeError,
+    restart_policy::{BackoffDelay, BackoffLastRetryInterval, MaxRetries},
     runtime_config::{Args, Env, Runtime},
     runtime_config_templates::{Templateable, TEMPLATE_KEY_SEPARATOR},
+    variable::definition::{VariableDefinition, VariableDefinitionTree},
 };
 use crate::super_agent::config::AgentTypeFQN;
 use crate::super_agent::defaults::default_capabilities;
@@ -29,9 +27,20 @@ use opamp_client::operation::capabilities::Capabilities;
 pub struct AgentTypeDefinition {
     #[serde(flatten)]
     pub metadata: AgentMetadata,
-    pub variables: VariableTree,
+    pub variables: AgentTypeVariables,
     #[serde(default, flatten)]
     pub runtime_config: Runtime,
+}
+
+/// Contains the variable definitions that can be defined in an [AgentTypeDefinition].
+#[derive(Debug, Clone, PartialEq, Default, Deserialize)]
+pub struct AgentTypeVariables {
+    #[serde(default)]
+    pub common: VariableTree,
+    #[serde(default)]
+    pub k8s: VariableTree,
+    #[serde(default)]
+    pub on_host: VariableTree,
 }
 
 /// Configuration of the Agent Type, contains identification metadata, a set of variables that can be adjusted, and rules of how to execute agents.
@@ -226,111 +235,66 @@ impl AgentType {
     pub fn get_variables(&self) -> Variables {
         self.variables.clone().flatten()
     }
+}
 
-    pub fn merge_variables_with_values(
-        &mut self,
-        values: AgentValues,
-    ) -> Result<(), AgentTypeError> {
-        update_specs(values.into(), &mut self.variables.0)?;
+/// Flexible tree-like structure that contains variables definitions, that can later be changed by the end user via [`AgentValues`].
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+pub struct VariableTree(pub(crate) HashMap<String, VariableDefinitionTree>);
 
-        // No item must be left without a final value
-        let not_populated = self
-            .variables
-            .clone()
-            .flatten()
+impl VariableTree {
+    pub fn flatten(self) -> HashMap<String, VariableDefinition> {
+        self.0
             .into_iter()
-            .filter_map(|(k, endspec)| endspec.get_final_value().is_none().then_some(k))
-            .collect::<Vec<_>>();
-
-        if !not_populated.is_empty() {
-            return Err(AgentTypeError::ValuesNotPopulated(not_populated));
-        }
-        Ok(())
+            .flat_map(|(k, v)| inner_flatten(k, v))
+            .collect()
     }
 
-    /// template the [`RuntimeConfig`] object field of the [`Agent`] type with the user-provided config, which must abide by the agent type's defined [`AgentVariables`].
-    /// It uses [`AgentAttributes`] to build sub-agent variables, for example nr-sub:agent_id.
+    /// Returns a new [VariableTree] with the provided values assigned.
+    pub fn fill_with_values(self, values: AgentValues) -> Result<Self, AgentTypeError> {
+        let mut vars = self.0.clone();
+        update_specs(values.into(), &mut vars)?;
+        Ok(Self(vars))
+    }
+
+    /// Merges the current [VariableTree] with another, returning an error if any key overlaps.
+    pub fn merge(self, variables: Self) -> Result<Self, AgentTypeError> {
+        Ok(Self(
+            Self::merge_inner(&self.0, &variables.0)
+                .map_err(AgentTypeError::ConflictingVariableDefinition)?,
+        ))
+    }
+
+    /// Merges recursively two inner hashmaps if there is no conflicting key.
     ///
-    /// This method will return an error if:
-    /// - Any user-provided config is not defined as a Variable in the Agent Type.
-    /// - A 'required' variable does not have a value.
-    pub fn template(
-        mut self,
-        values: AgentValues,
-        agent_attributes: AgentAttributes,
-    ) -> Result<AgentType, AgentTypeError> {
-        // Build variables.
-        self.merge_variables_with_values(values)?;
-
-        let mut namespaced_variables = HashMap::new();
-
-        for (name, var) in self.variables.clone().flatten().into_iter() {
-            namespaced_variables.insert(VariableNamespace::Variable.namespaced_name(&name), var);
+    /// # Errors
+    ///
+    /// This function will return an String error containing the full path of the first conflicting key if any
+    /// [VariableDefinitionTree::End] overlaps.
+    fn merge_inner(
+        a: &HashMap<String, VariableDefinitionTree>,
+        b: &HashMap<String, VariableDefinitionTree>,
+    ) -> Result<HashMap<String, VariableDefinitionTree>, String> {
+        let mut merged = a.clone();
+        for (key, value) in b {
+            match (merged.get(key), value) {
+                // Include the value when its key doesn't overlap.
+                (None, _) => {
+                    merged.insert(key.into(), value.clone());
+                }
+                // Merge overlapping mappings.
+                (
+                    Some(VariableDefinitionTree::Mapping(inner_a)),
+                    VariableDefinitionTree::Mapping(inner_b),
+                ) => {
+                    let merged_inner = Self::merge_inner(inner_a, inner_b)
+                        .map_err(|err| format!("{key}.{err}"))?;
+                    merged.insert(key.clone(), VariableDefinitionTree::Mapping(merged_inner));
+                }
+                // Any other option implies an overlapping end (conflicting key).
+                (Some(_), _) => return Err(key.into()),
+            }
         }
-
-        namespaced_variables.extend(agent_attributes.sub_agent_variables());
-
-        namespaced_variables = agent_attributes.extend_file_paths(namespaced_variables);
-
-        // Template with variables.
-        let runtime_conf = self.runtime_config.template_with(&namespaced_variables)?;
-
-        let populated_agent = AgentType {
-            runtime_config: runtime_conf,
-            ..self
-        };
-
-        Ok(populated_agent)
-    }
-}
-enum VariableNamespace {
-    Variable,
-    SubAgent,
-}
-
-impl VariableNamespace {
-    const PREFIX: &'static str = "nr-";
-    const VARIABLE: &'static str = "var";
-    const SUB_AGENT: &'static str = "sub";
-
-    fn namespaced_name(&self, variable_name: &str) -> String {
-        let ns = match self {
-            Self::Variable => Self::VARIABLE,
-            Self::SubAgent => Self::SUB_AGENT,
-        };
-        format!("{}{ns}:{variable_name}", Self::PREFIX)
-    }
-}
-
-/// contains any attribute from the sub-agent that is used to build or modify variables used to template the AgentType.
-#[derive(Debug, PartialEq, Clone, Default)]
-pub struct AgentAttributes {
-    /// sub-agent generated config path
-    pub generated_configs_path: PathBuf,
-    /// sub-agent Agent ID
-    pub agent_id: String,
-}
-
-impl AgentAttributes {
-    const VARIABLE_SUB_AGENT_ID: &'static str = "agent_id";
-
-    /// returns the variables from the sub-agent attributes source 'nr-sub'.
-    fn sub_agent_variables(&self) -> HashMap<String, VariableDefinition> {
-        HashMap::from([(
-            VariableNamespace::SubAgent.namespaced_name(Self::VARIABLE_SUB_AGENT_ID),
-            VariableDefinition::new_sub_agent_string_variable(self.agent_id.clone()),
-        )])
-    }
-
-    /// extends the path of all variables that have a kind with path, with the sub agent generated config path.
-    fn extend_file_paths(
-        &self,
-        mut variables: HashMap<String, VariableDefinition>,
-    ) -> HashMap<String, VariableDefinition> {
-        variables
-            .values_mut()
-            .for_each(|v| v.extend_file_path(self.generated_configs_path.as_path()));
-        variables
+        Ok(merged)
     }
 }
 
@@ -352,30 +316,6 @@ fn update_specs(
         }
     }
     Ok(())
-}
-
-/// Contains the variable definitions an AgentType can define.
-#[derive(Debug, Clone, PartialEq, Default, Deserialize)]
-pub struct AgentTypeVariables {
-    #[serde(default)]
-    common: VariableTree,
-    #[serde(default)]
-    k8s: VariableTree,
-    #[serde(default)]
-    on_host: VariableTree,
-}
-
-/// Flexible tree-like structure that contains variables definitions, that can later be changed by the end user via [`AgentValues`].
-#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
-pub struct VariableTree(pub(crate) HashMap<String, VariableDefinitionTree>);
-
-impl VariableTree {
-    pub fn flatten(self) -> HashMap<String, VariableDefinition> {
-        self.0
-            .into_iter()
-            .flat_map(|(k, v)| inner_flatten(k, v))
-            .collect()
-    }
 }
 
 fn inner_flatten(key: String, spec: VariableDefinitionTree) -> HashMap<String, VariableDefinition> {
@@ -405,13 +345,14 @@ fn inner_flatten(key: String, spec: VariableDefinitionTree) -> HashMap<String, V
 ///
 /// ```yaml
 /// variables:
-///   system:
-///     logging:
-///       level:
-///         description: "Logging level"
-///         type: string
-///         required: false
-///         default: info
+///   common:
+///     system:
+///       logging:
+///         level:
+///           description: "Logging level"
+///           type: string
+///           required: false
+///           default: info
 /// ```
 ///
 /// Will be converted to `system.logging.level` and can be used later in the AgentType_Meta part as `${nr-var:system.logging.level}`.
@@ -435,11 +376,12 @@ pub mod tests {
     };
 
     use super::*;
+    use assert_matches::assert_matches;
     use serde_yaml::{Error, Number};
     use std::collections::HashMap as Map;
 
     impl AgentType {
-        /// Builds a testing agent-type given the yaml definitiona and the environment.
+        /// Builds a testing agent-type given the yaml definitions and the environment.
         ///
         /// # Panics
         ///
@@ -457,6 +399,20 @@ pub mod tests {
         pub fn get_variable(self, path: String) -> Option<VariableDefinition> {
             self.variables.flatten().get(&path).cloned()
         }
+
+        /// Fills the AgentType's variables with provided yaml values (helper for testing purposes).
+        ///
+        /// # Panics
+        ///
+        /// It will panic if the yaml values are not valid or there is any error filling the variables in.
+        pub fn fill_variables(&self, yaml_values: &str) -> HashMap<String, VariableDefinition> {
+            let values = serde_yaml::from_str::<AgentValues>(yaml_values).unwrap();
+            self.variables
+                .clone()
+                .fill_with_values(values)
+                .unwrap()
+                .flatten()
+        }
     }
 
     pub const AGENT_GIVEN_YAML: &str = r#"
@@ -464,12 +420,13 @@ name: nrdot
 namespace: newrelic
 version: 0.1.0
 variables:
-  description:
-    name:
-      description: "Name of the agent"
-      type: string
-      required: false
-      default: nrdot
+  common:
+    description:
+      name:
+        description: "Name of the agent"
+        type: string
+        required: false
+        default: nrdot
 deployment:
   on_host:
     executables:
@@ -902,31 +859,32 @@ name: newrelic-infra
 namespace: newrelic
 version: 1.39.1
 variables:
-  config:
-    description: "Newrelic infra configuration yaml"
-    type: file
-    required: true
-    file_path: "config.yml"
-  config2:
-    description: "Newrelic infra configuration yaml"
-    type: file
-    required: false
-    default: |
-      license_key: abc123
-      staging: true
-    file_path: "config2.yml"
-  config3:
-    description: "Newrelic infra configuration yaml"
-    type: map[string]string
-    required: true
-  integrations:
-    description: "Newrelic integrations configuration yamls"
-    type: map[string]file
-    required: true
-    default:
-      kafka: |
-        bootstrap: zookeeper
-    file_path: "integrations.d"
+  common:
+    config:
+      description: "Newrelic infra configuration yaml"
+      type: file
+      required: true
+      file_path: "config.yml"
+    config2:
+      description: "Newrelic infra configuration yaml"
+      type: file
+      required: false
+      default: |
+        license_key: abc123
+        staging: true
+      file_path: "config2.yml"
+    config3:
+      description: "Newrelic infra configuration yaml"
+      type: map[string]string
+      required: true
+    integrations:
+      description: "Newrelic integrations configuration yamls"
+      type: map[string]file
+      required: true
+      default:
+        kafka: |
+          bootstrap: zookeeper
+      file_path: "integrations.d"
 deployment:
   on_host:
     executables:
@@ -950,28 +908,14 @@ config: |
 "#;
 
     #[test]
-    fn test_template_with_runtime_field_and_agent_configs_path() {
-        // Having Agent Type
+    fn test_fill_infra_agent_variables_in() {
+        // When we fill the agent type variables with the corresponding values
         let input_agent_type =
             AgentType::build_for_testing(GIVEN_NEWRELIC_INFRA_YAML, &Environment::OnHost);
+        let filled_variables =
+            input_agent_type.fill_variables(GIVEN_NEWRELIC_INFRA_USER_CONFIG_YAML);
 
-        // And Agent Values
-        let input_user_config =
-            serde_yaml::from_str::<AgentValues>(GIVEN_NEWRELIC_INFRA_USER_CONFIG_YAML).unwrap();
-
-        // When populating values
-        let actual = input_agent_type
-            .template(
-                input_user_config,
-                AgentAttributes {
-                    generated_configs_path: PathBuf::from("an/agents-config/path"),
-                    agent_id: "test".to_string(),
-                },
-            )
-            .expect("Failed to template_with the AgentType's runtime_config field");
-
-        // Then we expected final values
-        // MapStringString
+        // Then, we expect the corresponding final values.
         let expected_config_3: TrivialValue = HashMap::from([
             ("log_level".to_string(), "trace".to_string()),
             ("forward".to_string(), "true".to_string()),
@@ -1005,13 +949,9 @@ config: |
         ])
         .into();
 
-        let expected_executable_args_with_abs_pat =
-            "--config an/agents-config/path/config.yml --config2 an/agents-config/path/config2.yml";
-
         assert_eq!(
             expected_config_3,
-            actual
-                .get_variables()
+            filled_variables
                 .get("config3")
                 .unwrap()
                 .get_final_value()
@@ -1021,8 +961,7 @@ config: |
         );
         assert_eq!(
             expected_config_2,
-            actual
-                .get_variables()
+            filled_variables
                 .get("config2")
                 .unwrap()
                 .get_final_value()
@@ -1032,8 +971,7 @@ config: |
         );
         assert_eq!(
             expected_config,
-            actual
-                .get_variables()
+            filled_variables
                 .get("config")
                 .unwrap()
                 .get_final_value()
@@ -1043,8 +981,7 @@ config: |
         );
         assert_eq!(
             expected_integrations,
-            actual
-                .get_variables()
+            filled_variables
                 .get("integrations")
                 .unwrap()
                 .get_final_value()
@@ -1052,369 +989,21 @@ config: |
                 .unwrap()
                 .clone()
         );
-        assert_eq!(
-            expected_executable_args_with_abs_pat,
-            actual
-                .runtime_config
-                .deployment
-                .on_host
-                .unwrap()
-                .executables[0]
-                .args
-                .value
-                .clone()
-                .unwrap()
-                .0
-        );
     }
 
-    const AGENT_BACKOFF_TEMPLATE_YAML: &str = r#"
-name: nrdot
-namespace: newrelic
-version: 0.1.0
-variables:
-  backoff:
-    delay:
-      description: "Backoff delay"
-      type: string
-      required: false
-      default: 1s
-    retries:
-      description: "Backoff retries"
-      type: number
-      required: false
-      default: 3
-    interval:
-      description: "Backoff interval"
-      type: string
-      required: false
-      default: 30s
-    type:
-      description: "Backoff strategy type"
-      type: string
-      required: true
-deployment:
-  on_host:
-    executables:
-      - path: /bin/otelcol
-        args: "-c some-arg"
-        env: ""
-        restart_policy:
-          backoff_strategy:
-            type: ${nr-var:backoff.type}
-            backoff_delay: ${nr-var:backoff.delay}
-            max_retries: ${nr-var:backoff.retries}
-            last_retry_interval: ${nr-var:backoff.interval}
-"#;
-
-    const BACKOFF_CONFIG_YAML: &str = r#"
-backoff:
-  delay: 10s
-  retries: 30
-  interval: 300s
-  type: linear
-"#;
-
-    #[test]
-    fn test_backoff_config() {
-        let input_agent_type =
-            AgentType::build_for_testing(AGENT_BACKOFF_TEMPLATE_YAML, &Environment::OnHost);
-        // println!("Input: {:#?}", input_agent_type);
-
-        let input_user_config = serde_yaml::from_str::<AgentValues>(BACKOFF_CONFIG_YAML).unwrap();
-        // println!("Input: {:#?}", input_user_config);
-
-        let expected_backoff = BackoffStrategyConfig {
-            backoff_type: TemplateableValue {
-                value: Some(BackoffStrategyType::Linear),
-                template: "${nr-var:backoff.type}".to_string(),
-            },
-            backoff_delay: TemplateableValue {
-                value: Some(BackoffDelay::from_secs(10)),
-                template: "${nr-var:backoff.delay}".to_string(),
-            },
-            max_retries: TemplateableValue {
-                value: Some(30.into()),
-                template: "${nr-var:backoff.retries}".to_string(),
-            },
-            last_retry_interval: TemplateableValue {
-                value: Some(BackoffLastRetryInterval::from_secs(300)),
-                template: "${nr-var:backoff.interval}".to_string(),
-            },
-        };
-
-        let actual = input_agent_type
-            .template(input_user_config, AgentAttributes::default())
-            .expect("Failed to template_with the AgentType's runtime_config field");
-
-        // println!("Output: {:#?}", actual);
-        assert_eq!(
-            expected_backoff,
-            actual
-                .runtime_config
-                .deployment
-                .on_host
-                .unwrap()
-                .executables[0]
-                .restart_policy
-                .backoff_strategy
-        );
-    }
-
-    const WRONG_RETRIES_BACKOFF_CONFIG_YAML: &str = r#"
-backoff:
-  delay: 10
-  retries: -30
-  interval: 300
-  type: linear
-"#;
-
-    const WRONG_DELAY_BACKOFF_CONFIG_YAML: &str = r#"
-backoff:
-  delay: -10
-  retries: 30
-  interval: 300
-  type: linear
-"#;
-    const WRONG_INTERVAL_BACKOFF_CONFIG_YAML: &str = r#"
-backoff:
-  delay: 10
-  retries: 30
-  interval: -300
-  type: linear
-"#;
-
-    const WRONG_TYPE_BACKOFF_CONFIG_YAML: &str = r#"
-backoff:
-  delay: 10
-  retries: 30
-  interval: -300
-  type: fafafa
-"#;
-
-    #[test]
-    fn test_negative_backoff_configs() {
-        let input_agent_type = AgentType::build_for_testing(AGENT_GIVEN_YAML, &Environment::OnHost);
-
-        let wrong_retries =
-            serde_yaml::from_str::<AgentValues>(WRONG_RETRIES_BACKOFF_CONFIG_YAML).unwrap();
-        let wrong_delay =
-            serde_yaml::from_str::<AgentValues>(WRONG_DELAY_BACKOFF_CONFIG_YAML).unwrap();
-        let wrong_interval =
-            serde_yaml::from_str::<AgentValues>(WRONG_INTERVAL_BACKOFF_CONFIG_YAML).unwrap();
-        let wrong_type =
-            serde_yaml::from_str::<AgentValues>(WRONG_TYPE_BACKOFF_CONFIG_YAML).unwrap();
-
-        let actual = input_agent_type
-            .clone()
-            .template(wrong_retries, AgentAttributes::default());
-        assert!(actual.is_err());
-
-        let actual = input_agent_type
-            .clone()
-            .template(wrong_delay, AgentAttributes::default());
-        assert!(actual.is_err());
-
-        let actual = input_agent_type
-            .clone()
-            .template(wrong_interval, AgentAttributes::default());
-        assert!(actual.is_err());
-
-        let actual = input_agent_type.template(wrong_type, AgentAttributes::default());
-        assert!(actual.is_err());
-    }
-
-    const AGENT_STRING_DURATIONS_TEMPLATE_YAML: &str = r#"
-name: nrdot
-namespace: newrelic
-version: 0.1.0
-variables:
-  backoff:
-    delay:
-      description: "Backoff delay"
-      type: string
-      required: false
-      default: 1s
-    retries:
-      description: "Backoff retries"
-      type: number
-      required: false
-      default: 3
-    interval:
-      description: "Backoff interval"
-      type: string
-      required: false
-      default: 30s
-    type:
-      description: "Backoff type"
-      type: string
-      required: true
-deployment:
-  on_host:
-    executables:
-      - path: /bin/otelcol
-        args: "-c some-arg"
-        env: ""
-        restart_policy:
-          backoff_strategy:
-            type: fixed
-            backoff_delay: ${nr-var:backoff.delay}
-            max_retries: ${nr-var:backoff.retries}
-            last_retry_interval: ${nr-var:backoff.interval}
-"#;
-
-    const STRING_DURATIONS_CONFIG_YAML: &str = r#"
-backoff:
-  delay: 10m + 30s
-  retries: 30
-  interval: 5m
-  type: fixed
-"#;
-
-    #[test]
-    fn test_string_backoff_config() {
-        let input_agent_type = AgentType::build_for_testing(
-            AGENT_STRING_DURATIONS_TEMPLATE_YAML,
-            &Environment::OnHost,
-        );
-
-        let input_user_config =
-            serde_yaml::from_str::<AgentValues>(STRING_DURATIONS_CONFIG_YAML).unwrap();
-
-        let expected_backoff = BackoffStrategyConfig {
-            backoff_type: TemplateableValue {
-                value: Some(BackoffStrategyType::Fixed),
-                template: "fixed".to_string(),
-            },
-            backoff_delay: TemplateableValue {
-                value: Some(BackoffDelay::from_secs((10 * 60) + 30)),
-                template: "${nr-var:backoff.delay}".to_string(),
-            },
-            max_retries: TemplateableValue {
-                value: Some(30.into()),
-                template: "${nr-var:backoff.retries}".to_string(),
-            },
-            last_retry_interval: TemplateableValue {
-                value: Some(BackoffLastRetryInterval::from_secs(300)),
-                template: "${nr-var:backoff.interval}".to_string(),
-            },
-        };
-
-        let actual = input_agent_type
-            .template(input_user_config, AgentAttributes::default())
-            .expect("Failed to template_with the AgentType's runtime_config field");
-
-        // println!("Output: {:#?}", actual);
-        assert_eq!(
-            expected_backoff,
-            actual
-                .runtime_config
-                .deployment
-                .on_host
-                .unwrap()
-                .executables[0]
-                .restart_policy
-                .backoff_strategy
-        );
-    }
-
-    const K8S_AGENT_TYPE_YAML_VARIABLES: &str = r#"
-name: k8s-agent-type
-namespace: newrelic
-version: 0.0.1
-variables:
-  config:
-    values:
-      description: "yaml values"
-      type: yaml
-      required: true
-deployment:
-  k8s:
-    objects:
-      cr1:
-        apiVersion: group/version
-        kind: ObjectKind
-        metadata:
-          name: test
-        spec:
-          values: ${nr-var:config.values}
-          from_sub_agent: ${nr-sub:agent_id}
-          collision_avoided: ${config.values}-${env:agent_id}
-"#;
-
-    const K8S_CONFIG_YAML_VALUES: &str = r#"
-config:
-  values:
-    key: value
-    another_key:
-      nested: nested_value
-      nested_list:
-        - item1
-        - item2
-        - item3_nested: value
-    empty_key:
-"#;
-
-    #[test]
-    fn test_k8s_config_yaml_variables() {
-        let input_agent_type =
-            AgentType::build_for_testing(K8S_AGENT_TYPE_YAML_VARIABLES, &Environment::K8s);
-        let user_config: AgentValues = serde_yaml::from_str(K8S_CONFIG_YAML_VALUES).unwrap();
-        let expected_spec_yaml = r#"
-values:
-  key: value
-  another_key:
-    nested: nested_value
-    nested_list:
-      - item1
-      - item2
-      - item3_nested: value
-  empty_key:
-from_sub_agent: test
-collision_avoided: ${config.values}-${env:agent_id}
-"#;
-        let expected_spec_value: serde_yaml::Value =
-            serde_yaml::from_str(expected_spec_yaml).unwrap();
-
-        let expanded_final_agent = input_agent_type
-            .template(
-                user_config,
-                AgentAttributes {
-                    agent_id: "test".to_string(),
-                    ..Default::default()
-                },
-            )
-            .unwrap();
-
-        let cr1 = expanded_final_agent
-            .runtime_config
-            .deployment
-            .k8s
-            .unwrap()
-            .objects
-            .get("cr1")
-            .unwrap()
-            .clone();
-
-        assert_eq!("group/version".to_string(), cr1.api_version);
-        assert_eq!("ObjectKind".to_string(), cr1.kind);
-
-        let spec = cr1.fields.get("spec").unwrap().clone();
-        assert_eq!(expected_spec_value, spec);
-    }
-
-    const AGENT_WITH_VARIANTS: &str = r#"
+    const AGENT_TYPE_WITH_VARIANTS: &str = r#"
 name: variant-values
 namespace: newrelic
 version: 0.0.1
 variables:
-  restart_policy:
-    type:
-      description: "restart policy type"
-      type: string
-      required: false
-      variants: [fixed, linear]
-      default: exponential
+  common:
+    restart_policy:
+      type:
+        description: "restart policy type"
+        type: string
+        required: false
+        variants: [fixed, linear]
+        default: exponential
 deployment:
   on_host:
       executables:
@@ -1422,77 +1011,212 @@ deployment:
         args: "${nr-var:restart_policy.type}"
 "#;
 
-    const CONFIG_YAML_VALUES_VALID_VARIANT: &str = r#"
+    const VALUES_VALID_VARIANT: &str = r#"
 restart_policy:
     type: fixed
 "#;
 
-    const CONFIG_YAML_VALUES_INVALID_VARIANT: &str = r#"
+    const VALUES_INVALID_VARIANT: &str = r#"
 restart_policy:
     type: random
 "#;
 
     #[test]
-    fn test_agent_with_variants() {
-        let input_agent_type =
-            AgentType::build_for_testing(AGENT_WITH_VARIANTS, &Environment::OnHost);
-        let user_config: AgentValues = serde_yaml::from_str(CONFIG_YAML_VALUES_VALID_VARIANT)
-            .expect("Failed to parse user config");
-        let expanded_final_agent = input_agent_type
-            .template(user_config, AgentAttributes::default())
-            .unwrap();
+    fn test_variables_with_variants() {
+        let agent_type =
+            AgentType::build_for_testing(AGENT_TYPE_WITH_VARIANTS, &Environment::OnHost);
+        let values: AgentValues =
+            serde_yaml::from_str(VALUES_VALID_VARIANT).expect("Failed to parse user config");
 
-        let executable = expanded_final_agent
-            .runtime_config
-            .deployment
-            .on_host
-            .unwrap();
+        // Valid variant
+        let filled_variables = agent_type
+            .variables
+            .clone()
+            .fill_with_values(values)
+            .unwrap()
+            .flatten();
 
-        let actual_exec = executable.executables.first().unwrap();
-
-        assert_eq!(actual_exec.path.value, Some("/bin/echo".to_string()));
-        assert_eq!(actual_exec.args.value, Some(Args("fixed".to_string())));
-    }
-
-    #[test]
-    fn test_agent_with_variants_invalid() {
-        let input_agent_type =
-            AgentType::build_for_testing(AGENT_WITH_VARIANTS, &Environment::OnHost);
-        let user_config: AgentValues = serde_yaml::from_str(CONFIG_YAML_VALUES_INVALID_VARIANT)
-            .expect("Failed to parse user config");
-        let expanded_final_agent =
-            input_agent_type.template(user_config, AgentAttributes::default());
-
-        assert!(expanded_final_agent.is_err());
+        let var = filled_variables.get("restart_policy.type").unwrap();
         assert_eq!(
-            expanded_final_agent.unwrap_err().to_string(),
+            "fixed".to_string(),
+            var.get_final_value().unwrap().to_string()
+        );
+
+        // Invalid variant
+        let invalid_values: AgentValues =
+            serde_yaml::from_str(VALUES_INVALID_VARIANT).expect("Failed to parse user config");
+        let filled_variables_result = agent_type
+            .variables
+            .clone()
+            .fill_with_values(invalid_values);
+        assert!(filled_variables_result.is_err());
+        assert_eq!(
+            filled_variables_result.unwrap_err().to_string(),
             r#"Invalid variant provided as a value: `"random"`. Variants allowed: ["\"fixed\"", "\"linear\""]"#
         );
+
+        // Default invalid variant is allowed
+        let filled_variables_default = agent_type
+            .variables
+            .clone()
+            .fill_with_values(AgentValues::default())
+            .unwrap()
+            .flatten();
+        let var = filled_variables_default.get("restart_policy.type").unwrap();
+        assert_eq!(
+            "exponential".to_string(),
+            var.get_final_value().unwrap().to_string()
+        );
     }
 
     #[test]
-    fn default_can_be_invalid_variant() {
-        let input_agent_type =
-            AgentType::build_for_testing(AGENT_WITH_VARIANTS, &Environment::OnHost);
-        let user_config = AgentValues::default();
-        let expanded_final_agent =
-            input_agent_type.template(user_config, AgentAttributes::default());
+    fn test_merge_variable_tree() {
+        let a = r#"
+config:
+  general:
+    description: "General"
+    type: string
+    required: true
+common:
+  description: "Common"
+  type: string
+  required: true
+"#;
+        let b = r#"
+config:
+  specific:
+    description: "Specific"
+    type: string
+    required: true
+env:
+  key:
+    description: "key"
+    type: string
+    required: true
+"#;
+        let expected = r#"
+config:
+  general:
+    description: "General"
+    type: string
+    required: true
+  specific:
+    description: "Specific"
+    type: string
+    required: true
+common:
+  description: "Common"
+  type: string
+  required: true
+env:
+  key:
+    description: "key"
+    type: string
+    required: true
+"#;
+        let a: VariableTree = serde_yaml::from_str(a).unwrap();
+        let b: VariableTree = serde_yaml::from_str(b).unwrap();
+        let expected: VariableTree = serde_yaml::from_str(expected).unwrap();
 
-        assert!(expanded_final_agent.is_ok());
+        assert_eq!(expected, a.merge(b).unwrap());
+    }
 
-        let executable = expanded_final_agent
-            .unwrap()
-            .runtime_config
-            .deployment
-            .on_host
-            .unwrap();
+    #[test]
+    fn test_merge_variable_tree_errors() {
+        struct TestCase {
+            name: &'static str,
+            a: &'static str,
+            b: &'static str,
+            conflicting_key: &'static str,
+        }
+        impl TestCase {
+            fn run(&self) {
+                let a: VariableTree = serde_yaml::from_str(self.a).unwrap();
+                let b: VariableTree = serde_yaml::from_str(self.b).unwrap();
+                let err = a.merge(b).err().unwrap();
+                assert_matches!(err, AgentTypeError::ConflictingVariableDefinition(k) => {
+                    assert_eq!(self.conflicting_key, k, "{}", self.name);
+                })
+            }
+        }
+        let test_cases = vec![
+            TestCase {
+                name: "Conflicting leaves",
+                a: r#"
+config:
+  general:
+    description: "General"
+    type: string
+    required: true
+"#,
+                b: r#"
+config:
+  general:
+    description: "General"
+    type: string
+    required: true
+"#,
+                conflicting_key: "config.general",
+            },
+            TestCase {
+                name: "Conflicting branch with leave",
+                a: r#"
+var:
+  nested:
+    description: "Nested"
+    type: string
+    required: true
+"#,
+                b: r#"
+var:
+  description: "var"
+  type: string
+  required: true
+"#,
+                conflicting_key: "var",
+            },
+            TestCase {
+                name: "Conflicting leave with branch",
+                a: r#"
+var:
+  description: "var"
+  type: string
+  required: true
+"#,
+                b: r#"
+var:
+  nested:
+    description: "Nested"
+    type: string
+    required: true
+"#,
+                conflicting_key: "var",
+            },
+            TestCase {
+                name: "Conflicting branch and leave nested",
+                a: r#"
+var:
+  several:
+    nested:
+      levels:
+        description: "levels"
+        type: string
+        required: true
+"#,
+                b: r#"
+var:
+  several:
+    nested:
+      description: "nested"
+      type: string
+      required: true
+"#,
+                conflicting_key: "var.several.nested",
+            },
+        ];
 
-        let actual_exec = executable.executables.first().unwrap();
-
-        assert_eq!(actual_exec.path.value, Some("/bin/echo".to_string()));
-        assert_eq!(
-            actual_exec.args.value,
-            Some(Args("exponential".to_string()))
-        );
+        for test_case in test_cases {
+            test_case.run();
+        }
     }
 }

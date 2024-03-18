@@ -3,13 +3,18 @@ use crate::event::OpAMPEvent;
 use crate::opamp::instance_id;
 use crate::super_agent::config::{AgentID, OpAMPClientConfig};
 use opamp_client::http::config::HttpConfigError;
-use opamp_client::http::{HttpClientError, HttpClientUreq, HttpConfig};
+use opamp_client::http::{
+    HttpClientError, HttpClientUreq, HttpConfig, NotStartedHttpClient, StartedHttpClient,
+};
 use opamp_client::operation::callbacks::Callbacks;
 use opamp_client::operation::settings::StartSettings;
-use opamp_client::{NotStartedClientError, StartedClient, StartedClientError};
+use opamp_client::{NotStartedClient, NotStartedClientError, StartedClient, StartedClientError};
 use std::time::SystemTimeError;
 use thiserror::Error;
 use tracing::error;
+
+use super::callbacks::AgentCallbacks;
+use super::remote_config_publisher::OpAMPRemoteConfigPublisher;
 
 #[derive(Error, Debug)]
 pub enum OpAMPClientBuilderError {
@@ -53,6 +58,37 @@ pub fn build_http_client(
         HttpClientUreq::new(HttpConfig::new(config.endpoint.as_str())?.with_headers(headers)?)?;
 
     Ok(http_client)
+}
+
+pub struct OpAMPHttpClientBuilder {
+    config: OpAMPClientConfig,
+}
+
+impl OpAMPHttpClientBuilder {
+    pub fn new(config: OpAMPClientConfig) -> Self {
+        Self { config }
+    }
+
+    pub fn config(&self) -> &OpAMPClientConfig {
+        &self.config
+    }
+}
+
+impl OpAMPClientBuilder<AgentCallbacks<OpAMPRemoteConfigPublisher>> for OpAMPHttpClientBuilder {
+    type Client = StartedHttpClient<AgentCallbacks<OpAMPRemoteConfigPublisher>, HttpClientUreq>;
+    fn build_and_start(
+        &self,
+        opamp_publisher: EventPublisher<OpAMPEvent>,
+        agent_id: AgentID,
+        start_settings: StartSettings,
+    ) -> Result<Self::Client, OpAMPClientBuilderError> {
+        let http_client = build_http_client(&self.config)?;
+        let remote_config_publisher = OpAMPRemoteConfigPublisher::new(opamp_publisher);
+        let callbacks = AgentCallbacks::new(agent_id, remote_config_publisher);
+        let not_started_client = NotStartedHttpClient::new(http_client);
+        let started_client = not_started_client.start(callbacks, start_settings)?;
+        Ok(started_client)
+    }
 }
 
 #[cfg(test)]
@@ -111,14 +147,22 @@ pub(crate) mod test {
             self.expect_set_health().times(times).returning(|_| Ok(()));
         }
 
-        #[allow(dead_code)]
-        pub fn should_not_set_health(&mut self, times: usize, status_code: u16, error_msg: String) {
-            self.expect_set_health().times(times).returning(move |_| {
-                Err(ClientError::SenderError(
-                    HttpClientError::UnsuccessfulResponse(status_code, error_msg.clone()),
-                ))
-            });
+        pub fn should_set_healthy(&mut self) {
+            self.expect_set_health()
+                .withf(|health| health.healthy)
+                .returning(|_| Ok(()));
         }
+
+        pub fn should_set_unhealthy(&mut self) {
+            self.expect_set_health()
+                .withf(|health| !health.healthy)
+                .returning(|_| Ok(()));
+        }
+
+        pub fn should_not_set_health(&mut self, error: ClientError) {
+            self.expect_set_health().return_once(move |_| Err(error));
+        }
+
         pub fn should_stop(&mut self, times: usize) {
             self.expect_stop().times(times).returning(|| Ok(()));
         }
@@ -150,6 +194,19 @@ pub(crate) mod test {
                 .once()
                 .with(predicate::eq(status))
                 .returning(|_| Ok(()));
+        }
+
+        // assertion just for the call of the method but not the remote
+        // status itself (so any remote config status)
+        pub fn should_not_set_remote_config_status(
+            &mut self,
+            status: RemoteConfigStatus,
+            error: ClientError,
+        ) {
+            self.expect_set_remote_config_status()
+                .once()
+                .with(predicate::eq(status))
+                .return_once(|_| Err(error));
         }
     }
 

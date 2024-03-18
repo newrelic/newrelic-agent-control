@@ -1,7 +1,6 @@
 use super::config::{
     AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig, SuperAgentConfigError,
 };
-use super::opamp::remote_config_publisher::SuperAgentRemoteConfigPublisher;
 use super::store::{
     SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer, SuperAgentConfigStoreFile,
 };
@@ -11,25 +10,27 @@ use crate::opamp::callbacks::AgentCallbacks;
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::remote_config::RemoteConfig;
 use crate::opamp::remote_config_hash::Hash;
+use crate::opamp::remote_config_publisher::OpAMPRemoteConfigPublisher;
 use crate::opamp::remote_config_report::report_remote_config_status_applied;
 use crate::sub_agent::collection::{NotStartedSubAgents, StartedSubAgents};
 use crate::sub_agent::error::SubAgentBuilderError;
-use crate::sub_agent::logger::{AgentLog, EventLogger, StdEventReceiver};
-use crate::sub_agent::NotStartedSubAgent;
 use crate::sub_agent::SubAgentBuilder;
+
+use crate::sub_agent::NotStartedSubAgent;
 use crate::super_agent::defaults::{SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION};
 use crate::super_agent::error::AgentError;
+use crate::utils::time::get_sys_time_nano;
 use crossbeam::select;
+use opamp_client::opamp::proto::ComponentHealth;
 use opamp_client::StartedClient;
 use std::collections::HashMap;
 use std::string::ToString;
-use std::sync::mpsc::{self, Sender};
 use std::sync::Arc;
-use tracing::{debug, info, trace, warn};
+use tracing::{debug, error, info, trace, warn};
 
-pub(super) type SuperAgentCallbacks = AgentCallbacks<SuperAgentRemoteConfigPublisher>;
+pub(super) type SuperAgentCallbacks = AgentCallbacks<OpAMPRemoteConfigPublisher>;
 
-pub struct SuperAgent<'a, S, O, HR, SL = SuperAgentConfigStoreFile>
+pub struct SuperAgent<S, O, HR, SL = SuperAgentConfigStoreFile>
 where
     O: StartedClient<SuperAgentCallbacks>,
     HR: HashRepository,
@@ -38,12 +39,12 @@ where
 {
     pub(super) opamp_client: Option<O>,
     sub_agent_builder: S,
-    remote_config_hash_repository: &'a HR,
+    remote_config_hash_repository: Arc<HR>,
     agent_id: AgentID,
     pub(super) sub_agents_config_store: Arc<SL>,
 }
 
-impl<'a, S, O, HR, SL> SuperAgent<'a, S, O, HR, SL>
+impl<S, O, HR, SL> SuperAgent<S, O, HR, SL>
 where
     O: StartedClient<SuperAgentCallbacks>,
     HR: HashRepository,
@@ -52,7 +53,7 @@ where
 {
     pub fn new(
         opamp_client: Option<O>,
-        remote_config_hash_repository: &'a HR,
+        remote_config_hash_repository: Arc<HR>,
         sub_agent_builder: S,
         sub_agents_config_store: Arc<SL>,
     ) -> Self {
@@ -72,11 +73,6 @@ where
         super_agent_opamp_consumer: EventConsumer<OpAMPEvent>,
     ) -> Result<(), AgentError> {
         debug!("Creating agent's communication channels");
-        // Channel will be closed when tx is dropped and no reference to it is alive
-        let (tx, rx) = mpsc::channel();
-
-        let output_manager = StdEventReceiver::default().log(rx);
-
         if let Some(opamp_handle) = &self.opamp_client {
             match self.remote_config_hash_repository.get(&self.agent_id) {
                 Err(e) => {
@@ -100,35 +96,27 @@ where
         let sub_agents_config = &self.sub_agents_config_store.load()?;
 
         let not_started_sub_agents =
-            self.load_sub_agents(sub_agents_config, &tx, sub_agent_publisher.clone())?;
+            self.load_sub_agents(sub_agents_config, sub_agent_publisher.clone())?;
 
         info!("Agents supervisor runtime successfully started");
         // Run all the Sub Agents
         let running_sub_agents = not_started_sub_agents.run()?;
+
         self.process_events(
             super_agent_consumer,
             super_agent_opamp_consumer,
-            (sub_agent_publisher, sub_agent_consumer),
+            sub_agent_publisher,
+            sub_agent_consumer,
             running_sub_agents,
-            tx,
         )?;
 
         if let Some(handle) = self.opamp_client {
-            info!("Stopping and setting to unhealthy the OpAMP Client");
-            let health = opamp_client::opamp::proto::ComponentHealth {
-                healthy: false,
-                last_error: "".to_string(),
-                start_time_unix_nano: 0,
-                ..Default::default()
-            };
-            handle.set_health(health)?;
+            info!("Stopping the OpAMP Client");
+            // We should call disconnect here as this means a graceful shutdown
             handle.stop()?;
         }
 
-        debug!("Waiting for the output manager to finish");
-        output_manager.join().unwrap();
-
-        info!("SuperAgent stopped");
+        info!("SuperAgent finished");
         Ok(())
     }
 
@@ -145,7 +133,6 @@ where
     fn load_sub_agents(
         &self,
         sub_agents_config: &SubAgentsConfig,
-        tx: &Sender<AgentLog>,
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
     ) -> Result<NotStartedSubAgents<S::NotStartedSubAgent>, AgentError> {
         Ok(NotStartedSubAgents::from(
@@ -158,7 +145,6 @@ where
                     let not_started_agent = self.sub_agent_builder.build(
                         agent_id.clone(),
                         sub_agent_config,
-                        tx.clone(),
                         sub_agent_publisher.clone(),
                     )?;
                     Ok((agent_id.clone(), not_started_agent))
@@ -176,7 +162,6 @@ where
         &self,
         agent_id: AgentID,
         sub_agent_config: &SubAgentConfig,
-        tx: Sender<AgentLog>,
         running_sub_agents: &mut StartedSubAgents<
             <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
@@ -187,7 +172,6 @@ where
         self.create_sub_agent(
             agent_id,
             sub_agent_config,
-            tx,
             running_sub_agents,
             sub_agent_publisher,
         )
@@ -198,7 +182,6 @@ where
         &self,
         agent_id: AgentID,
         sub_agent_config: &SubAgentConfig,
-        tx: Sender<AgentLog>,
         running_sub_agents: &mut StartedSubAgents<
             <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
@@ -207,7 +190,7 @@ where
         running_sub_agents.insert(
             agent_id.clone(),
             self.sub_agent_builder
-                .build(agent_id, sub_agent_config, tx, sub_agent_publisher)?
+                .build(agent_id, sub_agent_config, sub_agent_publisher)?
                 .run()?,
         );
 
@@ -218,12 +201,16 @@ where
         &self,
         super_agent_consumer: EventConsumer<SuperAgentEvent>,
         super_agent_opamp_consumer: EventConsumer<OpAMPEvent>,
-        sub_agent_pub_sub: (EventPublisher<SubAgentEvent>, EventConsumer<SubAgentEvent>),
+        sub_agent_publisher: EventPublisher<SubAgentEvent>,
+        sub_agent_consumer: EventConsumer<SubAgentEvent>,
         mut sub_agents: StartedSubAgents<
             <<S as SubAgentBuilder>::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
-        tx: Sender<AgentLog>,
     ) -> Result<(), AgentError> {
+        let _ = self
+            .report_healthy()
+            .inspect_err(|e| error!("Error reporting health on Super Agent start: {}", e));
+
         debug!("Listening for events from agents");
         loop {
             select! {
@@ -234,23 +221,26 @@ where
                             remote_config_error,
                         ) => {
                             warn!("Invalid remote config received: {remote_config_error}");
-                            self.invalid_remote_config(remote_config_error)?
+                            // if the invalid remote config action cannot be processed
+                            // (report status, health...) we log it, but we don't break the
+                            // execution
+                            let _ = self.invalid_remote_config(remote_config_error)
+                            .inspect_err(|e| error!("Error processing invalid remote config: {}", e));
                         }
                         OpAMPEvent::ValidRemoteConfigReceived(remote_config) => {
-                            debug!("Valid remote config received");
-                            trace!("Remote config: {remote_config:?}");
-                            self.valid_remote_config(remote_config, sub_agent_pub_sub.0.clone(), &mut sub_agents, tx.clone())?
+                            // if the valid remote config action cannot be processed
+                            // (report status, health...) we log it, but we don't break the
+                            // execution
+                            let _ = self.valid_remote_config(remote_config, sub_agent_publisher.clone(), &mut sub_agents )
+                            .inspect_err(|e| error!("Error processing valid remote config: {}", e));
                         }
                     }
 
                 },
                 recv(super_agent_consumer.as_ref()) -> _super_agent_event => {
-                    debug!("Received SuperAgent event");
-                    trace!("SuperAgent event receive attempt: {:?}", _super_agent_event);
-                    drop(tx); //drop the main channel sender to stop listener
-                    break sub_agents.stop()?;
+                        break sub_agents.stop()?;
                 },
-                recv(sub_agent_pub_sub.1.as_ref()) -> sub_agent_event_res => {
+                recv(sub_agent_consumer.as_ref()) -> sub_agent_event_res => {
                     debug!("Received SubAgent event");
                     trace!("SubAgent event receive attempt: {:?}", sub_agent_event_res);
                     match sub_agent_event_res {
@@ -262,8 +252,14 @@ where
                             trace!("SubAgent event: {:?}", sub_agent_event);
                             match sub_agent_event{
                                 SubAgentEvent::ConfigUpdated(agent_id) => {
-                                    self.sub_agent_config_updated(agent_id,tx.clone(),sub_agent_pub_sub.0.clone(),&mut sub_agents)?
-                                }
+                                    self.sub_agent_config_updated(agent_id,sub_agent_publisher.clone(),&mut sub_agents)?
+                                },
+                                SubAgentEvent::SubAgentBecameHealthy(agent_id) => {
+                                    debug!(agent_id = agent_id.to_string() ,"sub agent is healthy");
+                                },
+                                SubAgentEvent::SubAgentBecameUnhealthy(agent_id,msg) => {
+                                    debug!(agent_id = agent_id.to_string(), error_message = msg,"sub agent is unhealthy");
+                                },
                             }
                         }
                     }
@@ -277,7 +273,6 @@ where
     pub(super) fn apply_remote_super_agent_config(
         &self,
         remote_config: RemoteConfig,
-        tx: Sender<AgentLog>,
         running_sub_agents: &mut StartedSubAgents<
             <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
@@ -305,7 +300,6 @@ where
                         return self.recreate_sub_agent(
                             agent_id.clone(),
                             agent_config,
-                            tx.clone(),
                             running_sub_agents,
                             sub_agent_publisher.clone(),
                         );
@@ -318,7 +312,6 @@ where
                 self.create_sub_agent(
                     agent_id.clone(),
                     agent_config,
-                    tx.clone(),
                     running_sub_agents,
                     sub_agent_publisher.clone(),
                 )
@@ -345,6 +338,30 @@ where
         Ok(self
             .remote_config_hash_repository
             .save(&self.agent_id, &remote_config.hash)?)
+    }
+
+    pub(crate) fn report_healthy(&self) -> Result<(), AgentError> {
+        self.report_health(true, String::default())
+    }
+
+    pub(crate) fn report_unhealthy(&self, error_message: String) -> Result<(), AgentError> {
+        self.report_health(false, error_message)
+    }
+
+    fn report_health(&self, healthy: bool, error_message: String) -> Result<(), AgentError> {
+        if let Some(handle) = &self.opamp_client {
+            debug!("Sending super-agent health");
+
+            let health = ComponentHealth {
+                healthy,
+                start_time_unix_nano: get_sys_time_nano()?,
+                last_error: error_message,
+                ..Default::default()
+            };
+
+            handle.set_health(health)?;
+        }
+        Ok(())
     }
 }
 
@@ -384,7 +401,6 @@ mod tests {
     use crate::sub_agent::test::{MockNotStartedSubAgent, MockStartedSubAgent};
     use opamp_client::StartedClient;
     use std::collections::HashMap;
-    use std::sync::mpsc;
     use std::sync::Arc;
     use std::thread::{sleep, spawn};
     use std::time::Duration;
@@ -394,7 +410,7 @@ mod tests {
     ////////////////////////////////////////////////////////////////////////////////////
     // Custom Agent constructor for tests
     ////////////////////////////////////////////////////////////////////////////////////
-    impl<'a, S, O, HR, SL> SuperAgent<'a, S, O, HR, SL>
+    impl<S, O, HR, SL> SuperAgent<S, O, HR, SL>
     where
         O: StartedClient<SuperAgentCallbacks>,
         HR: HashRepository,
@@ -403,7 +419,7 @@ mod tests {
     {
         pub fn new_custom(
             opamp_client: Option<O>,
-            remote_config_hash_repository: &'a HR,
+            remote_config_hash_repository: Arc<HR>,
             sub_agent_builder: S,
             sub_agents_config_store: SL,
         ) -> Self {
@@ -422,7 +438,7 @@ mod tests {
         let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         let mut started_client = MockStartedOpAMPClientMock::new();
-        started_client.should_set_health(1);
+        started_client.should_set_healthy();
         started_client.should_stop(1);
 
         sub_agents_config_store
@@ -438,7 +454,7 @@ mod tests {
         // no agents in the supervisor group
         let agent = SuperAgent::new_custom(
             Some(started_client),
-            &hash_repository_mock,
+            Arc::new(hash_repository_mock),
             MockSubAgentBuilderMock::new(),
             sub_agents_config_store,
         );
@@ -462,7 +478,7 @@ mod tests {
 
         // Super Agent OpAMP
         let mut started_client = MockStartedOpAMPClientMock::new();
-        started_client.should_set_health(1);
+        started_client.should_set_healthy();
         started_client.should_stop(1);
 
         hash_repository_mock.expect_get().times(1).returning(|_| {
@@ -480,7 +496,7 @@ mod tests {
 
         let agent = SuperAgent::new_custom(
             Some(started_client),
-            &hash_repository_mock,
+            Arc::new(hash_repository_mock),
             sub_agent_builder,
             sub_agents_config_store,
         );
@@ -501,7 +517,7 @@ mod tests {
 
         // Super Agent OpAMP
         let mut started_client = MockStartedOpAMPClientMock::new();
-        started_client.should_set_health(1);
+        started_client.should_set_health(2);
         // applying and applied
         started_client
             .expect_set_remote_config_status()
@@ -554,12 +570,11 @@ mod tests {
         let (opamp_publisher, opamp_consumer) = pub_sub();
 
         let running_agent = spawn({
-            let opamp_publisher = opamp_publisher.clone();
             move || {
                 // two agents in the supervisor group
                 let agent = SuperAgent::new_custom(
                     Some(started_client),
-                    &hash_repository_mock,
+                    Arc::new(hash_repository_mock),
                     sub_agent_builder,
                     sub_agents_config_store,
                 );
@@ -644,17 +659,14 @@ agents:
         // Create the Super Agent and rub Sub Agents
         let super_agent = SuperAgent::new_custom(
             None::<MockStartedOpAMPClientMock<SuperAgentCallbacks>>,
-            &hash_repository_mock,
+            Arc::new(hash_repository_mock),
             sub_agent_builder,
             sub_agents_config_store,
         );
 
-        let (tx, _) = mpsc::channel();
-
         let (opamp_publisher, _opamp_consumer) = pub_sub();
 
-        let sub_agents =
-            super_agent.load_sub_agents(&sub_agents_config, &tx, opamp_publisher.clone());
+        let sub_agents = super_agent.load_sub_agents(&sub_agents_config, opamp_publisher.clone());
 
         let mut running_sub_agents = sub_agents.unwrap().run().unwrap();
 
@@ -678,7 +690,6 @@ agents:
         super_agent
             .apply_remote_super_agent_config(
                 remote_config,
-                tx.clone(),
                 &mut running_sub_agents,
                 opamp_publisher.clone(),
             )
@@ -704,7 +715,6 @@ agents:
         super_agent
             .apply_remote_super_agent_config(
                 remote_config,
-                tx,
                 &mut running_sub_agents,
                 opamp_publisher.clone(),
             )
@@ -717,8 +727,7 @@ agents:
 
     #[test]
     fn test_sub_agent_config_updated_should_recreate_sub_agent() {
-        let (tx, _) = std::sync::mpsc::channel();
-        let hash_repository_mock = MockHashRepositoryMock::new();
+        let hash_repository_mock = Arc::new(MockHashRepositoryMock::new());
         let mut sub_agent_builder = MockSubAgentBuilderMock::new();
         let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
 
@@ -785,10 +794,14 @@ agents:
         let (sub_agent_publisher, sub_agent_consumer) = pub_sub();
         let (_super_agent_opamp_publisher, super_agent_opamp_consumer) = pub_sub();
 
+        //OpAMP client should report healthy
+        let mut opamp_client_mock = MockStartedOpAMPClientMock::new();
+        opamp_client_mock.should_set_healthy();
+
         // Create the Super Agent and run Sub Agents
         let super_agent = SuperAgent::new_custom(
-            Some(MockStartedOpAMPClientMock::new()),
-            &hash_repository_mock,
+            Some(opamp_client_mock),
+            hash_repository_mock,
             sub_agent_builder,
             sub_agents_config_store,
         );
@@ -813,9 +826,9 @@ agents:
             .process_events(
                 super_agent_consumer,
                 super_agent_opamp_consumer,
-                (sub_agent_publisher, sub_agent_consumer),
+                sub_agent_publisher,
+                sub_agent_consumer,
                 sub_agents,
-                tx,
             )
             .unwrap();
     }
