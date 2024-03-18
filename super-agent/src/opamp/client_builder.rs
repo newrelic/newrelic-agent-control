@@ -147,14 +147,22 @@ pub(crate) mod test {
             self.expect_set_health().times(times).returning(|_| Ok(()));
         }
 
-        #[allow(dead_code)]
-        pub fn should_not_set_health(&mut self, times: usize, status_code: u16, error_msg: String) {
-            self.expect_set_health().times(times).returning(move |_| {
-                Err(ClientError::SenderError(
-                    HttpClientError::UnsuccessfulResponse(status_code, error_msg.clone()),
-                ))
-            });
+        pub fn should_set_healthy(&mut self) {
+            self.expect_set_health()
+                .withf(|health| health.healthy)
+                .returning(|_| Ok(()));
         }
+
+        pub fn should_set_unhealthy(&mut self) {
+            self.expect_set_health()
+                .withf(|health| !health.healthy)
+                .returning(|_| Ok(()));
+        }
+
+        pub fn should_not_set_health(&mut self, error: ClientError) {
+            self.expect_set_health().return_once(move |_| Err(error));
+        }
+
         pub fn should_stop(&mut self, times: usize) {
             self.expect_stop().times(times).returning(|| Ok(()));
         }
@@ -186,6 +194,19 @@ pub(crate) mod test {
                 .once()
                 .with(predicate::eq(status))
                 .returning(|_| Ok(()));
+        }
+
+        // assertion just for the call of the method but not the remote
+        // status itself (so any remote config status)
+        pub fn should_not_set_remote_config_status(
+            &mut self,
+            status: RemoteConfigStatus,
+            error: ClientError,
+        ) {
+            self.expect_set_remote_config_status()
+                .once()
+                .with(predicate::eq(status))
+                .return_once(|_| Err(error));
         }
     }
 

@@ -74,18 +74,17 @@ where
             Err(err) => {
                 let error_message = format!("Error applying Super Agent remote config: {}", err);
                 error!(error_message);
-                Ok(report_remote_config_status_error(
+                report_remote_config_status_error(
                     opamp_client,
                     &remote_config.hash,
-                    error_message,
-                )?)
+                    error_message.clone(),
+                )?;
+                Ok(self.report_unhealthy(error_message)?)
             }
             Ok(()) => {
                 self.set_config_hash_as_applied(&mut remote_config.hash)?;
-                Ok(report_remote_config_status_applied(
-                    opamp_client,
-                    &remote_config.hash,
-                )?)
+                report_remote_config_status_applied(opamp_client, &remote_config.hash)?;
+                Ok(self.report_healthy()?)
             }
         }
     }
@@ -135,7 +134,7 @@ mod tests {
         let mut running_sub_agents = StartedSubAgents::default();
         let old_sub_agents_config = SubAgentsConfig::default();
         let agent_id = AgentID::new_super_agent_id();
-        let mut remote_config = RemoteConfig {
+        let remote_config = RemoteConfig {
             agent_id,
             hash: Hash::new("this-is-a-hash".to_string()),
             config_map: ConfigMap::new(HashMap::from([(
@@ -165,9 +164,11 @@ mod tests {
         };
         started_client.should_set_remote_config_status(status);
 
+        started_client.should_set_unhealthy();
+
         // Create the Super Agent and rub Sub Agents
         let super_agent = SuperAgent::new_custom(
-            None,
+            Some(started_client),
             hash_repository_mock,
             sub_agent_builder,
             sub_agents_config_store,
@@ -175,12 +176,7 @@ mod tests {
 
         let (opamp_publisher, _opamp_consumer) = pub_sub();
         super_agent
-            .process_super_agent_remote_config(
-                &started_client,
-                &mut remote_config,
-                &mut running_sub_agents,
-                opamp_publisher,
-            )
+            .valid_remote_config(remote_config, opamp_publisher, &mut running_sub_agents)
             .unwrap();
     }
 
@@ -208,7 +204,7 @@ mod tests {
         )]));
 
         let agent_id = AgentID::new_super_agent_id();
-        let mut remote_config = RemoteConfig {
+        let remote_config = RemoteConfig {
             agent_id,
             hash: Hash::new("this-is-a-hash".to_string()),
             config_map: ConfigMap::new(HashMap::from([("".to_string(), "agents: {}".to_string())])),
@@ -246,9 +242,11 @@ mod tests {
         };
         started_client.should_set_remote_config_status(status);
 
+        started_client.should_set_healthy();
+
         // Create the Super Agent and rub Sub Agents
         let super_agent = SuperAgent::new_custom(
-            None,
+            Some(started_client),
             Arc::new(hash_repository_mock),
             sub_agent_builder,
             sub_agents_config_store,
@@ -256,12 +254,7 @@ mod tests {
 
         let (opamp_publisher, _opamp_consumer) = pub_sub();
         super_agent
-            .process_super_agent_remote_config(
-                &started_client,
-                &mut remote_config,
-                &mut running_sub_agents,
-                opamp_publisher,
-            )
+            .valid_remote_config(remote_config, opamp_publisher, &mut running_sub_agents)
             .unwrap();
     }
 }

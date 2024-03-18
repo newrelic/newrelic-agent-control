@@ -1,4 +1,7 @@
 use crate::context::Context;
+
+use crate::event::channel::EventPublisher;
+use crate::event::SubAgentInternalEvent;
 use crate::sub_agent::on_host::command::command::{
     CommandError, CommandTerminator, NotStartedCommand, StartedCommand,
 };
@@ -54,12 +57,15 @@ impl SupervisorOnHost<NotStarted> {
         self.state.config.log_to_file
     }
 
-    pub fn run(self) -> Result<SupervisorOnHost<Started>, SupervisorError> {
+    pub fn run(
+        self,
+        internal_event_publisher: EventPublisher<SubAgentInternalEvent>,
+    ) -> Result<SupervisorOnHost<Started>, SupervisorError> {
         //TODO: validate binary path, exec permissions...?
         let ctx = self.state.config.ctx.clone();
         Ok(SupervisorOnHost {
             state: Started {
-                handle: start_process_thread(self),
+                handle: start_process_thread(self, internal_event_publisher),
                 ctx,
             },
         })
@@ -117,7 +123,10 @@ where
     streaming.wait()
 }
 
-fn start_process_thread(not_started_supervisor: SupervisorOnHost<NotStarted>) -> JoinHandle<()> {
+fn start_process_thread(
+    not_started_supervisor: SupervisorOnHost<NotStarted>,
+    internal_event_publisher: EventPublisher<SubAgentInternalEvent>,
+) -> JoinHandle<()> {
     let mut restart_policy = not_started_supervisor.restart_policy.clone();
     let current_pid: Arc<Mutex<Option<u32>>> = Arc::new(Mutex::new(None));
 
@@ -150,6 +159,16 @@ fn start_process_thread(not_started_supervisor: SupervisorOnHost<NotStarted>) ->
             let not_started_command = not_started_supervisor.not_started_command();
             let bin = not_started_supervisor.bin();
             let id = not_started_supervisor.id();
+
+            let _ = internal_event_publisher
+                .publish(SubAgentInternalEvent::AgentBecameHealthy)
+                .inspect_err(|e| {
+                    error!(
+                        err = e.to_string(),
+                        "cannot publish healthy sub agent event"
+                    )
+                });
+
             let exit_code = start_command(not_started_command, current_pid.clone())
                 .map_err(|err| {
                     error!(
@@ -161,6 +180,14 @@ fn start_process_thread(not_started_supervisor: SupervisorOnHost<NotStarted>) ->
                 })
                 .map(|exit_code| {
                     if !exit_code.success() {
+                        let _ = internal_event_publisher
+                            .publish(SubAgentInternalEvent::AgentBecameUnhealthy(format!(
+                                "process exited with code: {}",
+                                exit_code
+                            )))
+                            .inspect_err(|e| {
+                                error!(err = e.to_string(), "cannot publish unhealthy_event")
+                            });
                         error!(
                             id = id.to_string(),
                             supervisor = bin,
@@ -239,6 +266,7 @@ mod tests {
     use tracing_test::traced_test;
 
     use super::*;
+    use crate::event::channel::pub_sub;
     use crate::sub_agent::on_host::supervisor::command_supervisor_config::ExecutableData;
     use crate::sub_agent::restart_policy::{Backoff, BackoffStrategy, RestartPolicy};
     use std::time::{Duration, Instant};
@@ -261,7 +289,8 @@ mod tests {
         );
         let agent = SupervisorOnHost::new(config);
 
-        let agent = agent.run().unwrap();
+        let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
+        let agent = agent.run(sub_agent_internal_publisher).unwrap();
 
         while !agent.state.handle.is_finished() {
             thread::sleep(Duration::from_millis(15));
@@ -290,7 +319,8 @@ mod tests {
         let agent = SupervisorOnHost::new(config);
 
         // run the agent with wrong command so it enters in restart policy
-        let agent = agent.run().unwrap();
+        let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
+        let agent = agent.run(sub_agent_internal_publisher).unwrap();
         // wait two seconds to ensure restart policy thread is sleeping
         thread::sleep(Duration::from_secs(2));
         assert!(agent.stop().join().is_ok());
@@ -317,7 +347,8 @@ mod tests {
         );
         let agent = SupervisorOnHost::new(config);
 
-        let agent = agent.run().unwrap();
+        let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
+        let agent = agent.run(sub_agent_internal_publisher).unwrap();
 
         while !agent.state.handle.is_finished() {
             thread::sleep(Duration::from_millis(15));

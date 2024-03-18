@@ -61,6 +61,10 @@ where
             remote_values_repo,
         }
     }
+
+    pub(crate) fn agent_id(&self) -> AgentID {
+        self.agent_id.clone()
+    }
 }
 
 impl<C, H, R> SubAgentEventProcessor for EventProcessor<C, H, R>
@@ -119,6 +123,15 @@ where
                             Ok(SubAgentInternalEvent::StopRequested) => {
                                 debug!("sub_agent_internal_consumer :: StopRequested");
                                 break;
+                            },
+                            Ok(SubAgentInternalEvent::AgentBecameUnhealthy(msg))=>{
+                                debug!("sub_agent_internal_consumer :: UnhealthyAgent");
+                                let _ = self.on_became_unhealthy(msg).inspect_err(|e| error!("error processing unhealthy status: {}",e));
+
+                            }
+                            Ok(SubAgentInternalEvent::AgentBecameHealthy)=>{
+                                debug!("sub_agent_internal_consumer :: HealthyAgent");
+                               let _ = self.on_became_healthy().inspect_err(|e| error!("error processing healthy status: {}",e));
                             }
                          }
                     }

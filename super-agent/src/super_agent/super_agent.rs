@@ -21,11 +21,12 @@ use crate::super_agent::defaults::{SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPE
 use crate::super_agent::error::AgentError;
 use crate::utils::time::get_sys_time_nano;
 use crossbeam::select;
+use opamp_client::opamp::proto::ComponentHealth;
 use opamp_client::StartedClient;
 use std::collections::HashMap;
 use std::string::ToString;
 use std::sync::Arc;
-use tracing::{debug, info, trace, warn};
+use tracing::{debug, error, info, trace, warn};
 
 pub(super) type SuperAgentCallbacks = AgentCallbacks<OpAMPRemoteConfigPublisher>;
 
@@ -101,18 +102,6 @@ where
         // Run all the Sub Agents
         let running_sub_agents = not_started_sub_agents.run()?;
 
-        // TODO: This will change when we define health change events
-        if let Some(handle) = &self.opamp_client {
-            info!("Sending super-agent health");
-            let health = opamp_client::opamp::proto::ComponentHealth {
-                healthy: true,
-                start_time_unix_nano: get_sys_time_nano()?,
-                last_error: "".to_string(),
-                ..Default::default()
-            };
-            handle.set_health(health)?;
-        }
-
         self.process_events(
             super_agent_consumer,
             super_agent_opamp_consumer,
@@ -122,14 +111,8 @@ where
         )?;
 
         if let Some(handle) = self.opamp_client {
-            info!("Stopping and setting to unhealthy the OpAMP Client");
-            let health = opamp_client::opamp::proto::ComponentHealth {
-                healthy: false,
-                last_error: "".to_string(),
-                start_time_unix_nano: 0,
-                ..Default::default()
-            };
-            handle.set_health(health)?;
+            info!("Stopping the OpAMP Client");
+            // We should call disconnect here as this means a graceful shutdown
             handle.stop()?;
         }
 
@@ -224,6 +207,10 @@ where
             <<S as SubAgentBuilder>::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
     ) -> Result<(), AgentError> {
+        let _ = self
+            .report_healthy()
+            .inspect_err(|e| error!("Error reporting health on Super Agent start: {}", e));
+
         debug!("Listening for events from agents");
         loop {
             select! {
@@ -234,10 +221,18 @@ where
                             remote_config_error,
                         ) => {
                             warn!("Invalid remote config received: {remote_config_error}");
-                            self.invalid_remote_config(remote_config_error)?
+                            // if the invalid remote config action cannot be processed
+                            // (report status, health...) we log it, but we don't break the
+                            // execution
+                            let _ = self.invalid_remote_config(remote_config_error)
+                            .inspect_err(|e| error!("Error processing invalid remote config: {}", e));
                         }
                         OpAMPEvent::ValidRemoteConfigReceived(remote_config) => {
-                            self.valid_remote_config(remote_config, sub_agent_publisher.clone(), &mut sub_agents )?
+                            // if the valid remote config action cannot be processed
+                            // (report status, health...) we log it, but we don't break the
+                            // execution
+                            let _ = self.valid_remote_config(remote_config, sub_agent_publisher.clone(), &mut sub_agents )
+                            .inspect_err(|e| error!("Error processing valid remote config: {}", e));
                         }
                     }
 
@@ -258,7 +253,13 @@ where
                             match sub_agent_event{
                                 SubAgentEvent::ConfigUpdated(agent_id) => {
                                     self.sub_agent_config_updated(agent_id,sub_agent_publisher.clone(),&mut sub_agents)?
-                                }
+                                },
+                                SubAgentEvent::SubAgentBecameHealthy(agent_id) => {
+                                    debug!(agent_id = agent_id.to_string() ,"sub agent is healthy");
+                                },
+                                SubAgentEvent::SubAgentBecameUnhealthy(agent_id,msg) => {
+                                    debug!(agent_id = agent_id.to_string(), error_message = msg,"sub agent is unhealthy");
+                                },
                             }
                         }
                     }
@@ -338,6 +339,30 @@ where
             .remote_config_hash_repository
             .save(&self.agent_id, &remote_config.hash)?)
     }
+
+    pub(crate) fn report_healthy(&self) -> Result<(), AgentError> {
+        self.report_health(true, String::default())
+    }
+
+    pub(crate) fn report_unhealthy(&self, error_message: String) -> Result<(), AgentError> {
+        self.report_health(false, error_message)
+    }
+
+    fn report_health(&self, healthy: bool, error_message: String) -> Result<(), AgentError> {
+        if let Some(handle) = &self.opamp_client {
+            debug!("Sending super-agent health");
+
+            let health = ComponentHealth {
+                healthy,
+                start_time_unix_nano: get_sys_time_nano()?,
+                last_error: error_message,
+                ..Default::default()
+            };
+
+            handle.set_health(health)?;
+        }
+        Ok(())
+    }
 }
 
 pub fn super_agent_fqn() -> AgentTypeFQN {
@@ -413,7 +438,7 @@ mod tests {
         let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         let mut started_client = MockStartedOpAMPClientMock::new();
-        started_client.should_set_health(2);
+        started_client.should_set_healthy();
         started_client.should_stop(1);
 
         sub_agents_config_store
@@ -453,7 +478,7 @@ mod tests {
 
         // Super Agent OpAMP
         let mut started_client = MockStartedOpAMPClientMock::new();
-        started_client.should_set_health(2);
+        started_client.should_set_healthy();
         started_client.should_stop(1);
 
         hash_repository_mock.expect_get().times(1).returning(|_| {
@@ -545,7 +570,6 @@ mod tests {
         let (opamp_publisher, opamp_consumer) = pub_sub();
 
         let running_agent = spawn({
-            let opamp_publisher = opamp_publisher.clone();
             move || {
                 // two agents in the supervisor group
                 let agent = SuperAgent::new_custom(
@@ -770,9 +794,13 @@ agents:
         let (sub_agent_publisher, sub_agent_consumer) = pub_sub();
         let (_super_agent_opamp_publisher, super_agent_opamp_consumer) = pub_sub();
 
+        //OpAMP client should report healthy
+        let mut opamp_client_mock = MockStartedOpAMPClientMock::new();
+        opamp_client_mock.should_set_healthy();
+
         // Create the Super Agent and run Sub Agents
         let super_agent = SuperAgent::new_custom(
-            Some(MockStartedOpAMPClientMock::new()),
+            Some(opamp_client_mock),
             hash_repository_mock,
             sub_agent_builder,
             sub_agents_config_store,
