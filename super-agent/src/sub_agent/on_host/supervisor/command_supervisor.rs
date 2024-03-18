@@ -160,14 +160,10 @@ fn start_process_thread(
             let bin = not_started_supervisor.bin();
             let id = not_started_supervisor.id();
 
-            let _ = internal_event_publisher
-                .publish(SubAgentInternalEvent::AgentBecameHealthy)
-                .inspect_err(|e| {
-                    error!(
-                        err = e.to_string(),
-                        "cannot publish healthy sub agent event"
-                    )
-                });
+            publish_health_event(
+                &internal_event_publisher,
+                SubAgentInternalEvent::AgentBecameHealthy,
+            );
 
             let exit_code = start_command(not_started_command, current_pid.clone())
                 .map_err(|err| {
@@ -180,14 +176,13 @@ fn start_process_thread(
                 })
                 .map(|exit_code| {
                     if !exit_code.success() {
-                        let _ = internal_event_publisher
-                            .publish(SubAgentInternalEvent::AgentBecameUnhealthy(format!(
+                        publish_health_event(
+                            &internal_event_publisher,
+                            SubAgentInternalEvent::AgentBecameUnhealthy(format!(
                                 "process exited with code: {}",
                                 exit_code
-                            )))
-                            .inspect_err(|e| {
-                                error!(err = e.to_string(), "cannot publish unhealthy_event")
-                            });
+                            )),
+                        );
                         error!(
                             id = id.to_string(),
                             supervisor = bin,
@@ -208,6 +203,12 @@ fn start_process_thread(
                 // Log if we are not restarting anymore due to the restart policy being broken
                 if restart_policy.backoff != BackoffStrategy::None {
                     warn!("Supervisor for {id} won't restart anymore due to having exceeded its restart policy");
+                    publish_health_event(
+                        &internal_event_publisher,
+                        SubAgentInternalEvent::AgentBecameUnhealthy(
+                            "supervisor exceeded its defined restart policy".to_string(),
+                        ),
+                    );
                 }
                 break;
             }
@@ -220,6 +221,15 @@ fn start_process_thread(
             });
         }
     })
+}
+
+fn publish_health_event(
+    internal_event_publisher: &EventPublisher<SubAgentInternalEvent>,
+    event: SubAgentInternalEvent,
+) {
+    _ = internal_event_publisher
+        .publish(event)
+        .inspect_err(|e| error!(err = e.to_string(), "could not publish sub agent event"));
 }
 
 /// Blocks on the [`Context`], [`ctx`]. When the termination signal is activated, this will send a shutdown signal to the process being supervised (the one whose PID was passed as [`pid`]).
