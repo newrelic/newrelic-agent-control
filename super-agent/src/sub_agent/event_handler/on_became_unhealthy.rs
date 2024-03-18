@@ -26,11 +26,9 @@ where
                 ..Default::default()
             };
             client.set_health(health)?;
-            self.sub_agent_publisher
-                .publish(SubAgentBecameUnhealthy(self.agent_id(), error_message))?;
-            Ok(())
-        } else {
-            unreachable!()
         }
+        Ok(self
+            .sub_agent_publisher
+            .publish(SubAgentBecameUnhealthy(self.agent_id(), error_message))?)
     }
 }
