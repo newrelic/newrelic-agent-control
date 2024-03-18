@@ -7,6 +7,7 @@ use serde::{Deserialize, Deserializer};
 use std::{collections::HashMap, str::FromStr};
 
 use super::agent_values::AgentValues;
+use super::health_config::HealthConfig;
 use super::{
     agent_metadata::AgentMetadata,
     error::AgentTypeError,
@@ -30,6 +31,7 @@ pub struct AgentTypeDefinition {
     pub variables: AgentTypeVariables,
     #[serde(default, flatten)]
     pub runtime_config: Runtime,
+    pub health: HealthConfig,
 }
 
 /// Contains the variable definitions that can be defined in an [AgentTypeDefinition].
