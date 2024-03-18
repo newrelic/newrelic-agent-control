@@ -166,7 +166,7 @@ fn start_process_thread(
             );
 
             let exit_code = start_command(not_started_command, current_pid.clone())
-                .map_err(|err| {
+                .inspect_err(|err| {
                     error!(
                         id = id.to_string(),
                         supervisor = bin,
