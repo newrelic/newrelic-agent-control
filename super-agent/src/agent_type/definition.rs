@@ -31,7 +31,6 @@ pub struct AgentTypeDefinition {
     pub variables: AgentTypeVariables,
     #[serde(default, flatten)]
     pub runtime_config: Runtime,
-    pub health: Option<HealthConfig>,
 }
 
 /// Contains the variable definitions that can be defined in an [AgentTypeDefinition].
@@ -58,8 +57,8 @@ pub struct AgentType {
 
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct TemplateableValue<T> {
-    value: Option<T>,
-    template: String,
+    pub(super) value: Option<T>,
+    pub(super) template: String,
 }
 
 impl<'de, T> Deserialize<'de> for TemplateableValue<T> {
@@ -366,6 +365,7 @@ pub mod tests {
     use crate::{
         agent_type::{
             environment::Environment,
+            health_config::{HealthConfig, HttpHealth, HttpPort},
             restart_policy::{
                 BackoffStrategyConfig, BackoffStrategyType, RestartPolicyConfig,
                 DEFAULT_BACKOFF_DELAY, DEFAULT_BACKOFF_LAST_RETRY_INTERVAL,
@@ -380,7 +380,7 @@ pub mod tests {
     use super::*;
     use assert_matches::assert_matches;
     use serde_yaml::{Error, Number};
-    use std::collections::HashMap as Map;
+    use std::{collections::HashMap as Map, time::Duration};
 
     impl AgentType {
         /// Builds a testing agent-type given the yaml definitions and the environment.
@@ -431,6 +431,12 @@ variables:
         default: nrdot
 deployment:
   on_host:
+    health:
+      interval: 3s
+      timeout: 10s
+      httpGet:
+        path: /healthz
+        port: 8080
     executables:
       - path: ${nr-var:bin}/otelcol
         args: "-c ${nr-var:deployment.k8s.image}"
@@ -887,8 +893,19 @@ variables:
         kafka: |
           bootstrap: zookeeper
       file_path: "integrations.d"
+    status_server_port:
+      description: "Newrelic infra health status port"
+      type: number
+      required: false
+      default: 8003
 deployment:
   on_host:
+    health:
+      interval: 3s
+      timeout: 10s
+      httpGet:
+        path: /v1/status
+        port: "${nr-var:status_server_port}"
     executables:
       - path: /usr/bin/newrelic-infra
         args: "--config ${nr-var:config} --config2 ${nr-var:config2}"
@@ -991,6 +1008,42 @@ config: |
                 .unwrap()
                 .clone()
         );
+        assert_eq!(
+            expected_executable_args_with_abs_pat,
+            actual
+                .runtime_config
+                .deployment
+                .on_host
+                .as_ref()
+                .unwrap()
+                .executables[0]
+                .args
+                .value
+                .clone()
+                .unwrap()
+                .0
+        );
+        assert_eq!(
+            HealthConfig {
+                interval: Duration::from_secs(3),
+                timeout: Duration::from_secs(10),
+                check: crate::agent_type::health_config::HealthCheck::HttpGetHealth(HttpHealth {
+                    path: "/v1/status".to_string(),
+                    port: TemplateableValue {
+                        value: Some(HttpPort(8003)),
+                        template: "${nr-var:status_server_port}".to_string(),
+                    },
+                    ..Default::default()
+                }),
+            },
+            actual
+                .runtime_config
+                .deployment
+                .on_host
+                .unwrap()
+                .health
+                .unwrap()
+        )
     }
 
     const AGENT_TYPE_WITH_VARIANTS: &str = r#"

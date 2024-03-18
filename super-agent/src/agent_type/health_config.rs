@@ -1,5 +1,12 @@
+use duration_str::deserialize_duration;
 use serde::Deserialize;
 use std::{collections::HashMap, time::Duration};
+
+use super::{
+    definition::{TemplateableValue, Variables},
+    error::AgentTypeError,
+    runtime_config_templates::Templateable,
+};
 
 /// Represents the configuration for health checks.
 ///
@@ -8,46 +15,95 @@ use std::{collections::HashMap, time::Duration};
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub struct HealthConfig {
     /// The duration to wait between health checks.
-    interval: Duration,
+    #[serde(deserialize_with = "deserialize_duration")]
+    pub(super) interval: Duration,
 
     /// The maximum duration a health check may run before considered failed.
-    timeout: Duration,
+    #[serde(deserialize_with = "deserialize_duration")]
+    pub(super) timeout: Duration,
 
     /// Details on the type of health check. Defined by the `HealthCheck` enumeration.
     #[serde(flatten)]
-    check: HealthCheck,
+    pub(super) check: HealthCheck,
 }
 
 /// Enumeration representing the possible types of health checks.
 ///
 /// Variants include `HttpHealth` and `ExecHealth`, corresponding to health checks via HTTP and execute command, respectively.
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
-enum HealthCheck {
+pub(super) enum HealthCheck {
+    #[serde(rename = "httpGet")]
+    HttpGetHealth(HttpHealth),
+    #[serde(rename = "exec")]
+    ExecHealth(ExecHealth),
     #[default]
-    HttpHealth,
-    ExecHealth,
+    UnDefined,
 }
+
+/// Represents an HTTP-based port.
+#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+pub(super) struct HttpPort(pub(super) usize);
 
 /// Represents an HTTP-based health check.
 ///
 /// For further details, refer to [Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/).
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
-pub struct HttpHealth {
+pub(super) struct HttpHealth {
     /// The HTTP path to check for the health check.
-    path: String,
+    pub(super) path: String,
 
     /// The port to be checked during the health check.
-    port: u8,
+    pub(super) port: TemplateableValue<HttpPort>,
 
     /// Optional HTTP headers to be included during the health check.
-    headers: Option<HashMap<String, String>>,
+    pub(super) headers: Option<HashMap<String, String>>,
 }
 
 /// Represents a health check based on an executed command.
 ///
 /// For further details, refer to [Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/).
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
-pub struct ExecHealth {
+pub(super) struct ExecHealth {
     /// The command to be executed for the health check.
     command: Vec<String>,
+}
+
+impl Templateable for HealthConfig {
+    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+        Ok(Self {
+            check: self.check.template_with(variables)?,
+            ..self
+        })
+    }
+}
+
+impl Templateable for HealthCheck {
+    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+        Ok(match self {
+            HealthCheck::HttpGetHealth(ref conf) => {
+                let mut conf = conf.clone();
+                conf.port = conf.port.template_with(variables)?;
+                HealthCheck::HttpGetHealth(conf)
+            }
+            _ => self,
+        })
+    }
+}
+
+impl Templateable for TemplateableValue<HttpPort> {
+    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+        let templated_string = self.template.clone().template_with(variables)?;
+        let value = if templated_string.is_empty() {
+            HttpPort::default()
+        } else {
+            templated_string
+                .parse::<usize>()
+                .map(HttpPort)
+                .map_err(|_| AgentTypeError::ValueNotParseableFromString(templated_string))?
+        };
+        Ok(Self {
+            template: self.template,
+            value: Some(value),
+        })
+    }
 }
