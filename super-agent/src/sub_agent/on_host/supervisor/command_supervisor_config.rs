@@ -1,10 +1,8 @@
-use std::collections::HashMap;
-
-use bollard::secret::HealthConfig;
-
+use crate::agent_type::health_config::HealthConfig;
 use crate::context::Context;
 use crate::sub_agent::restart_policy::RestartPolicy;
 use crate::super_agent::config::AgentID;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub struct SupervisorConfigOnHost {

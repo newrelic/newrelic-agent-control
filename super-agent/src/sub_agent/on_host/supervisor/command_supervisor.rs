@@ -132,9 +132,8 @@ fn start_process_thread(
     let mut restart_policy = not_started_supervisor.restart_policy.clone();
     let current_pid: Arc<Mutex<Option<u32>>> = Arc::new(Mutex::new(None));
 
-    let health_checker = not_started_supervisor
-        .health
-        .map(HealthChecker::new); // TODO whatever this means
+    let health_checker = not_started_supervisor.health;
+    // .map(HealthChecker::new); // TODO whatever this means
 
     let shutdown_ctx = Context::new();
     _ = wait_for_termination(

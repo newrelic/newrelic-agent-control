@@ -55,6 +55,10 @@ pub(super) struct HttpHealth {
 
     /// Optional HTTP headers to be included during the health check.
     pub(super) headers: Option<HashMap<String, String>>,
+
+    // allowed healthy HTTP status codes
+
+    // optional host with default 127.0.0.1
 }
 
 /// Represents a health check based on an executed command.
@@ -66,6 +70,8 @@ pub(super) struct ExecHealth {
     path: String,
     /// Arguments provided to the executed command.
     args: Vec<String>,
+
+    // allowed healthy exit codes
 }
 
 impl Templateable for HealthConfig {

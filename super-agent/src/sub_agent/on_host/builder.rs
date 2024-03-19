@@ -192,7 +192,7 @@ fn build_supervisors(
             restart_policy,
         )
         .with_file_logging(on_host.enable_file_logging.get())
-        .with_health_check(on_host.health.get());
+        .with_health_check(on_host.health);
 
         let not_started_supervisor = SupervisorOnHost::new(config);
         supervisors.push(not_started_supervisor);
