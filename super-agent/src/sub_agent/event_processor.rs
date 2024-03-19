@@ -78,6 +78,11 @@ where
     // It will end when sub_agent_opamp_publisher is closed
     fn process(self) -> JoinHandle<Result<(), SubAgentError>> {
         thread::spawn(move || {
+            debug!(
+                agent_id = self.agent_id.to_string(),
+                "event processor started"
+            );
+
             //TODO: this will change when we define specific health events
             if let Some(client) = &self.maybe_opamp_client {
                 info!(

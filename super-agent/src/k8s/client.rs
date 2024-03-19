@@ -451,10 +451,9 @@ where
     {
         // List of objects being deleted.
         either::Left(list) => {
-            debug!(
-                "Deleting collection: {:?}",
-                list.iter().map(ResourceExt::name_any).collect::<Vec<_>>()
-            );
+            list.iter().for_each(|obj| {
+                debug!("Deleting collection: {:?}", obj.meta().name);
+            });
         }
         // Status response of the deleted objects.
         either::Right(status) => {
