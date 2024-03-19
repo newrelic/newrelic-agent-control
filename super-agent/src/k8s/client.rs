@@ -248,10 +248,10 @@ impl AsyncK8sClient {
                 K8sError::GetDynamic(format!("getting dynamic object with name {}: {}", name, e))
             })?
             .and_modify(|obj_old| {
-                obj_old.data = obj.data.clone();
+                obj_old.data.clone_from(&obj.data);
                 // We are updating just particular metadata fields, the ones that are supported currently by the config
                 // Moreover, if you add a new one you need to consider them in has_dynamic_object_changed
-                obj_old.metadata.labels = obj.metadata.labels.clone();
+                obj_old.metadata.labels.clone_from(&obj.metadata.labels);
             })
             .or_insert(|| obj.clone())
             .commit(&PostParams::default())
