@@ -47,18 +47,66 @@ pub(super) struct HttpPort(pub(super) u16);
 /// For further details, refer to [Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/).
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub(super) struct HttpHealth {
+    #[serde(default)]
+    pub(super) host: TemplateableValue<HttpHost>,
+
     /// The HTTP path to check for the health check.
-    pub(super) path: String,
+    pub(super) path: TemplateableValue<HttpPath>,
 
     /// The port to be checked during the health check.
     pub(super) port: TemplateableValue<HttpPort>,
 
     /// Optional HTTP headers to be included during the health check.
-    pub(super) headers: Option<HashMap<String, String>>,
+    #[serde(default)]
+    pub(super) headers: HashMap<String, String>,
 
     // allowed healthy HTTP status codes
+    #[serde(default)]
+    pub(super) healthy_status_codes: Vec<u16>,
+}
 
-    // optional host with default 127.0.0.1
+#[derive(Debug, Deserialize, Clone, PartialEq)]
+struct HttpHost(String);
+
+impl Default for HttpHost {
+    fn default() -> Self {
+        Self("127.0.0.1".to_string())
+    }
+}
+
+impl AsRef<str> for HttpHost {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl Templateable for HttpHost {
+    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+        let templated_string = self.0.template_with(variables)?;
+        Ok(Self(templated_string))
+    }
+}
+
+#[derive(Debug, Deserialize, Clone, PartialEq)]
+struct HttpPath(String);
+
+impl Default for HttpPath {
+    fn default() -> Self {
+        Self("/".to_string())
+    }
+}
+
+impl AsRef<str> for HttpPath {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl Templateable for HttpPath {
+    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+        let templated_string = self.0.template_with(variables)?;
+        Ok(Self(templated_string))
+    }
 }
 
 /// Represents a health check based on an executed command.
@@ -70,7 +118,6 @@ pub(super) struct ExecHealth {
     path: String,
     /// Arguments provided to the executed command.
     args: Vec<String>,
-
     // allowed healthy exit codes
 }
 
