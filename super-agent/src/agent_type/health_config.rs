@@ -42,7 +42,7 @@ pub(super) enum HealthCheck {
 
 /// Represents an HTTP-based port.
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
-pub(super) struct HttpPort(pub(super) usize);
+pub(super) struct HttpPort(pub(super) u16);
 
 /// Represents an HTTP-based health check.
 ///
