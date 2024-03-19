@@ -145,26 +145,6 @@ fn file_logger(agent_id: &AgentID, prefix: &str) -> FileLogger {
     FileAppender::new(agent_id, prefix).into()
 }
 
-impl CommandOS<NotStarted> {
-    pub fn start_with_loggers(
-        mut self,
-        out: FileLogger,
-        err: FileLogger,
-    ) -> Result<CommandOS<Started>, CommandError> {
-        let loggers = self
-            .state
-            .logs_to_file
-            .then(|| FileSystemLoggers::new(out, err));
-        Ok(CommandOS {
-            agent_id: self.agent_id,
-            state: Started {
-                process: self.state.cmd.spawn()?,
-                loggers,
-            },
-        })
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////////
 // Sync/Blocking Command OS
 ////////////////////////////////////////////////////////////////////////////////////
