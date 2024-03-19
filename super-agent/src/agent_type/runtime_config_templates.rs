@@ -117,6 +117,10 @@ impl Templateable for OnHost {
                 .map(|e| e.template_with(variables))
                 .collect::<Result<Vec<Executable>, AgentTypeError>>()?,
             enable_file_logging: self.enable_file_logging.template_with(variables)?,
+            health: self
+                .health
+                .map(|health| health.template_with(variables))
+                .transpose()?,
         })
     }
 }
@@ -814,8 +818,8 @@ mod tests {
                 r#"
 objects:
   cr1:
-    apiVersion: {untouched_val} 
-    kind: {untouched_val} 
+    apiVersion: {untouched_val}
+    kind: {untouched_val}
     metadata:
       name: ${{nr-sub:agent_id}}
       labels:

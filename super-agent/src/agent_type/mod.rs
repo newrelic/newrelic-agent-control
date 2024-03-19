@@ -5,6 +5,7 @@ pub mod agent_values;
 pub mod definition;
 pub mod environment;
 pub mod error;
+pub mod health_config;
 pub mod renderer;
 pub mod restart_policy;
 pub mod runtime_config;
