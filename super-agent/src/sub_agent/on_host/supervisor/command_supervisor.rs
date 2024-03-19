@@ -3,7 +3,7 @@ use crate::context::Context;
 use crate::event::channel::{pub_sub, pub_sub_with_capacity, EventConsumer, EventPublisher};
 use crate::event::SubAgentInternalEvent;
 use crate::sub_agent::health;
-use crate::sub_agent::health::check_health::HealthChecker;
+use crate::sub_agent::health::health_checker::HealthChecker;
 use crate::sub_agent::on_host::command::command::{
     CommandError, CommandTerminator, NotStartedCommand, StartedCommand,
 };

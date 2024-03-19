@@ -1,4 +1,4 @@
-type HealthCheckError = String;
+pub(super) type HealthCheckError = String;
 
 /// A type that implements a health checking mechanism.
 pub trait HealthChecker {
