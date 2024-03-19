@@ -279,9 +279,14 @@ fn publish_health_event(
     internal_event_publisher: &EventPublisher<SubAgentInternalEvent>,
     event: SubAgentInternalEvent,
 ) {
-    _ = internal_event_publisher
-        .publish(event)
-        .inspect_err(|e| error!(err = e.to_string(), "could not publish sub agent event"));
+    let event_type_str = format!("{:?}", event);
+    _ = internal_event_publisher.publish(event).inspect_err(|e| {
+        error!(
+            err = e.to_string(),
+            event_type = event_type_str,
+            "could not publish sub agent event"
+        )
+    });
 }
 
 /// Blocks on the [`Context`], [`ctx`]. When the termination signal is activated, this will send a shutdown signal to the process being supervised (the one whose PID was passed as [`pid`]).
