@@ -99,7 +99,7 @@ impl Templateable for TemplateableValue<HttpPort> {
             HttpPort::default()
         } else {
             templated_string
-                .parse::<usize>()
+                .parse::<u16>()
                 .map(HttpPort)
                 .map_err(|_| AgentTypeError::ValueNotParseableFromString(templated_string))?
         };
