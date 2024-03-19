@@ -2,7 +2,9 @@ use std::collections::HashMap;
 
 use serde::Deserialize;
 
-use super::{definition::TemplateableValue, restart_policy::RestartPolicyConfig};
+use super::{
+    definition::TemplateableValue, health_config::HealthConfig, restart_policy::RestartPolicyConfig,
+};
 
 /// Strict structure that describes how to start a given agent with all needed binaries, arguments, env, etc.
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
@@ -24,6 +26,7 @@ pub struct OnHost {
     pub executables: Vec<Executable>,
     #[serde(default)]
     pub enable_file_logging: TemplateableValue<bool>,
+    pub health: Option<HealthConfig>,
 }
 
 /* FIXME: This is not TEMPLATEABLE for the moment, we need to think what would be the strategy here and clarify:
