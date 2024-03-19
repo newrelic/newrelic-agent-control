@@ -5,6 +5,7 @@ pub mod error;
 mod event_handler;
 pub mod event_processor;
 pub mod event_processor_builder;
+mod health;
 pub mod persister;
 pub mod restart_policy;
 pub mod values;

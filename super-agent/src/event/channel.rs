@@ -1,4 +1,4 @@
-use crossbeam::channel::{unbounded, Receiver, Sender};
+use crossbeam::channel::{bounded, unbounded, Receiver, Sender};
 use thiserror::Error;
 
 pub struct EventConsumer<E>(Receiver<E>);
@@ -12,6 +12,11 @@ pub enum EventPublisherError {
 
 pub fn pub_sub<E>() -> (EventPublisher<E>, EventConsumer<E>) {
     let (s, r) = unbounded();
+    (EventPublisher(s), EventConsumer(r))
+}
+
+pub fn pub_sub_with_capacity<E>(cap: usize) -> (EventPublisher<E>, EventConsumer<E>) {
+    let (s, r) = bounded(cap);
     (EventPublisher(s), EventConsumer(r))
 }
 

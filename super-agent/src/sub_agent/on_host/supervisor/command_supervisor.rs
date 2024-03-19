@@ -1,7 +1,9 @@
 use crate::context::Context;
 
-use crate::event::channel::EventPublisher;
+use crate::event::channel::{pub_sub, pub_sub_with_capacity, EventConsumer, EventPublisher};
 use crate::event::SubAgentInternalEvent;
+use crate::sub_agent::health;
+use crate::sub_agent::health::check_health::HealthChecker;
 use crate::sub_agent::on_host::command::command::{
     CommandError, CommandTerminator, NotStartedCommand, StartedCommand,
 };
@@ -130,6 +132,8 @@ fn start_process_thread(
     let mut restart_policy = not_started_supervisor.restart_policy.clone();
     let current_pid: Arc<Mutex<Option<u32>>> = Arc::new(Mutex::new(None));
 
+    let health_checker = not_started_supervisor.health_checker_config.map(HealthChecker::new); // TODO whatever this means
+
     let shutdown_ctx = Context::new();
     _ = wait_for_termination(
         current_pid.clone(),
@@ -160,19 +164,27 @@ fn start_process_thread(
             let bin = not_started_supervisor.bin();
             let id = not_started_supervisor.id();
 
-            let _ = internal_event_publisher
-                .publish(SubAgentInternalEvent::AgentBecameHealthy)
-                .inspect_err(|e| {
-                    error!(
-                        err = e.to_string(),
-                        "cannot publish healthy sub agent event"
-                    )
-                });
+            publish_health_event(
+                &internal_event_publisher,
+                SubAgentInternalEvent::AgentBecameHealthy,
+            );
+
+            // Spawn the health checker thread
+            let (health_check_cancel_publisher, health_check_cancel_consumer) =
+                pub_sub_with_capacity(0);
+            
+            if let Some(health_checker) = 
+            spawn_health_checker(
+                // health_checker has to be created from the health check config if it exists
+                health_checker,
+                health_check_cancel_consumer,
+                internal_event_publisher.clone(),
+            );
 
             let exit_code = start_command(not_started_command, current_pid.clone())
-                .map_err(|err| {
+                .inspect_err(|err| {
                     error!(
-                        id = id.to_string(),
+                        agent_id = id.to_string(),
                         supervisor = bin,
                         "Error while launching supervisor process: {}",
                         err
@@ -180,16 +192,15 @@ fn start_process_thread(
                 })
                 .map(|exit_code| {
                     if !exit_code.success() {
-                        let _ = internal_event_publisher
-                            .publish(SubAgentInternalEvent::AgentBecameUnhealthy(format!(
+                        publish_health_event(
+                            &internal_event_publisher,
+                            SubAgentInternalEvent::AgentBecameUnhealthy(format!(
                                 "process exited with code: {}",
                                 exit_code
-                            )))
-                            .inspect_err(|e| {
-                                error!(err = e.to_string(), "cannot publish unhealthy_event")
-                            });
+                            )),
+                        );
                         error!(
-                            id = id.to_string(),
+                            agent_id = id.to_string(),
                             supervisor = bin,
                             exit_code = exit_code.code(),
                             "Supervisor process exited unsuccessfully"
@@ -197,6 +208,15 @@ fn start_process_thread(
                     }
                     exit_code.code()
                 });
+
+            // Cancel the health checker, log if it fails and continue with the shutdown
+            _ = health_check_cancel_publisher.publish(()).inspect_err(|e| {
+                error!(
+                    agent_id = id.to_string(),
+                    err = e.to_string(),
+                    "could not cancel health checker thread"
+                );
+            });
 
             // canceling the shutdown ctx must be done before getting current_pid lock
             // as it locked by the wait_for_termination function
@@ -208,6 +228,12 @@ fn start_process_thread(
                 // Log if we are not restarting anymore due to the restart policy being broken
                 if restart_policy.backoff != BackoffStrategy::None {
                     warn!("Supervisor for {id} won't restart anymore due to having exceeded its restart policy");
+                    publish_health_event(
+                        &internal_event_publisher,
+                        SubAgentInternalEvent::AgentBecameUnhealthy(
+                            "supervisor exceeded its defined restart policy".to_string(),
+                        ),
+                    );
                 }
                 break;
             }
@@ -220,6 +246,42 @@ fn start_process_thread(
             });
         }
     })
+}
+
+fn spawn_health_checker<H>(
+    health_checker: H,
+    cancel_signal: EventConsumer<()>,
+    health_publisher: EventPublisher<SubAgentInternalEvent>,
+) where
+    H: HealthChecker + Send,
+{
+    thread::spawn(move || loop {
+        // Check cancellation signal.
+        // The cancellation channel is of zero capacity. This means that `try_recv` will always
+        // return `Err` until a send operation was performed on the channel. As we don't need any
+        // data to be sent, the `publish` call of the sender only sends `()` and we don't check
+        // for data here.
+        if cancel_signal.as_ref().try_recv().is_ok() {
+            break;
+        }
+
+        if let Err(e) = health_checker.check_health() {
+            publish_health_event(
+                &health_publisher,
+                SubAgentInternalEvent::AgentBecameUnhealthy(e),
+            );
+        }
+        thread::sleep(health_checker.interval());
+    });
+}
+
+fn publish_health_event(
+    internal_event_publisher: &EventPublisher<SubAgentInternalEvent>,
+    event: SubAgentInternalEvent,
+) {
+    _ = internal_event_publisher
+        .publish(event)
+        .inspect_err(|e| error!(err = e.to_string(), "could not publish sub agent event"));
 }
 
 /// Blocks on the [`Context`], [`ctx`]. When the termination signal is activated, this will send a shutdown signal to the process being supervised (the one whose PID was passed as [`pid`]).
