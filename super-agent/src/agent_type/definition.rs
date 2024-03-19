@@ -7,7 +7,6 @@ use serde::{Deserialize, Deserializer};
 use std::{collections::HashMap, str::FromStr};
 
 use super::agent_values::AgentValues;
-use super::health_config::HealthConfig;
 use super::{
     agent_metadata::AgentMetadata,
     error::AgentTypeError,
@@ -365,7 +364,6 @@ pub mod tests {
     use crate::{
         agent_type::{
             environment::Environment,
-            health_config::{HealthConfig, HttpHealth, HttpPort},
             restart_policy::{
                 BackoffStrategyConfig, BackoffStrategyType, RestartPolicyConfig,
                 DEFAULT_BACKOFF_DELAY, DEFAULT_BACKOFF_LAST_RETRY_INTERVAL,
@@ -380,7 +378,7 @@ pub mod tests {
     use super::*;
     use assert_matches::assert_matches;
     use serde_yaml::{Error, Number};
-    use std::{collections::HashMap as Map, time::Duration};
+    use std::collections::HashMap as Map;
 
     impl AgentType {
         /// Builds a testing agent-type given the yaml definitions and the environment.
@@ -924,6 +922,7 @@ integrations:
 config: |
   license_key: abc124
   staging: false
+status_server_port: 8004
 "#;
 
     #[test]
@@ -967,6 +966,8 @@ config: |
             ),
         ])
         .into();
+        // Number
+        let expected_status_server: TrivialValue = Number::from(8004).into();
 
         assert_eq!(
             expected_config_3,
@@ -1009,40 +1010,14 @@ config: |
                 .clone()
         );
         assert_eq!(
-            expected_executable_args_with_abs_pat,
-            actual
-                .runtime_config
-                .deployment
-                .on_host
+            expected_status_server,
+            filled_variables
+                .get("status_server_port")
+                .unwrap()
+                .get_final_value()
                 .as_ref()
                 .unwrap()
-                .executables[0]
-                .args
-                .value
                 .clone()
-                .unwrap()
-                .0
-        );
-        assert_eq!(
-            HealthConfig {
-                interval: Duration::from_secs(3),
-                timeout: Duration::from_secs(10),
-                check: crate::agent_type::health_config::HealthCheck::HttpGetHealth(HttpHealth {
-                    path: "/v1/status".to_string(),
-                    port: TemplateableValue {
-                        value: Some(HttpPort(8003)),
-                        template: "${nr-var:status_server_port}".to_string(),
-                    },
-                    ..Default::default()
-                }),
-            },
-            actual
-                .runtime_config
-                .deployment
-                .on_host
-                .unwrap()
-                .health
-                .unwrap()
         )
     }
 

@@ -12,7 +12,7 @@ use super::{
 ///
 /// This structure includes parameters to define intervals between health checks,
 /// timeouts for checks, and the specific health check method—either HTTP or execute command.
-#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct HealthConfig {
     /// The duration to wait between health checks.
     #[serde(deserialize_with = "deserialize_duration")]
@@ -30,24 +30,22 @@ pub struct HealthConfig {
 /// Enumeration representing the possible types of health checks.
 ///
 /// Variants include `HttpHealth` and `ExecHealth`, corresponding to health checks via HTTP and execute command, respectively.
-#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Clone, PartialEq)]
 pub(super) enum HealthCheck {
     #[serde(rename = "httpGet")]
     HttpGetHealth(HttpHealth),
     #[serde(rename = "exec")]
     ExecHealth(ExecHealth),
-    #[default]
-    UnDefined,
 }
 
 /// Represents an HTTP-based port.
-#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Clone, PartialEq)]
 pub(super) struct HttpPort(pub(super) u16);
 
 /// Represents an HTTP-based health check.
 ///
 /// For further details, refer to [Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/).
-#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Clone, PartialEq)]
 pub(super) struct HttpHealth {
     /// The HTTP path to check for the health check.
     pub(super) path: String,
@@ -62,7 +60,7 @@ pub(super) struct HttpHealth {
 /// Represents a health check based on an executed command.
 ///
 /// For further details, refer to [Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/).
-#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Clone, PartialEq)]
 pub(super) struct ExecHealth {
     /// The binary path to be executed for the health check.
     path: String,
@@ -96,7 +94,7 @@ impl Templateable for TemplateableValue<HttpPort> {
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         let templated_string = self.template.clone().template_with(variables)?;
         let value = if templated_string.is_empty() {
-            HttpPort::default()
+            return Err(AgentTypeError::MissingDefault);
         } else {
             templated_string
                 .parse::<u16>()
