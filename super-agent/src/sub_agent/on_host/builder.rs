@@ -178,7 +178,6 @@ fn build_supervisors(
         .ok_or(SubAgentError::ErrorCreatingSubAgent(
             effective_agent.to_string(),
         ))?;
-    let file_logging = on_host.enable_file_logging.get();
 
     let mut supervisors = Vec::new();
     for exec in on_host.executables {
@@ -191,8 +190,9 @@ fn build_supervisors(
             exec_data,
             Context::new(),
             restart_policy,
-            file_logging,
-        );
+        )
+        .with_file_logging(on_host.enable_file_logging.get())
+        .with_health_check(on_host.health.get());
 
         let not_started_supervisor = SupervisorOnHost::new(config);
         supervisors.push(not_started_supervisor);

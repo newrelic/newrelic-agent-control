@@ -132,7 +132,9 @@ fn start_process_thread(
     let mut restart_policy = not_started_supervisor.restart_policy.clone();
     let current_pid: Arc<Mutex<Option<u32>>> = Arc::new(Mutex::new(None));
 
-    let health_checker = not_started_supervisor.health_checker_config.map(HealthChecker::new); // TODO whatever this means
+    let health_checker = not_started_supervisor
+        .health
+        .map(HealthChecker::new); // TODO whatever this means
 
     let shutdown_ctx = Context::new();
     _ = wait_for_termination(
@@ -172,14 +174,15 @@ fn start_process_thread(
             // Spawn the health checker thread
             let (health_check_cancel_publisher, health_check_cancel_consumer) =
                 pub_sub_with_capacity(0);
-            
-            if let Some(health_checker) = 
-            spawn_health_checker(
-                // health_checker has to be created from the health check config if it exists
-                health_checker,
-                health_check_cancel_consumer,
-                internal_event_publisher.clone(),
-            );
+
+            if let Some(health_checker) = health_checker {
+                spawn_health_checker(
+                    // health_checker has to be created from the health check config if it exists
+                    health_checker,
+                    health_check_cancel_consumer,
+                    internal_event_publisher.clone(),
+                );
+            }
 
             let exit_code = start_command(not_started_command, current_pid.clone())
                 .inspect_err(|err| {
@@ -322,7 +325,6 @@ pub mod sleep_supervisor_tests {
             exec,
             Context::new(),
             RestartPolicy::new(BackoffStrategy::None, Vec::new()),
-            false,
         );
         SupervisorOnHost::new(config)
     }
@@ -352,7 +354,6 @@ mod tests {
             exec,
             Context::new(),
             RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]),
-            false,
         );
         let agent = SupervisorOnHost::new(config);
 
@@ -381,7 +382,6 @@ mod tests {
             exec,
             Context::new(),
             RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]),
-            false,
         );
         let agent = SupervisorOnHost::new(config);
 
@@ -410,7 +410,6 @@ mod tests {
             exec,
             Context::new(),
             RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]),
-            false,
         );
         let agent = SupervisorOnHost::new(config);
 
