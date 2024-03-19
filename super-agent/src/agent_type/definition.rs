@@ -17,7 +17,6 @@ use super::{
 };
 use crate::super_agent::config::AgentTypeFQN;
 use crate::super_agent::defaults::default_capabilities;
-use duration_str;
 use opamp_client::opamp::proto::AgentCapabilities;
 use opamp_client::operation::capabilities::Capabilities;
 
