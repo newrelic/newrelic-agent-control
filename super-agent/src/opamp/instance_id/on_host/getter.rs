@@ -240,7 +240,7 @@ mod test {
     fn test_host_id_fallback() {
         let mut system_detector_mock = MockSystemDetectorMock::new();
         let mut cloud_id_detector_mock = MockCloudDetectorMock::new();
-        // emtpy cloud_id
+        // empty cloud_id
         cloud_id_detector_mock.should_detect(Resource::new([(
             "cloud_instance_id".to_string().into(),
             Value::from("".to_string()),
