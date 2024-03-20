@@ -1,10 +1,11 @@
 # Agent overview
 
-New Relic super agent is a generic supervisor that can be configured to orchestrate  observability agents. It integrates with New Relic fleet manager to help customers deploy and manage agents at scale. 
+New Relic super agent is a generic supervisor that can be configured to orchestrate  observability agents. It integrates with New Relic fleet manager to help customers deploy, monitor and manage agents at scale. 
 
 ## Table of contents
 * [High-level architecture](#high-level-architecture)
 * [Running the agent (on-host and k8s)](#running-the-agent)
+* [Local and Remote configuration](#local-and-remote-configuration)
 * [Agent type development](#agent-type-development)
 * [Troubleshooting](#troubleshooting)
 * [Testing](#testing)
@@ -12,22 +13,22 @@ New Relic super agent is a generic supervisor that can be configured to orchestr
 ## High-level architecture:
 (TODO: Add diagram illustrating the super agent high-level design)
 
-The super agent itself does not currently collect system or application telemetry itself. A combination of (sub) agents can be used to monitor your target entities and collect system and service telemetry. Agents must be defined in the super agent configuration. The following example shows how to integrate the OTel collector:
+The super agent itself does not currently collect system or application telemetry itself. A combination of (sub) agents can be used to monitor your target entities and collect system and/or services telemetry. Agents must be defined in the super agent configuration. The following example shows how to integrate the OTel collector:
 
 ```yaml
 # integrate with fleet manager by defining the opamp backend settings
-# remove to run the agent standalone (disconnected)
+# remove to run the agent standalone (disconnected from fleet)
 opamp:
   endpoint: https://opamp.service.newrelic.com/v1/opamp
   headers:
     api-key: YOUR_INGEST_KEY
 
-# define agents to be executed based on their agent types
+# define agents to be supervised based on their agent types
 # agents:
 #   your-agent-id:
 #     agent_type: "namespace/agent_type:version"
 # 
-# example: add the OTel collector
+# example: configuring the OTel collector
 agents:
   nr_otel_collector:
     agent_type: "newrelic/io.opentelemetry.collector:0.1.0"
@@ -43,7 +44,7 @@ config: |
     # the OTel collector config here
 ```
 
-Agents support either `local` or `remote` configuration. Local configuration is expected to be deployed together with the super agent. Remote configuration is centrally defined and managed via fleet manager. 
+Agents (including the super agent itself) support either `local` or `remote` configuration. Local configuration is expected to be deployed together with the super agent. Remote configuration is centrally defined and managed via fleet manager. 
 
 Key concepts (in alphabetical order):
 - **Agent type**: a yaml based definition that determines how the super agent should orchestrate a given agent, it's based on an agent type internal interface. 
@@ -53,7 +54,7 @@ Key concepts (in alphabetical order):
 - **Values file**: each agent type has a set of optional and mandatory settings defined in the type itself. Agents can be customized by defining or overriding those settings in a `values.yaml` (file or ConfigMap) provided when installed on a particular environment.
 
 ## Running the agent
-The agent can be executed on-host (on-prem server, cloud computre instance, virtual machine, ...) or in a Kubernetes cluster.
+The agent can be executed on-host (on-prem server, cloud compute instance, virtual machine, ...) or in a Kubernetes cluster.
 
 ### Running on-host
 
@@ -116,22 +117,26 @@ When starting the Super Agent binary, use the `--local_path` argument to specify
 
 This feature is particularly useful when running the agent in environments where the default paths might not have the necessary permissions or when directing output to specific locations for easier access during development and testing.
 
+## Local and Remote configuration
+Learn how agents support [local and remote configuration](https://docs-preview.newrelic.com/docs/new-relic-super-agent#local-vs-remote).
+
 ## Agent type development
 
-This guideline shows how to build a custom agent type and integrate it with the super agent on a host. The [telegraf agent](https://www.influxdata.com/time-series-platform/telegraf/) is used as a reference.
+This guideline shows how to build a custom agent type and integrate it with the super agent on-host. The [telegraf agent](https://www.influxdata.com/time-series-platform/telegraf/) is used as a reference.
 
 1. Create a `dynamic-agent-type.yaml` file with the agent type definition
+
 ```yaml
 # namespace: newrelic, external, other
 namespace: external
 # name: reverse FQDN that uniquely identifies the agent type
 name: com.influxdata.telegraf
-# semver scheme
+# version: semver scheme
 version: 0.0.1
 
 # variables:
 #   on_host | kubernetes:
-#     var1:
+#     my_var_1:
 #       description: "Variable description here"
 #       type: file | string
 #       required: true | false
@@ -163,15 +168,19 @@ deployment:
             type: fixed
             backoff_delay: 20s
 ```
+  ℹ️ Refer to the [agent type](https://github.com/newrelic/newrelic-super-agent/tree/improve-readability/super-agent/src/agent_type) implementation for the full definition of `variables` and `deployment`.
 
-2. Copy agent type definition to `/etc/newrelic-super-agent/dynamic-agent-type.yaml`
+2. Copy the agent type definition to `/etc/newrelic-super-agent/dynamic-agent-type.yaml`
 
-    ⚠︎ This is a temporal path, expect a custom path to load custom agent types.
+    ⚠︎ This is a temporal path, expect a configurable path to load custom agent types in the future.
 
-3. Reference the type in the `agents` settings for the super agent
+3. Use the new type in the `agents` config for the super agent:
 ```yaml
+#opamp:
+# ...
+
 agents:
-  my-telegraf:
+  my-telegraf-collector:
     agent_type: "external/com.influxdata.telegraf:0.0.1"
 ```
 
@@ -181,7 +190,7 @@ config_file: /custom/path/to/file
 backoff_delay: 30s
 ```
 
-5. Restart the agent
+5. Restart the super agent.
 
 ## Troubleshooting
 
