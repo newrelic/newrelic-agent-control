@@ -382,4 +382,51 @@ mod tests {
         )
         .unwrap();
     }
+
+    #[test]
+    fn test_supervisor_health_events_on_breaking_backoff() {
+        let backoff = Backoff::new()
+            .with_initial_delay(Duration::new(0, 100))
+            .with_max_retries(3)
+            .with_last_retry_interval(Duration::new(30, 0));
+
+        // FIXME using "echo 'hello!'" as a command clashes with the previous test when checking
+        // the logger output. Why? See https://github.com/dbrgn/tracing-test/pull/19/ for clues.
+        let exec = ExecutableData::new("echo".to_owned()).with_args(vec!["".to_owned()]);
+
+        let config = SupervisorConfigOnHost::new(
+            "echo".to_owned().try_into().unwrap(),
+            exec,
+            Context::new(),
+            RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]),
+            false,
+        );
+        let agent = SupervisorOnHost::new(config);
+
+        let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
+        let agent = agent.run(sub_agent_internal_publisher).unwrap();
+
+        while !agent.state.handle.is_finished() {
+            thread::sleep(Duration::from_millis(15));
+        }
+
+        // It starts once and restarts 3 times, hence 4 healthy events and a final unhealthy one
+        let expected_ordered_events = {
+            use SubAgentInternalEvent::*;
+            vec![
+                AgentBecameHealthy,
+                AgentBecameHealthy,
+                AgentBecameHealthy,
+                AgentBecameHealthy,
+                AgentBecameUnhealthy("supervisor exceeded its defined restart policy".to_string()),
+            ]
+        };
+
+        let actual_ordered_events = sub_agent_internal_consumer
+            .as_ref()
+            .iter()
+            .collect::<Vec<_>>();
+
+        assert_eq!(expected_ordered_events, actual_ordered_events);
+    }
 }
