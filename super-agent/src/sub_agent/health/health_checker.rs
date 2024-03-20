@@ -26,9 +26,9 @@ pub(crate) enum HealthCheckerType {
 
 #[derive(Debug, Error)]
 pub enum HealthCheckerError {
-    #[error("HTTP health check failed: {0}")]
+    #[error(transparent)] // We forward the errors as is
     HttpError(std::fmt::Error),
-    #[error("Exec health check failed: {0}")]
+    #[error(transparent)] // We forward the errors as is
     ExecError(std::fmt::Error),
 }
 
