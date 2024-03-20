@@ -312,8 +312,18 @@ pub mod sleep_supervisor_tests {
     use crate::event::channel::pub_sub;
     use crate::sub_agent::on_host::supervisor::command_supervisor_config::ExecutableData;
     use crate::sub_agent::restart_policy::{Backoff, BackoffStrategy, RestartPolicy};
+    use mockall::mock;
     use std::time::{Duration, Instant};
     use tracing_test::traced_test;
+
+    mock! {
+        pub HealthCheckerMock {}
+        impl HealthChecker for HealthCheckerMock {
+            type Error = std::fmt::Error;
+            fn check_health(&self) -> Result<(), <Self as HealthChecker>::Error>;
+            fn interval(&self) -> Duration;
+        }
+    }
 
     pub fn new_sleep_supervisor(seconds: u32) -> SupervisorOnHost<NotStarted> {
         let exec = ExecutableData::new("sh".to_owned())
