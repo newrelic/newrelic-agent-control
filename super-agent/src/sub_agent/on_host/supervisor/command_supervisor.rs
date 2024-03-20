@@ -256,10 +256,9 @@ fn spawn_health_checker<H>(
 {
     thread::spawn(move || loop {
         // Check cancellation signal.
-        // The cancellation channel is of zero capacity. This means that `try_recv` will always
-        // return `Err` until a send operation was performed on the channel. As we don't need any
-        // data to be sent, the `publish` call of the sender only sends `()` and we don't check
-        // for data here.
+        // As we don't need any data to be sent, the `publish` call of the sender only sends `()`
+        // and we don't check for data here, We use a non-blocking call and break only if we
+        // received the message successfully.
         if cancel_signal.as_ref().try_recv().is_ok() {
             break;
         }
