@@ -447,7 +447,6 @@ pub mod sleep_supervisor_tests {
             exec,
             Context::new(),
             RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]),
-            false,
         );
         let agent = SupervisorOnHost::new(config);
 
