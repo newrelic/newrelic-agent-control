@@ -8,7 +8,7 @@
 - name: Super Agent invalid remote config
   import_playbook: super_agent_invalid_remote_config.yaml
 
-# On-hold until this PR https://github.com/newrelic/open-install-library/pull/1056 is released
+# TODO On-hold until this PR https://github.com/newrelic/open-install-library/pull/1056 is released
 #- name: Migration Script Execution
 #  import_playbook: migration_script_execution.yaml
 
