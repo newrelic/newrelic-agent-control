@@ -10,11 +10,9 @@ use newrelic_super_agent::super_agent::error::AgentError;
 use newrelic_super_agent::super_agent::store::{SuperAgentConfigLoader, SuperAgentConfigStoreFile};
 use newrelic_super_agent::super_agent::{super_agent_fqn, SuperAgent};
 use newrelic_super_agent::utils::binary_metadata::binary_metadata;
-use newrelic_super_agent::utils::hostname::HostnameGetter;
 use opamp_client::operation::settings::DescriptionValueType;
 use std::collections::HashMap;
 use std::error::Error;
-use std::ffi::OsString;
 use std::sync::Arc;
 use tracing::{debug, error, info};
 
@@ -120,6 +118,8 @@ fn run_super_agent(
     //Print identifiers for troubleshooting
     print_identifiers(&identifiers);
 
+    let non_identifying_attributes = super_agent_opamp_non_identifying_attributes(&identifiers);
+
     let instance_id_getter = ULIDInstanceIDGetter::default().with_identifiers(identifiers);
 
     let values_repository = Arc::new(ValuesRepositoryFile::default().with_remote());
@@ -151,7 +151,7 @@ fn run_super_agent(
         &instance_id_getter,
         AgentID::new_super_agent_id(),
         &super_agent_fqn(),
-        super_agent_opamp_non_identifying_attributes(),
+        non_identifying_attributes,
     )?;
 
     if maybe_client.is_none() {
@@ -283,6 +283,7 @@ fn create_shutdown_signal_handler(
     Ok(())
 }
 
+#[cfg(all(not(feature = "onhost"), feature = "k8s"))]
 fn super_agent_opamp_non_identifying_attributes() -> HashMap<String, DescriptionValueType> {
     let hostname = HostnameGetter::default()
         .get()
@@ -297,4 +298,20 @@ fn super_agent_opamp_non_identifying_attributes() -> HashMap<String, Description
         "host.name".to_string(),
         DescriptionValueType::String(hostname),
     )])
+}
+
+#[cfg(all(not(feature = "k8s"), feature = "onhost"))]
+fn super_agent_opamp_non_identifying_attributes(
+    identifiers: &Identifiers,
+) -> HashMap<String, DescriptionValueType> {
+    HashMap::from([
+        (
+            opentelemetry_semantic_conventions::resource::HOST_NAME.to_string(),
+            DescriptionValueType::String(identifiers.hostname.clone()),
+        ),
+        (
+            opentelemetry_semantic_conventions::resource::HOST_ID.to_string(),
+            DescriptionValueType::String(identifiers.host_id.clone()),
+        ),
+    ])
 }
