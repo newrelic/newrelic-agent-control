@@ -1,7 +1,7 @@
 use crate::agent_type::health_config::HealthCheck;
 use crate::context::Context;
 
-use crate::event::channel::{pub_sub_with_capacity, EventConsumer, EventPublisher};
+use crate::event::channel::{pub_sub, EventConsumer, EventPublisher};
 use crate::event::SubAgentInternalEvent;
 use crate::sub_agent::health::exec::ExecHealthChecker;
 use crate::sub_agent::health::health_checker::HealthChecker;
@@ -169,8 +169,7 @@ fn start_process_thread(
             );
 
             // Spawn the health checker thread
-            let (health_check_cancel_publisher, health_check_cancel_consumer) =
-                pub_sub_with_capacity(0);
+            let (health_check_cancel_publisher, health_check_cancel_consumer) = pub_sub();
 
             if let Some(health_config) = not_started_supervisor.health.to_owned() {
                 // FIXME
