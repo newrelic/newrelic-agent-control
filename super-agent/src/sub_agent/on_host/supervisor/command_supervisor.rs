@@ -1,11 +1,8 @@
-use crate::agent_type::health_config::HealthCheck;
 use crate::context::Context;
 
 use crate::event::channel::{pub_sub, EventConsumer, EventPublisher};
 use crate::event::SubAgentInternalEvent;
-use crate::sub_agent::health::exec::ExecHealthChecker;
-use crate::sub_agent::health::health_checker::HealthChecker;
-use crate::sub_agent::health::http::HttpHealthChecker;
+use crate::sub_agent::health::health_checker::{HealthChecker, HealthCheckerType};
 use crate::sub_agent::on_host::command::command::{
     CommandError, CommandTerminator, NotStartedCommand, StartedCommand,
 };
@@ -171,36 +168,37 @@ fn start_process_thread(
             // Spawn the health checker thread
             let (health_check_cancel_publisher, health_check_cancel_consumer) = pub_sub();
 
-            if let Some(health_config) = not_started_supervisor.health.to_owned() {
+            if let Some(health_config) = not_started_supervisor.health.map(HealthCheckerType::from)
+            {
                 // FIXME
-                match health_config.check {
-                    HealthCheck::HttpHealth(conf) => {
-                        let checker = HttpHealthChecker::new(
-                            health_config.interval,
-                            health_config.timeout,
-                            conf,
-                        );
-                        spawn_health_checker(
-                            // health_checker has to be created from the health check config if it exists
-                            checker,
-                            health_check_cancel_consumer,
-                            internal_event_publisher.clone(),
-                        );
-                    }
-                    HealthCheck::ExecHealth(conf) => {
-                        let checker = ExecHealthChecker::new(
-                            health_config.interval,
-                            health_config.timeout,
-                            conf,
-                        );
-                        spawn_health_checker(
-                            // health_checker has to be created from the health check config if it exists
-                            checker,
-                            health_check_cancel_consumer,
-                            internal_event_publisher.clone(),
-                        );
-                    }
-                };
+                // match health_config.check {
+                //     HealthCheck::HttpHealth(conf) => {
+                //         let checker = HttpHealthChecker::new(
+                //             health_config.interval,
+                //             health_config.timeout,
+                //             conf,
+                //         );
+                //         spawn_health_checker(
+                //             // health_checker has to be created from the health check config if it exists
+                //             checker,
+                //             health_check_cancel_consumer,
+                //             internal_event_publisher.clone(),
+                //         );
+                //     }
+                //     HealthCheck::ExecHealth(conf) => {
+                //         let checker = ExecHealthChecker::new(
+                //             health_config.interval,
+                //             health_config.timeout,
+                //             conf,
+                //         );
+                //         spawn_health_checker(
+                //             // health_checker has to be created from the health check config if it exists
+                //             checker,
+                //             health_check_cancel_consumer,
+                //             internal_event_publisher.clone(),
+                //         );
+                //     }
+                // };
             }
 
             let exit_code = start_command(not_started_command, current_pid.clone())
