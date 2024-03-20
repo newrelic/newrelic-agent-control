@@ -168,37 +168,16 @@ fn start_process_thread(
             // Spawn the health checker thread
             let (health_check_cancel_publisher, health_check_cancel_consumer) = pub_sub();
 
-            if let Some(health_config) = not_started_supervisor.health.map(HealthCheckerType::from)
+            if let Some(health_checker) = not_started_supervisor
+                .health
+                .as_ref()
+                .map(|h| HealthCheckerType::from(h.clone()))
             {
-                // FIXME
-                // match health_config.check {
-                //     HealthCheck::HttpHealth(conf) => {
-                //         let checker = HttpHealthChecker::new(
-                //             health_config.interval,
-                //             health_config.timeout,
-                //             conf,
-                //         );
-                //         spawn_health_checker(
-                //             // health_checker has to be created from the health check config if it exists
-                //             checker,
-                //             health_check_cancel_consumer,
-                //             internal_event_publisher.clone(),
-                //         );
-                //     }
-                //     HealthCheck::ExecHealth(conf) => {
-                //         let checker = ExecHealthChecker::new(
-                //             health_config.interval,
-                //             health_config.timeout,
-                //             conf,
-                //         );
-                //         spawn_health_checker(
-                //             // health_checker has to be created from the health check config if it exists
-                //             checker,
-                //             health_check_cancel_consumer,
-                //             internal_event_publisher.clone(),
-                //         );
-                //     }
-                // };
+                spawn_health_checker(
+                    health_checker,
+                    health_check_cancel_consumer,
+                    internal_event_publisher.clone(),
+                )
             }
 
             let exit_code = start_command(not_started_command, current_pid.clone())
