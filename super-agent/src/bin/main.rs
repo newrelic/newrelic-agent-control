@@ -218,6 +218,12 @@ fn run_super_agent(
     //Print identifiers for troubleshooting
     print_identifiers(&identifiers);
 
+    let mut non_identifying_attributes = super_agent_opamp_non_identifying_attributes(&identifiers);
+    non_identifying_attributes.insert(
+        "cluster.name".to_string(),
+        k8s_config.cluster_name.clone().into(),
+    );
+
     let instance_id_getter =
         ULIDInstanceIDGetter::try_with_identifiers(k8s_store.clone(), identifiers)?;
 
@@ -241,9 +247,6 @@ fn run_super_agent(
     );
 
     let (opamp_publisher, opamp_consumer) = pub_sub();
-
-    let mut non_identifying_attributes = super_agent_opamp_non_identifying_attributes();
-    non_identifying_attributes.insert("cluster.name".to_string(), k8s_config.cluster_name.into());
 
     let maybe_client = build_opamp_and_start_client(
         opamp_publisher.clone(),
@@ -284,18 +287,22 @@ fn create_shutdown_signal_handler(
 }
 
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
-fn super_agent_opamp_non_identifying_attributes() -> HashMap<String, DescriptionValueType> {
+fn super_agent_opamp_non_identifying_attributes(
+    _identifiers: &Identifiers,
+) -> HashMap<String, DescriptionValueType> {
+    use newrelic_super_agent::utils::hostname::HostnameGetter;
+
     let hostname = HostnameGetter::default()
         .get()
         .unwrap_or_else(|e| {
             error!("cannot retrieve hostname: {}", e.to_string());
-            OsString::from("unknown_hostname")
+            std::ffi::OsString::from("unknown_hostname")
         })
         .to_string_lossy()
         .to_string();
 
     HashMap::from([(
-        "host.name".to_string(),
+        opentelemetry_semantic_conventions::resource::HOST_NAME.to_string(),
         DescriptionValueType::String(hostname),
     )])
 }
