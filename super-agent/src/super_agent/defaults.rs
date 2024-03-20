@@ -191,6 +191,59 @@ deployment:
             backoff_delay: ${nr-var:backoff_delay}
 "#;
 
+pub(crate) const NEWRELIC_INFRA_TYPE_0_1_2: &str = r#"
+namespace: newrelic
+name: com.newrelic.infrastructure_agent
+version: 0.1.1
+variables:
+  on_host:
+    config_agent:
+      description: "Newrelic infra configuration"
+      type: file
+      required: false
+      default: ""
+      file_path: "newrelic-infra.yml"
+    config_integrations:
+      description: "map of YAML configs for the OHIs"
+      type: map[string]file
+      required: false
+      default: {}
+      file_path: "integrations.d"
+    config_logging:
+      description: "map of YAML config for logging"
+      type: map[string]file
+      required: false
+      default: {}
+      file_path: "logging.d"
+    backoff_delay:
+      description: "seconds until next retry if agent fails to start"
+      type: string
+      required: false
+      default: 20s
+    enable_file_logging:
+      description: "enable logging the on host executables' logs to files"
+      type: bool
+      required: false
+      default: false
+deployment:
+  on_host:
+    enable_file_logging: ${nr-var:enable_file_logging}
+    executables:
+      - path: /usr/bin/newrelic-infra
+        args: "--config=${nr-var:config_agent}"
+        env: "NRIA_PLUGIN_DIR=${nr-var:config_integrations} NRIA_LOGGING_CONFIGS_DIR=${nr-var:config_logging} NRIA_STATUS_SERVER_ENABLED=true"
+        restart_policy:
+          backoff_strategy:
+            type: fixed
+            backoff_delay: ${nr-var:backoff_delay}
+        health:
+          interval: 5s
+          timeout: 5s
+          http:
+            path: "/v1/status"
+            port: 8003
+"#;
+
 // NRDOT AgentType
 pub(crate) const NRDOT_TYPE_0_0_1: &str = r#"
 namespace: newrelic
@@ -393,6 +446,7 @@ mod test {
             NEWRELIC_INFRA_TYPE_0_0_2,
             NEWRELIC_INFRA_TYPE_0_1_0,
             NEWRELIC_INFRA_TYPE_0_1_1,
+            NEWRELIC_INFRA_TYPE_0_1_2,
             NRDOT_TYPE_0_0_1,
             NRDOT_TYPE_0_1_0,
         ];

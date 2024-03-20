@@ -1,9 +1,11 @@
+use crate::agent_type::health_config::HealthCheck;
 use crate::context::Context;
 
-use crate::event::channel::{pub_sub, pub_sub_with_capacity, EventConsumer, EventPublisher};
+use crate::event::channel::{pub_sub_with_capacity, EventConsumer, EventPublisher};
 use crate::event::SubAgentInternalEvent;
-use crate::sub_agent::health;
+use crate::sub_agent::health::exec::ExecHealthChecker;
 use crate::sub_agent::health::health_checker::HealthChecker;
+use crate::sub_agent::health::http::HttpHealthChecker;
 use crate::sub_agent::on_host::command::command::{
     CommandError, CommandTerminator, NotStartedCommand, StartedCommand,
 };
@@ -131,10 +133,6 @@ fn start_process_thread(
 ) -> JoinHandle<()> {
     let mut restart_policy = not_started_supervisor.restart_policy.clone();
     let current_pid: Arc<Mutex<Option<u32>>> = Arc::new(Mutex::new(None));
-
-    let health_checker = not_started_supervisor.health;
-    // .map(HealthChecker::new); // TODO whatever this means
-
     let shutdown_ctx = Context::new();
     _ = wait_for_termination(
         current_pid.clone(),
@@ -174,13 +172,36 @@ fn start_process_thread(
             let (health_check_cancel_publisher, health_check_cancel_consumer) =
                 pub_sub_with_capacity(0);
 
-            if let Some(health_checker) = health_checker {
-                spawn_health_checker(
-                    // health_checker has to be created from the health check config if it exists
-                    health_checker,
-                    health_check_cancel_consumer,
-                    internal_event_publisher.clone(),
-                );
+            if let Some(health_config) = not_started_supervisor.health.to_owned() {
+                // FIXME
+                match health_config.check {
+                    HealthCheck::HttpHealth(conf) => {
+                        let checker = HttpHealthChecker::new(
+                            health_config.interval,
+                            health_config.timeout,
+                            conf,
+                        );
+                        spawn_health_checker(
+                            // health_checker has to be created from the health check config if it exists
+                            checker,
+                            health_check_cancel_consumer,
+                            internal_event_publisher.clone(),
+                        );
+                    }
+                    HealthCheck::ExecHealth(conf) => {
+                        let checker = ExecHealthChecker::new(
+                            health_config.interval,
+                            health_config.timeout,
+                            conf,
+                        );
+                        spawn_health_checker(
+                            // health_checker has to be created from the health check config if it exists
+                            checker,
+                            health_check_cancel_consumer,
+                            internal_event_publisher.clone(),
+                        );
+                    }
+                };
             }
 
             let exit_code = start_command(not_started_command, current_pid.clone())
@@ -255,7 +276,7 @@ fn spawn_health_checker<H>(
     cancel_signal: EventConsumer<()>,
     health_publisher: EventPublisher<SubAgentInternalEvent>,
 ) where
-    H: HealthChecker + Send,
+    H: HealthChecker + Send + 'static,
 {
     thread::spawn(move || loop {
         // Check cancellation signal.

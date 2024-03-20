@@ -1,19 +1,27 @@
 use super::health_checker::{HealthCheckError, HealthChecker};
-use crate::agent_type::health_config::HealthConfig;
+use crate::agent_type::health_config::HttpHealth;
 use std::time::Duration;
 
+#[derive(Debug, Default)]
 pub(crate) struct HttpHealthChecker {
+    host: String,
     path: String,
-    args: Vec<String>,
+    port: u16,
     interval: Duration,
     timeout: Duration,
 }
 
 impl HttpHealthChecker {
-    pub fn new(path: String, args: Vec<String>, interval: Duration, timeout: Duration) -> Self {
+    pub fn new(interval: Duration, timeout: Duration, http_config: HttpHealth) -> Self {
+        let host = http_config.host.get().into();
+        let path = http_config.path.get().into();
+        let port = http_config.port.get().into();
+        let headers = http_config.headers;
+        let healthy_status_codes = http_config.healthy_status_codes;
         Self {
+            host,
             path,
-            args,
+            port,
             interval,
             timeout,
         }
@@ -27,20 +35,5 @@ impl HealthChecker for HttpHealthChecker {
 
     fn interval(&self) -> Duration {
         self.interval
-    }
-}
-
-impl From<HealthConfig> for HttpHealthChecker {
-    fn from(config: HealthConfig) -> Self {
-        let path = config.path;
-        let args = config.args.unwrap_or_default();
-        let interval = Duration::from_secs(config.interval.unwrap_or(30));
-        let timeout = Duration::from_secs(config.timeout.unwrap_or(5));
-        Self {
-            path,
-            args,
-            interval,
-            timeout,
-        }
     }
 }

@@ -180,6 +180,7 @@ fn build_supervisors(
         ))?;
 
     let mut supervisors = Vec::new();
+    let enable_file_logging = on_host.enable_file_logging.get();
     for exec in on_host.executables {
         let restart_policy: RestartPolicy = exec.restart_policy.into();
         let exec_data = ExecutableData::new(exec.path.get())
@@ -191,7 +192,7 @@ fn build_supervisors(
             Context::new(),
             restart_policy,
         )
-        .with_file_logging(on_host.enable_file_logging.get())
+        .with_file_logging(enable_file_logging)
         .with_health_check(exec.health);
 
         let not_started_supervisor = SupervisorOnHost::new(config);

@@ -1,19 +1,26 @@
+use crate::agent_type::health_config::ExecHealth;
+
 use super::health_checker::{HealthCheckError, HealthChecker};
-use crate::agent_type::health_config::HealthConfig;
 use std::time::Duration;
 
+#[derive(Debug, Default)]
 pub(crate) struct ExecHealthChecker {
     path: String,
     args: Vec<String>,
+    healthy_exit_codes: Vec<u32>,
     interval: Duration,
     timeout: Duration,
 }
 
 impl ExecHealthChecker {
-    pub fn new(path: String, args: Vec<String>, interval: Duration, timeout: Duration) -> Self {
+    pub fn new(interval: Duration, timeout: Duration, exec_config: ExecHealth) -> Self {
+        let path = exec_config.path;
+        let args = exec_config.args;
+        let healthy_exit_codes = exec_config.healthy_exit_codes;
         Self {
             path,
             args,
+            healthy_exit_codes,
             interval,
             timeout,
         }
@@ -27,20 +34,5 @@ impl HealthChecker for ExecHealthChecker {
 
     fn interval(&self) -> Duration {
         self.interval
-    }
-}
-
-impl From<HealthConfig> for ExecHealthChecker {
-    fn from(config: HealthConfig) -> Self {
-        let path = config.path;
-        let args = config.args.unwrap_or_default();
-        let interval = Duration::from_secs(config.interval.unwrap_or(30));
-        let timeout = Duration::from_secs(config.timeout.unwrap_or(5));
-        Self {
-            path,
-            args,
-            interval,
-            timeout,
-        }
     }
 }
