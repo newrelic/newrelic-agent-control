@@ -267,7 +267,7 @@ fn spawn_health_checker<H>(
         if let Err(e) = health_checker.check_health() {
             publish_health_event(
                 &health_publisher,
-                SubAgentInternalEvent::AgentBecameUnhealthy(e),
+                SubAgentInternalEvent::AgentBecameUnhealthy(e.to_string()),
             );
         }
         thread::sleep(health_checker.interval());
@@ -306,12 +306,15 @@ fn wait_for_termination(
 
 #[cfg(test)]
 pub mod sleep_supervisor_tests {
-
     use super::SupervisorOnHost;
+    use super::*;
     use super::{NotStarted, SupervisorConfigOnHost};
     use crate::context::Context;
+    use crate::event::channel::pub_sub;
     use crate::sub_agent::on_host::supervisor::command_supervisor_config::ExecutableData;
-    use crate::sub_agent::restart_policy::{BackoffStrategy, RestartPolicy};
+    use crate::sub_agent::restart_policy::{Backoff, BackoffStrategy, RestartPolicy};
+    use std::time::{Duration, Instant};
+    use tracing_test::traced_test;
 
     pub fn new_sleep_supervisor(seconds: u32) -> SupervisorOnHost<NotStarted> {
         let exec = ExecutableData::new("sh".to_owned())
@@ -324,17 +327,6 @@ pub mod sleep_supervisor_tests {
         );
         SupervisorOnHost::new(config)
     }
-}
-
-#[cfg(test)]
-mod tests {
-    use tracing_test::traced_test;
-
-    use super::*;
-    use crate::event::channel::pub_sub;
-    use crate::sub_agent::on_host::supervisor::command_supervisor_config::ExecutableData;
-    use crate::sub_agent::restart_policy::{Backoff, BackoffStrategy, RestartPolicy};
-    use std::time::{Duration, Instant};
 
     #[test]
     fn test_supervisor_retries_and_exits_on_wrong_command() {

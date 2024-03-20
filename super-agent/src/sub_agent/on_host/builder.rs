@@ -375,7 +375,6 @@ mod test {
                     on_host: Some(OnHost {
                         executables: Vec::new(),
                         enable_file_logging: TemplateableValue::new(false),
-                        ..Default::default()
                     }),
                     k8s: None,
                 },
