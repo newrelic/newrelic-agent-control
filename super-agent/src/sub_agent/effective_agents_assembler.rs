@@ -1,8 +1,6 @@
-use std::fmt::Display;
-
-use thiserror::Error;
-use tracing::error;
-
+use super::persister::config_persister_file::ConfigurationPersisterFile;
+use super::values::values_repository::{ValuesRepository, ValuesRepositoryError};
+use super::values::ValuesRepositoryFile;
 use crate::agent_type::agent_attributes::AgentAttributes;
 use crate::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError, LocalRegistry};
 use crate::agent_type::definition::{AgentType, AgentTypeDefinition};
@@ -10,14 +8,11 @@ use crate::agent_type::environment::Environment;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::renderer::{Renderer, TemplateRenderer};
 use crate::agent_type::runtime_config::{Deployment, Runtime};
-use crate::sub_agent::values::values_repository::{
-    ValuesRepository, ValuesRepositoryError, ValuesRepositoryFile,
-};
 use crate::super_agent::config::{AgentID, SubAgentConfig};
-
 use fs::{directory_manager::DirectoryManagerFs, file_reader::FileReaderError, LocalFile};
-
-use super::persister::config_persister_file::ConfigurationPersisterFile;
+use std::fmt::Display;
+use thiserror::Error;
+use tracing::error;
 
 #[derive(Error, Debug)]
 pub enum EffectiveAgentsAssemblerError {
@@ -65,6 +60,7 @@ impl EffectiveAgent {
         &self.runtime_config
     }
 
+    #[allow(dead_code)]
     pub(crate) fn get_agent_id(&self) -> &AgentID {
         &self.agent_id
     }

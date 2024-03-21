@@ -120,7 +120,7 @@ where
     // Wrapper for linux with unix specific permissions
     #[cfg(target_family = "unix")]
     fn write(&self, path: &Path, content: String) -> Result<(), WriteError> {
-        use crate::sub_agent::values::values_repository::FILE_PERMISSIONS;
+        use crate::sub_agent::values::FILE_PERMISSIONS;
 
         self.file_rw
             .write(path, content, Permissions::from_mode(FILE_PERMISSIONS))
@@ -133,9 +133,7 @@ where
 #[cfg(test)]
 pub mod test {
     use super::{Hash, HashRepository, HashRepositoryFile, DIRECTORY_PERMISSIONS, HASH_FILE_NAME};
-    use crate::{
-        sub_agent::values::values_repository::FILE_PERMISSIONS, super_agent::config::AgentID,
-    };
+    use crate::{sub_agent::values::FILE_PERMISSIONS, super_agent::config::AgentID};
     use fs::directory_manager::mock::MockDirectoryManagerMock;
     use fs::directory_manager::DirectoryManager;
     use fs::file_reader::FileReader;

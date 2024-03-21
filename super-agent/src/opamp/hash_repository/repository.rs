@@ -24,6 +24,7 @@ pub mod test {
     }
 
     impl MockHashRepositoryMock {
+        #[allow(dead_code)]
         pub fn should_get_hash(&mut self, agent_id: &AgentID, hash: Hash) {
             self.expect_get()
                 .with(predicate::eq(agent_id.clone()))
