@@ -303,27 +303,30 @@ where
             .iter()
             .try_for_each(|(agent_id, agent_config)| {
                 // recreates an existent sub agent if the configuration has changed
-                if let Ok(old_sub_agent_config) = old_sub_agents_config.get(agent_id) {
-                    if old_sub_agent_config == agent_config {
-                        return Ok(());
+                match old_sub_agents_config.get(agent_id) {
+                    Ok(old_sub_agent_config) => {
+                        if old_sub_agent_config == agent_config {
+                            return Ok(());
+                        }
+
+                        info!("Recreating SubAgent {}", agent_id);
+                        self.recreate_sub_agent(
+                            agent_id.clone(),
+                            agent_config,
+                            running_sub_agents,
+                            sub_agent_publisher.clone(),
+                        )
                     }
-
-                    info!("Recreating SubAgent {}", agent_id);
-                    return self.recreate_sub_agent(
-                        agent_id.clone(),
-                        agent_config,
-                        running_sub_agents,
-                        sub_agent_publisher.clone(),
-                    );
+                    Err(_) => {
+                        info!("Creating SubAgent {}", agent_id);
+                        self.create_sub_agent(
+                            agent_id.clone(),
+                            agent_config,
+                            running_sub_agents,
+                            sub_agent_publisher.clone(),
+                        )
+                    }
                 }
-
-                info!("Creating SubAgent {}", agent_id);
-                self.create_sub_agent(
-                    agent_id.clone(),
-                    agent_config,
-                    running_sub_agents,
-                    sub_agent_publisher.clone(),
-                )
             })?;
 
         // remove sub agents not used anymore
