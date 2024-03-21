@@ -11,7 +11,26 @@ New Relic super agent is a generic supervisor that can be configured to orchestr
 * [Testing](#testing)
 
 ## High-level architecture:
-(TODO: Add diagram illustrating the super agent high-level design)
+```mermaid
+flowchart LR
+    SASvc[Super Agent Service] --> SA[Super Agent]
+    SA -->|loads| AgentTypes[Agent Types]
+    SA -->|loads| SAConfig[Super Agent Config]
+    SA -->|supervises| SubAgent1["Sub-Agent (ex: NRDOT)"]
+    SA -->|supervises| SubAgent2["Sub-Agent (ex: Infra Agent)"]
+    SA -->|OpAMP| Fleet[Fleet Manager]
+    SubAgent1 -->|OpAMP| Fleet
+    SubAgent2 -->|OpAMP| Fleet
+
+    SubAgent1 --> NRMelt1[NR OTLP Endpoint]
+    SubAgent2 --> NRMelt2[NR MELT Endpoint]
+    classDef default fill:#f9f,stroke:#333,stroke-width:4px;
+    classDef agent-side fill:#ddf,stroke:#333,stroke-width:2px;
+    classDef server-side fill:#efe,stroke:#393,stroke-width:2px;
+
+    class SA,AgentTypes,SASvc,SubAgent1,SubAgent2,SAConfig agent-side;
+    class Fleet,NRMelt1,NRMelt2 server-side;
+```
 
 The super agent itself does not currently collect system or application telemetry itself. A combination of (sub) agents can be used to monitor your target entities and collect system and/or services telemetry. Agents must be defined in the super agent configuration. The following example shows how to integrate the OTel collector:
 
