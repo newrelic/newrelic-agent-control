@@ -195,7 +195,7 @@ pub mod test {
         let values_repository = MockRemoteValuesRepositoryMock::default();
 
         //opamp client expects to be stopped
-        opamp_client.should_set_health(2);
+        opamp_client.should_set_health(1);
         opamp_client.should_stop(1);
 
         let event_processor = EventProcessor::new(
@@ -255,7 +255,7 @@ pub mod test {
         };
 
         //opamp client expects to be stopped
-        opamp_client.should_set_health(2);
+        opamp_client.should_set_health(1);
         opamp_client.should_stop(1);
 
         let event_processor = EventProcessor::new(
@@ -310,7 +310,7 @@ pub mod test {
         );
 
         //opamp client expects to be stopped
-        opamp_client.should_set_health(2);
+        opamp_client.should_set_health(1);
         opamp_client.should_stop(1);
 
         let event_processor = EventProcessor::new(
