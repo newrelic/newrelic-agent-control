@@ -44,6 +44,7 @@ k8s-openapi = { version = "0.21.1", features = ["latest"], optional = true }
 either = { version = "1.9.0", optional = true }
 crossbeam = { version = "0.8.3", features = ["crossbeam-channel"] }
 tracing-appender = "0.2.3"
+cfg-if = "1.0.0"
 
 [dev-dependencies]
 assert_cmd = { workspace = true }
