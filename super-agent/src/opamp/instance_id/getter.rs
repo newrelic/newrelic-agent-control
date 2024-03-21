@@ -11,6 +11,7 @@ pub struct InstanceID(String);
 
 impl InstanceID {
     #[cfg(test)]
+    #[allow(dead_code)]
     pub(crate) fn new(id: String) -> InstanceID {
         InstanceID(id)
     }

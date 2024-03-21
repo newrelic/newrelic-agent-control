@@ -155,10 +155,6 @@ mod test {
                 .once()
                 .return_once(move || Ok(resource));
         }
-
-        fn should_not_detect(&mut self, error: DetectError) {
-            self.expect_detect().once().return_once(move || Err(error));
-        }
     }
 
     #[traced_test]
