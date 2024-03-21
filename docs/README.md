@@ -10,7 +10,7 @@ New Relic super agent is a generic supervisor that can be configured to orchestr
 * [Troubleshooting](#troubleshooting)
 * [Testing](#testing)
 
-## High-level architecture:
+## High-level architecture
 ```mermaid
 flowchart LR
     SASvc[Super Agent Service] --> SA[Super Agent]
@@ -160,7 +160,7 @@ version: 0.0.1
 #       type: file | string
 #       required: true | false
 #       default: "default value"
-#       file_path: "persistance path"
+#       file_path: "persistence path"
 
 variables:
   on_host:
