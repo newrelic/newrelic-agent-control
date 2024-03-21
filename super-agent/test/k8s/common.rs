@@ -5,6 +5,8 @@ use bollard::{
     Docker,
 };
 use futures::{Future, StreamExt};
+use k8s_openapi::api::core::v1::ConfigMap;
+use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use k8s_openapi::{
     api::core::v1::Namespace,
     apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition,
@@ -24,6 +26,8 @@ use newrelic_super_agent::{
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
+use std::io::Read;
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::str::FromStr;
@@ -407,7 +411,7 @@ mock! {
     }
 }
 
-pub fn start_super_agent(file_path: &Path, local_path: Option<&str>) -> std::process::Child {
+pub fn start_super_agent(file_path: &Path) -> std::process::Child {
     let mut command = Command::new("cargo");
     command
         .args([
@@ -415,7 +419,7 @@ pub fn start_super_agent(file_path: &Path, local_path: Option<&str>) -> std::pro
             "--bin",
             "newrelic-super-agent",
             "--features",
-            "k8s,custom-local-path",
+            "k8s",
             "--",
             "--config",
         ])
@@ -423,10 +427,31 @@ pub fn start_super_agent(file_path: &Path, local_path: Option<&str>) -> std::pro
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit());
 
-    // Add local path argument if provided
-    if let Some(path) = local_path {
-        command.arg("--local-path").arg(path);
-    }
-
     command.spawn().expect("Failed to start super agent")
+}
+
+pub async fn create_mock_config_maps(client: Client, test_ns: &str, name: &str, key: &str) {
+    let cm_client: Api<ConfigMap> = Api::<ConfigMap>::namespaced(client, test_ns);
+    let mut content = String::new();
+    File::open(format!("test/k8s/data/{}.yaml", name))
+        .unwrap()
+        .read_to_string(&mut content)
+        .unwrap();
+
+    let mut data = BTreeMap::new();
+    data.insert(key.to_string(), content);
+
+    let cm = ConfigMap {
+        binary_data: None,
+        data: Some(data),
+        immutable: None,
+        metadata: ObjectMeta {
+            name: Some(name.to_string()),
+            ..Default::default()
+        },
+    };
+
+    // Making sure to clean up the cluster first
+    _ = cm_client.delete(name, &DeleteParams::default()).await;
+    cm_client.create(&PostParams::default(), &cm).await.unwrap();
 }

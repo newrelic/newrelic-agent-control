@@ -95,6 +95,5 @@ k8s = [
   "dep:async-trait",
   "dep:tokio",
 ]
-custom-local-path = []
 # feature ci allows calling --all-features (needed on the test pipelines) and not failing to compile
 ci = []

@@ -1,5 +1,12 @@
 pub mod values_repository;
 
-// TODO to be moved below onhost cfg flag when k8s implementation is ready.
+#[cfg(all(not(feature = "onhost"), feature = "k8s"))]
+mod k8s;
+#[cfg(feature = "onhost")]
 mod on_host;
-pub use on_host::file::{ValuesRepositoryFile, FILE_PERMISSIONS};
+
+#[cfg(all(not(feature = "onhost"), feature = "k8s"))]
+pub use k8s::config_map::{ValuesRepositoryConfigMap, ValuesRepositoryError};
+
+#[cfg(feature = "onhost")]
+pub use on_host::file::{ValuesRepositoryError, ValuesRepositoryFile, FILE_PERMISSIONS};

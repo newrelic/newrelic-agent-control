@@ -1,26 +1,41 @@
 use crate::agent_type::agent_values::AgentValues;
 use crate::agent_type::definition::AgentType;
-use crate::sub_agent::values::values_repository::{
-    ValuesRepository, ValuesRepositoryError, ValuesRepositoryError::DeleteError,
-};
+use crate::sub_agent::values::values_repository::ValuesRepository;
 use crate::super_agent::config::AgentID;
 use crate::super_agent::defaults::{
     LOCAL_AGENT_DATA_DIR, REMOTE_AGENT_DATA_DIR, VALUES_DIR, VALUES_FILE,
 };
-use fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
+use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
 use fs::file_reader::{FileReader, FileReaderError};
-use fs::writer_file::FileWriter;
+use fs::writer_file::{FileWriter, WriteError};
 use fs::LocalFile;
 use std::fs::Permissions;
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
+use thiserror::Error;
 use tracing::error;
 
 #[cfg(target_family = "unix")]
 pub const FILE_PERMISSIONS: u32 = 0o600;
 #[cfg(target_family = "unix")]
 const DIRECTORY_PERMISSIONS: u32 = 0o700;
+
+#[derive(Error, Debug)]
+pub enum ValuesRepositoryError {
+    #[error("serialize error on store: `{0}`")]
+    StoreSerializeError(#[from] serde_yaml::Error),
+    #[error("incorrect path")]
+    IncorrectPath,
+    #[error("cannot delete path `{0}`: `{1}`")]
+    DeleteError(String, String),
+    #[error("directory manager error: `{0}`")]
+    DirectoryManagementError(#[from] DirectoryManagementError),
+    #[error("file write error: `{0}`")]
+    WriteError(#[from] WriteError),
+    #[error("file read error: `{0}`")]
+    ReadError(#[from] FileReaderError),
+}
 
 pub struct ValuesRepositoryFile<F, S>
 where
@@ -56,20 +71,6 @@ impl ValuesRepositoryFile<LocalFile, DirectoryManagerFs> {
     // TODO : move this under a feature
     pub fn with_remote_conf_path(mut self, path: String) -> Self {
         self.remote_conf_path = path;
-        self
-    }
-
-    // Change remote conf path for integration tests
-    // TODO : move this under a feature
-    pub fn with_local_conf_path(mut self, path: String) -> Self {
-        self.local_conf_path = path;
-        self
-    }
-
-    #[cfg(feature = "custom-local-path")]
-    pub fn with_base_dir(mut self, base_dir: &str) -> Self {
-        self.remote_conf_path = format!("{}{}", base_dir, self.remote_conf_path);
-        self.local_conf_path = format!("{}{}", base_dir, self.local_conf_path);
         self
     }
 }
@@ -176,9 +177,9 @@ where
 
     fn delete_remote_all(&self) -> Result<(), ValuesRepositoryError> {
         let dest_path = Path::new(self.remote_conf_path.as_str());
-        self.directory_manager
-            .delete(dest_path)
-            .map_err(|e| DeleteError(self.remote_conf_path.to_string(), e.to_string()))
+        self.directory_manager.delete(dest_path).map_err(|e| {
+            ValuesRepositoryError::DeleteError(self.remote_conf_path.to_string(), e.to_string())
+        })
     }
 
     fn delete_remote(&self, agent_id: &AgentID) -> Result<(), ValuesRepositoryError> {
@@ -189,7 +190,7 @@ where
         let values_dir = values_dir_path.to_str().unwrap().to_string();
         self.directory_manager
             .delete(values_dir_path.as_path())
-            .map_err(|e| DeleteError(values_dir, e.to_string()))
+            .map_err(|e| ValuesRepositoryError::DeleteError(values_dir, e.to_string()))
     }
 }
 

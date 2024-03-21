@@ -1,6 +1,6 @@
 use crate::k8s;
 use crate::k8s::store::K8sStore;
-use crate::k8s::store::STORE_KEY_REMOTE_CONFIG_HASH;
+use crate::k8s::store::STORE_KEY_OPAMP_DATA_CONFIG_HASH;
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::remote_config_hash::Hash;
 use crate::super_agent::config::AgentID;
@@ -29,14 +29,17 @@ impl HashRepository for HashRepositoryConfigMap {
         debug!("saving remote config hash of agent_id: {}", agent_id);
 
         self.k8s_store
-            .set(agent_id, STORE_KEY_REMOTE_CONFIG_HASH, hash)?;
+            .set_remote_data(agent_id, STORE_KEY_OPAMP_DATA_CONFIG_HASH, hash)?;
         Ok(())
     }
 
     fn get(&self, agent_id: &AgentID) -> Result<Option<Hash>, HashRepositoryError> {
         debug!("getting remote config hash of agent_id: {}", agent_id);
 
-        match self.k8s_store.get(agent_id, STORE_KEY_REMOTE_CONFIG_HASH)? {
+        match self
+            .k8s_store
+            .get_remote_data(agent_id, STORE_KEY_OPAMP_DATA_CONFIG_HASH)?
+        {
             Some(hash) => Ok(Some(hash)),
             None => Ok(None),
         }
