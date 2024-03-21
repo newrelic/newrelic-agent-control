@@ -1,9 +1,8 @@
+use crate::LocalFile;
 use std::fs::rename;
 use std::io::Error as ioError;
 use std::path::Path;
 use thiserror::Error;
-
-use crate::LocalFile;
 
 #[derive(Error, Debug)]
 pub enum FileRenamerError {
