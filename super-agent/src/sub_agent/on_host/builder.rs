@@ -181,11 +181,25 @@ fn build_supervisors(
     let file_logging = on_host.enable_file_logging.get();
 
     let mut supervisors = Vec::new();
+
     for exec in on_host.executables {
+        let mut env = exec.env.get().into_map();
+        // Pass the host.id as an additional env var
+        // FIXME: Always replace it if it already exists?
+        env.insert("NR_HOST_ID".to_string(), agent_id.to_string()) // FIXME
+            .inspect(|o| {
+                warn!(
+                    agent_id = agent_id.to_string(),
+                    "Overwriting env var NR_HOST_ID with value {} (was {})",
+                    agent_id.to_string(), // FIXME
+                    o,
+                )
+            });
+
         let restart_policy: RestartPolicy = exec.restart_policy.into();
         let exec_data = ExecutableData::new(exec.path.get())
             .with_args(exec.args.get().into_vector())
-            .with_env(exec.env.get().into_map());
+            .with_env(env);
         let config = SupervisorConfigOnHost::new(
             agent_id.clone(),
             exec_data,
