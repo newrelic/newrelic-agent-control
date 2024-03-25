@@ -10,6 +10,7 @@ use crate::event::channel::{pub_sub, EventPublisher};
 use crate::event::SubAgentEvent;
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
+use crate::opamp::instance_id::IdentifiersProvider;
 use crate::opamp::operations::build_opamp_and_start_client;
 use crate::opamp::remote_config_report::{
     report_remote_config_status_applied, report_remote_config_status_error,
@@ -182,19 +183,37 @@ fn build_supervisors(
 
     let mut supervisors = Vec::new();
 
+    // TODO the calculation logic for this is in another PR.
+    // This is a temporary solution until that PR is merged
+    let host_id = IdentifiersProvider::default()
+        .provide()
+        .map(|ids| {
+            if ids.cloud_instance_id.is_empty() {
+                ids.machine_id
+            } else {
+                ids.cloud_instance_id
+            }
+        })
+        .inspect_err(|e| {
+            warn!(
+                agent_id = agent_id.to_string(),
+                "Could not get host id from the identifiers provider: {}", e
+            )
+        });
+
     for exec in on_host.executables {
         let mut env = exec.env.get().into_map();
         // Pass the host.id as an additional env var
-        // FIXME: Always replace it if it already exists?
-        env.insert("NR_HOST_ID".to_string(), agent_id.to_string()) // FIXME
-            .inspect(|o| {
-                warn!(
-                    agent_id = agent_id.to_string(),
-                    "Overwriting env var NR_HOST_ID with value {} (was {})",
-                    agent_id.to_string(), // FIXME
-                    o,
-                )
-            });
+        if let Ok(host_id) = &host_id {
+            // TODO: Always replace it if it already exists?
+            env.insert("NR_HOST_ID".to_string(), host_id.clone())
+                .inspect(|o| {
+                    warn!(
+                        agent_id = agent_id.to_string(),
+                        "Overwriting env var NR_HOST_ID with value {} (was {})", host_id, o,
+                    )
+                });
+        }
 
         let restart_policy: RestartPolicy = exec.restart_policy.into();
         let exec_data = ExecutableData::new(exec.path.get())
