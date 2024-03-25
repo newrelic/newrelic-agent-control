@@ -25,7 +25,7 @@ impl InstanceIDStorer for Storer {
         debug!("storer: setting ULID of agent_id:{}", agent_id);
 
         self.k8s_store
-            .set_remote_data(agent_id, STORE_KEY_INSTANCE_ID, ds)?;
+            .set_opamp_data(agent_id, STORE_KEY_INSTANCE_ID, ds)?;
 
         Ok(())
     }
@@ -35,7 +35,7 @@ impl InstanceIDStorer for Storer {
 
         if let Some(data) = self
             .k8s_store
-            .get_remote_data(agent_id, STORE_KEY_INSTANCE_ID)?
+            .get_opamp_data(agent_id, STORE_KEY_INSTANCE_ID)?
         {
             return Ok(Some(data));
         }

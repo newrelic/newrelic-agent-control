@@ -29,7 +29,7 @@ impl K8sStore {
         Self { k8s_client }
     }
 
-    pub fn get_remote_data<T>(&self, agent_id: &AgentID, key: &StoreKey) -> Result<Option<T>, Error>
+    pub fn get_opamp_data<T>(&self, agent_id: &AgentID, key: &StoreKey) -> Result<Option<T>, Error>
     where
         T: serde::de::DeserializeOwned,
     {
@@ -49,8 +49,7 @@ impl K8sStore {
     where
         T: serde::de::DeserializeOwned,
     {
-        let configmap_name = format!("{}{}", prefix, agent_id);
-
+        let configmap_name = build_cm_name(agent_id, prefix);
         if let Some(data) = self.k8s_client.get_configmap_key(&configmap_name, key)? {
             let ds = serde_yaml::from_str::<T>(&data)?;
 
@@ -61,7 +60,7 @@ impl K8sStore {
     }
 
     /// Stores data in the specified StoreKey of an Agent store.
-    pub fn set_remote_data<T>(
+    pub fn set_opamp_data<T>(
         &self,
         agent_id: &AgentID,
         key: &StoreKey,
@@ -71,9 +70,7 @@ impl K8sStore {
         T: serde::Serialize,
     {
         let data_as_string = serde_yaml::to_string(data)?;
-
-        let configmap_name = format!("{}{}", CM_NAME_OPAMP_DATA_PREFIX, agent_id);
-
+        let configmap_name = build_cm_name(agent_id, CM_NAME_OPAMP_DATA_PREFIX);
         self.k8s_client.set_configmap_key(
             &configmap_name,
             Labels::new(agent_id).get(),
@@ -83,11 +80,14 @@ impl K8sStore {
     }
 
     /// Delete data in the specified StoreKey of an Agent store.
-    pub fn delete_remote_data(&self, agent_id: &AgentID, key: &StoreKey) -> Result<(), Error> {
-        let configmap_name = format!("{}{}", CM_NAME_OPAMP_DATA_PREFIX, agent_id);
-
+    pub fn delete_opamp_data(&self, agent_id: &AgentID, key: &StoreKey) -> Result<(), Error> {
+        let configmap_name = build_cm_name(agent_id, CM_NAME_OPAMP_DATA_PREFIX);
         self.k8s_client.delete_configmap_key(&configmap_name, key)
     }
+}
+
+fn build_cm_name(agent_id: &AgentID, prefix: &str) -> String {
+    format!("{}{}", prefix, agent_id)
 }
 
 #[cfg(test)]
@@ -106,53 +106,79 @@ pub mod test {
     const DATA_STORED: &str = "test: foo\n";
     pub const STORE_KEY_TEST: &StoreKey = "data_to_be_stored";
 
+    pub const PREFIX_TEST: &StoreKey = "prefix-";
+
     #[derive(Deserialize, Serialize, Default, Debug, PartialEq)]
     pub struct DataToBeStored {
         pub test: String,
     }
 
     #[test]
-    fn test_input_parameters_dependencies() {
+    fn test_opamp_set_delete_input_parameters_dependencies() {
         // In this tests we are checking that the parameters are passed as expected and that cm names are built in the proper way
         // The output of the commands are checked in following tests.
         let mut k8s_client = MockSyncK8sClient::default();
-        k8s_client
-            .expect_get_configmap_key()
-            .once()
-            .with(
-                predicate::function(|name| {
-                    name == format!("{}{}", CM_NAME_OPAMP_DATA_PREFIX, AGENT_NAME).as_str()
-                }),
-                predicate::function(|key| key == STORE_KEY_TEST),
-            )
-            .returning(move |_, _| Ok(None));
+        let agent_id = AgentID::new(AGENT_NAME).unwrap();
+
         k8s_client
             .expect_set_configmap_key()
             .once()
             .with(
-                predicate::function(|name| {
-                    name == format!("{}{}", CM_NAME_OPAMP_DATA_PREFIX, AGENT_NAME).as_str()
-                }),
-                predicate::function(|key| {
-                    key == &Labels::new(&AgentID::new(AGENT_NAME).unwrap()).get()
-                }),
-                predicate::function(|key| key == STORE_KEY_TEST),
-                predicate::function(|ds| ds == DATA_STORED),
+                predicate::eq(format!("{}{}", CM_NAME_OPAMP_DATA_PREFIX, AGENT_NAME)),
+                predicate::eq(Labels::new(&AgentID::new(AGENT_NAME).unwrap()).get()),
+                predicate::eq(STORE_KEY_TEST),
+                predicate::eq(DATA_STORED),
             )
             .returning(move |_, _, _, _| Ok(()));
+        k8s_client
+            .expect_delete_configmap_key()
+            .once()
+            .with(
+                predicate::eq(format!("{}{}", CM_NAME_OPAMP_DATA_PREFIX, AGENT_NAME)),
+                predicate::eq(STORE_KEY_TEST),
+            )
+            .returning(move |_, _| Ok(()));
 
         let k8s_store = K8sStore::new(Arc::new(k8s_client));
 
-        let _ = k8s_store
-            .get_remote_data::<DataToBeStored>(&AgentID::new(AGENT_NAME).unwrap(), STORE_KEY_TEST);
-
-        let _ = k8s_store.set_remote_data(
-            &AgentID::new(AGENT_NAME).unwrap(),
+        let _ = k8s_store.set_opamp_data(
+            &agent_id,
             STORE_KEY_TEST,
             &DataToBeStored {
                 test: "foo".to_string(),
             },
         );
+
+        let _ = k8s_store.delete_opamp_data(&agent_id, STORE_KEY_TEST);
+    }
+
+    #[test]
+    fn test_get_input_parameters_dependencies() {
+        // remote
+        let mut k8s_client = MockSyncK8sClient::default();
+        k8s_client
+            .expect_get_configmap_key()
+            .with(
+                predicate::eq(format!("{}{}", CM_NAME_OPAMP_DATA_PREFIX, AGENT_NAME)),
+                predicate::eq(STORE_KEY_TEST),
+            )
+            .returning(move |_, _| Ok(Some(DATA_STORED.to_string())));
+
+        _ = K8sStore::new(Arc::new(k8s_client))
+            .get_opamp_data::<DataToBeStored>(&AgentID::new(AGENT_NAME).unwrap(), STORE_KEY_TEST);
+
+        // local
+        let mut k8s_client = MockSyncK8sClient::default();
+        k8s_client
+            .expect_get_configmap_key()
+            .with(
+                predicate::eq(format!("{}{}", CM_NAME_LOCAL_DATA_PREFIX, AGENT_NAME)),
+                predicate::always(),
+            )
+            .returning(move |_, _| Ok(Some(DATA_STORED.to_string())));
+
+        _ = K8sStore::new(Arc::new(k8s_client))
+            .get_local_data::<DataToBeStored>(&AgentID::new(AGENT_NAME).unwrap(), STORE_KEY_TEST);
     }
 
     #[test]
@@ -166,7 +192,11 @@ pub mod test {
         let k8s_store = K8sStore::new(Arc::new(k8s_client));
 
         k8s_store
-            .get_local_data::<DataToBeStored>(&AgentID::new(AGENT_NAME).unwrap(), STORE_KEY_TEST)
+            .get::<DataToBeStored>(
+                &AgentID::new(AGENT_NAME).unwrap(),
+                PREFIX_TEST,
+                STORE_KEY_TEST,
+            )
             .unwrap_err();
     }
 
@@ -181,7 +211,11 @@ pub mod test {
         let k8s_store = K8sStore::new(Arc::new(k8s_client));
 
         let data = k8s_store
-            .get_local_data::<DataToBeStored>(&AgentID::new(AGENT_NAME).unwrap(), STORE_KEY_TEST)
+            .get::<DataToBeStored>(
+                &AgentID::new(AGENT_NAME).unwrap(),
+                PREFIX_TEST,
+                STORE_KEY_TEST,
+            )
             .unwrap();
         assert!(data.is_none());
     }
@@ -196,7 +230,11 @@ pub mod test {
         let k8s_store = K8sStore::new(Arc::new(k8s_client));
 
         let data = k8s_store
-            .get_local_data::<DataToBeStored>(&AgentID::new(AGENT_NAME).unwrap(), STORE_KEY_TEST)
+            .get::<DataToBeStored>(
+                &AgentID::new(AGENT_NAME).unwrap(),
+                PREFIX_TEST,
+                STORE_KEY_TEST,
+            )
             .unwrap();
         assert_eq!(
             data.unwrap(),
@@ -215,7 +253,7 @@ pub mod test {
             .returning(move |_, _, _, _| Err(K8sError::Generic(kube::Error::TlsRequired)));
         let k8s_store = K8sStore::new(Arc::new(k8s_client));
 
-        let id = k8s_store.set_remote_data(
+        let id = k8s_store.set_opamp_data(
             &AgentID::new(AGENT_NAME).unwrap(),
             STORE_KEY_TEST,
             &DataToBeStored::default(),
@@ -231,40 +269,11 @@ pub mod test {
             .once()
             .returning(move |_, _, _, _| Ok(()));
         let k8s_store = K8sStore::new(Arc::new(k8s_client));
-        let id = k8s_store.set_remote_data(
+        let id = k8s_store.set_opamp_data(
             &AgentID::new(AGENT_NAME).unwrap(),
             STORE_KEY_TEST,
             &DataToBeStored::default(),
         );
         assert!(id.is_ok())
-    }
-
-    #[test]
-    fn test_different_get() {
-        // remote
-        let mut k8s_client = MockSyncK8sClient::default();
-        k8s_client
-            .expect_get_configmap_key()
-            .with(
-                predicate::eq(format!("{}{}", CM_NAME_OPAMP_DATA_PREFIX, AGENT_NAME)),
-                predicate::eq(STORE_KEY_TEST),
-            )
-            .returning(move |_, _| Ok(Some(DATA_STORED.to_string())));
-
-        _ = K8sStore::new(Arc::new(k8s_client))
-            .get_remote_data::<DataToBeStored>(&AgentID::new(AGENT_NAME).unwrap(), STORE_KEY_TEST);
-
-        // local
-        let mut k8s_client = MockSyncK8sClient::default();
-        k8s_client
-            .expect_get_configmap_key()
-            .with(
-                predicate::eq(format!("{}{}", CM_NAME_LOCAL_DATA_PREFIX, AGENT_NAME)),
-                predicate::always(),
-            )
-            .returning(move |_, _| Ok(Some(DATA_STORED.to_string())));
-
-        _ = K8sStore::new(Arc::new(k8s_client))
-            .get_local_data::<DataToBeStored>(&AgentID::new(AGENT_NAME).unwrap(), STORE_KEY_TEST);
     }
 }

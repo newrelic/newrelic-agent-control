@@ -36,6 +36,8 @@ impl ValuesRepositoryConfigMap {
 }
 
 impl ValuesRepository for ValuesRepositoryConfigMap {
+    // load(...) looks for remote configs first, if unavailable checks the local ones.
+    // If none is found, it fallbacks to the default values.
     fn load(
         &self,
         agent_id: &AgentID,
@@ -46,7 +48,7 @@ impl ValuesRepository for ValuesRepositoryConfigMap {
         if self.remote_enabled && agent_type.has_remote_management() {
             if let Some(values_result) = self
                 .k8s_store
-                .get_remote_data::<AgentValues>(agent_id, STORE_KEY_OPAMP_DATA_CONFIG)?
+                .get_opamp_data::<AgentValues>(agent_id, STORE_KEY_OPAMP_DATA_CONFIG)?
             {
                 return Ok(values_result);
             }
@@ -70,7 +72,7 @@ impl ValuesRepository for ValuesRepositoryConfigMap {
         debug!(agent_id = agent_id.to_string(), "saving remote config");
 
         self.k8s_store
-            .set_remote_data(agent_id, STORE_KEY_OPAMP_DATA_CONFIG, agent_values)?;
+            .set_opamp_data(agent_id, STORE_KEY_OPAMP_DATA_CONFIG, agent_values)?;
         Ok(())
     }
 
@@ -83,7 +85,7 @@ impl ValuesRepository for ValuesRepositoryConfigMap {
         debug!(agent_id = agent_id.to_string(), "delete remote config");
 
         self.k8s_store
-            .delete_remote_data(agent_id, STORE_KEY_OPAMP_DATA_CONFIG)?;
+            .delete_opamp_data(agent_id, STORE_KEY_OPAMP_DATA_CONFIG)?;
         Ok(())
     }
 }

@@ -122,6 +122,8 @@ where
     S: DirectoryManager,
     F: FileWriter + FileReader,
 {
+    // load(...) looks for remote configs first, if unavailable checks the local ones.
+    // If none is found, it fallbacks to the default values.
     fn load(
         &self,
         agent_id: &AgentID,

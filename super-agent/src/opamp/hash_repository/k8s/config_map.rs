@@ -29,7 +29,7 @@ impl HashRepository for HashRepositoryConfigMap {
         debug!("saving remote config hash of agent_id: {}", agent_id);
 
         self.k8s_store
-            .set_remote_data(agent_id, STORE_KEY_OPAMP_DATA_CONFIG_HASH, hash)?;
+            .set_opamp_data(agent_id, STORE_KEY_OPAMP_DATA_CONFIG_HASH, hash)?;
         Ok(())
     }
 
@@ -38,7 +38,7 @@ impl HashRepository for HashRepositoryConfigMap {
 
         match self
             .k8s_store
-            .get_remote_data(agent_id, STORE_KEY_OPAMP_DATA_CONFIG_HASH)?
+            .get_opamp_data(agent_id, STORE_KEY_OPAMP_DATA_CONFIG_HASH)?
         {
             Some(hash) => Ok(Some(hash)),
             None => Ok(None),
