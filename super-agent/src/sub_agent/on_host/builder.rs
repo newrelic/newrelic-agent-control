@@ -32,6 +32,7 @@ use crate::{
 };
 #[cfg(unix)]
 use nix::unistd::gethostname;
+use resource_detection::DetectError;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{error, warn};
@@ -185,21 +186,12 @@ fn build_supervisors(
 
     // TODO the calculation logic for this is in another PR.
     // This is a temporary solution until that PR is merged
-    let host_id = IdentifiersProvider::default()
-        .provide()
-        .map(|ids| {
-            if ids.cloud_instance_id.is_empty() {
-                ids.machine_id
-            } else {
-                ids.cloud_instance_id
-            }
-        })
-        .inspect_err(|e| {
-            warn!(
-                agent_id = agent_id.to_string(),
-                "Could not get host id from the identifiers provider: {}", e
-            )
-        });
+    let host_id = get_host_id().inspect_err(|e| {
+        warn!(
+            agent_id = agent_id.to_string(),
+            "Could not get host id from the identifiers provider: {}", e
+        )
+    });
 
     for exec in on_host.executables {
         let mut env = exec.env.get().into_map();
@@ -239,6 +231,15 @@ fn get_hostname() -> String {
 
     #[cfg(not(unix))]
     return unimplemented!();
+}
+
+fn get_host_id() -> Result<String, DetectError> {
+    let host_id = IdentifiersProvider::default().provide()?;
+    Ok(if host_id.cloud_instance_id.is_empty() {
+        host_id.machine_id
+    } else {
+        host_id.cloud_instance_id
+    })
 }
 
 #[cfg(test)]
