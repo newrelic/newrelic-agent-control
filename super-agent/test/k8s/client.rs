@@ -63,7 +63,7 @@ async fn k8s_get_dynamic_resource() {
 
     // get doesn't find any object before creation.
     assert!(k8s_client
-        .get_dynamic_object(foo_type_meta(), cr_name)
+        .get_dynamic_object(&foo_type_meta(), cr_name)
         .await
         .unwrap()
         .is_none());
@@ -72,7 +72,7 @@ async fn k8s_get_dynamic_resource() {
 
     // the object is found after creation.
     let cr = k8s_client
-        .get_dynamic_object(foo_type_meta(), cr_name)
+        .get_dynamic_object(&foo_type_meta(), cr_name)
         .await
         .unwrap()
         .unwrap();
@@ -89,7 +89,7 @@ async fn k8s_get_dynamic_resource() {
 
     // get doesn't find any object after deletion.
     assert!(k8s_client
-        .get_dynamic_object(foo_type_meta(), cr_name)
+        .get_dynamic_object(&foo_type_meta(), cr_name)
         .await
         .unwrap()
         .is_none());
