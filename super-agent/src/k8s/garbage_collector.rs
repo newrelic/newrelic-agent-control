@@ -175,7 +175,7 @@ pub(crate) mod test {
     #[test]
     fn test_start_executes_collection_as_expected() {
         // Given a config loader to be initialized with one agent and then changed to another
-        // during te whole life of the GC.
+        // during the whole life of the GC.
         let mut cs = MockSuperAgentConfigLoader::new();
         cs.expect_load()
             .once()
