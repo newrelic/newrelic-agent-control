@@ -62,7 +62,10 @@ impl ValuesRepository for ValuesRepositoryConfigMap {
             return Ok(values_result);
         }
 
-        debug!(agent_id = agent_id.to_string(), "local config not found, falling back to defaults");
+        debug!(
+            agent_id = agent_id.to_string(),
+            "local config not found, falling back to defaults"
+        );
         Ok(AgentValues::default())
     }
 

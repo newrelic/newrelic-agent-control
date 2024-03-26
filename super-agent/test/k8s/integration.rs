@@ -1,7 +1,7 @@
 use crate::common::{block_on, create_mock_config_maps, start_super_agent, K8sEnv};
 use k8s_openapi::api::apps::v1::Deployment;
 use kube::{api::Api, Client};
-use newrelic_super_agent::k8s::store::{STORE_KEY_LOCAL_DATA_CONFIG, STORE_KEY_OPAMP_DATA_CONFIG};
+use newrelic_super_agent::k8s::store::STORE_KEY_LOCAL_DATA_CONFIG;
 use std::error::Error;
 use std::path::Path;
 use std::time::Duration;
@@ -24,8 +24,8 @@ fn k8s_sub_agent_started() {
     block_on(create_mock_config_maps(
         k8s.client.clone(),
         namespace,
-        "opamp-data-my-agent-id-2",
-        STORE_KEY_OPAMP_DATA_CONFIG,
+        "local-data-my-agent-id-2",
+        STORE_KEY_LOCAL_DATA_CONFIG,
     ));
 
     let mut child = start_super_agent(file_path);
