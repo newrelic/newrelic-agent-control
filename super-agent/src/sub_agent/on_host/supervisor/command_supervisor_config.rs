@@ -43,8 +43,11 @@ impl SupervisorConfigOnHost {
         }
     }
 
-    pub fn with_health_check(self, health: Option<HealthConfig>) -> Self {
-        Self { health, ..self }
+    pub fn with_health_check(self, health: HealthConfig) -> Self {
+        Self {
+            health: Some(health),
+            ..self
+        }
     }
 }
 

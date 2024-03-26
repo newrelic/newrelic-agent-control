@@ -186,14 +186,17 @@ fn build_supervisors(
         let exec_data = ExecutableData::new(exec.path.get())
             .with_args(exec.args.get().into_vector())
             .with_env(exec.env.get().into_map());
-        let config = SupervisorConfigOnHost::new(
+        let mut config = SupervisorConfigOnHost::new(
             agent_id.clone(),
             exec_data,
             Context::new(),
             restart_policy,
         )
-        .with_file_logging(enable_file_logging)
-        .with_health_check(exec.health);
+        .with_file_logging(enable_file_logging);
+
+        if let Some(health) = exec.health {
+            config = config.with_health_check(health);
+        }
 
         let not_started_supervisor = SupervisorOnHost::new(config);
         supervisors.push(not_started_supervisor);
