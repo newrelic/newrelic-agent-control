@@ -12,7 +12,7 @@ use fs::LocalFile;
 use std::fs::Permissions;
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::PermissionsExt;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use thiserror::Error;
 use tracing::error;
 

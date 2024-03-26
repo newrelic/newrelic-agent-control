@@ -106,7 +106,6 @@ fn run_super_agent(
     use newrelic_super_agent::opamp::instance_id::IdentifiersProvider;
     use newrelic_super_agent::opamp::operations::build_opamp_and_start_client;
     use newrelic_super_agent::sub_agent::persister::config_persister_file::ConfigurationPersisterFile;
-    use newrelic_super_agent::sub_agent::values::values_repository::ValuesRepository;
     use newrelic_super_agent::sub_agent::values::ValuesRepositoryFile;
     use newrelic_super_agent::super_agent::config::AgentID;
 
