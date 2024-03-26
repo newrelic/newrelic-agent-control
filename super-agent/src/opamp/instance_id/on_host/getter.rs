@@ -54,7 +54,6 @@ pub struct IdentifiersProvider<
 {
     system_detector: D,
     cloud_id_detector: D2,
-    host_id: String,
 }
 
 impl Default for IdentifiersProvider {
@@ -62,7 +61,6 @@ impl Default for IdentifiersProvider {
         Self {
             system_detector: SystemDetector::default(),
             cloud_id_detector: CloudIdDetector::default(),
-            host_id: String::new(),
         }
     }
 }
@@ -90,21 +88,13 @@ where
             });
         let cloud_instance_id = self.cloud_instance_id();
 
-        // It's possible that the Host ID was set up early (via config).
-        // If this is the case, we don't want to overwrite it.
-        let host_id = if self.host_id.is_empty() {
-            if cloud_instance_id.is_empty() {
+        Ok(Identifiers {
+            // https://opentelemetry.io/docs/specs/semconv/resource/host/#collecting-hostid-from-non-containerized-systems
+            host_id: if cloud_instance_id.is_empty() {
                 machine_id.clone()
             } else {
                 cloud_instance_id.clone()
-            }
-        } else {
-            self.host_id.clone()
-        };
-
-        Ok(Identifiers {
-            // https://opentelemetry.io/docs/specs/semconv/resource/host/#collecting-hostid-from-non-containerized-systems
-            host_id,
+            },
             hostname,
             machine_id,
             cloud_instance_id,
@@ -194,7 +184,6 @@ mod test {
         let identifiers_provider = IdentifiersProvider {
             system_detector: system_detector_mock,
             cloud_id_detector: cloud_id_detector_mock,
-            host_id: String::new(),
         };
         let identifiers = identifiers_provider.provide().unwrap();
 
@@ -230,7 +219,6 @@ mod test {
         let identifiers_provider = IdentifiersProvider {
             system_detector: system_detector_mock,
             cloud_id_detector: cloud_id_detector_mock,
-            host_id: String::new(),
         };
         let identifiers = identifiers_provider.provide().unwrap();
 
@@ -267,7 +255,6 @@ mod test {
         let identifiers_provider = IdentifiersProvider {
             system_detector: system_detector_mock,
             cloud_id_detector: cloud_id_detector_mock,
-            host_id: String::new(),
         };
         let identifiers = identifiers_provider.provide().unwrap();
 
@@ -304,7 +291,6 @@ mod test {
         let identifiers_provider = IdentifiersProvider {
             system_detector: system_detector_mock,
             cloud_id_detector: cloud_id_detector_mock,
-            host_id: String::new(),
         };
         let identifiers = identifiers_provider.provide().unwrap();
 
