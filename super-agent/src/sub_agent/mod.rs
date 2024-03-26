@@ -5,10 +5,12 @@ pub mod error;
 mod event_handler;
 pub mod event_processor;
 pub mod event_processor_builder;
-mod health;
 pub mod persister;
 pub mod restart_policy;
 pub mod values;
+
+#[cfg(feature = "onhost")]
+mod health;
 
 #[cfg(feature = "k8s")]
 pub mod k8s;
