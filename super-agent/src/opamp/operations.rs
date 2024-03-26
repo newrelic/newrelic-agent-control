@@ -4,9 +4,7 @@ use crate::{
     event::{channel::EventPublisher, OpAMPEvent},
     sub_agent::error::SubAgentError,
     super_agent::config::{AgentID, AgentTypeFQN},
-    utils::time::get_sys_time_nano,
 };
-use opamp_client::opamp::proto::ComponentHealth;
 use opamp_client::{
     operation::{
         callbacks::Callbacks,

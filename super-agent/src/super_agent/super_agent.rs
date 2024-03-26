@@ -24,7 +24,6 @@ use crossbeam::select;
 use opamp_client::opamp::proto::ComponentHealth;
 use opamp_client::StartedClient;
 use std::collections::HashMap;
-use std::string::ToString;
 use std::sync::Arc;
 use tracing::{debug, error, info, trace, warn};
 
