@@ -184,14 +184,15 @@ fn build_supervisors(
 
     let mut supervisors = Vec::new();
 
-    // TODO the calculation logic for this isn't unified in one place yet.
-    // This should be a temporary solution.
-    let host_id = get_host_id().inspect_err(|e| {
-        warn!(
-            agent_id = agent_id.to_string(),
-            "Could not get host id from the identifiers provider: {}", e
-        )
-    });
+    let host_id = IdentifiersProvider::default()
+        .provide()
+        .map(|ids| ids.host_id)
+        .inspect_err(|e| {
+            warn!(
+                agent_id = agent_id.to_string(),
+                "Could not get host id from the identifiers provider: {}", e
+            )
+        });
 
     for exec in on_host.executables {
         let restart_policy: RestartPolicy = exec.restart_policy.into();
@@ -225,15 +226,6 @@ fn get_hostname() -> String {
 
     #[cfg(not(unix))]
     return unimplemented!();
-}
-
-fn get_host_id() -> Result<String, DetectError> {
-    let host_id = IdentifiersProvider::default().provide()?;
-    Ok(if host_id.cloud_instance_id.is_empty() {
-        host_id.machine_id
-    } else {
-        host_id.cloud_instance_id
-    })
 }
 
 #[cfg(test)]
