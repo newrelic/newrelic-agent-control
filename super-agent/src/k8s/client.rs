@@ -413,9 +413,9 @@ impl AsyncK8sClient {
     ) -> Result<(), K8sError> {
         let cm_client: Api<ConfigMap> = Api::<ConfigMap>::default_namespaced(self.client.clone());
         let entry = cm_client.entry(configmap_name).await?.and_modify(|cm| {
-            if let Some(mut d) = cm.data.clone() {
-                d.remove(key);
-                cm.data = Some(d)
+            if let Some(mut data) = cm.data.clone() {
+                data.remove(key);
+                cm.data = Some(data)
             }
         });
 
