@@ -32,7 +32,6 @@ use crate::{
 };
 #[cfg(unix)]
 use nix::unistd::gethostname;
-use resource_detection::DetectError;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{error, warn};
@@ -50,6 +49,7 @@ where
     hash_repository: Arc<HR>,
     effective_agent_assembler: &'a A,
     event_processor_builder: &'a E,
+    identifiers_provider: IdentifiersProvider,
 }
 
 impl<'a, O, I, HR, A, E> OnHostSubAgentBuilder<'a, O, I, HR, A, E>
@@ -66,6 +66,7 @@ where
         hash_repository: Arc<HR>,
         effective_agent_assembler: &'a A,
         event_processor_builder: &'a E,
+        identifiers_provider: IdentifiersProvider,
     ) -> Self {
         Self {
             opamp_builder,
@@ -73,6 +74,7 @@ where
             hash_repository,
             effective_agent_assembler,
             event_processor_builder,
+            identifiers_provider,
         }
     }
 }
@@ -148,7 +150,7 @@ where
 
         let supervisors = match has_supervisors {
             false => Vec::new(),
-            true => build_supervisors(effective_agent_res?)?,
+            true => build_supervisors(&self.identifiers_provider, effective_agent_res?)?,
         };
 
         let event_processor = self.event_processor_builder.build(
@@ -169,6 +171,7 @@ where
 }
 
 fn build_supervisors(
+    identifiers_provider: &IdentifiersProvider,
     effective_agent: EffectiveAgent,
 ) -> Result<Vec<SupervisorOnHost<command_supervisor::NotStarted>>, SubAgentError> {
     let agent_id = effective_agent.get_agent_id();
@@ -184,27 +187,14 @@ fn build_supervisors(
 
     let mut supervisors = Vec::new();
 
-    let host_id = IdentifiersProvider::default()
-        .provide()
-        .map(|ids| ids.host_id)
-        .inspect_err(|e| {
-            warn!(
-                agent_id = agent_id.to_string(),
-                "Could not get host id from the identifiers provider: {}", e
-            )
-        });
-
     for exec in on_host.executables {
         let restart_policy: RestartPolicy = exec.restart_policy.into();
-        let mut exec_data = ExecutableData::new(exec.path.get())
-            .with_args(exec.args.get().into_vector())
-            .with_env(exec.env.get().into_map());
+        let mut env = exec.env.get().into_map();
+        env.extend(get_additional_env(identifiers_provider));
 
-        // Pass the host.id as an additional env var
-        if let Ok(host_id) = &host_id {
-            exec_data =
-                exec_data.with_additional_env([("NR_HOST_ID".to_string(), host_id.clone())].into());
-        }
+        let exec_data = ExecutableData::new(exec.path.get())
+            .with_args(exec.args.get().into_vector())
+            .with_env(env);
 
         let config = SupervisorConfigOnHost::new(
             agent_id.clone(),
@@ -226,6 +216,17 @@ fn get_hostname() -> String {
 
     #[cfg(not(unix))]
     return unimplemented!();
+}
+
+fn get_additional_env(identifiers_provider: &IdentifiersProvider) -> HashMap<String, String> {
+    let mut additional_env = HashMap::new();
+    let host_id = identifiers_provider.provide().map(|ids| ids.host_id);
+
+    if let Ok(host_id) = &host_id {
+        additional_env.insert("NR_HOST_ID".to_string(), host_id.clone());
+    }
+
+    additional_env
 }
 
 #[cfg(test)]
@@ -306,6 +307,7 @@ mod test {
             Arc::new(hash_repository_mock),
             &effective_agent_assembler,
             &sub_agent_event_processor_builder,
+            IdentifiersProvider::default(),
         );
 
         assert!(on_host_builder
@@ -375,6 +377,7 @@ mod test {
             Arc::new(hash_repository_mock),
             &effective_agent_assembler,
             &sub_agent_event_processor_builder,
+            IdentifiersProvider::default(),
         );
 
         assert!(on_host_builder
