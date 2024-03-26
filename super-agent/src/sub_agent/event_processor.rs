@@ -81,8 +81,8 @@ where
             //TODO: this will change when we define specific health events
             if let Some(client) = &self.maybe_opamp_client {
                 info!(
-                    "Stopping OpAMP client for supervised agent type: {}",
-                    self.agent_id
+                    agent_id = &self.agent_id.to_string(),
+                    "reporting agent as healthy"
                 );
                 client.set_health(ComponentHealth {
                     healthy: true,

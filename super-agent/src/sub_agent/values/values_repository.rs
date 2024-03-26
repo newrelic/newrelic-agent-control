@@ -1,27 +1,7 @@
+use super::ValuesRepositoryError;
 use crate::agent_type::agent_values::AgentValues;
 use crate::agent_type::definition::AgentType;
 use crate::super_agent::config::AgentID;
-use fs::directory_manager::DirectoryManagementError;
-use fs::file_reader::FileReaderError;
-use fs::writer_file::WriteError;
-use thiserror::Error;
-use tracing::error;
-
-#[derive(Error, Debug)]
-pub enum ValuesRepositoryError {
-    #[error("serialize error on store: `{0}`")]
-    StoreSerializeError(#[from] serde_yaml::Error),
-    #[error("incorrect path")]
-    IncorrectPath,
-    #[error("cannot delete path `{0}`: `{1}`")]
-    DeleteError(String, String),
-    #[error("directory manager error: `{0}`")]
-    DirectoryManagementError(#[from] DirectoryManagementError),
-    #[error("file write error: `{0}`")]
-    WriteError(#[from] WriteError),
-    #[error("file read error: `{0}`")]
-    ReadError(#[from] FileReaderError),
-}
 
 pub trait ValuesRepository {
     fn load(
@@ -92,7 +72,11 @@ pub mod test {
                     predicate::eq(agent_id.clone()),
                     predicate::eq(final_agent.clone()),
                 )
-                .returning(move |_, _| Err(ValuesRepositoryError::IncorrectPath));
+                .returning(move |_, _| {
+                    Err(ValuesRepositoryError::StoreSerializeError(
+                        serde_yaml::from_str::<AgentID>("%---wrong )_$#").unwrap_err(),
+                    ))
+                });
         }
 
         pub fn should_store_remote(&mut self, agent_id: &AgentID, agent_values: &AgentValues) {
@@ -116,7 +100,11 @@ pub mod test {
             self.expect_delete_remote()
                 .once()
                 .with(predicate::eq(agent_id.clone()))
-                .returning(|_| Err(ValuesRepositoryError::IncorrectPath));
+                .returning(|_| {
+                    Err(ValuesRepositoryError::StoreSerializeError(
+                        serde_yaml::from_str::<AgentID>("%---wrong )_$#").unwrap_err(),
+                    ))
+                });
         }
     }
 }

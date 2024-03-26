@@ -124,10 +124,11 @@ mod tests {
     use super::*;
 
     impl AgentValues {
-        pub(crate) fn new(values: HashMap<String, serde_yaml::Value>) -> Self {
+        pub(crate) fn new(values: HashMap<String, Value>) -> Self {
             Self(values)
         }
 
+        #[allow(dead_code)]
         pub(crate) fn get(&self, key: &str) -> Option<&Value> {
             self.0.get(key)
         }
