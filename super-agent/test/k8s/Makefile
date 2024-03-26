@@ -7,7 +7,7 @@ all: test-integration-minikube test-integration-k3s
 test-integration-minikube:
 	KUBECONFIG='./.kubeconfig-dev' minikube update-context
 	tilt ci
-	cargo test --features k8s,custom-local-path k8s_ -- --nocapture --ignored
+	LOG_LEVEL=newrelic_super_agent=debug cargo test --features k8s k8s_ -- --nocapture --ignored
 
 .PHONY: test-integration-k3s
 test-integration-k3s:

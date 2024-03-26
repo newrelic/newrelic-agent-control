@@ -4,6 +4,7 @@ use super::{
     reader::{DynamicObjectReflector, ReflectorBuilder},
 };
 use k8s_openapi::api::core::v1::{ConfigMap, Namespace};
+use kube::api::entry::Entry;
 use kube::{
     api::{DeleteParams, ListParams, PostParams},
     config::KubeConfigOptions,
@@ -125,6 +126,11 @@ impl SyncK8sClient {
             key,
             value,
         ))
+    }
+
+    pub fn delete_configmap_key(&self, configmap_name: &str, key: &str) -> Result<(), K8sError> {
+        self.runtime
+            .block_on(self.async_client.delete_configmap_key(configmap_name, key))
     }
 
     pub fn supported_type_meta_collection(&self) -> Vec<TypeMeta> {
@@ -395,8 +401,30 @@ impl AsyncK8sClient {
                     .get_or_insert_with(BTreeMap::default)
                     .insert(key.to_string(), value.to_string());
             })
-            .commit(&kube::api::PostParams::default())
+            .commit(&PostParams::default())
             .await?;
+        Ok(())
+    }
+
+    pub async fn delete_configmap_key(
+        &self,
+        configmap_name: &str,
+        key: &str,
+    ) -> Result<(), K8sError> {
+        let cm_client: Api<ConfigMap> = Api::<ConfigMap>::default_namespaced(self.client.clone());
+        let entry = cm_client.entry(configmap_name).await?.and_modify(|cm| {
+            if let Some(mut d) = cm.data.clone() {
+                d.remove(key);
+                cm.data = Some(d)
+            }
+        });
+
+        match entry {
+            Entry::Occupied(mut e) => {
+                e.commit(&PostParams::default()).await?;
+            }
+            Entry::Vacant(_) => {}
+        }
         Ok(())
     }
 

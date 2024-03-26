@@ -1,10 +1,15 @@
-use super::common::{block_on, tokio_runtime, K8sEnv};
+use super::common::{block_on, create_mock_config_maps, tokio_runtime, K8sEnv};
 use k8s_openapi::api::core::v1::ConfigMap;
 use kube::Api;
+use newrelic_super_agent::agent_type::agent_metadata::AgentMetadata;
+use newrelic_super_agent::agent_type::agent_values::AgentValues;
+use newrelic_super_agent::agent_type::definition::{AgentType, VariableTree};
+use newrelic_super_agent::agent_type::runtime_config::Runtime;
 use newrelic_super_agent::k8s::client::SyncK8sClient;
 use newrelic_super_agent::k8s::labels::Labels;
 use newrelic_super_agent::k8s::store::{
-    K8sStore, StoreKey, CM_NAME_PREFIX, STORE_KEY_INSTANCE_ID, STORE_KEY_REMOTE_CONFIG_HASH,
+    K8sStore, StoreKey, CM_NAME_OPAMP_DATA_PREFIX, STORE_KEY_INSTANCE_ID,
+    STORE_KEY_LOCAL_DATA_CONFIG, STORE_KEY_OPAMP_DATA_CONFIG_HASH,
 };
 use newrelic_super_agent::opamp::hash_repository::{HashRepository, HashRepositoryConfigMap};
 use newrelic_super_agent::opamp::instance_id::{
@@ -12,6 +17,8 @@ use newrelic_super_agent::opamp::instance_id::{
     Identifiers,
 };
 use newrelic_super_agent::opamp::remote_config_hash::Hash;
+use newrelic_super_agent::sub_agent::values::values_repository::ValuesRepository;
+use newrelic_super_agent::sub_agent::values::ValuesRepositoryConfigMap;
 use newrelic_super_agent::super_agent::config::AgentID;
 use std::sync::Arc;
 
@@ -87,8 +94,76 @@ fn k8s_hash_repository_config_map() {
 
     let cm_client: Api<ConfigMap> =
         Api::<ConfigMap>::namespaced(test.client.clone(), test_ns.as_str());
-    assert_agent_cm(&cm_client, &agent_id_1, STORE_KEY_REMOTE_CONFIG_HASH);
-    assert_agent_cm(&cm_client, &agent_id_2, STORE_KEY_REMOTE_CONFIG_HASH);
+    assert_agent_cm(&cm_client, &agent_id_1, STORE_KEY_OPAMP_DATA_CONFIG_HASH);
+    assert_agent_cm(&cm_client, &agent_id_2, STORE_KEY_OPAMP_DATA_CONFIG_HASH);
+}
+
+#[test]
+#[ignore = "needs k8s cluster"]
+fn k8s_value_repository_config_map() {
+    // This test covers the happy path of ValuesRepositoryConfigMap on K8s.
+
+    let mut test = block_on(K8sEnv::new());
+    let test_ns = block_on(test.test_namespace());
+
+    let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime(), test_ns.clone()).unwrap());
+    let k8s_store = Arc::new(K8sStore::new(k8s_client.clone()));
+    let agent_id_1 = AgentID::new(AGENT_ID_1).unwrap();
+    let agent_id_2 = AgentID::new(AGENT_ID_2).unwrap();
+
+    let agent_type = AgentType::new(
+        AgentMetadata::default(),
+        VariableTree::default(),
+        Runtime::default(),
+    );
+
+    let mut value_repository = ValuesRepositoryConfigMap::new(k8s_store);
+    let default_values = AgentValues::default();
+
+    // without values the default is expected
+    let res = value_repository.load(&agent_id_1, &agent_type);
+    assert_eq!(res.unwrap(), default_values);
+
+    // with local values we expect some data
+    block_on(create_mock_config_maps(
+        test.client.clone(),
+        test_ns.as_str(),
+        format!("local-data-{}", AGENT_ID_1).as_str(),
+        STORE_KEY_LOCAL_DATA_CONFIG,
+    ));
+    let local_values = AgentValues::try_from("test: 1".to_string()).unwrap();
+    let res = value_repository.load(&agent_id_1, &agent_type);
+
+    assert_eq!(res.unwrap(), local_values);
+
+    // with remote data we expect we get local without remote
+    let remote_values = AgentValues::try_from("test: 3".to_string()).unwrap();
+    value_repository
+        .store_remote(&agent_id_1, &remote_values)
+        .unwrap();
+    let res = value_repository.load(&agent_id_1, &agent_type);
+    assert_eq!(res.unwrap(), local_values);
+
+    // Once we have remote enabled we get remote data
+    value_repository = value_repository.with_remote();
+    let res = value_repository.load(&agent_id_1, &agent_type);
+    assert_eq!(res.unwrap(), remote_values);
+
+    // After deleting remote we expect to get still local data
+    value_repository.delete_remote(&agent_id_1).unwrap();
+    let res = value_repository.load(&agent_id_1, &agent_type);
+    assert_eq!(res.unwrap(), local_values);
+
+    // After saving data for a second agent should not affect the previous one
+    // with remote data we expect to ignore local one
+    let remote_values_agent_2 = AgentValues::try_from("test: 100".to_string()).unwrap();
+    value_repository
+        .store_remote(&agent_id_2, &remote_values_agent_2)
+        .unwrap();
+    let res = value_repository.load(&agent_id_1, &agent_type);
+    let res_agent_2 = value_repository.load(&agent_id_2, &agent_type);
+    assert_eq!(res.unwrap(), local_values);
+    assert_eq!(res_agent_2.unwrap(), remote_values_agent_2);
 }
 
 #[test]
@@ -124,12 +199,12 @@ fn k8s_multiple_store_entries() {
 
     let cm_client: Api<ConfigMap> =
         Api::<ConfigMap>::namespaced(test.client.clone(), test_ns.as_str());
-    assert_agent_cm(&cm_client, &agent_id, STORE_KEY_REMOTE_CONFIG_HASH);
+    assert_agent_cm(&cm_client, &agent_id, STORE_KEY_OPAMP_DATA_CONFIG_HASH);
     assert_agent_cm(&cm_client, &agent_id, STORE_KEY_INSTANCE_ID);
 }
 
 fn assert_agent_cm(cm_client: &Api<ConfigMap>, agent_id: &AgentID, store_key: &StoreKey) {
-    let cm_name = format!("{}{}", CM_NAME_PREFIX, agent_id);
+    let cm_name = format!("{}{}", CM_NAME_OPAMP_DATA_PREFIX, agent_id);
     let cm = block_on(cm_client.get(&cm_name));
     assert!(cm.is_ok());
     let cm_un = cm.unwrap();

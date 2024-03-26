@@ -1,6 +1,7 @@
-use crate::common::{block_on, start_super_agent, K8sEnv};
+use crate::common::{block_on, create_mock_config_maps, start_super_agent, K8sEnv};
 use k8s_openapi::api::apps::v1::Deployment;
 use kube::{api::Api, Client};
+use newrelic_super_agent::k8s::store::{STORE_KEY_LOCAL_DATA_CONFIG, STORE_KEY_OPAMP_DATA_CONFIG};
 use std::error::Error;
 use std::path::Path;
 use std::time::Duration;
@@ -10,15 +11,28 @@ use tokio::time::sleep;
 #[ignore = "needs a k8s cluster"]
 fn k8s_sub_agent_started() {
     let file_path = Path::new("test/k8s/data/static.yml");
-    let mut child = start_super_agent(file_path, Some("test/k8s/data"));
-
     // Setup k8s env
     let k8s = block_on(K8sEnv::new());
+    let namespace = "default";
+
+    block_on(create_mock_config_maps(
+        k8s.client.clone(),
+        namespace,
+        "local-data-my-agent-id",
+        STORE_KEY_LOCAL_DATA_CONFIG,
+    ));
+    block_on(create_mock_config_maps(
+        k8s.client.clone(),
+        namespace,
+        "opamp-data-my-agent-id-2",
+        STORE_KEY_OPAMP_DATA_CONFIG,
+    ));
+
+    let mut child = start_super_agent(file_path);
 
     let deployment_name = "my-agent-id-opentelemetry-collector";
     let deployment_name_2 = "my-agent-id-2-opentelemetry-collector";
 
-    let namespace = "default";
     let max_retries = 30;
     let duration = Duration::from_millis(5000);
 
