@@ -70,6 +70,10 @@ where
     D: Detector,
     D2: Detector,
 {
+    pub fn with_host_id(self, host_id: String) -> Self {
+        Self { host_id, ..self }
+    }
+
     pub fn provide(&self) -> Result<Identifiers, DetectError> {
         let system_identifiers = self.system_detector.detect()?;
         let hostname: String = system_identifiers

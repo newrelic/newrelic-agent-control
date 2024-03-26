@@ -156,6 +156,9 @@ pub struct SuperAgentConfig {
     #[serde(default)]
     pub log: LoggingConfig,
 
+    #[serde(default)]
+    pub host_id: String,
+
     /// agents is a map of agent types to their specific configuration (if any).
     #[serde(flatten)]
     pub agents: SubAgentsConfig,
