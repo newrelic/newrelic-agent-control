@@ -53,11 +53,18 @@ mod test {
     use fs::mock::MockLocalFile;
     use std::path::Path;
 
+    type MachineIDPath = Path;
+    type DBusMachineIDPath = Path;
+
     impl<F> IdentifierProviderMachineId<F>
     where
         F: FileReader,
     {
-        fn new(machine_id_path: &Path, dbus_path: &Path, file_reader: F) -> Self {
+        fn new(
+            machine_id_path: &MachineIDPath,
+            dbus_path: &DBusMachineIDPath,
+            file_reader: F,
+        ) -> Self {
             Self {
                 file_reader,
                 machine_id_path: PathBuf::from(machine_id_path),
