@@ -184,8 +184,8 @@ fn build_supervisors(
 
     let mut supervisors = Vec::new();
 
-    // TODO the calculation logic for this is in another PR.
-    // This is a temporary solution until that PR is merged
+    // TODO the calculation logic for this isn't unified in one place yet.
+    // This should be a temporary solution.
     let host_id = get_host_id().inspect_err(|e| {
         warn!(
             agent_id = agent_id.to_string(),
