@@ -6,7 +6,11 @@ use crate::super_agent::config::AgentID;
 use std::sync::Arc;
 
 /// The prefixes for the ConfigMap name.
+/// The cm having CM_NAME_LOCAL_DATA_PREFIX stores all the config that are "local",
+/// the SA treats those CM as read-only.
 pub const CM_NAME_LOCAL_DATA_PREFIX: &str = "local-data-";
+/// The cm having CM_NAME_OPAMP_DATA_PREFIX as prefix stores all the data related with opamp:
+/// ULIDs, hashes, and remote configs. The Sa reads and writes those CMs.
 pub const CM_NAME_OPAMP_DATA_PREFIX: &str = "opamp-data-";
 
 /// The key used to identify the data in the Store.
@@ -29,6 +33,8 @@ impl K8sStore {
         Self { k8s_client }
     }
 
+    /// get_opamp_data is used to get data from CMs storing data related with opamp:
+    /// ULIDs, hashes, and remote configs.
     pub fn get_opamp_data<T>(&self, agent_id: &AgentID, key: &StoreKey) -> Result<Option<T>, Error>
     where
         T: serde::de::DeserializeOwned,
@@ -36,6 +42,8 @@ impl K8sStore {
         self.get(agent_id, CM_NAME_OPAMP_DATA_PREFIX, key)
     }
 
+    /// get_local_data is used to get data from CMs storing local configurations. I.e. all the CMs
+    /// created by the super-agent-deployment chart.
     pub fn get_local_data<T>(&self, agent_id: &AgentID, key: &StoreKey) -> Result<Option<T>, Error>
     where
         T: serde::de::DeserializeOwned,
@@ -49,7 +57,7 @@ impl K8sStore {
     where
         T: serde::de::DeserializeOwned,
     {
-        let configmap_name = build_cm_name(agent_id, prefix);
+        let configmap_name = K8sStore::build_cm_name(agent_id, prefix);
         if let Some(data) = self.k8s_client.get_configmap_key(&configmap_name, key)? {
             let ds = serde_yaml::from_str::<T>(&data)?;
 
@@ -70,7 +78,7 @@ impl K8sStore {
         T: serde::Serialize,
     {
         let data_as_string = serde_yaml::to_string(data)?;
-        let configmap_name = build_cm_name(agent_id, CM_NAME_OPAMP_DATA_PREFIX);
+        let configmap_name = K8sStore::build_cm_name(agent_id, CM_NAME_OPAMP_DATA_PREFIX);
         self.k8s_client.set_configmap_key(
             &configmap_name,
             Labels::new(agent_id).get(),
@@ -81,13 +89,13 @@ impl K8sStore {
 
     /// Delete data in the specified StoreKey of an Agent store.
     pub fn delete_opamp_data(&self, agent_id: &AgentID, key: &StoreKey) -> Result<(), Error> {
-        let configmap_name = build_cm_name(agent_id, CM_NAME_OPAMP_DATA_PREFIX);
+        let configmap_name = K8sStore::build_cm_name(agent_id, CM_NAME_OPAMP_DATA_PREFIX);
         self.k8s_client.delete_configmap_key(&configmap_name, key)
     }
-}
 
-fn build_cm_name(agent_id: &AgentID, prefix: &str) -> String {
-    format!("{}{}", prefix, agent_id)
+    fn build_cm_name(agent_id: &AgentID, prefix: &str) -> String {
+        format!("{}{}", prefix, agent_id)
+    }
 }
 
 #[cfg(test)]
@@ -115,7 +123,7 @@ pub mod test {
 
     #[test]
     fn test_opamp_set_delete_input_parameters_dependencies() {
-        // In this tests we are checking that the parameters are passed as expected and that cm names are built in the proper way
+        // In this test we are checking that the parameters are passed as expected and that cm names are built in the proper way
         // The output of the commands are checked in following tests.
         let mut k8s_client = MockSyncK8sClient::default();
         let agent_id = AgentID::new(AGENT_NAME).unwrap();
@@ -124,7 +132,10 @@ pub mod test {
             .expect_set_configmap_key()
             .once()
             .with(
-                predicate::eq(format!("{}{}", CM_NAME_OPAMP_DATA_PREFIX, AGENT_NAME)),
+                predicate::eq(K8sStore::build_cm_name(
+                    &agent_id,
+                    CM_NAME_OPAMP_DATA_PREFIX,
+                )),
                 predicate::eq(Labels::new(&AgentID::new(AGENT_NAME).unwrap()).get()),
                 predicate::eq(STORE_KEY_TEST),
                 predicate::eq(DATA_STORED),
@@ -134,7 +145,10 @@ pub mod test {
             .expect_delete_configmap_key()
             .once()
             .with(
-                predicate::eq(format!("{}{}", CM_NAME_OPAMP_DATA_PREFIX, AGENT_NAME)),
+                predicate::eq(K8sStore::build_cm_name(
+                    &agent_id,
+                    CM_NAME_OPAMP_DATA_PREFIX,
+                )),
                 predicate::eq(STORE_KEY_TEST),
             )
             .returning(move |_, _| Ok(()));
@@ -156,23 +170,31 @@ pub mod test {
     fn test_get_input_parameters_dependencies() {
         // remote
         let mut k8s_client = MockSyncK8sClient::default();
+        let agent_id = &AgentID::new(AGENT_NAME).unwrap();
+
         k8s_client
             .expect_get_configmap_key()
             .with(
-                predicate::eq(format!("{}{}", CM_NAME_OPAMP_DATA_PREFIX, AGENT_NAME)),
+                predicate::eq(K8sStore::build_cm_name(
+                    &agent_id,
+                    CM_NAME_OPAMP_DATA_PREFIX,
+                )),
                 predicate::eq(STORE_KEY_TEST),
             )
             .returning(move |_, _| Ok(Some(DATA_STORED.to_string())));
 
         _ = K8sStore::new(Arc::new(k8s_client))
-            .get_opamp_data::<DataToBeStored>(&AgentID::new(AGENT_NAME).unwrap(), STORE_KEY_TEST);
+            .get_opamp_data::<DataToBeStored>(agent_id, STORE_KEY_TEST);
 
         // local
         let mut k8s_client = MockSyncK8sClient::default();
         k8s_client
             .expect_get_configmap_key()
             .with(
-                predicate::eq(format!("{}{}", CM_NAME_LOCAL_DATA_PREFIX, AGENT_NAME)),
+                predicate::eq(K8sStore::build_cm_name(
+                    &agent_id,
+                    CM_NAME_LOCAL_DATA_PREFIX,
+                )),
                 predicate::always(),
             )
             .returning(move |_, _| Ok(Some(DATA_STORED.to_string())));
@@ -275,5 +297,14 @@ pub mod test {
             &DataToBeStored::default(),
         );
         assert!(id.is_ok())
+    }
+
+    #[test]
+    fn test_build_cm_name() {
+        let agent_id = AgentID::new(AGENT_NAME).unwrap();
+        assert_eq!(
+            "prefix-agent1",
+            K8sStore::build_cm_name(&agent_id, PREFIX_TEST)
+        );
     }
 }
