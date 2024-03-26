@@ -16,8 +16,6 @@ pub trait ValuesRepository {
         agent_values: &AgentValues,
     ) -> Result<(), ValuesRepositoryError>;
 
-    fn delete_remote_all(&self) -> Result<(), ValuesRepositoryError>;
-
     fn delete_remote(&self, agent_id: &AgentID) -> Result<(), ValuesRepositoryError>;
 }
 
@@ -43,7 +41,6 @@ pub mod test {
                 agent_id: &AgentID,
                 final_agent: &AgentType,
             ) -> Result<AgentValues, ValuesRepositoryError>;
-            fn delete_remote_all(&self) -> Result<(), ValuesRepositoryError>;
             fn delete_remote(&self, agent_id: &AgentID) -> Result<(), ValuesRepositoryError>;
         }
     }
@@ -94,17 +91,6 @@ pub mod test {
                 .once()
                 .with(predicate::eq(agent_id.clone()))
                 .returning(|_| Ok(()));
-        }
-
-        pub fn should_not_delete_remote(&mut self, agent_id: &AgentID) {
-            self.expect_delete_remote()
-                .once()
-                .with(predicate::eq(agent_id.clone()))
-                .returning(|_| {
-                    Err(ValuesRepositoryError::StoreSerializeError(
-                        serde_yaml::from_str::<AgentID>("%---wrong )_$#").unwrap_err(),
-                    ))
-                });
         }
     }
 }

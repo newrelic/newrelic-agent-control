@@ -76,11 +76,6 @@ impl ValuesRepository for ValuesRepositoryConfigMap {
         Ok(())
     }
 
-    fn delete_remote_all(&self) -> Result<(), ValuesRepositoryError> {
-        //TODO the delete_remote_all is not implemented yet for K8s since it is complex and we hope to avoid implementing it
-        Ok(())
-    }
-
     fn delete_remote(&self, agent_id: &AgentID) -> Result<(), ValuesRepositoryError> {
         debug!(agent_id = agent_id.to_string(), "delete remote config");
 

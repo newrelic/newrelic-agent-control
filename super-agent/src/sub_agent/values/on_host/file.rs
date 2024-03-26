@@ -177,13 +177,6 @@ where
         )?)
     }
 
-    fn delete_remote_all(&self) -> Result<(), ValuesRepositoryError> {
-        let dest_path = Path::new(self.remote_conf_path.as_str());
-        self.directory_manager.delete(dest_path).map_err(|e| {
-            ValuesRepositoryError::DeleteError(self.remote_conf_path.to_string(), e.to_string())
-        })
-    }
-
     fn delete_remote(&self, agent_id: &AgentID) -> Result<(), ValuesRepositoryError> {
         let values_file_path = self.get_remote_values_file_path(agent_id);
         //ensure directory exists
@@ -604,28 +597,6 @@ pub mod test {
             "file write error: `error creating file: `permission denied``".to_string(),
             result.err().unwrap().to_string()
         );
-    }
-
-    #[test]
-    fn test_delete_remote_all() {
-        //Mocks
-        let file_rw = MockLocalFile::default();
-        let mut dir_manager = MockDirectoryManagerMock::new();
-        let remote_conf_path = Path::new("some/remote/path");
-        let local_conf_path = Path::new("some/local/path");
-        let remote_enabled = false;
-
-        dir_manager.should_delete(Path::new("some/remote/path"));
-
-        let repo = ValuesRepositoryFile::with_mocks(
-            file_rw,
-            dir_manager,
-            local_conf_path,
-            remote_conf_path,
-            remote_enabled,
-        );
-
-        repo.delete_remote_all().unwrap();
     }
 
     #[test]
