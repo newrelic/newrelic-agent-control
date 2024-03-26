@@ -58,4 +58,10 @@ impl ExecutableData {
     pub fn with_env(self, env: HashMap<String, String>) -> Self {
         Self { env, ..self }
     }
+
+    pub fn with_additional_env(self, additional_env: HashMap<String, String>) -> Self {
+        let mut env = self.env;
+        env.extend(additional_env);
+        Self { env, ..self }
+    }
 }

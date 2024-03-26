@@ -194,23 +194,17 @@ fn build_supervisors(
     });
 
     for exec in on_host.executables {
-        let mut env = exec.env.get().into_map();
+        let restart_policy: RestartPolicy = exec.restart_policy.into();
+        let mut exec_data = ExecutableData::new(exec.path.get())
+            .with_args(exec.args.get().into_vector())
+            .with_env(exec.env.get().into_map());
+
         // Pass the host.id as an additional env var
         if let Ok(host_id) = &host_id {
-            // TODO: Always replace it if it already exists?
-            env.insert("NR_HOST_ID".to_string(), host_id.clone())
-                .inspect(|o| {
-                    warn!(
-                        agent_id = agent_id.to_string(),
-                        "Overwriting env var NR_HOST_ID with value {} (was {})", host_id, o,
-                    )
-                });
+            exec_data =
+                exec_data.with_additional_env([("NR_HOST_ID".to_string(), host_id.clone())].into());
         }
 
-        let restart_policy: RestartPolicy = exec.restart_policy.into();
-        let exec_data = ExecutableData::new(exec.path.get())
-            .with_args(exec.args.get().into_vector())
-            .with_env(env);
         let config = SupervisorConfigOnHost::new(
             agent_id.clone(),
             exec_data,
