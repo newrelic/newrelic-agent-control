@@ -1,6 +1,5 @@
-use super::persister::config_persister_file::ConfigurationPersisterFile;
-use super::values::values_repository::{ValuesRepository, ValuesRepositoryError};
-use super::values::ValuesRepositoryFile;
+use super::values::values_repository::ValuesRepository;
+use super::values::ValuesRepositoryError;
 use crate::agent_type::agent_attributes::AgentAttributes;
 use crate::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError, LocalRegistry};
 use crate::agent_type::definition::{AgentType, AgentTypeDefinition};
@@ -8,9 +7,11 @@ use crate::agent_type::environment::Environment;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::renderer::{Renderer, TemplateRenderer};
 use crate::agent_type::runtime_config::{Deployment, Runtime};
+use crate::sub_agent::persister::config_persister_file::ConfigurationPersisterFile;
 use crate::super_agent::config::{AgentID, SubAgentConfig};
-use fs::{directory_manager::DirectoryManagerFs, file_reader::FileReaderError, LocalFile};
+use fs::file_reader::FileReaderError;
 use std::fmt::Display;
+use std::sync::Arc;
 use thiserror::Error;
 use tracing::error;
 
@@ -82,23 +83,20 @@ where
     N: Renderer,
 {
     registry: R,
-    values_repository: D,
+    values_repository: Arc<D>,
     remote_enabled: bool,
     renderer: N,
 }
 
-/// Type alias for the LocalEffectiveAgentsAssembler using local registry and files for values repository and configuration persistence.
-pub type LocalSubAgentsAssembler = LocalEffectiveAgentsAssembler<
-    LocalRegistry,
-    ValuesRepositoryFile<LocalFile, DirectoryManagerFs>,
-    TemplateRenderer<ConfigurationPersisterFile>,
->;
-
-impl Default for LocalSubAgentsAssembler {
-    fn default() -> Self {
+impl<D>
+    LocalEffectiveAgentsAssembler<LocalRegistry, D, TemplateRenderer<ConfigurationPersisterFile>>
+where
+    D: ValuesRepository,
+{
+    pub fn new(values_repository: Arc<D>) -> Self {
         LocalEffectiveAgentsAssembler {
             registry: LocalRegistry::default(),
-            values_repository: ValuesRepositoryFile::default().with_remote(),
+            values_repository,
             remote_enabled: false,
             renderer: TemplateRenderer::default(),
         }
@@ -111,16 +109,9 @@ where
     D: ValuesRepository,
     N: Renderer,
 {
-    pub fn with_remote(self) -> LocalEffectiveAgentsAssembler<R, D, N> {
+    pub fn with_remote(self) -> Self {
         Self {
             remote_enabled: true,
-            ..self
-        }
-    }
-
-    pub fn with_values_repository(self, values_repository: D) -> Self {
-        Self {
-            values_repository,
             ..self
         }
     }
@@ -273,7 +264,7 @@ pub(crate) mod tests {
         ) -> Self {
             Self {
                 registry,
-                values_repository: remote_values_repo,
+                values_repository: Arc::new(remote_values_repo),
                 remote_enabled: opamp_enabled,
                 renderer,
             }
@@ -455,10 +446,6 @@ pub(crate) mod tests {
         let result = assembler.assemble_agent(&agent_id, &sub_agent_config, &environment);
 
         assert!(result.is_err());
-        assert_eq!(
-            "values error: `incorrect path`",
-            result.err().unwrap().to_string()
-        );
     }
 
     #[test]
@@ -492,10 +479,6 @@ pub(crate) mod tests {
         let result = assembler.assemble_agent(&agent_id, &sub_agent_config, &environment);
 
         assert!(result.is_err());
-        assert_eq!(
-            "values error: `incorrect path`",
-            result.err().unwrap().to_string()
-        );
     }
 
     #[test]

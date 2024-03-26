@@ -88,15 +88,6 @@ impl<C: ConfigurationPersister> TemplateRenderer<C> {
         }
     }
 
-    #[cfg(feature = "custom-local-path")]
-    /// Returns a [TemplateRenderer] whose `config_base_dir has the provided `base_dir` prepended.
-    pub fn with_base_dir(self, base_dir: &str) -> Self {
-        Self {
-            config_base_dir: format!("{}{}", base_dir, SUPER_AGENT_DATA_DIR),
-            ..self
-        }
-    }
-
     // Returns the config path for a sub-agent.
     fn subagent_config_path(&self, agent_id: &AgentID) -> PathBuf {
         PathBuf::from(format!(

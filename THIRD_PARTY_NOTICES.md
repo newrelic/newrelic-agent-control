@@ -964,6 +964,12 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
+## opentelemetry-semantic-conventions https://crates.io/crates/opentelemetry-semantic-conventions
+
+Distributed under the following license(s):
+* Apache-2.0
+
+
 ## ordered-float https://crates.io/crates/ordered-float
 
 Distributed under the following license(s):
