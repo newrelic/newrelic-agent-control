@@ -157,10 +157,6 @@ fn run_super_agent(
         super_agent_opamp_non_identifying_attributes(),
     )?;
 
-    if maybe_client.is_some() {
-        info!("Super Agent OpAMP client started");
-    }
-
     SuperAgent::new(
         maybe_client,
         hash_repository,

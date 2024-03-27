@@ -52,7 +52,10 @@ impl ValuesRepository for ValuesRepositoryConfigMap {
             {
                 return Ok(values_result);
             }
-            debug!(agent_id = agent_id.to_string(), "remote config not found");
+            debug!(
+                agent_id = agent_id.to_string(),
+                "remote config not found, loading local"
+            );
         }
 
         if let Some(values_result) = self
