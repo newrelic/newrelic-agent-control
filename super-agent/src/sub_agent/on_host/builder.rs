@@ -32,6 +32,7 @@ use crate::{
 };
 #[cfg(unix)]
 use nix::unistd::gethostname;
+use resource_detection::Detector;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{error, warn};
@@ -218,7 +219,13 @@ fn get_hostname() -> String {
     return unimplemented!();
 }
 
-fn get_additional_env(identifiers_provider: &IdentifiersProvider) -> HashMap<String, String> {
+fn get_additional_env<D1, D2>(
+    identifiers_provider: &IdentifiersProvider<D1, D2>,
+) -> HashMap<String, String>
+where
+    D1: Detector,
+    D2: Detector,
+{
     let mut additional_env = HashMap::new();
     let host_id = identifiers_provider.provide().map(|ids| ids.host_id);
 
@@ -239,6 +246,7 @@ mod test {
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
     use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
+    use crate::opamp::instance_id::test::{MockCloudDetectorMock, MockSystemDetectorMock};
     use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
     use crate::sub_agent::event_processor::test::MockEventProcessorMock;
@@ -252,6 +260,9 @@ mod test {
         capabilities::Capabilities,
         settings::{AgentDescription, DescriptionValueType, StartSettings},
     };
+    use resource_detection::cloud::cloud_id::detector::CloudIdDetectorError;
+    use resource_detection::system::detector::SystemDetectorError;
+    use resource_detection::{DetectError, Resource};
     use std::collections::HashMap;
 
     #[test]
@@ -439,5 +450,110 @@ mod test {
                 )]),
             },
         }
+    }
+
+    #[test]
+    fn build_additional_env_from_system_provider_empty_cloud() {
+        let mut system_detector = MockSystemDetectorMock::default();
+        let mut cloud_detector = MockCloudDetectorMock::default();
+        let system_resource = Resource::new([(
+            "machine_id".to_string().into(),
+            "some machine id".to_string().into(),
+        )]);
+        let cloud_resource = Resource::new([
+            // ("cloud_instance_id".to_string().into(),
+            // "some cloud id".to_string().into())
+        ]);
+
+        system_detector.should_detect(system_resource);
+        cloud_detector.should_detect(cloud_resource);
+
+        let expected = HashMap::from([("NR_HOST_ID".to_string(), "some machine id".to_string())]);
+
+        let identifiers_provider = IdentifiersProvider::new(system_detector, cloud_detector);
+        let actual = get_additional_env(&identifiers_provider);
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn build_additional_env_from_system_provider_with_cloud() {
+        let mut system_detector = MockSystemDetectorMock::default();
+        let mut cloud_detector = MockCloudDetectorMock::default();
+        let system_resource = Resource::new([(
+            "machine_id".to_string().into(),
+            "some machine id".to_string().into(),
+        )]);
+        let cloud_resource = Resource::new([(
+            "cloud_instance_id".to_string().into(),
+            "some cloud id".to_string().into(),
+        )]);
+
+        system_detector.should_detect(system_resource);
+        cloud_detector.should_detect(cloud_resource);
+
+        let expected = HashMap::from([("NR_HOST_ID".to_string(), "some cloud id".to_string())]);
+
+        let identifiers_provider = IdentifiersProvider::new(system_detector, cloud_detector);
+        let actual = get_additional_env(&identifiers_provider);
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn build_additional_env_with_empty_but_valid_detection() {
+        // The detectors might return an Ok(_) result but with empty resources. What happens?
+        let mut system_detector = MockSystemDetectorMock::default();
+        let mut cloud_detector = MockCloudDetectorMock::default();
+        let system_resource = Resource::new([]);
+        let cloud_resource = Resource::new([]);
+
+        system_detector.should_detect(system_resource);
+        cloud_detector.should_detect(cloud_resource);
+
+        // Ok(_) results will "unset" the host ID. Do we want this?
+        let expected = HashMap::from([("NR_HOST_ID".to_string(), "".to_string())]);
+
+        let identifiers_provider = IdentifiersProvider::new(system_detector, cloud_detector);
+        let actual = get_additional_env(&identifiers_provider);
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn build_additional_env_with_failing_system_detection_does_not_detect_cloud() {
+        let mut system_detector = MockSystemDetectorMock::default();
+        let mut cloud_detector = MockCloudDetectorMock::default();
+        let system_detection_err =
+            DetectError::SystemError(SystemDetectorError::HostnameError("random err".into()));
+
+        system_detector.should_fail_detection(system_detection_err);
+        cloud_detector.expect_detect().never();
+
+        let expected = HashMap::from([]);
+
+        let identifiers_provider = IdentifiersProvider::new(system_detector, cloud_detector);
+        let actual = get_additional_env(&identifiers_provider);
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn build_additional_env_with_failing_cloud_detection() {
+        let mut system_detector = MockSystemDetectorMock::default();
+        let mut cloud_detector = MockCloudDetectorMock::default();
+        let system_resource = Resource::new([]);
+        let cloud_detection_err =
+            DetectError::CloudIdError(CloudIdDetectorError::UnsuccessfulCloudIdCheck());
+
+        system_detector.should_detect(system_resource);
+        cloud_detector.should_fail_detection(cloud_detection_err);
+
+        let expected = HashMap::from([("NR_HOST_ID".to_string(), "".to_string())]);
+
+        let identifiers_provider = IdentifiersProvider::new(system_detector, cloud_detector);
+        let actual = get_additional_env(&identifiers_provider);
+
+        assert_eq!(expected, actual);
     }
 }
