@@ -1,6 +1,6 @@
 use crate::agent_type::health_config::ExecHealth;
 
-use super::health_checker::HealthChecker;
+use super::health_checker::{HealthChecker, HealthCheckerError};
 use std::time::Duration;
 
 #[derive(Debug, Default)]
@@ -28,8 +28,7 @@ impl ExecHealthChecker {
 }
 
 impl HealthChecker for ExecHealthChecker {
-    type Error = std::fmt::Error;
-    fn check_health(&self) -> Result<(), Self::Error> {
+    fn check_health(&self) -> Result<(), HealthCheckerError> {
         Ok(())
     }
 

@@ -269,7 +269,8 @@ fn spawn_health_checker<H>(
             }
             Err(e) => publish_health_event(
                 &health_publisher,
-                SubAgentInternalEvent::AgentBecameUnhealthy(e.to_string()),
+                // TODO: Passing the raw status for now. Pass both `last_error` and `status`.
+                SubAgentInternalEvent::AgentBecameUnhealthy(e.status()),
             ),
         }
 
@@ -314,28 +315,17 @@ pub mod sleep_supervisor_tests {
     use super::{NotStarted, SupervisorConfigOnHost};
     use crate::context::Context;
     use crate::event::channel::pub_sub;
+    use crate::sub_agent::health::health_checker::HealthCheckerError;
     use crate::sub_agent::on_host::supervisor::command_supervisor_config::ExecutableData;
     use crate::sub_agent::restart_policy::{Backoff, BackoffStrategy, RestartPolicy};
     use mockall::{mock, Sequence};
-    use std::error::Error;
-    use std::fmt::Display;
     use std::time::{Duration, Instant};
     use tracing_test::traced_test;
-
-    #[derive(Debug)]
-    pub struct MockHealthErrorMock;
-    impl Display for MockHealthErrorMock {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(f, "mocked health check error!")
-        }
-    }
-    impl Error for MockHealthErrorMock {}
 
     mock! {
         pub HealthCheckerMock {}
         impl HealthChecker for HealthCheckerMock {
-            type Error = MockHealthErrorMock;
-            fn check_health(&self) -> Result<(), <Self as HealthChecker>::Error>;
+            fn check_health(&self) -> Result<(), HealthCheckerError>;
             fn interval(&self) -> Duration;
         }
     }
@@ -516,7 +506,10 @@ pub mod sleep_supervisor_tests {
             .returning(move || {
                 // Ensure the health checker will quit after the second loop
                 cancel_publisher.publish(()).unwrap();
-                Err(MockHealthErrorMock)
+                Err(HealthCheckerError::new(
+                    "mocked health check error!".to_string(),
+                    "".to_string(),
+                ))
             });
         health_checker
             .expect_interval()
@@ -594,7 +587,12 @@ pub mod sleep_supervisor_tests {
             .expect_check_health()
             .once()
             .in_sequence(&mut seq)
-            .returning(|| Err(MockHealthErrorMock));
+            .returning(|| {
+                Err(HealthCheckerError::new(
+                    "mocked health check error!".to_string(),
+                    "".to_string(),
+                ))
+            });
         health_checker
             .expect_interval()
             .once()
@@ -607,7 +605,10 @@ pub mod sleep_supervisor_tests {
             .returning(move || {
                 // Ensure the health checker will quit after the second loop
                 cancel_publisher.publish(()).unwrap();
-                Err(MockHealthErrorMock)
+                Err(HealthCheckerError::new(
+                    "mocked health check error!".to_string(),
+                    "".to_string(),
+                ))
             });
         health_checker
             .expect_interval()

@@ -1,20 +1,17 @@
 use std::time::Duration;
 
-use thiserror::Error;
-
 use crate::agent_type::health_config::{HealthCheck, HealthConfig};
 
 use super::{exec::ExecHealthChecker, http::HttpHealthChecker};
 
 /// A type that implements a health checking mechanism.
 pub trait HealthChecker {
-    type Error: std::error::Error;
     /// Check the health of the agent. `Ok(())` means the agent is healthy. Otherwise,
     /// we will have an `Err(e)` where `e` is the error with agent-specific semantics
     /// with which we will build the OpAMP's `ComponentHealth.status` contents.
     /// See OpAMP's [spec](https://github.com/open-telemetry/opamp-spec/blob/main/specification.md#componenthealthstatus)
     /// for more details.
-    fn check_health(&self) -> Result<(), Self::Error>;
+    fn check_health(&self) -> Result<(), HealthCheckerError>;
 
     fn interval(&self) -> Duration;
 }
@@ -24,12 +21,31 @@ pub(crate) enum HealthCheckerType {
     Exec(ExecHealthChecker),
 }
 
-#[derive(Debug, Error)]
-pub enum HealthCheckerError {
-    #[error(transparent)] // We forward the errors as is
-    HttpError(std::fmt::Error),
-    #[error(transparent)] // We forward the errors as is
-    ExecError(std::fmt::Error),
+/// Health check errors. Its structure mimics the OpAMP's spec for containing relevant information
+#[derive(Debug)]
+pub struct HealthCheckerError {
+    /// Status contents using agent-specific semantics. This might be the response body of an HTTP
+    /// checker or the stdout/stderr of an exec checker.
+    status: String,
+
+    /// Error information in human-readable format. We could use this to specify what kind of checker
+    /// failed, e.g., "HTTP checker failed with error: {error}". While passing the raw error to the
+    /// `status` field.
+    last_error: String,
+}
+
+impl HealthCheckerError {
+    pub fn new(status: String, last_error: String) -> Self {
+        Self { status, last_error }
+    }
+
+    pub fn status(self) -> String {
+        self.status
+    }
+
+    pub fn last_error(self) -> String {
+        self.last_error
+    }
 }
 
 impl From<HealthConfig> for HealthCheckerType {
@@ -48,15 +64,10 @@ impl From<HealthConfig> for HealthCheckerType {
 }
 
 impl HealthChecker for HealthCheckerType {
-    type Error = HealthCheckerError;
-    fn check_health(&self) -> Result<(), Self::Error> {
+    fn check_health(&self) -> Result<(), HealthCheckerError> {
         match self {
-            HealthCheckerType::Http(http_checker) => http_checker
-                .check_health()
-                .map_err(HealthCheckerError::HttpError),
-            HealthCheckerType::Exec(exec_checker) => exec_checker
-                .check_health()
-                .map_err(HealthCheckerError::ExecError),
+            HealthCheckerType::Http(http_checker) => http_checker.check_health(),
+            HealthCheckerType::Exec(exec_checker) => exec_checker.check_health(),
         }
     }
 

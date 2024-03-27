@@ -1,4 +1,4 @@
-use super::health_checker::HealthChecker;
+use super::health_checker::{HealthChecker, HealthCheckerError};
 use crate::agent_type::health_config::HttpHealth;
 use std::time::Duration;
 
@@ -29,8 +29,7 @@ impl HttpHealthChecker {
 }
 
 impl HealthChecker for HttpHealthChecker {
-    type Error = std::fmt::Error;
-    fn check_health(&self) -> Result<(), Self::Error> {
+    fn check_health(&self) -> Result<(), HealthCheckerError> {
         Ok(())
     }
 
