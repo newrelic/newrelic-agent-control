@@ -7,6 +7,8 @@ use crate::sub_agent::{NotStarted, Started};
 use crate::super_agent::config::AgentID;
 use tracing::error;
 
+use super::SupervisorError;
+
 ////////////////////////////////////////////////////////////////////////////////////
 // SubAgent On K8s
 ////////////////////////////////////////////////////////////////////////////////////
@@ -34,6 +36,28 @@ where
             state: NotStarted { event_processor },
         }
     }
+
+    fn handle_supervisor_error(&self, err: &SupervisorError) {
+        let msg = "the creation/update of k8s resources failed";
+        error!(
+            agent_id = self.agent_id.to_string(),
+            err = err.to_string(),
+            "{msg}"
+        );
+
+        let _ = self
+            .sub_agent_internal_publisher
+            .publish(SubAgentInternalEvent::AgentBecameUnhealthy(format!(
+                "{msg}: {err}"
+            )))
+            .inspect_err(|event_err| {
+                error!(
+                    agent_id = self.agent_id.to_string(),
+                    err = event_err.to_string(),
+                    "cannot publish unhealthy event"
+                );
+            });
+    }
 }
 
 impl<E> NotStartedSubAgent for SubAgentK8s<NotStarted<E>>
@@ -47,12 +71,10 @@ where
     // - it starts processing events (internal and opamp ones)
     fn run(self) -> Result<Self::StartedSubAgent, SubAgentError> {
         if let Some(cr_supervisor) = &self.supervisor {
-            cr_supervisor.apply().inspect_err(|err| {
-                error!(
-                    "The creation of the resources failed for '{}': '{}'",
-                    self.agent_id, err
-                )
-            })?;
+            let _ = cr_supervisor.apply().inspect_err(|err| {
+                self.handle_supervisor_error(err); // TODO: if the supervisor error is handled here, why returning an error?
+                                                   // Should it be handled in the super-agent?
+            });
         }
 
         let event_loop_handle = self.state.event_processor.process();

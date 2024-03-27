@@ -410,8 +410,7 @@ mod test {
             .returning(|_, _| Ok(()));
 
         let mut sub_agent_event_processor_builder = MockSubAgentEventProcessorBuilderMock::new();
-        let sub_agent_event_processor = MockEventProcessorMock::default();
-        sub_agent_event_processor_builder.should_build(sub_agent_event_processor);
+        sub_agent_event_processor_builder.should_return_event_processor_with_consumer();
 
         let k8s_config = K8sConfig {
             cluster_name: "test-cluster".to_string(),
@@ -438,7 +437,7 @@ mod test {
             )
             .unwrap() // Not started agent
             .run()
-            .is_err())
+            .is_ok())
     }
 
     #[test]
