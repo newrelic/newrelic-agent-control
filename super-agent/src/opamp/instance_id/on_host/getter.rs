@@ -320,4 +320,36 @@ mod test {
         };
         assert_eq!(expected_identifiers, identifiers);
     }
+
+    #[test]
+    fn test_predefined_host_id_overrides() {
+        let mut system_detector_mock = MockSystemDetectorMock::new();
+        let mut cloud_id_detector_mock = MockCloudDetectorMock::new();
+        cloud_id_detector_mock.should_detect(Resource::new([(
+            "cloud_instance_id".to_string().into(),
+            Value::from("abc".to_string()),
+        )]));
+        system_detector_mock.expect_detect().once().returning(|| {
+            Ok(Resource::new([
+                (
+                    Key::from("hostname".to_string()),
+                    Value::from("some.example.org".to_string()),
+                ),
+                (
+                    "machine_id".to_string().into(),
+                    Value::from("some machine-id".to_string()),
+                ),
+            ]))
+        });
+        let identifiers_provider = IdentifiersProvider {
+            system_detector: system_detector_mock,
+            cloud_id_detector: cloud_id_detector_mock,
+            host_id: String::new(),
+        };
+        // Add a host_id
+        let identifiers_provider = identifiers_provider.with_host_id("some-host-id".to_string());
+
+        let identifiers = identifiers_provider.provide().unwrap();
+        assert_eq!(identifiers.host_id, "some-host-id");
+    }
 }
