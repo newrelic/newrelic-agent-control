@@ -1200,6 +1200,24 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
+## rust-embed https://crates.io/crates/rust-embed
+
+Distributed under the following license(s):
+* MIT
+
+
+## rust-embed-impl https://crates.io/crates/rust-embed-impl
+
+Distributed under the following license(s):
+* MIT
+
+
+## rust-embed-utils https://crates.io/crates/rust-embed-utils
+
+Distributed under the following license(s):
+* MIT
+
+
 ## rust_decimal https://crates.io/crates/rust_decimal
 
 Distributed under the following license(s):

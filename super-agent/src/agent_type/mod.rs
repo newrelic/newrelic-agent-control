@@ -3,6 +3,7 @@ pub mod agent_metadata;
 pub mod agent_type_registry;
 pub mod agent_values;
 pub mod definition;
+pub mod embedded_registry;
 pub mod environment;
 pub mod error;
 pub mod health_config;

@@ -32,6 +32,7 @@ ulid = { workspace = true, features = ["serde"] }
 duration-str = "0.7.0"
 fs = { path = "../fs" }
 konst = { workspace = true }
+rust-embed= { version = "8.3.0", features = ["debug-embed", "include-exclude"]}
 
 # OnHost subagent dependencies
 # IMPORTANT: All onhost only deps needs to be `optional = true` so they won't be compiled by default

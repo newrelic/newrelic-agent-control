@@ -94,7 +94,9 @@ impl LocalRegistry {
 
 #[cfg(test)]
 pub mod tests {
-    use crate::agent_type::definition::tests::AGENT_GIVEN_YAML;
+    use crate::agent_type::{
+        definition::tests::AGENT_GIVEN_YAML, embedded_registry::EmbeddedRegistry,
+    };
 
     use super::*;
     use mockall::{mock, predicate};
@@ -165,5 +167,27 @@ pub mod tests {
             invalid_lookup.unwrap_err().to_string(),
             "agent not found".to_string()
         )
+    }
+
+    #[test]
+    fn test_embeded_and_local_defaults() {
+        // TODO: this is a temporarily test to check that migration from `LocalRegistry` to `EmbeddedRegistry` would
+        // be feasible (both registry defaults should have the same content).
+
+        let embedded = EmbeddedRegistry::default();
+        let local = LocalRegistry::default();
+
+        for name in local.0.keys() {
+            let from_local = local.get(name).unwrap();
+            let from_embedded = embedded
+                .get(name)
+                .unwrap_or_else(|_| panic!("{name} is not defined in the embedded registry"));
+
+            assert_eq!(
+                from_local,
+                from_embedded,
+                "The definition for {name} in the embedded registry doesn't match with the one in local",
+            );
+        }
     }
 }
