@@ -1,0 +1,39 @@
+namespace: newrelic
+name: com.newrelic.infrastructure_agent
+version: 0.0.2
+variables:
+  on_host:
+    config_agent:
+      description: "Newrelic infra configuration"
+      type: file
+      required: false
+      default: |
+        "content"
+      file_path: "newrelic-infra.yml"
+    config_ohis:
+      description: "map of YAML configs for the OHIs"
+      type: map[string]file
+      required: false
+      default: {}
+      file_path: "integrations.d"
+    logging:
+      description: "map of YAML config for logging"
+      type: map[string]file
+      required: false
+      default: {}
+      file_path: "logging.d"
+    backoff_delay:
+      description: "seconds until next retry if agent fails to start"
+      type: string
+      required: false
+      default: 20s
+deployment:
+  on_host:
+    executables:
+      - path: /usr/bin/newrelic-infra
+        args: "--config=${nr-var:config_agent}"
+        env: "NRIA_PLUGIN_DIR=${nr-var:config_ohis} NRIA_LOGGING_CONFIGS_DIR=${nr-var:logging}"
+        restart_policy:
+          backoff_strategy:
+            type: fixed
+            backoff_delay: ${nr-var:backoff_delay}
