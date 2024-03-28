@@ -553,6 +553,13 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
+## glob https://crates.io/crates/glob
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
 ## globset https://crates.io/crates/globset
 
 Distributed under the following license(s):
