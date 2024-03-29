@@ -221,19 +221,15 @@ fn get_hostname() -> String {
 
 fn get_additional_env<D1, D2>(
     identifiers_provider: &IdentifiersProvider<D1, D2>,
-) -> HashMap<String, String>
+) -> impl IntoIterator<Item = (String, String)>
 where
     D1: Detector,
     D2: Detector,
 {
-    let mut additional_env = HashMap::new();
-    let host_id = identifiers_provider.provide().map(|ids| ids.host_id);
-
-    if let Ok(host_id) = &host_id {
-        additional_env.insert("NR_HOST_ID".to_string(), host_id.clone());
-    }
-
-    additional_env
+    identifiers_provider
+        .provide()
+        .map(|ids| vec![("NR_HOST_ID".to_string(), ids.host_id)])
+        .unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -471,7 +467,9 @@ mod test {
         let expected = HashMap::from([("NR_HOST_ID".to_string(), "some machine id".to_string())]);
 
         let identifiers_provider = IdentifiersProvider::new(system_detector, cloud_detector);
-        let actual = get_additional_env(&identifiers_provider);
+        let actual = get_additional_env(&identifiers_provider)
+            .into_iter()
+            .collect();
 
         assert_eq!(expected, actual);
     }
@@ -495,7 +493,9 @@ mod test {
         let expected = HashMap::from([("NR_HOST_ID".to_string(), "some cloud id".to_string())]);
 
         let identifiers_provider = IdentifiersProvider::new(system_detector, cloud_detector);
-        let actual = get_additional_env(&identifiers_provider);
+        let actual = get_additional_env(&identifiers_provider)
+            .into_iter()
+            .collect();
 
         assert_eq!(expected, actual);
     }
@@ -515,7 +515,9 @@ mod test {
         let expected = HashMap::from([("NR_HOST_ID".to_string(), "".to_string())]);
 
         let identifiers_provider = IdentifiersProvider::new(system_detector, cloud_detector);
-        let actual = get_additional_env(&identifiers_provider);
+        let actual = get_additional_env(&identifiers_provider)
+            .into_iter()
+            .collect();
 
         assert_eq!(expected, actual);
     }
@@ -533,7 +535,9 @@ mod test {
         let expected = HashMap::from([]);
 
         let identifiers_provider = IdentifiersProvider::new(system_detector, cloud_detector);
-        let actual = get_additional_env(&identifiers_provider);
+        let actual = get_additional_env(&identifiers_provider)
+            .into_iter()
+            .collect();
 
         assert_eq!(expected, actual);
     }
@@ -552,7 +556,9 @@ mod test {
         let expected = HashMap::from([("NR_HOST_ID".to_string(), "".to_string())]);
 
         let identifiers_provider = IdentifiersProvider::new(system_detector, cloud_detector);
-        let actual = get_additional_env(&identifiers_provider);
+        let actual = get_additional_env(&identifiers_provider)
+            .into_iter()
+            .collect();
 
         assert_eq!(expected, actual);
     }
