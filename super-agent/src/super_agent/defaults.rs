@@ -405,7 +405,7 @@ deployment:
 pub(crate) const NRDOT_TYPE_0_1_1: &str = r#"
 namespace: newrelic
 name: io.opentelemetry.collector
-version: 0.1.0
+version: 0.1.1
 variables:
   on_host:
     config:
