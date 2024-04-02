@@ -171,10 +171,11 @@ fn start_process_thread(
             if let Some(health_checker) = not_started_supervisor
                 .health
                 .as_ref()
-                .map(|h| HealthCheckerType::from(h.clone()))
+                .map(|h| HealthCheckerType::try_from(h.clone()))
             {
                 spawn_health_checker(
-                    health_checker,
+                    // TODO: fix unwrap
+                    health_checker.unwrap(),
                     health_check_cancel_consumer,
                     internal_event_publisher.clone(),
                 )
