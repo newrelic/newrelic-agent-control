@@ -1,13 +1,14 @@
 use crate::common::{
-    block_on, check_deployments_exist, create_mock_config_maps, tokio_runtime,
-    MockOpAMPClientBuilderMock, MockStartedOpAMPClientMock,
+    block_on, check_deployments_exist, create_mock_config_maps,
+    create_mock_config_maps_local_sa_config, tokio_runtime, K8sEnv, MockOpAMPClientBuilderMock,
+    MockStartedOpAMPClientMock,
 };
-use kube::Client;
 use newrelic_super_agent::k8s::store::STORE_KEY_LOCAL_DATA_CONFIG;
 use newrelic_super_agent::opamp::callbacks::AgentCallbacks;
 use newrelic_super_agent::opamp::instance_id;
 use newrelic_super_agent::opamp::remote_config_publisher::OpAMPRemoteConfigPublisher;
 use newrelic_super_agent::super_agent::config_storer::storer::SuperAgentConfigLoader;
+use newrelic_super_agent::super_agent::config_storer::SubAgentListStorerConfigMap;
 use newrelic_super_agent::{
     agent_type::{agent_type_registry::LocalRegistry, renderer::TemplateRenderer},
     event::{
@@ -34,27 +35,21 @@ use newrelic_super_agent::{
         super_agent_fqn, SuperAgent,
     },
 };
-use std::path::PathBuf;
+use std::path::Path;
 use std::thread::JoinHandle;
 use std::{
     collections::HashMap,
-    io::Write,
     sync::{Arc, Mutex},
     thread::sleep as thread_sleep,
     thread::spawn,
     time::Duration,
 };
-use tempfile::NamedTempFile;
 
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_opamp_add_sub_agent() {
-    let k8s_ns = "default";
-    // We need to create this (raw) client in order to query the K8s API.
-    let client = block_on(async { Client::try_default().await.unwrap() });
-    // We need to create it outside to avoid NamedTempFile being dropped.
-    // TODO: Temporary workaround waiting on the super-agent config to be persisted on a config map.
-    let super_agent_config = create_super_agent_config();
+    let mut k8s = block_on(K8sEnv::new());
+    let k8s_ns = block_on(k8s.test_namespace());
 
     // Set OpAMP client builders mock expectations.
     let super_agent_expectations = vec![OpAMPExpectation {
@@ -75,20 +70,29 @@ fn k8s_opamp_add_sub_agent() {
         },
     ];
 
-    let test_env = K8sOpAMPEnv::new(
-        super_agent_config.path().to_path_buf(),
-        k8s_ns,
-        super_agent_expectations,
-        sub_agent_expectations,
-    );
+    let test_name = "k8s_opamp_add_sub_agent";
+    block_on(create_mock_config_maps_local_sa_config(
+        k8s.client.clone(),
+        k8s_ns.as_str(),
+        test_name,
+        STORE_KEY_LOCAL_DATA_CONFIG,
+    ));
 
     // Create config map for the sub agent defined in the initial config.
     block_on(create_mock_config_maps(
-        client.clone(),
-        k8s_ns,
+        k8s.client.clone(),
+        k8s_ns.as_str(),
+        test_name,
         "local-data-open-telemetry",
         STORE_KEY_LOCAL_DATA_CONFIG,
     ));
+
+    let test_env = K8sOpAMPEnv::new(
+        Path::new(format!("test/k8s/data/{test_name}/local-sa.k8s_tmp").as_str()),
+        k8s_ns.as_str(),
+        super_agent_expectations,
+        sub_agent_expectations,
+    );
 
     // Retrieve needed values before run_super_agent consumes itself.
     let opamp_publisher = test_env.opamp_publisher.clone();
@@ -117,14 +121,15 @@ agents:
     // expected to come from a remote source. Here, for the purposes of testing, we manually
     // create a mock config map locally to simulate the presence of agent configuration.
     block_on(create_mock_config_maps(
-        client.clone(),
-        k8s_ns,
+        k8s.client.clone(),
+        k8s_ns.as_str(),
+        test_name,
         "local-data-open-telemetry-2",
         STORE_KEY_LOCAL_DATA_CONFIG,
     ));
 
     // Wait some time to let the super agent to be up.
-    thread_sleep(Duration::from_millis(500));
+    thread_sleep(Duration::from_millis(1000));
 
     opamp_publisher
         .publish(OpAMPEvent::RemoteConfigReceived(remote_config))
@@ -134,12 +139,12 @@ agents:
     thread_sleep(Duration::from_millis(5000));
 
     block_on(check_deployments_exist(
-        client,
+        k8s.client.clone(),
         &[
             "open-telemetry-opentelemetry-collector",
             "open-telemetry-2-opentelemetry-collector",
         ],
-        k8s_ns,
+        k8s_ns.as_str(),
         20,
         Duration::from_millis(1500),
     ));
@@ -165,7 +170,7 @@ struct K8sOpAMPEnv {
     k8s_config: K8sConfig,
     instance_id_getter: ULIDInstanceIDGetter<Storer>,
     hash_repository: Arc<HashRepositoryConfigMap>,
-    config_storer: Arc<SuperAgentConfigStoreFile>,
+    config_storer: Arc<SubAgentListStorerConfigMap>,
     opamp_publisher: EventPublisher<OpAMPEvent>,
     opamp_consumer: EventConsumer<OpAMPEvent>,
     super_agent_publisher: EventPublisher<SuperAgentEvent>,
@@ -186,18 +191,18 @@ impl K8sOpAMPEnv {
     // The new method follows the same setup process as the main function, preparing all necessary components up to the point of running the super agent.
     // Ideally, if the run_super_agent function were located in its own module rather than the main, we could leverage it.
     fn new(
-        config_file: PathBuf,
+        config_file: &Path,
         namespace: &str,
         super_agent_expectations: Vec<OpAMPExpectation>,
         sub_agent_expectations: Vec<OpAMPExpectation>,
     ) -> Self {
-        let super_agent_config_storer =
-            SuperAgentConfigStoreFile::new(config_file.as_path()).with_remote();
+        let sa_local_config_storer = SuperAgentConfigStoreFile::new(config_file);
 
         let (k8s_config, k8s_client, k8s_store, instance_id_getter, hash_repository) =
-            Self::setup_environment(namespace.to_string(), &super_agent_config_storer);
+            Self::setup_environment(namespace.to_string(), &sa_local_config_storer);
 
-        let config_storer = Arc::new(super_agent_config_storer);
+        let sub_agent_list_storer =
+            Arc::new(SubAgentListStorerConfigMap::new(k8s_store.clone()).with_remote());
 
         let (opamp_publisher, opamp_consumer) = pub_sub();
         let (super_agent_publisher, super_agent_consumer) = pub_sub();
@@ -224,7 +229,7 @@ impl K8sOpAMPEnv {
             k8s_config,
             instance_id_getter,
             hash_repository,
-            config_storer,
+            config_storer: sub_agent_list_storer,
             agents_assembler,
             opamp_publisher,
             opamp_consumer,
@@ -348,26 +353,4 @@ impl K8sOpAMPEnv {
         }
         (builder, publishers)
     }
-}
-
-// TODO: remove it when we leverage configMaps to store the super agent config.
-// create_super_agent_config create a temporary file and writes a predefined super
-// agent configuration to it. The file is automatically deleted when it goes out of scope,
-// ensuring no leftover files from test runs.
-pub fn create_super_agent_config() -> NamedTempFile {
-    let mut temp_file = NamedTempFile::new().expect("Failed to create a temporary file");
-    let local_config = r#"
-opamp:
-  endpoint: https://opamp.staging-service.newrelic.com/v1/opamp
-  headers:
-    api-key: test-api-key
-k8s:
-  namespace: default
-  cluster_name: minikube
-agents:
-  open-telemetry:
-    agent_type: "newrelic/io.opentelemetry.collector:0.0.1"
-"#;
-    write!(temp_file, "{}", local_config).unwrap();
-    temp_file
 }

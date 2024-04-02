@@ -25,6 +25,7 @@ use newrelic_super_agent::{
     opamp::client_builder::{OpAMPClientBuilder, OpAMPClientBuilderError},
     super_agent::{
         config::{AgentID, AgentTypeError, SuperAgentConfig, SuperAgentConfigError},
+        config_storer::storer::SubAgentsConfigLoader,
         config_storer::storer::SuperAgentConfigLoader,
     },
 };
@@ -413,6 +414,7 @@ pub async fn create_test_cr(client: Client, namespace: &str, name: &str) -> Foo 
 }
 
 use mockall::mock;
+use newrelic_super_agent::super_agent::config::SubAgentsConfig;
 use tokio::time::sleep;
 
 mock! {
@@ -420,6 +422,14 @@ mock! {
 
     impl SuperAgentConfigLoader for SuperAgentConfigLoader {
         fn load(&self) -> Result<SuperAgentConfig, SuperAgentConfigError>;
+    }
+}
+
+mock! {
+    pub SubAgentsConfigLoader{}
+
+    impl SubAgentsConfigLoader for SubAgentsConfigLoader {
+        fn load(&self) -> Result<SubAgentsConfig, SuperAgentConfigError>;
     }
 }
 
@@ -442,16 +452,22 @@ pub fn start_super_agent(file_path: &Path) -> std::process::Child {
     command.spawn().expect("Failed to start super agent")
 }
 
-pub async fn create_mock_config_maps(client: Client, test_ns: &str, name: &str, key: &str) {
+pub async fn create_mock_config_maps(
+    client: Client,
+    test_ns: &str,
+    folder_name: &str,
+    name: &str,
+    key: &str,
+) {
     let cm_client: Api<ConfigMap> = Api::<ConfigMap>::namespaced(client, test_ns);
     let mut content = String::new();
-    File::open(format!("test/k8s/data/{}.yaml", name))
+    File::open(format!("test/k8s/data/{}/{}.yaml", folder_name, name))
         .unwrap()
         .read_to_string(&mut content)
         .unwrap();
 
     let mut data = BTreeMap::new();
-    data.insert(key.to_string(), content);
+    data.insert(key.to_string(), content.replace("<ns>", test_ns));
 
     let cm = ConfigMap {
         binary_data: None,
@@ -465,6 +481,49 @@ pub async fn create_mock_config_maps(client: Client, test_ns: &str, name: &str, 
 
     // Making sure to clean up the cluster first
     _ = cm_client.delete(name, &DeleteParams::default()).await;
+    cm_client.create(&PostParams::default(), &cm).await.unwrap();
+}
+
+// This help function template the namespace, save the new file and create the cm
+pub async fn create_mock_config_maps_local_sa_config(
+    client: Client,
+    test_ns: &str,
+    folder_name: &str,
+    key: &str,
+) {
+    let cm_client: Api<ConfigMap> = Api::<ConfigMap>::namespaced(client, test_ns);
+    let mut content = String::new();
+    File::open(format!(
+        "test/k8s/data/{}/local-data-super-agent.template",
+        folder_name
+    ))
+    .unwrap()
+    .read_to_string(&mut content)
+    .unwrap();
+    let content = content.replace("<ns>", test_ns);
+
+    let mut data = BTreeMap::new();
+    data.insert(key.to_string(), content.clone());
+
+    File::create(format!("test/k8s/data/{}/local-sa.k8s_tmp", folder_name))
+        .unwrap()
+        .write_all(content.as_bytes())
+        .unwrap();
+
+    let cm = ConfigMap {
+        binary_data: None,
+        data: Some(data),
+        immutable: None,
+        metadata: ObjectMeta {
+            name: Some("local-data-super-agent".to_string()),
+            ..Default::default()
+        },
+    };
+
+    // Making sure to clean up the cluster first
+    _ = cm_client
+        .delete("local-data-super-agent", &DeleteParams::default())
+        .await;
     cm_client.create(&PostParams::default(), &cm).await.unwrap();
 }
 

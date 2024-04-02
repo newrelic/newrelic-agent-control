@@ -1,5 +1,6 @@
 use crate::common::{
-    block_on, check_deployments_exist, create_mock_config_maps, start_super_agent, K8sEnv,
+    block_on, check_deployments_exist, create_mock_config_maps,
+    create_mock_config_maps_local_sa_config, start_super_agent, K8sEnv,
 };
 use newrelic_super_agent::k8s::store::STORE_KEY_LOCAL_DATA_CONFIG;
 use std::path::Path;
@@ -8,20 +9,30 @@ use std::time::Duration;
 #[test]
 #[ignore = "needs a k8s cluster"]
 fn k8s_sub_agent_started() {
-    let file_path = Path::new("test/k8s/data/static.yml");
+    let test_name = "k8s_sub_agent_started";
+    let file_name = format!("test/k8s/data/{test_name}/local-sa.k8s_tmp");
+    let file_path = Path::new(file_name.as_str());
     // Setup k8s env
-    let k8s = block_on(K8sEnv::new());
-    let namespace = "default";
+    let mut k8s = block_on(K8sEnv::new());
+    let namespace = block_on(k8s.test_namespace());
 
+    block_on(create_mock_config_maps_local_sa_config(
+        k8s.client.clone(),
+        namespace.as_str(),
+        test_name,
+        STORE_KEY_LOCAL_DATA_CONFIG,
+    ));
     block_on(create_mock_config_maps(
         k8s.client.clone(),
-        namespace,
+        namespace.as_str(),
+        test_name,
         "local-data-my-agent-id",
         STORE_KEY_LOCAL_DATA_CONFIG,
     ));
     block_on(create_mock_config_maps(
         k8s.client.clone(),
-        namespace,
+        namespace.as_str(),
+        test_name,
         "local-data-my-agent-id-2",
         STORE_KEY_LOCAL_DATA_CONFIG,
     ));
@@ -37,17 +48,8 @@ fn k8s_sub_agent_started() {
     // Check deployment for first Agent is created with retry.
     block_on(check_deployments_exist(
         k8s.client.clone(),
-        &[deployment_name],
-        namespace,
-        max_retries,
-        duration,
-    ));
-
-    // Check deployment for second Agent is created with retry.
-    block_on(check_deployments_exist(
-        k8s.client.clone(),
-        &[deployment_name_2],
-        namespace,
+        &[deployment_name, deployment_name_2],
+        namespace.as_str(),
         max_retries,
         duration,
     ));

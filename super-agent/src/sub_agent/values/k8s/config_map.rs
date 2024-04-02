@@ -15,9 +15,9 @@ pub struct ValuesRepositoryConfigMap {
 
 #[derive(Error, Debug)]
 pub enum ValuesRepositoryError {
-    #[error("error from k8s storer: {0}")]
+    #[error("error from k8s storer while loading SubAgentConfig: {0}")]
     FailedToPersistK8s(#[from] k8s::Error),
-    #[error("serialize error on store: `{0}`")]
+    #[error("serialize error on store while loading SubAgentConfig: `{0}`")]
     StoreSerializeError(#[from] serde_yaml::Error),
 }
 

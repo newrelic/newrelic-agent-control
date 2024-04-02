@@ -1,0 +1,8 @@
+k8s:
+  namespace: <ns>
+  cluster_name: minikube
+agents:
+  my-agent-id:
+    agent_type: "newrelic/io.opentelemetry.collector:0.0.1"
+  my-agent-id-2:
+    agent_type: "newrelic/io.opentelemetry.collector:0.0.1"

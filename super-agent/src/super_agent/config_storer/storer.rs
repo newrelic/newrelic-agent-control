@@ -8,6 +8,7 @@ pub trait SuperAgentConfigLoader {
 pub trait SubAgentsConfigStorer {
     fn store(&self, config: &SubAgentsConfig) -> Result<(), SuperAgentConfigError>;
 }
+#[cfg_attr(test, mockall::automock)]
 pub trait SubAgentsConfigLoader {
     fn load(&self) -> Result<SubAgentsConfig, SuperAgentConfigError>;
 }

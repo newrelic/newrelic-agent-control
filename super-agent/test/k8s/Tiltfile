@@ -12,7 +12,9 @@ helm_repo(
   'https://helm-charts.newrelic.com',
   resource_name='newrelic-helm-repo',
 )
-  
+
+update_settings ( k8s_upsert_timeout_secs = 150)
+
 helm_resource(
   'flux',
   'newrelic/super-agent',
@@ -21,7 +23,7 @@ helm_resource(
   flags=[
     '--create-namespace',
     '--version=>=0.0.0-beta',
-    
+    '--set=flux2.watchAllNamespaces=true',
     '--set=helm.create=false',
     ],
   resource_deps=['newrelic-helm-repo']

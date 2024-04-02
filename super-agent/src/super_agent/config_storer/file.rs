@@ -2,13 +2,11 @@ use crate::super_agent::config::{SubAgentsConfig, SuperAgentConfig, SuperAgentCo
 use crate::super_agent::config_storer::storer::{
     SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer, SuperAgentConfigLoader,
 };
-use crate::super_agent::defaults::SUPER_AGENT_DATA_DIR;
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
-use thiserror::Error;
 use tracing::warn;
 
-#[derive(Error, Debug)]
+#[derive(thiserror::Error, Debug)]
 pub enum ConfigStoreError {
     #[error("error loading config: `{0}`")]
     IOError(#[from] std::io::Error),
@@ -16,6 +14,7 @@ pub enum ConfigStoreError {
     #[error("error loading config: `{0}`")]
     SerdeYamlError(#[from] serde_yaml::Error),
 }
+
 pub struct SuperAgentConfigStoreFile {
     local_path: PathBuf,
     remote_path: Option<PathBuf>,
@@ -48,8 +47,16 @@ impl SubAgentsConfigDeleter for SuperAgentConfigStoreFile {
 }
 
 impl SubAgentsConfigStorer for SuperAgentConfigStoreFile {
-    fn store(&self, config: &SubAgentsConfig) -> Result<(), SuperAgentConfigError> {
-        Ok(self._store_sub_agents_config(config)?)
+    fn store(&self, sub_agents: &SubAgentsConfig) -> Result<(), SuperAgentConfigError> {
+        //TODO we should inject DirectoryManager and ensure the directory exists
+        let _write_guard = self.rw_lock.write().unwrap();
+        let Some(remote_path_file) = &self.remote_path else {
+            unreachable!("we should not write into local paths");
+        };
+        Ok(serde_yaml::to_writer(
+            std::fs::File::create(remote_path_file)?,
+            sub_agents,
+        )?)
     }
 }
 
@@ -62,8 +69,15 @@ impl SuperAgentConfigStoreFile {
         }
     }
 
+    // with_remote is supported for onhost implementation only and to make sure it is not used
+    // we avoid to compile it for k8s
+    #[cfg(feature = "onhost")]
     pub fn with_remote(self) -> Self {
-        let remote_path = format!("{}/{}", SUPER_AGENT_DATA_DIR, "config.yaml");
+        let remote_path = format!(
+            "{}/{}",
+            crate::super_agent::defaults::SUPER_AGENT_DATA_DIR,
+            "config.yaml"
+        );
 
         Self {
             local_path: self.local_path,
@@ -96,22 +110,6 @@ impl SuperAgentConfigStoreFile {
         }
 
         Ok(local_config)
-    }
-
-    fn _store_sub_agents_config(
-        &self,
-        sub_agents: &SubAgentsConfig,
-    ) -> Result<(), ConfigStoreError> {
-        //TODO we should inject DirectoryManager and ensure the directory exists
-        let _write_guard = self.rw_lock.write().unwrap();
-        if let Some(remote_path_file) = &self.remote_path {
-            Ok(serde_yaml::to_writer(
-                std::fs::File::create(remote_path_file)?,
-                sub_agents,
-            )?)
-        } else {
-            unreachable!("we should not write into local paths")
-        }
     }
 }
 

@@ -48,3 +48,5 @@ local/
 /build/examples/**
 # ...except for the gitkeep file
 !/build/examples/.gitkeep
+
+**k8s_tmp

@@ -32,12 +32,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         return Ok(());
     }
 
-    let mut super_agent_config_storer = SuperAgentConfigStoreFile::new(&cli.get_config_path());
+    let sa_local_config_storer = SuperAgentConfigStoreFile::new(&cli.get_config_path());
 
-    let super_agent_config = super_agent_config_storer.load().inspect_err(|err| {
+    let super_agent_config = sa_local_config_storer.load().inspect_err(|err| {
         error!(
             "Could not read Super Agent config from {}: {}",
-            super_agent_config_storer.config_path().to_string_lossy(),
+            sa_local_config_storer.config_path().to_string_lossy(),
             err
         )
     })?;
@@ -73,14 +73,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         .as_ref()
         .map(|opamp_config| OpAMPHttpClientBuilder::new(opamp_config.clone()));
 
-    // enable remote config store
-    if opamp_client_builder.is_some() {
-        super_agent_config_storer = super_agent_config_storer.with_remote();
-    }
-
     #[cfg(any(feature = "onhost", feature = "k8s"))]
     run_super_agent(
-        Arc::new(super_agent_config_storer),
+        sa_local_config_storer,
         super_agent_consumer,
         opamp_client_builder,
     )
@@ -97,7 +92,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 #[cfg(feature = "onhost")]
 fn run_super_agent(
-    config_storer: Arc<SuperAgentConfigStoreFile>,
+    sa_config_storer: SuperAgentConfigStoreFile,
     super_agent_consumer: EventConsumer<SuperAgentEvent>,
     opamp_client_builder: Option<OpAMPHttpClientBuilder>,
 ) -> Result<(), AgentError> {
@@ -109,6 +104,13 @@ fn run_super_agent(
     use newrelic_super_agent::sub_agent::persister::config_persister_file::ConfigurationPersisterFile;
     use newrelic_super_agent::sub_agent::values::ValuesRepositoryFile;
     use newrelic_super_agent::super_agent::config::AgentID;
+
+    // enable remote config store
+    let config_storer = if opamp_client_builder.is_some() {
+        Arc::new(sa_config_storer.with_remote())
+    } else {
+        Arc::new(sa_config_storer)
+    };
 
     #[cfg(unix)]
     if !nix::unistd::Uid::effective().is_root() {
@@ -178,7 +180,7 @@ fn print_identifiers(identifiers: &Identifiers) {
 
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
 fn run_super_agent(
-    config_storer: Arc<SuperAgentConfigStoreFile>,
+    sa_local_config_storer: SuperAgentConfigStoreFile,
     super_agent_consumer: EventConsumer<SuperAgentEvent>,
     opamp_client_builder: Option<OpAMPHttpClientBuilder>,
 ) -> Result<(), AgentError> {
@@ -189,6 +191,7 @@ fn run_super_agent(
     use newrelic_super_agent::opamp::operations::build_opamp_and_start_client;
     use newrelic_super_agent::sub_agent::values::ValuesRepositoryConfigMap;
     use newrelic_super_agent::super_agent::config::AgentID;
+    use newrelic_super_agent::super_agent::config_storer::SubAgentListStorerConfigMap;
     use std::sync::OnceLock;
 
     /// Returns a static reference to a tokio runtime initialized on first usage.
@@ -203,7 +206,10 @@ fn run_super_agent(
     });
 
     info!("Starting the k8s client");
-    let k8s_config = config_storer.load()?.k8s.ok_or(AgentError::K8sConfig())?;
+    let k8s_config = sa_local_config_storer
+        .load()?
+        .k8s
+        .ok_or(AgentError::K8sConfig())?;
     let k8s_client = Arc::new(
         newrelic_super_agent::k8s::client::SyncK8sClient::try_new_with_reflectors(
             runtime,
@@ -260,6 +266,14 @@ fn run_super_agent(
         &super_agent_fqn(),
         non_identifying_attributes,
     )?;
+
+    let sub_agent_list_storer = SubAgentListStorerConfigMap::new(k8s_store.clone());
+    // enable remote config store
+    let config_storer = if opamp_client_builder.is_some() {
+        Arc::new(sub_agent_list_storer.with_remote())
+    } else {
+        Arc::new(sub_agent_list_storer)
+    };
 
     let gcc = NotStartedK8sGarbageCollector::new(config_storer.clone(), k8s_client);
     let _started_gcc = gcc.start();

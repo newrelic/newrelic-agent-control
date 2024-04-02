@@ -19,7 +19,11 @@ use newrelic_super_agent::opamp::instance_id::{
 use newrelic_super_agent::opamp::remote_config_hash::Hash;
 use newrelic_super_agent::sub_agent::values::values_repository::ValuesRepository;
 use newrelic_super_agent::sub_agent::values::ValuesRepositoryConfigMap;
-use newrelic_super_agent::super_agent::config::AgentID;
+use newrelic_super_agent::super_agent::config::{AgentID, SubAgentsConfig};
+use newrelic_super_agent::super_agent::config_storer::storer::{
+    SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer,
+};
+use newrelic_super_agent::super_agent::config_storer::SubAgentListStorerConfigMap;
 use std::sync::Arc;
 
 const AGENT_ID_1: &str = "agent-id-test";
@@ -107,7 +111,7 @@ fn k8s_value_repository_config_map() {
     let test_ns = block_on(test.test_namespace());
 
     let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime(), test_ns.clone()).unwrap());
-    let k8s_store = Arc::new(K8sStore::new(k8s_client.clone()));
+    let k8s_store = Arc::new(K8sStore::new(k8s_client));
     let agent_id_1 = AgentID::new(AGENT_ID_1).unwrap();
     let agent_id_2 = AgentID::new(AGENT_ID_2).unwrap();
 
@@ -128,6 +132,7 @@ fn k8s_value_repository_config_map() {
     block_on(create_mock_config_maps(
         test.client.clone(),
         test_ns.as_str(),
+        "k8s_value_repository_config_map",
         format!("local-data-{}", AGENT_ID_1).as_str(),
         STORE_KEY_LOCAL_DATA_CONFIG,
     ));
@@ -164,6 +169,54 @@ fn k8s_value_repository_config_map() {
     let res_agent_2 = value_repository.load(&agent_id_2, &agent_type);
     assert_eq!(res.unwrap(), local_values);
     assert_eq!(res_agent_2.unwrap(), remote_values_agent_2);
+}
+
+#[test]
+#[ignore = "needs k8s cluster"]
+fn k8s_sa_config_map() {
+    // This test covers the happy path of ValuesRepositoryConfigMap on K8s.
+
+    let mut test = block_on(K8sEnv::new());
+    let test_ns = block_on(test.test_namespace());
+    let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime(), test_ns.clone()).unwrap());
+
+    let k8s_store = Arc::new(K8sStore::new(k8s_client));
+
+    // with no value, it is expected to fail
+    let store_sa = SubAgentListStorerConfigMap::new(k8s_store);
+    assert!(store_sa.load().is_err());
+
+    // after creating a local config, we expect to be able to read it
+    block_on(create_mock_config_maps(
+        test.client.clone(),
+        test_ns.as_str(),
+        "k8s_sa_config_map",
+        "local-data-super-agent",
+        STORE_KEY_LOCAL_DATA_CONFIG,
+    ));
+    assert_eq!(store_sa.load().unwrap().agents.len(), 4);
+
+    // after removing an agent and storing it, we expect not to see it without remote enabled
+    let agents_cfg = r#"
+agents:
+  infra-agent-a:
+    agent_type: "com.newrelic.infrastructure_agent:0.0.2"
+  infra-agent-b:
+    agent_type: "com.newrelic.infrastructure_agent:0.0.2"
+  not-infra-agent:
+    agent_type: "io.opentelemetry.collector:0.0.1"
+"#;
+    let agents = &serde_yaml::from_str::<SubAgentsConfig>(agents_cfg).unwrap();
+    assert!(store_sa.store(agents).is_ok());
+    assert_eq!(store_sa.load().unwrap().agents.len(), 4);
+
+    // After enabling remote we can load the "remote" config
+    let store_sa = store_sa.with_remote();
+    assert_eq!(store_sa.load().unwrap().agents.len(), 3);
+
+    // After deleting the remote config the local one is loaded
+    assert!(store_sa.delete().is_ok());
+    assert_eq!(store_sa.load().unwrap().agents.len(), 4);
 }
 
 #[test]

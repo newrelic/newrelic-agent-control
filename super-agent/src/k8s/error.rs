@@ -1,8 +1,6 @@
 use kube::core::gvk::ParseGroupVersionError;
 use kube::{api, config::KubeconfigError};
 
-use crate::super_agent::config::SuperAgentConfigError;
-
 #[derive(thiserror::Error, Debug)]
 pub enum K8sError {
     #[error("it is not possible to create a k8s client: {0}")]
@@ -35,8 +33,9 @@ pub enum K8sError {
     #[error("while getting dynamic resource: {0}")]
     GetDynamic(String),
 
+    // This is not #[from] SuperAgentConfigError to avoid a recursive error
     #[error("garbage collector failed loading config store: `{0}`")]
-    LoadingConfigStore(#[from] SuperAgentConfigError),
+    LoadingConfigStore(String),
 
     #[error("failed to parse yaml: {0}")]
     FailedToParseYaml(#[from] serde_yaml::Error),
