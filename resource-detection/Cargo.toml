@@ -14,7 +14,7 @@ tracing = { workspace = true }
 serde_json = { workspace = true }
 http = { workspace = true }
 bytes = "1.5.0"
-ureq = { version = "2.9.1", features = ["http-interop"] }
+ureq = { workspace = true, features = ["http-interop"] }
 fs = { path = "../fs/" }
 konst = { workspace = true }
 

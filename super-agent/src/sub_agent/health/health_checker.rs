@@ -48,17 +48,20 @@ impl HealthCheckerError {
     }
 }
 
-impl From<HealthConfig> for HealthCheckerType {
-    fn from(health_config: HealthConfig) -> Self {
+impl TryFrom<HealthConfig> for HealthCheckerType {
+    type Error = HealthCheckerError;
+
+    fn try_from(health_config: HealthConfig) -> Result<Self, Self::Error> {
         let interval = health_config.interval;
         let timeout = health_config.timeout;
+
         match health_config.check {
-            HealthCheck::HttpHealth(http_config) => {
-                HealthCheckerType::Http(HttpHealthChecker::new(interval, timeout, http_config))
-            }
-            HealthCheck::ExecHealth(exec_config) => {
-                HealthCheckerType::Exec(ExecHealthChecker::new(interval, timeout, exec_config))
-            }
+            HealthCheck::HttpHealth(http_config) => Ok(HealthCheckerType::Http(
+                HttpHealthChecker::new(interval, timeout, http_config)?,
+            )),
+            HealthCheck::ExecHealth(exec_config) => Ok(HealthCheckerType::Exec(
+                ExecHealthChecker::new(interval, timeout, exec_config),
+            )),
         }
     }
 }
