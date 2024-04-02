@@ -79,7 +79,7 @@ impl SyncK8sClient {
 
     pub fn get_dynamic_object(
         &self,
-        tm: TypeMeta,
+        tm: &TypeMeta,
         name: &str,
     ) -> Result<Option<Arc<DynamicObject>>, K8sError> {
         self.runtime
@@ -88,7 +88,7 @@ impl SyncK8sClient {
 
     pub fn delete_dynamic_object_collection(
         &self,
-        tm: TypeMeta,
+        tm: &TypeMeta,
         label_selector: &str,
     ) -> Result<(), K8sError> {
         self.runtime.block_on(
@@ -268,7 +268,7 @@ impl AsyncK8sClient {
     pub async fn has_dynamic_object_changed(&self, obj: &DynamicObject) -> Result<bool, K8sError> {
         let name = get_name(obj)?;
         let tm = get_type_meta(obj)?;
-        let existing_obj = self.get_dynamic_object(tm, name.as_str()).await?;
+        let existing_obj = self.get_dynamic_object(&tm, name.as_str()).await?;
 
         match existing_obj {
             None => Ok(true),
@@ -316,12 +316,12 @@ impl AsyncK8sClient {
 
     pub async fn get_dynamic_object(
         &self,
-        tm: TypeMeta,
+        tm: &TypeMeta,
         name: &str,
     ) -> Result<Option<Arc<DynamicObject>>, K8sError> {
         let reflector = &self
             .dynamics
-            .get(&tm)
+            .get(tm)
             .ok_or(UnexpectedKind(format!("getting dynamic object {:?}", tm)))?
             .object_reflector;
 
@@ -332,12 +332,12 @@ impl AsyncK8sClient {
 
     pub async fn delete_dynamic_object_collection(
         &self,
-        tm: TypeMeta,
+        tm: &TypeMeta,
         label_selector: &str,
     ) -> Result<(), K8sError> {
         let api = &self
             .dynamics
-            .get(&tm)
+            .get(tm)
             .ok_or(UnexpectedKind(format!(
                 "deleting dynamic object collection {:?}",
                 tm
@@ -413,9 +413,9 @@ impl AsyncK8sClient {
     ) -> Result<(), K8sError> {
         let cm_client: Api<ConfigMap> = Api::<ConfigMap>::default_namespaced(self.client.clone());
         let entry = cm_client.entry(configmap_name).await?.and_modify(|cm| {
-            if let Some(mut d) = cm.data.clone() {
-                d.remove(key);
-                cm.data = Some(d)
+            if let Some(mut data) = cm.data.clone() {
+                data.remove(key);
+                cm.data = Some(data)
             }
         });
 

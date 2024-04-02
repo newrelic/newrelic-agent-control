@@ -76,6 +76,14 @@ where
         Self { host_id, ..self }
     }
 
+
+    pub fn new(system_detector: D, cloud_id_detector: D2) -> Self {
+        Self {
+            system_detector,
+            cloud_id_detector,
+        }
+    }
+  
     pub fn provide(&self) -> Result<Identifiers, DetectError> {
         let system_identifiers = self.system_detector.detect()?;
         let hostname: String = system_identifiers
@@ -149,7 +157,7 @@ impl Default for ULIDInstanceIDGetter<Storer> {
 }
 
 #[cfg(test)]
-mod test {
+pub mod test {
     use crate::opamp::instance_id::on_host::getter::IdentifiersProvider;
     use crate::opamp::instance_id::Identifiers;
     use mockall::mock;
@@ -171,11 +179,27 @@ mod test {
         }
     }
 
-    impl MockCloudDetectorMock {
-        fn should_detect(&mut self, resource: Resource) {
+    impl MockSystemDetectorMock {
+        pub fn should_detect(&mut self, resource: Resource) {
             self.expect_detect()
                 .once()
                 .return_once(move || Ok(resource));
+        }
+
+        pub fn should_fail_detection(&mut self, err: DetectError) {
+            self.expect_detect().once().return_once(move || Err(err));
+        }
+    }
+
+    impl MockCloudDetectorMock {
+        pub fn should_detect(&mut self, resource: Resource) {
+            self.expect_detect()
+                .once()
+                .return_once(move || Ok(resource));
+        }
+
+        pub fn should_fail_detection(&mut self, err: DetectError) {
+            self.expect_detect().once().return_once(move || Err(err));
         }
     }
 

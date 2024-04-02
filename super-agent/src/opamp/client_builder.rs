@@ -11,7 +11,7 @@ use opamp_client::operation::settings::StartSettings;
 use opamp_client::{NotStartedClient, NotStartedClientError, StartedClient, StartedClientError};
 use std::time::SystemTimeError;
 use thiserror::Error;
-use tracing::error;
+use tracing::{error, info};
 
 use super::callbacks::AgentCallbacks;
 use super::remote_config_publisher::OpAMPRemoteConfigPublisher;
@@ -87,6 +87,7 @@ impl OpAMPClientBuilder<AgentCallbacks<OpAMPRemoteConfigPublisher>> for OpAMPHtt
         let callbacks = AgentCallbacks::new(agent_id, remote_config_publisher);
         let not_started_client = NotStartedHttpClient::new(http_client);
         let started_client = not_started_client.start(callbacks, start_settings)?;
+        info!("Super Agent OpAMP client started");
         Ok(started_client)
     }
 }

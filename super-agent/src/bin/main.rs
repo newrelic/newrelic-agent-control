@@ -107,7 +107,6 @@ fn run_super_agent(
     use newrelic_super_agent::opamp::operations::build_opamp_and_start_client;
     use newrelic_super_agent::sub_agent::on_host::builder::OnHostSubAgentBuilder;
     use newrelic_super_agent::sub_agent::persister::config_persister_file::ConfigurationPersisterFile;
-    use newrelic_super_agent::sub_agent::values::values_repository::ValuesRepository;
     use newrelic_super_agent::sub_agent::values::ValuesRepositoryFile;
     use newrelic_super_agent::super_agent::config::AgentID;
 
@@ -126,10 +125,14 @@ fn run_super_agent(
 
     let instance_id_getter = ULIDInstanceIDGetter::default().with_identifiers(identifiers);
 
-    let values_repository = Arc::new(ValuesRepositoryFile::default().with_remote());
+    let mut vr = ValuesRepositoryFile::default();
+    if opamp_client_builder.is_some() {
+        vr = vr.with_remote();
+    }
+    let values_repository = Arc::new(vr);
+
     let hash_repository = Arc::new(HashRepositoryFile::default());
     let agents_assembler = LocalEffectiveAgentsAssembler::new(values_repository.clone())
-        .with_remote()
         .with_renderer(
             TemplateRenderer::default()
                 .with_config_persister(ConfigurationPersisterFile::default()),
@@ -157,14 +160,6 @@ fn run_super_agent(
         &super_agent_fqn(),
         non_identifying_attributes,
     )?;
-
-    if maybe_client.is_none() {
-        // Delete remote values
-        info!("No OpAMP settings configured. Cleaning remote configs");
-        values_repository.delete_remote_all()?;
-    } else {
-        info!("Super Agent OpAMP client started");
-    }
 
     SuperAgent::new(
         maybe_client,
@@ -232,10 +227,13 @@ fn run_super_agent(
     let instance_id_getter =
         ULIDInstanceIDGetter::try_with_identifiers(k8s_store.clone(), identifiers)?;
 
-    let values_repository =
-        Arc::new(ValuesRepositoryConfigMap::new(k8s_store.clone()).with_remote());
-    let agents_assembler =
-        LocalEffectiveAgentsAssembler::new(values_repository.clone()).with_remote();
+    let mut vr = ValuesRepositoryConfigMap::new(k8s_store.clone());
+    if opamp_client_builder.is_some() {
+        vr = vr.with_remote();
+    }
+    let values_repository = Arc::new(vr);
+
+    let agents_assembler = LocalEffectiveAgentsAssembler::new(values_repository.clone());
     let hash_repository = Arc::new(HashRepositoryConfigMap::new(k8s_store.clone()));
     let sub_agent_event_processor_builder =
         EventProcessorBuilder::new(hash_repository.clone(), values_repository.clone());

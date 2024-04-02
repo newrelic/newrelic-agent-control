@@ -4,9 +4,7 @@ use crate::{
     event::{channel::EventPublisher, OpAMPEvent},
     sub_agent::error::SubAgentError,
     super_agent::config::{AgentID, AgentTypeFQN},
-    utils::time::get_sys_time_nano,
 };
-use opamp_client::opamp::proto::ComponentHealth;
 use opamp_client::{
     operation::{
         callbacks::Callbacks,
@@ -85,12 +83,7 @@ pub fn stop_opamp_client<CB: Callbacks, C: StartedClient<CB>>(
             "Stopping OpAMP client for supervised agent type: {}",
             agent_id
         );
-        client.set_health(ComponentHealth {
-            healthy: false,
-            start_time_unix_nano: get_sys_time_nano()?,
-            last_error: "".to_string(),
-            ..Default::default()
-        })?;
+        // TODO We should call disconnect here as this means a graceful shutdown
         client.stop()?;
     }
     Ok(())
