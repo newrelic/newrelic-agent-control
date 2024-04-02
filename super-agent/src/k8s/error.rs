@@ -40,4 +40,7 @@ pub enum K8sError {
 
     #[error("failed to parse yaml: {0}")]
     FailedToParseYaml(#[from] serde_yaml::Error),
+
+    #[error("garbage collector executed with empty current agents list")]
+    MissingActiveAgents(),
 }

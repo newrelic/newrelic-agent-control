@@ -84,7 +84,6 @@ where
 {
     registry: R,
     values_repository: Arc<D>,
-    remote_enabled: bool,
     renderer: N,
 }
 
@@ -97,7 +96,6 @@ where
         LocalEffectiveAgentsAssembler {
             registry: LocalRegistry::default(),
             values_repository,
-            remote_enabled: false,
             renderer: TemplateRenderer::default(),
         }
     }
@@ -109,13 +107,6 @@ where
     D: ValuesRepository,
     N: Renderer,
 {
-    pub fn with_remote(self) -> Self {
-        Self {
-            remote_enabled: true,
-            ..self
-        }
-    }
-
     pub fn with_renderer(self, renderer: N) -> Self {
         Self { renderer, ..self }
     }
@@ -138,11 +129,6 @@ where
         let agent_type_definition = self.registry.get(&agent_cfg.agent_type)?;
         // Build the corresponding agent type
         let agent_type = build_agent_type(agent_type_definition, environment)?;
-
-        // Delete remote values if not supported
-        if !self.remote_enabled || !agent_type.has_remote_management() {
-            self.values_repository.delete_remote(agent_id)?;
-        }
 
         // Load the values
         let values = self.values_repository.load(agent_id, &agent_type)?;
@@ -256,16 +242,10 @@ pub(crate) mod tests {
         D: ValuesRepository,
         N: Renderer,
     {
-        pub fn new_for_testing(
-            registry: R,
-            remote_values_repo: D,
-            renderer: N,
-            opamp_enabled: bool,
-        ) -> Self {
+        pub fn new_for_testing(registry: R, remote_values_repo: D, renderer: N) -> Self {
             Self {
                 registry,
                 values_repository: Arc::new(remote_values_repo),
-                remote_enabled: opamp_enabled,
                 renderer,
             }
         }
@@ -293,7 +273,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn test_assemble_agents_opamp_disabled() {
+    fn test_assemble_agents() {
         //Mocks
         let mut registry = MockAgentRegistryMock::new();
         let mut sub_agent_values_repo = MockRemoteValuesRepositoryMock::new();
@@ -313,8 +293,7 @@ pub(crate) mod tests {
 
         //Expectations
         registry.should_get("some_fqn".to_string(), &agent_type_definition);
-        //Delete remote as opamp is disabled
-        sub_agent_values_repo.should_delete_remote(&agent_id);
+
         sub_agent_values_repo.should_load(&agent_id, &agent_type, &values);
         renderer.should_render(
             &agent_id,
@@ -328,53 +307,6 @@ pub(crate) mod tests {
             registry,
             sub_agent_values_repo,
             renderer,
-            false,
-        );
-
-        let effective_agent = assembler
-            .assemble_agent(&agent_id, &sub_agent_config, &environment)
-            .unwrap();
-
-        assert_eq!(rendered_runtime_config, effective_agent.runtime_config);
-        assert_eq!(agent_id, effective_agent.agent_id);
-    }
-
-    #[test]
-    fn test_assemble_agents_opamp_enabled() {
-        //Mocks
-        let mut registry = MockAgentRegistryMock::new();
-        let mut sub_agent_values_repo = MockRemoteValuesRepositoryMock::new();
-        let mut renderer = MockRendererMock::new();
-
-        // Objects
-        let agent_id = AgentID::new("some-agent-id").unwrap();
-        let environment = Environment::OnHost;
-        let agent_type_definition = AgentTypeDefinition::default();
-        let agent_type = build_agent_type(agent_type_definition.clone(), &environment).unwrap();
-        let values = AgentValues::default();
-        let sub_agent_config = SubAgentConfig {
-            agent_type: "some_fqn".into(),
-        };
-        let attributes = testing_agent_attributes(&agent_id);
-        let rendered_runtime_config = testing_rendered_runtime_config();
-
-        //Expectations
-        registry.should_get("some_fqn".to_string(), &agent_type_definition);
-        // Opamp is enabled, so we expect to load values
-        sub_agent_values_repo.should_load(&agent_id, &agent_type, &values);
-        renderer.should_render(
-            &agent_id,
-            &agent_type,
-            &values,
-            &attributes,
-            rendered_runtime_config.clone(),
-        );
-
-        let assembler = LocalEffectiveAgentsAssembler::new_for_testing(
-            registry,
-            sub_agent_values_repo,
-            renderer,
-            true,
         );
 
         let effective_agent = assembler
@@ -405,7 +337,6 @@ pub(crate) mod tests {
             registry,
             sub_agent_values_repo,
             renderer,
-            false,
         );
 
         let result = assembler.assemble_agent(&agent_id, &sub_agent_config, &Environment::OnHost);
@@ -415,37 +346,6 @@ pub(crate) mod tests {
             "error assembling agents: `agent not found`",
             result.err().unwrap().to_string()
         );
-    }
-
-    #[test]
-    fn test_assemble_agents_error_deleting_remote() {
-        //Mocks
-        let mut registry = MockAgentRegistryMock::new();
-        let mut sub_agent_values_repo = MockRemoteValuesRepositoryMock::new();
-        let renderer = MockRendererMock::new();
-
-        // Objects
-        let agent_id = AgentID::new("some-agent-id").unwrap();
-        let environment = Environment::OnHost;
-        let agent_type_definition = AgentTypeDefinition::default();
-        let sub_agent_config = SubAgentConfig {
-            agent_type: "some_fqn".into(),
-        };
-
-        //Expectations
-        registry.should_get("some_fqn".to_string(), &agent_type_definition);
-        sub_agent_values_repo.should_not_delete_remote(&agent_id);
-
-        let assembler = LocalEffectiveAgentsAssembler::new_for_testing(
-            registry,
-            sub_agent_values_repo,
-            renderer,
-            false,
-        );
-
-        let result = assembler.assemble_agent(&agent_id, &sub_agent_config, &environment);
-
-        assert!(result.is_err());
     }
 
     #[test]
@@ -466,14 +366,12 @@ pub(crate) mod tests {
 
         //Expectations
         registry.should_get("some_fqn".to_string(), &agent_type_definition);
-        sub_agent_values_repo.should_delete_remote(&agent_id);
         sub_agent_values_repo.should_not_load(&agent_id, &agent_type);
 
         let assembler = LocalEffectiveAgentsAssembler::new_for_testing(
             registry,
             sub_agent_values_repo,
             renderer,
-            false,
         );
 
         let result = assembler.assemble_agent(&agent_id, &sub_agent_config, &environment);

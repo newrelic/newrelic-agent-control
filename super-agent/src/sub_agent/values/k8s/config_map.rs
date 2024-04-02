@@ -52,6 +52,10 @@ impl ValuesRepository for ValuesRepositoryConfigMap {
             {
                 return Ok(values_result);
             }
+            debug!(
+                agent_id = agent_id.to_string(),
+                "remote config not found, loading local"
+            );
         }
 
         if let Some(values_result) = self
@@ -61,6 +65,10 @@ impl ValuesRepository for ValuesRepositoryConfigMap {
             return Ok(values_result);
         }
 
+        debug!(
+            agent_id = agent_id.to_string(),
+            "local config not found, falling back to defaults"
+        );
         Ok(AgentValues::default())
     }
 
@@ -73,11 +81,6 @@ impl ValuesRepository for ValuesRepositoryConfigMap {
 
         self.k8s_store
             .set_opamp_data(agent_id, STORE_KEY_OPAMP_DATA_CONFIG, agent_values)?;
-        Ok(())
-    }
-
-    fn delete_remote_all(&self) -> Result<(), ValuesRepositoryError> {
-        //TODO the delete_remote_all is not implemented yet for K8s since it is complex and we hope to avoid implementing it
         Ok(())
     }
 
