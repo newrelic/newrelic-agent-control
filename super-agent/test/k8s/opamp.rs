@@ -7,6 +7,7 @@ use newrelic_super_agent::k8s::store::STORE_KEY_LOCAL_DATA_CONFIG;
 use newrelic_super_agent::opamp::callbacks::AgentCallbacks;
 use newrelic_super_agent::opamp::instance_id;
 use newrelic_super_agent::opamp::remote_config_publisher::OpAMPRemoteConfigPublisher;
+use newrelic_super_agent::super_agent::config_storer::storer::SuperAgentConfigLoader;
 use newrelic_super_agent::{
     agent_type::{agent_type_registry::LocalRegistry, renderer::TemplateRenderer},
     event::{
@@ -29,7 +30,7 @@ use newrelic_super_agent::{
     },
     super_agent::{
         config::{AgentID, K8sConfig},
-        store::{SuperAgentConfigLoader, SuperAgentConfigStoreFile},
+        config_storer::SuperAgentConfigStoreFile,
         super_agent_fqn, SuperAgent,
     },
 };
