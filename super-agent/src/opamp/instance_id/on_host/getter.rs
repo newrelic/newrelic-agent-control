@@ -76,14 +76,14 @@ where
         Self { host_id, ..self }
     }
 
-
     pub fn new(system_detector: D, cloud_id_detector: D2) -> Self {
         Self {
             system_detector,
             cloud_id_detector,
+            host_id: String::default(),
         }
     }
-  
+
     pub fn provide(&self) -> Result<Identifiers, DetectError> {
         let system_identifiers = self.system_detector.detect()?;
         let hostname: String = system_identifiers

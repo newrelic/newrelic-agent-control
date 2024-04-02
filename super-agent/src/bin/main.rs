@@ -78,7 +78,6 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     #[cfg(any(feature = "onhost", feature = "k8s"))]
     run_super_agent(
-        super_agent_config.host_id,
         Arc::new(super_agent_config_storer),
         super_agent_consumer,
         opamp_client_builder,
@@ -96,7 +95,6 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 #[cfg(feature = "onhost")]
 fn run_super_agent(
-    configured_host_id: String,
     config_storer: Arc<SuperAgentConfigStoreFile>,
     super_agent_consumer: EventConsumer<SuperAgentEvent>,
     opamp_client_builder: Option<OpAMPHttpClientBuilder>,
@@ -116,7 +114,9 @@ fn run_super_agent(
         std::process::exit(1);
     }
 
-    let identifiers_provider = IdentifiersProvider::default().with_host_id(configured_host_id);
+    let host_id = config_storer.load()?.host_id;
+
+    let identifiers_provider = IdentifiersProvider::default().with_host_id(host_id);
     let identifiers = identifiers_provider.provide().unwrap_or_default();
     //Print identifiers for troubleshooting
     print_identifiers(&identifiers);
@@ -176,7 +176,6 @@ fn print_identifiers(identifiers: &Identifiers) {
 
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
 fn run_super_agent(
-    _configured_host_id: String,
     config_storer: Arc<SuperAgentConfigStoreFile>,
     super_agent_consumer: EventConsumer<SuperAgentEvent>,
     opamp_client_builder: Option<OpAMPHttpClientBuilder>,
