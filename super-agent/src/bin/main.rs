@@ -103,6 +103,7 @@ fn run_super_agent(
     use newrelic_super_agent::opamp::hash_repository::HashRepositoryFile;
     use newrelic_super_agent::opamp::instance_id::IdentifiersProvider;
     use newrelic_super_agent::opamp::operations::build_opamp_and_start_client;
+    use newrelic_super_agent::sub_agent::on_host::builder::OnHostSubAgentBuilder;
     use newrelic_super_agent::sub_agent::persister::config_persister_file::ConfigurationPersisterFile;
     use newrelic_super_agent::sub_agent::values::ValuesRepositoryFile;
     use newrelic_super_agent::super_agent::config::AgentID;
@@ -113,7 +114,8 @@ fn run_super_agent(
         std::process::exit(1);
     }
 
-    let identifiers = IdentifiersProvider::default().provide().unwrap_or_default();
+    let identifiers_provider = IdentifiersProvider::default();
+    let identifiers = identifiers_provider.provide().unwrap_or_default();
     //Print identifiers for troubleshooting
     print_identifiers(&identifiers);
 
@@ -137,14 +139,14 @@ fn run_super_agent(
     let sub_agent_event_processor_builder =
         EventProcessorBuilder::new(sub_agent_hash_repository.clone(), values_repository.clone());
 
-    let sub_agent_builder =
-        newrelic_super_agent::sub_agent::on_host::builder::OnHostSubAgentBuilder::new(
-            opamp_client_builder.as_ref(),
-            &instance_id_getter,
-            sub_agent_hash_repository,
-            &agents_assembler,
-            &sub_agent_event_processor_builder,
-        );
+    let sub_agent_builder = OnHostSubAgentBuilder::new(
+        opamp_client_builder.as_ref(),
+        &instance_id_getter,
+        sub_agent_hash_repository,
+        &agents_assembler,
+        &sub_agent_event_processor_builder,
+        identifiers_provider,
+    );
 
     let (super_agent_opamp_publisher, super_agent_opamp_consumer) = pub_sub();
 
