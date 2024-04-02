@@ -7,7 +7,7 @@ use std::time::Duration;
 pub(crate) struct ExecHealthChecker {
     path: String,
     args: Vec<String>,
-    healthy_exit_codes: Vec<u32>,
+    healthy_exit_codes: Vec<i32>,
     interval: Duration,
     timeout: Duration,
 }

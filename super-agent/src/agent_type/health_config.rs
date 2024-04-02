@@ -125,7 +125,7 @@ pub(crate) struct ExecHealth {
     /// Arguments provided to the executed command.
     pub(crate) args: Vec<String>,
     // allowed healthy exit codes
-    pub(crate) healthy_exit_codes: Vec<u32>,
+    pub(crate) healthy_exit_codes: Vec<i32>,
 }
 
 impl Templateable for HealthConfig {
