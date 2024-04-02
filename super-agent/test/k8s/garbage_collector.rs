@@ -100,7 +100,7 @@ agents:
         .returning(move || Ok(serde_yaml::from_str::<SuperAgentConfig>("agents: {}").unwrap()))
         .in_sequence(&mut seq);
 
-    let gc = NotStartedK8sGarbageCollector::new(Arc::new(config_loader), k8s_client);
+    let mut gc = NotStartedK8sGarbageCollector::new(Arc::new(config_loader), k8s_client);
 
     // Expects the GC to keep the agent cr which is in the config, event if looking for multiple kinds or that
     // are missing in the cluster.
@@ -156,7 +156,7 @@ fn k8s_garbage_collector_with_missing_and_extra_kinds() {
         kind: ConfigMap::KIND.to_string(),
     };
 
-    let gc = NotStartedK8sGarbageCollector::new(
+    let mut gc = NotStartedK8sGarbageCollector::new(
         Arc::new(config_loader),
         Arc::new(
             SyncK8sClient::try_new_with_reflectors(
@@ -210,7 +210,7 @@ fn k8s_garbage_collector_does_not_remove_super_agent() {
         .times(1)
         .returning(move || Ok(serde_yaml::from_str::<SuperAgentConfig>("agents: {}").unwrap()));
 
-    let gc = NotStartedK8sGarbageCollector::new(Arc::new(config_loader), k8s_client);
+    let mut gc = NotStartedK8sGarbageCollector::new(Arc::new(config_loader), k8s_client);
 
     // Expects the GC do not clean any resource related to the SA.
     gc.collect().unwrap();
