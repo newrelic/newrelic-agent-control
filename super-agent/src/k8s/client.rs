@@ -4,6 +4,7 @@ use super::{
     reader::{DynamicObjectReflector, ReflectorBuilder},
 };
 use k8s_openapi::api::core::v1::{ConfigMap, Namespace};
+use kube::api::entry::Entry;
 use kube::{
     api::{DeleteParams, ListParams, PostParams},
     config::KubeConfigOptions,
@@ -78,7 +79,7 @@ impl SyncK8sClient {
 
     pub fn get_dynamic_object(
         &self,
-        tm: TypeMeta,
+        tm: &TypeMeta,
         name: &str,
     ) -> Result<Option<Arc<DynamicObject>>, K8sError> {
         self.runtime
@@ -87,7 +88,7 @@ impl SyncK8sClient {
 
     pub fn delete_dynamic_object_collection(
         &self,
-        tm: TypeMeta,
+        tm: &TypeMeta,
         label_selector: &str,
     ) -> Result<(), K8sError> {
         self.runtime.block_on(
@@ -125,6 +126,11 @@ impl SyncK8sClient {
             key,
             value,
         ))
+    }
+
+    pub fn delete_configmap_key(&self, configmap_name: &str, key: &str) -> Result<(), K8sError> {
+        self.runtime
+            .block_on(self.async_client.delete_configmap_key(configmap_name, key))
     }
 
     pub fn supported_type_meta_collection(&self) -> Vec<TypeMeta> {
@@ -262,7 +268,7 @@ impl AsyncK8sClient {
     pub async fn has_dynamic_object_changed(&self, obj: &DynamicObject) -> Result<bool, K8sError> {
         let name = get_name(obj)?;
         let tm = get_type_meta(obj)?;
-        let existing_obj = self.get_dynamic_object(tm, name.as_str()).await?;
+        let existing_obj = self.get_dynamic_object(&tm, name.as_str()).await?;
 
         match existing_obj {
             None => Ok(true),
@@ -310,12 +316,12 @@ impl AsyncK8sClient {
 
     pub async fn get_dynamic_object(
         &self,
-        tm: TypeMeta,
+        tm: &TypeMeta,
         name: &str,
     ) -> Result<Option<Arc<DynamicObject>>, K8sError> {
         let reflector = &self
             .dynamics
-            .get(&tm)
+            .get(tm)
             .ok_or(UnexpectedKind(format!("getting dynamic object {:?}", tm)))?
             .object_reflector;
 
@@ -326,12 +332,12 @@ impl AsyncK8sClient {
 
     pub async fn delete_dynamic_object_collection(
         &self,
-        tm: TypeMeta,
+        tm: &TypeMeta,
         label_selector: &str,
     ) -> Result<(), K8sError> {
         let api = &self
             .dynamics
-            .get(&tm)
+            .get(tm)
             .ok_or(UnexpectedKind(format!(
                 "deleting dynamic object collection {:?}",
                 tm
@@ -395,8 +401,30 @@ impl AsyncK8sClient {
                     .get_or_insert_with(BTreeMap::default)
                     .insert(key.to_string(), value.to_string());
             })
-            .commit(&kube::api::PostParams::default())
+            .commit(&PostParams::default())
             .await?;
+        Ok(())
+    }
+
+    pub async fn delete_configmap_key(
+        &self,
+        configmap_name: &str,
+        key: &str,
+    ) -> Result<(), K8sError> {
+        let cm_client: Api<ConfigMap> = Api::<ConfigMap>::default_namespaced(self.client.clone());
+        let entry = cm_client.entry(configmap_name).await?.and_modify(|cm| {
+            if let Some(mut data) = cm.data.clone() {
+                data.remove(key);
+                cm.data = Some(data)
+            }
+        });
+
+        match entry {
+            Entry::Occupied(mut e) => {
+                e.commit(&PostParams::default()).await?;
+            }
+            Entry::Vacant(_) => {}
+        }
         Ok(())
     }
 

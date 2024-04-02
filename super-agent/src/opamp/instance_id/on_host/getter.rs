@@ -28,14 +28,15 @@ pub struct Identifiers {
     pub hostname: String,
     pub machine_id: String,
     pub cloud_instance_id: String,
+    pub host_id: String,
 }
 
 impl Display for Identifiers {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "hostname = '{}', machine_id = '{}', cloud_instance_id = '{}'",
-            self.hostname, self.machine_id, self.cloud_instance_id
+            "hostname = '{}', machine_id = '{}', cloud_instance_id = '{}', host_id = '{}'",
+            self.hostname, self.machine_id, self.cloud_instance_id, self.host_id
         )
     }
 }
@@ -85,11 +86,18 @@ where
                 error!("cannot get machine_id identifier");
                 "".to_string()
             });
+        let cloud_instance_id = self.cloud_instance_id();
 
         Ok(Identifiers {
+            // https://opentelemetry.io/docs/specs/semconv/resource/host/#collecting-hostid-from-non-containerized-systems
+            host_id: if cloud_instance_id.is_empty() {
+                machine_id.clone()
+            } else {
+                cloud_instance_id.clone()
+            },
             hostname,
             machine_id,
-            cloud_instance_id: self.cloud_instance_id(),
+            cloud_instance_id,
         })
     }
 
@@ -155,10 +163,6 @@ mod test {
                 .once()
                 .return_once(move || Ok(resource));
         }
-
-        fn should_not_detect(&mut self, error: DetectError) {
-            self.expect_detect().once().return_once(move || Err(error));
-        }
     }
 
     #[traced_test]
@@ -187,6 +191,7 @@ mod test {
             hostname: String::from(""),
             machine_id: String::from("some machine id"),
             cloud_instance_id: String::from("abc"),
+            host_id: String::from("abc"),
         };
         assert_eq!(expected_identifiers, identifiers);
         assert!(logs_with_scope_contain(
@@ -221,12 +226,45 @@ mod test {
             hostname: String::from("some.example.org"),
             machine_id: String::from(""),
             cloud_instance_id: String::from("abc"),
+            host_id: String::from("abc"),
         };
         assert_eq!(expected_identifiers, identifiers);
         assert!(logs_with_scope_contain(
             "test_machine_id_error_will_return_empty_machine_id",
             "cannot get machine_id identifier",
         ));
+    }
+
+    #[traced_test]
+    #[test]
+    fn test_host_id_fallback() {
+        let mut system_detector_mock = MockSystemDetectorMock::new();
+        let mut cloud_id_detector_mock = MockCloudDetectorMock::new();
+        // empty cloud_id
+        cloud_id_detector_mock.should_detect(Resource::new([(
+            "cloud_instance_id".to_string().into(),
+            Value::from("".to_string()),
+        )]));
+        system_detector_mock.expect_detect().once().returning(|| {
+            Ok(Resource::new([(
+                "machine_id".to_string().into(),
+                Value::from("some machine id".to_string()),
+            )]))
+        });
+
+        let identifiers_provider = IdentifiersProvider {
+            system_detector: system_detector_mock,
+            cloud_id_detector: cloud_id_detector_mock,
+        };
+        let identifiers = identifiers_provider.provide().unwrap();
+
+        let expected_identifiers = Identifiers {
+            hostname: String::from(""),
+            machine_id: String::from("some machine id"),
+            cloud_instance_id: String::from(""),
+            host_id: String::from("some machine id"),
+        };
+        assert_eq!(expected_identifiers, identifiers);
     }
 
     #[traced_test]
@@ -260,6 +298,7 @@ mod test {
             hostname: String::from("some.example.org"),
             machine_id: String::from("some machine-id"),
             cloud_instance_id: String::from("abc"),
+            host_id: String::from("abc"),
         };
         assert_eq!(expected_identifiers, identifiers);
     }

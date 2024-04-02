@@ -1635,6 +1635,7 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "bollard",
+ "cfg-if",
  "clap",
  "crossbeam",
  "ctrlc",
@@ -1651,6 +1652,7 @@ dependencies = [
  "mockall_double",
  "nix 0.28.0",
  "opamp-client",
+ "opentelemetry-semantic-conventions",
  "predicates",
  "regex",
  "resource-detection",
@@ -1785,6 +1787,12 @@ name = "openssl-probe"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff011a302c396a5197692431fc1948019154afc178baf7d8e37367442a4601cf"
+
+[[package]]
+name = "opentelemetry-semantic-conventions"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f9ab5bd6c42fb9349dcf28af2ba9a0667f697f9bdcca045d39f2cec5543e2910"
 
 [[package]]
 name = "ordered-float"

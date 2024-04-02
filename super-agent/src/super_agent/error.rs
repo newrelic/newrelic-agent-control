@@ -1,8 +1,4 @@
-use opamp_client::{ClientError, NotStartedClientError, StartedClientError};
-use resource_detection::DetectError;
-use std::fmt::Debug;
-use std::time::SystemTimeError;
-
+use super::config::SuperAgentConfigError;
 use crate::agent_type::agent_type_registry::AgentRepositoryError;
 use crate::agent_type::agent_values::AgentValuesError;
 use crate::agent_type::error::AgentTypeError;
@@ -13,11 +9,13 @@ use crate::opamp::remote_config::RemoteConfigError;
 use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssemblerError;
 use crate::sub_agent::error::{SubAgentBuilderError, SubAgentCollectionError, SubAgentError};
 use crate::sub_agent::persister::config_persister::PersistError;
-use crate::sub_agent::values::values_repository::ValuesRepositoryError;
+use crate::sub_agent::values::ValuesRepositoryError;
 use fs::file_reader::FileReaderError;
+use opamp_client::{ClientError, NotStartedClientError, StartedClientError};
+use resource_detection::DetectError;
+use std::fmt::Debug;
+use std::time::SystemTimeError;
 use thiserror::Error;
-
-use super::config::SuperAgentConfigError;
 
 #[derive(Error, Debug)]
 pub enum AgentError {

@@ -47,6 +47,8 @@ k8s-openapi = { version = "0.21.1", features = ["latest"], optional = true }
 either = { version = "1.9.0", optional = true }
 crossbeam = { version = "0.8.3", features = ["crossbeam-channel"] }
 tracing-appender = "0.2.3"
+cfg-if = "1.0.0"
+opentelemetry-semantic-conventions = "0.14.0"
 
 [dev-dependencies]
 assert_cmd = { workspace = true }
@@ -96,6 +98,5 @@ k8s = [
   "dep:async-trait",
   "dep:tokio",
 ]
-custom-local-path = []
 # feature ci allows calling --all-features (needed on the test pipelines) and not failing to compile
 ci = []

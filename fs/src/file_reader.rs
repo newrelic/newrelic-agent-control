@@ -1,9 +1,8 @@
+use super::LocalFile;
 use std::fs::{read_dir, read_to_string};
 use std::io::Error as ioError;
 use std::path::Path;
 use thiserror::Error;
-
-use super::LocalFile;
 
 #[derive(Error, Debug)]
 pub enum FileReaderError {
