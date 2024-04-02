@@ -32,6 +32,9 @@ ulid = { workspace = true, features = ["serde"] }
 duration-str = "0.7.0"
 fs = { path = "../fs" }
 konst = { workspace = true }
+http = { workspace = true }
+ureq = { workspace = true, features = ["http-interop"] }
+url = { version = "2.5.0"}
 
 # OnHost subagent dependencies
 # IMPORTANT: All onhost only deps needs to be `optional = true` so they won't be compiled by default
@@ -53,7 +56,6 @@ assert_fs = { workspace = true }
 bollard = { workspace = true }
 predicates = { workspace = true }
 tower-test = { workspace = true }
-http = { workspace = true }
 hyper = { workspace = true }
 tempfile = { workspace = true }
 mockall = { workspace = true }
