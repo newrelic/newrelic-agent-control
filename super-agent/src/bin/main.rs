@@ -114,7 +114,9 @@ fn run_super_agent(
         std::process::exit(1);
     }
 
-    let identifiers_provider = IdentifiersProvider::default();
+    let host_id = config_storer.load()?.host_id;
+
+    let identifiers_provider = IdentifiersProvider::default().with_host_id(host_id);
     let identifiers = identifiers_provider.provide().unwrap_or_default();
     //Print identifiers for troubleshooting
     print_identifiers(&identifiers);

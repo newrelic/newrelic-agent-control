@@ -54,6 +54,7 @@ pub struct IdentifiersProvider<
 {
     system_detector: D,
     cloud_id_detector: D2,
+    host_id: String,
 }
 
 impl Default for IdentifiersProvider {
@@ -61,6 +62,7 @@ impl Default for IdentifiersProvider {
         Self {
             system_detector: SystemDetector::default(),
             cloud_id_detector: CloudIdDetector::default(),
+            host_id: String::default(),
         }
     }
 }
@@ -70,12 +72,18 @@ where
     D: Detector,
     D2: Detector,
 {
+    pub fn with_host_id(self, host_id: String) -> Self {
+        Self { host_id, ..self }
+    }
+
     pub fn new(system_detector: D, cloud_id_detector: D2) -> Self {
         Self {
             system_detector,
             cloud_id_detector,
+            host_id: String::default(),
         }
     }
+
     pub fn provide(&self) -> Result<Identifiers, DetectError> {
         let system_identifiers = self.system_detector.detect()?;
         let hostname: String = system_identifiers
@@ -94,13 +102,21 @@ where
             });
         let cloud_instance_id = self.cloud_instance_id();
 
-        Ok(Identifiers {
-            // https://opentelemetry.io/docs/specs/semconv/resource/host/#collecting-hostid-from-non-containerized-systems
-            host_id: if cloud_instance_id.is_empty() {
+        // It's possible that the Host ID was set up early (via config).
+        // If this is the case, we don't want to overwrite it.
+        let host_id = if self.host_id.is_empty() {
+            if cloud_instance_id.is_empty() {
                 machine_id.clone()
             } else {
                 cloud_instance_id.clone()
-            },
+            }
+        } else {
+            self.host_id.clone()
+        };
+
+        Ok(Identifiers {
+            // https://opentelemetry.io/docs/specs/semconv/resource/host/#collecting-hostid-from-non-containerized-systems
+            host_id,
             hostname,
             machine_id,
             cloud_instance_id,
@@ -206,6 +222,7 @@ pub mod test {
         let identifiers_provider = IdentifiersProvider {
             system_detector: system_detector_mock,
             cloud_id_detector: cloud_id_detector_mock,
+            host_id: String::new(),
         };
         let identifiers = identifiers_provider.provide().unwrap();
 
@@ -241,6 +258,7 @@ pub mod test {
         let identifiers_provider = IdentifiersProvider {
             system_detector: system_detector_mock,
             cloud_id_detector: cloud_id_detector_mock,
+            host_id: String::new(),
         };
         let identifiers = identifiers_provider.provide().unwrap();
 
@@ -277,6 +295,7 @@ pub mod test {
         let identifiers_provider = IdentifiersProvider {
             system_detector: system_detector_mock,
             cloud_id_detector: cloud_id_detector_mock,
+            host_id: String::new(),
         };
         let identifiers = identifiers_provider.provide().unwrap();
 
@@ -313,6 +332,7 @@ pub mod test {
         let identifiers_provider = IdentifiersProvider {
             system_detector: system_detector_mock,
             cloud_id_detector: cloud_id_detector_mock,
+            host_id: String::new(),
         };
         let identifiers = identifiers_provider.provide().unwrap();
 
@@ -323,5 +343,37 @@ pub mod test {
             host_id: String::from("abc"),
         };
         assert_eq!(expected_identifiers, identifiers);
+    }
+
+    #[test]
+    fn test_predefined_host_id_overrides() {
+        let mut system_detector_mock = MockSystemDetectorMock::new();
+        let mut cloud_id_detector_mock = MockCloudDetectorMock::new();
+        cloud_id_detector_mock.should_detect(Resource::new([(
+            "cloud_instance_id".to_string().into(),
+            Value::from("abc".to_string()),
+        )]));
+        system_detector_mock.expect_detect().once().returning(|| {
+            Ok(Resource::new([
+                (
+                    Key::from("hostname".to_string()),
+                    Value::from("some.example.org".to_string()),
+                ),
+                (
+                    "machine_id".to_string().into(),
+                    Value::from("some machine-id".to_string()),
+                ),
+            ]))
+        });
+        let identifiers_provider = IdentifiersProvider {
+            system_detector: system_detector_mock,
+            cloud_id_detector: cloud_id_detector_mock,
+            host_id: String::new(),
+        };
+        // Add a host_id
+        let identifiers_provider = identifiers_provider.with_host_id("some-host-id".to_string());
+
+        let identifiers = identifiers_provider.provide().unwrap();
+        assert_eq!(identifiers.host_id, "some-host-id");
     }
 }

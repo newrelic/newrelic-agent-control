@@ -156,6 +156,9 @@ pub struct SuperAgentConfig {
     #[serde(default)]
     pub log: LoggingConfig,
 
+    #[serde(default)]
+    pub host_id: String,
+
     /// agents is a map of agent types to their specific configuration (if any).
     #[serde(flatten)]
     pub agents: SubAgentsConfig,
@@ -399,6 +402,11 @@ log:
 agents: {}
 "#;
 
+    const SUPERAGENT_HOST_ID: &str = r#"
+host_id: 123
+agents: {}
+"#;
+
     #[test]
     fn agent_id_validator() {
         assert!(AgentID::try_from("ab".to_string()).is_ok());
@@ -606,5 +614,11 @@ agents: {}
                 path: LogFilePath::try_from(PathBuf::from("/some/path")).unwrap(),
             }
         );
+    }
+
+    #[test]
+    fn host_id_config() {
+        let config = serde_yaml::from_str::<SuperAgentConfig>(SUPERAGENT_HOST_ID).unwrap();
+        assert_eq!(config.host_id, "123");
     }
 }
