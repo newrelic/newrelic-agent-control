@@ -1,45 +1,21 @@
-use std::fs;
+use crate::super_agent::config::{SubAgentsConfig, SuperAgentConfig, SuperAgentConfigError};
+use crate::super_agent::config_storer::storer::{
+    SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer, SuperAgentConfigLoader,
+};
+use crate::super_agent::defaults::SUPER_AGENT_DATA_DIR;
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 use thiserror::Error;
 use tracing::warn;
 
-use crate::super_agent::config::{SubAgentsConfig, SuperAgentConfig, SuperAgentConfigError};
-use crate::super_agent::defaults::SUPER_AGENT_DATA_DIR;
-
 #[derive(Error, Debug)]
-pub enum SuperAgentConfigStoreError {
+pub enum ConfigStoreError {
     #[error("error loading config: `{0}`")]
     IOError(#[from] std::io::Error),
 
     #[error("error loading config: `{0}`")]
     SerdeYamlError(#[from] serde_yaml::Error),
 }
-
-#[derive(Error, Debug)]
-pub enum SubAgentsConfigStoreError {
-    #[error("error loading config: `{0}`")]
-    IOError(#[from] std::io::Error),
-
-    #[error("error loading config: `{0}`")]
-    SerdeYamlError(#[from] serde_yaml::Error),
-}
-
-#[cfg_attr(test, mockall::automock)]
-pub trait SuperAgentConfigLoader {
-    fn load(&self) -> Result<SuperAgentConfig, SuperAgentConfigError>;
-}
-
-pub trait SubAgentsConfigStorer {
-    fn store(&self, config: &SubAgentsConfig) -> Result<(), SuperAgentConfigError>;
-}
-pub trait SubAgentsConfigLoader {
-    fn load(&self) -> Result<SubAgentsConfig, SuperAgentConfigError>;
-}
-pub trait SubAgentsConfigDeleter {
-    fn delete(&self) -> Result<(), SuperAgentConfigError>;
-}
-
 pub struct SuperAgentConfigStoreFile {
     local_path: PathBuf,
     remote_path: Option<PathBuf>,
@@ -65,7 +41,7 @@ impl SubAgentsConfigDeleter for SuperAgentConfigStoreFile {
         };
         let _write_guard = self.rw_lock.write().unwrap();
         if remote_path_file.exists() {
-            fs::remove_file(remote_path_file)?;
+            std::fs::remove_file(remote_path_file)?;
         }
         Ok(())
     }
@@ -100,7 +76,7 @@ impl SuperAgentConfigStoreFile {
         self.remote_path.as_ref().unwrap_or(&self.local_path)
     }
 
-    fn _load_config(&self) -> Result<SuperAgentConfig, SuperAgentConfigStoreError> {
+    fn _load_config(&self) -> Result<SuperAgentConfig, ConfigStoreError> {
         let _read_guard = self.rw_lock.read().unwrap();
         let local_config_file = std::fs::File::open(&self.local_path)?;
         let mut local_config: SuperAgentConfig = serde_yaml::from_reader(local_config_file)?;
@@ -125,12 +101,12 @@ impl SuperAgentConfigStoreFile {
     fn _store_sub_agents_config(
         &self,
         sub_agents: &SubAgentsConfig,
-    ) -> Result<(), SuperAgentConfigStoreError> {
+    ) -> Result<(), ConfigStoreError> {
         //TODO we should inject DirectoryManager and ensure the directory exists
         let _write_guard = self.rw_lock.write().unwrap();
         if let Some(remote_path_file) = &self.remote_path {
             Ok(serde_yaml::to_writer(
-                fs::File::create(remote_path_file)?,
+                std::fs::File::create(remote_path_file)?,
                 sub_agents,
             )?)
         } else {
@@ -141,47 +117,12 @@ impl SuperAgentConfigStoreFile {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use crate::super_agent::config::{
-        AgentID, AgentTypeFQN, OpAMPClientConfig, SubAgentConfig, SubAgentsConfig, SuperAgentConfig,
-    };
-
-    use super::SuperAgentConfigError;
     use super::*;
-    use super::{SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer};
-    use mockall::{mock, predicate};
+    use crate::super_agent::config::{
+        AgentID, AgentTypeFQN, OpAMPClientConfig, SubAgentConfig, SuperAgentConfig,
+    };
     use std::{collections::HashMap, io::Write};
     use tempfile::NamedTempFile;
-
-    mock! {
-        pub SubAgentsConfigStore {}
-
-        impl SubAgentsConfigStorer for SubAgentsConfigStore {
-            fn store(&self, config: &SubAgentsConfig) -> Result<(), SuperAgentConfigError>;
-        }
-        impl SubAgentsConfigLoader for SubAgentsConfigStore {
-            fn load(&self) -> Result<SubAgentsConfig, SuperAgentConfigError>;
-        }
-        impl SubAgentsConfigDeleter for SubAgentsConfigStore {
-            fn delete(&self) -> Result<(), SuperAgentConfigError>;
-        }
-    }
-
-    impl MockSubAgentsConfigStore {
-        pub fn should_load(&mut self, sub_agents_config: &SubAgentsConfig) {
-            let sub_agents_config = sub_agents_config.clone();
-            self.expect_load()
-                .once()
-                .returning(move || Ok(sub_agents_config.clone()));
-        }
-
-        pub fn should_store(&mut self, sub_agents_config: &SubAgentsConfig) {
-            let sub_agents_config = sub_agents_config.clone();
-            self.expect_store()
-                .once()
-                .with(predicate::eq(sub_agents_config))
-                .returning(move |_| Ok(()));
-        }
-    }
 
     #[test]
     fn load_agents_local_remote() {

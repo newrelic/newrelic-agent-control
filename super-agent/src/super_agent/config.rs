@@ -1,3 +1,4 @@
+use super::config_storer::ConfigStoreError;
 use crate::logging::config::LoggingConfig;
 use crate::opamp::remote_config::{RemoteConfig, RemoteConfigError};
 use crate::super_agent::defaults::{default_capabilities, SUPER_AGENT_ID};
@@ -10,8 +11,6 @@ use thiserror::Error;
 
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
 use kube::core::TypeMeta;
-
-use super::store::SuperAgentConfigStoreError;
 
 const AGENT_ID_MAX_LENGTH: usize = 32;
 
@@ -30,7 +29,7 @@ pub enum AgentTypeError {
 #[derive(Error, Debug)]
 pub enum SuperAgentConfigError {
     #[error("error loading the super agent config: `{0}`")]
-    LoadConfigError(#[from] SuperAgentConfigStoreError),
+    LoadConfigError(#[from] ConfigStoreError),
 
     #[error("cannot find config for agent: `{0}`")]
     SubAgentNotFound(String),

@@ -4,10 +4,10 @@ use crate::opamp::hash_repository::HashRepository;
 use crate::sub_agent::collection::StartedSubAgents;
 use crate::sub_agent::{NotStartedSubAgent, SubAgentBuilder};
 use crate::super_agent::config::AgentID;
-use crate::super_agent::error::AgentError;
-use crate::super_agent::store::{
+use crate::super_agent::config_storer::storer::{
     SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer,
 };
+use crate::super_agent::error::AgentError;
 use crate::super_agent::{SuperAgent, SuperAgentCallbacks};
 use opamp_client::StartedClient;
 

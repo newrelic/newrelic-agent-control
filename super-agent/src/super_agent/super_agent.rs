@@ -1,28 +1,31 @@
 use super::config::{
     AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig, SuperAgentConfigError,
 };
-use super::store::{
-    SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer, SuperAgentConfigStoreFile,
+use super::config_storer::storer::{
+    SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer,
 };
-use crate::event::channel::{pub_sub, EventConsumer, EventPublisher};
-use crate::event::{OpAMPEvent, SubAgentEvent, SuperAgentEvent};
-use crate::opamp::callbacks::AgentCallbacks;
-use crate::opamp::hash_repository::HashRepository;
-use crate::opamp::remote_config::RemoteConfig;
-use crate::opamp::remote_config_hash::Hash;
-use crate::opamp::remote_config_publisher::OpAMPRemoteConfigPublisher;
-use crate::opamp::remote_config_report::report_remote_config_status_applied;
-use crate::sub_agent::collection::{NotStartedSubAgents, StartedSubAgents};
-use crate::sub_agent::error::SubAgentBuilderError;
-use crate::sub_agent::SubAgentBuilder;
-
-use crate::sub_agent::NotStartedSubAgent;
-use crate::super_agent::defaults::{SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION};
-use crate::super_agent::error::AgentError;
+use super::config_storer::SuperAgentConfigStoreFile;
+use crate::event::{
+    channel::{pub_sub, EventConsumer, EventPublisher},
+    OpAMPEvent, SubAgentEvent, SuperAgentEvent,
+};
+use crate::opamp::{
+    callbacks::AgentCallbacks, hash_repository::HashRepository, remote_config::RemoteConfig,
+    remote_config_hash::Hash, remote_config_publisher::OpAMPRemoteConfigPublisher,
+    remote_config_report::report_remote_config_status_applied,
+};
+use crate::sub_agent::{
+    collection::{NotStartedSubAgents, StartedSubAgents},
+    error::SubAgentBuilderError,
+    NotStartedSubAgent, SubAgentBuilder,
+};
+use crate::super_agent::{
+    defaults::{SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION},
+    error::AgentError,
+};
 use crate::utils::time::get_sys_time_nano;
 use crossbeam::select;
-use opamp_client::opamp::proto::ComponentHealth;
-use opamp_client::StartedClient;
+use opamp_client::{opamp::proto::ComponentHealth, StartedClient};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{debug, error, info, trace, warn};
@@ -400,8 +403,8 @@ mod tests {
     use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::{test::MockSubAgentBuilderMock, SubAgentBuilder};
     use crate::super_agent::config::{AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig};
-    use crate::super_agent::store::tests::MockSubAgentsConfigStore;
-    use crate::super_agent::store::{
+    use crate::super_agent::config_storer::storer::tests::MockSubAgentsConfigStore;
+    use crate::super_agent::config_storer::storer::{
         SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer,
     };
     use crate::super_agent::SuperAgent;
