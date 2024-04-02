@@ -17,7 +17,7 @@ The agent has a modular architecture, with a generic supervisor that is responsi
 
 ## Getting started
 
-Follow the [installation steps](https://docs-preview.newrelic.com/docs/new-relic-super-agent#quickstart) to get started.
+Follow the [installation steps](https://docs-preview.newrelic.com/docs/new-relic-super-agent#quickstart) to get started on Linux hosts and [running in Kubernetes](/docs/README.md#running-in-kubernetes) to run it in your cluster.
 
 For troubleshooting, see [Diagnose issues with agent logging](https://docs-preview.newrelic.com/docs/new-relic-super-agent#troubleshooting).
 
