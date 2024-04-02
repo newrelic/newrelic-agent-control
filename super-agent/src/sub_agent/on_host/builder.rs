@@ -456,10 +456,7 @@ mod test {
             "machine_id".to_string().into(),
             "some machine id".to_string().into(),
         )]);
-        let cloud_resource = Resource::new([
-            // ("cloud_instance_id".to_string().into(),
-            // "some cloud id".to_string().into())
-        ]);
+        let cloud_resource = Resource::new([]);
 
         system_detector.should_detect(system_resource);
         cloud_detector.should_detect(cloud_resource);
