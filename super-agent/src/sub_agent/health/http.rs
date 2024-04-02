@@ -1,11 +1,5 @@
 use super::health_checker::{HealthChecker, HealthCheckerError};
 use crate::agent_type::health_config::{HttpHealth, HttpHost};
-use crate::opamp::hash_repository::HashRepository;
-use crate::sub_agent::SubAgentBuilder;
-use crate::super_agent::store::{
-    SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer, SuperAgentConfigStoreFile,
-};
-use opamp_client::StartedClient;
 use std::collections::HashMap;
 use std::time::Duration;
 use thiserror::Error;
