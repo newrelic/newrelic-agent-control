@@ -26,6 +26,7 @@ where
     config_store: Arc<S>,
     k8s_client: Arc<SyncK8sClient>,
     interval: Duration,
+    // None active_agents is representing the initial state before the first load.
     active_agents: Option<ActiveAgents>,
 }
 
@@ -99,6 +100,7 @@ where
     /// Collection is stateful, only happens when the list of active agents has changed from
     /// the previous execution.
     pub fn collect(&mut self) -> Result<(), K8sError> {
+        // check if current active agents differs from previous execution.
         if !self.update_active_agents()? {
             trace!("no agents to clean since last execution");
             return Ok(());
@@ -127,12 +129,15 @@ where
         Ok(())
     }
 
+    /// Loads the latest agents list from the conf store and returns True if differs from the
+    /// the cached one.
     fn update_active_agents(&mut self) -> Result<bool, K8sError> {
         let super_agent_config = SuperAgentConfigLoader::load(self.config_store.as_ref())?;
 
         let latest_active_agents =
             Some(super_agent_config.agents.keys().map(|a| a.get()).collect());
 
+        // On the first execution self.active_agents is None so the list is updated.
         if self.active_agents == latest_active_agents {
             Ok(false)
         } else {
