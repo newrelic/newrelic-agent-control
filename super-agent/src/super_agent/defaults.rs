@@ -434,6 +434,9 @@ deployment:
     executables:
       - path: /usr/bin/nr-otel-collector
         args: "--config=${nr-var:config} --feature-gates=-pkg.translator.prometheus.NormalizeName"
+        # OTEL_RESOURCE_ATTRIBUTES are key-value pairs to be used as resource attributes by the
+        # opentelemetry resource-detector and merged with higher priority.
+        # Here, if NR_HOST_ID is set, we append host.id=${NR_HOST_ID} to OTEL_RESOURCE_ATTRIBUTES.
         env: "OTEL_RESOURCE_ATTRIBUTES=${OTEL_RESOURCE_ATTRIBUTES:+${OTEL_RESOURCE_ATTRIBUTES}${NR_HOST_ID:+,}}${NR_HOST_ID:+host.id=${NR_HOST_ID}}"
         restart_policy:
           backoff_strategy:
