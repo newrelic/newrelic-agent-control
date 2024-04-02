@@ -13,7 +13,7 @@ New Relic super agent is a generic supervisor that can be configured to orchestr
 ## High-level architecture
 ```mermaid
 flowchart LR
-    SA -->|loads| AgentTypes[Agent Types]
+    SA[Super Agent] -->|loads| AgentTypes[Agent Types]
     SA -->|loads| SAConfig[Super Agent Config]
     SA -->|supervises| Agent1["Agent (ex: NRDOT)"]
     SA -->|supervises| Agent2["Agent (ex: Infra Agent)"]
