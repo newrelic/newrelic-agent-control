@@ -2,7 +2,7 @@ use opamp_client::StartedClient;
 use tracing::{error, info};
 
 use crate::event::SubAgentEvent;
-use crate::super_agent::store::{
+use crate::super_agent::config_storer::storer::{
     SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer,
 };
 use crate::{
@@ -96,7 +96,7 @@ mod tests {
         },
         super_agent::{
             config::{AgentID, SubAgentConfig, SubAgentsConfig},
-            store::tests::MockSubAgentsConfigStore,
+            config_storer::storer::tests::MockSubAgentsConfigStore,
             super_agent::SuperAgent,
         },
     };

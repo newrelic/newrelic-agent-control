@@ -1,7 +1,8 @@
-use newrelic_super_agent::super_agent::{
-    config::{AgentTypeFQN, SubAgentsConfig, SuperAgentConfigError},
-    store::{SubAgentsConfigLoader, SuperAgentConfigStoreFile},
+use newrelic_super_agent::super_agent::config::{
+    AgentTypeFQN, SubAgentsConfig, SuperAgentConfigError,
 };
+use newrelic_super_agent::super_agent::config_storer::storer::SubAgentsConfigLoader;
+use newrelic_super_agent::super_agent::config_storer::SuperAgentConfigStoreFile;
 use thiserror::Error;
 
 #[derive(Error, Debug)]

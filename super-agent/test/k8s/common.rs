@@ -25,7 +25,7 @@ use newrelic_super_agent::{
     opamp::client_builder::{OpAMPClientBuilder, OpAMPClientBuilderError},
     super_agent::{
         config::{AgentID, AgentTypeError, SuperAgentConfig, SuperAgentConfigError},
-        store::SuperAgentConfigLoader,
+        config_storer::storer::SuperAgentConfigLoader,
     },
 };
 use opamp_client::operation::callbacks::Callbacks;
