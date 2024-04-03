@@ -87,6 +87,10 @@ impl Templateable for Executable {
             args: self.args.template_with(variables)?,
             env: self.env.template_with(variables)?,
             restart_policy: self.restart_policy.template_with(variables)?,
+            health: self
+                .health
+                .map(|health| health.template_with(variables))
+                .transpose()?,
         })
     }
 }
@@ -117,10 +121,6 @@ impl Templateable for OnHost {
                 .map(|e| e.template_with(variables))
                 .collect::<Result<Vec<Executable>, AgentTypeError>>()?,
             enable_file_logging: self.enable_file_logging.template_with(variables)?,
-            health: self
-                .health
-                .map(|health| health.template_with(variables))
-                .transpose()?,
         })
     }
 }
@@ -442,6 +442,7 @@ mod tests {
                 },
                 restart_exit_codes: vec![],
             },
+            health: None,
         };
         let expected_output = Executable {
             path: TemplateableValue::new("/usr/bin/myapp".to_string())
@@ -467,6 +468,7 @@ mod tests {
                 },
                 restart_exit_codes: vec![],
             },
+            health: None,
         };
         let actual_output = input.template_with(&variables).unwrap();
         assert_eq!(actual_output, expected_output);

@@ -16,56 +16,116 @@ use super::{
 pub struct HealthConfig {
     /// The duration to wait between health checks.
     #[serde(deserialize_with = "deserialize_duration")]
-    pub(super) interval: Duration,
+    pub(crate) interval: Duration,
 
     /// The maximum duration a health check may run before considered failed.
     #[serde(deserialize_with = "deserialize_duration")]
-    pub(super) timeout: Duration,
+    pub(crate) timeout: Duration,
 
     /// Details on the type of health check. Defined by the `HealthCheck` enumeration.
     #[serde(flatten)]
-    pub(super) check: HealthCheck,
+    pub(crate) check: HealthCheck,
 }
 
 /// Enumeration representing the possible types of health checks.
 ///
 /// Variants include `HttpHealth` and `ExecHealth`, corresponding to health checks via HTTP and execute command, respectively.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
-pub(super) enum HealthCheck {
-    #[serde(rename = "httpGet")]
-    HttpGetHealth(HttpHealth),
-    #[serde(rename = "exec")]
-    ExecHealth(ExecHealth),
+pub(crate) enum HealthCheck {
+    #[serde(rename = "http")]
+    HttpHealth(HttpHealth),
+    // #[serde(rename = "exec")]
+    // ExecHealth(ExecHealth),
 }
 
 /// Represents an HTTP-based port.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
-pub(super) struct HttpPort(pub(super) u16);
+pub(crate) struct HttpPort(pub(super) u16);
+
+impl From<HttpPort> for u16 {
+    fn from(value: HttpPort) -> Self {
+        value.0
+    }
+}
 
 /// Represents an HTTP-based health check.
 ///
 /// For further details, refer to [Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/).
 #[derive(Debug, Deserialize, Clone, PartialEq)]
-pub(super) struct HttpHealth {
+pub(crate) struct HttpHealth {
+    #[serde(default)]
+    pub(crate) host: TemplateableValue<HttpHost>,
+
     /// The HTTP path to check for the health check.
-    pub(super) path: String,
+    pub(crate) path: TemplateableValue<HttpPath>,
 
     /// The port to be checked during the health check.
-    pub(super) port: TemplateableValue<HttpPort>,
+    pub(crate) port: TemplateableValue<HttpPort>,
 
     /// Optional HTTP headers to be included during the health check.
-    pub(super) headers: Option<HashMap<String, String>>,
+    #[serde(default)]
+    pub(crate) headers: HashMap<String, String>,
+
+    // allowed healthy HTTP status codes
+    #[serde(default)]
+    pub(crate) healthy_status_codes: Vec<u16>,
+}
+
+#[derive(Debug, Deserialize, Clone, PartialEq)]
+pub(crate) struct HttpHost(String);
+
+impl Default for HttpHost {
+    fn default() -> Self {
+        Self("127.0.0.1".to_string())
+    }
+}
+
+impl From<HttpHost> for String {
+    fn from(value: HttpHost) -> Self {
+        value.0
+    }
+}
+
+impl Templateable for HttpHost {
+    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+        let templated_string = self.0.template_with(variables)?;
+        Ok(Self(templated_string))
+    }
+}
+
+#[derive(Debug, Deserialize, Clone, PartialEq)]
+pub(crate) struct HttpPath(String);
+
+impl Default for HttpPath {
+    fn default() -> Self {
+        Self("/".to_string())
+    }
+}
+
+impl From<HttpPath> for String {
+    fn from(value: HttpPath) -> Self {
+        value.0
+    }
+}
+
+impl Templateable for HttpPath {
+    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+        let templated_string = self.0.template_with(variables)?;
+        Ok(Self(templated_string))
+    }
 }
 
 /// Represents a health check based on an executed command.
 ///
 /// For further details, refer to [Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/).
 #[derive(Debug, Deserialize, Clone, PartialEq)]
-pub(super) struct ExecHealth {
+pub(crate) struct ExecHealth {
     /// The binary path to be executed for the health check.
-    path: String,
+    pub(crate) path: String,
     /// Arguments provided to the executed command.
-    args: Vec<String>,
+    pub(crate) args: Vec<String>,
+    // allowed healthy exit codes
+    pub(crate) healthy_exit_codes: Vec<i32>,
 }
 
 impl Templateable for HealthConfig {
@@ -80,12 +140,11 @@ impl Templateable for HealthConfig {
 impl Templateable for HealthCheck {
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         Ok(match self {
-            HealthCheck::HttpGetHealth(ref conf) => {
+            HealthCheck::HttpHealth(ref conf) => {
                 let mut conf = conf.clone();
                 conf.port = conf.port.template_with(variables)?;
-                HealthCheck::HttpGetHealth(conf)
+                HealthCheck::HttpHealth(conf)
             }
-            _ => self,
         })
     }
 }
