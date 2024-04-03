@@ -184,10 +184,9 @@ fn build_supervisors(
         .ok_or(SubAgentError::ErrorCreatingSubAgent(
             effective_agent.to_string(),
         ))?;
-    let file_logging = on_host.enable_file_logging.get();
 
     let mut supervisors = Vec::new();
-
+    let enable_file_logging = on_host.enable_file_logging.get();
     for exec in on_host.executables {
         let restart_policy: RestartPolicy = exec.restart_policy.into();
         let mut env = exec.env.get().into_map();
@@ -197,13 +196,17 @@ fn build_supervisors(
             .with_args(exec.args.get().into_vector())
             .with_env(env);
 
-        let config = SupervisorConfigOnHost::new(
+        let mut config = SupervisorConfigOnHost::new(
             agent_id.clone(),
             exec_data,
             Context::new(),
             restart_policy,
-            file_logging,
-        );
+        )
+        .with_file_logging(enable_file_logging);
+
+        if let Some(health) = exec.health {
+            config = config.with_health_check(health);
+        }
 
         let not_started_supervisor = SupervisorOnHost::new(config);
         supervisors.push(not_started_supervisor);
@@ -404,7 +407,6 @@ mod test {
                     on_host: Some(OnHost {
                         executables: Vec::new(),
                         enable_file_logging: TemplateableValue::new(false),
-                        ..Default::default()
                     }),
                     k8s: None,
                 },

@@ -602,6 +602,7 @@ restart_policy:
                 },
                 restart_exit_codes: vec![],
             },
+            health: None,
         };
 
         let normalized_values = Map::from([
@@ -741,6 +742,7 @@ restart_policy:
                 },
                 restart_exit_codes: vec![],
             },
+            health: None,
         };
 
         assert_eq!(exec_actual, exec_expected);
@@ -773,6 +775,7 @@ restart_policy:
                 },
                 restart_exit_codes: vec![],
             },
+            health: None,
         };
 
         let normalized_values = Map::from([
@@ -854,6 +857,7 @@ restart_policy:
                 },
                 restart_exit_codes: vec![],
             },
+            health: None,
         };
 
         assert_eq!(exec_actual, exec_expected);
