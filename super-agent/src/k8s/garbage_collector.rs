@@ -2,7 +2,7 @@ use super::{
     error::K8sError,
     labels::{Labels, AGENT_ID_LABEL_KEY},
 };
-use crate::super_agent::{self, store::SuperAgentConfigLoader};
+use crate::super_agent::{self, config_storer::storer::SuperAgentConfigLoader};
 use crossbeam::{
     channel::{tick, unbounded, Sender},
     select,
@@ -168,8 +168,8 @@ pub(crate) mod test {
     use crate::super_agent::config::{
         AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig, SuperAgentConfig,
     };
+    use crate::super_agent::config_storer::storer::MockSuperAgentConfigLoader;
     use crate::super_agent::defaults::SUPER_AGENT_ID;
-    use crate::super_agent::store::MockSuperAgentConfigLoader;
     use std::collections::HashMap;
     use std::sync::Arc;
     use std::time::Duration;

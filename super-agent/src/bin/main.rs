@@ -6,8 +6,10 @@ use newrelic_super_agent::opamp::instance_id::getter::ULIDInstanceIDGetter;
 use newrelic_super_agent::opamp::instance_id::Identifiers;
 use newrelic_super_agent::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use newrelic_super_agent::sub_agent::event_processor_builder::EventProcessorBuilder;
+use newrelic_super_agent::super_agent::config_storer::{
+    storer::SuperAgentConfigLoader, SuperAgentConfigStoreFile,
+};
 use newrelic_super_agent::super_agent::error::AgentError;
-use newrelic_super_agent::super_agent::store::{SuperAgentConfigLoader, SuperAgentConfigStoreFile};
 use newrelic_super_agent::super_agent::{super_agent_fqn, SuperAgent};
 use newrelic_super_agent::utils::binary_metadata::binary_metadata;
 use opamp_client::operation::settings::DescriptionValueType;
