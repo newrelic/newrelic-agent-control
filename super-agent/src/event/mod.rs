@@ -2,15 +2,11 @@ pub mod channel;
 
 use crate::opamp::LastErrorMessage;
 /// EVENTS
-use crate::{
-    opamp::remote_config::{RemoteConfig, RemoteConfigError},
-    super_agent::config::AgentID,
-};
+use crate::{opamp::remote_config::RemoteConfig, super_agent::config::AgentID};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum OpAMPEvent {
-    ValidRemoteConfigReceived(RemoteConfig),
-    InvalidRemoteConfigReceived(RemoteConfigError),
+    RemoteConfigReceived(RemoteConfig),
 }
 
 #[derive(Clone, Debug, PartialEq)]

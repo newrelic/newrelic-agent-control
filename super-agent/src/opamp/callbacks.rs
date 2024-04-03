@@ -64,7 +64,7 @@ where
 
     fn on_message(&self, msg: MessageData) {
         if let Some(msg_remote_config) = msg.remote_config {
-            trace!("OpAMP message received");
+            trace!("OpAMP remote config message received");
             let _ = self
                 .remote_config_publisher
                 .update(self.agent_id.clone(), &msg_remote_config)
@@ -144,29 +144,20 @@ pub(crate) mod tests {
         pub RemoteConfigPublisherMock {}
 
         impl RemoteConfigPublisher for RemoteConfigPublisherMock {
-            fn on_config_ok(&self, remote_config: RemoteConfig) -> OpAMPEvent;
-            fn on_config_err(&self, err: RemoteConfigError) -> OpAMPEvent;
+            fn on_remote_config(&self, remote_config: RemoteConfig) -> OpAMPEvent;
             fn publish_event(&self, event: OpAMPEvent) -> Result<(), RemoteConfigPublisherError>;
         }
     }
 
     impl MockRemoteConfigPublisherMock {
-        pub fn should_on_config_ok(&mut self, remote_config: RemoteConfig, event: OpAMPEvent) {
+        pub fn should_on_remote_config(&mut self, remote_config: RemoteConfig, event: OpAMPEvent) {
             let event = event.clone();
-            self.expect_on_config_ok()
+            self.expect_on_remote_config()
                 .once()
                 .with(predicate::eq(remote_config.clone()))
                 .returning(move |_| event.clone());
         }
 
-        #[allow(dead_code)]
-        pub fn should_on_config_err(&mut self, err: RemoteConfigError, event: OpAMPEvent) {
-            let event = event.clone();
-            self.expect_on_config_err()
-                .once()
-                .with(predicate::eq(err.clone()))
-                .returning(move |_| event.clone());
-        }
         pub fn should_publish_event(&mut self, event: OpAMPEvent) {
             self.expect_publish_event()
                 .once()
@@ -204,14 +195,14 @@ pub(crate) mod tests {
             "my-config".to_string(),
             "enable_proces_metrics: true".to_string(),
         )]));
-        let expected_config = RemoteConfig {
-            agent_id: agent_id.clone(),
-            hash: Hash::new("cool-hash".to_string()),
-            config_map: expected_config_map,
-        };
+        let expected_config = RemoteConfig::new(
+            agent_id.clone(),
+            Hash::new("cool-hash".to_string()),
+            Some(expected_config_map),
+        );
 
-        let expected_event = OpAMPEvent::ValidRemoteConfigReceived(expected_config.clone());
-        config_updater.should_on_config_ok(expected_config.clone(), expected_event.clone());
+        let expected_event = OpAMPEvent::RemoteConfigReceived(expected_config.clone());
+        config_updater.should_on_remote_config(expected_config.clone(), expected_event.clone());
 
         config_updater.should_publish_event(expected_event);
 
