@@ -34,8 +34,8 @@ pub struct HealthConfig {
 pub(crate) enum HealthCheck {
     #[serde(rename = "http")]
     HttpHealth(HttpHealth),
-    #[serde(rename = "exec")]
-    ExecHealth(ExecHealth),
+    // #[serde(rename = "exec")]
+    // ExecHealth(ExecHealth),
 }
 
 /// Represents an HTTP-based port.
@@ -145,7 +145,6 @@ impl Templateable for HealthCheck {
                 conf.port = conf.port.template_with(variables)?;
                 HealthCheck::HttpHealth(conf)
             }
-            _ => self,
         })
     }
 }

@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use crate::agent_type::health_config::{HealthCheck, HealthConfig};
 
-use super::{exec::ExecHealthChecker, http::HttpHealthChecker};
+use super::http::HttpHealthChecker;
 
 /// A type that implements a health checking mechanism.
 pub trait HealthChecker {
@@ -18,7 +18,6 @@ pub trait HealthChecker {
 
 pub(crate) enum HealthCheckerType {
     Http(HttpHealthChecker),
-    Exec(ExecHealthChecker),
 }
 
 /// Health check errors. Its structure mimics the OpAMP's spec for containing relevant information
@@ -59,9 +58,6 @@ impl TryFrom<HealthConfig> for HealthCheckerType {
             HealthCheck::HttpHealth(http_config) => Ok(HealthCheckerType::Http(
                 HttpHealthChecker::new(interval, timeout, http_config)?,
             )),
-            HealthCheck::ExecHealth(exec_config) => Ok(HealthCheckerType::Exec(
-                ExecHealthChecker::new(interval, timeout, exec_config),
-            )),
         }
     }
 }
@@ -70,14 +66,12 @@ impl HealthChecker for HealthCheckerType {
     fn check_health(&self) -> Result<(), HealthCheckerError> {
         match self {
             HealthCheckerType::Http(http_checker) => http_checker.check_health(),
-            HealthCheckerType::Exec(exec_checker) => exec_checker.check_health(),
         }
     }
 
     fn interval(&self) -> Duration {
         match self {
             HealthCheckerType::Http(http_checker) => http_checker.interval(),
-            HealthCheckerType::Exec(exec_checker) => exec_checker.interval(),
         }
     }
 }
