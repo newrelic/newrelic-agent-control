@@ -173,12 +173,21 @@ fn start_process_thread(
                 .as_ref()
                 .map(|h| HealthCheckerType::try_from(h.clone()))
             {
-                spawn_health_checker(
-                    // TODO: fix unwrap
-                    health_checker.unwrap(),
-                    health_check_cancel_consumer,
-                    internal_event_publisher.clone(),
-                )
+                match health_checker {
+                    Ok(health_checker) => spawn_health_checker(
+                        health_checker,
+                        health_check_cancel_consumer,
+                        internal_event_publisher.clone(),
+                    ),
+                    Err(e) => {
+                        error!(
+                            agent_id = id.to_string(),
+                            supervisor = bin,
+                            err = e.last_error(),
+                            "Could not launch health checker, using default",
+                        )
+                    }
+                }
             }
 
             let exit_code = start_command(not_started_command, current_pid.clone())

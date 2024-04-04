@@ -1,5 +1,5 @@
 use super::health_checker::{HealthChecker, HealthCheckerError};
-use crate::agent_type::health_config::{HttpHealth, HttpHost};
+use crate::agent_type::health_config::HttpHealth;
 use std::collections::HashMap;
 use std::time::Duration;
 use thiserror::Error;
@@ -69,7 +69,7 @@ impl HttpHealthChecker<ureq::Agent> {
         let host = format!(
             "{}{}",
             DEFAULT_PROTOCOL,
-            <HttpHost as Into<String>>::into(http_config.host.get())
+            String::from(http_config.host.get()),
         );
 
         let mut url = Url::parse(host.as_str())
