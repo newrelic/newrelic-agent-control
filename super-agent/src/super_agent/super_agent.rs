@@ -1,30 +1,32 @@
 use super::config::{
     AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig, SuperAgentConfigError,
 };
-use super::store::{
-    SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer, SuperAgentConfigStoreFile,
+use super::config_storer::storer::{
+    SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer,
 };
-use crate::event::channel::{pub_sub, EventConsumer, EventPublisher};
-use crate::event::{OpAMPEvent, SubAgentEvent, SuperAgentEvent};
-use crate::opamp::callbacks::AgentCallbacks;
-use crate::opamp::hash_repository::HashRepository;
-use crate::opamp::remote_config::RemoteConfig;
-use crate::opamp::remote_config_hash::Hash;
-use crate::opamp::remote_config_publisher::OpAMPRemoteConfigPublisher;
-use crate::opamp::remote_config_report::report_remote_config_status_applied;
-use crate::sub_agent::collection::{NotStartedSubAgents, StartedSubAgents};
-use crate::sub_agent::error::SubAgentBuilderError;
-use crate::sub_agent::SubAgentBuilder;
-
-use crate::sub_agent::NotStartedSubAgent;
-use crate::super_agent::defaults::{SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION};
-use crate::super_agent::error::AgentError;
+use super::config_storer::SuperAgentConfigStoreFile;
+use crate::event::{
+    channel::{pub_sub, EventConsumer, EventPublisher},
+    OpAMPEvent, SubAgentEvent, SuperAgentEvent,
+};
+use crate::opamp::{
+    callbacks::AgentCallbacks, hash_repository::HashRepository, remote_config::RemoteConfig,
+    remote_config_hash::Hash, remote_config_publisher::OpAMPRemoteConfigPublisher,
+    remote_config_report::report_remote_config_status_applied,
+};
+use crate::sub_agent::{
+    collection::{NotStartedSubAgents, StartedSubAgents},
+    error::SubAgentBuilderError,
+    NotStartedSubAgent, SubAgentBuilder,
+};
+use crate::super_agent::{
+    defaults::{SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION},
+    error::AgentError,
+};
 use crate::utils::time::get_sys_time_nano;
 use crossbeam::select;
-use opamp_client::opamp::proto::ComponentHealth;
-use opamp_client::StartedClient;
+use opamp_client::{opamp::proto::ComponentHealth, StartedClient};
 use std::collections::HashMap;
-use std::string::ToString;
 use std::sync::Arc;
 use tracing::{debug, error, info, trace, warn};
 
@@ -197,6 +199,8 @@ where
         Ok(())
     }
 
+    // process_events listens for events from the Super Agent and the Sub Agents
+    // This is the main thread loop, executed after initialization of all Super Agent components.
     fn process_events(
         &self,
         super_agent_consumer: EventConsumer<SuperAgentEvent>,
@@ -282,39 +286,49 @@ where
         let content = remote_config.get_unique()?;
         let old_sub_agents_config = self.sub_agents_config_store.load()?;
 
-        let sub_agents_config = if !content.is_empty() {
-            SubAgentsConfig::try_from(&remote_config)?
-        } else {
+        let sub_agents_config = if content.is_empty() {
+            // Use the local configuration if the content of the remote config is empty.
+            // Do not confuse with an empty list of 'agents', which is a valid remote configuration.
             self.sub_agents_config_store.delete()?;
             self.sub_agents_config_store.load()?
+        } else {
+            SubAgentsConfig::try_from(&remote_config)?
         };
 
-        // recreate from new configuration
+        // TODO the case when multiple agents are updated but one fails has multiple issues:
+        // - old agents keeps running
+        // - some agents could be created and some not independently if they have correct configs since fails on first error
+        // - storers isn't updated (event for an agent that has been applied and running )
+
+        // apply new configuration
         sub_agents_config
             .iter()
             .try_for_each(|(agent_id, agent_config)| {
-                if let Ok(old_sub_agent_config) = old_sub_agents_config.get(agent_id) {
-                    if old_sub_agent_config != agent_config {
-                        // new config
+                // recreates an existent sub agent if the configuration has changed
+                match old_sub_agents_config.get(agent_id) {
+                    Ok(old_sub_agent_config) => {
+                        if old_sub_agent_config == agent_config {
+                            return Ok(());
+                        }
+
                         info!("Recreating SubAgent {}", agent_id);
-                        return self.recreate_sub_agent(
+                        self.recreate_sub_agent(
                             agent_id.clone(),
                             agent_config,
                             running_sub_agents,
                             sub_agent_publisher.clone(),
-                        );
-                    } else {
-                        // no changes applied
-                        return Ok(());
+                        )
+                    }
+                    Err(_) => {
+                        info!("Creating SubAgent {}", agent_id);
+                        self.create_sub_agent(
+                            agent_id.clone(),
+                            agent_config,
+                            running_sub_agents,
+                            sub_agent_publisher.clone(),
+                        )
                     }
                 }
-                info!("Creating SubAgent {}", agent_id);
-                self.create_sub_agent(
-                    agent_id.clone(),
-                    agent_config,
-                    running_sub_agents,
-                    sub_agent_publisher.clone(),
-                )
             })?;
 
         // remove sub agents not used anymore
@@ -330,11 +344,10 @@ where
                 Ok(())
             })?;
 
-        // TODO improve this code.
         if !content.is_empty() {
             self.sub_agents_config_store.store(&sub_agents_config)?;
         }
-        //
+
         Ok(self
             .remote_config_hash_repository
             .save(&self.agent_id, &remote_config.hash)?)
@@ -390,8 +403,8 @@ mod tests {
     use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::{test::MockSubAgentBuilderMock, SubAgentBuilder};
     use crate::super_agent::config::{AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig};
-    use crate::super_agent::store::tests::MockSubAgentsConfigStore;
-    use crate::super_agent::store::{
+    use crate::super_agent::config_storer::storer::tests::MockSubAgentsConfigStore;
+    use crate::super_agent::config_storer::storer::{
         SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer,
     };
     use crate::super_agent::SuperAgent;

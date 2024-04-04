@@ -1,77 +1,58 @@
-use crate::common::{block_on, start_super_agent, K8sEnv};
-use k8s_openapi::api::apps::v1::Deployment;
-use kube::{api::Api, Client};
-use std::error::Error;
+use crate::common::{
+    block_on, check_deployments_exist, create_mock_config_maps, start_super_agent, K8sEnv,
+};
+use newrelic_super_agent::k8s::store::STORE_KEY_LOCAL_DATA_CONFIG;
 use std::path::Path;
 use std::time::Duration;
-use tokio::time::sleep;
 
 #[test]
 #[ignore = "needs a k8s cluster"]
 fn k8s_sub_agent_started() {
     let file_path = Path::new("test/k8s/data/static.yml");
-    let mut child = start_super_agent(file_path, Some("test/k8s/data"));
-
     // Setup k8s env
     let k8s = block_on(K8sEnv::new());
+    let namespace = "default";
+
+    block_on(create_mock_config_maps(
+        k8s.client.clone(),
+        namespace,
+        "local-data-my-agent-id",
+        STORE_KEY_LOCAL_DATA_CONFIG,
+    ));
+    block_on(create_mock_config_maps(
+        k8s.client.clone(),
+        namespace,
+        "local-data-my-agent-id-2",
+        STORE_KEY_LOCAL_DATA_CONFIG,
+    ));
+
+    let mut child = start_super_agent(file_path);
 
     let deployment_name = "my-agent-id-opentelemetry-collector";
     let deployment_name_2 = "my-agent-id-2-opentelemetry-collector";
 
-    let namespace = "default";
     let max_retries = 30;
     let duration = Duration::from_millis(5000);
 
     // Check deployment for first Agent is created with retry.
-    assert!(
-        block_on(check_deployment_exists(
-            k8s.client.clone(),
-            deployment_name,
-            namespace,
-            max_retries,
-            duration,
-        ))
-        .is_ok(),
-        "Deployment does not exist or could not be verified"
-    );
+    block_on(check_deployments_exist(
+        k8s.client.clone(),
+        &[deployment_name],
+        namespace,
+        max_retries,
+        duration,
+    ));
 
     // Check deployment for second Agent is created with retry.
-    assert!(
-        block_on(check_deployment_exists(
-            k8s.client.clone(),
-            deployment_name_2,
-            namespace,
-            max_retries,
-            duration,
-        ))
-        .is_ok(),
-        "Deployment does not exist or could not be verified"
-    );
+    block_on(check_deployments_exist(
+        k8s.client.clone(),
+        &[deployment_name_2],
+        namespace,
+        max_retries,
+        duration,
+    ));
 
     child.kill().expect("Failed to kill child process");
 
     // TODO Clean resources after finish when working with this test in the future.
-}
-
-async fn check_deployment_exists(
-    client: Client,
-    name: &str,
-    namespace: &str,
-    max_retries: usize,
-    retry_interval: Duration,
-) -> Result<(), Box<dyn Error>> {
-    let api: Api<Deployment> = Api::namespaced(client, namespace);
-    for _ in 0..max_retries {
-        match api.get(name).await {
-            Ok(_) => return Ok(()),
-            Err(e) => {
-                println!("Error checking deployment {}: {:?}, retrying...", name, e);
-                sleep(retry_interval).await;
-            }
-        }
-    }
-    Err(Box::new(std::io::Error::new(
-        std::io::ErrorKind::NotFound,
-        "CR not found after retries",
-    )))
 }

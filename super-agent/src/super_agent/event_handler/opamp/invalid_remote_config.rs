@@ -2,8 +2,10 @@ use crate::{
     opamp::{hash_repository::HashRepository, remote_config::RemoteConfigError},
     sub_agent::SubAgentBuilder,
     super_agent::{
+        config_storer::storer::{
+            SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer,
+        },
         error::AgentError,
-        store::{SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer},
         super_agent::{SuperAgent, SuperAgentCallbacks},
     },
 };
@@ -48,7 +50,7 @@ mod test {
     use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
     use crate::opamp::remote_config::RemoteConfigError::InvalidConfig;
     use crate::sub_agent::test::MockSubAgentBuilderMock;
-    use crate::super_agent::store::tests::MockSubAgentsConfigStore;
+    use crate::super_agent::config_storer::storer::tests::MockSubAgentsConfigStore;
     use crate::super_agent::SuperAgent;
     use opamp_client::http::HttpClientError;
     use opamp_client::opamp::proto::{RemoteConfigStatus, RemoteConfigStatuses};

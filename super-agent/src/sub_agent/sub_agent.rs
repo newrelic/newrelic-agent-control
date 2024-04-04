@@ -50,8 +50,6 @@ pub struct Started {
 #[cfg(test)]
 pub mod test {
     use super::*;
-    use crate::sub_agent::error::SubAgentBuilderError;
-    use crate::sub_agent::error::SubAgentError::ErrorCreatingSubAgent;
     use mockall::{mock, predicate};
 
     mock! {
@@ -133,14 +131,6 @@ pub mod test {
                     predicate::always(),
                 )
                 .return_once(move |_, _, _| Ok(sub_agent));
-        }
-
-        pub(crate) fn should_not_build(&mut self, times: usize) {
-            self.expect_build().times(times).returning(|_, _, _| {
-                Err(SubAgentBuilderError::SubAgent(ErrorCreatingSubAgent(
-                    "error creating sub agent".to_string(),
-                )))
-            });
         }
     }
 }

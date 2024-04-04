@@ -1,3 +1,4 @@
+use super::config_storer::ConfigStoreError;
 use crate::logging::config::LoggingConfig;
 use crate::opamp::remote_config::{RemoteConfig, RemoteConfigError};
 use crate::super_agent::defaults::{default_capabilities, SUPER_AGENT_ID};
@@ -10,8 +11,6 @@ use thiserror::Error;
 
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
 use kube::core::TypeMeta;
-
-use super::store::SuperAgentConfigStoreError;
 
 const AGENT_ID_MAX_LENGTH: usize = 32;
 
@@ -30,7 +29,7 @@ pub enum AgentTypeError {
 #[derive(Error, Debug)]
 pub enum SuperAgentConfigError {
     #[error("error loading the super agent config: `{0}`")]
-    LoadConfigError(#[from] SuperAgentConfigStoreError),
+    LoadConfigError(#[from] ConfigStoreError),
 
     #[error("cannot find config for agent: `{0}`")]
     SubAgentNotFound(String),
@@ -155,6 +154,9 @@ impl TryFrom<&RemoteConfig> for SubAgentsConfig {
 pub struct SuperAgentConfig {
     #[serde(default)]
     pub log: LoggingConfig,
+
+    #[serde(default)]
+    pub host_id: String,
 
     /// agents is a map of agent types to their specific configuration (if any).
     #[serde(flatten)]
@@ -399,6 +401,11 @@ log:
 agents: {}
 "#;
 
+    const SUPERAGENT_HOST_ID: &str = r#"
+host_id: 123
+agents: {}
+"#;
+
     #[test]
     fn agent_id_validator() {
         assert!(AgentID::try_from("ab".to_string()).is_ok());
@@ -606,5 +613,11 @@ agents: {}
                 path: LogFilePath::try_from(PathBuf::from("/some/path")).unwrap(),
             }
         );
+    }
+
+    #[test]
+    fn host_id_config() {
+        let config = serde_yaml::from_str::<SuperAgentConfig>(SUPERAGENT_HOST_ID).unwrap();
+        assert_eq!(config.host_id, "123");
     }
 }

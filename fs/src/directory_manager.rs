@@ -1,13 +1,11 @@
+use super::utils::{validate_path, FsError};
 use std::fs::{remove_dir_all, DirBuilder, Permissions};
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::DirBuilderExt;
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
-
 use thiserror::Error;
-
-use super::utils::{validate_path, FsError};
 
 #[derive(Error, Debug)]
 pub enum DirectoryManagementError {

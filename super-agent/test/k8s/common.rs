@@ -5,6 +5,9 @@ use bollard::{
     Docker,
 };
 use futures::{Future, StreamExt};
+use k8s_openapi::api::apps::v1::Deployment;
+use k8s_openapi::api::core::v1::ConfigMap;
+use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use k8s_openapi::{
     api::core::v1::Namespace,
     apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition,
@@ -16,14 +19,26 @@ use kube::{
     Client, CustomResource, CustomResourceExt,
 };
 use newrelic_super_agent::{
+    event::channel::EventPublisher,
+    event::OpAMPEvent,
     k8s::labels::Labels,
+    opamp::client_builder::{OpAMPClientBuilder, OpAMPClientBuilderError},
     super_agent::{
         config::{AgentID, AgentTypeError, SuperAgentConfig, SuperAgentConfigError},
-        store::SuperAgentConfigLoader,
+        config_storer::storer::SuperAgentConfigLoader,
     },
+};
+use opamp_client::operation::callbacks::Callbacks;
+use opamp_client::operation::settings::StartSettings;
+use opamp_client::Client as OpAMPClient;
+use opamp_client::{
+    opamp::proto::{AgentDescription, ComponentHealth, RemoteConfigStatus},
+    ClientResult, NotStartedClient, NotStartedClientResult, StartedClient, StartedClientResult,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
+use std::io::Read;
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::str::FromStr;
@@ -398,6 +413,7 @@ pub async fn create_test_cr(client: Client, namespace: &str, name: &str) -> Foo 
 }
 
 use mockall::mock;
+use tokio::time::sleep;
 
 mock! {
     pub SuperAgentConfigLoader {}
@@ -407,7 +423,7 @@ mock! {
     }
 }
 
-pub fn start_super_agent(file_path: &Path, local_path: Option<&str>) -> std::process::Child {
+pub fn start_super_agent(file_path: &Path) -> std::process::Child {
     let mut command = Command::new("cargo");
     command
         .args([
@@ -415,7 +431,7 @@ pub fn start_super_agent(file_path: &Path, local_path: Option<&str>) -> std::pro
             "--bin",
             "newrelic-super-agent",
             "--features",
-            "k8s,custom-local-path",
+            "k8s",
             "--",
             "--config",
         ])
@@ -423,10 +439,118 @@ pub fn start_super_agent(file_path: &Path, local_path: Option<&str>) -> std::pro
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit());
 
-    // Add local path argument if provided
-    if let Some(path) = local_path {
-        command.arg("--local-path").arg(path);
+    command.spawn().expect("Failed to start super agent")
+}
+
+pub async fn create_mock_config_maps(client: Client, test_ns: &str, name: &str, key: &str) {
+    let cm_client: Api<ConfigMap> = Api::<ConfigMap>::namespaced(client, test_ns);
+    let mut content = String::new();
+    File::open(format!("test/k8s/data/{}.yaml", name))
+        .unwrap()
+        .read_to_string(&mut content)
+        .unwrap();
+
+    let mut data = BTreeMap::new();
+    data.insert(key.to_string(), content);
+
+    let cm = ConfigMap {
+        binary_data: None,
+        data: Some(data),
+        immutable: None,
+        metadata: ObjectMeta {
+            name: Some(name.to_string()),
+            ..Default::default()
+        },
+    };
+
+    // Making sure to clean up the cluster first
+    _ = cm_client.delete(name, &DeleteParams::default()).await;
+    cm_client.create(&PostParams::default(), &cm).await.unwrap();
+}
+
+// check_deployments_exist checks for the existence of specified deployments within a namespace,
+// retrying a given number of times with pauses between attempts. Panics with an assert if any
+// deployment is not found after the specified retries.
+pub async fn check_deployments_exist(
+    k8s_client: Client,
+    names: &[&str],
+    namespace: &str,
+    max_retries: usize,
+    retry_interval: Duration,
+) {
+    let api: Api<Deployment> = Api::namespaced(k8s_client.clone(), namespace);
+
+    for &name in names {
+        let mut found = false;
+        for _ in 0..max_retries {
+            if let Ok(_) = api.get(name).await {
+                found = true;
+                break;
+            }
+            sleep(retry_interval).await;
+        }
+        assert!(found, "Deployment {} not found after retries", name);
+    }
+}
+
+// OpAMP mocks //
+/////////////////
+mock! {
+    pub NotStartedOpAMPClientMock {}
+    impl NotStartedClient for NotStartedOpAMPClientMock
+     {
+        type StartedClient<C: Callbacks + Send + Sync + 'static> = MockStartedOpAMPClientMock<C>;
+        fn start<C: Callbacks + Send + Sync + 'static>(self, callbacks: C, start_settings: StartSettings ) -> NotStartedClientResult<<Self as NotStartedClient>::StartedClient<C>>;
+    }
+}
+
+mock! {
+    pub StartedOpAMPClientMock<C> where C: Callbacks {}
+
+    impl<C> StartedClient<C> for StartedOpAMPClientMock<C>
+        where
+        C: Callbacks + Send + Sync + 'static {
+
+        fn stop(self) -> StartedClientResult<()>;
     }
 
-    command.spawn().expect("Failed to start super agent")
+    impl<C> OpAMPClient for StartedOpAMPClientMock<C>
+    where
+    C: Callbacks + Send + Sync + 'static {
+
+         fn set_agent_description(
+            &self,
+            description: AgentDescription,
+        ) -> ClientResult<()>;
+
+         fn set_health(&self, health: ComponentHealth) -> ClientResult<()>;
+
+         fn update_effective_config(&self) -> ClientResult<()>;
+
+         fn set_remote_config_status(&self, status: RemoteConfigStatus) -> ClientResult<()>;
+    }
+}
+
+impl<C> MockStartedOpAMPClientMock<C>
+where
+    C: Callbacks + Send + Sync + 'static,
+{
+    pub fn should_set_health(&mut self, times: usize) {
+        self.expect_set_health().times(times).returning(|_| Ok(()));
+    }
+
+    pub fn should_set_any_remote_config_status(&mut self, times: usize) {
+        self.expect_set_remote_config_status()
+            .times(times)
+            .returning(|_| Ok(()));
+    }
+}
+
+mock! {
+    pub OpAMPClientBuilderMock<C> where C: Callbacks + Send + Sync + 'static{}
+
+    impl<C> OpAMPClientBuilder<C> for OpAMPClientBuilderMock<C> where C: Callbacks + Send + Sync + 'static{
+        type Client = MockStartedOpAMPClientMock<C>;
+        fn build_and_start(&self, opamp_publisher: EventPublisher<OpAMPEvent>, agent_id: AgentID, start_settings: StartSettings) -> Result<<Self as OpAMPClientBuilder<C>>::Client, OpAMPClientBuilderError>;
+    }
 }

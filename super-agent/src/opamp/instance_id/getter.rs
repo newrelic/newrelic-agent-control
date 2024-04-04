@@ -11,6 +11,7 @@ pub struct InstanceID(String);
 
 impl InstanceID {
     #[cfg(test)]
+    #[allow(dead_code)]
     pub(crate) fn new(id: String) -> InstanceID {
         InstanceID(id)
     }
@@ -228,6 +229,7 @@ pub mod test {
             machine_id: "different".to_string(),
             hostname: "different".to_string(),
             cloud_instance_id: "different".to_string(),
+            ..Default::default()
         };
     }
 }

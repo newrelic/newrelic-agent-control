@@ -9,6 +9,9 @@ pub mod persister;
 pub mod restart_policy;
 pub mod values;
 
+#[cfg(feature = "onhost")]
+mod health;
+
 #[cfg(feature = "k8s")]
 pub mod k8s;
 #[cfg(feature = "onhost")]
