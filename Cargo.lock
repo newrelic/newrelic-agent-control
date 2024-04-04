@@ -1669,6 +1669,8 @@ dependencies = [
  "tracing-subscriber",
  "tracing-test",
  "ulid",
+ "ureq",
+ "url",
  "wiremock",
 ]
 
