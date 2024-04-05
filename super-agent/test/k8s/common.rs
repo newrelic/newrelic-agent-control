@@ -45,6 +45,7 @@ use std::process::{Command, Stdio};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::{collections::HashMap, env, fs::File, io::Write, sync::OnceLock, time::Duration};
+use tempfile::NamedTempFile;
 use tempfile::{tempdir, TempDir};
 use tokio::{runtime::Runtime, sync::OnceCell, time::timeout};
 
@@ -591,5 +592,68 @@ mock! {
     impl<C> OpAMPClientBuilder<C> for OpAMPClientBuilderMock<C> where C: Callbacks + Send + Sync + 'static{
         type Client = MockStartedOpAMPClientMock<C>;
         fn build_and_start(&self, opamp_publisher: EventPublisher<OpAMPEvent>, agent_id: AgentID, start_settings: StartSettings) -> Result<<Self as OpAMPClientBuilder<C>>::Client, OpAMPClientBuilderError>;
+    }
+}
+
+// Creates a static config for the super-agent given the provided opamp endpoint and the k8s namespace
+pub fn create_static_config(opamp_endpoint: String, namespace: String) -> NamedTempFile {
+    let mut temp_file = NamedTempFile::new().expect("Failed to create a temporary file");
+    let local_config = format!(
+        r#"
+opamp:
+  endpoint: "{opamp_endpoint}"
+  headers:
+    api-key: test-api-key
+k8s:
+  namespace: "{namespace}"
+  cluster_name: minikube-fake-opamp
+agents:
+  open-telemetry-agent-id:
+    agent_type: "newrelic/io.opentelemetry.collector:0.0.1"
+"#
+    );
+    write!(temp_file, "{}", local_config).unwrap();
+    temp_file
+}
+
+pub async fn check_helmrelease_spec_values(
+    k8s_client: Client,
+    namespace: &str,
+    name: &str,
+    expected_spec_values: &str,
+    max_retries: usize,
+    retry_interval: Duration,
+) {
+    let expected_as_json: serde_json::Value = serde_yaml::from_str(expected_spec_values).unwrap();
+    let gvk = &GroupVersion::from_str("helm.toolkit.fluxcd.io/v2beta2")
+        .unwrap()
+        .with_kind("HelmRelease");
+    let (api_resource, _) = kube::discovery::pinned_kind(&k8s_client, gvk)
+        .await
+        .unwrap();
+    let api: Api<DynamicObject> =
+        Api::namespaced_with(k8s_client.clone(), namespace, &api_resource);
+
+    let mut issue = None;
+    for _ in 0..max_retries {
+        let obj_result = api.get(name).await;
+        match obj_result {
+            Ok(obj) => {
+                let found_values = &obj.data["spec"]["values"];
+                if expected_as_json == *found_values {
+                    issue = None;
+                    break;
+                } else {
+                    issue = Some(format!("helm release spec values don't match with expected. Expected: {:?}, Found: {:?}", expected_as_json, *found_values));
+                }
+            }
+            Err(obj_err) => {
+                issue = Some(obj_err.to_string());
+            }
+        }
+        sleep(retry_interval).await;
+    }
+    if let Some(issue) = issue {
+        panic!("The helmrelease does not match after retries: {issue}");
     }
 }

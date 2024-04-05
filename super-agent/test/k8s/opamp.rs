@@ -1,7 +1,11 @@
 use crate::common::{
-    block_on, check_deployments_exist, create_local_sa_config, create_mock_config_maps,
-    tokio_runtime, K8sEnv, MockOpAMPClientBuilderMock, MockStartedOpAMPClientMock,
+    block_on, check_deployments_exist, check_helmrelease_spec_values, create_local_sa_config,
+    create_mock_config_maps, create_static_config, start_super_agent, tokio_runtime, K8sEnv,
+    MockOpAMPClientBuilderMock, MockStartedOpAMPClientMock,
 };
+
+use crate::fake_opamp::{FakeServer, Identifier, Response, Responses};
+use axum::http::StatusCode;
 use newrelic_super_agent::agent_type::embedded_registry::EmbeddedRegistry;
 use newrelic_super_agent::k8s::store::STORE_KEY_LOCAL_DATA_CONFIG;
 use newrelic_super_agent::opamp::callbacks::AgentCallbacks;
@@ -45,6 +49,121 @@ use std::{
     thread::spawn,
     time::Duration,
 };
+
+#[test]
+#[ignore = "needs k8s cluster"]
+fn k8s_opamp_subagent_configuration_change() {
+    // setup the fake-opamp-server
+    let server_responses = Responses::from([
+        (
+            Identifier::from("com.newrelic.super_agent"),
+            Response {
+                status: StatusCode::OK,
+                raw_body: String::from(
+                    r#"
+agents:
+  open-telemetry-agent-id:
+    agent_type: "newrelic/io.opentelemetry.collector:0.0.1"
+"#,
+                ),
+            },
+        ),
+        (
+            Identifier::from("io.opentelemetry.collector"),
+            Response {
+                status: StatusCode::OK,
+                raw_body: String::from(
+                    r#"
+chart_values:
+  mode: deployment
+  config:
+    exporters:
+      logging: { }
+       "#,
+                ),
+            },
+        ),
+    ]);
+    let mut server = FakeServer::start_new(server_responses);
+    // setup the k8s environment
+    let mut k8s = block_on(K8sEnv::new());
+    let namespace = block_on(k8s.test_namespace());
+
+    // setup the local configuration
+    let test_name = "k8s_opamp_subagent_configuration_change";
+    let config = create_static_config(server.endpoint(), namespace.to_string());
+    block_on(create_mock_config_maps(
+        k8s.client.clone(),
+        namespace.as_str(),
+        test_name,
+        "local-data-open-telemetry",
+        STORE_KEY_LOCAL_DATA_CONFIG,
+    ));
+
+    // start the super-agent
+    let mut sa = start_super_agent(config.path());
+
+    // Give it some time to handle remote configuration and resources
+    thread_sleep(Duration::from_secs(5));
+
+    // Check the expected HelmRelease is created with the spec values
+    let expected_spec_values = r#"
+mode: deployment
+config:
+  exporters:
+    logging: { }
+    "#;
+    block_on(check_helmrelease_spec_values(
+        k8s.client.clone(),
+        namespace.as_str(),
+        "open-telemetry-agent-id",
+        expected_spec_values,
+        30,
+        Duration::from_secs(5),
+    ));
+
+    // Update the agent configuration via OpAMP
+    server.set_response(
+        Identifier::from("io.opentelemetry.collector"),
+        Response {
+            status: StatusCode::OK,
+            raw_body: String::from(
+                r#"
+chart_values:
+  mode: deployment
+  config:
+    exporters:
+      logging: { }
+  image:
+    tag: "latest"
+            "#,
+            ),
+        },
+    );
+
+    // Give it some time to handle remote configuration and resources
+    thread_sleep(Duration::from_secs(5));
+
+    // Check the expected HelmRelease is updated with the new configuration
+    let expected_spec_values = r#"
+mode: deployment
+config:
+  exporters:
+    logging: { }
+image:
+  tag: "latest"
+    "#;
+
+    block_on(check_helmrelease_spec_values(
+        k8s.client.clone(),
+        namespace.as_str(),
+        "open-telemetry-agent-id",
+        expected_spec_values,
+        30,
+        Duration::from_secs(5),
+    ));
+    let _ = sa.kill();
+}
 
 #[test]
 #[ignore = "needs k8s cluster"]
