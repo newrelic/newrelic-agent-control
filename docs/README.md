@@ -1,0 +1,221 @@
+# Agent overview
+
+New Relic super agent is a generic supervisor that can be configured to orchestrate  observability agents. It integrates with New Relic fleet manager to help customers deploy, monitor and manage agents at scale. 
+
+## Table of contents
+* [High-level architecture](#high-level-architecture)
+* [Running the agent (on-host and k8s)](#running-the-agent)
+* [Local and Remote configuration](#local-and-remote-configuration)
+* [Agent type development](#agent-type-development)
+* [Troubleshooting](#troubleshooting)
+* [Testing](#testing)
+
+## High-level architecture
+```mermaid
+flowchart LR
+    SA[Super Agent] -->|loads| AgentTypes[Agent Types]
+    SA -->|loads| SAConfig[Super Agent Config]
+    SA -->|supervises| Agent1["Agent (ex: NRDOT)"]
+    SA -->|supervises| Agent2["Agent (ex: Infra Agent)"]
+    SA <-->|OpAMP| Fleet[Fleet Manager]
+    Agent1 <-->|OpAMP| Fleet
+    Agent2 <-->|OpAMP| Fleet
+
+    Agent1 --> NRMelt1[NR OTLP Endpoint]
+    Agent2 --> NRMelt2[NR MELT Endpoint]
+    classDef default fill:#f9f,stroke:#333,stroke-width:4px;
+    classDef agent-side fill:#ddf,stroke:#333,stroke-width:2px;
+    classDef server-side fill:#efe,stroke:#393,stroke-width:2px;
+
+    class SA,AgentTypes,Agent1,Agent2,SAConfig agent-side;
+    class Fleet,NRMelt1,NRMelt2 server-side;
+```
+
+The super agent itself does not currently collect system or application telemetry itself. A combination of managed agents can be used to monitor your target entities and collect system and/or services telemetry. Agents must be defined in the super agent configuration. The following example shows how to integrate the OTel collector:
+
+```yaml
+# integrate with fleet manager by defining the opamp backend settings
+# remove to run the agent standalone (disconnected from fleet)
+opamp:
+  endpoint: https://opamp.service.newrelic.com/v1/opamp
+  headers:
+    api-key: YOUR_INGEST_KEY
+
+# define agents to be supervised based on their agent types
+# agents:
+#   your-agent-id:
+#     agent_type: "namespace/agent_type:version"
+# 
+# example: configuring the OTel collector
+agents:
+  nr-otel-collector:
+    agent_type: "newrelic/io.opentelemetry.collector:0.1.0"
+```
+
+- `opamp` defines the required attributes to establish the connection with fleet manager.
+- `agents` defines which agents should be running on the target environment. A built-in or custom agent type and version definition is expected. 
+
+Agent types define how agents get orchestrated using a set of `variables` and `deployment` settings for on-host and kubernetes scenarios. Variables can be defined or customized using values file. For example, a valid values file for the OTel collector is:
+```yaml
+backoff_delay: 30s
+config: |
+    # the OTel collector config here
+```
+
+Agents (including the super agent itself) support either `local` or `remote` configuration. Local configuration is expected to be deployed together with the super agent. Remote configuration is centrally defined and managed via fleet manager. 
+
+Key concepts (in alphabetical order):
+- **Agent type**: a yaml based definition that determines how the super agent should manage a given agent. 
+- **Agent type version**: types are versioned to ensure compatibility with a given configuration values (no breaking changes). 
+- **OpAMP** (Open Agent Management Protocol): from the [public specs](https://github.com/open-telemetry/opamp-spec/blob/main/specification.md) - "...a network protocol for remote management of large fleets of data collection agents". This is the protocol used to register agents, report health and metadata, report and receive configurations and report and receive package updates. 
+- **Supervisor**: the super agent orchestrates other observability agents that need to be explicitly configured. Agents are configured using an agent ID, agent type and agent type version. In the OpAMP spec, the client-side orchestrator is referenced as the `supervisor`.  
+- **Values file**: each agent type has a set of optional and mandatory settings defined in the type itself. Agents can be customized by defining or overriding those settings in a `values.yaml` (file or ConfigMap) provided when installed on a particular environment.
+
+## Running the agent
+The agent can be executed on-host (on-prem server, cloud compute instance, virtual machine, ...) or in a Kubernetes cluster.
+
+### Running on-host
+
+Compile and run locally:
+1. Install [RUST](https://www.rust-lang.org/tools/install)
+2. Run `cargo build --features onhost`
+3. `newrelic-super-agent` binary will be generated at `./target/debug/newrelic-super-agent`
+4. Prepare a `config.yaml` file in the current folder, example: 
+
+```yaml
+opamp:
+  endpoint: https://opamp.service.newrelic.com/v1/opamp
+  headers:
+    api-key: YOUR_INGEST_KEY
+
+agents:
+  nr-otel-collector:
+    agent_type: "newrelic/io.opentelemetry.collector:0.1.0"
+```
+5. Place values files in the folder `/etc/newrelic-super-agent/agents.d/{AGENT-ID}/` where `AGENT-ID` is a key in the `agents:` list. Example:
+```yaml
+config: |
+    # the OTel collector config here
+    # receivers:
+    # exporters:
+    # pipelines:
+```
+6. Execute the binary with the config file:  
+    * `sudo ./target/debug/newrelic-super-agent --config ./config.yaml`
+
+### Running in Kubernetes
+
+We use [Minikube](https://minikube.sigs.k8s.io/docs/) and [Tilt](https://tilt.dev/) to launch a local cluster and deploy the Super Agent [charts](https://github.com/newrelic/helm-charts/tree/master/charts/super-agent).
+
+#### Prerequisites:
+- Install Minikube for local Kubernetes cluster emulation.
+- Install [ctlptl](https://github.com/tilt-dev/ctlptl)
+- Ensure you have Tilt installed for managing local development environments.
+- Add a super-agent-deployment values file in `local/super-agent-deployment-values.yml`
+
+Note: Adding the `'chart_repo'` setting, pointing to the [newrelic charts](https://github.com/newrelic/helm-charts/tree/master/charts) on a local path, allows to use local helm charts.
+#### Steps
+```shell
+ctlptl create registry ctlptl-registry --port=5005
+ctlptl create cluster minikube --registry=ctlptl-registry
+make tilt-up
+```
+
+## Local and Remote configuration
+Learn how agents support [local and remote configuration](https://docs-preview.newrelic.com/docs/new-relic-super-agent#local-vs-remote).
+
+## Agent type development
+
+This guideline shows how to build a custom agent type and integrate it with the super agent on-host. The [telegraf agent](https://www.influxdata.com/time-series-platform/telegraf/) is used as a reference.
+
+1. Create a `dynamic-agent-type.yaml` file with the agent type definition
+
+```yaml
+# namespace: newrelic, external, other
+namespace: external
+# name: reverse FQDN that uniquely identifies the agent type
+name: com.influxdata.telegraf
+# version: semver scheme
+version: 0.0.1
+
+# variables:
+#   on_host | kubernetes:
+#     my_var_1:
+#       description: "Variable description here"
+#       type: file | string
+#       required: true | false
+#       default: "default value"
+#       file_path: "persistence path"
+
+variables:
+  on_host:
+    config_file:
+      description: "Telegraf config file path"
+      type: string
+      required: false
+      default: "/path/to/telegraf.conf"
+    backoff_delay:
+      description: "seconds until next retry if agent fails to start"
+      type: string
+      required: false
+      default: 20s
+    
+deployment:
+  on_host:
+    executables:
+      - path: /usr/bin/telegraf
+        args: "--config ${nr-var:config_file}"
+        env: ""
+        restart_policy:
+          backoff_strategy:
+            type: fixed
+            backoff_delay: ${nr-var:backoff_delay}
+```
+  ℹ️ Refer to the [agent type](https://github.com/newrelic/newrelic-super-agent/tree/improve-readability/super-agent/src/agent_type) implementation for the full definition of `variables` and `deployment`.
+
+2. Copy the agent type definition to `/etc/newrelic-super-agent/dynamic-agent-type.yaml`
+
+    ⚠︎ This is a temporal path, expect a configurable path to load custom agent types in the future.
+
+3. Use the new type in the `agents` config for the super agent:
+```yaml
+#opamp:
+# ...
+
+agents:
+  my-telegraf-collector:
+    agent_type: "external/com.influxdata.telegraf:0.0.1"
+```
+
+4. If any `required` variable has been defined in the type or any default value for variables needs to be customized, then define a `values.yaml` in `/etc/newrelic-super-agent/fleet/agents.d/my-telegraf/values.yaml`:
+```yaml
+config_file: /custom/path/to/file
+backoff_delay: 30s
+```
+
+5. Restart the super agent.
+
+## Troubleshooting
+
+See [diagnose issues with super agent logging](https://docs-preview.newrelic.com/docs/new-relic-super-agent#debug).
+
+## Testing
+
+Running the tests
+
+All tests:
+```
+cargo test --all-features -- --skip as_root
+```
+
+Only for the feature on-host:
+```
+cargo test --features "onhost" -- --skip as_root
+```
+
+Only for the feature k8s:
+```
+cargo test --features "k8s"
+```
+
+Passing the flag --features "onhost, k8s" will throw a compilation error, there is a special feature "ci", that needs to be enabled to allow those 2 features at the same time (since we only want them together in specific CI scenarios).
