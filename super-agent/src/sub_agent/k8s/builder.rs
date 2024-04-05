@@ -91,7 +91,13 @@ where
         let (sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
 
-        debug!("Building subAgent {}", agent_id);
+        debug!(agent_id = agent_id.to_string(), "building subAgent");
+
+        let effective_agent_res = self.effective_agent_assembler.assemble_agent(
+            &agent_id,
+            sub_agent_config,
+            &Environment::K8s,
+        );
 
         let maybe_opamp_client = build_opamp_and_start_client(
             sub_agent_opamp_publisher,
@@ -105,56 +111,97 @@ where
             )]),
         )?;
 
-        let effective_agent_res = self.effective_agent_assembler.assemble_agent(
-            &agent_id,
-            sub_agent_config,
-            &Environment::K8s,
-        );
-
-        let mut has_supervisors = true;
-
-        // TODO the logic here is 100% similar to the onhost one, we should review and possibly merge them
-        if let Some(opamp_client) = &maybe_opamp_client {
-            match self.hash_repository.get(&agent_id) {
-                Err(e) => error!("hash repository error: {}", e),
-                Ok(None) => warn!("hash repository not found for agent: {}", &agent_id),
-                Ok(Some(mut hash)) => {
-                    if let Err(err) = effective_agent_res.as_ref() {
-                        report_remote_config_status_error(opamp_client, &hash, err.to_string())?;
-                        error!(
-                            "Failed to assemble agent {} and to create supervisors, only the opamp client will be listening for a fixed configuration",
-                            agent_id
+        // A sub-agent can be started without supervisor, when running with opamp activated, in order to
+        // be able to receive messages.
+        let supervisor = if let Some(opamp_client) = &maybe_opamp_client {
+            match (self.hash_repository.get(&agent_id)?, effective_agent_res) {
+                // multiple cases are covered here:
+                (Some(mut hash), Ok(effective_agent)) => {
+                    // Case where the agent had a valid remote config that haven't been applied.
+                    // The supervisor is built with that config.
+                    if hash.is_applying() {
+                        debug!(
+                            agent_id = agent_id.to_string(),
+                            "building from remote config"
                         );
-                        // report the failed status for remote config and let the opamp client
-                        // running with no supervisors so the configuration can be fixed
-                        has_supervisors = false;
-                    } else if hash.is_applying() {
                         report_remote_config_status_applied(opamp_client, &hash)?;
                         hash.apply();
                         self.hash_repository.save(&agent_id, &hash)?;
-                    } else if hash.is_failed() {
-                        // failed hash always has the error message
-                        let error_message = hash.error_message().unwrap();
+                    }
+
+                    // Case where the last received remote config had failed and there was a restart of the SA.
+                    // The supervisor is built with the latest working config (local or remote).
+                    // IMPORTANT: the hash here is not related with the agent config used to built the supervisor.
+                    if let Some(error_message) = hash.error_message() {
+                        warn!(
+                            agent_id = agent_id.to_string(),
+                            "latest remote config failed, building with previous stored config"
+                        );
+                        // this opamp error has already been sent when the config was flagged as fail but we sent it again
+                        // in case of a SA restart.
                         report_remote_config_status_error(
                             opamp_client,
                             &hash,
                             error_message.to_string(),
                         )?;
                     }
+
+                    Some(build_cr_supervisors(
+                        &agent_id,
+                        effective_agent,
+                        self.k8s_client.clone(),
+                        &self.k8s_config,
+                    )?)
+                }
+                // Case where the remote config fails to be assembled so the hash needs to saved as failed and report the status.
+                (Some(mut hash), Err(err)) => {
+                    // Error messages are not override if config was already in failure status.
+                    // Parsing errors from previous steps will lead to more clear understanding of the issue.
+                    if !hash.is_failed() {
+                        hash.fail(err.to_string());
+                        self.hash_repository.save(&agent_id, &hash)?;
+                    }
+
+                    report_remote_config_status_error(opamp_client, &hash, err.to_string())?;
+                    error!(
+                        agent_id = agent_id.to_string(),
+                        "starting without supervisor: failed to assemble agent config from remote config"
+                    );
+                    None
+                }
+                // Case where there were not previous valid remote configs so the loaded could be local or empty one, and it fails.
+                (None, Err(err)) => {
+                    warn!(
+                        agent_id = agent_id.to_string(),
+                        "starting without supervisor: failed to assemble agent config from local or empty config: {err}"
+                    );
+                    None
+                }
+                // Case where there were not previous valid remote configs so the loaded could be local or empty one.
+                (None, Ok(effective_agent)) => {
+                    // TODO here we could be loading the local config but previously had received an invalid opamp config.
+                    // this is a not covered corner-case were we should detect it and report that remote config_status_error.
+                    // Currently the hash is not saved when received an InvalidRemoteConfig.
+                    debug!(
+                        agent_id = agent_id.to_string(),
+                        "building from local config"
+                    );
+                    Some(build_cr_supervisors(
+                        &agent_id,
+                        effective_agent,
+                        self.k8s_client.clone(),
+                        &self.k8s_config,
+                    )?)
                 }
             }
-        }
-
-        // When running with no CRSupervisor only the opamp server is enabled.
-        // This behaviour is needed to allow a subAgent to download a fixed configuration.
-        let supervisor: Option<CRSupervisor> = match has_supervisors {
-            false => None,
-            true => Some(build_cr_supervisors(
+        } else {
+            Some(build_cr_supervisors(
                 &agent_id,
+                // IMPORTANT: when running in local config only mode, a supervisor must exist.
                 effective_agent_res?,
                 self.k8s_client.clone(),
                 &self.k8s_config,
-            )?),
+            )?)
         };
 
         let event_processor = self.event_processor_builder.build(
