@@ -32,9 +32,7 @@ where
     // Super Agent on remote config
     // Configuration will be reported as applying to OpAMP
     // Valid configuration will be applied and reported as applied to OpAMP
-    // Invalid configuration will not be applied and therefore it will not break the execution
-    // of the Super Agent. It will be logged and reported as failed to OpAMP
-    pub(crate) fn valid_remote_config(
+    pub(crate) fn remote_config(
         &self,
         mut remote_config: RemoteConfig,
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
@@ -49,11 +47,8 @@ where
         info!("Applying SuperAgent remote config");
         report_remote_config_status_applying(opamp_client, &remote_config.hash)?;
 
-        match self.apply_remote_super_agent_config(
-            remote_config.clone(),
-            sub_agents,
-            sub_agent_publisher,
-        ) {
+        match self.apply_remote_super_agent_config(&remote_config, sub_agents, sub_agent_publisher)
+        {
             Err(err) => {
                 let error_message = format!("Error applying Super Agent remote config: {}", err);
                 error!(error_message);
@@ -117,14 +112,14 @@ mod tests {
         let mut running_sub_agents = StartedSubAgents::default();
         let old_sub_agents_config = SubAgentsConfig::default();
         let agent_id = AgentID::new_super_agent_id();
-        let remote_config = RemoteConfig {
+        let remote_config = RemoteConfig::new(
             agent_id,
-            hash: Hash::new("this-is-a-hash".to_string()),
-            config_map: ConfigMap::new(HashMap::from([(
+            Hash::new("this-is-a-hash".to_string()),
+            Some(ConfigMap::new(HashMap::from([(
                 "".to_string(),
                 "invalid_yaml_content:{}".to_string(),
-            )])),
-        };
+            )]))),
+        );
 
         //Expectations
 
@@ -159,7 +154,7 @@ mod tests {
 
         let (opamp_publisher, _opamp_consumer) = pub_sub();
         super_agent
-            .valid_remote_config(remote_config, opamp_publisher, &mut running_sub_agents)
+            .remote_config(remote_config, opamp_publisher, &mut running_sub_agents)
             .unwrap();
     }
 
@@ -187,11 +182,14 @@ mod tests {
         )]));
 
         let agent_id = AgentID::new_super_agent_id();
-        let remote_config = RemoteConfig {
+        let remote_config = RemoteConfig::new(
             agent_id,
-            hash: Hash::new("this-is-a-hash".to_string()),
-            config_map: ConfigMap::new(HashMap::from([("".to_string(), "agents: {}".to_string())])),
-        };
+            Hash::new("this-is-a-hash".to_string()),
+            Some(ConfigMap::new(HashMap::from([(
+                "".to_string(),
+                "agents: {}".to_string(),
+            )]))),
+        );
 
         //Expectations
 
@@ -237,7 +235,7 @@ mod tests {
 
         let (opamp_publisher, _opamp_consumer) = pub_sub();
         super_agent
-            .valid_remote_config(remote_config, opamp_publisher, &mut running_sub_agents)
+            .remote_config(remote_config, opamp_publisher, &mut running_sub_agents)
             .unwrap();
     }
 }

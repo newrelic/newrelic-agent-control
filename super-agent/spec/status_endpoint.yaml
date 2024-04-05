@@ -1,0 +1,74 @@
+openapi: 3.1.0
+info:
+  title: Status API
+  description: An API to check the current super-agent status.
+  version: 1.0.0
+servers:
+  - url: https://localhost:DEFINE_DEFAULT_PORT/api/v1
+paths:
+  /status:
+    get:
+      summary: Get super-agent status
+      description: This endpoint returns the current status of the super-agent.
+      responses:
+        '200':
+          description: SuperAgent status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  opamp:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                      endpoint:
+                        type: string
+                        enum: [staging, prod?]
+                      status:
+                        type: string
+                        enum: [connected, unreachable, unauthorized, timeout]
+                  super_agent:
+                    type: object
+                    healthy:
+                      type: boolean
+                    status:
+                      type: string
+                    last_error:
+                      type: string
+                  sub_agents:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        agent_id:
+                          type: string
+                        agent_type:
+                          type: string
+                        healthy:
+                          type: boolean
+                        health_check_method:
+                          type: string
+                          enum: [http, cmd]
+                        last_error:
+                          type: string
+                        status:
+                          type: string
+                    example:
+                      - agent_id: "infrastructure_agent_id_1"
+                        agent_type: "newrelic/com.newrelic.infrastructure:0.0.1"
+                        healthy: false
+                        health_check_method: "http"
+                        last_error: "The sub-agent exceeded the number of retries defined in its restart policy."
+                        status: "unregistered"
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: An error occurred while getting server status

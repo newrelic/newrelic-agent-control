@@ -100,16 +100,10 @@ where
                                 debug!("sub_agent_opamp_consumer :: channel closed");
                                 break;
                             }
-                            Ok(OpAMPEvent::InvalidRemoteConfigReceived(remote_config_error)) => {
-                                debug!("invalid remote config received for: {}", self.agent_id);
-                                if let Err(e) = self.invalid_remote_config(remote_config_error){
-                                    error!("error processing invalid remote config: {}",e.to_string())
-                                }
-                            }
-                            Ok(OpAMPEvent::ValidRemoteConfigReceived(remote_config)) => {
-                                debug!("valid remote config received for: {}", self.agent_id);
-                                if let Err(e) = self.valid_remote_config(remote_config){
-                                     error!("error processing valid remote config: {}",e.to_string())
+                            Ok(OpAMPEvent::RemoteConfigReceived(remote_config)) => {
+                                debug!("remote config received for: {}", self.agent_id);
+                                if let Err(e) = self.remote_config(remote_config){
+                                     error!("error processing remote config: {}",e.to_string())
                                 }
                             }
                         }
@@ -148,13 +142,11 @@ pub mod test {
     use crate::event::channel::pub_sub;
     use crate::event::OpAMPEvent;
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
-    use crate::opamp::remote_config::{ConfigMap, RemoteConfig, RemoteConfigError};
+    use crate::opamp::remote_config::{ConfigMap, RemoteConfig};
     use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::event_processor::{EventProcessor, SubAgentEventProcessor};
     use crate::super_agent::config::AgentID;
     use mockall::mock;
-    use opamp_client::opamp::proto::RemoteConfigStatus;
-    use opamp_client::opamp::proto::RemoteConfigStatuses::Failed;
     use std::collections::HashMap;
     use std::sync::Arc;
     use std::thread;
@@ -222,7 +214,7 @@ pub mod test {
 
     #[traced_test]
     #[test]
-    fn test_valid_config() {
+    fn test_remote_config() {
         let mut opamp_client = MockStartedOpAMPClientMock::new();
         let (sub_agent_publisher, sub_agent_consumer) = pub_sub();
         let (sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
@@ -241,18 +233,10 @@ pub mod test {
         hash_repository.should_save_hash(&agent_id, &hash);
         values_repository.should_store_remote(
             &agent_id,
-            // &AgentValues::new(HashMap::from([(
-            //     String::from("some_item"),
-            //     TrivialValue::String(String::from("some_value")),
-            // )])),
             &AgentValues::new(HashMap::from([("some_item".into(), "some_value".into())])),
         );
 
-        let remote_config = RemoteConfig {
-            config_map,
-            hash,
-            agent_id: agent_id.clone(),
-        };
+        let remote_config = RemoteConfig::new(agent_id.clone(), hash, Some(config_map));
 
         //opamp client expects to be stopped
         opamp_client.should_set_health(1);
@@ -271,7 +255,7 @@ pub mod test {
 
         // publish event
         sub_agent_opamp_publisher
-            .publish(OpAMPEvent::ValidRemoteConfigReceived(remote_config))
+            .publish(OpAMPEvent::RemoteConfigReceived(remote_config))
             .unwrap();
 
         // close the OpAMP Publisher
@@ -281,62 +265,10 @@ pub mod test {
 
         assert!(logs_with_scope_contain(
             "DEBUG newrelic_super_agent::sub_agent::event_processor",
-            "valid remote config received",
+            "remote config received",
         ));
 
         let expected_event = ConfigUpdated(agent_id.clone());
         assert_eq!(expected_event, sub_agent_consumer.as_ref().recv().unwrap());
-    }
-
-    #[traced_test]
-    #[test]
-    fn test_invalid_config() {
-        let mut opamp_client = MockStartedOpAMPClientMock::new();
-        let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
-        let (sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
-        let (_sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
-        let hash_repository = MockHashRepositoryMock::default();
-        let values_repository = MockRemoteValuesRepositoryMock::default();
-
-        opamp_client.should_set_remote_config_status(RemoteConfigStatus {
-            error_message: "this is an error message".to_string(),
-            status: Failed as i32,
-            last_remote_config_hash: "a-hash".as_bytes().to_vec(),
-        });
-
-        let remote_config_error = RemoteConfigError::InvalidConfig(
-            String::from("a-hash"),
-            String::from("this is an error message"),
-        );
-
-        //opamp client expects to be stopped
-        opamp_client.should_set_health(1);
-        opamp_client.should_stop(1);
-
-        let event_processor = EventProcessor::new(
-            AgentID::new("agent-id").unwrap(),
-            sub_agent_publisher,
-            sub_agent_opamp_consumer,
-            sub_agent_internal_consumer,
-            Some(opamp_client),
-            Arc::new(hash_repository),
-            Arc::new(values_repository),
-        );
-        let handle = event_processor.process();
-
-        // publish event
-        sub_agent_opamp_publisher
-            .publish(OpAMPEvent::InvalidRemoteConfigReceived(remote_config_error))
-            .unwrap();
-
-        // close the OpAMP Publisher
-        drop(sub_agent_opamp_publisher);
-
-        handle.join().unwrap().unwrap();
-
-        assert!(logs_with_scope_contain(
-            "DEBUG newrelic_super_agent::sub_agent::event_processor",
-            "invalid remote config received",
-        ));
     }
 }
