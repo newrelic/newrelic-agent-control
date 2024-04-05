@@ -96,10 +96,10 @@ fn k8s_opamp_add_sub_agent() {
 
     let running_agent = test_env.run_super_agent();
 
-    let remote_config = RemoteConfig {
-        agent_id: AgentID::new_super_agent_id(),
-        hash: Hash::new("a-hash".to_string()),
-        config_map: ConfigMap::new(HashMap::from([(
+    let remote_config = RemoteConfig::new(
+        AgentID::new_super_agent_id(),
+        Hash::new("a-hash".to_string()),
+        Some(ConfigMap::new(HashMap::from([(
             "".to_string(),
             r#"
 agents:
@@ -109,8 +109,8 @@ agents:
     agent_type: "newrelic/io.opentelemetry.collector:0.1.0"
 "#
             .to_string(),
-        )])),
-    };
+        )]))),
+    );
 
     // Create config map for the new added sub agent.
     // In a typical scenario, when a new agent is added remotely, its configuration would also be
@@ -127,7 +127,7 @@ agents:
     thread_sleep(Duration::from_millis(500));
 
     opamp_publisher
-        .publish(OpAMPEvent::ValidRemoteConfigReceived(remote_config))
+        .publish(OpAMPEvent::RemoteConfigReceived(remote_config))
         .unwrap();
 
     // Wait some time to let the (sub)agents to be created.

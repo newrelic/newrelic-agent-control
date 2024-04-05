@@ -10,8 +10,11 @@ use crate::event::{
     OpAMPEvent, SubAgentEvent, SuperAgentEvent,
 };
 use crate::opamp::{
-    callbacks::AgentCallbacks, hash_repository::HashRepository, remote_config::RemoteConfig,
-    remote_config_hash::Hash, remote_config_publisher::OpAMPRemoteConfigPublisher,
+    callbacks::AgentCallbacks,
+    hash_repository::HashRepository,
+    remote_config::{RemoteConfig, RemoteConfigError},
+    remote_config_hash::Hash,
+    remote_config_publisher::OpAMPRemoteConfigPublisher,
     remote_config_report::report_remote_config_status_applied,
 };
 use crate::sub_agent::{
@@ -221,21 +224,8 @@ where
                 recv(super_agent_opamp_consumer.as_ref()) -> opamp_event => {
                     debug!("Received OpAMP event");
                     match opamp_event.unwrap() {
-                        OpAMPEvent::InvalidRemoteConfigReceived(
-                            remote_config_error,
-                        ) => {
-                            warn!("Invalid remote config received: {remote_config_error}");
-                            // if the invalid remote config action cannot be processed
-                            // (report status, health...) we log it, but we don't break the
-                            // execution
-                            let _ = self.invalid_remote_config(remote_config_error)
-                            .inspect_err(|e| error!("Error processing invalid remote config: {}", e));
-                        }
-                        OpAMPEvent::ValidRemoteConfigReceived(remote_config) => {
-                            // if the valid remote config action cannot be processed
-                            // (report status, health...) we log it, but we don't break the
-                            // execution
-                            let _ = self.valid_remote_config(remote_config, sub_agent_publisher.clone(), &mut sub_agents )
+                        OpAMPEvent::RemoteConfigReceived(remote_config) => {
+                            let _ = self.remote_config(remote_config, sub_agent_publisher.clone(), &mut sub_agents )
                             .inspect_err(|e| error!("Error processing valid remote config: {}", e));
                         }
                     }
@@ -276,23 +266,29 @@ where
     // apply a remote config to the running sub agents
     pub(super) fn apply_remote_super_agent_config(
         &self,
-        remote_config: RemoteConfig,
+        remote_config: &RemoteConfig,
         running_sub_agents: &mut StartedSubAgents<
             <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
     ) -> Result<(), AgentError> {
-        //TODO fix get_unique to fit OpAMP Spec of having a "" when single config
-        let content = remote_config.get_unique()?;
+        // Fail if the remote config has already identified as failed.
+        if let Some(err) = remote_config.hash.error_message() {
+            // TODO seems like this error should be sent by the remote config itself
+            return Err(RemoteConfigError::InvalidConfig(remote_config.hash.get(), err).into());
+        }
+
+        let remote_config_value = remote_config.get_unique()?;
+
         let old_sub_agents_config = self.sub_agents_config_store.load()?;
 
-        let sub_agents_config = if content.is_empty() {
+        let sub_agents_config = if remote_config_value.is_empty() {
             // Use the local configuration if the content of the remote config is empty.
             // Do not confuse with an empty list of 'agents', which is a valid remote configuration.
             self.sub_agents_config_store.delete()?;
             self.sub_agents_config_store.load()?
         } else {
-            SubAgentsConfig::try_from(&remote_config)?
+            SubAgentsConfig::try_from(remote_config_value)?
         };
 
         // TODO the case when multiple agents are updated but one fails has multiple issues:
@@ -344,7 +340,7 @@ where
                 Ok(())
             })?;
 
-        if !content.is_empty() {
+        if !remote_config_value.is_empty() {
             self.sub_agents_config_store.store(&sub_agents_config)?;
         }
 
@@ -595,10 +591,10 @@ mod tests {
             }
         });
 
-        let remote_config = RemoteConfig {
-            agent_id: AgentID::new_super_agent_id(),
-            hash: Hash::new("a-hash".to_string()),
-            config_map: ConfigMap::new(HashMap::from([(
+        let remote_config = RemoteConfig::new(
+            AgentID::new_super_agent_id(),
+            Hash::new("a-hash".to_string()),
+            Some(ConfigMap::new(HashMap::from([(
                 "".to_string(),
                 r#"
 agents:
@@ -606,11 +602,11 @@ agents:
     agent_type: "newrelic/com.newrelic.infrastructure_agent:0.0.1"
 "#
                 .to_string(),
-            )])),
-        };
+            )]))),
+        );
 
         opamp_publisher
-            .publish(OpAMPEvent::ValidRemoteConfigReceived(remote_config))
+            .publish(OpAMPEvent::RemoteConfigReceived(remote_config))
             .unwrap();
         sleep(Duration::from_millis(500));
         super_agent_publisher
@@ -684,10 +680,10 @@ agents:
         let mut running_sub_agents = sub_agents.unwrap().run().unwrap();
 
         // just one agent, it should remove the infra-agent
-        let remote_config = RemoteConfig {
-            agent_id: AgentID::new_super_agent_id(),
-            hash: Hash::new("a-hash".to_string()),
-            config_map: ConfigMap::new(HashMap::from([(
+        let remote_config = RemoteConfig::new(
+            AgentID::new_super_agent_id(),
+            Hash::new("a-hash".to_string()),
+            Some(ConfigMap::new(HashMap::from([(
                 "".to_string(),
                 r#"
 agents:
@@ -695,14 +691,14 @@ agents:
     agent_type: newrelic/io.opentelemetry.collector:0.0.1
 "#
                 .to_string(),
-            )])),
-        };
+            )]))),
+        );
 
         assert_eq!(running_sub_agents.len(), 2);
 
         super_agent
             .apply_remote_super_agent_config(
-                remote_config,
+                &remote_config,
                 &mut running_sub_agents,
                 opamp_publisher.clone(),
             )
@@ -711,10 +707,10 @@ agents:
         assert_eq!(running_sub_agents.len(), 1);
 
         // remove nrdot and create new infra-agent sub_agent
-        let remote_config = RemoteConfig {
-            agent_id: AgentID::new_super_agent_id(),
-            hash: Hash::new("b-hash".to_string()),
-            config_map: ConfigMap::new(HashMap::from([(
+        let remote_config = RemoteConfig::new(
+            AgentID::new_super_agent_id(),
+            Hash::new("b-hash".to_string()),
+            Some(ConfigMap::new(HashMap::from([(
                 "".to_string(),
                 r#"
 agents:
@@ -722,12 +718,12 @@ agents:
     agent_type: newrelic/com.newrelic.infrastructure_agent:0.0.1
 "#
                 .to_string(),
-            )])),
-        };
+            )]))),
+        );
 
         super_agent
             .apply_remote_super_agent_config(
-                remote_config,
+                &remote_config,
                 &mut running_sub_agents,
                 opamp_publisher.clone(),
             )

@@ -9,7 +9,7 @@ use thiserror::Error;
 pub struct RemoteConfig {
     pub agent_id: AgentID,
     pub hash: Hash,
-    pub config_map: ConfigMap,
+    config_map: Option<ConfigMap>,
 }
 
 #[derive(Error, Debug, Clone, PartialEq)]
@@ -25,15 +25,29 @@ pub enum RemoteConfigError {
 pub struct ConfigMap(HashMap<String, String>);
 
 impl RemoteConfig {
+    pub fn new(agent_id: AgentID, hash: Hash, config_map: Option<ConfigMap>) -> Self {
+        Self {
+            agent_id,
+            hash,
+            config_map,
+        }
+    }
     //TODO : This is temporal as when there is only one conf item we should receive an empty string as key
-    pub fn get_unique(&self) -> Result<&String, RemoteConfigError> {
-        match self.config_map.0.len() {
+    pub fn get_unique(&self) -> Result<&str, RemoteConfigError> {
+        let config_map = self
+            .config_map
+            .as_ref()
+            .ok_or(RemoteConfigError::InvalidConfig(
+                self.hash.get(),
+                "missing config".to_string(),
+            ))?;
+
+        match config_map.0.len() {
             0 => Err(RemoteConfigError::InvalidConfig(
                 self.hash.get(),
                 "empty config map".to_string(),
             )),
-            1 => Ok(self
-                .config_map
+            1 => Ok(config_map
                 .0
                 .values()
                 .next()
@@ -49,10 +63,6 @@ impl RemoteConfig {
 impl ConfigMap {
     pub fn new(config_map: HashMap<String, String>) -> Self {
         Self(config_map)
-    }
-
-    pub fn get(&self, key: &str) -> Option<&String> {
-        self.0.get(key)
     }
 }
 

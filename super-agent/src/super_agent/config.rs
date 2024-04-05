@@ -1,6 +1,6 @@
 use super::config_storer::ConfigStoreError;
 use crate::logging::config::LoggingConfig;
-use crate::opamp::remote_config::{RemoteConfig, RemoteConfigError};
+use crate::opamp::remote_config::RemoteConfigError;
 use crate::status::config::StatusCheckConfig;
 use crate::super_agent::defaults::{default_capabilities, SUPER_AGENT_ID};
 use opamp_client::operation::capabilities::Capabilities;
@@ -137,15 +137,10 @@ impl From<HashMap<AgentID, SubAgentConfig>> for SubAgentsConfig {
     }
 }
 
-impl TryFrom<&RemoteConfig> for SubAgentsConfig {
+impl TryFrom<&str> for SubAgentsConfig {
     type Error = SuperAgentConfigError;
-    fn try_from(value: &RemoteConfig) -> Result<Self, Self::Error> {
-        // YAML format
-        // simple config is provided as empty string filename: https://github.com/open-telemetry/opamp-spec/blob/main/proto/opamp.proto#L837
-        // TODO the sentence above is not true yet
-        let config: SubAgentsConfig = serde_yaml::from_str(value.get_unique()?)?;
-        // let config: SubAgentsConfig = serde_yaml::from_str(value.config_map.get("").unwrap())?;
-        Ok(config)
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Ok(serde_yaml::from_str(value)?)
     }
 }
 

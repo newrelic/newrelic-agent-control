@@ -22,8 +22,7 @@ pub enum RemoteConfigPublisherError {
 }
 
 pub trait RemoteConfigPublisher {
-    fn on_config_ok(&self, remote_config: RemoteConfig) -> OpAMPEvent;
-    fn on_config_err(&self, err: RemoteConfigError) -> OpAMPEvent;
+    fn on_remote_config(&self, remote_config: RemoteConfig) -> OpAMPEvent;
     fn publish_event(&self, event: OpAMPEvent) -> Result<(), RemoteConfigPublisherError>;
 
     fn update(
@@ -31,47 +30,34 @@ pub trait RemoteConfigPublisher {
         agent_id: AgentID,
         msg_remote_config: &AgentRemoteConfig,
     ) -> Result<(), RemoteConfigPublisherError> {
-        if let Some(msg_config_map) = &msg_remote_config.config {
-            //Check if hash is empty
-            let config: Result<ConfigMap, RemoteConfigError> = msg_config_map.try_into();
+        let mut hash = match str::from_utf8(&msg_remote_config.config_hash) {
+            Ok(hash) => Hash::new(hash.to_string()),
+            Err(err) => {
+                // the hash must be created to keep track of the failing remote config.
+                let mut hash = Hash::new(String::new());
+                hash.fail(format!("Invalid hash: {}", err));
+                hash
+            }
+        };
 
-            let current_hash = str::from_utf8(&msg_remote_config.config_hash)?.to_string();
-            trace!(
-                "OpAMP message received with remote config hash: {}",
-                current_hash
-            );
+        let config_map: Option<ConfigMap> = match &msg_remote_config.config {
+            Some(msg_config_map) => msg_config_map
+                .try_into()
+                .inspect_err(|err: &RemoteConfigError| {
+                    hash.fail(format!("Invalid format: {}", err))
+                })
+                .ok(),
+            None => {
+                hash.fail("Config missing".into());
+                None
+            }
+        };
 
-            let event = match config {
-                Err(e) => {
-                    error!(
-                        "invalid config received for agent_id: {}, hash: {}",
-                        &agent_id, &current_hash
-                    );
-                    self.on_config_err(RemoteConfigError::InvalidConfig(
-                        current_hash,
-                        e.to_string(),
-                    ))
-                }
-                Ok(config) => {
-                    trace!(
-                        "remote config received for agent_id: {} , hash: {} , config: {:?}",
-                        &agent_id,
-                        &current_hash,
-                        &config
-                    );
+        let remote_config = RemoteConfig::new(agent_id, hash, config_map);
 
-                    let remote_config = RemoteConfig {
-                        agent_id,
-                        hash: Hash::new(current_hash),
-                        config_map: config,
-                    };
+        trace!("remote config received: {:?}", &remote_config);
 
-                    self.on_config_ok(remote_config)
-                }
-            };
-            return self.publish_event(event);
-        }
-        Err(RemoteConfigPublisherError::EmptyRemoteConfig)
+        self.publish_event(self.on_remote_config(remote_config))
     }
 }
 
@@ -86,12 +72,8 @@ impl OpAMPRemoteConfigPublisher {
 }
 
 impl RemoteConfigPublisher for OpAMPRemoteConfigPublisher {
-    fn on_config_ok(&self, remote_config: RemoteConfig) -> OpAMPEvent {
-        OpAMPEvent::ValidRemoteConfigReceived(remote_config)
-    }
-
-    fn on_config_err(&self, err: RemoteConfigError) -> OpAMPEvent {
-        OpAMPEvent::InvalidRemoteConfigReceived(err)
+    fn on_remote_config(&self, remote_config: RemoteConfig) -> OpAMPEvent {
+        OpAMPEvent::RemoteConfigReceived(remote_config)
     }
 
     fn publish_event(&self, opamp_event: OpAMPEvent) -> Result<(), RemoteConfigPublisherError> {
