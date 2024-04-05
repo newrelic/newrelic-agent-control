@@ -17,7 +17,6 @@ use super::{
 };
 use crate::super_agent::config::AgentTypeFQN;
 use crate::super_agent::defaults::default_capabilities;
-use duration_str;
 use opamp_client::opamp::proto::AgentCapabilities;
 use opamp_client::operation::capabilities::Capabilities;
 
@@ -56,8 +55,8 @@ pub struct AgentType {
 
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct TemplateableValue<T> {
-    value: Option<T>,
-    template: String,
+    pub(super) value: Option<T>,
+    pub(super) template: String,
 }
 
 impl<'de, T> Deserialize<'de> for TemplateableValue<T> {
@@ -429,6 +428,12 @@ variables:
         default: nrdot
 deployment:
   on_host:
+    health:
+      interval: 3s
+      timeout: 10s
+      httpGet:
+        path: /healthz
+        port: 8080
     executables:
       - path: ${nr-var:bin}/otelcol
         args: "-c ${nr-var:deployment.k8s.image}"
@@ -597,6 +602,7 @@ restart_policy:
                 },
                 restart_exit_codes: vec![],
             },
+            health: None,
         };
 
         let normalized_values = Map::from([
@@ -736,6 +742,7 @@ restart_policy:
                 },
                 restart_exit_codes: vec![],
             },
+            health: None,
         };
 
         assert_eq!(exec_actual, exec_expected);
@@ -768,6 +775,7 @@ restart_policy:
                 },
                 restart_exit_codes: vec![],
             },
+            health: None,
         };
 
         let normalized_values = Map::from([
@@ -849,6 +857,7 @@ restart_policy:
                 },
                 restart_exit_codes: vec![],
             },
+            health: None,
         };
 
         assert_eq!(exec_actual, exec_expected);
@@ -885,8 +894,19 @@ variables:
         kafka: |
           bootstrap: zookeeper
       file_path: "integrations.d"
+    status_server_port:
+      description: "Newrelic infra health status port"
+      type: number
+      required: false
+      default: 8003
 deployment:
   on_host:
+    health:
+      interval: 3s
+      timeout: 10s
+      httpGet:
+        path: /v1/status
+        port: "${nr-var:status_server_port}"
     executables:
       - path: /usr/bin/newrelic-infra
         args: "--config ${nr-var:config} --config2 ${nr-var:config2}"
@@ -905,6 +925,7 @@ integrations:
 config: |
   license_key: abc124
   staging: false
+status_server_port: 8004
 "#;
 
     #[test]
@@ -948,6 +969,8 @@ config: |
             ),
         ])
         .into();
+        // Number
+        let expected_status_server: TrivialValue = Number::from(8004).into();
 
         assert_eq!(
             expected_config_3,
@@ -989,6 +1012,16 @@ config: |
                 .unwrap()
                 .clone()
         );
+        assert_eq!(
+            expected_status_server,
+            filled_variables
+                .get("status_server_port")
+                .unwrap()
+                .get_final_value()
+                .as_ref()
+                .unwrap()
+                .clone()
+        )
     }
 
     const AGENT_TYPE_WITH_VARIANTS: &str = r#"

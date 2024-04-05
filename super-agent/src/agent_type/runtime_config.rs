@@ -2,7 +2,9 @@ use std::collections::HashMap;
 
 use serde::Deserialize;
 
-use super::{definition::TemplateableValue, restart_policy::RestartPolicyConfig};
+use super::{
+    definition::TemplateableValue, health_config::HealthConfig, restart_policy::RestartPolicyConfig,
+};
 
 /// Strict structure that describes how to start a given agent with all needed binaries, arguments, env, etc.
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
@@ -30,17 +32,22 @@ pub struct OnHost {
 
 1. If we perform replacement with the template but the values are not of the expected type, what happens?
 2. Should we use an intermediate type with all the end nodes as `String` so we can perform the replacement?
-  - Add a sanitize or a fallible conversion from the raw intermediate type into into the end type?
+- Add a sanitize or a fallible conversion from the raw intermediate type into into the end type?
 */
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub struct Executable {
     pub path: TemplateableValue<String>, // make it templatable
+
     #[serde(default)]
     pub args: TemplateableValue<Args>, // make it templatable, it should be aware of the value type, if templated with array, should be expanded
+
     #[serde(default)]
     pub env: TemplateableValue<Env>, // make it templatable, it should be aware of the value type, if templated with array, should be expanded "STAGING=true ${variable_1}" variable_1 : VERBOSE=1
+
     #[serde(default)]
     pub restart_policy: RestartPolicyConfig,
+
+    pub health: Option<HealthConfig>,
 }
 
 #[derive(Debug, Default, Deserialize, Clone, PartialEq)]

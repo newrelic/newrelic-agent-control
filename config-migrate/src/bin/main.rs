@@ -7,7 +7,7 @@ use config_migrate::migration::migrator::{ConfigMigrator, MigratorError};
 use config_migrate::migration::persister::legacy_config_renamer::LegacyConfigRenamer;
 use config_migrate::migration::persister::values_persister_file::ValuesPersisterFile;
 use newrelic_super_agent::logging::config::LoggingConfig;
-use newrelic_super_agent::super_agent::store::SuperAgentConfigStoreFile;
+use newrelic_super_agent::super_agent::config_storer::SuperAgentConfigStoreFile;
 use std::error::Error;
 use tracing::{debug, info};
 

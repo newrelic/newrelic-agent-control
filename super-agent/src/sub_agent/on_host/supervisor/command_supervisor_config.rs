@@ -1,8 +1,8 @@
-use std::collections::HashMap;
-
+use crate::agent_type::health_config::HealthConfig;
 use crate::context::Context;
 use crate::sub_agent::restart_policy::RestartPolicy;
 use crate::super_agent::config::AgentID;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub struct SupervisorConfigOnHost {
@@ -13,6 +13,7 @@ pub struct SupervisorConfigOnHost {
     pub(super) env: HashMap<String, String>,
     pub(super) restart_policy: RestartPolicy,
     pub(super) log_to_file: bool,
+    pub(super) health: Option<HealthConfig>,
 }
 
 impl SupervisorConfigOnHost {
@@ -21,7 +22,6 @@ impl SupervisorConfigOnHost {
         exec: ExecutableData,
         ctx: Context<bool>,
         restart_policy: RestartPolicy,
-        log_to_file: bool,
     ) -> Self {
         let ExecutableData { bin, args, env } = exec;
         SupervisorConfigOnHost {
@@ -31,7 +31,22 @@ impl SupervisorConfigOnHost {
             args,
             env,
             restart_policy,
+            log_to_file: false,
+            health: None,
+        }
+    }
+
+    pub fn with_file_logging(self, log_to_file: bool) -> Self {
+        Self {
             log_to_file,
+            ..self
+        }
+    }
+
+    pub fn with_health_check(self, health: HealthConfig) -> Self {
+        Self {
+            health: Some(health),
+            ..self
         }
     }
 }

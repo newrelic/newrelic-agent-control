@@ -12,7 +12,8 @@ use fs::file_reader::FileReader;
 use fs::LocalFile;
 use newrelic_super_agent::agent_type::agent_type_registry::{AgentRegistry, LocalRegistry};
 use newrelic_super_agent::super_agent::config::SuperAgentConfigError;
-use newrelic_super_agent::super_agent::store::{SubAgentsConfigLoader, SuperAgentConfigStoreFile};
+use newrelic_super_agent::super_agent::config_storer::storer::SubAgentsConfigLoader;
+use newrelic_super_agent::super_agent::config_storer::SuperAgentConfigStoreFile;
 use thiserror::Error;
 use tracing::{debug, error, info};
 
