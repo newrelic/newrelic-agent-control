@@ -9,7 +9,7 @@ use kube::{
     api::{DeleteParams, ListParams, PostParams},
     config::KubeConfigOptions,
     core::{DynamicObject, GroupVersion, ObjectMeta, TypeMeta},
-    Api, Client, Config, Resource, ResourceExt,
+    Api, Client, Config, Resource,
 };
 use serde::de::DeserializeOwned;
 use std::fmt::Debug;
