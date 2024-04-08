@@ -67,7 +67,7 @@ impl LocalRegistry {
         let agent: AgentTypeDefinition = serde_yaml::from_reader(agent_bytes)?;
         //  We check if an agent already exists and fail if so.
         let metadata = agent.metadata.to_string();
-        if self.0.get(&metadata).is_some() {
+        if self.0.contains_key(&metadata) {
             return Err(AgentRepositoryError::AlreadyExists(metadata));
         }
         self.0.insert(metadata, agent);
