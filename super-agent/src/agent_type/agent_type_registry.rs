@@ -12,6 +12,8 @@ use super::definition::AgentTypeDefinition;
 pub enum AgentRepositoryError {
     #[error("agent not found")]
     NotFound,
+    #[error("agent `{0}` already exists")]
+    AlreadyExists(String),
     #[error("`{0}`")]
     SerdeYaml(#[from] serde_yaml::Error),
 }
@@ -63,10 +65,12 @@ impl Default for LocalRegistry {
 impl LocalRegistry {
     pub fn store_from_yaml(&mut self, agent_bytes: &[u8]) -> Result<(), AgentRepositoryError> {
         let agent: AgentTypeDefinition = serde_yaml::from_reader(agent_bytes)?;
-        // TODO: The usage of `insert` allows to insert the same agent metadata without failing, it just overwrites it.
-        //  We should consider a way to check if an agent already exists and fail.
-        //  See issue #82766 <https://github.com/rust-lang/rust/issues/82766> as a potential solution.
-        self.0.insert(agent.metadata.to_string(), agent);
+        //  We check if an agent already exists and fail if so.
+        let metadata = agent.metadata.to_string();
+        if self.0.get(&metadata).is_some() {
+            return Err(AgentRepositoryError::AlreadyExists(metadata));
+        }
+        self.0.insert(metadata, agent);
         Ok(())
     }
 }
@@ -164,6 +168,23 @@ pub mod tests {
         assert_eq!(
             invalid_lookup.unwrap_err().to_string(),
             "agent not found".to_string()
+        )
+    }
+
+    #[test]
+    fn add_duplicate_agents() {
+        let mut repository = LocalRegistry::default();
+
+        assert!(repository
+            .store_from_yaml(AGENT_GIVEN_YAML.as_bytes())
+            .is_ok());
+
+        let duplicate = repository.store_from_yaml(AGENT_GIVEN_YAML.as_bytes());
+        assert!(duplicate.is_err());
+
+        assert_eq!(
+            duplicate.unwrap_err().to_string(),
+            "agent `newrelic/nrdot:0.1.0` already exists".to_string()
         )
     }
 }
