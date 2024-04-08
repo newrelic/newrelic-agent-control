@@ -182,8 +182,11 @@ pub mod tests {
         let duplicate = repository.store_from_yaml(AGENT_GIVEN_YAML.as_bytes());
         assert!(duplicate.is_err());
 
+        let err = duplicate.unwrap_err();
+        matches!(err, AgentRepositoryError::AlreadyExists(_));
+
         assert_eq!(
-            duplicate.unwrap_err().to_string(),
+            err.to_string(),
             "agent `newrelic/nrdot:0.1.0` already exists".to_string()
         )
     }
