@@ -1,9 +1,7 @@
-use super::{
-    error::K8sError,
-    labels::{Labels, AGENT_ID_LABEL_KEY},
-};
+use super::labels::{Labels, AGENT_ID_LABEL_KEY};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
+use crate::k8s::error::GarbageCollectorK8sError;
 use crate::super_agent::config_storer::storer::SubAgentsConfigLoader;
 use crate::super_agent::{self};
 use crossbeam::{
@@ -99,7 +97,7 @@ where
     /// Garbage collect all resources managed by the SA associated to removed sub-agents.
     /// Collection is stateful, only happens when the list of active agents has changed from
     /// the previous execution.
-    pub fn collect(&mut self) -> Result<(), K8sError> {
+    pub fn collect(&mut self) -> Result<(), GarbageCollectorK8sError> {
         // check if current active agents differs from previous execution.
         if !self.update_active_agents()? {
             trace!("no agents to clean since last execution");
@@ -109,7 +107,7 @@ where
         let selector = Self::garbage_label_selector(
             self.active_agents
                 .as_ref()
-                .ok_or(K8sError::MissingActiveAgents())?,
+                .ok_or(GarbageCollectorK8sError::MissingActiveAgents())?,
         );
 
         debug!("collecting resources: `{selector}`");
@@ -131,11 +129,8 @@ where
 
     /// Loads the latest agents list from the conf store and returns True if differs from
     /// the cached one.
-    fn update_active_agents(&mut self) -> Result<bool, K8sError> {
-        let sub_agents_config = self
-            .config_store
-            .load()
-            .map_err(|err| K8sError::LoadingConfigStore(err.to_string()))?;
+    fn update_active_agents(&mut self) -> Result<bool, GarbageCollectorK8sError> {
+        let sub_agents_config = self.config_store.load()?;
 
         let latest_active_agents = Some(sub_agents_config.agents.keys().map(|a| a.get()).collect());
 

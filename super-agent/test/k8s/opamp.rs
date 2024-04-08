@@ -1,13 +1,14 @@
 use crate::common::{
-    block_on, check_deployments_exist, create_mock_config_maps,
-    create_mock_config_maps_local_sa_config, tokio_runtime, K8sEnv, MockOpAMPClientBuilderMock,
-    MockStartedOpAMPClientMock,
+    block_on, check_deployments_exist, create_local_sa_config, create_mock_config_maps,
+    tokio_runtime, K8sEnv, MockOpAMPClientBuilderMock, MockStartedOpAMPClientMock,
 };
 use newrelic_super_agent::k8s::store::STORE_KEY_LOCAL_DATA_CONFIG;
 use newrelic_super_agent::opamp::callbacks::AgentCallbacks;
 use newrelic_super_agent::opamp::instance_id;
 use newrelic_super_agent::opamp::remote_config_publisher::OpAMPRemoteConfigPublisher;
-use newrelic_super_agent::super_agent::config_storer::storer::SuperAgentConfigLoader;
+use newrelic_super_agent::super_agent::config_storer::storer::{
+    SubAgentsConfigLoader, SuperAgentConfigLoader,
+};
 use newrelic_super_agent::super_agent::config_storer::SubAgentListStorerConfigMap;
 use newrelic_super_agent::{
     agent_type::{agent_type_registry::LocalRegistry, renderer::TemplateRenderer},
@@ -71,12 +72,7 @@ fn k8s_opamp_add_sub_agent() {
     ];
 
     let test_name = "k8s_opamp_add_sub_agent";
-    block_on(create_mock_config_maps_local_sa_config(
-        k8s.client.clone(),
-        k8s_ns.as_str(),
-        test_name,
-        STORE_KEY_LOCAL_DATA_CONFIG,
-    ));
+    block_on(create_local_sa_config(k8s_ns.as_str(), test_name));
 
     // Create config map for the sub agent defined in the initial config.
     block_on(create_mock_config_maps(
@@ -201,8 +197,13 @@ impl K8sOpAMPEnv {
         let (k8s_config, k8s_client, k8s_store, instance_id_getter, hash_repository) =
             Self::setup_environment(namespace.to_string(), &sa_local_config_storer);
 
-        let sub_agent_list_storer =
-            Arc::new(SubAgentListStorerConfigMap::new(k8s_store.clone()).with_remote());
+        let sub_agent_list_storer = Arc::new(
+            SubAgentListStorerConfigMap::new(
+                k8s_store.clone(),
+                SubAgentsConfigLoader::load(&sa_local_config_storer).unwrap(),
+            )
+            .with_remote(),
+        );
 
         let (opamp_publisher, opamp_consumer) = pub_sub();
         let (super_agent_publisher, super_agent_consumer) = pub_sub();

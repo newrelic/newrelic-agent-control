@@ -484,14 +484,8 @@ pub async fn create_mock_config_maps(
     cm_client.create(&PostParams::default(), &cm).await.unwrap();
 }
 
-// This help function template the namespace, save the new file and create the cm
-pub async fn create_mock_config_maps_local_sa_config(
-    client: Client,
-    test_ns: &str,
-    folder_name: &str,
-    key: &str,
-) {
-    let cm_client: Api<ConfigMap> = Api::<ConfigMap>::namespaced(client, test_ns);
+/// This help function template the namespace, save the new file and create the cm
+pub async fn create_local_sa_config(test_ns: &str, folder_name: &str) {
     let mut content = String::new();
     File::open(format!(
         "test/k8s/data/{}/local-data-super-agent.template",
@@ -500,31 +494,12 @@ pub async fn create_mock_config_maps_local_sa_config(
     .unwrap()
     .read_to_string(&mut content)
     .unwrap();
+
     let content = content.replace("<ns>", test_ns);
-
-    let mut data = BTreeMap::new();
-    data.insert(key.to_string(), content.clone());
-
     File::create(format!("test/k8s/data/{}/local-sa.k8s_tmp", folder_name))
         .unwrap()
         .write_all(content.as_bytes())
         .unwrap();
-
-    let cm = ConfigMap {
-        binary_data: None,
-        data: Some(data),
-        immutable: None,
-        metadata: ObjectMeta {
-            name: Some("local-data-super-agent".to_string()),
-            ..Default::default()
-        },
-    };
-
-    // Making sure to clean up the cluster first
-    _ = cm_client
-        .delete("local-data-super-agent", &DeleteParams::default())
-        .await;
-    cm_client.create(&PostParams::default(), &cm).await.unwrap();
 }
 
 // check_deployments_exist checks for the existence of specified deployments within a namespace,

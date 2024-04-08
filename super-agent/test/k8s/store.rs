@@ -174,7 +174,7 @@ fn k8s_value_repository_config_map() {
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_sa_config_map() {
-    // This test covers the happy path of ValuesRepositoryConfigMap on K8s.
+    // This test covers the happy path of SubAgentListStorerConfigMap on K8s.
 
     let mut test = block_on(K8sEnv::new());
     let test_ns = block_on(test.test_namespace());
@@ -182,18 +182,20 @@ fn k8s_sa_config_map() {
 
     let k8s_store = Arc::new(K8sStore::new(k8s_client));
 
-    // with no value, it is expected to fail
-    let store_sa = SubAgentListStorerConfigMap::new(k8s_store);
-    assert!(store_sa.load().is_err());
-
-    // after creating a local config, we expect to be able to read it
-    block_on(create_mock_config_maps(
-        test.client.clone(),
-        test_ns.as_str(),
-        "k8s_sa_config_map",
-        "local-data-super-agent",
-        STORE_KEY_LOCAL_DATA_CONFIG,
-    ));
+    // This is the cached local config
+    let agents_cfg_local = r#"
+agents:
+  infra-agent-a:
+    agent_type: "com.newrelic.infrastructure_agent:0.0.2"
+  infra-agent-b:
+    agent_type: "com.newrelic.infrastructure_agent:0.0.2"
+  infra-agent-c:
+    agent_type: "com.newrelic.infrastructure_agent:0.0.2"
+  infra-agent-d:
+    agent_type: "com.newrelic.infrastructure_agent:0.0.2"
+"#;
+    let agents_local = serde_yaml::from_str::<SubAgentsConfig>(agents_cfg_local).unwrap();
+    let store_sa = SubAgentListStorerConfigMap::new(k8s_store, agents_local);
     assert_eq!(store_sa.load().unwrap().agents.len(), 4);
 
     // after removing an agent and storing it, we expect not to see it without remote enabled

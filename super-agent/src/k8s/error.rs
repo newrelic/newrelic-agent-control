@@ -1,3 +1,4 @@
+use crate::super_agent::config::SuperAgentConfigError;
 use kube::core::gvk::ParseGroupVersionError;
 use kube::{api, config::KubeconfigError};
 
@@ -33,12 +34,17 @@ pub enum K8sError {
     #[error("while getting dynamic resource: {0}")]
     GetDynamic(String),
 
-    // This is not #[from] SuperAgentConfigError to avoid a recursive error
-    #[error("garbage collector failed loading config store: `{0}`")]
-    LoadingConfigStore(String),
-
     #[error("failed to parse yaml: {0}")]
     FailedToParseYaml(#[from] serde_yaml::Error),
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum GarbageCollectorK8sError {
+    #[error("the kube client returned an error: `{0}`")]
+    Generic(#[from] K8sError),
+
+    #[error("garbage collector failed loading config store: `{0}`")]
+    LoadingConfigStore(#[from] SuperAgentConfigError),
 
     #[error("garbage collector executed with empty current agents list")]
     MissingActiveAgents(),

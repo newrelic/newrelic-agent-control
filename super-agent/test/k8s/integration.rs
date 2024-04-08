@@ -1,6 +1,6 @@
 use crate::common::{
-    block_on, check_deployments_exist, create_mock_config_maps,
-    create_mock_config_maps_local_sa_config, start_super_agent, K8sEnv,
+    block_on, check_deployments_exist, create_local_sa_config, create_mock_config_maps,
+    start_super_agent, K8sEnv,
 };
 use newrelic_super_agent::k8s::store::STORE_KEY_LOCAL_DATA_CONFIG;
 use std::path::Path;
@@ -16,12 +16,7 @@ fn k8s_sub_agent_started() {
     let mut k8s = block_on(K8sEnv::new());
     let namespace = block_on(k8s.test_namespace());
 
-    block_on(create_mock_config_maps_local_sa_config(
-        k8s.client.clone(),
-        namespace.as_str(),
-        test_name,
-        STORE_KEY_LOCAL_DATA_CONFIG,
-    ));
+    block_on(create_local_sa_config(namespace.as_str(), test_name));
     block_on(create_mock_config_maps(
         k8s.client.clone(),
         namespace.as_str(),

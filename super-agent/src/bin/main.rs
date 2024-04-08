@@ -6,9 +6,8 @@ use newrelic_super_agent::opamp::instance_id::getter::ULIDInstanceIDGetter;
 use newrelic_super_agent::opamp::instance_id::Identifiers;
 use newrelic_super_agent::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use newrelic_super_agent::sub_agent::event_processor_builder::EventProcessorBuilder;
-use newrelic_super_agent::super_agent::config_storer::{
-    storer::SuperAgentConfigLoader, SuperAgentConfigStoreFile,
-};
+use newrelic_super_agent::super_agent::config_storer::storer::SuperAgentConfigLoader;
+use newrelic_super_agent::super_agent::config_storer::SuperAgentConfigStoreFile;
 use newrelic_super_agent::super_agent::error::AgentError;
 use newrelic_super_agent::super_agent::{super_agent_fqn, SuperAgent};
 use newrelic_super_agent::utils::binary_metadata::binary_metadata;
@@ -206,10 +205,8 @@ fn run_super_agent(
     });
 
     info!("Starting the k8s client");
-    let k8s_config = sa_local_config_storer
-        .load()?
-        .k8s
-        .ok_or(AgentError::K8sConfig())?;
+    let config = sa_local_config_storer.load()?;
+    let k8s_config = config.k8s.ok_or(AgentError::K8sConfig())?;
     let k8s_client = Arc::new(
         newrelic_super_agent::k8s::client::SyncK8sClient::try_new_with_reflectors(
             runtime,
@@ -267,7 +264,7 @@ fn run_super_agent(
         non_identifying_attributes,
     )?;
 
-    let sub_agent_list_storer = SubAgentListStorerConfigMap::new(k8s_store.clone());
+    let sub_agent_list_storer = SubAgentListStorerConfigMap::new(k8s_store.clone(), config.agents);
     // enable remote config store
     let config_storer = if opamp_client_builder.is_some() {
         Arc::new(sub_agent_list_storer.with_remote())

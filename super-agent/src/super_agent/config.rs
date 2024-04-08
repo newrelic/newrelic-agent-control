@@ -42,9 +42,6 @@ pub enum SuperAgentConfigError {
     #[error("sub agents configuration not found in the remote config map")]
     SubAgentsNotFound,
 
-    #[error("no local configuration was found for the superAgent")]
-    LocalConfigNotFound,
-
     #[error("configuration is not valid YAML: `{0}`")]
     InvalidYamlConfiguration(#[from] serde_yaml::Error),
 
