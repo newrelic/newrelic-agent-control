@@ -4,7 +4,7 @@ use crate::super_agent::defaults::{
 };
 use std::collections::HashMap;
 use thiserror::Error;
-use tracing::debug;
+use tracing::{debug, error};
 
 use super::definition::AgentTypeDefinition;
 
@@ -32,25 +32,24 @@ impl Default for LocalRegistry {
     // default returns the LocalRegistry loaded with the defined default agents
     fn default() -> Self {
         let mut local_agent_type_repository = LocalRegistry(HashMap::new());
-        // save to unwrap(), default agent cannot be changed inline
-        local_agent_type_repository
-            .store_from_yaml(NEWRELIC_INFRA_TYPE_0_0_1.as_bytes())
-            .unwrap();
-        local_agent_type_repository
-            .store_from_yaml(NEWRELIC_INFRA_TYPE_0_0_2.as_bytes())
-            .unwrap();
-        local_agent_type_repository
-            .store_from_yaml(NEWRELIC_INFRA_TYPE_0_1_0.as_bytes())
-            .unwrap();
-        local_agent_type_repository
-            .store_from_yaml(NEWRELIC_INFRA_TYPE_0_1_1.as_bytes())
-            .unwrap();
-        local_agent_type_repository
-            .store_from_yaml(NRDOT_TYPE_0_0_1.as_bytes())
-            .unwrap();
-        local_agent_type_repository
-            .store_from_yaml(NRDOT_TYPE_0_1_0.as_bytes())
-            .unwrap();
+
+        let default_agents = vec![
+            NEWRELIC_INFRA_TYPE_0_0_1,
+            NEWRELIC_INFRA_TYPE_0_0_2,
+            NEWRELIC_INFRA_TYPE_0_1_0,
+            NEWRELIC_INFRA_TYPE_0_1_1,
+            NRDOT_TYPE_0_0_1,
+            NRDOT_TYPE_0_1_0,
+        ];
+
+        default_agents
+            .into_iter()
+            .try_for_each(|agent| {
+                local_agent_type_repository
+                    .store_from_yaml(agent.as_bytes())
+                    .inspect_err(|e| error!("Could not add default agent type: {e}"))
+            })
+            .expect("Could not add all default agent types. Quitting.");
 
         if let Ok(file) = std::fs::read_to_string(DYNAMIC_AGENT_TYPE) {
             _ = local_agent_type_repository
