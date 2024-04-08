@@ -4,7 +4,7 @@ use crate::super_agent::defaults::{
 };
 use std::collections::HashMap;
 use thiserror::Error;
-use tracing::debug;
+use tracing::{debug, error};
 
 use super::definition::AgentTypeDefinition;
 
@@ -12,6 +12,8 @@ use super::definition::AgentTypeDefinition;
 pub enum AgentRepositoryError {
     #[error("agent not found")]
     NotFound,
+    #[error("agent `{0}` already exists")]
+    AlreadyExists(String),
     #[error("`{0}`")]
     SerdeYaml(#[from] serde_yaml::Error),
 }
@@ -30,25 +32,24 @@ impl Default for LocalRegistry {
     // default returns the LocalRegistry loaded with the defined default agents
     fn default() -> Self {
         let mut local_agent_type_repository = LocalRegistry(HashMap::new());
-        // save to unwrap(), default agent cannot be changed inline
-        local_agent_type_repository
-            .store_from_yaml(NEWRELIC_INFRA_TYPE_0_0_1.as_bytes())
-            .unwrap();
-        local_agent_type_repository
-            .store_from_yaml(NEWRELIC_INFRA_TYPE_0_0_2.as_bytes())
-            .unwrap();
-        local_agent_type_repository
-            .store_from_yaml(NEWRELIC_INFRA_TYPE_0_1_0.as_bytes())
-            .unwrap();
-        local_agent_type_repository
-            .store_from_yaml(NEWRELIC_INFRA_TYPE_0_1_1.as_bytes())
-            .unwrap();
-        local_agent_type_repository
-            .store_from_yaml(NRDOT_TYPE_0_0_1.as_bytes())
-            .unwrap();
-        local_agent_type_repository
-            .store_from_yaml(NRDOT_TYPE_0_1_0.as_bytes())
-            .unwrap();
+
+        let default_agents = vec![
+            NEWRELIC_INFRA_TYPE_0_0_1,
+            NEWRELIC_INFRA_TYPE_0_0_2,
+            NEWRELIC_INFRA_TYPE_0_1_0,
+            NEWRELIC_INFRA_TYPE_0_1_1,
+            NRDOT_TYPE_0_0_1,
+            NRDOT_TYPE_0_1_0,
+        ];
+
+        default_agents
+            .into_iter()
+            .try_for_each(|agent| {
+                local_agent_type_repository
+                    .store_from_yaml(agent.as_bytes())
+                    .inspect_err(|e| error!("Could not add default agent type: {e}"))
+            })
+            .expect("Could not add all default agent types. Quitting.");
 
         if let Ok(file) = std::fs::read_to_string(DYNAMIC_AGENT_TYPE) {
             _ = local_agent_type_repository
@@ -63,10 +64,12 @@ impl Default for LocalRegistry {
 impl LocalRegistry {
     pub fn store_from_yaml(&mut self, agent_bytes: &[u8]) -> Result<(), AgentRepositoryError> {
         let agent: AgentTypeDefinition = serde_yaml::from_reader(agent_bytes)?;
-        // TODO: The usage of `insert` allows to insert the same agent metadata without failing, it just overwrites it.
-        //  We should consider a way to check if an agent already exists and fail.
-        //  See issue #82766 <https://github.com/rust-lang/rust/issues/82766> as a potential solution.
-        self.0.insert(agent.metadata.to_string(), agent);
+        //  We check if an agent already exists and fail if so.
+        let metadata = agent.metadata.to_string();
+        if self.0.contains_key(&metadata) {
+            return Err(AgentRepositoryError::AlreadyExists(metadata));
+        }
+        self.0.insert(metadata, agent);
         Ok(())
     }
 }
@@ -164,6 +167,26 @@ pub mod tests {
         assert_eq!(
             invalid_lookup.unwrap_err().to_string(),
             "agent not found".to_string()
+        )
+    }
+
+    #[test]
+    fn add_duplicate_agents() {
+        let mut repository = LocalRegistry::default();
+
+        assert!(repository
+            .store_from_yaml(AGENT_GIVEN_YAML.as_bytes())
+            .is_ok());
+
+        let duplicate = repository.store_from_yaml(AGENT_GIVEN_YAML.as_bytes());
+        assert!(duplicate.is_err());
+
+        let err = duplicate.unwrap_err();
+        matches!(err, AgentRepositoryError::AlreadyExists(_));
+
+        assert_eq!(
+            err.to_string(),
+            "agent `newrelic/nrdot:0.1.0` already exists".to_string()
         )
     }
 }
