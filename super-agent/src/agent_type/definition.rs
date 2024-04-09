@@ -304,7 +304,7 @@ fn update_specs(
     for (ref k, v) in values.into_iter() {
         let spec = agent_vars
             .get_mut(k)
-            .ok_or_else(|| AgentTypeError::MissingAgentKey(k.clone()))?;
+            .ok_or_else(|| AgentTypeError::UnexpectedValueKey(k.clone()))?;
 
         match spec {
             VariableDefinitionTree::End(e) => e.merge_with_yaml_value(v)?,

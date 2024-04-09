@@ -11,8 +11,8 @@ use super::trivial_value::TrivialValue;
 pub enum AgentTypeError {
     #[error("Error while parsing: `{0}`")]
     SerdeYaml(#[from] serde_yaml::Error),
-    #[error("Missing required key in config: `{0}`")]
-    MissingAgentKey(String),
+    #[error("Missing required key in agent type config values: `{0}`")]
+    MissingRequiredKey(String),
     #[error(
         "Type mismatch while parsing. Expected type {expected_type}, got value {actual_value:?}"
     )]
@@ -20,8 +20,8 @@ pub enum AgentTypeError {
         expected_type: String,
         actual_value: TrivialValue,
     },
-    #[error("Found unexpected keys in config: {0:?}")]
-    UnexpectedKeysInConfig(Vec<String>),
+    #[error("Unexpected key in agent type config values: {0}")]
+    UnexpectedValueKey(String),
     #[error("I/O error: `{0}`")]
     IOError(#[from] io::Error),
     #[error("Attempted to store an invalid path on a FilePathWithContent object")]

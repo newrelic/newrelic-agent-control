@@ -249,7 +249,7 @@ fn template_yaml_value_string(
     let var_spec = normalized_var(var_name, variables)?;
     let var_value = var_spec
         .get_template_value()
-        .ok_or(AgentTypeError::MissingAgentKey(var_name.to_string()))?;
+        .ok_or(AgentTypeError::MissingRequiredKey(var_name.to_string()))?;
     match var_spec.kind() {
         Kind::Yaml(y) => Ok(y
             .get_final_value()
