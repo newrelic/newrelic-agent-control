@@ -23,7 +23,7 @@ use newrelic_super_agent::super_agent::config::{AgentID, SubAgentsConfig};
 use newrelic_super_agent::super_agent::config_storer::storer::{
     SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer,
 };
-use newrelic_super_agent::super_agent::config_storer::SubAgentListStorerConfigMap;
+use newrelic_super_agent::super_agent::config_storer::SubAgentsConfigStoreConfigMap;
 use std::sync::Arc;
 
 const AGENT_ID_1: &str = "agent-id-test";
@@ -174,7 +174,7 @@ fn k8s_value_repository_config_map() {
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_sa_config_map() {
-    // This test covers the happy path of SubAgentListStorerConfigMap on K8s.
+    // This test covers the happy path of SubAgentConfigStorerConfigMap on K8s.
 
     let mut test = block_on(K8sEnv::new());
     let test_ns = block_on(test.test_namespace());
@@ -195,7 +195,7 @@ agents:
     agent_type: "com.newrelic.infrastructure_agent:0.0.2"
 "#;
     let agents_local = serde_yaml::from_str::<SubAgentsConfig>(agents_cfg_local).unwrap();
-    let store_sa = SubAgentListStorerConfigMap::new(k8s_store, agents_local);
+    let store_sa = SubAgentsConfigStoreConfigMap::new(k8s_store, agents_local);
     assert_eq!(store_sa.load().unwrap().agents.len(), 4);
 
     // after removing an agent and storing it, we expect not to see it without remote enabled

@@ -179,11 +179,11 @@ pub(crate) mod test {
         let mut cs = MockSubAgentsConfigLoader::new();
         cs.expect_load()
             .once()
-            .returning(move || Ok(sub_agent_list_config("agent-1")));
+            .returning(move || Ok(sub_agents_config("agent-1")));
         // Expect the GC runs more than 10 times if interval is 1ms and runs for at least 100ms.
         cs.expect_load()
             .times(9..)
-            .returning(move || Ok(sub_agent_list_config("agent-2")));
+            .returning(move || Ok(sub_agents_config("agent-2")));
 
         // Expect to execute collection of resources only twice, one per each agent list variation.
         let mut k8s_client = SyncK8sClient::default();
@@ -241,7 +241,7 @@ pub(crate) mod test {
     }
 
     // HELPERS
-    fn sub_agent_list_config(agent_id: &str) -> SubAgentsConfig {
+    fn sub_agents_config(agent_id: &str) -> SubAgentsConfig {
         SubAgentsConfig {
             agents: HashMap::from([(
                 AgentID::new(agent_id).unwrap(),

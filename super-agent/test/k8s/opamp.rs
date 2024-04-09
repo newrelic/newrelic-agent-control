@@ -9,7 +9,7 @@ use newrelic_super_agent::opamp::remote_config_publisher::OpAMPRemoteConfigPubli
 use newrelic_super_agent::super_agent::config_storer::storer::{
     SubAgentsConfigLoader, SuperAgentConfigLoader,
 };
-use newrelic_super_agent::super_agent::config_storer::SubAgentListStorerConfigMap;
+use newrelic_super_agent::super_agent::config_storer::SubAgentsConfigStoreConfigMap;
 use newrelic_super_agent::{
     agent_type::{agent_type_registry::LocalRegistry, renderer::TemplateRenderer},
     event::{
@@ -166,7 +166,7 @@ struct K8sOpAMPEnv {
     k8s_config: K8sConfig,
     instance_id_getter: ULIDInstanceIDGetter<Storer>,
     hash_repository: Arc<HashRepositoryConfigMap>,
-    config_storer: Arc<SubAgentListStorerConfigMap>,
+    config_storer: Arc<SubAgentsConfigStoreConfigMap>,
     opamp_publisher: EventPublisher<OpAMPEvent>,
     opamp_consumer: EventConsumer<OpAMPEvent>,
     super_agent_publisher: EventPublisher<SuperAgentEvent>,
@@ -197,8 +197,8 @@ impl K8sOpAMPEnv {
         let (k8s_config, k8s_client, k8s_store, instance_id_getter, hash_repository) =
             Self::setup_environment(namespace.to_string(), &sa_local_config_storer);
 
-        let sub_agent_list_storer = Arc::new(
-            SubAgentListStorerConfigMap::new(
+        let sub_agents_storer = Arc::new(
+            SubAgentsConfigStoreConfigMap::new(
                 k8s_store.clone(),
                 SubAgentsConfigLoader::load(&sa_local_config_storer).unwrap(),
             )
@@ -230,7 +230,7 @@ impl K8sOpAMPEnv {
             k8s_config,
             instance_id_getter,
             hash_repository,
-            config_storer: sub_agent_list_storer,
+            config_storer: sub_agents_storer,
             agents_assembler,
             opamp_publisher,
             opamp_consumer,

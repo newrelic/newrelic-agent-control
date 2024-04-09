@@ -190,7 +190,7 @@ fn run_super_agent(
     use newrelic_super_agent::opamp::operations::build_opamp_and_start_client;
     use newrelic_super_agent::sub_agent::values::ValuesRepositoryConfigMap;
     use newrelic_super_agent::super_agent::config::AgentID;
-    use newrelic_super_agent::super_agent::config_storer::SubAgentListStorerConfigMap;
+    use newrelic_super_agent::super_agent::config_storer::SubAgentsConfigStoreConfigMap;
     use std::sync::OnceLock;
 
     /// Returns a static reference to a tokio runtime initialized on first usage.
@@ -264,12 +264,13 @@ fn run_super_agent(
         non_identifying_attributes,
     )?;
 
-    let sub_agent_list_storer = SubAgentListStorerConfigMap::new(k8s_store.clone(), config.agents);
+    let sub_agents_config_storer =
+        SubAgentsConfigStoreConfigMap::new(k8s_store.clone(), config.agents);
     // enable remote config store
     let config_storer = if opamp_client_builder.is_some() {
-        Arc::new(sub_agent_list_storer.with_remote())
+        Arc::new(sub_agents_config_storer.with_remote())
     } else {
-        Arc::new(sub_agent_list_storer)
+        Arc::new(sub_agents_config_storer)
     };
 
     let gcc = NotStartedK8sGarbageCollector::new(config_storer.clone(), k8s_client);

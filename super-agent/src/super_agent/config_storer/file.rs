@@ -80,9 +80,8 @@ impl SuperAgentConfigStoreFile {
         );
 
         Self {
-            local_path: self.local_path,
             remote_path: Some(Path::new(&remote_path).to_path_buf()),
-            rw_lock: RwLock::new(()),
+            ..self
         }
     }
 

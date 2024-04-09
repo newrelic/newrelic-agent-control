@@ -6,44 +6,41 @@ use crate::super_agent::config_storer::storer::{
 use std::sync::Arc;
 use tracing::debug;
 
-pub struct SubAgentListStorerConfigMap {
+pub struct SubAgentsConfigStoreConfigMap {
     k8s_store: Arc<K8sStore>,
     remote_enabled: bool,
     super_agent_id: AgentID,
     local_config_cached: SubAgentsConfig,
 }
 
-impl SubAgentsConfigLoader for SubAgentListStorerConfigMap {
+impl SubAgentsConfigLoader for SubAgentsConfigStoreConfigMap {
     fn load(&self) -> Result<SubAgentsConfig, SuperAgentConfigError> {
-        debug!(
-            super_agent_id = self.super_agent_id.to_string(),
-            "loading local config of subagent list"
-        );
-
         if self.remote_enabled {
-            if let Some(remote_subagent_list_config) =
-                self.k8s_store.get_opamp_data::<SubAgentsConfig>(
-                    &self.super_agent_id,
-                    STORE_KEY_OPAMP_DATA_CONFIG,
-                )?
-            {
+            if let Some(remote_subagent_config) = self.k8s_store.get_opamp_data::<SubAgentsConfig>(
+                &self.super_agent_id,
+                STORE_KEY_OPAMP_DATA_CONFIG,
+            )? {
                 debug!(
                     super_agent_id = self.super_agent_id.to_string(),
-                    "updating the list of subAgents with the one received from opamp"
+                    "loading subagents config from the one received with opamp"
                 );
-                return Ok(remote_subagent_list_config);
+                return Ok(remote_subagent_config);
             }
         }
 
+        debug!(
+            super_agent_id = self.super_agent_id.to_string(),
+            "loading local subagents config"
+        );
         Ok(self.local_config_cached.clone())
     }
 }
 
-impl SubAgentsConfigDeleter for SubAgentListStorerConfigMap {
+impl SubAgentsConfigDeleter for SubAgentsConfigStoreConfigMap {
     fn delete(&self) -> Result<(), SuperAgentConfigError> {
         debug!(
             super_agent_id = self.super_agent_id.to_string(),
-            "deleting remote config of subagent list"
+            "deleting remote subagents config"
         );
 
         self.k8s_store
@@ -52,11 +49,11 @@ impl SubAgentsConfigDeleter for SubAgentListStorerConfigMap {
     }
 }
 
-impl SubAgentsConfigStorer for SubAgentListStorerConfigMap {
+impl SubAgentsConfigStorer for SubAgentsConfigStoreConfigMap {
     fn store(&self, sub_agents: &SubAgentsConfig) -> Result<(), SuperAgentConfigError> {
         debug!(
             super_agent_id = self.super_agent_id.to_string(),
-            "saving remote config of subagent list"
+            "saving remote subagents config"
         );
 
         self.k8s_store.set_opamp_data(
@@ -68,7 +65,7 @@ impl SubAgentsConfigStorer for SubAgentListStorerConfigMap {
     }
 }
 
-impl SubAgentListStorerConfigMap {
+impl SubAgentsConfigStoreConfigMap {
     pub fn new(k8s_store: Arc<K8sStore>, local_config_cached: SubAgentsConfig) -> Self {
         Self {
             super_agent_id: AgentID::new_super_agent_id(),
@@ -81,9 +78,7 @@ impl SubAgentListStorerConfigMap {
     pub fn with_remote(self) -> Self {
         Self {
             remote_enabled: true,
-            super_agent_id: self.super_agent_id,
-            k8s_store: self.k8s_store.clone(),
-            local_config_cached: self.local_config_cached,
+            ..self
         }
     }
 }
