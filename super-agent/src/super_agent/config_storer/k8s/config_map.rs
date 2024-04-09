@@ -10,7 +10,7 @@ pub struct SubAgentsConfigStoreConfigMap {
     k8s_store: Arc<K8sStore>,
     remote_enabled: bool,
     super_agent_id: AgentID,
-    local_config_cached: SubAgentsConfig,
+    local_config: SubAgentsConfig,
 }
 
 impl SubAgentsConfigLoader for SubAgentsConfigStoreConfigMap {
@@ -32,7 +32,7 @@ impl SubAgentsConfigLoader for SubAgentsConfigStoreConfigMap {
             super_agent_id = self.super_agent_id.to_string(),
             "loading local subagents config"
         );
-        Ok(self.local_config_cached.clone())
+        Ok(self.local_config.clone())
     }
 }
 
@@ -71,7 +71,7 @@ impl SubAgentsConfigStoreConfigMap {
             super_agent_id: AgentID::new_super_agent_id(),
             k8s_store,
             remote_enabled: false,
-            local_config_cached,
+            local_config: local_config_cached,
         }
     }
 

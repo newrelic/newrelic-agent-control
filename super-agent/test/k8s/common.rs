@@ -484,7 +484,7 @@ pub async fn create_mock_config_maps(
     cm_client.create(&PostParams::default(), &cm).await.unwrap();
 }
 
-/// This help function template the namespace, save the new file and create the cm
+/// create_local_sa_config templates the namespace and saves the new file
 pub async fn create_local_sa_config(test_ns: &str, folder_name: &str) {
     let mut content = String::new();
     File::open(format!(
