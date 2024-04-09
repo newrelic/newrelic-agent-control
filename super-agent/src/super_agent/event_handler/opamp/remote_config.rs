@@ -3,7 +3,7 @@ use tracing::{error, info};
 
 use crate::event::SubAgentEvent;
 use crate::super_agent::config_storer::storer::{
-    SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer,
+    SuperAgentDynamicConfigDeleter, SuperAgentDynamicConfigLoader, SuperAgentDynamicConfigStorer,
 };
 use crate::{
     event::channel::EventPublisher,
@@ -27,7 +27,9 @@ where
     O: StartedClient<SuperAgentCallbacks>,
     HR: HashRepository,
     S: SubAgentBuilder,
-    SL: SubAgentsConfigStorer + SubAgentsConfigLoader + SubAgentsConfigDeleter,
+    SL: SuperAgentDynamicConfigStorer
+        + SuperAgentDynamicConfigLoader
+        + SuperAgentDynamicConfigDeleter,
 {
     // Super Agent on remote config
     // Configuration will be reported as applying to OpAMP
@@ -90,8 +92,8 @@ mod tests {
             test::{MockStartedSubAgent, MockSubAgentBuilderMock},
         },
         super_agent::{
-            config::{AgentID, SubAgentConfig, SubAgentsConfig},
-            config_storer::storer::tests::MockSubAgentsConfigStore,
+            config::{AgentID, SubAgentConfig, SuperAgentDynamicConfig},
+            config_storer::storer::tests::MockSuperAgentDynamicConfigStore,
             super_agent::SuperAgent,
         },
     };
@@ -104,13 +106,13 @@ mod tests {
     fn super_agent_invalid_remote_config_should_be_reported_as_failed() {
         // Mocked services
         let sub_agent_builder = MockSubAgentBuilderMock::new();
-        let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
+        let mut sub_agents_config_store = MockSuperAgentDynamicConfigStore::new();
         let hash_repository_mock = Arc::new(MockHashRepositoryMock::new());
         let mut started_client = MockStartedOpAMPClientMock::new();
 
         // Structs
         let mut running_sub_agents = StartedSubAgents::default();
-        let old_sub_agents_config = SubAgentsConfig::default();
+        let old_sub_agents_config = SuperAgentDynamicConfig::default();
         let agent_id = AgentID::new_super_agent_id();
         let remote_config = RemoteConfig::new(
             agent_id,
@@ -138,7 +140,7 @@ mod tests {
         let status = RemoteConfigStatus {
             status: Failed as i32,
             last_remote_config_hash: remote_config.hash.get().into_bytes(),
-            error_message: "Error applying Super Agent remote config: could not resolve config: `configuration is not valid YAML: `invalid type: string \"invalid_yaml_content:{}\", expected struct SubAgentsConfig``".to_string(),
+            error_message: "Error applying Super Agent remote config: could not resolve config: `configuration is not valid YAML: `invalid type: string \"invalid_yaml_content:{}\", expected struct SuperAgentDynamicConfig``".to_string(),
         };
         started_client.should_set_remote_config_status(status);
 
@@ -162,7 +164,7 @@ mod tests {
     fn super_agent_valid_remote_config_should_be_reported_as_applied() {
         // Mocked services
         let sub_agent_builder = MockSubAgentBuilderMock::new();
-        let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
+        let mut sub_agents_config_store = MockSuperAgentDynamicConfigStore::new();
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         let mut started_client = MockStartedOpAMPClientMock::new();
 
@@ -174,7 +176,7 @@ mod tests {
         let mut running_sub_agents =
             StartedSubAgents::from(HashMap::from([(sub_agent_id.clone(), started_sub_agent)]));
 
-        let old_sub_agents_config = SubAgentsConfig::from(HashMap::from([(
+        let old_sub_agents_config = SuperAgentDynamicConfig::from(HashMap::from([(
             sub_agent_id.clone(),
             SubAgentConfig {
                 agent_type: "some_agent_type".into(),
@@ -205,7 +207,7 @@ mod tests {
         sub_agents_config_store.should_load(&old_sub_agents_config);
 
         // store remote config with empty agents
-        sub_agents_config_store.should_store(&SubAgentsConfig::default());
+        sub_agents_config_store.should_store(&SuperAgentDynamicConfig::default());
 
         // persist hash
         hash_repository_mock.should_save_hash(&AgentID::new_super_agent_id(), &remote_config.hash);

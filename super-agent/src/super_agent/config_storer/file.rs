@@ -1,6 +1,9 @@
-use crate::super_agent::config::{SubAgentsConfig, SuperAgentConfig, SuperAgentConfigError};
+use crate::super_agent::config::{
+    SuperAgentConfig, SuperAgentConfigError, SuperAgentDynamicConfig,
+};
 use crate::super_agent::config_storer::storer::{
-    SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer, SuperAgentConfigLoader,
+    SuperAgentConfigLoader, SuperAgentDynamicConfigDeleter, SuperAgentDynamicConfigLoader,
+    SuperAgentDynamicConfigStorer,
 };
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
@@ -27,12 +30,13 @@ impl SuperAgentConfigLoader for SuperAgentConfigStoreFile {
     }
 }
 
-impl SubAgentsConfigLoader for SuperAgentConfigStoreFile {
-    fn load(&self) -> Result<SubAgentsConfig, SuperAgentConfigError> {
-        Ok(self._load_config()?.agents)
+impl SuperAgentDynamicConfigLoader for SuperAgentConfigStoreFile {
+    fn load(&self) -> Result<SuperAgentDynamicConfig, SuperAgentConfigError> {
+        Ok(self._load_config()?.dynamic)
     }
 }
-impl SubAgentsConfigDeleter for SuperAgentConfigStoreFile {
+
+impl SuperAgentDynamicConfigDeleter for SuperAgentConfigStoreFile {
     //TODO this code is not unit tested
     fn delete(&self) -> Result<(), SuperAgentConfigError> {
         let Some(remote_path_file) = &self.remote_path else {
@@ -46,8 +50,8 @@ impl SubAgentsConfigDeleter for SuperAgentConfigStoreFile {
     }
 }
 
-impl SubAgentsConfigStorer for SuperAgentConfigStoreFile {
-    fn store(&self, sub_agents: &SubAgentsConfig) -> Result<(), SuperAgentConfigError> {
+impl SuperAgentDynamicConfigStorer for SuperAgentConfigStoreFile {
+    fn store(&self, sub_agents: &SuperAgentDynamicConfig) -> Result<(), SuperAgentConfigError> {
         //TODO we should inject DirectoryManager and ensure the directory exists
         let _write_guard = self.rw_lock.write().unwrap();
         let Some(remote_path_file) = &self.remote_path else {
@@ -103,7 +107,7 @@ impl SuperAgentConfigStoreFile {
 
                 if let Some(remote_config) = remote_config {
                     // replace local agents with remote ones
-                    local_config.agents = remote_config;
+                    local_config.dynamic = remote_config;
                 }
             }
         }
@@ -147,7 +151,7 @@ agents:
         let actual = SuperAgentConfigLoader::load(&store);
 
         let expected = SuperAgentConfig {
-            agents: HashMap::from([(
+            dynamic: HashMap::from([(
                 AgentID::new("rolldice").unwrap(),
                 SubAgentConfig {
                     agent_type: AgentTypeFQN::from("com.newrelic.infrastructure_agent:0.0.2"),

@@ -116,32 +116,44 @@ impl Display for AgentID {
     }
 }
 
-/// SubAgentsConfig represents the configuration for the sub agents.
+/// SuperAgentDynamicConfig represents the dynamic part of the superAgent config.
 #[derive(Debug, Deserialize, Serialize, Default, PartialEq, Clone)]
-pub struct SubAgentsConfig {
-    pub agents: HashMap<AgentID, SubAgentConfig>,
+pub struct SuperAgentDynamicConfig {
+    pub agents: SubAgentsMap,
 }
 
-impl Deref for SubAgentsConfig {
+pub type SubAgentsMap = HashMap<AgentID, SubAgentConfig>;
+
+impl SuperAgentDynamicConfig {
+    pub fn get(&self, agent_id: &AgentID) -> Result<&SubAgentConfig, SuperAgentConfigError> {
+        self.agents
+            .get(agent_id)
+            .ok_or(SuperAgentConfigError::SubAgentNotFound(
+                agent_id.to_string(),
+            ))
+    }
+}
+
+impl Deref for SuperAgentDynamicConfig {
     type Target = HashMap<AgentID, SubAgentConfig>;
     fn deref(&self) -> &Self::Target {
         &self.agents
     }
 }
 
-impl DerefMut for SubAgentsConfig {
+impl DerefMut for SuperAgentDynamicConfig {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.agents
     }
 }
 
-impl From<HashMap<AgentID, SubAgentConfig>> for SubAgentsConfig {
+impl From<HashMap<AgentID, SubAgentConfig>> for SuperAgentDynamicConfig {
     fn from(value: HashMap<AgentID, SubAgentConfig>) -> Self {
         Self { agents: value }
     }
 }
 
-impl TryFrom<&str> for SubAgentsConfig {
+impl TryFrom<&str> for SuperAgentDynamicConfig {
     type Error = SuperAgentConfigError;
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         Ok(serde_yaml::from_str(value)?)
@@ -161,9 +173,9 @@ pub struct SuperAgentConfig {
     #[serde(default)]
     pub host_id: String,
 
-    /// agents is a map of agent types to their specific configuration (if any).
+    /// this is the only part of the config that can be changed with opamp.
     #[serde(flatten)]
-    pub agents: SubAgentsConfig,
+    pub dynamic: SuperAgentDynamicConfig,
 
     /// opamp contains the OpAMP client configuration
     pub opamp: Option<OpAMPClientConfig>,
@@ -173,16 +185,6 @@ pub struct SuperAgentConfig {
     /// k8s is a map containing the kubernetes-specific settings
     #[serde(default)]
     pub k8s: Option<K8sConfig>,
-}
-
-impl SubAgentsConfig {
-    pub fn get(&self, agent_id: &AgentID) -> Result<&SubAgentConfig, SuperAgentConfigError> {
-        self.agents
-            .get(agent_id)
-            .ok_or(SuperAgentConfigError::SubAgentNotFound(
-                agent_id.to_string(),
-            ))
-    }
 }
 
 #[derive(Debug, PartialEq, Deserialize, Serialize, Clone)]
@@ -437,15 +439,16 @@ agents: {}
     #[test]
     fn basic_parse() {
         assert!(serde_yaml::from_str::<SuperAgentConfig>(EXAMPLE_SUPERAGENT_CONFIG).is_ok());
-        assert!(serde_yaml::from_str::<SubAgentsConfig>(EXAMPLE_SUBAGENTS_CONFIG).is_ok());
-        assert!(serde_yaml::from_str::<SubAgentsConfig>(EXAMPLE_K8S_CONFIG).is_ok());
-        assert!(
-            serde_yaml::from_str::<SubAgentsConfig>(EXAMPLE_SUPERAGENT_CONFIG_EMPTY_AGENTS).is_ok()
-        );
+        assert!(serde_yaml::from_str::<SuperAgentDynamicConfig>(EXAMPLE_SUBAGENTS_CONFIG).is_ok());
+        assert!(serde_yaml::from_str::<SuperAgentDynamicConfig>(EXAMPLE_K8S_CONFIG).is_ok());
+        assert!(serde_yaml::from_str::<SuperAgentDynamicConfig>(
+            EXAMPLE_SUPERAGENT_CONFIG_EMPTY_AGENTS
+        )
+        .is_ok());
         assert!(
             serde_yaml::from_str::<SuperAgentConfig>(EXAMPLE_SUPERAGENT_CONFIG_NO_AGENTS).is_err()
         );
-        assert!(serde_yaml::from_str::<SubAgentsConfig>(EXAMPLE_SUBAGENTS_CONFIG).is_ok())
+        assert!(serde_yaml::from_str::<SuperAgentDynamicConfig>(EXAMPLE_SUBAGENTS_CONFIG).is_ok())
     }
 
     #[test]

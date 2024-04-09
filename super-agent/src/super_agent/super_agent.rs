@@ -1,8 +1,9 @@
 use super::config::{
-    AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig, SuperAgentConfigError,
+    AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsMap, SuperAgentConfigError,
+    SuperAgentDynamicConfig,
 };
 use super::config_storer::storer::{
-    SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer,
+    SuperAgentDynamicConfigDeleter, SuperAgentDynamicConfigLoader, SuperAgentDynamicConfigStorer,
 };
 use crate::event::{
     channel::{pub_sub, EventConsumer, EventPublisher},
@@ -38,14 +39,16 @@ pub struct SuperAgent<S, O, HR, SL>
 where
     O: StartedClient<SuperAgentCallbacks>,
     HR: HashRepository,
-    SL: SubAgentsConfigStorer + SubAgentsConfigLoader + SubAgentsConfigDeleter,
+    SL: SuperAgentDynamicConfigStorer
+        + SuperAgentDynamicConfigLoader
+        + SuperAgentDynamicConfigDeleter,
     S: SubAgentBuilder,
 {
     pub(super) opamp_client: Option<O>,
     sub_agent_builder: S,
     remote_config_hash_repository: Arc<HR>,
     agent_id: AgentID,
-    pub(super) sub_agents_config_store: Arc<SL>,
+    pub(super) sa_dynamic_config_store: Arc<SL>,
 }
 
 impl<S, O, HR, SL> SuperAgent<S, O, HR, SL>
@@ -53,7 +56,9 @@ where
     O: StartedClient<SuperAgentCallbacks>,
     HR: HashRepository,
     S: SubAgentBuilder,
-    SL: SubAgentsConfigStorer + SubAgentsConfigLoader + SubAgentsConfigDeleter,
+    SL: SuperAgentDynamicConfigStorer
+        + SuperAgentDynamicConfigLoader
+        + SuperAgentDynamicConfigDeleter,
 {
     pub fn new(
         opamp_client: Option<O>,
@@ -67,7 +72,7 @@ where
             sub_agent_builder,
             // unwrap as we control content of the SUPER_AGENT_ID constant
             agent_id: AgentID::new_super_agent_id(),
-            sub_agents_config_store,
+            sa_dynamic_config_store: sub_agents_config_store,
         }
     }
 
@@ -97,10 +102,10 @@ where
         info!("Starting the agents supervisor runtime");
         let (sub_agent_publisher, sub_agent_consumer) = pub_sub();
 
-        let sub_agents_config = &self.sub_agents_config_store.load()?;
+        let sub_agents_config = self.sa_dynamic_config_store.load()?.agents;
 
         let not_started_sub_agents =
-            self.load_sub_agents(sub_agents_config, sub_agent_publisher.clone())?;
+            self.load_sub_agents(&sub_agents_config, sub_agent_publisher.clone())?;
 
         info!("Agents supervisor runtime successfully started");
         // Run all the Sub Agents
@@ -136,12 +141,11 @@ where
     // EffectiveAgents
     fn load_sub_agents(
         &self,
-        sub_agents_config: &SubAgentsConfig,
+        sub_agents: &SubAgentsMap,
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
     ) -> Result<NotStartedSubAgents<S::NotStartedSubAgent>, AgentError> {
         Ok(NotStartedSubAgents::from(
-            sub_agents_config
-                .agents
+            sub_agents
                 .iter()
                 .map(|(agent_id, sub_agent_config)| {
                     // FIXME: we force OK(agent) but we need to check also agent not assembled when
@@ -279,15 +283,15 @@ where
 
         let remote_config_value = remote_config.get_unique()?;
 
-        let old_sub_agents_config = self.sub_agents_config_store.load()?;
+        let old_super_agent_dynamic_config = self.sa_dynamic_config_store.load()?;
 
-        let sub_agents_config = if remote_config_value.is_empty() {
+        let super_agent_dynamic_config = if remote_config_value.is_empty() {
             // Use the local configuration if the content of the remote config is empty.
             // Do not confuse with an empty list of 'agents', which is a valid remote configuration.
-            self.sub_agents_config_store.delete()?;
-            self.sub_agents_config_store.load()?
+            self.sa_dynamic_config_store.delete()?;
+            self.sa_dynamic_config_store.load()?
         } else {
-            SubAgentsConfig::try_from(remote_config_value)?
+            SuperAgentDynamicConfig::try_from(remote_config_value)?
         };
 
         // TODO the case when multiple agents are updated but one fails has multiple issues:
@@ -296,11 +300,11 @@ where
         // - storers isn't updated (event for an agent that has been applied and running )
 
         // apply new configuration
-        sub_agents_config
+        super_agent_dynamic_config
             .iter()
             .try_for_each(|(agent_id, agent_config)| {
                 // recreates an existent sub agent if the configuration has changed
-                match old_sub_agents_config.get(agent_id) {
+                match old_super_agent_dynamic_config.get(agent_id) {
                     Ok(old_sub_agent_config) => {
                         if old_sub_agent_config == agent_config {
                             return Ok(());
@@ -327,11 +331,11 @@ where
             })?;
 
         // remove sub agents not used anymore
-        old_sub_agents_config
+        old_super_agent_dynamic_config
             .iter()
             .try_for_each(|(agent_id, _agent_config)| {
                 if let Err(SuperAgentConfigError::SubAgentNotFound(_)) =
-                    sub_agents_config.get(agent_id)
+                    super_agent_dynamic_config.get(agent_id)
                 {
                     info!("Stopping SubAgent {}", agent_id);
                     return running_sub_agents.stop_remove(agent_id);
@@ -340,7 +344,8 @@ where
             })?;
 
         if !remote_config_value.is_empty() {
-            self.sub_agents_config_store.store(&sub_agents_config)?;
+            self.sa_dynamic_config_store
+                .store(&super_agent_dynamic_config)?;
         }
 
         Ok(self
@@ -397,10 +402,13 @@ mod tests {
     use crate::opamp::remote_config::{ConfigMap, RemoteConfig};
     use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::{test::MockSubAgentBuilderMock, SubAgentBuilder};
-    use crate::super_agent::config::{AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig};
-    use crate::super_agent::config_storer::storer::tests::MockSubAgentsConfigStore;
+    use crate::super_agent::config::{
+        AgentID, AgentTypeFQN, SubAgentConfig, SuperAgentDynamicConfig,
+    };
+    use crate::super_agent::config_storer::storer::tests::MockSuperAgentDynamicConfigStore;
     use crate::super_agent::config_storer::storer::{
-        SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer,
+        SuperAgentDynamicConfigDeleter, SuperAgentDynamicConfigLoader,
+        SuperAgentDynamicConfigStorer,
     };
     use crate::super_agent::SuperAgent;
     use mockall::predicate;
@@ -423,7 +431,9 @@ mod tests {
         O: StartedClient<SuperAgentCallbacks>,
         HR: HashRepository,
         S: SubAgentBuilder,
-        SL: SubAgentsConfigStorer + SubAgentsConfigLoader + SubAgentsConfigDeleter,
+        SL: SuperAgentDynamicConfigStorer
+            + SuperAgentDynamicConfigLoader
+            + SuperAgentDynamicConfigDeleter,
     {
         pub fn new_custom(
             opamp_client: Option<O>,
@@ -436,14 +446,14 @@ mod tests {
                 remote_config_hash_repository,
                 sub_agent_builder,
                 agent_id: AgentID::new_super_agent_id(),
-                sub_agents_config_store: Arc::new(sub_agents_config_store),
+                sa_dynamic_config_store: Arc::new(sub_agents_config_store),
             }
         }
     }
 
     #[test]
     fn run_and_stop_supervisors_no_agents() {
-        let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
+        let mut sub_agents_config_store = MockSuperAgentDynamicConfigStore::new();
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         let mut started_client = MockStartedOpAMPClientMock::new();
         started_client.should_set_healthy();
@@ -478,7 +488,7 @@ mod tests {
 
     #[test]
     fn run_and_stop_supervisors() {
-        let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
+        let mut sub_agents_config_store = MockSuperAgentDynamicConfigStore::new();
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         let mut sub_agent_builder = MockSubAgentBuilderMock::new();
 
@@ -533,7 +543,7 @@ mod tests {
             .returning(|_| Ok(()));
         started_client.should_stop(1);
 
-        let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
+        let mut sub_agents_config_store = MockSuperAgentDynamicConfigStore::new();
         sub_agents_config_store
             .expect_load()
             .returning(|| Ok(sub_agents_default_config()));
@@ -618,13 +628,13 @@ agents:
     #[test]
     fn create_stop_sub_agents_from_remote_config() {
         // Sub Agents
-        let sub_agents_config = sub_agents_default_config();
+        let sub_agents_config = sub_agents_default_config().agents;
 
         let mut sub_agent_builder = MockSubAgentBuilderMock::new();
         // it should build three times (2 + 1 + 1)
         sub_agent_builder.should_build(3);
 
-        let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
+        let mut sub_agents_config_store = MockSuperAgentDynamicConfigStore::new();
         // all agents on first load
         sub_agents_config_store
             .expect_load()
@@ -737,7 +747,7 @@ agents:
     fn test_sub_agent_config_updated_should_recreate_sub_agent() {
         let hash_repository_mock = Arc::new(MockHashRepositoryMock::new());
         let mut sub_agent_builder = MockSubAgentBuilderMock::new();
-        let mut sub_agents_config_store = MockSubAgentsConfigStore::new();
+        let mut sub_agents_config_store = MockSuperAgentDynamicConfigStore::new();
 
         // Given that we have 3 running Sub Agents
         let sub_agent_id = AgentID::new("infra-agent").unwrap();
@@ -750,7 +760,7 @@ agents:
             (AgentID::new("nrdot").unwrap(), MockStartedSubAgent::new()),
         ]));
 
-        let sub_agents_config = SubAgentsConfig::from(HashMap::from([
+        let sub_agents_config = SuperAgentDynamicConfig::from(HashMap::from([
             (
                 AgentID::new("nrdot").unwrap(),
                 SubAgentConfig {
@@ -845,7 +855,7 @@ agents:
     // Test helpers
     ////////////////////////////////////////////////////////////////////////////////////
 
-    fn sub_agents_default_config() -> SubAgentsConfig {
+    fn sub_agents_default_config() -> SuperAgentDynamicConfig {
         HashMap::from([
             (
                 AgentID::new("infra-agent").unwrap(),

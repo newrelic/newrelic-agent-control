@@ -1,10 +1,11 @@
 use super::common::{
-    block_on, create_test_cr, foo_type_meta, tokio_runtime, Foo, K8sEnv, MockSubAgentsConfigLoader,
+    block_on, create_test_cr, foo_type_meta, tokio_runtime, Foo, K8sEnv,
+    MockSuperAgentDynamicConfigLoaderMock,
 };
 use k8s_openapi::{api::core::v1::ConfigMap, Resource};
 use kube::{api::Api, core::TypeMeta};
 use mockall::Sequence;
-use newrelic_super_agent::super_agent::config::SubAgentsConfig;
+use newrelic_super_agent::super_agent::config::SuperAgentDynamicConfig;
 use newrelic_super_agent::{
     agent_type::runtime_config::K8sObject,
     k8s::{
@@ -74,7 +75,7 @@ metadata:
     // Creates ULID CM correctly tagged.
     let agent_ulid = instance_id_getter.get(agent_id).unwrap();
 
-    let mut config_loader = MockSubAgentsConfigLoader::new();
+    let mut config_loader = MockSuperAgentDynamicConfigLoaderMock::new();
     let config = format!(
         r#"
 agents:
@@ -88,14 +89,18 @@ agents:
     config_loader
         .expect_load()
         .times(1)
-        .returning(move || Ok(serde_yaml::from_str::<SubAgentsConfig>(config.as_str()).unwrap()))
+        .returning(move || {
+            Ok(serde_yaml::from_str::<SuperAgentDynamicConfig>(config.as_str()).unwrap())
+        })
         .in_sequence(&mut seq);
 
     // Second call will not have agents
     config_loader
         .expect_load()
         .times(1)
-        .returning(move || Ok(serde_yaml::from_str::<SubAgentsConfig>("agents: {}").unwrap()))
+        .returning(move || {
+            Ok(serde_yaml::from_str::<SuperAgentDynamicConfig>("agents: {}").unwrap())
+        })
         .in_sequence(&mut seq);
 
     let mut gc = NotStartedK8sGarbageCollector::new(Arc::new(config_loader), k8s_client);
@@ -136,12 +141,11 @@ fn k8s_garbage_collector_with_missing_and_extra_kinds() {
     ));
 
     // Executes the GC passing only current agent in the config.
-    let mut config_loader = MockSubAgentsConfigLoader::new();
+    let mut config_loader = MockSuperAgentDynamicConfigLoaderMock::new();
 
-    config_loader
-        .expect_load()
-        .times(1)
-        .returning(move || Ok(serde_yaml::from_str::<SubAgentsConfig>("agents: {}").unwrap()));
+    config_loader.expect_load().times(1).returning(move || {
+        Ok(serde_yaml::from_str::<SuperAgentDynamicConfig>("agents: {}").unwrap())
+    });
 
     // This kind is not present in the cluster.
     let missing_kind = TypeMeta {
@@ -201,12 +205,11 @@ fn k8s_garbage_collector_does_not_remove_super_agent() {
 
     let sa_ulid = instance_id_getter.get(sa_id).unwrap();
 
-    let mut config_loader = MockSubAgentsConfigLoader::new();
+    let mut config_loader = MockSuperAgentDynamicConfigLoaderMock::new();
 
-    config_loader
-        .expect_load()
-        .times(1)
-        .returning(move || Ok(serde_yaml::from_str::<SubAgentsConfig>("agents: {}").unwrap()));
+    config_loader.expect_load().times(1).returning(move || {
+        Ok(serde_yaml::from_str::<SuperAgentDynamicConfig>("agents: {}").unwrap())
+    });
 
     let mut gc = NotStartedK8sGarbageCollector::new(Arc::new(config_loader), k8s_client);
 
