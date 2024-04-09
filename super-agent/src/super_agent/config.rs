@@ -1,4 +1,3 @@
-use super::config_storer::ConfigStoreError;
 use crate::logging::config::LoggingConfig;
 use crate::opamp::remote_config::RemoteConfigError;
 use crate::status::config::StatusCheckConfig;
@@ -10,6 +9,7 @@ use std::path::Path;
 use std::{collections::HashMap, fmt::Display};
 use thiserror::Error;
 
+use crate::super_agent::config_storer::file::ConfigStoreError;
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
 use kube::core::TypeMeta;
 
@@ -29,6 +29,10 @@ pub enum AgentTypeError {
 
 #[derive(Error, Debug)]
 pub enum SuperAgentConfigError {
+    #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
+    #[error("error from k8s storer loading SAConfig: {0}")]
+    FailedToPersistK8s(#[from] crate::k8s::Error),
+
     #[error("error loading the super agent config: `{0}`")]
     LoadConfigError(#[from] ConfigStoreError),
 

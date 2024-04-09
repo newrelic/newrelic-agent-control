@@ -4,7 +4,6 @@ use super::config::{
 use super::config_storer::storer::{
     SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer,
 };
-use super::config_storer::SuperAgentConfigStoreFile;
 use crate::event::{
     channel::{pub_sub, EventConsumer, EventPublisher},
     OpAMPEvent, SubAgentEvent, SuperAgentEvent,
@@ -35,7 +34,7 @@ use tracing::{debug, error, info, trace, warn};
 
 pub(super) type SuperAgentCallbacks = AgentCallbacks<OpAMPRemoteConfigPublisher>;
 
-pub struct SuperAgent<S, O, HR, SL = SuperAgentConfigStoreFile>
+pub struct SuperAgent<S, O, HR, SL>
 where
     O: StartedClient<SuperAgentCallbacks>,
     HR: HashRepository,

@@ -1,17 +1,15 @@
-use super::{
-    error::K8sError,
-    labels::{Labels, AGENT_ID_LABEL_KEY},
-};
-use crate::super_agent::{self, config_storer::storer::SuperAgentConfigLoader};
+use super::labels::{Labels, AGENT_ID_LABEL_KEY};
+#[cfg_attr(test, mockall_double::double)]
+use crate::k8s::client::SyncK8sClient;
+use crate::k8s::error::GarbageCollectorK8sError;
+use crate::super_agent::config_storer::storer::SubAgentsConfigLoader;
+use crate::super_agent::{self};
 use crossbeam::{
     channel::{tick, unbounded, Sender},
     select,
 };
 use std::{collections::BTreeSet, sync::Arc, thread, time::Duration};
 use tracing::{debug, info, trace, warn};
-
-#[cfg_attr(test, mockall_double::double)]
-use crate::k8s::client::SyncK8sClient;
 
 const DEFAULT_INTERVAL_SEC: u64 = 30;
 const GRACEFUL_STOP_RETRY_INTERVAL_MS: u64 = 10;
@@ -21,7 +19,7 @@ type ActiveAgents = BTreeSet<String>;
 /// Responsible for cleaning resources created by the super agent that are not longer used.
 pub struct NotStartedK8sGarbageCollector<S>
 where
-    S: SuperAgentConfigLoader + std::marker::Sync + std::marker::Send + 'static,
+    S: SubAgentsConfigLoader + std::marker::Sync + std::marker::Send + 'static,
 {
     config_store: Arc<S>,
     k8s_client: Arc<SyncK8sClient>,
@@ -55,7 +53,7 @@ impl Drop for K8sGarbageCollectorStarted {
 
 impl<S> NotStartedK8sGarbageCollector<S>
 where
-    S: SuperAgentConfigLoader + std::marker::Sync + std::marker::Send,
+    S: SubAgentsConfigLoader + std::marker::Sync + std::marker::Send,
 {
     pub fn new(config_store: Arc<S>, k8s_client: Arc<SyncK8sClient>) -> Self {
         NotStartedK8sGarbageCollector {
@@ -99,7 +97,7 @@ where
     /// Garbage collect all resources managed by the SA associated to removed sub-agents.
     /// Collection is stateful, only happens when the list of active agents has changed from
     /// the previous execution.
-    pub fn collect(&mut self) -> Result<(), K8sError> {
+    pub fn collect(&mut self) -> Result<(), GarbageCollectorK8sError> {
         // check if current active agents differs from previous execution.
         if !self.update_active_agents()? {
             trace!("no agents to clean since last execution");
@@ -109,7 +107,7 @@ where
         let selector = Self::garbage_label_selector(
             self.active_agents
                 .as_ref()
-                .ok_or(K8sError::MissingActiveAgents())?,
+                .ok_or(GarbageCollectorK8sError::MissingActiveAgents())?,
         );
 
         debug!("collecting resources: `{selector}`");
@@ -129,13 +127,12 @@ where
         Ok(())
     }
 
-    /// Loads the latest agents list from the conf store and returns True if differs from the
+    /// Loads the latest agents list from the conf store and returns True if differs from
     /// the cached one.
-    fn update_active_agents(&mut self) -> Result<bool, K8sError> {
-        let super_agent_config = SuperAgentConfigLoader::load(self.config_store.as_ref())?;
+    fn update_active_agents(&mut self) -> Result<bool, GarbageCollectorK8sError> {
+        let sub_agents_config = self.config_store.load()?;
 
-        let latest_active_agents =
-            Some(super_agent_config.agents.keys().map(|a| a.get()).collect());
+        let latest_active_agents = Some(sub_agents_config.agents.keys().map(|a| a.get()).collect());
 
         // On the first execution self.active_agents is None so the list is updated.
         if self.active_agents == latest_active_agents {
@@ -165,10 +162,7 @@ where
 pub(crate) mod test {
     use super::{ActiveAgents, NotStartedK8sGarbageCollector};
     use crate::k8s::labels::{Labels, AGENT_ID_LABEL_KEY};
-    use crate::super_agent::config::{
-        AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig, SuperAgentConfig,
-    };
-    use crate::super_agent::config_storer::storer::MockSuperAgentConfigLoader;
+    use crate::super_agent::config::{AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig};
     use crate::super_agent::defaults::SUPER_AGENT_ID;
     use std::collections::HashMap;
     use std::sync::Arc;
@@ -176,19 +170,20 @@ pub(crate) mod test {
 
     #[mockall_double::double]
     use crate::k8s::client::SyncK8sClient;
+    use crate::super_agent::config_storer::storer::MockSubAgentsConfigLoader;
 
     #[test]
     fn test_start_executes_collection_as_expected() {
         // Given a config loader to be initialized with one agent and then changed to another
         // during the whole life of the GC.
-        let mut cs = MockSuperAgentConfigLoader::new();
+        let mut cs = MockSubAgentsConfigLoader::new();
         cs.expect_load()
             .once()
-            .returning(move || Ok(super_agent_config("agent-1")));
+            .returning(move || Ok(sub_agents_config("agent-1")));
         // Expect the GC runs more than 10 times if interval is 1ms and runs for at least 100ms.
         cs.expect_load()
             .times(9..)
-            .returning(move || Ok(super_agent_config("agent-2")));
+            .returning(move || Ok(sub_agents_config("agent-2")));
 
         // Expect to execute collection of resources only twice, one per each agent list variation.
         let mut k8s_client = SyncK8sClient::default();
@@ -220,7 +215,7 @@ pub(crate) mod test {
                 "{},{AGENT_ID_LABEL_KEY} notin ({SUPER_AGENT_ID},{agent_id})",
                 labels.selector(),
             ),
-            NotStartedK8sGarbageCollector::<MockSuperAgentConfigLoader>::garbage_label_selector(
+            NotStartedK8sGarbageCollector::<MockSubAgentsConfigLoader>::garbage_label_selector(
                 &ActiveAgents::from([agent_id.get()])
             )
         );
@@ -230,7 +225,7 @@ pub(crate) mod test {
                 "{},{AGENT_ID_LABEL_KEY} notin ({SUPER_AGENT_ID},{agent_id},{second_agent_id})",
                 labels.selector(),
             ),
-            NotStartedK8sGarbageCollector::<MockSuperAgentConfigLoader>::garbage_label_selector(
+            NotStartedK8sGarbageCollector::<MockSubAgentsConfigLoader>::garbage_label_selector(
                 &ActiveAgents::from([agent_id.get(), second_agent_id.get()])
             )
         );
@@ -239,24 +234,21 @@ pub(crate) mod test {
                 "{},{AGENT_ID_LABEL_KEY} notin ({SUPER_AGENT_ID})",
                 labels.selector(),
             ),
-            NotStartedK8sGarbageCollector::<MockSuperAgentConfigLoader>::garbage_label_selector(
+            NotStartedK8sGarbageCollector::<MockSubAgentsConfigLoader>::garbage_label_selector(
                 &ActiveAgents::new()
             )
         );
     }
 
     // HELPERS
-    fn super_agent_config(agent_id: &str) -> SuperAgentConfig {
-        SuperAgentConfig {
-            agents: SubAgentsConfig {
-                agents: HashMap::from([(
-                    AgentID::new(agent_id).unwrap(),
-                    SubAgentConfig {
-                        agent_type: AgentTypeFQN::from("test"),
-                    },
-                )]),
-            },
-            ..Default::default()
+    fn sub_agents_config(agent_id: &str) -> SubAgentsConfig {
+        SubAgentsConfig {
+            agents: HashMap::from([(
+                AgentID::new(agent_id).unwrap(),
+                SubAgentConfig {
+                    agent_type: AgentTypeFQN::from("test"),
+                },
+            )]),
         }
     }
 }

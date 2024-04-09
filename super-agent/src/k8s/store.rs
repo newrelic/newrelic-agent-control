@@ -3,7 +3,7 @@ use super::client::SyncK8sClient;
 use super::labels::Labels;
 use super::Error;
 use crate::super_agent::config::AgentID;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 /// The prefixes for the ConfigMap name.
 /// The cm having CM_NAME_LOCAL_DATA_PREFIX stores all the config that are "local",
@@ -25,12 +25,16 @@ pub const STORE_KEY_INSTANCE_ID: &StoreKey = "instance_id";
 /// The store is implemented using one ConfigMap per Agent with all the data.
 pub struct K8sStore {
     k8s_client: Arc<SyncK8sClient>,
+    rw_lock: RwLock<()>,
 }
 
 impl K8sStore {
     /// Creates a new K8sStore.
     pub fn new(k8s_client: Arc<SyncK8sClient>) -> Self {
-        Self { k8s_client }
+        Self {
+            k8s_client,
+            rw_lock: RwLock::new(()),
+        }
     }
 
     /// get_opamp_data is used to get data from CMs storing data related with opamp:
@@ -57,6 +61,8 @@ impl K8sStore {
     where
         T: serde::de::DeserializeOwned,
     {
+        let _read_guard = self.rw_lock.read().unwrap();
+
         let configmap_name = K8sStore::build_cm_name(agent_id, prefix);
         if let Some(data) = self.k8s_client.get_configmap_key(&configmap_name, key)? {
             let ds = serde_yaml::from_str::<T>(&data)?;
@@ -77,6 +83,8 @@ impl K8sStore {
     where
         T: serde::Serialize,
     {
+        let _write_guard = self.rw_lock.write().unwrap();
+
         let data_as_string = serde_yaml::to_string(data)?;
         let configmap_name = K8sStore::build_cm_name(agent_id, CM_NAME_OPAMP_DATA_PREFIX);
         self.k8s_client.set_configmap_key(
@@ -89,6 +97,8 @@ impl K8sStore {
 
     /// Delete data in the specified StoreKey of an Agent store.
     pub fn delete_opamp_data(&self, agent_id: &AgentID, key: &StoreKey) -> Result<(), Error> {
+        let _write_guard = self.rw_lock.write().unwrap();
+
         let configmap_name = K8sStore::build_cm_name(agent_id, CM_NAME_OPAMP_DATA_PREFIX);
         self.k8s_client.delete_configmap_key(&configmap_name, key)
     }

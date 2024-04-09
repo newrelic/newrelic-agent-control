@@ -1,5 +1,5 @@
 k8s:
-  namespace: default
+  namespace: <ns>
   cluster_name: minikube
 agents:
   my-agent-id:
