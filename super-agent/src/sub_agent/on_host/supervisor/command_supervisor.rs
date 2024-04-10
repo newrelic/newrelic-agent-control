@@ -265,6 +265,8 @@ fn spawn_health_checker<H>(
     H: HealthChecker + Send + 'static,
 {
     thread::spawn(move || loop {
+        thread::sleep(health_checker.interval());
+
         // Check cancellation signal.
         // As we don't need any data to be sent, the `publish` call of the sender only sends `()`
         // and we don't check for data here, We use a non-blocking call and break only if we
@@ -283,8 +285,6 @@ fn spawn_health_checker<H>(
                 SubAgentInternalEvent::AgentBecameUnhealthy(e.status()),
             ),
         }
-
-        thread::sleep(health_checker.interval());
     });
 }
 
