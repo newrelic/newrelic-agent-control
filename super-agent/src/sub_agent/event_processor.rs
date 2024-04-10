@@ -7,6 +7,7 @@ use crate::sub_agent::values::values_repository::ValuesRepository;
 use crate::sub_agent::SubAgentCallbacks;
 use crate::super_agent::config::AgentID;
 use crate::utils::time::get_sys_time_nano;
+use crossbeam::channel::never;
 use crossbeam::select;
 use opamp_client::opamp::proto::ComponentHealth;
 use opamp_client::StartedClient;
@@ -97,9 +98,15 @@ where
                 })?;
             }
 
+            let never_receive = EventConsumer::from(never());
+            let opamp_receiver = match &self.maybe_opamp_client {
+                Some(_) => &self.sub_agent_opamp_consumer,
+                None => &never_receive,
+            };
+
             loop {
                 select! {
-                    recv(&self.sub_agent_opamp_consumer.as_ref()) -> opamp_event_res => {
+                    recv(opamp_receiver.as_ref()) -> opamp_event_res => {
                         match opamp_event_res {
                             Err(_) => {
                                 debug!("sub_agent_opamp_consumer :: channel closed");

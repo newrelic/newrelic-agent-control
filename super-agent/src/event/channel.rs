@@ -2,7 +2,19 @@ use crossbeam::channel::{unbounded, Receiver, Sender};
 use thiserror::Error;
 
 pub struct EventConsumer<E>(Receiver<E>);
+
+impl<E> From<Receiver<E>> for EventConsumer<E> {
+    fn from(value: Receiver<E>) -> Self {
+        Self(value)
+    }
+}
 pub struct EventPublisher<E>(Sender<E>);
+
+impl<E> From<Sender<E>> for EventPublisher<E> {
+    fn from(value: Sender<E>) -> Self {
+        Self(value)
+    }
+}
 
 #[derive(Debug, Error)]
 pub enum EventPublisherError {

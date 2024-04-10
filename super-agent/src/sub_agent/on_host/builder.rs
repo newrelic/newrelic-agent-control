@@ -100,6 +100,8 @@ where
         let (sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
 
+        // If there's no OpAMP builder, `sub_agent_opamp_publisher` will be dropped leaving the
+        // consumer with no associated publisher. It will fail to receive any messages.
         let maybe_opamp_client = build_opamp_and_start_client(
             sub_agent_opamp_publisher,
             self.opamp_builder,
