@@ -18,7 +18,7 @@ use tracing::{debug, error, info};
 // This trait is meant for testing, there are no multiple implementations expected
 // It cannot be doubled as the implementation has a lifetime constraint
 pub trait SubAgentEventProcessor {
-    fn process(self) -> JoinHandle<Result<(), SubAgentError>>;
+    fn process(self) -> Result<Vec<JoinHandle<()>>, SubAgentError>;
 }
 
 pub struct EventProcessor<C, H, R>
@@ -76,15 +76,11 @@ where
     // process will process the Sub Agent OpAMP events and will return the OpAMP client
     // when processing ends.
     // It will end when sub_agent_opamp_publisher is closed
-    fn process(self) -> JoinHandle<Result<(), SubAgentError>> {
-        thread::spawn(move || {
-            debug!(
-                agent_id = self.agent_id.to_string(),
-                "event processor started"
-            );
+    fn process(self) -> Result<Vec<JoinHandle<()>>, SubAgentError> {
+        let mut handles = Vec::new();
 
-            //TODO: this will change when we define specific health events
-            if let Some(client) = &self.maybe_opamp_client {
+        //TODO: this will change when we define specific health events
+        if let Some(client) = &self.maybe_opamp_client {
                 info!(
                     agent_id = &self.agent_id.to_string(),
                     "reporting agent as healthy"
@@ -95,24 +91,42 @@ where
                     last_error: "".to_string(),
                     ..Default::default()
                 })?;
-            }
+            let opamp_handle = thread::spawn( || {
+                debug!(
+                    agent_id = self.agent_id.to_string(),
+                    "OpAMP event processor started"
+                );
+                loop {
+                    select! {
+                        recv(&self.sub_agent_opamp_consumer.as_ref()) -> opamp_event_res => {
+                            match opamp_event_res {
+                                Err(_) => {
+                                    debug!("sub_agent_opamp_consumer :: channel closed");
+                                    break;
+                                }
+                                Ok(OpAMPEvent::RemoteConfigReceived(remote_config)) => {
+                                    debug!("remote config received for: {}", self.agent_id);
+                                    if let Err(e) = self.remote_config(remote_config){
+                                         error!("error processing remote config: {}",e.to_string())
+                                    }
+                                }
+                            }
+                        },
+                    }
+                }
+            });
+
+            handles.push(opamp_handle);
+        }
+
+        let internal_handle = thread::spawn(move || {
+            debug!(
+                agent_id = self.agent_id.to_string(),
+                "internal event processor started"
+            );
 
             loop {
                 select! {
-                    recv(&self.sub_agent_opamp_consumer.as_ref()) -> opamp_event_res => {
-                        match opamp_event_res {
-                            Err(_) => {
-                                debug!("sub_agent_opamp_consumer :: channel closed");
-                                break;
-                            }
-                            Ok(OpAMPEvent::RemoteConfigReceived(remote_config)) => {
-                                debug!("remote config received for: {}", self.agent_id);
-                                if let Err(e) = self.remote_config(remote_config){
-                                     error!("error processing remote config: {}",e.to_string())
-                                }
-                            }
-                        }
-                    },
                     recv(&self.sub_agent_internal_consumer.as_ref()) -> sub_agent_internal_event_res => {
                          match sub_agent_internal_event_res {
                             Err(_) => {
@@ -126,7 +140,6 @@ where
                             Ok(SubAgentInternalEvent::AgentBecameUnhealthy(msg))=>{
                                 debug!("sub_agent_internal_consumer :: UnhealthyAgent");
                                 let _ = self.on_became_unhealthy(msg).inspect_err(|e| error!("error processing unhealthy status: {}",e));
-
                             }
                             Ok(SubAgentInternalEvent::AgentBecameHealthy)=>{
                                 debug!("sub_agent_internal_consumer :: HealthyAgent");
@@ -136,8 +149,11 @@ where
                     }
                 }
             }
-            stop_opamp_client(self.maybe_opamp_client, &self.agent_id)
-        })
+            _=stop_opamp_client(self.maybe_opamp_client, &self.agent_id); // Not using result
+        });
+        handles.push(internal_handle);
+
+        Ok(handles)
     }
 }
 
@@ -151,6 +167,7 @@ pub mod test {
     use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::event_processor::{EventProcessor, SubAgentEventProcessor};
     use crate::super_agent::config::AgentID;
+    use hyper::body::HttpBody;
     use mockall::mock;
     use std::collections::HashMap;
     use std::sync::Arc;
@@ -204,12 +221,14 @@ pub mod test {
             Arc::new(hash_repository),
             Arc::new(values_repository),
         );
-        let handle = event_processor.process();
+        let handles = event_processor.process().unwrap();
 
         // close the OpAMP Publisher
         drop(sub_agent_opamp_publisher);
 
-        handle.join().unwrap().unwrap();
+        for h in handles {
+            h.join().unwrap();
+        }
 
         assert!(logs_with_scope_contain(
             "DEBUG newrelic_super_agent::sub_agent::event_processor",
@@ -256,7 +275,7 @@ pub mod test {
             Arc::new(hash_repository),
             Arc::new(values_repository),
         );
-        let handle = event_processor.process();
+        let handles = event_processor.process().unwrap();
 
         // publish event
         sub_agent_opamp_publisher
@@ -266,7 +285,9 @@ pub mod test {
         // close the OpAMP Publisher
         drop(sub_agent_opamp_publisher);
 
-        handle.join().unwrap().unwrap();
+        for h in handles {
+            h.join().unwrap();
+        }
 
         assert!(logs_with_scope_contain(
             "DEBUG newrelic_super_agent::sub_agent::event_processor",

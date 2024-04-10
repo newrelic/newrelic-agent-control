@@ -3,7 +3,6 @@ use crate::event::SubAgentEvent;
 use crate::opamp::callbacks::AgentCallbacks;
 use crate::opamp::remote_config_publisher::OpAMPRemoteConfigPublisher;
 use crate::sub_agent::error;
-use crate::sub_agent::error::SubAgentError;
 use crate::sub_agent::event_processor::SubAgentEventProcessor;
 use crate::super_agent::config::{AgentID, SubAgentConfig};
 use std::thread::JoinHandle;
@@ -44,7 +43,7 @@ where
 }
 
 pub struct Started {
-    pub(crate) event_loop_handle: JoinHandle<Result<(), SubAgentError>>,
+    pub(crate) event_loop_handles: Vec<JoinHandle<()>>,
 }
 
 #[cfg(test)]

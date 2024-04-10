@@ -64,13 +64,13 @@ where
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        let event_loop_handle = self.state.event_processor.process();
+        let event_loop_handles = self.state.event_processor.process()?;
 
         let started_sub_agent = SubAgentOnHost {
             supervisors: started_supervisors,
             agent_id: self.agent_id,
             sub_agent_internal_publisher: self.sub_agent_internal_publisher,
-            state: Started { event_loop_handle },
+            state: Started { event_loop_handles },
         };
 
         Ok(started_sub_agent)
@@ -83,9 +83,11 @@ impl StartedSubAgent for SubAgentOnHost<Started, command_supervisor::Started> {
         self.sub_agent_internal_publisher
             .publish(SubAgentInternalEvent::StopRequested)?;
 
-        self.state.event_loop_handle.join().map_err(|_| {
-            SubAgentError::PoisonError(String::from("error handling event_loop_handle"))
-        })??;
+        for handle in self.state.event_loop_handles {
+            handle.join().map_err(|_| {
+                SubAgentError::PoisonError(String::from("error handling event_loop_handle"))
+            })?;
+        }
 
         Ok(stopped_supervisors)
     }
