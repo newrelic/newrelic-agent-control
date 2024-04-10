@@ -21,7 +21,7 @@ use std::{
     sync::{Arc, Mutex},
     thread::{self, JoinHandle},
 };
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 ////////////////////////////////////////////////////////////////////////////////////
 // States for Started/Not Started supervisor
@@ -175,6 +175,7 @@ fn start_process_thread(
             {
                 match health_checker {
                     Ok(health_checker) => spawn_health_checker(
+                        id.clone(),
                         health_checker,
                         health_check_cancel_consumer,
                         internal_event_publisher.clone(),
@@ -258,6 +259,7 @@ fn start_process_thread(
 }
 
 fn spawn_health_checker<H>(
+    agent_id: AgentID,
     health_checker: H,
     cancel_signal: EventConsumer<()>,
     health_publisher: EventPublisher<SubAgentInternalEvent>,
@@ -273,15 +275,21 @@ fn spawn_health_checker<H>(
             break;
         }
 
+        debug!(%agent_id, "Checking health with the configured checker");
         match health_checker.check_health() {
             Ok(_) => {
+                debug!(%agent_id, "The configured health check passed");
                 publish_health_event(&health_publisher, SubAgentInternalEvent::AgentBecameHealthy)
             }
-            Err(e) => publish_health_event(
-                &health_publisher,
-                // TODO: Passing the raw status for now. Pass both `last_error` and `status`.
-                SubAgentInternalEvent::AgentBecameUnhealthy(e.status()),
-            ),
+            Err(e) => {
+                let status = e.status();
+                debug!(%agent_id, status, "The configured health check failed");
+                publish_health_event(
+                    &health_publisher,
+                    // TODO: Passing the raw status for now. Pass both `last_error` and `status`.
+                    SubAgentInternalEvent::AgentBecameUnhealthy(status),
+                )
+            }
         }
 
         thread::sleep(health_checker.interval());
@@ -527,7 +535,8 @@ pub mod sleep_supervisor_tests {
             .in_sequence(&mut seq)
             .returning(Duration::default);
 
-        spawn_health_checker(health_checker, cancel_signal, health_publisher);
+        let agent_id = "test-agent".to_string().try_into().unwrap();
+        spawn_health_checker(agent_id, health_checker, cancel_signal, health_publisher);
 
         // Check that the health checker was called at least once
         let expected_health_events = {
@@ -574,7 +583,8 @@ pub mod sleep_supervisor_tests {
             .in_sequence(&mut seq)
             .returning(Duration::default);
 
-        spawn_health_checker(health_checker, cancel_signal, health_publisher);
+        let agent_id = "test-agent".to_string().try_into().unwrap();
+        spawn_health_checker(agent_id, health_checker, cancel_signal, health_publisher);
 
         // Check that the health checker was called at least once
         let expected_health_events = {
@@ -626,7 +636,8 @@ pub mod sleep_supervisor_tests {
             .in_sequence(&mut seq)
             .returning(Duration::default);
 
-        spawn_health_checker(health_checker, cancel_signal, health_publisher);
+        let agent_id = "test-agent".to_string().try_into().unwrap();
+        spawn_health_checker(agent_id, health_checker, cancel_signal, health_publisher);
 
         // Check that the health checker was called at least once
         let expected_health_events = {
