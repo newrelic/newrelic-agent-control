@@ -1,12 +1,11 @@
-use duration_str::deserialize_duration;
-use serde::Deserialize;
-use std::{collections::HashMap, time::Duration};
-
 use super::{
     definition::{TemplateableValue, Variables},
     error::AgentTypeError,
     runtime_config_templates::Templateable,
 };
+use duration_str::deserialize_duration;
+use serde::Deserialize;
+use std::{collections::HashMap, time::Duration};
 
 /// Represents the configuration for health checks.
 ///
@@ -48,6 +47,18 @@ impl From<HttpPort> for u16 {
     }
 }
 
+impl From<u16> for HttpPort {
+    fn from(value: u16) -> Self {
+        Self(value)
+    }
+}
+
+impl Default for HttpPort {
+    fn default() -> Self {
+        Self(80)
+    }
+}
+
 /// Represents an HTTP-based health check.
 ///
 /// For further details, refer to [Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/).
@@ -71,6 +82,18 @@ pub(crate) struct HttpHealth {
     pub(crate) healthy_status_codes: Vec<u16>,
 }
 
+impl Default for HttpHealth {
+    fn default() -> Self {
+        Self {
+            host: TemplateableValue::new(HttpHost::default()),
+            path: TemplateableValue::new(HttpPath::default()),
+            port: TemplateableValue::new(HttpPort::default()),
+            headers: HashMap::default(),
+            healthy_status_codes: vec![],
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub(crate) struct HttpHost(String);
 
@@ -86,10 +109,9 @@ impl From<HttpHost> for String {
     }
 }
 
-impl Templateable for HttpHost {
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
-        let templated_string = self.0.template_with(variables)?;
-        Ok(Self(templated_string))
+impl From<String> for HttpHost {
+    fn from(value: String) -> Self {
+        Self(value)
     }
 }
 
@@ -105,6 +127,12 @@ impl Default for HttpPath {
 impl From<HttpPath> for String {
     fn from(value: HttpPath) -> Self {
         value.0
+    }
+}
+
+impl From<String> for HttpPath {
+    fn from(value: String) -> Self {
+        Self(value)
     }
 }
 
@@ -140,10 +168,14 @@ impl Templateable for HealthConfig {
 impl Templateable for HealthCheck {
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         Ok(match self {
-            HealthCheck::HttpHealth(ref conf) => {
-                let mut conf = conf.clone();
-                conf.port = conf.port.template_with(variables)?;
-                HealthCheck::HttpHealth(conf)
+            HealthCheck::HttpHealth(conf) => {
+                let health_conf = HttpHealth {
+                    host: conf.host.template_with(variables)?,
+                    path: conf.path.template_with(variables)?,
+                    port: conf.port.template_with(variables)?,
+                    ..conf
+                };
+                HealthCheck::HttpHealth(health_conf)
             }
         })
     }
@@ -153,12 +185,42 @@ impl Templateable for TemplateableValue<HttpPort> {
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         let templated_string = self.template.clone().template_with(variables)?;
         let value = if templated_string.is_empty() {
-            return Err(AgentTypeError::MissingDefault);
+            HttpPort::default()
         } else {
             templated_string
                 .parse::<u16>()
                 .map(HttpPort)
                 .map_err(|_| AgentTypeError::ValueNotParseableFromString(templated_string))?
+        };
+        Ok(Self {
+            template: self.template,
+            value: Some(value),
+        })
+    }
+}
+
+impl Templateable for TemplateableValue<HttpHost> {
+    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+        let templated_string = self.template.clone().template_with(variables)?;
+        let value = if templated_string.is_empty() {
+            HttpHost::default()
+        } else {
+            HttpHost(templated_string)
+        };
+        Ok(Self {
+            template: self.template,
+            value: Some(value),
+        })
+    }
+}
+
+impl Templateable for TemplateableValue<HttpPath> {
+    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+        let templated_string = self.template.clone().template_with(variables)?;
+        let value = if templated_string.is_empty() {
+            HttpPath::default()
+        } else {
+            HttpPath(templated_string)
         };
         Ok(Self {
             template: self.template,
