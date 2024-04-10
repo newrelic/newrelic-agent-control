@@ -1,7 +1,4 @@
-use super::config::{
-    AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsMap, SuperAgentConfigError,
-    SuperAgentDynamicConfig,
-};
+use super::config::{AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsMap, SuperAgentDynamicConfig};
 use super::config_storer::storer::{
     SuperAgentDynamicConfigDeleter, SuperAgentDynamicConfigLoader, SuperAgentDynamicConfigStorer,
 };
@@ -242,7 +239,6 @@ where
                     trace!("SubAgent event receive attempt: {:?}", sub_agent_event_res);
                     match sub_agent_event_res {
                         Err(_) => {
-                            // TODO is it worth to log this?
                             debug!("channel closed");
                         },
                         Ok(sub_agent_event) => {
@@ -305,8 +301,8 @@ where
             .iter()
             .try_for_each(|(agent_id, agent_config)| {
                 // recreates an existent sub agent if the configuration has changed
-                match old_super_agent_dynamic_config.get(agent_id) {
-                    Ok(old_sub_agent_config) => {
+                match old_super_agent_dynamic_config.agents.get(agent_id) {
+                    Some(old_sub_agent_config) => {
                         if old_sub_agent_config == agent_config {
                             return Ok(());
                         }
@@ -319,7 +315,7 @@ where
                             sub_agent_publisher.clone(),
                         )
                     }
-                    Err(_) => {
+                    None => {
                         info!("Creating SubAgent {}", agent_id);
                         self.create_sub_agent(
                             agent_id.clone(),
@@ -334,9 +330,7 @@ where
         // remove sub agents not used anymore
         old_super_agent_dynamic_config.agents.iter().try_for_each(
             |(agent_id, _agent_config)| {
-                if let Err(SuperAgentConfigError::SubAgentNotFound(_)) =
-                    super_agent_dynamic_config.get(agent_id)
-                {
+                if !super_agent_dynamic_config.agents.contains_key(agent_id) {
                     info!("Stopping SubAgent {}", agent_id);
                     return running_sub_agents.stop_remove(agent_id);
                 }

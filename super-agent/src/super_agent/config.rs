@@ -36,11 +36,8 @@ pub enum SuperAgentConfigError {
     #[error("error loading the super agent config: `{0}`")]
     LoadConfigError(#[from] ConfigStoreError),
 
-    #[error("cannot find config for agent: `{0}`")]
+    #[error("sub agent configuration `{0}` not found")]
     SubAgentNotFound(String),
-
-    #[error("sub agents configuration not found in the remote config map")]
-    SubAgentsNotFound,
 
     #[error("configuration is not valid YAML: `{0}`")]
     InvalidYamlConfiguration(#[from] serde_yaml::Error),
@@ -124,16 +121,6 @@ pub struct SuperAgentDynamicConfig {
 }
 
 pub type SubAgentsMap = HashMap<AgentID, SubAgentConfig>;
-
-impl SuperAgentDynamicConfig {
-    pub fn get(&self, agent_id: &AgentID) -> Result<&SubAgentConfig, SuperAgentConfigError> {
-        self.agents
-            .get(agent_id)
-            .ok_or(SuperAgentConfigError::SubAgentNotFound(
-                agent_id.to_string(),
-            ))
-    }
-}
 
 impl From<HashMap<AgentID, SubAgentConfig>> for SuperAgentDynamicConfig {
     fn from(value: HashMap<AgentID, SubAgentConfig>) -> Self {
