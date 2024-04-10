@@ -13,13 +13,13 @@ pub trait SuperAgentDynamicConfigStorer {
     fn store(&self, config: &SuperAgentDynamicConfig) -> Result<(), SuperAgentConfigError>;
 }
 
-/// SuperAgentDynamicConfigLoaderMock loads the dynamic part of the SuperAgentConfig
+/// SuperAgentDynamicConfigLoader loads the dynamic part of the SuperAgentConfig
 #[cfg_attr(test, mockall::automock)]
 pub trait SuperAgentDynamicConfigLoader {
     fn load(&self) -> Result<SuperAgentDynamicConfig, SuperAgentConfigError>;
 }
 
-/// SuperAgentDynamicConfigStorer deletes the dynamic part of the SuperAgentConfig
+/// SuperAgentDynamicConfigDeleter deletes the dynamic part of the SuperAgentConfig
 pub trait SuperAgentDynamicConfigDeleter {
     fn delete(&self) -> Result<(), SuperAgentConfigError>;
 }

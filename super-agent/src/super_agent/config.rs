@@ -4,7 +4,7 @@ use crate::status::config::StatusCheckConfig;
 use crate::super_agent::defaults::{default_capabilities, SUPER_AGENT_ID};
 use opamp_client::operation::capabilities::Capabilities;
 use serde::{Deserialize, Serialize};
-use std::ops::{Deref, DerefMut};
+use std::ops::Deref;
 use std::path::Path;
 use std::{collections::HashMap, fmt::Display};
 use thiserror::Error;
@@ -117,6 +117,7 @@ impl Display for AgentID {
 }
 
 /// SuperAgentDynamicConfig represents the dynamic part of the superAgent config.
+/// The dynamic configuration can be changed remotely.
 #[derive(Debug, Deserialize, Serialize, Default, PartialEq, Clone)]
 pub struct SuperAgentDynamicConfig {
     pub agents: SubAgentsMap,
@@ -131,19 +132,6 @@ impl SuperAgentDynamicConfig {
             .ok_or(SuperAgentConfigError::SubAgentNotFound(
                 agent_id.to_string(),
             ))
-    }
-}
-
-impl Deref for SuperAgentDynamicConfig {
-    type Target = HashMap<AgentID, SubAgentConfig>;
-    fn deref(&self) -> &Self::Target {
-        &self.agents
-    }
-}
-
-impl DerefMut for SuperAgentDynamicConfig {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.agents
     }
 }
 

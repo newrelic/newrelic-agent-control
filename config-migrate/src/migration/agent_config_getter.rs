@@ -38,7 +38,7 @@ where
 
         for agent in super_agent_dynamic_config.agents.clone() {
             if agent.1.agent_type != agent_type {
-                super_agent_dynamic_config.remove(&agent.0);
+                super_agent_dynamic_config.agents.remove(&agent.0);
             }
         }
         if super_agent_dynamic_config.agents.is_empty() {

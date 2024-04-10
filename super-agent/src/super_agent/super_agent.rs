@@ -301,6 +301,7 @@ where
 
         // apply new configuration
         super_agent_dynamic_config
+            .agents
             .iter()
             .try_for_each(|(agent_id, agent_config)| {
                 // recreates an existent sub agent if the configuration has changed
@@ -331,9 +332,8 @@ where
             })?;
 
         // remove sub agents not used anymore
-        old_super_agent_dynamic_config
-            .iter()
-            .try_for_each(|(agent_id, _agent_config)| {
+        old_super_agent_dynamic_config.agents.iter().try_for_each(
+            |(agent_id, _agent_config)| {
                 if let Err(SuperAgentConfigError::SubAgentNotFound(_)) =
                     super_agent_dynamic_config.get(agent_id)
                 {
@@ -341,7 +341,8 @@ where
                     return running_sub_agents.stop_remove(agent_id);
                 }
                 Ok(())
-            })?;
+            },
+        )?;
 
         if !remote_config_value.is_empty() {
             self.sa_dynamic_config_store
