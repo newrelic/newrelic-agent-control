@@ -104,8 +104,8 @@ pub mod test {
             self.0.len()
         }
 
-        pub fn get(&mut self, agent_id: &AgentID) -> &mut S {
-            self.0.get_mut(agent_id).unwrap()
+        pub fn get_mut(&mut self, agent_id: &AgentID) -> Option<&mut S> {
+            self.0.get_mut(agent_id)
         }
     }
 

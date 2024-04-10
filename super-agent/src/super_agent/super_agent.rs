@@ -778,7 +778,7 @@ agents:
 
         sub_agents_config_store.should_load(&sub_agents_config);
         // And the Sub Agent should be stopped
-        sub_agents.get(&sub_agent_id).should_stop();
+        sub_agents.get_mut(&sub_agent_id).unwrap().should_stop();
         // And the Sub Agent should be re-created
         let mut not_started_sub_agent = MockNotStartedSubAgent::default();
         // and it will be started
@@ -797,10 +797,12 @@ agents:
         );
         // And all the Sub Agents should stop on Stopping the Super Agent
         sub_agents
-            .get(&AgentID::new("nrdot").unwrap())
+            .get_mut(&AgentID::new("nrdot").unwrap())
+            .unwrap()
             .should_stop();
         sub_agents
-            .get(&AgentID::new("fluent-bit").unwrap())
+            .get_mut(&AgentID::new("fluent-bit").unwrap())
+            .unwrap()
             .should_stop();
 
         let (super_agent_publisher, super_agent_consumer) = pub_sub();

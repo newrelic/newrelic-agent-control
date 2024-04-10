@@ -6,7 +6,7 @@ use super::supervisor::command_supervisor::SupervisorOnHost;
 use crate::event::channel::EventPublisher;
 use crate::event::SubAgentInternalEvent;
 use crate::sub_agent::error::SubAgentError;
-use crate::super_agent::config::AgentID;
+use crate::super_agent::config::{AgentID, AgentTypeFQN};
 
 use super::supervisor::command_supervisor;
 use crate::sub_agent::event_processor::SubAgentEventProcessor;
@@ -19,14 +19,9 @@ use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
 pub struct SubAgentOnHost<S, V> {
     supervisors: Vec<SupervisorOnHost<V>>,
     agent_id: AgentID,
+    agent_type: AgentTypeFQN,
     sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     state: S,
-}
-
-impl<S, V> SubAgentOnHost<S, V> {
-    pub fn agent_id(&self) -> &AgentID {
-        &self.agent_id
-    }
 }
 
 impl<E> SubAgentOnHost<NotStarted<E>, command_supervisor::NotStarted>
@@ -35,6 +30,7 @@ where
 {
     pub fn new(
         agent_id: AgentID,
+        agent_type: AgentTypeFQN,
         supervisors: Vec<SupervisorOnHost<command_supervisor::NotStarted>>,
         event_processor: E,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
@@ -42,6 +38,7 @@ where
         SubAgentOnHost {
             supervisors,
             agent_id,
+            agent_type,
             sub_agent_internal_publisher,
             state: NotStarted { event_processor },
         }
@@ -69,6 +66,7 @@ where
         let started_sub_agent = SubAgentOnHost {
             supervisors: started_supervisors,
             agent_id: self.agent_id,
+            agent_type: self.agent_type,
             sub_agent_internal_publisher: self.sub_agent_internal_publisher,
             state: Started { event_loop_handle },
         };
@@ -78,6 +76,14 @@ where
 }
 
 impl StartedSubAgent for SubAgentOnHost<Started, command_supervisor::Started> {
+    fn agent_id(&self) -> AgentID {
+        self.agent_id.clone()
+    }
+
+    fn agent_type(&self) -> AgentTypeFQN {
+        self.agent_type.clone()
+    }
+
     fn stop(self) -> Result<Vec<JoinHandle<()>>, SubAgentError> {
         let stopped_supervisors = self.supervisors.into_iter().map(|s| s.stop()).collect();
         self.sub_agent_internal_publisher
@@ -97,13 +103,14 @@ mod test {
     use crate::sub_agent::event_processor::test::MockEventProcessorMock;
     use crate::sub_agent::on_host::sub_agent::SubAgentOnHost;
     use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
-    use crate::super_agent::config::AgentID;
+    use crate::super_agent::config::{AgentID, AgentTypeFQN};
     use std::thread::sleep;
     use std::time::Duration;
 
     #[test]
     fn test_events_are_processed() {
         let agent_id = AgentID::new("some-agent-id").unwrap();
+        let agent_type = AgentTypeFQN::from("some-agent-type");
         let supervisors = Vec::default();
 
         let mut event_processor = MockEventProcessorMock::default();
@@ -112,6 +119,7 @@ mod test {
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let sub_agent = SubAgentOnHost::new(
             agent_id,
+            agent_type,
             supervisors,
             event_processor,
             sub_agent_internal_publisher,

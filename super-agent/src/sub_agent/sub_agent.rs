@@ -5,7 +5,7 @@ use crate::opamp::remote_config_publisher::OpAMPRemoteConfigPublisher;
 use crate::sub_agent::error;
 use crate::sub_agent::error::SubAgentError;
 use crate::sub_agent::event_processor::SubAgentEventProcessor;
-use crate::super_agent::config::{AgentID, SubAgentConfig};
+use crate::super_agent::config::{AgentID, AgentTypeFQN, SubAgentConfig};
 use std::thread::JoinHandle;
 
 pub(crate) type SubAgentCallbacks = AgentCallbacks<OpAMPRemoteConfigPublisher>;
@@ -19,6 +19,10 @@ pub trait NotStartedSubAgent {
 
 // The Stopper trait defines the interface for a supervisor that is already running. Exposes a stop method that will stop the supervised processes' execution.
 pub trait StartedSubAgent {
+    /// Returns the AgentID of the SubAgent
+    fn agent_id(&self) -> AgentID;
+    /// Returns the AgentType of the SubAgent
+    fn agent_type(&self) -> AgentTypeFQN;
     /// Cancels the supervised process and returns its inner handle.
     fn stop(self) -> Result<Vec<JoinHandle<()>>, error::SubAgentError>;
 }
@@ -57,6 +61,8 @@ pub mod test {
 
         impl StartedSubAgent for StartedSubAgent {
             fn stop(self) -> Result<Vec<JoinHandle<()>>, error::SubAgentError>;
+            fn agent_id(&self) -> AgentID;
+            fn agent_type(&self) -> AgentTypeFQN;
         }
     }
 
