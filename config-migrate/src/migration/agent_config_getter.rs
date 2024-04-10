@@ -1,7 +1,7 @@
 use newrelic_super_agent::super_agent::config::{
-    AgentTypeFQN, SubAgentsConfig, SuperAgentConfigError,
+    AgentTypeFQN, SuperAgentConfigError, SuperAgentDynamicConfig,
 };
-use newrelic_super_agent::super_agent::config_storer::storer::SubAgentsConfigLoader;
+use newrelic_super_agent::super_agent::config_storer::storer::SuperAgentDynamicConfigLoader;
 use newrelic_super_agent::super_agent::config_storer::SuperAgentConfigStoreFile;
 use thiserror::Error;
 
@@ -15,7 +15,7 @@ pub enum ConversionError {
 
 pub struct AgentConfigGetter<SL = SuperAgentConfigStoreFile>
 where
-    SL: SubAgentsConfigLoader,
+    SL: SuperAgentDynamicConfigLoader,
 {
     pub(super) sub_agents_config_loader: SL,
 }
@@ -23,7 +23,7 @@ where
 #[cfg_attr(test, mockall::automock)]
 impl<SL> AgentConfigGetter<SL>
 where
-    SL: SubAgentsConfigLoader + 'static,
+    SL: SuperAgentDynamicConfigLoader + 'static,
 {
     pub fn new(sub_agents_config_loader: SL) -> Self {
         Self {
@@ -33,19 +33,19 @@ where
     pub fn get_agents_of_type(
         &self,
         agent_type: AgentTypeFQN,
-    ) -> Result<SubAgentsConfig, ConversionError> {
-        let mut agents_config = self.sub_agents_config_loader.load()?;
+    ) -> Result<SuperAgentDynamicConfig, ConversionError> {
+        let mut super_agent_dynamic_config = self.sub_agents_config_loader.load()?;
 
-        for agent in agents_config.agents.clone() {
+        for agent in super_agent_dynamic_config.agents.clone() {
             if agent.1.agent_type != agent_type {
-                agents_config.remove(&agent.0);
+                super_agent_dynamic_config.agents.remove(&agent.0);
             }
         }
-        if agents_config.agents.is_empty() {
+        if super_agent_dynamic_config.agents.is_empty() {
             return Err(ConversionError::NoAgentsFound);
         }
 
-        Ok(agents_config)
+        Ok(super_agent_dynamic_config)
     }
 }
 
@@ -54,14 +54,14 @@ pub(crate) mod tests {
     use super::*;
     use mockall::mock;
     use newrelic_super_agent::super_agent::config::{
-        AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig,
+        AgentID, AgentTypeFQN, SubAgentConfig, SuperAgentDynamicConfig,
     };
     use std::collections::HashMap;
 
     mock! {
-        pub SubAgentsConfigLoaderMock {}
-        impl SubAgentsConfigLoader for SubAgentsConfigLoaderMock {
-            fn load(&self) -> Result<SubAgentsConfig, SuperAgentConfigError>;
+        pub SuperAgentDynamicConfigLoaderMock {}
+        impl SuperAgentDynamicConfigLoader for SuperAgentDynamicConfigLoaderMock {
+            fn load(&self) -> Result<SuperAgentDynamicConfig, SuperAgentConfigError>;
         }
     }
 
@@ -77,16 +77,15 @@ agents:
   not-infra-agent:
     agent_type: "io.opentelemetry.collector:0.0.1"
 "#;
-        let mut config_loader = MockSubAgentsConfigLoaderMock::new();
-        config_loader
-            .expect_load()
-            .times(1)
-            .returning(move || Ok(serde_yaml::from_str::<SubAgentsConfig>(agents_cfg).unwrap()));
+        let mut config_loader = MockSuperAgentDynamicConfigLoaderMock::new();
+        config_loader.expect_load().times(1).returning(move || {
+            Ok(serde_yaml::from_str::<SuperAgentDynamicConfig>(agents_cfg).unwrap())
+        });
 
         let config_getter = AgentConfigGetter::new(config_loader);
         let actual = config_getter.get_agents_of_type(agent_type_fqn);
 
-        let expected = SubAgentsConfig {
+        let expected = SuperAgentDynamicConfig {
             agents: HashMap::from([
                 (
                     AgentID::new("infra-agent-a").unwrap(),
@@ -119,11 +118,10 @@ agents:
   not-infra-agent:
     agent_type: "io.opentelemetry.collector:0.0.1"
 "#;
-        let mut config_loader = MockSubAgentsConfigLoaderMock::new();
-        config_loader
-            .expect_load()
-            .times(1)
-            .returning(move || Ok(serde_yaml::from_str::<SubAgentsConfig>(agents_cfg).unwrap()));
+        let mut config_loader = MockSuperAgentDynamicConfigLoaderMock::new();
+        config_loader.expect_load().times(1).returning(move || {
+            Ok(serde_yaml::from_str::<SuperAgentDynamicConfig>(agents_cfg).unwrap())
+        });
 
         let config_getter = AgentConfigGetter::new(config_loader);
         let result = config_getter.get_agents_of_type(agent_type_fqn);

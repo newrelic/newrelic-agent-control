@@ -265,7 +265,7 @@ fn run_super_agent(
     )?;
 
     let sub_agents_config_storer =
-        SubAgentsConfigStoreConfigMap::new(k8s_store.clone(), config.agents);
+        SubAgentsConfigStoreConfigMap::new(k8s_store.clone(), config.dynamic);
     // enable remote config store
     let config_storer = if opamp_client_builder.is_some() {
         Arc::new(sub_agents_config_storer.with_remote())

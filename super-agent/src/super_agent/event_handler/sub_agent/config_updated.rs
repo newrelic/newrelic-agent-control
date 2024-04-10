@@ -3,9 +3,9 @@ use crate::event::SubAgentEvent;
 use crate::opamp::hash_repository::HashRepository;
 use crate::sub_agent::collection::StartedSubAgents;
 use crate::sub_agent::{NotStartedSubAgent, SubAgentBuilder};
-use crate::super_agent::config::AgentID;
+use crate::super_agent::config::{AgentID, SuperAgentConfigError};
 use crate::super_agent::config_storer::storer::{
-    SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer,
+    SuperAgentDynamicConfigDeleter, SuperAgentDynamicConfigLoader, SuperAgentDynamicConfigStorer,
 };
 use crate::super_agent::error::AgentError;
 use crate::super_agent::{SuperAgent, SuperAgentCallbacks};
@@ -16,7 +16,9 @@ where
     O: StartedClient<SuperAgentCallbacks>,
     HR: HashRepository,
     S: SubAgentBuilder,
-    SL: SubAgentsConfigStorer + SubAgentsConfigLoader + SubAgentsConfigDeleter,
+    SL: SuperAgentDynamicConfigStorer
+        + SuperAgentDynamicConfigLoader
+        + SuperAgentDynamicConfigDeleter,
 {
     pub(crate) fn sub_agent_config_updated(
         &self,
@@ -26,8 +28,10 @@ where
             <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
     ) -> Result<(), AgentError> {
-        let agents_config = self.sub_agents_config_store.load()?;
-        let agent_config = agents_config.get(&agent_id)?;
+        let super_agent_dynamic_config = self.sa_dynamic_config_store.load()?;
+        let agent_config = super_agent_dynamic_config.agents.get(&agent_id).ok_or(
+            SuperAgentConfigError::SubAgentNotFound(agent_id.to_string()),
+        )?;
         self.recreate_sub_agent(agent_id, agent_config, sub_agents, sub_agent_publisher)
     }
 }

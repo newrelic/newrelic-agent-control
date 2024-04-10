@@ -19,11 +19,12 @@ use newrelic_super_agent::opamp::instance_id::{
 use newrelic_super_agent::opamp::remote_config_hash::Hash;
 use newrelic_super_agent::sub_agent::values::values_repository::ValuesRepository;
 use newrelic_super_agent::sub_agent::values::ValuesRepositoryConfigMap;
-use newrelic_super_agent::super_agent::config::{AgentID, SubAgentsConfig};
+use newrelic_super_agent::super_agent::config::{AgentID, SuperAgentDynamicConfig};
 use newrelic_super_agent::super_agent::config_storer::storer::{
-    SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer,
+    SuperAgentDynamicConfigDeleter, SuperAgentDynamicConfigLoader, SuperAgentDynamicConfigStorer,
 };
 use newrelic_super_agent::super_agent::config_storer::SubAgentsConfigStoreConfigMap;
+use serde_yaml::from_str;
 use std::sync::Arc;
 
 const AGENT_ID_1: &str = "agent-id-test";
@@ -194,7 +195,7 @@ agents:
   infra-agent-d:
     agent_type: "com.newrelic.infrastructure_agent:0.0.2"
 "#;
-    let agents_local = serde_yaml::from_str::<SubAgentsConfig>(agents_cfg_local).unwrap();
+    let agents_local = from_str::<SuperAgentDynamicConfig>(agents_cfg_local).unwrap();
     let store_sa = SubAgentsConfigStoreConfigMap::new(k8s_store, agents_local);
     assert_eq!(store_sa.load().unwrap().agents.len(), 4);
 
@@ -208,8 +209,9 @@ agents:
   not-infra-agent:
     agent_type: "io.opentelemetry.collector:0.0.1"
 "#;
-    let agents = &serde_yaml::from_str::<SubAgentsConfig>(agents_cfg).unwrap();
-    assert!(store_sa.store(agents).is_ok());
+    assert!(store_sa
+        .store(&from_str::<SuperAgentDynamicConfig>(agents_cfg).unwrap())
+        .is_ok());
     assert_eq!(store_sa.load().unwrap().agents.len(), 4);
 
     // After enabling remote we can load the "remote" config

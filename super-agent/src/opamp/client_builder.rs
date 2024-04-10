@@ -160,10 +160,6 @@ pub(crate) mod test {
                 .returning(|_| Ok(()));
         }
 
-        pub fn should_not_set_health(&mut self, error: ClientError) {
-            self.expect_set_health().return_once(move |_| Err(error));
-        }
-
         pub fn should_stop(&mut self, times: usize) {
             self.expect_stop().times(times).returning(|| Ok(()));
         }
@@ -195,19 +191,6 @@ pub(crate) mod test {
                 .once()
                 .with(predicate::eq(status))
                 .returning(|_| Ok(()));
-        }
-
-        // assertion just for the call of the method but not the remote
-        // status itself (so any remote config status)
-        pub fn should_not_set_remote_config_status(
-            &mut self,
-            status: RemoteConfigStatus,
-            error: ClientError,
-        ) {
-            self.expect_set_remote_config_status()
-                .once()
-                .with(predicate::eq(status))
-                .return_once(|_| Err(error));
         }
     }
 

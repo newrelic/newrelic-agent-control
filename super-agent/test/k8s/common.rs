@@ -25,8 +25,8 @@ use newrelic_super_agent::{
     opamp::client_builder::{OpAMPClientBuilder, OpAMPClientBuilderError},
     super_agent::{
         config::{AgentID, AgentTypeError, SuperAgentConfig, SuperAgentConfigError},
-        config_storer::storer::SubAgentsConfigLoader,
         config_storer::storer::SuperAgentConfigLoader,
+        config_storer::storer::SuperAgentDynamicConfigLoader,
     },
 };
 use opamp_client::operation::callbacks::Callbacks;
@@ -414,7 +414,7 @@ pub async fn create_test_cr(client: Client, namespace: &str, name: &str) -> Foo 
 }
 
 use mockall::mock;
-use newrelic_super_agent::super_agent::config::SubAgentsConfig;
+use newrelic_super_agent::super_agent::config::SuperAgentDynamicConfig;
 use tokio::time::sleep;
 
 mock! {
@@ -426,10 +426,10 @@ mock! {
 }
 
 mock! {
-    pub SubAgentsConfigLoader{}
+    pub SuperAgentDynamicConfigLoaderMock{}
 
-    impl SubAgentsConfigLoader for SubAgentsConfigLoader {
-        fn load(&self) -> Result<SubAgentsConfig, SuperAgentConfigError>;
+    impl SuperAgentDynamicConfigLoader for SuperAgentDynamicConfigLoaderMock {
+        fn load(&self) -> Result<SuperAgentDynamicConfig, SuperAgentConfigError>;
     }
 }
 

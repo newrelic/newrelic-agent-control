@@ -12,7 +12,7 @@ use fs::file_reader::FileReader;
 use fs::LocalFile;
 use newrelic_super_agent::agent_type::agent_type_registry::{AgentRegistry, LocalRegistry};
 use newrelic_super_agent::super_agent::config::SuperAgentConfigError;
-use newrelic_super_agent::super_agent::config_storer::storer::SubAgentsConfigLoader;
+use newrelic_super_agent::super_agent::config_storer::storer::SuperAgentDynamicConfigLoader;
 use newrelic_super_agent::super_agent::config_storer::SuperAgentConfigStoreFile;
 use thiserror::Error;
 use tracing::{debug, error, info};
@@ -37,7 +37,7 @@ pub enum MigratorError {
 
 pub struct ConfigMigrator<
     R: AgentRegistry,
-    SL: SubAgentsConfigLoader + 'static,
+    SL: SuperAgentDynamicConfigLoader + 'static,
     C: DirectoryManager,
     F: FileReader,
 > {
@@ -96,7 +96,7 @@ mod test {
     use crate::migration::persister::values_persister_file::MockValuesPersisterFile;
     use mockall::predicate;
     use newrelic_super_agent::super_agent::config::{
-        AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsConfig,
+        AgentID, AgentTypeFQN, SubAgentConfig, SuperAgentDynamicConfig,
     };
     use std::collections::HashMap;
 
@@ -124,7 +124,7 @@ mod test {
             .expect_get_agents_of_type()
             .once()
             .returning(move |_| {
-                Ok(SubAgentsConfig {
+                Ok(SuperAgentDynamicConfig {
                     agents: agents.clone(),
                 })
             });

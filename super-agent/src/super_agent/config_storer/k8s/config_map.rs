@@ -1,7 +1,7 @@
 use crate::k8s::store::{K8sStore, STORE_KEY_OPAMP_DATA_CONFIG};
-use crate::super_agent::config::{AgentID, SubAgentsConfig, SuperAgentConfigError};
+use crate::super_agent::config::{AgentID, SuperAgentConfigError, SuperAgentDynamicConfig};
 use crate::super_agent::config_storer::storer::{
-    SubAgentsConfigDeleter, SubAgentsConfigLoader, SubAgentsConfigStorer,
+    SuperAgentDynamicConfigDeleter, SuperAgentDynamicConfigLoader, SuperAgentDynamicConfigStorer,
 };
 use std::sync::Arc;
 use tracing::debug;
@@ -10,16 +10,18 @@ pub struct SubAgentsConfigStoreConfigMap {
     k8s_store: Arc<K8sStore>,
     remote_enabled: bool,
     super_agent_id: AgentID,
-    local_config: SubAgentsConfig,
+    local_config: SuperAgentDynamicConfig,
 }
 
-impl SubAgentsConfigLoader for SubAgentsConfigStoreConfigMap {
-    fn load(&self) -> Result<SubAgentsConfig, SuperAgentConfigError> {
+impl SuperAgentDynamicConfigLoader for SubAgentsConfigStoreConfigMap {
+    fn load(&self) -> Result<SuperAgentDynamicConfig, SuperAgentConfigError> {
         if self.remote_enabled {
-            if let Some(remote_subagent_config) = self.k8s_store.get_opamp_data::<SubAgentsConfig>(
-                &self.super_agent_id,
-                STORE_KEY_OPAMP_DATA_CONFIG,
-            )? {
+            if let Some(remote_subagent_config) =
+                self.k8s_store.get_opamp_data::<SuperAgentDynamicConfig>(
+                    &self.super_agent_id,
+                    STORE_KEY_OPAMP_DATA_CONFIG,
+                )?
+            {
                 debug!(
                     super_agent_id = self.super_agent_id.to_string(),
                     "loading subagents config from the one received with opamp"
@@ -36,7 +38,7 @@ impl SubAgentsConfigLoader for SubAgentsConfigStoreConfigMap {
     }
 }
 
-impl SubAgentsConfigDeleter for SubAgentsConfigStoreConfigMap {
+impl SuperAgentDynamicConfigDeleter for SubAgentsConfigStoreConfigMap {
     fn delete(&self) -> Result<(), SuperAgentConfigError> {
         debug!(
             super_agent_id = self.super_agent_id.to_string(),
@@ -49,8 +51,8 @@ impl SubAgentsConfigDeleter for SubAgentsConfigStoreConfigMap {
     }
 }
 
-impl SubAgentsConfigStorer for SubAgentsConfigStoreConfigMap {
-    fn store(&self, sub_agents: &SubAgentsConfig) -> Result<(), SuperAgentConfigError> {
+impl SuperAgentDynamicConfigStorer for SubAgentsConfigStoreConfigMap {
+    fn store(&self, sub_agents: &SuperAgentDynamicConfig) -> Result<(), SuperAgentConfigError> {
         debug!(
             super_agent_id = self.super_agent_id.to_string(),
             "saving remote subagents config"
@@ -66,7 +68,7 @@ impl SubAgentsConfigStorer for SubAgentsConfigStoreConfigMap {
 }
 
 impl SubAgentsConfigStoreConfigMap {
-    pub fn new(k8s_store: Arc<K8sStore>, local_config_cached: SubAgentsConfig) -> Self {
+    pub fn new(k8s_store: Arc<K8sStore>, local_config_cached: SuperAgentDynamicConfig) -> Self {
         Self {
             super_agent_id: AgentID::new_super_agent_id(),
             k8s_store,

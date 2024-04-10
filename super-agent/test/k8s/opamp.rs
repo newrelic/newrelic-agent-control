@@ -7,7 +7,7 @@ use newrelic_super_agent::opamp::callbacks::AgentCallbacks;
 use newrelic_super_agent::opamp::instance_id;
 use newrelic_super_agent::opamp::remote_config_publisher::OpAMPRemoteConfigPublisher;
 use newrelic_super_agent::super_agent::config_storer::storer::{
-    SubAgentsConfigLoader, SuperAgentConfigLoader,
+    SuperAgentConfigLoader, SuperAgentDynamicConfigLoader,
 };
 use newrelic_super_agent::super_agent::config_storer::SubAgentsConfigStoreConfigMap;
 use newrelic_super_agent::{
@@ -200,7 +200,7 @@ impl K8sOpAMPEnv {
         let sub_agents_storer = Arc::new(
             SubAgentsConfigStoreConfigMap::new(
                 k8s_store.clone(),
-                SubAgentsConfigLoader::load(&sa_local_config_storer).unwrap(),
+                SuperAgentDynamicConfigLoader::load(&sa_local_config_storer).unwrap(),
             )
             .with_remote(),
         );
