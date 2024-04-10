@@ -18,7 +18,7 @@ where
         &self,
         agent_id: AgentID,
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
-        sub_agent_opamp_consumer: EventConsumer<OpAMPEvent>,
+        sub_agent_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
         sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
         maybe_opamp_client: Option<C>,
     ) -> Self::SubAgentEventProcessor;
@@ -58,7 +58,7 @@ where
         &self,
         agent_id: AgentID,
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
-        sub_agent_opamp_consumer: EventConsumer<OpAMPEvent>,
+        sub_agent_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
         sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
         maybe_opamp_client: Option<C>,
     ) -> EventProcessor<C, H, R>
@@ -106,7 +106,7 @@ pub mod test {
                 &self,
                 agent_id: AgentID,
                 sub_agent_publisher: EventPublisher<SubAgentEvent>,
-                sub_agent_opamp_consumer: EventConsumer<OpAMPEvent>,
+                sub_agent_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
                 sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
                 maybe_opamp_client: Option<C>,
             ) -><Self as SubAgentEventProcessorBuilder<C>>::SubAgentEventProcessor;

@@ -7,6 +7,7 @@ use crate::sub_agent::values::values_repository::ValuesRepository;
 use crate::sub_agent::SubAgentCallbacks;
 use crate::super_agent::config::AgentID;
 use crate::utils::time::get_sys_time_nano;
+use crossbeam::channel::never;
 use crossbeam::select;
 use opamp_client::opamp::proto::ComponentHealth;
 use opamp_client::StartedClient;
@@ -29,7 +30,7 @@ where
 {
     agent_id: AgentID,
     pub(crate) sub_agent_publisher: EventPublisher<SubAgentEvent>,
-    pub(crate) sub_agent_opamp_consumer: EventConsumer<OpAMPEvent>,
+    pub(crate) sub_agent_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
     pub(crate) sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
     pub(crate) maybe_opamp_client: Option<C>,
     pub(crate) sub_agent_remote_config_hash_repository: Arc<H>,
@@ -45,7 +46,7 @@ where
     pub fn new(
         agent_id: AgentID,
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
-        sub_agent_opamp_consumer: EventConsumer<OpAMPEvent>,
+        sub_agent_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
         sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
         maybe_opamp_client: Option<C>,
         sub_agent_remote_config_hash_repository: Arc<H>,
@@ -97,9 +98,14 @@ where
                 })?;
             }
 
+            let never_receive = EventConsumer::from(never());
+            let opamp_receiver = self
+                .sub_agent_opamp_consumer
+                .as_ref()
+                .unwrap_or(&never_receive);
             loop {
                 select! {
-                    recv(&self.sub_agent_opamp_consumer.as_ref()) -> opamp_event_res => {
+                    recv(opamp_receiver.as_ref()) -> opamp_event_res => {
                         match opamp_event_res {
                             Err(_) => {
                                 debug!("sub_agent_opamp_consumer :: channel closed");
@@ -198,7 +204,7 @@ pub mod test {
         let event_processor = EventProcessor::new(
             AgentID::new("agent-id").unwrap(),
             sub_agent_publisher,
-            sub_agent_opamp_consumer,
+            sub_agent_opamp_consumer.into(),
             sub_agent_internal_consumer,
             Some(opamp_client),
             Arc::new(hash_repository),
@@ -250,7 +256,7 @@ pub mod test {
         let event_processor = EventProcessor::new(
             agent_id.clone(),
             sub_agent_publisher,
-            sub_agent_opamp_consumer,
+            sub_agent_opamp_consumer.into(),
             sub_agent_internal_consumer,
             Some(opamp_client),
             Arc::new(hash_repository),

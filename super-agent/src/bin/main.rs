@@ -98,7 +98,7 @@ fn run_super_agent(
     use newrelic_super_agent::agent_type::renderer::TemplateRenderer;
     use newrelic_super_agent::opamp::hash_repository::HashRepositoryFile;
     use newrelic_super_agent::opamp::instance_id::IdentifiersProvider;
-    use newrelic_super_agent::opamp::operations::build_opamp_and_start_client;
+    use newrelic_super_agent::opamp::operations::build_opamp_with_channel;
     use newrelic_super_agent::sub_agent::on_host::builder::OnHostSubAgentBuilder;
     use newrelic_super_agent::sub_agent::persister::config_persister_file::ConfigurationPersisterFile;
     use newrelic_super_agent::sub_agent::values::ValuesRepositoryFile;
@@ -153,16 +153,20 @@ fn run_super_agent(
         identifiers_provider,
     );
 
-    let (super_agent_opamp_publisher, super_agent_opamp_consumer) = pub_sub();
-
-    let maybe_client = build_opamp_and_start_client(
-        super_agent_opamp_publisher.clone(),
-        opamp_client_builder.as_ref(),
-        &instance_id_getter,
-        AgentID::new_super_agent_id(),
-        &super_agent_fqn(),
-        non_identifying_attributes,
-    )?;
+    let (maybe_client, super_agent_opamp_consumer) = opamp_client_builder
+        .as_ref()
+        .map(|b| {
+            build_opamp_with_channel(
+                b,
+                &instance_id_getter,
+                AgentID::new_super_agent_id(),
+                &super_agent_fqn(),
+                non_identifying_attributes,
+            )
+        })
+        .transpose()?
+        .map(|(client, consumer)| (Some(client), Some(consumer)))
+        .unwrap_or_default();
 
     SuperAgent::new(
         maybe_client,
@@ -187,7 +191,7 @@ fn run_super_agent(
     use newrelic_super_agent::k8s::store::K8sStore;
     use newrelic_super_agent::opamp::hash_repository::HashRepositoryConfigMap;
     use newrelic_super_agent::opamp::instance_id;
-    use newrelic_super_agent::opamp::operations::build_opamp_and_start_client;
+    use newrelic_super_agent::opamp::operations::build_opamp_with_channel;
     use newrelic_super_agent::sub_agent::values::ValuesRepositoryConfigMap;
     use newrelic_super_agent::super_agent::config::AgentID;
     use newrelic_super_agent::super_agent::config_storer::SubAgentsConfigStoreConfigMap;
@@ -253,16 +257,20 @@ fn run_super_agent(
         k8s_config.clone(),
     );
 
-    let (opamp_publisher, opamp_consumer) = pub_sub();
-
-    let maybe_client = build_opamp_and_start_client(
-        opamp_publisher.clone(),
-        opamp_client_builder.as_ref(),
-        &instance_id_getter,
-        AgentID::new_super_agent_id(),
-        &super_agent_fqn(),
-        non_identifying_attributes,
-    )?;
+    let (maybe_client, opamp_consumer) = opamp_client_builder
+        .as_ref()
+        .map(|b| {
+            build_opamp_with_channel(
+                b,
+                &instance_id_getter,
+                AgentID::new_super_agent_id(),
+                &super_agent_fqn(),
+                non_identifying_attributes,
+            )
+        })
+        .transpose()?
+        .map(|(client, consumer)| (Some(client), Some(consumer)))
+        .unwrap_or_default();
 
     let sub_agents_config_storer =
         SubAgentsConfigStoreConfigMap::new(k8s_store.clone(), config.dynamic);

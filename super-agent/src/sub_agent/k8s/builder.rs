@@ -7,7 +7,7 @@ use crate::event::SubAgentEvent;
 use crate::k8s::client::SyncK8sClient;
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
-use crate::opamp::operations::build_opamp_and_start_client;
+use crate::opamp::operations::build_opamp_with_channel;
 use crate::opamp::remote_config_report::{
     report_remote_config_status_applied, report_remote_config_status_error,
 };
@@ -88,7 +88,6 @@ where
         sub_agent_config: &SubAgentConfig,
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
-        let (sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
 
         debug!(agent_id = agent_id.to_string(), "building subAgent");
@@ -99,17 +98,23 @@ where
             &Environment::K8s,
         );
 
-        let maybe_opamp_client = build_opamp_and_start_client(
-            sub_agent_opamp_publisher,
-            self.opamp_builder,
-            self.instance_id_getter,
-            agent_id.clone(),
-            &sub_agent_config.agent_type,
-            HashMap::from([(
-                "cluster.name".to_string(),
-                DescriptionValueType::String(self.k8s_config.cluster_name.to_string()),
-            )]),
-        )?;
+        let (maybe_opamp_client, sub_agent_opamp_consumer) = self
+            .opamp_builder
+            .map(|b| {
+                build_opamp_with_channel(
+                    b,
+                    self.instance_id_getter,
+                    agent_id.clone(),
+                    &sub_agent_config.agent_type,
+                    HashMap::from([(
+                        "cluster.name".to_string(),
+                        DescriptionValueType::String(self.k8s_config.cluster_name.to_string()),
+                    )]),
+                )
+            })
+            .transpose()?
+            .map(|(client, consumer)| (Some(client), Some(consumer)))
+            .unwrap_or_default();
 
         // A sub-agent can be started without supervisor, when running with opamp activated, in order to
         // be able to receive messages.
