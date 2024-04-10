@@ -122,12 +122,6 @@ pub struct SuperAgentDynamicConfig {
 
 pub type SubAgentsMap = HashMap<AgentID, SubAgentConfig>;
 
-impl From<HashMap<AgentID, SubAgentConfig>> for SuperAgentDynamicConfig {
-    fn from(value: HashMap<AgentID, SubAgentConfig>) -> Self {
-        Self { agents: value }
-    }
-}
-
 impl TryFrom<&str> for SuperAgentDynamicConfig {
     type Error = SuperAgentConfigError;
     fn try_from(value: &str) -> Result<Self, Self::Error> {
@@ -385,6 +379,12 @@ agents: {}
 host_id: 123
 agents: {}
 "#;
+
+    impl From<HashMap<AgentID, SubAgentConfig>> for SuperAgentDynamicConfig {
+        fn from(value: HashMap<AgentID, SubAgentConfig>) -> Self {
+            Self { agents: value }
+        }
+    }
 
     #[test]
     fn agent_id_validator() {
