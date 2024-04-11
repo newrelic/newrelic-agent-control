@@ -13,8 +13,8 @@ use newrelic_super_agent::super_agent::config_storer::SubAgentsConfigStoreConfig
 use newrelic_super_agent::{
     agent_type::{agent_type_registry::LocalRegistry, renderer::TemplateRenderer},
     event::{
-        channel::pub_sub, channel::EventConsumer, channel::EventPublisher, OpAMPEvent,
-        SuperAgentEvent,
+        channel::pub_sub, channel::EventConsumer, channel::EventPublisher, ApplicationEvent,
+        OpAMPEvent,
     },
     k8s::{client::SyncK8sClient, store::K8sStore},
     opamp::{
@@ -92,7 +92,7 @@ fn k8s_opamp_add_sub_agent() {
 
     // Retrieve needed values before run_super_agent consumes itself.
     let opamp_publisher = test_env.opamp_publisher.clone();
-    let super_agent_publisher = test_env.super_agent_publisher.clone();
+    let application_event_publisher = test_env.application_event_publisher.clone();
 
     let running_agent = test_env.run_super_agent();
 
@@ -145,8 +145,8 @@ agents:
         Duration::from_millis(1500),
     ));
 
-    super_agent_publisher
-        .publish(SuperAgentEvent::StopRequested)
+    application_event_publisher
+        .publish(ApplicationEvent::StopRequested)
         .unwrap();
 
     assert!(running_agent.join().is_ok());
@@ -169,8 +169,8 @@ struct K8sOpAMPEnv {
     config_storer: Arc<SubAgentsConfigStoreConfigMap>,
     opamp_publisher: EventPublisher<OpAMPEvent>,
     opamp_consumer: EventConsumer<OpAMPEvent>,
-    super_agent_publisher: EventPublisher<SuperAgentEvent>,
-    super_agent_consumer: EventConsumer<SuperAgentEvent>,
+    application_event_publisher: EventPublisher<ApplicationEvent>,
+    application_event_consumer: EventConsumer<ApplicationEvent>,
     super_agent_opamp_builder:
         MockOpAMPClientBuilderMock<AgentCallbacks<OpAMPRemoteConfigPublisher>>,
     sub_agent_opamp_builder: MockOpAMPClientBuilderMock<AgentCallbacks<OpAMPRemoteConfigPublisher>>,
@@ -206,7 +206,7 @@ impl K8sOpAMPEnv {
         );
 
         let (opamp_publisher, opamp_consumer) = pub_sub();
-        let (super_agent_publisher, super_agent_consumer) = pub_sub();
+        let (application_event_publisher, application_event_consumer) = pub_sub();
 
         let vr = ValuesRepositoryConfigMap::new(k8s_store.clone()).with_remote();
         let values_repository = Arc::new(vr);
@@ -218,7 +218,7 @@ impl K8sOpAMPEnv {
 
         // Set up mock expectations.
         ///////////////////////////
-        let (super_agent_builder, _super_agent_publishers) =
+        let (super_agent_builder, _application_event_publishers) =
             Self::setup_opamp_client_builder_mock(super_agent_expectations);
 
         let (sub_agent_builder, _sub_agent_publishers) =
@@ -234,8 +234,8 @@ impl K8sOpAMPEnv {
             agents_assembler,
             opamp_publisher,
             opamp_consumer,
-            super_agent_publisher,
-            super_agent_consumer,
+            application_event_publisher,
+            application_event_consumer,
             super_agent_opamp_builder: super_agent_builder,
             sub_agent_opamp_builder: sub_agent_builder,
             sub_agent_event_processor_builder,
@@ -316,7 +316,7 @@ impl K8sOpAMPEnv {
             );
 
             super_agent
-                .run(self.super_agent_consumer, self.opamp_consumer)
+                .run(self.application_event_consumer, self.opamp_consumer)
                 .expect("Failed to run super agent");
         })
     }

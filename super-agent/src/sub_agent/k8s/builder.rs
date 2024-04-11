@@ -378,12 +378,12 @@ mod test {
             k8s_config,
         );
 
-        let (super_agent_publisher, _super_agent_consumer) = pub_sub();
+        let (application_event_publisher, _application_event_consumer) = pub_sub();
         let started_agent = builder
             .build(
                 AgentID::new("k8s-test").unwrap(),
                 &sub_agent_config,
-                super_agent_publisher,
+                application_event_publisher,
             )
             .unwrap() // Not started agent
             .run()
@@ -477,12 +477,12 @@ mod test {
             k8s_config,
         );
 
-        let (super_agent_publisher, _super_agent_consumer) = pub_sub();
+        let (application_event_publisher, _application_event_consumer) = pub_sub();
         assert!(builder
             .build(
                 AgentID::new("k8s-test").unwrap(),
                 &sub_agent_config,
-                super_agent_publisher,
+                application_event_publisher,
             )
             .unwrap() // Not started agent
             .run()
