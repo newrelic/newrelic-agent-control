@@ -34,7 +34,7 @@ fs = { path = "../fs" }
 konst = { workspace = true }
 http = { workspace = true }
 ureq = { workspace = true, features = ["http-interop"] }
-url = { version = "2.5.0"}
+url = { version = "2.5.0" }
 
 # OnHost subagent dependencies
 # IMPORTANT: All onhost only deps needs to be `optional = true` so they won't be compiled by default
