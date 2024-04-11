@@ -265,6 +265,8 @@ fn spawn_health_checker<H>(
     H: HealthChecker + Send + 'static,
 {
     thread::spawn(move || loop {
+        thread::sleep(health_checker.interval());
+
         // Check cancellation signal.
         // As we don't need any data to be sent, the `publish` call of the sender only sends `()`
         // and we don't check for data here, We use a non-blocking call and break only if we
@@ -283,8 +285,6 @@ fn spawn_health_checker<H>(
                 SubAgentInternalEvent::AgentBecameUnhealthy(e.status()),
             ),
         }
-
-        thread::sleep(health_checker.interval());
     });
 }
 
@@ -500,6 +500,11 @@ pub mod sleep_supervisor_tests {
         let mut health_checker = MockHealthCheckerMock::new();
         let mut seq = Sequence::new();
         health_checker
+            .expect_interval()
+            .once()
+            .in_sequence(&mut seq)
+            .returning(Duration::default);
+        health_checker
             .expect_check_health()
             .once()
             .in_sequence(&mut seq)
@@ -521,11 +526,6 @@ pub mod sleep_supervisor_tests {
                     "".to_string(),
                 ))
             });
-        health_checker
-            .expect_interval()
-            .once()
-            .in_sequence(&mut seq)
-            .returning(Duration::default);
 
         spawn_health_checker(health_checker, cancel_signal, health_publisher);
 
@@ -550,6 +550,11 @@ pub mod sleep_supervisor_tests {
         let mut health_checker = MockHealthCheckerMock::new();
         let mut seq = Sequence::new();
         health_checker
+            .expect_interval()
+            .once()
+            .in_sequence(&mut seq)
+            .returning(Duration::default);
+        health_checker
             .expect_check_health()
             .once()
             .in_sequence(&mut seq)
@@ -568,11 +573,6 @@ pub mod sleep_supervisor_tests {
                 cancel_publisher.publish(()).unwrap();
                 Ok(())
             });
-        health_checker
-            .expect_interval()
-            .once()
-            .in_sequence(&mut seq)
-            .returning(Duration::default);
 
         spawn_health_checker(health_checker, cancel_signal, health_publisher);
 
@@ -593,6 +593,11 @@ pub mod sleep_supervisor_tests {
 
         let mut health_checker = MockHealthCheckerMock::new();
         let mut seq = Sequence::new();
+        health_checker
+            .expect_interval()
+            .once()
+            .in_sequence(&mut seq)
+            .returning(Duration::default);
         health_checker
             .expect_check_health()
             .once()
@@ -620,11 +625,6 @@ pub mod sleep_supervisor_tests {
                     "".to_string(),
                 ))
             });
-        health_checker
-            .expect_interval()
-            .once()
-            .in_sequence(&mut seq)
-            .returning(Duration::default);
 
         spawn_health_checker(health_checker, cancel_signal, health_publisher);
 
