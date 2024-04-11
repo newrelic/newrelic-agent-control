@@ -31,7 +31,7 @@ impl InstanceIDStorer for Storer {
     }
 
     fn get(&self, agent_id: &AgentID) -> Result<Option<DataStored>, StorerError> {
-        debug!("storer: getting ULID of agent_id:{}", agent_id);
+        debug!("storer: getting ULID of agent_id: {}", agent_id);
 
         if let Some(data) = self
             .k8s_store

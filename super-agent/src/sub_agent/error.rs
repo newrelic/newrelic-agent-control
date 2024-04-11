@@ -21,9 +21,9 @@ pub enum SubAgentError {
     AgentNotFound(String),
     #[error("system time error: `{0}`")]
     SystemTimeError(#[from] SystemTimeError),
-    #[error("OpAMP client error error: `{0}`")]
+    #[error("OpAMP client error: `{0}`")]
     OpampClientError(#[from] ClientError),
-    #[error("OpAMP client error error: `{0}`")]
+    #[error("OpAMP client error: `{0}`")]
     OpampClientBuilderError(#[from] OpAMPClientBuilderError),
     #[error("started opamp client error: `{0}`")]
     StartedOpampClientError(#[from] StartedClientError),
@@ -70,9 +70,9 @@ pub enum SubAgentBuilderError {
     #[error("remote config hash error: `{0}`")]
     RemoteConfigHashError(#[from] HashRepositoryError),
 
-    #[error("OpAMP client error error: `{0}`")]
+    #[error("OpAMP client error: `{0}`")]
     OpampClientBuilderError(#[from] OpAMPClientBuilderError),
-    #[error("OpAMP client error error: `{0}`")]
+    #[error("OpAMP client error: `{0}`")]
     OpampClientError(#[from] ClientError),
 
     #[error("unsupported K8s object: `{0}`")]
