@@ -4,7 +4,7 @@ use super::config_storer::storer::{
 };
 use crate::event::{
     channel::{pub_sub, EventConsumer, EventPublisher},
-    ApplicationEvent, OpAMPEvent, SubAgentEvent,
+    ApplicationEvent, OpAMPEvent, SubAgentEvent, SuperAgentEvent,
 };
 use crate::opamp::{
     callbacks::AgentCallbacks,
@@ -17,7 +17,7 @@ use crate::opamp::{
 use crate::sub_agent::{
     collection::{NotStartedSubAgents, StartedSubAgents},
     error::SubAgentBuilderError,
-    NotStartedSubAgent, SubAgentBuilder,
+    NotStartedSubAgent, StartedSubAgent, SubAgentBuilder,
 };
 use crate::super_agent::{
     defaults::{SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION},
@@ -47,6 +47,7 @@ where
     remote_config_hash_repository: Arc<HR>,
     agent_id: AgentID,
     pub(super) sa_dynamic_config_store: Arc<SL>,
+    pub(super) super_agent_publisher: EventPublisher<SuperAgentEvent>,
 }
 
 impl<S, O, HR, SL> SuperAgent<S, O, HR, SL>
@@ -63,6 +64,7 @@ where
         remote_config_hash_repository: Arc<HR>,
         sub_agent_builder: S,
         sub_agents_config_store: Arc<SL>,
+        super_agent_publisher: EventPublisher<SuperAgentEvent>,
     ) -> Self {
         Self {
             opamp_client,
@@ -71,6 +73,7 @@ where
             // unwrap as we control content of the SUPER_AGENT_ID constant
             agent_id: AgentID::new_super_agent_id(),
             sa_dynamic_config_store: sub_agents_config_store,
+            super_agent_publisher,
         }
     }
 
@@ -237,7 +240,13 @@ where
 
                 },
                 recv(application_event_consumer.as_ref()) -> _super_agent_event => {
-                        break sub_agents.stop()?;
+                    debug!("stopping Super Agent event processor");
+
+                    let _ = self.super_agent_publisher
+                    .publish(SuperAgentEvent::SuperAgentStopped)
+                    .inspect_err(|e| error!(error_msg = e.to_string(),"cannot publish super_agent_event::super_agent_stopped"));
+
+                    break sub_agents.stop()?;
                 },
                 recv(sub_agent_consumer.as_ref()) -> sub_agent_event_res => {
                     debug!("Received SubAgent event");
@@ -254,9 +263,25 @@ where
                                 },
                                 SubAgentEvent::SubAgentBecameHealthy(agent_id) => {
                                     debug!(agent_id = agent_id.to_string() ,"sub agent is healthy");
+                                    let Some(sub_agent) = sub_agents.get(&agent_id) else{
+                                        error!(agent_id = agent_id.to_string(),"cannot find sub agent on super_agent_event.sub_agent_became_healthy event");
+                                        continue;
+                                    };
+
+                                    let _ = self.super_agent_publisher
+                                    .publish(SuperAgentEvent::SubAgentBecameHealthy(agent_id,sub_agent.agent_type()))
+                                    .inspect_err(|e| error!(error_msg = e.to_string(),"cannot publish super_agent_event.sub_agent_became_healthy"));
                                 },
                                 SubAgentEvent::SubAgentBecameUnhealthy(agent_id,msg) => {
                                     debug!(agent_id = agent_id.to_string(), error_message = msg,"sub agent is unhealthy");
+                                    let Some(sub_agent) = sub_agents.get(&agent_id) else{
+                                        error!(agent_id = agent_id.to_string(),"cannot find sub agent on super_agent_event.sub_agent_became_unhealthy event");
+                                        continue;
+                                    };
+
+                                    let _ = self.super_agent_publisher
+                                    .publish(SuperAgentEvent::SubAgentBecameUnhealthy(agent_id,sub_agent.agent_type(),msg))
+                                    .inspect_err(|e| error!(error_msg = e.to_string(),"cannot publish super_agent_event.sub_agent_became_unhealthy"));
                                 },
                             }
                         }
@@ -337,6 +362,17 @@ where
             |(agent_id, _agent_config)| {
                 if !super_agent_dynamic_config.agents.contains_key(agent_id) {
                     info!("Stopping SubAgent {}", agent_id);
+
+                    let _ = self
+                        .super_agent_publisher
+                        .publish(SuperAgentEvent::SubAgentRemoved(agent_id.clone()))
+                        .inspect_err(|e| {
+                            error!(
+                                error_msg = e.to_string(),
+                                "cannot publish super_agent_event.sub_agent_removed"
+                            )
+                        });
+
                     return running_sub_agents.stop_remove(agent_id);
                 }
                 Ok(())
@@ -394,8 +430,8 @@ pub fn super_agent_fqn() -> AgentTypeFQN {
 
 #[cfg(test)]
 mod tests {
-    use crate::event::channel::pub_sub;
-    use crate::event::{ApplicationEvent, OpAMPEvent, SubAgentEvent};
+    use crate::event::channel::{pub_sub, EventPublisher};
+    use crate::event::{ApplicationEvent, OpAMPEvent, SubAgentEvent, SuperAgentEvent};
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
     use crate::opamp::hash_repository::HashRepository;
@@ -413,6 +449,7 @@ mod tests {
     use crate::super_agent::SuperAgent;
     use mockall::predicate;
 
+    use crate::opamp::LastErrorMessage;
     use crate::sub_agent::collection::StartedSubAgents;
     use crate::sub_agent::test::{MockNotStartedSubAgent, MockStartedSubAgent};
     use opamp_client::StartedClient;
@@ -440,6 +477,7 @@ mod tests {
             remote_config_hash_repository: Arc<HR>,
             sub_agent_builder: S,
             sub_agents_config_store: SL,
+            super_agent_publisher: EventPublisher<SuperAgentEvent>,
         ) -> Self {
             SuperAgent {
                 opamp_client,
@@ -447,6 +485,7 @@ mod tests {
                 sub_agent_builder,
                 agent_id: AgentID::new_super_agent_id(),
                 sa_dynamic_config_store: Arc::new(sub_agents_config_store),
+                super_agent_publisher,
             }
         }
     }
@@ -469,12 +508,15 @@ mod tests {
             Ok(Some(hash))
         });
 
+        let (super_agent_publisher, _super_agent_consumer) = pub_sub();
+
         // no agents in the supervisor group
         let agent = SuperAgent::new_custom(
             Some(started_client),
             Arc::new(hash_repository_mock),
             MockSubAgentBuilderMock::new(),
             sub_agents_config_store,
+            super_agent_publisher,
         );
 
         let (application_event_publisher, application_event_consumer) = pub_sub();
@@ -514,11 +556,14 @@ mod tests {
             .expect_load()
             .returning(move || Ok(sub_agents_config.clone()));
 
+        let (super_agent_publisher, _super_agent_consumer) = pub_sub();
+
         let agent = SuperAgent::new_custom(
             Some(started_client),
             Arc::new(hash_repository_mock),
             sub_agent_builder,
             sub_agents_config_store,
+            super_agent_publisher,
         );
 
         let (application_event_publisher, application_event_consumer) = pub_sub();
@@ -593,12 +638,14 @@ mod tests {
 
         let running_agent = spawn({
             move || {
+                let (super_agent_publisher, _super_agent_consumer) = pub_sub();
                 // two agents in the supervisor group
                 let agent = SuperAgent::new_custom(
                     Some(started_client),
                     Arc::new(hash_repository_mock),
                     sub_agent_builder,
                     sub_agents_config_store,
+                    super_agent_publisher,
                 );
                 agent.run(application_event_consumer, opamp_consumer.into())
             }
@@ -678,12 +725,15 @@ agents:
             &Hash::new("b-hash".to_string()),
         );
 
+        let (super_agent_publisher, _super_agent_consumer) = pub_sub();
+
         // Create the Super Agent and rub Sub Agents
         let super_agent = SuperAgent::new_custom(
             None::<MockStartedOpAMPClientMock<SuperAgentCallbacks>>,
             Arc::new(hash_repository_mock),
             sub_agent_builder,
             sub_agents_config_store,
+            super_agent_publisher,
         );
 
         let (opamp_publisher, _opamp_consumer) = pub_sub();
@@ -822,12 +872,15 @@ agents:
         let mut opamp_client_mock = MockStartedOpAMPClientMock::new();
         opamp_client_mock.should_set_healthy();
 
+        let (super_agent_publisher, _super_agent_consumer) = pub_sub();
+
         // Create the Super Agent and run Sub Agents
         let super_agent = SuperAgent::new_custom(
             Some(opamp_client_mock),
             hash_repository_mock,
             sub_agent_builder,
             sub_agents_config_store,
+            super_agent_publisher,
         );
 
         let sub_agent_publisher_clone = sub_agent_publisher.clone();
@@ -855,6 +908,480 @@ agents:
                 sub_agents,
             )
             .unwrap();
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////
+    // Super Agent Events tests
+    ////////////////////////////////////////////////////////////////////////////////////
+
+    // Having one running sub agent, receive a valid config with no agents
+    // and we assert on Super Agent Healthy event
+    #[test]
+    fn test_config_updated_should_publish_super_agent_healthy() {
+        let mut hash_repository_mock = MockHashRepositoryMock::new();
+        let sub_agent_builder = MockSubAgentBuilderMock::new();
+
+        // Super Agent OpAMP
+        let mut started_client = MockStartedOpAMPClientMock::new();
+        started_client.should_set_health(2);
+        // applying and applied
+        started_client
+            .expect_set_remote_config_status()
+            .times(2)
+            .returning(|_| Ok(()));
+
+        let mut sub_agents_config_store = MockSuperAgentDynamicConfigStore::new();
+
+        // load local config
+        let sub_agents_config = SuperAgentDynamicConfig::from(HashMap::default());
+        sub_agents_config_store.should_load(&sub_agents_config);
+
+        // store remote config
+        sub_agents_config_store.should_store(&sub_agents_config);
+
+        let mut remote_config_hash = Hash::new("a-hash".to_string());
+        let remote_config = RemoteConfig::new(
+            AgentID::new_super_agent_id(),
+            remote_config_hash.clone(),
+            Some(ConfigMap::new(HashMap::from([(
+                String::default(),
+                String::from("agents: {}"),
+            )]))),
+        );
+
+        // persist remote config hash as applying
+        hash_repository_mock.should_save_hash(&AgentID::new_super_agent_id(), &remote_config_hash);
+
+        // store super agent remote config hash
+        remote_config_hash.apply();
+        hash_repository_mock.should_save_hash(&AgentID::new_super_agent_id(), &remote_config_hash);
+
+        // the running sub agent that will be stopped
+        let mut sub_agent = MockStartedSubAgent::new();
+        sub_agent.should_stop();
+
+        // the running sub agents
+        let sub_agents = StartedSubAgents::from(HashMap::from([(
+            AgentID::new("infra-agent").unwrap(),
+            sub_agent,
+        )]));
+
+        let (application_event_publisher, application_event_consumer) = pub_sub();
+        let (opamp_publisher, opamp_consumer) = pub_sub();
+        let (super_agent_publisher, super_agent_consumer) = pub_sub();
+        let (sub_agent_publisher, sub_agent_consumer) = pub_sub();
+
+        let event_processor = spawn({
+            move || {
+                let agent = SuperAgent::new_custom(
+                    Some(started_client),
+                    Arc::new(hash_repository_mock),
+                    sub_agent_builder,
+                    sub_agents_config_store,
+                    super_agent_publisher,
+                );
+
+                agent
+                    .process_events(
+                        application_event_consumer,
+                        Some(opamp_consumer),
+                        sub_agent_publisher,
+                        sub_agent_consumer,
+                        sub_agents,
+                    )
+                    .unwrap();
+            }
+        });
+
+        opamp_publisher
+            .publish(OpAMPEvent::RemoteConfigReceived(remote_config))
+            .unwrap();
+        sleep(Duration::from_millis(10));
+        application_event_publisher
+            .publish(ApplicationEvent::StopRequested)
+            .unwrap();
+
+        assert!(event_processor.join().is_ok());
+
+        let expected = SuperAgentEvent::SuperAgentBecameHealthy;
+        let ev = super_agent_consumer.as_ref().recv().unwrap();
+        assert_eq!(expected, ev);
+    }
+
+    // Receive an OpAMP Invalid Config should publish Unhealthy Event
+    #[test]
+    fn test_invalid_config_should_publish_super_agent_unhealthy() {
+        let hash_repository_mock = MockHashRepositoryMock::new();
+        let sub_agent_builder = MockSubAgentBuilderMock::new();
+
+        // Super Agent OpAMP
+        let mut started_client = MockStartedOpAMPClientMock::new();
+        // set healthy on start processing events
+        started_client.should_set_healthy();
+        // set unhealthy on invalid config
+        started_client.should_set_unhealthy();
+        // applying and failed
+        started_client
+            .expect_set_remote_config_status()
+            .times(2)
+            .returning(|_| Ok(()));
+
+        let sub_agents_config_store = MockSuperAgentDynamicConfigStore::new();
+
+        let mut remote_config_hash = Hash::new("a-hash".to_string());
+        remote_config_hash.fail(String::from("some error message"));
+
+        let remote_config =
+            RemoteConfig::new(AgentID::new_super_agent_id(), remote_config_hash, None);
+
+        // the running sub agents
+        let sub_agents = StartedSubAgents::from(HashMap::default());
+
+        let (application_event_publisher, application_event_consumer) = pub_sub();
+        let (opamp_publisher, opamp_consumer) = pub_sub();
+        let (super_agent_publisher, super_agent_consumer) = pub_sub();
+        let (sub_agent_publisher, sub_agent_consumer) = pub_sub();
+
+        let event_processor = spawn({
+            move || {
+                let agent = SuperAgent::new_custom(
+                    Some(started_client),
+                    Arc::new(hash_repository_mock),
+                    sub_agent_builder,
+                    sub_agents_config_store,
+                    super_agent_publisher,
+                );
+
+                agent
+                    .process_events(
+                        application_event_consumer,
+                        Some(opamp_consumer),
+                        sub_agent_publisher,
+                        sub_agent_consumer,
+                        sub_agents,
+                    )
+                    .unwrap();
+            }
+        });
+
+        opamp_publisher
+            .publish(OpAMPEvent::RemoteConfigReceived(remote_config))
+            .unwrap();
+
+        sleep(Duration::from_millis(10));
+
+        application_event_publisher
+            .publish(ApplicationEvent::StopRequested)
+            .unwrap();
+
+        assert!(event_processor.join().is_ok());
+
+        let expected = SuperAgentEvent::SuperAgentBecameUnhealthy(String::from(
+            "Error applying Super Agent remote config: remote config error: `config hash: `a-hash` config error: `some error message``",
+        ));
+        let ev = super_agent_consumer.as_ref().recv().unwrap();
+        assert_eq!(expected, ev);
+    }
+
+    // Receive an StopRequest event should publish SuperAgentStopped
+    #[test]
+    fn test_stop_request_should_publish_super_agent_stopped() {
+        let hash_repository_mock = MockHashRepositoryMock::new();
+        let sub_agent_builder = MockSubAgentBuilderMock::new();
+
+        // Super Agent OpAMP
+        let mut started_client = MockStartedOpAMPClientMock::new();
+        // set healthy on start processing events
+        started_client.should_set_healthy();
+
+        let sub_agents_config_store = MockSuperAgentDynamicConfigStore::new();
+
+        // the running sub agents
+        let sub_agents = StartedSubAgents::from(HashMap::default());
+
+        let (application_event_publisher, application_event_consumer) = pub_sub();
+        let (_opamp_publisher, opamp_consumer) = pub_sub();
+        let (super_agent_publisher, super_agent_consumer) = pub_sub();
+        let (sub_agent_publisher, sub_agent_consumer) = pub_sub();
+
+        let event_processor = spawn({
+            move || {
+                let agent = SuperAgent::new_custom(
+                    Some(started_client),
+                    Arc::new(hash_repository_mock),
+                    sub_agent_builder,
+                    sub_agents_config_store,
+                    super_agent_publisher,
+                );
+
+                agent
+                    .process_events(
+                        application_event_consumer,
+                        Some(opamp_consumer),
+                        sub_agent_publisher,
+                        sub_agent_consumer,
+                        sub_agents,
+                    )
+                    .unwrap();
+            }
+        });
+
+        sleep(Duration::from_millis(10));
+
+        application_event_publisher
+            .publish(ApplicationEvent::StopRequested)
+            .unwrap();
+
+        assert!(event_processor.join().is_ok());
+
+        let expected = SuperAgentEvent::SuperAgentStopped;
+        let ev = super_agent_consumer.as_ref().recv().unwrap();
+        assert_eq!(expected, ev);
+    }
+
+    // Publish SubAgentBecameHealthy
+    #[test]
+    fn test_sub_agent_became_healthy_should_published() {
+        let hash_repository_mock = MockHashRepositoryMock::new();
+        let sub_agent_builder = MockSubAgentBuilderMock::new();
+
+        // Super Agent OpAMP
+        let mut started_client = MockStartedOpAMPClientMock::new();
+        // set healthy on start processing events
+        started_client.should_set_healthy();
+
+        let sub_agents_config_store = MockSuperAgentDynamicConfigStore::new();
+
+        // the running sub agent that will be stopped
+        let agent_id = AgentID::new("infra-agent").unwrap();
+        let agent_type = AgentTypeFQN::from("some-fqn");
+        let mut sub_agent = MockStartedSubAgent::new();
+        sub_agent.should_stop();
+        sub_agent.should_agent_type(agent_type.clone());
+
+        // the running sub agents
+        let sub_agents = StartedSubAgents::from(HashMap::from([(agent_id.clone(), sub_agent)]));
+
+        let (application_event_publisher, application_event_consumer) = pub_sub();
+        let (_opamp_publisher, opamp_consumer) = pub_sub();
+        let (super_agent_publisher, super_agent_consumer) = pub_sub();
+        let (sub_agent_publisher, sub_agent_consumer) = pub_sub();
+
+        let sub_agent_publisher_clone = sub_agent_publisher.clone();
+        let event_processor = spawn({
+            move || {
+                let agent = SuperAgent::new_custom(
+                    Some(started_client),
+                    Arc::new(hash_repository_mock),
+                    sub_agent_builder,
+                    sub_agents_config_store,
+                    super_agent_publisher,
+                );
+
+                agent
+                    .process_events(
+                        application_event_consumer,
+                        Some(opamp_consumer),
+                        sub_agent_publisher_clone,
+                        sub_agent_consumer,
+                        sub_agents,
+                    )
+                    .unwrap();
+            }
+        });
+
+        sleep(Duration::from_millis(10));
+
+        sub_agent_publisher
+            .publish(SubAgentEvent::SubAgentBecameHealthy(agent_id.clone()))
+            .unwrap();
+
+        application_event_publisher
+            .publish(ApplicationEvent::StopRequested)
+            .unwrap();
+
+        assert!(event_processor.join().is_ok());
+
+        let expected = SuperAgentEvent::SubAgentBecameHealthy(agent_id, agent_type);
+        let ev = super_agent_consumer.as_ref().recv().unwrap();
+        assert_eq!(expected, ev);
+    }
+
+    // Publish SubAgentBecameUnhealthy
+    #[test]
+    fn test_sub_agent_became_unhealthy_should_published() {
+        let hash_repository_mock = MockHashRepositoryMock::new();
+        let sub_agent_builder = MockSubAgentBuilderMock::new();
+
+        // Super Agent OpAMP
+        let mut started_client = MockStartedOpAMPClientMock::new();
+        // set healthy on start processing events
+        started_client.should_set_healthy();
+
+        let sub_agents_config_store = MockSuperAgentDynamicConfigStore::new();
+
+        // the running sub agent that will be stopped
+        let agent_id = AgentID::new("infra-agent").unwrap();
+        let agent_type = AgentTypeFQN::from("some-fqn");
+        let mut sub_agent = MockStartedSubAgent::new();
+        sub_agent.should_stop();
+        sub_agent.should_agent_type(agent_type.clone());
+
+        // the running sub agents
+        let sub_agents = StartedSubAgents::from(HashMap::from([(agent_id.clone(), sub_agent)]));
+
+        let (application_event_publisher, application_event_consumer) = pub_sub();
+        let (_opamp_publisher, opamp_consumer) = pub_sub();
+        let (super_agent_publisher, super_agent_consumer) = pub_sub();
+        let (sub_agent_publisher, sub_agent_consumer) = pub_sub();
+
+        let sub_agent_publisher_clone = sub_agent_publisher.clone();
+        let event_processor = spawn({
+            move || {
+                let agent = SuperAgent::new_custom(
+                    Some(started_client),
+                    Arc::new(hash_repository_mock),
+                    sub_agent_builder,
+                    sub_agents_config_store,
+                    super_agent_publisher,
+                );
+
+                agent
+                    .process_events(
+                        application_event_consumer,
+                        Some(opamp_consumer),
+                        sub_agent_publisher_clone,
+                        sub_agent_consumer,
+                        sub_agents,
+                    )
+                    .unwrap();
+            }
+        });
+
+        sleep(Duration::from_millis(10));
+
+        let last_error_message = LastErrorMessage::from("some last error message");
+        sub_agent_publisher
+            .publish(SubAgentEvent::SubAgentBecameUnhealthy(
+                agent_id.clone(),
+                last_error_message.clone(),
+            ))
+            .unwrap();
+
+        application_event_publisher
+            .publish(ApplicationEvent::StopRequested)
+            .unwrap();
+
+        assert!(event_processor.join().is_ok());
+
+        let expected =
+            SuperAgentEvent::SubAgentBecameUnhealthy(agent_id, agent_type, last_error_message);
+        let ev = super_agent_consumer.as_ref().recv().unwrap();
+        assert_eq!(expected, ev);
+    }
+
+    // Having one running sub agent, receive a valid config with no agents
+    // and we assert on Super Agent Healthy event
+    // And it should publish SubAgentRemoved
+    #[test]
+    fn test_removing_a_sub_agent_should_publish_sub_agent_removed() {
+        let mut hash_repository_mock = MockHashRepositoryMock::new();
+        let sub_agent_builder = MockSubAgentBuilderMock::new();
+
+        // Super Agent OpAMP
+        let mut started_client = MockStartedOpAMPClientMock::new();
+        started_client.should_set_health(2);
+        // applying and applied
+        started_client
+            .expect_set_remote_config_status()
+            .times(2)
+            .returning(|_| Ok(()));
+
+        let mut sub_agents_config_store = MockSuperAgentDynamicConfigStore::new();
+
+        let agent_id = AgentID::new("infra-agent").unwrap();
+
+        // load local config
+        let sub_agents_config = SuperAgentDynamicConfig::from(HashMap::from([(
+            agent_id.clone(),
+            SubAgentConfig {
+                agent_type: AgentTypeFQN::from("some-agent-type"),
+            },
+        )]));
+        sub_agents_config_store.should_load(&sub_agents_config);
+
+        // store remote config
+        let sub_agents_config = SuperAgentDynamicConfig::from(HashMap::default());
+        sub_agents_config_store.should_store(&sub_agents_config);
+
+        let mut remote_config_hash = Hash::new("a-hash".to_string());
+        let remote_config = RemoteConfig::new(
+            AgentID::new_super_agent_id(),
+            remote_config_hash.clone(),
+            Some(ConfigMap::new(HashMap::from([(
+                String::default(),
+                String::from("agents: {}"),
+            )]))),
+        );
+
+        // persist remote config hash as applying
+        hash_repository_mock.should_save_hash(&AgentID::new_super_agent_id(), &remote_config_hash);
+
+        // store super agent remote config hash
+        remote_config_hash.apply();
+        hash_repository_mock.should_save_hash(&AgentID::new_super_agent_id(), &remote_config_hash);
+
+        // the running sub agent that will be stopped
+        let mut sub_agent = MockStartedSubAgent::new();
+        sub_agent.should_stop();
+
+        // the running sub agents
+        let sub_agents = StartedSubAgents::from(HashMap::from([(agent_id.clone(), sub_agent)]));
+
+        let (application_event_publisher, application_event_consumer) = pub_sub();
+        let (opamp_publisher, opamp_consumer) = pub_sub();
+        let (super_agent_publisher, super_agent_consumer) = pub_sub();
+        let (sub_agent_publisher, sub_agent_consumer) = pub_sub();
+
+        let event_processor = spawn({
+            move || {
+                let agent = SuperAgent::new_custom(
+                    Some(started_client),
+                    Arc::new(hash_repository_mock),
+                    sub_agent_builder,
+                    sub_agents_config_store,
+                    super_agent_publisher,
+                );
+
+                agent
+                    .process_events(
+                        application_event_consumer,
+                        Some(opamp_consumer),
+                        sub_agent_publisher,
+                        sub_agent_consumer,
+                        sub_agents,
+                    )
+                    .unwrap();
+            }
+        });
+
+        opamp_publisher
+            .publish(OpAMPEvent::RemoteConfigReceived(remote_config))
+            .unwrap();
+        sleep(Duration::from_millis(10));
+        application_event_publisher
+            .publish(ApplicationEvent::StopRequested)
+            .unwrap();
+
+        assert!(event_processor.join().is_ok());
+
+        let expected = SuperAgentEvent::SubAgentRemoved(agent_id);
+        let ev = super_agent_consumer.as_ref().recv().unwrap();
+        assert_eq!(expected, ev);
+
+        let expected = SuperAgentEvent::SuperAgentBecameHealthy;
+        let ev = super_agent_consumer.as_ref().recv().unwrap();
+        assert_eq!(expected, ev);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////

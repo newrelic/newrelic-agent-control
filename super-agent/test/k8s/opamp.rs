@@ -309,11 +309,14 @@ impl K8sOpAMPEnv {
             )
             .expect("Failed to build and start opamp client");
 
+            let (super_agent_publisher, _super_agent_consumer) = pub_sub();
+
             let super_agent = SuperAgent::new(
                 maybe_client.into(),
                 self.hash_repository.clone(),
                 sub_agent_builder,
                 self.config_storer.clone(),
+                super_agent_publisher,
             );
 
             super_agent

@@ -73,6 +73,16 @@ pub mod test {
         pub fn should_stop(&mut self) {
             self.expect_stop().once().returning(|| Ok(Vec::new()));
         }
+
+        pub fn should_agent_id(&mut self, agent_id: AgentID) {
+            self.expect_agent_id().once().return_once(|| agent_id);
+        }
+
+        pub fn should_agent_type(&mut self, agent_type_fqn: AgentTypeFQN) {
+            self.expect_agent_type()
+                .once()
+                .return_once(|| agent_type_fqn);
+        }
     }
 
     mock! {

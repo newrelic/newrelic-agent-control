@@ -1,6 +1,6 @@
 use newrelic_super_agent::cli::Cli;
 use newrelic_super_agent::event::channel::{pub_sub, EventConsumer, EventPublisher};
-use newrelic_super_agent::event::ApplicationEvent;
+use newrelic_super_agent::event::{ApplicationEvent, SuperAgentEvent};
 use newrelic_super_agent::opamp::client_builder::OpAMPHttpClientBuilder;
 use newrelic_super_agent::opamp::instance_id::getter::ULIDInstanceIDGetter;
 use newrelic_super_agent::opamp::instance_id::Identifiers;
@@ -72,11 +72,15 @@ fn main() -> Result<(), Box<dyn Error>> {
         .as_ref()
         .map(|opamp_config| OpAMPHttpClientBuilder::new(opamp_config.clone()));
 
+    // create Super Agent events channel
+    let (super_agent_publisher, _super_agent_consumer) = pub_sub();
+
     #[cfg(any(feature = "onhost", feature = "k8s"))]
     run_super_agent(
         sa_local_config_storer,
         application_event_consumer,
         opamp_client_builder,
+        super_agent_publisher,
     )
     .inspect_err(|err| {
         error!(
@@ -94,6 +98,7 @@ fn run_super_agent(
     sa_config_storer: SuperAgentConfigStoreFile,
     application_events_consumer: EventConsumer<ApplicationEvent>,
     opamp_client_builder: Option<OpAMPHttpClientBuilder>,
+    super_agent_publisher: EventPublisher<SuperAgentEvent>,
 ) -> Result<(), AgentError> {
     use newrelic_super_agent::agent_type::renderer::TemplateRenderer;
     use newrelic_super_agent::opamp::hash_repository::HashRepositoryFile;
@@ -174,6 +179,7 @@ fn run_super_agent(
         hash_repository,
         sub_agent_builder,
         config_storer,
+        super_agent_publisher,
     )
     .run(application_events_consumer, maybe_sa_opamp_consumer)
 }
@@ -187,6 +193,7 @@ fn run_super_agent(
     sa_local_config_storer: SuperAgentConfigStoreFile,
     application_event_consumer: EventConsumer<ApplicationEvent>,
     opamp_client_builder: Option<OpAMPHttpClientBuilder>,
+    super_agent_publisher: EventPublisher<SuperAgentEvent>,
 ) -> Result<(), AgentError> {
     use newrelic_super_agent::k8s::garbage_collector::NotStartedK8sGarbageCollector;
     use newrelic_super_agent::k8s::store::K8sStore;
@@ -291,6 +298,7 @@ fn run_super_agent(
         hash_repository,
         sub_agent_builder,
         config_storer,
+        super_agent_publisher,
     )
     .run(application_event_consumer, opamp_consumer)
 }
