@@ -150,7 +150,7 @@ fn start_process_thread(
             info!(
                 id = not_started_supervisor.id().to_string(),
                 supervisor = not_started_supervisor.bin(),
-                msg = "Starting supervisor process"
+                msg = "starting supervisor process"
             );
 
             shutdown_ctx.reset().unwrap();
@@ -185,7 +185,7 @@ fn start_process_thread(
                             agent_id = id.to_string(),
                             supervisor = bin,
                             err = e.last_error(),
-                            "Could not launch health checker, using default",
+                            "could not launch health checker, using default",
                         )
                     }
                 }
@@ -196,7 +196,7 @@ fn start_process_thread(
                     error!(
                         agent_id = id.to_string(),
                         supervisor = bin,
-                        "Error while launching supervisor process: {}",
+                        "error while launching supervisor process: {}",
                         err
                     );
                 })
@@ -213,7 +213,7 @@ fn start_process_thread(
                             agent_id = id.to_string(),
                             supervisor = bin,
                             exit_code = exit_code.code(),
-                            "Supervisor process exited unsuccessfully"
+                            "supervisor process exited unsuccessfully"
                         )
                     }
                     exit_code.code()
@@ -237,7 +237,7 @@ fn start_process_thread(
             if !restart_policy.should_retry(exit_code.unwrap_or_default()) {
                 // Log if we are not restarting anymore due to the restart policy being broken
                 if restart_policy.backoff != BackoffStrategy::None {
-                    warn!("Supervisor for {id} won't restart anymore due to having exceeded its restart policy");
+                    warn!("supervisor for {id} won't restart anymore due to having exceeded its restart policy");
                     publish_health_event(
                         &internal_event_publisher,
                         SubAgentInternalEvent::AgentBecameUnhealthy(
@@ -248,7 +248,7 @@ fn start_process_thread(
                 break;
             }
 
-            info!("Restarting supervisor for {id}...");
+            info!("restarting supervisor for {id}...");
 
             restart_policy.backoff(|duration| {
                 // early exit if supervisor timeout is canceled
@@ -275,15 +275,15 @@ fn spawn_health_checker<H>(
             break;
         }
 
-        debug!(%agent_id, "Checking health with the configured checker");
+        debug!(%agent_id, "checking health with the configured checker");
         match health_checker.check_health() {
             Ok(_) => {
-                debug!(%agent_id, "The configured health check passed");
+                debug!(%agent_id, "the configured health check passed");
                 publish_health_event(&health_publisher, SubAgentInternalEvent::AgentBecameHealthy)
             }
             Err(e) => {
                 let status = e.status();
-                debug!(%agent_id, status, "The configured health check failed");
+                debug!(%agent_id, status, "the configured health check failed");
                 publish_health_event(
                     &health_publisher,
                     // TODO: Passing the raw status for now. Pass both `last_error` and `status`.
