@@ -1,13 +1,6 @@
 use std::{fmt::Debug, process::ExitStatus};
 use thiserror::Error;
 
-//TODO review this
-#[derive(Error, Debug)]
-pub enum SupervisorError {
-    #[error("supervisor error")]
-    SomeError(),
-}
-
 #[derive(Error, Debug)]
 pub enum ProcessError {
     #[error("process exited with error: `{0}`")]

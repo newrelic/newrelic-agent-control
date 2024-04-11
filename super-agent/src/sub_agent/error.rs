@@ -30,14 +30,6 @@ pub enum SubAgentError {
     #[error("not started opamp client error: `{0}`")]
     NotStartedOpampClientError(#[from] NotStartedClientError),
 
-    #[cfg(feature = "onhost")]
-    #[error("not started opamp client error: `{0}`")]
-    SupervisorError(#[from] crate::sub_agent::on_host::supervisor::error::SupervisorError),
-
-    #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
-    #[error("Supervisor run error: `{0}`")]
-    SupervisorError(#[from] crate::sub_agent::k8s::SupervisorError),
-
     #[error("remote config hash error: `{0}`")]
     RemoteConfigHashError(#[from] HashRepositoryError),
     #[error("super agent config error: `{0}`")]

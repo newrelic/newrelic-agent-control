@@ -51,7 +51,7 @@ fn test_supervisors() {
     // Run all the supervisors, getting handles
     let handles = agents
         .into_iter()
-        .map(|agent| agent.run(sub_agent_internal_publisher.clone()).unwrap())
+        .map(|agent| agent.run(sub_agent_internal_publisher.clone()))
         .collect::<Vec<_>>();
 
     // Sleep for a while
