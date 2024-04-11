@@ -17,7 +17,9 @@ pub trait NotStartedSubAgent {
     fn run(self) -> Result<Self::StartedSubAgent, error::SubAgentError>;
 }
 
-// The Stopper trait defines the interface for a supervisor that is already running. Exposes a stop method that will stop the supervised processes' execution.
+// The StartedSubAgent trait defines the interface for a supervisor that is already running.
+// Exposes information about the Sub Agent and a stop method that will stop the
+// supervised processes' execution.
 pub trait StartedSubAgent {
     /// Returns the AgentID of the SubAgent
     fn agent_id(&self) -> AgentID;
