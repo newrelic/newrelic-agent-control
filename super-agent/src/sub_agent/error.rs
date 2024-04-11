@@ -29,28 +29,26 @@ pub enum SubAgentError {
     StartedOpampClientError(#[from] StartedClientError),
     #[error("not started opamp client error: `{0}`")]
     NotStartedOpampClientError(#[from] NotStartedClientError),
-
     #[error("remote config hash error: `{0}`")]
     RemoteConfigHashError(#[from] HashRepositoryError),
     #[error("super agent config error: `{0}`")]
     SuperAgentConfigError(#[from] SuperAgentConfigError),
     #[error("config assembler error: `{0}`")]
     ConfigAssemblerError(#[from] EffectiveAgentsAssemblerError),
-
     #[error("sub agent values error: `{0}`")]
     ValuesError(#[from] ValuesRepositoryError),
-
     #[error("sub agent values error: `{0}`")]
     ValuesUnserializeError(#[from] AgentValuesError),
-
     #[error("remote config error: `{0}`")]
     RemoteConfigError(#[from] RemoteConfigError),
-
     #[error("Error publishing event: `{0}`")]
     EventPublisherError(#[from] EventPublisherError),
-
     #[error("Error handling thread: `{0}`")]
     PoisonError(String),
+
+    #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
+    #[error("Supervisor run error: `{0}`")]
+    SupervisorError(#[from] crate::sub_agent::k8s::SupervisorError),
 }
 
 #[derive(Error, Debug)]
@@ -61,15 +59,12 @@ pub enum SubAgentBuilderError {
     ConfigAssemblerError(#[from] EffectiveAgentsAssemblerError),
     #[error("remote config hash error: `{0}`")]
     RemoteConfigHashError(#[from] HashRepositoryError),
-
     #[error("OpAMP client error: `{0}`")]
     OpampClientBuilderError(#[from] OpAMPClientBuilderError),
     #[error("OpAMP client error: `{0}`")]
     OpampClientError(#[from] ClientError),
-
     #[error("unsupported K8s object: `{0}`")]
     UnsupportedK8sObject(String),
-
     #[error("Invalid configuration: `{0}`")]
     ConfigError(String),
 }
