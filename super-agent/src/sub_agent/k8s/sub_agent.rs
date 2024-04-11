@@ -76,7 +76,7 @@ impl StartedSubAgent for SubAgentK8s<Started> {
     }
 
     fn agent_type(&self) -> AgentTypeFQN {
-        todo!()
+        self.agent_type.clone()
     }
 
     // Stop does not delete directly the CR. It will be the garbage collector doing so if needed.
