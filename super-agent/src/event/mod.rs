@@ -10,7 +10,7 @@ pub enum OpAMPEvent {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum SuperAgentEvent {
+pub enum ApplicationEvent {
     StopRequested,
 }
 

@@ -4,7 +4,7 @@ use super::config_storer::storer::{
 };
 use crate::event::{
     channel::{pub_sub, EventConsumer, EventPublisher},
-    OpAMPEvent, SubAgentEvent, SuperAgentEvent,
+    ApplicationEvent, OpAMPEvent, SubAgentEvent,
 };
 use crate::opamp::{
     callbacks::AgentCallbacks,
@@ -75,7 +75,7 @@ where
 
     pub fn run(
         self,
-        super_agent_consumer: EventConsumer<SuperAgentEvent>,
+        application_event_consumer: EventConsumer<ApplicationEvent>,
         super_agent_opamp_consumer: EventConsumer<OpAMPEvent>,
     ) -> Result<(), AgentError> {
         debug!("Creating agent's communication channels");
@@ -109,7 +109,7 @@ where
         let running_sub_agents = not_started_sub_agents.run()?;
 
         self.process_events(
-            super_agent_consumer,
+            application_event_consumer,
             super_agent_opamp_consumer,
             sub_agent_publisher,
             sub_agent_consumer,
@@ -206,7 +206,7 @@ where
     // This is the main thread loop, executed after initialization of all Super Agent components.
     fn process_events(
         &self,
-        super_agent_consumer: EventConsumer<SuperAgentEvent>,
+        application_event_consumer: EventConsumer<ApplicationEvent>,
         super_agent_opamp_consumer: EventConsumer<OpAMPEvent>,
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
         sub_agent_consumer: EventConsumer<SubAgentEvent>,
@@ -231,7 +231,7 @@ where
                     }
 
                 },
-                recv(super_agent_consumer.as_ref()) -> _super_agent_event => {
+                recv(application_event_consumer.as_ref()) -> _super_agent_event => {
                         break sub_agents.stop()?;
                 },
                 recv(sub_agent_consumer.as_ref()) -> sub_agent_event_res => {
@@ -390,7 +390,7 @@ pub fn super_agent_fqn() -> AgentTypeFQN {
 #[cfg(test)]
 mod tests {
     use crate::event::channel::pub_sub;
-    use crate::event::{OpAMPEvent, SubAgentEvent, SuperAgentEvent};
+    use crate::event::{ApplicationEvent, OpAMPEvent, SubAgentEvent};
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
     use crate::opamp::hash_repository::HashRepository;
@@ -472,13 +472,13 @@ mod tests {
             sub_agents_config_store,
         );
 
-        let (super_agent_publisher, super_agent_consumer) = pub_sub();
+        let (application_event_publisher, application_event_consumer) = pub_sub();
 
-        super_agent_publisher
-            .publish(SuperAgentEvent::StopRequested)
+        application_event_publisher
+            .publish(ApplicationEvent::StopRequested)
             .unwrap();
 
-        assert!(agent.run(super_agent_consumer, pub_sub().1).is_ok())
+        assert!(agent.run(application_event_consumer, pub_sub().1).is_ok())
     }
 
     #[test]
@@ -514,13 +514,13 @@ mod tests {
             sub_agents_config_store,
         );
 
-        let (super_agent_publisher, super_agent_consumer) = pub_sub();
+        let (application_event_publisher, application_event_consumer) = pub_sub();
 
-        super_agent_publisher
-            .publish(SuperAgentEvent::StopRequested)
+        application_event_publisher
+            .publish(ApplicationEvent::StopRequested)
             .unwrap();
 
-        assert!(agent.run(super_agent_consumer, pub_sub().1).is_ok())
+        assert!(agent.run(application_event_consumer, pub_sub().1).is_ok())
     }
 
     #[test]
@@ -579,7 +579,7 @@ mod tests {
         // it should build two subagents: nrdot + infra-agent
         sub_agent_builder.should_build(2);
 
-        let (super_agent_publisher, super_agent_consumer) = pub_sub();
+        let (application_event_publisher, application_event_consumer) = pub_sub();
         let (opamp_publisher, opamp_consumer) = pub_sub();
 
         let running_agent = spawn({
@@ -591,7 +591,7 @@ mod tests {
                     sub_agent_builder,
                     sub_agents_config_store,
                 );
-                agent.run(super_agent_consumer, opamp_consumer)
+                agent.run(application_event_consumer, opamp_consumer)
             }
         });
 
@@ -613,8 +613,8 @@ agents:
             .publish(OpAMPEvent::RemoteConfigReceived(remote_config))
             .unwrap();
         sleep(Duration::from_millis(500));
-        super_agent_publisher
-            .publish(SuperAgentEvent::StopRequested)
+        application_event_publisher
+            .publish(ApplicationEvent::StopRequested)
             .unwrap();
 
         assert!(running_agent.join().is_ok())
@@ -805,7 +805,7 @@ agents:
             .unwrap()
             .should_stop();
 
-        let (super_agent_publisher, super_agent_consumer) = pub_sub();
+        let (application_event_publisher, application_event_consumer) = pub_sub();
         let (sub_agent_publisher, sub_agent_consumer) = pub_sub();
         let (_super_agent_opamp_publisher, super_agent_opamp_consumer) = pub_sub();
 
@@ -822,7 +822,7 @@ agents:
         );
 
         let sub_agent_publisher_clone = sub_agent_publisher.clone();
-        let super_agent_publisher_clone = super_agent_publisher.clone();
+        let application_event_publisher_clone = application_event_publisher.clone();
         spawn(move || {
             sleep(Duration::from_millis(20));
 
@@ -832,14 +832,14 @@ agents:
                 ))
                 .unwrap();
 
-            super_agent_publisher_clone
-                .publish(SuperAgentEvent::StopRequested)
+            application_event_publisher_clone
+                .publish(ApplicationEvent::StopRequested)
                 .unwrap();
         });
 
         super_agent
             .process_events(
-                super_agent_consumer,
+                application_event_consumer,
                 super_agent_opamp_consumer,
                 sub_agent_publisher,
                 sub_agent_consumer,

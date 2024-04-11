@@ -1,6 +1,6 @@
 use newrelic_super_agent::cli::Cli;
 use newrelic_super_agent::event::channel::{pub_sub, EventConsumer, EventPublisher};
-use newrelic_super_agent::event::SuperAgentEvent;
+use newrelic_super_agent::event::ApplicationEvent;
 use newrelic_super_agent::opamp::client_builder::OpAMPHttpClientBuilder;
 use newrelic_super_agent::opamp::instance_id::getter::ULIDInstanceIDGetter;
 use newrelic_super_agent::opamp::instance_id::Identifiers;
@@ -62,10 +62,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     debug!("Creating the global context");
-    let (super_agent_publisher, super_agent_consumer) = pub_sub();
+    let (application_event_publisher, application_event_consumer) = pub_sub();
 
     debug!("Creating the signal handler");
-    create_shutdown_signal_handler(super_agent_publisher)?;
+    create_shutdown_signal_handler(application_event_publisher)?;
 
     let opamp_client_builder: Option<OpAMPHttpClientBuilder> = super_agent_config
         .opamp
@@ -75,7 +75,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     #[cfg(any(feature = "onhost", feature = "k8s"))]
     run_super_agent(
         sa_local_config_storer,
-        super_agent_consumer,
+        application_event_consumer,
         opamp_client_builder,
     )
     .inspect_err(|err| {
@@ -92,7 +92,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 #[cfg(feature = "onhost")]
 fn run_super_agent(
     sa_config_storer: SuperAgentConfigStoreFile,
-    super_agent_consumer: EventConsumer<SuperAgentEvent>,
+    application_events_consumer: EventConsumer<ApplicationEvent>,
     opamp_client_builder: Option<OpAMPHttpClientBuilder>,
 ) -> Result<(), AgentError> {
     use newrelic_super_agent::agent_type::renderer::TemplateRenderer;
@@ -170,7 +170,7 @@ fn run_super_agent(
         sub_agent_builder,
         config_storer,
     )
-    .run(super_agent_consumer, super_agent_opamp_consumer)
+    .run(application_events_consumer, super_agent_opamp_consumer)
 }
 
 fn print_identifiers(identifiers: &Identifiers) {
@@ -180,7 +180,7 @@ fn print_identifiers(identifiers: &Identifiers) {
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
 fn run_super_agent(
     sa_local_config_storer: SuperAgentConfigStoreFile,
-    super_agent_consumer: EventConsumer<SuperAgentEvent>,
+    application_event_consumer: EventConsumer<ApplicationEvent>,
     opamp_client_builder: Option<OpAMPHttpClientBuilder>,
 ) -> Result<(), AgentError> {
     use newrelic_super_agent::k8s::garbage_collector::NotStartedK8sGarbageCollector;
@@ -282,16 +282,16 @@ fn run_super_agent(
         sub_agent_builder,
         config_storer,
     )
-    .run(super_agent_consumer, opamp_consumer)
+    .run(application_event_consumer, opamp_consumer)
 }
 
 fn create_shutdown_signal_handler(
-    publisher: EventPublisher<SuperAgentEvent>,
+    publisher: EventPublisher<ApplicationEvent>,
 ) -> Result<(), ctrlc::Error> {
     ctrlc::set_handler(move || {
         info!("Received SIGINT (Ctrl-C). Stopping super agent");
         let _ = publisher
-            .publish(SuperAgentEvent::StopRequested)
+            .publish(ApplicationEvent::StopRequested)
             .map_err(|_| error!("Could not send super agent stop request"));
     })
     .map_err(|e| {
