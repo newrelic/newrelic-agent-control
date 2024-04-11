@@ -22,17 +22,14 @@ impl SuperAgentDynamicConfigLoader for SubAgentsConfigStoreConfigMap {
                     STORE_KEY_OPAMP_DATA_CONFIG,
                 )?
             {
-                debug!(
-                    super_agent_id = self.super_agent_id.to_string(),
-                    "loading subagents config from the one received with opamp"
-                );
+                debug!("loading remote SuperAgentDynamicConfig");
                 return Ok(remote_subagent_config);
             }
         }
 
         debug!(
             super_agent_id = self.super_agent_id.to_string(),
-            "loading local subagents config"
+            "loading local SuperAgentDynamicConfig"
         );
         Ok(self.local_config.clone())
     }
@@ -40,10 +37,7 @@ impl SuperAgentDynamicConfigLoader for SubAgentsConfigStoreConfigMap {
 
 impl SuperAgentDynamicConfigDeleter for SubAgentsConfigStoreConfigMap {
     fn delete(&self) -> Result<(), SuperAgentConfigError> {
-        debug!(
-            super_agent_id = self.super_agent_id.to_string(),
-            "deleting remote subagents config"
-        );
+        debug!("deleting remote SuperAgentDynamicConfig");
 
         self.k8s_store
             .delete_opamp_data(&self.super_agent_id, STORE_KEY_OPAMP_DATA_CONFIG)?;
@@ -53,10 +47,7 @@ impl SuperAgentDynamicConfigDeleter for SubAgentsConfigStoreConfigMap {
 
 impl SuperAgentDynamicConfigStorer for SubAgentsConfigStoreConfigMap {
     fn store(&self, sub_agents: &SuperAgentDynamicConfig) -> Result<(), SuperAgentConfigError> {
-        debug!(
-            super_agent_id = self.super_agent_id.to_string(),
-            "saving remote subagents config"
-        );
+        debug!("saving remote SuperAgentDynamicConfig");
 
         self.k8s_store.set_opamp_data(
             &self.super_agent_id,
