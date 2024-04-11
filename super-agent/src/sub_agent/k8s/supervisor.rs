@@ -7,7 +7,6 @@ use kube::{
     api::DynamicObject,
     core::{ObjectMeta, TypeMeta},
 };
-
 use std::collections::HashMap;
 use std::sync::Arc;
 use thiserror::Error;
@@ -52,11 +51,8 @@ impl CRSupervisor {
 
     pub fn apply(&self) -> Result<(), SupervisorError> {
         let resources = self.build_dynamic_objects()?;
+        debug!("applying k8s objects, if changed, for {}", self.agent_id);
         for res in resources {
-            debug!(
-                "Applying k8s object {:?} for {}",
-                res.metadata, self.agent_id,
-            );
             trace!("K8s object: {:?}", res);
             self.k8s_client.apply_dynamic_object_if_changed(&res)?;
         }

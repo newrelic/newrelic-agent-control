@@ -363,6 +363,7 @@ deployment:
           # they trigger, a longer interval helps in reducing unnecessary load on the cluster without significantly
           # delaying the application of important updates.
           interval: 30m
+          provider: generic
           url: https://open-telemetry.github.io/opentelemetry-helm-charts
       release:
         apiVersion: helm.toolkit.fluxcd.io/v2beta2
@@ -375,6 +376,7 @@ deployment:
             spec:
               chart: opentelemetry-collector
               version: ${nr-var:chart_version}
+              reconcileStrategy: ChartVersion
               sourceRef:
                 kind: HelmRepository
                 name: ${nr-sub:agent_id}

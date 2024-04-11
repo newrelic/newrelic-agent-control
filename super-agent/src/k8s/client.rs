@@ -273,7 +273,7 @@ impl AsyncK8sClient {
         match existing_obj {
             None => Ok(true),
             Some(obj_old) => {
-                if obj_old.data != obj.data {
+                if obj_old.data.clone()["spec"] != obj.data["spec"] {
                     return Ok(true);
                 }
                 if obj_old.metadata.labels != obj.metadata.labels {
@@ -289,8 +289,13 @@ impl AsyncK8sClient {
         obj: &DynamicObject,
     ) -> Result<(), K8sError> {
         if !self.has_dynamic_object_changed(obj).await? {
+            debug!("not applying k8s resource since it has not changed",);
             return Ok(());
         }
+        debug!(
+            "applying k8s object since it has changed: '{:?}'",
+            obj.metadata
+        );
         self.apply_dynamic_object(obj).await
     }
 
