@@ -535,7 +535,7 @@ pub mod sleep_supervisor_tests {
             .in_sequence(&mut seq)
             .returning(Duration::default);
 
-        let agent_id = "test-agent".to_string().try_into().unwrap();
+        let agent_id =  AgentID::new("test-agent").unwrap();
         spawn_health_checker(agent_id, health_checker, cancel_signal, health_publisher);
 
         // Check that the health checker was called at least once
@@ -583,7 +583,7 @@ pub mod sleep_supervisor_tests {
             .in_sequence(&mut seq)
             .returning(Duration::default);
 
-        let agent_id = "test-agent".to_string().try_into().unwrap();
+        let agent_id =  AgentID::new("test-agent").unwrap();
         spawn_health_checker(agent_id, health_checker, cancel_signal, health_publisher);
 
         // Check that the health checker was called at least once
@@ -636,7 +636,7 @@ pub mod sleep_supervisor_tests {
             .in_sequence(&mut seq)
             .returning(Duration::default);
 
-        let agent_id = "test-agent".to_string().try_into().unwrap();
+        let agent_id =  AgentID::new("test-agent").unwrap();
         spawn_health_checker(agent_id, health_checker, cancel_signal, health_publisher);
 
         // Check that the health checker was called at least once
