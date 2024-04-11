@@ -4,7 +4,7 @@ use crate::sub_agent::event_processor::SubAgentEventProcessor;
 use crate::sub_agent::k8s::CRSupervisor;
 use crate::sub_agent::{error::SubAgentError, NotStartedSubAgent, StartedSubAgent};
 use crate::sub_agent::{NotStarted, Started};
-use crate::super_agent::config::AgentID;
+use crate::super_agent::config::{AgentID, AgentTypeFQN};
 use tracing::error;
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -12,6 +12,7 @@ use tracing::error;
 ////////////////////////////////////////////////////////////////////////////////////
 pub struct SubAgentK8s<S> {
     agent_id: AgentID,
+    agent_type: AgentTypeFQN,
     supervisor: Option<CRSupervisor>,
     sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     state: S,
@@ -23,12 +24,14 @@ where
 {
     pub fn new(
         agent_id: AgentID,
+        agent_type: AgentTypeFQN,
         event_processor: E,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
         supervisor: Option<CRSupervisor>,
     ) -> Self {
         SubAgentK8s {
             agent_id,
+            agent_type,
             supervisor,
             sub_agent_internal_publisher,
             state: NotStarted { event_processor },
@@ -59,6 +62,7 @@ where
 
         Ok(SubAgentK8s {
             agent_id: self.agent_id,
+            agent_type: self.agent_type,
             supervisor: self.supervisor,
             sub_agent_internal_publisher: self.sub_agent_internal_publisher,
             state: Started { event_loop_handle },
@@ -67,6 +71,14 @@ where
 }
 
 impl StartedSubAgent for SubAgentK8s<Started> {
+    fn agent_id(&self) -> AgentID {
+        self.agent_id.clone()
+    }
+
+    fn agent_type(&self) -> AgentTypeFQN {
+        self.agent_type.clone()
+    }
+
     // Stop does not delete directly the CR. It will be the garbage collector doing so if needed.
     fn stop(self) -> Result<Vec<std::thread::JoinHandle<()>>, SubAgentError> {
         self.sub_agent_internal_publisher

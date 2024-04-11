@@ -164,6 +164,7 @@ where
 
         Ok(SubAgentOnHost::new(
             agent_id,
+            sub_agent_config.agent_type.clone(),
             supervisors,
             event_processor,
             sub_agent_internal_publisher,

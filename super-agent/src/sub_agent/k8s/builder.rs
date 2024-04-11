@@ -214,6 +214,7 @@ where
 
         Ok(SubAgentK8s::new(
             agent_id,
+            sub_agent_config.agent_type.clone(),
             event_processor,
             sub_agent_internal_publisher,
             supervisor,
