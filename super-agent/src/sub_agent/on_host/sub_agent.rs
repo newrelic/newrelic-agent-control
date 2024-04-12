@@ -59,7 +59,7 @@ where
                 debug!("Running supervisor {} for {}", s.id(), self.agent_id);
                 s.run(self.sub_agent_internal_publisher.clone())
             })
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Vec<_>>();
 
         let event_loop_handle = self.state.event_processor.process();
 

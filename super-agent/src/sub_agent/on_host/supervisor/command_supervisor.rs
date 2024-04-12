@@ -12,7 +12,6 @@ use crate::sub_agent::on_host::command::shutdown::{
     wait_exit_timeout, wait_exit_timeout_default, ProcessTerminator,
 };
 use crate::sub_agent::on_host::supervisor::command_supervisor_config::SupervisorConfigOnHost;
-use crate::sub_agent::on_host::supervisor::error::SupervisorError;
 use crate::sub_agent::restart_policy::BackoffStrategy;
 use crate::super_agent::config::AgentID;
 use std::process::ExitStatus;
@@ -61,15 +60,12 @@ impl SupervisorOnHost<NotStarted> {
     pub fn run(
         self,
         internal_event_publisher: EventPublisher<SubAgentInternalEvent>,
-    ) -> Result<SupervisorOnHost<Started>, SupervisorError> {
-        //TODO: validate binary path, exec permissions...?
+    ) -> SupervisorOnHost<Started> {
         let ctx = self.state.config.ctx.clone();
-        Ok(SupervisorOnHost {
-            state: Started {
-                handle: start_process_thread(self, internal_event_publisher),
-                ctx,
-            },
-        })
+        let handle = start_process_thread(self, internal_event_publisher);
+        SupervisorOnHost {
+            state: Started { handle, ctx },
+        }
     }
 
     pub fn not_started_command(&self) -> CommandOS<command_os::NotStarted> {
@@ -378,7 +374,7 @@ pub mod sleep_supervisor_tests {
         let agent = SupervisorOnHost::new(config);
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
-        let agent = agent.run(sub_agent_internal_publisher).unwrap();
+        let agent = agent.run(sub_agent_internal_publisher);
 
         while !agent.state.handle.is_finished() {
             thread::sleep(Duration::from_millis(15));
@@ -407,7 +403,7 @@ pub mod sleep_supervisor_tests {
 
         // run the agent with wrong command so it enters in restart policy
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
-        let agent = agent.run(sub_agent_internal_publisher).unwrap();
+        let agent = agent.run(sub_agent_internal_publisher);
         // wait two seconds to ensure restart policy thread is sleeping
         thread::sleep(Duration::from_secs(2));
         assert!(agent.stop().join().is_ok());
@@ -434,7 +430,7 @@ pub mod sleep_supervisor_tests {
         let agent = SupervisorOnHost::new(config);
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
-        let agent = agent.run(sub_agent_internal_publisher).unwrap();
+        let agent = agent.run(sub_agent_internal_publisher);
 
         while !agent.state.handle.is_finished() {
             thread::sleep(Duration::from_millis(15));
@@ -474,7 +470,7 @@ pub mod sleep_supervisor_tests {
         let agent = SupervisorOnHost::new(config);
 
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
-        let agent = agent.run(sub_agent_internal_publisher).unwrap();
+        let agent = agent.run(sub_agent_internal_publisher);
 
         while !agent.state.handle.is_finished() {
             thread::sleep(Duration::from_millis(15));
