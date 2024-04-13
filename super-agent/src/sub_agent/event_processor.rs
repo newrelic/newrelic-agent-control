@@ -137,14 +137,14 @@ where
                                 debug!("sub_agent_internal_consumer :: StopRequested");
                                 break;
                             },
-                            Ok(SubAgentInternalEvent::AgentBecameUnhealthy(msg))=>{
+                            Ok(SubAgentInternalEvent::AgentBecameUnhealthy(unhealthy))=>{
                                 debug!("sub_agent_internal_consumer :: UnhealthyAgent");
-                                let _ = self.on_became_unhealthy(msg).inspect_err(|e| error!("error processing unhealthy status: {}",e));
+                                let _ = self.on_became_unhealthy(unhealthy).inspect_err(|e| error!("error processing unhealthy status: {}",e));
 
                             }
-                            Ok(SubAgentInternalEvent::AgentBecameHealthy)=>{
+                            Ok(SubAgentInternalEvent::AgentBecameHealthy(healthy))=>{
                                 debug!("sub_agent_internal_consumer :: HealthyAgent");
-                               let _ = self.on_became_healthy().inspect_err(|e| error!("error processing healthy status: {}",e));
+                               let _ = self.on_became_healthy(healthy).inspect_err(|e| error!("error processing healthy status: {}",e));
                             }
                          }
                     }

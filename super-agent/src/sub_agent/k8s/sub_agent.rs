@@ -1,6 +1,7 @@
 use crate::event::channel::EventPublisher;
 use crate::event::SubAgentInternalEvent;
 use crate::sub_agent::event_processor::SubAgentEventProcessor;
+use crate::sub_agent::health::health_checker::Unhealthy;
 use crate::sub_agent::k8s::{CRSupervisor, SupervisorError};
 use crate::sub_agent::{error::SubAgentError, NotStartedSubAgent, StartedSubAgent};
 use crate::sub_agent::{NotStarted, Started};
@@ -39,14 +40,19 @@ where
     }
 
     fn handle_supervisor_error(&self, err: &SupervisorError) {
-        let msg = "the creation of the resources failed";
-        let event = SubAgentInternalEvent::AgentBecameUnhealthy(format!("{msg}: {err}"));
+        let last_error = format!("the creation of the resources failed: {err}");
 
         error!(
             agent_id = self.agent_id.to_string(),
             err = err.to_string(),
-            msg,
+            last_error,
         );
+
+        let event = SubAgentInternalEvent::AgentBecameUnhealthy(Unhealthy {
+            last_error,
+            ..Default::default()
+        });
+
         let _ = self
             .sub_agent_internal_publisher
             .publish(event)
@@ -159,8 +165,8 @@ pub mod test {
         assert!(started_agent.stop().is_ok());
 
         match sub_agent_internal_consumer.as_ref().recv().unwrap() {
-            SubAgentInternalEvent::AgentBecameUnhealthy(message) => {
-                assert!(message.contains(TEST_K8S_ISSUE))
+            SubAgentInternalEvent::AgentBecameUnhealthy(unhealthy) => {
+                assert!(unhealthy.last_error().contains(TEST_K8S_ISSUE))
             }
             _ => panic!("AgentBecameUnhealthy event expected"),
         }

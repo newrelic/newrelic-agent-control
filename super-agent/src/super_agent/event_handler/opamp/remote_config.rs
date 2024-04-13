@@ -2,6 +2,7 @@ use opamp_client::StartedClient;
 use tracing::{error, info};
 
 use crate::event::SubAgentEvent;
+use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
 use crate::super_agent::config_storer::storer::{
     SuperAgentDynamicConfigDeleter, SuperAgentDynamicConfigLoader, SuperAgentDynamicConfigStorer,
 };
@@ -59,12 +60,15 @@ where
                     &remote_config.hash,
                     error_message.clone(),
                 )?;
-                Ok(self.report_unhealthy(error_message)?)
+                Ok(self.report_unhealthy(Unhealthy {
+                    last_error: error_message,
+                    ..Default::default()
+                })?)
             }
             Ok(()) => {
                 self.set_config_hash_as_applied(&mut remote_config.hash)?;
                 report_remote_config_status_applied(opamp_client, &remote_config.hash)?;
-                Ok(self.report_healthy()?)
+                Ok(self.report_healthy(Healthy::default())?)
             }
         }
     }

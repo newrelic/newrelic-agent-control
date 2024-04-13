@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use serde::Serialize;
 
 use crate::opamp::{Endpoint, LastErrorCode, LastErrorMessage};
+use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
 use crate::super_agent::config::{AgentID, AgentTypeFQN};
 
 // SuperAgentStatus will contain the information about Super Agent health.
@@ -21,19 +22,21 @@ pub struct SuperAgentStatus {
     healthy: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     last_error: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    status: Option<String>,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    status: String,
 }
 
 impl SuperAgentStatus {
-    pub fn healthy(&mut self) {
+    pub fn healthy(&mut self, healthy: Healthy) {
         self.healthy = true;
         self.last_error = None;
+        self.status = healthy.status;
     }
 
-    pub fn unhealthy(&mut self, last_error: String) {
+    pub fn unhealthy(&mut self, unhealthy: Unhealthy) {
         self.healthy = false;
-        self.last_error = Some(last_error);
+        self.last_error = unhealthy.last_error.into();
+        self.status = unhealthy.status;
     }
 }
 
@@ -105,8 +108,8 @@ pub(super) struct SubAgentStatus {
     healthy: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     last_error: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    status: Option<String>,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    status: String,
 }
 
 impl SubAgentStatus {
@@ -116,22 +119,24 @@ impl SubAgentStatus {
             agent_type,
             healthy: false,
             last_error: None,
-            status: None,
+            status: String::default(),
         }
     }
 
     // This struct only has context inside the Sub Agents struct, so it makes it easier to interact
     // if we make it mutable
-    pub fn healthy(&mut self) {
+    pub fn healthy(&mut self, healthy: Healthy) {
         self.healthy = true;
         self.last_error = None;
+        self.status = healthy.status;
     }
 
     // This struct only has context inside the Sub Agents struct, so it makes it easier to interact
     // if we make it mutable
-    pub fn unhealthy(&mut self, last_error: String) {
+    pub fn unhealthy(&mut self, unhealthy: Unhealthy) {
         self.healthy = false;
-        self.last_error = Some(last_error);
+        self.last_error = unhealthy.last_error.into();
+        self.status = unhealthy.status;
     }
 }
 
@@ -215,14 +220,14 @@ pub mod test {
     }
 
     impl SuperAgentStatus {
-        pub fn new_healthy(status: Option<String>) -> Self {
+        pub fn new_healthy(status: String) -> Self {
             SuperAgentStatus {
                 healthy: true,
                 last_error: None,
                 status,
             }
         }
-        pub fn new_unhealthy(status: Option<String>, last_error: String) -> Self {
+        pub fn new_unhealthy(status: String, last_error: String) -> Self {
             SuperAgentStatus {
                 healthy: false,
                 last_error: Some(last_error),
@@ -235,7 +240,7 @@ pub mod test {
         pub fn new(
             agent_id: AgentID,
             agent_type: AgentTypeFQN,
-            status: Option<String>,
+            status: String,
             healthy: bool,
             last_error: Option<String>,
         ) -> Self {
