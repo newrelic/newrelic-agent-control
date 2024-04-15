@@ -2,6 +2,7 @@ use crate::common::{
     block_on, check_deployments_exist, create_local_sa_config, create_mock_config_maps,
     tokio_runtime, K8sEnv, MockOpAMPClientBuilderMock, MockStartedOpAMPClientMock,
 };
+use newrelic_super_agent::agent_type::embedded_registry::EmbeddedRegistry;
 use newrelic_super_agent::k8s::store::STORE_KEY_LOCAL_DATA_CONFIG;
 use newrelic_super_agent::opamp::callbacks::AgentCallbacks;
 use newrelic_super_agent::opamp::instance_id;
@@ -11,7 +12,7 @@ use newrelic_super_agent::super_agent::config_storer::storer::{
 };
 use newrelic_super_agent::super_agent::config_storer::SubAgentsConfigStoreConfigMap;
 use newrelic_super_agent::{
-    agent_type::{agent_type_registry::LocalRegistry, renderer::TemplateRenderer},
+    agent_type::renderer::TemplateRenderer,
     event::{
         channel::pub_sub, channel::EventConsumer, channel::EventPublisher, ApplicationEvent,
         OpAMPEvent,
@@ -177,7 +178,7 @@ struct K8sOpAMPEnv {
     sub_agent_event_processor_builder:
         EventProcessorBuilder<HashRepositoryConfigMap, ValuesRepositoryConfigMap>,
     agents_assembler: LocalEffectiveAgentsAssembler<
-        LocalRegistry,
+        EmbeddedRegistry,
         ValuesRepositoryConfigMap,
         TemplateRenderer<ConfigurationPersisterFile>,
     >,
