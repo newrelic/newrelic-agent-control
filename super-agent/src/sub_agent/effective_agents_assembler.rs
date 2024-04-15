@@ -1,8 +1,9 @@
 use super::values::values_repository::ValuesRepository;
 use super::values::ValuesRepositoryError;
 use crate::agent_type::agent_attributes::AgentAttributes;
-use crate::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError, LocalRegistry};
+use crate::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError};
 use crate::agent_type::definition::{AgentType, AgentTypeDefinition};
+use crate::agent_type::embedded_registry::EmbeddedRegistry;
 use crate::agent_type::environment::Environment;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::renderer::{Renderer, TemplateRenderer};
@@ -88,13 +89,13 @@ where
 }
 
 impl<D>
-    LocalEffectiveAgentsAssembler<LocalRegistry, D, TemplateRenderer<ConfigurationPersisterFile>>
+    LocalEffectiveAgentsAssembler<EmbeddedRegistry, D, TemplateRenderer<ConfigurationPersisterFile>>
 where
     D: ValuesRepository,
 {
     pub fn new(values_repository: Arc<D>) -> Self {
         LocalEffectiveAgentsAssembler {
-            registry: LocalRegistry::default(),
+            registry: EmbeddedRegistry::default(),
             values_repository,
             renderer: TemplateRenderer::default(),
         }

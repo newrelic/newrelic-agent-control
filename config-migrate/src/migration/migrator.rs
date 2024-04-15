@@ -10,7 +10,8 @@ use crate::migration::persister::values_persister_file::ValuesPersisterFile;
 use fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
 use fs::file_reader::FileReader;
 use fs::LocalFile;
-use newrelic_super_agent::agent_type::agent_type_registry::{AgentRegistry, LocalRegistry};
+use newrelic_super_agent::agent_type::agent_type_registry::AgentRegistry;
+use newrelic_super_agent::agent_type::embedded_registry::EmbeddedRegistry;
 use newrelic_super_agent::super_agent::config::SuperAgentConfigError;
 use newrelic_super_agent::super_agent::config_storer::storer::SuperAgentDynamicConfigLoader;
 use newrelic_super_agent::super_agent::config_storer::SuperAgentConfigStoreFile;
@@ -46,9 +47,9 @@ pub struct ConfigMigrator<
     values_persister: ValuesPersisterFile<C>,
 }
 
-impl ConfigMigrator<LocalRegistry, SuperAgentConfigStoreFile, DirectoryManagerFs, LocalFile> {
+impl ConfigMigrator<EmbeddedRegistry, SuperAgentConfigStoreFile, DirectoryManagerFs, LocalFile> {
     pub fn new(
-        config_converter: ConfigConverter<LocalRegistry, LocalFile>,
+        config_converter: ConfigConverter<EmbeddedRegistry, LocalFile>,
         agent_config_getter: AgentConfigGetter<SuperAgentConfigStoreFile>,
         values_persister: ValuesPersisterFile<DirectoryManagerFs>,
     ) -> Self {
