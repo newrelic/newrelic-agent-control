@@ -1,7 +1,7 @@
 [package]
 name = "newrelic_super_agent"
 description = "New Relic Super Agent Limited Preview"
-version = "0.13.0"
+version = "0.13.1"
 edition = "2021"
 authors = ["The New Relic Core Agent & Open Standards (CAOS) Team"]
 publish = false
@@ -19,7 +19,7 @@ tracing = { workspace = true }
 ctrlc = { version = "3.4.0", features = ["termination"] }
 serde_yaml = { workspace = true }
 regex = { workspace = true }
-opamp-client = { git = "ssh://git@github.com/newrelic/opamp-rs.git", tag = "0.0.14", features = [
+opamp-client = { git = "ssh://git@github.com/newrelic/opamp-rs.git", tag = "0.0.13", features = [
   "sync-http",
 ], default-features = false }
 futures = { version = "0.3.28", optional = true }
