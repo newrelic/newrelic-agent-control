@@ -352,6 +352,7 @@ impl AsyncK8sClient {
             )))?
             .object_api;
 
+        debug!("deleting dynamic object collection: {:?}", tm.kind);
         delete_collection(api, label_selector).await
     }
 
@@ -460,7 +461,11 @@ where
         // List of objects being deleted.
         either::Left(list) => {
             list.iter().for_each(|obj| {
-                debug!("Deleting collection: {:?}", obj.meta().name);
+                debug!(
+                    "Deleting collection: {:?}/{:?}",
+                    list.types.kind,
+                    obj.meta().name
+                );
             });
         }
         // Status response of the deleted objects.
