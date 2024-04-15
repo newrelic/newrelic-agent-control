@@ -7,9 +7,9 @@ use super::{
 
 // Include generated code
 include!(concat!(
-    env!("OUT_DIR"),
+    env!("OUT_DIR"), // set by Cargo
     "/",
-    env!("GENERATED_REGISTRY_FILE"),
+    env!("GENERATED_REGISTRY_FILE"), // Set in the super-agent build script
 ));
 
 /// Defines an [AgentRegistry] by keeping AgentTypeDefinitions in memory.
