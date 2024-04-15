@@ -1,13 +1,7 @@
-use std::collections::HashMap;
-
-use tracing::{debug, error, info};
-
+use super::{error::SubAgentCollectionError, NotStartedSubAgent, StartedSubAgent};
 use crate::super_agent::config::AgentID;
-
-use super::{
-    error::{SubAgentCollectionError, SubAgentError},
-    NotStartedSubAgent, StartedSubAgent,
-};
+use std::collections::HashMap;
+use tracing::{debug, error, info};
 
 pub(crate) struct NotStartedSubAgents<S>(HashMap<AgentID, S>)
 where
@@ -26,18 +20,16 @@ impl<S> NotStartedSubAgents<S>
 where
     S: NotStartedSubAgent,
 {
-    pub(crate) fn run(
-        self,
-    ) -> Result<StartedSubAgents<S::StartedSubAgent>, SubAgentCollectionError> {
-        let sub_agents: Result<HashMap<AgentID, S::StartedSubAgent>, SubAgentError> = self
+    pub(crate) fn run(self) -> StartedSubAgents<S::StartedSubAgent> {
+        let sub_agents: HashMap<AgentID, S::StartedSubAgent> = self
             .0
             .into_iter()
             .map(|(id, subagent)| {
                 debug!("Running supervisors for agent {}", id);
-                Ok((id, subagent.run()?))
+                (id, subagent.run())
             })
             .collect();
-        Ok(StartedSubAgents(sub_agents?))
+        StartedSubAgents(sub_agents)
     }
 }
 
@@ -82,10 +74,9 @@ where
     }
 
     pub(crate) fn stop(self) -> Result<(), SubAgentCollectionError> {
-        self.0.into_iter().try_for_each(|(agent_id, sub_agent)| {
-            Self::stop_agent(&agent_id, sub_agent)?;
-            Ok(())
-        })
+        self.0
+            .into_iter()
+            .try_for_each(|(agent_id, sub_agent)| Self::stop_agent(&agent_id, sub_agent))
     }
 }
 

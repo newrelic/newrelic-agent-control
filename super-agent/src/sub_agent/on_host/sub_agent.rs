@@ -51,7 +51,7 @@ where
 {
     type StartedSubAgent = SubAgentOnHost<Started, command_supervisor::Started>;
 
-    fn run(self) -> Result<SubAgentOnHost<Started, command_supervisor::Started>, SubAgentError> {
+    fn run(self) -> SubAgentOnHost<Started, command_supervisor::Started> {
         let started_supervisors = self
             .supervisors
             .into_iter()
@@ -63,15 +63,13 @@ where
 
         let event_loop_handle = self.state.event_processor.process();
 
-        let started_sub_agent = SubAgentOnHost {
+        SubAgentOnHost {
             supervisors: started_supervisors,
             agent_id: self.agent_id,
             agent_type: self.agent_type,
             sub_agent_internal_publisher: self.sub_agent_internal_publisher,
             state: Started { event_loop_handle },
-        };
-
-        Ok(started_sub_agent)
+        }
     }
 }
 
@@ -125,7 +123,7 @@ mod test {
             sub_agent_internal_publisher,
         );
 
-        let started_agent = sub_agent.run().unwrap();
+        let started_agent = sub_agent.run();
         sleep(Duration::from_millis(20));
         // close the OpAMP Publisher
 

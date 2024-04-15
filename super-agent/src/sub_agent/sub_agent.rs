@@ -14,7 +14,7 @@ pub(crate) type SubAgentCallbacks = AgentCallbacks<OpAMPRemoteConfigPublisher>;
 pub trait NotStartedSubAgent {
     type StartedSubAgent: StartedSubAgent;
     /// The run method will execute a supervisor (non-blocking). Returns a [`Stopper`] to manage the running process.
-    fn run(self) -> Result<Self::StartedSubAgent, error::SubAgentError>;
+    fn run(self) -> Self::StartedSubAgent;
 }
 
 // The StartedSubAgent trait defines the interface for a supervisor that is already running.
@@ -80,7 +80,7 @@ pub mod test {
         impl NotStartedSubAgent for NotStartedSubAgent {
             type StartedSubAgent = MockStartedSubAgent;
 
-            fn run(self) -> Result<<Self as NotStartedSubAgent>::StartedSubAgent, error::SubAgentError>;
+            fn run(self) -> <Self as NotStartedSubAgent>::StartedSubAgent;
         }
     }
 
@@ -88,7 +88,7 @@ pub mod test {
         pub fn should_run(&mut self, started_sub_agent: MockStartedSubAgent) {
             self.expect_run()
                 .once()
-                .return_once(move || Ok(started_sub_agent));
+                .return_once(move || started_sub_agent);
         }
     }
 
@@ -119,7 +119,7 @@ pub mod test {
                         .expect_stop()
                         .times(1)
                         .returning(|| Ok(Vec::new()));
-                    Ok(started_agent)
+                    started_agent
                 });
                 Ok(not_started_sub_agent)
             });

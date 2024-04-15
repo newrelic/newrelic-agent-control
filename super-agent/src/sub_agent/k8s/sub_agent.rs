@@ -69,7 +69,7 @@ where
     // Run has two main duties:
     // - it starts the supervisors if any
     // - it starts processing events (internal and opamp ones)
-    fn run(self) -> Result<Self::StartedSubAgent, SubAgentError> {
+    fn run(self) -> Self::StartedSubAgent {
         if let Some(cr_supervisor) = &self.supervisor {
             _ = cr_supervisor
                 .apply()
@@ -78,13 +78,13 @@ where
 
         let event_loop_handle = self.state.event_processor.process();
 
-        Ok(SubAgentK8s {
+        SubAgentK8s {
             agent_id: self.agent_id,
             agent_type: self.agent_type,
             supervisor: self.supervisor,
             sub_agent_internal_publisher: self.sub_agent_internal_publisher,
             state: Started { event_loop_handle },
-        })
+        }
     }
 }
 
@@ -226,8 +226,7 @@ mod test {
                 application_event_publisher,
             )
             .unwrap() // Not started agent
-            .run()
-            .unwrap();
+            .run();
         assert!(started_agent.stop().is_ok())
     }
 

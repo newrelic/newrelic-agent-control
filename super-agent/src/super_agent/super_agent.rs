@@ -106,7 +106,7 @@ where
 
         info!("Agents supervisor runtime successfully started");
         // Run all the Sub Agents
-        let running_sub_agents = not_started_sub_agents.run()?;
+        let running_sub_agents = not_started_sub_agents.run();
 
         self.process_events(
             application_event_consumer,
@@ -196,7 +196,7 @@ where
             agent_id.clone(),
             self.sub_agent_builder
                 .build(agent_id, sub_agent_config, sub_agent_publisher)?
-                .run()?,
+                .run(),
         );
 
         Ok(())
@@ -681,7 +681,7 @@ agents:
 
         let sub_agents = super_agent.load_sub_agents(&sub_agents_config, opamp_publisher.clone());
 
-        let mut running_sub_agents = sub_agents.unwrap().run().unwrap();
+        let mut running_sub_agents = sub_agents.unwrap().run();
 
         // just one agent, it should remove the infra-agent
         let remote_config = RemoteConfig::new(
