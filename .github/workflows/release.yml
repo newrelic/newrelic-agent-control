@@ -44,7 +44,7 @@ jobs:
           gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
           disable_lock: false
           dest_prefix: "preview/"
-          local_packages_path:  "/srv/dist/"
+          local_packages_path: "/srv/dist/"
           apt_skip_mirror: false # todo, update for next releases
 
       - name: Publish rpm to S3 action
@@ -69,7 +69,7 @@ jobs:
           gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
           disable_lock: false
           dest_prefix: "preview/"
-          local_packages_path:  "/srv/dist/"
+          local_packages_path: "/srv/dist/"
           apt_skip_mirror: false
   
   push-container-tags:
@@ -98,8 +98,20 @@ jobs:
 
   molecule-packaging-tests:
     uses: ./.github/workflows/component_molecule_packaging.yml
-    needs: [upload]
+    needs: [ upload ]
     with:
       TAG: ${{ github.event.inputs.tag_name || github.event.release.tag_name }}
       PACKAGE_NAME: "newrelic-super-agent"
       REPO_ENDPOINT: 'https://download.newrelic.com/preview'
+
+  notify-failure:
+    if: ${{ always() && failure() }}
+    needs: [ molecule-packaging-tests ]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify failure via Slack
+        uses: archive/github-actions-slack@master
+        with:
+          slack-bot-user-oauth-access-token: ${{ secrets.COREINT_SLACK_TOKEN }}
+          slack-channel: ${{ secrets.CAOS_COREINT_SLACK_CHANNEL }}
+          slack-text: "❌ `newrelic/newrelic-super-agent`: [release failed](${{ github.server_url }}/newrelic/newrelic-super-agent/actions/runs/${{ github.run_id }})."
