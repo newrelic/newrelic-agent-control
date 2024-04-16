@@ -22,9 +22,6 @@ pub trait AgentRegistry {
 
 #[cfg(test)]
 pub mod tests {
-    use crate::agent_type::{
-        definition::tests::AGENT_GIVEN_YAML, embedded_registry::EmbeddedRegistry,
-    };
 
     use super::*;
     use mockall::{mock, predicate};

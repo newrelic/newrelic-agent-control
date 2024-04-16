@@ -15,13 +15,15 @@ fn main() {
 }
 
 fn generate_agent_type_registry() {
-    let current_dir = env::current_dir().unwrap();
-    let registry_paths = glob(format!("{REGISTRY_PATH}**/*.yaml").as_str()).unwrap();
+    let current_dir =
+        env::current_dir().expect("Could not get current directory to embed registry files");
+    let registry_paths =
+        glob(format!("{REGISTRY_PATH}**/*.yaml").as_str()).expect("could not iter registry files");
 
     // comma-separated `include_bytes!(<full-path>)` for each file in the registry
     let static_array_content = registry_paths
         .map(|entry| {
-            let path = entry.unwrap();
+            let path = entry.expect("Could not read matching registry file");
             let full_path = Path::new(&current_dir).join(path).display().to_string();
             format!("include_bytes!(\"{full_path}\")")
         })
@@ -32,7 +34,7 @@ fn generate_agent_type_registry() {
     let contents =
         format!("pub const AGENT_TYPE_REGISTRY_FILES: &[&[u8]] = &[{static_array_content}];");
 
-    let out_dir = env::var_os("OUT_DIR").unwrap();
+    let out_dir = env::var_os("OUT_DIR").expect("Could not load the target registry file path");
     let dest_path = Path::new(&out_dir).join(GENERATED_REGISTRY_FILE);
-    fs::write(dest_path, contents).unwrap();
+    fs::write(dest_path, contents).expect("Could not write the auto-generated registry file");
 }
