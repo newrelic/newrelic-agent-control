@@ -96,7 +96,7 @@
         that: not result.stat.exists
 
     - name: get latest logs from the Super Agent
-      shell: journalctl -u newrelic-super-agent --since "1min ago" | grep "error processing valid remote config"
+      shell: journalctl -u newrelic-super-agent --since "1min ago" | grep "error processing remote config"
       register: journalctl_log
 
     - name: assert the incorrect config was logged

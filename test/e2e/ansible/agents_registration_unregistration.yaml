@@ -54,14 +54,13 @@
       pause:
         seconds: 60
 
-    - name: Assert agents are unhealthy
+    - name: Assert SubAgents are not running
       include_role:
-        name: fleet_api_request
+        name: caos.ansible_roles.assert_process_running
       vars:
-        assert_agents_health:
-          ulids: [ "{{ infra_agent_ulid }}", "{{ otel_agent_ulid }}" ]
-          host: "{{ hostname }}"
-          healthy: false
+        processes_not_running:
+          - "^/usr/bin/newrelic-infra"
+          - "^/usr/bin/nr-otel-collector"
 
     - name: Assert super-agent is healthy
       include_role:

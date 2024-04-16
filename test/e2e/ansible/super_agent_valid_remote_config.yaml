@@ -267,6 +267,10 @@
       retries: 5
       delay: 5
 
+    - name: Wait for 10 seconds for all agents to be running
+      pause:
+        seconds: 10
+
     - name: Assert Super Agent and Agents are running back from local config
       include_role:
         name: caos.ansible_roles.assert_process_running
