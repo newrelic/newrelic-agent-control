@@ -98,11 +98,19 @@ where
                 })?;
             }
 
+            // The below two lines are used to create a channel that never receives any message
+            // if the sub_agent_opamp_consumer is None. Thus, we avoid erroring if there is no
+            // publisher for OpAMP events and we attempt to receive them, as erroring while reading
+            // from this channel will break the loop and prevent the reception of sub-agent
+            // internal events if OpAMP is globally disabled in the super-agent config.
             let never_receive = EventConsumer::from(never());
             let opamp_receiver = self
                 .sub_agent_opamp_consumer
                 .as_ref()
                 .unwrap_or(&never_receive);
+            // TODO: We should separate the loop for OpAMP events and internal events into two
+            // different loops, which currently is not straight forward due to sharing structures
+            // that need to be moved into thread closures.
             loop {
                 select! {
                     recv(opamp_receiver.as_ref()) -> opamp_event_res => {
