@@ -1,10 +1,5 @@
-use crate::super_agent::defaults::{
-    DYNAMIC_AGENT_TYPE, NEWRELIC_INFRA_TYPE_0_0_1, NEWRELIC_INFRA_TYPE_0_0_2,
-    NEWRELIC_INFRA_TYPE_0_1_0, NEWRELIC_INFRA_TYPE_0_1_1, NRDOT_TYPE_0_0_1, NRDOT_TYPE_0_1_0,
-};
-use std::collections::HashMap;
 use thiserror::Error;
-use tracing::{debug, error};
+use tracing::error;
 
 use super::definition::AgentTypeDefinition;
 
@@ -23,76 +18,6 @@ pub trait AgentRegistry {
     // get returns an Agent type given a definition.
     // TODO: evaluate if returning an owned value is needed, CoW?
     fn get(&self, name: &str) -> Result<AgentTypeDefinition, AgentRepositoryError>;
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct LocalRegistry(HashMap<String, AgentTypeDefinition>);
-
-impl Default for LocalRegistry {
-    // default returns the LocalRegistry loaded with the defined default agents
-    fn default() -> Self {
-        let mut local_agent_type_repository = LocalRegistry(HashMap::new());
-
-        let default_agents = vec![
-            NEWRELIC_INFRA_TYPE_0_0_1,
-            NEWRELIC_INFRA_TYPE_0_0_2,
-            NEWRELIC_INFRA_TYPE_0_1_0,
-            NEWRELIC_INFRA_TYPE_0_1_1,
-            NRDOT_TYPE_0_0_1,
-            NRDOT_TYPE_0_1_0,
-        ];
-
-        default_agents
-            .into_iter()
-            .try_for_each(|agent| {
-                local_agent_type_repository
-                    .store_from_yaml(agent.as_bytes())
-                    .inspect_err(|e| error!("Could not add default agent type: {e}"))
-            })
-            .expect("Could not add all default agent types. Quitting.");
-
-        if let Ok(file) = std::fs::read_to_string(DYNAMIC_AGENT_TYPE) {
-            _ = local_agent_type_repository
-                .store_from_yaml(file.as_bytes())
-                .inspect_err(|e| debug!("Could not add dynamic-agent-type.yaml: {e}"));
-        }
-
-        local_agent_type_repository
-    }
-}
-
-impl LocalRegistry {
-    pub fn store_from_yaml(&mut self, agent_bytes: &[u8]) -> Result<(), AgentRepositoryError> {
-        let agent: AgentTypeDefinition = serde_yaml::from_reader(agent_bytes)?;
-        //  We check if an agent already exists and fail if so.
-        let metadata = agent.metadata.to_string();
-        if self.0.contains_key(&metadata) {
-            return Err(AgentRepositoryError::AlreadyExists(metadata));
-        }
-        self.0.insert(metadata, agent);
-        Ok(())
-    }
-}
-
-impl AgentRegistry for LocalRegistry {
-    fn get(&self, name: &str) -> Result<AgentTypeDefinition, AgentRepositoryError> {
-        match self.0.get(name) {
-            None => Err(AgentRepositoryError::NotFound),
-            Some(final_agent) => Ok(final_agent.clone()),
-        }
-    }
-}
-
-impl LocalRegistry {
-    pub fn new<A: IntoIterator<Item = AgentTypeDefinition>>(agents: A) -> Self {
-        let mut registry = LocalRegistry::default();
-
-        for agent in agents {
-            registry.0.insert(agent.metadata.to_string(), agent);
-        }
-
-        registry
-    }
 }
 
 #[cfg(test)]
@@ -127,90 +52,6 @@ pub mod tests {
                 .with(predicate::eq(name.clone()))
                 .once()
                 .returning(move |_| Err(AgentRepositoryError::NotFound));
-        }
-    }
-
-    impl LocalRegistry {
-        pub fn store_with_key(
-            &mut self,
-            key: String,
-            agent: AgentTypeDefinition,
-        ) -> Result<(), AgentRepositoryError> {
-            Ok(_ = self.0.insert(key, agent))
-        }
-    }
-
-    #[test]
-    fn default_local_registry() {
-        let registry = LocalRegistry::default();
-        assert_eq!(registry.0.len(), 6)
-    }
-
-    #[test]
-    fn add_multiple_agents() {
-        let mut repository = LocalRegistry::default();
-
-        assert!(repository
-            .store_from_yaml(AGENT_GIVEN_YAML.as_bytes())
-            .is_ok());
-
-        assert_eq!(
-            repository
-                .get("newrelic/nrdot:0.1.0")
-                .unwrap()
-                .metadata
-                .to_string(),
-            "newrelic/nrdot:0.1.0"
-        );
-
-        let invalid_lookup = repository.get("not_an_agent");
-        assert!(invalid_lookup.is_err());
-
-        assert_eq!(
-            invalid_lookup.unwrap_err().to_string(),
-            "agent not found".to_string()
-        )
-    }
-
-    #[test]
-    fn add_duplicate_agents() {
-        let mut repository = LocalRegistry::default();
-
-        assert!(repository
-            .store_from_yaml(AGENT_GIVEN_YAML.as_bytes())
-            .is_ok());
-
-        let duplicate = repository.store_from_yaml(AGENT_GIVEN_YAML.as_bytes());
-        assert!(duplicate.is_err());
-
-        let err = duplicate.unwrap_err();
-        matches!(err, AgentRepositoryError::AlreadyExists(_));
-
-        assert_eq!(
-            err.to_string(),
-            "agent `newrelic/nrdot:0.1.0` already exists".to_string()
-        )
-    }
-
-    #[test]
-    fn test_embeded_and_local_defaults() {
-        // TODO: this is a temporarily test to check that migration from `LocalRegistry` to `EmbeddedRegistry` would
-        // be feasible (both registry defaults should have the same content).
-
-        let embedded = EmbeddedRegistry::default();
-        let local = LocalRegistry::default();
-
-        for name in local.0.keys() {
-            let from_local = local.get(name).unwrap();
-            let from_embedded = embedded
-                .get(name)
-                .unwrap_or_else(|_| panic!("{name} is not defined in the embedded registry"));
-
-            assert_eq!(
-                from_local,
-                from_embedded,
-                "The definition for {name} in the embedded registry doesn't match with the one in local",
-            );
         }
     }
 }
