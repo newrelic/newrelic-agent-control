@@ -10,16 +10,17 @@ use std::thread::JoinHandle;
 
 pub(crate) type SubAgentCallbacks = AgentCallbacks<OpAMPRemoteConfigPublisher>;
 
-/// The Runner trait defines the entry-point interface for a supervisor. Exposes a run method that will start the supervised processes' execution.
+/// NotStartedSubAgent exposes a run method that starts processing events and, if present, the supervisors.
 pub trait NotStartedSubAgent {
     type StartedSubAgent: StartedSubAgent;
-    /// The run method will execute a supervisor (non-blocking). Returns a [`Stopper`] to manage the running process.
+    /// The run method (non-blocking) starts processing events and, if present, the supervisors.
+    /// It returns a StartedSubAgent exposing .stop() to manage the running process.
     fn run(self) -> Self::StartedSubAgent;
 }
 
-// The StartedSubAgent trait defines the interface for a supervisor that is already running.
-// Exposes information about the Sub Agent and a stop method that will stop the
-// supervised processes' execution.
+/// The StartedSubAgent trait defines the interface for a supervisor that is already running.
+/// Exposes information about the Sub Agent and a stop method that will stop the
+/// supervised processes' execution and the loop processing the events.
 pub trait StartedSubAgent {
     /// Returns the AgentID of the SubAgent
     fn agent_id(&self) -> AgentID;
