@@ -110,6 +110,7 @@ where
                     HashMap::from([("host.name".to_string(), get_hostname().into())]),
                 )
             })
+            // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
             .transpose()?
             .map(|(client, consumer)| (Some(client), Some(consumer)))
             .unwrap_or_default();
