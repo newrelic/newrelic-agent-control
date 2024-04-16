@@ -39,15 +39,6 @@ impl AgentRegistry for EmbeddedRegistry {
 }
 
 impl EmbeddedRegistry {
-    fn insert(&mut self, definition: AgentTypeDefinition) -> Result<(), AgentRepositoryError> {
-        let metadata = definition.metadata.to_string();
-        if self.0.contains_key(&metadata) {
-            return Err(AgentRepositoryError::AlreadyExists(metadata));
-        }
-        self.0.insert(metadata, definition);
-        Ok(())
-    }
-
     fn try_new<T: IntoIterator<Item = AgentTypeDefinition>>(
         definitions_iter: T,
     ) -> Result<Self, AgentRepositoryError> {
@@ -56,6 +47,15 @@ impl EmbeddedRegistry {
             .into_iter()
             .try_for_each(|definition| registry.insert(definition))?;
         Ok(registry)
+    }
+
+    fn insert(&mut self, definition: AgentTypeDefinition) -> Result<(), AgentRepositoryError> {
+        let metadata = definition.metadata.to_string();
+        if self.0.contains_key(&metadata) {
+            return Err(AgentRepositoryError::AlreadyExists(metadata));
+        }
+        self.0.insert(metadata, definition);
+        Ok(())
     }
 }
 
