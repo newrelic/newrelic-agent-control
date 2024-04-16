@@ -79,7 +79,7 @@ where
 
 #[cfg(test)]
 pub mod test {
-    use crate::event::channel::{EventConsumer, EventPublisher};
+    use crate::event::channel::{pub_sub, EventConsumer, EventPublisher};
     use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
     use crate::sub_agent::event_processor::test::MockEventProcessorMock;
     use crate::sub_agent::event_processor_builder::SubAgentEventProcessorBuilder;
@@ -124,18 +124,23 @@ pub mod test {
                 .return_once(move |_, _, _, _, _| processor);
         }
 
-        pub fn should_return_event_processor_with_consumer(&mut self) {
+        pub fn should_return_event_processor_with_consumer(
+            &mut self,
+        ) -> EventConsumer<SubAgentInternalEvent> {
             let mut sub_agent_event_processor = MockEventProcessorMock::default();
             sub_agent_event_processor.should_process();
+            let (test_publisher, test_consumer) = pub_sub();
 
             self.expect_build()
                 .once()
                 .return_once(move |_, _, _, consumer, _| {
                     thread::spawn(move || {
-                        _ = consumer.as_ref().recv();
+                        let event = consumer.as_ref().recv();
+                        test_publisher.publish(event.unwrap())
                     });
                     sub_agent_event_processor
                 });
+            test_consumer
         }
     }
 }

@@ -310,7 +310,7 @@ mod test {
         );
 
         let mut sub_agent_event_processor_builder = MockSubAgentEventProcessorBuilderMock::new();
-        sub_agent_event_processor_builder.should_return_event_processor_with_consumer();
+        _ = sub_agent_event_processor_builder.should_return_event_processor_with_consumer();
 
         let on_host_builder = OnHostSubAgentBuilder::new(
             Some(&opamp_builder),
