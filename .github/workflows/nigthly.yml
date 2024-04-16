@@ -20,7 +20,7 @@ jobs:
 
   security-scan:
     name: Security scan
-    needs: [build-push]
+    needs: [ build-push ]
     uses: ./.github/workflows/component_image_security.yml
     with:
       image-tag: nightly
@@ -90,13 +90,13 @@ jobs:
           gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
           disable_lock: false
           dest_prefix: "super-agent-nightlies/"
-          local_packages_path:  "/srv/dist/"
+          local_packages_path: "/srv/dist/"
           apt_skip_mirror: false
 
 
   onhost-e2e:
     uses: ./.github/workflows/component_onhost_e2e.yaml
-    needs: [build-nightly]
+    needs: [ build-nightly ]
     with:
       TAG: "${{ needs.build-nightly.outputs.tag }}"
       UNIQUE_NAME: "nightly:e2e"
@@ -106,3 +106,16 @@ jobs:
     secrets:
       AWS_ROLE_ARN: ${{ secrets.TMP_AWS_ROLE_ARN }}
       AWS_VPC_SUBNET: ${{ secrets.TMP_AWS_VPC_SUBNET }}
+
+  notify-failure:
+    if: ${{ always() && failure() }}
+    needs: [ onhost-e2e ]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify failure via Slack
+        uses: archive/github-actions-slack@master
+        with:
+          slack-bot-user-oauth-access-token: ${{ secrets.COREINT_SLACK_TOKEN }}
+          slack-channel: ${{ secrets.CAOS_COREINT_SLACK_CHANNEL }}
+          slack-text: "❌ `newrelic/newrelic-super-agent`: [Nightly release failed](${{ github.server_url }}/newrelic/newrelic-super-agent/actions/runs/${{ github.run_id }})."
+
