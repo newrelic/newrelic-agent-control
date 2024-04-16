@@ -12,10 +12,6 @@ pub(super) struct StatusEndpointConfig {
 
     #[serde(default)] // Pick the default port if the field is not included
     pub(super) port: Port,
-    // Depending on what we can parameterize when implementing the endpoint itself,
-    // we might want to add more fields here.
-    // pub(super) timeout: u64,
-    // pub(super) path: String, // should we hardcode it to "/status"?
 }
 
 #[derive(Deserialize, PartialEq, Debug, Clone)]
