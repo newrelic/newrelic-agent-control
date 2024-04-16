@@ -153,7 +153,7 @@ fn run_super_agent(
         identifiers_provider,
     );
 
-    let (maybe_client, super_agent_opamp_consumer) = opamp_client_builder
+    let (maybe_client, maybe_sa_opamp_consumer) = opamp_client_builder
         .as_ref()
         .map(|b| {
             build_opamp_with_channel(
@@ -174,7 +174,7 @@ fn run_super_agent(
         sub_agent_builder,
         config_storer,
     )
-    .run(application_events_consumer, super_agent_opamp_consumer)
+    .run(application_events_consumer, maybe_sa_opamp_consumer)
 }
 
 fn print_identifiers(identifiers: &Identifiers) {
