@@ -11,7 +11,7 @@ use crate::event::SubAgentEvent;
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::instance_id::IdentifiersProvider;
-use crate::opamp::operations::build_opamp_and_start_client;
+use crate::opamp::operations::build_opamp_with_channel;
 use crate::opamp::remote_config_report::{
     report_remote_config_status_applied, report_remote_config_status_error,
 };
@@ -97,17 +97,23 @@ where
         sub_agent_config: &SubAgentConfig,
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
-        let (sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
 
-        let maybe_opamp_client = build_opamp_and_start_client(
-            sub_agent_opamp_publisher,
-            self.opamp_builder,
-            self.instance_id_getter,
-            agent_id.clone(),
-            &sub_agent_config.agent_type,
-            HashMap::from([("host.name".to_string(), get_hostname().into())]),
-        )?;
+        let (maybe_opamp_client, sub_agent_opamp_consumer) = self
+            .opamp_builder
+            .map(|builder| {
+                build_opamp_with_channel(
+                    builder,
+                    self.instance_id_getter,
+                    agent_id.clone(),
+                    &sub_agent_config.agent_type,
+                    HashMap::from([("host.name".to_string(), get_hostname().into())]),
+                )
+            })
+            // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
+            .transpose()?
+            .map(|(client, consumer)| (Some(client), Some(consumer)))
+            .unwrap_or_default();
 
         // try to build effective agent
         let effective_agent_res = self.effective_agent_assembler.assemble_agent(

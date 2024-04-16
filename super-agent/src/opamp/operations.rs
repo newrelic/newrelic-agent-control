@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 
 use crate::{
-    event::{channel::EventPublisher, OpAMPEvent},
+    event::{
+        channel::{pub_sub, EventConsumer, EventPublisher},
+        OpAMPEvent,
+    },
     sub_agent::error::SubAgentError,
     super_agent::config::{AgentID, AgentTypeFQN},
 };
@@ -19,35 +22,52 @@ use super::{
     instance_id::getter::InstanceIDGetter,
 };
 
-pub fn build_opamp_and_start_client<CB, OB, IG>(
-    opamp_publisher: EventPublisher<OpAMPEvent>,
-    opamp_builder: Option<&OB>,
+pub fn build_opamp_with_channel<CB, OB, IG>(
+    opamp_builder: &OB,
     instance_id_getter: &IG,
     agent_id: AgentID,
     agent_type: &AgentTypeFQN,
     non_identifying_attributes: HashMap<String, DescriptionValueType>,
-) -> Result<Option<OB::Client>, OpAMPClientBuilderError>
+) -> Result<(OB::Client, EventConsumer<OpAMPEvent>), OpAMPClientBuilderError>
 where
     CB: Callbacks,
     OB: OpAMPClientBuilder<CB>,
     IG: InstanceIDGetter,
 {
-    match opamp_builder {
-        Some(builder) => {
-            let start_settings = start_settings(
-                instance_id_getter.get(&agent_id)?.to_string(),
-                agent_type,
-                non_identifying_attributes,
-            );
+    let (tx, rx) = pub_sub();
+    let client = build_opamp_and_start_client(
+        tx,
+        opamp_builder,
+        instance_id_getter,
+        agent_id,
+        agent_type,
+        non_identifying_attributes,
+    )?;
+    Ok((client, rx))
+}
 
-            Ok(Some(builder.build_and_start(
-                opamp_publisher,
-                agent_id,
-                start_settings,
-            )?))
-        }
-        None => Ok(None),
-    }
+pub fn build_opamp_and_start_client<CB, OB, IG>(
+    opamp_publisher: EventPublisher<OpAMPEvent>,
+    opamp_builder: &OB,
+    instance_id_getter: &IG,
+    agent_id: AgentID,
+    agent_type: &AgentTypeFQN,
+    non_identifying_attributes: HashMap<String, DescriptionValueType>,
+) -> Result<OB::Client, OpAMPClientBuilderError>
+where
+    CB: Callbacks,
+    OB: OpAMPClientBuilder<CB>,
+    IG: InstanceIDGetter,
+{
+    let start_settings = start_settings(
+        instance_id_getter.get(&agent_id)?.to_string(),
+        agent_type,
+        non_identifying_attributes,
+    );
+    let started_opamp_client =
+        opamp_builder.build_and_start(opamp_publisher, agent_id, start_settings)?;
+
+    Ok(started_opamp_client)
 }
 
 /// Builds the OpAMP StartSettings corresponding to the provided arguments for any sub agent.

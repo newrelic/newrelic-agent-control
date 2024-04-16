@@ -24,6 +24,7 @@ use crate::super_agent::{
     error::AgentError,
 };
 use crate::utils::time::get_sys_time_nano;
+use crossbeam::channel::never;
 use crossbeam::select;
 use opamp_client::{opamp::proto::ComponentHealth, StartedClient};
 use std::collections::HashMap;
@@ -76,7 +77,7 @@ where
     pub fn run(
         self,
         application_event_consumer: EventConsumer<ApplicationEvent>,
-        super_agent_opamp_consumer: EventConsumer<OpAMPEvent>,
+        super_agent_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
     ) -> Result<(), AgentError> {
         debug!("Creating agent's communication channels");
         if let Some(opamp_handle) = &self.opamp_client {
@@ -207,7 +208,7 @@ where
     fn process_events(
         &self,
         application_event_consumer: EventConsumer<ApplicationEvent>,
-        super_agent_opamp_consumer: EventConsumer<OpAMPEvent>,
+        super_agent_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
         sub_agent_consumer: EventConsumer<SubAgentEvent>,
         mut sub_agents: StartedSubAgents<
@@ -219,9 +220,13 @@ where
             .inspect_err(|e| error!("Error reporting health on Super Agent start: {}", e));
 
         debug!("Listening for events from agents");
+        let never_receive = EventConsumer::from(never());
+        let opamp_receiver = super_agent_opamp_consumer
+            .as_ref()
+            .unwrap_or(&never_receive);
         loop {
             select! {
-                recv(super_agent_opamp_consumer.as_ref()) -> opamp_event => {
+                recv(&opamp_receiver.as_ref()) -> opamp_event => {
                     debug!("Received OpAMP event");
                     match opamp_event.unwrap() {
                         OpAMPEvent::RemoteConfigReceived(remote_config) => {
@@ -478,7 +483,9 @@ mod tests {
             .publish(ApplicationEvent::StopRequested)
             .unwrap();
 
-        assert!(agent.run(application_event_consumer, pub_sub().1).is_ok())
+        assert!(agent
+            .run(application_event_consumer, pub_sub().1.into())
+            .is_ok())
     }
 
     #[test]
@@ -520,7 +527,9 @@ mod tests {
             .publish(ApplicationEvent::StopRequested)
             .unwrap();
 
-        assert!(agent.run(application_event_consumer, pub_sub().1).is_ok())
+        assert!(agent
+            .run(application_event_consumer, pub_sub().1.into())
+            .is_ok())
     }
 
     #[test]
@@ -591,7 +600,7 @@ mod tests {
                     sub_agent_builder,
                     sub_agents_config_store,
                 );
-                agent.run(application_event_consumer, opamp_consumer)
+                agent.run(application_event_consumer, opamp_consumer.into())
             }
         });
 
@@ -840,7 +849,7 @@ agents:
         super_agent
             .process_events(
                 application_event_consumer,
-                super_agent_opamp_consumer,
+                super_agent_opamp_consumer.into(),
                 sub_agent_publisher,
                 sub_agent_consumer,
                 sub_agents,

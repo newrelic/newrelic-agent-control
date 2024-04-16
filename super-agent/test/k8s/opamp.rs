@@ -297,7 +297,7 @@ impl K8sOpAMPEnv {
 
             let maybe_client = build_opamp_and_start_client(
                 super_agent_opamp_publisher_clone,
-                Some(&self.super_agent_opamp_builder),
+                &self.super_agent_opamp_builder,
                 &self.instance_id_getter,
                 AgentID::new_super_agent_id(),
                 &super_agent_fqn(),
@@ -309,14 +309,14 @@ impl K8sOpAMPEnv {
             .expect("Failed to build and start opamp client");
 
             let super_agent = SuperAgent::new(
-                maybe_client,
+                maybe_client.into(),
                 self.hash_repository.clone(),
                 sub_agent_builder,
                 self.config_storer.clone(),
             );
 
             super_agent
-                .run(self.application_event_consumer, self.opamp_consumer)
+                .run(self.application_event_consumer, self.opamp_consumer.into())
                 .expect("Failed to run super agent");
         })
     }
