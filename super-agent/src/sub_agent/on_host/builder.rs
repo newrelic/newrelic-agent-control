@@ -101,9 +101,9 @@ where
 
         let (maybe_opamp_client, sub_agent_opamp_consumer) = self
             .opamp_builder
-            .map(|b| {
+            .map(|builder| {
                 build_opamp_with_channel(
-                    b,
+                    builder,
                     self.instance_id_getter,
                     agent_id.clone(),
                     &sub_agent_config.agent_type,

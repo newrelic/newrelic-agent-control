@@ -155,9 +155,9 @@ fn run_super_agent(
 
     let (maybe_client, maybe_sa_opamp_consumer) = opamp_client_builder
         .as_ref()
-        .map(|b| {
+        .map(|builder| {
             build_opamp_with_channel(
-                b,
+                builder,
                 &instance_id_getter,
                 AgentID::new_super_agent_id(),
                 &super_agent_fqn(),
@@ -259,9 +259,9 @@ fn run_super_agent(
 
     let (maybe_client, opamp_consumer) = opamp_client_builder
         .as_ref()
-        .map(|b| {
+        .map(|builder| {
             build_opamp_with_channel(
-                b,
+                builder,
                 &instance_id_getter,
                 AgentID::new_super_agent_id(),
                 &super_agent_fqn(),
