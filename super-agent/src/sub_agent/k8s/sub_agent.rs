@@ -336,7 +336,7 @@ mod test {
             SubAgentInternalEvent::AgentBecameUnhealthy(message) => {
                 assert!(message.contains(test_issue))
             }
-            _ => assert!(false),
+            _ => panic!("AgentBecameUnhealthy event expected"),
         }
     }
 }
