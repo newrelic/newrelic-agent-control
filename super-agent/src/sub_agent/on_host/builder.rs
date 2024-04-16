@@ -325,7 +325,6 @@ mod test {
             .build(sub_agent_id, &sub_agent_config, opamp_publisher)
             .unwrap()
             .run()
-            .unwrap()
             .stop()
             .is_ok())
     }
