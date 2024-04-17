@@ -178,7 +178,7 @@ pub mod test {
         assert!(result.is_err());
         assert_eq!(
             "invalid directory: `dots disallowed in path `some/path/../with/../dots``".to_string(),
-            result.err().unwrap().to_string()
+            result.unwrap_err().to_string()
         );
     }
 
@@ -195,7 +195,7 @@ pub mod test {
         assert!(result.is_err());
         assert_eq!(
             "invalid directory: `dots disallowed in path `some/path/../with/../dots``".to_string(),
-            result.err().unwrap().to_string()
+            result.unwrap_err().to_string()
         );
     }
 

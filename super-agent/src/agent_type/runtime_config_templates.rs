@@ -781,7 +781,7 @@ mod tests {
             Kind::String(_)
         );
         let key = assert_matches!(
-            normalized_var("does.not.exists", &variables).err().unwrap(),
+            normalized_var("does.not.exists", &variables).unwrap_err(),
             AgentTypeError::MissingTemplateKey(s) => s);
         assert_eq!("does.not.exists".to_string(), key);
     }
@@ -806,7 +806,7 @@ mod tests {
             replace(re, "${nr-var:any}-${nr-var:other}", "any", &default_var).unwrap()
         );
         let key = assert_matches!(
-            replace(re, "${nr-var:any}-x", "any", &neither_value_nor_default).err().unwrap(),
+            replace(re, "${nr-var:any}-x", "any", &neither_value_nor_default).unwrap_err(),
             AgentTypeError::MissingTemplateKey(s) => s);
         assert_eq!("any".to_string(), key);
     }

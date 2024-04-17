@@ -219,7 +219,7 @@ pub mod test {
         assert!(result.is_err());
         assert_eq!(
             "invalid path: `dots disallowed in path `some/path/../../etc/passwd``".to_string(),
-            result.err().unwrap().to_string()
+            result.unwrap_err().to_string()
         );
     }
 }
