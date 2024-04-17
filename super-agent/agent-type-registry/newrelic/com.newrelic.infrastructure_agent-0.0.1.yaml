@@ -1,0 +1,19 @@
+namespace: newrelic
+name: com.newrelic.infrastructure_agent
+version: 0.0.1
+variables:
+  on_host:
+    config_file:
+      description: "Newrelic infra configuration path"
+      type: string
+      required: false
+      default: /etc/newrelic-infra.yml
+deployment:
+  on_host:
+    executables:
+      - path: /usr/bin/newrelic-infra
+        args: "--config=${nr-var:config_file}"
+        restart_policy:
+          backoff_strategy:
+            type: fixed
+            backoff_delay: 20s

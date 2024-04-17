@@ -7,9 +7,8 @@ use crate::migration::config::{FILE_SEPARATOR, FILE_SEPARATOR_REPLACE};
 use crate::migration::converter::ConversionError::RequiredFileMappingNotFoundError;
 use fs::file_reader::{FileReader, FileReaderError};
 use fs::LocalFile;
-use newrelic_super_agent::agent_type::agent_type_registry::{
-    AgentRegistry, AgentRepositoryError, LocalRegistry,
-};
+use newrelic_super_agent::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError};
+use newrelic_super_agent::agent_type::embedded_registry::EmbeddedRegistry;
 use newrelic_super_agent::agent_type::environment::Environment;
 use newrelic_super_agent::agent_type::variable::kind::Kind;
 use newrelic_super_agent::sub_agent::effective_agents_assembler::{
@@ -39,10 +38,10 @@ pub struct ConfigConverter<R: AgentRegistry, F: FileReader> {
     file_reader: F,
 }
 
-impl Default for ConfigConverter<LocalRegistry, LocalFile> {
+impl Default for ConfigConverter<EmbeddedRegistry, LocalFile> {
     fn default() -> Self {
         ConfigConverter {
-            agent_registry: LocalRegistry::default(),
+            agent_registry: EmbeddedRegistry::default(),
             file_reader: LocalFile,
         }
     }
