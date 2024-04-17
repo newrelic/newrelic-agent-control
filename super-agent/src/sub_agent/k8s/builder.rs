@@ -464,6 +464,6 @@ pub mod test {
             .times(1)
             .returning(|_, _| Ok(()));
 
-        return (opamp_builder, instance_id_getter, hash_repository_mock);
+        (opamp_builder, instance_id_getter, hash_repository_mock)
     }
 }

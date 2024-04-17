@@ -122,6 +122,7 @@ mod test {
     use crate::sub_agent::k8s::CRSupervisor;
     use crate::sub_agent::{NotStarted, NotStartedSubAgent, StartedSubAgent};
     use crate::super_agent::config::{AgentID, AgentTypeFQN};
+    use assert_matches::assert_matches;
     use std::sync::Arc;
 
     const TEST_K8S_ISSUE: &str = "random issue";
@@ -141,12 +142,13 @@ mod test {
 
         let started_agent =
             create_k8s_sub_agent_successfully(sub_agent_internal_publisher, false).run();
-        match started_agent.stop() {
-            Err(SubAgentError::EventPublisherError(_)) => {}
-            _ => {
-                panic!("EventPublisherError expected")
-            }
-        }
+
+        // This error is triggered since the consumer is dropped and therefore the channel is closed
+        // Therefore, the subAgent fails to write to such channel when stopping
+        assert_matches!(
+            started_agent.stop().unwrap_err(),
+            SubAgentError::EventPublisherError(_)
+        );
     }
 
     #[test]
