@@ -42,15 +42,7 @@ variables:
       required: false
       default: false
   k8s:
-    chart_values:
-      description: "Newrelic otel collector chart values"
-      type: yaml
-      required: true
-    chart_version:
-      description: "Newrelic otel collector chart version"
-      type: string
-      required: true
-      default: "0.78.3"
+     ...
 ```
 
 All variables have a few common attributes:
@@ -99,6 +91,8 @@ deployment:
           http:
             path: "/v1/status"
             port: 8003
+  k8s:
+    ...
 ```
 
 By defining these three sections, developers can create a customizable and flexible agent type that can be used in various environments. 
