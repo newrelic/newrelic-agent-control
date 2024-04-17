@@ -3,12 +3,18 @@
 New Relic super agent is a generic supervisor that can be configured to orchestrate  observability agents. It integrates with New Relic fleet manager to help customers deploy, monitor and manage agents at scale. 
 
 ## Table of contents
-* [High-level architecture](#high-level-architecture)
-* [Running the agent (on-host and k8s)](#running-the-agent)
-* [Local and Remote configuration](#local-and-remote-configuration)
-* [Agent type development](#agent-type-development)
-* [Troubleshooting](#troubleshooting)
-* [Testing](#testing)
+- [Agent overview](#agent-overview)
+  - [Table of contents](#table-of-contents)
+  - [High-level architecture](#high-level-architecture)
+  - [Running the agent](#running-the-agent)
+    - [Running on-host](#running-on-host)
+    - [Running in Kubernetes](#running-in-kubernetes)
+      - [Prerequisites](#prerequisites)
+      - [Steps](#steps)
+  - [Local and Remote configuration](#local-and-remote-configuration)
+  - [Agent type development](#agent-type-development)
+  - [Troubleshooting](#troubleshooting)
+  - [Testing](#testing)
 
 ## High-level architecture
 ```mermaid
@@ -107,7 +113,7 @@ config: |
 
 We use [Minikube](https://minikube.sigs.k8s.io/docs/) and [Tilt](https://tilt.dev/) to launch a local cluster and deploy the Super Agent [charts](https://github.com/newrelic/helm-charts/tree/master/charts/super-agent).
 
-#### Prerequisites:
+#### Prerequisites
 - Install Minikube for local Kubernetes cluster emulation.
 - Install [ctlptl](https://github.com/tilt-dev/ctlptl)
 - Ensure you have Tilt installed for managing local development environments.
@@ -139,7 +145,7 @@ name: com.influxdata.telegraf
 version: 0.0.1
 
 # variables:
-#   on_host | kubernetes:
+#   common | on_host | kubernetes:
 #     my_var_1:
 #       description: "Variable description here"
 #       type: file | string
@@ -171,7 +177,7 @@ deployment:
             type: fixed
             backoff_delay: ${nr-var:backoff_delay}
 ```
-  ℹ️ Refer to the [agent type](https://github.com/newrelic/newrelic-super-agent/tree/improve-readability/super-agent/src/agent_type) implementation for the full definition of `variables` and `deployment`.
+  ℹ️ Refer to the [agent type](../super-agent/src/agent_type/README.md) implementation for the full definition of `variables` and `deployment`.
 
 2. Copy the agent type definition to `/etc/newrelic-super-agent/dynamic-agent-type.yaml`
 
