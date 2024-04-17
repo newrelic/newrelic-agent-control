@@ -16,4 +16,18 @@ configs:
     dirs_map:
       config_integrations: /etc/newrelic-infra/integrations.d
       config_logging: /etc/newrelic-infra/logging.d
+  -
+    agent_type_fqn: newrelic/com.newrelic.infrastructure_agent:0.1.1
+    files_map:
+      config_agent: /etc/newrelic-infra.yml
+    dirs_map:
+      config_integrations: /etc/newrelic-infra/integrations.d
+      config_logging: /etc/newrelic-infra/logging.d
+  -
+    agent_type_fqn: newrelic/com.newrelic.infrastructure_agent:0.1.2
+    files_map:
+      config_agent: /etc/newrelic-infra.yml
+    dirs_map:
+      config_integrations: /etc/newrelic-infra/integrations.d
+      config_logging: /etc/newrelic-infra/logging.d
 "#;
