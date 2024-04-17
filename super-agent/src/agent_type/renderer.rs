@@ -243,7 +243,7 @@ pub(crate) mod tests {
 
         let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default();
         let result = renderer.render(&agent_id, agent_type, values, attributes);
-        assert_matches!(result.err().unwrap(), AgentTypeError::ValuesNotPopulated(vars) => {
+        assert_matches!(result.unwrap_err(), AgentTypeError::ValuesNotPopulated(vars) => {
             assert_eq!(vars, vec!["config_path".to_string()])
         })
     }
@@ -257,7 +257,7 @@ pub(crate) mod tests {
 
         let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default();
         let result = renderer.render(&agent_id, agent_type, values, attributes);
-        assert_matches!(result.err().unwrap(), AgentTypeError::ValuesNotPopulated(vars) => {
+        assert_matches!(result.unwrap_err(), AgentTypeError::ValuesNotPopulated(vars) => {
             assert_eq!(vars, vec!["config_path".to_string()])
         })
     }

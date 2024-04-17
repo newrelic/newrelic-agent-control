@@ -494,7 +494,7 @@ mod test {
         assert!(result.is_err());
         assert_eq!(
             "directory error: `cannot delete directory: `oh now...``".to_string(),
-            result.err().unwrap().to_string()
+            result.unwrap_err().to_string()
         );
     }
 
@@ -537,7 +537,7 @@ mod test {
         assert_eq!(
             "directory error: `cannot create directory `some/path/some-agent-id` : `oh now...``"
                 .to_string(),
-            persist_result.err().unwrap().to_string()
+            persist_result.unwrap_err().to_string()
         );
     }
 
@@ -575,7 +575,7 @@ mod test {
         assert_eq!(
             "directory error: `cannot create directory `some/path/some-agent-id` : `oh now...``"
                 .to_string(),
-            persist_result.err().unwrap().to_string()
+            persist_result.unwrap_err().to_string()
         );
     }
 
@@ -619,7 +619,7 @@ mod test {
         assert!(persist_result.is_err());
         assert_eq!(
             "file error: `error creating file: `permission denied``".to_string(),
-            persist_result.err().unwrap().to_string()
+            persist_result.unwrap_err().to_string()
         );
     }
 
@@ -677,7 +677,7 @@ mod test {
         assert!(persist_result.is_err());
         assert_eq!(
             "file error: `error creating file: `entity already exists``".to_string(),
-            persist_result.err().unwrap().to_string()
+            persist_result.unwrap_err().to_string()
         );
     }
 

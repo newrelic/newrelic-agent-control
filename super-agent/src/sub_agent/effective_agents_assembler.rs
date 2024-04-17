@@ -38,7 +38,7 @@ pub enum AgentTypeDefinitionError {
     EnvironmentError(AgentTypeError, Environment),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct EffectiveAgent {
     agent_id: AgentID,
     runtime_config: Runtime,
@@ -345,7 +345,7 @@ pub(crate) mod tests {
         assert!(result.is_err());
         assert_eq!(
             "error assembling agents: `agent not found`",
-            result.err().unwrap().to_string()
+            result.unwrap_err().to_string()
         );
     }
 

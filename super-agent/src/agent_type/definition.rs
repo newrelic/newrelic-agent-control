@@ -1166,7 +1166,7 @@ env:
             fn run(&self) {
                 let a: VariableTree = serde_yaml::from_str(self.a).unwrap();
                 let b: VariableTree = serde_yaml::from_str(self.b).unwrap();
-                let err = a.merge(b).err().unwrap();
+                let err = a.merge(b).unwrap_err();
                 assert_matches!(err, AgentTypeError::ConflictingVariableDefinition(k) => {
                     assert_eq!(self.conflicting_key, k, "{}", self.name);
                 })

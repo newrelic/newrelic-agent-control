@@ -412,7 +412,7 @@ pub mod test {
         assert!(result.is_err());
         assert_eq!(
             "file read error: `error reading contents: `permission denied``".to_string(),
-            result.err().unwrap().to_string()
+            result.unwrap_err().to_string()
         );
     }
 
@@ -446,7 +446,7 @@ pub mod test {
         assert!(result.is_err());
         assert_eq!(
             "file read error: `error reading contents: `permission denied``".to_string(),
-            result.err().unwrap().to_string()
+            result.unwrap_err().to_string()
         );
     }
 
@@ -516,7 +516,7 @@ pub mod test {
         assert!(result.is_err());
         assert_eq!(
             "directory manager error: `cannot delete directory: `oh now...``".to_string(),
-            result.err().unwrap().to_string()
+            result.unwrap_err().to_string()
         );
     }
 
@@ -553,7 +553,7 @@ pub mod test {
         assert_eq!(
             "directory manager error: `cannot create directory `dir name` : `oh now...``"
                 .to_string(),
-            result.err().unwrap().to_string()
+            result.unwrap_err().to_string()
         );
     }
 
@@ -595,7 +595,7 @@ pub mod test {
         assert!(result.is_err());
         assert_eq!(
             "file write error: `error creating file: `permission denied``".to_string(),
-            result.err().unwrap().to_string()
+            result.unwrap_err().to_string()
         );
     }
 
