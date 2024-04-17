@@ -4,8 +4,7 @@ use crate::common::{
     MockOpAMPClientBuilderMock, MockStartedOpAMPClientMock,
 };
 
-use crate::fake_opamp::{FakeServer, Identifier, Response, Responses};
-use axum::http::StatusCode;
+use crate::fake_opamp::{ConfigResponse, FakeServer, Identifier, Responses};
 use newrelic_super_agent::agent_type::embedded_registry::EmbeddedRegistry;
 use newrelic_super_agent::k8s::store::STORE_KEY_LOCAL_DATA_CONFIG;
 use newrelic_super_agent::opamp::callbacks::AgentCallbacks;
@@ -57,31 +56,25 @@ fn k8s_opamp_subagent_configuration_change() {
     let server_responses = Responses::from([
         (
             Identifier::from("com.newrelic.super_agent"),
-            Response {
-                status: StatusCode::OK,
-                raw_body: String::from(
-                    r#"
+            ConfigResponse::from(
+                r#"
 agents:
   open-telemetry-agent-id:
     agent_type: "newrelic/io.opentelemetry.collector:0.0.1"
 "#,
-                ),
-            },
+            ),
         ),
         (
             Identifier::from("io.opentelemetry.collector"),
-            Response {
-                status: StatusCode::OK,
-                raw_body: String::from(
-                    r#"
+            ConfigResponse::from(
+                r#"
 chart_values:
   mode: deployment
   config:
     exporters:
       logging: { }
        "#,
-                ),
-            },
+            ),
         ),
     ]);
     let mut server = FakeServer::start_new(server_responses);
@@ -123,12 +116,10 @@ config:
     ));
 
     // Update the agent configuration via OpAMP
-    server.set_response(
+    server.set_config_response(
         Identifier::from("io.opentelemetry.collector"),
-        Response {
-            status: StatusCode::OK,
-            raw_body: String::from(
-                r#"
+        ConfigResponse::from(
+            r#"
 chart_values:
   mode: deployment
   config:
@@ -137,12 +128,8 @@ chart_values:
   image:
     tag: "latest"
             "#,
-            ),
-        },
+        ),
     );
-
-    // Give it some time to handle remote configuration and resources
-    thread_sleep(Duration::from_secs(5));
 
     // Check the expected HelmRelease is updated with the new configuration
     let expected_spec_values = r#"
