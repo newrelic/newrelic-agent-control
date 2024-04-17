@@ -2,6 +2,7 @@ use super::config::SuperAgentConfigError;
 use crate::agent_type::agent_type_registry::AgentRepositoryError;
 use crate::agent_type::agent_values::AgentValuesError;
 use crate::agent_type::error::AgentTypeError;
+use crate::event::channel::EventPublisherError;
 use crate::opamp::client_builder::OpAMPClientBuilderError;
 use crate::opamp::hash_repository::HashRepositoryError;
 use crate::opamp::instance_id;
@@ -96,4 +97,7 @@ pub enum AgentError {
 
     #[error("invalid argument: `{0}`")]
     InvalidArgumentError(String),
+
+    #[error("error publishing event: `{0}`")]
+    EventPublisherError(#[from] EventPublisherError),
 }

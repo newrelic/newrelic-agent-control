@@ -78,6 +78,10 @@ where
             .into_iter()
             .try_for_each(|(agent_id, sub_agent)| Self::stop_agent(&agent_id, sub_agent))
     }
+
+    pub(crate) fn get(&self, agent_id: &AgentID) -> Option<&S> {
+        self.0.get(agent_id)
+    }
 }
 
 #[cfg(test)]

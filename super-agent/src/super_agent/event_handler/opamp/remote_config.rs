@@ -1,7 +1,7 @@
 use opamp_client::StartedClient;
 use tracing::{error, info};
 
-use crate::event::SubAgentEvent;
+use crate::event::{SubAgentEvent, SuperAgentEvent};
 use crate::super_agent::config_storer::storer::{
     SuperAgentDynamicConfigDeleter, SuperAgentDynamicConfigLoader, SuperAgentDynamicConfigStorer,
 };
@@ -59,12 +59,18 @@ where
                     &remote_config.hash,
                     error_message.clone(),
                 )?;
-                Ok(self.report_unhealthy(error_message)?)
+                self.report_unhealthy(error_message.clone())?;
+                self.super_agent_publisher
+                    .publish(SuperAgentEvent::SuperAgentBecameUnhealthy(error_message))?;
+                Ok(())
             }
             Ok(()) => {
                 self.set_config_hash_as_applied(&mut remote_config.hash)?;
                 report_remote_config_status_applied(opamp_client, &remote_config.hash)?;
-                Ok(self.report_healthy()?)
+                self.report_healthy()?;
+                self.super_agent_publisher
+                    .publish(SuperAgentEvent::SuperAgentBecameHealthy)?;
+                Ok(())
             }
         }
     }
@@ -146,12 +152,15 @@ mod tests {
 
         started_client.should_set_unhealthy();
 
+        let (super_agent_publisher, _super_agent_consumer) = pub_sub();
+
         // Create the Super Agent and rub Sub Agents
         let super_agent = SuperAgent::new_custom(
             Some(started_client),
             hash_repository_mock,
             sub_agent_builder,
             sub_agents_config_store,
+            super_agent_publisher,
         );
 
         let (opamp_publisher, _opamp_consumer) = pub_sub();
@@ -227,12 +236,15 @@ mod tests {
 
         started_client.should_set_healthy();
 
+        let (super_agent_publisher, _super_agent_consumer) = pub_sub();
+
         // Create the Super Agent and rub Sub Agents
         let super_agent = SuperAgent::new_custom(
             Some(started_client),
             Arc::new(hash_repository_mock),
             sub_agent_builder,
             sub_agents_config_store,
+            super_agent_publisher,
         );
 
         let (opamp_publisher, _opamp_consumer) = pub_sub();
