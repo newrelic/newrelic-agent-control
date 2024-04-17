@@ -70,7 +70,7 @@ In terms of available variable types, we currently support the following that ca
 * `file`: It represents a file in the filesystem.
 * `map[string]string`: A dictionary of key-value pairs, associating keys(string) and values(string).
 * `map[string]file`: A dictionary of key-value pairs, associating keys(string) and values(file).
-* `yaml`: The YAML type variable is used to handle multi-line strings that will be parsed as YAML such as Helm Charts.
+* `yaml`: The YAML type variable is used to handle multi-line strings that will be parsed as YAML such as Helm Charts values.
 
 
 ## Deployment
