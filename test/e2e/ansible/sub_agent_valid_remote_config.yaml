@@ -9,7 +9,7 @@
     - name: Fresh Super Agent installation
       include_tasks: ./tasks/fresh_super_agent_installation_{{ ansible_system }}.yaml
       vars:
-        infra_agent_type_version: "0.1.0"
+        infra_agent_type_version: "0.1.2"
         otel_agent_type_version: "0.1.0"
 
     - name: Setup Infra Agent values
