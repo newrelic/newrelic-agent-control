@@ -1,6 +1,6 @@
 namespace: newrelic
 name: com.newrelic.infrastructure_agent
-version: 0.1.1
+version: 0.1.2
 variables:
   on_host:
     config_agent:
