@@ -370,37 +370,3 @@ fn super_agent_opamp_non_identifying_attributes(
         ),
     ])
 }
-
-fn spawn_status_server(
-    config: ServerConfig,
-    runtime: Arc<Runtime>,
-    super_agent_consumer: EventConsumer<SuperAgentEvent>,
-) -> Option<JoinHandle<()>> {
-    config.enabled.then(|| {
-        thread::spawn(move || {
-            // Create unbounded channel to send the Super Agent Sync events
-            // to the Async Status Server
-            let (async_sa_event_publisher, async_sa_event_consumer) =
-                mpsc::unbounded_channel::<SuperAgentEvent>();
-            // Run an OS Thread that listens to sync channel and forwards the events
-            // to an async channel
-            let bridge_join_handle =
-                run_async_sync_bridge(async_sa_event_publisher, super_agent_consumer);
-
-            // Run the async status server
-            let _ = runtime
-                .block_on(
-                    newrelic_super_agent::super_agent::http_server::server::run_status_server(
-                        config.clone(),
-                        async_sa_event_consumer,
-                    ),
-                )
-                .inspect_err(|err| {
-                    error!(error_msg = err.to_string(), "error running status server");
-                });
-
-            // Wait until the bridge is closed
-            bridge_join_handle.join().unwrap();
-        })
-    })
-}
