@@ -14,7 +14,6 @@ use thiserror::Error;
 use tracing::{error, info};
 
 use super::callbacks::AgentCallbacks;
-use super::remote_config_publisher::OpAMPRemoteConfigPublisher;
 
 #[derive(Error, Debug)]
 pub enum OpAMPClientBuilderError {
@@ -74,8 +73,8 @@ impl OpAMPHttpClientBuilder {
     }
 }
 
-impl OpAMPClientBuilder<AgentCallbacks<OpAMPRemoteConfigPublisher>> for OpAMPHttpClientBuilder {
-    type Client = StartedHttpClient<AgentCallbacks<OpAMPRemoteConfigPublisher>, HttpClientUreq>;
+impl OpAMPClientBuilder<AgentCallbacks> for OpAMPHttpClientBuilder {
+    type Client = StartedHttpClient<AgentCallbacks, HttpClientUreq>;
     fn build_and_start(
         &self,
         opamp_publisher: EventPublisher<OpAMPEvent>,
@@ -83,8 +82,7 @@ impl OpAMPClientBuilder<AgentCallbacks<OpAMPRemoteConfigPublisher>> for OpAMPHtt
         start_settings: StartSettings,
     ) -> Result<Self::Client, OpAMPClientBuilderError> {
         let http_client = build_http_client(&self.config)?;
-        let remote_config_publisher = OpAMPRemoteConfigPublisher::new(opamp_publisher);
-        let callbacks = AgentCallbacks::new(agent_id, remote_config_publisher);
+        let callbacks = AgentCallbacks::new(agent_id, opamp_publisher);
         let not_started_client = NotStartedHttpClient::new(http_client);
         let started_client = not_started_client.start(callbacks, start_settings)?;
         info!("Super Agent OpAMP client started");

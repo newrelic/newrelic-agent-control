@@ -1,14 +1,13 @@
 use crate::event::channel::EventPublisher;
 use crate::event::SubAgentEvent;
 use crate::opamp::callbacks::AgentCallbacks;
-use crate::opamp::remote_config_publisher::OpAMPRemoteConfigPublisher;
 use crate::sub_agent::error;
 use crate::sub_agent::error::SubAgentError;
 use crate::sub_agent::event_processor::SubAgentEventProcessor;
 use crate::super_agent::config::{AgentID, AgentTypeFQN, SubAgentConfig};
 use std::thread::JoinHandle;
 
-pub(crate) type SubAgentCallbacks = AgentCallbacks<OpAMPRemoteConfigPublisher>;
+pub(crate) type SubAgentCallbacks = AgentCallbacks;
 
 /// NotStartedSubAgent exposes a run method that starts processing events and, if present, the supervisors.
 pub trait NotStartedSubAgent {
