@@ -1,4 +1,3 @@
-use futures::future::Join;
 use newrelic_super_agent::cli::Cli;
 use newrelic_super_agent::event::channel::{pub_sub, EventConsumer, EventPublisher};
 use newrelic_super_agent::event::{ApplicationEvent, SuperAgentEvent};
@@ -15,7 +14,6 @@ use newrelic_super_agent::super_agent::defaults::HOST_NAME_ATTRIBUTE_KEY;
 use newrelic_super_agent::super_agent::error::AgentError;
 use newrelic_super_agent::super_agent::http_server::async_bridge::run_async_sync_bridge;
 use newrelic_super_agent::super_agent::http_server::config::ServerConfig;
-use newrelic_super_agent::super_agent::http_server::server::run_status_server;
 use newrelic_super_agent::super_agent::{super_agent_fqn, SuperAgent};
 use newrelic_super_agent::utils::binary_metadata::binary_metadata;
 use opamp_client::operation::settings::DescriptionValueType;
