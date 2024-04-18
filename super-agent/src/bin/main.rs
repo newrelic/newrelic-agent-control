@@ -94,7 +94,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     );
 
     // Start the status server if enabled. Stopping control is done through events
-    let status_server_jon_handle: Option<JoinHandle<()>> = spawn_status_server(
+    let status_server_join_handle: Option<JoinHandle<()>> = spawn_status_server(
         super_agent_config.server.clone(),
         runtime.clone(),
         super_agent_consumer,
@@ -115,7 +115,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         )
     })?;
 
-    if let Some(join_handle) = status_server_jon_handle {
+    if let Some(join_handle) = status_server_join_handle {
         info!("waiting for status server to stop gracefully...");
         join_handle
             .join()
