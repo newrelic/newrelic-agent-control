@@ -5,26 +5,27 @@ use axum::{
 };
 use opamp_client::opamp;
 use prost::Message;
-use tokio::{sync::Mutex, task::JoinHandle};
+use std::sync::Mutex;
+use tokio::task::JoinHandle;
 
 use crate::common::{block_on, tokio_runtime};
 
 const FAKE_SERVER_PATH: &str = "/fake-server";
 
 pub type Identifier = String;
-pub type Responses = HashMap<Identifier, ConfigResponse>;
-
-pub struct FakeServer {
-    handle: JoinHandle<()>,
-    responses: Arc<Mutex<Responses>>,
-    port: u16,
-    path: String,
-}
+pub type ConfigResponses = HashMap<Identifier, ConfigResponse>;
 
 #[derive(Clone, Debug, Default)]
 /// Configuration response to be returned by the server until the agent informs it is applied.
 pub struct ConfigResponse {
     raw_body: Option<String>,
+}
+
+pub struct FakeServer {
+    handle: JoinHandle<()>,
+    responses: Arc<Mutex<ConfigResponses>>,
+    port: u16,
+    path: String,
 }
 
 impl From<&str> for ConfigResponse {
@@ -35,6 +36,42 @@ impl From<&str> for ConfigResponse {
     }
 }
 
+impl ConfigResponse {
+    fn axum_response(&self) -> impl IntoResponse {
+        // remote config is only set if there is any content
+        let remote_config = self
+            .clone()
+            .raw_body
+            .map(|raw_body| opamp::proto::AgentRemoteConfig {
+                config_hash: "hash".into(), // fake has for the shake of simplicity
+                config: Some(opamp::proto::AgentConfigMap {
+                    config_map: HashMap::from([(
+                        "".to_string(),
+                        opamp::proto::AgentConfigFile {
+                            body: raw_body.clone().into_bytes(),
+                            content_type: " text/yaml".to_string(),
+                        },
+                    )]),
+                }),
+            });
+        (
+            StatusCode::OK,
+            opamp::proto::ServerToAgent {
+                instance_uid: "test".into(), // fake ulid for the shake of simplicity
+                remote_config,
+                flags: 0,
+                capabilities: 0,
+                agent_identification: None,
+                command: None,
+                connection_settings: None,
+                error_response: None,
+                packages_available: None,
+            }
+            .encode_to_vec(),
+        )
+    }
+}
+
 impl FakeServer {
     /// Gets the endpoint to be used in the Super-Agent static configuration.
     pub fn endpoint(&self) -> String {
@@ -42,13 +79,13 @@ impl FakeServer {
     }
 
     /// Starts and returns new FakeServer in a random port with the provided responses.
-    pub fn start_new(responses: Responses) -> Self {
-        let responses = Arc::new(Mutex::new(responses));
+    pub fn start_new(config_responses: ConfigResponses) -> Self {
+        let state = Arc::new(Mutex::new(config_responses));
         let path = FAKE_SERVER_PATH.to_string();
 
         let router = Router::new().route(
             &path,
-            routing::post(request_handler).with_state(responses.clone()),
+            routing::post(request_handler).with_state(state.clone()),
         );
 
         // While binding to port 0, the kernel gives you an ephemeral port that is free.
@@ -60,7 +97,7 @@ impl FakeServer {
         });
 
         Self {
-            responses,
+            responses: state,
             handle,
             port,
             path,
@@ -71,15 +108,7 @@ impl FakeServer {
     /// It will be returned by the server until the agent informs that the remote configuration has been applied,
     /// then the server will return a `None` (no-changes) configuration in following requests.
     pub fn set_config_response(&mut self, identifier: Identifier, response: ConfigResponse) {
-        block_on(self.set_config_response_async(identifier, response))
-    }
-
-    async fn set_config_response_async(
-        &mut self,
-        identifier: Identifier,
-        response: ConfigResponse,
-    ) {
-        let mut responses = self.responses.lock().await;
+        let mut responses = self.responses.lock().unwrap();
         responses.insert(identifier, response);
     }
 
@@ -95,21 +124,22 @@ impl Drop for FakeServer {
 }
 
 async fn request_handler(
-    State(exp): State<Arc<Mutex<Responses>>>,
+    State(state): State<Arc<Mutex<ConfigResponses>>>,
     request: Bytes,
 ) -> impl IntoResponse {
     let message = opamp::proto::AgentToServer::decode(request).unwrap();
     let identifier = response_identifier(&message);
 
-    let mut responses = exp.lock().await;
-    let response = responses
+    let mut config_responses = state.lock().unwrap();
+    let config_response = config_responses
         .get_mut(identifier.as_str())
         .unwrap_or_else(|| panic!("missing config response for identifier {}", identifier));
+    // remove the config if it was already applied
     if remote_config_is_applied(&message) {
-        response.raw_body = None
+        config_response.raw_body = None
     }
 
-    build_axum_response(response)
+    config_response.axum_response()
 }
 
 /// Checks if the remote is applied according to the agent message
@@ -143,38 +173,4 @@ fn response_identifier(message: &opamp::proto::AgentToServer) -> String {
         _ => panic!("'service.name' should be a string"),
     };
     service_name.to_string()
-}
-
-fn build_axum_response(response: &ConfigResponse) -> impl IntoResponse {
-    // send remote config only if there is something to send
-    let remote_config = response
-        .clone()
-        .raw_body
-        .map(|raw_body| opamp::proto::AgentRemoteConfig {
-            config_hash: "hash".into(), // fake has for the shake of simplicity
-            config: Some(opamp::proto::AgentConfigMap {
-                config_map: HashMap::from([(
-                    "".to_string(),
-                    opamp::proto::AgentConfigFile {
-                        body: raw_body.clone().into_bytes(),
-                        content_type: " text/yaml".to_string(),
-                    },
-                )]),
-            }),
-        });
-    (
-        StatusCode::OK,
-        opamp::proto::ServerToAgent {
-            instance_uid: "test".into(), // fake ulid for the shake of simplicity
-            remote_config,
-            flags: 0,
-            capabilities: 0,
-            agent_identification: None,
-            command: None,
-            connection_settings: None,
-            error_response: None,
-            packages_available: None,
-        }
-        .encode_to_vec(),
-    )
 }

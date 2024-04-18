@@ -4,7 +4,7 @@ use crate::common::{
     MockOpAMPClientBuilderMock, MockStartedOpAMPClientMock,
 };
 
-use crate::fake_opamp::{ConfigResponse, FakeServer, Identifier, Responses};
+use crate::fake_opamp::{ConfigResponse, ConfigResponses, FakeServer, Identifier};
 use newrelic_super_agent::agent_type::embedded_registry::EmbeddedRegistry;
 use newrelic_super_agent::k8s::store::STORE_KEY_LOCAL_DATA_CONFIG;
 use newrelic_super_agent::opamp::callbacks::AgentCallbacks;
@@ -53,7 +53,7 @@ use std::{
 #[ignore = "needs k8s cluster"]
 fn k8s_opamp_subagent_configuration_change() {
     // setup the fake-opamp-server
-    let server_responses = Responses::from([
+    let server_responses = ConfigResponses::from([
         (
             Identifier::from("com.newrelic.super_agent"),
             ConfigResponse::from(
