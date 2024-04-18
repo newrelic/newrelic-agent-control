@@ -17,8 +17,8 @@ pub enum StatusServerError {
     BuildingServerError(String),
     #[error("error receiving server handle {0}")]
     ServerConsumerError(#[from] RecvError),
-    #[error("error receiving server handle {0}")]
-    ServerJoinHandleError(#[from] JoinError),
+    #[error("error waiting for join handle {0}")]
+    JoinHandleError(#[from] JoinError),
 }
 
 pub trait StatusServer {
