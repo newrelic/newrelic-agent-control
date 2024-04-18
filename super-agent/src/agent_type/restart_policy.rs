@@ -6,10 +6,14 @@ use serde::Deserialize;
 
 use super::{definition::TemplateableValue, error::AgentTypeError};
 
+/// Defines the Restart Policy configuration.
+/// This policy outlines the procedures followed for restarting agents when their execution encounters failure.
 #[derive(Debug, Deserialize, PartialEq, Clone, Default)]
 pub struct RestartPolicyConfig {
+    /// Strategy configuration to retry in case of failure.
     #[serde(default)]
     pub backoff_strategy: BackoffStrategyConfig,
+    /// List of exit codes that triggers a restart.
     #[serde(default)]
     pub restart_exit_codes: Vec<i32>,
 }

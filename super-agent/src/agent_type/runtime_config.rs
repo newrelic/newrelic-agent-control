@@ -36,17 +36,22 @@ pub struct OnHost {
 */
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub struct Executable {
+    /// Executable binary path. If not an absolute path, the PATH will be searched in an OS-defined way.
     pub path: TemplateableValue<String>, // make it templatable
 
+    /// Arguments passed to the executable.
     #[serde(default)]
     pub args: TemplateableValue<Args>, // make it templatable, it should be aware of the value type, if templated with array, should be expanded
 
+    /// Environmental variables passed to the process.
     #[serde(default)]
     pub env: TemplateableValue<Env>, // make it templatable, it should be aware of the value type, if templated with array, should be expanded "STAGING=true ${variable_1}" variable_1 : VERBOSE=1
 
+    /// Defines how the executable will be restarted in case of failure.
     #[serde(default)]
     pub restart_policy: RestartPolicyConfig,
 
+    /// Enables and define health checks configuration.
     pub health: Option<HealthConfig>,
 }
 
