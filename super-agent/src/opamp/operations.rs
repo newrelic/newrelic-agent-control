@@ -22,18 +22,22 @@ use super::{
     instance_id::getter::InstanceIDGetter,
 };
 
+#[allow(clippy::type_complexity)]
 pub fn build_opamp_with_channel<CB, OB, IG>(
-    opamp_builder: &OB,
+    maybe_opamp_builder: Option<&OB>,
     instance_id_getter: &IG,
     agent_id: AgentID,
     agent_type: &AgentTypeFQN,
     non_identifying_attributes: HashMap<String, DescriptionValueType>,
-) -> Result<(OB::Client, EventConsumer<OpAMPEvent>), OpAMPClientBuilderError>
+) -> Result<(Option<OB::Client>, Option<EventConsumer<OpAMPEvent>>), OpAMPClientBuilderError>
 where
     CB: Callbacks,
     OB: OpAMPClientBuilder<CB>,
     IG: InstanceIDGetter,
 {
+    let Some(opamp_builder) = maybe_opamp_builder else {
+        return Ok((None, None));
+    };
     let (tx, rx) = pub_sub();
     let client = build_opamp_and_start_client(
         tx,
@@ -43,7 +47,7 @@ where
         agent_type,
         non_identifying_attributes,
     )?;
-    Ok((client, rx))
+    Ok((Some(client), Some(rx)))
 }
 
 pub fn build_opamp_and_start_client<CB, OB, IG>(

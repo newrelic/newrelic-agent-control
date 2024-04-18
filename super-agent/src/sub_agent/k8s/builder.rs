@@ -98,24 +98,16 @@ where
             &Environment::K8s,
         );
 
-        let (maybe_opamp_client, sub_agent_opamp_consumer) = self
-            .opamp_builder
-            .map(|builder| {
-                build_opamp_with_channel(
-                    builder,
-                    self.instance_id_getter,
-                    agent_id.clone(),
-                    &sub_agent_config.agent_type,
-                    HashMap::from([(
-                        "cluster.name".to_string(),
-                        DescriptionValueType::String(self.k8s_config.cluster_name.to_string()),
-                    )]),
-                )
-            })
-            // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
-            .transpose()?
-            .map(|(client, consumer)| (Some(client), Some(consumer)))
-            .unwrap_or_default();
+        let (maybe_opamp_client, sub_agent_opamp_consumer) = build_opamp_with_channel(
+            self.opamp_builder,
+            self.instance_id_getter,
+            agent_id.clone(),
+            &sub_agent_config.agent_type,
+            HashMap::from([(
+                "cluster.name".to_string(),
+                DescriptionValueType::String(self.k8s_config.cluster_name.to_string()),
+            )]),
+        )?;
 
         // A sub-agent can be started without supervisor, when running with opamp activated, in order to
         // be able to receive messages.

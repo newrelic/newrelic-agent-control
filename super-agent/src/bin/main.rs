@@ -158,21 +158,13 @@ fn run_super_agent(
         identifiers_provider,
     );
 
-    let (maybe_client, maybe_sa_opamp_consumer) = opamp_client_builder
-        .as_ref()
-        .map(|builder| {
-            build_opamp_with_channel(
-                builder,
-                &instance_id_getter,
-                AgentID::new_super_agent_id(),
-                &super_agent_fqn(),
-                non_identifying_attributes,
-            )
-        })
-        // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
-        .transpose()?
-        .map(|(client, consumer)| (Some(client), Some(consumer)))
-        .unwrap_or_default();
+    let (maybe_client, maybe_sa_opamp_consumer) = build_opamp_with_channel(
+        opamp_client_builder.as_ref(),
+        &instance_id_getter,
+        AgentID::new_super_agent_id(),
+        &super_agent_fqn(),
+        non_identifying_attributes,
+    )?;
 
     SuperAgent::new(
         maybe_client,
@@ -265,21 +257,13 @@ fn run_super_agent(
         k8s_config.clone(),
     );
 
-    let (maybe_client, opamp_consumer) = opamp_client_builder
-        .as_ref()
-        .map(|builder| {
-            build_opamp_with_channel(
-                builder,
-                &instance_id_getter,
-                AgentID::new_super_agent_id(),
-                &super_agent_fqn(),
-                non_identifying_attributes,
-            )
-        })
-        // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
-        .transpose()?
-        .map(|(client, consumer)| (Some(client), Some(consumer)))
-        .unwrap_or_default();
+    let (maybe_client, opamp_consumer) = build_opamp_with_channel(
+        opamp_client_builder.as_ref(),
+        &instance_id_getter,
+        AgentID::new_super_agent_id(),
+        &super_agent_fqn(),
+        non_identifying_attributes,
+    )?;
 
     let sub_agents_config_storer =
         SubAgentsConfigStoreConfigMap::new(k8s_store.clone(), config.dynamic);
