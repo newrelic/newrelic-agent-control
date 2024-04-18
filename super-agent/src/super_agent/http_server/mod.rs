@@ -1,4 +1,6 @@
+use std::sync::mpsc::RecvError;
 use thiserror::Error;
+use tokio::task::JoinError;
 
 pub mod async_bridge;
 pub mod config;
@@ -13,6 +15,10 @@ pub enum StatusServerError {
     StatusServerError(String),
     #[error("error building the server {0}")]
     BuildingServerError(String),
+    #[error("error receiving server handle {0}")]
+    ServerConsumerError(#[from] RecvError),
+    #[error("error receiving server handle {0}")]
+    ServerJoinHandleError(#[from] JoinError),
 }
 
 pub trait StatusServer {

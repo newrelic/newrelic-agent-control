@@ -12,12 +12,18 @@ use newrelic_super_agent::super_agent::config_storer::SuperAgentConfigStoreFile;
 use newrelic_super_agent::super_agent::defaults::HOST_ID_ATTRIBUTE_KEY;
 use newrelic_super_agent::super_agent::defaults::HOST_NAME_ATTRIBUTE_KEY;
 use newrelic_super_agent::super_agent::error::AgentError;
+use newrelic_super_agent::super_agent::http_server::async_bridge::run_async_sync_bridge;
+use newrelic_super_agent::super_agent::http_server::server::run_status_server;
 use newrelic_super_agent::super_agent::{super_agent_fqn, SuperAgent};
 use newrelic_super_agent::utils::binary_metadata::binary_metadata;
 use opamp_client::operation::settings::DescriptionValueType;
 use std::collections::HashMap;
 use std::error::Error;
 use std::sync::Arc;
+use std::thread;
+use std::thread::JoinHandle;
+use tokio::runtime::Runtime;
+use tokio::sync::mpsc;
 use tracing::{debug, error, info};
 
 #[cfg(all(feature = "onhost", feature = "k8s", not(feature = "ci")))]
@@ -76,10 +82,47 @@ fn main() -> Result<(), Box<dyn Error>> {
         .map(|opamp_config| OpAMPHttpClientBuilder::new(opamp_config.clone()));
 
     // create Super Agent events channel
-    let (super_agent_publisher, _super_agent_consumer) = pub_sub();
+    let (super_agent_publisher, super_agent_consumer) = pub_sub::<SuperAgentEvent>();
+
+    // Create the Tokio runtime
+    let runtime = Arc::new(
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()?,
+    );
+
+    // Start the status server if enabled. Stopping control is done through events
+    let status_server_jon_handle: Option<JoinHandle<()>> =
+        super_agent_config.server.enabled.then(|| {
+            let rt_clone = runtime.clone();
+            thread::spawn(move || {
+                // Create unbounded channel to send the Super Agent Sync events
+                // to the Async Status Server
+                let (async_sa_event_publisher, async_sa_event_consumer) =
+                    mpsc::unbounded_channel::<SuperAgentEvent>();
+                // Run an OS Thread that listens to sync channel and forwards the events
+                // to an async channel
+                let bridge_join_handle =
+                    run_async_sync_bridge(async_sa_event_publisher, super_agent_consumer);
+
+                // Run the async status server
+                let _ = rt_clone
+                    .block_on(run_status_server(
+                        super_agent_config.server.clone(),
+                        async_sa_event_consumer,
+                    ))
+                    .inspect_err(|err| {
+                        error!(error_msg = err.to_string(), "error running status server");
+                    });
+
+                // Wait until the bridge is closed
+                bridge_join_handle.join().unwrap();
+            })
+        });
 
     #[cfg(any(feature = "onhost", feature = "k8s"))]
     run_super_agent(
+        runtime.clone(),
         sa_local_config_storer,
         application_event_consumer,
         opamp_client_builder,
@@ -92,12 +135,18 @@ fn main() -> Result<(), Box<dyn Error>> {
         )
     })?;
 
-    info!("Exiting gracefully");
+    if let Some(join_handle) = status_server_jon_handle {
+        info!("waiting for status server to stop gracefully...");
+        join_handle.join()?;
+    }
+
+    info!("exiting gracefully");
     Ok(())
 }
 
 #[cfg(feature = "onhost")]
 fn run_super_agent(
+    _runtime: Arc<Runtime>,
     sa_config_storer: SuperAgentConfigStoreFile,
     application_events_consumer: EventConsumer<ApplicationEvent>,
     opamp_client_builder: Option<OpAMPHttpClientBuilder>,
@@ -193,6 +242,7 @@ fn print_identifiers(identifiers: &Identifiers) {
 
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
 fn run_super_agent(
+    runtime: Arc<Runtime>,
     sa_local_config_storer: SuperAgentConfigStoreFile,
     application_event_consumer: EventConsumer<ApplicationEvent>,
     opamp_client_builder: Option<OpAMPHttpClientBuilder>,
@@ -206,18 +256,6 @@ fn run_super_agent(
     use newrelic_super_agent::sub_agent::values::ValuesRepositoryConfigMap;
     use newrelic_super_agent::super_agent::config::AgentID;
     use newrelic_super_agent::super_agent::config_storer::SubAgentsConfigStoreConfigMap;
-    use std::sync::OnceLock;
-
-    /// Returns a static reference to a tokio runtime initialized on first usage.
-    /// It uses the default tokio configuration (the same that #[tokio::main]).
-    // TODO: avoid the need of this global reference
-    static RUNTIME_ONCE: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
-    let runtime = RUNTIME_ONCE.get_or_init(|| {
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .unwrap()
-    });
 
     info!("Starting the k8s client");
     let config = sa_local_config_storer.load()?;

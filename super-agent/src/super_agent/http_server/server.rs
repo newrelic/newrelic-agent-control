@@ -45,10 +45,10 @@ pub async fn run_status_server(
     ));
 
     // Get the Server Handle so we can stop it later
-    let server_handle = server_handle_consumer.recv().unwrap();
+    let server_handle = server_handle_consumer.recv()?;
 
     info!("waiting for the event_join_handle");
-    event_join_handle.await.unwrap();
+    event_join_handle.await?;
     info!("event_join_handle succeeded");
 
     info!("stopping status server");
@@ -56,9 +56,9 @@ pub async fn run_status_server(
     info!("status server stopped succeeded");
 
     info!("waiting for status server join handle");
-    if let Err(e) = server_join_handle.await.unwrap() {
-        error!(error_msg = e.to_string(), "error in server_join_handle")
-    }
+    _ = server_join_handle
+        .await?
+        .inspect_err(|e| error!(error_msg = e.to_string(), "error in server_join_handle"));
 
     Ok(())
 }

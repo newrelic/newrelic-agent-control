@@ -43,6 +43,7 @@ use std::io::Read;
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::str::FromStr;
+use std::sync::Arc;
 use std::{collections::HashMap, env, fs::File, io::Write, sync::OnceLock, time::Duration};
 use tempfile::{tempdir, TempDir};
 use tokio::{runtime::Runtime, sync::OnceCell, time::timeout};
@@ -54,15 +55,19 @@ const K3S_CLUSTER_PORT: &str = "6443/tcp";
 
 /// Returns a static reference to the tokio runtime. The runtime is built the first time this function
 /// is called.
-pub fn tokio_runtime() -> &'static Runtime {
-    static RUNTIME_ONCE: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
-    RUNTIME_ONCE.get_or_init(|| {
-        tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(2)
-            .enable_all()
-            .build()
-            .unwrap()
-    })
+pub fn tokio_runtime() -> Arc<Runtime> {
+    static RUNTIME_ONCE: OnceLock<Arc<Runtime>> = OnceLock::new();
+    RUNTIME_ONCE
+        .get_or_init(|| {
+            Arc::new(
+                tokio::runtime::Builder::new_multi_thread()
+                    .worker_threads(2)
+                    .enable_all()
+                    .build()
+                    .unwrap(),
+            )
+        })
+        .clone()
 }
 
 /// A wrapper to shorten the usage of the runtime's block_on. It is useful because most synchronous
