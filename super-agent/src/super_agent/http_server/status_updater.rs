@@ -12,10 +12,10 @@ pub(super) async fn on_super_agent_event_update_status(
     status: Arc<RwLock<Status>>,
 ) {
     while let Some(super_agent_event) = sa_event_consumer.recv().await {
+        let mut status = status.write().await;
         match super_agent_event {
             SuperAgentEvent::SuperAgentBecameHealthy => {
                 debug!("status_http_server event_processor super_agent_became_healthy");
-                let mut status = status.write().await;
                 status.super_agent.healthy = true;
                 status.super_agent.last_error = String::default();
             }
@@ -24,13 +24,11 @@ pub(super) async fn on_super_agent_event_update_status(
                     error_msg,
                     "status_http_server event_processor super_agent_became_unhealthy"
                 );
-                let mut status = status.write().await;
                 status.super_agent.healthy = false;
                 status.super_agent.last_error = error_msg;
             }
             SuperAgentEvent::SubAgentBecameUnhealthy(agent_id, agent_type, error_msg) => {
                 debug!(error_msg, %agent_id, %agent_type, "status_http_server event_processor sub_agent_became_unhealthy");
-                let mut status = status.write().await;
                 status
                     .sub_agents
                     .entry(agent_id.clone())
@@ -39,7 +37,6 @@ pub(super) async fn on_super_agent_event_update_status(
             }
             SuperAgentEvent::SubAgentBecameHealthy(agent_id, agent_type) => {
                 debug!(%agent_id, %agent_type, "status_http_server event_processor sub_agent_became_healthy");
-                let mut status = status.write().await;
                 status
                     .sub_agents
                     .entry(agent_id.clone())
@@ -47,7 +44,6 @@ pub(super) async fn on_super_agent_event_update_status(
                     .healthy();
             }
             SuperAgentEvent::SubAgentRemoved(agent_id) => {
-                let mut status = status.write().await;
                 status.sub_agents.remove(&agent_id);
             }
             SuperAgentEvent::SuperAgentStopped => {
