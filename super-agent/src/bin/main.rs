@@ -1,3 +1,4 @@
+use crate::AppError::StatusServerJoinHandleError;
 use newrelic_super_agent::cli::Cli;
 use newrelic_super_agent::event::channel::{pub_sub, EventConsumer, EventPublisher};
 use newrelic_super_agent::event::{ApplicationEvent, SuperAgentEvent};
@@ -19,11 +20,14 @@ use newrelic_super_agent::utils::binary_metadata::binary_metadata;
 use opamp_client::operation::settings::DescriptionValueType;
 use std::collections::HashMap;
 use std::error::Error;
+use std::sync::mpsc::RecvError;
 use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
+use thiserror::Error;
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
+use tokio::task::JoinError;
 use tracing::{debug, error, info};
 
 #[cfg(all(feature = "onhost", feature = "k8s", not(feature = "ci")))]
@@ -137,7 +141,10 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     if let Some(join_handle) = status_server_jon_handle {
         info!("waiting for status server to stop gracefully...");
-        join_handle.join().unwrap();
+        join_handle.join().map_err(|_| {
+            error!("error waiting on status server join handle");
+            StatusServerJoinHandleError
+        })?;
     }
 
     info!("exiting gracefully");
@@ -396,4 +403,10 @@ fn super_agent_opamp_non_identifying_attributes(
             DescriptionValueType::String(identifiers.host_id.clone()),
         ),
     ])
+}
+
+#[derive(Error, Debug)]
+pub enum AppError {
+    #[error("error waiting for status server join handle")]
+    StatusServerJoinHandleError,
 }

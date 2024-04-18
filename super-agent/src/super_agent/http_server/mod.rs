@@ -11,13 +11,13 @@ mod status_updater;
 
 #[derive(Error, Debug)]
 pub enum StatusServerError {
-    #[error("status server error {0}")]
+    #[error("status server error `{0}`")]
     StatusServerError(String),
-    #[error("error building the server {0}")]
+    #[error("error building the server `{0}`")]
     BuildingServerError(String),
-    #[error("error receiving server handle {0}")]
+    #[error("error receiving server handle `{0}`")]
     ServerConsumerError(#[from] RecvError),
-    #[error("error waiting for join handle {0}")]
+    #[error("error waiting for async join handle `{0}`")]
     JoinHandleError(#[from] JoinError),
 }
 
