@@ -3,20 +3,17 @@ use crate::common::{
     start_super_agent, K8sEnv,
 };
 use newrelic_super_agent::k8s::store::STORE_KEY_LOCAL_DATA_CONFIG;
-use std::path::Path;
 use std::time::Duration;
 
 #[test]
 #[ignore = "needs a k8s cluster"]
 fn k8s_sub_agent_started() {
     let test_name = "k8s_sub_agent_started";
-    let file_name = format!("test/k8s/data/{test_name}/local-sa.k8s_tmp");
-    let file_path = Path::new(file_name.as_str());
     // Setup k8s env
     let mut k8s = block_on(K8sEnv::new());
     let namespace = block_on(k8s.test_namespace());
 
-    block_on(create_local_sa_config(namespace.as_str(), test_name));
+    let file_path = create_local_sa_config(namespace.as_str(), "no-opamp", test_name);
     block_on(create_mock_config_maps(
         k8s.client.clone(),
         namespace.as_str(),
@@ -32,7 +29,7 @@ fn k8s_sub_agent_started() {
         STORE_KEY_LOCAL_DATA_CONFIG,
     ));
 
-    let mut child = start_super_agent(file_path);
+    let mut child = start_super_agent(file_path.as_ref());
 
     let deployment_name = "my-agent-id-opentelemetry-collector";
     let deployment_name_2 = "my-agent-id-2-opentelemetry-collector";

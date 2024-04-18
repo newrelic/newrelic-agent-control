@@ -1,7 +1,7 @@
 use crate::common::{
     block_on, check_deployments_exist, check_helmrelease_spec_values, create_local_sa_config,
-    create_mock_config_maps, create_static_config, start_super_agent, tokio_runtime, K8sEnv,
-    MockOpAMPClientBuilderMock, MockStartedOpAMPClientMock,
+    create_mock_config_maps, start_super_agent, tokio_runtime, K8sEnv, MockOpAMPClientBuilderMock,
+    MockStartedOpAMPClientMock,
 };
 
 use crate::fake_opamp::{ConfigResponse, ConfigResponses, FakeServer, Identifier};
@@ -84,7 +84,7 @@ chart_values:
 
     // setup the local configuration
     let test_name = "k8s_opamp_subagent_configuration_change";
-    let config = create_static_config(server.endpoint(), namespace.to_string());
+    let config_path = create_local_sa_config(&namespace, &server.endpoint(), &test_name);
     block_on(create_mock_config_maps(
         k8s.client.clone(),
         namespace.as_str(),
@@ -94,7 +94,7 @@ chart_values:
     ));
 
     // start the super-agent
-    let mut sa = start_super_agent(config.path());
+    let mut sa = start_super_agent(&config_path);
 
     // Give it some time to handle remote configuration and resources
     thread_sleep(Duration::from_secs(5));
@@ -178,7 +178,7 @@ fn k8s_opamp_add_sub_agent() {
     ];
 
     let test_name = "k8s_opamp_add_sub_agent";
-    block_on(create_local_sa_config(k8s_ns.as_str(), test_name));
+    let config_path = create_local_sa_config(k8s_ns.as_str(), "", test_name);
 
     // Create config map for the sub agent defined in the initial config.
     block_on(create_mock_config_maps(
@@ -190,7 +190,7 @@ fn k8s_opamp_add_sub_agent() {
     ));
 
     let test_env = K8sOpAMPEnv::new(
-        Path::new(format!("test/k8s/data/{test_name}/local-sa.k8s_tmp").as_str()),
+        config_path.as_path(),
         k8s_ns.as_str(),
         super_agent_expectations,
         sub_agent_expectations,

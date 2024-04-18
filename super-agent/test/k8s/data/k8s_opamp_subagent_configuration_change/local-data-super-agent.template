@@ -1,0 +1,10 @@
+opamp:
+  endpoint: <opamp-endpoint>
+  headers:
+    api-key: test-api-key
+k8s:
+  namespace: <ns>
+  cluster_name: minikube
+agents:
+  open-telemetry-agent-id:
+    agent_type: "newrelic/io.opentelemetry.collector:0.1.0"

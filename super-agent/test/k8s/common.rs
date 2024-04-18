@@ -38,12 +38,12 @@ use opamp_client::{
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
 use std::io::Read;
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::str::FromStr;
 use std::sync::Arc;
+use std::{collections::BTreeMap, path::PathBuf};
 use std::{collections::HashMap, env, fs::File, io::Write, sync::OnceLock, time::Duration};
 use tempfile::NamedTempFile;
 use tempfile::{tempdir, TempDir};
@@ -490,8 +490,13 @@ pub async fn create_mock_config_maps(
     cm_client.create(&PostParams::default(), &cm).await.unwrap();
 }
 
-/// create_local_sa_config templates the namespace and saves the new file
-pub async fn create_local_sa_config(test_ns: &str, folder_name: &str) {
+/// create_local_sa_config templates the namespace and the opamp endpoint, and then it saves the new file whose path
+/// is returned.
+pub fn create_local_sa_config(
+    test_ns: &str,
+    opamp_endpoint: &str,
+    folder_name: &str,
+) -> std::path::PathBuf {
     let mut content = String::new();
     File::open(format!(
         "test/k8s/data/{}/local-data-super-agent.template",
@@ -501,11 +506,15 @@ pub async fn create_local_sa_config(test_ns: &str, folder_name: &str) {
     .read_to_string(&mut content)
     .unwrap();
 
-    let content = content.replace("<ns>", test_ns);
-    File::create(format!("test/k8s/data/{}/local-sa.k8s_tmp", folder_name))
+    let file_path = format!("test/k8s/data/{}/local-sa.k8s_tmp", folder_name);
+    let content = content
+        .replace("<ns>", test_ns)
+        .replace("<opamp-endpoint>", opamp_endpoint);
+    File::create(file_path.as_str())
         .unwrap()
         .write_all(content.as_bytes())
         .unwrap();
+    PathBuf::from(file_path)
 }
 
 // check_deployments_exist checks for the existence of specified deployments within a namespace,
@@ -593,27 +602,6 @@ mock! {
         type Client = MockStartedOpAMPClientMock<C>;
         fn build_and_start(&self, opamp_publisher: EventPublisher<OpAMPEvent>, agent_id: AgentID, start_settings: StartSettings) -> Result<<Self as OpAMPClientBuilder<C>>::Client, OpAMPClientBuilderError>;
     }
-}
-
-// Creates a static config for the super-agent given the provided opamp endpoint and the k8s namespace
-pub fn create_static_config(opamp_endpoint: String, namespace: String) -> NamedTempFile {
-    let mut temp_file = NamedTempFile::new().expect("Failed to create a temporary file");
-    let local_config = format!(
-        r#"
-opamp:
-  endpoint: "{opamp_endpoint}"
-  headers:
-    api-key: test-api-key
-k8s:
-  namespace: "{namespace}"
-  cluster_name: minikube-fake-opamp
-agents:
-  open-telemetry-agent-id:
-    agent_type: "newrelic/io.opentelemetry.collector:0.0.1"
-"#
-    );
-    write!(temp_file, "{}", local_config).unwrap();
-    temp_file
 }
 
 pub async fn check_helmrelease_spec_values(
