@@ -4,6 +4,16 @@ use std::collections::HashMap;
 
 use crate::super_agent::config::{AgentID, AgentTypeFQN};
 
+// SuperAgentStatus will contain the information about Super Agent health.
+// This information will be shown when the status endpoint is called
+// i.e.
+// {
+//   "super_agent": {
+//     "healthy": true,
+//     "last_error": "",
+//     "status": ""
+//   },
+// }
 #[derive(Debug, Serialize, PartialEq, Default)]
 pub struct SuperAgentStatus {
     pub healthy: bool,
@@ -11,6 +21,15 @@ pub struct SuperAgentStatus {
     pub status: String,
 }
 
+// OpAMPStatus will contain the information about OpAMP Connection health.
+// This information will be shown when the status endpoint is called
+// i.e.
+// {
+//   "opamp": {
+//     "enabled": true,
+//     "endpoint": "https://example.com/opamp/v1",
+//     "reachable": true
+//  },
 #[derive(Debug, Serialize, PartialEq, Default)]
 pub struct OpAMPStatus {
     pub enabled: bool,
@@ -18,6 +37,27 @@ pub struct OpAMPStatus {
     pub reachable: bool,
 }
 
+// SubAgentStatus will contain the information about all the Sub Agents health.
+// This information will be shown when the status endpoint is called
+// i.e.
+// {
+//   "sub_agents": [
+//     {
+//       "agent_id": "infrastructure_agent_id_1",
+//       "agent_type": "newrelic/com.newrelic.infrastructure:0.0.1",
+//       "healthy": true,
+//       "last_error": "",
+//       "status": ""
+//     },
+//     {
+//       "agent_id": "infrastructure_agent_id_1",
+//       "agent_type": "newrelic/com.newrelic.infrastructure:0.0.1",
+//       "healthy": false,
+//       "last_error": "The sub-agent exceeded the number of retries defined in its restart policy.",
+//       "status": "[xx/xx/xx xx:xx:xx.xxxx] debug: could not read config at /etc/newrelic-infra.yml"
+//     }
+//   ]
+// }
 #[derive(Debug, Serialize, PartialEq, Clone)]
 pub(super) struct SubAgentStatus {
     agent_id: AgentID,
@@ -72,14 +112,43 @@ impl SubAgentsStatus {
     }
 }
 
+// Status will contain the information about the Super Agent, Sub Agents and OpAMP.
+// This information will be shown when the status endpoint is called
+// i.e.
+// {
+//   "super_agent": {
+//     "healthy": true,
+//     "last_error": "",
+//     "status": ""
+//   },
+//   "opamp": {
+//     "enabled": true,
+//     "endpoint": "https://example.com/opamp/v1",
+//     "reachable": true
+//   },
+//   "sub_agents": [
+//     {
+//       "agent_id": "infrastructure_agent_id_1",
+//       "agent_type": "newrelic/com.newrelic.infrastructure:0.0.1",
+//       "healthy": true,
+//       "last_error": "",
+//       "status": ""
+//     },
+//     {
+//       "agent_id": "infrastructure_agent_id_1",
+//       "agent_type": "newrelic/com.newrelic.infrastructure:0.0.1",
+//       "healthy": false,
+//       "last_error": "The sub-agent exceeded the number of retries defined in its restart policy.",
+//       "status": "[xx/xx/xx xx:xx:xx.xxxx] debug: could not read config at /etc/newrelic-infra.yml"
+//     }
+//   ]
+// }
 #[derive(Debug, Serialize, PartialEq, Default)]
 pub(super) struct Status {
     pub(super) super_agent: SuperAgentStatus,
     pub(super) opamp: OpAMPStatus,
     pub(super) sub_agents: SubAgentsStatus,
 }
-
-impl SubAgentsStatus {}
 
 #[cfg(test)]
 pub mod test {
