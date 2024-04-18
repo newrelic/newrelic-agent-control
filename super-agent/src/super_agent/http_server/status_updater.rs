@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::RwLock;
-use tracing::info;
+use tracing::{debug, info};
 
 use crate::event::SuperAgentEvent;
 use crate::super_agent::http_server::status::{Status, SubAgentStatus};
@@ -14,13 +14,13 @@ pub(super) async fn on_super_agent_event_update_status(
     while let Some(super_agent_event) = sa_event_consumer.recv().await {
         match super_agent_event {
             SuperAgentEvent::SuperAgentBecameHealthy => {
-                info!("status_http_server event_processor super_agent_became_healthy");
+                debug!("status_http_server event_processor super_agent_became_healthy");
                 let mut status = status.write().await;
                 status.super_agent.healthy = true;
                 status.super_agent.last_error = String::default();
             }
             SuperAgentEvent::SuperAgentBecameUnhealthy(error_msg) => {
-                info!(
+                debug!(
                     error_msg,
                     "status_http_server event_processor super_agent_became_unhealthy"
                 );
@@ -29,7 +29,7 @@ pub(super) async fn on_super_agent_event_update_status(
                 status.super_agent.last_error = error_msg;
             }
             SuperAgentEvent::SubAgentBecameUnhealthy(agent_id, agent_type, error_msg) => {
-                info!(error_msg, %agent_id, %agent_type, "status_http_server event_processor sub_agent_became_unhealthy");
+                debug!(error_msg, %agent_id, %agent_type, "status_http_server event_processor sub_agent_became_unhealthy");
                 let mut status = status.write().await;
                 status
                     .sub_agents
@@ -38,7 +38,7 @@ pub(super) async fn on_super_agent_event_update_status(
                     .unhealthy(error_msg);
             }
             SuperAgentEvent::SubAgentBecameHealthy(agent_id, agent_type) => {
-                info!(%agent_id, %agent_type, "status_http_server event_processor sub_agent_became_healthy");
+                debug!(%agent_id, %agent_type, "status_http_server event_processor sub_agent_became_healthy");
                 let mut status = status.write().await;
                 status
                     .sub_agents
@@ -51,7 +51,7 @@ pub(super) async fn on_super_agent_event_update_status(
                 status.sub_agents.remove(&agent_id);
             }
             SuperAgentEvent::SuperAgentStopped => {
-                info!("status http server super agent stopped event");
+                debug!("status http server super agent stopped event");
                 break;
             }
         }

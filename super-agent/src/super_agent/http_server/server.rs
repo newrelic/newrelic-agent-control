@@ -10,7 +10,7 @@ use std::sync::Arc;
 use tokio::runtime::Handle;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::RwLock;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 pub async fn run_status_server(
     server_config: ServerConfig,
@@ -29,14 +29,14 @@ pub async fn run_status_server(
     // Tokio Runtime
     let rt = Handle::current();
 
-    info!("spawning thread for the event processor");
+    debug!("spawning thread for the event processor");
     let status_clone = status.clone();
     let event_join_handle = rt.spawn(on_super_agent_event_update_status(
         sa_event_consumer,
         status_clone,
     ));
 
-    info!("spawning thread for status server");
+    debug!("spawning thread for status server");
     let status_clone = status.clone();
     let server_join_handle = rt.spawn(run_server(
         server_config,
@@ -47,15 +47,15 @@ pub async fn run_status_server(
     // Get the Server Handle so we can stop it later
     let server_handle = server_handle_consumer.recv()?;
 
-    info!("waiting for the event_join_handle");
+    debug!("waiting for the event_join_handle");
     event_join_handle.await?;
-    info!("event_join_handle succeeded");
+    debug!("event_join_handle succeeded");
 
-    info!("stopping status server");
+    debug!("stopping status server");
     server_handle.stop(true).await;
-    info!("status server stopped succeeded");
+    debug!("status server stopped succeeded");
 
-    info!("waiting for status server join handle");
+    debug!("waiting for status server join handle");
     _ = server_join_handle
         .await?
         .inspect_err(|e| error!(error_msg = e.to_string(), "error in server_join_handle"));
