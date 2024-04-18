@@ -5,8 +5,8 @@ use std::thread::JoinHandle;
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, error};
 
-// Spawn an OS thread that will act as a bridge between the Sync Events in
-// the Super Agent and the Async Events in the Status Http Server
+/// Spawn an OS thread that will act as a bridge between the Sync Events in
+/// the Super Agent and the Async Events in the Status Http Server
 pub fn run_async_sync_bridge(
     async_publisher: UnboundedSender<SuperAgentEvent>,
     super_agent_consumer: EventConsumer<SuperAgentEvent>,

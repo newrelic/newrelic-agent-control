@@ -9,32 +9,21 @@ use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
 use tracing::{error, info};
 
-// Runner will be responsible for spawning the OS Thread for the HTTP Server
-// and controlling the end of it (waiting until is finished using `drop`)
-// Original idea was to use a single struct Runner and use a generic
-// for the state Runner<NotStarted> and Runner<Started>. But with generics
-// we cannot use drop and control the graceful shutdown. So it's divided in
-// two structs.
-
-// RunnerNotStarted is responsible for spawning the OS Thread with the HTTP Server and
-// the bridge between sync/async events.
-pub struct RunnerNotStarted {
-    config: ServerConfig,
-    runtime: Arc<Runtime>,
-}
-
-//RunnerStarted holds the join_handle of the OS Thread and waits for it on drop.
-pub struct RunnerStarted {
+/// Runner will be responsible for spawning the OS Thread for the HTTP Server
+/// and owning the JoinHandle. It controls the server stop implementing drop
+pub struct Runner {
     join_handle: Option<JoinHandle<()>>,
 }
 
-impl RunnerNotStarted {
-    pub fn new(config: ServerConfig, runtime: Arc<Runtime>) -> Self {
-        Self { config, runtime }
-    }
-
-    pub fn start(self, super_agent_consumer: EventConsumer<SuperAgentEvent>) -> RunnerStarted {
-        let join_handle = self.config.enabled.then(|| {
+impl Runner {
+    /// start the OS Thread with the HTTP Server and return a struct
+    /// that holds the JoinHandle until drop
+    pub fn start(
+        config: ServerConfig,
+        runtime: Arc<Runtime>,
+        super_agent_consumer: EventConsumer<SuperAgentEvent>,
+    ) -> Self {
+        let join_handle = config.enabled.then(|| {
             thread::spawn(move || {
                 // Create unbounded channel to send the Super Agent Sync events
                 // to the Async Status Server
@@ -46,10 +35,9 @@ impl RunnerNotStarted {
                     run_async_sync_bridge(async_sa_event_publisher, super_agent_consumer);
 
                 // Run the async status server
-                let _ = self
-                    .runtime
+                let _ = runtime
                     .block_on(crate::super_agent::http_server::server::run_status_server(
-                        self.config.clone(),
+                        config.clone(),
                         async_sa_event_consumer,
                     ))
                     .inspect_err(|err| {
@@ -61,11 +49,11 @@ impl RunnerNotStarted {
             })
         });
 
-        RunnerStarted { join_handle }
+        Runner { join_handle }
     }
 }
 
-impl Drop for RunnerStarted {
+impl Drop for Runner {
     fn drop(&mut self) {
         if let Some(join_handle) = self.join_handle.take() {
             info!("waiting for status server to stop gracefully...");

@@ -83,5 +83,5 @@ flowchart TD
 
 ```
 
-The chosen wen server is [Actix](https://actix.rs/) and runs within Tokio so all the components will
+The chosen web server is [Actix](https://actix.rs/) and runs within Tokio so all the components will
 run in async.

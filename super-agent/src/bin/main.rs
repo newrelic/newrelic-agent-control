@@ -12,19 +12,14 @@ use newrelic_super_agent::super_agent::config_storer::SuperAgentConfigStoreFile;
 use newrelic_super_agent::super_agent::defaults::HOST_ID_ATTRIBUTE_KEY;
 use newrelic_super_agent::super_agent::defaults::HOST_NAME_ATTRIBUTE_KEY;
 use newrelic_super_agent::super_agent::error::AgentError;
-use newrelic_super_agent::super_agent::http_server::async_bridge::run_async_sync_bridge;
-use newrelic_super_agent::super_agent::http_server::config::ServerConfig;
-use newrelic_super_agent::super_agent::http_server::runner::RunnerNotStarted;
+use newrelic_super_agent::super_agent::http_server::runner::Runner;
 use newrelic_super_agent::super_agent::{super_agent_fqn, SuperAgent};
 use newrelic_super_agent::utils::binary_metadata::binary_metadata;
 use opamp_client::operation::settings::DescriptionValueType;
 use std::collections::HashMap;
 use std::error::Error;
 use std::sync::Arc;
-use std::thread;
-use std::thread::JoinHandle;
 use tokio::runtime::Runtime;
-use tokio::sync::mpsc;
 use tracing::{debug, error, info};
 
 #[cfg(all(feature = "onhost", feature = "k8s", not(feature = "ci")))]
@@ -95,8 +90,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Start the status server if enabled. Stopping control is done through events
     // Dropping _started_runner will force it to wait until the server is gracefully
     // stopped
-    let _started_runner = RunnerNotStarted::new(super_agent_config.server.clone(), runtime.clone())
-        .start(super_agent_consumer);
+    let _started_http_server_runner = Runner::start(
+        super_agent_config.server.clone(),
+        runtime.clone(),
+        super_agent_consumer,
+    );
 
     #[cfg(any(feature = "onhost", feature = "k8s"))]
     run_super_agent(
