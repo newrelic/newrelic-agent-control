@@ -110,7 +110,7 @@ impl StartedSubAgent for SubAgentK8s<Started> {
 }
 
 #[cfg(test)]
-mod test {
+pub mod test {
     use crate::event::channel::{pub_sub, EventPublisher};
     use crate::event::SubAgentInternalEvent;
     use crate::k8s::client::MockSyncK8sClient;
@@ -126,7 +126,7 @@ mod test {
     use std::sync::Arc;
 
     const TEST_K8S_ISSUE: &str = "random issue";
-    const TEST_AGENT_ID: &str = "k8s-test";
+    pub const TEST_AGENT_ID: &str = "k8s-test";
     #[test]
     fn k8s_sub_agent_start_and_stop() {
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();

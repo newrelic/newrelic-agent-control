@@ -290,6 +290,7 @@ pub mod test {
     use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
     use crate::sub_agent::event_processor::test::MockEventProcessorMock;
     use crate::sub_agent::event_processor_builder::test::MockSubAgentEventProcessorBuilderMock;
+    use crate::sub_agent::k8s::sub_agent::test::TEST_AGENT_ID;
     use crate::{
         k8s::client::MockSyncK8sClient, opamp::client_builder::test::MockOpAMPClientBuilderMock,
     };
