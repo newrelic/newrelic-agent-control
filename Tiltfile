@@ -32,8 +32,8 @@ license_key = os.getenv('LICENSE_KEY')
 ######## Feature Branch Workaround ########
 
 # Use the branch source to get the chart form a feature branch in the NR helm-charts repo.
-chart_source = 'branch'
-feature_branch = 'chore/SaChangeCMName'
+# chart_source = 'branch'
+feature_branch = '<feature-branch>'
 
 
 #### Build SA binary
