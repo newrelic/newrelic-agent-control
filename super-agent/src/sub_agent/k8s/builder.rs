@@ -288,7 +288,9 @@ pub mod test {
     use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
     use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
+    use crate::sub_agent::event_processor::test::MockEventProcessorMock;
     use crate::sub_agent::event_processor_builder::test::MockSubAgentEventProcessorBuilderMock;
+    use crate::sub_agent::k8s::sub_agent::test::TEST_AGENT_ID;
     use crate::{
         k8s::client::MockSyncK8sClient, opamp::client_builder::test::MockOpAMPClientBuilderMock,
     };
@@ -296,86 +298,117 @@ pub mod test {
     use opamp_client::operation::settings::DescriptionValueType;
     use std::collections::HashMap;
 
+    const TEST_CLUSTER_NAME: &str = "cluster_name";
+    const TEST_NAMESPACE: &str = "test-namespace";
     #[test]
-    fn build_error_with_invalid_object_kind() {
-        let instance_id = "k8s-test-instance-id";
-        let cluster_name = "cluster-name";
-
-        let mut opamp_builder = MockOpAMPClientBuilderMock::new();
-        let effective_agent = k8s_effective_agent(AgentID::new("k8s-test").unwrap(), false);
+    fn k8s_agent_build_success() {
+        let agent_id = AgentID::new(TEST_AGENT_ID).unwrap();
         let sub_agent_config = SubAgentConfig {
             agent_type: AgentMetadata::default().to_string().as_str().into(),
         };
-        let start_settings = start_settings(
-            instance_id.to_string(),
-            &sub_agent_config.agent_type,
-            HashMap::from([(
-                "cluster.name".to_string(),
-                DescriptionValueType::String(cluster_name.to_string()),
-            )]),
-        );
-        let mut started_client = MockStartedOpAMPClientMock::new();
-        started_client.should_set_any_remote_config_status(1);
 
-        opamp_builder.should_build_and_start(
-            AgentID::new("k8s-test").unwrap(),
-            start_settings,
-            started_client,
-        );
-        // instance id getter mock
-        let mut instance_id_getter = MockInstanceIDGetterMock::new();
-        instance_id_getter.should_get(
-            &AgentID::new("k8s-test").unwrap(),
-            "k8s-test-instance-id".to_string(),
-        );
+        // instance K8s client mock
+        let mut mock_client = MockSyncK8sClient::default();
+        mock_client
+            .expect_default_namespace()
+            .return_const("default".to_string());
 
-        let sub_agent_id = AgentID::new("k8s-test").unwrap();
-        let mut effective_agent_assembler = MockEffectiveAgentAssemblerMock::new();
-        effective_agent_assembler.should_assemble_agent(
-            &sub_agent_id,
-            &sub_agent_config,
-            &Environment::K8s,
-            effective_agent,
-        );
-
-        let mut hash_repository_mock = MockHashRepositoryMock::new();
-        hash_repository_mock.expect_get().times(1).returning(|_| {
-            let hash = Hash::new("a-hash".to_string());
-            Ok(Some(hash))
-        });
-        hash_repository_mock
-            .expect_save()
-            .times(1)
-            .returning(|_, _| Ok(()));
-
+        // event processor mock
         let mut sub_agent_event_processor_builder = MockSubAgentEventProcessorBuilderMock::new();
-        sub_agent_event_processor_builder.expect_build().never();
+        sub_agent_event_processor_builder.should_build(MockEventProcessorMock::default());
+
+        let (opamp_builder, instance_id_getter, hash_repository_mock) =
+            get_common_mocks(sub_agent_config.clone(), agent_id.clone());
 
         let k8s_config = K8sConfig {
-            cluster_name: cluster_name.to_string(),
-            namespace: "test-namespace".to_string(),
+            cluster_name: TEST_CLUSTER_NAME.to_string(),
+            namespace: TEST_NAMESPACE.to_string(),
             cr_type_meta: K8sConfig::default().cr_type_meta,
         };
 
+        let assembler = get_agent_assembler_mock(sub_agent_config.clone(), agent_id.clone(), true);
+        let builder = K8sSubAgentBuilder::new(
+            Some(&opamp_builder),
+            &instance_id_getter,
+            Arc::new(mock_client),
+            Arc::new(hash_repository_mock),
+            &assembler,
+            &sub_agent_event_processor_builder,
+            k8s_config,
+        );
+
+        let (application_event_publisher, _) = pub_sub();
+        builder
+            .build(agent_id, &sub_agent_config, application_event_publisher)
+            .unwrap();
+    }
+
+    #[test]
+    fn build_error_with_invalid_object_kind() {
+        let agent_id = AgentID::new(TEST_AGENT_ID).unwrap();
+        let sub_agent_config = SubAgentConfig {
+            agent_type: AgentMetadata::default().to_string().as_str().into(),
+        };
+
+        // event processor mock
+        let mut sub_agent_event_processor_builder = MockSubAgentEventProcessorBuilderMock::new();
+        sub_agent_event_processor_builder.expect_build().never();
+
+        let (opamp_builder, instance_id_getter, hash_repository_mock) =
+            get_common_mocks(sub_agent_config.clone(), agent_id.clone());
+
+        let k8s_config = K8sConfig {
+            cluster_name: TEST_CLUSTER_NAME.to_string(),
+            namespace: TEST_NAMESPACE.to_string(),
+            cr_type_meta: K8sConfig::default().cr_type_meta,
+        };
+
+        // The test fails due to the invalid kind here
+        let assembler = get_agent_assembler_mock(sub_agent_config.clone(), agent_id.clone(), false);
         let builder = K8sSubAgentBuilder::new(
             Some(&opamp_builder),
             &instance_id_getter,
             Arc::new(MockSyncK8sClient::default()),
             Arc::new(hash_repository_mock),
-            &effective_agent_assembler,
+            &assembler,
             &sub_agent_event_processor_builder,
             k8s_config,
         );
 
         let (opamp_publisher, _opamp_consumer) = pub_sub();
-        let build_result = builder.build(sub_agent_id, &sub_agent_config, opamp_publisher);
-
+        let build_result = builder.build(agent_id, &sub_agent_config, opamp_publisher);
         let error = build_result.err().expect("Expected an error");
-
         assert_matches!(error, SubAgentBuilderError::UnsupportedK8sObject(_));
     }
 
-    pub fn k8s_effective_agent(agent_id: AgentID, valid_kind: bool) -> EffectiveAgent {
+    fn get_agent_assembler_mock(
+        sub_agent_config: SubAgentConfig,
+        agent_id: AgentID,
+        valid_kind: bool,
+    ) -> MockEffectiveAgentAssemblerMock {
+        let effective_agent = EffectiveAgent::new(
+            agent_id.clone(),
+            Runtime {
+                deployment: Deployment {
+                    on_host: None,
+                    k8s: Some(K8s {
+                        objects: k8s_sample_obj(valid_kind),
+                    }),
+                },
+            },
+        );
+
+        let mut effective_agent_assembler = MockEffectiveAgentAssemblerMock::new();
+        effective_agent_assembler.should_assemble_agent(
+            &agent_id,
+            &sub_agent_config,
+            &Environment::K8s,
+            effective_agent,
+        );
+        effective_agent_assembler
+    }
+
+    pub fn k8s_sample_obj(valid_kind: bool) -> HashMap<String, K8sObject> {
         let kind = if valid_kind {
             "HelmRepository".to_string()
         } else {
@@ -390,15 +423,48 @@ pub mod test {
 
         let mut objects = HashMap::new();
         objects.insert("sample_object".to_string(), k8s_object);
+        objects
+    }
 
-        EffectiveAgent::new(
-            agent_id,
-            Runtime {
-                deployment: Deployment {
-                    on_host: None,
-                    k8s: Some(K8s { objects }),
-                },
-            },
-        )
+    fn get_common_mocks(
+        sub_agent_config: SubAgentConfig,
+        agent_id: AgentID,
+    ) -> (
+        MockOpAMPClientBuilderMock<SubAgentCallbacks>,
+        MockInstanceIDGetterMock,
+        MockHashRepositoryMock,
+    ) {
+        let instance_id = "fake-ulid";
+
+        // opamp builder mock
+        let mut started_client = MockStartedOpAMPClientMock::new();
+        started_client.should_set_any_remote_config_status(1);
+        let mut opamp_builder = MockOpAMPClientBuilderMock::new();
+        let start_settings = start_settings(
+            instance_id.to_string(),
+            &sub_agent_config.agent_type,
+            HashMap::from([(
+                "cluster.name".to_string(),
+                DescriptionValueType::String(TEST_CLUSTER_NAME.to_string()),
+            )]),
+        );
+        opamp_builder.should_build_and_start(agent_id.clone(), start_settings, started_client);
+
+        // instance id getter mock
+        let mut instance_id_getter = MockInstanceIDGetterMock::new();
+        instance_id_getter.should_get(&agent_id, instance_id.to_string());
+
+        // hash_repository_mock
+        let mut hash_repository_mock = MockHashRepositoryMock::new();
+        hash_repository_mock.expect_get().times(1).returning(|_| {
+            let hash = Hash::new("a-hash".to_string());
+            Ok(Some(hash))
+        });
+        hash_repository_mock
+            .expect_save()
+            .times(1)
+            .returning(|_, _| Ok(()));
+
+        (opamp_builder, instance_id_getter, hash_repository_mock)
     }
 }

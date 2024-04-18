@@ -110,232 +110,92 @@ impl StartedSubAgent for SubAgentK8s<Started> {
 }
 
 #[cfg(test)]
-mod test {
-    use crate::agent_type::agent_metadata::AgentMetadata;
-    use crate::agent_type::environment::Environment;
-    use crate::event::channel::pub_sub;
+pub mod test {
+    use crate::event::channel::{pub_sub, EventPublisher};
     use crate::event::SubAgentInternalEvent;
     use crate::k8s::client::MockSyncK8sClient;
     use crate::k8s::error::K8sError;
-    use crate::opamp::client_builder::test::{
-        MockOpAMPClientBuilderMock, MockStartedOpAMPClientMock,
-    };
-    use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
-    use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
-    use crate::opamp::operations::start_settings;
-    use crate::opamp::remote_config_hash::Hash;
-    use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
-    use crate::sub_agent::event_processor_builder::test::MockSubAgentEventProcessorBuilderMock;
-    use crate::sub_agent::k8s::builder::test::k8s_effective_agent;
-    use crate::sub_agent::k8s::builder::K8sSubAgentBuilder;
-    use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent, SubAgentBuilder};
-    use crate::super_agent::config::{AgentID, K8sConfig, SubAgentConfig};
-    use opamp_client::operation::settings::DescriptionValueType;
-    use std::collections::HashMap;
+    use crate::sub_agent::error::SubAgentError;
+    use crate::sub_agent::event_processor::test::MockEventProcessorMock;
+    use crate::sub_agent::k8s::builder::test::k8s_sample_obj;
+    use crate::sub_agent::k8s::sub_agent::SubAgentK8s;
+    use crate::sub_agent::k8s::CRSupervisor;
+    use crate::sub_agent::{NotStarted, NotStartedSubAgent, StartedSubAgent};
+    use crate::super_agent::config::{AgentID, AgentTypeFQN};
+    use assert_matches::assert_matches;
     use std::sync::Arc;
 
+    const TEST_K8S_ISSUE: &str = "random issue";
+    pub const TEST_AGENT_ID: &str = "k8s-test";
     #[test]
-    fn build_start_stop() {
-        // opamp builder mock
-        let instance_id = "k8s-test-instance-id";
-        let cluster_name = "test-cluster";
-        let mut opamp_builder = MockOpAMPClientBuilderMock::new();
+    fn k8s_sub_agent_start_and_stop() {
+        let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
 
-        let effective_agent = k8s_effective_agent(AgentID::new("k8s-test").unwrap(), true);
-        let sub_agent_config = SubAgentConfig {
-            agent_type: AgentMetadata::default().to_string().as_str().into(),
-        };
-        let start_settings = start_settings(
-            instance_id.to_string(),
-            &sub_agent_config.agent_type,
-            HashMap::from([(
-                "cluster.name".to_string(),
-                DescriptionValueType::String(cluster_name.to_string()),
-            )]),
-        );
+        let started_agent =
+            create_k8s_sub_agent_successfully(sub_agent_internal_publisher, false).run();
+        assert!(started_agent.stop().is_ok());
+    }
 
-        let mut started_client = MockStartedOpAMPClientMock::new();
-        started_client.should_set_any_remote_config_status(1);
+    #[test]
+    fn k8s_sub_agent_start_and_fail_stop() {
+        let (sub_agent_internal_publisher, _) = pub_sub();
 
-        opamp_builder.should_build_and_start(
-            AgentID::new("k8s-test").unwrap(),
-            start_settings,
-            started_client,
+        let started_agent =
+            create_k8s_sub_agent_successfully(sub_agent_internal_publisher, false).run();
+
+        // This error is triggered since the consumer is dropped and therefore the channel is closed
+        // Therefore, the subAgent fails to write to such channel when stopping
+        assert_matches!(
+            started_agent.stop().unwrap_err(),
+            SubAgentError::EventPublisherError(_)
         );
-        // instance id getter mock
-        let mut instance_id_getter = MockInstanceIDGetterMock::new();
-        instance_id_getter.should_get(
-            &AgentID::new("k8s-test").unwrap(),
-            "k8s-test-instance-id".to_string(),
-        );
+    }
+
+    #[test]
+    fn build_start_fails() {
+        let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
+        let started_agent =
+            create_k8s_sub_agent_successfully(sub_agent_internal_publisher, true).run();
+        assert!(started_agent.stop().is_ok());
+
+        match sub_agent_internal_consumer.as_ref().recv().unwrap() {
+            SubAgentInternalEvent::AgentBecameUnhealthy(message) => {
+                assert!(message.contains(TEST_K8S_ISSUE))
+            }
+            _ => panic!("AgentBecameUnhealthy event expected"),
+        }
+    }
+
+    fn create_k8s_sub_agent_successfully(
+        sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
+        k8s_client_should_fail: bool,
+    ) -> SubAgentK8s<NotStarted<MockEventProcessorMock>> {
+        let agent_id = AgentID::new(TEST_AGENT_ID).unwrap();
 
         // instance K8s client mock
         let mut mock_client = MockSyncK8sClient::default();
         mock_client
             .expect_apply_dynamic_object_if_changed()
-            .times(1)
-            .returning(|_| Ok(()));
+            .returning(move |_| match k8s_client_should_fail {
+                true => Err(K8sError::GetDynamic(TEST_K8S_ISSUE.to_string())),
+                false => Ok(()),
+            });
         mock_client
             .expect_default_namespace()
             .return_const("default".to_string());
 
-        let sub_agent_id = AgentID::new("k8s-test").unwrap();
+        let mut processor = MockEventProcessorMock::new();
+        processor.should_process();
 
-        let mut effective_agent_assembler = MockEffectiveAgentAssemblerMock::new();
-        effective_agent_assembler.should_assemble_agent(
-            &sub_agent_id,
-            &sub_agent_config,
-            &Environment::K8s,
-            effective_agent,
-        );
+        let k8s_obj = k8s_sample_obj(true);
+        let supervisor = CRSupervisor::new(agent_id.clone(), Arc::new(mock_client), k8s_obj);
 
-        let mut hash_repository_mock = MockHashRepositoryMock::new();
-        hash_repository_mock.expect_get().times(1).returning(|_| {
-            let hash = Hash::new("a-hash".to_string());
-            Ok(Some(hash))
-        });
-        hash_repository_mock
-            .expect_save()
-            .times(1)
-            .returning(|_, _| Ok(()));
-
-        let mut sub_agent_event_processor_builder = MockSubAgentEventProcessorBuilderMock::new();
-        _ = sub_agent_event_processor_builder.should_return_event_processor_with_consumer();
-
-        let k8s_config = K8sConfig {
-            cluster_name: cluster_name.to_string(),
-            namespace: "test-namespace".to_string(),
-            cr_type_meta: K8sConfig::default().cr_type_meta,
-        };
-
-        let builder = K8sSubAgentBuilder::new(
-            Some(&opamp_builder),
-            &instance_id_getter,
-            Arc::new(mock_client),
-            Arc::new(hash_repository_mock),
-            &effective_agent_assembler,
-            &sub_agent_event_processor_builder,
-            k8s_config,
-        );
-
-        let (application_event_publisher, _application_event_consumer) = pub_sub();
-        let started_agent = builder
-            .build(
-                AgentID::new("k8s-test").unwrap(),
-                &sub_agent_config,
-                application_event_publisher,
-            )
-            .unwrap() // Not started agent
-            .run();
-        assert!(started_agent.stop().is_ok())
-    }
-
-    #[test]
-    fn build_start_fails() {
-        let test_issue = "random issue";
-        let cluster_name = "test-cluster";
-
-        // opamp builder mock
-        let instance_id = "k8s-test-instance-id";
-        let mut opamp_builder = MockOpAMPClientBuilderMock::new();
-        let effective_agent = crate::sub_agent::k8s::builder::test::k8s_effective_agent(
-            AgentID::new("k8s-test").unwrap(),
-            true,
-        );
-        let sub_agent_config = SubAgentConfig {
-            agent_type: AgentMetadata::default().to_string().as_str().into(),
-        };
-        let start_settings = start_settings(
-            instance_id.to_string(),
-            &sub_agent_config.agent_type,
-            HashMap::from([(
-                "cluster.name".to_string(),
-                DescriptionValueType::String(cluster_name.to_string()),
-            )]),
-        );
-
-        let mut started_client = MockStartedOpAMPClientMock::new();
-        started_client.should_set_any_remote_config_status(1);
-
-        opamp_builder.should_build_and_start(
-            AgentID::new("k8s-test").unwrap(),
-            start_settings,
-            started_client,
-        );
-        // instance id getter mock
-        let mut instance_id_getter = MockInstanceIDGetterMock::new();
-        instance_id_getter.should_get(
-            &AgentID::new("k8s-test").unwrap(),
-            "k8s-test-instance-id".to_string(),
-        );
-
-        // instance K8s client mock now FAILING to apply
-        let mut mock_client = MockSyncK8sClient::default();
-        mock_client
-            .expect_apply_dynamic_object_if_changed()
-            .times(1)
-            .returning(|_| Err(K8sError::GetDynamic(test_issue.to_string())));
-        mock_client
-            .expect_default_namespace()
-            .return_const("default".to_string());
-
-        let sub_agent_id = AgentID::new("k8s-test").unwrap();
-
-        let mut effective_agent_assembler = MockEffectiveAgentAssemblerMock::new();
-        effective_agent_assembler.should_assemble_agent(
-            &sub_agent_id,
-            &sub_agent_config,
-            &Environment::K8s,
-            effective_agent,
-        );
-
-        let mut hash_repository_mock = MockHashRepositoryMock::new();
-        hash_repository_mock.expect_get().times(1).returning(|_| {
-            let hash = Hash::new("a-hash".to_string());
-            Ok(Some(hash))
-        });
-        hash_repository_mock
-            .expect_save()
-            .times(1)
-            .returning(|_, _| Ok(()));
-
-        let mut sub_agent_event_processor_builder = MockSubAgentEventProcessorBuilderMock::new();
-        // Setting a random variant of the enum to make the compiler happy
-        let test_consumer =
-            sub_agent_event_processor_builder.should_return_event_processor_with_consumer();
-
-        let k8s_config = K8sConfig {
-            cluster_name: "test-cluster".to_string(),
-            namespace: "test-namespace".to_string(),
-            cr_type_meta: K8sConfig::default().cr_type_meta,
-        };
-
-        let builder = K8sSubAgentBuilder::new(
-            Some(&opamp_builder),
-            &instance_id_getter,
-            Arc::new(mock_client),
-            Arc::new(hash_repository_mock),
-            &effective_agent_assembler,
-            &sub_agent_event_processor_builder,
-            k8s_config,
-        );
-
-        let (application_event_publisher, _application_event_consumer) = pub_sub();
-
-        _ = builder
-            .build(
-                AgentID::new("k8s-test").unwrap(),
-                &sub_agent_config,
-                application_event_publisher,
-            )
-            .unwrap() // Not started agent
-            .run();
-
-        match test_consumer.as_ref().recv().unwrap() {
-            SubAgentInternalEvent::AgentBecameUnhealthy(message) => {
-                assert!(message.contains(test_issue))
-            }
-            _ => panic!("AgentBecameUnhealthy event expected"),
-        }
+        SubAgentK8s::new(
+            agent_id.clone(),
+            AgentTypeFQN::from("test:0.0.1"),
+            processor,
+            sub_agent_internal_publisher.clone(),
+            Some(supervisor),
+        )
     }
 }
