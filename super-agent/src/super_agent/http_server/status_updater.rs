@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::RwLock;
-use tracing::{debug, info};
+use tracing::debug;
 
 use crate::event::SuperAgentEvent;
 use crate::super_agent::http_server::status::{Status, SubAgentStatus};

@@ -1,5 +1,5 @@
 use crate::event::SuperAgentEvent;
-use crate::super_agent::http_server::config::ServerConfig;
+use crate::super_agent::http_server::config::{ServerConfig, DEFAULT_WORKERS};
 use crate::super_agent::http_server::status::Status;
 use crate::super_agent::http_server::status_handler::status_handler;
 use crate::super_agent::http_server::status_updater::on_super_agent_event_update_status;
@@ -84,7 +84,7 @@ async fn run_server(
             .service(web::resource("/status").to(status_handler))
     })
     .bind((server_config.host.to_string(), server_config.port.into()))?
-    .workers(server_config.workers.into())
+    .workers(DEFAULT_WORKERS)
     .run();
 
     // Send server handle back to the main thread

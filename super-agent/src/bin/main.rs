@@ -20,14 +20,12 @@ use newrelic_super_agent::utils::binary_metadata::binary_metadata;
 use opamp_client::operation::settings::DescriptionValueType;
 use std::collections::HashMap;
 use std::error::Error;
-use std::sync::mpsc::RecvError;
 use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
 use thiserror::Error;
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
-use tokio::task::JoinError;
 use tracing::{debug, error, info};
 
 #[cfg(all(feature = "onhost", feature = "k8s", not(feature = "ci")))]

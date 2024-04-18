@@ -2,13 +2,11 @@ use serde::Deserialize;
 use std::fmt::{Display, Formatter};
 
 const DEFAULT_PORT: u16 = 51200;
-const DEFAULT_WORKERS: usize = 1;
+pub(super) const DEFAULT_WORKERS: usize = 1;
 const DEFAULT_HOST: &str = "127.0.0.1";
 
 #[derive(PartialEq, Deserialize, Debug, Clone)]
 pub struct Port(u16);
-#[derive(PartialEq, Deserialize, Debug, Clone)]
-pub struct Workers(usize);
 #[derive(PartialEq, Deserialize, Debug, Clone)]
 pub struct Host(String);
 
@@ -16,8 +14,6 @@ pub struct Host(String);
 pub struct ServerConfig {
     #[serde(default)]
     pub port: Port,
-    #[serde(default)]
-    pub workers: Workers,
     #[serde(default)]
     pub host: Host,
     #[serde(default)]
@@ -36,18 +32,6 @@ impl From<Port> for u16 {
     }
 }
 
-impl Default for Workers {
-    fn default() -> Self {
-        Workers(DEFAULT_WORKERS)
-    }
-}
-
-impl From<Workers> for usize {
-    fn from(value: Workers) -> Self {
-        value.0
-    }
-}
-
 impl Default for Host {
     fn default() -> Self {
         Host(String::from(DEFAULT_HOST))
@@ -59,11 +43,7 @@ impl Display for Port {
         write!(f, "{}", self.0)
     }
 }
-impl Display for Workers {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
+
 impl Display for Host {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
@@ -73,7 +53,7 @@ impl Display for Host {
 #[cfg(test)]
 mod test {
     use crate::super_agent::http_server::config::{
-        Host, Port, ServerConfig, Workers, DEFAULT_HOST, DEFAULT_PORT, DEFAULT_WORKERS,
+        Host, Port, ServerConfig, DEFAULT_HOST, DEFAULT_PORT,
     };
     use serde::Deserialize;
 
@@ -103,7 +83,6 @@ mod test {
                     server_config: ServerConfig {
                         host: Host(String::from(DEFAULT_HOST)),
                         port: Port(DEFAULT_PORT),
-                        workers: Workers(DEFAULT_WORKERS),
                         enabled: false,
                     },
                 },
@@ -113,7 +92,6 @@ mod test {
                     r#"
                         server_config:
                           host: 192.168.1.10
-                          workers: 5
                           enabled: true
                         "#,
                 ),
@@ -121,7 +99,6 @@ mod test {
                     server_config: ServerConfig {
                         host: Host(String::from("192.168.1.10")),
                         port: Port(DEFAULT_PORT),
-                        workers: Workers(5),
                         enabled: true,
                     },
                 },
@@ -138,7 +115,6 @@ mod test {
                     server_config: ServerConfig {
                         host: Host(String::from("192.168.1.10")),
                         port: Port(4321),
-                        workers: Workers(1),
                         enabled: false,
                     },
                 },
@@ -147,7 +123,6 @@ mod test {
                 content: String::from(
                     r#"
                         server_config:
-                          workers: 192
                           port: 4321
                         "#,
                 ),
@@ -155,7 +130,6 @@ mod test {
                     server_config: ServerConfig {
                         host: Host(String::from("127.0.0.1")),
                         port: Port(4321),
-                        workers: Workers(192),
                         enabled: false,
                     },
                 },
