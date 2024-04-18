@@ -59,7 +59,7 @@ And file type variables contain one additional attribute:
 In terms of available variable types, we currently support the following that can be found [here](variable/kind.rs#L14):
 
 * `string`: A string value, such "Hello, world!"
-* `number`: An integer value, such as 42
+* `number`: An numeric value, such as 42 or 0.25
 * `boolean`: A boolean value, which can be either *true* or *false*
 * `file`: It represents a file in the filesystem.
 * `map[string]string`: A dictionary of key-value pairs, associating keys(string) and values(string).
