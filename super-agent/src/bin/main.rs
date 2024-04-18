@@ -1,3 +1,4 @@
+use futures::future::Join;
 use newrelic_super_agent::cli::Cli;
 use newrelic_super_agent::event::channel::{pub_sub, EventConsumer, EventPublisher};
 use newrelic_super_agent::event::{ApplicationEvent, SuperAgentEvent};
@@ -13,6 +14,7 @@ use newrelic_super_agent::super_agent::defaults::HOST_ID_ATTRIBUTE_KEY;
 use newrelic_super_agent::super_agent::defaults::HOST_NAME_ATTRIBUTE_KEY;
 use newrelic_super_agent::super_agent::error::AgentError;
 use newrelic_super_agent::super_agent::http_server::async_bridge::run_async_sync_bridge;
+use newrelic_super_agent::super_agent::http_server::config::ServerConfig;
 use newrelic_super_agent::super_agent::http_server::server::run_status_server;
 use newrelic_super_agent::super_agent::{super_agent_fqn, SuperAgent};
 use newrelic_super_agent::utils::binary_metadata::binary_metadata;
@@ -92,33 +94,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     );
 
     // Start the status server if enabled. Stopping control is done through events
-    let status_server_jon_handle: Option<JoinHandle<()>> =
-        super_agent_config.server.enabled.then(|| {
-            let rt_clone = runtime.clone();
-            thread::spawn(move || {
-                // Create unbounded channel to send the Super Agent Sync events
-                // to the Async Status Server
-                let (async_sa_event_publisher, async_sa_event_consumer) =
-                    mpsc::unbounded_channel::<SuperAgentEvent>();
-                // Run an OS Thread that listens to sync channel and forwards the events
-                // to an async channel
-                let bridge_join_handle =
-                    run_async_sync_bridge(async_sa_event_publisher, super_agent_consumer);
-
-                // Run the async status server
-                let _ = rt_clone
-                    .block_on(run_status_server(
-                        super_agent_config.server.clone(),
-                        async_sa_event_consumer,
-                    ))
-                    .inspect_err(|err| {
-                        error!(error_msg = err.to_string(), "error running status server");
-                    });
-
-                // Wait until the bridge is closed
-                bridge_join_handle.join().unwrap();
-            })
-        });
+    let status_server_jon_handle: Option<JoinHandle<()>> = spawn_status_server(
+        super_agent_config.server.clone(),
+        runtime.clone(),
+        super_agent_consumer,
+    );
 
     #[cfg(any(feature = "onhost", feature = "k8s"))]
     run_super_agent(
@@ -398,4 +378,38 @@ fn super_agent_opamp_non_identifying_attributes(
             DescriptionValueType::String(identifiers.host_id.clone()),
         ),
     ])
+}
+
+fn spawn_status_server(
+    config: ServerConfig,
+    runtime: Arc<Runtime>,
+    super_agent_consumer: EventConsumer<SuperAgentEvent>,
+) -> Option<JoinHandle<()>> {
+    config.enabled.then(|| {
+        thread::spawn(move || {
+            // Create unbounded channel to send the Super Agent Sync events
+            // to the Async Status Server
+            let (async_sa_event_publisher, async_sa_event_consumer) =
+                mpsc::unbounded_channel::<SuperAgentEvent>();
+            // Run an OS Thread that listens to sync channel and forwards the events
+            // to an async channel
+            let bridge_join_handle =
+                run_async_sync_bridge(async_sa_event_publisher, super_agent_consumer);
+
+            // Run the async status server
+            let _ = runtime
+                .block_on(
+                    newrelic_super_agent::super_agent::http_server::server::run_status_server(
+                        config.clone(),
+                        async_sa_event_consumer,
+                    ),
+                )
+                .inspect_err(|err| {
+                    error!(error_msg = err.to_string(), "error running status server");
+                });
+
+            // Wait until the bridge is closed
+            bridge_join_handle.join().unwrap();
+        })
+    })
 }
