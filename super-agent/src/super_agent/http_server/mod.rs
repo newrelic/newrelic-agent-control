@@ -4,6 +4,7 @@ use tokio::task::JoinError;
 
 pub mod async_bridge;
 pub mod config;
+pub mod runner;
 pub mod server;
 pub(super) mod status;
 pub(super) mod status_handler;
