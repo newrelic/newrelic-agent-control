@@ -24,11 +24,11 @@
           NR_CLI_FLEET_ENABLED: true
           NR_CLI_HOST_MONITORING_SOURCE: newrelic
 
-    - name: Modify infra-agent type to 0.1.0
+    - name: Modify infra-agent type to 0.1.2
       include_role:
         name: super-agent-config
       vars:
-        infra_agent_type_version: "0.1.0"
+        infra_agent_type_version: "0.1.2"
 
     - name: Run migration script
       shell: /usr/bin/newrelic-config-migrate

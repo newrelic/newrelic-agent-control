@@ -9,7 +9,7 @@
     - name: Fresh Super Agent installation
       include_tasks: ./tasks/fresh_super_agent_installation_{{ ansible_system }}.yaml
       vars:
-        infra_agent_type_version: "0.1.0"
+        infra_agent_type_version: "0.1.2"
         otel_agent_type_version: "0.1.0"
 
     - name: Assert Super Agent and Agents are running
@@ -84,7 +84,7 @@
           account_id: "{{ nr_account_id | int }}"
           config_id: "{{ created_config_id }}"
           # multiline config breaks graphql request
-          content: 'agents:\n  nr-infra-agent:\n    agent_type: \"newrelic/com.newrelic.infrastructure_agent:0.1.0\"\n'
+          content: 'agents:\n  nr-infra-agent:\n    agent_type: \"newrelic/com.newrelic.infrastructure_agent:0.1.2\"\n'
           config_revision_fact: "created_config_revision"
 
     - name: get fleet guid for Super Agent
@@ -140,7 +140,7 @@
       include_tasks: ./tasks/assert_full_file_content.yaml
       vars:
         file_path: "{{ super_agent_remote_config_file }}"
-        expected_content: "agents:\n  nr-infra-agent:\n    agent_type: newrelic/com.newrelic.infrastructure_agent:0.1.0"
+        expected_content: "agents:\n  nr-infra-agent:\n    agent_type: newrelic/com.newrelic.infrastructure_agent:0.1.2"
 
     - name: Get Local NR Super Agent Hash
       include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml

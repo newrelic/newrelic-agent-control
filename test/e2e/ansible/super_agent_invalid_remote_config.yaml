@@ -10,7 +10,7 @@
     - name: Fresh Super Agent installation
       include_tasks: ./tasks/fresh_super_agent_installation_{{ ansible_system }}.yaml
       vars:
-        infra_agent_type_version: "0.1.0"
+        infra_agent_type_version: "0.1.2"
         otel_agent_type_version: "0.1.0"
 
     - name: Assert Super Agent and Agents are running
@@ -139,7 +139,7 @@
         create_remote_configuration_revision:
           account_id: "{{ nr_account_id | int }}"
           config_id: "{{ created_config_id }}"
-          content: 'agents:\n  nr-infra-agento:\n    agent_type: \"newrelic/com.newrelic.infrastructure_agentoo:0.1.0\"\n'
+          content: 'agents:\n  nr-infra-agento:\n    agent_type: \"newrelic/com.newrelic.infrastructure_agentoo:0.1.2\"\n'
           config_revision_fact: "created_config_revision_2"
 
     - name: deploy config to fleet
