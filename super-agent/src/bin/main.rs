@@ -137,7 +137,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     if let Some(join_handle) = status_server_jon_handle {
         info!("waiting for status server to stop gracefully...");
-        join_handle.join()?;
+        join_handle.join().unwrap();
     }
 
     info!("exiting gracefully");
