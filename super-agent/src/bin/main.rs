@@ -1,4 +1,3 @@
-use crate::AppError::StatusServerJoinHandleError;
 use newrelic_super_agent::cli::Cli;
 use newrelic_super_agent::event::channel::{pub_sub, EventConsumer, EventPublisher};
 use newrelic_super_agent::event::{ApplicationEvent, SuperAgentEvent};
@@ -23,7 +22,6 @@ use std::error::Error;
 use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
-use thiserror::Error;
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info};
@@ -139,10 +137,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     if let Some(join_handle) = status_server_jon_handle {
         info!("waiting for status server to stop gracefully...");
-        join_handle.join().map_err(|_| {
-            error!("error waiting on status server join handle");
-            StatusServerJoinHandleError
-        })?;
+        join_handle
+            .join()
+            .expect("error waiting on status server join handle");
     }
 
     info!("exiting gracefully");
@@ -401,10 +398,4 @@ fn super_agent_opamp_non_identifying_attributes(
             DescriptionValueType::String(identifiers.host_id.clone()),
         ),
     ])
-}
-
-#[derive(Error, Debug)]
-pub enum AppError {
-    #[error("error waiting for status server join handle")]
-    StatusServerJoinHandleError,
 }
