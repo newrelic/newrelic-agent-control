@@ -126,7 +126,7 @@ mod test {
     use std::sync::Arc;
 
     const TEST_K8S_ISSUE: &str = "random issue";
-
+    const TEST_AGENT_ID: &str = "k8s-test";
     #[test]
     fn k8s_sub_agent_start_and_stop() {
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -170,7 +170,7 @@ mod test {
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
         k8s_client_should_fail: bool,
     ) -> SubAgentK8s<NotStarted<MockEventProcessorMock>> {
-        let agent_id = AgentID::new("k8s-test").unwrap();
+        let agent_id = AgentID::new(TEST_AGENT_ID).unwrap();
 
         // instance K8s client mock
         let mut mock_client = MockSyncK8sClient::default();

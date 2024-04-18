@@ -298,10 +298,10 @@ pub mod test {
     use std::collections::HashMap;
 
     const TEST_CLUSTER_NAME: &str = "cluster_name";
-
+    const TEST_NAMESPACE: &str = "test-namespace";
     #[test]
     fn k8s_agent_build_success() {
-        let agent_id = AgentID::new("k8s-test").unwrap();
+        let agent_id = AgentID::new(TEST_AGENT_ID).unwrap();
         let sub_agent_config = SubAgentConfig {
             agent_type: AgentMetadata::default().to_string().as_str().into(),
         };
@@ -321,7 +321,7 @@ pub mod test {
 
         let k8s_config = K8sConfig {
             cluster_name: TEST_CLUSTER_NAME.to_string(),
-            namespace: "test-namespace".to_string(),
+            namespace: TEST_NAMESPACE.to_string(),
             cr_type_meta: K8sConfig::default().cr_type_meta,
         };
 
@@ -344,7 +344,7 @@ pub mod test {
 
     #[test]
     fn build_error_with_invalid_object_kind() {
-        let agent_id = AgentID::new("k8s-test").unwrap();
+        let agent_id = AgentID::new(TEST_AGENT_ID).unwrap();
         let sub_agent_config = SubAgentConfig {
             agent_type: AgentMetadata::default().to_string().as_str().into(),
         };
@@ -358,7 +358,7 @@ pub mod test {
 
         let k8s_config = K8sConfig {
             cluster_name: TEST_CLUSTER_NAME.to_string(),
-            namespace: "test-namespace".to_string(),
+            namespace: TEST_NAMESPACE.to_string(),
             cr_type_meta: K8sConfig::default().cr_type_meta,
         };
 
@@ -433,7 +433,7 @@ pub mod test {
         MockInstanceIDGetterMock,
         MockHashRepositoryMock,
     ) {
-        let instance_id = "k8s-test-instance-id";
+        let instance_id = "fake-ulid";
 
         // opamp builder mock
         let mut started_client = MockStartedOpAMPClientMock::new();
