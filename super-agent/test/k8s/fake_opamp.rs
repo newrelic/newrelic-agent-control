@@ -1,16 +1,14 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, net, sync::Arc};
 
-use axum::{
-    body::Bytes, extract::State, http::StatusCode, response::IntoResponse, routing, Router,
-};
+use actix_web::{web, App, HttpResponse, HttpServer};
 use opamp_client::opamp;
 use prost::Message;
 use std::sync::Mutex;
 use tokio::task::JoinHandle;
 
-use crate::common::{block_on, tokio_runtime};
+use crate::common::tokio_runtime;
 
-const FAKE_SERVER_PATH: &str = "/fake-server";
+const FAKE_SERVER_PATH: &str = "/opamp-fake-server";
 
 pub type Identifier = String;
 pub type ConfigResponses = HashMap<Identifier, ConfigResponse>;
@@ -19,13 +17,6 @@ pub type ConfigResponses = HashMap<Identifier, ConfigResponse>;
 /// Configuration response to be returned by the server until the agent informs it is applied.
 pub struct ConfigResponse {
     raw_body: Option<String>,
-}
-
-pub struct FakeServer {
-    handle: JoinHandle<()>,
-    responses: Arc<Mutex<ConfigResponses>>,
-    port: u16,
-    path: String,
 }
 
 impl From<&str> for ConfigResponse {
@@ -37,7 +28,7 @@ impl From<&str> for ConfigResponse {
 }
 
 impl ConfigResponse {
-    fn axum_response(&self) -> impl IntoResponse {
+    fn encode(&self) -> Vec<u8> {
         // remote config is only set if there is any content
         let remote_config = self
             .clone()
@@ -54,22 +45,26 @@ impl ConfigResponse {
                     )]),
                 }),
             });
-        (
-            StatusCode::OK,
-            opamp::proto::ServerToAgent {
-                instance_uid: "test".into(), // fake ulid for the shake of simplicity
-                remote_config,
-                flags: 0,
-                capabilities: 0,
-                agent_identification: None,
-                command: None,
-                connection_settings: None,
-                error_response: None,
-                packages_available: None,
-            }
-            .encode_to_vec(),
-        )
+        opamp::proto::ServerToAgent {
+            instance_uid: "test".into(), // fake ulid for the shake of simplicity
+            remote_config,
+            flags: 0,
+            capabilities: 0,
+            agent_identification: None,
+            command: None,
+            connection_settings: None,
+            error_response: None,
+            packages_available: None,
+        }
+        .encode_to_vec()
     }
+}
+
+pub struct FakeServer {
+    handle: JoinHandle<()>,
+    responses: Arc<Mutex<ConfigResponses>>,
+    port: u16,
+    path: String,
 }
 
 impl FakeServer {
@@ -81,27 +76,31 @@ impl FakeServer {
     /// Starts and returns new FakeServer in a random port with the provided responses.
     pub fn start_new(config_responses: ConfigResponses) -> Self {
         let state = Arc::new(Mutex::new(config_responses));
-        let path = FAKE_SERVER_PATH.to_string();
-
-        let router = Router::new().route(
-            &path,
-            routing::post(request_handler).with_state(state.clone()),
-        );
-
-        // While binding to port 0, the kernel gives you an ephemeral port that is free.
-        let listener = block_on(tokio::net::TcpListener::bind("0.0.0.0:0")).unwrap();
+        // While binding to port 0, the kernel gives you a free ephemeral port.
+        let listener = net::TcpListener::bind("0.0.0.0:0").unwrap();
         let port = listener.local_addr().unwrap().port();
 
-        let handle = tokio_runtime().spawn(async {
-            axum::serve(listener, router).await.unwrap();
-        });
+        let handle = tokio_runtime().spawn(Self::run_http_server(listener, state.clone()));
 
         Self {
-            responses: state,
             handle,
+            responses: state,
             port,
-            path,
+            path: FAKE_SERVER_PATH.to_string(),
         }
+    }
+
+    async fn run_http_server(listener: net::TcpListener, state: Arc<Mutex<ConfigResponses>>) {
+        HttpServer::new(move || {
+            App::new()
+                .app_data(web::Data::new(state.clone()))
+                .service(web::resource(FAKE_SERVER_PATH).to(config_handler))
+        })
+        .listen(listener)
+        .unwrap()
+        .run()
+        .await
+        .unwrap()
     }
 
     /// Sets a response for the provided identifier. If a response already existed, it is overwritten.
@@ -123,11 +122,11 @@ impl Drop for FakeServer {
     }
 }
 
-async fn request_handler(
-    State(state): State<Arc<Mutex<ConfigResponses>>>,
-    request: Bytes,
-) -> impl IntoResponse {
-    let message = opamp::proto::AgentToServer::decode(request).unwrap();
+async fn config_handler(
+    state: web::Data<Arc<Mutex<ConfigResponses>>>,
+    req: web::Bytes,
+) -> HttpResponse {
+    let message = opamp::proto::AgentToServer::decode(req).unwrap();
     let identifier = response_identifier(&message);
 
     let mut config_responses = state.lock().unwrap();
@@ -136,10 +135,9 @@ async fn request_handler(
         .unwrap_or_else(|| panic!("missing config response for identifier {}", identifier));
     // remove the config if it was already applied
     if remote_config_is_applied(&message) {
-        config_response.raw_body = None
+        config_response.raw_body = None;
     }
-
-    config_response.axum_response()
+    HttpResponse::Ok().body(config_response.encode())
 }
 
 /// Checks if the remote is applied according to the agent message

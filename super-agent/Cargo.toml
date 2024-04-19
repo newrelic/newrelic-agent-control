@@ -73,7 +73,6 @@ tokio = { version = "1.32.0", features = [
   "macros",
 ] }
 wiremock = "0.6.0"
-axum = "0.7.5"
 prost = "0.11.8"
 
 [build-dependencies]
