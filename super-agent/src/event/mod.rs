@@ -1,6 +1,6 @@
 pub mod channel;
 
-use crate::opamp::LastErrorMessage;
+use crate::opamp::{LastErrorCode, LastErrorMessage};
 use crate::super_agent::config::AgentTypeFQN;
 /// EVENTS
 use crate::{opamp::remote_config::RemoteConfig, super_agent::config::AgentID};
@@ -8,6 +8,8 @@ use crate::{opamp::remote_config::RemoteConfig, super_agent::config::AgentID};
 #[derive(Clone, Debug, PartialEq)]
 pub enum OpAMPEvent {
     RemoteConfigReceived(RemoteConfig),
+    Connected,
+    ConnectFailed(LastErrorCode, LastErrorMessage),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -23,6 +25,8 @@ pub enum SuperAgentEvent {
     SubAgentBecameHealthy(AgentID, AgentTypeFQN),
     SubAgentRemoved(AgentID),
     SuperAgentStopped,
+    OpAMPConnected,
+    OpAMPConnectFailed(LastErrorCode, LastErrorMessage),
 }
 
 #[derive(Clone, Debug, PartialEq)]

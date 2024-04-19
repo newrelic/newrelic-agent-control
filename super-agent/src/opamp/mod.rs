@@ -7,4 +7,5 @@ pub mod remote_config;
 pub mod remote_config_hash;
 pub mod remote_config_report;
 
+pub type LastErrorCode = u16;
 pub type LastErrorMessage = String;

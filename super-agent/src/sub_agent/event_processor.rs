@@ -125,7 +125,7 @@ where
                                      error!("error processing remote config: {}",e.to_string())
                                 }
                             }
-                        }
+                            _ => {}}
                     },
                     recv(&self.sub_agent_internal_consumer.as_ref()) -> sub_agent_internal_event_res => {
                          match sub_agent_internal_event_res {
