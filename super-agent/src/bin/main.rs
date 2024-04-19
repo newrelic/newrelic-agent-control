@@ -8,6 +8,9 @@ use newrelic_super_agent::sub_agent::effective_agents_assembler::LocalEffectiveA
 use newrelic_super_agent::sub_agent::event_processor_builder::EventProcessorBuilder;
 use newrelic_super_agent::super_agent::config_storer::storer::SuperAgentConfigLoader;
 use newrelic_super_agent::super_agent::config_storer::SuperAgentConfigStoreFile;
+#[cfg(feature = "onhost")]
+use newrelic_super_agent::super_agent::defaults::HOST_ID_ATTRIBUTE_KEY;
+use newrelic_super_agent::super_agent::defaults::HOST_NAME_ATTRIBUTE_KEY;
 use newrelic_super_agent::super_agent::error::AgentError;
 use newrelic_super_agent::super_agent::{super_agent_fqn, SuperAgent};
 use newrelic_super_agent::utils::binary_metadata::binary_metadata;
@@ -336,7 +339,7 @@ fn super_agent_opamp_non_identifying_attributes(
         .to_string();
 
     HashMap::from([(
-        opentelemetry_semantic_conventions::resource::HOST_NAME.to_string(),
+        HOST_NAME_ATTRIBUTE_KEY.to_string(),
         DescriptionValueType::String(hostname),
     )])
 }
@@ -347,11 +350,11 @@ fn super_agent_opamp_non_identifying_attributes(
 ) -> HashMap<String, DescriptionValueType> {
     HashMap::from([
         (
-            opentelemetry_semantic_conventions::resource::HOST_NAME.to_string(),
+            HOST_NAME_ATTRIBUTE_KEY.to_string(),
             DescriptionValueType::String(identifiers.hostname.clone()),
         ),
         (
-            opentelemetry_semantic_conventions::resource::HOST_ID.to_string(),
+            HOST_ID_ATTRIBUTE_KEY.to_string(),
             DescriptionValueType::String(identifiers.host_id.clone()),
         ),
     ])

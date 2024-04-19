@@ -11,7 +11,7 @@ use crate::event::SubAgentEvent;
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::instance_id::IdentifiersProvider;
-use crate::opamp::operations::build_opamp_with_channel;
+use crate::opamp::operations::build_sub_agent_opamp;
 use crate::opamp::remote_config_report::{
     report_remote_config_status_applied, report_remote_config_status_error,
 };
@@ -21,6 +21,7 @@ use crate::sub_agent::on_host::supervisor::command_supervisor;
 use crate::sub_agent::NotStarted;
 use crate::sub_agent::SubAgentCallbacks;
 use crate::super_agent::config::{AgentID, SubAgentConfig};
+use crate::super_agent::defaults::HOST_NAME_ATTRIBUTE_KEY;
 use crate::{
     context::Context,
     opamp::client_builder::OpAMPClientBuilder,
@@ -102,12 +103,12 @@ where
         let (maybe_opamp_client, sub_agent_opamp_consumer) = self
             .opamp_builder
             .map(|builder| {
-                build_opamp_with_channel(
+                build_sub_agent_opamp(
                     builder,
                     self.instance_id_getter,
                     agent_id.clone(),
                     &sub_agent_config.agent_type,
-                    HashMap::from([("host.name".to_string(), get_hostname().into())]),
+                    HashMap::from([(HOST_NAME_ATTRIBUTE_KEY.to_string(), get_hostname().into())]),
                 )
             })
             // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
@@ -258,7 +259,7 @@ mod test {
     use crate::sub_agent::event_processor::test::MockEventProcessorMock;
     use crate::sub_agent::event_processor_builder::test::MockSubAgentEventProcessorBuilderMock;
     use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
-    use crate::super_agent::defaults::default_capabilities;
+    use crate::super_agent::defaults::{default_capabilities, PARENT_AGENT_ID_ATTRIBUTE_KEY};
     use nix::unistd::gethostname;
     use opamp_client::opamp::proto::RemoteConfigStatus;
     use opamp_client::opamp::proto::RemoteConfigStatuses::Failed;
@@ -276,8 +277,10 @@ mod test {
         let (opamp_publisher, _opamp_consumer) = pub_sub();
         let mut opamp_builder = MockOpAMPClientBuilderMock::new();
         let hostname = gethostname().unwrap_or_default().into_string().unwrap();
-        let start_settings_infra = infra_agent_default_start_settings(&hostname);
+        let start_settings_infra =
+            infra_agent_default_start_settings(&hostname, "super_agent_instance_id");
 
+        let super_agent_id = AgentID::new_super_agent_id();
         let sub_agent_id = AgentID::new("infra-agent").unwrap();
         let final_agent = on_host_final_agent(sub_agent_id.clone());
         let sub_agent_config = SubAgentConfig {
@@ -296,6 +299,7 @@ mod test {
 
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
         instance_id_getter.should_get(&sub_agent_id, "infra_agent_instance_id".to_string());
+        instance_id_getter.should_get(&super_agent_id, "super_agent_instance_id".to_string());
 
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         hash_repository_mock.expect_get().times(1).returning(|_| {
@@ -346,7 +350,9 @@ mod test {
 
         // Structures
         let hostname = gethostname().unwrap_or_default().into_string().unwrap();
-        let start_settings_infra = infra_agent_default_start_settings(&hostname);
+        let start_settings_infra =
+            infra_agent_default_start_settings(&hostname, "super_agent_instance_id");
+        let super_agent_id = AgentID::new_super_agent_id();
         let sub_agent_id = AgentID::new("infra-agent").unwrap();
         let final_agent = on_host_final_agent(sub_agent_id.clone());
         let sub_agent_config = SubAgentConfig {
@@ -356,6 +362,7 @@ mod test {
         // Expectations
         // Infra Agent OpAMP no final stop nor health, just after stopping on reload
         instance_id_getter.should_get(&sub_agent_id, "infra_agent_instance_id".to_string());
+        instance_id_getter.should_get(&super_agent_id, "super_agent_instance_id".to_string());
 
         let mut started_client = MockStartedOpAMPClientMock::new();
         // failed conf should be reported
@@ -420,7 +427,7 @@ mod test {
         )
     }
 
-    fn infra_agent_default_start_settings(hostname: &str) -> StartSettings {
+    fn infra_agent_default_start_settings(hostname: &str, parent_id: &str) -> StartSettings {
         start_settings(
             "infra_agent_instance_id".to_string(),
             default_capabilities(),
@@ -428,6 +435,7 @@ mod test {
             "".to_string(),
             "".to_string(),
             hostname,
+            parent_id,
         )
     }
 
@@ -438,6 +446,7 @@ mod test {
         agent_version: String,
         agent_namespace: String,
         hostname: &str,
+        parent_id: &str,
     ) -> StartSettings {
         StartSettings {
             instance_id,
@@ -448,10 +457,16 @@ mod test {
                     ("service.namespace".to_string(), agent_namespace.into()),
                     ("service.version".to_string(), agent_version.into()),
                 ]),
-                non_identifying_attributes: HashMap::from([(
-                    "host.name".to_string(),
-                    DescriptionValueType::String(hostname.to_string()),
-                )]),
+                non_identifying_attributes: HashMap::from([
+                    (
+                        HOST_NAME_ATTRIBUTE_KEY.to_string(),
+                        DescriptionValueType::String(hostname.to_string()),
+                    ),
+                    (
+                        PARENT_AGENT_ID_ATTRIBUTE_KEY.to_string(),
+                        DescriptionValueType::String(parent_id.to_string()),
+                    ),
+                ]),
             },
         }
     }

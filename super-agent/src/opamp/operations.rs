@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::super_agent::defaults::PARENT_AGENT_ID_ATTRIBUTE_KEY;
 use crate::{
     event::{
         channel::{pub_sub, EventConsumer, EventPublisher},
@@ -21,6 +22,35 @@ use super::{
     client_builder::{OpAMPClientBuilder, OpAMPClientBuilderError},
     instance_id::getter::InstanceIDGetter,
 };
+
+pub fn build_sub_agent_opamp<CB, OB, IG>(
+    opamp_builder: &OB,
+    instance_id_getter: &IG,
+    agent_id: AgentID,
+    agent_type: &AgentTypeFQN,
+    mut non_identifying_attributes: HashMap<String, DescriptionValueType>,
+) -> Result<(OB::Client, EventConsumer<OpAMPEvent>), OpAMPClientBuilderError>
+where
+    CB: Callbacks,
+    OB: OpAMPClientBuilder<CB>,
+    IG: InstanceIDGetter,
+{
+    let super_agent_id = AgentID::new_super_agent_id();
+    let parent_instance_id = instance_id_getter.get(&super_agent_id)?.to_string();
+
+    non_identifying_attributes.insert(
+        PARENT_AGENT_ID_ATTRIBUTE_KEY.to_string(),
+        DescriptionValueType::String(parent_instance_id),
+    );
+
+    build_opamp_with_channel(
+        opamp_builder,
+        instance_id_getter,
+        agent_id.clone(),
+        agent_type,
+        non_identifying_attributes,
+    )
+}
 
 pub fn build_opamp_with_channel<CB, OB, IG>(
     opamp_builder: &OB,

@@ -7,7 +7,7 @@ use crate::event::SubAgentEvent;
 use crate::k8s::client::SyncK8sClient;
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
-use crate::opamp::operations::build_opamp_with_channel;
+use crate::opamp::operations::build_sub_agent_opamp;
 use crate::opamp::remote_config_report::{
     report_remote_config_status_applied, report_remote_config_status_error,
 };
@@ -15,6 +15,7 @@ use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgen
 use crate::sub_agent::event_processor_builder::SubAgentEventProcessorBuilder;
 use crate::sub_agent::{NotStarted, SubAgentCallbacks};
 use crate::super_agent::config::{AgentID, K8sConfig, SubAgentConfig};
+use crate::super_agent::defaults::CLUSTER_NAME_ATTRIBUTE_KEY;
 use crate::{
     opamp::client_builder::OpAMPClientBuilder,
     sub_agent::k8s::supervisor::CRSupervisor,
@@ -101,13 +102,13 @@ where
         let (maybe_opamp_client, sub_agent_opamp_consumer) = self
             .opamp_builder
             .map(|builder| {
-                build_opamp_with_channel(
+                build_sub_agent_opamp(
                     builder,
                     self.instance_id_getter,
                     agent_id.clone(),
                     &sub_agent_config.agent_type,
                     HashMap::from([(
-                        "cluster.name".to_string(),
+                        CLUSTER_NAME_ATTRIBUTE_KEY.to_string(),
                         DescriptionValueType::String(self.k8s_config.cluster_name.to_string()),
                     )]),
                 )
@@ -291,6 +292,7 @@ pub mod test {
     use crate::sub_agent::event_processor::test::MockEventProcessorMock;
     use crate::sub_agent::event_processor_builder::test::MockSubAgentEventProcessorBuilderMock;
     use crate::sub_agent::k8s::sub_agent::test::TEST_AGENT_ID;
+    use crate::super_agent::defaults::PARENT_AGENT_ID_ATTRIBUTE_KEY;
     use crate::{
         k8s::client::MockSyncK8sClient, opamp::client_builder::test::MockOpAMPClientBuilderMock,
     };
@@ -443,16 +445,26 @@ pub mod test {
         let start_settings = start_settings(
             instance_id.to_string(),
             &sub_agent_config.agent_type,
-            HashMap::from([(
-                "cluster.name".to_string(),
-                DescriptionValueType::String(TEST_CLUSTER_NAME.to_string()),
-            )]),
+            HashMap::from([
+                (
+                    CLUSTER_NAME_ATTRIBUTE_KEY.to_string(),
+                    DescriptionValueType::String(TEST_CLUSTER_NAME.to_string()),
+                ),
+                (
+                    PARENT_AGENT_ID_ATTRIBUTE_KEY.to_string(),
+                    DescriptionValueType::String("super_agent_instance_id".to_string()),
+                ),
+            ]),
         );
         opamp_builder.should_build_and_start(agent_id.clone(), start_settings, started_client);
 
         // instance id getter mock
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
         instance_id_getter.should_get(&agent_id, instance_id.to_string());
+        instance_id_getter.should_get(
+            &AgentID::new_super_agent_id(),
+            "super_agent_instance_id".to_string(),
+        );
 
         // hash_repository_mock
         let mut hash_repository_mock = MockHashRepositoryMock::new();
