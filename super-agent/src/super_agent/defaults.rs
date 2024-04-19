@@ -7,6 +7,12 @@ pub const SUPER_AGENT_TYPE: &str = "com.newrelic.super_agent";
 pub const SUPER_AGENT_NAMESPACE: &str = "newrelic";
 pub const SUPER_AGENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+// Keys non-identifying attributes
+pub const PARENT_AGENT_ID_ATTRIBUTE_KEY: &str = "parent.agent.id";
+pub const HOST_NAME_ATTRIBUTE_KEY: &str = opentelemetry_semantic_conventions::resource::HOST_NAME;
+pub const CLUSTER_NAME_ATTRIBUTE_KEY: &str = "cluster.name";
+pub const HOST_ID_ATTRIBUTE_KEY: &str = opentelemetry_semantic_conventions::resource::HOST_ID;
+
 // Paths
 cfg_if::cfg_if! {
     if #[cfg(target_os = "macos")] {
