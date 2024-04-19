@@ -6,7 +6,7 @@ use crate::agent_type::health_config::{HealthCheck, HealthConfig};
 
 use super::http::HttpHealthChecker;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Health {
     Healthy(Healthy),
     Unhealthy(Unhealthy),
@@ -109,7 +109,7 @@ pub(crate) enum HealthCheckerType {
 }
 
 /// Health check errors.
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 #[error("Health check error: {0}")]
 pub struct HealthCheckerError(String);
 
