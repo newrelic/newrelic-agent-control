@@ -1,6 +1,7 @@
-use serde::Serialize;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+
+use serde::Serialize;
 
 use crate::super_agent::config::{AgentID, AgentTypeFQN};
 
@@ -152,46 +153,29 @@ pub(super) struct Status {
 
 #[cfg(test)]
 pub mod test {
-    use crate::super_agent::config::AgentID;
-    use crate::super_agent::http_server::status::{
-        Status, SubAgentStatus, SubAgentsStatus, SuperAgentStatus,
-    };
+    use crate::super_agent::config::{AgentID, AgentTypeFQN};
+    use crate::super_agent::http_server::status::{Status, SubAgentStatus, SubAgentsStatus};
 
     impl Status {
-        pub fn with_unhealthy_super_agent(self, error_message: String) -> Self {
-            Self {
-                super_agent: SuperAgentStatus {
-                    healthy: false,
-                    last_error: error_message,
-                    status: self.super_agent.status,
-                },
-                ..self
-            }
-        }
-
-        pub fn with_healthy_super_agent(self) -> Self {
-            Self {
-                super_agent: SuperAgentStatus {
-                    healthy: true,
-                    last_error: String::default(),
-                    status: self.super_agent.status,
-                },
-                ..self
-            }
-        }
-
         pub fn with_sub_agents(self, sub_agents: SubAgentsStatus) -> Self {
             Self { sub_agents, ..self }
         }
     }
 
-    impl SubAgentsStatus {
-        pub fn get(&self, agent_id: &AgentID) -> Option<&SubAgentStatus> {
-            self.0.get(agent_id)
-        }
-
-        pub fn as_collection(&self) -> Vec<SubAgentStatus> {
-            self.0.values().cloned().collect()
+    impl SubAgentStatus {
+        pub fn create(
+            agent_id: AgentID,
+            agent_type: AgentTypeFQN,
+            healthy: bool,
+            last_error: String,
+        ) -> Self {
+            SubAgentStatus {
+                agent_id,
+                agent_type,
+                healthy,
+                last_error,
+                status: String::default(),
+            }
         }
     }
 }
