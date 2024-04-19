@@ -45,7 +45,6 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::{collections::BTreeMap, path::PathBuf};
 use std::{collections::HashMap, env, fs::File, io::Write, sync::OnceLock, time::Duration};
-use tempfile::NamedTempFile;
 use tempfile::{tempdir, TempDir};
 use tokio::{runtime::Runtime, sync::OnceCell, time::timeout};
 

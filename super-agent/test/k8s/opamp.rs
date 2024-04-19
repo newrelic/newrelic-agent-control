@@ -52,6 +52,10 @@ use std::{
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_opamp_subagent_configuration_change() {
+    // When an agent configuration is updated remotely, the corresponding changes should
+    // be reflected in the HelmRelease resource.
+    let test_name = "k8s_opamp_subagent_configuration_change";
+
     // setup the fake-opamp-server
     let server_responses = ConfigResponses::from([
         (
@@ -77,13 +81,13 @@ chart_values:
             ),
         ),
     ]);
+
     let mut server = FakeServer::start_new(server_responses);
     // setup the k8s environment
     let mut k8s = block_on(K8sEnv::new());
     let namespace = block_on(k8s.test_namespace());
 
     // setup the local configuration
-    let test_name = "k8s_opamp_subagent_configuration_change";
     let config_path = create_local_sa_config(&namespace, &server.endpoint(), &test_name);
     block_on(create_mock_config_maps(
         k8s.client.clone(),
@@ -95,9 +99,6 @@ chart_values:
 
     // start the super-agent
     let mut sa = start_super_agent(&config_path);
-
-    // Give it some time to handle remote configuration and resources
-    thread_sleep(Duration::from_secs(5));
 
     // Check the expected HelmRelease is created with the spec values
     let expected_spec_values = r#"
