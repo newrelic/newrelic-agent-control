@@ -11,7 +11,6 @@ use crate::opamp::{
     hash_repository::HashRepository,
     remote_config::{RemoteConfig, RemoteConfigError},
     remote_config_hash::Hash,
-    remote_config_publisher::OpAMPRemoteConfigPublisher,
     remote_config_report::report_remote_config_status_applied,
 };
 use crate::sub_agent::{
@@ -31,7 +30,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{debug, error, info, trace, warn};
 
-pub(super) type SuperAgentCallbacks = AgentCallbacks<OpAMPRemoteConfigPublisher>;
+pub(super) type SuperAgentCallbacks = AgentCallbacks;
 
 pub struct SuperAgent<S, O, HR, SL>
 where

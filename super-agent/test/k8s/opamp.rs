@@ -6,7 +6,6 @@ use newrelic_super_agent::agent_type::embedded_registry::EmbeddedRegistry;
 use newrelic_super_agent::k8s::store::STORE_KEY_LOCAL_DATA_CONFIG;
 use newrelic_super_agent::opamp::callbacks::AgentCallbacks;
 use newrelic_super_agent::opamp::instance_id;
-use newrelic_super_agent::opamp::remote_config_publisher::OpAMPRemoteConfigPublisher;
 use newrelic_super_agent::super_agent::config_storer::storer::{
     SuperAgentConfigLoader, SuperAgentDynamicConfigLoader,
 };
@@ -172,9 +171,8 @@ struct K8sOpAMPEnv {
     opamp_consumer: EventConsumer<OpAMPEvent>,
     application_event_publisher: EventPublisher<ApplicationEvent>,
     application_event_consumer: EventConsumer<ApplicationEvent>,
-    super_agent_opamp_builder:
-        MockOpAMPClientBuilderMock<AgentCallbacks<OpAMPRemoteConfigPublisher>>,
-    sub_agent_opamp_builder: MockOpAMPClientBuilderMock<AgentCallbacks<OpAMPRemoteConfigPublisher>>,
+    super_agent_opamp_builder: MockOpAMPClientBuilderMock<AgentCallbacks>,
+    sub_agent_opamp_builder: MockOpAMPClientBuilderMock<AgentCallbacks>,
     sub_agent_event_processor_builder:
         EventProcessorBuilder<HashRepositoryConfigMap, ValuesRepositoryConfigMap>,
     agents_assembler: LocalEffectiveAgentsAssembler<
@@ -328,7 +326,7 @@ impl K8sOpAMPEnv {
     fn setup_opamp_client_builder_mock(
         expectations: Vec<OpAMPExpectation>,
     ) -> (
-        MockOpAMPClientBuilderMock<AgentCallbacks<OpAMPRemoteConfigPublisher>>,
+        MockOpAMPClientBuilderMock<AgentCallbacks>,
         Arc<Mutex<Vec<EventPublisher<OpAMPEvent>>>>,
     ) {
         let mut builder = MockOpAMPClientBuilderMock::new();

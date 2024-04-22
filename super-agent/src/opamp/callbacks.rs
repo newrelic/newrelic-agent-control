@@ -1,10 +1,16 @@
-use crate::opamp::remote_config_publisher::RemoteConfigPublisher;
+use crate::event::{
+    channel::{EventPublisher, EventPublisherError},
+    OpAMPEvent,
+};
+use crate::opamp::remote_config::{ConfigMap, RemoteConfig};
+use crate::opamp::remote_config_hash::Hash;
 use crate::{opamp::remote_config::RemoteConfigError, super_agent::config::AgentID};
 use opamp_client::{
     error::ConnectionError,
     http::HttpClientError,
     opamp::proto::{
-        EffectiveConfig, OpAmpConnectionSettings, ServerErrorResponse, ServerToAgentCommand,
+        AgentRemoteConfig, EffectiveConfig, OpAmpConnectionSettings, ServerErrorResponse,
+        ServerToAgentCommand,
     },
     operation::callbacks::{Callbacks, MessageData},
 };
@@ -21,37 +27,65 @@ pub enum AgentCallbacksError {
     #[error("Invalid UTF-8 sequence: `{0}`")]
     UTF8(#[from] Utf8Error),
 
-    #[error("agent remote config with empty config body")]
-    EmptyRemoteConfig,
-
-    #[error("unable to send event through context")]
-    ContextError,
+    #[error("unable to publish OpAMP event")]
+    PublishEventError(#[from] EventPublisherError),
 }
 
-pub struct AgentCallbacks<T>
-where
-    T: RemoteConfigPublisher,
-{
+/// This component implements the OpAMP client callbacks process the messages and publish events on `crate::event::OpAMPEvent`.
+pub struct AgentCallbacks {
     agent_id: AgentID,
-    remote_config_publisher: T,
+    publisher: EventPublisher<OpAMPEvent>,
 }
 
-impl<T> AgentCallbacks<T>
-where
-    T: RemoteConfigPublisher,
-{
-    pub fn new(agent_id: AgentID, remote_config_publisher: T) -> Self {
+impl AgentCallbacks {
+    pub fn new(agent_id: AgentID, publisher: EventPublisher<OpAMPEvent>) -> Self {
         Self {
             agent_id,
-            remote_config_publisher,
+            publisher,
         }
+    }
+
+    /// Assembles a `RemoteConfig` from the OpAMP message and publish the `crate::event::OpAMPEvent::RemoteConfigReceived`.
+    fn process_remote_config(
+        &self,
+        msg_remote_config: &AgentRemoteConfig,
+    ) -> Result<(), AgentCallbacksError> {
+        trace!("OpAMP remote config message received");
+
+        let mut hash = match str::from_utf8(&msg_remote_config.config_hash) {
+            Ok(hash) => Hash::new(hash.to_string()),
+            Err(err) => {
+                // the hash must be created to keep track of the failing remote config.
+                let mut hash = Hash::new(String::new());
+                hash.fail(format!("Invalid hash: {}", err));
+                hash
+            }
+        };
+
+        let config_map: Option<ConfigMap> = match &msg_remote_config.config {
+            Some(msg_config_map) => msg_config_map
+                .try_into()
+                .inspect_err(|err: &RemoteConfigError| {
+                    hash.fail(format!("Invalid format: {}", err))
+                })
+                .ok(),
+            None => {
+                hash.fail("Config missing".into());
+                None
+            }
+        };
+
+        let remote_config = RemoteConfig::new(self.agent_id.clone(), hash, config_map);
+
+        trace!("remote config received: {:?}", &remote_config);
+
+        Ok(self
+            .publisher
+            .publish(OpAMPEvent::RemoteConfigReceived(remote_config))?)
     }
 }
 
-impl<T> Callbacks for AgentCallbacks<T>
-where
-    T: RemoteConfigPublisher,
-{
+impl Callbacks for AgentCallbacks {
     type Error = AgentCallbacksError;
 
     fn on_connect(&self) {}
@@ -64,10 +98,8 @@ where
 
     fn on_message(&self, msg: MessageData) {
         if let Some(msg_remote_config) = msg.remote_config {
-            trace!("OpAMP remote config message received");
             let _ = self
-                .remote_config_publisher
-                .update(self.agent_id.clone(), &msg_remote_config)
+                .process_remote_config(&msg_remote_config)
                 .map_err(|error| error!("on message error: {}", error))
                 .map(|_| trace!("on message ok {:?}", msg_remote_config));
         } else {
@@ -115,99 +147,164 @@ fn log_on_http_status_code(err: &ConnectionError) {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    use crate::event::channel::pub_sub;
     use crate::event::OpAMPEvent;
     use crate::opamp::remote_config::{ConfigMap, RemoteConfig};
     use crate::opamp::remote_config_hash::Hash;
-    use crate::opamp::remote_config_publisher::RemoteConfigPublisherError;
-    use mockall::{mock, predicate};
     use opamp_client::opamp::proto::{AgentConfigFile, AgentConfigMap, AgentRemoteConfig};
     use std::collections::HashMap;
-
-    mock! {
-        pub CallbacksMock {}
-
-        impl Callbacks for CallbacksMock {
-            type Error = AgentCallbacksError;
-
-            fn on_connect(&self);
-            fn on_connect_failed(&self, err: ConnectionError);
-            fn on_error(&self, err: ServerErrorResponse);
-            fn on_message(&self, msg: MessageData);
-            fn on_opamp_connection_settings(&self, settings: &OpAmpConnectionSettings) -> Result<(), <Self as Callbacks>::Error>;
-            fn on_opamp_connection_settings_accepted(&self, settings: &OpAmpConnectionSettings);
-            fn on_command(&self, command: &ServerToAgentCommand) -> Result<(), <Self as Callbacks>::Error>;
-            fn get_effective_config(&self) -> Result<EffectiveConfig, <Self as Callbacks>::Error>;
-        }
-    }
-
-    mock! {
-        pub RemoteConfigPublisherMock {}
-
-        impl RemoteConfigPublisher for RemoteConfigPublisherMock {
-            fn on_remote_config(&self, remote_config: RemoteConfig) -> OpAMPEvent;
-            fn publish_event(&self, event: OpAMPEvent) -> Result<(), RemoteConfigPublisherError>;
-        }
-    }
-
-    impl MockRemoteConfigPublisherMock {
-        pub fn should_on_remote_config(&mut self, remote_config: RemoteConfig, event: OpAMPEvent) {
-            let event = event.clone();
-            self.expect_on_remote_config()
-                .once()
-                .with(predicate::eq(remote_config.clone()))
-                .returning(move |_| event.clone());
-        }
-
-        pub fn should_publish_event(&mut self, event: OpAMPEvent) {
-            self.expect_publish_event()
-                .once()
-                .with(predicate::eq(event.clone()))
-                .returning(|_| Ok(()));
-        }
-    }
+    use std::time::Duration;
 
     #[test]
-    fn on_message_send_correct_config() {
-        let agent_id = AgentID::new("an-agent-id").unwrap();
+    fn test_remote_config() {
+        let valid_hash = "hash";
+        let invalid_utf = vec![128, 129];
 
-        let msg = MessageData {
-            remote_config: Option::from(AgentRemoteConfig {
-                config: Option::from(AgentConfigMap {
-                    config_map: HashMap::from([(
-                        "my-config".to_string(),
-                        AgentConfigFile {
-                            body: "enable_proces_metrics: true".as_bytes().to_vec(),
-                            content_type: "".to_string(),
-                        },
-                    )]),
+        struct TestCase {
+            name: &'static str,
+            opamp_msg: Option<MessageData>, // using option here to allow taking the ownership of the MessageData which cannot be cloned.
+            expected_remote_config_hash: Hash,
+            expected_remote_config_config_map: Option<ConfigMap>,
+        }
+        impl TestCase {
+            fn run(mut self) {
+                let agent_id = AgentID::new("an-agent-id").unwrap();
+
+                let (event_publisher, event_consumer) = pub_sub();
+
+                let callbacks = AgentCallbacks::new(agent_id.clone(), event_publisher);
+
+                callbacks.on_message(self.opamp_msg.take().unwrap());
+
+                let event = event_consumer
+                    .as_ref()
+                    .recv_timeout(Duration::from_millis(1))
+                    .unwrap();
+
+                let expected_event = OpAMPEvent::RemoteConfigReceived(RemoteConfig::new(
+                    agent_id.clone(),
+                    self.expected_remote_config_hash.clone(),
+                    self.expected_remote_config_config_map.clone(),
+                ));
+
+                assert_eq!(event, expected_event, "{}", self.name)
+            }
+        }
+        let test_cases = vec![
+            TestCase {
+                name: "with valid values",
+                opamp_msg: Some(MessageData {
+                    remote_config: Option::from(AgentRemoteConfig {
+                        config: Option::from(AgentConfigMap {
+                            config_map: HashMap::from([(
+                                "my-config".to_string(),
+                                AgentConfigFile {
+                                    body: "enable_proces_metrics: true".as_bytes().to_vec(),
+                                    content_type: "".to_string(),
+                                },
+                            )]),
+                        }),
+                        config_hash: valid_hash.as_bytes().to_vec(),
+                    }),
+                    ..Default::default()
                 }),
-                config_hash: "cool-hash".as_bytes().to_vec(),
-            }),
-            own_metrics: None,
-            own_traces: None,
-            own_logs: None,
-            other_connection_settings: None,
-            agent_identification: None,
-        };
+                expected_remote_config_config_map: Some(ConfigMap::new(HashMap::from([(
+                    "my-config".to_string(),
+                    "enable_proces_metrics: true".to_string(),
+                )]))),
+                expected_remote_config_hash: Hash::new(valid_hash.to_string()),
+            },
+            TestCase {
+                name: "with invalid values",
+                opamp_msg: Some(MessageData {
+                    remote_config: Option::from(AgentRemoteConfig {
+                        config: Option::from(AgentConfigMap {
+                            config_map: HashMap::from([(
+                                "my-config".to_string(),
+                                AgentConfigFile {
+                                    body: invalid_utf.clone(),
+                                    content_type: "".to_string(),
+                                },
+                            )]),
+                        }),
+                        config_hash: valid_hash.as_bytes().to_vec(),
+                    }),
+                    ..Default::default()
+                }),
+                expected_remote_config_config_map: None,
+                expected_remote_config_hash: {
+                    let mut expected_hash = Hash::new(valid_hash.to_string());
+                    expected_hash.fail(
+                        "Invalid format: invalid UTF-8 sequence: `invalid utf-8 sequence of 1 bytes from index 0`".into(),
+                    );
+                    expected_hash
+                },
+            },
+            TestCase {
+                name: "with missing config and valid hash",
+                opamp_msg: Some(MessageData {
+                    remote_config: Option::from(AgentRemoteConfig {
+                        config: None,
+                        config_hash: valid_hash.as_bytes().to_vec(),
+                    }),
+                    ..Default::default()
+                }),
+                expected_remote_config_config_map: None,
+                expected_remote_config_hash: {
+                    let mut expected_hash = Hash::new(valid_hash.to_string());
+                    expected_hash.fail("Config missing".into());
+                    expected_hash
+                },
+            },
+            TestCase {
+                name: "with missing config and invalid hash",
+                opamp_msg: Some(MessageData {
+                    remote_config: Option::from(AgentRemoteConfig {
+                        config: None,
+                        config_hash: invalid_utf.clone(),
+                    }),
+                    ..Default::default()
+                }),
+                expected_remote_config_config_map: None,
+                expected_remote_config_hash: {
+                    let mut expected_hash = Hash::new("".to_string());
+                    expected_hash.fail("Config missing".into());
+                    expected_hash
+                },
+            },
+            TestCase {
+                name: "with valid config and invalid hash",
+                opamp_msg: Some(MessageData {
+                    remote_config: Option::from(AgentRemoteConfig {
+                        config: Option::from(AgentConfigMap {
+                            config_map: HashMap::from([(
+                                "my-config".to_string(),
+                                AgentConfigFile {
+                                    body: "enable_proces_metrics: true".as_bytes().to_vec(),
+                                    content_type: "".to_string(),
+                                },
+                            )]),
+                        }),
+                        config_hash: invalid_utf.clone(),
+                    }),
+                    ..Default::default()
+                }),
+                expected_remote_config_config_map: Some(ConfigMap::new(HashMap::from([(
+                    "my-config".to_string(),
+                    "enable_proces_metrics: true".to_string(),
+                )]))),
+                expected_remote_config_hash: {
+                    let mut expected_hash = Hash::new("".to_string());
+                    expected_hash.fail(
+                        "Invalid hash: invalid utf-8 sequence of 1 bytes from index 0".into(),
+                    );
+                    expected_hash
+                },
+            },
+        ];
 
-        let mut config_updater = MockRemoteConfigPublisherMock::new();
-        let expected_config_map = ConfigMap::new(HashMap::from([(
-            "my-config".to_string(),
-            "enable_proces_metrics: true".to_string(),
-        )]));
-        let expected_config = RemoteConfig::new(
-            agent_id.clone(),
-            Hash::new("cool-hash".to_string()),
-            Some(expected_config_map),
-        );
-
-        let expected_event = OpAMPEvent::RemoteConfigReceived(expected_config.clone());
-        config_updater.should_on_remote_config(expected_config.clone(), expected_event.clone());
-
-        config_updater.should_publish_event(expected_event);
-
-        let callbacks = AgentCallbacks::new(agent_id.clone(), config_updater);
-
-        callbacks.on_message(msg);
+        for test_case in test_cases {
+            test_case.run();
+        }
     }
 }
