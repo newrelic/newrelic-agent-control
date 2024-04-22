@@ -257,12 +257,13 @@ pub(crate) mod tests {
     // Returns a testing runtime config with some content.
     fn testing_rendered_runtime_config() -> Runtime {
         Runtime {
-            deployment: runtime_config::Deployment {
+            deployment: Deployment {
                 on_host: None,
                 k8s: Some(runtime_config::K8s {
                     objects: vec![("key".to_string(), runtime_config::K8sObject::default())]
                         .into_iter()
                         .collect(),
+                    health: Default::default(),
                 }),
             },
         }

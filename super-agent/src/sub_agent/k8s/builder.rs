@@ -244,15 +244,17 @@ fn build_cr_supervisors(
         .as_ref()
         .ok_or(SubAgentBuilderError::ConfigError(
             "Missing k8s deployment configuration".into(),
-        ))?
-        .objects
-        .clone();
+        ))?;
 
     // Validate Kubernetes objects against the list of supported resources.
-    validate_k8s_objects(&k8s_objects, &k8s_config.cr_type_meta)?;
+    validate_k8s_objects(&k8s_objects.objects.clone(), &k8s_config.cr_type_meta)?;
 
     // Clone the k8s_client on each build.
-    Ok(CRSupervisor::new(agent_id.clone(), k8s_client, k8s_objects))
+    Ok(CRSupervisor::new(
+        agent_id.clone(),
+        k8s_client,
+        k8s_objects.clone(),
+    ))
 }
 
 fn validate_k8s_objects(
@@ -279,7 +281,8 @@ fn validate_k8s_objects(
 #[cfg(test)]
 pub mod test {
     use super::*;
-    use crate::agent_type::runtime_config::{Deployment, K8s, Runtime};
+    use crate::agent_type::runtime_config;
+    use crate::agent_type::runtime_config::{Deployment, Runtime};
     use crate::event::channel::pub_sub;
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
@@ -395,9 +398,7 @@ pub mod test {
             Runtime {
                 deployment: Deployment {
                     on_host: None,
-                    k8s: Some(K8s {
-                        objects: k8s_sample_obj(valid_kind),
-                    }),
+                    k8s: Some(k8s_sample_runtime_config(valid_kind)),
                 },
             },
         );
@@ -412,22 +413,25 @@ pub mod test {
         effective_agent_assembler
     }
 
-    pub fn k8s_sample_obj(valid_kind: bool) -> HashMap<String, K8sObject> {
+    pub fn k8s_sample_runtime_config(valid_kind: bool) -> runtime_config::K8s {
         let kind = if valid_kind {
-            "HelmRepository".to_string()
+            "HelmRelease".to_string()
         } else {
             "UnsupportedKind".to_string()
         };
 
         let k8s_object = K8sObject {
-            api_version: "source.toolkit.fluxcd.io/v1beta2".to_string(),
+            api_version: "helm.toolkit.fluxcd.io/v2beta2".to_string(),
             kind,
             ..Default::default()
         };
 
         let mut objects = HashMap::new();
         objects.insert("sample_object".to_string(), k8s_object);
-        objects
+        runtime_config::K8s {
+            objects,
+            health: Default::default(),
+        }
     }
 
     fn get_common_mocks(

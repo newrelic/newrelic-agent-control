@@ -6,6 +6,7 @@ use super::tools::{
 use k8s_openapi::{api::core::v1::ConfigMap, Resource};
 use kube::{api::Api, core::TypeMeta};
 use mockall::{mock, Sequence};
+use newrelic_super_agent::agent_type::runtime_config;
 use newrelic_super_agent::{
     agent_type::runtime_config::K8sObject,
     k8s::{
@@ -63,14 +64,16 @@ fn k8s_garbage_collector_cleans_removed_agent() {
     );
 
     let resource_name = "test-different-from-agent-id";
+
     let s = CRSupervisor::new(
         agent_id.clone(),
         k8s_client.clone(),
-        HashMap::from([(
-            "fooCR".to_string(),
-            serde_yaml::from_str::<K8sObject>(
-                format!(
-                    r#"
+        runtime_config::K8s {
+            objects: HashMap::from([(
+                "fooCR".to_string(),
+                serde_yaml::from_str::<K8sObject>(
+                    format!(
+                        r#"
 apiVersion: {}
 kind: {}
 spec:
@@ -78,14 +81,16 @@ spec:
 metadata:
   name: {}
         "#,
-                    foo_type_meta().api_version,
-                    foo_type_meta().kind,
-                    resource_name,
+                        foo_type_meta().api_version,
+                        foo_type_meta().kind,
+                        resource_name,
+                    )
+                    .as_str(),
                 )
-                .as_str(),
-            )
-            .unwrap(),
-        )]),
+                .unwrap(),
+            )]),
+            health: Default::default(),
+        },
     );
 
     // Creates the Foo CR correctly tagged.

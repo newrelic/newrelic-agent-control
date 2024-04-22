@@ -1,10 +1,10 @@
-use std::collections::HashMap;
-
-use serde::Deserialize;
-
 use super::{
-    definition::TemplateableValue, health_config::HealthConfig, restart_policy::RestartPolicyConfig,
+    definition::TemplateableValue, health_config::OnHostHealthConfig,
+    restart_policy::RestartPolicyConfig,
 };
+use crate::agent_type::health_config::K8sHealthConfig;
+use serde::Deserialize;
+use std::collections::HashMap;
 
 /// Strict structure that describes how to start a given agent with all needed binaries, arguments, env, etc.
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
@@ -52,7 +52,7 @@ pub struct Executable {
     pub restart_policy: RestartPolicyConfig,
 
     /// Enables and define health checks configuration.
-    pub health: Option<HealthConfig>,
+    pub health: Option<OnHostHealthConfig>,
 }
 
 #[derive(Debug, Default, Deserialize, Clone, PartialEq)]
@@ -87,6 +87,8 @@ impl Env {
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub struct K8s {
     pub objects: HashMap<String, K8sObject>,
+    #[serde(default)]
+    pub health: K8sHealthConfig,
 }
 
 /// A K8s object, usually a CR, to be managed by the super-agent.

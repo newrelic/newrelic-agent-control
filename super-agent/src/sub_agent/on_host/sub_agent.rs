@@ -1,17 +1,14 @@
-use std::thread::JoinHandle;
-
-use tracing::debug;
-
+use super::supervisor::command_supervisor;
 use super::supervisor::command_supervisor::SupervisorOnHost;
 use crate::event::channel::EventPublisher;
 use crate::event::SubAgentInternalEvent;
 use crate::sub_agent::error::SubAgentError;
-use crate::super_agent::config::{AgentID, AgentTypeFQN};
-
-use super::supervisor::command_supervisor;
 use crate::sub_agent::event_processor::SubAgentEventProcessor;
 use crate::sub_agent::{NotStarted, Started};
 use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
+use crate::super_agent::config::{AgentID, AgentTypeFQN};
+use std::thread::JoinHandle;
+use tracing::debug;
 
 ////////////////////////////////////////////////////////////////////////////////////
 // SubAgent On Host

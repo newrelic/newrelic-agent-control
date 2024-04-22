@@ -278,6 +278,8 @@ pub fn helm_release_type_meta() -> TypeMeta {
 
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
 fn default_group_version_kinds() -> Vec<TypeMeta> {
+    // In flux health check we are currently supporting just a single helm_release_type_meta
+    // Each time we support a new version we should decide if and how to support retrieving its health
     vec![helm_repository_type_meta(), helm_release_type_meta()]
 }
 

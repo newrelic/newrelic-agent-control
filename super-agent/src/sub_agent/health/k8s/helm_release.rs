@@ -24,19 +24,15 @@ impl From<&str> for ConditionStatus {
     }
 }
 
-// TODO: Remove `dead_code` once it is used inside the K8HealthCheck wrapper.
 /// Represents a health checker for a specific HelmRelease in Kubernetes.
 /// This struct is designed to be used within a wrapper that manages multiple
 /// instances, each corresponding to a different HelmRelease, allowing for
 /// health checks across several Helm releases within a Kubernetes cluster.
-#[allow(dead_code)]
 pub struct K8sHealthFluxHelmRelease {
     k8s_client: Arc<SyncK8sClient>,
     name: String,
 }
 
-// TODO: Remove `dead_code` once it is used inside the K8HealthCheck wrapper.
-#[allow(dead_code)]
 impl K8sHealthFluxHelmRelease {
     pub fn new(k8s_client: Arc<SyncK8sClient>, name: String) -> Self {
         Self { k8s_client, name }
@@ -93,7 +89,7 @@ impl K8sHealthFluxHelmRelease {
     /// Evaluates the health of a HelmRelease based on the presence and status of its 'Ready' condition.
     /// Returns a tuple where the first element is a boolean indicating health,
     /// and the second is a message detailing the health status or issues found.
-    fn is_healthy(&self, conditions: &[Value]) -> (bool, String) {
+    fn is_healthy_and_message(&self, conditions: &[Value]) -> (bool, String) {
         let ready_condition = self.find_ready_condition(conditions);
 
         match ready_condition {
@@ -119,7 +115,7 @@ impl K8sHealthFluxHelmRelease {
         }
     }
 
-    fn check_health(&self) -> Result<Health, HealthCheckerError> {
+    pub(crate) fn check_health(&self) -> Result<Health, HealthCheckerError> {
         // Attempt to get the HelmRelease from Kubernetes
         let helm_release = self
             .k8s_client
@@ -141,22 +137,20 @@ impl K8sHealthFluxHelmRelease {
         let status = self.get_status(helm_release_data)?;
         let conditions = self.get_status_conditions(&status)?;
 
-        let (is_healthy, message) = self.is_healthy(&conditions);
+        let (is_healthy, message) = self.is_healthy_and_message(&conditions);
         if is_healthy {
-            Ok(Health::Healthy(Healthy {
-                status: "200".to_string(),
-            }))
+            Ok(Health::Healthy(Healthy::default()))
         } else {
             Ok(Health::Unhealthy(Unhealthy {
-                status: Default::default(),
                 last_error: message,
+                ..Default::default()
             }))
         }
     }
 }
 
 #[cfg(test)]
-mod test {
+pub mod test {
     use super::*;
     use crate::k8s::{client::MockSyncK8sClient, Error};
     use crate::super_agent::config::helm_release_type_meta;
@@ -168,9 +162,7 @@ mod test {
         let test_cases = vec![
             (
                 "Helm release healthy when ready and status true",
-                Ok(Health::Healthy(Healthy {
-                    status: "200".to_string(),
-                })),
+                Ok(Health::Healthy(Healthy::default())),
                 Box::new(|mock: &mut MockSyncK8sClient| {
                     let status_conditions = json!({
                         "conditions": [
@@ -260,7 +252,7 @@ mod test {
         }
     }
 
-    fn setup_mock_client_with_conditions(
+    pub fn setup_mock_client_with_conditions(
         mock: &mut MockSyncK8sClient,
         status_conditions: serde_json::Value,
     ) {
