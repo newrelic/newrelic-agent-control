@@ -235,6 +235,16 @@ where
                             let _ = self.remote_config(remote_config, sub_agent_publisher.clone(), &mut sub_agents )
                             .inspect_err(|e| error!("Error processing valid remote config: {}", e));
                         }
+                        OpAMPEvent::Connected => {
+                            let _ = self.super_agent_publisher
+                            .publish(SuperAgentEvent::OpAMPConnected)
+                            .inspect_err(|e| error!(error_msg = e.to_string(),"cannot publish super_agent_event::super_agent_opamp_connected"));
+                        }
+                        OpAMPEvent::ConnectFailed(error_code, error_message) => {
+                            let _ = self.super_agent_publisher
+                            .publish(SuperAgentEvent::OpAMPConnectFailed(error_code, error_message))
+                            .inspect_err(|e| error!(error_msg = e.to_string(),"cannot publish super_agent_event::super_agent_opamp_connect_failed"));
+                        }
                     }
 
                 },
@@ -668,6 +678,107 @@ agents:
             .publish(OpAMPEvent::RemoteConfigReceived(remote_config))
             .unwrap();
         sleep(Duration::from_millis(500));
+        application_event_publisher
+            .publish(ApplicationEvent::StopRequested)
+            .unwrap();
+
+        assert!(running_agent.join().is_ok())
+    }
+
+    #[test]
+    fn receive_opamp_connected() {
+        let hash_repository_mock = MockHashRepositoryMock::new();
+        let sub_agent_builder = MockSubAgentBuilderMock::new();
+
+        // Super Agent OpAMP
+        let mut started_client = MockStartedOpAMPClientMock::new();
+        started_client.should_set_health(1);
+
+        let sub_agents_config_store = MockSuperAgentDynamicConfigStore::new();
+
+        let (application_event_publisher, application_event_consumer) = pub_sub();
+        let (opamp_publisher, opamp_consumer) = pub_sub();
+        let (super_agent_publisher, super_agent_consumer) = pub_sub();
+        let (sub_agent_publisher, sub_agent_consumer) = pub_sub();
+        let sub_agents = StartedSubAgents::from(HashMap::default());
+
+        let running_agent = spawn({
+            move || {
+                // two agents in the supervisor group
+                let agent = SuperAgent::new_custom(
+                    Some(started_client),
+                    Arc::new(hash_repository_mock),
+                    sub_agent_builder,
+                    sub_agents_config_store,
+                    super_agent_publisher,
+                );
+                agent.process_events(
+                    application_event_consumer,
+                    Some(opamp_consumer),
+                    sub_agent_publisher,
+                    sub_agent_consumer,
+                    sub_agents,
+                )
+            }
+        });
+
+        opamp_publisher.publish(OpAMPEvent::Connected).unwrap();
+
+        let expected = SuperAgentEvent::OpAMPConnected;
+        let ev = super_agent_consumer.as_ref().recv().unwrap();
+        assert_eq!(expected, ev);
+
+        application_event_publisher
+            .publish(ApplicationEvent::StopRequested)
+            .unwrap();
+
+        assert!(running_agent.join().is_ok());
+    }
+
+    #[test]
+    fn receive_opamp_connect_failed() {
+        let hash_repository_mock = MockHashRepositoryMock::new();
+        let sub_agent_builder = MockSubAgentBuilderMock::new();
+
+        // Super Agent OpAMP
+        let mut started_client = MockStartedOpAMPClientMock::new();
+        started_client.should_set_health(1);
+
+        let sub_agents_config_store = MockSuperAgentDynamicConfigStore::new();
+
+        let (application_event_publisher, application_event_consumer) = pub_sub();
+        let (opamp_publisher, opamp_consumer) = pub_sub();
+        let (super_agent_publisher, super_agent_consumer) = pub_sub();
+        let (sub_agent_publisher, sub_agent_consumer) = pub_sub();
+        let sub_agents = StartedSubAgents::from(HashMap::default());
+
+        let running_agent = spawn({
+            move || {
+                // two agents in the supervisor group
+                let agent = SuperAgent::new_custom(
+                    Some(started_client),
+                    Arc::new(hash_repository_mock),
+                    sub_agent_builder,
+                    sub_agents_config_store,
+                    super_agent_publisher,
+                );
+                agent.process_events(
+                    application_event_consumer,
+                    Some(opamp_consumer),
+                    sub_agent_publisher,
+                    sub_agent_consumer,
+                    sub_agents,
+                )
+            }
+        });
+
+        opamp_publisher
+            .publish(OpAMPEvent::ConnectFailed(500, "Internal error".to_string()))
+            .unwrap();
+        let expected = SuperAgentEvent::OpAMPConnectFailed(500, "Internal error".to_string());
+        let ev = super_agent_consumer.as_ref().recv().unwrap();
+        assert_eq!(expected, ev);
+
         application_event_publisher
             .publish(ApplicationEvent::StopRequested)
             .unwrap();
