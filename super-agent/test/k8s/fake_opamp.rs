@@ -46,7 +46,7 @@ impl ConfigResponse {
                 }),
             });
         opamp::proto::ServerToAgent {
-            instance_uid: "test".into(), // fake ulid for the shake of simplicity
+            instance_uid: "test".into(), // fake uid for the shake of simplicity
             remote_config,
             flags: 0,
             capabilities: 0,

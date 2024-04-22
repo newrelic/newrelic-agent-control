@@ -19,14 +19,12 @@ use kube::{
     Client, CustomResource, CustomResourceExt,
 };
 use newrelic_super_agent::{
-    event::channel::EventPublisher,
-    event::OpAMPEvent,
-    k8s::labels::Labels,
+    event::{channel::EventPublisher, OpAMPEvent},
+    k8s::{labels::Labels, store::STORE_KEY_LOCAL_DATA_CONFIG},
     opamp::client_builder::{OpAMPClientBuilder, OpAMPClientBuilderError},
     super_agent::{
         config::{AgentID, AgentTypeError, SuperAgentConfig, SuperAgentConfigError},
-        config_storer::storer::SuperAgentConfigLoader,
-        config_storer::storer::SuperAgentDynamicConfigLoader,
+        config_storer::storer::{SuperAgentConfigLoader, SuperAgentDynamicConfigLoader},
     },
 };
 use opamp_client::operation::callbacks::Callbacks;
@@ -438,6 +436,26 @@ mock! {
     }
 }
 
+pub fn start_super_agent_with_testdata_config(
+    folder_name: &str,
+    client: Client,
+    ns: &str,
+    opamp_endpoint: &str,
+    subagent_file_names: Vec<&str>,
+) -> std::process::Child {
+    let config_local = create_local_sa_config(ns, opamp_endpoint, folder_name);
+    for file_name in subagent_file_names {
+        block_on(create_mock_config_maps(
+            client.clone(),
+            ns,
+            folder_name,
+            file_name,
+            STORE_KEY_LOCAL_DATA_CONFIG,
+        ))
+    }
+    start_super_agent(&config_local)
+}
+
 pub fn start_super_agent(file_path: &Path) -> std::process::Child {
     let mut command = Command::new("cargo");
     command
@@ -603,44 +621,45 @@ mock! {
     }
 }
 
+pub fn retry<F>(max_attempts: usize, interval: Duration, f: F)
+where
+    F: Fn() -> Result<(), Box<dyn std::error::Error>>,
+{
+    let mut last_err = Ok(());
+    for _ in 0..max_attempts {
+        if let Err(err) = f() {
+            last_err = Err(err)
+        } else {
+            return;
+        }
+        std::thread::sleep(interval);
+    }
+    last_err.unwrap_or_else(|err| panic!("retry failed after {max_attempts}: {err}"))
+}
+
 pub async fn check_helmrelease_spec_values(
     k8s_client: Client,
     namespace: &str,
     name: &str,
     expected_spec_values: &str,
-    max_retries: usize,
-    retry_interval: Duration,
-) {
+) -> Result<(), Box<dyn std::error::Error>> {
     let expected_as_json: serde_json::Value = serde_yaml::from_str(expected_spec_values).unwrap();
     let gvk = &GroupVersion::from_str("helm.toolkit.fluxcd.io/v2beta2")
         .unwrap()
         .with_kind("HelmRelease");
-    let (api_resource, _) = kube::discovery::pinned_kind(&k8s_client, gvk)
-        .await
-        .unwrap();
+    let (api_resource, _) = kube::discovery::pinned_kind(&k8s_client, gvk).await?;
     let api: Api<DynamicObject> =
         Api::namespaced_with(k8s_client.clone(), namespace, &api_resource);
 
-    let mut issue = None;
-    for _ in 0..max_retries {
-        let obj_result = api.get(name).await;
-        match obj_result {
-            Ok(obj) => {
-                let found_values = &obj.data["spec"]["values"];
-                if expected_as_json == *found_values {
-                    issue = None;
-                    break;
-                } else {
-                    issue = Some(format!("helm release spec values don't match with expected. Expected: {:?}, Found: {:?}", expected_as_json, *found_values));
-                }
-            }
-            Err(obj_err) => {
-                issue = Some(obj_err.to_string());
-            }
-        }
-        sleep(retry_interval).await;
-    }
-    if let Some(issue) = issue {
-        panic!("The helmrelease does not match after retries: {issue}");
+    let obj = api.get(name).await?;
+    let found_values = &obj.data["spec"]["values"];
+    if expected_as_json != *found_values {
+        Err(format!(
+            "helm release spec values don't match with expected. Expected: {:?}, Found: {:?}",
+            expected_as_json, *found_values,
+        )
+        .into())
+    } else {
+        Ok(())
     }
 }
