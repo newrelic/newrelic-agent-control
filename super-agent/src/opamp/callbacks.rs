@@ -7,6 +7,7 @@ use crate::opamp::remote_config_hash::Hash;
 use crate::{opamp::remote_config::RemoteConfigError, super_agent::config::AgentID};
 use opamp_client::{
     error::ConnectionError,
+    error::ConnectionError::HTTPClientError,
     http::HttpClientError,
     opamp::proto::{
         AgentRemoteConfig, EffectiveConfig, OpAmpConnectionSettings, ServerErrorResponse,
@@ -50,7 +51,10 @@ impl AgentCallbacks {
         &self,
         msg_remote_config: &AgentRemoteConfig,
     ) -> Result<(), AgentCallbacksError> {
-        trace!("OpAMP remote config message received");
+        trace!(
+            agent_id = self.agent_id.to_string(),
+            "OpAMP remote config message received"
+        );
 
         let mut hash = match str::from_utf8(&msg_remote_config.config_hash) {
             Ok(hash) => Hash::new(hash.to_string()),
@@ -77,21 +81,71 @@ impl AgentCallbacks {
 
         let remote_config = RemoteConfig::new(self.agent_id.clone(), hash, config_map);
 
-        trace!("remote config received: {:?}", &remote_config);
+        trace!(
+            agent_id = self.agent_id.to_string(),
+            "remote config received: {:?}",
+            &remote_config
+        );
 
         Ok(self
             .publisher
             .publish(OpAMPEvent::RemoteConfigReceived(remote_config))?)
+    }
+
+    fn process_on_connect_failure(&self, err: &ConnectionError) -> Result<(), AgentCallbacksError> {
+        match err {
+            // Check if the error comes from receiving an undesired HTTP status code
+            HTTPClientError(HttpClientError::UnsuccessfulResponse(code, reason)) => {
+                const STATUS_CODE_MSG: &str = "Received HTTP status code";
+                match code {
+                    400 => error!(agent_id = self.agent_id.to_string() , "{STATUS_CODE_MSG} {code} ({reason}). The request was malformed. Possible reason: invalid ULID"),
+                    401 => error!(agent_id = self.agent_id.to_string() , "{STATUS_CODE_MSG} {code} ({reason}). Check for missing or invalid license key"
+                    ),
+                    403 => error!(agent_id = self.agent_id.to_string(), "{STATUS_CODE_MSG} {code} ({reason}). The account provided is not allowed to use this resource"),
+                    404 => error!(agent_id = self.agent_id.to_string(), "{STATUS_CODE_MSG} {code} ({reason}). The requested resource was not found"),
+                    415 => error!(agent_id = self.agent_id.to_string(), "{STATUS_CODE_MSG} {code} ({reason}). Content-Type or Content-Encoding for the HTTP request was wrong"),
+                    500 => error!(agent_id = self.agent_id.to_string(), "{STATUS_CODE_MSG} {code} ({reason}). Server-side problem"),
+                    _ => error!(agent_id = self.agent_id.to_string(), "{STATUS_CODE_MSG} {code} ({reason}). Reasons unknown"),
+                }
+                return Ok(self
+                    .publisher
+                    .publish(OpAMPEvent::ConnectFailed(*code, reason.clone()))?);
+            }
+            _ => error!(
+                agent_id = self.agent_id.to_string(),
+                err = err.to_string(),
+                "Connecting to OpAMP server"
+            ),
+        }
+
+        Ok(())
     }
 }
 
 impl Callbacks for AgentCallbacks {
     type Error = AgentCallbacksError;
 
-    fn on_connect(&self) {}
+    fn on_connect(&self) {
+        let _ = self
+            .publisher
+            .publish(OpAMPEvent::Connected)
+            .map_err(|error| {
+                error!(
+                    agent_id = self.agent_id.to_string(),
+                    err = error.to_string(),
+                    "processing OpAMP connect"
+                )
+            });
+    }
 
     fn on_connect_failed(&self, err: ConnectionError) {
-        log_on_http_status_code(&err);
+        let _ = self.process_on_connect_failure(&err).map_err(|error| {
+            error!(
+                agent_id = self.agent_id.to_string(),
+                err = error.to_string(),
+                "processing OpAMP connect fail"
+            )
+        });
     }
 
     fn on_error(&self, _err: ServerErrorResponse) {}
@@ -100,10 +154,25 @@ impl Callbacks for AgentCallbacks {
         if let Some(msg_remote_config) = msg.remote_config {
             let _ = self
                 .process_remote_config(&msg_remote_config)
-                .map_err(|error| error!("on message error: {}", error))
-                .map(|_| trace!("on message ok {:?}", msg_remote_config));
+                .map_err(|error| {
+                    error!(
+                        agent_id = self.agent_id.to_string(),
+                        err = error.to_string(),
+                        "processing OpAMP message"
+                    )
+                })
+                .map(|_| {
+                    trace!(
+                        agent_id = self.agent_id.to_string(),
+                        "on message ok {:?}",
+                        msg_remote_config
+                    )
+                });
         } else {
-            trace!("Empty OpAMP message received");
+            trace!(
+                agent_id = self.agent_id.to_string(),
+                "Empty OpAMP message received"
+            );
         }
     }
 
@@ -125,25 +194,6 @@ impl Callbacks for AgentCallbacks {
     }
 }
 
-fn log_on_http_status_code(err: &ConnectionError) {
-    // Check if the error comes from receiving an undesired HTTP status code
-    if let ConnectionError::HTTPClientError(HttpClientError::UnsuccessfulResponse(code, reason)) =
-        &err
-    {
-        const STATUS_CODE_MSG: &str = "Received HTTP status code";
-        match code {
-            400 => error!("{STATUS_CODE_MSG} {code} ({reason}). The request was malformed. Possible reason: invalid ULID"),
-            401 => error!("{STATUS_CODE_MSG} {code} ({reason}). Check for missing or invalid license key"
-            ),
-            403 => error!("{STATUS_CODE_MSG} {code} ({reason}). The account provided is not allowed to use this resource"),
-            404 => error!("{STATUS_CODE_MSG} {code} ({reason}). The requested resource was not found"),
-            415 => error!("{STATUS_CODE_MSG} {code} ({reason}). Content-Type or Content-Encoding for the HTTP request was wrong"),
-            500 => error!("{STATUS_CODE_MSG} {code} ({reason}). Server-side problem"),
-            _ => error!("{STATUS_CODE_MSG} {code} ({reason}). Reasons unknown"),
-        }
-    }
-}
-
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
@@ -154,6 +204,55 @@ pub(crate) mod tests {
     use opamp_client::opamp::proto::{AgentConfigFile, AgentConfigMap, AgentRemoteConfig};
     use std::collections::HashMap;
     use std::time::Duration;
+
+    #[test]
+    fn test_connect() {
+        let (event_publisher, event_consumer) = pub_sub();
+
+        let callbacks = AgentCallbacks::new(AgentID::new("agent").unwrap(), event_publisher);
+
+        callbacks.on_connect();
+
+        let event = event_consumer
+            .as_ref()
+            .recv_timeout(Duration::from_millis(1))
+            .unwrap();
+
+        assert_eq!(event, OpAMPEvent::Connected);
+        assert!(event_consumer.as_ref().is_empty());
+    }
+
+    #[test]
+    fn test_connect_fail() {
+        let (event_publisher, event_consumer) = pub_sub();
+
+        let callbacks = AgentCallbacks::new(AgentID::new("agent").unwrap(), event_publisher);
+
+        // When a UnsuccessfulResponse error is received
+        let (status, reason) = (401, "Unauthorized");
+        callbacks.on_connect_failed(ConnectionError::HTTPClientError(
+            HttpClientError::UnsuccessfulResponse(status, reason.to_string()),
+        ));
+
+        let event = event_consumer
+            .as_ref()
+            .recv_timeout(Duration::from_millis(1))
+            .expect("should receive an event");
+
+        // Then a OpAMPEvent::ConnectFailed is sent.
+        assert_eq!(event, OpAMPEvent::ConnectFailed(status, reason.to_string()));
+        assert!(event_consumer.as_ref().is_empty());
+
+        // When an error without status code and reason is received
+        callbacks.on_connect_failed(ConnectionError::HTTPClientError(
+            HttpClientError::UreqError("Some transport error".to_string()),
+        ));
+
+        let _ = event_consumer
+            .as_ref()
+            .recv_timeout(Duration::from_millis(100))
+            .expect_err("no event should be received");
+    }
 
     #[test]
     fn test_remote_config() {
@@ -187,7 +286,9 @@ pub(crate) mod tests {
                     self.expected_remote_config_config_map.clone(),
                 ));
 
-                assert_eq!(event, expected_event, "{}", self.name)
+                assert_eq!(event, expected_event, "{}", self.name);
+
+                assert!(event_consumer.as_ref().is_empty());
             }
         }
         let test_cases = vec![
