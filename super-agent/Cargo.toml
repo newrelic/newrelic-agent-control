@@ -95,7 +95,6 @@ name = "newrelic-super-agent"
 path = "src/bin/main.rs"
 
 [features]
-default = ["onhost"]
 onhost = []
 k8s = [
   "dep:kube",
