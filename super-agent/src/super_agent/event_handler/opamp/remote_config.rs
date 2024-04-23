@@ -1,7 +1,7 @@
 use opamp_client::StartedClient;
 use tracing::{error, info};
 
-use crate::event::{SubAgentEvent, SuperAgentEvent};
+use crate::event::SubAgentEvent;
 use crate::super_agent::config_storer::storer::{
     SuperAgentDynamicConfigDeleter, SuperAgentDynamicConfigLoader, SuperAgentDynamicConfigStorer,
 };
@@ -59,18 +59,12 @@ where
                     &remote_config.hash,
                     error_message.clone(),
                 )?;
-                self.report_unhealthy(error_message.clone())?;
-                self.super_agent_publisher
-                    .publish(SuperAgentEvent::SuperAgentBecameUnhealthy(error_message))?;
-                Ok(())
+                Ok(self.report_unhealthy(error_message)?)
             }
             Ok(()) => {
                 self.set_config_hash_as_applied(&mut remote_config.hash)?;
                 report_remote_config_status_applied(opamp_client, &remote_config.hash)?;
-                self.report_healthy()?;
-                self.super_agent_publisher
-                    .publish(SuperAgentEvent::SuperAgentBecameHealthy)?;
-                Ok(())
+                Ok(self.report_healthy()?)
             }
         }
     }

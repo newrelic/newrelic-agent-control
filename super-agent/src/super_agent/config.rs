@@ -10,6 +10,7 @@ use std::{collections::HashMap, fmt::Display};
 use thiserror::Error;
 
 use crate::super_agent::config_storer::file::ConfigStoreError;
+use crate::super_agent::http_server::config::ServerConfig;
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
 use kube::core::TypeMeta;
 
@@ -154,6 +155,9 @@ pub struct SuperAgentConfig {
     /// k8s is a map containing the kubernetes-specific settings
     #[serde(default)]
     pub k8s: Option<K8sConfig>,
+
+    #[serde(default)]
+    pub server: ServerConfig,
 }
 
 #[derive(Debug, PartialEq, Deserialize, Serialize, Clone)]
