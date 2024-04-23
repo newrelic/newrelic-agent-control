@@ -58,6 +58,12 @@ async fn update_status(super_agent_event: SuperAgentEvent, status: Arc<RwLock<St
         SuperAgentEvent::SuperAgentStopped => {
             unreachable!("SuperAgentStopped is controlled outside");
         }
+        SuperAgentEvent::OpAMPConnected => {
+            // this will be tackled in a separate PR
+        }
+        SuperAgentEvent::OpAMPConnectFailed(_, _) => {
+            // this will be tackled in a separate PR
+        }
     }
 }
 
