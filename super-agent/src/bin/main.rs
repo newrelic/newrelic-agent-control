@@ -74,8 +74,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let opamp_client_builder: Option<OpAMPHttpClientBuilder> = super_agent_config
         .opamp
-        .as_ref()
-        .map(|opamp_config| OpAMPHttpClientBuilder::new(opamp_config.clone()));
+        .map(OpAMPHttpClientBuilder::new);
 
     // create Super Agent events channel
     let (super_agent_publisher, super_agent_consumer) = pub_sub::<SuperAgentEvent>();
@@ -181,7 +180,7 @@ fn run_super_agent(
         identifiers_provider,
     );
 
-    let (maybe_client, maybe_sa_opamp_consumer) = opamp_client_builder
+    let maybe_opamp_client = opamp_client_builder
         .as_ref()
         .map(|builder| {
             build_opamp_with_channel(
@@ -192,10 +191,14 @@ fn run_super_agent(
                 non_identifying_attributes,
             )
         })
-        // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
-        .transpose()?
-        .map(|(client, consumer)| (Some(client), Some(consumer)))
-        .unwrap_or_default();
+        // Option<Result<T, E>> -> Result<Option<T>, E> so we can `?` to unwrap or error out
+        .transpose()?;
+
+    let (maybe_client, maybe_sa_opamp_consumer) = if let Some((client, rx)) = maybe_opamp_client {
+        (Some(client), Some(rx))
+    } else {
+        (None, None)
+    };
 
     SuperAgent::new(
         maybe_client,
@@ -277,7 +280,7 @@ fn run_super_agent(
         k8s_config.clone(),
     );
 
-    let (maybe_client, opamp_consumer) = opamp_client_builder
+    let maybe_opamp_client = opamp_client_builder
         .as_ref()
         .map(|builder| {
             build_opamp_with_channel(
@@ -288,10 +291,14 @@ fn run_super_agent(
                 non_identifying_attributes,
             )
         })
-        // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
-        .transpose()?
-        .map(|(client, consumer)| (Some(client), Some(consumer)))
-        .unwrap_or_default();
+        // Option<Result<T, E>> -> Result<Option<T>, E> so we can `?` to unwrap or error out
+        .transpose()?;
+
+    let (maybe_client, opamp_consumer) = if let Some((client, rx)) = maybe_opamp_client {
+        (Some(client), Some(rx))
+    } else {
+        (None, None)
+    };
 
     let sub_agents_config_storer =
         SubAgentsConfigStoreConfigMap::new(k8s_store.clone(), config.dynamic);
