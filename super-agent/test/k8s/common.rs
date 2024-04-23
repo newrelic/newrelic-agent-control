@@ -654,12 +654,11 @@ pub async fn check_helmrelease_spec_values(
     let obj = api.get(name).await?;
     let found_values = &obj.data["spec"]["values"];
     if expected_as_json != *found_values {
-        Err(format!(
+        return Err(format!(
             "helm release spec values don't match with expected. Expected: {:?}, Found: {:?}",
             expected_as_json, *found_values,
         )
-        .into())
-    } else {
-        Ok(())
+        .into());
     }
+    Ok(())
 }

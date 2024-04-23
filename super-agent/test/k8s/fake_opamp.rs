@@ -48,13 +48,7 @@ impl ConfigResponse {
         opamp::proto::ServerToAgent {
             instance_uid: "test".into(), // fake uid for the shake of simplicity
             remote_config,
-            flags: 0,
-            capabilities: 0,
-            agent_identification: None,
-            command: None,
-            connection_settings: None,
-            error_response: None,
-            packages_available: None,
+            ..Default::default()
         }
         .encode_to_vec()
     }
@@ -97,10 +91,10 @@ impl FakeServer {
                 .service(web::resource(FAKE_SERVER_PATH).to(config_handler))
         })
         .listen(listener)
-        .unwrap()
+        .unwrap_or_else(|err| panic!("Could not bind the HTTP server to the listener: {err}"))
         .run()
         .await
-        .unwrap()
+        .unwrap_or_else(|err| panic!("Failed to run the HTTP server: {err}"))
     }
 
     /// Sets a response for the provided identifier. If a response already existed, it is overwritten.
