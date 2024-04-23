@@ -730,6 +730,11 @@ agents:
 
         opamp_publisher.publish(OpAMPEvent::Connected).unwrap();
 
+        // process_events always starts with SuperAgentHealthy
+        let expected = SuperAgentEvent::SuperAgentBecameHealthy;
+        let ev = super_agent_consumer.as_ref().recv().unwrap();
+        assert_eq!(expected, ev);
+
         let expected = SuperAgentEvent::OpAMPConnected;
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
@@ -781,6 +786,12 @@ agents:
         opamp_publisher
             .publish(OpAMPEvent::ConnectFailed(500, "Internal error".to_string()))
             .unwrap();
+
+        // process_events always starts with SuperAgentHealthy
+        let expected = SuperAgentEvent::SuperAgentBecameHealthy;
+        let ev = super_agent_consumer.as_ref().recv().unwrap();
+        assert_eq!(expected, ev);
+
         let expected = SuperAgentEvent::OpAMPConnectFailed(500, "Internal error".to_string());
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
