@@ -12,6 +12,7 @@ pub const PARENT_AGENT_ID_ATTRIBUTE_KEY: &str = "parent.agent.id";
 pub const HOST_NAME_ATTRIBUTE_KEY: &str = opentelemetry_semantic_conventions::resource::HOST_NAME;
 pub const CLUSTER_NAME_ATTRIBUTE_KEY: &str = "cluster.name";
 pub const HOST_ID_ATTRIBUTE_KEY: &str = opentelemetry_semantic_conventions::resource::HOST_ID;
+pub const FLEET_ID_ATTRIBUTE_KEY: &str = "fleet.guid";
 
 // Paths
 cfg_if::cfg_if! {

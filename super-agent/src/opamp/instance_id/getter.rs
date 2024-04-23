@@ -222,6 +222,7 @@ pub mod test {
         #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
         return Identifiers {
             cluster_name: "test".to_string(),
+            fleet_id: "test".to_string(),
         };
 
         #[cfg(feature = "onhost")]

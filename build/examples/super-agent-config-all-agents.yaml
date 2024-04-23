@@ -3,6 +3,8 @@
 #   headers:
 #     api-key: API_KEY_HERE
 
+# fleet_id: FLEET_ID_HERE
+
 agents:
   nr-infra-agent:
     agent_type: "newrelic/com.newrelic.infrastructure_agent:0.1.1"

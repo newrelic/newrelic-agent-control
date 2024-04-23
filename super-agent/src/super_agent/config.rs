@@ -143,6 +143,10 @@ pub struct SuperAgentConfig {
     #[serde(default)]
     pub host_id: String,
 
+    /// Unique identifier for the fleet in which the super agent will join upon initialization.
+    #[serde(default)]
+    pub fleet_id: String,
+
     /// this is the only part of the config that can be changed with opamp.
     #[serde(flatten)]
     pub dynamic: SuperAgentDynamicConfig,
@@ -384,6 +388,11 @@ host_id: 123
 agents: {}
 "#;
 
+    const SUPERAGENT_FLEET_ID: &str = r#"
+fleet_id: 123
+agents: {}
+"#;
+
     impl From<HashMap<AgentID, SubAgentConfig>> for SuperAgentDynamicConfig {
         fn from(value: HashMap<AgentID, SubAgentConfig>) -> Self {
             Self { agents: value }
@@ -604,5 +613,11 @@ agents: {}
     fn host_id_config() {
         let config = serde_yaml::from_str::<SuperAgentConfig>(SUPERAGENT_HOST_ID).unwrap();
         assert_eq!(config.host_id, "123");
+    }
+
+    #[test]
+    fn fleet_id_config() {
+        let config = serde_yaml::from_str::<SuperAgentConfig>(SUPERAGENT_FLEET_ID).unwrap();
+        assert_eq!(config.fleet_id, "123");
     }
 }
