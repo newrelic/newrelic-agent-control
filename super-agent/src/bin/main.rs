@@ -72,9 +72,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     debug!("Creating the signal handler");
     create_shutdown_signal_handler(application_event_publisher)?;
 
-    let opamp_client_builder: Option<OpAMPHttpClientBuilder> = super_agent_config
-        .opamp
-        .map(OpAMPHttpClientBuilder::new);
+    let opamp_client_builder: Option<OpAMPHttpClientBuilder> =
+        super_agent_config.opamp.map(OpAMPHttpClientBuilder::new);
 
     // create Super Agent events channel
     let (super_agent_publisher, super_agent_consumer) = pub_sub::<SuperAgentEvent>();
