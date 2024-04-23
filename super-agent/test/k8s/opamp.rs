@@ -203,6 +203,9 @@ image:
     let _ = sa.kill();
 }
 
+// TODO: This test is kept as reference until the `main` module is simplified. When simplifying it
+// we should consider if it is still useful or we should move this scenario to a fake-opamp-server based
+// test and get rid of the underlying tools.
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_opamp_add_sub_agent() {
