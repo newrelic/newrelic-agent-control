@@ -13,7 +13,6 @@
         - bionic
         - xenial
         - bullseye
-        - buster
         - bookworm
 
 #########################

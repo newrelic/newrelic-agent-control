@@ -1,5 +1,5 @@
 ARG RUST_VERSION=1.76.0
-FROM rust:${RUST_VERSION}-buster
+FROM rust:${RUST_VERSION}-bookworm
 
 RUN apt update && apt upgrade -y
 RUN apt install -y gcc musl-dev musl-tools
