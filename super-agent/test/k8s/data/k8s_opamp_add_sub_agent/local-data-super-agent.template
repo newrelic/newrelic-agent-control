@@ -1,5 +1,5 @@
 opamp:
-  endpoint: https://opamp.staging-service.newrelic.com/v1/opamp
+  endpoint: <opamp-endpoint>
   headers:
     api-key: test-api-key
 k8s:

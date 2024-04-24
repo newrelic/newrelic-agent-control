@@ -1,5 +1,5 @@
 use crate::common::{
-    block_on, check_deployments_exist, create_local_sa_config, create_mock_config_maps,
+    block_on, check_deployments_exist, create_local_sa_config, create_mock_config_maps, retry,
     start_super_agent, K8sEnv,
 };
 use newrelic_super_agent::k8s::store::STORE_KEY_LOCAL_DATA_CONFIG;
@@ -34,17 +34,15 @@ fn k8s_sub_agent_started() {
     let deployment_name = "my-agent-id-opentelemetry-collector";
     let deployment_name_2 = "my-agent-id-2-opentelemetry-collector";
 
-    let max_retries = 30;
-    let duration = Duration::from_millis(5000);
-
     // Check deployment for first Agent is created with retry.
-    block_on(check_deployments_exist(
-        k8s.client.clone(),
-        &[deployment_name, deployment_name_2],
-        namespace.as_str(),
-        max_retries,
-        duration,
-    ));
+
+    retry(30, Duration::from_secs(5), || {
+        block_on(check_deployments_exist(
+            k8s.client.clone(),
+            &[deployment_name, deployment_name_2],
+            namespace.as_str(),
+        ))
+    });
 
     child.kill().expect("Failed to kill child process");
 

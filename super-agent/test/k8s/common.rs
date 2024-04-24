@@ -19,23 +19,15 @@ use kube::{
     Client, CustomResource, CustomResourceExt,
 };
 use newrelic_super_agent::{
-    event::{channel::EventPublisher, OpAMPEvent},
     k8s::{labels::Labels, store::STORE_KEY_LOCAL_DATA_CONFIG},
-    opamp::client_builder::{OpAMPClientBuilder, OpAMPClientBuilderError},
     super_agent::{
         config::{AgentID, AgentTypeError, SuperAgentConfig, SuperAgentConfigError},
         config_storer::storer::{SuperAgentConfigLoader, SuperAgentDynamicConfigLoader},
     },
 };
-use opamp_client::operation::callbacks::Callbacks;
-use opamp_client::operation::settings::StartSettings;
-use opamp_client::Client as OpAMPClient;
-use opamp_client::{
-    opamp::proto::{AgentDescription, ComponentHealth, RemoteConfigStatus},
-    ClientResult, NotStartedClient, NotStartedClientResult, StartedClient, StartedClientResult,
-};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::error::Error;
 use std::io::Read;
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -418,7 +410,6 @@ pub async fn create_test_cr(client: Client, namespace: &str, name: &str) -> Foo 
 
 use mockall::mock;
 use newrelic_super_agent::super_agent::config::SuperAgentDynamicConfig;
-use tokio::time::sleep;
 
 mock! {
     pub SuperAgentConfigLoader {}
@@ -534,93 +525,6 @@ pub fn create_local_sa_config(
     PathBuf::from(file_path)
 }
 
-// check_deployments_exist checks for the existence of specified deployments within a namespace,
-// retrying a given number of times with pauses between attempts. Panics with an assert if any
-// deployment is not found after the specified retries.
-pub async fn check_deployments_exist(
-    k8s_client: Client,
-    names: &[&str],
-    namespace: &str,
-    max_retries: usize,
-    retry_interval: Duration,
-) {
-    let api: Api<Deployment> = Api::namespaced(k8s_client.clone(), namespace);
-
-    for &name in names {
-        let mut found = false;
-        for _ in 0..max_retries {
-            if let Ok(_) = api.get(name).await {
-                found = true;
-                break;
-            }
-            sleep(retry_interval).await;
-        }
-        assert!(found, "Deployment {} not found after retries", name);
-    }
-}
-
-// OpAMP mocks //
-/////////////////
-mock! {
-    pub NotStartedOpAMPClientMock {}
-    impl NotStartedClient for NotStartedOpAMPClientMock
-     {
-        type StartedClient<C: Callbacks + Send + Sync + 'static> = MockStartedOpAMPClientMock<C>;
-        fn start<C: Callbacks + Send + Sync + 'static>(self, callbacks: C, start_settings: StartSettings ) -> NotStartedClientResult<<Self as NotStartedClient>::StartedClient<C>>;
-    }
-}
-
-mock! {
-    pub StartedOpAMPClientMock<C> where C: Callbacks {}
-
-    impl<C> StartedClient<C> for StartedOpAMPClientMock<C>
-        where
-        C: Callbacks + Send + Sync + 'static {
-
-        fn stop(self) -> StartedClientResult<()>;
-    }
-
-    impl<C> OpAMPClient for StartedOpAMPClientMock<C>
-    where
-    C: Callbacks + Send + Sync + 'static {
-
-         fn set_agent_description(
-            &self,
-            description: AgentDescription,
-        ) -> ClientResult<()>;
-
-         fn set_health(&self, health: ComponentHealth) -> ClientResult<()>;
-
-         fn update_effective_config(&self) -> ClientResult<()>;
-
-         fn set_remote_config_status(&self, status: RemoteConfigStatus) -> ClientResult<()>;
-    }
-}
-
-impl<C> MockStartedOpAMPClientMock<C>
-where
-    C: Callbacks + Send + Sync + 'static,
-{
-    pub fn should_set_health(&mut self, times: usize) {
-        self.expect_set_health().times(times).returning(|_| Ok(()));
-    }
-
-    pub fn should_set_any_remote_config_status(&mut self, times: usize) {
-        self.expect_set_remote_config_status()
-            .times(times)
-            .returning(|_| Ok(()));
-    }
-}
-
-mock! {
-    pub OpAMPClientBuilderMock<C> where C: Callbacks + Send + Sync + 'static{}
-
-    impl<C> OpAMPClientBuilder<C> for OpAMPClientBuilderMock<C> where C: Callbacks + Send + Sync + 'static{
-        type Client = MockStartedOpAMPClientMock<C>;
-        fn build_and_start(&self, opamp_publisher: EventPublisher<OpAMPEvent>, agent_id: AgentID, start_settings: StartSettings) -> Result<<Self as OpAMPClientBuilder<C>>::Client, OpAMPClientBuilderError>;
-    }
-}
-
 pub fn retry<F>(max_attempts: usize, interval: Duration, f: F)
 where
     F: Fn() -> Result<(), Box<dyn std::error::Error>>,
@@ -634,7 +538,25 @@ where
         }
         std::thread::sleep(interval);
     }
-    last_err.unwrap_or_else(|err| panic!("retry failed after {max_attempts}: {err}"))
+    last_err.unwrap_or_else(|err| panic!("retry failed after {max_attempts} attempts: {err}"))
+}
+
+/// check_deployments_exist checks for the existence of specified deployments within a namespace.
+pub async fn check_deployments_exist(
+    k8s_client: Client,
+    names: &[&str],
+    namespace: &str,
+) -> Result<(), Box<dyn Error>> {
+    let api: Api<Deployment> = Api::namespaced(k8s_client.clone(), namespace);
+
+    for &name in names {
+        let _ = api.get(name).await.map_err(|err| {
+            std::convert::Into::<Box<dyn Error>>::into(format!(
+                "Deployment {name} not found: {err}"
+            ))
+        })?;
+    }
+    Ok(())
 }
 
 pub async fn check_helmrelease_spec_values(
@@ -642,7 +564,7 @@ pub async fn check_helmrelease_spec_values(
     namespace: &str,
     name: &str,
     expected_spec_values: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn Error>> {
     let expected_as_json: serde_json::Value = serde_yaml::from_str(expected_spec_values).unwrap();
     let gvk = &GroupVersion::from_str("helm.toolkit.fluxcd.io/v2beta2")
         .unwrap()
