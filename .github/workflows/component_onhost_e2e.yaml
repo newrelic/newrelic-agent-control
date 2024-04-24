@@ -23,10 +23,6 @@ on:
         type: string
         description: 'Repository endpoint to fetch packages from'
         default: "https://download.newrelic.com/preview"
-      FORCE_CLEANUP:
-        required: false
-        type: boolean
-        default: false
 
 env:
   TAG: ${{ inputs.TAG }}
@@ -99,7 +95,7 @@ jobs:
 
       - name: Destroy the infra
         uses: newrelic/fargate-runner-action@main
-        if: success() || ${{ inputs.FORCE_CLEANUP }}
+        if: always()
         with:
           aws_region: us-east-2
           container_make_target: "test/provision-clean TAG_OR_UNIQUE_NAME=${{ env.UNIQUE_NAME }}"
