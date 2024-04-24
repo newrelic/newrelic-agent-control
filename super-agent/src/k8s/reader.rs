@@ -147,7 +147,6 @@ impl Drop for DynamicObjectReflector {
 mod test {
     use super::*;
     use http::{Request, Response};
-    use hyper::Body;
     use kube::core::GroupVersionKind;
     use tokio::sync::oneshot::{channel, Sender};
 
@@ -178,7 +177,8 @@ mod test {
     #[tokio::test]
     // The client's mock requires an async
     async fn test_reflector_builder_options() {
-        let (mock_service, _) = tower_test::mock::pair::<Request<Body>, Response<Body>>();
+        let (mock_service, _) =
+            tower_test::mock::pair::<Request<kube::client::Body>, Response<kube::client::Body>>();
         let client = kube::Client::new(mock_service, "builder-ns");
 
         let builder = ReflectorBuilder::new(client)

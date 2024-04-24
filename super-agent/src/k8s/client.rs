@@ -556,7 +556,7 @@ pub(crate) mod test {
 
     fn get_mocked_client(scenario: Scenario) -> AsyncK8sClient {
         let (mock_service, handle) =
-            mock::pair::<http::Request<hyper::Body>, http::Response<hyper::Body>>();
+            mock::pair::<http::Request<kube::client::Body>, http::Response<kube::client::Body>>();
         ApiServerVerifier(handle).run(scenario);
         let client = Client::new(mock_service, "default");
         AsyncK8sClient {
@@ -565,7 +565,8 @@ pub(crate) mod test {
         }
     }
 
-    type ApiServerHandle = mock::Handle<http::Request<hyper::Body>, http::Response<hyper::Body>>;
+    type ApiServerHandle =
+        mock::Handle<http::Request<kube::client::Body>, http::Response<kube::client::Body>>;
 
     struct ApiServerVerifier(ApiServerHandle);
 
@@ -597,7 +598,7 @@ pub(crate) mod test {
 
                         send.send_response(
                             http::Response::builder()
-                                .body(hyper::Body::from(response))
+                                .body(kube::client::Body::from(response))
                                 .unwrap(),
                         );
                     },
