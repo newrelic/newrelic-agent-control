@@ -30,4 +30,4 @@ jobs:
           repo_base_url: ${{ inputs.REPO_ENDPOINT }}
           package_name: ${{ inputs.PACKAGE_NAME }}
           package_version: ${{ inputs.TAG }}
-          platforms: "al2023,centos8,debian-bullseye,debian-bookworm,debian-buster,redhat8,redhat9,suse15.3,suse15.4,suse15.5,ubuntu2004,ubuntu2204"
+          platforms: "al2023,centos8,debian-bullseye,debian-bookworm,redhat8,redhat9,suse15.3,suse15.4,suse15.5,ubuntu2004,ubuntu2204"
