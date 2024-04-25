@@ -1,7 +1,5 @@
-use crate::common::{
-    create_test_cr, foo_type_meta, get_dynamic_api_foo, Foo, FooSpec, K8sCluster, K8sEnv,
-};
-use k8s_openapi::api::core::v1::Pod;
+use crate::common::{create_test_cr, k8s_env};
+use k8s_test_env::foo_crd::{foo_type_meta, get_dynamic_api_foo, Foo, FooSpec};
 use kube::api::{Api, DeleteParams};
 use kube::core::DynamicObject;
 use newrelic_super_agent::k8s::client::AsyncK8sClient;
@@ -23,7 +21,7 @@ async fn k8s_client_creation_fail() {
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "needs k8s cluster"]
 async fn k8s_create_dynamic_resource() {
-    let mut test = K8sEnv::new().await;
+    let mut test = k8s_env().await;
     let test_ns = test.test_namespace().await;
 
     let name = "test-cr";
@@ -52,7 +50,7 @@ async fn k8s_create_dynamic_resource() {
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "needs k8s cluster"]
 async fn k8s_get_dynamic_resource() {
-    let mut test = K8sEnv::new().await;
+    let mut test = k8s_env().await;
     let test_ns = test.test_namespace().await;
 
     let cr_name = "get-test";
@@ -99,7 +97,7 @@ async fn k8s_get_dynamic_resource() {
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "needs k8s cluster"]
 async fn k8s_dynamic_resource_has_changed() {
-    let mut test = K8sEnv::new().await;
+    let mut test = k8s_env().await;
     let test_ns = test.test_namespace().await;
 
     let cr_name = "has-changed-test";
@@ -159,7 +157,7 @@ async fn k8s_dynamic_resource_has_changed() {
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "needs k8s cluster"]
 async fn k8s_delete_dynamic_resource() {
-    let mut test = K8sEnv::new().await;
+    let mut test = k8s_env().await;
     let test_ns = test.test_namespace().await;
 
     let cr_name = "delete-test";
@@ -181,7 +179,7 @@ async fn k8s_delete_dynamic_resource() {
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "needs k8s cluster"]
 async fn k8s_patch_dynamic_resource() {
-    let mut test = K8sEnv::new().await;
+    let mut test = k8s_env().await;
     let test_ns = test.test_namespace().await;
 
     let cr_name = "patch-test";
@@ -205,7 +203,7 @@ async fn k8s_patch_dynamic_resource() {
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "needs k8s cluster"]
 async fn k8s_patch_dynamic_resource_metadata() {
-    let mut test = K8sEnv::new().await;
+    let mut test = k8s_env().await;
     let test_ns = test.test_namespace().await;
 
     let cr_name = "patch-test";
@@ -243,45 +241,4 @@ async fn k8s_patch_dynamic_resource_metadata() {
             .to_string()
     );
     assert!(result.metadata.deletion_grace_period_seconds.is_none());
-}
-
-// Example code to replace with real test when added.
-#[tokio::test(flavor = "multi_thread")]
-#[ignore = "spawns a k8s cluster"]
-async fn k3s_spawning_container_k3s() {
-    let test = K8sCluster::new().await;
-
-    fake_binary_run_example("default").await;
-
-    let pods: Api<Pod> = Api::namespaced(test.client.to_owned().unwrap(), "default");
-    pods.get("example").await.unwrap();
-}
-
-// Just a test example that should be removed.
-async fn fake_binary_run_example(namespace: &str) {
-    use kube::api::PostParams;
-    use kube::Client;
-
-    let client = Client::try_default().await.unwrap();
-
-    let p: Pod = serde_yaml::from_str(
-        r#"apiVersion: v1
-kind: Pod
-metadata:
-  name: example
-spec:
-  containers:
-  - name: example
-    image: alpine
-    command:
-    - tail
-    - "-f"
-    - "/dev/null"
-"#,
-    )
-    .unwrap();
-
-    let pods: Api<Pod> = Api::namespaced(client.clone(), namespace);
-    // Stop on error including a pod already exists or still being deleted.
-    pods.create(&PostParams::default(), &p).await.unwrap();
 }

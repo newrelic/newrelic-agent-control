@@ -1,7 +1,8 @@
 use crate::common::{
-    block_on, check_deployments_exist, create_local_sa_config, create_mock_config_maps, retry,
-    start_super_agent, K8sEnv,
+    check_deployments_exist, create_local_sa_config, create_mock_config_maps, k8s_env, retry,
+    start_super_agent,
 };
+use k8s_test_env::runtime::block_on;
 use newrelic_super_agent::k8s::store::STORE_KEY_LOCAL_DATA_CONFIG;
 use std::time::Duration;
 
@@ -10,7 +11,7 @@ use std::time::Duration;
 fn k8s_sub_agent_started() {
     let test_name = "k8s_sub_agent_started";
     // Setup k8s env
-    let mut k8s = block_on(K8sEnv::new());
+    let mut k8s = block_on(k8s_env());
     let namespace = block_on(k8s.test_namespace());
 
     let file_path = create_local_sa_config(namespace.as_str(), "no-opamp", test_name);

@@ -1,12 +1,11 @@
 use std::{collections::HashMap, net, sync::Arc};
 
 use actix_web::{web, App, HttpResponse, HttpServer};
+use k8s_test_env::runtime::tokio_runtime;
 use opamp_client::opamp;
 use prost::Message;
 use std::sync::Mutex;
 use tokio::task::JoinHandle;
-
-use crate::common::tokio_runtime;
 
 const FAKE_SERVER_PATH: &str = "/opamp-fake-server";
 

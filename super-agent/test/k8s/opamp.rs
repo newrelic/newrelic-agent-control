@@ -1,9 +1,10 @@
 use crate::common::{
-    block_on, check_deployments_exist, check_helmrelease_spec_values, retry,
-    start_super_agent_with_testdata_config, K8sEnv,
+    check_deployments_exist, check_helmrelease_spec_values, k8s_env, retry,
+    start_super_agent_with_testdata_config,
 };
 
 use crate::fake_opamp::{ConfigResponse, ConfigResponses, FakeServer, Identifier};
+use k8s_test_env::runtime::block_on;
 use std::{thread::sleep as thread_sleep, time::Duration};
 
 #[test]
@@ -26,7 +27,7 @@ fn k8s_opamp_enabled_with_no_remote_configuration() {
     let server = FakeServer::start_new(server_responses);
 
     // setup the k8s environment
-    let mut k8s = block_on(K8sEnv::new());
+    let mut k8s = block_on(k8s_env());
     let namespace = block_on(k8s.test_namespace());
 
     // start the super-agent
@@ -93,7 +94,7 @@ chart_values:
     let mut server = FakeServer::start_new(server_responses);
 
     // setup the k8s environment
-    let mut k8s = block_on(K8sEnv::new());
+    let mut k8s = block_on(k8s_env());
     let namespace = block_on(k8s.test_namespace());
 
     // start the super-agent
@@ -181,7 +182,7 @@ fn k8s_opamp_add_subagent() {
     let mut server = FakeServer::start_new(server_responses);
 
     // setup the k8s environment
-    let mut k8s = block_on(K8sEnv::new());
+    let mut k8s = block_on(k8s_env());
     let namespace = block_on(k8s.test_namespace());
 
     // start the super-agent

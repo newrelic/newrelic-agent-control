@@ -1,8 +1,9 @@
-use super::common::{
-    block_on, create_test_cr, foo_type_meta, tokio_runtime, Foo, K8sEnv,
-    MockSuperAgentDynamicConfigLoaderMock,
-};
+use crate::common::k8s_env;
+
+use super::common::{create_test_cr, MockSuperAgentDynamicConfigLoaderMock};
 use k8s_openapi::{api::core::v1::ConfigMap, Resource};
+use k8s_test_env::foo_crd::{foo_type_meta, Foo};
+use k8s_test_env::runtime::{block_on, tokio_runtime};
 use kube::{api::Api, core::TypeMeta};
 use mockall::Sequence;
 use newrelic_super_agent::super_agent::config::SuperAgentDynamicConfig;
@@ -23,7 +24,7 @@ use std::{collections::HashMap, sync::Arc};
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_garbage_collector_cleans_removed_agent() {
-    let mut test = block_on(K8sEnv::new());
+    let mut test = block_on(k8s_env());
     let test_ns = block_on(test.test_namespace());
 
     let agent_id = &AgentID::new("sub-agent").unwrap();
@@ -129,7 +130,7 @@ agents:
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_garbage_collector_with_missing_and_extra_kinds() {
-    let mut test = block_on(K8sEnv::new());
+    let mut test = block_on(k8s_env());
     let test_ns = block_on(test.test_namespace());
 
     // Creates CRs labeled for two agents.
@@ -179,7 +180,7 @@ fn k8s_garbage_collector_with_missing_and_extra_kinds() {
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_garbage_collector_does_not_remove_super_agent() {
-    let mut test = block_on(K8sEnv::new());
+    let mut test = block_on(k8s_env());
     let test_ns = block_on(test.test_namespace());
 
     let sa_id = &AgentID::new_super_agent_id();

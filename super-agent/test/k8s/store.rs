@@ -1,5 +1,8 @@
-use super::common::{block_on, create_mock_config_maps, tokio_runtime, K8sEnv};
+use crate::common::k8s_env;
+
+use super::common::create_mock_config_maps;
 use k8s_openapi::api::core::v1::ConfigMap;
+use k8s_test_env::runtime::{block_on, tokio_runtime};
 use kube::Api;
 use newrelic_super_agent::agent_type::agent_metadata::AgentMetadata;
 use newrelic_super_agent::agent_type::agent_values::AgentValues;
@@ -36,7 +39,7 @@ fn k8s_instance_id_store() {
     // This test covers the happy path of ULIDInstanceIDGetter on K8s.
     // It checks that with same AgentID the the Ulid is the same and if different the ULID is different
 
-    let mut test = block_on(K8sEnv::new());
+    let mut test = block_on(k8s_env());
     let test_ns = block_on(test.test_namespace());
 
     let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime(), test_ns.clone()).unwrap());
@@ -75,7 +78,7 @@ fn k8s_hash_repository_config_map() {
     // This test covers the happy path of HashRepositoryConfigMap on K8s.
     // It checks that with same AgentID the Hash is the same and if different the Hash is different
 
-    let mut test = block_on(K8sEnv::new());
+    let mut test = block_on(k8s_env());
     let test_ns = block_on(test.test_namespace());
 
     let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime(), test_ns.clone()).unwrap());
@@ -108,7 +111,7 @@ fn k8s_hash_repository_config_map() {
 fn k8s_value_repository_config_map() {
     // This test covers the happy path of ValuesRepositoryConfigMap on K8s.
 
-    let mut test = block_on(K8sEnv::new());
+    let mut test = block_on(k8s_env());
     let test_ns = block_on(test.test_namespace());
 
     let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime(), test_ns.clone()).unwrap());
@@ -177,7 +180,7 @@ fn k8s_value_repository_config_map() {
 fn k8s_sa_config_map() {
     // This test covers the happy path of SubAgentConfigStorerConfigMap on K8s.
 
-    let mut test = block_on(K8sEnv::new());
+    let mut test = block_on(k8s_env());
     let test_ns = block_on(test.test_namespace());
     let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime(), test_ns.clone()).unwrap());
 
@@ -229,7 +232,7 @@ fn k8s_multiple_store_entries() {
     // This test exercises all K8s storers that share the same ConfigMap.
     // It checks that all entries are persisted and loaded correctly.
 
-    let mut test = block_on(K8sEnv::new());
+    let mut test = block_on(k8s_env());
     let test_ns = block_on(test.test_namespace());
 
     let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime(), test_ns.clone()).unwrap());

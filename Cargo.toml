@@ -7,6 +7,7 @@ members = [
   "resource-detection",
   "fs",
   "license",
+  "k8s-test-env",
 ]
 
 [workspace.dependencies]

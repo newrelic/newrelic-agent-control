@@ -1613,6 +1613,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "k8s-test-env"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "k8s-openapi",
+ "kube",
+ "schemars",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "tokio",
+]
+
+[[package]]
 name = "konst"
 version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1946,6 +1960,7 @@ dependencies = [
  "http 1.1.0",
  "hyper",
  "k8s-openapi",
+ "k8s-test-env",
  "konst",
  "kube",
  "mockall",
