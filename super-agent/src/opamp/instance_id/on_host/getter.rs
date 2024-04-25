@@ -29,14 +29,15 @@ pub struct Identifiers {
     pub machine_id: String,
     pub cloud_instance_id: String,
     pub host_id: String,
+    pub fleet_id: String,
 }
 
 impl Display for Identifiers {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "hostname = '{}', machine_id = '{}', cloud_instance_id = '{}', host_id = '{}'",
-            self.hostname, self.machine_id, self.cloud_instance_id, self.host_id
+            "hostname = '{}', machine_id = '{}', cloud_instance_id = '{}', host_id = '{}', fleet_id = '{}'",
+            self.hostname, self.machine_id, self.cloud_instance_id, self.host_id,self.fleet_id,
         )
     }
 }
@@ -55,6 +56,7 @@ pub struct IdentifiersProvider<
     system_detector: D,
     cloud_id_detector: D2,
     host_id: String,
+    fleet_id: String,
 }
 
 impl Default for IdentifiersProvider {
@@ -63,6 +65,7 @@ impl Default for IdentifiersProvider {
             system_detector: SystemDetector::default(),
             cloud_id_detector: CloudIdDetector::default(),
             host_id: String::default(),
+            fleet_id: String::default(),
         }
     }
 }
@@ -76,11 +79,16 @@ where
         Self { host_id, ..self }
     }
 
+    pub fn with_fleet_id(self, fleet_id: String) -> Self {
+        Self { fleet_id, ..self }
+    }
+
     pub fn new(system_detector: D, cloud_id_detector: D2) -> Self {
         Self {
             system_detector,
             cloud_id_detector,
             host_id: String::default(),
+            fleet_id: String::default(),
         }
     }
 
@@ -120,6 +128,7 @@ where
             hostname,
             machine_id,
             cloud_instance_id,
+            fleet_id: self.fleet_id.clone(),
         })
     }
 
@@ -223,6 +232,7 @@ pub mod test {
             system_detector: system_detector_mock,
             cloud_id_detector: cloud_id_detector_mock,
             host_id: String::new(),
+            fleet_id: String::new(),
         };
         let identifiers = identifiers_provider.provide().unwrap();
 
@@ -231,6 +241,7 @@ pub mod test {
             machine_id: String::from("some machine id"),
             cloud_instance_id: String::from("abc"),
             host_id: String::from("abc"),
+            fleet_id: String::new(),
         };
         assert_eq!(expected_identifiers, identifiers);
         assert!(logs_with_scope_contain(
@@ -259,6 +270,7 @@ pub mod test {
             system_detector: system_detector_mock,
             cloud_id_detector: cloud_id_detector_mock,
             host_id: String::new(),
+            fleet_id: String::new(),
         };
         let identifiers = identifiers_provider.provide().unwrap();
 
@@ -267,6 +279,7 @@ pub mod test {
             machine_id: String::from(""),
             cloud_instance_id: String::from("abc"),
             host_id: String::from("abc"),
+            fleet_id: String::new(),
         };
         assert_eq!(expected_identifiers, identifiers);
         assert!(logs_with_scope_contain(
@@ -296,6 +309,7 @@ pub mod test {
             system_detector: system_detector_mock,
             cloud_id_detector: cloud_id_detector_mock,
             host_id: String::new(),
+            fleet_id: String::new(),
         };
         let identifiers = identifiers_provider.provide().unwrap();
 
@@ -304,6 +318,7 @@ pub mod test {
             machine_id: String::from("some machine id"),
             cloud_instance_id: String::from(""),
             host_id: String::from("some machine id"),
+            fleet_id: String::new(),
         };
         assert_eq!(expected_identifiers, identifiers);
     }
@@ -333,6 +348,7 @@ pub mod test {
             system_detector: system_detector_mock,
             cloud_id_detector: cloud_id_detector_mock,
             host_id: String::new(),
+            fleet_id: String::new(),
         };
         let identifiers = identifiers_provider.provide().unwrap();
 
@@ -341,6 +357,7 @@ pub mod test {
             machine_id: String::from("some machine-id"),
             cloud_instance_id: String::from("abc"),
             host_id: String::from("abc"),
+            fleet_id: String::new(),
         };
         assert_eq!(expected_identifiers, identifiers);
     }
@@ -369,6 +386,7 @@ pub mod test {
             system_detector: system_detector_mock,
             cloud_id_detector: cloud_id_detector_mock,
             host_id: String::new(),
+            fleet_id: String::new(),
         };
         // Add a host_id
         let identifiers_provider = identifiers_provider.with_host_id("some-host-id".to_string());

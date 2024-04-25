@@ -9,16 +9,24 @@ use std::sync::Arc;
 #[derive(Default, Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct Identifiers {
     pub cluster_name: String,
+    pub fleet_id: String,
 }
 
 impl Display for Identifiers {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "cluster_name = '{}'", self.cluster_name)
+        write!(
+            f,
+            "cluster_name = '{}', fleet_id = '{}'",
+            self.cluster_name, self.fleet_id
+        )
     }
 }
 
-pub fn get_identifiers(cluster_name: String) -> Identifiers {
-    Identifiers { cluster_name }
+pub fn get_identifiers(cluster_name: String, fleet_id: String) -> Identifiers {
+    Identifiers {
+        cluster_name,
+        fleet_id,
+    }
 }
 
 #[derive(thiserror::Error, Debug)]

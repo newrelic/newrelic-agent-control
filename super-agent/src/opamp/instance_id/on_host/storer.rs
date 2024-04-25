@@ -163,23 +163,14 @@ mod test {
         let mut dir_manager = MockDirectoryManagerMock::default();
         let ds = DataStored {
             ulid: InstanceID::new("test-ULID".to_owned()),
-            identifiers: Identifiers {
-                hostname: "test-hostname".to_string(),
-                machine_id: "test-machine-id".to_string(),
-                cloud_instance_id: "test-instance-id".to_string(),
-                host_id: "test-instance-id".to_string(),
-            },
+            identifiers: test_identifiers(),
         };
 
         let ulid_path = get_uild_path(&agent_id);
 
         // Expectations
         dir_manager.should_create(ulid_path.parent().unwrap(), Permissions::from_mode(0o700));
-        file_rw.should_write(
-            &ulid_path,
-            String::from("ulid: test-ULID\nidentifiers:\n  hostname: test-hostname\n  machine_id: test-machine-id\n  cloud_instance_id: test-instance-id\n  host_id: test-instance-id\n"),
-            Permissions::from_mode(0o600),
-        );
+        file_rw.should_write(&ulid_path, expected_file(), Permissions::from_mode(0o600));
 
         let storer = Storer::new(file_rw, dir_manager);
         assert!(storer.set(&agent_id, &ds).is_ok());
@@ -193,22 +184,13 @@ mod test {
         let mut dir_manager = MockDirectoryManagerMock::default();
         let ds = DataStored {
             ulid: InstanceID::new("test-ULID".to_owned()),
-            identifiers: Identifiers {
-                hostname: "test-hostname".to_string(),
-                machine_id: "test-machine-id".to_string(),
-                cloud_instance_id: "test-instance-id".to_string(),
-                host_id: "test-instance-id".to_string(),
-            },
+            identifiers: test_identifiers(),
         };
 
         let ulid_path = get_uild_path(&agent_id);
 
         // Expectations
-        file_rw.should_not_write(
-            &ulid_path,
-            String::from("ulid: test-ULID\nidentifiers:\n  hostname: test-hostname\n  machine_id: test-machine-id\n  cloud_instance_id: test-instance-id\n  host_id: test-instance-id\n"),
-            Permissions::from_mode(0o600),
-        );
+        file_rw.should_not_write(&ulid_path, expected_file(), Permissions::from_mode(0o600));
         dir_manager.should_create(ulid_path.parent().unwrap(), Permissions::from_mode(0o700));
 
         let storer = Storer::new(file_rw, dir_manager);
@@ -223,12 +205,7 @@ mod test {
         let dir_manager = MockDirectoryManagerMock::default();
         let ds = DataStored {
             ulid: InstanceID::new("test-ULID".to_owned()),
-            identifiers: Identifiers {
-                hostname: "test-hostname".to_string(),
-                machine_id: "test-machine-id".to_string(),
-                cloud_instance_id: "test-instance-id".to_string(),
-                host_id: "test-instance-id".to_string(),
-            },
+            identifiers: test_identifiers(),
         };
         let expected = Some(ds.clone());
         let ulid_path = get_uild_path(&agent_id);
@@ -238,7 +215,7 @@ mod test {
             .expect_read()
             .with(predicate::function(move |p| p == ulid_path.as_path()))
             .once()
-            .return_once(|_| Ok(String::from("ulid: test-ULID\nidentifiers:\n  hostname: test-hostname\n  machine_id: test-machine-id\n  cloud_instance_id: test-instance-id\n  host_id: test-instance-id\n")));
+            .return_once(|_| Ok(expected_file()));
 
         let storer = Storer::new(file_rw, dir_manager);
         let actual = storer.get(&agent_id);
@@ -265,5 +242,21 @@ mod test {
         // As said above, we are not generatinc the error variant here
         assert!(expected.is_ok());
         assert!(expected.unwrap().is_none());
+    }
+
+    /// HELPERS
+
+    fn expected_file() -> String {
+        String::from("ulid: test-ULID\nidentifiers:\n  hostname: test-hostname\n  machine_id: test-machine-id\n  cloud_instance_id: test-instance-id\n  host_id: test-host-id\n  fleet_id: test-fleet-id\n")
+    }
+
+    fn test_identifiers() -> Identifiers {
+        Identifiers {
+            hostname: "test-hostname".to_string(),
+            machine_id: "test-machine-id".to_string(),
+            cloud_instance_id: "test-instance-id".to_string(),
+            host_id: "test-host-id".to_string(),
+            fleet_id: "test-fleet-id".to_string(),
+        }
     }
 }

@@ -8,9 +8,9 @@ use newrelic_super_agent::sub_agent::effective_agents_assembler::LocalEffectiveA
 use newrelic_super_agent::sub_agent::event_processor_builder::EventProcessorBuilder;
 use newrelic_super_agent::super_agent::config_storer::storer::SuperAgentConfigLoader;
 use newrelic_super_agent::super_agent::config_storer::SuperAgentConfigStoreFile;
-#[cfg(feature = "onhost")]
-use newrelic_super_agent::super_agent::defaults::HOST_ID_ATTRIBUTE_KEY;
-use newrelic_super_agent::super_agent::defaults::HOST_NAME_ATTRIBUTE_KEY;
+use newrelic_super_agent::super_agent::defaults::{
+    FLEET_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
+};
 use newrelic_super_agent::super_agent::error::AgentError;
 use newrelic_super_agent::super_agent::http_server::runner::Runner;
 use newrelic_super_agent::super_agent::{super_agent_fqn, SuperAgent};
@@ -145,9 +145,11 @@ fn run_super_agent(
         std::process::exit(1);
     }
 
-    let host_id = config_storer.load()?.host_id;
+    let config = config_storer.load()?;
 
-    let identifiers_provider = IdentifiersProvider::default().with_host_id(host_id);
+    let identifiers_provider = IdentifiersProvider::default()
+        .with_host_id(config.host_id)
+        .with_fleet_id(config.fleet_id);
     let identifiers = identifiers_provider.provide().unwrap_or_default();
     //Print identifiers for troubleshooting
     print_identifiers(&identifiers);
@@ -242,7 +244,8 @@ fn run_super_agent(
 
     let k8s_store = Arc::new(K8sStore::new(k8s_client.clone()));
 
-    let identifiers = instance_id::get_identifiers(k8s_config.cluster_name.clone());
+    let identifiers =
+        instance_id::get_identifiers(k8s_config.cluster_name.clone(), config.fleet_id);
     //Print identifiers for troubleshooting
     print_identifiers(&identifiers);
 
@@ -334,7 +337,7 @@ fn create_shutdown_signal_handler(
 
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
 fn super_agent_opamp_non_identifying_attributes(
-    _identifiers: &Identifiers,
+    identifiers: &Identifiers,
 ) -> HashMap<String, DescriptionValueType> {
     use newrelic_super_agent::utils::hostname::HostnameGetter;
 
@@ -347,16 +350,24 @@ fn super_agent_opamp_non_identifying_attributes(
         .to_string_lossy()
         .to_string();
 
-    HashMap::from([(
-        HOST_NAME_ATTRIBUTE_KEY.to_string(),
-        DescriptionValueType::String(hostname),
-    )])
+    HashMap::from([
+        (
+            HOST_NAME_ATTRIBUTE_KEY.to_string(),
+            DescriptionValueType::String(hostname),
+        ),
+        (
+            FLEET_ID_ATTRIBUTE_KEY.to_string(),
+            DescriptionValueType::String(identifiers.fleet_id.clone()),
+        ),
+    ])
 }
 
-#[cfg(all(not(feature = "k8s"), feature = "onhost"))]
+#[cfg(feature = "onhost")]
 fn super_agent_opamp_non_identifying_attributes(
     identifiers: &Identifiers,
 ) -> HashMap<String, DescriptionValueType> {
+    use newrelic_super_agent::super_agent::defaults::HOST_ID_ATTRIBUTE_KEY;
+
     HashMap::from([
         (
             HOST_NAME_ATTRIBUTE_KEY.to_string(),
@@ -365,6 +376,10 @@ fn super_agent_opamp_non_identifying_attributes(
         (
             HOST_ID_ATTRIBUTE_KEY.to_string(),
             DescriptionValueType::String(identifiers.host_id.clone()),
+        ),
+        (
+            FLEET_ID_ATTRIBUTE_KEY.to_string(),
+            DescriptionValueType::String(identifiers.fleet_id.clone()),
         ),
     ])
 }
