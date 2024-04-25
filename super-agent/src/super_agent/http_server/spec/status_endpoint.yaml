@@ -25,10 +25,8 @@ paths:
                         type: boolean
                       endpoint:
                         type: string
-                        enum: [staging, prod?]
-                      status:
-                        type: string
-                        enum: [connected, unreachable, unauthorized, timeout]
+                      reachable:
+                        type: boolean
                   super_agent:
                     type: object
                     healthy:
@@ -37,6 +35,7 @@ paths:
                       type: string
                     last_error:
                       type: string
+                      required: false
                   sub_agents:
                     type: array
                     items:
@@ -48,18 +47,15 @@ paths:
                           type: string
                         healthy:
                           type: boolean
-                        health_check_method:
-                          type: string
-                          enum: [http, cmd]
                         last_error:
                           type: string
+                          required: false
                         status:
                           type: string
                     example:
                       - agent_id: "infrastructure_agent_id_1"
                         agent_type: "newrelic/com.newrelic.infrastructure:0.0.1"
                         healthy: false
-                        health_check_method: "http"
                         last_error: "The sub-agent exceeded the number of retries defined in its restart policy."
                         status: "unregistered"
         '500':
