@@ -19,31 +19,21 @@ use kube::{
     Client, CustomResource, CustomResourceExt,
 };
 use newrelic_super_agent::{
-    event::channel::EventPublisher,
-    event::OpAMPEvent,
-    k8s::labels::Labels,
-    opamp::client_builder::{OpAMPClientBuilder, OpAMPClientBuilderError},
+    k8s::{labels::Labels, store::STORE_KEY_LOCAL_DATA_CONFIG},
     super_agent::{
         config::{AgentID, AgentTypeError, SuperAgentConfig, SuperAgentConfigError},
-        config_storer::storer::SuperAgentConfigLoader,
-        config_storer::storer::SuperAgentDynamicConfigLoader,
+        config_storer::storer::{SuperAgentConfigLoader, SuperAgentDynamicConfigLoader},
     },
-};
-use opamp_client::operation::callbacks::Callbacks;
-use opamp_client::operation::settings::StartSettings;
-use opamp_client::Client as OpAMPClient;
-use opamp_client::{
-    opamp::proto::{AgentDescription, ComponentHealth, RemoteConfigStatus},
-    ClientResult, NotStartedClient, NotStartedClientResult, StartedClient, StartedClientResult,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::error::Error;
 use std::io::Read;
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::str::FromStr;
 use std::sync::Arc;
+use std::{collections::BTreeMap, path::PathBuf};
 use std::{collections::HashMap, env, fs::File, io::Write, sync::OnceLock, time::Duration};
 use tempfile::{tempdir, TempDir};
 use tokio::{runtime::Runtime, sync::OnceCell, time::timeout};
@@ -420,7 +410,6 @@ pub async fn create_test_cr(client: Client, namespace: &str, name: &str) -> Foo 
 
 use mockall::mock;
 use newrelic_super_agent::super_agent::config::SuperAgentDynamicConfig;
-use tokio::time::sleep;
 
 mock! {
     pub SuperAgentConfigLoader {}
@@ -436,6 +425,26 @@ mock! {
     impl SuperAgentDynamicConfigLoader for SuperAgentDynamicConfigLoaderMock {
         fn load(&self) -> Result<SuperAgentDynamicConfig, SuperAgentConfigError>;
     }
+}
+
+pub fn start_super_agent_with_testdata_config(
+    folder_name: &str,
+    client: Client,
+    ns: &str,
+    opamp_endpoint: &str,
+    subagent_file_names: Vec<&str>,
+) -> std::process::Child {
+    let config_local = create_local_sa_config(ns, opamp_endpoint, folder_name);
+    for file_name in subagent_file_names {
+        block_on(create_mock_config_maps(
+            client.clone(),
+            ns,
+            folder_name,
+            file_name,
+            STORE_KEY_LOCAL_DATA_CONFIG,
+        ))
+    }
+    start_super_agent(&config_local)
 }
 
 pub fn start_super_agent(file_path: &Path) -> std::process::Child {
@@ -489,8 +498,13 @@ pub async fn create_mock_config_maps(
     cm_client.create(&PostParams::default(), &cm).await.unwrap();
 }
 
-/// create_local_sa_config templates the namespace and saves the new file
-pub async fn create_local_sa_config(test_ns: &str, folder_name: &str) {
+/// create_local_sa_config templates the namespace and the opamp endpoint, and then it saves the new file whose path
+/// is returned.
+pub fn create_local_sa_config(
+    test_ns: &str,
+    opamp_endpoint: &str,
+    folder_name: &str,
+) -> std::path::PathBuf {
     let mut content = String::new();
     File::open(format!(
         "test/k8s/data/{}/local-data-super-agent.template",
@@ -500,96 +514,73 @@ pub async fn create_local_sa_config(test_ns: &str, folder_name: &str) {
     .read_to_string(&mut content)
     .unwrap();
 
-    let content = content.replace("<ns>", test_ns);
-    File::create(format!("test/k8s/data/{}/local-sa.k8s_tmp", folder_name))
+    let file_path = format!("test/k8s/data/{}/local-sa.k8s_tmp", folder_name);
+    let content = content
+        .replace("<ns>", test_ns)
+        .replace("<opamp-endpoint>", opamp_endpoint);
+    File::create(file_path.as_str())
         .unwrap()
         .write_all(content.as_bytes())
         .unwrap();
+    PathBuf::from(file_path)
 }
 
-// check_deployments_exist checks for the existence of specified deployments within a namespace,
-// retrying a given number of times with pauses between attempts. Panics with an assert if any
-// deployment is not found after the specified retries.
+pub fn retry<F>(max_attempts: usize, interval: Duration, f: F)
+where
+    F: Fn() -> Result<(), Box<dyn std::error::Error>>,
+{
+    let mut last_err = Ok(());
+    for _ in 0..max_attempts {
+        if let Err(err) = f() {
+            last_err = Err(err)
+        } else {
+            return;
+        }
+        std::thread::sleep(interval);
+    }
+    last_err.unwrap_or_else(|err| panic!("retry failed after {max_attempts} attempts: {err}"))
+}
+
+/// check_deployments_exist checks for the existence of specified deployments within a namespace.
 pub async fn check_deployments_exist(
     k8s_client: Client,
     names: &[&str],
     namespace: &str,
-    max_retries: usize,
-    retry_interval: Duration,
-) {
+) -> Result<(), Box<dyn Error>> {
     let api: Api<Deployment> = Api::namespaced(k8s_client.clone(), namespace);
 
     for &name in names {
-        let mut found = false;
-        for _ in 0..max_retries {
-            if let Ok(_) = api.get(name).await {
-                found = true;
-                break;
-            }
-            sleep(retry_interval).await;
-        }
-        assert!(found, "Deployment {} not found after retries", name);
+        let _ = api.get(name).await.map_err(|err| {
+            std::convert::Into::<Box<dyn Error>>::into(format!(
+                "Deployment {name} not found: {err}"
+            ))
+        })?;
     }
+    Ok(())
 }
 
-// OpAMP mocks //
-/////////////////
-mock! {
-    pub NotStartedOpAMPClientMock {}
-    impl NotStartedClient for NotStartedOpAMPClientMock
-     {
-        type StartedClient<C: Callbacks + Send + Sync + 'static> = MockStartedOpAMPClientMock<C>;
-        fn start<C: Callbacks + Send + Sync + 'static>(self, callbacks: C, start_settings: StartSettings ) -> NotStartedClientResult<<Self as NotStartedClient>::StartedClient<C>>;
+pub async fn check_helmrelease_spec_values(
+    k8s_client: Client,
+    namespace: &str,
+    name: &str,
+    expected_spec_values: &str,
+) -> Result<(), Box<dyn Error>> {
+    let expected_as_json: serde_json::Value = serde_yaml::from_str(expected_spec_values).unwrap();
+    let gvk = &GroupVersion::from_str("helm.toolkit.fluxcd.io/v2beta2")
+        .unwrap()
+        .with_kind("HelmRelease");
+    let (api_resource, _) = kube::discovery::pinned_kind(&k8s_client, gvk).await?;
+    let api: Api<DynamicObject> =
+        Api::namespaced_with(k8s_client.clone(), namespace, &api_resource);
+
+    let obj = api.get(name).await?;
+    let found_values = &obj.data["spec"]["values"];
+    if expected_as_json != *found_values {
+        return Err(format!(
+            "helm release spec values don't match with expected. Expected: {:?}, Found: {:?}",
+            expected_as_json, *found_values,
+        )
+        .into());
     }
-}
-
-mock! {
-    pub StartedOpAMPClientMock<C> where C: Callbacks {}
-
-    impl<C> StartedClient<C> for StartedOpAMPClientMock<C>
-        where
-        C: Callbacks + Send + Sync + 'static {
-
-        fn stop(self) -> StartedClientResult<()>;
-    }
-
-    impl<C> OpAMPClient for StartedOpAMPClientMock<C>
-    where
-    C: Callbacks + Send + Sync + 'static {
-
-         fn set_agent_description(
-            &self,
-            description: AgentDescription,
-        ) -> ClientResult<()>;
-
-         fn set_health(&self, health: ComponentHealth) -> ClientResult<()>;
-
-         fn update_effective_config(&self) -> ClientResult<()>;
-
-         fn set_remote_config_status(&self, status: RemoteConfigStatus) -> ClientResult<()>;
-    }
-}
-
-impl<C> MockStartedOpAMPClientMock<C>
-where
-    C: Callbacks + Send + Sync + 'static,
-{
-    pub fn should_set_health(&mut self, times: usize) {
-        self.expect_set_health().times(times).returning(|_| Ok(()));
-    }
-
-    pub fn should_set_any_remote_config_status(&mut self, times: usize) {
-        self.expect_set_remote_config_status()
-            .times(times)
-            .returning(|_| Ok(()));
-    }
-}
-
-mock! {
-    pub OpAMPClientBuilderMock<C> where C: Callbacks + Send + Sync + 'static{}
-
-    impl<C> OpAMPClientBuilder<C> for OpAMPClientBuilderMock<C> where C: Callbacks + Send + Sync + 'static{
-        type Client = MockStartedOpAMPClientMock<C>;
-        fn build_and_start(&self, opamp_publisher: EventPublisher<OpAMPEvent>, agent_id: AgentID, start_settings: StartSettings) -> Result<<Self as OpAMPClientBuilder<C>>::Client, OpAMPClientBuilderError>;
-    }
+    Ok(())
 }

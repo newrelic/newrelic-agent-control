@@ -1089,12 +1089,6 @@ Distributed under the following license(s):
 * MIT
 
 
-## nix https://crates.io/crates/nix
-
-Distributed under the following license(s):
-* MIT
-
-
 ## nom https://crates.io/crates/nom
 
 Distributed under the following license(s):
@@ -2166,6 +2160,13 @@ Distributed under the following license(s):
 
 
 ## windows_i686_gnu https://crates.io/crates/windows_i686_gnu
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+## windows_i686_gnullvm https://crates.io/crates/windows_i686_gnullvm
 
 Distributed under the following license(s):
 * MIT
