@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Version of the agent to test installation'
+        description: 'Version of the super-agent for the canaries'
         required: true
 
 permissions:

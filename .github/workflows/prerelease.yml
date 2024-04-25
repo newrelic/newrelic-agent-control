@@ -178,6 +178,25 @@ jobs:
       AWS_ROLE_ARN: ${{ secrets.TMP_AWS_ROLE_ARN }}
       AWS_VPC_SUBNET: ${{ secrets.TMP_AWS_VPC_SUBNET }}
 
+  get_previous_tag:
+    runs-on: ubuntu-latest
+    outputs:
+      previous_tag: ${{ steps.previous_tag_step.outputs.PREVIOUS_TAG }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: previous_tag_step
+        run: ./.github/workflows/scripts/previous_version.sh ${{ inputs.TAG }} >> "$GITHUB_OUTPUT"
+
+  prune-previous-canaries:
+    needs: get_previous_tag
+    uses: ./.github/workflows/component_canaries_prune.yml
+    with:
+      TAG: ${{ needs.get_previous_tag.outputs.previous_tag }}
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.TMP_AWS_ROLE_ARN }}
+      AWS_VPC_SUBNET: ${{ secrets.TMP_AWS_VPC_SUBNET }}
+
   notify-failure:
     if: ${{ always() && failure() }}
     needs: [ canaries ]
