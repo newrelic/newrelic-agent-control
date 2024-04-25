@@ -1,4 +1,8 @@
-use super::common::{block_on, create_mock_config_maps, tokio_runtime, K8sEnv};
+use crate::tools::{
+    k8s_env::K8sEnv,
+    runtime::{block_on, tokio_runtime},
+    super_agent::create_local_config_map,
+};
 use k8s_openapi::api::core::v1::ConfigMap;
 use kube::Api;
 use newrelic_super_agent::agent_type::agent_metadata::AgentMetadata;
@@ -130,7 +134,7 @@ fn k8s_value_repository_config_map() {
     assert_eq!(res.unwrap(), default_values);
 
     // with local values we expect some data
-    block_on(create_mock_config_maps(
+    block_on(create_local_config_map(
         test.client.clone(),
         test_ns.as_str(),
         "k8s_value_repository_config_map",

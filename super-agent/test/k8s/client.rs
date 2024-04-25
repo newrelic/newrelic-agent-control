@@ -1,7 +1,7 @@
-use crate::common::{
-    create_test_cr, foo_type_meta, get_dynamic_api_foo, Foo, FooSpec, K8sCluster, K8sEnv,
+use super::tools::{
+    foo_crd::{create_foo_cr, foo_type_meta, get_dynamic_api_foo, Foo, FooSpec},
+    k8s_env::K8sEnv,
 };
-use k8s_openapi::api::core::v1::Pod;
 use kube::api::{Api, DeleteParams};
 use kube::core::DynamicObject;
 use newrelic_super_agent::k8s::client::AsyncK8sClient;
@@ -69,7 +69,7 @@ async fn k8s_get_dynamic_resource() {
         .unwrap()
         .is_none());
 
-    create_test_cr(test.client.to_owned(), test_ns.as_str(), cr_name).await;
+    create_foo_cr(test.client.to_owned(), test_ns.as_str(), cr_name, None).await;
 
     // the object is found after creation.
     let cr = k8s_client
@@ -116,7 +116,7 @@ async fn k8s_dynamic_resource_has_changed() {
         .unwrap()
         .is_none());
 
-    create_test_cr(test.client.to_owned(), test_ns.as_str(), cr_name).await;
+    create_foo_cr(test.client.to_owned(), test_ns.as_str(), cr_name, None).await;
 
     // the object is found after creation.
     let cr = k8s_client
@@ -137,7 +137,7 @@ async fn k8s_dynamic_resource_has_changed() {
         metadata: cr.metadata.clone(),
         data: cr.data.clone(),
     };
-    cr_labels_modified.metadata.labels = None;
+    cr_labels_modified.metadata.labels = Some([("a".to_string(), "b".to_string())].into());
     assert!(k8s_client
         .has_dynamic_object_changed(&cr_labels_modified)
         .await
@@ -163,7 +163,7 @@ async fn k8s_delete_dynamic_resource() {
     let test_ns = test.test_namespace().await;
 
     let cr_name = "delete-test";
-    create_test_cr(test.client.to_owned(), test_ns.as_str(), cr_name).await;
+    create_foo_cr(test.client.to_owned(), test_ns.as_str(), cr_name, None).await;
 
     let k8s_client: AsyncK8sClient =
         AsyncK8sClient::try_new_with_reflectors(test_ns.to_string(), vec![foo_type_meta()])
@@ -185,7 +185,7 @@ async fn k8s_patch_dynamic_resource() {
     let test_ns = test.test_namespace().await;
 
     let cr_name = "patch-test";
-    let mut cr = create_test_cr(test.client.to_owned(), test_ns.as_str(), cr_name).await;
+    let mut cr = create_foo_cr(test.client.to_owned(), test_ns.as_str(), cr_name, None).await;
 
     cr.spec.data = "patched".to_string();
     let obj: DynamicObject =
@@ -209,7 +209,13 @@ async fn k8s_patch_dynamic_resource_metadata() {
     let test_ns = test.test_namespace().await;
 
     let cr_name = "patch-test";
-    let mut cr = create_test_cr(test.client.to_owned(), test_ns.as_str(), cr_name).await;
+    let mut cr = create_foo_cr(
+        test.client.to_owned(),
+        test_ns.as_str(),
+        cr_name,
+        Some([("a".to_string(), "b".to_string())].into()),
+    )
+    .await;
 
     // Adding a label that should be patched
     cr.metadata
@@ -243,45 +249,4 @@ async fn k8s_patch_dynamic_resource_metadata() {
             .to_string()
     );
     assert!(result.metadata.deletion_grace_period_seconds.is_none());
-}
-
-// Example code to replace with real test when added.
-#[tokio::test(flavor = "multi_thread")]
-#[ignore = "spawns a k8s cluster"]
-async fn k3s_spawning_container_k3s() {
-    let test = K8sCluster::new().await;
-
-    fake_binary_run_example("default").await;
-
-    let pods: Api<Pod> = Api::namespaced(test.client.to_owned().unwrap(), "default");
-    pods.get("example").await.unwrap();
-}
-
-// Just a test example that should be removed.
-async fn fake_binary_run_example(namespace: &str) {
-    use kube::api::PostParams;
-    use kube::Client;
-
-    let client = Client::try_default().await.unwrap();
-
-    let p: Pod = serde_yaml::from_str(
-        r#"apiVersion: v1
-kind: Pod
-metadata:
-  name: example
-spec:
-  containers:
-  - name: example
-    image: alpine
-    command:
-    - tail
-    - "-f"
-    - "/dev/null"
-"#,
-    )
-    .unwrap();
-
-    let pods: Api<Pod> = Api::namespaced(client.clone(), namespace);
-    // Stop on error including a pod already exists or still being deleted.
-    pods.create(&PostParams::default(), &p).await.unwrap();
 }

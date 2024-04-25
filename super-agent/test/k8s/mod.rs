@@ -1,7 +1,6 @@
 mod client;
-mod common;
-mod fake_opamp;
 mod garbage_collector;
-mod integration;
+mod no_opamp;
 mod opamp;
 mod store;
+mod tools;

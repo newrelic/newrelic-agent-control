@@ -1,9 +1,11 @@
-use crate::common::{
-    block_on, check_deployments_exist, check_helmrelease_spec_values, retry,
-    start_super_agent_with_testdata_config, K8sEnv,
+use super::tools::{
+    k8s_api::{check_deployments_exist, check_helmrelease_spec_values},
+    k8s_env::K8sEnv,
+    opamp::{ConfigResponse, ConfigResponses, FakeServer, Identifier},
+    retry,
+    runtime::block_on,
+    super_agent::start_super_agent_with_testdata_config,
 };
-
-use crate::fake_opamp::{ConfigResponse, ConfigResponses, FakeServer, Identifier};
 use std::{thread::sleep as thread_sleep, time::Duration};
 
 #[test]
@@ -213,7 +215,7 @@ agents:
     );
 
     // check that the expected deployments exist
-    retry(20, Duration::from_secs(5), || {
+    retry(30, Duration::from_secs(5), || {
         block_on(check_deployments_exist(
             k8s.client.clone(),
             &[

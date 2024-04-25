@@ -1,12 +1,11 @@
-use std::{collections::HashMap, net, sync::Arc};
-
 use actix_web::{web, App, HttpResponse, HttpServer};
 use opamp_client::opamp;
 use prost::Message;
 use std::sync::Mutex;
+use std::{collections::HashMap, net, sync::Arc};
 use tokio::task::JoinHandle;
 
-use crate::common::tokio_runtime;
+use super::runtime::tokio_runtime;
 
 const FAKE_SERVER_PATH: &str = "/opamp-fake-server";
 
@@ -54,6 +53,8 @@ impl ConfigResponse {
     }
 }
 
+/// FakeServer represents a OpAMP mock server that can be used for testing purposed.
+/// The underlying http server will be aborted when the object is dropped.
 pub struct FakeServer {
     handle: JoinHandle<()>,
     responses: Arc<Mutex<ConfigResponses>>,

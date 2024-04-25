@@ -1,11 +1,11 @@
-use super::common::{
-    block_on, create_test_cr, foo_type_meta, tokio_runtime, Foo, K8sEnv,
-    MockSuperAgentDynamicConfigLoaderMock,
+use super::tools::{
+    foo_crd::{create_foo_cr, foo_type_meta, Foo},
+    k8s_env::K8sEnv,
+    runtime::{block_on, tokio_runtime},
 };
 use k8s_openapi::{api::core::v1::ConfigMap, Resource};
 use kube::{api::Api, core::TypeMeta};
-use mockall::Sequence;
-use newrelic_super_agent::super_agent::config::SuperAgentDynamicConfig;
+use mockall::{mock, Sequence};
 use newrelic_super_agent::{
     agent_type::runtime_config::K8sObject,
     k8s::{
@@ -18,7 +18,32 @@ use newrelic_super_agent::{
     sub_agent::k8s::CRSupervisor,
     super_agent::{config::AgentID, defaults::SUPER_AGENT_ID},
 };
+use newrelic_super_agent::{
+    k8s::labels::Labels,
+    super_agent::{
+        config::{SuperAgentConfig, SuperAgentConfigError, SuperAgentDynamicConfig},
+        config_storer::storer::{SuperAgentConfigLoader, SuperAgentDynamicConfigLoader},
+    },
+};
 use std::{collections::HashMap, sync::Arc};
+
+// Setup SuperAgentConfigLoader mock
+mock! {
+    pub SuperAgentConfigLoader {}
+
+    impl SuperAgentConfigLoader for SuperAgentConfigLoader {
+        fn load(&self) -> Result<SuperAgentConfig, SuperAgentConfigError>;
+    }
+}
+
+// Setup SuperAgentDynamicConfigLoader mock
+mock! {
+    pub SuperAgentDynamicConfigLoaderMock{}
+
+    impl SuperAgentDynamicConfigLoader for SuperAgentDynamicConfigLoaderMock {
+        fn load(&self) -> Result<SuperAgentDynamicConfig, SuperAgentConfigError>;
+    }
+}
 
 #[test]
 #[ignore = "needs k8s cluster"]
@@ -134,10 +159,11 @@ fn k8s_garbage_collector_with_missing_and_extra_kinds() {
 
     // Creates CRs labeled for two agents.
     let removed_agent_id = "removed";
-    block_on(create_test_cr(
+    block_on(create_foo_cr(
         test.client.to_owned(),
         test_ns.as_str(),
         removed_agent_id,
+        Some(Labels::new(&AgentID::try_from(removed_agent_id.to_string()).unwrap()).get()),
     ));
 
     // Executes the GC passing only current agent in the config.
@@ -183,10 +209,11 @@ fn k8s_garbage_collector_does_not_remove_super_agent() {
     let test_ns = block_on(test.test_namespace());
 
     let sa_id = &AgentID::new_super_agent_id();
-    block_on(create_test_cr(
+    block_on(create_foo_cr(
         test.client.to_owned(),
         test_ns.as_str(),
         sa_id,
+        Some(Labels::new(sa_id).get()),
     ));
 
     let k8s_client = Arc::new(
