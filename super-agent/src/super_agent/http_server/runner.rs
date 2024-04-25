@@ -7,7 +7,7 @@ use std::thread;
 use std::thread::JoinHandle;
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 /// Runner will be responsible for spawning the OS Thread for the HTTP Server
 /// and owning the JoinHandle. It controls the server stop implementing drop
@@ -23,7 +23,7 @@ impl Runner {
         runtime: Arc<Runtime>,
         super_agent_consumer: EventConsumer<SuperAgentEvent>,
     ) -> Self {
-        let join_handle = config.enabled.then(|| {
+        let join_handle = if config.enabled {
             thread::spawn(move || {
                 // Create unbounded channel to send the Super Agent Sync events
                 // to the Async Status Server
@@ -47,9 +47,25 @@ impl Runner {
                 // Wait until the bridge is closed
                 bridge_join_handle.join().unwrap();
             })
-        });
-
-        Runner { join_handle }
+        } else {
+            thread::spawn(move || loop {
+                match super_agent_consumer.as_ref().recv() {
+                    Ok(_) => {
+                        //do nothing
+                    }
+                    Err(e) => {
+                        debug!(
+                            error_msg = e.to_string(),
+                            "http server event drain processor closed"
+                        );
+                        break;
+                    }
+                }
+            })
+        };
+        Runner {
+            join_handle: Some(join_handle),
+        }
     }
 }
 
