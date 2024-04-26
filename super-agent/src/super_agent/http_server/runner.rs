@@ -27,50 +27,62 @@ impl Runner {
         super_agent_consumer: EventConsumer<SuperAgentEvent>,
     ) -> Self {
         let join_handle = if config.enabled {
-            thread::spawn(move || {
-                // Create unbounded channel to send the Super Agent Sync events
-                // to the Async Status Server
-                let (async_sa_event_publisher, async_sa_event_consumer) =
-                    mpsc::unbounded_channel::<SuperAgentEvent>();
-                // Run an OS Thread that listens to sync channel and forwards the events
-                // to an async channel
-                let bridge_join_handle =
-                    run_async_sync_bridge(async_sa_event_publisher, super_agent_consumer);
-
-                // Run the async status server
-                let _ = runtime
-                    .block_on(crate::super_agent::http_server::server::run_status_server(
-                        config.clone(),
-                        async_sa_event_consumer,
-                    ))
-                    .inspect_err(|err| {
-                        error!(error_msg = err.to_string(), "error running status server");
-                    });
-
-                // Wait until the bridge is closed
-                bridge_join_handle.join().unwrap();
-            })
+            Self::spawn_server(config, runtime, super_agent_consumer)
         } else {
             // Spawn a thread with a no-action consumer to drain the channel and
             // avoid memory leaks
-            thread::spawn(move || loop {
-                match super_agent_consumer.as_ref().recv() {
-                    Ok(_) => {
-                        //do nothing
-                    }
-                    Err(e) => {
-                        debug!(
-                            error_msg = e.to_string(),
-                            "http server event drain processor closed"
-                        );
-                        break;
-                    }
-                }
-            })
+            Self::spawn_noop_consumer(super_agent_consumer)
         };
         Runner {
             join_handle: Some(join_handle),
         }
+    }
+
+    fn spawn_server(
+        config: ServerConfig,
+        runtime: Arc<Runtime>,
+        super_agent_consumer: EventConsumer<SuperAgentEvent>,
+    ) -> JoinHandle<()> {
+        thread::spawn(move || {
+            // Create unbounded channel to send the Super Agent Sync events
+            // to the Async Status Server
+            let (async_sa_event_publisher, async_sa_event_consumer) =
+                mpsc::unbounded_channel::<SuperAgentEvent>();
+            // Run an OS Thread that listens to sync channel and forwards the events
+            // to an async channel
+            let bridge_join_handle =
+                run_async_sync_bridge(async_sa_event_publisher, super_agent_consumer);
+
+            // Run the async status server
+            let _ = runtime
+                .block_on(crate::super_agent::http_server::server::run_status_server(
+                    config.clone(),
+                    async_sa_event_consumer,
+                ))
+                .inspect_err(|err| {
+                    error!(error_msg = err.to_string(), "error running status server");
+                });
+
+            // Wait until the bridge is closed
+            bridge_join_handle.join().unwrap();
+        })
+    }
+
+    fn spawn_noop_consumer(super_agent_consumer: EventConsumer<SuperAgentEvent>) -> JoinHandle<()> {
+        thread::spawn(move || loop {
+            match super_agent_consumer.as_ref().recv() {
+                Ok(_) => {
+                    //do nothing
+                }
+                Err(e) => {
+                    debug!(
+                        error_msg = e.to_string(),
+                        "http server event drain processor closed"
+                    );
+                    break;
+                }
+            }
+        })
     }
 }
 
