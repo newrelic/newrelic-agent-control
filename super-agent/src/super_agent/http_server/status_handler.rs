@@ -22,6 +22,7 @@ mod test {
     use std::collections::HashMap;
     use std::sync::Arc;
 
+    use crate::opamp::Endpoint;
     use actix_web::body::MessageBody;
     use actix_web::test::TestRequest;
     use actix_web::web::Data;
@@ -45,7 +46,7 @@ mod test {
 
         let mut st = Status::default()
             .with_sub_agents(sub_agents.into())
-            .with_opamp(String::from("some_endpoint"));
+            .with_opamp(Endpoint::from("some_endpoint"));
 
         st.super_agent.healthy();
         st.opamp.reachable();
@@ -84,7 +85,7 @@ mod test {
 
         let mut st = Status::default()
             .with_sub_agents(sub_agents.into())
-            .with_opamp(String::from("some_endpoint"));
+            .with_opamp(Endpoint::from("some_endpoint"));
 
         st.super_agent.unhealthy(String::from("this is an error"));
         st.opamp.reachable();

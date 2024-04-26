@@ -105,7 +105,7 @@ impl AgentCallbacks {
             });
     }
 
-    fn publish_con_connect_failed(&self, err: &ConnectionError) {
+    fn publish_on_connect_failed(&self, err: &ConnectionError) {
         let (code, reason) = if let HTTPClientError(UnsuccessfulResponse(code, reason)) = &err {
             (Some(*code), reason.clone())
         } else {
@@ -134,7 +134,7 @@ impl Callbacks for AgentCallbacks {
 
     fn on_connect_failed(&self, err: ConnectionError) {
         log_connection_error(&err, self.agent_id.clone());
-        self.publish_con_connect_failed(&err);
+        self.publish_on_connect_failed(&err);
     }
 
     fn on_error(&self, _err: ServerErrorResponse) {}

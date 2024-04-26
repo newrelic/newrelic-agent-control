@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use serde::Serialize;
 
-use crate::opamp::{LastErrorCode, LastErrorMessage};
+use crate::opamp::{Endpoint, LastErrorCode, LastErrorMessage};
 use crate::super_agent::config::{AgentID, AgentTypeFQN};
 
 // SuperAgentStatus will contain the information about Super Agent health.
@@ -51,7 +51,7 @@ impl SuperAgentStatus {
 #[derive(Debug, Serialize, PartialEq, Default, Clone)]
 pub struct OpAMPStatus {
     enabled: bool,
-    endpoint: Option<String>,
+    endpoint: Option<Endpoint>,
     reachable: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     error_code: Option<LastErrorCode>,
@@ -193,7 +193,7 @@ pub(super) struct Status {
 }
 
 impl Status {
-    pub fn with_opamp(mut self, endpoint: String) -> Self {
+    pub fn with_opamp(mut self, endpoint: Endpoint) -> Self {
         self.opamp.enabled = true;
         self.opamp.endpoint = Some(endpoint);
         self
