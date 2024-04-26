@@ -25,23 +25,21 @@ async fn update_status(super_agent_event: SuperAgentEvent, status: Arc<RwLock<St
     match super_agent_event {
         SuperAgentEvent::SuperAgentBecameHealthy => {
             debug!("status_http_server event_processor super_agent_became_healthy");
-            status.super_agent.healthy = true;
-            status.super_agent.last_error = String::default();
+            status.super_agent.healthy();
         }
         SuperAgentEvent::SuperAgentBecameUnhealthy(error_msg) => {
             debug!(
                 error_msg,
                 "status_http_server event_processor super_agent_became_unhealthy"
             );
-            status.super_agent.healthy = false;
-            status.super_agent.last_error = error_msg;
+            status.super_agent.unhealthy(error_msg);
         }
         SuperAgentEvent::SubAgentBecameUnhealthy(agent_id, agent_type, error_msg) => {
             debug!(error_msg, %agent_id, %agent_type, "status_http_server event_processor sub_agent_became_unhealthy");
             status
                 .sub_agents
                 .entry(agent_id.clone())
-                .or_insert_with(|| SubAgentStatus::new(agent_id, agent_type))
+                .or_insert_with(|| SubAgentStatus::with_id_and_type(agent_id, agent_type))
                 .unhealthy(error_msg);
         }
         SuperAgentEvent::SubAgentBecameHealthy(agent_id, agent_type) => {
@@ -49,7 +47,7 @@ async fn update_status(super_agent_event: SuperAgentEvent, status: Arc<RwLock<St
             status
                 .sub_agents
                 .entry(agent_id.clone())
-                .or_insert_with(|| SubAgentStatus::new(agent_id, agent_type))
+                .or_insert_with(|| SubAgentStatus::with_id_and_type(agent_id, agent_type))
                 .healthy();
         }
         SuperAgentEvent::SubAgentRemoved(agent_id) => {
@@ -59,10 +57,16 @@ async fn update_status(super_agent_event: SuperAgentEvent, status: Arc<RwLock<St
             unreachable!("SuperAgentStopped is controlled outside");
         }
         SuperAgentEvent::OpAMPConnected => {
-            // this will be tackled in a separate PR
+            debug!("opamp server is reachable");
+            status.opamp.reachable();
         }
-        SuperAgentEvent::OpAMPConnectFailed(_, _) => {
-            // this will be tackled in a separate PR
+        SuperAgentEvent::OpAMPConnectFailed(error_code, error_message) => {
+            debug!(
+                error_code,
+                error_msg = error_message,
+                "opamp server is unreachable"
+            );
+            status.opamp.unreachable(error_code, error_message);
         }
     }
 }
@@ -72,9 +76,12 @@ mod test {
     use std::collections::HashMap;
     use std::sync::Arc;
     use std::time::Duration;
+
+    use fake::faker::boolean::en;
+    use fake::faker::lorem::en::{Word, Words};
+    use fake::{Fake, Faker};
     use tokio::runtime::Handle;
     use tokio::sync::mpsc::unbounded_channel;
-
     use tokio::sync::RwLock;
     use tokio::time::sleep;
 
@@ -82,7 +89,8 @@ mod test {
 
     use crate::event::SuperAgentEvent;
     use crate::event::SuperAgentEvent::{
-        SubAgentRemoved, SuperAgentBecameHealthy, SuperAgentBecameUnhealthy, SuperAgentStopped,
+        OpAMPConnectFailed, SubAgentRemoved, SuperAgentBecameHealthy, SuperAgentBecameUnhealthy,
+        SuperAgentStopped,
     };
     use crate::opamp::LastErrorMessage;
     use crate::super_agent::config::{AgentID, AgentTypeFQN};
@@ -109,35 +117,28 @@ mod test {
             }
         }
 
+        // Generate stubs. We'll use this to assert on what doesn't need to change
+        // in the events
+        let opamp_status_random = opamp_status_random();
+        let super_agent_status_random = super_agent_status_random();
+        let sub_agents_status_random = sub_agents_status_random();
+
         let tests = vec![
             Test {
                 _name: "Unhealthy Super Agent becomes healthy",
                 super_agent_event: SuperAgentBecameHealthy,
                 current_status: Arc::new(RwLock::new(Status {
-                    super_agent: SuperAgentStatus {
-                        healthy: false,
-                        status: String::from("some status"),
-                        last_error: String::from("some error"),
-                    },
-                    opamp: OpAMPStatus {
-                        endpoint: String::from("some endpoint"),
-                        reachable: true,
-                        enabled: true,
-                    },
-                    sub_agents: SubAgentsStatus::default(),
+                    super_agent: SuperAgentStatus::new_unhealthy(
+                        Some(String::from("some status")),
+                        String::from("some error"),
+                    ),
+                    opamp: opamp_status_random.clone(),
+                    sub_agents: sub_agents_status_random.clone(),
                 })),
                 expected_status: Status {
-                    super_agent: SuperAgentStatus {
-                        healthy: true,
-                        status: String::from("some status"),
-                        last_error: String::default(),
-                    },
-                    opamp: OpAMPStatus {
-                        endpoint: String::from("some endpoint"),
-                        reachable: true,
-                        enabled: true,
-                    },
-                    sub_agents: SubAgentsStatus::default(),
+                    super_agent: SuperAgentStatus::new_healthy(Some(String::from("some status"))),
+                    opamp: opamp_status_random.clone(),
+                    sub_agents: sub_agents_status_random.clone(),
                 },
             },
             Test {
@@ -146,30 +147,17 @@ mod test {
                     "some error message for super agent unhealthy",
                 )),
                 current_status: Arc::new(RwLock::new(Status {
-                    super_agent: SuperAgentStatus {
-                        healthy: true,
-                        status: String::default(),
-                        last_error: String::default(),
-                    },
-                    opamp: OpAMPStatus {
-                        endpoint: String::from("some endpoint"),
-                        reachable: false,
-                        enabled: true,
-                    },
-                    sub_agents: SubAgentsStatus::default(),
+                    super_agent: SuperAgentStatus::new_healthy(Some(String::from("some status"))),
+                    opamp: opamp_status_random.clone(),
+                    sub_agents: sub_agents_status_random.clone(),
                 })),
                 expected_status: Status {
-                    super_agent: SuperAgentStatus {
-                        healthy: false,
-                        status: String::default(),
-                        last_error: String::from("some error message for super agent unhealthy"),
-                    },
-                    opamp: OpAMPStatus {
-                        endpoint: String::from("some endpoint"),
-                        reachable: false,
-                        enabled: true,
-                    },
-                    sub_agents: SubAgentsStatus::default(),
+                    super_agent: SuperAgentStatus::new_unhealthy(
+                        Some(String::from("some status")),
+                        String::from("some error message for super agent unhealthy"),
+                    ),
+                    opamp: opamp_status_random.clone(),
+                    sub_agents: sub_agents_status_random.clone(),
                 },
             },
             Test {
@@ -179,20 +167,21 @@ mod test {
                     AgentTypeFQN::from("some-agent-type"),
                 ),
                 current_status: Arc::new(RwLock::new(Status {
-                    super_agent: SuperAgentStatus::default(),
-                    opamp: OpAMPStatus::default(),
+                    super_agent: super_agent_status_random.clone(),
+                    opamp: opamp_status_random.clone(),
                     sub_agents: SubAgentsStatus::default(),
                 })),
                 expected_status: Status {
-                    super_agent: SuperAgentStatus::default(),
-                    opamp: OpAMPStatus::default(),
+                    super_agent: super_agent_status_random.clone(),
+                    opamp: opamp_status_random.clone(),
                     sub_agents: SubAgentsStatus::from(HashMap::from([(
                         AgentID::new("some-agent-id").unwrap(),
-                        SubAgentStatus::create(
+                        SubAgentStatus::new(
                             AgentID::new("some-agent-id").unwrap(),
                             AgentTypeFQN::from("some-agent-type"),
+                            None,
                             true,
-                            String::default(),
+                            None,
                         ),
                     )])),
                 },
@@ -205,20 +194,21 @@ mod test {
                     LastErrorMessage::from("this is an error message"),
                 ),
                 current_status: Arc::new(RwLock::new(Status {
-                    super_agent: SuperAgentStatus::default(),
-                    opamp: OpAMPStatus::default(),
+                    super_agent: super_agent_status_random.clone(),
+                    opamp: opamp_status_random.clone(),
                     sub_agents: SubAgentsStatus::default(),
                 })),
                 expected_status: Status {
-                    super_agent: SuperAgentStatus::default(),
-                    opamp: OpAMPStatus::default(),
+                    super_agent: super_agent_status_random.clone(),
+                    opamp: opamp_status_random.clone(),
                     sub_agents: SubAgentsStatus::from(HashMap::from([(
                         AgentID::new("some-agent-id").unwrap(),
-                        SubAgentStatus::create(
+                        SubAgentStatus::new(
                             AgentID::new("some-agent-id").unwrap(),
                             AgentTypeFQN::from("some-agent-type"),
+                            None,
                             false,
-                            String::from("this is an error message"),
+                            Some(String::from("this is an error message")),
                         ),
                     )])),
                 },
@@ -231,49 +221,53 @@ mod test {
                     LastErrorMessage::from("this is an error message"),
                 ),
                 current_status: Arc::new(RwLock::new(Status {
-                    super_agent: SuperAgentStatus::default(),
-                    opamp: OpAMPStatus::default(),
+                    super_agent: super_agent_status_random.clone(),
+                    opamp: opamp_status_random.clone(),
                     sub_agents: SubAgentsStatus::from(HashMap::from([
                         (
                             AgentID::new("some-agent-id").unwrap(),
-                            SubAgentStatus::create(
+                            SubAgentStatus::new(
                                 AgentID::new("some-agent-id").unwrap(),
                                 AgentTypeFQN::from("some-agent-type"),
+                                None,
                                 true,
-                                String::default(),
+                                Some(String::default()),
                             ),
                         ),
                         (
                             AgentID::new("some-other-id").unwrap(),
-                            SubAgentStatus::create(
+                            SubAgentStatus::new(
                                 AgentID::new("some-other-id").unwrap(),
                                 AgentTypeFQN::from("some-other-type"),
+                                None,
                                 true,
-                                String::default(),
+                                Some(String::default()),
                             ),
                         ),
                     ])),
                 })),
                 expected_status: Status {
-                    super_agent: SuperAgentStatus::default(),
-                    opamp: OpAMPStatus::default(),
+                    super_agent: super_agent_status_random.clone(),
+                    opamp: opamp_status_random.clone(),
                     sub_agents: SubAgentsStatus::from(HashMap::from([
                         (
                             AgentID::new("some-agent-id").unwrap(),
-                            SubAgentStatus::create(
+                            SubAgentStatus::new(
                                 AgentID::new("some-agent-id").unwrap(),
                                 AgentTypeFQN::from("some-agent-type"),
+                                None,
                                 false,
-                                String::from("this is an error message"),
+                                Some(String::from("this is an error message")),
                             ),
                         ),
                         (
                             AgentID::new("some-other-id").unwrap(),
-                            SubAgentStatus::create(
+                            SubAgentStatus::new(
                                 AgentID::new("some-other-id").unwrap(),
                                 AgentTypeFQN::from("some-other-type"),
+                                None,
                                 true,
-                                String::default(),
+                                Some(String::default()),
                             ),
                         ),
                     ])),
@@ -283,41 +277,62 @@ mod test {
                 _name: "Sub Agent gets removed",
                 super_agent_event: SubAgentRemoved(AgentID::new("some-agent-id").unwrap()),
                 current_status: Arc::new(RwLock::new(Status {
-                    super_agent: SuperAgentStatus::default(),
-                    opamp: OpAMPStatus::default(),
+                    super_agent: super_agent_status_random.clone(),
+                    opamp: opamp_status_random.clone(),
                     sub_agents: SubAgentsStatus::from(HashMap::from([
                         (
                             AgentID::new("some-agent-id").unwrap(),
-                            SubAgentStatus::create(
+                            SubAgentStatus::new(
                                 AgentID::new("some-agent-id").unwrap(),
                                 AgentTypeFQN::from("some-agent-type"),
+                                None,
                                 true,
-                                String::default(),
+                                Some(String::default()),
                             ),
                         ),
                         (
                             AgentID::new("some-other-id").unwrap(),
-                            SubAgentStatus::create(
+                            SubAgentStatus::new(
                                 AgentID::new("some-other-id").unwrap(),
                                 AgentTypeFQN::from("some-other-type"),
+                                None,
                                 true,
-                                String::default(),
+                                Some(String::default()),
                             ),
                         ),
                     ])),
                 })),
                 expected_status: Status {
-                    super_agent: SuperAgentStatus::default(),
-                    opamp: OpAMPStatus::default(),
+                    super_agent: super_agent_status_random.clone(),
+                    opamp: opamp_status_random,
                     sub_agents: SubAgentsStatus::from(HashMap::from([(
                         AgentID::new("some-other-id").unwrap(),
-                        SubAgentStatus::create(
+                        SubAgentStatus::new(
                             AgentID::new("some-other-id").unwrap(),
                             AgentTypeFQN::from("some-other-type"),
+                            None,
                             true,
-                            String::default(),
+                            Some(String::default()),
                         ),
                     )])),
+                },
+            },
+            Test {
+                _name: "OpAMP Agent gets unhealthy",
+                super_agent_event: OpAMPConnectFailed(Some(404), String::from("some error msg")),
+                current_status: Arc::new(RwLock::new(Status {
+                    super_agent: super_agent_status_random.clone(),
+                    opamp: OpAMPStatus::enabled_and_reachable(Some(String::from("some-endpoint"))),
+                    sub_agents: sub_agents_status_random.clone(),
+                })),
+                expected_status: Status {
+                    super_agent: super_agent_status_random.clone(),
+                    opamp: OpAMPStatus::enabled_and_unreachable(
+                        Some(String::from("some-endpoint")),
+                        404,
+                        String::from("some error msg"),
+                    ),
+                    sub_agents: sub_agents_status_random.clone(),
                 },
             },
         ];
@@ -325,6 +340,62 @@ mod test {
         for test in tests {
             test.run().await;
         }
+    }
+
+    // create random OpAMP status
+    fn opamp_status_random() -> OpAMPStatus {
+        let endpoint = Some(Faker.fake::<http::Uri>().to_string());
+        let reachable = en::Boolean(50).fake::<bool>();
+        let enabled = en::Boolean(50).fake::<bool>();
+        let error_code = Some((400..599).fake::<u16>());
+        let error_message = Some(Words(3..5).fake::<Vec<String>>().join(" "));
+
+        OpAMPStatus::new(enabled, endpoint, reachable, error_code, error_message)
+    }
+
+    // create random Super Agent status
+    fn super_agent_status_random() -> SuperAgentStatus {
+        let healthy = en::Boolean(50).fake::<bool>();
+
+        //random status
+        let status = en::Boolean(50)
+            .fake::<bool>()
+            .then_some(Word().fake::<String>())
+            .or(None);
+
+        if healthy {
+            SuperAgentStatus::new_healthy(status.clone())
+        } else {
+            SuperAgentStatus::new_unhealthy(status, Words(3..5).fake::<Vec<String>>().join(" "))
+        }
+    }
+
+    // create random Sub Agent status
+    fn sub_agent_status_random() -> SubAgentStatus {
+        let healthy = en::Boolean(50).fake::<bool>();
+        let last_error = healthy
+            .then_some(Words(3..5).fake::<Vec<String>>().join(" "))
+            .or(Some(String::default()));
+        let agent_id = AgentID::new(Word().fake::<&str>()).unwrap();
+        let agent_type = AgentTypeFQN::from(Word().fake::<&str>());
+        //random status
+        let status = en::Boolean(50)
+            .fake::<bool>()
+            .then_some(Word().fake::<String>())
+            .or(None);
+
+        SubAgentStatus::new(agent_id, agent_type, status, healthy, last_error)
+    }
+
+    // create N (0..5) random Sub Agent status
+    fn sub_agents_status_random() -> SubAgentsStatus {
+        let sub_agents_amount = (0..5).fake::<u32>();
+        let mut sub_agents: HashMap<AgentID, SubAgentStatus> = HashMap::new();
+        for _ in 0..sub_agents_amount {
+            let sub_agent = sub_agent_status_random();
+            sub_agents.insert(sub_agent.agent_id(), sub_agent);
+        }
+        SubAgentsStatus::from(sub_agents)
     }
 
     #[tokio::test(flavor = "multi_thread")]

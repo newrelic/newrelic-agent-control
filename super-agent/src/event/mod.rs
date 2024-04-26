@@ -9,7 +9,7 @@ use crate::{opamp::remote_config::RemoteConfig, super_agent::config::AgentID};
 pub enum OpAMPEvent {
     RemoteConfigReceived(RemoteConfig),
     Connected,
-    ConnectFailed(LastErrorCode, LastErrorMessage),
+    ConnectFailed(Option<LastErrorCode>, LastErrorMessage),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -26,7 +26,7 @@ pub enum SuperAgentEvent {
     SubAgentRemoved(AgentID),
     SuperAgentStopped,
     OpAMPConnected,
-    OpAMPConnectFailed(LastErrorCode, LastErrorMessage),
+    OpAMPConnectFailed(Option<LastErrorCode>, LastErrorMessage),
 }
 
 #[derive(Clone, Debug, PartialEq)]

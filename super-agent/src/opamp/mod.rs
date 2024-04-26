@@ -9,3 +9,4 @@ pub mod remote_config_report;
 
 pub type LastErrorCode = u16;
 pub type LastErrorMessage = String;
+pub type Endpoint = String;

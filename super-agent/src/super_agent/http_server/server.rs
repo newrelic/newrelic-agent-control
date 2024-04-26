@@ -1,4 +1,5 @@
 use crate::event::SuperAgentEvent;
+use crate::super_agent::config::OpAMPClientConfig;
 use crate::super_agent::http_server::config::{ServerConfig, DEFAULT_WORKERS};
 use crate::super_agent::http_server::status::Status;
 use crate::super_agent::http_server::status_handler::status_handler;
@@ -15,6 +16,7 @@ use tracing::{debug, error, info};
 pub async fn run_status_server(
     server_config: ServerConfig,
     sa_event_consumer: UnboundedReceiver<SuperAgentEvent>,
+    maybe_opamp_client_config: Option<OpAMPClientConfig>,
 ) -> Result<(), StatusServerError> {
     // channel to share the Server handle between "threads". This way we can
     // get the Server in the main "thread" and stop the Server once the
@@ -24,7 +26,13 @@ pub async fn run_status_server(
     // structure to contain the status of the Super Agent. It will be written
     // by the Event Processor on Super Agent Events, and read from the
     // HTTP Server
-    let status = Arc::new(RwLock::new(Status::default()));
+    let status = if let Some(opamp_config) = maybe_opamp_client_config {
+        Status::default().with_opamp(opamp_config.endpoint)
+    } else {
+        Status::default()
+    };
+
+    let status = Arc::new(RwLock::new(status));
 
     // Tokio Runtime
     let rt = Handle::current();

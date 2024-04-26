@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 use serde::Serialize;
 
+use crate::opamp::{LastErrorCode, LastErrorMessage};
 use crate::super_agent::config::{AgentID, AgentTypeFQN};
 
 // SuperAgentStatus will contain the information about Super Agent health.
@@ -15,11 +16,25 @@ use crate::super_agent::config::{AgentID, AgentTypeFQN};
 //     "status": ""
 //   },
 // }
-#[derive(Debug, Serialize, PartialEq, Default)]
+#[derive(Debug, Serialize, PartialEq, Default, Clone)]
 pub struct SuperAgentStatus {
-    pub healthy: bool,
-    pub last_error: String,
-    pub status: String,
+    healthy: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    last_error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    status: Option<String>,
+}
+
+impl SuperAgentStatus {
+    pub fn healthy(&mut self) {
+        self.healthy = true;
+        self.last_error = None;
+    }
+
+    pub fn unhealthy(&mut self, last_error: String) {
+        self.healthy = false;
+        self.last_error = Some(last_error);
+    }
 }
 
 // OpAMPStatus will contain the information about OpAMP Connection health.
@@ -29,13 +44,37 @@ pub struct SuperAgentStatus {
 //   "opamp": {
 //     "enabled": true,
 //     "endpoint": "https://example.com/opamp/v1",
-//     "reachable": true
+//     "reachable": true,
+//     "error_code": 403, // present only if reachable == false
+//     "error_message": "this is an error message", // present only if reachable == false
 //  },
-#[derive(Debug, Serialize, PartialEq, Default)]
+#[derive(Debug, Serialize, PartialEq, Default, Clone)]
 pub struct OpAMPStatus {
-    pub enabled: bool,
-    pub endpoint: String,
-    pub reachable: bool,
+    enabled: bool,
+    endpoint: Option<String>,
+    reachable: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error_code: Option<LastErrorCode>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error_message: Option<LastErrorMessage>,
+}
+
+impl OpAMPStatus {
+    pub(super) fn reachable(&mut self) {
+        self.reachable = true;
+        self.error_code = None;
+        self.error_message = None;
+    }
+
+    pub(super) fn unreachable(
+        &mut self,
+        error_code: Option<LastErrorCode>,
+        error_message: LastErrorMessage,
+    ) {
+        self.reachable = false;
+        self.error_code = error_code;
+        self.error_message = Some(error_message);
+    }
 }
 
 // SubAgentStatus will contain the information about all the Sub Agents health.
@@ -64,18 +103,20 @@ pub(super) struct SubAgentStatus {
     agent_id: AgentID,
     agent_type: AgentTypeFQN,
     healthy: bool,
-    last_error: String,
-    status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    last_error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    status: Option<String>,
 }
 
 impl SubAgentStatus {
-    pub fn new(agent_id: AgentID, agent_type: AgentTypeFQN) -> Self {
+    pub fn with_id_and_type(agent_id: AgentID, agent_type: AgentTypeFQN) -> Self {
         Self {
             agent_id,
             agent_type,
             healthy: false,
-            last_error: String::default(),
-            status: String::default(), // TODO Not implemented yet
+            last_error: None,
+            status: None,
         }
     }
 
@@ -83,18 +124,18 @@ impl SubAgentStatus {
     // if we make it mutable
     pub fn healthy(&mut self) {
         self.healthy = true;
-        self.last_error = String::default();
+        self.last_error = None;
     }
 
     // This struct only has context inside the Sub Agents struct, so it makes it easier to interact
     // if we make it mutable
     pub fn unhealthy(&mut self, last_error: String) {
         self.healthy = false;
-        self.last_error = last_error;
+        self.last_error = Some(last_error);
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Default)]
+#[derive(Debug, PartialEq, Serialize, Default, Clone)]
 pub(super) struct SubAgentsStatus(HashMap<AgentID, SubAgentStatus>);
 
 impl From<HashMap<AgentID, SubAgentStatus>> for SubAgentsStatus {
@@ -151,10 +192,21 @@ pub(super) struct Status {
     pub(super) sub_agents: SubAgentsStatus,
 }
 
+impl Status {
+    pub fn with_opamp(mut self, endpoint: String) -> Self {
+        self.opamp.enabled = true;
+        self.opamp.endpoint = Some(endpoint);
+        self
+    }
+}
+
 #[cfg(test)]
 pub mod test {
+    use crate::opamp::{LastErrorCode, LastErrorMessage};
     use crate::super_agent::config::{AgentID, AgentTypeFQN};
-    use crate::super_agent::http_server::status::{Status, SubAgentStatus, SubAgentsStatus};
+    use crate::super_agent::http_server::status::{
+        OpAMPStatus, Status, SubAgentStatus, SubAgentsStatus, SuperAgentStatus,
+    };
 
     impl Status {
         pub fn with_sub_agents(self, sub_agents: SubAgentsStatus) -> Self {
@@ -162,19 +214,82 @@ pub mod test {
         }
     }
 
+    impl SuperAgentStatus {
+        pub fn new_healthy(status: Option<String>) -> Self {
+            SuperAgentStatus {
+                healthy: true,
+                last_error: None,
+                status,
+            }
+        }
+        pub fn new_unhealthy(status: Option<String>, last_error: String) -> Self {
+            SuperAgentStatus {
+                healthy: false,
+                last_error: Some(last_error),
+                status,
+            }
+        }
+    }
+
     impl SubAgentStatus {
-        pub fn create(
+        pub fn new(
             agent_id: AgentID,
             agent_type: AgentTypeFQN,
+            status: Option<String>,
             healthy: bool,
-            last_error: String,
+            last_error: Option<String>,
         ) -> Self {
             SubAgentStatus {
                 agent_id,
                 agent_type,
+                status,
                 healthy,
                 last_error,
-                status: String::default(),
+            }
+        }
+
+        pub fn agent_id(&self) -> AgentID {
+            self.agent_id.clone()
+        }
+    }
+
+    impl OpAMPStatus {
+        pub fn new(
+            enabled: bool,
+            endpoint: Option<String>,
+            reachable: bool,
+            error_code: Option<LastErrorCode>,
+            error_message: Option<LastErrorMessage>,
+        ) -> Self {
+            OpAMPStatus {
+                enabled,
+                endpoint,
+                reachable,
+                error_code,
+                error_message,
+            }
+        }
+
+        pub fn enabled_and_reachable(endpoint: Option<String>) -> Self {
+            OpAMPStatus {
+                enabled: true,
+                endpoint,
+                reachable: true,
+                error_code: None,
+                error_message: None,
+            }
+        }
+        pub fn enabled_and_unreachable(
+            endpoint: Option<String>,
+            error_code: LastErrorCode,
+            error_message: LastErrorMessage,
+        ) -> Self {
+            OpAMPStatus {
+                enabled: true,
+                endpoint,
+                reachable: false,
+                error_code: Some(error_code),
+                error_message: Some(error_message),
             }
         }
     }
