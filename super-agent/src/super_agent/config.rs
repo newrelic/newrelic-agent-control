@@ -1,6 +1,5 @@
 use crate::logging::config::LoggingConfig;
 use crate::opamp::remote_config::RemoteConfigError;
-use crate::status::config::StatusCheckConfig;
 use crate::super_agent::defaults::{default_capabilities, SUPER_AGENT_ID};
 use opamp_client::operation::capabilities::Capabilities;
 use serde::{Deserialize, Serialize};
@@ -136,9 +135,6 @@ impl TryFrom<&str> for SuperAgentDynamicConfig {
 pub struct SuperAgentConfig {
     #[serde(default)]
     pub log: LoggingConfig,
-
-    #[serde(default)] // will be disabled by default
-    pub status: StatusCheckConfig,
 
     #[serde(default)]
     pub host_id: String,
