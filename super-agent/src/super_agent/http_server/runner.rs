@@ -18,6 +18,9 @@ pub struct Runner {
 impl Runner {
     /// start the OS Thread with the HTTP Server and return a struct
     /// that holds the JoinHandle until drop
+    /// When the HTTP Server is disabled, it will spawn a thread
+    /// with a consumer that will just consume events with no action
+    /// to drain the channel and avoid memory leaks
     pub fn start(
         config: ServerConfig,
         runtime: Arc<Runtime>,
@@ -48,6 +51,8 @@ impl Runner {
                 bridge_join_handle.join().unwrap();
             })
         } else {
+            // Spawn a thread with a no-action consumer to drain the channel and
+            // avoid memory leaks
             thread::spawn(move || loop {
                 match super_agent_consumer.as_ref().recv() {
                     Ok(_) => {
