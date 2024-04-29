@@ -19,6 +19,7 @@ tracing = { workspace = true }
 serde_yaml = { workspace = true }
 newrelic_super_agent = { path = "../super-agent" }
 fs = { path = "../fs" }
+semver = "1.0.22"
 
 [dev-dependencies]
 assert_cmd = { workspace = true }
