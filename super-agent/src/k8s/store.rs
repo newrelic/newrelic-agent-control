@@ -192,7 +192,7 @@ pub mod test {
             .expect_get_configmap_key()
             .with(
                 predicate::eq(K8sStore::build_cm_name(
-                    &agent_id,
+                    agent_id,
                     CM_NAME_OPAMP_DATA_PREFIX,
                 )),
                 predicate::eq(STORE_KEY_TEST),
@@ -208,7 +208,7 @@ pub mod test {
             .expect_get_configmap_key()
             .with(
                 predicate::eq(K8sStore::build_cm_name(
-                    &agent_id,
+                    agent_id,
                     CM_NAME_LOCAL_DATA_PREFIX,
                 )),
                 predicate::always(),
