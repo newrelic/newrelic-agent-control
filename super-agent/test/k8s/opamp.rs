@@ -36,7 +36,7 @@ fn k8s_opamp_enabled_with_no_remote_configuration() {
         test_name,
         k8s.client.clone(),
         &namespace,
-        &server.endpoint(),
+        Some(&server.endpoint()),
         vec!["local-data-open-telemetry-agent-id"],
     );
 
@@ -103,7 +103,7 @@ chart_values:
         test_name,
         k8s.client.clone(),
         &namespace,
-        &server.endpoint(),
+        Some(&server.endpoint()),
         vec!["local-data-open-telemetry-agent-id"],
     );
 
@@ -191,7 +191,7 @@ fn k8s_opamp_add_subagent() {
         test_name,
         k8s.client.clone(),
         &namespace,
-        &server.endpoint(),
+        Some(&server.endpoint()),
         vec!["local-data-open-telemetry", "local-data-open-telemetry-2"],
     );
 

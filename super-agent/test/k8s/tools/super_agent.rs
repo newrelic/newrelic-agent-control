@@ -19,7 +19,7 @@ pub fn start_super_agent_with_testdata_config(
     folder_name: &str,
     client: Client,
     ns: &str,
-    opamp_endpoint: &str,
+    opamp_endpoint: Option<&str>,
     subagent_file_names: Vec<&str>,
 ) -> std::process::Child {
     let config_local = create_local_super_agent_config(ns, opamp_endpoint, folder_name);
@@ -93,7 +93,7 @@ pub async fn create_local_config_map(
 /// and returns the resulting file path.
 pub fn create_local_super_agent_config(
     test_ns: &str,
-    opamp_endpoint: &str,
+    opamp_endpoint: Option<&str>,
     folder_name: &str,
 ) -> std::path::PathBuf {
     let mut content = String::new();
@@ -106,9 +106,10 @@ pub fn create_local_super_agent_config(
     .unwrap();
 
     let file_path = format!("test/k8s/data/{}/local-sa.k8s_tmp", folder_name);
-    let content = content
-        .replace("<ns>", test_ns)
-        .replace("<opamp-endpoint>", opamp_endpoint);
+    let mut content = content.replace("<ns>", test_ns);
+    if let Some(endpoint) = opamp_endpoint {
+        content = content.replace("<opamp-endpoint>", endpoint);
+    }
     File::create(file_path.as_str())
         .unwrap()
         .write_all(content.as_bytes())

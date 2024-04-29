@@ -16,7 +16,7 @@ fn k8s_sub_agent_started_with_no_opamp() {
         test_name,
         k8s.client.clone(),
         &namespace,
-        "",
+        None,
         vec!["local-data-my-agent-id", "local-data-my-agent-id-2"],
     );
 
