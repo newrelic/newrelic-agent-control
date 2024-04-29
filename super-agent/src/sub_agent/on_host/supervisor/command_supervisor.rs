@@ -280,12 +280,11 @@ fn spawn_health_checker<H>(
                 publish_health_event(&health_publisher, SubAgentInternalEvent::AgentBecameHealthy)
             }
             Err(e) => {
-                let status = e.status();
-                debug!(%agent_id, status, "the configured health check failed");
+                let last_err_msg = e.last_error();
+                debug!(%agent_id, last_err_msg, "the configured health check failed");
                 publish_health_event(
                     &health_publisher,
-                    // TODO: Passing the raw status for now. Pass both `last_error` and `status`.
-                    SubAgentInternalEvent::AgentBecameUnhealthy(status),
+                    SubAgentInternalEvent::AgentBecameUnhealthy(last_err_msg),
                 )
             }
         }
@@ -526,8 +525,8 @@ pub mod sleep_supervisor_tests {
                 // Ensure the health checker will quit after the second loop
                 cancel_publisher.publish(()).unwrap();
                 Err(HealthCheckerError::new(
-                    "mocked health check error!".to_string(),
                     "".to_string(),
+                    "mocked health check error!".to_string(),
                 ))
             });
 
@@ -610,8 +609,8 @@ pub mod sleep_supervisor_tests {
             .in_sequence(&mut seq)
             .returning(|| {
                 Err(HealthCheckerError::new(
-                    "mocked health check error!".to_string(),
                     "".to_string(),
+                    "mocked health check error!".to_string(),
                 ))
             });
         health_checker
@@ -627,8 +626,8 @@ pub mod sleep_supervisor_tests {
                 // Ensure the health checker will quit after the second loop
                 cancel_publisher.publish(()).unwrap();
                 Err(HealthCheckerError::new(
-                    "mocked health check error!".to_string(),
                     "".to_string(),
+                    "mocked health check error!".to_string(),
                 ))
             });
 
