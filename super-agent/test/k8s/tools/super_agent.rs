@@ -29,7 +29,6 @@ pub fn start_super_agent_with_testdata_config(
             ns,
             folder_name,
             file_name,
-            STORE_KEY_LOCAL_DATA_CONFIG,
         ))
     }
     start_super_agent(&config_local)
@@ -57,13 +56,7 @@ pub fn start_super_agent(file_path: &Path) -> std::process::Child {
 
 /// Create a config map containing the configuration defined in the `{folder_name}/{name}` under the provided key.
 /// If the file contains `<ns>`, the configuration is templated with the provided `ns` value.
-pub async fn create_local_config_map(
-    client: Client,
-    ns: &str,
-    folder_name: &str,
-    name: &str,
-    key: &str,
-) {
+pub async fn create_local_config_map(client: Client, ns: &str, folder_name: &str, name: &str) {
     let cm_client: Api<ConfigMap> = Api::<ConfigMap>::namespaced(client, ns);
     let mut content = String::new();
     File::open(format!("test/k8s/data/{}/{}.yaml", folder_name, name))
@@ -72,7 +65,10 @@ pub async fn create_local_config_map(
         .unwrap();
 
     let mut data = BTreeMap::new();
-    data.insert(key.to_string(), content.replace("<ns>", ns));
+    data.insert(
+        STORE_KEY_LOCAL_DATA_CONFIG.to_string(),
+        content.replace("<ns>", ns),
+    );
 
     let cm = ConfigMap {
         binary_data: None,

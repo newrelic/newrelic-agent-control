@@ -13,7 +13,7 @@ use newrelic_super_agent::k8s::client::SyncK8sClient;
 use newrelic_super_agent::k8s::labels::Labels;
 use newrelic_super_agent::k8s::store::{
     K8sStore, StoreKey, CM_NAME_OPAMP_DATA_PREFIX, STORE_KEY_INSTANCE_ID,
-    STORE_KEY_LOCAL_DATA_CONFIG, STORE_KEY_OPAMP_DATA_CONFIG_HASH,
+    STORE_KEY_OPAMP_DATA_CONFIG_HASH,
 };
 use newrelic_super_agent::opamp::hash_repository::{HashRepository, HashRepositoryConfigMap};
 use newrelic_super_agent::opamp::instance_id::{
@@ -139,7 +139,6 @@ fn k8s_value_repository_config_map() {
         test_ns.as_str(),
         "k8s_value_repository_config_map",
         format!("local-data-{}", AGENT_ID_1).as_str(),
-        STORE_KEY_LOCAL_DATA_CONFIG,
     ));
     let local_values = AgentValues::try_from("test: 1".to_string()).unwrap();
     let res = value_repository.load(&agent_id_1, &agent_type);
