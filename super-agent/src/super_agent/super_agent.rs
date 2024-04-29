@@ -229,7 +229,6 @@ where
         loop {
             select! {
                 recv(&opamp_receiver.as_ref()) -> opamp_event => {
-                    debug!("Received OpAMP event");
                     match opamp_event.unwrap() {
                         OpAMPEvent::RemoteConfigReceived(remote_config) => {
                             let _ = self.remote_config(remote_config, sub_agent_publisher.clone(), &mut sub_agents )
