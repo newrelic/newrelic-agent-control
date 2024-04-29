@@ -214,7 +214,7 @@ configs:
     dirs_map:
 "#;
 
-        let expected_fqns_in_order = vec![
+        let expected_fqns_in_order = [
             "francisco-partners/com.newrelic.another:0.0.2".into(),
             "newrelic/com.newrelic.another:0.0.1".into(),
             "newrelic/com.newrelic.another:1.0.0".into(),
