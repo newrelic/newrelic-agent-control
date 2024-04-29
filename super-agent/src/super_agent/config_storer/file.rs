@@ -42,6 +42,8 @@ impl SuperAgentDynamicConfigDeleter for SuperAgentConfigStoreFile {
         let Some(remote_path_file) = &self.remote_path else {
             unreachable!("we should not write into local paths");
         };
+        // clippy complains because we are not changing the lock's content
+        #[allow(clippy::readonly_write_lock)]
         let _write_guard = self.rw_lock.write().unwrap();
         if remote_path_file.exists() {
             std::fs::remove_file(remote_path_file)?;
@@ -53,6 +55,8 @@ impl SuperAgentDynamicConfigDeleter for SuperAgentConfigStoreFile {
 impl SuperAgentDynamicConfigStorer for SuperAgentConfigStoreFile {
     fn store(&self, sub_agents: &SuperAgentDynamicConfig) -> Result<(), SuperAgentConfigError> {
         //TODO we should inject DirectoryManager and ensure the directory exists
+        // clippy complains because we are not changing the lock's content
+        #[allow(clippy::readonly_write_lock)]
         let _write_guard = self.rw_lock.write().unwrap();
         let Some(remote_path_file) = &self.remote_path else {
             unreachable!("we should not write into local paths");
