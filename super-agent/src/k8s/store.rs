@@ -84,6 +84,7 @@ impl K8sStore {
         T: serde::Serialize,
     {
         // clippy complains because we are not changing the lock's content
+        // TODO: check RwLock is being used efficiently for this use-case.
         #[allow(clippy::readonly_write_lock)]
         let _write_guard = self.rw_lock.write().unwrap();
 
@@ -100,6 +101,7 @@ impl K8sStore {
     /// Delete data in the specified StoreKey of an Agent store.
     pub fn delete_opamp_data(&self, agent_id: &AgentID, key: &StoreKey) -> Result<(), Error> {
         // clippy complains because we are not changing the lock's content
+        // TODO: check RwLock is being used efficiently for this use-case.
         #[allow(clippy::readonly_write_lock)]
         let _write_guard = self.rw_lock.write().unwrap();
 

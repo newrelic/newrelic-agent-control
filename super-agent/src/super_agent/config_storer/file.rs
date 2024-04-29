@@ -43,6 +43,7 @@ impl SuperAgentDynamicConfigDeleter for SuperAgentConfigStoreFile {
             unreachable!("we should not write into local paths");
         };
         // clippy complains because we are not changing the lock's content
+        // TODO: check RwLock is being used efficiently for this use-case.
         #[allow(clippy::readonly_write_lock)]
         let _write_guard = self.rw_lock.write().unwrap();
         if remote_path_file.exists() {
@@ -56,6 +57,7 @@ impl SuperAgentDynamicConfigStorer for SuperAgentConfigStoreFile {
     fn store(&self, sub_agents: &SuperAgentDynamicConfig) -> Result<(), SuperAgentConfigError> {
         //TODO we should inject DirectoryManager and ensure the directory exists
         // clippy complains because we are not changing the lock's content
+        // TODO: check RwLock is being used efficiently for this use-case.
         #[allow(clippy::readonly_write_lock)]
         let _write_guard = self.rw_lock.write().unwrap();
         let Some(remote_path_file) = &self.remote_path else {
