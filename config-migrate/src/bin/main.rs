@@ -17,7 +17,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     info!("Starting conversion tool...");
 
-    let config: MigrationConfig = serde_yaml::from_str(NEWRELIC_INFRA_AGENT_TYPE_CONFIG_MAPPING)?;
+    let config: MigrationConfig = MigrationConfig::parse(NEWRELIC_INFRA_AGENT_TYPE_CONFIG_MAPPING)?;
 
     let cli = Cli::init_config_migrate_cli();
     let local_config_path = cli.get_config_path();

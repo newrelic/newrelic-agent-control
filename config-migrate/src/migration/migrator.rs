@@ -63,7 +63,7 @@ impl ConfigMigrator<EmbeddedRegistry, SuperAgentConfigStoreFile, DirectoryManage
     pub fn migrate(&self, cfg: &MigrationAgentConfig) -> Result<(), MigratorError> {
         let Ok(sub_agents_cfg) = self
             .agent_config_getter
-            .get_agents_of_type(cfg.agent_type_fqn.clone())
+            .get_agents_of_type_between_versions(cfg.agent_type_fqn.clone(), cfg.next.clone())
         else {
             return Err(MigratorError::AgentTypeNotFoundOnConfig);
         };
@@ -109,22 +109,26 @@ mod test {
             (
                 agent_a.clone(),
                 SubAgentConfig {
-                    agent_type: AgentTypeFQN::from("com.newrelic.infrastructure_agent:0.0.2"),
+                    agent_type: AgentTypeFQN::from(
+                        "newrelic/com.newrelic.infrastructure_agent:0.0.2",
+                    ),
                 },
             ),
             (
                 agent_b.clone(),
                 SubAgentConfig {
-                    agent_type: AgentTypeFQN::from("com.newrelic.infrastructure_agent:0.0.2"),
+                    agent_type: AgentTypeFQN::from(
+                        "newrelic/com.newrelic.infrastructure_agent:0.0.2",
+                    ),
                 },
             ),
         ]);
 
         let mut agent_config_getter = MockAgentConfigGetter::default();
         agent_config_getter
-            .expect_get_agents_of_type()
+            .expect_get_agents_of_type_between_versions()
             .once()
-            .returning(move |_| {
+            .returning(move |_, _| {
                 Ok(SuperAgentDynamicConfig {
                     agents: agents.clone(),
                 })
@@ -154,9 +158,10 @@ mod test {
         let migrator = ConfigMigrator::new(config_converter, agent_config_getter, values_persister);
 
         let agent_config_mapping = MigrationAgentConfig {
-            agent_type_fqn: AgentTypeFQN::from("com.newrelic.infrastructure_agent:0.0.2"),
+            agent_type_fqn: AgentTypeFQN::from("newrelic/com.newrelic.infrastructure_agent:0.0.1"),
             files_map: Default::default(),
             dirs_map: Default::default(),
+            next: None,
         };
         let migration = migrator.migrate(&agent_config_mapping);
         assert!(migration.is_ok());

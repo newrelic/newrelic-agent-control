@@ -83,6 +83,9 @@ impl K8sStore {
     where
         T: serde::Serialize,
     {
+        // clippy complains because we are not changing the lock's content
+        // TODO: check RwLock is being used efficiently for this use-case.
+        #[allow(clippy::readonly_write_lock)]
         let _write_guard = self.rw_lock.write().unwrap();
 
         let data_as_string = serde_yaml::to_string(data)?;
@@ -97,6 +100,9 @@ impl K8sStore {
 
     /// Delete data in the specified StoreKey of an Agent store.
     pub fn delete_opamp_data(&self, agent_id: &AgentID, key: &StoreKey) -> Result<(), Error> {
+        // clippy complains because we are not changing the lock's content
+        // TODO: check RwLock is being used efficiently for this use-case.
+        #[allow(clippy::readonly_write_lock)]
         let _write_guard = self.rw_lock.write().unwrap();
 
         let configmap_name = K8sStore::build_cm_name(agent_id, CM_NAME_OPAMP_DATA_PREFIX);

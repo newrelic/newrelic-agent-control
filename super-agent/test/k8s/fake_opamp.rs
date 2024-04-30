@@ -121,11 +121,24 @@ async fn config_handler(
     req: web::Bytes,
 ) -> HttpResponse {
     let message = opamp::proto::AgentToServer::decode(req).unwrap();
-    let identifier = response_identifier(&message);
 
     let mut config_responses = state.lock().unwrap();
+
+    let identifier = message.instance_uid.to_string();
+
+    // OpAMP protocol implements compression, so the agent_description will only be set on first message.
+    // So whenever we receive agent_description means is the first message from an OpAMP agent and we
+    // cached the ulid.
+    if message.agent_description.is_some() {
+        // The cache is implemented in a very simple say just introducing the same value of a given identifier
+        // to it correspond ulid.
+        let indirect_identifier = response_identifier(&message);
+        let config_response = config_responses.get(&indirect_identifier).unwrap().clone();
+        config_responses.insert(identifier.clone(), config_response);
+    };
+
     let config_response = config_responses
-        .get_mut(identifier.as_str())
+        .get_mut(&identifier)
         .unwrap_or_else(|| panic!("missing config response for identifier {}", identifier));
     // remove the config if it was already applied
     if remote_config_is_applied(&message) {

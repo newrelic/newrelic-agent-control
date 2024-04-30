@@ -25,6 +25,8 @@ pub(crate) enum HealthCheckerType {
 pub struct HealthCheckerError {
     /// Status contents using agent-specific semantics. This might be the response body of an HTTP
     /// checker or the stdout/stderr of an exec checker.
+    #[allow(dead_code)]
+    /// The use of OpAMP status field on health is not implemented yet by the super-agent.
     status: String,
 
     /// Error information in human-readable format. We could use this to specify what kind of checker
@@ -36,10 +38,6 @@ pub struct HealthCheckerError {
 impl HealthCheckerError {
     pub fn new(status: String, last_error: String) -> Self {
         Self { status, last_error }
-    }
-
-    pub fn status(self) -> String {
-        self.status
     }
 
     pub fn last_error(self) -> String {

@@ -40,10 +40,11 @@ impl HttpClient for ureq::Agent {
             req = req.set(header_name.as_str(), header_value.as_str());
         }
 
-        Ok(req
-            .call()
-            .map_err(|e| HttpClientError::HttpClientError(e.to_string()))?
-            .into())
+        match req.call() {
+            Ok(response) | Err(ureq::Error::Status(_, response)) => Ok(response.into()),
+
+            Err(ureq::Error::Transport(e)) => Err(HttpClientError::HttpClientError(e.to_string())),
+        }
     }
 }
 
@@ -100,19 +101,19 @@ impl<C: HttpClient> HealthChecker for HttpHealthChecker<C> {
         let response = self.client.get(self.url.as_str(), &self.headers);
         match response {
             Ok(response) => {
-                let status = response.status();
-                if (self.healthy_status_codes.is_empty() && status.is_success())
-                    || self.healthy_status_codes.contains(&status.as_u16())
+                let status_code = response.status();
+                if (self.healthy_status_codes.is_empty() && status_code.is_success())
+                    || self.healthy_status_codes.contains(&status_code.as_u16())
                 {
                     return Ok(());
                 }
 
-                let last_err = String::from_utf8(response.body().to_vec())
-                    .map_err(|e| HealthCheckerError::new("".to_string(), e.to_string()))?;
-
-                Err(HealthCheckerError::new(status.to_string(), last_err))
+                Err(HealthCheckerError::new(
+                    String::new(),
+                    status_code.to_string(),
+                ))
             }
-            Err(err) => Err(HealthCheckerError::new("".to_string(), err.to_string())),
+            Err(err) => Err(HealthCheckerError::new(String::new(), err.to_string())),
         }
     }
 
@@ -214,7 +215,7 @@ pub(crate) mod test {
 
         assert!(health_response.is_err());
         assert_eq!(
-            "error-body".to_string(),
+            http::StatusCode::BAD_REQUEST.to_string(),
             health_response.unwrap_err().last_error()
         );
     }
@@ -242,7 +243,7 @@ pub(crate) mod test {
 
         assert!(health_response.is_err());
         assert_eq!(
-            "response-body".to_string(),
+            http::StatusCode::CREATED.to_string(),
             health_response.unwrap_err().last_error()
         );
 
