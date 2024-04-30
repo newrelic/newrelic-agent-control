@@ -1,4 +1,4 @@
-use super::health_checker::{HealthChecker, HealthCheckerError};
+use super::health_checker::{Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy};
 use crate::agent_type::health_config::HttpHealth;
 use std::collections::HashMap;
 use std::time::Duration;
@@ -19,7 +19,7 @@ pub enum HttpClientError {
 /// The `HttpClient` trait defines the HTTP get interface to be implemented
 /// by HTTP clients.
 pub trait HttpClient {
-    /// A synchronous function that defines the `post` method for HTTP client.
+    /// A synchronous function that defines the `get` method for HTTP client.
     fn get(
         &self,
         path: &str,
@@ -73,8 +73,8 @@ impl HttpHealthChecker<ureq::Agent> {
             String::from(http_config.host.get()),
         );
 
-        let mut url = Url::parse(host.as_str())
-            .map_err(|e| HealthCheckerError::new("".to_string(), e.to_string()))?;
+        let mut url =
+            Url::parse(host.as_str()).map_err(|e| HealthCheckerError::new(e.to_string()))?;
         let _ = url.set_port(Some(http_config.port.get().into()));
 
         let path: String = http_config.path.get().into();
@@ -97,24 +97,27 @@ impl HttpHealthChecker<ureq::Agent> {
 }
 
 impl<C: HttpClient> HealthChecker for HttpHealthChecker<C> {
-    fn check_health(&self) -> Result<(), HealthCheckerError> {
-        let response = self.client.get(self.url.as_str(), &self.headers);
-        match response {
-            Ok(response) => {
-                let status_code = response.status();
-                if (self.healthy_status_codes.is_empty() && status_code.is_success())
-                    || self.healthy_status_codes.contains(&status_code.as_u16())
-                {
-                    return Ok(());
-                }
+    fn check_health(&self) -> Result<Health, HealthCheckerError> {
+        let response = self
+            .client
+            .get(self.url.as_str(), &self.headers)
+            .map_err(|e| HealthCheckerError::new(e.to_string()))?;
+        let status_code = response.status();
 
-                Err(HealthCheckerError::new(
-                    String::new(),
-                    status_code.to_string(),
-                ))
-            }
-            Err(err) => Err(HealthCheckerError::new(String::new(), err.to_string())),
+        let status = String::from_utf8_lossy(response.body()).into();
+
+        if (self.healthy_status_codes.is_empty() && status_code.is_success())
+            || self.healthy_status_codes.contains(&status_code.as_u16())
+        {
+            return Ok(Healthy { status }.into());
         }
+
+        let last_error = format!(
+            "Health check failed with HTTP response status code {}",
+            status_code
+        );
+
+        Ok(Unhealthy { status, last_error }.into())
     }
 
     fn interval(&self) -> Duration {
@@ -165,8 +168,8 @@ pub(crate) mod test {
 
         assert!(health_response.is_err());
         assert_eq!(
-            "internal HTTP client error: `Timeout`".to_string(),
-            health_response.unwrap_err().last_error()
+            "Health check error: internal HTTP client error: `Timeout`".to_string(),
+            health_response.unwrap_err().to_string()
         );
     }
 
@@ -198,7 +201,7 @@ pub(crate) mod test {
         client_mock.should_get(
             http::Response::builder()
                 .status(400)
-                .body("error-body".as_bytes().to_vec())
+                .body(http::StatusCode::BAD_REQUEST.as_str().as_bytes().to_vec())
                 .unwrap(),
         );
 
@@ -213,10 +216,10 @@ pub(crate) mod test {
 
         let health_response = checker.check_health();
 
-        assert!(health_response.is_err());
+        assert!(health_response.is_ok());
         assert_eq!(
-            http::StatusCode::BAD_REQUEST.to_string(),
-            health_response.unwrap_err().last_error()
+            http::StatusCode::BAD_REQUEST.as_str(),
+            health_response.unwrap().status()
         );
     }
 
@@ -226,7 +229,7 @@ pub(crate) mod test {
         client_mock.expect_get().times(1).returning(|_, _| {
             Ok(http::Response::builder()
                 .status(201)
-                .body("response-body".as_bytes().to_vec())
+                .body(http::StatusCode::CREATED.as_str().as_bytes().to_vec())
                 .unwrap())
         });
 
@@ -241,10 +244,10 @@ pub(crate) mod test {
 
         let health_response = checker.check_health();
 
-        assert!(health_response.is_err());
+        assert!(health_response.is_ok());
         assert_eq!(
-            http::StatusCode::CREATED.to_string(),
-            health_response.unwrap_err().last_error()
+            http::StatusCode::CREATED.as_str(),
+            health_response.unwrap().status()
         );
 
         let mut client_mock = MockHttpClientMock::new();

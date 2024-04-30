@@ -13,6 +13,7 @@ use crate::opamp::{
     remote_config_hash::Hash,
     remote_config_report::report_remote_config_status_applied,
 };
+use crate::sub_agent::health::health_checker::{Health, Healthy, Unhealthy};
 use crate::sub_agent::{
     collection::{NotStartedSubAgents, StartedSubAgents},
     error::SubAgentBuilderError,
@@ -218,7 +219,7 @@ where
         >,
     ) -> Result<(), AgentError> {
         let _ = self
-            .report_healthy()
+            .report_healthy(Healthy::default())
             .inspect_err(|e| error!("Error reporting health on Super Agent start: {}", e));
 
         debug!("Listening for events from agents");
@@ -269,26 +270,26 @@ where
                                 SubAgentEvent::ConfigUpdated(agent_id) => {
                                     self.sub_agent_config_updated(agent_id,sub_agent_publisher.clone(),&mut sub_agents)?
                                 },
-                                SubAgentEvent::SubAgentBecameHealthy(agent_id) => {
+                                SubAgentEvent::SubAgentBecameHealthy(agent_id, healthy) => {
                                     debug!(agent_id = agent_id.to_string() ,"sub agent is healthy");
-                                    let Some(sub_agent) = sub_agents.get(&agent_id) else{
+                                    let Some(sub_agent) = sub_agents.get(&agent_id) else {
                                         error!(agent_id = agent_id.to_string(),"cannot find sub agent on super_agent_event.sub_agent_became_healthy event");
                                         continue;
                                     };
 
                                     let _ = self.super_agent_publisher
-                                    .publish(SuperAgentEvent::SubAgentBecameHealthy(agent_id,sub_agent.agent_type()))
+                                    .publish(SuperAgentEvent::SubAgentBecameHealthy(agent_id,sub_agent.agent_type(), healthy))
                                     .inspect_err(|e| error!(error_msg = e.to_string(),"cannot publish super_agent_event.sub_agent_became_healthy"));
                                 },
-                                SubAgentEvent::SubAgentBecameUnhealthy(agent_id,msg) => {
-                                    debug!(agent_id = agent_id.to_string(), error_message = msg,"sub agent is unhealthy");
+                                SubAgentEvent::SubAgentBecameUnhealthy(agent_id, unhealthy) => {
+                                    debug!(agent_id = agent_id.to_string(), error_message = unhealthy.last_error() ,"sub agent is unhealthy");
                                     let Some(sub_agent) = sub_agents.get(&agent_id) else{
                                         error!(agent_id = agent_id.to_string(),"cannot find sub agent on super_agent_event.sub_agent_became_unhealthy event");
                                         continue;
                                     };
 
                                     let _ = self.super_agent_publisher
-                                    .publish(SuperAgentEvent::SubAgentBecameUnhealthy(agent_id,sub_agent.agent_type(),msg))
+                                    .publish(SuperAgentEvent::SubAgentBecameUnhealthy(agent_id,sub_agent.agent_type(), unhealthy))
                                     .inspect_err(|e| error!(error_msg = e.to_string(),"cannot publish super_agent_event.sub_agent_became_unhealthy"));
                                 },
                             }
@@ -397,28 +398,29 @@ where
             .save(&self.agent_id, &remote_config.hash)?)
     }
 
-    pub(crate) fn report_healthy(&self) -> Result<(), AgentError> {
-        self.report_health(true, String::default())?;
+    pub(crate) fn report_healthy(&self, healthy: Healthy) -> Result<(), AgentError> {
+        self.report_health(healthy.clone().into())?;
         Ok(self
             .super_agent_publisher
-            .publish(SuperAgentEvent::SuperAgentBecameHealthy)?)
+            .publish(SuperAgentEvent::SuperAgentBecameHealthy(healthy))?)
     }
 
-    pub(crate) fn report_unhealthy(&self, error_message: String) -> Result<(), AgentError> {
-        self.report_health(false, error_message.clone())?;
+    pub(crate) fn report_unhealthy(&self, unhealthy: Unhealthy) -> Result<(), AgentError> {
+        self.report_health(unhealthy.clone().into())?;
         Ok(self
             .super_agent_publisher
-            .publish(SuperAgentEvent::SuperAgentBecameUnhealthy(error_message))?)
+            .publish(SuperAgentEvent::SuperAgentBecameUnhealthy(unhealthy))?)
     }
 
-    fn report_health(&self, healthy: bool, error_message: String) -> Result<(), AgentError> {
+    fn report_health(&self, health: Health) -> Result<(), AgentError> {
         if let Some(handle) = &self.opamp_client {
             debug!("Sending super-agent health");
 
             let health = ComponentHealth {
-                healthy,
+                healthy: health.is_healthy(),
                 start_time_unix_nano: get_sys_time_nano()?,
-                last_error: error_message,
+                status: health.status().to_string(),
+                last_error: health.last_error().unwrap_or_default().to_string(),
                 ..Default::default()
             };
 
@@ -451,6 +453,7 @@ mod tests {
     use crate::opamp::hash_repository::HashRepository;
     use crate::opamp::remote_config::{ConfigMap, RemoteConfig};
     use crate::opamp::remote_config_hash::Hash;
+    use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
     use crate::sub_agent::{test::MockSubAgentBuilderMock, SubAgentBuilder};
     use crate::super_agent::config::{
         AgentID, AgentTypeFQN, SubAgentConfig, SuperAgentDynamicConfig,
@@ -730,7 +733,7 @@ agents:
         opamp_publisher.publish(OpAMPEvent::Connected).unwrap();
 
         // process_events always starts with SuperAgentHealthy
-        let expected = SuperAgentEvent::SuperAgentBecameHealthy;
+        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::default());
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
 
@@ -790,7 +793,7 @@ agents:
             .unwrap();
 
         // process_events always starts with SuperAgentHealthy
-        let expected = SuperAgentEvent::SuperAgentBecameHealthy;
+        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::default());
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
 
@@ -1133,11 +1136,11 @@ agents:
         assert!(event_processor.join().is_ok());
 
         // process_events always starts with SuperAgentHealthy
-        let expected = SuperAgentEvent::SuperAgentBecameHealthy;
+        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::default());
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
 
-        let expected = SuperAgentEvent::SuperAgentBecameHealthy;
+        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::default());
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
     }
@@ -1211,13 +1214,13 @@ agents:
         assert!(event_processor.join().is_ok());
 
         // process_events always starts with SuperAgentHealthy
-        let expected = SuperAgentEvent::SuperAgentBecameHealthy;
+        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::default());
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
 
-        let expected = SuperAgentEvent::SuperAgentBecameUnhealthy(String::from(
+        let expected = SuperAgentEvent::SuperAgentBecameUnhealthy(Unhealthy{last_error: String::from(
             "Error applying Super Agent remote config: remote config error: `config hash: `a-hash` config error: `some error message``",
-        ));
+        ),..Default::default()});
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
     }
@@ -1274,7 +1277,7 @@ agents:
         assert!(event_processor.join().is_ok());
 
         // process_events always starts with SuperAgentHealthy
-        let expected = SuperAgentEvent::SuperAgentBecameHealthy;
+        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::default());
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
 
@@ -1337,7 +1340,10 @@ agents:
         sleep(Duration::from_millis(10));
 
         sub_agent_publisher
-            .publish(SubAgentEvent::SubAgentBecameHealthy(agent_id.clone()))
+            .publish(SubAgentEvent::SubAgentBecameHealthy(
+                agent_id.clone(),
+                Healthy::default(),
+            ))
             .unwrap();
 
         application_event_publisher
@@ -1347,11 +1353,12 @@ agents:
         assert!(event_processor.join().is_ok());
 
         // process_events always starts with SuperAgentHealthy
-        let expected = SuperAgentEvent::SuperAgentBecameHealthy;
+        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::default());
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
 
-        let expected = SuperAgentEvent::SubAgentBecameHealthy(agent_id, agent_type);
+        let expected =
+            SuperAgentEvent::SubAgentBecameHealthy(agent_id, agent_type, Healthy::default());
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
     }
@@ -1413,7 +1420,10 @@ agents:
         sub_agent_publisher
             .publish(SubAgentEvent::SubAgentBecameUnhealthy(
                 agent_id.clone(),
-                last_error_message.clone(),
+                Unhealthy {
+                    last_error: last_error_message.clone(),
+                    ..Default::default()
+                },
             ))
             .unwrap();
 
@@ -1424,12 +1434,18 @@ agents:
         assert!(event_processor.join().is_ok());
 
         // process_events always starts with SuperAgentHealthy
-        let expected = SuperAgentEvent::SuperAgentBecameHealthy;
+        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::default());
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
 
-        let expected =
-            SuperAgentEvent::SubAgentBecameUnhealthy(agent_id, agent_type, last_error_message);
+        let expected = SuperAgentEvent::SubAgentBecameUnhealthy(
+            agent_id,
+            agent_type,
+            Unhealthy {
+                last_error: last_error_message,
+                ..Default::default()
+            },
+        );
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
     }
@@ -1530,7 +1546,7 @@ agents:
         assert!(event_processor.join().is_ok());
 
         // process_events always starts with SuperAgentHealthy
-        let expected = SuperAgentEvent::SuperAgentBecameHealthy;
+        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::default());
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
 
@@ -1538,7 +1554,7 @@ agents:
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
 
-        let expected = SuperAgentEvent::SuperAgentBecameHealthy;
+        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::default());
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
     }

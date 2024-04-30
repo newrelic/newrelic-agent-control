@@ -2,7 +2,9 @@ use crate::context::Context;
 
 use crate::event::channel::{pub_sub, EventConsumer, EventPublisher};
 use crate::event::SubAgentInternalEvent;
-use crate::sub_agent::health::health_checker::{HealthChecker, HealthCheckerType};
+use crate::sub_agent::health::health_checker::{
+    HealthChecker, HealthCheckerType, Healthy, Unhealthy,
+};
 use crate::sub_agent::on_host::command::command::{
     CommandError, CommandTerminator, NotStartedCommand, StartedCommand,
 };
@@ -156,10 +158,7 @@ fn start_process_thread(
             let bin = not_started_supervisor.bin();
             let id = not_started_supervisor.id();
 
-            publish_health_event(
-                &internal_event_publisher,
-                SubAgentInternalEvent::AgentBecameHealthy,
-            );
+            publish_health_event(&internal_event_publisher, Healthy::default().into());
 
             // Spawn the health checker thread
             let (health_check_cancel_publisher, health_check_cancel_consumer) = pub_sub();
@@ -180,7 +179,7 @@ fn start_process_thread(
                         error!(
                             agent_id = id.to_string(),
                             supervisor = bin,
-                            err = e.last_error(),
+                            err = %e,
                             "could not launch health checker, using default",
                         )
                     }
@@ -200,10 +199,11 @@ fn start_process_thread(
                     if !exit_code.success() {
                         publish_health_event(
                             &internal_event_publisher,
-                            SubAgentInternalEvent::AgentBecameUnhealthy(format!(
-                                "process exited with code: {}",
-                                exit_code
-                            )),
+                            Unhealthy {
+                                last_error: format!("process exited with code: {}", exit_code),
+                                ..Default::default()
+                            }
+                            .into(),
                         );
                         error!(
                             agent_id = id.to_string(),
@@ -236,9 +236,12 @@ fn start_process_thread(
                     warn!("supervisor for {id} won't restart anymore due to having exceeded its restart policy");
                     publish_health_event(
                         &internal_event_publisher,
-                        SubAgentInternalEvent::AgentBecameUnhealthy(
-                            "supervisor exceeded its defined restart policy".to_string(),
-                        ),
+                        Unhealthy {
+                            last_error: "supervisor exceeded its defined restart policy"
+                                .to_string(),
+                            ..Default::default()
+                        }
+                        .into(),
                     );
                 }
                 break;
@@ -275,17 +278,14 @@ fn spawn_health_checker<H>(
 
         debug!(%agent_id, "checking health with the configured checker");
         match health_checker.check_health() {
-            Ok(_) => {
+            Ok(health) => {
                 debug!(%agent_id, "the configured health check passed");
-                publish_health_event(&health_publisher, SubAgentInternalEvent::AgentBecameHealthy)
+                publish_health_event(&health_publisher, health.into())
             }
             Err(e) => {
-                let last_err_msg = e.last_error();
-                debug!(%agent_id, last_err_msg, "the configured health check failed");
-                publish_health_event(
-                    &health_publisher,
-                    SubAgentInternalEvent::AgentBecameUnhealthy(last_err_msg),
-                )
+                let last_error_msg = e.to_string();
+                debug!(%agent_id, last_error = last_error_msg, "the configured health check failed");
+                publish_health_event(&health_publisher, Unhealthy::from(e).into())
             }
         }
     });
@@ -328,7 +328,7 @@ pub mod sleep_supervisor_tests {
     use super::{NotStarted, SupervisorConfigOnHost};
     use crate::context::Context;
     use crate::event::channel::pub_sub;
-    use crate::sub_agent::health::health_checker::HealthCheckerError;
+    use crate::sub_agent::health::health_checker::{Health, HealthCheckerError, Healthy};
     use crate::sub_agent::on_host::supervisor::command_supervisor_config::ExecutableData;
     use crate::sub_agent::restart_policy::{Backoff, BackoffStrategy, RestartPolicy};
     use mockall::{mock, Sequence};
@@ -338,7 +338,7 @@ pub mod sleep_supervisor_tests {
     mock! {
         pub HealthCheckerMock {}
         impl HealthChecker for HealthCheckerMock {
-            fn check_health(&self) -> Result<(), HealthCheckerError>;
+            fn check_health(&self) -> Result<Health, HealthCheckerError>;
             fn interval(&self) -> Duration;
         }
     }
@@ -476,14 +476,17 @@ pub mod sleep_supervisor_tests {
         }
 
         // It starts once and restarts 3 times, hence 4 healthy events and a final unhealthy one
-        let expected_ordered_events = {
-            use SubAgentInternalEvent::*;
+        let expected_ordered_events: Vec<SubAgentInternalEvent> = {
             vec![
-                AgentBecameHealthy,
-                AgentBecameHealthy,
-                AgentBecameHealthy,
-                AgentBecameHealthy,
-                AgentBecameUnhealthy("supervisor exceeded its defined restart policy".to_string()),
+                Healthy::default().into(),
+                Healthy::default().into(),
+                Healthy::default().into(),
+                Healthy::default().into(),
+                Unhealthy {
+                    last_error: "supervisor exceeded its defined restart policy".to_string(),
+                    ..Default::default()
+                }
+                .into(),
             ]
         };
 
@@ -511,7 +514,12 @@ pub mod sleep_supervisor_tests {
             .expect_check_health()
             .once()
             .in_sequence(&mut seq)
-            .returning(|| Ok(()));
+            .returning(|| {
+                Ok(Healthy {
+                    status: String::default(),
+                }
+                .into())
+            });
         health_checker
             .expect_interval()
             .once()
@@ -525,7 +533,6 @@ pub mod sleep_supervisor_tests {
                 // Ensure the health checker will quit after the second loop
                 cancel_publisher.publish(()).unwrap();
                 Err(HealthCheckerError::new(
-                    "".to_string(),
                     "mocked health check error!".to_string(),
                 ))
             });
@@ -534,11 +541,14 @@ pub mod sleep_supervisor_tests {
         spawn_health_checker(agent_id, health_checker, cancel_signal, health_publisher);
 
         // Check that the health checker was called at least once
-        let expected_health_events = {
-            use SubAgentInternalEvent::*;
+        let expected_health_events: Vec<SubAgentInternalEvent> = {
             vec![
-                AgentBecameHealthy,
-                AgentBecameUnhealthy("mocked health check error!".to_string()),
+                Healthy::default().into(),
+                Unhealthy {
+                    last_error: "mocked health check error!".to_string(),
+                    ..Default::default()
+                }
+                .into(),
             ]
         };
         let actual_health_events = health_consumer.as_ref().iter().collect::<Vec<_>>();
@@ -562,7 +572,7 @@ pub mod sleep_supervisor_tests {
             .expect_check_health()
             .once()
             .in_sequence(&mut seq)
-            .returning(|| Ok(()));
+            .returning(|| Ok(Healthy::default().into()));
         health_checker
             .expect_interval()
             .once()
@@ -575,17 +585,15 @@ pub mod sleep_supervisor_tests {
             .returning(move || {
                 // Ensure the health checker will quit after the second loop
                 cancel_publisher.publish(()).unwrap();
-                Ok(())
+                Ok(Healthy::default().into())
             });
 
         let agent_id = AgentID::new("test-agent").unwrap();
         spawn_health_checker(agent_id, health_checker, cancel_signal, health_publisher);
 
         // Check that the health checker was called at least once
-        let expected_health_events = {
-            use SubAgentInternalEvent::*;
-            vec![AgentBecameHealthy, AgentBecameHealthy]
-        };
+        let expected_health_events: Vec<SubAgentInternalEvent> =
+            vec![Healthy::default().into(), Healthy::default().into()];
         let actual_health_events = health_consumer.as_ref().iter().collect::<Vec<_>>();
 
         assert_eq!(expected_health_events, actual_health_events);
@@ -609,7 +617,6 @@ pub mod sleep_supervisor_tests {
             .in_sequence(&mut seq)
             .returning(|| {
                 Err(HealthCheckerError::new(
-                    "".to_string(),
                     "mocked health check error!".to_string(),
                 ))
             });
@@ -626,7 +633,6 @@ pub mod sleep_supervisor_tests {
                 // Ensure the health checker will quit after the second loop
                 cancel_publisher.publish(()).unwrap();
                 Err(HealthCheckerError::new(
-                    "".to_string(),
                     "mocked health check error!".to_string(),
                 ))
             });
@@ -635,11 +641,18 @@ pub mod sleep_supervisor_tests {
         spawn_health_checker(agent_id, health_checker, cancel_signal, health_publisher);
 
         // Check that the health checker was called at least once
-        let expected_health_events = {
-            use SubAgentInternalEvent::*;
+        let expected_health_events: Vec<SubAgentInternalEvent> = {
             vec![
-                AgentBecameUnhealthy("mocked health check error!".to_string()),
-                AgentBecameUnhealthy("mocked health check error!".to_string()),
+                Unhealthy {
+                    last_error: "mocked health check error!".to_string(),
+                    ..Default::default()
+                }
+                .into(),
+                Unhealthy {
+                    last_error: "mocked health check error!".to_string(),
+                    ..Default::default()
+                }
+                .into(),
             ]
         };
         let actual_health_events = health_consumer.as_ref().iter().collect::<Vec<_>>();
