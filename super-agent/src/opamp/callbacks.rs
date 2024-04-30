@@ -19,6 +19,7 @@ use std::str;
 use std::str::Utf8Error;
 use thiserror::Error;
 use tracing::{error, trace};
+use HttpClientError::UnsuccessfulResponse;
 
 #[derive(Debug, Error)]
 pub enum AgentCallbacksError {
@@ -92,33 +93,35 @@ impl AgentCallbacks {
             .publish(OpAMPEvent::RemoteConfigReceived(remote_config))?)
     }
 
-    fn process_on_connect_failure(&self, err: &ConnectionError) -> Result<(), AgentCallbacksError> {
-        match err {
-            // Check if the error comes from receiving an undesired HTTP status code
-            HTTPClientError(HttpClientError::UnsuccessfulResponse(code, reason)) => {
-                const STATUS_CODE_MSG: &str = "Received HTTP status code";
-                match code {
-                    400 => error!(agent_id = self.agent_id.to_string() , "{STATUS_CODE_MSG} {code} ({reason}). The request was malformed. Possible reason: invalid ULID"),
-                    401 => error!(agent_id = self.agent_id.to_string() , "{STATUS_CODE_MSG} {code} ({reason}). Check for missing or invalid license key"
-                    ),
-                    403 => error!(agent_id = self.agent_id.to_string(), "{STATUS_CODE_MSG} {code} ({reason}). The account provided is not allowed to use this resource"),
-                    404 => error!(agent_id = self.agent_id.to_string(), "{STATUS_CODE_MSG} {code} ({reason}). The requested resource was not found"),
-                    415 => error!(agent_id = self.agent_id.to_string(), "{STATUS_CODE_MSG} {code} ({reason}). Content-Type or Content-Encoding for the HTTP request was wrong"),
-                    500 => error!(agent_id = self.agent_id.to_string(), "{STATUS_CODE_MSG} {code} ({reason}). Server-side problem"),
-                    _ => error!(agent_id = self.agent_id.to_string(), "{STATUS_CODE_MSG} {code} ({reason}). Reasons unknown"),
-                }
-                return Ok(self
-                    .publisher
-                    .publish(OpAMPEvent::ConnectFailed(*code, reason.clone()))?);
-            }
-            _ => error!(
-                agent_id = self.agent_id.to_string(),
-                err = err.to_string(),
-                "Connecting to OpAMP server"
-            ),
-        }
+    fn publish_on_connect(&self) {
+        let _ = self
+            .publisher
+            .publish(OpAMPEvent::Connected)
+            .inspect_err(|e| {
+                error!(
+                    error_msg = e.to_string(),
+                    "error publishing opamp_event.connected"
+                )
+            });
+    }
 
-        Ok(())
+    fn publish_on_connect_failed(&self, err: &ConnectionError) {
+        let (code, reason) = if let HTTPClientError(UnsuccessfulResponse(code, reason)) = &err {
+            (Some(*code), reason.clone())
+        } else {
+            (None, err.to_string())
+        };
+
+        let _ = self
+            .publisher
+            .publish(OpAMPEvent::ConnectFailed(code, reason))
+            .inspect_err(|e| {
+                error!(
+                    %self.agent_id,
+                    error_msg = e.to_string(),
+                    "error publishing opamp_event.connected"
+                )
+            });
     }
 }
 
@@ -126,26 +129,12 @@ impl Callbacks for AgentCallbacks {
     type Error = AgentCallbacksError;
 
     fn on_connect(&self) {
-        let _ = self
-            .publisher
-            .publish(OpAMPEvent::Connected)
-            .map_err(|error| {
-                error!(
-                    agent_id = self.agent_id.to_string(),
-                    err = error.to_string(),
-                    "processing OpAMP connect"
-                )
-            });
+        self.publish_on_connect();
     }
 
     fn on_connect_failed(&self, err: ConnectionError) {
-        let _ = self.process_on_connect_failure(&err).map_err(|error| {
-            error!(
-                agent_id = self.agent_id.to_string(),
-                err = error.to_string(),
-                "processing OpAMP connect fail"
-            )
-        });
+        log_connection_error(&err, self.agent_id.clone());
+        self.publish_on_connect_failed(&err);
     }
 
     fn on_error(&self, _err: ServerErrorResponse) {}
@@ -191,6 +180,28 @@ impl Callbacks for AgentCallbacks {
 
     fn get_effective_config(&self) -> Result<EffectiveConfig, Self::Error> {
         Ok(EffectiveConfig::default())
+    }
+}
+
+fn log_connection_error(err: &ConnectionError, agent_id: AgentID) {
+    // Check if the error comes from receiving an undesired HTTP status code
+    if let HTTPClientError(UnsuccessfulResponse(http_code, http_reason)) = &err {
+        let reason = match http_code {
+            400 => "The request was malformed. Possible reason: invalid ULID",
+            401 => "Check for missing or invalid license key",
+            403 => "The account provided is not allowed to use this resource",
+            404 => "The requested resource was not found",
+            415 => "Content-Type or Content-Encoding for the HTTP request was wrong",
+            500 => "Server-side problem",
+            _ => "Reasons unknown",
+        };
+        error!(%agent_id, http_code, http_reason, reason,"OpAMP HTTP connection error");
+    } else {
+        error!(
+            %agent_id,
+            reason = err.to_string(),
+            "OpAMP HTTP connection error"
+        )
     }
 }
 
@@ -240,7 +251,10 @@ pub(crate) mod tests {
             .expect("should receive an event");
 
         // Then a OpAMPEvent::ConnectFailed is sent.
-        assert_eq!(event, OpAMPEvent::ConnectFailed(status, reason.to_string()));
+        assert_eq!(
+            event,
+            OpAMPEvent::ConnectFailed(Some(status), reason.to_string())
+        );
         assert!(event_consumer.as_ref().is_empty());
 
         // When an error without status code and reason is received
@@ -250,8 +264,8 @@ pub(crate) mod tests {
 
         let _ = event_consumer
             .as_ref()
-            .recv_timeout(Duration::from_millis(100))
-            .expect_err("no event should be received");
+            .recv_timeout(Duration::from_millis(1))
+            .expect("transport error event should be received too");
     }
 
     #[test]

@@ -22,6 +22,7 @@ mod test {
     use std::collections::HashMap;
     use std::sync::Arc;
 
+    use crate::opamp::Endpoint;
     use actix_web::body::MessageBody;
     use actix_web::test::TestRequest;
     use actix_web::web::Data;
@@ -33,20 +34,22 @@ mod test {
     use crate::super_agent::http_server::status_handler::status_handler;
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn test_handler() {
+    async fn test_handler_without_optional_fields() {
         // Given there is a healthy Sub Agent registered
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let agent_type = AgentTypeFQN::from("some-agent-type");
-        let mut sub_agent_status = SubAgentStatus::new(agent_id.clone(), agent_type.clone());
+        let mut sub_agent_status =
+            SubAgentStatus::with_id_and_type(agent_id.clone(), agent_type.clone());
         sub_agent_status.healthy();
 
         let sub_agents = HashMap::from([(agent_id.clone(), sub_agent_status)]);
 
-        let mut st = Status::default().with_sub_agents(sub_agents.into());
-        st.super_agent.healthy = true;
-        st.opamp.enabled = true;
-        st.opamp.endpoint = String::from("some_endpoint");
-        st.opamp.reachable = true;
+        let mut st = Status::default()
+            .with_sub_agents(sub_agents.into())
+            .with_opamp(Endpoint::from("some_endpoint"));
+
+        st.super_agent.healthy();
+        st.opamp.reachable();
 
         let status = Arc::new(RwLock::new(st));
 
@@ -56,7 +59,46 @@ mod test {
         let request = TestRequest::default().to_http_request();
         let response = responder.respond_to(&request);
 
-        let expected_body = r#"{"super_agent":{"healthy":true,"last_error":"","status":""},"opamp":{"enabled":true,"endpoint":"some_endpoint","reachable":true},"sub_agents":{"some-agent-id":{"agent_id":"some-agent-id","agent_type":"some-agent-type","healthy":true,"last_error":"","status":""}}}"#;
+        let expected_body = r#"{"super_agent":{"healthy":true},"opamp":{"enabled":true,"endpoint":"some_endpoint","reachable":true},"sub_agents":{"some-agent-id":{"agent_id":"some-agent-id","agent_type":"some-agent-type","healthy":true}}}"#;
+
+        assert_eq!(
+            String::from(expected_body).into_bytes(),
+            response
+                .map_into_boxed_body()
+                .into_body()
+                .try_into_bytes()
+                .unwrap()
+                .to_vec()
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_handler() {
+        // Given there is a healthy Sub Agent registered
+        let agent_id = AgentID::new("some-agent-id").unwrap();
+        let agent_type = AgentTypeFQN::from("some-agent-type");
+        let mut sub_agent_status =
+            SubAgentStatus::with_id_and_type(agent_id.clone(), agent_type.clone());
+        sub_agent_status.unhealthy(String::from("a sub agent error"));
+
+        let sub_agents = HashMap::from([(agent_id.clone(), sub_agent_status)]);
+
+        let mut st = Status::default()
+            .with_sub_agents(sub_agents.into())
+            .with_opamp(Endpoint::from("some_endpoint"));
+
+        st.super_agent.unhealthy(String::from("this is an error"));
+        st.opamp.reachable();
+
+        let status = Arc::new(RwLock::new(st));
+
+        let data = Data::new(status);
+        let responder = status_handler(data).await;
+
+        let request = TestRequest::default().to_http_request();
+        let response = responder.respond_to(&request);
+
+        let expected_body = r#"{"super_agent":{"healthy":false,"last_error":"this is an error"},"opamp":{"enabled":true,"endpoint":"some_endpoint","reachable":true},"sub_agents":{"some-agent-id":{"agent_id":"some-agent-id","agent_type":"some-agent-type","healthy":false,"last_error":"a sub agent error"}}}"#;
 
         assert_eq!(
             String::from(expected_body).into_bytes(),

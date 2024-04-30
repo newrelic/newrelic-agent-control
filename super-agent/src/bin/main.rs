@@ -94,6 +94,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         super_agent_config.server.clone(),
         runtime.clone(),
         super_agent_consumer,
+        super_agent_config.opamp.clone(),
     );
 
     #[cfg(any(feature = "onhost", feature = "k8s"))]

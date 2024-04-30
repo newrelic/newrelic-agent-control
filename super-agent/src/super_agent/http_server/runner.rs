@@ -1,5 +1,6 @@
 use crate::event::channel::EventConsumer;
 use crate::event::SuperAgentEvent;
+use crate::super_agent::config::OpAMPClientConfig;
 use crate::super_agent::http_server::async_bridge::run_async_sync_bridge;
 use crate::super_agent::http_server::config::ServerConfig;
 use std::sync::Arc;
@@ -25,9 +26,15 @@ impl Runner {
         config: ServerConfig,
         runtime: Arc<Runtime>,
         super_agent_consumer: EventConsumer<SuperAgentEvent>,
+        maybe_opamp_client_config: Option<OpAMPClientConfig>,
     ) -> Self {
         let join_handle = if config.enabled {
-            Self::spawn_server(config, runtime, super_agent_consumer)
+            Self::spawn_server(
+                config,
+                runtime,
+                super_agent_consumer,
+                maybe_opamp_client_config,
+            )
         } else {
             // Spawn a thread with a no-action consumer to drain the channel and
             // avoid memory leaks
@@ -42,6 +49,7 @@ impl Runner {
         config: ServerConfig,
         runtime: Arc<Runtime>,
         super_agent_consumer: EventConsumer<SuperAgentEvent>,
+        maybe_opamp_client_config: Option<OpAMPClientConfig>,
     ) -> JoinHandle<()> {
         thread::spawn(move || {
             // Create unbounded channel to send the Super Agent Sync events
@@ -58,6 +66,7 @@ impl Runner {
                 .block_on(crate::super_agent::http_server::server::run_status_server(
                     config.clone(),
                     async_sa_event_consumer,
+                    maybe_opamp_client_config,
                 ))
                 .inspect_err(|err| {
                     error!(error_msg = err.to_string(), "error running status server");
