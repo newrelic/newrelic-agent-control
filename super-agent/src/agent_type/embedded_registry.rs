@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use tracing::debug;
-
 use crate::super_agent::defaults::DYNAMIC_AGENT_TYPE;
+use std::fs;
+use tracing::debug;
 
 use super::{
     agent_type_registry::{AgentRegistry, AgentRepositoryError},
@@ -32,9 +32,14 @@ impl Default for EmbeddedRegistry {
 
         // Read the dynamic agent type and merge with the static ones.
         // Log failure but not fail the whole registry creation
-        let dynamic_agent_type = serde_yaml::from_str::<AgentTypeDefinition>(DYNAMIC_AGENT_TYPE)
-            .inspect_err(|e| debug!("Failed to parse dynamic agent type: {}", e))
-            .ok();
+        let dynamic_agent_type = fs::read(DYNAMIC_AGENT_TYPE)
+            .inspect_err(|e| debug!("Failed to load dynamic agent type: {}", e))
+            .ok()
+            .and_then(|content| {
+                serde_yaml::from_slice::<AgentTypeDefinition>(content.as_slice())
+                    .inspect_err(|e| debug!("Failed to parse dynamic agent type: {}", e))
+                    .ok()
+            });
 
         let definitions = definitions.chain(dynamic_agent_type);
 
