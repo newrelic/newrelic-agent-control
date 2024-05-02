@@ -190,7 +190,7 @@ jobs:
 
   prune-previous-canaries:
     needs: get_previous_tag
-    uses: ./.github/workflows/component_canaries_prune.yml
+    uses: ./.github/workflows/component_canaries_prune.yaml
     with:
       TAG: ${{ needs.get_previous_tag.outputs.previous_tag }}
     secrets:
