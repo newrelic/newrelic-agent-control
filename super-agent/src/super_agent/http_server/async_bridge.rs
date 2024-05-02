@@ -67,7 +67,7 @@ mod test {
                 super_agent_publisher
                     .publish(SubAgentBecameHealthy(
                         AgentID::new("some-agent-id").unwrap(),
-                        AgentTypeFQN::from("whatever"),
+                        AgentTypeFQN::try_from("namespace/whatever:0.0.1").unwrap(),
                         Healthy::default(),
                     ))
                     .unwrap();

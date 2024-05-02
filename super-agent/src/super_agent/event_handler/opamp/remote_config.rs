@@ -186,7 +186,7 @@ mod tests {
         let old_sub_agents_config = SuperAgentDynamicConfig::from(HashMap::from([(
             sub_agent_id.clone(),
             SubAgentConfig {
-                agent_type: "some_agent_type".into(),
+                agent_type: "namespace/some_agent_type:0.0.1".try_into().unwrap(),
             },
         )]));
 

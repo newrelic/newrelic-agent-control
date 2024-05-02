@@ -198,7 +198,7 @@ pub mod test {
 
         SubAgentK8s::new(
             agent_id.clone(),
-            AgentTypeFQN::from("test:0.0.1"),
+            AgentTypeFQN::try_from("namespace/test:0.0.1").unwrap(),
             processor,
             sub_agent_internal_publisher.clone(),
             Some(supervisor),

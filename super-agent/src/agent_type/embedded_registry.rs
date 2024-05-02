@@ -80,34 +80,11 @@ impl EmbeddedRegistry {
 #[cfg(test)]
 pub mod tests {
     use assert_matches::assert_matches;
+    use semver::Version;
 
-    use crate::agent_type::{
-        agent_metadata::AgentMetadata,
-        definition::{AgentTypeVariables, VariableTree},
-        runtime_config::{Deployment, Runtime},
-    };
+    use crate::agent_type::agent_metadata::AgentMetadata;
 
     use super::*;
-
-    impl AgentTypeDefinition {
-        /// This helper returns an [AgentTypeDefinition] including only the provided metadata
-        pub fn empty_with_metadata(metadata: AgentMetadata) -> Self {
-            Self {
-                metadata,
-                variables: AgentTypeVariables {
-                    common: VariableTree::default(),
-                    k8s: VariableTree::default(),
-                    on_host: VariableTree::default(),
-                },
-                runtime_config: Runtime {
-                    deployment: Deployment {
-                        on_host: None,
-                        k8s: None,
-                    },
-                },
-            }
-        }
-    }
 
     #[test]
     fn test_default_embedded_registry() {
@@ -130,12 +107,12 @@ pub mod tests {
         let definitions = vec![
             AgentTypeDefinition::empty_with_metadata(AgentMetadata {
                 name: "agent-1".into(),
-                version: "0.0.0".into(),
+                version: Version::parse("0.0.0").unwrap(),
                 namespace: "ns".into(),
             }),
             AgentTypeDefinition::empty_with_metadata(AgentMetadata {
                 name: "agent-2".into(),
-                version: "0.0.0".into(),
+                version: Version::parse("0.0.0").unwrap(),
                 namespace: "ns".into(),
             }),
         ];
@@ -157,7 +134,7 @@ pub mod tests {
 
         let definition = AgentTypeDefinition::empty_with_metadata(AgentMetadata {
             name: "agent".into(),
-            version: "0.0.0".into(),
+            version: Version::parse("0.0.0").unwrap(),
             namespace: "ns".into(),
         });
         let duplicate = definition.clone();

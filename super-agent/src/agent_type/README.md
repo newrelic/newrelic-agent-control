@@ -7,10 +7,20 @@ Agent Type Definition is a YAML file that defines an agent's configuration and b
 The metadata section contains information about the agent type, such as its name and version. This section also includes the agent's namespace, which is used to organize related agents and their configurations.
 
 ```yaml
-namespace: newrelic/agent-types
+namespace: newrelic
 name: io.opentelemetry.collector
 version: 0.0.1
 ```
+
+### Specification
+The metadata fields can't be empty.
+
+The name and namespace should:
+- start by an alphabetic character.
+- contain only `alphanumeric characters`, `.`, `_` or `-`.
+- be in lowercase.
+
+The version field should follow (semantic versioning)[https://semver.org/].
 
 ## Variables
 

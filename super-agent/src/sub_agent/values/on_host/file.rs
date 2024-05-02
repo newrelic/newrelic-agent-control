@@ -209,6 +209,7 @@ pub mod test {
     use std::fs::Permissions;
     use std::path::Path;
 
+    use crate::agent_type::environment::Environment;
     use crate::super_agent::defaults::default_capabilities;
     #[cfg(target_family = "unix")]
     use std::os::unix::fs::PermissionsExt;
@@ -235,6 +236,29 @@ pub mod test {
         }
     }
 
+    const SIMPLE_AGENT_TYPE: &str = r#"
+namespace: newrelic
+name: first
+version: 0.1.0
+variables:
+  common:
+    config_path:
+      description: "config file string"
+      type: string
+      required: true
+    config_argument:
+      description: "config argument"
+      type: string
+      required: false
+      default: bar
+deployment:
+  on_host:
+    executables:
+      - path: /opt/first
+        args: "--config_path=${nr-var:config_path} --foo=${nr-var:config_argument}"
+        env: ""
+"#;
+
     #[test]
     fn test_load_when_remote_enabled() {
         //Mocks
@@ -245,7 +269,7 @@ pub mod test {
         let remote_enabled = true;
 
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let mut final_agent = AgentType::default();
+        let mut final_agent = AgentType::build_for_testing(SIMPLE_AGENT_TYPE, &Environment::OnHost);
         final_agent.set_capabilities(default_capabilities());
 
         let agent_values_content = "some_config: true\nanother_item: false";
@@ -282,7 +306,7 @@ pub mod test {
         let remote_enabled = false;
 
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let mut final_agent = AgentType::default();
+        let mut final_agent = AgentType::build_for_testing(SIMPLE_AGENT_TYPE, &Environment::OnHost);
         final_agent.set_capabilities(default_capabilities());
 
         let agent_values_content = "some_config: true\nanother_item: false";
@@ -319,7 +343,7 @@ pub mod test {
         let remote_enabled = true;
 
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let mut final_agent = AgentType::default();
+        let mut final_agent = AgentType::build_for_testing(SIMPLE_AGENT_TYPE, &Environment::OnHost);
         final_agent.set_capabilities(default_capabilities());
 
         let agent_values_content = "some_config: true\nanother_item: false";
@@ -361,7 +385,7 @@ pub mod test {
         let remote_enabled = false;
 
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let mut final_agent = AgentType::default();
+        let mut final_agent = AgentType::build_for_testing(SIMPLE_AGENT_TYPE, &Environment::OnHost);
         final_agent.set_capabilities(default_capabilities());
 
         file_rw.should_not_read_file_not_found(
@@ -392,7 +416,7 @@ pub mod test {
         let remote_enabled = true;
 
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let mut final_agent = AgentType::default();
+        let mut final_agent = AgentType::build_for_testing(SIMPLE_AGENT_TYPE, &Environment::OnHost);
         final_agent.set_capabilities(default_capabilities());
 
         file_rw.should_not_read_io_error(Path::new(
@@ -426,7 +450,7 @@ pub mod test {
         let remote_enabled = false;
 
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let mut final_agent = AgentType::default();
+        let mut final_agent = AgentType::build_for_testing(SIMPLE_AGENT_TYPE, &Environment::OnHost);
         final_agent.set_capabilities(default_capabilities());
 
         file_rw.should_not_read_io_error(Path::new(

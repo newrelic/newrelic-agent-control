@@ -111,12 +111,14 @@ pub(crate) mod tests {
         let test_cases = vec![
             TestCase {
                 name: "get only two matching between versions",
-                agent_type_fqn: AgentTypeFQN::from(
+                agent_type_fqn: AgentTypeFQN::try_from(
                     "newrelic/com.newrelic.infrastructure_agent:0.0.1",
+                )
+                .unwrap(),
+                next: Some(
+                    AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure_agent:1.0.0")
+                        .unwrap(),
                 ),
-                next: Some(AgentTypeFQN::from(
-                    "newrelic/com.newrelic.infrastructure_agent:1.0.0",
-                )),
                 agents_cfg: r#"
 agents:
   infra-agent-a:
@@ -133,17 +135,19 @@ agents:
                         (
                             AgentID::new("infra-agent-a").unwrap(),
                             SubAgentConfig {
-                                agent_type: AgentTypeFQN::from(
+                                agent_type: AgentTypeFQN::try_from(
                                     "newrelic/com.newrelic.infrastructure_agent:0.0.2",
-                                ),
+                                )
+                                .unwrap(),
                             },
                         ),
                         (
                             AgentID::new("infra-agent-b").unwrap(),
                             SubAgentConfig {
-                                agent_type: AgentTypeFQN::from(
+                                agent_type: AgentTypeFQN::try_from(
                                     "newrelic/com.newrelic.infrastructure_agent:0.0.3",
-                                ),
+                                )
+                                .unwrap(),
                             },
                         ),
                     ]),
@@ -151,9 +155,10 @@ agents:
             },
             TestCase {
                 name: "get all three matching since version",
-                agent_type_fqn: AgentTypeFQN::from(
+                agent_type_fqn: AgentTypeFQN::try_from(
                     "newrelic/com.newrelic.infrastructure_agent:0.0.1",
-                ),
+                )
+                .unwrap(),
                 next: None,
                 agents_cfg: r#"
 agents:
@@ -171,25 +176,28 @@ agents:
                         (
                             AgentID::new("infra-agent-a").unwrap(),
                             SubAgentConfig {
-                                agent_type: AgentTypeFQN::from(
+                                agent_type: AgentTypeFQN::try_from(
                                     "newrelic/com.newrelic.infrastructure_agent:0.0.2",
-                                ),
+                                )
+                                .unwrap(),
                             },
                         ),
                         (
                             AgentID::new("infra-agent-b").unwrap(),
                             SubAgentConfig {
-                                agent_type: AgentTypeFQN::from(
+                                agent_type: AgentTypeFQN::try_from(
                                     "newrelic/com.newrelic.infrastructure_agent:0.0.3",
-                                ),
+                                )
+                                .unwrap(),
                             },
                         ),
                         (
                             AgentID::new("infra-agent-c").unwrap(),
                             SubAgentConfig {
-                                agent_type: AgentTypeFQN::from(
+                                agent_type: AgentTypeFQN::try_from(
                                     "newrelic/com.newrelic.infrastructure_agent:1.0.3",
-                                ),
+                                )
+                                .unwrap(),
                             },
                         ),
                     ]),
@@ -227,9 +235,10 @@ agents:
         let test_cases = vec![
             TestCase {
                 name: "error no agents higher or equal to version",
-                agent_type_fqn: AgentTypeFQN::from(
+                agent_type_fqn: AgentTypeFQN::try_from(
                     "newrelic/com.newrelic.infrastructure_agent:0.1.0",
-                ),
+                )
+                .unwrap(),
                 next: None,
                 agents_cfg: r#"
 agents:
@@ -243,9 +252,10 @@ agents:
             },
             TestCase {
                 name: "error no agents of namespace",
-                agent_type_fqn: AgentTypeFQN::from(
+                agent_type_fqn: AgentTypeFQN::try_from(
                     "francisco-partners/com.newrelic.infrastructure_agent:0.0.1",
-                ),
+                )
+                .unwrap(),
                 next: None,
                 agents_cfg: r#"
 agents:
