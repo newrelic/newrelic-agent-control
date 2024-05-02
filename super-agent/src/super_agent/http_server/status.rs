@@ -1,11 +1,10 @@
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
-
-use serde::Serialize;
-
-use crate::opamp::{Endpoint, LastErrorCode, LastErrorMessage};
+use crate::opamp::{LastErrorCode, LastErrorMessage};
 use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
 use crate::super_agent::config::{AgentID, AgentTypeFQN};
+use serde::Serialize;
+use std::collections::hash_map::Entry;
+use std::collections::HashMap;
+use url::Url;
 
 // SuperAgentStatus will contain the information about Super Agent health.
 // This information will be shown when the status endpoint is called
@@ -54,7 +53,7 @@ impl SuperAgentStatus {
 #[derive(Debug, Serialize, PartialEq, Default, Clone)]
 pub struct OpAMPStatus {
     enabled: bool,
-    endpoint: Option<Endpoint>,
+    endpoint: Option<Url>,
     reachable: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     error_code: Option<LastErrorCode>,
@@ -198,7 +197,7 @@ pub(super) struct Status {
 }
 
 impl Status {
-    pub fn with_opamp(mut self, endpoint: Endpoint) -> Self {
+    pub fn with_opamp(mut self, endpoint: Url) -> Self {
         self.opamp.enabled = true;
         self.opamp.endpoint = Some(endpoint);
         self
@@ -207,6 +206,8 @@ impl Status {
 
 #[cfg(test)]
 pub mod test {
+    use url::Url;
+
     use crate::opamp::{LastErrorCode, LastErrorMessage};
     use crate::super_agent::config::{AgentID, AgentTypeFQN};
     use crate::super_agent::http_server::status::{
@@ -261,7 +262,7 @@ pub mod test {
     impl OpAMPStatus {
         pub fn new(
             enabled: bool,
-            endpoint: Option<String>,
+            endpoint: Option<Url>,
             reachable: bool,
             error_code: Option<LastErrorCode>,
             error_message: Option<LastErrorMessage>,
@@ -275,7 +276,7 @@ pub mod test {
             }
         }
 
-        pub fn enabled_and_reachable(endpoint: Option<String>) -> Self {
+        pub fn enabled_and_reachable(endpoint: Option<Url>) -> Self {
             OpAMPStatus {
                 enabled: true,
                 endpoint,
@@ -285,7 +286,7 @@ pub mod test {
             }
         }
         pub fn enabled_and_unreachable(
-            endpoint: Option<String>,
+            endpoint: Option<Url>,
             error_code: LastErrorCode,
             error_message: LastErrorMessage,
         ) -> Self {

@@ -86,6 +86,7 @@ mod test {
     use tokio::sync::RwLock;
     use tokio::time::sleep;
 
+    use url::Url;
     use SuperAgentEvent::{SubAgentBecameHealthy, SubAgentBecameUnhealthy};
 
     use crate::event::SuperAgentEvent;
@@ -333,13 +334,15 @@ mod test {
                 super_agent_event: OpAMPConnectFailed(Some(404), String::from("some error msg")),
                 current_status: Arc::new(RwLock::new(Status {
                     super_agent: super_agent_status_random.clone(),
-                    opamp: OpAMPStatus::enabled_and_reachable(Some(String::from("some-endpoint"))),
+                    opamp: OpAMPStatus::enabled_and_reachable(Some(
+                        Url::try_from("127.0.0.1").unwrap(),
+                    )),
                     sub_agents: sub_agents_status_random.clone(),
                 })),
                 expected_status: Status {
                     super_agent: super_agent_status_random.clone(),
                     opamp: OpAMPStatus::enabled_and_unreachable(
-                        Some(String::from("some-endpoint")),
+                        Some(Url::try_from("127.0.0.1").unwrap()),
                         404,
                         String::from("some error msg"),
                     ),
@@ -353,9 +356,16 @@ mod test {
         }
     }
 
+    fn uri_to_url(uri: http::Uri) -> Option<Url> {
+        let uri_str = uri.to_string().as_str();
+        Url::try_from(uri_str).ok()
+    }
+
     // create random OpAMP status
     fn opamp_status_random() -> OpAMPStatus {
-        let endpoint = Some(Faker.fake::<http::Uri>().to_string());
+        // There is no fake instance for the `Url` type, so we will assemble it step by step from an `Uri`,
+        // given that all URLs are URIs but not all URIs are URLs.
+        let endpoint = uri_to_url(Faker.fake::<http::Uri>());
         let reachable = en::Boolean(50).fake::<bool>();
         let enabled = en::Boolean(50).fake::<bool>();
         let error_code = Some((400..599).fake::<u16>());

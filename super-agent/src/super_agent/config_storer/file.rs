@@ -128,8 +128,10 @@ pub(crate) mod tests {
     use crate::super_agent::config::{
         AgentID, AgentTypeFQN, OpAMPClientConfig, SubAgentConfig, SuperAgentConfig,
     };
+    use http::HeaderMap;
     use std::{collections::HashMap, io::Write};
     use tempfile::NamedTempFile;
+    use url::Url;
 
     #[test]
     fn load_agents_local_remote() {
@@ -168,8 +170,8 @@ agents:
             )])
             .into(),
             opamp: Some(OpAMPClientConfig {
-                endpoint: "http://127.0.0.1/v1/opamp".to_string(),
-                headers: None,
+                endpoint: Url::try_from("http://127.0.0.1/v1/opamp").unwrap(),
+                headers: HeaderMap::default(),
             }),
             k8s: None,
             ..Default::default()

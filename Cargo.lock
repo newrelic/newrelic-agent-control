@@ -1371,6 +1371,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "http-serde"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1133cafcce27ea69d35e56b3a8772e265633e04de73c5f4e1afdffc1d19b5419"
+dependencies = [
+ "http 1.1.0",
+ "serde",
+]
+
+[[package]]
 name = "httparse"
 version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1977,6 +1987,7 @@ dependencies = [
  "futures",
  "glob",
  "http 1.1.0",
+ "http-serde",
  "hyper",
  "k8s-openapi",
  "konst",
@@ -3399,6 +3410,7 @@ dependencies = [
  "form_urlencoded",
  "idna",
  "percent-encoding",
+ "serde",
 ]
 
 [[package]]
