@@ -242,17 +242,24 @@ impl Default for K8sConfig {
 }
 
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
+pub fn helm_repository_type_meta() -> TypeMeta {
+    TypeMeta {
+        api_version: "source.toolkit.fluxcd.io/v1beta2".to_string(),
+        kind: "HelmRepository".to_string(),
+    }
+}
+
+#[cfg(all(not(feature = "onhost"), feature = "k8s"))]
+pub fn helm_release_type_meta() -> TypeMeta {
+    TypeMeta {
+        api_version: "helm.toolkit.fluxcd.io/v2beta2".to_string(),
+        kind: "HelmRelease".to_string(),
+    }
+}
+
+#[cfg(all(not(feature = "onhost"), feature = "k8s"))]
 fn default_group_version_kinds() -> Vec<TypeMeta> {
-    vec![
-        TypeMeta {
-            api_version: "source.toolkit.fluxcd.io/v1beta2".to_string(),
-            kind: "HelmRepository".to_string(),
-        },
-        TypeMeta {
-            api_version: "helm.toolkit.fluxcd.io/v2beta2".to_string(),
-            kind: "HelmRelease".to_string(),
-        },
-    ]
+    vec![helm_repository_type_meta(), helm_release_type_meta()]
 }
 
 impl AgentTypeFQN {
