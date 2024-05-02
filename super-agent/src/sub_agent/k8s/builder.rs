@@ -279,7 +279,6 @@ fn validate_k8s_objects(
 #[cfg(test)]
 pub mod test {
     use super::*;
-    use crate::agent_type::agent_metadata::AgentMetadata;
     use crate::agent_type::runtime_config::{Deployment, K8s, Runtime};
     use crate::event::channel::pub_sub;
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
@@ -292,6 +291,7 @@ pub mod test {
     use crate::sub_agent::event_processor::test::MockEventProcessorMock;
     use crate::sub_agent::event_processor_builder::test::MockSubAgentEventProcessorBuilderMock;
     use crate::sub_agent::k8s::sub_agent::test::TEST_AGENT_ID;
+    use crate::super_agent::config::AgentTypeFQN;
     use crate::super_agent::defaults::PARENT_AGENT_ID_ATTRIBUTE_KEY;
     use crate::{
         k8s::client::MockSyncK8sClient, opamp::client_builder::test::MockOpAMPClientBuilderMock,
@@ -306,7 +306,8 @@ pub mod test {
     fn k8s_agent_build_success() {
         let agent_id = AgentID::new(TEST_AGENT_ID).unwrap();
         let sub_agent_config = SubAgentConfig {
-            agent_type: AgentMetadata::default().to_string().as_str().into(),
+            agent_type: AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure_agent:0.0.2")
+                .unwrap(),
         };
 
         // instance K8s client mock
@@ -349,7 +350,8 @@ pub mod test {
     fn build_error_with_invalid_object_kind() {
         let agent_id = AgentID::new(TEST_AGENT_ID).unwrap();
         let sub_agent_config = SubAgentConfig {
-            agent_type: AgentMetadata::default().to_string().as_str().into(),
+            agent_type: AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure_agent:0.0.2")
+                .unwrap(),
         };
 
         // event processor mock

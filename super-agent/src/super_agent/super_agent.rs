@@ -431,13 +431,14 @@ where
 }
 
 pub fn super_agent_fqn() -> AgentTypeFQN {
-    AgentTypeFQN::from(
+    AgentTypeFQN::try_from(
         format!(
             "{}/{}:{}",
             SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION
         )
         .as_str(),
     )
+    .unwrap()
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -831,7 +832,10 @@ agents:
                 Ok(HashMap::from([(
                     AgentID::new("nrdot").unwrap(),
                     SubAgentConfig {
-                        agent_type: AgentTypeFQN::from("newrelic/io.opentelemetry.collector:0.0.1"),
+                        agent_type: AgentTypeFQN::try_from(
+                            "newrelic/io.opentelemetry.collector:0.0.1",
+                        )
+                        .unwrap(),
                     },
                 )])
                 .into())
@@ -950,19 +954,19 @@ agents:
             (
                 AgentID::new("nrdot").unwrap(),
                 SubAgentConfig {
-                    agent_type: AgentTypeFQN::from("fqn_rdot"),
+                    agent_type: AgentTypeFQN::try_from("namespace/fqn_rdot:0.0.1").unwrap(),
                 },
             ),
             (
                 sub_agent_id.clone(),
                 SubAgentConfig {
-                    agent_type: AgentTypeFQN::from("fqn_infra_agent"),
+                    agent_type: AgentTypeFQN::try_from("namespace/fqn_infra_agent:0.0.1").unwrap(),
                 },
             ),
             (
                 AgentID::new("fluent-bit").unwrap(),
                 SubAgentConfig {
-                    agent_type: AgentTypeFQN::from("fqn_fluent_bit"),
+                    agent_type: AgentTypeFQN::try_from("namespace/fqn_fluent_bit:0.0.1").unwrap(),
                 },
             ),
         ]));
@@ -982,7 +986,7 @@ agents:
         sub_agent_builder.should_build_not_started(
             &sub_agent_id,
             SubAgentConfig {
-                agent_type: AgentTypeFQN::from("fqn_infra_agent"),
+                agent_type: AgentTypeFQN::try_from("namespace/fqn_infra_agent:0.0.1").unwrap(),
             },
             not_started_sub_agent,
         );
@@ -1301,7 +1305,7 @@ agents:
 
         // the running sub agent that will be stopped
         let agent_id = AgentID::new("infra-agent").unwrap();
-        let agent_type = AgentTypeFQN::from("some-fqn");
+        let agent_type = AgentTypeFQN::try_from("namespace/some-fqn:0.0.1").unwrap();
         let mut sub_agent = MockStartedSubAgent::new();
         sub_agent.should_stop();
         sub_agent.should_agent_type(agent_type.clone());
@@ -1378,7 +1382,7 @@ agents:
 
         // the running sub agent that will be stopped
         let agent_id = AgentID::new("infra-agent").unwrap();
-        let agent_type = AgentTypeFQN::from("some-fqn");
+        let agent_type = AgentTypeFQN::try_from("namespace/some-fqn:0.0.1").unwrap();
         let mut sub_agent = MockStartedSubAgent::new();
         sub_agent.should_stop();
         sub_agent.should_agent_type(agent_type.clone());
@@ -1475,7 +1479,7 @@ agents:
         let sub_agents_config = SuperAgentDynamicConfig::from(HashMap::from([(
             agent_id.clone(),
             SubAgentConfig {
-                agent_type: AgentTypeFQN::from("some-agent-type"),
+                agent_type: AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
             },
         )]));
         sub_agents_config_store.should_load(&sub_agents_config);
@@ -1568,15 +1572,17 @@ agents:
             (
                 AgentID::new("infra-agent").unwrap(),
                 SubAgentConfig {
-                    agent_type: AgentTypeFQN::from(
+                    agent_type: AgentTypeFQN::try_from(
                         "newrelic/com.newrelic.infrastructure_agent:0.0.1",
-                    ),
+                    )
+                    .unwrap(),
                 },
             ),
             (
                 AgentID::new("nrdot").unwrap(),
                 SubAgentConfig {
-                    agent_type: AgentTypeFQN::from("newrelic/io.opentelemetry.collector:0.0.1"),
+                    agent_type: AgentTypeFQN::try_from("newrelic/io.opentelemetry.collector:0.0.1")
+                        .unwrap(),
                 },
             ),
         ])

@@ -38,6 +38,7 @@ ureq = { workspace = true, features = ["http-crate"] }
 url = { version = "2.5.0" }
 actix-web = "4"
 serde_json = { workspace = true }
+semver = { workspace = true, features = ["serde"] }
 
 # OnHost subagent dependencies
 # IMPORTANT: All onhost only deps needs to be `optional = true` so they won't be compiled by default

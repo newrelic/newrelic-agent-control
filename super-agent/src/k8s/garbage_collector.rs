@@ -247,7 +247,7 @@ pub(crate) mod test {
             agents: HashMap::from([(
                 AgentID::new(agent_id).unwrap(),
                 SubAgentConfig {
-                    agent_type: AgentTypeFQN::from("test"),
+                    agent_type: AgentTypeFQN::try_from("namespace/test:0.0.1").unwrap(),
                 },
             )]),
         }

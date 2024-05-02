@@ -38,7 +38,7 @@ mod test {
     async fn test_handler_without_optional_fields() {
         // Given there is a healthy Sub Agent registered
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let agent_type = AgentTypeFQN::from("some-agent-type");
+        let agent_type = AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap();
         let mut sub_agent_status =
             SubAgentStatus::with_id_and_type(agent_id.clone(), agent_type.clone());
         sub_agent_status.healthy(Healthy::default());
@@ -60,7 +60,7 @@ mod test {
         let request = TestRequest::default().to_http_request();
         let response = responder.respond_to(&request);
 
-        let expected_body = r#"{"super_agent":{"healthy":true},"opamp":{"enabled":true,"endpoint":"some_endpoint","reachable":true},"sub_agents":{"some-agent-id":{"agent_id":"some-agent-id","agent_type":"some-agent-type","healthy":true}}}"#;
+        let expected_body = r#"{"super_agent":{"healthy":true},"opamp":{"enabled":true,"endpoint":"some_endpoint","reachable":true},"sub_agents":{"some-agent-id":{"agent_id":"some-agent-id","agent_type":"namespace/some-agent-type:0.0.1","healthy":true}}}"#;
 
         assert_eq!(
             expected_body,
@@ -76,7 +76,7 @@ mod test {
     async fn test_handler() {
         // Given there is a healthy Sub Agent registered
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let agent_type = AgentTypeFQN::from("some-agent-type");
+        let agent_type = AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap();
         let mut sub_agent_status =
             SubAgentStatus::with_id_and_type(agent_id.clone(), agent_type.clone());
         sub_agent_status.unhealthy(Unhealthy {
@@ -104,7 +104,7 @@ mod test {
         let request = TestRequest::default().to_http_request();
         let response = responder.respond_to(&request);
 
-        let expected_body = r#"{"super_agent":{"healthy":false,"last_error":"this is an error"},"opamp":{"enabled":true,"endpoint":"some_endpoint","reachable":true},"sub_agents":{"some-agent-id":{"agent_id":"some-agent-id","agent_type":"some-agent-type","healthy":false,"last_error":"a sub agent error"}}}"#;
+        let expected_body = r#"{"super_agent":{"healthy":false,"last_error":"this is an error"},"opamp":{"enabled":true,"endpoint":"some_endpoint","reachable":true},"sub_agents":{"some-agent-id":{"agent_id":"some-agent-id","agent_type":"namespace/some-agent-type:0.0.1","healthy":false,"last_error":"a sub agent error"}}}"#;
 
         assert_eq!(
             expected_body,
