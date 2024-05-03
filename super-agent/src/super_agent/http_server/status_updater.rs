@@ -335,14 +335,14 @@ mod test {
                 current_status: Arc::new(RwLock::new(Status {
                     super_agent: super_agent_status_random.clone(),
                     opamp: OpAMPStatus::enabled_and_reachable(Some(
-                        Url::try_from("127.0.0.1").unwrap(),
+                        Url::try_from("http://127.0.0.1").unwrap(),
                     )),
                     sub_agents: sub_agents_status_random.clone(),
                 })),
                 expected_status: Status {
                     super_agent: super_agent_status_random.clone(),
                     opamp: OpAMPStatus::enabled_and_unreachable(
-                        Some(Url::try_from("127.0.0.1").unwrap()),
+                        Some(Url::try_from("http://127.0.0.1").unwrap()),
                         404,
                         String::from("some error msg"),
                     ),
@@ -357,8 +357,8 @@ mod test {
     }
 
     fn uri_to_url(uri: http::Uri) -> Option<Url> {
-        let uri_str = uri.to_string().as_str();
-        Url::try_from(uri_str).ok()
+        let uri_str = uri.to_string();
+        Url::try_from(uri_str.as_str()).ok()
     }
 
     // create random OpAMP status

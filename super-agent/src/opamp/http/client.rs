@@ -29,7 +29,7 @@ impl HttpClientUreq {
     }
 
     fn build_request(&self, extra_headers: &HeaderMap) -> Request {
-        let req = self.client.post(&self.url.to_string());
+        let req = self.client.post(self.url.as_ref());
 
         let headers = self.headers.iter().chain(extra_headers.iter());
 

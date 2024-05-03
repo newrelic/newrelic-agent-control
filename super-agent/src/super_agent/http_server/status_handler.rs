@@ -43,7 +43,7 @@ mod test {
 
         let mut st = Status::default()
             .with_sub_agents(sub_agents.into())
-            .with_opamp(Url::try_from("127.0.0.1").unwrap());
+            .with_opamp(Url::try_from("http://127.0.0.1").unwrap());
 
         st.super_agent.healthy(Healthy::default());
         st.opamp.reachable();
@@ -56,7 +56,7 @@ mod test {
         let request = TestRequest::default().to_http_request();
         let response = responder.respond_to(&request);
 
-        let expected_body = r#"{"super_agent":{"healthy":true},"opamp":{"enabled":true,"endpoint":"127.0.0.1","reachable":true},"sub_agents":{"some-agent-id":{"agent_id":"some-agent-id","agent_type":"some-agent-type","healthy":true}}}"#;
+        let expected_body = r#"{"super_agent":{"healthy":true},"opamp":{"enabled":true,"endpoint":"http://127.0.0.1/","reachable":true},"sub_agents":{"some-agent-id":{"agent_id":"some-agent-id","agent_type":"namespace/some-agent-type:0.0.1","healthy":true}}}"#;
 
         assert_eq!(
             expected_body,
@@ -84,7 +84,7 @@ mod test {
 
         let mut st = Status::default()
             .with_sub_agents(sub_agents.into())
-            .with_opamp(Url::try_from("127.0.0.1").unwrap());
+            .with_opamp(Url::try_from("http://127.0.0.1").unwrap());
 
         st.super_agent.unhealthy(Unhealthy {
             last_error: String::from("this is an error"),
@@ -100,7 +100,7 @@ mod test {
         let request = TestRequest::default().to_http_request();
         let response = responder.respond_to(&request);
 
-        let expected_body = r#"{"super_agent":{"healthy":false,"last_error":"this is an error"},"opamp":{"enabled":true,"endpoint":"127.0.0.1","reachable":true},"sub_agents":{"some-agent-id":{"agent_id":"some-agent-id","agent_type":"some-agent-type","healthy":false,"last_error":"a sub agent error"}}}"#;
+        let expected_body = r#"{"super_agent":{"healthy":false,"last_error":"this is an error"},"opamp":{"enabled":true,"endpoint":"http://127.0.0.1/","reachable":true},"sub_agents":{"some-agent-id":{"agent_id":"some-agent-id","agent_type":"namespace/some-agent-type:0.0.1","healthy":false,"last_error":"a sub agent error"}}}"#;
 
         assert_eq!(
             expected_body,
