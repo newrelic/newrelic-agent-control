@@ -15,7 +15,7 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 async fn test_cloud_id() {
     let (mut address, endpoint) =
         konst::option::unwrap!(option_env!("TEST_IPV4_METADATA_ENDPOINT"))
-            .rsplit_once("/")
+            .rsplit_once('/')
             .expect("Not a valid endpoint, expected format: http://address/endpoint");
     address = address
         .strip_prefix("http://")
