@@ -7,6 +7,9 @@ use duration_str::deserialize_duration;
 use serde::Deserialize;
 use std::{collections::HashMap, time::Duration};
 
+const DEFAULT_HEALTH_CHECK_INTERVAL: Duration = Duration::from_secs(5);
+const DEFAULT_HEALTH_CHECK_TIMEOUT: Duration = Duration::from_secs(5);
+
 /// Represents the configuration for health checks.
 ///
 /// This structure includes parameters to define intervals between health checks,
@@ -14,16 +17,56 @@ use std::{collections::HashMap, time::Duration};
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct HealthConfig {
     /// The duration to wait between health checks.
-    #[serde(deserialize_with = "deserialize_duration")]
-    pub(crate) interval: Duration,
+    pub(crate) interval: HealthCheckInterval,
 
     /// The maximum duration a health check may run before considered failed.
-    #[serde(deserialize_with = "deserialize_duration")]
-    pub(crate) timeout: Duration,
+    pub(crate) timeout: HealthCheckTimeout,
 
     /// Details on the type of health check. Defined by the `HealthCheck` enumeration.
     #[serde(flatten)]
     pub(crate) check: HealthCheck,
+}
+
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq)]
+pub struct HealthCheckInterval(#[serde(deserialize_with = "deserialize_duration")] Duration);
+
+impl From<HealthCheckInterval> for Duration {
+    fn from(value: HealthCheckInterval) -> Self {
+        value.0
+    }
+}
+
+impl From<Duration> for HealthCheckInterval {
+    fn from(value: Duration) -> Self {
+        Self(value)
+    }
+}
+
+impl Default for HealthCheckInterval {
+    fn default() -> Self {
+        Self(DEFAULT_HEALTH_CHECK_INTERVAL)
+    }
+}
+
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq)]
+pub struct HealthCheckTimeout(#[serde(deserialize_with = "deserialize_duration")] Duration);
+
+impl From<HealthCheckTimeout> for Duration {
+    fn from(value: HealthCheckTimeout) -> Self {
+        value.0
+    }
+}
+
+impl From<Duration> for HealthCheckTimeout {
+    fn from(value: Duration) -> Self {
+        Self(value)
+    }
+}
+
+impl Default for HealthCheckTimeout {
+    fn default() -> Self {
+        Self(DEFAULT_HEALTH_CHECK_TIMEOUT)
+    }
 }
 
 /// Enumeration representing the possible types of health checks.
