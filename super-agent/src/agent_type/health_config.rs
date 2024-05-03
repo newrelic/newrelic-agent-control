@@ -7,8 +7,8 @@ use duration_str::deserialize_duration;
 use serde::Deserialize;
 use std::{collections::HashMap, time::Duration};
 
-const DEFAULT_HEALTH_CHECK_INTERVAL: Duration = Duration::from_secs(5);
-const DEFAULT_HEALTH_CHECK_TIMEOUT: Duration = Duration::from_secs(5);
+const DEFAULT_HEALTH_CHECK_INTERVAL: Duration = Duration::from_secs(60);
+const DEFAULT_HEALTH_CHECK_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// Represents the configuration for health checks.
 ///
