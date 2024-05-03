@@ -22,7 +22,7 @@ use opamp_client::operation::capabilities::Capabilities;
 
 /// AgentTypeDefinition represents the definition of an [AgentType]. It defines the variables and runtime for any supported
 /// environment.
-#[derive(Debug, PartialEq, Clone, Default, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Deserialize)]
 pub struct AgentTypeDefinition {
     #[serde(flatten)]
     pub metadata: AgentMetadata,
@@ -45,7 +45,7 @@ pub struct AgentTypeVariables {
 /// Configuration of the Agent Type, contains identification metadata, a set of variables that can be adjusted, and rules of how to execute agents.
 ///
 /// This is the final representation of the agent type once it has been parsed (first into a [`AgentTypeDefinition`]), and it is aware of the corresponding environment.
-#[derive(Debug, PartialEq, Clone, Default)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct AgentType {
     pub metadata: AgentMetadata,
     pub variables: VariableTree,
@@ -227,8 +227,13 @@ impl AgentType {
             .has_capability(AgentCapabilities::AcceptsRemoteConfig)
     }
 
+    // TODO: AgentTypeFQN should not exist and always use the metadata display.
     pub fn agent_type(&self) -> AgentTypeFQN {
-        self.metadata.to_string().as_str().into()
+        self.metadata
+            .to_string()
+            .as_str()
+            .try_into()
+            .expect("incorrect AgentType metadata")
     }
 
     pub fn get_variables(&self) -> Variables {
@@ -375,9 +380,30 @@ pub mod tests {
     };
 
     use super::*;
+    use crate::agent_type::runtime_config::Deployment;
     use assert_matches::assert_matches;
     use serde_yaml::{Error, Number};
     use std::collections::HashMap as Map;
+
+    impl AgentTypeDefinition {
+        /// This helper returns an [AgentTypeDefinition] including only the provided metadata
+        pub fn empty_with_metadata(metadata: AgentMetadata) -> Self {
+            Self {
+                metadata,
+                variables: AgentTypeVariables {
+                    common: VariableTree::default(),
+                    k8s: VariableTree::default(),
+                    on_host: VariableTree::default(),
+                },
+                runtime_config: Runtime {
+                    deployment: Deployment {
+                        on_host: None,
+                        k8s: None,
+                    },
+                },
+            }
+        }
+    }
 
     impl AgentType {
         /// Builds a testing agent-type given the yaml definitions and the environment.
@@ -482,7 +508,7 @@ restart_policy:
 
         assert_eq!("nrdot", agent.metadata.name);
         assert_eq!("newrelic", agent.metadata.namespace);
-        assert_eq!("0.1.0", agent.metadata.version);
+        assert_eq!("0.1.0", agent.metadata.version.to_string());
 
         let on_host = agent.runtime_config.deployment.on_host.clone().unwrap();
 

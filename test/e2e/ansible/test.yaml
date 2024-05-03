@@ -1,6 +1,7 @@
 ---
-- name: Agents registration/unregistration
-  import_playbook: agents_registration_unregistration.yaml
+# TODO try debug again when the API gets stable.
+# - name: Agents registration/unregistration
+#   import_playbook: agents_registration_unregistration.yaml
 
 - name: Super Agent valid remote config
   import_playbook: super_agent_valid_remote_config.yaml

@@ -246,7 +246,6 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::agent_type::agent_metadata::AgentMetadata;
     use crate::agent_type::runtime_config::{Deployment, OnHost, Runtime};
     use crate::event::channel::pub_sub;
     use crate::opamp::client_builder::test::MockOpAMPClientBuilderMock;
@@ -259,6 +258,7 @@ mod test {
     use crate::sub_agent::event_processor::test::MockEventProcessorMock;
     use crate::sub_agent::event_processor_builder::test::MockSubAgentEventProcessorBuilderMock;
     use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
+    use crate::super_agent::config::AgentTypeFQN;
     use crate::super_agent::defaults::{default_capabilities, PARENT_AGENT_ID_ATTRIBUTE_KEY};
     use nix::unistd::gethostname;
     use opamp_client::opamp::proto::RemoteConfigStatus;
@@ -277,15 +277,19 @@ mod test {
         let (opamp_publisher, _opamp_consumer) = pub_sub();
         let mut opamp_builder = MockOpAMPClientBuilderMock::new();
         let hostname = gethostname().unwrap_or_default().into_string().unwrap();
-        let start_settings_infra =
-            infra_agent_default_start_settings(&hostname, "super_agent_instance_id");
+        let sub_agent_config = SubAgentConfig {
+            agent_type: AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure_agent:0.0.2")
+                .unwrap(),
+        };
+        let start_settings_infra = infra_agent_default_start_settings(
+            &hostname,
+            "super_agent_instance_id",
+            &sub_agent_config,
+        );
 
         let super_agent_id = AgentID::new_super_agent_id();
         let sub_agent_id = AgentID::new("infra-agent").unwrap();
         let final_agent = on_host_final_agent(sub_agent_id.clone());
-        let sub_agent_config = SubAgentConfig {
-            agent_type: AgentMetadata::default().to_string().as_str().into(),
-        };
 
         let mut started_client = MockStartedOpAMPClientMock::new();
         started_client.should_set_any_remote_config_status(1);
@@ -350,14 +354,18 @@ mod test {
 
         // Structures
         let hostname = gethostname().unwrap_or_default().into_string().unwrap();
-        let start_settings_infra =
-            infra_agent_default_start_settings(&hostname, "super_agent_instance_id");
+        let sub_agent_config = SubAgentConfig {
+            agent_type: AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure_agent:0.0.2")
+                .unwrap(),
+        };
+        let start_settings_infra = infra_agent_default_start_settings(
+            &hostname,
+            "super_agent_instance_id",
+            &sub_agent_config,
+        );
         let super_agent_id = AgentID::new_super_agent_id();
         let sub_agent_id = AgentID::new("infra-agent").unwrap();
         let final_agent = on_host_final_agent(sub_agent_id.clone());
-        let sub_agent_config = SubAgentConfig {
-            agent_type: AgentMetadata::default().to_string().as_str().into(),
-        };
 
         // Expectations
         // Infra Agent OpAMP no final stop nor health, just after stopping on reload
@@ -427,13 +435,17 @@ mod test {
         )
     }
 
-    fn infra_agent_default_start_settings(hostname: &str, parent_id: &str) -> StartSettings {
+    fn infra_agent_default_start_settings(
+        hostname: &str,
+        parent_id: &str,
+        agent_config: &SubAgentConfig,
+    ) -> StartSettings {
         start_settings(
             "infra_agent_instance_id".to_string(),
             default_capabilities(),
-            "".to_string(),
-            "".to_string(),
-            "".to_string(),
+            agent_config.agent_type.name(),
+            agent_config.agent_type.version(),
+            agent_config.agent_type.namespace(),
             hostname,
             parent_id,
         )

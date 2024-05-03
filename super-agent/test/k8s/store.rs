@@ -28,6 +28,7 @@ use newrelic_super_agent::super_agent::config_storer::storer::{
     SuperAgentDynamicConfigDeleter, SuperAgentDynamicConfigLoader, SuperAgentDynamicConfigStorer,
 };
 use newrelic_super_agent::super_agent::config_storer::SubAgentsConfigStoreConfigMap;
+use semver::Version;
 use serde_yaml::from_str;
 use std::sync::Arc;
 
@@ -121,7 +122,11 @@ fn k8s_value_repository_config_map() {
     let agent_id_2 = AgentID::new(AGENT_ID_2).unwrap();
 
     let agent_type = AgentType::new(
-        AgentMetadata::default(),
+        AgentMetadata {
+            name: "agent".into(),
+            version: Version::parse("0.0.0").unwrap(),
+            namespace: "ns".into(),
+        },
         VariableTree::default(),
         Runtime::default(),
     );

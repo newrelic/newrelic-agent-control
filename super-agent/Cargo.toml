@@ -1,7 +1,7 @@
 [package]
 name = "newrelic_super_agent"
 description = "New Relic Super Agent Limited Preview"
-version = "0.13.1"
+version = "0.14.0"
 edition = "2021"
 authors = ["The New Relic Core Agent & Open Standards (CAOS) Team"]
 publish = false
@@ -38,6 +38,7 @@ ureq = { workspace = true, features = ["http-crate"] }
 url = { version = "2.5.0" }
 actix-web = "4"
 serde_json = { workspace = true }
+semver = { workspace = true, features = ["serde"] }
 
 # OnHost subagent dependencies
 # IMPORTANT: All onhost only deps needs to be `optional = true` so they won't be compiled by default

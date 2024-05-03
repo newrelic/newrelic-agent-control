@@ -37,6 +37,7 @@ mod test {
     use crate::event::channel::pub_sub;
     use crate::event::SuperAgentEvent;
     use crate::event::SuperAgentEvent::{SubAgentBecameHealthy, SuperAgentBecameHealthy};
+    use crate::sub_agent::health::health_checker::Healthy;
     use crate::super_agent::config::{AgentID, AgentTypeFQN};
     use crate::super_agent::http_server::async_bridge::run_async_sync_bridge;
     use std::thread;
@@ -56,7 +57,7 @@ mod test {
         join_handles.push(thread::spawn(move || {
             for _ in 0..5 {
                 super_agent_publisher_clone
-                    .publish(SuperAgentBecameHealthy)
+                    .publish(SuperAgentBecameHealthy(Healthy::default()))
                     .unwrap();
             }
         }));
@@ -66,7 +67,8 @@ mod test {
                 super_agent_publisher
                     .publish(SubAgentBecameHealthy(
                         AgentID::new("some-agent-id").unwrap(),
-                        AgentTypeFQN::from("whatever"),
+                        AgentTypeFQN::try_from("namespace/whatever:0.0.1").unwrap(),
+                        Healthy::default(),
                     ))
                     .unwrap();
             }

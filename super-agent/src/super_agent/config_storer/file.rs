@@ -146,7 +146,7 @@ opamp:
         let remote_config = r#"
 agents:
   rolldice:
-    agent_type: "com.newrelic.infrastructure_agent:0.0.2"
+    agent_type: "namespace/com.newrelic.infrastructure_agent:0.0.2"
 "#;
         write!(remote_file, "{}", remote_config).unwrap();
 
@@ -160,7 +160,10 @@ agents:
             dynamic: HashMap::from([(
                 AgentID::new("rolldice").unwrap(),
                 SubAgentConfig {
-                    agent_type: AgentTypeFQN::from("com.newrelic.infrastructure_agent:0.0.2"),
+                    agent_type: AgentTypeFQN::try_from(
+                        "namespace/com.newrelic.infrastructure_agent:0.0.2",
+                    )
+                    .unwrap(),
                 },
             )])
             .into(),

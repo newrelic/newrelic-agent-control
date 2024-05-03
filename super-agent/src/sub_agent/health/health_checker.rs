@@ -1,17 +1,105 @@
 use std::time::Duration;
 
+use thiserror::Error;
+
 use crate::agent_type::health_config::{HealthCheck, HealthConfig};
 
 use super::http::HttpHealthChecker;
 
+#[derive(Debug, PartialEq)]
+pub enum Health {
+    Healthy(Healthy),
+    Unhealthy(Unhealthy),
+}
+
+impl From<Healthy> for Health {
+    fn from(healthy: Healthy) -> Self {
+        Health::Healthy(healthy)
+    }
+}
+
+impl From<Unhealthy> for Health {
+    fn from(unhealthy: Unhealthy) -> Self {
+        Health::Unhealthy(unhealthy)
+    }
+}
+
+/// A HealthCheckerError also means the agent is unhealthy.
+impl From<HealthCheckerError> for Health {
+    fn from(err: HealthCheckerError) -> Self {
+        Health::Unhealthy(err.into())
+    }
+}
+
+impl From<HealthCheckerError> for Unhealthy {
+    fn from(err: HealthCheckerError) -> Self {
+        Unhealthy {
+            last_error: err.0,
+            status: Default::default(),
+        }
+    }
+}
+
+/// Represents the healthy state of the agent and its associated data.
+/// See OpAMP's [spec](https://github.com/open-telemetry/opamp-spec/blob/main/specification.md#componenthealthstatus)
+/// for more details.
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct Healthy {
+    pub status: String,
+}
+
+impl Healthy {
+    pub fn status(&self) -> &str {
+        &self.status
+    }
+}
+
+/// Represents the unhealthy state of the agent and its associated data.
+/// See OpAMP's [spec](https://github.com/open-telemetry/opamp-spec/blob/main/specification.md#componenthealthstatus)
+/// for more details.
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct Unhealthy {
+    pub status: String,
+    pub last_error: String,
+}
+
+impl Unhealthy {
+    pub fn status(&self) -> &str {
+        &self.status
+    }
+
+    pub fn last_error(&self) -> &str {
+        &self.last_error
+    }
+}
+
+impl Health {
+    pub fn status(&self) -> &str {
+        match self {
+            Health::Healthy(healthy) => healthy.status(),
+            Health::Unhealthy(unhealthy) => unhealthy.status(),
+        }
+    }
+
+    pub fn is_healthy(&self) -> bool {
+        matches!(self, Health::Healthy { .. })
+    }
+
+    pub fn last_error(&self) -> Option<&str> {
+        if let Health::Unhealthy(unhealthy) = self {
+            Some(unhealthy.last_error())
+        } else {
+            None
+        }
+    }
+}
+
 /// A type that implements a health checking mechanism.
 pub trait HealthChecker {
-    /// Check the health of the agent. `Ok(())` means the agent is healthy. Otherwise,
-    /// we will have an `Err(e)` where `e` is the error with agent-specific semantics
-    /// with which we will build the OpAMP's `ComponentHealth.status` contents.
+    /// Check the health of the agent.
     /// See OpAMP's [spec](https://github.com/open-telemetry/opamp-spec/blob/main/specification.md#componenthealthstatus)
     /// for more details.
-    fn check_health(&self) -> Result<(), HealthCheckerError>;
+    fn check_health(&self) -> Result<Health, HealthCheckerError>;
 
     fn interval(&self) -> Duration;
 }
@@ -20,28 +108,14 @@ pub(crate) enum HealthCheckerType {
     Http(HttpHealthChecker),
 }
 
-/// Health check errors. Its structure mimics the OpAMP's spec for containing relevant information
-#[derive(Debug)]
-pub struct HealthCheckerError {
-    /// Status contents using agent-specific semantics. This might be the response body of an HTTP
-    /// checker or the stdout/stderr of an exec checker.
-    #[allow(dead_code)]
-    /// The use of OpAMP status field on health is not implemented yet by the super-agent.
-    status: String,
-
-    /// Error information in human-readable format. We could use this to specify what kind of checker
-    /// failed, e.g., "HTTP checker failed with error: {error}". While passing the raw error to the
-    /// `status` field.
-    last_error: String,
-}
+/// Health check errors.
+#[derive(Debug, Error, PartialEq)]
+#[error("Health check error: {0}")]
+pub struct HealthCheckerError(String);
 
 impl HealthCheckerError {
-    pub fn new(status: String, last_error: String) -> Self {
-        Self { status, last_error }
-    }
-
-    pub fn last_error(self) -> String {
-        self.last_error
+    pub fn new(err: String) -> Self {
+        Self(err)
     }
 }
 
@@ -61,7 +135,7 @@ impl TryFrom<HealthConfig> for HealthCheckerType {
 }
 
 impl HealthChecker for HealthCheckerType {
-    fn check_health(&self) -> Result<(), HealthCheckerError> {
+    fn check_health(&self) -> Result<Health, HealthCheckerError> {
         match self {
             HealthCheckerType::Http(http_checker) => http_checker.check_health(),
         }

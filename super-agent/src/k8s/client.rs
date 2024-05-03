@@ -3,6 +3,7 @@ use super::{
     error::K8sError::UnexpectedKind,
     reader::{DynamicObjectReflector, ReflectorBuilder},
 };
+use crate::super_agent::config::helm_release_type_meta;
 use k8s_openapi::api::core::v1::{ConfigMap, Namespace};
 use kube::api::entry::Entry;
 use kube::{
@@ -126,6 +127,11 @@ impl SyncK8sClient {
             key,
             value,
         ))
+    }
+
+    pub fn get_helm_release(&self, name: &str) -> Result<Option<Arc<DynamicObject>>, K8sError> {
+        let tm = helm_release_type_meta();
+        self.get_dynamic_object(&tm, name)
     }
 
     pub fn delete_configmap_key(&self, configmap_name: &str, key: &str) -> Result<(), K8sError> {

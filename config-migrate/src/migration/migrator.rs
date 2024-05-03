@@ -109,17 +109,19 @@ mod test {
             (
                 agent_a.clone(),
                 SubAgentConfig {
-                    agent_type: AgentTypeFQN::from(
+                    agent_type: AgentTypeFQN::try_from(
                         "newrelic/com.newrelic.infrastructure_agent:0.0.2",
-                    ),
+                    )
+                    .unwrap(),
                 },
             ),
             (
                 agent_b.clone(),
                 SubAgentConfig {
-                    agent_type: AgentTypeFQN::from(
+                    agent_type: AgentTypeFQN::try_from(
                         "newrelic/com.newrelic.infrastructure_agent:0.0.2",
-                    ),
+                    )
+                    .unwrap(),
                 },
             ),
         ]);
@@ -158,7 +160,10 @@ mod test {
         let migrator = ConfigMigrator::new(config_converter, agent_config_getter, values_persister);
 
         let agent_config_mapping = MigrationAgentConfig {
-            agent_type_fqn: AgentTypeFQN::from("newrelic/com.newrelic.infrastructure_agent:0.0.1"),
+            agent_type_fqn: AgentTypeFQN::try_from(
+                "newrelic/com.newrelic.infrastructure_agent:0.0.1",
+            )
+            .unwrap(),
             files_map: Default::default(),
             dirs_map: Default::default(),
             next: None,

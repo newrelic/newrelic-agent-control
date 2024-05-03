@@ -58,4 +58,7 @@ pub enum AgentTypeError {
 
     #[error("Conflicting variable definition: `{0}`")]
     ConflictingVariableDefinition(String),
+
+    #[error("Value can't be empty for key `{0}`")]
+    EmptyValue(String),
 }

@@ -23,32 +23,32 @@ pub(super) async fn on_super_agent_event_update_status(
 async fn update_status(super_agent_event: SuperAgentEvent, status: Arc<RwLock<Status>>) {
     let mut status = status.write().await;
     match super_agent_event {
-        SuperAgentEvent::SuperAgentBecameHealthy => {
+        SuperAgentEvent::SuperAgentBecameHealthy(healthy) => {
             debug!("status_http_server event_processor super_agent_became_healthy");
-            status.super_agent.healthy();
+            status.super_agent.healthy(healthy);
         }
-        SuperAgentEvent::SuperAgentBecameUnhealthy(error_msg) => {
+        SuperAgentEvent::SuperAgentBecameUnhealthy(unhealthy) => {
             debug!(
-                error_msg,
+                last_error = unhealthy.last_error(),
                 "status_http_server event_processor super_agent_became_unhealthy"
             );
-            status.super_agent.unhealthy(error_msg);
+            status.super_agent.unhealthy(unhealthy);
         }
-        SuperAgentEvent::SubAgentBecameUnhealthy(agent_id, agent_type, error_msg) => {
-            debug!(error_msg, %agent_id, %agent_type, "status_http_server event_processor sub_agent_became_unhealthy");
+        SuperAgentEvent::SubAgentBecameUnhealthy(agent_id, agent_type, unhealthy) => {
+            debug!(error_msg = unhealthy.last_error(), %agent_id, %agent_type, "status_http_server event_processor sub_agent_became_unhealthy");
             status
                 .sub_agents
                 .entry(agent_id.clone())
                 .or_insert_with(|| SubAgentStatus::with_id_and_type(agent_id, agent_type))
-                .unhealthy(error_msg);
+                .unhealthy(unhealthy);
         }
-        SuperAgentEvent::SubAgentBecameHealthy(agent_id, agent_type) => {
+        SuperAgentEvent::SubAgentBecameHealthy(agent_id, agent_type, healthy) => {
             debug!(%agent_id, %agent_type, "status_http_server event_processor sub_agent_became_healthy");
             status
                 .sub_agents
                 .entry(agent_id.clone())
                 .or_insert_with(|| SubAgentStatus::with_id_and_type(agent_id, agent_type))
-                .healthy();
+                .healthy(healthy);
         }
         SuperAgentEvent::SubAgentRemoved(agent_id) => {
             status.sub_agents.remove(&agent_id);
@@ -78,6 +78,7 @@ mod test {
     use std::time::Duration;
 
     use fake::faker::boolean::en;
+    use fake::faker::filesystem::en::Semver;
     use fake::faker::lorem::en::{Word, Words};
     use fake::{Fake, Faker};
     use tokio::runtime::Handle;
@@ -92,7 +93,7 @@ mod test {
         OpAMPConnectFailed, SubAgentRemoved, SuperAgentBecameHealthy, SuperAgentBecameUnhealthy,
         SuperAgentStopped,
     };
-    use crate::opamp::LastErrorMessage;
+    use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
     use crate::super_agent::config::{AgentID, AgentTypeFQN};
     use crate::super_agent::http_server::status::{
         OpAMPStatus, Status, SubAgentStatus, SubAgentsStatus, SuperAgentStatus,
@@ -126,34 +127,37 @@ mod test {
         let tests = vec![
             Test {
                 _name: "Unhealthy Super Agent becomes healthy",
-                super_agent_event: SuperAgentBecameHealthy,
+                super_agent_event: SuperAgentBecameHealthy(Healthy {
+                    status: "some status".to_string(),
+                }),
                 current_status: Arc::new(RwLock::new(Status {
                     super_agent: SuperAgentStatus::new_unhealthy(
-                        Some(String::from("some status")),
+                        String::from("some status"),
                         String::from("some error"),
                     ),
                     opamp: opamp_status_random.clone(),
                     sub_agents: sub_agents_status_random.clone(),
                 })),
                 expected_status: Status {
-                    super_agent: SuperAgentStatus::new_healthy(Some(String::from("some status"))),
+                    super_agent: SuperAgentStatus::new_healthy(String::from("some status")),
                     opamp: opamp_status_random.clone(),
                     sub_agents: sub_agents_status_random.clone(),
                 },
             },
             Test {
                 _name: "Healthy Super Agent becomes unhealthy",
-                super_agent_event: SuperAgentBecameUnhealthy(String::from(
-                    "some error message for super agent unhealthy",
-                )),
+                super_agent_event: SuperAgentBecameUnhealthy(Unhealthy {
+                    last_error: "some error message for super agent unhealthy".to_string(),
+                    status: "some status".to_string(),
+                }),
                 current_status: Arc::new(RwLock::new(Status {
-                    super_agent: SuperAgentStatus::new_healthy(Some(String::from("some status"))),
+                    super_agent: SuperAgentStatus::new_healthy(String::from("some status")),
                     opamp: opamp_status_random.clone(),
                     sub_agents: sub_agents_status_random.clone(),
                 })),
                 expected_status: Status {
                     super_agent: SuperAgentStatus::new_unhealthy(
-                        Some(String::from("some status")),
+                        String::from("some status"),
                         String::from("some error message for super agent unhealthy"),
                     ),
                     opamp: opamp_status_random.clone(),
@@ -164,7 +168,8 @@ mod test {
                 _name: "Sub Agent first healthy event should add it to the list",
                 super_agent_event: SubAgentBecameHealthy(
                     AgentID::new("some-agent-id").unwrap(),
-                    AgentTypeFQN::from("some-agent-type"),
+                    AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                    Healthy::default(),
                 ),
                 current_status: Arc::new(RwLock::new(Status {
                     super_agent: super_agent_status_random.clone(),
@@ -178,8 +183,8 @@ mod test {
                         AgentID::new("some-agent-id").unwrap(),
                         SubAgentStatus::new(
                             AgentID::new("some-agent-id").unwrap(),
-                            AgentTypeFQN::from("some-agent-type"),
-                            None,
+                            AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                            String::default(),
                             true,
                             None,
                         ),
@@ -190,8 +195,11 @@ mod test {
                 _name: "Sub Agent first unhealthy event should add it to the list",
                 super_agent_event: SubAgentBecameUnhealthy(
                     AgentID::new("some-agent-id").unwrap(),
-                    AgentTypeFQN::from("some-agent-type"),
-                    LastErrorMessage::from("this is an error message"),
+                    AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                    Unhealthy {
+                        last_error: String::from("this is an error message"),
+                        ..Default::default()
+                    },
                 ),
                 current_status: Arc::new(RwLock::new(Status {
                     super_agent: super_agent_status_random.clone(),
@@ -205,8 +213,8 @@ mod test {
                         AgentID::new("some-agent-id").unwrap(),
                         SubAgentStatus::new(
                             AgentID::new("some-agent-id").unwrap(),
-                            AgentTypeFQN::from("some-agent-type"),
-                            None,
+                            AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                            String::default(),
                             false,
                             Some(String::from("this is an error message")),
                         ),
@@ -217,8 +225,11 @@ mod test {
                 _name: "Sub Agent second unhealthy event should change existing one",
                 super_agent_event: SubAgentBecameUnhealthy(
                     AgentID::new("some-agent-id").unwrap(),
-                    AgentTypeFQN::from("some-agent-type"),
-                    LastErrorMessage::from("this is an error message"),
+                    AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                    Unhealthy {
+                        last_error: String::from("this is an error message"),
+                        ..Default::default()
+                    },
                 ),
                 current_status: Arc::new(RwLock::new(Status {
                     super_agent: super_agent_status_random.clone(),
@@ -228,8 +239,8 @@ mod test {
                             AgentID::new("some-agent-id").unwrap(),
                             SubAgentStatus::new(
                                 AgentID::new("some-agent-id").unwrap(),
-                                AgentTypeFQN::from("some-agent-type"),
-                                None,
+                                AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                                String::default(),
                                 true,
                                 Some(String::default()),
                             ),
@@ -238,8 +249,8 @@ mod test {
                             AgentID::new("some-other-id").unwrap(),
                             SubAgentStatus::new(
                                 AgentID::new("some-other-id").unwrap(),
-                                AgentTypeFQN::from("some-other-type"),
-                                None,
+                                AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                                String::default(),
                                 true,
                                 Some(String::default()),
                             ),
@@ -254,8 +265,8 @@ mod test {
                             AgentID::new("some-agent-id").unwrap(),
                             SubAgentStatus::new(
                                 AgentID::new("some-agent-id").unwrap(),
-                                AgentTypeFQN::from("some-agent-type"),
-                                None,
+                                AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                                String::default(),
                                 false,
                                 Some(String::from("this is an error message")),
                             ),
@@ -264,8 +275,8 @@ mod test {
                             AgentID::new("some-other-id").unwrap(),
                             SubAgentStatus::new(
                                 AgentID::new("some-other-id").unwrap(),
-                                AgentTypeFQN::from("some-other-type"),
-                                None,
+                                AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                                String::default(),
                                 true,
                                 Some(String::default()),
                             ),
@@ -284,8 +295,8 @@ mod test {
                             AgentID::new("some-agent-id").unwrap(),
                             SubAgentStatus::new(
                                 AgentID::new("some-agent-id").unwrap(),
-                                AgentTypeFQN::from("some-agent-type"),
-                                None,
+                                AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                                String::default(),
                                 true,
                                 Some(String::default()),
                             ),
@@ -294,8 +305,8 @@ mod test {
                             AgentID::new("some-other-id").unwrap(),
                             SubAgentStatus::new(
                                 AgentID::new("some-other-id").unwrap(),
-                                AgentTypeFQN::from("some-other-type"),
-                                None,
+                                AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                                String::default(),
                                 true,
                                 Some(String::default()),
                             ),
@@ -309,8 +320,8 @@ mod test {
                         AgentID::new("some-other-id").unwrap(),
                         SubAgentStatus::new(
                             AgentID::new("some-other-id").unwrap(),
-                            AgentTypeFQN::from("some-other-type"),
-                            None,
+                            AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                            String::default(),
                             true,
                             Some(String::default()),
                         ),
@@ -358,10 +369,7 @@ mod test {
         let healthy = en::Boolean(50).fake::<bool>();
 
         //random status
-        let status = en::Boolean(50)
-            .fake::<bool>()
-            .then_some(Word().fake::<String>())
-            .or(None);
+        let status = Word().fake::<String>();
 
         if healthy {
             SuperAgentStatus::new_healthy(status.clone())
@@ -377,12 +385,15 @@ mod test {
             .then_some(Words(3..5).fake::<Vec<String>>().join(" "))
             .or(Some(String::default()));
         let agent_id = AgentID::new(Word().fake::<&str>()).unwrap();
-        let agent_type = AgentTypeFQN::from(Word().fake::<&str>());
+        let agent_type_fqn = format!(
+            "{}/{}:{}",
+            Word().fake::<&str>(),
+            Word().fake::<&str>(),
+            Semver().fake::<String>(),
+        );
+        let agent_type = AgentTypeFQN::try_from(agent_type_fqn.as_str()).unwrap();
         //random status
-        let status = en::Boolean(50)
-            .fake::<bool>()
-            .then_some(Word().fake::<String>())
-            .or(None);
+        let status = Word().fake::<String>();
 
         SubAgentStatus::new(agent_id, agent_type, status, healthy, last_error)
     }
