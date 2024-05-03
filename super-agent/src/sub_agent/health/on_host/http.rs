@@ -1,11 +1,10 @@
 use crate::agent_type::health_config::{
-    HealthCheckInterval, HealthCheckTimeout, HttpHealth, OnHostHealthCheck, OnHostHealthConfig,
+    HealthCheckTimeout, HttpHealth, OnHostHealthCheck, OnHostHealthConfig,
 };
 use crate::sub_agent::health::health_checker::{
     Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
 use std::collections::HashMap;
-use std::time::Duration;
 use thiserror::Error;
 use tracing::error;
 use url::Url;
@@ -27,12 +26,11 @@ impl TryFrom<OnHostHealthConfig> for HealthCheckerType {
     type Error = HealthCheckerError;
 
     fn try_from(health_config: OnHostHealthConfig) -> Result<Self, Self::Error> {
-        let interval = health_config.interval;
         let timeout = health_config.timeout;
 
         match health_config.check {
             OnHostHealthCheck::HttpHealth(http_config) => Ok(HealthCheckerType::Http(
-                HttpHealthChecker::new(interval, timeout, http_config)?,
+                HttpHealthChecker::new(timeout, http_config)?,
             )),
         }
     }
@@ -42,12 +40,6 @@ impl HealthChecker for HealthCheckerType {
     fn check_health(&self) -> Result<Health, HealthCheckerError> {
         match self {
             HealthCheckerType::Http(http_checker) => http_checker.check_health(),
-        }
-    }
-
-    fn interval(&self) -> Duration {
-        match self {
-            HealthCheckerType::Http(http_checker) => http_checker.interval(),
         }
     }
 }
@@ -93,13 +85,11 @@ where
     client: C,
     url: Url,
     headers: HashMap<String, String>,
-    interval: HealthCheckInterval,
     healthy_status_codes: Vec<u16>,
 }
 
 impl HttpHealthChecker<ureq::Agent> {
     pub(crate) fn new(
-        interval: HealthCheckInterval,
         timeout: HealthCheckTimeout,
         http_config: HttpHealth,
     ) -> Result<Self, HealthCheckerError> {
@@ -126,7 +116,6 @@ impl HttpHealthChecker<ureq::Agent> {
                 .build(),
             url,
             headers,
-            interval,
             healthy_status_codes,
         })
     }
@@ -154,10 +143,6 @@ impl<C: HttpClient> HealthChecker for HttpHealthChecker<C> {
         );
 
         Ok(Unhealthy { status, last_error }.into())
-    }
-
-    fn interval(&self) -> Duration {
-        self.interval.into()
     }
 }
 
@@ -196,7 +181,6 @@ pub(crate) mod test {
             client: client_mock,
             url: Url::parse(url.as_str()).unwrap(),
             headers: Default::default(),
-            interval: Default::default(),
             healthy_status_codes: vec![],
         };
 
@@ -224,7 +208,6 @@ pub(crate) mod test {
             client: client_mock,
             url: Url::parse(url.as_str()).unwrap(),
             headers: Default::default(),
-            interval: Default::default(),
             healthy_status_codes: vec![],
         };
 
@@ -246,7 +229,6 @@ pub(crate) mod test {
             client: client_mock,
             url: Url::parse(url.as_str()).unwrap(),
             headers: Default::default(),
-            interval: Default::default(),
             healthy_status_codes: vec![],
         };
 
@@ -274,7 +256,6 @@ pub(crate) mod test {
             client: client_mock,
             url: Url::parse(url.as_str()).unwrap(),
             headers: Default::default(),
-            interval: Default::default(),
             healthy_status_codes: vec![200],
         };
 
@@ -298,7 +279,6 @@ pub(crate) mod test {
             client: client_mock,
             url: Url::parse(url.as_str()).unwrap(),
             headers: Default::default(),
-            interval: Default::default(),
             healthy_status_codes: vec![201],
         };
 
@@ -318,7 +298,6 @@ pub(crate) mod test {
             client: client_mock,
             url: Url::parse(url.as_str()).unwrap(),
             headers: Default::default(),
-            interval: Default::default(),
             healthy_status_codes: vec![501],
         };
 

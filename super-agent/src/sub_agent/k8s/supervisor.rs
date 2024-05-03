@@ -114,18 +114,14 @@ impl CRSupervisor {
     ) -> Result<Option<EventPublisher<()>>, SupervisorError> {
         if let Some(health_config) = self.k8s_config.health.clone() {
             let (stop_health_publisher, stop_health_consumer) = pub_sub();
-
-            let k8s_health_checker = K8sHealthChecker::try_new(
-                self.k8s_client.clone(),
-                resources,
-                health_config.interval,
-            )?;
+            let k8s_health_checker = K8sHealthChecker::try_new(self.k8s_client.clone(), resources)?;
 
             spawn_health_checker(
                 self.agent_id.clone(),
                 k8s_health_checker,
                 stop_health_consumer,
                 health_publisher,
+                health_config.interval,
             );
             return Ok(Some(stop_health_publisher));
         }

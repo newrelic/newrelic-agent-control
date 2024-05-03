@@ -1,8 +1,8 @@
+use crate::agent_type::health_config::HealthCheckInterval;
 use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::SubAgentInternalEvent;
 use crate::super_agent::config::AgentID;
 use std::thread;
-use std::time::Duration;
 use thiserror::Error;
 use tracing::{debug, error};
 
@@ -100,8 +100,6 @@ pub trait HealthChecker {
     /// See OpAMP's [spec](https://github.com/open-telemetry/opamp-spec/blob/main/specification.md#componenthealthstatus)
     /// for more details.
     fn check_health(&self) -> Result<Health, HealthCheckerError>;
-
-    fn interval(&self) -> Duration;
 }
 
 /// Health check errors.
@@ -120,11 +118,12 @@ pub(crate) fn spawn_health_checker<H>(
     health_checker: H,
     cancel_signal: EventConsumer<()>,
     health_publisher: EventPublisher<SubAgentInternalEvent>,
+    interval: HealthCheckInterval,
 ) where
     H: HealthChecker + Send + 'static,
 {
     thread::spawn(move || loop {
-        thread::sleep(health_checker.interval());
+        thread::sleep(interval.into());
 
         // Check cancellation signal.
         // As we don't need any data to be sent, the `publish` call of the sender only sends `()`

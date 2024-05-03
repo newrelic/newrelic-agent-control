@@ -1,4 +1,3 @@
-use crate::agent_type::health_config::HealthCheckInterval;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::sub_agent::health::health_checker::{
@@ -8,26 +7,22 @@ use crate::sub_agent::health::k8s::helm_release::K8sHealthFluxHelmRelease;
 use crate::super_agent::config::helm_release_type_meta;
 use kube::api::DynamicObject;
 use std::sync::Arc;
-use std::time::Duration;
 
 /// K8sHealthChecker contains a collection of healthChecks that are queried to provide a unified health value
 pub struct K8sHealthChecker {
     releases_helm_checkers: Vec<K8sHealthFluxHelmRelease>,
-    interval: HealthCheckInterval,
 }
 
 impl K8sHealthChecker {
     pub fn try_new(
         k8s_client: Arc<SyncK8sClient>,
         resources: Vec<DynamicObject>,
-        interval: HealthCheckInterval,
     ) -> Result<Self, HealthCheckerError> {
         Ok(Self {
             releases_helm_checkers: K8sHealthChecker::get_releases_helm_checkers(
                 k8s_client.clone(),
                 resources,
             )?,
-            interval,
         })
     }
 
@@ -70,10 +65,6 @@ impl HealthChecker for K8sHealthChecker {
 
         Ok(Healthy::default().into())
     }
-
-    fn interval(&self) -> Duration {
-        self.interval.into()
-    }
 }
 
 #[cfg(test)]
@@ -87,21 +78,16 @@ pub mod test {
     use kube::api::DynamicObject;
     use serde_json::json;
     use std::sync::Arc;
-    use std::time::Duration;
 
     #[test]
     fn no_resource_set() {
         let mock_client = MockSyncK8sClient::default();
 
-        assert!(K8sHealthChecker::try_new(
-            Arc::new(mock_client),
-            vec![],
-            Duration::from_secs(3).into()
-        )
-        .unwrap()
-        .check_health()
-        .unwrap()
-        .is_healthy());
+        assert!(K8sHealthChecker::try_new(Arc::new(mock_client), vec![])
+            .unwrap()
+            .check_health()
+            .unwrap()
+            .is_healthy());
     }
 
     #[test]
@@ -114,8 +100,7 @@ pub mod test {
                 types: Some(helm_release_type_meta()),
                 metadata: Default::default(),
                 data: Default::default(),
-            }],
-            Duration::from_secs(3).into()
+            }]
         )
         .is_err());
     }
@@ -139,14 +124,12 @@ pub mod test {
             },
         };
 
-        assert!(!K8sHealthChecker::try_new(
-            Arc::new(mock_client),
-            vec![monitored_obj],
-            Duration::from_secs(3).into()
+        assert!(
+            !K8sHealthChecker::try_new(Arc::new(mock_client), vec![monitored_obj])
+                .unwrap()
+                .check_health()
+                .unwrap()
+                .is_healthy()
         )
-        .unwrap()
-        .check_health()
-        .unwrap()
-        .is_healthy())
     }
 }

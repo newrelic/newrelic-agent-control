@@ -193,19 +193,17 @@ pub fn build_agent_type(
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use super::*;
     use crate::agent_type::agent_metadata::AgentMetadata;
-    use assert_matches::assert_matches;
-    use mockall::{mock, predicate};
-    use semver::Version;
-
     use crate::agent_type::agent_type_registry::tests::MockAgentRegistryMock;
     use crate::agent_type::agent_values::AgentValues;
     use crate::agent_type::definition::AgentTypeDefinition;
     use crate::agent_type::renderer::tests::MockRendererMock;
     use crate::agent_type::runtime_config;
     use crate::sub_agent::values::values_repository::test::MockRemoteValuesRepositoryMock;
-
-    use super::*;
+    use assert_matches::assert_matches;
+    use mockall::{mock, predicate};
+    use semver::Version;
 
     mock! {
         pub(crate) EffectiveAgentAssemblerMock {}
@@ -226,7 +224,7 @@ pub(crate) mod tests {
             agent_id: &AgentID,
             agent_cfg: &SubAgentConfig,
             environment: &Environment,
-            efective_agent: EffectiveAgent,
+            effective_agent: EffectiveAgent,
         ) {
             self.expect_assemble_agent()
                 .once()
@@ -235,7 +233,7 @@ pub(crate) mod tests {
                     predicate::eq(agent_cfg.clone()),
                     predicate::eq(environment.clone()),
                 )
-                .returning(move |_, _, _| Ok(efective_agent.clone()));
+                .returning(move |_, _, _| Ok(effective_agent.clone()));
         }
     }
 

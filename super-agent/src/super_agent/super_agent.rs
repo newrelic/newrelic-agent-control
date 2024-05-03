@@ -246,7 +246,6 @@ where
                             .inspect_err(|e| error!(error_msg = e.to_string(),"cannot publish super_agent_event::super_agent_opamp_connect_failed"));
                         }
                     }
-
                 },
                 recv(application_event_consumer.as_ref()) -> _super_agent_event => {
                     debug!("stopping Super Agent event processor");
