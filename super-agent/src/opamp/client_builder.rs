@@ -43,12 +43,8 @@ pub trait OpAMPClientBuilder<CB: Callbacks> {
     ) -> Result<Self::Client, OpAMPClientBuilderError>;
 }
 
-pub fn build_http_client(
-    config: &OpAMPClientConfig,
-) -> Result<HttpClientUreq, OpAMPClientBuilderError> {
-    let http_client = HttpClientUreq::from(config);
-
-    Ok(http_client)
+pub fn build_http_client(config: &OpAMPClientConfig) -> HttpClientUreq {
+    HttpClientUreq::from(config)
 }
 
 pub struct OpAMPHttpClientBuilder {
@@ -73,7 +69,7 @@ impl OpAMPClientBuilder<AgentCallbacks> for OpAMPHttpClientBuilder {
         agent_id: AgentID,
         start_settings: StartSettings,
     ) -> Result<Self::Client, OpAMPClientBuilderError> {
-        let http_client = build_http_client(&self.config)?;
+        let http_client = build_http_client(&self.config);
         let callbacks = AgentCallbacks::new(agent_id, opamp_publisher);
         let not_started_client = NotStartedHttpClient::new(http_client);
         let started_client = not_started_client.start(callbacks, start_settings)?;
