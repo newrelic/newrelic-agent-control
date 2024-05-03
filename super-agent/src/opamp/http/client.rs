@@ -2,10 +2,10 @@
 use http::{HeaderMap, Response};
 use opamp_client::http::http_client::HttpClient;
 use opamp_client::http::HttpClientError;
-use url::Url;
 use std::io::Cursor;
 use std::time::Duration;
 use ureq::Request;
+use url::Url;
 
 use crate::super_agent::config::OpAMPClientConfig;
 
