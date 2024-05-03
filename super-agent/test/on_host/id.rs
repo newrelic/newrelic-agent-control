@@ -46,7 +46,7 @@ async fn test_cloud_id() {
 
         let id = IdentifiersProvider::default().provide().unwrap();
 
-        assert!(id.cloud_instance_id == expected_cloud_id.to_string());
+        assert!(id.cloud_instance_id == expected_cloud_id);
         drop(mock_guard);
     }
 }
