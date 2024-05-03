@@ -430,7 +430,7 @@ pub mod test {
         objects.insert("sample_object".to_string(), k8s_object);
         runtime_config::K8s {
             objects,
-            health: Default::default(),
+            health: None,
         }
     }
 

@@ -263,7 +263,7 @@ pub(crate) mod tests {
                     objects: vec![("key".to_string(), runtime_config::K8sObject::default())]
                         .into_iter()
                         .collect(),
-                    health: Default::default(),
+                    health: Some(Default::default()),
                 }),
             },
         }

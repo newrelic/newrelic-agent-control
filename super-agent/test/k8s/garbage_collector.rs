@@ -89,7 +89,7 @@ metadata:
                 )
                 .unwrap(),
             )]),
-            health: Default::default(),
+            health: None,
         },
     );
 

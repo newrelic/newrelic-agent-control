@@ -87,8 +87,7 @@ impl Env {
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub struct K8s {
     pub objects: HashMap<String, K8sObject>,
-    #[serde(default)]
-    pub health: K8sHealthConfig,
+    pub health: Option<K8sHealthConfig>,
 }
 
 /// A K8s object, usually a CR, to be managed by the super-agent.

@@ -139,7 +139,7 @@ impl K8sHealthFluxHelmRelease {
 
         let (is_healthy, message) = self.is_healthy_and_message(&conditions);
         if is_healthy {
-            Ok(Health::Healthy(Healthy::default()))
+            Ok(Healthy::default().into())
         } else {
             Ok(Health::Unhealthy(Unhealthy {
                 last_error: message,
@@ -162,7 +162,7 @@ pub mod test {
         let test_cases = vec![
             (
                 "Helm release healthy when ready and status true",
-                Ok(Health::Healthy(Healthy::default())),
+                Ok(Healthy::default().into()),
                 Box::new(|mock: &mut MockSyncK8sClient| {
                     let status_conditions = json!({
                         "conditions": [

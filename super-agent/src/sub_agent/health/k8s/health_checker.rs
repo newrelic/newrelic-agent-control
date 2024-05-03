@@ -1,3 +1,4 @@
+use crate::agent_type::health_config::HealthCheckInterval;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::sub_agent::health::health_checker::{
@@ -9,17 +10,17 @@ use kube::api::DynamicObject;
 use std::sync::Arc;
 use std::time::Duration;
 
-/// K8sHealthChecker contains a collection of healthChecks that are queried to provide a unified helath value
+/// K8sHealthChecker contains a collection of healthChecks that are queried to provide a unified health value
 pub struct K8sHealthChecker {
     releases_helm_checkers: Vec<K8sHealthFluxHelmRelease>,
-    interval: Duration,
+    interval: HealthCheckInterval,
 }
 
 impl K8sHealthChecker {
     pub fn try_new(
         k8s_client: Arc<SyncK8sClient>,
         resources: Vec<DynamicObject>,
-        interval: Duration,
+        interval: HealthCheckInterval,
     ) -> Result<Self, HealthCheckerError> {
         Ok(Self {
             releases_helm_checkers: K8sHealthChecker::get_releases_helm_checkers(
@@ -67,11 +68,11 @@ impl HealthChecker for K8sHealthChecker {
             }
         }
 
-        Ok(Health::Healthy(Healthy::default()))
+        Ok(Healthy::default().into())
     }
 
     fn interval(&self) -> Duration {
-        self.interval
+        self.interval.into()
     }
 }
 
@@ -79,8 +80,8 @@ impl HealthChecker for K8sHealthChecker {
 pub mod test {
     use crate::k8s::client::MockSyncK8sClient;
     use crate::sub_agent::health::health_checker::HealthChecker;
+    use crate::sub_agent::health::k8s::health_checker::K8sHealthChecker;
     use crate::sub_agent::health::k8s::helm_release::test::setup_mock_client_with_conditions;
-    use crate::sub_agent::health::k8s::k8s_health_checker::K8sHealthChecker;
     use crate::super_agent::config::helm_release_type_meta;
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
     use kube::api::DynamicObject;
@@ -92,13 +93,15 @@ pub mod test {
     fn no_resource_set() {
         let mock_client = MockSyncK8sClient::default();
 
-        assert!(
-            K8sHealthChecker::try_new(Arc::new(mock_client), vec![], Duration::from_secs(3))
-                .unwrap()
-                .check_health()
-                .unwrap()
-                .is_healthy()
-        );
+        assert!(K8sHealthChecker::try_new(
+            Arc::new(mock_client),
+            vec![],
+            Duration::from_secs(3).into()
+        )
+        .unwrap()
+        .check_health()
+        .unwrap()
+        .is_healthy());
     }
 
     #[test]
@@ -112,7 +115,7 @@ pub mod test {
                 metadata: Default::default(),
                 data: Default::default(),
             }],
-            Duration::from_secs(3)
+            Duration::from_secs(3).into()
         )
         .is_err());
     }
@@ -139,7 +142,7 @@ pub mod test {
         assert!(!K8sHealthChecker::try_new(
             Arc::new(mock_client),
             vec![monitored_obj],
-            Duration::from_secs(3)
+            Duration::from_secs(3).into()
         )
         .unwrap()
         .check_health()

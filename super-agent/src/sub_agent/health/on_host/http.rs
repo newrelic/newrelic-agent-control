@@ -1,5 +1,5 @@
 use crate::agent_type::health_config::{
-    HealthCheckInterval, HealthCheckTimeout, OnHostHealthCheck, OnHostHealthConfig,
+    HealthCheckInterval, HealthCheckTimeout, HttpHealth, OnHostHealthCheck, OnHostHealthConfig,
 };
 use crate::sub_agent::health::health_checker::{
     Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,

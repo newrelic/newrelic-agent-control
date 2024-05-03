@@ -63,6 +63,7 @@ where
 
     // Run has two main duties:
     // - it starts the supervisors if any
+    //   - the supervisors starts monitoring the health
     // - it starts processing events (internal and opamp ones)
     fn run(self) -> Self::StartedSubAgent {
         let mut ch_stop_health = None;
@@ -75,12 +76,12 @@ where
                 })
                 .and_then(|resources| {
                     cr_supervisor
-                        .start_monitor_health(self.sub_agent_internal_publisher.clone(), resources)
+                        .start_health_check(self.sub_agent_internal_publisher.clone(), resources)
                 })
                 .inspect_err(|err| {
                     self.handle_error(err, "starting monitoring resources failed");
                 })
-                .ok();
+                .unwrap_or(None);
         }
 
         let event_loop_handle = self.state.event_processor.process();
@@ -125,6 +126,7 @@ impl StartedSubAgent for SubAgentK8s<Started> {
 
 #[cfg(test)]
 pub mod test {
+    use crate::agent_type::health_config::K8sHealthConfig;
     use crate::event::channel::{pub_sub, EventPublisher};
     use crate::event::SubAgentInternalEvent;
     use crate::k8s::client::MockSyncK8sClient;
@@ -192,11 +194,14 @@ pub mod test {
         let (sub_agent_internal_publisher, _) = pub_sub();
 
         let agent_id = AgentID::new(TEST_AGENT_ID).unwrap();
-        let k8s_obj = k8s_sample_runtime_config(true);
+        let mut k8s_obj = k8s_sample_runtime_config(true);
+        k8s_obj.health = Some(K8sHealthConfig {
+            interval: Duration::from_millis(500).into(),
+        });
         let mock_client = MockSyncK8sClient::default();
 
         let supervisor_res = CRSupervisor::new(agent_id.clone(), Arc::new(mock_client), k8s_obj)
-            .start_monitor_health(
+            .start_health_check(
                 sub_agent_internal_publisher,
                 vec![DynamicObject {
                     types: Some(helm_release_type_meta()),
@@ -218,8 +223,9 @@ pub mod test {
         let agent_id = AgentID::new(TEST_AGENT_ID).unwrap();
 
         let mut k8s_obj = k8s_sample_runtime_config(true);
-        // This corresponds to 0.5 seconds
-        k8s_obj.health.interval = Duration::new(0, 1);
+        k8s_obj.health = Some(K8sHealthConfig {
+            interval: Duration::from_millis(500).into(),
+        });
 
         // instance K8s client mock
         let mut mock_client = MockSyncK8sClient::default();
@@ -244,7 +250,7 @@ pub mod test {
 
         SubAgentK8s::new(
             agent_id.clone(),
-            AgentTypeFQN::from("test:0.0.1"),
+            AgentTypeFQN::try_from("namespace/test:0.0.1").unwrap(),
             processor,
             sub_agent_internal_publisher.clone(),
             Some(supervisor),
