@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   canaries:
-    uses: ./.github/workflows/component_canaries_prune.yml
+    uses: ./.github/workflows/component_canaries_prune.yaml
     with:
       TAG: ${{ inputs.tag }}
     secrets:

@@ -14,15 +14,15 @@ OPAMP_ENDPOINT ?= "https://opamp.staging-service.newrelic.com/v1/opamp"
 .PHONY: e2e
 e2e:
 ifndef NR_LICENSE_KEY
-	@echo "NR_LICENSE_KEY variable must be provided for test/packaging"
+	@echo "NR_LICENSE_KEY variable must be provided for test/e2e"
 	exit 1
 endif
 ifndef NEW_RELIC_ACCOUNT_ID
-	@echo "NEW_RELIC_ACCOUNT_ID variable must be provided for test/packaging"
+	@echo "NEW_RELIC_ACCOUNT_ID variable must be provided for test/e2e"
 	exit 1
 endif
 ifndef NEW_RELIC_API_KEY
-	@echo "NEW_RELIC_API_KEY variable must be provided for test/packaging"
+	@echo "NEW_RELIC_API_KEY variable must be provided for test/e2e"
 	exit 1
 endif
 

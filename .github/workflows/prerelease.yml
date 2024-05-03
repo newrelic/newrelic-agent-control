@@ -5,8 +5,6 @@ on:
   release:
     types:
       - prereleased
-    tags:
-      - '*'
 
 # See https://docs.github.com/en/actions/using-jobs/using-concurrency
 name: pre-release
@@ -149,17 +147,18 @@ jobs:
           local_packages_path: "/srv/dist/"
           apt_skip_mirror: false
 
-  onhost-e2e:
-    uses: ./.github/workflows/component_onhost_e2e.yaml
-    needs: [ upload ]
-    with:
-      TAG: ${{ github.event.inputs.tag || github.event.release.tag_name }}
-      UNIQUE_NAME: "onhost:e2e:${{ github.event.inputs.tag || github.event.release.tag_name }}"
-      # We use single quotes so the double-quotes are passed to the sed command in the make target (see the test/provision target)
-      EC2_FILTERS: '[\"ubuntu\",\"centos7\",\"centos8\",\"centos-stream\",\"sles-15.3\",\"sles-15.4\",\"sles-15.5\",\"redhat\",\"debian-bullseye\",\"debian-bookworm\",\"al\"]'
-    secrets:
-      AWS_ROLE_ARN: ${{ secrets.TMP_AWS_ROLE_ARN }}
-      AWS_VPC_SUBNET: ${{ secrets.TMP_AWS_VPC_SUBNET }}
+# All current test on test/e2e depend on fleet API checks which at the moment is WIP in staging and outdated in prod.
+  # onhost-e2e:
+  #   uses: ./.github/workflows/component_onhost_e2e.yaml
+  #   needs: [ upload ]
+  #   with:
+  #     TAG: ${{ github.event.inputs.tag || github.event.release.tag_name }}
+  #     UNIQUE_NAME: "onhost:e2e:${{ github.event.inputs.tag || github.event.release.tag_name }}"
+  #     # We use single quotes so the double-quotes are passed to the sed command in the make target (see the test/provision target)
+  #     EC2_FILTERS: '[\"ubuntu\",\"centos7\",\"centos8\",\"centos-stream\",\"sles-15.3\",\"sles-15.4\",\"sles-15.5\",\"redhat\",\"debian-bullseye\",\"debian-bookworm\",\"al\"]'
+  #   secrets:
+  #     AWS_ROLE_ARN: ${{ secrets.TMP_AWS_ROLE_ARN }}
+  #     AWS_VPC_SUBNET: ${{ secrets.TMP_AWS_VPC_SUBNET }}
 
   molecule-packaging-tests:
     uses: ./.github/workflows/component_molecule_packaging.yml
