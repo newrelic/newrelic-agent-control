@@ -10,7 +10,8 @@ use std::sync::Arc;
 
 /// K8sHealthChecker contains a collection of healthChecks that are queried to provide a unified health value
 pub struct K8sHealthChecker {
-    releases_helm_checkers: Vec<K8sHealthFluxHelmRelease>,
+    // Send is needed since K8sHealthChecker is passed to a different thread
+    health_checkers: Vec<Box<dyn HealthChecker + Send>>,
 }
 
 impl K8sHealthChecker {
@@ -18,19 +19,17 @@ impl K8sHealthChecker {
         k8s_client: Arc<SyncK8sClient>,
         resources: Vec<DynamicObject>,
     ) -> Result<Self, HealthCheckerError> {
-        Ok(Self {
-            releases_helm_checkers: K8sHealthChecker::get_releases_helm_checkers(
-                k8s_client.clone(),
-                resources,
-            )?,
-        })
+        Self {
+            health_checkers: vec![],
+        }
+        .set_releases_helm_checkers(k8s_client.clone(), resources)
     }
 
-    fn get_releases_helm_checkers(
+    fn set_releases_helm_checkers(
+        mut self,
         k8s_client: Arc<SyncK8sClient>,
         resources: Vec<DynamicObject>,
-    ) -> Result<Vec<K8sHealthFluxHelmRelease>, HealthCheckerError> {
-        let mut flux_releases_helm_checkers = vec![];
+    ) -> Result<Self, HealthCheckerError> {
         for resource in resources.iter() {
             let type_meta = resource.types.clone().ok_or(HealthCheckerError::new(
                 "not able to build flux health checker: type not found".to_string(),
@@ -47,16 +46,19 @@ impl K8sHealthChecker {
                     "not able to build flux health checker: name not found".to_string(),
                 ))?;
 
-            flux_releases_helm_checkers
-                .push(K8sHealthFluxHelmRelease::new(k8s_client.clone(), name));
+            self.health_checkers
+                .push(Box::new(K8sHealthFluxHelmRelease::new(
+                    k8s_client.clone(),
+                    name,
+                )));
         }
-        Ok(flux_releases_helm_checkers)
+        Ok(self)
     }
 }
 
 impl HealthChecker for K8sHealthChecker {
     fn check_health(&self) -> Result<Health, HealthCheckerError> {
-        for rhc in self.releases_helm_checkers.iter() {
+        for rhc in self.health_checkers.iter() {
             let health = rhc.check_health()?;
             if !health.is_healthy() {
                 return Ok(health);

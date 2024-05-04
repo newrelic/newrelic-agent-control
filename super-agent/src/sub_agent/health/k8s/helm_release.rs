@@ -1,6 +1,8 @@
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use crate::sub_agent::health::health_checker::{Health, HealthCheckerError, Healthy, Unhealthy};
+use crate::sub_agent::health::health_checker::{
+    Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
+};
 use k8s_openapi::serde_json::{Map, Value};
 use std::sync::Arc;
 
@@ -114,8 +116,10 @@ impl K8sHealthFluxHelmRelease {
             None => (false, "No 'Ready' condition was found".to_string()),
         }
     }
+}
 
-    pub(crate) fn check_health(&self) -> Result<Health, HealthCheckerError> {
+impl HealthChecker for K8sHealthFluxHelmRelease {
+    fn check_health(&self) -> Result<Health, HealthCheckerError> {
         // Attempt to get the HelmRelease from Kubernetes
         let helm_release = self
             .k8s_client
