@@ -1,10 +1,9 @@
-use std::sync::Arc;
-
 use crate::k8s;
 use crate::k8s::store::{K8sStore, STORE_KEY_INSTANCE_ID};
 use crate::opamp::instance_id::getter::DataStored;
 use crate::opamp::instance_id::storer::InstanceIDStorer;
 use crate::super_agent::config::AgentID;
+use std::sync::Arc;
 use tracing::debug;
 
 pub struct Storer {

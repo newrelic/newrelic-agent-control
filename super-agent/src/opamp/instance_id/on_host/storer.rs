@@ -1,12 +1,11 @@
 use crate::opamp::instance_id::getter::DataStored;
 use crate::opamp::instance_id::storer::InstanceIDStorer;
 use crate::super_agent::config::AgentID;
+use crate::super_agent::defaults::{REMOTE_AGENT_DATA_DIR, SUPER_AGENT_IDENTIFIERS_PATH};
 use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
 use fs::file_reader::{FileReader, FileReaderError};
 use fs::writer_file::{FileWriter, WriteError};
 use fs::LocalFile;
-
-use crate::super_agent::defaults::{REMOTE_AGENT_DATA_DIR, SUPER_AGENT_IDENTIFIERS_PATH};
 use std::fs::Permissions;
 use std::io;
 use std::os::unix::fs::PermissionsExt;

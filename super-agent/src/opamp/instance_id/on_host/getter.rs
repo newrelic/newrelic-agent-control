@@ -14,15 +14,6 @@ use std::fmt::{Display, Formatter};
 use thiserror::Error;
 use tracing::error;
 
-#[derive(Error, Debug)]
-#[cfg_attr(test, derive(Clone))]
-pub enum IdentifierRetrievalError {
-    #[error("error getting hostname `{0}`")]
-    HostnameError(String),
-    #[error("error getting machine-id: `{0}`")]
-    MachineIDError(String),
-}
-
 #[derive(Default, Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct Identifiers {
     pub hostname: String,

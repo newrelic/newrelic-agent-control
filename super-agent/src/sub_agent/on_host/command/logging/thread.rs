@@ -1,10 +1,9 @@
+use super::logger::Logger;
 use std::{
     io::{BufRead, BufReader, Read},
     sync::mpsc::{self, Receiver, Sender},
     thread::JoinHandle,
 };
-
-use super::logger::Logger;
 
 pub(crate) fn spawn_logger<R>(handle: R, loggers: Vec<Logger>)
 where

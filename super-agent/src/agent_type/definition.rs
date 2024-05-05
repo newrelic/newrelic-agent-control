@@ -368,11 +368,7 @@ pub mod tests {
     use crate::{
         agent_type::{
             environment::Environment,
-            restart_policy::{
-                BackoffStrategyConfig, BackoffStrategyType, RestartPolicyConfig,
-                DEFAULT_BACKOFF_DELAY, DEFAULT_BACKOFF_LAST_RETRY_INTERVAL,
-                DEFAULT_BACKOFF_MAX_RETRIES,
-            },
+            restart_policy::{BackoffStrategyConfig, BackoffStrategyType, RestartPolicyConfig},
             runtime_config::Executable,
             trivial_value::{FilePathWithContent, TrivialValue},
         },
@@ -548,17 +544,7 @@ restart_policy:
             serde_yaml::from_str(RESTART_POLICY_OMITTED_FIELDS_YAML).unwrap();
 
         // Restart policy values
-        assert_eq!(
-            BackoffStrategyConfig {
-                backoff_type: TemplateableValue::new(BackoffStrategyType::Linear),
-                backoff_delay: TemplateableValue::new(DEFAULT_BACKOFF_DELAY.into()),
-                max_retries: TemplateableValue::new(DEFAULT_BACKOFF_MAX_RETRIES.into()),
-                last_retry_interval: TemplateableValue::new(
-                    DEFAULT_BACKOFF_LAST_RETRY_INTERVAL.into()
-                ),
-            },
-            backoff_strategy
-        );
+        assert_eq!(BackoffStrategyConfig::default(), backoff_strategy);
     }
 
     #[test]
