@@ -8,6 +8,7 @@ use crate::super_agent::config::helm_release_type_meta;
 use k8s_openapi::api::apps::v1::{DaemonSet, Deployment, ReplicaSet, StatefulSet};
 use k8s_openapi::api::core::v1::{ConfigMap, Namespace};
 use kube::api::entry::Entry;
+use kube::api::ObjectList;
 use kube::{
     api::{DeleteParams, ListParams, PostParams},
     config::KubeConfigOptions,
@@ -143,6 +144,10 @@ impl SyncK8sClient {
 
     pub fn supported_type_meta_collection(&self) -> Vec<TypeMeta> {
         self.async_client.supported_type_meta_collection()
+    }
+
+    pub fn list_stateful_set(&self) -> Result<ObjectList<StatefulSet>, K8sError> {
+        self.runtime.block_on(self.async_client.list_stateful_set())
     }
 
     pub fn default_namespace(&self) -> &str {
@@ -526,6 +531,14 @@ impl AsyncK8sClient {
         Ok(())
     }
 
+    pub async fn list_stateful_set(&self) -> Result<ObjectList<StatefulSet>, K8sError> {
+        let ss_client: Api<StatefulSet> =
+            Api::<StatefulSet>::default_namespaced(self.client.clone());
+        let list_stateful_set = ss_client.list(&ListParams::default()).await?;
+
+        Ok(list_stateful_set)
+    }
+
     pub fn default_namespace(&self) -> &str {
         self.client.default_namespace()
     }
@@ -572,6 +585,17 @@ pub fn get_name(obj: &DynamicObject) -> Result<String, K8sError> {
 
 pub fn get_type_meta(obj: &DynamicObject) -> Result<TypeMeta, K8sError> {
     obj.types.clone().ok_or(K8sError::MissingKind())
+}
+
+pub fn is_label_present(labels: &Option<BTreeMap<String, String>>, key: &str, value: &str) -> bool {
+    if let Some(labels) = labels.as_ref() {
+        if let Some(v) = labels.get(key) {
+            if v.as_str() == value {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 #[cfg(test)]
