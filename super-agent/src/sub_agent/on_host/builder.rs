@@ -36,7 +36,7 @@ use nix::unistd::gethostname;
 use resource_detection::Detector;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::{error, warn};
+use tracing::{debug, error, warn};
 
 pub struct OnHostSubAgentBuilder<'a, O, I, HR, A, E>
 where
@@ -123,42 +123,54 @@ where
             &Environment::OnHost,
         );
 
-        let mut has_supervisors = true;
-
-        if let Some(opamp_client) = &maybe_opamp_client {
-            match self.hash_repository.get(&agent_id) {
-                Err(e) => warn!("hash repository error for agent {}: {}", &agent_id, e),
-                Ok(None) => warn!("hash repository not found for agent: {}", &agent_id),
-                Ok(Some(mut hash)) => {
-                    if let Err(err) = effective_agent_res.as_ref() {
-                        report_remote_config_status_error(opamp_client, &hash, err.to_string())?;
-                        error!(
-                            "Failed to assemble agent {} and to create supervisors, only the opamp client will be listening for a fixed configuration",
-                            agent_id
-                        );
-                        // report the failed status for remote config and let the opamp client
-                        // running with no supervisors so the configuration can be fixed
-                        has_supervisors = false;
-                    } else if hash.is_applying() {
-                        report_remote_config_status_applied(opamp_client, &hash)?;
+        // A sub-agent's supervisor can be started without a valid effective agent when an OpAMP
+        // client is available. This is useful when the agent is in a failed state and the OpAMP
+        // client is the only way to fix the configuration via remote configs.
+        let supervisors = if let Some(opamp_client) = &maybe_opamp_client {
+            match (self.hash_repository.get(&agent_id)?, effective_agent_res) {
+                // Agent had valid remote config
+                (Some(mut hash), Ok(effective_agent)) => {
+                    // Hasn't been applied yet
+                    if hash.is_applying() {
+                        debug!(%agent_id, "applying remote config");
                         hash.apply();
                         self.hash_repository.save(&agent_id, &hash)?;
-                    } else if hash.is_failed() {
-                        // failed hash always has the error message
-                        let error_message = hash.error_message().unwrap();
-                        report_remote_config_status_error(
-                            opamp_client,
-                            &hash,
-                            error_message.to_string(),
-                        )?;
+                        report_remote_config_status_applied(opamp_client, &hash)?;
                     }
+
+                    // Hash is in a failed state
+                    if let Some(err_msg) = hash.error_message() {
+                        warn!(%agent_id, err = %err_msg, "remote config failed. Building with previous stored config");
+                        report_remote_config_status_error(opamp_client, &hash, err_msg)?;
+                    }
+
+                    build_supervisors(&self.identifiers_provider, effective_agent)?
+                }
+                // Remote config fails to be assembled, hash should be saved as failed and report status.
+                (Some(mut hash), Err(err)) => {
+                    if !hash.is_failed() {
+                        hash.fail(err.to_string());
+                        self.hash_repository.save(&agent_id, &hash)?;
+                    }
+
+                    report_remote_config_status_error(opamp_client, &hash, err.to_string())?;
+                    error!(%agent_id, %err, "failed to assemble agent from remote config");
+                    Vec::new()
+                }
+                // No previous valid remote config, failed assembled agent
+                (None, Err(err)) => {
+                    debug!(%agent_id, "no previous remote config found");
+                    warn!(%agent_id, %err, "no previous config found. Failed to assemble agent from local or remote config");
+                    Vec::new()
+                }
+                // No previous valid remote config, valid assembled agent
+                (None, Ok(effective_agent)) => {
+                    debug!(%agent_id, "no previous remote config found");
+                    build_supervisors(&self.identifiers_provider, effective_agent)?
                 }
             }
-        }
-
-        let supervisors = match has_supervisors {
-            false => Vec::new(),
-            true => build_supervisors(&self.identifiers_provider, effective_agent_res?)?,
+        } else {
+            build_supervisors(&self.identifiers_provider, effective_agent_res?)?
         };
 
         let event_processor = self.event_processor_builder.build(
