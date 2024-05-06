@@ -10,12 +10,18 @@ use std::{collections::HashMap, time::Duration};
 const DEFAULT_HEALTH_CHECK_INTERVAL: Duration = Duration::from_secs(60);
 const DEFAULT_HEALTH_CHECK_TIMEOUT: Duration = Duration::from_secs(15);
 
+#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+pub struct K8sHealthConfig {
+    /// The duration to wait between health checks.
+    pub(crate) interval: HealthCheckInterval,
+}
+
 /// Represents the configuration for health checks.
 ///
 /// This structure includes parameters to define intervals between health checks,
 /// timeouts for checks, and the specific health check method—either HTTP or execute command.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
-pub struct HealthConfig {
+pub struct OnHostHealthConfig {
     /// The duration to wait between health checks.
     pub(crate) interval: HealthCheckInterval,
 
@@ -24,7 +30,7 @@ pub struct HealthConfig {
 
     /// Details on the type of health check. Defined by the `HealthCheck` enumeration.
     #[serde(flatten)]
-    pub(crate) check: HealthCheck,
+    pub(crate) check: OnHostHealthCheck,
 }
 
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq)]
@@ -73,7 +79,7 @@ impl Default for HealthCheckTimeout {
 ///
 /// Variants include `HttpHealth` and `ExecHealth`, corresponding to health checks via HTTP and execute command, respectively.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
-pub(crate) enum HealthCheck {
+pub(crate) enum OnHostHealthCheck {
     #[serde(rename = "http")]
     HttpHealth(HttpHealth),
     // #[serde(rename = "exec")]
@@ -199,7 +205,7 @@ pub(crate) struct ExecHealth {
     pub(crate) healthy_exit_codes: Vec<i32>,
 }
 
-impl Templateable for HealthConfig {
+impl Templateable for OnHostHealthConfig {
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         Ok(Self {
             check: self.check.template_with(variables)?,
@@ -208,17 +214,17 @@ impl Templateable for HealthConfig {
     }
 }
 
-impl Templateable for HealthCheck {
+impl Templateable for OnHostHealthCheck {
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         Ok(match self {
-            HealthCheck::HttpHealth(conf) => {
+            OnHostHealthCheck::HttpHealth(conf) => {
                 let health_conf = HttpHealth {
                     host: conf.host.template_with(variables)?,
                     path: conf.path.template_with(variables)?,
                     port: conf.port.template_with(variables)?,
                     ..conf
                 };
-                HealthCheck::HttpHealth(health_conf)
+                OnHostHealthCheck::HttpHealth(health_conf)
             }
         })
     }

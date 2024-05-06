@@ -164,6 +164,7 @@ impl Templateable for K8s {
                 .into_iter()
                 .map(|(k, v)| Ok((k, v.template_with(variables)?)))
                 .collect::<Result<HashMap<String, K8sObject>, AgentTypeError>>()?,
+            health: self.health,
         })
     }
 }

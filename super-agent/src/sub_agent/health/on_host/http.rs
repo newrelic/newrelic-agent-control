@@ -1,11 +1,14 @@
-use super::health_checker::{Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy};
-use crate::agent_type::health_config::{HealthCheckInterval, HealthCheckTimeout, HttpHealth};
+use crate::agent_type::health_config::{
+    HealthCheckInterval, HealthCheckTimeout, HttpHealth, OnHostHealthCheck, OnHostHealthConfig,
+};
+use crate::sub_agent::health::health_checker::{
+    Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
+};
 use std::collections::HashMap;
 use std::time::Duration;
 use thiserror::Error;
 use tracing::error;
 use url::Url;
-
 const DEFAULT_PROTOCOL: &str = "http://";
 
 /// An enumeration of potential errors related to the HTTP client.
@@ -14,6 +17,39 @@ pub enum HttpClientError {
     /// Represents Ureq crate error.
     #[error("internal HTTP client error: `{0}`")]
     HttpClientError(String),
+}
+
+pub enum HealthCheckerType {
+    Http(HttpHealthChecker),
+}
+
+impl TryFrom<OnHostHealthConfig> for HealthCheckerType {
+    type Error = HealthCheckerError;
+
+    fn try_from(health_config: OnHostHealthConfig) -> Result<Self, Self::Error> {
+        let interval = health_config.interval;
+        let timeout = health_config.timeout;
+
+        match health_config.check {
+            OnHostHealthCheck::HttpHealth(http_config) => Ok(HealthCheckerType::Http(
+                HttpHealthChecker::new(interval, timeout, http_config)?,
+            )),
+        }
+    }
+}
+
+impl HealthChecker for HealthCheckerType {
+    fn check_health(&self) -> Result<Health, HealthCheckerError> {
+        match self {
+            HealthCheckerType::Http(http_checker) => http_checker.check_health(),
+        }
+    }
+
+    fn interval(&self) -> Duration {
+        match self {
+            HealthCheckerType::Http(http_checker) => http_checker.interval(),
+        }
+    }
 }
 
 /// The `HttpClient` trait defines the HTTP get interface to be implemented

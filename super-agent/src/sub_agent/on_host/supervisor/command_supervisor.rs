@@ -1,10 +1,9 @@
 use crate::context::Context;
-
-use crate::event::channel::{pub_sub, EventConsumer, EventPublisher};
+use crate::event::channel::{pub_sub, EventPublisher};
 use crate::event::SubAgentInternalEvent;
-use crate::sub_agent::health::health_checker::{
-    HealthChecker, HealthCheckerType, Healthy, Unhealthy,
-};
+use crate::sub_agent::health::health_checker::{publish_health_event, spawn_health_checker};
+use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
+use crate::sub_agent::health::on_host::http::HealthCheckerType;
 use crate::sub_agent::on_host::command::command::{
     CommandError, CommandTerminator, NotStartedCommand, StartedCommand,
 };
@@ -22,7 +21,7 @@ use std::{
     sync::{Arc, Mutex},
     thread::{self, JoinHandle},
 };
-use tracing::{debug, error, info, warn};
+use tracing::{error, info, warn};
 
 ////////////////////////////////////////////////////////////////////////////////////
 // States for Started/Not Started supervisor
@@ -257,55 +256,8 @@ fn start_process_thread(
     })
 }
 
-fn spawn_health_checker<H>(
-    agent_id: AgentID,
-    health_checker: H,
-    cancel_signal: EventConsumer<()>,
-    health_publisher: EventPublisher<SubAgentInternalEvent>,
-) where
-    H: HealthChecker + Send + 'static,
-{
-    thread::spawn(move || loop {
-        thread::sleep(health_checker.interval());
-
-        // Check cancellation signal.
-        // As we don't need any data to be sent, the `publish` call of the sender only sends `()`
-        // and we don't check for data here, We use a non-blocking call and break only if we
-        // received the message successfully.
-        if cancel_signal.as_ref().try_recv().is_ok() {
-            break;
-        }
-
-        debug!(%agent_id, "checking health with the configured checker");
-        match health_checker.check_health() {
-            Ok(health) => {
-                debug!(%agent_id, "the configured health check passed");
-                publish_health_event(&health_publisher, health.into())
-            }
-            Err(e) => {
-                let last_error_msg = e.to_string();
-                debug!(%agent_id, last_error = last_error_msg, "the configured health check failed");
-                publish_health_event(&health_publisher, Unhealthy::from(e).into())
-            }
-        }
-    });
-}
-
-fn publish_health_event(
-    internal_event_publisher: &EventPublisher<SubAgentInternalEvent>,
-    event: SubAgentInternalEvent,
-) {
-    let event_type_str = format!("{:?}", event);
-    _ = internal_event_publisher.publish(event).inspect_err(|e| {
-        error!(
-            err = e.to_string(),
-            event_type = event_type_str,
-            "could not publish sub agent event"
-        )
-    });
-}
-
-/// Blocks on the [`Context`], [`ctx`]. When the termination signal is activated, this will send a shutdown signal to the process being supervised (the one whose PID was passed as [`pid`]).
+/// Blocks on the [`Context`], [`ctx`]. When the termination signal is activated, this will send
+/// a shutdown signal to the process being supervised (the one whose PID was passed as [`pid`]).
 fn wait_for_termination(
     current_pid: Arc<Mutex<Option<u32>>>,
     ctx: Context<bool>,
@@ -326,7 +278,9 @@ pub mod sleep_supervisor_tests {
     use super::*;
     use crate::context::Context;
     use crate::event::channel::pub_sub;
-    use crate::sub_agent::health::health_checker::{Health, HealthCheckerError, Healthy};
+    use crate::sub_agent::health::health_checker::{
+        Health, HealthChecker, HealthCheckerError, Healthy,
+    };
     use crate::sub_agent::on_host::supervisor::command_supervisor_config::ExecutableData;
     use crate::sub_agent::on_host::supervisor::restart_policy::{Backoff, RestartPolicy};
     use mockall::{mock, Sequence};

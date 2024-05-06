@@ -1,10 +1,10 @@
+use crate::event::channel::{EventConsumer, EventPublisher};
+use crate::event::SubAgentInternalEvent;
+use crate::super_agent::config::AgentID;
+use std::thread;
 use std::time::Duration;
-
 use thiserror::Error;
-
-use crate::agent_type::health_config::{HealthCheck, HealthConfig};
-
-use super::http::HttpHealthChecker;
+use tracing::{debug, error};
 
 #[derive(Debug, PartialEq)]
 pub enum Health {
@@ -104,10 +104,6 @@ pub trait HealthChecker {
     fn interval(&self) -> Duration;
 }
 
-pub(crate) enum HealthCheckerType {
-    Http(HttpHealthChecker),
-}
-
 /// Health check errors.
 #[derive(Debug, Error, PartialEq)]
 #[error("Health check error: {0}")]
@@ -119,31 +115,50 @@ impl HealthCheckerError {
     }
 }
 
-impl TryFrom<HealthConfig> for HealthCheckerType {
-    type Error = HealthCheckerError;
+pub(crate) fn spawn_health_checker<H>(
+    agent_id: AgentID,
+    health_checker: H,
+    cancel_signal: EventConsumer<()>,
+    health_publisher: EventPublisher<SubAgentInternalEvent>,
+) where
+    H: HealthChecker + Send + 'static,
+{
+    thread::spawn(move || loop {
+        thread::sleep(health_checker.interval());
 
-    fn try_from(health_config: HealthConfig) -> Result<Self, Self::Error> {
-        let interval = health_config.interval;
-        let timeout = health_config.timeout;
-
-        match health_config.check {
-            HealthCheck::HttpHealth(http_config) => Ok(HealthCheckerType::Http(
-                HttpHealthChecker::new(interval, timeout, http_config)?,
-            )),
+        // Check cancellation signal.
+        // As we don't need any data to be sent, the `publish` call of the sender only sends `()`
+        // and we don't check for data here, We use a non-blocking call and break only if we
+        // received the message successfully.
+        if cancel_signal.as_ref().try_recv().is_ok() {
+            break;
         }
-    }
+
+        debug!(%agent_id, "checking health with the configured checker");
+        match health_checker.check_health() {
+            Ok(health) => {
+                debug!(%agent_id, "the configured health check passed");
+                publish_health_event(&health_publisher, health.into())
+            }
+            Err(e) => {
+                let last_error_msg = e.to_string();
+                debug!(%agent_id, last_error = last_error_msg, "the configured health check failed");
+                publish_health_event(&health_publisher, Unhealthy::from(e).into())
+            }
+        }
+    });
 }
 
-impl HealthChecker for HealthCheckerType {
-    fn check_health(&self) -> Result<Health, HealthCheckerError> {
-        match self {
-            HealthCheckerType::Http(http_checker) => http_checker.check_health(),
-        }
-    }
-
-    fn interval(&self) -> Duration {
-        match self {
-            HealthCheckerType::Http(http_checker) => http_checker.interval(),
-        }
-    }
+pub(crate) fn publish_health_event(
+    internal_event_publisher: &EventPublisher<SubAgentInternalEvent>,
+    event: SubAgentInternalEvent,
+) {
+    let event_type_str = format!("{:?}", event);
+    _ = internal_event_publisher.publish(event).inspect_err(|e| {
+        error!(
+            err = e.to_string(),
+            event_type = event_type_str,
+            "could not publish sub agent event"
+        )
+    });
 }
