@@ -783,6 +783,13 @@ Distributed under the following license(s):
 * MIT
 
 
+## http-serde https://crates.io/crates/http-serde
+
+Distributed under the following license(s):
+* Apache-2.0
+* MIT
+
+
 ## httparse https://crates.io/crates/httparse
 
 Distributed under the following license(s):
@@ -1142,7 +1149,7 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
-## opamp-client git+ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.15
+## opamp-client git+ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.16
 
 Distributed under the following license(s):
 * Apache-2.0
