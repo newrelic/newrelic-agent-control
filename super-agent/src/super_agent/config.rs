@@ -3,6 +3,8 @@ use crate::opamp::remote_config::RemoteConfigError;
 use crate::super_agent::config_storer::file::ConfigStoreError;
 use crate::super_agent::defaults::{default_capabilities, SUPER_AGENT_ID};
 use http::HeaderMap;
+#[cfg(all(not(feature = "onhost"), feature = "k8s"))]
+use kube::api::TypeMeta;
 use opamp_client::operation::capabilities::Capabilities;
 use serde::{Deserialize, Serialize};
 use std::ops::Deref;
@@ -10,6 +12,8 @@ use std::path::Path;
 use std::{collections::HashMap, fmt::Display};
 use thiserror::Error;
 use url::Url;
+
+use super::http_server::config::ServerConfig;
 
 const AGENT_ID_MAX_LENGTH: usize = 32;
 
