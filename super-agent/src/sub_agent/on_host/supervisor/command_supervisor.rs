@@ -14,7 +14,7 @@ use crate::sub_agent::on_host::command::shutdown::{
     wait_exit_timeout, wait_exit_timeout_default, ProcessTerminator,
 };
 use crate::sub_agent::on_host::supervisor::command_supervisor_config::SupervisorConfigOnHost;
-use crate::sub_agent::restart_policy::BackoffStrategy;
+use crate::sub_agent::on_host::supervisor::restart_policy::BackoffStrategy;
 use crate::super_agent::config::AgentID;
 use std::process::ExitStatus;
 use std::{
@@ -330,7 +330,7 @@ pub mod sleep_supervisor_tests {
     use crate::event::channel::pub_sub;
     use crate::sub_agent::health::health_checker::{Health, HealthCheckerError, Healthy};
     use crate::sub_agent::on_host::supervisor::command_supervisor_config::ExecutableData;
-    use crate::sub_agent::restart_policy::{Backoff, BackoffStrategy, RestartPolicy};
+    use crate::sub_agent::on_host::supervisor::restart_policy::{Backoff, RestartPolicy};
     use mockall::{mock, Sequence};
     use std::time::{Duration, Instant};
     use tracing_test::traced_test;
