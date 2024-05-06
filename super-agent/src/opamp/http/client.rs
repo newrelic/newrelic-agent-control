@@ -20,14 +20,6 @@ pub struct HttpClientUreq {
 }
 
 impl HttpClientUreq {
-    /// Modify headers
-    pub fn additional_headers(self, new_headers: HeaderMap) -> Self {
-        let mut headers = self.headers;
-        headers.extend(new_headers);
-
-        Self { headers, ..self }
-    }
-
     fn build_request(&self, extra_headers: &HeaderMap) -> Request {
         let req = self.client.post(self.url.as_ref());
 
@@ -102,6 +94,13 @@ pub(crate) mod test {
     use http::{HeaderName, HeaderValue};
 
     use super::*;
+
+    impl HttpClientUreq {
+        pub fn additional_headers(mut self, headers: HeaderMap) -> Self {
+            self.headers.extend(headers);
+            self
+        }
+    }
 
     #[test]
     fn test_build_request_extra_headers() {
