@@ -63,10 +63,138 @@ impl SupervisorOnHost<NotStarted> {
         internal_event_publisher: EventPublisher<SubAgentInternalEvent>,
     ) -> SupervisorOnHost<Started> {
         let ctx = self.state.config.ctx.clone();
-        let handle = start_process_thread(self, internal_event_publisher);
+        let handle = self.start_process_thread(internal_event_publisher);
         SupervisorOnHost {
             state: Started { handle, ctx },
         }
+    }
+
+    fn start_process_thread(
+        self,
+        internal_event_publisher: EventPublisher<SubAgentInternalEvent>,
+    ) -> JoinHandle<()> {
+        let mut restart_policy = self.restart_policy.clone();
+        let current_pid: Arc<Mutex<Option<u32>>> = Arc::new(Mutex::new(None));
+        let shutdown_ctx = Context::new();
+        _ = wait_for_termination(current_pid.clone(), self.ctx.clone(), shutdown_ctx.clone());
+        thread::spawn({
+            move || loop {
+                // check if supervisor context is cancelled
+                if *Context::get_lock_cvar(&self.ctx).0.lock().unwrap() {
+                    break;
+                }
+
+                info!(
+                    id = self.id().to_string(),
+                    supervisor = self.bin(),
+                    msg = "starting supervisor process"
+                );
+
+                shutdown_ctx.reset().unwrap();
+                // Signals return exit_code 0, if in the future we need to act on them we can import
+                // std::os::unix::process::ExitStatusExt to get the code with the method into_raw
+                let not_started_command = self.not_started_command();
+                let bin = self.bin();
+                let id = self.id();
+
+                publish_health_event(&internal_event_publisher, Healthy::default().into());
+
+                // Spawn the health checker thread
+                let (health_check_cancel_publisher, health_check_cancel_consumer) = pub_sub();
+
+                if let Some((health_checker, interval)) = self
+                    .health
+                    .as_ref()
+                    .map(|h| (HealthCheckerType::try_from(h.clone()), h.interval))
+                {
+                    match health_checker {
+                        Ok(health_checker) => spawn_health_checker(
+                            id.clone(),
+                            health_checker,
+                            health_check_cancel_consumer,
+                            internal_event_publisher.clone(),
+                            interval,
+                        ),
+                        Err(e) => {
+                            error!(
+                                agent_id = id.to_string(),
+                                supervisor = bin,
+                                err = %e,
+                                "could not launch health checker, using default",
+                            )
+                        }
+                    }
+                }
+
+                let exit_code = start_command(not_started_command, current_pid.clone())
+                    .inspect_err(|err| {
+                        error!(
+                            agent_id = id.to_string(),
+                            supervisor = bin,
+                            "error while launching supervisor process: {}",
+                            err
+                        );
+                    })
+                    .map(|exit_code| {
+                        if !exit_code.success() {
+                            publish_health_event(
+                                &internal_event_publisher,
+                                Unhealthy {
+                                    last_error: format!("process exited with code: {}", exit_code),
+                                    ..Default::default()
+                                }
+                                .into(),
+                            );
+                            error!(
+                                agent_id = id.to_string(),
+                                supervisor = bin,
+                                exit_code = exit_code.code(),
+                                "supervisor process exited unsuccessfully"
+                            )
+                        }
+                        exit_code.code()
+                    });
+
+                // Cancel the health checker, log if it fails and continue with the shutdown
+                _ = health_check_cancel_publisher.publish(()).inspect_err(|e| {
+                    error!(
+                        agent_id = id.to_string(),
+                        err = e.to_string(),
+                        "could not cancel health checker thread"
+                    );
+                });
+
+                // canceling the shutdown ctx must be done before getting current_pid lock
+                // as it locked by the wait_for_termination function
+                shutdown_ctx.cancel_all(true).unwrap();
+                *current_pid.lock().unwrap() = None;
+
+                // check if restart policy needs to be applied
+                if !restart_policy.should_retry(exit_code.unwrap_or_default()) {
+                    // Log if we are not restarting anymore due to the restart policy being broken
+                    if restart_policy.backoff != BackoffStrategy::None {
+                        warn!("supervisor for {id} won't restart anymore due to having exceeded its restart policy");
+                        publish_health_event(
+                            &internal_event_publisher,
+                            Unhealthy {
+                                last_error: "supervisor exceeded its defined restart policy"
+                                    .to_string(),
+                                ..Default::default()
+                            }
+                            .into(),
+                        );
+                    }
+                    break;
+                }
+
+                info!("restarting supervisor for {id}...");
+
+                restart_policy.backoff(|duration| {
+                    // early exit if supervisor timeout is canceled
+                    wait_exit_timeout(self.ctx.clone(), duration);
+                });
+            }
+        })
     }
 
     pub fn not_started_command(&self) -> CommandOS<command_os::NotStarted> {
@@ -121,141 +249,6 @@ where
     streaming.wait()
 }
 
-fn start_process_thread(
-    not_started_supervisor: SupervisorOnHost<NotStarted>,
-    internal_event_publisher: EventPublisher<SubAgentInternalEvent>,
-) -> JoinHandle<()> {
-    let mut restart_policy = not_started_supervisor.restart_policy.clone();
-    let current_pid: Arc<Mutex<Option<u32>>> = Arc::new(Mutex::new(None));
-    let shutdown_ctx = Context::new();
-    _ = wait_for_termination(
-        current_pid.clone(),
-        not_started_supervisor.ctx.clone(),
-        shutdown_ctx.clone(),
-    );
-    thread::spawn({
-        move || loop {
-            // check if supervisor context is cancelled
-            if *Context::get_lock_cvar(&not_started_supervisor.ctx)
-                .0
-                .lock()
-                .unwrap()
-            {
-                break;
-            }
-
-            info!(
-                id = not_started_supervisor.id().to_string(),
-                supervisor = not_started_supervisor.bin(),
-                msg = "starting supervisor process"
-            );
-
-            shutdown_ctx.reset().unwrap();
-            // Signals return exit_code 0, if in the future we need to act on them we can import
-            // std::os::unix::process::ExitStatusExt to get the code with the method into_raw
-            let not_started_command = not_started_supervisor.not_started_command();
-            let bin = not_started_supervisor.bin();
-            let id = not_started_supervisor.id();
-
-            publish_health_event(&internal_event_publisher, Healthy::default().into());
-
-            // Spawn the health checker thread
-            let (health_check_cancel_publisher, health_check_cancel_consumer) = pub_sub();
-
-            if let Some(health_checker) = not_started_supervisor
-                .health
-                .as_ref()
-                .map(|h| HealthCheckerType::try_from(h.clone()))
-            {
-                match health_checker {
-                    Ok(health_checker) => spawn_health_checker(
-                        id.clone(),
-                        health_checker,
-                        health_check_cancel_consumer,
-                        internal_event_publisher.clone(),
-                    ),
-                    Err(e) => {
-                        error!(
-                            agent_id = id.to_string(),
-                            supervisor = bin,
-                            err = %e,
-                            "could not launch health checker, using default",
-                        )
-                    }
-                }
-            }
-
-            let exit_code = start_command(not_started_command, current_pid.clone())
-                .inspect_err(|err| {
-                    error!(
-                        agent_id = id.to_string(),
-                        supervisor = bin,
-                        "error while launching supervisor process: {}",
-                        err
-                    );
-                })
-                .map(|exit_code| {
-                    if !exit_code.success() {
-                        publish_health_event(
-                            &internal_event_publisher,
-                            Unhealthy {
-                                last_error: format!("process exited with code: {}", exit_code),
-                                ..Default::default()
-                            }
-                            .into(),
-                        );
-                        error!(
-                            agent_id = id.to_string(),
-                            supervisor = bin,
-                            exit_code = exit_code.code(),
-                            "supervisor process exited unsuccessfully"
-                        )
-                    }
-                    exit_code.code()
-                });
-
-            // Cancel the health checker, log if it fails and continue with the shutdown
-            _ = health_check_cancel_publisher.publish(()).inspect_err(|e| {
-                error!(
-                    agent_id = id.to_string(),
-                    err = e.to_string(),
-                    "could not cancel health checker thread"
-                );
-            });
-
-            // canceling the shutdown ctx must be done before getting current_pid lock
-            // as it locked by the wait_for_termination function
-            shutdown_ctx.cancel_all(true).unwrap();
-            *current_pid.lock().unwrap() = None;
-
-            // check if restart policy needs to be applied
-            if !restart_policy.should_retry(exit_code.unwrap_or_default()) {
-                // Log if we are not restarting anymore due to the restart policy being broken
-                if restart_policy.backoff != BackoffStrategy::None {
-                    warn!("supervisor for {id} won't restart anymore due to having exceeded its restart policy");
-                    publish_health_event(
-                        &internal_event_publisher,
-                        Unhealthy {
-                            last_error: "supervisor exceeded its defined restart policy"
-                                .to_string(),
-                            ..Default::default()
-                        }
-                        .into(),
-                    );
-                }
-                break;
-            }
-
-            info!("restarting supervisor for {id}...");
-
-            restart_policy.backoff(|duration| {
-                // early exit if supervisor timeout is canceled
-                wait_exit_timeout(not_started_supervisor.ctx.clone(), duration);
-            });
-        }
-    })
-}
-
 /// Blocks on the [`Context`], [`ctx`]. When the termination signal is activated, this will send
 /// a shutdown signal to the process being supervised (the one whose PID was passed as [`pid`]).
 fn wait_for_termination(
@@ -276,6 +269,7 @@ fn wait_for_termination(
 #[cfg(test)]
 pub mod sleep_supervisor_tests {
     use super::*;
+    use crate::agent_type::health_config::HealthCheckInterval;
     use crate::context::Context;
     use crate::event::channel::pub_sub;
     use crate::sub_agent::health::health_checker::{
@@ -291,7 +285,6 @@ pub mod sleep_supervisor_tests {
         pub HealthCheckerMock {}
         impl HealthChecker for HealthCheckerMock {
             fn check_health(&self) -> Result<Health, HealthCheckerError>;
-            fn interval(&self) -> Duration;
         }
     }
 
@@ -446,11 +439,6 @@ pub mod sleep_supervisor_tests {
         let mut health_checker = MockHealthCheckerMock::new();
         let mut seq = Sequence::new();
         health_checker
-            .expect_interval()
-            .once()
-            .in_sequence(&mut seq)
-            .returning(Duration::default);
-        health_checker
             .expect_check_health()
             .once()
             .in_sequence(&mut seq)
@@ -460,11 +448,6 @@ pub mod sleep_supervisor_tests {
                 }
                 .into())
             });
-        health_checker
-            .expect_interval()
-            .once()
-            .in_sequence(&mut seq)
-            .returning(Duration::default);
         health_checker
             .expect_check_health()
             .once()
@@ -478,7 +461,13 @@ pub mod sleep_supervisor_tests {
             });
 
         let agent_id = AgentID::new("test-agent").unwrap();
-        spawn_health_checker(agent_id, health_checker, cancel_signal, health_publisher);
+        spawn_health_checker(
+            agent_id,
+            health_checker,
+            cancel_signal,
+            health_publisher,
+            Duration::default().into(),
+        );
 
         // Check that the health checker was called at least once
         let expected_health_events: Vec<SubAgentInternalEvent> = {
@@ -504,20 +493,10 @@ pub mod sleep_supervisor_tests {
         let mut health_checker = MockHealthCheckerMock::new();
         let mut seq = Sequence::new();
         health_checker
-            .expect_interval()
-            .once()
-            .in_sequence(&mut seq)
-            .returning(Duration::default);
-        health_checker
             .expect_check_health()
             .once()
             .in_sequence(&mut seq)
             .returning(|| Ok(Healthy::default().into()));
-        health_checker
-            .expect_interval()
-            .once()
-            .in_sequence(&mut seq)
-            .returning(Duration::default);
         health_checker
             .expect_check_health()
             .once()
@@ -529,7 +508,13 @@ pub mod sleep_supervisor_tests {
             });
 
         let agent_id = AgentID::new("test-agent").unwrap();
-        spawn_health_checker(agent_id, health_checker, cancel_signal, health_publisher);
+        spawn_health_checker(
+            agent_id,
+            health_checker,
+            cancel_signal,
+            health_publisher,
+            Duration::default().into(),
+        );
 
         // Check that the health checker was called at least once
         let expected_health_events: Vec<SubAgentInternalEvent> =
@@ -547,11 +532,6 @@ pub mod sleep_supervisor_tests {
         let mut health_checker = MockHealthCheckerMock::new();
         let mut seq = Sequence::new();
         health_checker
-            .expect_interval()
-            .once()
-            .in_sequence(&mut seq)
-            .returning(Duration::default);
-        health_checker
             .expect_check_health()
             .once()
             .in_sequence(&mut seq)
@@ -560,11 +540,6 @@ pub mod sleep_supervisor_tests {
                     "mocked health check error!".to_string(),
                 ))
             });
-        health_checker
-            .expect_interval()
-            .once()
-            .in_sequence(&mut seq)
-            .returning(Duration::default);
         health_checker
             .expect_check_health()
             .once()
@@ -578,7 +553,13 @@ pub mod sleep_supervisor_tests {
             });
 
         let agent_id = AgentID::new("test-agent").unwrap();
-        spawn_health_checker(agent_id, health_checker, cancel_signal, health_publisher);
+        spawn_health_checker(
+            agent_id,
+            health_checker,
+            cancel_signal,
+            health_publisher,
+            Duration::default().into(),
+        );
 
         // Check that the health checker was called at least once
         let expected_health_events: Vec<SubAgentInternalEvent> = {
