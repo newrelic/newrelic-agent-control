@@ -1,5 +1,5 @@
 use super::health_checker::{Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy};
-use crate::agent_type::health_config::HttpHealth;
+use crate::agent_type::health_config::{HealthCheckInterval, HealthCheckTimeout, HttpHealth};
 use std::collections::HashMap;
 use std::time::Duration;
 use thiserror::Error;
@@ -57,14 +57,14 @@ where
     client: C,
     url: Url,
     headers: HashMap<String, String>,
-    interval: Duration,
+    interval: HealthCheckInterval,
     healthy_status_codes: Vec<u16>,
 }
 
 impl HttpHealthChecker<ureq::Agent> {
     pub(crate) fn new(
-        interval: Duration,
-        timeout: Duration,
+        interval: HealthCheckInterval,
+        timeout: HealthCheckTimeout,
         http_config: HttpHealth,
     ) -> Result<Self, HealthCheckerError> {
         let host = format!(
@@ -85,8 +85,8 @@ impl HttpHealthChecker<ureq::Agent> {
 
         Ok(Self {
             client: ureq::AgentBuilder::new()
-                .timeout_connect(timeout)
-                .timeout(timeout)
+                .timeout_connect(timeout.into())
+                .timeout(timeout.into())
                 .build(),
             url,
             headers,
@@ -121,7 +121,7 @@ impl<C: HttpClient> HealthChecker for HttpHealthChecker<C> {
     }
 
     fn interval(&self) -> Duration {
-        self.interval
+        self.interval.into()
     }
 }
 
