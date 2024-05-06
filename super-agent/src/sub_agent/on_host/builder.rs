@@ -18,6 +18,7 @@ use crate::opamp::remote_config_report::{
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
 use crate::sub_agent::event_processor_builder::SubAgentEventProcessorBuilder;
 use crate::sub_agent::on_host::supervisor::command_supervisor;
+use crate::sub_agent::on_host::supervisor::restart_policy::RestartPolicy;
 use crate::sub_agent::NotStarted;
 use crate::sub_agent::SubAgentCallbacks;
 use crate::super_agent::config::{AgentID, SubAgentConfig};
@@ -27,7 +28,6 @@ use crate::{
     opamp::client_builder::OpAMPClientBuilder,
     sub_agent::{
         error::{SubAgentBuilderError, SubAgentError},
-        restart_policy::RestartPolicy,
         SubAgentBuilder,
     },
 };
