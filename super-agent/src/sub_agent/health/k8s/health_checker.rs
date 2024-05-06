@@ -4,19 +4,26 @@ use crate::sub_agent::health::health_checker::{
     Health, HealthChecker, HealthCheckerError, Healthy,
 };
 use crate::sub_agent::health::k8s::helm_release::K8sHealthFluxHelmRelease;
+use crate::sub_agent::health::k8s::stateful_set::K8sHealthStatefulSet;
 use crate::super_agent::config::helm_release_type_meta;
 use kube::api::DynamicObject;
 use std::sync::Arc;
 
+// This label selector is added in post-render and present no matter the chart we are installing
+// https://github.com/fluxcd/helm-controller/blob/main/CHANGELOG.md#090
+pub const LABEL_RELEASE_FLUX: &str = "helm.toolkit.fluxcd.io/name";
+
 /// K8sHealthChecker exists to wrap all the k8s health checks to have a unique array and a single loop
 pub enum K8sHealthChecker {
     Flux(K8sHealthFluxHelmRelease),
+    StatefulSet(K8sHealthStatefulSet),
 }
 
 impl HealthChecker for K8sHealthChecker {
     fn check_health(&self) -> Result<Health, HealthCheckerError> {
         match self {
             K8sHealthChecker::Flux(flux) => flux.check_health(),
+            K8sHealthChecker::StatefulSet(stateful_set) => stateful_set.check_health(),
         }
     }
 }
@@ -42,7 +49,6 @@ impl SubAgentHealthChecker<K8sHealthChecker> {
             if type_meta != helm_release_type_meta() {
                 continue;
             }
-
             let name = resource
                 .metadata
                 .clone()
@@ -52,6 +58,10 @@ impl SubAgentHealthChecker<K8sHealthChecker> {
                 ))?;
 
             health_checkers.push(K8sHealthChecker::Flux(K8sHealthFluxHelmRelease::new(
+                k8s_client.clone(),
+                name.clone(),
+            )));
+            health_checkers.push(K8sHealthChecker::StatefulSet(K8sHealthStatefulSet::new(
                 k8s_client.clone(),
                 name,
             )));
@@ -71,7 +81,6 @@ where
                 return Ok(health);
             }
         }
-
         Ok(Healthy::default().into())
     }
 }
@@ -89,7 +98,6 @@ pub mod test {
     #[test]
     fn no_resource_set() {
         let mock_client = MockSyncK8sClient::default();
-
         assert!(
             SubAgentHealthChecker::try_new(Arc::new(mock_client), vec![])
                 .unwrap()
@@ -98,7 +106,6 @@ pub mod test {
                 .is_healthy()
         );
     }
-
     #[test]
     fn failing_build_health_check_resource_with_no_type() {
         let mock_client = MockSyncK8sClient::default();
