@@ -152,8 +152,7 @@ fn run_super_agent(
         .with_host_id(config.host_id)
         .with_fleet_id(config.fleet_id);
     let identifiers = identifiers_provider.provide().unwrap_or_default();
-    //Print identifiers for troubleshooting
-    print_identifiers(&identifiers);
+    info!("Instance Identifiers: {}", identifiers);
 
     let non_identifying_attributes = super_agent_opamp_non_identifying_attributes(&identifiers);
 
@@ -210,10 +209,6 @@ fn run_super_agent(
     .run(application_events_consumer, maybe_sa_opamp_consumer)
 }
 
-fn print_identifiers(identifiers: &Identifiers) {
-    info!("Instance Identifiers: {}", identifiers);
-}
-
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
 fn run_super_agent(
     runtime: Arc<Runtime>,
@@ -247,8 +242,7 @@ fn run_super_agent(
 
     let identifiers =
         instance_id::get_identifiers(k8s_config.cluster_name.clone(), config.fleet_id);
-    //Print identifiers for troubleshooting
-    print_identifiers(&identifiers);
+    info!("Instance Identifiers: {}", identifiers);
 
     let mut non_identifying_attributes = super_agent_opamp_non_identifying_attributes(&identifiers);
     non_identifying_attributes.insert(
@@ -340,8 +334,7 @@ fn create_shutdown_signal_handler(
 fn super_agent_opamp_non_identifying_attributes(
     identifiers: &Identifiers,
 ) -> HashMap<String, DescriptionValueType> {
-    use newrelic_super_agent::utils::hostname::HostnameGetter;
-
+    use resource_detection::system::hostname::HostnameGetter;
     let hostname = HostnameGetter::default()
         .get()
         .unwrap_or_else(|e| {

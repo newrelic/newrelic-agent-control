@@ -1,17 +1,16 @@
 use crate::logging::config::LoggingConfig;
 use crate::opamp::remote_config::RemoteConfigError;
+use crate::super_agent::config_storer::file::ConfigStoreError;
 use crate::super_agent::defaults::{default_capabilities, SUPER_AGENT_ID};
+use crate::super_agent::http_server::config::ServerConfig;
+#[cfg(all(not(feature = "onhost"), feature = "k8s"))]
+use kube::core::TypeMeta;
 use opamp_client::operation::capabilities::Capabilities;
 use serde::{Deserialize, Serialize};
 use std::ops::Deref;
 use std::path::Path;
 use std::{collections::HashMap, fmt::Display};
 use thiserror::Error;
-
-use crate::super_agent::config_storer::file::ConfigStoreError;
-use crate::super_agent::http_server::config::ServerConfig;
-#[cfg(all(not(feature = "onhost"), feature = "k8s"))]
-use kube::core::TypeMeta;
 
 const AGENT_ID_MAX_LENGTH: usize = 32;
 

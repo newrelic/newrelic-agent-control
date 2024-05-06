@@ -166,9 +166,8 @@ impl Default for BackoffStrategyConfig {
 
 #[cfg(test)]
 mod test {
-    use crate::agent_type::definition::TemplateableValue;
-
     use super::{BackoffStrategyConfig, BackoffStrategyType};
+    use crate::agent_type::definition::TemplateableValue;
 
     #[test]
     fn values_in_sync_with_type() {

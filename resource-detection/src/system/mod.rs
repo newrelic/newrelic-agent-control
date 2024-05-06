@@ -1,7 +1,7 @@
 //! System resource detector
 pub mod detector;
-
-mod hostname;
+/// hostname retriever
+pub mod hostname;
 mod identifier_machine_id_unix;
 
 /// HOSTNAME_KEY represents the hostname key attribute

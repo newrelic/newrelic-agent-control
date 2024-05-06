@@ -323,9 +323,7 @@ fn wait_for_termination(
 
 #[cfg(test)]
 pub mod sleep_supervisor_tests {
-    use super::SupervisorOnHost;
     use super::*;
-    use super::{NotStarted, SupervisorConfigOnHost};
     use crate::context::Context;
     use crate::event::channel::pub_sub;
     use crate::sub_agent::health::health_checker::{Health, HealthCheckerError, Healthy};
@@ -341,18 +339,6 @@ pub mod sleep_supervisor_tests {
             fn check_health(&self) -> Result<Health, HealthCheckerError>;
             fn interval(&self) -> Duration;
         }
-    }
-
-    pub fn new_sleep_supervisor(seconds: u32) -> SupervisorOnHost<NotStarted> {
-        let exec = ExecutableData::new("sh".to_owned())
-            .with_args(vec!["-c".to_owned(), format!("sleep {}", seconds)]);
-        let config = SupervisorConfigOnHost::new(
-            "sleep-supervisor".to_owned().try_into().unwrap(),
-            exec,
-            Context::new(),
-            RestartPolicy::new(BackoffStrategy::None, Vec::new()),
-        );
-        SupervisorOnHost::new(config)
     }
 
     #[test]
