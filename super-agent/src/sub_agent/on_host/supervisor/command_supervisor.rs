@@ -269,7 +269,6 @@ fn wait_for_termination(
 #[cfg(test)]
 pub mod sleep_supervisor_tests {
     use super::*;
-    use crate::agent_type::health_config::HealthCheckInterval;
     use crate::context::Context;
     use crate::event::channel::pub_sub;
     use crate::sub_agent::health::health_checker::{
