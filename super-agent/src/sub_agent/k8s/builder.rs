@@ -130,6 +130,7 @@ where
                     self.k8s_client.clone(),
                     &self.k8s_config,
                 )
+                .map(Some) // Doing this so the return type has a Default (None)
             },
         )?;
 
@@ -156,7 +157,7 @@ fn build_cr_supervisors(
     effective_agent: EffectiveAgent,
     k8s_client: Arc<SyncK8sClient>,
     k8s_config: &K8sConfig,
-) -> Result<Option<CRSupervisor>, SubAgentBuilderError> {
+) -> Result<CRSupervisor, SubAgentBuilderError> {
     debug!("Building CR supervisors {}", agent_id);
 
     let k8s_objects = effective_agent
@@ -172,7 +173,11 @@ fn build_cr_supervisors(
     validate_k8s_objects(&k8s_objects.objects.clone(), &k8s_config.cr_type_meta)?;
 
     // Clone the k8s_client on each build.
-    Ok(CRSupervisor::new(agent_id.clone(), k8s_client, k8s_objects.clone()).into())
+    Ok(CRSupervisor::new(
+        agent_id.clone(),
+        k8s_client,
+        k8s_objects.clone(),
+    ))
 }
 
 fn validate_k8s_objects(
