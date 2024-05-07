@@ -32,9 +32,11 @@ pub enum OpAMPClientBuilderError {
     GetUlidError(#[from] instance_id::GetterError),
 }
 
-pub trait OpAMPClientBuilder<CB: Callbacks> {
+pub trait OpAMPClientBuilder<CB>
+where
+    CB: Callbacks,
+{
     type Client: StartedClient<CB> + 'static;
-    // type StartedClient: StartedClient;
     fn build_and_start(
         &self,
         opamp_publisher: EventPublisher<OpAMPEvent>,
@@ -48,8 +50,11 @@ pub struct DefaultOpAMPClientBuilder<C> {
     http_client_builder: C,
 }
 
-impl<C: HttpClientBuilder> DefaultOpAMPClientBuilder<C> {
-    pub fn new(config: OpAMPClientConfig, http_client: C) -> Self {
+impl<C> DefaultOpAMPClientBuilder<C>
+where
+    C: HttpClientBuilder,
+{
+    pub fn new(config: OpAMPClientConfig, http_client_builder: C) -> Self {
         Self {
             config,
             http_client_builder: http_client,
