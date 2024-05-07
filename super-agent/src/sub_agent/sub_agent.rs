@@ -39,6 +39,75 @@ pub trait SubAgentBuilder {
     ) -> Result<Self::NotStartedSubAgent, error::SubAgentBuilderError>;
 }
 
+use crate::opamp::client_builder::OpAMPClientBuilder;
+use crate::opamp::hash_repository::HashRepository;
+use crate::opamp::remote_config_report::report_remote_config_status_applied;
+use crate::opamp::remote_config_report::report_remote_config_status_error;
+use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
+use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssemblerError;
+use std::sync::Arc;
+use tracing::{debug, error, warn};
+
+use super::error::SubAgentBuilderError;
+
+pub(crate) fn build_supervisor_from_effective_agent<HR, O, T, F>(
+    agent_id: &AgentID,
+    hash_repository: &Arc<HR>,
+    maybe_opamp_client: &Option<O::Client>,
+    effective_agent_res: Result<EffectiveAgent, EffectiveAgentsAssemblerError>,
+    supervisor_builder_fn: F,
+) -> Result<T, SubAgentBuilderError>
+where
+    HR: HashRepository,
+    O: OpAMPClientBuilder<SubAgentCallbacks>,
+    T: Default,
+    F: FnOnce(EffectiveAgent) -> Result<T, SubAgentBuilderError>,
+{
+    // A sub-agent's supervisor can be started without a valid effective agent when an OpAMP
+    // client is available. This is useful when the agent is in a failed state and the OpAMP
+    // client is the only way to fix the configuration via remote configs.
+    if let Some(opamp_client) = maybe_opamp_client {
+        match (hash_repository.get(agent_id)?, effective_agent_res) {
+            (Some(mut hash), Ok(effective_agent)) => {
+                if hash.is_applying() {
+                    debug!(%agent_id, "applying remote config");
+                    hash.apply();
+                    hash_repository.save(agent_id, &hash)?;
+                    report_remote_config_status_applied(opamp_client, &hash)?;
+                }
+
+                if let Some(err_msg) = hash.error_message() {
+                    warn!(%agent_id, err = %err_msg, "remote config failed. Building with previous stored config");
+                    report_remote_config_status_error(opamp_client, &hash, err_msg)?;
+                }
+
+                supervisor_builder_fn(effective_agent)
+            }
+            (Some(mut hash), Err(err)) => {
+                if !hash.is_failed() {
+                    hash.fail(err.to_string());
+                    hash_repository.save(agent_id, &hash)?;
+                }
+
+                report_remote_config_status_error(opamp_client, &hash, err.to_string())?;
+                error!(%agent_id, %err, "failed to assemble agent from remote config");
+                Ok(Default::default())
+            }
+            (None, Err(err)) => {
+                debug!(%agent_id, "no previous remote config found");
+                warn!(%agent_id, %err, "no previous config found. Failed to assemble agent from local or remote config");
+                Ok(Default::default())
+            }
+            (None, Ok(effective_agent)) => {
+                debug!(%agent_id, "no previous remote config found");
+                supervisor_builder_fn(effective_agent)
+            }
+        }
+    } else {
+        supervisor_builder_fn(effective_agent_res?)
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////////
 // States for Started/Not Started Sub Agents
 ////////////////////////////////////////////////////////////////////////////////////
