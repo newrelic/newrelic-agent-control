@@ -1,11 +1,20 @@
+use super::error::SubAgentBuilderError;
 use crate::event::channel::EventPublisher;
 use crate::event::SubAgentEvent;
 use crate::opamp::callbacks::AgentCallbacks;
+use crate::opamp::client_builder::OpAMPClientBuilder;
+use crate::opamp::hash_repository::HashRepository;
+use crate::opamp::remote_config_report::report_remote_config_status_applied;
+use crate::opamp::remote_config_report::report_remote_config_status_error;
+use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
+use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssemblerError;
 use crate::sub_agent::error;
 use crate::sub_agent::error::SubAgentError;
 use crate::sub_agent::event_processor::SubAgentEventProcessor;
 use crate::super_agent::config::{AgentID, AgentTypeFQN, SubAgentConfig};
+use std::sync::Arc;
 use std::thread::JoinHandle;
+use tracing::{debug, error, warn};
 
 pub(crate) type SubAgentCallbacks = AgentCallbacks;
 
@@ -38,17 +47,6 @@ pub trait SubAgentBuilder {
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
     ) -> Result<Self::NotStartedSubAgent, error::SubAgentBuilderError>;
 }
-
-use crate::opamp::client_builder::OpAMPClientBuilder;
-use crate::opamp::hash_repository::HashRepository;
-use crate::opamp::remote_config_report::report_remote_config_status_applied;
-use crate::opamp::remote_config_report::report_remote_config_status_error;
-use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
-use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssemblerError;
-use std::sync::Arc;
-use tracing::{debug, error, warn};
-
-use super::error::SubAgentBuilderError;
 
 pub(crate) fn build_supervisor_from_effective_agent<HR, O, T, F>(
     agent_id: &AgentID,
