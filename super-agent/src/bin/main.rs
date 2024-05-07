@@ -1,7 +1,9 @@
 use newrelic_super_agent::cli::Cli;
 use newrelic_super_agent::event::channel::{pub_sub, EventConsumer, EventPublisher};
 use newrelic_super_agent::event::{ApplicationEvent, SuperAgentEvent};
-use newrelic_super_agent::opamp::client_builder::OpAMPHttpClientBuilder;
+use newrelic_super_agent::opamp::client_builder::DefaultOpAMPClientBuilder;
+use newrelic_super_agent::opamp::http::builder::DefaultHttpClientBuilder;
+use newrelic_super_agent::opamp::http::builder::HttpClientBuilder;
 use newrelic_super_agent::opamp::instance_id::getter::ULIDInstanceIDGetter;
 use newrelic_super_agent::opamp::instance_id::Identifiers;
 use newrelic_super_agent::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
@@ -72,10 +74,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     debug!("Creating the signal handler");
     create_shutdown_signal_handler(application_event_publisher)?;
 
-    let opamp_client_builder: Option<OpAMPHttpClientBuilder> = super_agent_config
-        .opamp
-        .as_ref()
-        .map(|opamp_config| OpAMPHttpClientBuilder::new(opamp_config.clone()));
+    let opamp_client_builder: Option<DefaultOpAMPClientBuilder<_>> =
+        super_agent_config.opamp.as_ref().map(|opamp_config| {
+            let http_builder = DefaultHttpClientBuilder::new(opamp_config.clone());
+            DefaultOpAMPClientBuilder::new(opamp_config.clone(), http_builder)
+        });
 
     // create Super Agent events channel
     let (super_agent_publisher, super_agent_consumer) = pub_sub::<SuperAgentEvent>();
@@ -117,11 +120,11 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 #[cfg(feature = "onhost")]
-fn run_super_agent(
+fn run_super_agent<C: HttpClientBuilder>(
     _runtime: Arc<Runtime>,
     sa_config_storer: SuperAgentConfigStoreFile,
     application_events_consumer: EventConsumer<ApplicationEvent>,
-    opamp_client_builder: Option<OpAMPHttpClientBuilder>,
+    opamp_client_builder: Option<DefaultOpAMPClientBuilder<C>>,
     super_agent_publisher: EventPublisher<SuperAgentEvent>,
 ) -> Result<(), AgentError> {
     use newrelic_super_agent::agent_type::renderer::TemplateRenderer;
@@ -210,11 +213,11 @@ fn run_super_agent(
 }
 
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
-fn run_super_agent(
+fn run_super_agent<C: HttpClientBuilder>(
     runtime: Arc<Runtime>,
     sa_local_config_storer: SuperAgentConfigStoreFile,
     application_event_consumer: EventConsumer<ApplicationEvent>,
-    opamp_client_builder: Option<OpAMPHttpClientBuilder>,
+    opamp_client_builder: Option<DefaultOpAMPClientBuilder<C>>,
     super_agent_publisher: EventPublisher<SuperAgentEvent>,
 ) -> Result<(), AgentError> {
     use newrelic_super_agent::k8s::garbage_collector::NotStartedK8sGarbageCollector;
