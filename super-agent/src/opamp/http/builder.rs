@@ -1,4 +1,4 @@
-use opamp_client::http::http_client::HttpClient;
+use opamp_client::http::{http_client::HttpClient, HttpClientError};
 
 use crate::super_agent::config::OpAMPClientConfig;
 
@@ -7,7 +7,7 @@ use super::client::HttpClientUreq;
 pub trait HttpClientBuilder {
     type Client: HttpClient + Send + Sync + 'static;
 
-    fn build(&self) -> Self::Client;
+    fn build(&self) -> Result<Self::Client, HttpClientError>;
 }
 
 #[derive(Debug, Clone)]
@@ -23,7 +23,7 @@ impl DefaultHttpClientBuilder {
 
 impl HttpClientBuilder for DefaultHttpClientBuilder {
     type Client = HttpClientUreq;
-    fn build(&self) -> Self::Client {
-        HttpClientUreq::from(&self.config)
+    fn build(&self) -> Result<Self::Client, HttpClientError> {
+        Ok(HttpClientUreq::from(&self.config))
     }
 }

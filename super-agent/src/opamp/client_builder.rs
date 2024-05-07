@@ -72,7 +72,7 @@ where
         agent_id: AgentID,
         start_settings: StartSettings,
     ) -> Result<Self::Client, OpAMPClientBuilderError> {
-        let http_client = self.http_client_builder.build();
+        let http_client = self.http_client_builder.build()?;
         let callbacks = AgentCallbacks::new(agent_id, opamp_publisher);
         let not_started_client = NotStartedHttpClient::new(http_client);
         let started_client = not_started_client.start(callbacks, start_settings)?;
