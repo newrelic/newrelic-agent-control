@@ -57,7 +57,7 @@ where
     pub fn new(config: OpAMPClientConfig, http_client_builder: C) -> Self {
         Self {
             config,
-            http_client_builder: http_client,
+            http_client_builder,
         }
     }
 
