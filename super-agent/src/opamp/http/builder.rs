@@ -4,8 +4,10 @@ use crate::super_agent::config::OpAMPClientConfig;
 
 use super::client::HttpClientUreq;
 
-pub trait HttpClientBuilderT {
-    fn build(self) -> impl HttpClient;
+pub trait HttpClientBuilder {
+    type Client: HttpClient + Send + Sync + 'static;
+
+    fn build(&self) -> Self::Client;
 }
 
 #[derive(Debug, Clone)]
@@ -14,15 +16,14 @@ pub struct DefaultHttpClientBuilder {
 }
 
 impl DefaultHttpClientBuilder {
-    pub fn new(config: &OpAMPClientConfig) -> Self {
-        Self {
-            config: config.clone(),
-        }
+    pub fn new(config: OpAMPClientConfig) -> Self {
+        Self { config }
     }
 }
 
-impl HttpClientBuilderT for DefaultHttpClientBuilder {
-    fn build(self) -> impl HttpClient {
+impl HttpClientBuilder for DefaultHttpClientBuilder {
+    type Client = HttpClientUreq;
+    fn build(&self) -> Self::Client {
         HttpClientUreq::from(&self.config)
     }
 }

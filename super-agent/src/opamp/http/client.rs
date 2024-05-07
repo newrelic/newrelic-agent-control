@@ -13,7 +13,7 @@ use crate::super_agent::config::OpAMPClientConfig;
 const DEFAULT_CLIENT_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// An implementation of the `HttpClient` trait using the ureq library.
-pub(super) struct HttpClientUreq {
+pub struct HttpClientUreq {
     client: ureq::Agent,
     url: Url,
     headers: HeaderMap,
