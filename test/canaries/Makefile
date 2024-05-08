@@ -15,16 +15,16 @@ all: canaries
 
 .PHONY: canaries
 canaries:
-ifndef NR_LICENSE_KEY
-	@echo "NR_LICENSE_KEY variable must be provided for test/packaging"
+ifndef NR_LICENSE_KEY_CANARIES
+	@echo "NR_LICENSE_KEY_CANARIES variable must be provided for test/canaries"
 	exit 1
 endif
 ifndef NR_OTEL_COLLECTOR_MEMORY_LIMIT
-	@echo "NR_OTEL_COLLECTOR_MEMORY_LIMIT variable must be provided for test/packaging"
+	@echo "NR_OTEL_COLLECTOR_MEMORY_LIMIT variable must be provided for test/canaries"
 	exit 1
 endif
 ifndef NR_OTEL_COLLECTOR_OTLP_ENDPOINT
-	@echo "NR_OTEL_COLLECTOR_OTLP_ENDPOINT variable must be provided for test/packaging"
+	@echo "NR_OTEL_COLLECTOR_OTLP_ENDPOINT variable must be provided for test/canaries"
 	exit 1
 endif
 

@@ -1,20 +1,15 @@
-name: 🚀 🧬 Test specific version installation
+name: 🚀 🧬 Test staging package with molecule action
 on:
   workflow_dispatch:
     inputs:
       tag:
         description: 'Version of the agent to test installation'
         required: true
-      staging:
-        description: 'Should run tests using staging bucket?'
-        type: boolean
-        default: true
-        required: false
 
 jobs:
   molecule-packaging-tests:
     uses: ./.github/workflows/component_molecule_packaging.yml
     with:
-      TAG: ${{ github.event.inputs.tag }}
+      TAG: ${{ inputs.tag }}
       PACKAGE_NAME: "newrelic-super-agent"
       REPO_ENDPOINT: 'http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview'
