@@ -228,8 +228,24 @@ pub mod test {
         }
     }
 
+    // Tests for `build_supervisor_or_default``
+    // Essentially, the function `build_supervisor_or_default` defines the behavior for
+    // a certain combination of the following parameters:
+    //
+    // - `maybe_opamp_client`, the presence of an OpAMP client. Can be either `Some(opamp_client)` or `None`.
+    // - `hash_repository`, the presence of a hash in the hash repository for the given agent_id: The call to `hash_repository.get(agent_id)?` done inside the function returns either `Some(Hash)` or `None`.
+    // - `effective_agent_res`, the result of the agent assembly attempt. Can be either `Ok(EffectiveAgent)` or `Err(EffectiveAgentsAssemblerError)`.
+    //
+    // When `maybe_opamp_client == None` the function `hash_repository.get(agent_id)?` won't be called, there's no value to check for.
+    // We are safe to discard those from the testing set and only look at `effective_agent_res` in this case.
+    //
+    // So, we cover all cases.
+
+    /// `maybe_opamp_client == Some(_)`
+    /// `hash_repository.get(agent_id)? == Some(_)`
+    /// `effective_agent_res == Ok(_)`
     #[test]
-    fn test_build_supervisor_from_eff_agent_some_hash_ok_eff_agent() {
+    fn test_build_supervisor_from_some_hash_ok_eff_agent() {
         let agent_id = AgentID::new("test-agent").unwrap();
         let effective_agent = Ok(EffectiveAgent::new(agent_id.clone(), Runtime::default()));
 
@@ -281,10 +297,13 @@ pub mod test {
         assert!(actual.is_ok());
     }
 
+    /// `maybe_opamp_client == Some(_)`
+    /// `hash_repository.get(agent_id)? == Some(_)`
+    /// `effective_agent_res == Err(_)`
     #[test]
-    fn test_build_supervisor_from_eff_agent_some_hash_err_eff_agent() {
+    fn test_build_supervisor_from_some_hash_err_eff_agent() {
         let agent_id = AgentID::new("test-agent").unwrap();
-        let effective_agent = Err(EffectiveAgentsAssemblerError::SerdeYamlError(
+        let effective_agent_res = Err(EffectiveAgentsAssemblerError::SerdeYamlError(
             serde::de::Error::custom("some_error"),
         ));
 
@@ -324,7 +343,7 @@ pub mod test {
             &agent_id,
             &Arc::new(hash_repository),
             &Some(started_opamp_client),
-            effective_agent,
+            effective_agent_res,
             |_| Ok(Some(())), // On error, we don't actually call this function and should be using the default for the Option<()> which is None, note we test this below!
         );
 
@@ -332,10 +351,13 @@ pub mod test {
         assert!(actual.unwrap().is_none());
     }
 
+    /// `maybe_opamp_client == Some(_)`
+    /// `hash_repository.get(agent_id)? == None`
+    /// `effective_agent_res == Ok(_)`
     #[test]
-    fn test_build_supervisor_from_eff_agent_none_hash_ok_eff_agent() {
+    fn test_build_supervisor_from_none_hash_ok_eff_agent() {
         let agent_id = AgentID::new("test-agent").unwrap();
-        let effective_agent = Ok(EffectiveAgent::new(agent_id.clone(), Runtime::default()));
+        let effective_agent_res = Ok(EffectiveAgent::new(agent_id.clone(), Runtime::default()));
 
         // Expected calls on the hash repository
         let mut hash_repository = MockHashRepositoryMock::new();
@@ -357,7 +379,7 @@ pub mod test {
             &agent_id,
             &Arc::new(hash_repository),
             &Some(started_opamp_client),
-            effective_agent,
+            effective_agent_res,
             |effective_agent| {
                 Ok(assert_eq!(
                     EffectiveAgent::new(agent_id.clone(), Runtime::default()),
@@ -369,10 +391,13 @@ pub mod test {
         assert!(actual.is_ok());
     }
 
+    /// `maybe_opamp_client == Some(_)`
+    /// `hash_repository.get(agent_id)? == None`
+    /// `effective_agent_res == Err(_)`
     #[test]
-    fn test_build_supervisor_from_eff_agent_none_hash_err_eff_agent() {
+    fn test_build_supervisor_from_none_hash_err_eff_agent() {
         let agent_id = AgentID::new("test-agent").unwrap();
-        let effective_agent = Err(EffectiveAgentsAssemblerError::SerdeYamlError(
+        let effective_agent_res = Err(EffectiveAgentsAssemblerError::SerdeYamlError(
             serde::de::Error::custom("some_error"),
         ));
 
@@ -396,7 +421,7 @@ pub mod test {
             &agent_id,
             &Arc::new(hash_repository),
             &Some(started_opamp_client),
-            effective_agent,
+            effective_agent_res,
             |_| Ok(Some(())), // On error, we don't actually call this function and should be using the default for the Option<()> which is None, note we test this below!
         );
 
@@ -404,12 +429,13 @@ pub mod test {
         assert!(actual.unwrap().is_none());
     }
 
+    /// `maybe_opamp_client == None`
+    /// `hash_repository.get(agent_id)? == Some(_) || hash_repository.get(agent_id)? == None` (it won't be called)
+    /// `effective_agent_res == Ok(_)`
     #[test]
-    fn test_build_supervisor_from_eff_agent_none_hash_err_eff_agent_no_opamp() {
+    fn test_build_supervisor_from_ok_eff_agent_no_opamp() {
         let agent_id = AgentID::new("test-agent").unwrap();
-        let effective_agent = Err(EffectiveAgentsAssemblerError::SerdeYamlError(
-            serde::de::Error::custom("some_error"),
-        ));
+        let effective_agent_res = Ok(EffectiveAgent::new(agent_id.clone(), Runtime::default()));
 
         // Expected calls on the hash repository
         let mut hash_repository = MockHashRepositoryMock::new();
@@ -425,87 +451,7 @@ pub mod test {
             &agent_id,
             &Arc::new(hash_repository),
             &None,
-            effective_agent,
-            |_| Ok(Some(())), // On error, we don't actually call this function and should be using the default for the Option<()> which is None, note we test this below!
-        );
-
-        assert!(actual.is_err());
-    }
-
-    #[test]
-    fn test_build_supervisor_from_eff_agent_none_hash_ok_eff_agent_no_opamp() {
-        let agent_id = AgentID::new("test-agent").unwrap();
-        let effective_agent = Ok(EffectiveAgent::new(agent_id.clone(), Runtime::default()));
-
-        // Expected calls on the hash repository
-        let mut hash_repository = MockHashRepositoryMock::new();
-        hash_repository.expect_get().never();
-
-        // Actual test
-        let actual = build_supervisor_or_default::<
-            MockHashRepositoryMock,
-            MockOpAMPClientBuilderMock<SubAgentCallbacks>,
-            _,
-            _,
-        >(
-            &agent_id,
-            &Arc::new(hash_repository),
-            &None,
-            effective_agent,
-            |_| Ok(Some(())),
-        );
-
-        assert!(actual.is_ok());
-    }
-
-    #[test]
-    fn test_build_supervisor_from_eff_agent_some_hash_err_eff_agent_no_opamp() {
-        let agent_id = AgentID::new("test-agent").unwrap();
-        let effective_agent = Err(EffectiveAgentsAssemblerError::SerdeYamlError(
-            serde::de::Error::custom("some_error"),
-        ));
-
-        // Expected calls on the hash repository
-        let mut hash_repository = MockHashRepositoryMock::new();
-        hash_repository.expect_get().never();
-
-        // Actual test
-        let actual = build_supervisor_or_default::<
-            MockHashRepositoryMock,
-            MockOpAMPClientBuilderMock<SubAgentCallbacks>,
-            _,
-            _,
-        >(
-            &agent_id,
-            &Arc::new(hash_repository),
-            &None,
-            effective_agent,
-            |_| Ok(Some(())),
-        );
-
-        assert!(actual.is_err());
-    }
-
-    #[test]
-    fn test_build_supervisor_from_eff_agent_some_hash_ok_eff_agent_no_opamp() {
-        let agent_id = AgentID::new("test-agent").unwrap();
-        let effective_agent = Ok(EffectiveAgent::new(agent_id.clone(), Runtime::default()));
-
-        // Expected calls on the hash repository
-        let mut hash_repository = MockHashRepositoryMock::new();
-        hash_repository.expect_get().never();
-
-        // Actual test
-        let actual = build_supervisor_or_default::<
-            MockHashRepositoryMock,
-            MockOpAMPClientBuilderMock<SubAgentCallbacks>,
-            _,
-            _,
-        >(
-            &agent_id,
-            &Arc::new(hash_repository),
-            &None,
-            effective_agent,
+            effective_agent_res,
             |effective_agent| {
                 Ok(assert_eq!(
                     EffectiveAgent::new(agent_id.clone(), Runtime::default()),
@@ -515,5 +461,36 @@ pub mod test {
         );
 
         assert!(actual.is_ok());
+    }
+
+    /// `maybe_opamp_client == None`
+    /// `hash_repository.get(agent_id)? == Some(_) || hash_repository.get(agent_id)? == None` (it won't be called)
+    /// `effective_agent_res == Err(_)`
+    #[test]
+    fn test_build_supervisor_from_err_eff_agent_no_opamp() {
+        let agent_id = AgentID::new("test-agent").unwrap();
+        let effective_agent_res = Err(EffectiveAgentsAssemblerError::SerdeYamlError(
+            serde::de::Error::custom("some_error"),
+        ));
+
+        // Expected calls on the hash repository
+        let mut hash_repository = MockHashRepositoryMock::new();
+        hash_repository.expect_get().never();
+
+        // Actual test
+        let actual = build_supervisor_or_default::<
+            MockHashRepositoryMock,
+            MockOpAMPClientBuilderMock<SubAgentCallbacks>,
+            _,
+            _,
+        >(
+            &agent_id,
+            &Arc::new(hash_repository),
+            &None,
+            effective_agent_res,
+            |_| Ok(Some(())), // On error, we don't actually call this function, this time, the call to `build_supervisor_or_default` will bubble up the error!
+        );
+
+        assert!(actual.is_err());
     }
 }
