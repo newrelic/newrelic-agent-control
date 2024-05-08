@@ -123,7 +123,16 @@ pub struct Started {
 #[cfg(test)]
 pub mod test {
     use super::*;
-    use mockall::{mock, predicate};
+    use crate::{
+        agent_type::runtime_config::Runtime,
+        opamp::{
+            client_builder::test::{MockOpAMPClientBuilderMock, MockStartedOpAMPClientMock},
+            hash_repository::repository::test::MockHashRepositoryMock,
+            remote_config_hash::Hash,
+        },
+    };
+    use mockall::{mock, predicate, Sequence};
+    use opamp_client::opamp::proto::{RemoteConfigStatus, RemoteConfigStatuses};
 
     mock! {
         pub StartedSubAgent {}
@@ -217,5 +226,294 @@ pub mod test {
                 )
                 .return_once(move |_, _, _| Ok(sub_agent));
         }
+    }
+
+    #[test]
+    fn test_build_supervisor_from_eff_agent_some_hash_ok_eff_agent() {
+        let agent_id = AgentID::new("test-agent").unwrap();
+        let effective_agent = Ok(EffectiveAgent::new(agent_id.clone(), Runtime::default()));
+
+        // Expected calls on the hash repository
+        let mut hash_repository = MockHashRepositoryMock::new();
+        let mut seq = Sequence::new();
+        hash_repository
+            .expect_get()
+            .once()
+            .in_sequence(&mut seq)
+            .returning(|_| Ok(Some(Hash::new("some_hash".to_string()))));
+        hash_repository
+            .expect_save()
+            .once()
+            .in_sequence(&mut seq)
+            .returning(|_, _| Ok(()));
+
+        // Expected calls on the opamp client
+        let mut started_opamp_client = MockStartedOpAMPClientMock::new();
+        started_opamp_client
+            .expect_set_remote_config_status()
+            .once()
+            .with(predicate::eq(RemoteConfigStatus {
+                last_remote_config_hash: "some_hash".as_bytes().to_vec(),
+                status: RemoteConfigStatuses::Applied as i32,
+                error_message: "".to_string(),
+            }))
+            .returning(|_| Ok(()));
+
+        // Actual test
+        let actual = build_supervisor_from_effective_agent::<
+            MockHashRepositoryMock,
+            MockOpAMPClientBuilderMock<SubAgentCallbacks>,
+            _,
+            _,
+        >(
+            &agent_id,
+            &Arc::new(hash_repository),
+            &Some(started_opamp_client),
+            effective_agent,
+            |effective_agent| {
+                Ok(assert_eq!(
+                    EffectiveAgent::new(agent_id.clone(), Runtime::default()),
+                    effective_agent
+                ))
+            },
+        );
+
+        assert!(actual.is_ok());
+    }
+
+    #[test]
+    fn test_build_supervisor_from_eff_agent_some_hash_err_eff_agent() {
+        let agent_id = AgentID::new("test-agent").unwrap();
+        let effective_agent = Err(EffectiveAgentsAssemblerError::SerdeYamlError(
+            serde::de::Error::custom("some_error"),
+        ));
+
+        // Expected calls on the hash repository
+        let mut hash_repository = MockHashRepositoryMock::new();
+        let mut seq = Sequence::new();
+        hash_repository
+            .expect_get()
+            .once()
+            .in_sequence(&mut seq)
+            .returning(|_| Ok(Some(Hash::new("some_hash".to_string()))));
+        hash_repository
+            .expect_save()
+            .once()
+            .in_sequence(&mut seq)
+            .returning(|_, _| Ok(()));
+
+        // Expected calls on the opamp client
+        let mut started_opamp_client = MockStartedOpAMPClientMock::new();
+        started_opamp_client
+            .expect_set_remote_config_status()
+            .once()
+            .with(predicate::eq(RemoteConfigStatus {
+                last_remote_config_hash: "some_hash".as_bytes().to_vec(),
+                status: RemoteConfigStatuses::Failed as i32,
+                error_message: "error assembling agents: `some_error`".to_string(),
+            }))
+            .returning(|_| Ok(()));
+
+        // Actual test
+        let actual = build_supervisor_from_effective_agent::<
+            MockHashRepositoryMock,
+            MockOpAMPClientBuilderMock<SubAgentCallbacks>,
+            Option<()>,
+            _,
+        >(
+            &agent_id,
+            &Arc::new(hash_repository),
+            &Some(started_opamp_client),
+            effective_agent,
+            |_| Ok(Some(())), // On error, we don't actually call this function and should be using the default for the Option<()> which is None, note we test this below!
+        );
+
+        assert!(actual.is_ok());
+        assert!(actual.unwrap().is_none());
+    }
+
+    #[test]
+    fn test_build_supervisor_from_eff_agent_none_hash_ok_eff_agent() {
+        let agent_id = AgentID::new("test-agent").unwrap();
+        let effective_agent = Ok(EffectiveAgent::new(agent_id.clone(), Runtime::default()));
+
+        // Expected calls on the hash repository
+        let mut hash_repository = MockHashRepositoryMock::new();
+        hash_repository.expect_get().once().returning(|_| Ok(None));
+
+        // Expected calls on the opamp client
+        let mut started_opamp_client = MockStartedOpAMPClientMock::new();
+        started_opamp_client
+            .expect_set_remote_config_status()
+            .never();
+
+        // Actual test
+        let actual = build_supervisor_from_effective_agent::<
+            MockHashRepositoryMock,
+            MockOpAMPClientBuilderMock<SubAgentCallbacks>,
+            _,
+            _,
+        >(
+            &agent_id,
+            &Arc::new(hash_repository),
+            &Some(started_opamp_client),
+            effective_agent,
+            |effective_agent| {
+                Ok(assert_eq!(
+                    EffectiveAgent::new(agent_id.clone(), Runtime::default()),
+                    effective_agent
+                ))
+            },
+        );
+
+        assert!(actual.is_ok());
+    }
+
+    #[test]
+    fn test_build_supervisor_from_eff_agent_none_hash_err_eff_agent() {
+        let agent_id = AgentID::new("test-agent").unwrap();
+        let effective_agent = Err(EffectiveAgentsAssemblerError::SerdeYamlError(
+            serde::de::Error::custom("some_error"),
+        ));
+
+        // Expected calls on the hash repository
+        let mut hash_repository = MockHashRepositoryMock::new();
+        hash_repository.expect_get().once().returning(|_| Ok(None));
+
+        // Expected calls on the opamp client
+        let mut started_opamp_client = MockStartedOpAMPClientMock::new();
+        started_opamp_client
+            .expect_set_remote_config_status()
+            .never();
+
+        // Actual test
+        let actual = build_supervisor_from_effective_agent::<
+            MockHashRepositoryMock,
+            MockOpAMPClientBuilderMock<SubAgentCallbacks>,
+            Option<()>,
+            _,
+        >(
+            &agent_id,
+            &Arc::new(hash_repository),
+            &Some(started_opamp_client),
+            effective_agent,
+            |_| Ok(Some(())), // On error, we don't actually call this function and should be using the default for the Option<()> which is None, note we test this below!
+        );
+
+        assert!(actual.is_ok());
+        assert!(actual.unwrap().is_none());
+    }
+
+    #[test]
+    fn test_build_supervisor_from_eff_agent_none_hash_err_eff_agent_no_opamp() {
+        let agent_id = AgentID::new("test-agent").unwrap();
+        let effective_agent = Err(EffectiveAgentsAssemblerError::SerdeYamlError(
+            serde::de::Error::custom("some_error"),
+        ));
+
+        // Expected calls on the hash repository
+        let mut hash_repository = MockHashRepositoryMock::new();
+        hash_repository.expect_get().never();
+
+        // Actual test
+        let actual = build_supervisor_from_effective_agent::<
+            MockHashRepositoryMock,
+            MockOpAMPClientBuilderMock<SubAgentCallbacks>,
+            Option<()>,
+            _,
+        >(
+            &agent_id,
+            &Arc::new(hash_repository),
+            &None,
+            effective_agent,
+            |_| Ok(Some(())), // On error, we don't actually call this function and should be using the default for the Option<()> which is None, note we test this below!
+        );
+
+        assert!(actual.is_err());
+    }
+
+    #[test]
+    fn test_build_supervisor_from_eff_agent_none_hash_ok_eff_agent_no_opamp() {
+        let agent_id = AgentID::new("test-agent").unwrap();
+        let effective_agent = Ok(EffectiveAgent::new(agent_id.clone(), Runtime::default()));
+
+        // Expected calls on the hash repository
+        let mut hash_repository = MockHashRepositoryMock::new();
+        hash_repository.expect_get().never();
+
+        // Actual test
+        let actual = build_supervisor_from_effective_agent::<
+            MockHashRepositoryMock,
+            MockOpAMPClientBuilderMock<SubAgentCallbacks>,
+            Option<()>,
+            _,
+        >(
+            &agent_id,
+            &Arc::new(hash_repository),
+            &None,
+            effective_agent,
+            |_| Ok(Some(())),
+        );
+
+        assert!(actual.is_ok());
+    }
+
+    #[test]
+    fn test_build_supervisor_from_eff_agent_some_hash_err_eff_agent_no_opamp() {
+        let agent_id = AgentID::new("test-agent").unwrap();
+        let effective_agent = Err(EffectiveAgentsAssemblerError::SerdeYamlError(
+            serde::de::Error::custom("some_error"),
+        ));
+
+        // Expected calls on the hash repository
+        let mut hash_repository = MockHashRepositoryMock::new();
+        hash_repository.expect_get().never();
+
+        // Actual test
+        let actual = build_supervisor_from_effective_agent::<
+            MockHashRepositoryMock,
+            MockOpAMPClientBuilderMock<SubAgentCallbacks>,
+            Option<()>,
+            _,
+        >(
+            &agent_id,
+            &Arc::new(hash_repository),
+            &None,
+            effective_agent,
+            |_| Ok(Some(())),
+        );
+
+        assert!(actual.is_err());
+    }
+
+    #[test]
+    fn test_build_supervisor_from_eff_agent_some_hash_ok_eff_agent_no_opamp() {
+        let agent_id = AgentID::new("test-agent").unwrap();
+        let effective_agent = Ok(EffectiveAgent::new(agent_id.clone(), Runtime::default()));
+
+        // Expected calls on the hash repository
+        let mut hash_repository = MockHashRepositoryMock::new();
+        hash_repository.expect_get().never();
+
+        // Actual test
+        let actual = build_supervisor_from_effective_agent::<
+            MockHashRepositoryMock,
+            MockOpAMPClientBuilderMock<SubAgentCallbacks>,
+            _,
+            _,
+        >(
+            &agent_id,
+            &Arc::new(hash_repository),
+            &None,
+            effective_agent,
+            |effective_agent| {
+                Ok(assert_eq!(
+                    EffectiveAgent::new(agent_id.clone(), Runtime::default()),
+                    effective_agent
+                ))
+            },
+        );
+
+        assert!(actual.is_ok());
     }
 }

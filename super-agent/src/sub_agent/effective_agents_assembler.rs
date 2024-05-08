@@ -38,7 +38,7 @@ pub enum AgentTypeDefinitionError {
     EnvironmentError(AgentTypeError, Environment),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct EffectiveAgent {
     agent_id: AgentID,
     runtime_config: Runtime,
