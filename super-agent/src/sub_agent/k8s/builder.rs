@@ -131,7 +131,7 @@ where
                     &self.k8s_config,
                 )
                 .map(Some) // Doing this as `supervisor` is expected to be an Option<_>.
-                           // It also ensures the return type has a Default (None) so it complies with the signature for `build_supervisor_from_effective_agent`
+                           // It also ensures the return type has a Default (None) so it complies with the expected signature
             },
         )?;
 
