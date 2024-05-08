@@ -12,9 +12,7 @@ use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::instance_id::IdentifiersProvider;
 use crate::opamp::operations::build_sub_agent_opamp;
-use crate::opamp::remote_config_report::{
-    report_remote_config_status_applied, report_remote_config_status_error,
-};
+use crate::sub_agent::build_supervisor_or_default;
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
 use crate::sub_agent::event_processor_builder::SubAgentEventProcessorBuilder;
 use crate::sub_agent::on_host::supervisor::command_supervisor;
@@ -36,7 +34,6 @@ use nix::unistd::gethostname;
 use resource_detection::Detector;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::{error, warn};
 
 pub struct OnHostSubAgentBuilder<'a, O, I, HR, A, E>
 where
@@ -123,43 +120,13 @@ where
             &Environment::OnHost,
         );
 
-        let mut has_supervisors = true;
-
-        if let Some(opamp_client) = &maybe_opamp_client {
-            match self.hash_repository.get(&agent_id) {
-                Err(e) => warn!("hash repository error for agent {}: {}", &agent_id, e),
-                Ok(None) => warn!("hash repository not found for agent: {}", &agent_id),
-                Ok(Some(mut hash)) => {
-                    if let Err(err) = effective_agent_res.as_ref() {
-                        report_remote_config_status_error(opamp_client, &hash, err.to_string())?;
-                        error!(
-                            "Failed to assemble agent {} and to create supervisors, only the opamp client will be listening for a fixed configuration",
-                            agent_id
-                        );
-                        // report the failed status for remote config and let the opamp client
-                        // running with no supervisors so the configuration can be fixed
-                        has_supervisors = false;
-                    } else if hash.is_applying() {
-                        report_remote_config_status_applied(opamp_client, &hash)?;
-                        hash.apply();
-                        self.hash_repository.save(&agent_id, &hash)?;
-                    } else if hash.is_failed() {
-                        // failed hash always has the error message
-                        let error_message = hash.error_message().unwrap();
-                        report_remote_config_status_error(
-                            opamp_client,
-                            &hash,
-                            error_message.to_string(),
-                        )?;
-                    }
-                }
-            }
-        }
-
-        let supervisors = match has_supervisors {
-            false => Vec::new(),
-            true => build_supervisors(&self.identifiers_provider, effective_agent_res?)?,
-        };
+        let supervisors = build_supervisor_or_default::<HR, O, _, _>(
+            &agent_id,
+            &self.hash_repository,
+            &maybe_opamp_client,
+            effective_agent_res,
+            |effective_agent| build_supervisors(&self.identifiers_provider, effective_agent),
+        )?;
 
         let event_processor = self.event_processor_builder.build(
             agent_id.clone(),
@@ -182,7 +149,7 @@ where
 fn build_supervisors(
     identifiers_provider: &IdentifiersProvider,
     effective_agent: EffectiveAgent,
-) -> Result<Vec<SupervisorOnHost<command_supervisor::NotStarted>>, SubAgentError> {
+) -> Result<Vec<SupervisorOnHost<command_supervisor::NotStarted>>, SubAgentBuilderError> {
     let agent_id = effective_agent.get_agent_id();
     let on_host = effective_agent
         .get_runtime_config()
