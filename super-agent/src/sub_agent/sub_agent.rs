@@ -318,7 +318,7 @@ pub mod test {
         let actual = build_supervisor_from_effective_agent::<
             MockHashRepositoryMock,
             MockOpAMPClientBuilderMock<SubAgentCallbacks>,
-            Option<()>,
+            _,
             _,
         >(
             &agent_id,
@@ -390,7 +390,7 @@ pub mod test {
         let actual = build_supervisor_from_effective_agent::<
             MockHashRepositoryMock,
             MockOpAMPClientBuilderMock<SubAgentCallbacks>,
-            Option<()>,
+            _,
             _,
         >(
             &agent_id,
@@ -419,7 +419,7 @@ pub mod test {
         let actual = build_supervisor_from_effective_agent::<
             MockHashRepositoryMock,
             MockOpAMPClientBuilderMock<SubAgentCallbacks>,
-            Option<()>,
+            _,
             _,
         >(
             &agent_id,
@@ -445,7 +445,7 @@ pub mod test {
         let actual = build_supervisor_from_effective_agent::<
             MockHashRepositoryMock,
             MockOpAMPClientBuilderMock<SubAgentCallbacks>,
-            Option<()>,
+            _,
             _,
         >(
             &agent_id,
@@ -473,7 +473,7 @@ pub mod test {
         let actual = build_supervisor_from_effective_agent::<
             MockHashRepositoryMock,
             MockOpAMPClientBuilderMock<SubAgentCallbacks>,
-            Option<()>,
+            _,
             _,
         >(
             &agent_id,
