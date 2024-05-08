@@ -79,9 +79,7 @@ where
 #[cfg(test)]
 pub mod test {
     use crate::k8s::client::MockSyncK8sClient;
-    use crate::sub_agent::health::health_checker::test::{
-        get_error_mock, get_healthy_mock, get_unhealthy_mock, MockHealthCheckMock,
-    };
+    use crate::sub_agent::health::health_checker::test::MockHealthCheckMock;
     use crate::sub_agent::health::health_checker::{HealthChecker, HealthCheckerError};
     use crate::sub_agent::health::k8s::health_checker::SubAgentHealthChecker;
     use crate::super_agent::config::helm_release_type_meta;
