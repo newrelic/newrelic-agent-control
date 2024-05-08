@@ -12,7 +12,7 @@ use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::instance_id::IdentifiersProvider;
 use crate::opamp::operations::build_sub_agent_opamp;
-use crate::sub_agent::build_supervisor_from_effective_agent;
+use crate::sub_agent::build_supervisor_or_default;
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
 use crate::sub_agent::event_processor_builder::SubAgentEventProcessorBuilder;
 use crate::sub_agent::on_host::supervisor::command_supervisor;
@@ -120,7 +120,7 @@ where
             &Environment::OnHost,
         );
 
-        let supervisors = build_supervisor_from_effective_agent::<HR, O, _, _>(
+        let supervisors = build_supervisor_or_default::<HR, O, _, _>(
             &agent_id,
             &self.hash_repository,
             &maybe_opamp_client,

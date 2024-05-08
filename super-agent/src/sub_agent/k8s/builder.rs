@@ -8,7 +8,7 @@ use crate::k8s::client::SyncK8sClient;
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_sub_agent_opamp;
-use crate::sub_agent::build_supervisor_from_effective_agent;
+use crate::sub_agent::build_supervisor_or_default;
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
 use crate::sub_agent::event_processor_builder::SubAgentEventProcessorBuilder;
 use crate::sub_agent::{NotStarted, SubAgentCallbacks};
@@ -118,7 +118,7 @@ where
 
         // A sub-agent can be started without supervisor, when running with opamp activated, in order to
         // be able to receive messages.
-        let supervisor = build_supervisor_from_effective_agent::<HR, O, _, _>(
+        let supervisor = build_supervisor_or_default::<HR, O, _, _>(
             &agent_id,
             &self.hash_repository,
             &maybe_opamp_client,

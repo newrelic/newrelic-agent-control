@@ -48,7 +48,7 @@ pub trait SubAgentBuilder {
     ) -> Result<Self::NotStartedSubAgent, error::SubAgentBuilderError>;
 }
 
-pub(crate) fn build_supervisor_from_effective_agent<HR, O, T, F>(
+pub(crate) fn build_supervisor_or_default<HR, O, T, F>(
     agent_id: &AgentID,
     hash_repository: &Arc<HR>,
     maybe_opamp_client: &Option<O::Client>,
@@ -260,7 +260,7 @@ pub mod test {
             .returning(|_| Ok(()));
 
         // Actual test
-        let actual = build_supervisor_from_effective_agent::<
+        let actual = build_supervisor_or_default::<
             MockHashRepositoryMock,
             MockOpAMPClientBuilderMock<SubAgentCallbacks>,
             _,
@@ -315,7 +315,7 @@ pub mod test {
             .returning(|_| Ok(()));
 
         // Actual test
-        let actual = build_supervisor_from_effective_agent::<
+        let actual = build_supervisor_or_default::<
             MockHashRepositoryMock,
             MockOpAMPClientBuilderMock<SubAgentCallbacks>,
             _,
@@ -348,7 +348,7 @@ pub mod test {
             .never();
 
         // Actual test
-        let actual = build_supervisor_from_effective_agent::<
+        let actual = build_supervisor_or_default::<
             MockHashRepositoryMock,
             MockOpAMPClientBuilderMock<SubAgentCallbacks>,
             _,
@@ -387,7 +387,7 @@ pub mod test {
             .never();
 
         // Actual test
-        let actual = build_supervisor_from_effective_agent::<
+        let actual = build_supervisor_or_default::<
             MockHashRepositoryMock,
             MockOpAMPClientBuilderMock<SubAgentCallbacks>,
             _,
@@ -416,7 +416,7 @@ pub mod test {
         hash_repository.expect_get().never();
 
         // Actual test
-        let actual = build_supervisor_from_effective_agent::<
+        let actual = build_supervisor_or_default::<
             MockHashRepositoryMock,
             MockOpAMPClientBuilderMock<SubAgentCallbacks>,
             _,
@@ -442,7 +442,7 @@ pub mod test {
         hash_repository.expect_get().never();
 
         // Actual test
-        let actual = build_supervisor_from_effective_agent::<
+        let actual = build_supervisor_or_default::<
             MockHashRepositoryMock,
             MockOpAMPClientBuilderMock<SubAgentCallbacks>,
             _,
@@ -470,7 +470,7 @@ pub mod test {
         hash_repository.expect_get().never();
 
         // Actual test
-        let actual = build_supervisor_from_effective_agent::<
+        let actual = build_supervisor_or_default::<
             MockHashRepositoryMock,
             MockOpAMPClientBuilderMock<SubAgentCallbacks>,
             _,
@@ -496,7 +496,7 @@ pub mod test {
         hash_repository.expect_get().never();
 
         // Actual test
-        let actual = build_supervisor_from_effective_agent::<
+        let actual = build_supervisor_or_default::<
             MockHashRepositoryMock,
             MockOpAMPClientBuilderMock<SubAgentCallbacks>,
             _,
