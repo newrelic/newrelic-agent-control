@@ -8,7 +8,7 @@ use crate::super_agent::config::helm_release_type_meta;
 use kube::api::DynamicObject;
 use std::sync::Arc;
 
-// GenericHealthCheck exists to wrap all the k8s health checks to have a unique array and a single loop
+/// K8sHealthChecker exists to wrap all the k8s health checks to have a unique array and a single loop
 pub enum K8sHealthChecker {
     Flux(K8sHealthFluxHelmRelease),
 }
@@ -21,7 +21,7 @@ impl HealthChecker for K8sHealthChecker {
     }
 }
 
-/// K8sHealthChecker contains a collection of healthChecks that are queried to provide a unified health value
+/// SubAgentHealthChecker contains a collection of healthChecks that are queried to provide a unified health value
 pub struct SubAgentHealthChecker<HC = K8sHealthChecker>
 where
     HC: HealthChecker,
@@ -80,7 +80,7 @@ where
 pub mod test {
     use crate::k8s::client::MockSyncK8sClient;
     use crate::sub_agent::health::health_checker::test::{
-        get_error_mock, get_healthy_mock, get_unhealthy_mock,
+        get_error_mock, get_healthy_mock, get_unhealthy_mock, MockHealthCheckMock,
     };
     use crate::sub_agent::health::health_checker::{HealthChecker, HealthCheckerError};
     use crate::sub_agent::health::k8s::health_checker::SubAgentHealthChecker;
@@ -148,24 +148,34 @@ pub mod test {
     #[test]
     fn logic_health_check() {
         assert!(SubAgentHealthChecker {
-            health_checkers: vec![get_healthy_mock(), get_healthy_mock()],
+            health_checkers: vec![
+                MockHealthCheckMock::new_healthy(),
+                MockHealthCheckMock::new_healthy()
+            ],
         }
         .check_health()
         .unwrap()
         .is_healthy());
 
-        assert_eq!(
-            SubAgentHealthChecker {
-                health_checkers: vec![get_healthy_mock(), get_unhealthy_mock(), get_healthy_mock()],
+        assert!(
+            !SubAgentHealthChecker {
+                health_checkers: vec![
+                    MockHealthCheckMock::new_healthy(),
+                    MockHealthCheckMock::new_unhealthy(),
+                    MockHealthCheckMock::new_healthy()
+                ],
             }
             .check_health()
             .unwrap()
-            .is_healthy(),
-            false
+            .is_healthy() //Notice that this assert has a ! at the beginning
         );
 
         assert!(SubAgentHealthChecker {
-            health_checkers: vec![get_healthy_mock(), get_error_mock(), get_healthy_mock()],
+            health_checkers: vec![
+                MockHealthCheckMock::new_healthy(),
+                MockHealthCheckMock::new_with_error(),
+                MockHealthCheckMock::new_healthy()
+            ],
         }
         .check_health()
         .is_err());
