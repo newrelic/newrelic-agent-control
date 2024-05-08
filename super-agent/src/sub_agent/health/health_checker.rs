@@ -161,3 +161,40 @@ pub(crate) fn publish_health_event(
         )
     });
 }
+
+#[cfg(test)]
+pub mod test {
+    use super::*;
+    use mockall::mock;
+
+    mock! {
+        pub HealthCheckMock{}
+        impl HealthChecker for HealthCheckMock{
+            fn check_health(&self) -> Result<Health, HealthCheckerError>;
+        }
+    }
+
+    pub fn get_healthy_mock() -> MockHealthCheckMock {
+        let mut healthy = MockHealthCheckMock::new();
+        healthy
+            .expect_check_health()
+            .returning(|| Ok(Healthy::default().into()));
+        healthy
+    }
+
+    pub fn get_unhealthy_mock() -> MockHealthCheckMock {
+        let mut unhealthy = MockHealthCheckMock::new();
+        unhealthy
+            .expect_check_health()
+            .returning(|| Ok(Unhealthy::default().into()));
+        unhealthy
+    }
+
+    pub fn get_error_mock() -> MockHealthCheckMock {
+        let mut unhealthy = MockHealthCheckMock::new();
+        unhealthy
+            .expect_check_health()
+            .returning(|| Err(HealthCheckerError::new("test".to_string())));
+        unhealthy
+    }
+}

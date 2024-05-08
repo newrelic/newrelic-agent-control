@@ -8,29 +8,28 @@ use crate::super_agent::config::helm_release_type_meta;
 use kube::api::DynamicObject;
 use std::sync::Arc;
 
-// GenericHealthCheck exist to wrap all the k8s health checks to have a unique array and a single loop
-pub enum GenericHealthCheck {
+// GenericHealthCheck exists to wrap all the k8s health checks to have a unique array and a single loop
+pub enum K8sHealthChecker {
     Flux(K8sHealthFluxHelmRelease),
 }
 
-impl HealthChecker for GenericHealthCheck {
+impl HealthChecker for K8sHealthChecker {
     fn check_health(&self) -> Result<Health, HealthCheckerError> {
         match self {
-            GenericHealthCheck::Flux(flux) => flux.check_health(),
+            K8sHealthChecker::Flux(flux) => flux.check_health(),
         }
     }
 }
 
 /// K8sHealthChecker contains a collection of healthChecks that are queried to provide a unified health value
-pub struct K8sHealthChecker<HC = GenericHealthCheck>
+pub struct SubAgentHealthChecker<HC = K8sHealthChecker>
 where
     HC: HealthChecker,
 {
-    // Send is needed since K8sHealthChecker is passed to a different thread
     health_checkers: Vec<HC>,
 }
 
-impl K8sHealthChecker<GenericHealthCheck> {
+impl SubAgentHealthChecker<K8sHealthChecker> {
     pub fn try_new(
         k8s_client: Arc<SyncK8sClient>,
         resources: Vec<DynamicObject>,
@@ -52,7 +51,7 @@ impl K8sHealthChecker<GenericHealthCheck> {
                     "not able to build flux health checker: name not found".to_string(),
                 ))?;
 
-            health_checkers.push(GenericHealthCheck::Flux(K8sHealthFluxHelmRelease::new(
+            health_checkers.push(K8sHealthChecker::Flux(K8sHealthFluxHelmRelease::new(
                 k8s_client.clone(),
                 name,
             )));
@@ -61,7 +60,7 @@ impl K8sHealthChecker<GenericHealthCheck> {
     }
 }
 
-impl<HC> HealthChecker for K8sHealthChecker<HC>
+impl<HC> HealthChecker for SubAgentHealthChecker<HC>
 where
     HC: HealthChecker,
 {
@@ -80,34 +79,60 @@ where
 #[cfg(test)]
 pub mod test {
     use crate::k8s::client::MockSyncK8sClient;
-    use crate::sub_agent::health::health_checker::{Health, Healthy, Unhealthy};
+    use crate::sub_agent::health::health_checker::test::{
+        get_error_mock, get_healthy_mock, get_unhealthy_mock,
+    };
     use crate::sub_agent::health::health_checker::{HealthChecker, HealthCheckerError};
-    use crate::sub_agent::health::k8s::health_checker::K8sHealthChecker;
+    use crate::sub_agent::health::k8s::health_checker::SubAgentHealthChecker;
     use crate::super_agent::config::helm_release_type_meta;
     use kube::api::DynamicObject;
-    use mockall::mock;
     use std::sync::Arc;
 
     #[test]
     fn no_resource_set() {
         let mock_client = MockSyncK8sClient::default();
 
-        assert!(K8sHealthChecker::try_new(Arc::new(mock_client), vec![])
-            .unwrap()
-            .check_health()
-            .unwrap()
-            .is_healthy());
+        assert!(
+            SubAgentHealthChecker::try_new(Arc::new(mock_client), vec![])
+                .unwrap()
+                .check_health()
+                .unwrap()
+                .is_healthy()
+        );
     }
 
     #[test]
-    fn failing_build_health_check() {
+    fn failing_build_health_check_resource_with_no_type() {
         let mock_client = MockSyncK8sClient::default();
 
         assert_eq!(
-            K8sHealthChecker::try_new(
+            SubAgentHealthChecker::try_new(
+                Arc::new(mock_client),
+                vec![DynamicObject {
+                    // having no type causes an error
+                    types: None,
+                    metadata: Default::default(),
+                    data: Default::default(),
+                }]
+            )
+            .err()
+            .unwrap(),
+            HealthCheckerError::new(
+                "not able to build flux health checker: type not found".to_string(),
+            )
+        );
+    }
+
+    #[test]
+    fn failing_build_health_check_resource_with_no_name() {
+        let mock_client = MockSyncK8sClient::default();
+
+        assert_eq!(
+            SubAgentHealthChecker::try_new(
                 Arc::new(mock_client),
                 vec![DynamicObject {
                     types: Some(helm_release_type_meta()),
+                    // having no name causes an error
                     metadata: Default::default(),
                     data: Default::default(),
                 }]
@@ -120,54 +145,26 @@ pub mod test {
         );
     }
 
-    mock! {
-        pub HealthCheckMock{}
-        impl HealthChecker for HealthCheckMock{
-            fn check_health(&self) -> Result<Health, HealthCheckerError>;
-        }
-    }
-
-    fn get_healthy_mock() -> MockHealthCheckMock {
-        let mut healthy = MockHealthCheckMock::new();
-        healthy
-            .expect_check_health()
-            .returning(|| Ok(Healthy::default().into()));
-        healthy
-    }
-
-    fn get_unhealthy_mock() -> MockHealthCheckMock {
-        let mut unhealthy = MockHealthCheckMock::new();
-        unhealthy
-            .expect_check_health()
-            .returning(|| Ok(Unhealthy::default().into()));
-        unhealthy
-    }
-
-    fn get_error_mock() -> MockHealthCheckMock {
-        let mut unhealthy = MockHealthCheckMock::new();
-        unhealthy
-            .expect_check_health()
-            .returning(|| Err(HealthCheckerError::new("test".to_string())));
-        unhealthy
-    }
-
     #[test]
     fn logic_health_check() {
-        assert!(K8sHealthChecker {
+        assert!(SubAgentHealthChecker {
             health_checkers: vec![get_healthy_mock(), get_healthy_mock()],
         }
         .check_health()
         .unwrap()
         .is_healthy());
 
-        assert!(!K8sHealthChecker {
-            health_checkers: vec![get_healthy_mock(), get_unhealthy_mock(), get_healthy_mock()],
-        }
-        .check_health()
-        .unwrap()
-        .is_healthy());
+        assert_eq!(
+            SubAgentHealthChecker {
+                health_checkers: vec![get_healthy_mock(), get_unhealthy_mock(), get_healthy_mock()],
+            }
+            .check_health()
+            .unwrap()
+            .is_healthy(),
+            false
+        );
 
-        assert!(K8sHealthChecker {
+        assert!(SubAgentHealthChecker {
             health_checkers: vec![get_healthy_mock(), get_error_mock(), get_healthy_mock()],
         }
         .check_health()

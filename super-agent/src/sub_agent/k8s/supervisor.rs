@@ -7,7 +7,7 @@ use crate::k8s::client::SyncK8sClient;
 use crate::k8s::error::K8sError;
 use crate::k8s::labels::Labels;
 use crate::sub_agent::health::health_checker::{spawn_health_checker, HealthCheckerError};
-use crate::sub_agent::health::k8s::health_checker::K8sHealthChecker;
+use crate::sub_agent::health::k8s::health_checker::SubAgentHealthChecker;
 use crate::super_agent::config::AgentID;
 use k8s_openapi::serde_json;
 use kube::{
@@ -114,7 +114,8 @@ impl CRSupervisor {
     ) -> Result<Option<EventPublisher<()>>, SupervisorError> {
         if let Some(health_config) = self.k8s_config.health.clone() {
             let (stop_health_publisher, stop_health_consumer) = pub_sub();
-            let k8s_health_checker = K8sHealthChecker::try_new(self.k8s_client.clone(), resources)?;
+            let k8s_health_checker =
+                SubAgentHealthChecker::try_new(self.k8s_client.clone(), resources)?;
 
             spawn_health_checker(
                 self.agent_id.clone(),
