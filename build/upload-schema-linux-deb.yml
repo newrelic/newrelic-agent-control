@@ -8,6 +8,7 @@
       src_repo: "{access_point_host}/preview/linux/apt"
       dest: "{dest_prefix}linux/apt/"
       os_version:
+        - noble
         - jammy
         - focal
         - bionic
