@@ -595,7 +595,7 @@ pub fn is_label_present(labels: &Option<BTreeMap<String, String>>, key: &str, va
             }
         }
     }
-    return false;
+    false
 }
 
 #[cfg(test)]
