@@ -17,43 +17,40 @@ pub const FLEET_ID_ATTRIBUTE_KEY: &str = "fleet.guid";
 // Paths
 cfg_if::cfg_if! {
     if #[cfg(target_os = "macos")] {
-        pub const SUB_AGENT_DIRECTORY: &str = "agents.d";
         pub const SUPER_AGENT_LOCAL_DATA_DIR: &str = "/opt/homebrew/etc/newrelic-super-agent";
         pub const SUPER_AGENT_IDENTIFIERS_PATH: &str = "/opt/homebrew/var/lib/newrelic-super-agent/identifiers.yaml";
         pub const REMOTE_AGENT_DATA_DIR: &str = "/opt/homebrew/var/lib/newrelic-super-agent/fleet/agents.d";
         pub const LOCAL_AGENT_DATA_DIR: &str = "/opt/homebrew/etc/newrelic-super-agent/fleet/agents.d";
-        pub const VALUES_DIR: &str = "values";
-        pub const VALUES_FILE: &str = "values.yaml";
+
         pub const SUPER_AGENT_DATA_DIR: &str = "/opt/homebrew/var/lib/newrelic-super-agent";
-        pub const GENERATED_FOLDER_NAME: &str = "auto-generated";
         pub const DYNAMIC_AGENT_TYPE :&str = "/opt/homebrew/etc/newrelic-super-agent/dynamic-agent-type.yaml";
 
         // Logging constants
         pub const SUPER_AGENT_LOG_DIR: &str = "/opt/homebrew/var/log/newrelic-super-agent";
-        pub const SUPER_AGENT_LOG_FILENAME: &str = "newrelic-super-agent.log";
         pub const SUB_AGENT_LOG_DIR: &str = "/opt/homebrew/var/log/newrelic-super-agent/fleet/agents.d";
-        pub const STDOUT_LOG_PREFIX: &str = "stdout.log";
-        pub const STDERR_LOG_PREFIX: &str = "stderr.log";
+
     }else{
-        pub const SUB_AGENT_DIRECTORY: &str = "agents.d";
         pub const SUPER_AGENT_LOCAL_DATA_DIR: &str = "/etc/newrelic-super-agent";
         pub const SUPER_AGENT_IDENTIFIERS_PATH: &str = "/var/lib/newrelic-super-agent/identifiers.yaml";
         pub const REMOTE_AGENT_DATA_DIR: &str = "/var/lib/newrelic-super-agent/fleet/agents.d";
         pub const LOCAL_AGENT_DATA_DIR: &str = "/etc/newrelic-super-agent/fleet/agents.d";
-        pub const VALUES_DIR: &str = "values";
-        pub const VALUES_FILE: &str = "values.yaml";
+
         pub const SUPER_AGENT_DATA_DIR: &str = "/var/lib/newrelic-super-agent";
-        pub const GENERATED_FOLDER_NAME: &str = "auto-generated";
         pub const DYNAMIC_AGENT_TYPE :&str = "/etc/newrelic-super-agent/dynamic-agent-type.yaml";
 
         // Logging constants
         pub const SUPER_AGENT_LOG_DIR: &str = "/var/log/newrelic-super-agent";
-        pub const SUPER_AGENT_LOG_FILENAME: &str = "newrelic-super-agent.log";
         pub const SUB_AGENT_LOG_DIR: &str = "/var/log/newrelic-super-agent/fleet/agents.d";
-        pub const STDOUT_LOG_PREFIX: &str = "stdout.log";
-        pub const STDERR_LOG_PREFIX: &str = "stderr.log";
     }
 }
+
+pub const SUB_AGENT_DIRECTORY: &str = "agents.d";
+pub const VALUES_DIR: &str = "values";
+pub const VALUES_FILE: &str = "values.yaml";
+pub const GENERATED_FOLDER_NAME: &str = "auto-generated";
+pub const SUPER_AGENT_LOG_FILENAME: &str = "newrelic-super-agent.log";
+pub const STDOUT_LOG_PREFIX: &str = "stdout.log";
+pub const STDERR_LOG_PREFIX: &str = "stderr.log";
 
 pub fn default_capabilities() -> Capabilities {
     capabilities!(
