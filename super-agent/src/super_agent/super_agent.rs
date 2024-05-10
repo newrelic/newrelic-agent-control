@@ -436,7 +436,9 @@ pub fn super_agent_fqn() -> AgentTypeFQN {
     AgentTypeFQN::try_from(
         format!(
             "{}/{}:{}",
-            SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION
+            SUPER_AGENT_NAMESPACE(),
+            SUPER_AGENT_TYPE(),
+            SUPER_AGENT_VERSION()
         )
         .as_str(),
     )

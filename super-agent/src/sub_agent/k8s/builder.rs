@@ -106,7 +106,7 @@ where
                     agent_id.clone(),
                     &sub_agent_config.agent_type,
                     HashMap::from([(
-                        CLUSTER_NAME_ATTRIBUTE_KEY.to_string(),
+                        CLUSTER_NAME_ATTRIBUTE_KEY().to_string(),
                         DescriptionValueType::String(self.k8s_config.cluster_name.to_string()),
                     )]),
                 )
@@ -377,11 +377,11 @@ pub mod test {
             &sub_agent_config.agent_type,
             HashMap::from([
                 (
-                    CLUSTER_NAME_ATTRIBUTE_KEY.to_string(),
+                    CLUSTER_NAME_ATTRIBUTE_KEY().to_string(),
                     DescriptionValueType::String(TEST_CLUSTER_NAME.to_string()),
                 ),
                 (
-                    PARENT_AGENT_ID_ATTRIBUTE_KEY.to_string(),
+                    PARENT_AGENT_ID_ATTRIBUTE_KEY().to_string(),
                     DescriptionValueType::String("super_agent_instance_id".to_string()),
                 ),
             ]),

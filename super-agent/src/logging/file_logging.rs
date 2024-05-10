@@ -31,8 +31,8 @@ pub(crate) struct LogFilePath {
 impl Default for LogFilePath {
     fn default() -> Self {
         Self {
-            parent: PathBuf::from(SUPER_AGENT_LOG_DIR),
-            file_name: PathBuf::from(SUPER_AGENT_LOG_FILENAME),
+            parent: PathBuf::from(SUPER_AGENT_LOG_DIR()),
+            file_name: PathBuf::from(SUPER_AGENT_LOG_FILENAME()),
         }
     }
 }

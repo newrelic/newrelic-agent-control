@@ -349,11 +349,11 @@ fn super_agent_opamp_non_identifying_attributes(
 
     HashMap::from([
         (
-            HOST_NAME_ATTRIBUTE_KEY.to_string(),
+            HOST_NAME_ATTRIBUTE_KEY().to_string(),
             DescriptionValueType::String(hostname),
         ),
         (
-            FLEET_ID_ATTRIBUTE_KEY.to_string(),
+            FLEET_ID_ATTRIBUTE_KEY().to_string(),
             DescriptionValueType::String(identifiers.fleet_id.clone()),
         ),
     ])
@@ -367,15 +367,15 @@ fn super_agent_opamp_non_identifying_attributes(
 
     HashMap::from([
         (
-            HOST_NAME_ATTRIBUTE_KEY.to_string(),
+            HOST_NAME_ATTRIBUTE_KEY().to_string(),
             DescriptionValueType::String(identifiers.hostname.clone()),
         ),
         (
-            HOST_ID_ATTRIBUTE_KEY.to_string(),
+            HOST_ID_ATTRIBUTE_KEY().to_string(),
             DescriptionValueType::String(identifiers.host_id.clone()),
         ),
         (
-            FLEET_ID_ATTRIBUTE_KEY.to_string(),
+            FLEET_ID_ATTRIBUTE_KEY().to_string(),
             DescriptionValueType::String(identifiers.fleet_id.clone()),
         ),
     ])

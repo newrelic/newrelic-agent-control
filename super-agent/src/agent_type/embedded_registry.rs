@@ -32,7 +32,7 @@ impl Default for EmbeddedRegistry {
 
         // Read the dynamic agent type and merge with the static ones.
         // Log failure but not fail the whole registry creation
-        let dynamic_agent_type = fs::read(DYNAMIC_AGENT_TYPE)
+        let dynamic_agent_type = fs::read(DYNAMIC_AGENT_TYPE())
             .inspect_err(|e| debug!("Failed to load dynamic agent type: {}", e))
             .ok()
             .and_then(|content| {
