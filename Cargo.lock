@@ -1997,6 +1997,7 @@ dependencies = [
  "nix",
  "opamp-client",
  "opentelemetry-semantic-conventions",
+ "paste",
  "predicates",
  "prost",
  "regex",

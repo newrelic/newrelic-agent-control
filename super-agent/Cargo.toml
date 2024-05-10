@@ -50,6 +50,7 @@ tracing-appender = "0.2.3"
 cfg-if = "1.0.0"
 opentelemetry-semantic-conventions = "0.14.0"
 http-serde = "2.1.0"
+paste = "1.0"
 
 [dev-dependencies]
 assert_cmd = { workspace = true }
