@@ -505,15 +505,16 @@ pub fn get_type_meta(obj: &DynamicObject) -> Result<TypeMeta, K8sError> {
     obj.types.clone().ok_or(K8sError::MissingKind())
 }
 
-pub fn is_label_present(labels: &Option<BTreeMap<String, String>>, key: &str, value: &str) -> bool {
-    if let Some(labels) = labels.as_ref() {
-        if let Some(v) = labels.get(key) {
-            if v.as_str() == value {
-                return true;
-            }
-        }
-    }
-    false
+/// This function returns true if there are labels and they contain the provided key, value.
+pub fn contains_label_with_value(
+    labels: &Option<BTreeMap<String, String>>,
+    key: &str,
+    value: &str,
+) -> bool {
+    labels
+        .as_ref()
+        .and_then(|labels| labels.get(key))
+        .map_or(false, |v| v.as_str() == value)
 }
 
 #[cfg(test)]
@@ -705,5 +706,67 @@ pub(crate) mod test {
               ]
             })
         }
+    }
+
+    #[test]
+    fn test_contains_label_with_value() {
+        struct TestCase<'a> {
+            name: &'a str,
+            labels: &'a Option<BTreeMap<String, String>>,
+            key: &'a str,
+            value: &'a str,
+            expected: bool,
+        }
+
+        impl TestCase<'_> {
+            fn run(&self) {
+                assert_eq!(
+                    self.expected,
+                    contains_label_with_value(self.labels, self.key, self.value),
+                    "{}",
+                    self.name
+                )
+            }
+        }
+
+        let test_cases = [
+            TestCase {
+                name: "No labels",
+                labels: &None,
+                key: "key",
+                value: "value",
+                expected: false,
+            },
+            TestCase {
+                name: "Empty labels",
+                labels: &Some(BTreeMap::default()),
+                key: "key",
+                value: "value",
+                expected: false,
+            },
+            TestCase {
+                name: "No matching label",
+                labels: &Some([("a".to_string(), "b".to_string())].into()),
+                key: "key",
+                value: "value",
+                expected: false,
+            },
+            TestCase {
+                name: "Matching label with different value",
+                labels: &Some([("key".to_string(), "other".to_string())].into()),
+                key: "key",
+                value: "value",
+                expected: false,
+            },
+            TestCase {
+                name: "Matching label and value",
+                labels: &Some([("key".to_string(), "value".to_string())].into()),
+                key: "key",
+                value: "value",
+                expected: true,
+            },
+        ];
+
+        test_cases.iter().for_each(|tc| tc.run());
     }
 }
