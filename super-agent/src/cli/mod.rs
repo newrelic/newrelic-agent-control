@@ -12,6 +12,15 @@ pub struct Cli {
 
     #[arg(long)]
     version: bool,
+
+    #[arg(long)]
+    pub local_dir: Option<PathBuf>,
+
+    #[arg(long)]
+    pub remote_dir: Option<PathBuf>,
+
+    #[arg(long)]
+    pub log_dir: Option<PathBuf>,
 }
 
 impl Cli {

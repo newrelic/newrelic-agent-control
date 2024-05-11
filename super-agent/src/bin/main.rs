@@ -11,7 +11,7 @@ use newrelic_super_agent::sub_agent::event_processor_builder::EventProcessorBuil
 use newrelic_super_agent::super_agent::config_storer::storer::SuperAgentConfigLoader;
 use newrelic_super_agent::super_agent::config_storer::SuperAgentConfigStoreFile;
 use newrelic_super_agent::super_agent::defaults::{
-    FLEET_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
+    self, FLEET_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
 };
 use newrelic_super_agent::super_agent::error::AgentError;
 use newrelic_super_agent::super_agent::http_server::runner::Runner;
@@ -36,6 +36,17 @@ fn main() -> Result<(), Box<dyn Error>> {
     if cli.print_version() {
         println!("{}", binary_metadata());
         return Ok(());
+    }
+
+    // Changing default directories if configured in CLI args
+    if let Some(ref local_path) = cli.local_dir {
+        defaults::set_local_dir(local_path)
+    }
+    if let Some(ref remote_path) = cli.remote_dir {
+        defaults::set_remote_dir(remote_path)
+    }
+    if let Some(ref log_path) = cli.log_dir {
+        defaults::set_log_dir(log_path)
     }
 
     let sa_local_config_storer = SuperAgentConfigStoreFile::new(&cli.get_config_path());

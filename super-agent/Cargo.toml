@@ -51,6 +51,7 @@ cfg-if = "1.0.0"
 opentelemetry-semantic-conventions = "0.14.0"
 http-serde = "2.1.0"
 paste = "1.0"
+config = { version = "0.14.0", features = ["yaml"] }
 
 [dev-dependencies]
 assert_cmd = { workspace = true }
