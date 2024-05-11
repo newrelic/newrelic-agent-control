@@ -39,14 +39,19 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     // Changing default directories if configured in CLI args
+    // Explicit location flags get precedence over the general
+    // `debug`, that places the data dirs in the same directory as the binary
     if let Some(ref local_path) = cli.local_dir {
-        defaults::set_local_dir(local_path)
+        defaults::set_local_dir(local_path);
     }
     if let Some(ref remote_path) = cli.remote_dir {
-        defaults::set_remote_dir(remote_path)
+        defaults::set_remote_dir(remote_path);
     }
     if let Some(ref log_path) = cli.log_dir {
-        defaults::set_log_dir(log_path)
+        defaults::set_log_dir(log_path);
+    }
+    if let Some(ref debug_path) = cli.debug {
+        defaults::set_debug_mode_dirs(debug_path);
     }
 
     let sa_local_config_storer = SuperAgentConfigStoreFile::new(&cli.get_config_path());

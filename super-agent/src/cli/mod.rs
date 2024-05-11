@@ -21,6 +21,9 @@ pub struct Cli {
 
     #[arg(long)]
     pub log_dir: Option<PathBuf>,
+
+    #[arg(long, value_name = "DATA_DIR")]
+    pub debug: Option<PathBuf>,
 }
 
 impl Cli {

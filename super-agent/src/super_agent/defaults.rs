@@ -14,7 +14,8 @@ use tracing::debug;
 // ```
 // static SUPER_AGENT_ID_STATIC: OnceLock<&str> = OnceLock::new();
 //
-// pub(crate) fn super_agent_id() -> &'static str {
+// #[allow(non_snake_case)]
+// pub(crate) fn SUPER_AGENT_ID() -> &'static str {
 //     SUPER_AGENT_ID_STATIC.get_or_init(|| "super-agent")
 // }
 // ```
@@ -120,8 +121,8 @@ generate_const_getter!(STDOUT_LOG_PREFIX, "stdout.log");
 generate_const_getter!(STDERR_LOG_PREFIX, "stderr.log");
 
 pub fn set_local_dir(path: &Path) {
-    // The Err variant in `set` contains the value we attempted to set,
-    // so we can just ignore the result
+    // The Err variant in `set` just contains the value we attempted to set,
+    // so we can just ignore the Result
     _ = SUPER_AGENT_LOCAL_DATA_DIR_STATIC
         .set(path.to_string_lossy().to_string())
         .inspect_err(|_| {
@@ -141,6 +142,18 @@ pub fn set_log_dir(path: &Path) {
     _ = SUPER_AGENT_LOG_DIR_STATIC
         .set(path.to_string_lossy().to_string())
         .inspect_err(|_| debug!("attempted to initialize SUPER_AGENT_LOG_DIR but was already set"));
+}
+
+pub fn set_debug_mode_dirs(path: &Path) {
+    debug!("setting data directories to the working directory");
+
+    let local_path = path.join("local_data");
+    let remote_path = path.join("remote_data");
+    let log_path = path.join("logs");
+
+    set_local_dir(&local_path);
+    set_remote_dir(&remote_path);
+    set_log_dir(&log_path);
 }
 
 pub fn default_capabilities() -> Capabilities {
