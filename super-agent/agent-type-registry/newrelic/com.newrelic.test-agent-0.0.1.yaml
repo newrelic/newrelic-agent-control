@@ -1,0 +1,25 @@
+namespace: newrelic
+name: com.newrelic.test-agent
+version: 0.0.1
+variables:
+  on_host:
+    message:
+      description: "Message to repeatedly output"
+      type: string
+      required: false
+      default: "yes"
+    file_logging:
+      description: "Enable file logging"
+      type: bool
+      required: false
+      default: true
+deployment:
+  on_host:
+    enable_file_logging: "${nr-var:file_logging}"
+    executables:
+      - path: /usr/bin/yes
+        args: "${nr-var:message}"
+        restart_policy:
+          backoff_strategy:
+            type: fixed
+            backoff_delay: 20s

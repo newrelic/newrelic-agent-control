@@ -20,7 +20,7 @@ pub struct Cli {
     pub remote_dir: Option<PathBuf>,
 
     #[arg(long)]
-    pub log_dir: Option<PathBuf>,
+    pub logs_dir: Option<PathBuf>,
 
     #[arg(long, value_name = "DATA_DIR")]
     pub debug: Option<PathBuf>,

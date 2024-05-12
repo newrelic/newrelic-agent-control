@@ -47,7 +47,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     if let Some(ref remote_path) = cli.remote_dir {
         defaults::set_remote_dir(remote_path);
     }
-    if let Some(ref log_path) = cli.log_dir {
+    if let Some(ref log_path) = cli.logs_dir {
         defaults::set_log_dir(log_path);
     }
     if let Some(ref debug_path) = cli.debug {
