@@ -155,6 +155,10 @@ impl SyncK8sClient {
     pub fn default_namespace(&self) -> &str {
         self.async_client.default_namespace()
     }
+
+    pub fn list_daemon_set(&self) -> Result<ObjectList<DaemonSet>, K8sError> {
+        self.runtime.block_on(self.async_client.list_daemon_set())
+    }
 }
 
 pub struct AsyncK8sClient {
@@ -308,6 +312,13 @@ impl AsyncK8sClient {
 
     pub fn default_namespace(&self) -> &str {
         self.client.default_namespace()
+    }
+
+    pub async fn list_daemon_set(&self) -> Result<ObjectList<DaemonSet>, K8sError> {
+        let ss_client: Api<DaemonSet> = Api::<DaemonSet>::default_namespaced(self.client.clone());
+        let list_daemon_set = ss_client.list(&ListParams::default()).await?;
+
+        Ok(list_daemon_set)
     }
 }
 

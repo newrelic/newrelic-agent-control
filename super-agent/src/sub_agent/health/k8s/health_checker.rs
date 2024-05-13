@@ -3,6 +3,7 @@ use crate::k8s::client::SyncK8sClient;
 use crate::sub_agent::health::health_checker::{
     Health, HealthChecker, HealthCheckerError, Healthy,
 };
+use crate::sub_agent::health::k8s::daemon_set::K8sHealthDaemonSet;
 use crate::sub_agent::health::k8s::helm_release::K8sHealthFluxHelmRelease;
 use crate::sub_agent::health::k8s::stateful_set::K8sHealthStatefulSet;
 use crate::super_agent::config::helm_release_type_meta;
@@ -17,6 +18,7 @@ pub const LABEL_RELEASE_FLUX: &str = "helm.toolkit.fluxcd.io/name";
 pub enum K8sHealthChecker {
     Flux(K8sHealthFluxHelmRelease),
     StatefulSet(K8sHealthStatefulSet),
+    DaemonSet(K8sHealthDaemonSet),
 }
 
 impl HealthChecker for K8sHealthChecker {
@@ -24,6 +26,7 @@ impl HealthChecker for K8sHealthChecker {
         match self {
             K8sHealthChecker::Flux(flux) => flux.check_health(),
             K8sHealthChecker::StatefulSet(stateful_set) => stateful_set.check_health(),
+            K8sHealthChecker::DaemonSet(daemon_set) => daemon_set.check_health(),
         }
     }
 }
@@ -61,9 +64,15 @@ impl SubAgentHealthChecker<K8sHealthChecker> {
                 k8s_client.clone(),
                 name.clone(),
             )));
+
             health_checkers.push(K8sHealthChecker::StatefulSet(K8sHealthStatefulSet::new(
                 k8s_client.clone(),
-                name,
+                name.clone(),
+            )));
+
+            health_checkers.push(K8sHealthChecker::DaemonSet(K8sHealthDaemonSet::new(
+                k8s_client.clone(),
+                name.clone(),
             )));
         }
         Ok(Self { health_checkers })
