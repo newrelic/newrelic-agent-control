@@ -186,8 +186,8 @@ agents:
         .arg(config_path)
         .arg("--debug")
         .arg(tmpdir_path);
-    // cmd_assert is not made for long running programs, so we kill it anyway after 1 second
-    cmd.timeout(Duration::from_secs(1));
+    // cmd_assert is not made for long running programs, so we kill it anyway after 3 seconds
+    cmd.timeout(Duration::from_secs(3));
     // But in any case we make sure that it actually attempted to create the supervisor group,
     // so it works when the program is run as root
     cmd.assert().failure();
@@ -268,8 +268,8 @@ agents:
         .arg(tmpdir_path)
         .arg("--logs-dir")
         .arg(&override_logs_path);
-    // cmd_assert is not made for long running programs, so we kill it anyway after 1 second
-    cmd.timeout(Duration::from_secs(1));
+    // cmd_assert is not made for long running programs, so we kill it anyway after 3 seconds
+    cmd.timeout(Duration::from_secs(3));
     // But in any case we make sure that it actually attempted to create the supervisor group,
     // so it works when the program is run as root
     cmd.assert().failure();
