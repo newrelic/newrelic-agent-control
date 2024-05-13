@@ -147,9 +147,9 @@ pub fn set_log_dir(path: &Path) {
 pub fn set_debug_mode_dirs(path: &Path) {
     debug!("setting data directories to the working directory");
 
-    let local_path = path.join("local_data");
-    let remote_path = path.join("remote_data");
-    let log_path = path.join("logs");
+    let local_path = path.join("nrsa_local");
+    let remote_path = path.join("nrsa_remote");
+    let log_path = path.join("nrsa_logs");
 
     set_local_dir(&local_path);
     set_remote_dir(&remote_path);
