@@ -12,6 +12,7 @@ fn create_temp_file(
     data: &str,
 ) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let file_path = dir.path().join(file_name);
+    std::fs::create_dir_all(file_path.parent().unwrap())?;
     let mut file = File::create(&file_path)?;
     writeln!(file, "{data}")?;
     Ok(file_path)
@@ -133,7 +134,7 @@ fn custom_directory_as_root() -> Result<(), Box<dyn std::error::Error>> {
     let dir = TempDir::new()?;
     let _agent_type_def = create_temp_file(
         &dir,
-        "local_data/test_agent.yml",
+        "local_data/dynamic-agent-type.yaml",
         r#"
 namespace: newrelic
 name: com.newrelic.test-agent
@@ -164,7 +165,7 @@ deployment:
     );
     let _values_file = create_temp_file(
         &dir,
-        "local_data/fleet/agents.d/test-agent/values/values.yml",
+        "local_data/fleet/agents.d/test-agent/values/values.yaml",
         r#"
 message: "test yes"
 file_logging: true
@@ -174,6 +175,9 @@ file_logging: true
         &dir,
         "static.yml",
         r#"
+log:
+  file:
+    enable: true
 agents:
   test-agent:
     agent_type: newrelic/com.newrelic.test-agent:0.0.1
@@ -194,7 +198,7 @@ agents:
 
     // Assert the directory structure has been created
     let remote_path = tmpdir_path.join("nrsa_remote");
-    let logs_path = tmpdir_path.join("logs");
+    let logs_path = tmpdir_path.join("nrsa_logs");
 
     assert!(remote_path.exists());
     assert!(logs_path.exists());
@@ -211,7 +215,7 @@ fn custom_directory_overrides_as_root() -> Result<(), Box<dyn std::error::Error>
     let another_dir = TempDir::new()?;
     let _agent_type_def = create_temp_file(
         &dir,
-        "local_data/test_agent.yml",
+        "local_data/dynamic-agent-type.yaml",
         r#"
 namespace: newrelic
 name: com.newrelic.test-agent
@@ -242,7 +246,7 @@ deployment:
     );
     let _values_file = create_temp_file(
         &dir,
-        "local_data/fleet/agents.d/test-agent/values/values.yml",
+        "local_data/fleet/agents.d/test-agent/values/values.yaml",
         r#"
 message: "test yes"
 file_logging: true
@@ -252,6 +256,9 @@ file_logging: true
         &dir,
         "static.yml",
         r#"
+log:
+  file:
+    enable: true
 agents:
   test-agent:
     agent_type: newrelic/com.newrelic.test-agent:0.0.1
