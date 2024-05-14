@@ -74,6 +74,13 @@ impl Unhealthy {
 }
 
 impl Health {
+    pub fn unhealthy_with_last_error(last_error: String) -> Health {
+        Health::Unhealthy(Unhealthy {
+            last_error,
+            ..Default::default()
+        })
+    }
+
     pub fn status(&self) -> &str {
         match self {
             Health::Healthy(healthy) => healthy.status(),

@@ -1,7 +1,7 @@
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::sub_agent::health::health_checker::{
-    Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
+    Health, HealthChecker, HealthCheckerError, Healthy,
 };
 use k8s_openapi::serde_json::{Map, Value};
 use std::sync::Arc;
@@ -145,10 +145,7 @@ impl HealthChecker for K8sHealthFluxHelmRelease {
         if is_healthy {
             Ok(Healthy::default().into())
         } else {
-            Ok(Health::Unhealthy(Unhealthy {
-                last_error: message,
-                ..Default::default()
-            }))
+            Ok(Health::unhealthy_with_last_error(message))
         }
     }
 }
@@ -178,10 +175,7 @@ pub mod test {
             ),
             (
                 "Helm release unhealthy when ready and status false",
-                Ok(Health::Unhealthy(Unhealthy {
-                    status: Default::default(),
-                    last_error: "HelmRelease not ready: test error".to_string(),
-                })),
+                Ok(Health::unhealthy_with_last_error("HelmRelease not ready: test error".to_string())),
                 Box::new(|mock: &mut MockSyncK8sClient| {
                     let status_conditions = json!({
                         "conditions": [
@@ -193,10 +187,7 @@ pub mod test {
             ),
             (
                 "Helm release unhealthy when not ready conditions",
-                Ok(Health::Unhealthy(Unhealthy {
-                    status: Default::default(),
-                    last_error: "No 'Ready' condition was found".to_string(),
-                })),
+                Ok(Health::unhealthy_with_last_error("No 'Ready' condition was found".to_string())),
                 Box::new(|mock: &mut MockSyncK8sClient| {
                     let status_conditions = json!({
                         "conditions": [
@@ -208,10 +199,7 @@ pub mod test {
             ),
             (
                 "Helm release unhealthy when not ready and other true condition types",
-                Ok(Health::Unhealthy(Unhealthy {
-                    status: Default::default(),
-                    last_error: "HelmRelease not ready: No specific message found".to_string(),
-                })),
+                Ok(Health::unhealthy_with_last_error("HelmRelease not ready: No specific message found".to_string())),
                 Box::new(|mock: &mut MockSyncK8sClient| {
                     let status_conditions = json!({
                         "conditions": [
@@ -224,10 +212,7 @@ pub mod test {
             ),
             (
                 "Helm release unhealthy when no conditions",
-                Ok(Health::Unhealthy(Unhealthy {
-                    status: Default::default(),
-                    last_error: "No 'Ready' condition was found".to_string(),
-                })),
+                Ok(Health::unhealthy_with_last_error("No 'Ready' condition was found".to_string())),
                 Box::new(|mock: &mut MockSyncK8sClient| {
                     let status_conditions = json!({"conditions": []});
                     setup_mock_client_with_conditions(mock, status_conditions);

@@ -8,6 +8,7 @@ use crate::super_agent::config::helm_release_type_meta;
 use k8s_openapi::api::apps::v1::{DaemonSet, Deployment, ReplicaSet, StatefulSet};
 use k8s_openapi::api::core::v1::{ConfigMap, Namespace};
 use kube::api::entry::Entry;
+use kube::api::ObjectList;
 use kube::{
     api::{DeleteParams, ListParams, PostParams},
     config::KubeConfigOptions,
@@ -143,6 +144,10 @@ impl SyncK8sClient {
 
     pub fn supported_type_meta_collection(&self) -> Vec<TypeMeta> {
         self.async_client.supported_type_meta_collection()
+    }
+
+    pub fn list_stateful_set(&self) -> Result<ObjectList<StatefulSet>, K8sError> {
+        self.runtime.block_on(self.async_client.list_stateful_set())
     }
 
     pub fn default_namespace(&self) -> &str {
@@ -526,6 +531,14 @@ impl AsyncK8sClient {
         Ok(())
     }
 
+    pub async fn list_stateful_set(&self) -> Result<ObjectList<StatefulSet>, K8sError> {
+        let ss_client: Api<StatefulSet> =
+            Api::<StatefulSet>::default_namespaced(self.client.clone());
+        let list_stateful_set = ss_client.list(&ListParams::default()).await?;
+
+        Ok(list_stateful_set)
+    }
+
     pub fn default_namespace(&self) -> &str {
         self.client.default_namespace()
     }
@@ -572,6 +585,18 @@ pub fn get_name(obj: &DynamicObject) -> Result<String, K8sError> {
 
 pub fn get_type_meta(obj: &DynamicObject) -> Result<TypeMeta, K8sError> {
     obj.types.clone().ok_or(K8sError::MissingKind())
+}
+
+/// This function returns true if there are labels and they contain the provided key, value.
+pub fn contains_label_with_value(
+    labels: &Option<BTreeMap<String, String>>,
+    key: &str,
+    value: &str,
+) -> bool {
+    labels
+        .as_ref()
+        .and_then(|labels| labels.get(key))
+        .map_or(false, |v| v.as_str() == value)
 }
 
 #[cfg(test)]
@@ -902,5 +927,67 @@ pub(crate) mod test {
                 }
             )
         }
+    }
+
+    #[test]
+    fn test_contains_label_with_value() {
+        struct TestCase<'a> {
+            name: &'a str,
+            labels: &'a Option<BTreeMap<String, String>>,
+            key: &'a str,
+            value: &'a str,
+            expected: bool,
+        }
+
+        impl TestCase<'_> {
+            fn run(&self) {
+                assert_eq!(
+                    self.expected,
+                    contains_label_with_value(self.labels, self.key, self.value),
+                    "{}",
+                    self.name
+                )
+            }
+        }
+
+        let test_cases = [
+            TestCase {
+                name: "No labels",
+                labels: &None,
+                key: "key",
+                value: "value",
+                expected: false,
+            },
+            TestCase {
+                name: "Empty labels",
+                labels: &Some(BTreeMap::default()),
+                key: "key",
+                value: "value",
+                expected: false,
+            },
+            TestCase {
+                name: "No matching label",
+                labels: &Some([("a".to_string(), "b".to_string())].into()),
+                key: "key",
+                value: "value",
+                expected: false,
+            },
+            TestCase {
+                name: "Matching label with different value",
+                labels: &Some([("key".to_string(), "other".to_string())].into()),
+                key: "key",
+                value: "value",
+                expected: false,
+            },
+            TestCase {
+                name: "Matching label and value",
+                labels: &Some([("key".to_string(), "value".to_string())].into()),
+                key: "key",
+                value: "value",
+                expected: true,
+            },
+        ];
+
+        test_cases.iter().for_each(|tc| tc.run());
     }
 }

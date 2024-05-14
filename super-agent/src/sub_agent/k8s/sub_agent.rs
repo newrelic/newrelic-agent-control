@@ -266,7 +266,7 @@ pub mod test {
         {
             SubAgentInternalEvent::AgentBecameUnhealthy(_) => {}
             _ => {
-                panic!("AgentBecameHealthy event expected")
+                panic!("AgentBecameUnhealthy event expected")
             }
         }
     }
