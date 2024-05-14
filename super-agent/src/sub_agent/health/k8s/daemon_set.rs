@@ -64,7 +64,7 @@ impl K8sHealthDaemonSet {
         };
 
         let status = match ds.status {
-            Some(s) => s,
+            Some(daemon_set_status) => daemon_set_status,
             None => {
                 return Ok(Unhealthy {
                     status: "DaemonSet unhealthy".to_string(),
@@ -74,21 +74,15 @@ impl K8sHealthDaemonSet {
             }
         };
 
-        let update_strategy = match ds.spec {
-            None => {
-                return Err(HealthCheckerError::new(format!(
-                    "Daemonset '{name}' has no spec"
-                )));
-            }
-            Some(spec) => match spec.update_strategy {
-                None => {
-                    return Err(HealthCheckerError::new(format!(
-                        "Daemonset '{name}' has no update strategy"
-                    )))
-                }
-                Some(update_strategy) => update_strategy,
-            },
-        };
+        let update_strategy = ds
+            .spec
+            .ok_or(HealthCheckerError::new(format!(
+                "Daemonset '{name}' has no spec"
+            )))?
+            .update_strategy
+            .ok_or(HealthCheckerError::new(format!(
+                "Daemonset '{name}' has no update strategy"
+            )))?;
 
         let rolling_update = match DaemonSetUpdateStrategies::from(update_strategy.type_) {
             DaemonSetUpdateStrategies::Unknown(s) => {
@@ -134,19 +128,11 @@ impl K8sHealthDaemonSet {
             }
         }
 
-        let max_unavailable = match rolling_update.max_unavailable {
-            // If max unavailable is not set, the daemonset does not expect to have healthy pods.
-            // Returning Healthiness as soon as possible.
-            None => return Ok(Healthy {
-                status: format!(
-                    "DaemonSet '{name}' healthy: This daemonset does not expect to have healthy pods",
-                ),
-            }.into()),
-
+        let max_unavailable = if let Some(max_unavailable) = rolling_update.max_unavailable {
             // `rolling_update.max_unavailable` can me an integer (number of pods) or a percent (percent of
             // desired pods). The integer path is simple, but if it is a percent we have to calculate the percent
             // against the number of desired pods to know how many unavailable pods should be the maximum.
-            Some(max_unavailable) => match IntOrPercentage::from(max_unavailable) {
+            match IntOrPercentage::from(max_unavailable) {
                 IntOrPercentage::Int(i) => i,
                 IntOrPercentage::Percentage(percent) => {
                     (status.desired_number_scheduled as f32 * percent).ceil() as i32
@@ -156,7 +142,15 @@ impl K8sHealthDaemonSet {
                         "Daemonset '{name}' has an non-parsable Max Availability on Update Strategy: '{err}'"
                     )))
                 }
-            },
+            }
+        } else {
+            // If max unavailable is not set, the daemonset does not expect to have healthy pods.
+            // Returning Healthiness as soon as possible.
+            return Ok(Healthy {
+                status: format!(
+                    "DaemonSet '{name}' healthy: This daemonset does not expect to have healthy pods",
+                ),
+            }.into());
         };
 
         let expected_ready = status.desired_number_scheduled - max_unavailable;
