@@ -61,7 +61,7 @@ impl K8sHealthStatefulSet {
             .ok_or(Self::missing_field_error(&name, "Status"))?;
 
         let partition = Self::partition(&spec).unwrap_or(0);
-        let replicas = Self::replicas(&spec).unwrap_or(1);
+        let replicas = spec.replicas.unwrap_or(1);
 
         let expected_replicas = replicas - partition;
 
@@ -118,11 +118,6 @@ impl K8sHealthStatefulSet {
             .and_then(|update_strategy| update_strategy.rolling_update.as_ref())
             .and_then(|rolling_update| rolling_update.partition)
     }
-
-    /// Gets the replicas from the stateful_set spec.
-    fn replicas(spec: &StatefulSetSpec) -> Option<i32> {
-        spec.replicas
-    }
 }
 
 #[cfg(test)]
@@ -131,8 +126,6 @@ mod test {
         RollingUpdateStatefulSetStrategy, StatefulSetStatus, StatefulSetUpdateStrategy,
     };
     use kube::api::ObjectMeta;
-
-    use crate::sub_agent::health::health_checker::Unhealthy;
 
     use super::*;
 
@@ -146,6 +139,7 @@ mod test {
             ..Default::default()
         }
     }
+
     /// Returns a [StatefulSetSpec] given the partition and replicas.
     fn stateful_set_spec(partition: i32, replicas: i32) -> StatefulSetSpec {
         StatefulSetSpec {
@@ -192,13 +186,7 @@ mod test {
                     spec: Some(StatefulSetSpec::default()),
                     status: Some(stateful_set_status()),
                 },
-                expected: Unhealthy {
-                    last_error:
-                        "StatefulSets `name` not ready: observed_generation not matching generation"
-                            .to_string(),
-                    status: Default::default(),
-                }
-                .into(),
+                expected: Health::unhealthy_with_last_error("StatefulSets `name` not ready: observed_generation not matching generation".into())
             },
             TestCase {
                 name: "Updated replicas fewer than expected".to_string(),
@@ -214,13 +202,7 @@ mod test {
                         ..stateful_set_status()
                     }),
                 },
-                expected: Unhealthy {
-                    last_error:
-                        "StatefulSets `name` not ready: updated_replicas `1` fewer than expected_replicas `2`"
-                            .to_string(),
-                    status: Default::default(),
-                }
-                .into(),
+                expected: Health::unhealthy_with_last_error("StatefulSets `name` not ready: updated_replicas `1` fewer than expected_replicas `2`".into()),
             },
             TestCase {
                 name: "Not ready and ready replicas not matching".to_string(),
@@ -237,13 +219,7 @@ mod test {
                         ..stateful_set_status()
                     }),
                 },
-                expected: Unhealthy {
-                    last_error:
-                        "StatefulSets `name` not ready: replicas `5` different from ready_replicas `1`"
-                            .to_string(),
-                    status: Default::default(),
-                }
-                .into(),
+                expected: Health::unhealthy_with_last_error("StatefulSets `name` not ready: replicas `5` different from ready_replicas `1`".into()),
             },
             TestCase {
                 name: "Current and update revision not matching when partition is 0".to_string(),
@@ -260,12 +236,7 @@ mod test {
                         ..stateful_set_status()
                     }),
                 },
-                expected: Unhealthy {
-                    last_error:
-                        "StatefulSets `name` not ready: current_revision not matching update_revision".to_string(),
-                    status: Default::default(),
-                }
-                .into(),
+                expected: Health::unhealthy_with_last_error("StatefulSets `name` not ready: current_revision not matching update_revision".into()),
             },
             TestCase {
                 name: "Healthy with not matching current and update revision".to_string(),
