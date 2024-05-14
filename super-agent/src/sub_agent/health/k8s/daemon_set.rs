@@ -93,9 +93,7 @@ impl K8sHealthDaemonSet {
             // If the update strategy is not a rolling update, there will be nothing to wait for
             DaemonSetUpdateStrategies::OnDelete => {
                 return Ok(Healthy {
-                    status: format!(
-                        "Daemonset '{name}' has on delete upgrade strategy"
-                    ),
+                    status: format!("Daemonset '{name}' has on delete upgrade strategy"),
                 }
                 .into())
             }
@@ -183,15 +181,29 @@ pub mod test {
         apimachinery::pkg::{apis::meta::v1::ObjectMeta, util::intstr::IntOrString},
     };
 
-    #[derive(Debug)]
-    struct TestCase {
-        name: &'static str,
-        ds: DaemonSet,
-        expected: &'static str,
-    }
-
     #[test]
     fn test_invalid_daemonset_specs() {
+        #[derive(Debug)]
+        struct TestCase {
+            name: &'static str,
+            ds: DaemonSet,
+            expected: &'static str,
+        }
+
+        impl TestCase {
+            fn run(self) {
+                let health_run: Result<Health, HealthCheckerError> =
+                    K8sHealthDaemonSet::check_health_single_daemon_set(self.ds);
+
+                assert_eq!(
+                    self.expected,
+                    health_run.unwrap().last_error().unwrap(),
+                    "{}",
+                    self.name
+                )
+            }
+        }
+
         let test_cases: Vec<TestCase> = vec![
             TestCase {
                 name: "ds without status",
@@ -229,27 +241,32 @@ pub mod test {
             },
         ];
 
-        for test_case in test_cases {
-            let health_run: Result<Health, HealthCheckerError> =
-                K8sHealthDaemonSet::check_health_single_daemon_set(test_case.ds);
-            let health_result = health_run.unwrap_or_else(|err| {
-                panic!(
-                    "Test case '{}' is not returning a Health Result: {}",
-                    test_case.name, err
-                )
-            });
-            let last_error = health_result.last_error().unwrap_or_else(|| {
-                panic!(
-                    "Test case '{}' is not returning a last error",
-                    test_case.name
-                )
-            });
-            assert_eq!(last_error, test_case.expected);
-        }
+        test_cases.into_iter().for_each(|tc| tc.run());
     }
 
     #[test]
     fn test_daemonset_spec_errors() {
+        struct TestCase {
+            name: &'static str,
+            ds: DaemonSet,
+            expected: HealthCheckerError,
+        }
+
+        impl TestCase {
+            fn run(self) {
+                let health_run = K8sHealthDaemonSet::check_health_single_daemon_set(self.ds);
+                let err_result = match health_run {
+                    Ok(ok) => panic!(
+                        "Test case '{}' is returning a Health Result: {:?}",
+                        self.name, ok,
+                    ),
+                    Err(err) => err,
+                };
+
+                assert_eq!(self.expected.to_string(), err_result.to_string());
+            }
+        }
+
         let test_cases: Vec<TestCase> = vec![
             TestCase {
                 name: "ds without metadata name",
@@ -261,7 +278,7 @@ pub mod test {
                     spec: None,
                     status: None,
                 },
-                expected: "Daemonset has no .metadata.name",
+                expected: HealthCheckerError::new("Daemonset has no .metadata.name".into()),
             },
             TestCase {
                 name: "ds without spec",
@@ -275,7 +292,7 @@ pub mod test {
                         ..Default::default()
                     }),
                 },
-                expected: "Daemonset 'test' has no spec",
+                expected: HealthCheckerError::new("Daemonset 'test' has no spec".into()),
             },
             TestCase {
                 name: "ds without update strategy",
@@ -292,7 +309,7 @@ pub mod test {
                         ..Default::default()
                     }),
                 },
-                expected: "Daemonset 'test' has no update strategy",
+                expected: HealthCheckerError::new("Daemonset 'test' has no update strategy".into()),
             },
             TestCase {
                 name: "ds with unknown update strategy",
@@ -312,7 +329,7 @@ pub mod test {
                         ..Default::default()
                     }),
                 },
-                expected: "Daemonset 'test' has an unknown Update Strategy Type: 'Unknown-TEST'",
+                expected: HealthCheckerError::new("Daemonset 'test' has an unknown Update Strategy Type: 'Unknown-TEST'".into()),
             },
             TestCase {
                 name: "ds which update strategy is rolling but has no struct",
@@ -332,7 +349,7 @@ pub mod test {
                         ..Default::default()
                     }),
                 },
-                expected: "Daemonset 'test' has rolling update strategy type and no struct",
+                expected: HealthCheckerError::new("Daemonset 'test' has rolling update strategy type and no struct".into()),
             },
             TestCase {
                 name: "ds which update strategy is rolling but has no struct",
@@ -352,7 +369,7 @@ pub mod test {
                         ..Default::default()
                     }),
                 },
-                expected: "Daemonset 'test' has rolling update strategy type and no struct",
+                expected: HealthCheckerError::new("Daemonset 'test' has rolling update strategy type and no struct".into()),
             },
             TestCase {
                 name: "ds update strategy policy has non-parsable max_unavailable",
@@ -378,78 +395,75 @@ pub mod test {
                     }),
                 },
                 expected:
-                    "Daemonset 'test' has an non-parsable Max Availability on Update Strategy: 'invalid digit found in string'",
+                HealthCheckerError::new("Daemonset 'test' has an non-parsable Max Availability on Update Strategy: 'invalid digit found in string'".into()),
             },
         ];
 
-        for test_case in test_cases {
-            let health_run = K8sHealthDaemonSet::check_health_single_daemon_set(test_case.ds);
-            let err_result = match health_run {
-                Ok(ok) => panic!(
-                    "Test case '{}' is returning a Health Result: {:?}",
-                    test_case.name, ok,
-                ),
-                Err(err) => err,
-            };
-
-            // HealthCheckerError can add a Prefix to the expected String. To not tight these tests to the implementation
-            // of HealthCheckerError I am wrapping the expectation and converting it to string so they can be compared.
-            let health_checker_wrapper = HealthCheckerError::new(String::from(test_case.expected));
-
-            assert_eq!(err_result.to_string(), health_checker_wrapper.to_string());
-        }
+        test_cases.into_iter().for_each(|tc| tc.run());
     }
 
     #[test]
     fn test_daemonset_on_delete_update_strategy() {
-        let test_case = TestCase {
-            name: "ds which update strategy is on delete is always healthy",
-            ds: DaemonSet {
-                metadata: ObjectMeta {
-                    name: Some(String::from("test")),
-                    ..Default::default()
-                },
-                spec: Some(DaemonSetSpec {
-                    update_strategy: Some(DaemonSetUpdateStrategy {
-                        type_: Some(DaemonSetUpdateStrategies::OnDelete.to_string()),
-                        ..Default::default()
-                    }),
-                    ..Default::default()
-                }),
-                status: Some(DaemonSetStatus {
-                    ..Default::default()
-                }),
+        let name = "ds which update strategy is on delete is always healthy";
+        let ds = DaemonSet {
+            metadata: ObjectMeta {
+                name: Some(String::from("test")),
+                ..Default::default()
             },
-            expected: "Daemonset 'test' has on delete upgrade strategy. No health to check.",
+            spec: Some(DaemonSetSpec {
+                update_strategy: Some(DaemonSetUpdateStrategy {
+                    type_: Some(DaemonSetUpdateStrategies::OnDelete.to_string()),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            status: Some(DaemonSetStatus {
+                ..Default::default()
+            }),
         };
+        let expected = "Daemonset 'test' has on delete upgrade strategy";
 
-        let health_run = K8sHealthDaemonSet::check_health_single_daemon_set(test_case.ds);
+        let health_run = K8sHealthDaemonSet::check_health_single_daemon_set(ds);
         let health_result = health_run.unwrap_or_else(|err| {
             panic!(
                 "Test case '{}' is not returning a Health Result: {}",
-                test_case.name, err
+                name, err
             )
         });
         match health_result {
             Health::Unhealthy(unhealthy) => panic!(
                 "Test case '{}' is not returning a healthy status: {:?}",
-                test_case.name, unhealthy
+                name, unhealthy
             ),
-            Health::Healthy(healthy) => assert_eq!(healthy.status(), test_case.expected),
+            Health::Healthy(healthy) => assert_eq!(healthy.status(), expected),
         };
-    }
-
-    #[derive(Debug)]
-    struct TestHealthCase {
-        name: &'static str,
-        ds: DaemonSet,
-        expected: Health,
     }
 
     #[test]
     fn test_daemonset_healthiness() {
-        let test_cases: Vec<TestHealthCase> = vec![
-            TestHealthCase {
+        #[derive(Debug)]
+        struct TestCase {
+            name: &'static str,
+            ds: DaemonSet,
+            expected: Health,
+        }
+
+        impl TestCase {
+            fn run(self) {
+                let health_run: Result<Health, HealthCheckerError> =
+                    K8sHealthDaemonSet::check_health_single_daemon_set(self.ds);
+                let health_result = health_run.unwrap_or_else(|err| {
+                    panic!(
+                        "Test case '{}' is not returning a Health Result: {}",
+                        self.name, err
+                    )
+                });
+                assert_eq!(health_result, self.expected);
+            }
+        }
+
+        let test_cases: Vec<TestCase> = vec![
+            TestCase {
                 name: "ds with no unschedulable pods",
                 ds: DaemonSet {
                     metadata: ObjectMeta {
@@ -478,7 +492,7 @@ pub mod test {
                     ),
                 }.into(),
             },
-            TestHealthCase {
+            TestCase {
                 name: "ds without max_unavailable",
                 ds: DaemonSet {
                     metadata: ObjectMeta {
@@ -507,7 +521,7 @@ pub mod test {
                     ),
                 }.into(),
             },
-            TestHealthCase {
+            TestCase {
                 name: "unhealthy ds with int max_unavailable",
                 ds: DaemonSet {
                     metadata: ObjectMeta {
@@ -538,7 +552,7 @@ pub mod test {
                     ),
                 }.into(),
             },
-            TestHealthCase {
+            TestCase {
                 name: "unhealthy ds with percent max_unavailable",
                 ds: DaemonSet {
                     metadata: ObjectMeta {
@@ -569,7 +583,7 @@ pub mod test {
                     ),
                 }.into(),
             },
-            TestHealthCase {
+            TestCase {
                 name: "healthy ds with int max_unavailable",
                 ds: DaemonSet {
                     metadata: ObjectMeta {
@@ -597,7 +611,7 @@ pub mod test {
                     status: String::from("DaemonSet 'test' healthy: Pods ready are equal or greater than desired: 2 >= 2"),
                 }.into(),
             },
-            TestHealthCase {
+            TestCase {
                 name: "healthy ds with percent max_unavailable",
                 ds: DaemonSet {
                     metadata: ObjectMeta {
@@ -627,16 +641,6 @@ pub mod test {
             },
         ];
 
-        for test_case in test_cases {
-            let health_run: Result<Health, HealthCheckerError> =
-                K8sHealthDaemonSet::check_health_single_daemon_set(test_case.ds);
-            let health_result = health_run.unwrap_or_else(|err| {
-                panic!(
-                    "Test case '{}' is not returning a Health Result: {}",
-                    test_case.name, err
-                )
-            });
-            assert_eq!(health_result, test_case.expected);
-        }
+        test_cases.into_iter().for_each(|tc| tc.run());
     }
 }
