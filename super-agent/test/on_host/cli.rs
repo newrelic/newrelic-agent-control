@@ -193,7 +193,7 @@ agents:
     cmd.assert().failure();
 
     // Assert the directory structure has been created
-    let remote_path = tmpdir_path.join("remote_data");
+    let remote_path = tmpdir_path.join("nrsa_remote");
     let logs_path = tmpdir_path.join("logs");
 
     assert!(remote_path.exists());
@@ -275,7 +275,7 @@ agents:
     cmd.assert().failure();
 
     // Assert the directory structure has been created
-    let remote_path = tmpdir_path.join("remote_data");
+    let remote_path = tmpdir_path.join("nrsa_remote");
 
     assert!(remote_path.exists());
     assert!(override_logs_path.exists());
