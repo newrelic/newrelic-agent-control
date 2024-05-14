@@ -52,13 +52,14 @@ impl K8sHealthStatefulSet {
 
     /// Returns the health for a single stateful_set.
     fn stateful_set_health(ss: StatefulSet) -> Result<Health, HealthCheckerError> {
-        let name = ss.metadata.name.ok_or(HealthCheckerError::new(
-            "StatefulSets without Name".to_string(),
-        ))?;
+        let name = ss
+            .metadata
+            .name
+            .ok_or_else(|| HealthCheckerError::new("StatefulSets without Name".to_string()))?;
         let spec = ss.spec.ok_or(Self::missing_field_error(&name, "Spec"))?;
         let status = ss
             .status
-            .ok_or(Self::missing_field_error(&name, "Status"))?;
+            .ok_or_else(|| Self::missing_field_error(&name, "Status"))?;
 
         let partition = Self::partition(&spec).unwrap_or(0);
         let replicas = spec.replicas.unwrap_or(1);
@@ -75,7 +76,7 @@ impl K8sHealthStatefulSet {
 
         let updated_replicas = status
             .updated_replicas
-            .ok_or(Self::missing_field_error(&name, "Status.UpdatedReplicas"))?;
+            .ok_or_else(|| Self::missing_field_error(&name, "Status.UpdatedReplicas"))?;
         if updated_replicas < expected_replicas {
             return Ok(Health::unhealthy_with_last_error(format!(
                         "StatefulSets `{}` not ready: updated_replicas `{}` fewer than expected_replicas `{}`",
@@ -87,7 +88,7 @@ impl K8sHealthStatefulSet {
 
         let ready_replicas = status
             .ready_replicas
-            .ok_or(Self::missing_field_error(&name, "Status.ReadyReplicas"))?;
+            .ok_or_else(|| Self::missing_field_error(&name, "Status.ReadyReplicas"))?;
         if replicas != ready_replicas {
             return Ok(Health::unhealthy_with_last_error(format!(
                 "StatefulSets `{}` not ready: replicas `{}` different from ready_replicas `{}`",
@@ -128,6 +129,15 @@ mod test {
     use kube::api::ObjectMeta;
 
     use super::*;
+
+    /// Returns a [ObjectMeta] valid for for health-check
+    fn stateful_set_meta(name: &str, generation: Option<i64>) -> ObjectMeta {
+        ObjectMeta {
+            name: Some(name.into()),
+            generation,
+            ..Default::default()
+        }
+    }
 
     /// Returns a [StatefulSetStatus] valid for health-check
     fn stateful_set_status() -> StatefulSetStatus {
@@ -178,11 +188,7 @@ mod test {
             TestCase {
                 name: "Observed generation and matching generation don't match".to_string(),
                 ss: StatefulSet {
-                    metadata: ObjectMeta {
-                        name: Some("name".to_string()),
-                        generation: Some(42),
-                        ..Default::default()
-                    },
+                    metadata: stateful_set_meta("name", Some(42)),
                     spec: Some(StatefulSetSpec::default()),
                     status: Some(stateful_set_status()),
                 },
@@ -191,11 +197,7 @@ mod test {
             TestCase {
                 name: "Updated replicas fewer than expected".to_string(),
                 ss: StatefulSet {
-                    metadata: ObjectMeta {
-                        name: Some("name".to_string()),
-                        generation: stateful_set_status().observed_generation,
-                        ..Default::default()
-                    },
+                    metadata: stateful_set_meta("name", stateful_set_status().observed_generation),
                     spec: Some(stateful_set_spec(3, 5)),
                     status: Some(StatefulSetStatus {
                         updated_replicas: Some(1),
@@ -207,11 +209,7 @@ mod test {
             TestCase {
                 name: "Not ready and ready replicas not matching".to_string(),
                 ss: StatefulSet {
-                    metadata: ObjectMeta {
-                        name: Some("name".to_string()),
-                        generation: stateful_set_status().observed_generation,
-                        ..Default::default()
-                    },
+                    metadata: stateful_set_meta("name", stateful_set_status().observed_generation),
                     spec: Some(stateful_set_spec(3, 5)),
                     status: Some(StatefulSetStatus {
                         updated_replicas: Some(2),
@@ -224,11 +222,7 @@ mod test {
             TestCase {
                 name: "Current and update revision not matching when partition is 0".to_string(),
                 ss: StatefulSet {
-                    metadata: ObjectMeta {
-                        name: Some("name".to_string()),
-                        generation: stateful_set_status().observed_generation,
-                        ..Default::default()
-                    },
+                    metadata: stateful_set_meta("name", stateful_set_status().observed_generation),
                     spec: Some(StatefulSetSpec::default()), // partition defaults to 0 when not defined
                     status: Some(StatefulSetStatus {
                         current_revision: Some("r1".to_string()),
@@ -241,11 +235,7 @@ mod test {
             TestCase {
                 name: "Healthy with not matching current and update revision".to_string(),
                 ss: StatefulSet {
-                    metadata: ObjectMeta {
-                        name: Some("name".to_string()),
-                        generation: stateful_set_status().observed_generation,
-                        ..Default::default()
-                    },
+                    metadata: stateful_set_meta("name", stateful_set_status().observed_generation),
                     spec: Some(stateful_set_spec(3, 5)),
                     status: Some(StatefulSetStatus {
                         updated_replicas: Some(2),
@@ -260,11 +250,7 @@ mod test {
             TestCase {
                 name: "Healthy when partition is 0".to_string(),
                 ss: StatefulSet {
-                    metadata: ObjectMeta {
-                        name: Some("name".to_string()),
-                        generation: stateful_set_status().observed_generation,
-                        ..Default::default()
-                    },
+                    metadata: stateful_set_meta("name", stateful_set_status().observed_generation),
                     spec: Some(StatefulSetSpec::default()), // partition and replicas default to 0 and 1
                     status: Some(StatefulSetStatus {
                         updated_replicas: Some(1),
@@ -309,10 +295,7 @@ mod test {
             TestCase {
                 name: "Invalid object, no spec".into(),
                 ss: StatefulSet {
-                    metadata: ObjectMeta {
-                        name: Some("name".to_string()),
-                        ..Default::default()
-                    },
+                    metadata: stateful_set_meta("name", None),
                     spec: None,
                     status: Some(stateful_set_status()),
                 },
@@ -321,10 +304,7 @@ mod test {
             TestCase {
                 name: "Invalid object, no status".into(),
                 ss: StatefulSet {
-                    metadata: ObjectMeta {
-                        name: Some("name".to_string()),
-                        ..Default::default()
-                    },
+                    metadata: stateful_set_meta("name", None),
                     spec: Some(StatefulSetSpec::default()),
                     status: None,
                 },
@@ -333,10 +313,7 @@ mod test {
             TestCase {
                 name: "Invalid object, no Status.UpdatedReplicas".into(),
                 ss: StatefulSet {
-                    metadata: ObjectMeta {
-                        name: Some("name".to_string()),
-                        ..Default::default()
-                    },
+                    metadata: stateful_set_meta("name", None),
                     spec: Some(StatefulSetSpec::default()),
                     status: Some(StatefulSetStatus {
                         updated_replicas: None,
@@ -350,10 +327,7 @@ mod test {
             TestCase {
                 name: "Invalid object, no Status.ReadyReplicas".into(),
                 ss: StatefulSet {
-                    metadata: ObjectMeta {
-                        name: Some("name".to_string()),
-                        ..Default::default()
-                    },
+                    metadata: stateful_set_meta("name", None),
                     spec: Some(StatefulSetSpec::default()),
                     status: Some(StatefulSetStatus {
                         ready_replicas: None,
