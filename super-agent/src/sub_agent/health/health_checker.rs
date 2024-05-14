@@ -74,10 +74,10 @@ impl Unhealthy {
 }
 
 impl Health {
-    pub fn new_unhealthy_with_last_error(last_error: String) -> Health {
+    pub fn unhealthy_with_last_error(last_error: String) -> Health {
         Health::Unhealthy(Unhealthy {
-            status: "".to_string(),
             last_error,
+            ..Default::default()
         })
     }
 
