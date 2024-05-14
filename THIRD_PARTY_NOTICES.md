@@ -365,10 +365,37 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
+## config https://crates.io/crates/config
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+## const-random https://crates.io/crates/const-random
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+## const-random-macro https://crates.io/crates/const-random-macro
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
 ## const_panic https://crates.io/crates/const_panic
 
 Distributed under the following license(s):
 * Zlib
+
+
+## convert_case https://crates.io/crates/convert_case
+
+Distributed under the following license(s):
+* MIT
 
 
 ## convert_case https://crates.io/crates/convert_case
@@ -461,6 +488,12 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
+## crunchy https://crates.io/crates/crunchy
+
+Distributed under the following license(s):
+* MIT
+
+
 ## crypto-common https://crates.io/crates/crypto-common
 
 Distributed under the following license(s):
@@ -527,6 +560,13 @@ Distributed under the following license(s):
 
 
 ## digest https://crates.io/crates/digest
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+## dlv-list https://crates.io/crates/dlv-list
 
 Distributed under the following license(s):
 * MIT
@@ -914,6 +954,12 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
+## json5 https://crates.io/crates/json5
+
+Distributed under the following license(s):
+* ISC
+
+
 ## jsonpath-rust https://crates.io/crates/jsonpath-rust
 
 Distributed under the following license(s):
@@ -1005,6 +1051,13 @@ Distributed under the following license(s):
 
 Distributed under the following license(s):
 * MIT
+
+
+## linked-hash-map https://crates.io/crates/linked-hash-map
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
 
 
 ## local-channel https://crates.io/crates/local-channel
@@ -1174,6 +1227,12 @@ Distributed under the following license(s):
 * MIT
 
 
+## ordered-multimap https://crates.io/crates/ordered-multimap
+
+Distributed under the following license(s):
+* MIT
+
+
 ## overload https://crates.io/crates/overload
 
 Distributed under the following license(s):
@@ -1195,6 +1254,13 @@ Distributed under the following license(s):
 
 
 ## paste https://crates.io/crates/paste
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+## pathdiff https://crates.io/crates/pathdiff
 
 Distributed under the following license(s):
 * MIT
@@ -1412,6 +1478,19 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
+## ron https://crates.io/crates/ron
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+## rust-ini https://crates.io/crates/rust-ini
+
+Distributed under the following license(s):
+* MIT
+
+
 ## rust_decimal https://crates.io/crates/rust_decimal
 
 Distributed under the following license(s):
@@ -1578,6 +1657,13 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
+## serde_spanned https://crates.io/crates/serde_spanned
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
 ## serde_urlencoded https://crates.io/crates/serde_urlencoded
 
 Distributed under the following license(s):
@@ -1731,6 +1817,12 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
+## tiny-keccak https://crates.io/crates/tiny-keccak
+
+Distributed under the following license(s):
+* CC0-1.0
+
+
 ## tinyvec https://crates.io/crates/tinyvec
 
 Distributed under the following license(s):
@@ -1770,6 +1862,27 @@ Distributed under the following license(s):
 
 Distributed under the following license(s):
 * MIT
+
+
+## toml https://crates.io/crates/toml
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+## toml_datetime https://crates.io/crates/toml_datetime
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+## toml_edit https://crates.io/crates/toml_edit
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
 
 
 ## tower https://crates.io/crates/tower
@@ -1947,6 +2060,13 @@ Distributed under the following license(s):
 
 
 ## unicode-normalization https://crates.io/crates/unicode-normalization
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+## unicode-segmentation https://crates.io/crates/unicode-segmentation
 
 Distributed under the following license(s):
 * MIT
@@ -2230,6 +2350,19 @@ Distributed under the following license(s):
 
 
 ## windows_x86_64_msvc https://crates.io/crates/windows_x86_64_msvc
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+## winnow https://crates.io/crates/winnow
+
+Distributed under the following license(s):
+* MIT
+
+
+## yaml-rust https://crates.io/crates/yaml-rust
 
 Distributed under the following license(s):
 * MIT
