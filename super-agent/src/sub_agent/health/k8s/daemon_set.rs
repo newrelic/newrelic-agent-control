@@ -57,36 +57,40 @@ impl K8sHealthDaemonSet {
         let name = match ds.metadata.name {
             Some(s) => s,
             None => {
-                return Ok(Health::Unhealthy(Unhealthy {
+                return Ok(Unhealthy {
                     status: "DaemonSet unhealthy".to_string(),
                     last_error: "Daemonset has no .metadata.name".to_string(),
-                }))
+                }
+                .into())
             }
         };
 
         let status = match ds.status {
             Some(s) => s,
             None => {
-                return Ok(Health::Unhealthy(Unhealthy {
+                return Ok(Unhealthy {
                     status: "DaemonSet unhealthy".to_string(),
                     last_error: format!("Daemonset '{name}' is so new that it has no status yet"),
-                }))
+                }
+                .into())
             }
         };
 
         let update_strategy = match ds.spec {
             None => {
-                return Ok(Health::Unhealthy(Unhealthy {
+                return Ok(Unhealthy {
                     status: "DaemonSet unhealthy".to_string(),
                     last_error: format!("Daemonset '{name}' has no spec"),
-                }))
+                }
+                .into())
             }
             Some(spec) => match spec.update_strategy {
                 None => {
-                    return Ok(Health::Unhealthy(Unhealthy {
+                    return Ok(Unhealthy {
                         status: "DaemonSet unhealthy".to_string(),
                         last_error: format!("Daemonset '{name}' has no update strategy"),
-                    }))
+                    }
+                    .into())
                 }
                 Some(update_strategy) => update_strategy,
             },
@@ -100,11 +104,12 @@ impl K8sHealthDaemonSet {
             }
             // If the update strategy is not a rolling update, there will be nothing to wait for
             DaemonSetUpdateStrategies::OnDelete => {
-                return Ok(Health::Healthy(Healthy {
+                return Ok(Healthy {
                     status: format!(
                         "Daemonset '{name}' has on delete upgrade strategy. No health to check."
                     ),
-                }))
+                }
+                .into())
             }
             DaemonSetUpdateStrategies::RollingUpdate => {
                 update_strategy.rolling_update.ok_or_else(|| {
@@ -116,32 +121,33 @@ impl K8sHealthDaemonSet {
         };
 
         if status.updated_number_scheduled.is_none() {
-            return Ok(Health::Unhealthy(Unhealthy {
+            return Ok(Unhealthy {
                 status: "DaemonSet unhealthy".to_string(),
                 last_error: format!("Daemonset '{name}' is so new that it has no `updated_number_scheduled` status yet"),
-            }));
+            }.into());
         }
 
         // Make sure all the updated pods have been scheduled
         if let Some(updated_number_scheduled) = status.updated_number_scheduled {
             if updated_number_scheduled != status.desired_number_scheduled {
-                return Ok(Health::Unhealthy(Unhealthy {
+                return Ok(Unhealthy {
                     status: "DaemonSet unhealthy".to_string(),
                     last_error: format!(
                         "Not all the pods of the DaemonSet '{name}' were able to schedule"
                     ),
-                }));
+                }
+                .into());
             }
         }
 
         let max_unavailable = match rolling_update.max_unavailable {
             // If max unavailable is not set, the daemonset does not expect to have healthy pods.
             // Returning Healthiness as soon as possible.
-            None => return Ok(Health::Healthy(Healthy {
+            None => return Ok(Healthy {
                 status: format!(
                     "DaemonSet '{name}' healthy: This daemonset does not expect to have healthy pods",
                 ),
-            })),
+            }.into()),
 
             // `rolling_update.max_unavailable` can me an integer (number of pods) or a percent (percent of
             // desired pods). The integer path is simple, but if it is a percent we have to calculate the percent
@@ -161,21 +167,21 @@ impl K8sHealthDaemonSet {
 
         let expected_ready = status.desired_number_scheduled - max_unavailable;
         if status.number_ready < expected_ready {
-            return Ok(Health::Unhealthy(Unhealthy {
+            return Ok(Unhealthy {
                 status: "DaemonSet unhealthy".to_string(),
                 last_error: format!(
                     "Daemonset '{name}': The number of pods ready is less that the desired: {} < {}",
                     status.number_ready, expected_ready
                 ),
-            }));
+            }.into());
         }
 
-        Ok(Health::Healthy(Healthy {
+        Ok(Healthy {
             status: format!(
                 "DaemonSet '{name}' healthy: Pods ready are equal or greater than desired: {} >= {}",
                 status.number_ready, expected_ready
             ),
-        }))
+        }.into())
     }
 }
 
@@ -477,12 +483,12 @@ pub mod test {
                         ..Default::default()
                     }),
                 },
-                expected: Health::Unhealthy(Unhealthy {
+                expected: Unhealthy {
                     status: String::from("DaemonSet unhealthy"),
                     last_error: String::from(
                         "Not all the pods of the DaemonSet 'test' were able to schedule",
                     ),
-                }),
+                }.into(),
             },
             TestHealthCase {
                 name: "ds without max_unavailable",
@@ -507,11 +513,11 @@ pub mod test {
                         ..Default::default()
                     }),
                 },
-                expected: Health::Healthy(Healthy {
+                expected: Healthy {
                     status: String::from(
                         "DaemonSet 'test' healthy: This daemonset does not expect to have healthy pods",
                     ),
-                }),
+                }.into(),
             },
             TestHealthCase {
                 name: "unhealthy ds with int max_unavailable",
@@ -537,12 +543,12 @@ pub mod test {
                         ..Default::default()
                     }),
                 },
-                expected: Health::Unhealthy(Unhealthy {
+                expected: Unhealthy {
                     status: String::from("DaemonSet unhealthy"),
                     last_error: String::from(
                         "Daemonset 'test': The number of pods ready is less that the desired: 2 < 3",
                     ),
-                }),
+                }.into(),
             },
             TestHealthCase {
                 name: "unhealthy ds with percent max_unavailable",
@@ -568,12 +574,12 @@ pub mod test {
                         ..Default::default()
                     }),
                 },
-                expected: Health::Unhealthy(Unhealthy {
+                expected: Unhealthy {
                     status: String::from("DaemonSet unhealthy"),
                     last_error: String::from(
                         "Daemonset 'test': The number of pods ready is less that the desired: 2 < 3",
                     ),
-                }),
+                }.into(),
             },
             TestHealthCase {
                 name: "healthy ds with int max_unavailable",
@@ -599,9 +605,9 @@ pub mod test {
                         ..Default::default()
                     }),
                 },
-                expected: Health::Healthy(Healthy {
+                expected: Healthy {
                     status: String::from("DaemonSet 'test' healthy: Pods ready are equal or greater than desired: 2 >= 2"),
-                }),
+                }.into(),
             },
             TestHealthCase {
                 name: "healthy ds with percent max_unavailable",
@@ -627,9 +633,9 @@ pub mod test {
                         ..Default::default()
                     }),
                 },
-                expected: Health::Healthy(Healthy {
+                expected: Healthy {
                     status: String::from("DaemonSet 'test' healthy: Pods ready are equal or greater than desired: 2 >= 2"),
-                }),
+                }.into(),
             },
         ];
 
