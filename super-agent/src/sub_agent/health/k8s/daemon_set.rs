@@ -254,14 +254,14 @@ pub mod test {
 
         impl TestCase {
             fn run(self) {
-                let health_run = K8sHealthDaemonSet::check_health_single_daemon_set(self.ds);
-                let err_result = match health_run {
-                    Ok(ok) => panic!(
-                        "Test case '{}' is returning a Health Result: {:?}",
-                        self.name, ok,
-                    ),
-                    Err(err) => err,
-                };
+                let err_result = K8sHealthDaemonSet::check_health_single_daemon_set(self.ds)
+                    .inspect(|ok| {
+                        panic!(
+                            "Test Case '{}' is returning a Health Result: {:?}",
+                            self.name, ok
+                        );
+                    })
+                    .unwrap_err();
 
                 assert_eq!(self.expected.to_string(), err_result.to_string());
             }
