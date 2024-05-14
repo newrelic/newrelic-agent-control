@@ -57,11 +57,9 @@ impl K8sHealthDaemonSet {
         let name = match ds.metadata.name {
             Some(s) => s,
             None => {
-                return Ok(Unhealthy {
-                    status: "DaemonSet unhealthy".to_string(),
-                    last_error: "Daemonset has no .metadata.name".to_string(),
-                }
-                .into())
+                return Err(HealthCheckerError::new(
+                    "Daemonset has no .metadata.name".into(),
+                ));
             }
         };
 
@@ -78,19 +76,15 @@ impl K8sHealthDaemonSet {
 
         let update_strategy = match ds.spec {
             None => {
-                return Ok(Unhealthy {
-                    status: "DaemonSet unhealthy".to_string(),
-                    last_error: format!("Daemonset '{name}' has no spec"),
-                }
-                .into())
+                return Err(HealthCheckerError::new(format!(
+                    "Daemonset '{name}' has no spec"
+                )));
             }
             Some(spec) => match spec.update_strategy {
                 None => {
-                    return Ok(Unhealthy {
-                        status: "DaemonSet unhealthy".to_string(),
-                        last_error: format!("Daemonset '{name}' has no update strategy"),
-                    }
-                    .into())
+                    return Err(HealthCheckerError::new(format!(
+                        "Daemonset '{name}' has no update strategy"
+                    )))
                 }
                 Some(update_strategy) => update_strategy,
             },
@@ -206,18 +200,6 @@ pub mod test {
     fn test_invalid_daemonset_specs() {
         let test_cases: Vec<TestCase> = vec![
             TestCase {
-                name: "ds metadata name",
-                ds: DaemonSet {
-                    metadata: ObjectMeta {
-                        name: None,
-                        ..Default::default()
-                    },
-                    spec: None,
-                    status: None,
-                },
-                expected: "Daemonset has no .metadata.name",
-            },
-            TestCase {
                 name: "ds without status",
                 ds: DaemonSet {
                     metadata: ObjectMeta {
@@ -230,38 +212,7 @@ pub mod test {
                 expected: "Daemonset 'test' is so new that it has no status yet",
             },
             TestCase {
-                name: "ds without spec",
-                ds: DaemonSet {
-                    metadata: ObjectMeta {
-                        name: Some(String::from("test")),
-                        ..Default::default()
-                    },
-                    spec: None,
-                    status: Some(DaemonSetStatus {
-                        ..Default::default()
-                    }),
-                },
-                expected: "Daemonset 'test' has no spec",
-            },
-            TestCase {
-                name: "ds without update strategy",
-                ds: DaemonSet {
-                    metadata: ObjectMeta {
-                        name: Some(String::from("test")),
-                        ..Default::default()
-                    },
-                    spec: Some(DaemonSetSpec {
-                        update_strategy: None,
-                        ..Default::default()
-                    }),
-                    status: Some(DaemonSetStatus {
-                        ..Default::default()
-                    }),
-                },
-                expected: "Daemonset 'test' has no update strategy",
-            },
-            TestCase {
-                name: "ds without update strategy",
+                name: "ds without updated_number_scheduled",
                 ds: DaemonSet {
                     metadata: ObjectMeta {
                         name: Some(String::from("test")),
@@ -307,7 +258,50 @@ pub mod test {
     fn test_daemonset_spec_errors() {
         let test_cases: Vec<TestCase> = vec![
             TestCase {
+                name: "ds without metadata name",
+                ds: DaemonSet {
+                    metadata: ObjectMeta {
+                        name: None,
+                        ..Default::default()
+                    },
+                    spec: None,
+                    status: None,
+                },
+                expected: "Daemonset has no .metadata.name",
+            },
+            TestCase {
+                name: "ds without spec",
+                ds: DaemonSet {
+                    metadata: ObjectMeta {
+                        name: Some(String::from("test")),
+                        ..Default::default()
+                    },
+                    spec: None,
+                    status: Some(DaemonSetStatus {
+                        ..Default::default()
+                    }),
+                },
+                expected: "Daemonset 'test' has no spec",
+            },
+            TestCase {
                 name: "ds without update strategy",
+                ds: DaemonSet {
+                    metadata: ObjectMeta {
+                        name: Some(String::from("test")),
+                        ..Default::default()
+                    },
+                    spec: Some(DaemonSetSpec {
+                        update_strategy: None,
+                        ..Default::default()
+                    }),
+                    status: Some(DaemonSetStatus {
+                        ..Default::default()
+                    }),
+                },
+                expected: "Daemonset 'test' has no update strategy",
+            },
+            TestCase {
+                name: "ds with unknown update strategy",
                 ds: DaemonSet {
                     metadata: ObjectMeta {
                         name: Some(String::from("test")),
