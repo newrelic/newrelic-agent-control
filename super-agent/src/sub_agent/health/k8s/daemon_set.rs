@@ -94,7 +94,7 @@ impl K8sHealthDaemonSet {
             DaemonSetUpdateStrategies::OnDelete => {
                 return Ok(Healthy {
                     status: format!(
-                        "Daemonset '{name}' has on delete upgrade strategy. No health to check."
+                        "Daemonset '{name}' has on delete upgrade strategy"
                     ),
                 }
                 .into())
