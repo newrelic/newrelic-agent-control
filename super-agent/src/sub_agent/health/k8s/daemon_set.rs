@@ -126,29 +126,33 @@ impl K8sHealthDaemonSet {
             }
         }
 
-        let max_unavailable = if let Some(max_unavailable) = rolling_update.max_unavailable {
-            // `rolling_update.max_unavailable` can me an integer (number of pods) or a percent (percent of
-            // desired pods). The integer path is simple, but if it is a percent we have to calculate the percent
-            // against the number of desired pods to know how many unavailable pods should be the maximum.
-            match IntOrPercentage::from(max_unavailable) {
-                IntOrPercentage::Int(i) => i,
-                IntOrPercentage::Percentage(percent) => {
-                    (status.desired_number_scheduled as f32 * percent).ceil() as i32
-                }
-                IntOrPercentage::Unknown(err) => {
-                    return Err(HealthCheckerError::new(format!(
-                        "Daemonset '{name}' has an non-parsable Max Availability on Update Strategy: '{err}'"
-                    )))
-                }
-            }
-        } else {
+        let int_or_percentage = match rolling_update.max_unavailable {
             // If max unavailable is not set, the daemonset does not expect to have healthy pods.
             // Returning Healthiness as soon as possible.
-            return Ok(Healthy {
+            None => return Ok(Healthy {
                 status: format!(
                     "DaemonSet '{name}' healthy: This daemonset does not expect to have healthy pods",
                 ),
-            }.into());
+            }.into()),
+            Some(value) => IntOrPercentage::try_from(value).map_err(|err| {
+                HealthCheckerError::new(format!(
+                    "Daemonset '{name}' has an non-parsable Max Availability on Update Strategy: '{err}'"
+                ))
+            })?,
+        };
+
+        let max_unavailable = match int_or_percentage {
+            // `rolling_update.max_unavailable` can me an integer (number of pods) or a percent (percent of
+            // desired pods).
+
+            // The integer path is simple: Number of pods unavailable.
+            IntOrPercentage::Int(i) => i,
+
+            // The percent path needs to calculate the percent against the number of desired pods to know
+            // how many unavailable pods should be the maximum.
+            IntOrPercentage::Percentage(percent) => {
+                (status.desired_number_scheduled as f32 * percent).ceil() as i32
+            }
         };
 
         let expected_ready = status.desired_number_scheduled - max_unavailable;
