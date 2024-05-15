@@ -1,5 +1,5 @@
 //! # Synchronous HTTP Client Module
-use http::{HeaderMap, HeaderName, HeaderValue, Response};
+use http::{HeaderMap, HeaderValue, Response};
 use opamp_client::http::http_client::HttpClient;
 use opamp_client::http::HttpClientError;
 use std::io::Cursor;
