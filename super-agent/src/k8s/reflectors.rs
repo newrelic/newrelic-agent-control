@@ -30,7 +30,8 @@ use super::error::K8sError;
 ///   - Be clonable, debuggable, and thread-safe (`Send` and `Sync`).
 ///
 /// By implementing this trait for various Kubernetes resources like DaemonSet, Deployment, ReplicaSet,
-/// and StatefulSet, we ensure that they can be managed using a generic pattern.
+/// and StatefulSet, we ensure that they can be managed using a generic pattern. Besides, we ensure
+/// that reflectors can only be built for supported types.
 pub trait ResourceWithReflector:
     Resource<Scope = NamespaceResourceScope>
     + Clone
@@ -43,14 +44,15 @@ pub trait ResourceWithReflector:
 {
 }
 
-/// Reflector builder holds the arguments to build a reflector. Its implementation allows creating a reflector.
+/// Reflector builder holds the arguments to build a reflector.
+/// Its implementation allows creating a reflector for supported types.
 ///
 /// ## Example:
 /// ```ignore
-/// // It depends on `kube::Client` and `kube::discovery::ApiResource`
-/// let dynamic_object_reflector = reader::ReflectorBuilder::new(client, "namespace")
-///     .with_labels("key=value")
-///     .dynamic_object_reflector(api_resource);
+/// // We cannot run the example because of the dependencies
+/// let builder = reflectors::ReflectorBuilder::new(client);
+/// let dynamic_object_reflector = builder.try_build_with_api_resource(api_resource).unwrap();
+/// let deployment_reflector = builder.try_build::<Deployment>().unwrap();
 /// ```
 pub struct ReflectorBuilder {
     client: Client,
@@ -63,123 +65,51 @@ impl ReflectorBuilder {
     }
 
     /// Builds the DynamicObject reflector using the builder.
-    pub async fn dynamic_object_reflector(
+    ///
+    /// # Arguments
+    /// * `api_resource` - The [ApiResource] corresponding to the required [DynamicObject].
+    ///
+    /// # Returns
+    /// Returns the newly built reflector or an error.
+
+    pub async fn try_build_with_api_resource(
         &self,
         api_resource: &ApiResource,
-    ) -> Result<DynamicObjectReflector, K8sError> {
+    ) -> Result<Reflector<DynamicObject>, K8sError> {
         // The api consumes the client, so it needs to be owned to allow sharing the builder.
         let api: Api<DynamicObject> =
             Api::default_namespaced_with(self.client.to_owned(), api_resource);
 
+        // Initialize the writer for the dynamic type.
         let writer: Writer<DynamicObject> = reflector::store::Writer::new(api_resource.to_owned());
 
-        // Selectors need to be cloned since the builder could create more reflectors.
-        let wc = watcher::Config {
-            ..Default::default()
-        };
-
-        DynamicObjectReflector::new(api, writer, wc).await
+        Reflector::try_new(api, writer, self.watcher_config()).await
     }
 
-    /// Builds a generic resource reflector using the builder.
+    /// Builds a reflector using the builder.
     ///
     /// # Type Parameters
-    /// * `K` - Kubernetes resource type implementing the required traits.
-    ///
-    /// # Arguments
-    /// * `namespace` - Namespace in which the resource is located.
+    /// * `K` - Kubernetes resource type implementing the required trait.
     ///
     /// # Returns
-    /// Returns the newly built generic reflector or an error.
-    pub async fn try_new_resource_reflector<K>(
-        &self,
-        namespace: &str,
-    ) -> Result<K8sControllerReflector<K>, K8sError>
+    /// Returns the newly built reflector or an error.
+    pub async fn try_build<K>(&self) -> Result<Reflector<K>, K8sError>
     where
         K: ResourceWithReflector,
     {
-        // Create an API instance for the resource type
-        let api: Api<K> = Api::namespaced(self.client.clone(), namespace);
+        // Create an API instance for the resource type.
+        let api: Api<K> = Api::default_namespaced(self.client.clone());
 
-        // Initialize the writer for the resource type
+        // Initialize the writer for the resource type.
         let writer: Writer<K> = reflector::store::Writer::default();
 
-        // Clone field and label selectors
-        let wc = watcher::Config {
-            ..Default::default()
-        };
-
-        // Create and return the generic resource reflector
-        K8sControllerReflector::new(api, writer, wc).await
-    }
-}
-
-/// DynamicObjectReflector wraps kube-rs reflectors using any kubernetes object (DynamicObject).
-/// The reflector consists of a writer (`reflector::store::Writer<K>`) which reflects all k8s events by means of
-/// a watcher, and readers (`reflector::store::Store<K>`) which provide an efficient way to query the corresponding
-/// objects.
-/// It starts a new routine to start the watcher and keep the reader updated which will be stopped on reflector's drop,
-/// and it also holds a reference to a reader which can be safely cloned during the reflector's lifetime.
-pub struct DynamicObjectReflector {
-    reader: reflector::Store<DynamicObject>,
-    writer_close_handle: AbortHandle,
-}
-
-impl DynamicObjectReflector {
-    /// Creates a DynamicObjectReflector (used by [ReflectorBuilder]).
-    async fn new(
-        api: Api<DynamicObject>,
-        writer: Writer<DynamicObject>,
-        wc: watcher::Config,
-    ) -> Result<Self, K8sError> {
-        let reader = writer.as_reader();
-        let writer_close_handle = start_reflector(api, wc, writer).abort_handle();
-
-        reader.wait_until_ready().await?; // TODO: should we implement a timeout?
-
-        Ok(DynamicObjectReflector {
-            reader,
-            writer_close_handle,
-        })
+        Reflector::try_new(api, writer, self.watcher_config()).await
     }
 
-    /// Returns a copy of the reader.
-    // TODO: we are cloning it for now, but we need to check what's the best approach considering its usage.
-    // We may include additional methods using the reader instead of exposing a copy.
-    pub fn reader(&self) -> reflector::Store<DynamicObject> {
-        self.reader.clone()
+    /// Returns the watcher_config to use in reflectors
+    pub fn watcher_config(&self) -> watcher::Config {
+        Default::default()
     }
-}
-
-impl Drop for DynamicObjectReflector {
-    // Abort the reflector's writer task when it drops.
-    fn drop(&mut self) {
-        self.writer_close_handle.abort();
-    }
-}
-
-fn start_reflector<K>(api: Api<K>, wc: watcher::Config, writer: Writer<K>) -> JoinHandle<()>
-where
-    K: kube::core::Resource + Clone + DeserializeOwned + Debug + Send + Sync + 'static,
-    K::DynamicType: Eq + std::hash::Hash + Clone,
-{
-    //let writer = writer_builder();
-    tokio::spawn(async move {
-        watcher(api, wc)
-            // The watcher recovers automatically from api errores, the backoff could be customized.
-            .default_backoff()
-            // All changes are reflected into the writer.
-            .reflect(writer)
-            // We need to query the events to start the watcher.
-            .touched_objects()
-            .for_each(|o| {
-                if let Some(e) = o.err() {
-                    warn!("Recoverable error watching k8s events: {}", e)
-                }
-                future::ready(())
-            })
-            .await // The watcher runs indefinitely.
-    })
 }
 
 /// A generic Kubernetes reflector for resources that implement the `k8s_openapi::Resource` trait and have a namespace scope.
@@ -188,9 +118,10 @@ where
 /// - The writer continuously updates the cache based on the API stream.
 ///
 /// The writer's async task is aborted when the reflector is dropped.
-pub struct K8sControllerReflector<K>
+pub struct Reflector<K>
 where
-    K: ResourceWithReflector,
+    K: kube::core::Resource + Clone + DeserializeOwned + Debug + Send + Sync + 'static,
+    K::DynamicType: Eq + std::hash::Hash + Clone,
 {
     /// The read-only store that maintains a cache of Kubernetes objects of type `K`.
     reader: reflector::Store<K>,
@@ -198,21 +129,26 @@ where
     writer_close_handle: AbortHandle,
 }
 
-impl<K> K8sControllerReflector<K>
+impl<K> Reflector<K>
 where
-    K: ResourceWithReflector,
+    K: kube::core::Resource + Clone + DeserializeOwned + Debug + Send + Sync + 'static,
+    K::DynamicType: Eq + std::hash::Hash + Clone,
 {
-    /// Creates a new `K8sControllerReflector` using the specified API, writer, and watcher config.
+    /// Creates a new [Reflector] using the specified API, writer, and watcher config.
     ///
     /// The function awaits until the cache is fully ready to serve objects.
-    /// Returns a `Result` with either the initialized `K8sControllerReflector` or an error.
-    async fn new(api: Api<K>, writer: Writer<K>, wc: watcher::Config) -> Result<Self, K8sError> {
+    /// Returns a `Result` with either the initialized [Reflector] or an error.
+    async fn try_new(
+        api: Api<K>,
+        writer: Writer<K>,
+        wc: watcher::Config,
+    ) -> Result<Self, K8sError> {
         let reader = writer.as_reader();
-        let writer_close_handle = start_reflector(api, wc, writer).abort_handle();
+        let writer_close_handle = Self::start_reflector(api, wc, writer).abort_handle();
 
         reader.wait_until_ready().await?; // TODO: should we implement a timeout?
 
-        Ok(K8sControllerReflector {
+        Ok(Reflector {
             reader,
             writer_close_handle,
         })
@@ -222,11 +158,33 @@ where
     pub fn reader(&self) -> reflector::Store<K> {
         self.reader.clone()
     }
+
+    /// Spawns a tokio task waiting for events and updating the provided writer.
+    /// Returns the task [JoinHandle<()>].
+    fn start_reflector(api: Api<K>, wc: watcher::Config, writer: Writer<K>) -> JoinHandle<()> {
+        tokio::spawn(async move {
+            watcher(api, wc)
+                // The watcher recovers automatically from api errors, the backoff could be customized.
+                .default_backoff()
+                // All changes are reflected into the writer.
+                .reflect(writer)
+                // We need to query the events to start the watcher.
+                .touched_objects()
+                .for_each(|o| {
+                    if let Some(e) = o.err() {
+                        warn!("Recoverable error watching k8s events: {}", e)
+                    }
+                    future::ready(())
+                })
+                .await // The watcher runs indefinitely.
+        })
+    }
 }
 
-impl<K> Drop for K8sControllerReflector<K>
+impl<K> Drop for Reflector<K>
 where
-    K: ResourceWithReflector,
+    K: kube::core::Resource + Clone + DeserializeOwned + Debug + Send + Sync + 'static,
+    K::DynamicType: Eq + std::hash::Hash + Clone,
 {
     /// When dropped, abort the writer task to ensure proper cleanup.
     fn drop(&mut self) {
@@ -238,7 +196,6 @@ where
 mod test {
     use super::*;
     use k8s_openapi::api::apps::v1::Deployment;
-    use kube::core::GroupVersionKind;
     use tokio::sync::oneshot::{channel, Sender};
 
     async fn mocked_writer_task(_send: Sender<()>) {
@@ -250,30 +207,13 @@ mod test {
 
     #[tokio::test]
     async fn test_reflector_abort_writer_on_drop() {
-        let gvk = GroupVersionKind::gvk("test.group", "v1", "TestKind");
-        // Mocked reader and writer
-        let writer = reflector::store::Writer::new(ApiResource::from_gvk(&gvk));
-        let reader = writer.as_reader();
-        let (send, recv) = channel();
-        let reflector = DynamicObjectReflector {
-            reader,
-            writer_close_handle: tokio::spawn(mocked_writer_task(send)).abort_handle(),
-        };
-        // When the reflector is dropped, it should abort the `writer_task`. Consequently, the channel's receiver
-        // finished with error <https://docs.rs/tokio/latest/tokio/sync/oneshot/error/struct.RecvError.html>.
-        drop(reflector);
-        assert!(recv.await.is_err());
-    }
-
-    #[tokio::test]
-    async fn test_generic_reflector_abort_writer_on_drop() {
         // Create a writer and store using `()`, as `Deployment` has no dynamic type.
         let (_store, writer) = reflector::store::store::<Deployment>();
         let reader = writer.as_reader();
 
         let (send, recv) = channel();
 
-        let reflector = K8sControllerReflector {
+        let reflector = Reflector {
             reader,
             writer_close_handle: tokio::spawn(mocked_writer_task(send)).abort_handle(),
         };
