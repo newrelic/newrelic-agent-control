@@ -2,13 +2,16 @@ use k8s_openapi::api::apps::v1::DaemonSet;
 
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use crate::k8s::utils::{DaemonSetUpdateStrategies, IntOrPercentage};
+use crate::k8s::utils::IntOrPercentage;
 use crate::sub_agent::health::health_checker::{
     Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
 use std::sync::Arc;
 
 use super::health_checker::LABEL_RELEASE_FLUX;
+
+const ROLLING_UPDATE: &str = "RollingUpdate";
+const ON_DELETE: &str = "OnDelete";
 
 pub struct K8sHealthDaemonSet {
     k8s_client: Arc<SyncK8sClient>,
@@ -84,25 +87,29 @@ impl K8sHealthDaemonSet {
                 "Daemonset '{name}' has no update strategy"
             )))?;
 
-        let rolling_update = match DaemonSetUpdateStrategies::from(update_strategy.type_) {
-            DaemonSetUpdateStrategies::Unknown(s) => {
-                return Err(HealthCheckerError::new(format!(
-                    "Daemonset '{name}' has an unknown Update Strategy Type: '{s}'"
-                )));
-            }
+        let rolling_update = match update_strategy
+            .type_
+            .ok_or(HealthCheckerError::new(format!(
+                "Daemonset '{name}' has no update strategy type"
+            )))?
+            .as_str()
+        {
             // If the update strategy is not a rolling update, there will be nothing to wait for
-            DaemonSetUpdateStrategies::OnDelete => {
+            ON_DELETE => {
                 return Ok(Healthy {
                     status: format!("Daemonset '{name}' has on delete upgrade strategy"),
                 }
                 .into())
             }
-            DaemonSetUpdateStrategies::RollingUpdate => {
-                update_strategy.rolling_update.ok_or_else(|| {
-                    HealthCheckerError::new(format!(
-                        "Daemonset '{name}' has rolling update strategy type and no struct"
-                    ))
-                })?
+            ROLLING_UPDATE => update_strategy.rolling_update.ok_or_else(|| {
+                HealthCheckerError::new(format!(
+                    "Daemonset '{name}' has rolling update strategy type and no struct"
+                ))
+            })?,
+            s => {
+                return Err(HealthCheckerError::new(format!(
+                    "Daemonset '{name}' has an unknown Update Strategy Type: '{s}'"
+                )));
             }
         };
 
@@ -286,7 +293,7 @@ pub mod test {
                     },
                     spec: Some(DaemonSetSpec {
                         update_strategy: Some(DaemonSetUpdateStrategy {
-                            type_: Some(DaemonSetUpdateStrategies::RollingUpdate.to_string()),
+                            type_: Some(ROLLING_UPDATE.to_string()),
                             rolling_update: None,
                         }),
                         ..Default::default()
@@ -306,7 +313,7 @@ pub mod test {
                     },
                     spec: Some(DaemonSetSpec {
                         update_strategy: Some(DaemonSetUpdateStrategy {
-                            type_: Some(DaemonSetUpdateStrategies::RollingUpdate.to_string()),
+                            type_: Some(ROLLING_UPDATE.to_string()),
                             rolling_update: Some(RollingUpdateDaemonSet {
                                 max_unavailable: Some(IntOrString::String(String::from("NaN"))),
                                 ..Default::default()
@@ -332,7 +339,7 @@ pub mod test {
                     },
                     spec: Some(DaemonSetSpec {
                         update_strategy: Some(DaemonSetUpdateStrategy {
-                            type_: Some(DaemonSetUpdateStrategies::RollingUpdate.to_string()),
+                            type_: Some(ROLLING_UPDATE.to_string()),
                             rolling_update: None,
                         }),
                         ..Default::default()
@@ -396,7 +403,7 @@ pub mod test {
                     },
                     spec: Some(DaemonSetSpec {
                         update_strategy: Some(DaemonSetUpdateStrategy {
-                            type_: Some(DaemonSetUpdateStrategies::OnDelete.to_string()),
+                            type_: Some(ON_DELETE.to_string()),
                             ..Default::default()
                         }),
                         ..Default::default()
@@ -418,7 +425,7 @@ pub mod test {
                     },
                     spec: Some(DaemonSetSpec {
                         update_strategy: Some(DaemonSetUpdateStrategy{
-                            type_: Some(DaemonSetUpdateStrategies::RollingUpdate.to_string()),
+                            type_: Some(ROLLING_UPDATE.to_string()),
                             rolling_update: Some(RollingUpdateDaemonSet{
                                 ..Default::default()
                             })}),
@@ -443,7 +450,7 @@ pub mod test {
                     },
                     spec: Some(DaemonSetSpec {
                         update_strategy: Some(DaemonSetUpdateStrategy {
-                            type_: Some(DaemonSetUpdateStrategies::RollingUpdate.to_string()),
+                            type_: Some(ROLLING_UPDATE.to_string()),
                             rolling_update: Some(RollingUpdateDaemonSet {
                                 ..Default::default()
                             }),
@@ -472,7 +479,7 @@ pub mod test {
                     },
                     spec: Some(DaemonSetSpec {
                         update_strategy: Some(DaemonSetUpdateStrategy {
-                            type_: Some(DaemonSetUpdateStrategies::RollingUpdate.to_string()),
+                            type_: Some(ROLLING_UPDATE.to_string()),
                             rolling_update: Some(RollingUpdateDaemonSet {
                                 max_unavailable: None,
                                 ..Default::default()
@@ -501,7 +508,7 @@ pub mod test {
                     },
                     spec: Some(DaemonSetSpec {
                         update_strategy: Some(DaemonSetUpdateStrategy {
-                            type_: Some(DaemonSetUpdateStrategies::RollingUpdate.to_string()),
+                            type_: Some(ROLLING_UPDATE.to_string()),
                             rolling_update: Some(RollingUpdateDaemonSet {
                                 max_unavailable: Some(IntOrString::Int(2)),
                                 ..Default::default()
@@ -532,7 +539,7 @@ pub mod test {
                     },
                     spec: Some(DaemonSetSpec {
                         update_strategy: Some(DaemonSetUpdateStrategy {
-                            type_: Some(DaemonSetUpdateStrategies::RollingUpdate.to_string()),
+                            type_: Some(ROLLING_UPDATE.to_string()),
                             rolling_update: Some(RollingUpdateDaemonSet {
                                 max_unavailable: Some(IntOrString::String("40%".into())),
                                 ..Default::default()
@@ -563,7 +570,7 @@ pub mod test {
                     },
                     spec: Some(DaemonSetSpec {
                         update_strategy: Some(DaemonSetUpdateStrategy {
-                            type_: Some(DaemonSetUpdateStrategies::RollingUpdate.to_string()),
+                            type_: Some(ROLLING_UPDATE.to_string()),
                             rolling_update: Some(RollingUpdateDaemonSet {
                                 max_unavailable: Some(IntOrString::Int(3)),
                                 ..Default::default()
@@ -591,7 +598,7 @@ pub mod test {
                     },
                     spec: Some(DaemonSetSpec {
                         update_strategy: Some(DaemonSetUpdateStrategy {
-                            type_: Some(DaemonSetUpdateStrategies::RollingUpdate.to_string()),
+                            type_: Some(ROLLING_UPDATE.to_string()),
                             rolling_update: Some(RollingUpdateDaemonSet {
                                 max_unavailable: Some(IntOrString::String("60%".into())),
                                 ..Default::default()

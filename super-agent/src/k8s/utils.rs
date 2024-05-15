@@ -81,44 +81,6 @@ impl std::fmt::Display for IntOrPercentage {
     }
 }
 
-pub enum DaemonSetUpdateStrategies {
-    RollingUpdate,
-    OnDelete,
-    Unknown(String),
-}
-
-const ROLLING_UPDATE: &str = "RollingUpdate";
-const ON_DELETE: &str = "OnDelete";
-
-impl From<Option<String>> for DaemonSetUpdateStrategies {
-    fn from(value: Option<String>) -> Self {
-        match value {
-            Some(string) => self::DaemonSetUpdateStrategies::from(string),
-            None => Self::Unknown("Option for this `UpdateStrategies` is None".to_string()),
-        }
-    }
-}
-
-impl From<String> for DaemonSetUpdateStrategies {
-    fn from(value: String) -> Self {
-        return match value.as_str() {
-            ROLLING_UPDATE => return Self::RollingUpdate,
-            ON_DELETE => return Self::OnDelete,
-            unknown => Self::Unknown(unknown.to_string()),
-        };
-    }
-}
-
-impl std::fmt::Display for DaemonSetUpdateStrategies {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            DaemonSetUpdateStrategies::RollingUpdate => write!(f, "{ROLLING_UPDATE}"),
-            DaemonSetUpdateStrategies::OnDelete => write!(f, "{ON_DELETE}"),
-            DaemonSetUpdateStrategies::Unknown(s) => write!(f, "{s}"),
-        }
-    }
-}
-
 // This is a copy of `is_label_present` from PR #633 so we can reuse it. This is subject to change while that PR
 // Is still on review.
 pub fn is_label_present(labels: &Option<BTreeMap<String, String>>, key: &str, value: &str) -> bool {
