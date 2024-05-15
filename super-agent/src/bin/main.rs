@@ -233,7 +233,7 @@ fn run_super_agent<C: HttpClientBuilder>(
     let config = sa_local_config_storer.load()?;
     let k8s_config = config.k8s.ok_or(AgentError::K8sConfig())?;
     let k8s_client = Arc::new(
-        newrelic_super_agent::k8s::client::SyncK8sClient::try_new_with_reflectors(
+        newrelic_super_agent::k8s::client::SyncK8sClient::try_new(
             runtime,
             k8s_config.namespace.clone(),
             k8s_config.cr_type_meta.clone(),

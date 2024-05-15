@@ -40,16 +40,7 @@ pub struct SyncK8sClient {
 
 #[cfg_attr(test, mockall::automock)]
 impl SyncK8sClient {
-    // TODO: unify
-    pub fn try_new(runtime: Arc<Runtime>, namespace: String) -> Result<Self, K8sError> {
-        Ok(Self {
-            async_client: runtime.block_on(AsyncK8sClient::try_new(namespace, vec![]))?,
-            runtime,
-        })
-    }
-
-    // TODO: unify
-    pub fn try_new_with_reflectors(
+    pub fn try_new(
         runtime: Arc<Runtime>,
         namespace: String,
         cr_type_metas: Vec<TypeMeta>,

@@ -55,12 +55,8 @@ fn k8s_garbage_collector_cleans_removed_agent() {
     let agent_id = &AgentID::new("sub-agent").unwrap();
 
     let k8s_client = Arc::new(
-        SyncK8sClient::try_new_with_reflectors(
-            tokio_runtime(),
-            test_ns.to_string(),
-            vec![foo_type_meta()],
-        )
-        .unwrap(),
+        SyncK8sClient::try_new(tokio_runtime(), test_ns.to_string(), vec![foo_type_meta()])
+            .unwrap(),
     );
 
     let resource_name = "test-different-from-agent-id";
@@ -192,7 +188,7 @@ fn k8s_garbage_collector_with_missing_and_extra_kinds() {
     let mut gc = NotStartedK8sGarbageCollector::new(
         Arc::new(config_loader),
         Arc::new(
-            SyncK8sClient::try_new_with_reflectors(
+            SyncK8sClient::try_new(
                 tokio_runtime(),
                 test_ns.to_string(),
                 vec![foo_type_meta(), existing_kind, missing_kind],
@@ -222,12 +218,8 @@ fn k8s_garbage_collector_does_not_remove_super_agent() {
     ));
 
     let k8s_client = Arc::new(
-        SyncK8sClient::try_new_with_reflectors(
-            tokio_runtime(),
-            test_ns.to_string(),
-            vec![foo_type_meta()],
-        )
-        .unwrap(),
+        SyncK8sClient::try_new(tokio_runtime(), test_ns.to_string(), vec![foo_type_meta()])
+            .unwrap(),
     );
     let k8s_store = Arc::new(K8sStore::new(k8s_client.clone()));
 
