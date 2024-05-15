@@ -19,7 +19,7 @@ tracing = { workspace = true }
 ctrlc = { version = "3.4.0", features = ["termination"] }
 serde_yaml = { workspace = true }
 regex = { workspace = true }
-opamp-client = { git = "ssh://git@github.com/newrelic/opamp-rs.git", tag = "0.0.16", features = [
+opamp-client = { git = "ssh://git@github.com/newrelic/opamp-rs.git", tag = "0.0.17", features = [
   "sync-http",
 ], default-features = false }
 futures = { version = "0.3.28", optional = true }
@@ -69,7 +69,7 @@ fs = { path = "../fs", features = ["mocks"] }
 tokio = { version = "1.32.0", features = ["rt-multi-thread", "macros"] }
 wiremock = "0.6.0"
 fake = { version = "2.9.2", features = ["derive", "http"] }
-prost = "0.11.8"
+prost = "0.12.4"
 
 [build-dependencies]
 glob = "0.3.1"

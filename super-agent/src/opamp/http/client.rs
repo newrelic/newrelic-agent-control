@@ -64,7 +64,7 @@ impl HttpClient for HttpClientUreq {
 
         match req.send(Cursor::new(body)) {
             Ok(response) | Err(ureq::Error::Status(_, response)) => build_response(response),
-            Err(ureq::Error::Transport(e)) => Err(HttpClientError::UreqError(e.to_string())),
+            Err(ureq::Error::Transport(e)) => Err(HttpClientError::TransportError(e.to_string())),
         }
     }
 }

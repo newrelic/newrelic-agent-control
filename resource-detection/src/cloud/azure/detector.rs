@@ -93,7 +93,7 @@ mod test {
     #[test]
     fn http_client_error() {
         let mut client_mock = MockHttpClientMock::new();
-        let error = HttpClientError::UreqError(String::from("some error"));
+        let error = HttpClientError::TransportError(String::from("some error"));
         client_mock.should_not_get(error);
 
         let detector = AzureDetector {

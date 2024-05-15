@@ -1149,7 +1149,7 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
-## opamp-client git+ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.16
+## opamp-client git+ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.17
 
 Distributed under the following license(s):
 * Apache-2.0
