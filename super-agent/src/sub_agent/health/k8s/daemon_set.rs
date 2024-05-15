@@ -200,7 +200,12 @@ pub mod test {
                     })
                     .unwrap_err();
 
-                assert_eq!(self.expected.to_string(), err_result.to_string());
+                assert_eq!(
+                    err_result.to_string(),
+                    self.expected.to_string(),
+                    "{}",
+                    self.name
+                );
             }
         }
 
@@ -358,7 +363,7 @@ pub mod test {
                         self.name, err
                     )
                 });
-                assert_eq!(health_result, self.expected);
+                assert_eq!(health_result, self.expected, "{}", self.name);
             }
         }
 
