@@ -16,7 +16,9 @@ const TEST_LABEL_VALUE: &str = "value";
 #[ignore = "needs k8s cluster"]
 async fn k8s_client_creation_fail() {
     let test_ns = "test-not-existing-namespace";
-    assert!(AsyncK8sClient::try_new(test_ns.to_string()).await.is_err());
+    assert!(AsyncK8sClient::try_new(test_ns.to_string(), Vec::new())
+        .await
+        .is_err());
 }
 
 // tokio test runs with 1 thread by default causing deadlock when executing `block_on` code during test helper drop.
@@ -37,7 +39,7 @@ async fn k8s_create_dynamic_resource() {
     let obj: DynamicObject = serde_yaml::from_str(cr.as_str()).unwrap();
 
     let k8s_client: AsyncK8sClient =
-        AsyncK8sClient::try_new_with_reflectors(test_ns.to_string(), vec![foo_type_meta()])
+        AsyncK8sClient::try_new(test_ns.to_string(), vec![foo_type_meta()])
             .await
             .unwrap();
 
@@ -58,7 +60,7 @@ async fn k8s_get_dynamic_resource() {
     let cr_name = "get-test";
 
     let k8s_client: AsyncK8sClient =
-        AsyncK8sClient::try_new_with_reflectors(test_ns.to_string(), vec![foo_type_meta()])
+        AsyncK8sClient::try_new(test_ns.to_string(), vec![foo_type_meta()])
             .await
             .unwrap();
 
@@ -105,7 +107,7 @@ async fn k8s_dynamic_resource_has_changed() {
     let cr_name = "has-changed-test";
 
     let k8s_client: AsyncK8sClient =
-        AsyncK8sClient::try_new_with_reflectors(test_ns.to_string(), vec![foo_type_meta()])
+        AsyncK8sClient::try_new(test_ns.to_string(), vec![foo_type_meta()])
             .await
             .unwrap();
 
@@ -166,7 +168,7 @@ async fn k8s_delete_dynamic_resource() {
     create_foo_cr(test.client.to_owned(), test_ns.as_str(), cr_name, None).await;
 
     let k8s_client: AsyncK8sClient =
-        AsyncK8sClient::try_new_with_reflectors(test_ns.to_string(), vec![foo_type_meta()])
+        AsyncK8sClient::try_new(test_ns.to_string(), vec![foo_type_meta()])
             .await
             .unwrap();
     k8s_client
@@ -192,7 +194,7 @@ async fn k8s_patch_dynamic_resource() {
         serde_yaml::from_str(serde_yaml::to_string(&cr).unwrap().as_str()).unwrap();
 
     let k8s_client: AsyncK8sClient =
-        AsyncK8sClient::try_new_with_reflectors(test_ns.to_string(), vec![foo_type_meta()])
+        AsyncK8sClient::try_new(test_ns.to_string(), vec![foo_type_meta()])
             .await
             .unwrap();
     k8s_client.apply_dynamic_object(&obj).await.unwrap();
@@ -230,7 +232,7 @@ async fn k8s_patch_dynamic_resource_metadata() {
     let obj: DynamicObject =
         serde_yaml::from_str(serde_yaml::to_string(&cr).unwrap().as_str()).unwrap();
     let k8s_client: AsyncK8sClient =
-        AsyncK8sClient::try_new_with_reflectors(test_ns.to_string(), vec![foo_type_meta()])
+        AsyncK8sClient::try_new(test_ns.to_string(), vec![foo_type_meta()])
             .await
             .unwrap();
     k8s_client.apply_dynamic_object(&obj).await.unwrap();
