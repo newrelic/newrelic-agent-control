@@ -1,2 +1,2 @@
-pub mod builder;
+pub mod definition;
 pub mod resources;

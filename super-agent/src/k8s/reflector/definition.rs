@@ -86,7 +86,7 @@ impl ReflectorBuilder {
     }
 }
 
-/// A generic Kubernetes reflector for resources that implement the [kube::core::Resource] trait and have a namespace scope.
+/// A generic Kubernetes reflector for resources implementing the [kube::core::Resource].
 /// It works by keeping an internal reader-writer pair:
 /// - The reader keeps a read-only cache of Kubernetes objects.
 /// - The writer continuously updates the cache based on the API stream.

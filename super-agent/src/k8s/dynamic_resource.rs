@@ -11,7 +11,7 @@ use tracing::{debug, warn};
 use super::{
     client::{delete_collection, get_name},
     error::K8sError,
-    reflector::builder::{Reflector, ReflectorBuilder},
+    reflector::definition::{Reflector, ReflectorBuilder},
 };
 
 /// An abstraction of [DynamicObject] that allow performing operations concerning objects known at Runtime either
@@ -36,14 +36,6 @@ impl DynamicResource {
             api: Api::default_namespaced_with(client, api_resource),
             reflector: builder.try_build_with_api_resource(api_resource).await?,
         })
-    }
-
-    pub fn api(&self) -> &Api<DynamicObject> {
-        &self.api
-    }
-
-    pub fn reflector(&self) -> &Reflector<DynamicObject> {
-        &self.reflector
     }
 
     /// Looks for a [DynamicObject] by name, using the corresponding reflector.
@@ -139,6 +131,7 @@ impl DynamicResources {
         builder: &ReflectorBuilder,
     ) -> Result<Self, K8sError> {
         let mut inner = HashMap::new();
+
         for type_meta in dynamic_types.into_iter() {
             let gvk = &GroupVersion::from_str(type_meta.api_version.as_str())?
                 .with_kind(type_meta.kind.as_str());

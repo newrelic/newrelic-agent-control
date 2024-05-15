@@ -1,7 +1,7 @@
 use super::{
     dynamic_resource::{DynamicResource, DynamicResources},
     error::K8sError,
-    reflector::{builder::ReflectorBuilder, resources::Reflectors},
+    reflector::{definition::ReflectorBuilder, resources::Reflectors},
 };
 use crate::super_agent::config::helm_release_type_meta;
 use k8s_openapi::api::apps::v1::StatefulSet;
@@ -202,17 +202,6 @@ impl AsyncK8sClient {
 
     pub fn reflectors(&self) -> &Reflectors {
         &self.reflectors
-    }
-
-    // TODO: move to its own compoment
-    pub async fn delete_dynamic_object_collection(
-        &self,
-        tm: &TypeMeta,
-        label_selector: &str,
-    ) -> Result<(), K8sError> {
-        let api = self.dynamics.try_get(tm)?.api();
-        debug!("deleting dynamic object collection: {:?}", tm.kind);
-        delete_collection(api, label_selector).await
     }
 
     pub async fn delete_configmap_collection(&self, label_selector: &str) -> Result<(), K8sError> {

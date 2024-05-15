@@ -8,7 +8,7 @@ use std::fmt::Debug;
 
 use super::{
     super::error::K8sError,
-    builder::{Reflector, ReflectorBuilder},
+    definition::{Reflector, ReflectorBuilder},
 };
 
 /// The `ResourceWithReflector` trait represents Kubernetes resources that have a namespace scope.
@@ -41,6 +41,7 @@ impl ResourceWithReflector for Deployment {}
 impl ResourceWithReflector for ReplicaSet {}
 impl ResourceWithReflector for StatefulSet {}
 
+/// Gathers together the reflectors for resources implementing [ResourceWithReflector]
 pub struct Reflectors {
     pub deployment: Reflector<Deployment>,
     pub daemon_set: Reflector<DaemonSet>,
