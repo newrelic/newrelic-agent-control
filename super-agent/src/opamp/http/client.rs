@@ -1,5 +1,5 @@
 //! # Synchronous HTTP Client Module
-use http::{HeaderMap, Response};
+use http::{HeaderMap, HeaderName, HeaderValue, Response};
 use opamp_client::http::http_client::HttpClient;
 use opamp_client::http::HttpClientError;
 use std::io::Cursor;
@@ -44,7 +44,14 @@ impl From<&OpAMPClientConfig> for HttpClientUreq {
             .timeout(DEFAULT_CLIENT_TIMEOUT)
             .build();
         let url = config.endpoint.clone();
-        let headers = config.headers.clone();
+
+        let mut headers = config.headers.clone();
+        // Add headers for protobuf wire format communication
+        headers.insert(
+            "Content-Type",
+            HeaderValue::from_static("application/x-protobuf"),
+        );
+
         Self {
             client,
             url,
