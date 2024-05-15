@@ -151,7 +151,7 @@ async fn config_handler(
 /// Checks if the remote is applied according to the agent message
 fn remote_config_is_applied(message: &opamp::proto::AgentToServer) -> bool {
     if let Some(remote_config_status) = message.clone().remote_config_status {
-        return opamp::proto::RemoteConfigStatuses::from_i32(remote_config_status.status).unwrap()
+        return opamp::proto::RemoteConfigStatuses::try_from(remote_config_status.status).unwrap()
             == opamp::proto::RemoteConfigStatuses::Applied;
     }
     false

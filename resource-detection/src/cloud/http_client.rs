@@ -6,15 +6,15 @@ use tracing::error;
 /// An enumeration of potential errors related to the HTTP client.
 #[derive(Error, Debug)]
 pub enum HttpClientError {
-    /// Represents Ureq crate error.
+    /// Represents HTTP Transport error.
     #[error("internal HTTP client error: `{0}`")]
-    UreqError(String),
+    TransportError(String),
 }
 
 /// The `HttpClient` trait defines the HTTP get interface to be implemented
 /// by HTTP clients.
 pub trait HttpClient {
-    /// Returns a `http::Response<Vec<u8>>` structure as the HTPP response or
+    /// Returns a `http::Response<Vec<u8>>` structure as the HTTP response or
     /// HttpClientError if an error was found.
     fn get(&self) -> Result<http::Response<Vec<u8>>, HttpClientError>;
 }
@@ -56,7 +56,7 @@ impl HttpClient for HttpClientUreq {
 
         Ok(req
             .call()
-            .map_err(|e| HttpClientError::UreqError(e.to_string()))?
+            .map_err(|e| HttpClientError::TransportError(e.to_string()))?
             .into())
     }
 }

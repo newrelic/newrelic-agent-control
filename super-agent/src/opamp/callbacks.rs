@@ -259,7 +259,7 @@ pub(crate) mod tests {
 
         // When an error without status code and reason is received
         callbacks.on_connect_failed(ConnectionError::HTTPClientError(
-            HttpClientError::UreqError("Some transport error".to_string()),
+            HttpClientError::TransportError("Some transport error".to_string()),
         ));
 
         let _ = event_consumer
