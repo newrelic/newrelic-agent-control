@@ -92,10 +92,11 @@ impl ReflectorBuilder {
 /// - The writer continuously updates the cache based on the API stream.
 ///
 /// The writer's async task is aborted when the reflector is dropped.
+#[derive(Debug)]
 pub struct Reflector<K>
 where
     K: kube::core::Resource + Clone + DeserializeOwned + Debug + Send + Sync + 'static,
-    K::DynamicType: Eq + std::hash::Hash + Clone,
+    K::DynamicType: Eq + std::hash::Hash + Clone + Debug,
 {
     /// The read-only store that maintains a cache of Kubernetes objects of type `K`.
     reader: reflector::Store<K>,
@@ -106,7 +107,7 @@ where
 impl<K> Reflector<K>
 where
     K: kube::core::Resource + Clone + DeserializeOwned + Debug + Send + Sync + 'static,
-    K::DynamicType: Eq + std::hash::Hash + Clone,
+    K::DynamicType: Eq + std::hash::Hash + Clone + Debug,
 {
     /// Creates a new [Reflector] using the specified API, writer, and watcher config.
     ///
@@ -158,7 +159,7 @@ where
 impl<K> Drop for Reflector<K>
 where
     K: kube::core::Resource + Clone + DeserializeOwned + Debug + Send + Sync + 'static,
-    K::DynamicType: Eq + std::hash::Hash + Clone,
+    K::DynamicType: Eq + std::hash::Hash + Clone + Debug,
 {
     /// When dropped, abort the writer task to ensure proper cleanup.
     fn drop(&mut self) {
