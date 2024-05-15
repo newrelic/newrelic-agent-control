@@ -134,7 +134,7 @@ fn custom_directory_as_root() -> Result<(), Box<dyn std::error::Error>> {
     let dir = TempDir::new()?;
     let _agent_type_def = create_temp_file(
         &dir,
-        "local_data/dynamic-agent-type.yaml",
+        "nrsa_local/dynamic-agent-type.yaml",
         r#"
 namespace: newrelic
 name: com.newrelic.test-agent
@@ -165,7 +165,7 @@ deployment:
     );
     let _values_file = create_temp_file(
         &dir,
-        "local_data/fleet/agents.d/test-agent/values/values.yaml",
+        "nrsa_local/fleet/agents.d/test-agent/values/values.yaml",
         r#"
 message: "test yes"
 file_logging: true
@@ -176,6 +176,7 @@ file_logging: true
         "static.yml",
         r#"
 log:
+  level: debug
   file:
     enable: true
 agents:
@@ -191,7 +192,7 @@ agents:
         .arg("--debug")
         .arg(tmpdir_path);
     // cmd_assert is not made for long running programs, so we kill it anyway after 3 seconds
-    cmd.timeout(Duration::from_secs(3));
+    cmd.timeout(Duration::from_secs(5));
     // But in any case we make sure that it actually attempted to create the supervisor group,
     // so it works when the program is run as root
     cmd.assert().failure();
@@ -215,7 +216,7 @@ fn custom_directory_overrides_as_root() -> Result<(), Box<dyn std::error::Error>
     let another_dir = TempDir::new()?;
     let _agent_type_def = create_temp_file(
         &dir,
-        "local_data/dynamic-agent-type.yaml",
+        "nrsa_local/dynamic-agent-type.yaml",
         r#"
 namespace: newrelic
 name: com.newrelic.test-agent
@@ -246,7 +247,7 @@ deployment:
     );
     let _values_file = create_temp_file(
         &dir,
-        "local_data/fleet/agents.d/test-agent/values/values.yaml",
+        "nrsa_local/fleet/agents.d/test-agent/values/values.yaml",
         r#"
 message: "test yes"
 file_logging: true
@@ -257,6 +258,7 @@ file_logging: true
         "static.yml",
         r#"
 log:
+  level: debug
   file:
     enable: true
 agents:
@@ -276,7 +278,7 @@ agents:
         .arg("--logs-dir")
         .arg(&override_logs_path);
     // cmd_assert is not made for long running programs, so we kill it anyway after 3 seconds
-    cmd.timeout(Duration::from_secs(3));
+    cmd.timeout(Duration::from_secs(5));
     // But in any case we make sure that it actually attempted to create the supervisor group,
     // so it works when the program is run as root
     cmd.assert().failure();
