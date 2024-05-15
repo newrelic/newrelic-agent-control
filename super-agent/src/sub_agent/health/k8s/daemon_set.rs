@@ -30,7 +30,7 @@ impl HealthChecker for K8sHealthDaemonSet {
         })?;
 
         let filtered_list_daemon_set = daemon_set_list.into_iter().filter(|ds| {
-            crate::k8s::utils::is_label_present(
+            crate::k8s::utils::contains_label_with_value(
                 &ds.metadata.labels,
                 LABEL_RELEASE_FLUX,
                 self.release_name.as_str(),

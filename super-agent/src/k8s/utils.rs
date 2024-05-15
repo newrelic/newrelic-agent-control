@@ -81,17 +81,16 @@ impl std::fmt::Display for IntOrPercentage {
     }
 }
 
-// This is a copy of `is_label_present` from PR #633 so we can reuse it. This is subject to change while that PR
-// Is still on review.
-pub fn is_label_present(labels: &Option<BTreeMap<String, String>>, key: &str, value: &str) -> bool {
-    if let Some(labels) = labels.as_ref() {
-        if let Some(v) = labels.get(key) {
-            if v.as_str() == value {
-                return true;
-            }
-        }
-    }
-    false
+/// This function returns true if there are labels and they contain the provided key, value.
+pub fn contains_label_with_value(
+    labels: &Option<BTreeMap<String, String>>,
+    key: &str,
+    value: &str,
+) -> bool {
+    labels
+        .as_ref()
+        .and_then(|labels| labels.get(key))
+        .map_or(false, |v| v.as_str() == value)
 }
 
 #[cfg(test)]
@@ -239,6 +238,68 @@ pub mod test {
             TestCase {
                 name: "int_or_percentage should parse as int: zero string",
                 int_or_string: IntOrString::String("%100".into()),
+            },
+        ];
+
+        test_cases.into_iter().for_each(|tc| tc.run());
+    }
+
+    #[test]
+    fn test_contains_label_with_value() {
+        struct TestCase {
+            name: &'static str,
+            labels: Option<BTreeMap<String, String>>,
+            key: &'static str,
+            value: &'static str,
+            expected: bool,
+        }
+
+        impl TestCase {
+            fn run(self) {
+                assert_eq!(
+                    self.expected,
+                    contains_label_with_value(&self.labels, self.key, self.value),
+                    "{}",
+                    self.name
+                )
+            }
+        }
+
+        let test_cases = [
+            TestCase {
+                name: "No labels",
+                labels: None,
+                key: "key",
+                value: "value",
+                expected: false,
+            },
+            TestCase {
+                name: "Empty labels",
+                labels: Some(BTreeMap::default()),
+                key: "key",
+                value: "value",
+                expected: false,
+            },
+            TestCase {
+                name: "No matching label",
+                labels: Some([("a".to_string(), "b".to_string())].into()),
+                key: "key",
+                value: "value",
+                expected: false,
+            },
+            TestCase {
+                name: "Matching label with different value",
+                labels: Some([("key".to_string(), "other".to_string())].into()),
+                key: "key",
+                value: "value",
+                expected: false,
+            },
+            TestCase {
+                name: "Matching label and value",
+                labels: Some([("key".to_string(), "value".to_string())].into()),
+                key: "key",
+                value: "value",
+                expected: true,
             },
         ];
 
