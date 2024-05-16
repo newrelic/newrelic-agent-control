@@ -25,7 +25,7 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
       - name: Install ${{ matrix.toolchain }}
-        uses: dtolnay/rust-toolchain@4f366e621dc8fa63f557ca04b8f4361824a35a45
+        uses: dtolnay/rust-toolchain@1.78.0
         with:
           toolchain: ${{ matrix.toolchain }}
       - name: cargo generate-lockfile
@@ -96,7 +96,7 @@ jobs:
         run: |
           curl -fsSL https://raw.githubusercontent.com/tilt-dev/tilt/master/scripts/install.sh | bash
       - name: Install stable
-        uses: dtolnay/rust-toolchain@4f366e621dc8fa63f557ca04b8f4361824a35a45
+        uses: dtolnay/rust-toolchain@1.78.0
       - name: Run k8s integration tests
         run: make -C super-agent/test/k8s
 
@@ -124,7 +124,7 @@ jobs:
         run: |
           curl -fsSL https://raw.githubusercontent.com/tilt-dev/tilt/master/scripts/install.sh | bash
       - name: Install stable
-        uses: dtolnay/rust-toolchain@4f366e621dc8fa63f557ca04b8f4361824a35a45
+        uses: dtolnay/rust-toolchain@1.78.0
       - name: Run e2e-test
         uses: newrelic/newrelic-integration-e2e-action@v1
         env:
