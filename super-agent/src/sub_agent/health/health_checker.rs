@@ -3,8 +3,9 @@ use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::SubAgentInternalEvent;
 use crate::super_agent::config::AgentID;
 use std::thread;
-use thiserror::Error;
 use tracing::{debug, error};
+
+use super::HealthCheckerError;
 
 #[derive(Debug, PartialEq)]
 pub enum Health {
@@ -34,7 +35,7 @@ impl From<HealthCheckerError> for Health {
 impl From<HealthCheckerError> for Unhealthy {
     fn from(err: HealthCheckerError) -> Self {
         Unhealthy {
-            last_error: err.0,
+            last_error: format!("Health check error: {}", err),
             status: Default::default(),
         }
     }
@@ -107,17 +108,6 @@ pub trait HealthChecker {
     /// See OpAMP's [spec](https://github.com/open-telemetry/opamp-spec/blob/main/specification.md#componenthealthstatus)
     /// for more details.
     fn check_health(&self) -> Result<Health, HealthCheckerError>;
-}
-
-/// Health check errors.
-#[derive(Debug, Error, PartialEq)]
-#[error("Health check error: {0}")]
-pub struct HealthCheckerError(String);
-
-impl HealthCheckerError {
-    pub fn new(err: String) -> Self {
-        Self(err)
-    }
 }
 
 pub(crate) fn spawn_health_checker<H>(
@@ -199,7 +189,7 @@ pub mod test {
             let mut unhealthy = MockHealthCheckMock::new();
             unhealthy
                 .expect_check_health()
-                .returning(|| Err(HealthCheckerError::new("test".to_string())));
+                .returning(|| Err(HealthCheckerError::Generic("test".to_string())));
             unhealthy
         }
     }
