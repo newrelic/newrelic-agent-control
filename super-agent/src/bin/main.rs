@@ -10,8 +10,10 @@ use newrelic_super_agent::sub_agent::effective_agents_assembler::LocalEffectiveA
 use newrelic_super_agent::sub_agent::event_processor_builder::EventProcessorBuilder;
 use newrelic_super_agent::super_agent::config_storer::storer::SuperAgentConfigLoader;
 use newrelic_super_agent::super_agent::config_storer::SuperAgentConfigStoreFile;
+#[cfg(debug_assertions)]
+use newrelic_super_agent::super_agent::defaults;
 use newrelic_super_agent::super_agent::defaults::{
-    self, FLEET_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
+    FLEET_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
 };
 use newrelic_super_agent::super_agent::error::AgentError;
 use newrelic_super_agent::super_agent::http_server::runner::Runner;

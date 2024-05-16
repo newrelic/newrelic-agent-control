@@ -2,8 +2,10 @@ use opamp_client::capabilities;
 use opamp_client::opamp::proto::AgentCapabilities;
 use opamp_client::operation::capabilities::Capabilities;
 use paste::paste;
+#[cfg(debug_assertions)]
 use std::path::Path;
 use std::sync::OnceLock;
+#[cfg(debug_assertions)]
 use tracing::debug;
 
 // What does this do?
