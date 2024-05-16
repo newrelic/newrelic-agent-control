@@ -57,14 +57,10 @@ impl K8sHealthDaemonSet {
     }
 
     pub fn check_health_single_daemon_set(ds: DaemonSet) -> Result<Health, HealthCheckerError> {
-        let name = match ds.metadata.name {
-            Some(s) => s,
-            None => {
-                return Err(HealthCheckerError::new(
-                    "Daemonset has no .metadata.name".into(),
-                ));
-            }
-        };
+        let name = ds
+            .metadata
+            .name
+            .ok_or_else(|| HealthCheckerError::new("Daemonset has no .metadata.name".into()))?;
 
         let status = match ds.status {
             Some(daemon_set_status) => daemon_set_status,
