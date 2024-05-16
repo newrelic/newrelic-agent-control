@@ -126,6 +126,8 @@ impl CRSupervisor {
             );
             return Ok(Some(stop_health_publisher));
         }
+
+        debug!(%self.agent_id, "health checks are disabled for this agent");
         Ok(None)
     }
 }
