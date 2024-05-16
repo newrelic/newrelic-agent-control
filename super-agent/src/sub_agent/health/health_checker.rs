@@ -140,7 +140,7 @@ pub(crate) fn spawn_health_checker<H>(
             break;
         }
 
-        debug!(%agent_id, "starting checking health with the configured checker");
+        debug!(%agent_id, "starting to check health with the configured checker");
         match health_checker.check_health() {
             Ok(health) => publish_health_event(&health_publisher, health.into()),
             Err(e) => {
