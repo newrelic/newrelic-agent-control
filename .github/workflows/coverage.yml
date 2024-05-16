@@ -23,7 +23,7 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
       - name: Install stable
-        uses: dtolnay/rust-toolchain@4f366e621dc8fa63f557ca04b8f4361824a35a45
+        uses: dtolnay/rust-toolchain@1.78.0
         with:
           components: llvm-tools-preview
       - name: cargo install cargo-llvm-cov
