@@ -79,19 +79,17 @@ impl K8sHealthDaemonSet {
 
         let update_strategy = ds
             .spec
-            .ok_or(HealthCheckerError::new(format!(
-                "Daemonset '{name}' has no spec"
-            )))?
+            .ok_or_else(|| HealthCheckerError::new(format!("Daemonset '{name}' has no spec")))?
             .update_strategy
-            .ok_or(HealthCheckerError::new(format!(
-                "Daemonset '{name}' has no update strategy"
-            )))?;
+            .ok_or_else(|| {
+                HealthCheckerError::new(format!("Daemonset '{name}' has no update strategy"))
+            })?;
 
         let rolling_update = match update_strategy
             .type_
-            .ok_or(HealthCheckerError::new(format!(
-                "Daemonset '{name}' has no update strategy type"
-            )))?
+            .ok_or_else(|| {
+                HealthCheckerError::new(format!("Daemonset '{name}' has no update strategy type"))
+            })?
             .as_str()
         {
             // If the update strategy is not a rolling update, there will be nothing to wait for
