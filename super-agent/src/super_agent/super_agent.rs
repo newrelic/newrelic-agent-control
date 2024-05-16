@@ -413,7 +413,10 @@ where
 
     fn report_health(&self, health: Health) -> Result<(), AgentError> {
         if let Some(handle) = &self.opamp_client {
-            debug!("Sending super-agent health");
+            debug!(
+                is_healthy = health.is_healthy().to_string(),
+                "Sending super-agent health"
+            );
 
             let health = ComponentHealth {
                 healthy: health.is_healthy(),

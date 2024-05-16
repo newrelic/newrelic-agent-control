@@ -1,9 +1,9 @@
 pub mod channel;
 
+/// EVENTS
 use crate::opamp::{LastErrorCode, LastErrorMessage};
 use crate::sub_agent::health::health_checker::{Health, Healthy, Unhealthy};
 use crate::super_agent::config::AgentTypeFQN;
-/// EVENTS
 use crate::{opamp::remote_config::RemoteConfig, super_agent::config::AgentID};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -35,6 +35,15 @@ pub enum SubAgentEvent {
     ConfigUpdated(AgentID),
     SubAgentBecameHealthy(AgentID, Healthy),
     SubAgentBecameUnhealthy(AgentID, Unhealthy),
+}
+
+impl SubAgentEvent {
+    pub fn from_health(health: Health, id: AgentID) -> Self {
+        match health {
+            Health::Healthy(healthy) => SubAgentEvent::SubAgentBecameHealthy(id, healthy),
+            Health::Unhealthy(unhealthy) => SubAgentEvent::SubAgentBecameUnhealthy(id, unhealthy),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
