@@ -140,12 +140,9 @@ pub(crate) fn spawn_health_checker<H>(
             break;
         }
 
-        debug!(%agent_id, "checking health with the configured checker");
+        debug!(%agent_id, "starting checking health with the configured checker");
         match health_checker.check_health() {
-            Ok(health) => {
-                debug!(%agent_id, "the configured health check passed");
-                publish_health_event(&health_publisher, health.into())
-            }
+            Ok(health) => publish_health_event(&health_publisher, health.into()),
             Err(e) => {
                 let last_error_msg = e.to_string();
                 debug!(%agent_id, last_error = last_error_msg, "the configured health check failed");
