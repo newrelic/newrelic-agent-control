@@ -1,75 +1,206 @@
-use std::time::Duration;
+use crate::agent_type::health_config::HealthCheckInterval;
+use crate::event::channel::{EventConsumer, EventPublisher};
+use crate::event::SubAgentInternalEvent;
+use crate::super_agent::config::AgentID;
+use std::thread;
+use thiserror::Error;
+use tracing::{debug, error};
 
-use crate::agent_type::health_config::{HealthCheck, HealthConfig};
+#[derive(Debug, PartialEq)]
+pub enum Health {
+    Healthy(Healthy),
+    Unhealthy(Unhealthy),
+}
 
-use super::http::HttpHealthChecker;
+impl From<Healthy> for Health {
+    fn from(healthy: Healthy) -> Self {
+        Health::Healthy(healthy)
+    }
+}
+
+impl From<Unhealthy> for Health {
+    fn from(unhealthy: Unhealthy) -> Self {
+        Health::Unhealthy(unhealthy)
+    }
+}
+
+/// A HealthCheckerError also means the agent is unhealthy.
+impl From<HealthCheckerError> for Health {
+    fn from(err: HealthCheckerError) -> Self {
+        Health::Unhealthy(err.into())
+    }
+}
+
+impl From<HealthCheckerError> for Unhealthy {
+    fn from(err: HealthCheckerError) -> Self {
+        Unhealthy {
+            last_error: err.0,
+            status: Default::default(),
+        }
+    }
+}
+
+/// Represents the healthy state of the agent and its associated data.
+/// See OpAMP's [spec](https://github.com/open-telemetry/opamp-spec/blob/main/specification.md#componenthealthstatus)
+/// for more details.
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct Healthy {
+    pub status: String,
+}
+
+impl Healthy {
+    pub fn status(&self) -> &str {
+        &self.status
+    }
+}
+
+/// Represents the unhealthy state of the agent and its associated data.
+/// See OpAMP's [spec](https://github.com/open-telemetry/opamp-spec/blob/main/specification.md#componenthealthstatus)
+/// for more details.
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct Unhealthy {
+    pub status: String,
+    pub last_error: String,
+}
+
+impl Unhealthy {
+    pub fn status(&self) -> &str {
+        &self.status
+    }
+
+    pub fn last_error(&self) -> &str {
+        &self.last_error
+    }
+}
+
+impl Health {
+    pub fn unhealthy_with_last_error(last_error: String) -> Health {
+        Health::Unhealthy(Unhealthy {
+            last_error,
+            ..Default::default()
+        })
+    }
+
+    pub fn status(&self) -> &str {
+        match self {
+            Health::Healthy(healthy) => healthy.status(),
+            Health::Unhealthy(unhealthy) => unhealthy.status(),
+        }
+    }
+
+    pub fn is_healthy(&self) -> bool {
+        matches!(self, Health::Healthy { .. })
+    }
+
+    pub fn last_error(&self) -> Option<&str> {
+        if let Health::Unhealthy(unhealthy) = self {
+            Some(unhealthy.last_error())
+        } else {
+            None
+        }
+    }
+}
 
 /// A type that implements a health checking mechanism.
 pub trait HealthChecker {
-    /// Check the health of the agent. `Ok(())` means the agent is healthy. Otherwise,
-    /// we will have an `Err(e)` where `e` is the error with agent-specific semantics
-    /// with which we will build the OpAMP's `ComponentHealth.status` contents.
+    /// Check the health of the agent.
     /// See OpAMP's [spec](https://github.com/open-telemetry/opamp-spec/blob/main/specification.md#componenthealthstatus)
     /// for more details.
-    fn check_health(&self) -> Result<(), HealthCheckerError>;
-
-    fn interval(&self) -> Duration;
+    fn check_health(&self) -> Result<Health, HealthCheckerError>;
 }
 
-pub(crate) enum HealthCheckerType {
-    Http(HttpHealthChecker),
-}
-
-/// Health check errors. Its structure mimics the OpAMP's spec for containing relevant information
-#[derive(Debug)]
-pub struct HealthCheckerError {
-    /// Status contents using agent-specific semantics. This might be the response body of an HTTP
-    /// checker or the stdout/stderr of an exec checker.
-    #[allow(dead_code)]
-    /// The use of OpAMP status field on health is not implemented yet by the super-agent.
-    status: String,
-
-    /// Error information in human-readable format. We could use this to specify what kind of checker
-    /// failed, e.g., "HTTP checker failed with error: {error}". While passing the raw error to the
-    /// `status` field.
-    last_error: String,
-}
+/// Health check errors.
+#[derive(Debug, Error, PartialEq)]
+#[error("Health check error: {0}")]
+pub struct HealthCheckerError(String);
 
 impl HealthCheckerError {
-    pub fn new(status: String, last_error: String) -> Self {
-        Self { status, last_error }
-    }
-
-    pub fn last_error(self) -> String {
-        self.last_error
+    pub fn new(err: String) -> Self {
+        Self(err)
     }
 }
 
-impl TryFrom<HealthConfig> for HealthCheckerType {
-    type Error = HealthCheckerError;
+pub(crate) fn spawn_health_checker<H>(
+    agent_id: AgentID,
+    health_checker: H,
+    cancel_signal: EventConsumer<()>,
+    health_publisher: EventPublisher<SubAgentInternalEvent>,
+    interval: HealthCheckInterval,
+) where
+    H: HealthChecker + Send + 'static,
+{
+    thread::spawn(move || loop {
+        thread::sleep(interval.into());
 
-    fn try_from(health_config: HealthConfig) -> Result<Self, Self::Error> {
-        let interval = health_config.interval;
-        let timeout = health_config.timeout;
-
-        match health_config.check {
-            HealthCheck::HttpHealth(http_config) => Ok(HealthCheckerType::Http(
-                HttpHealthChecker::new(interval, timeout, http_config)?,
-            )),
+        // Check cancellation signal.
+        // As we don't need any data to be sent, the `publish` call of the sender only sends `()`
+        // and we don't check for data here, We use a non-blocking call and break only if we
+        // received the message successfully.
+        if cancel_signal.as_ref().try_recv().is_ok() {
+            break;
         }
-    }
+
+        debug!(%agent_id, "starting to check health with the configured checker");
+        match health_checker.check_health() {
+            Ok(health) => publish_health_event(&health_publisher, health.into()),
+            Err(e) => {
+                let last_error_msg = e.to_string();
+                debug!(%agent_id, last_error = last_error_msg, "the configured health check failed");
+                publish_health_event(&health_publisher, Unhealthy::from(e).into())
+            }
+        }
+    });
 }
 
-impl HealthChecker for HealthCheckerType {
-    fn check_health(&self) -> Result<(), HealthCheckerError> {
-        match self {
-            HealthCheckerType::Http(http_checker) => http_checker.check_health(),
+pub(crate) fn publish_health_event(
+    internal_event_publisher: &EventPublisher<SubAgentInternalEvent>,
+    event: SubAgentInternalEvent,
+) {
+    let event_type_str = format!("{:?}", event);
+    _ = internal_event_publisher.publish(event).inspect_err(|e| {
+        error!(
+            err = e.to_string(),
+            event_type = event_type_str,
+            "could not publish sub agent event"
+        )
+    });
+}
+
+#[cfg(test)]
+pub mod test {
+    use super::*;
+    use mockall::mock;
+
+    mock! {
+        pub HealthCheckMock{}
+        impl HealthChecker for HealthCheckMock{
+            fn check_health(&self) -> Result<Health, HealthCheckerError>;
         }
     }
 
-    fn interval(&self) -> Duration {
-        match self {
-            HealthCheckerType::Http(http_checker) => http_checker.interval(),
+    impl MockHealthCheckMock {
+        pub fn new_healthy() -> MockHealthCheckMock {
+            let mut healthy = MockHealthCheckMock::new();
+            healthy
+                .expect_check_health()
+                .returning(|| Ok(Healthy::default().into()));
+            healthy
+        }
+
+        pub fn new_unhealthy() -> MockHealthCheckMock {
+            let mut unhealthy = MockHealthCheckMock::new();
+            unhealthy
+                .expect_check_health()
+                .returning(|| Ok(Unhealthy::default().into()));
+            unhealthy
+        }
+
+        pub fn new_with_error() -> MockHealthCheckMock {
+            let mut unhealthy = MockHealthCheckMock::new();
+            unhealthy
+                .expect_check_health()
+                .returning(|| Err(HealthCheckerError::new("test".to_string())));
+            unhealthy
         }
     }
 }

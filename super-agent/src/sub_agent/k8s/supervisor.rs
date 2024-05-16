@@ -1,30 +1,36 @@
+use crate::agent_type::runtime_config;
 use crate::agent_type::runtime_config::K8sObject;
+use crate::event::channel::{pub_sub, EventPublisher};
+use crate::event::SubAgentInternalEvent;
+#[cfg_attr(test, mockall_double::double)]
+use crate::k8s::client::SyncK8sClient;
 use crate::k8s::error::K8sError;
 use crate::k8s::labels::Labels;
+use crate::sub_agent::health::health_checker::{spawn_health_checker, HealthCheckerError};
+use crate::sub_agent::health::k8s::health_checker::SubAgentHealthChecker;
 use crate::super_agent::config::AgentID;
 use k8s_openapi::serde_json;
 use kube::{
     api::DynamicObject,
     core::{ObjectMeta, TypeMeta},
 };
-use std::collections::HashMap;
 use std::sync::Arc;
 use thiserror::Error;
 use tracing::{debug, error, info, trace};
 
-#[cfg_attr(test, mockall_double::double)]
-use crate::k8s::client::SyncK8sClient;
-
 #[derive(Debug, Error)]
 pub enum SupervisorError {
-    #[error("applying k8s resource {0}")]
+    #[error("applying k8s resource: `{0}`")]
     ApplyError(String),
 
     #[error("the kube client returned an error: `{0}`")]
     Generic(#[from] K8sError),
 
-    #[error("applying k8s resource {0}")]
+    #[error("building k8s resources: `{0}`")]
     ConfigError(String),
+
+    #[error("building health checkers: `{0}`")]
+    HealthError(#[from] HealthCheckerError),
 }
 
 /// CRSupervisor - Supervises Kubernetes resources.
@@ -33,38 +39,40 @@ pub enum SupervisorError {
 pub struct CRSupervisor {
     agent_id: AgentID,
     k8s_client: Arc<SyncK8sClient>,
-    k8s_objects: HashMap<String, K8sObject>,
+    k8s_config: runtime_config::K8s,
 }
 
 impl CRSupervisor {
     pub fn new(
         agent_id: AgentID,
         k8s_client: Arc<SyncK8sClient>,
-        k8s_objects: HashMap<String, K8sObject>,
+        k8s_config: runtime_config::K8s,
     ) -> Self {
         Self {
             agent_id,
             k8s_client,
-            k8s_objects,
+            k8s_config,
         }
     }
 
-    pub fn apply(&self) -> Result<(), SupervisorError> {
+    pub fn apply(&self) -> Result<Vec<DynamicObject>, SupervisorError> {
         let resources = self.build_dynamic_objects()?;
         debug!("applying k8s objects, if changed, for {}", self.agent_id);
-        for res in resources {
+        for res in resources.iter() {
             trace!("K8s object: {:?}", res);
-            self.k8s_client.apply_dynamic_object_if_changed(&res)?;
+            self.k8s_client.apply_dynamic_object_if_changed(res)?;
         }
         info!(
             "{} K8sSupervisor started and K8s objects applied",
             self.agent_id
         );
-        Ok(())
+        Ok(resources)
     }
 
     fn build_dynamic_objects(&self) -> Result<Vec<DynamicObject>, SupervisorError> {
-        self.k8s_objects
+        self.k8s_config
+            .objects
+            .clone()
             .values()
             .map(|k8s_obj| self.create_dynamic_object(k8s_obj))
             .collect()
@@ -98,11 +106,36 @@ impl CRSupervisor {
             data,
         })
     }
+
+    pub fn start_health_check(
+        &self,
+        health_publisher: EventPublisher<SubAgentInternalEvent>,
+        resources: Vec<DynamicObject>,
+    ) -> Result<Option<EventPublisher<()>>, SupervisorError> {
+        if let Some(health_config) = self.k8s_config.health.clone() {
+            let (stop_health_publisher, stop_health_consumer) = pub_sub();
+            let k8s_health_checker =
+                SubAgentHealthChecker::try_new(self.k8s_client.clone(), resources)?;
+
+            spawn_health_checker(
+                self.agent_id.clone(),
+                k8s_health_checker,
+                stop_health_consumer,
+                health_publisher,
+                health_config.interval,
+            );
+            return Ok(Some(stop_health_publisher));
+        }
+
+        debug!(%self.agent_id, "health checks are disabled for this agent");
+        Ok(None)
+    }
 }
 
 #[cfg(test)]
 pub mod test {
     use super::*;
+    use crate::agent_type::runtime_config::K8sObject;
     use crate::k8s::labels::AGENT_ID_LABEL_KEY;
     use crate::{agent_type::runtime_config::K8sObjectMeta, k8s::client::MockSyncK8sClient};
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
@@ -169,10 +202,13 @@ pub mod test {
         let supervisor = CRSupervisor::new(
             agent_id,
             Arc::new(mock_k8s_client),
-            HashMap::from([
-                ("mock_cr1".to_string(), k8s_object()),
-                ("mock_cr2".to_string(), k8s_object()),
-            ]),
+            runtime_config::K8s {
+                objects: HashMap::from([
+                    ("mock_cr1".to_string(), k8s_object()),
+                    ("mock_cr2".to_string(), k8s_object()),
+                ]),
+                health: None,
+            },
         );
 
         supervisor.apply().unwrap();

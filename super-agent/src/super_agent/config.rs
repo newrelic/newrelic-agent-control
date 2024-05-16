@@ -1,17 +1,19 @@
 use crate::logging::config::LoggingConfig;
 use crate::opamp::remote_config::RemoteConfigError;
+use crate::super_agent::config_storer::file::ConfigStoreError;
 use crate::super_agent::defaults::{default_capabilities, SUPER_AGENT_ID};
+use http::HeaderMap;
+#[cfg(all(not(feature = "onhost"), feature = "k8s"))]
+use kube::api::TypeMeta;
 use opamp_client::operation::capabilities::Capabilities;
 use serde::{Deserialize, Serialize};
 use std::ops::Deref;
 use std::path::Path;
 use std::{collections::HashMap, fmt::Display};
 use thiserror::Error;
+use url::Url;
 
-use crate::super_agent::config_storer::file::ConfigStoreError;
-use crate::super_agent::http_server::config::ServerConfig;
-#[cfg(all(not(feature = "onhost"), feature = "k8s"))]
-use kube::core::TypeMeta;
+use super::http_server::config::ServerConfig;
 
 const AGENT_ID_MAX_LENGTH: usize = 32;
 
@@ -25,6 +27,12 @@ pub enum AgentTypeError {
     InvalidAgentID,
     #[error("AgentID '{0}' is reserved")]
     InvalidAgentIDUsesReservedOne(String),
+    #[error("AgentType must have a valid namespace")]
+    InvalidAgentTypeNamespace,
+    #[error("AgentType must have a valid name")]
+    InvalidAgentTypeName,
+    #[error("AgentType must have a valid version")]
+    InvalidAgentTypeVersion,
 }
 
 #[derive(Error, Debug)]
@@ -196,9 +204,23 @@ impl Display for AgentTypeFQN {
     }
 }
 
-impl From<&str> for AgentTypeFQN {
-    fn from(value: &str) -> Self {
-        AgentTypeFQN(value.to_string())
+impl TryFrom<&str> for AgentTypeFQN {
+    type Error = AgentTypeError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        let agent_type_fqn = AgentTypeFQN(value.to_string());
+
+        if agent_type_fqn.namespace().is_empty() {
+            return Err(AgentTypeError::InvalidAgentTypeNamespace);
+        }
+        if agent_type_fqn.name().is_empty() {
+            return Err(AgentTypeError::InvalidAgentTypeName);
+        }
+        if agent_type_fqn.version().is_empty() {
+            return Err(AgentTypeError::InvalidAgentTypeVersion);
+        }
+
+        Ok(agent_type_fqn)
     }
 }
 
@@ -208,11 +230,12 @@ pub struct SubAgentConfig {
     pub agent_type: AgentTypeFQN, // FQN of the agent type, ex: newrelic/nrdot:0.1.0
 }
 
-#[derive(Debug, Default, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct OpAMPClientConfig {
-    pub endpoint: String,
-    pub headers: Option<HashMap<String, String>>,
+    pub endpoint: Url,
+    #[serde(default, with = "http_serde::header_map")]
+    pub headers: HeaderMap,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
@@ -242,17 +265,26 @@ impl Default for K8sConfig {
 }
 
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
+pub fn helm_repository_type_meta() -> TypeMeta {
+    TypeMeta {
+        api_version: "source.toolkit.fluxcd.io/v1beta2".to_string(),
+        kind: "HelmRepository".to_string(),
+    }
+}
+
+#[cfg(all(not(feature = "onhost"), feature = "k8s"))]
+pub fn helm_release_type_meta() -> TypeMeta {
+    TypeMeta {
+        api_version: "helm.toolkit.fluxcd.io/v2beta2".to_string(),
+        kind: "HelmRelease".to_string(),
+    }
+}
+
+#[cfg(all(not(feature = "onhost"), feature = "k8s"))]
 fn default_group_version_kinds() -> Vec<TypeMeta> {
-    vec![
-        TypeMeta {
-            api_version: "source.toolkit.fluxcd.io/v1beta2".to_string(),
-            kind: "HelmRepository".to_string(),
-        },
-        TypeMeta {
-            api_version: "helm.toolkit.fluxcd.io/v2beta2".to_string(),
-            kind: "HelmRelease".to_string(),
-        },
-    ]
+    // In flux health check we are currently supporting just a single helm_release_type_meta
+    // Each time we support a new version we should decide if and how to support retrieving its health
+    vec![helm_repository_type_meta(), helm_release_type_meta()]
 }
 
 impl AgentTypeFQN {
@@ -419,6 +451,17 @@ agents: {}
         assert!(AgentID::try_from("s京123-12".to_string()).is_err());
         assert!(AgentID::try_from("super-agent-①".to_string()).is_err());
     }
+    #[test]
+    fn agent_type_fqn_validator() {
+        assert!(AgentTypeFQN::try_from("ns/aa:1.1.3").is_ok());
+
+        assert!(AgentTypeFQN::try_from("aa").is_err());
+        assert!(AgentTypeFQN::try_from("aa:1.1.3").is_err());
+        assert!(AgentTypeFQN::try_from("ns/-").is_err());
+        assert!(AgentTypeFQN::try_from("ns/aa:").is_err());
+        assert!(AgentTypeFQN::try_from("ns/:1.1.3").is_err());
+        assert!(AgentTypeFQN::try_from("/:").is_err());
+    }
 
     #[test]
     fn basic_parse() {
@@ -479,7 +522,7 @@ agents: {}
 
     #[test]
     fn test_agent_type_fqn() {
-        let fqn: AgentTypeFQN = "newrelic/nrdot:0.1.0".into();
+        let fqn: AgentTypeFQN = "newrelic/nrdot:0.1.0".try_into().unwrap();
         assert_eq!(fqn.namespace(), "newrelic");
         assert_eq!(fqn.name(), "nrdot");
         assert_eq!(fqn.version(), "0.1.0");
@@ -487,79 +530,56 @@ agents: {}
 
     #[test]
     fn bad_agent_type_fqn_no_version() {
-        let fqn: AgentTypeFQN = "newrelic/nrdot".into();
-        assert_eq!(fqn.namespace(), "newrelic");
-        assert_eq!(fqn.name(), "nrdot");
-        assert_eq!(fqn.version(), "");
-
-        let fqn: AgentTypeFQN = "newrelic/nrdot:".into();
-        assert_eq!(fqn.namespace(), "newrelic");
-        assert_eq!(fqn.name(), "nrdot");
-        assert_eq!(fqn.version(), "");
+        let fqn: Result<AgentTypeFQN, AgentTypeError> = "newrelic/nrdot".try_into();
+        assert!(fqn.is_err());
     }
 
     #[test]
     fn bad_agent_type_fqn_no_name() {
-        let fqn: AgentTypeFQN = "newrelic/:0.1.0".into();
-        assert_eq!(fqn.namespace(), "newrelic");
-        assert_eq!(fqn.name(), "");
-        assert_eq!(fqn.version(), "0.1.0");
+        let fqn: Result<AgentTypeFQN, AgentTypeError> = "newrelic/:0.1.0".try_into();
+        assert!(fqn.is_err());
     }
 
     #[test]
     fn bad_agent_type_fqn_no_namespace() {
-        let fqn: AgentTypeFQN = "/nrdot:0.1.0".into();
-        assert_eq!(fqn.namespace(), "");
-        assert_eq!(fqn.name(), "nrdot");
-        assert_eq!(fqn.version(), "0.1.0");
+        let fqn: Result<AgentTypeFQN, AgentTypeError> = "/nrdot:0.1.0".try_into();
+        assert!(fqn.is_err());
     }
 
     #[test]
     fn bad_agent_type_fqn_no_namespace_no_version() {
-        let fqn: AgentTypeFQN = "/nrdot".into();
-        assert_eq!(fqn.namespace(), "");
-        assert_eq!(fqn.name(), "nrdot");
-        assert_eq!(fqn.version(), "");
+        let fqn: Result<AgentTypeFQN, AgentTypeError> = "/nrdot".try_into();
+        assert!(fqn.is_err());
     }
 
     #[test]
     fn bad_agent_type_fqn_no_namespace_no_name() {
-        let fqn: AgentTypeFQN = "/:0.1.0".into();
-        assert_eq!(fqn.namespace(), "");
-        assert_eq!(fqn.name(), "");
-        assert_eq!(fqn.version(), "0.1.0");
+        let fqn: Result<AgentTypeFQN, AgentTypeError> = "/:0.1.0".try_into();
+        assert!(fqn.is_err());
     }
 
     #[test]
     fn bad_agent_type_fqn_namespace_separator() {
-        let fqn: AgentTypeFQN = "/".into();
-        assert_eq!(fqn.namespace(), "");
-        assert_eq!(fqn.name(), "");
-        assert_eq!(fqn.version(), "");
+        let fqn: Result<AgentTypeFQN, AgentTypeError> = "/".try_into();
+        assert!(fqn.is_err());
     }
 
     #[test]
     fn bad_agent_type_fqn_empty_string() {
-        let fqn: AgentTypeFQN = "".into();
-        assert_eq!(fqn.namespace(), "");
-        assert_eq!(fqn.name(), "");
-        assert_eq!(fqn.version(), "");
+        let fqn: Result<AgentTypeFQN, AgentTypeError> = "".try_into();
+        assert!(fqn.is_err());
     }
 
     #[test]
     fn bad_agent_type_fqn_only_version_separator() {
-        let fqn: AgentTypeFQN = ":".into();
-        assert_eq!(fqn.namespace(), ":");
-        assert_eq!(fqn.name(), "");
-        assert_eq!(fqn.version(), "");
+        let fqn: Result<AgentTypeFQN, AgentTypeError> = ":".try_into();
+        assert!(fqn.is_err());
     }
 
     #[test]
     fn bad_agent_type_fqn_only_word() {
-        let fqn: AgentTypeFQN = "only_namespace".into();
-        assert_eq!(fqn.namespace(), "only_namespace");
-        assert_eq!(fqn.name(), "");
-        assert_eq!(fqn.version(), "");
+        let fqn: Result<AgentTypeFQN, AgentTypeError> = "only_namespace".try_into();
+        assert!(fqn.is_err());
     }
 
     #[test]

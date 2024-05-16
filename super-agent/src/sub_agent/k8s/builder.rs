@@ -8,9 +8,7 @@ use crate::k8s::client::SyncK8sClient;
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_sub_agent_opamp;
-use crate::opamp::remote_config_report::{
-    report_remote_config_status_applied, report_remote_config_status_error,
-};
+use crate::sub_agent::build_supervisor_or_default;
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
 use crate::sub_agent::event_processor_builder::SubAgentEventProcessorBuilder;
 use crate::sub_agent::{NotStarted, SubAgentCallbacks};
@@ -25,7 +23,7 @@ use kube::core::TypeMeta;
 use opamp_client::operation::settings::DescriptionValueType;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use tracing::{debug, error, warn};
+use tracing::debug;
 
 pub struct K8sSubAgentBuilder<'a, O, I, HR, A, E>
 where
@@ -120,96 +118,22 @@ where
 
         // A sub-agent can be started without supervisor, when running with opamp activated, in order to
         // be able to receive messages.
-        let supervisor = if let Some(opamp_client) = &maybe_opamp_client {
-            match (self.hash_repository.get(&agent_id)?, effective_agent_res) {
-                // multiple cases are covered here:
-                (Some(mut hash), Ok(effective_agent)) => {
-                    // Case where the agent had a valid remote config that haven't been applied.
-                    // The supervisor is built with that config.
-                    if hash.is_applying() {
-                        debug!(
-                            agent_id = agent_id.to_string(),
-                            "building from remote config"
-                        );
-                        report_remote_config_status_applied(opamp_client, &hash)?;
-                        hash.apply();
-                        self.hash_repository.save(&agent_id, &hash)?;
-                    }
-
-                    // Case where the last received remote config had failed and there was a restart of the SA.
-                    // The supervisor is built with the latest working config (local or remote).
-                    // IMPORTANT: the hash here is not related with the agent config used to built the supervisor.
-                    if let Some(error_message) = hash.error_message() {
-                        warn!(
-                            agent_id = agent_id.to_string(),
-                            "latest remote config failed, building with previous stored config"
-                        );
-                        // this opamp error has already been sent when the config was flagged as fail but we sent it again
-                        // in case of a SA restart.
-                        report_remote_config_status_error(
-                            opamp_client,
-                            &hash,
-                            error_message.to_string(),
-                        )?;
-                    }
-
-                    Some(build_cr_supervisors(
-                        &agent_id,
-                        effective_agent,
-                        self.k8s_client.clone(),
-                        &self.k8s_config,
-                    )?)
-                }
-                // Case where the remote config fails to be assembled so the hash needs to saved as failed and report the status.
-                (Some(mut hash), Err(err)) => {
-                    // Error messages are not override if config was already in failure status.
-                    // Parsing errors from previous steps will lead to more clear understanding of the issue.
-                    if !hash.is_failed() {
-                        hash.fail(err.to_string());
-                        self.hash_repository.save(&agent_id, &hash)?;
-                    }
-
-                    report_remote_config_status_error(opamp_client, &hash, err.to_string())?;
-                    error!(
-                        agent_id = agent_id.to_string(),
-                        "starting without supervisor: failed to assemble agent config from remote config"
-                    );
-                    None
-                }
-                // Case where there were not previous valid remote configs so the loaded could be local or empty one, and it fails.
-                (None, Err(err)) => {
-                    warn!(
-                        agent_id = agent_id.to_string(),
-                        "starting without supervisor: failed to assemble agent config from local or empty config: {err}"
-                    );
-                    None
-                }
-                // Case where there were not previous valid remote configs so the loaded could be local or empty one.
-                (None, Ok(effective_agent)) => {
-                    // TODO here we could be loading the local config but previously had received an invalid opamp config.
-                    // this is a not covered corner-case were we should detect it and report that remote config_status_error.
-                    // Currently the hash is not saved when received an InvalidRemoteConfig.
-                    debug!(
-                        agent_id = agent_id.to_string(),
-                        "building from local config"
-                    );
-                    Some(build_cr_supervisors(
-                        &agent_id,
-                        effective_agent,
-                        self.k8s_client.clone(),
-                        &self.k8s_config,
-                    )?)
-                }
-            }
-        } else {
-            Some(build_cr_supervisors(
-                &agent_id,
-                // IMPORTANT: when running in local config only mode, a supervisor must exist.
-                effective_agent_res?,
-                self.k8s_client.clone(),
-                &self.k8s_config,
-            )?)
-        };
+        let supervisor = build_supervisor_or_default::<HR, O, _, _>(
+            &agent_id,
+            &self.hash_repository,
+            &maybe_opamp_client,
+            effective_agent_res,
+            |effective_agent| {
+                build_cr_supervisors(
+                    &agent_id,
+                    effective_agent,
+                    self.k8s_client.clone(),
+                    &self.k8s_config,
+                )
+                .map(Some) // Doing this as `supervisor` is expected to be an Option<_>.
+                           // It also ensures the return type has a Default (None) so it complies with the expected signature
+            },
+        )?;
 
         let event_processor = self.event_processor_builder.build(
             agent_id.clone(),
@@ -244,15 +168,17 @@ fn build_cr_supervisors(
         .as_ref()
         .ok_or(SubAgentBuilderError::ConfigError(
             "Missing k8s deployment configuration".into(),
-        ))?
-        .objects
-        .clone();
+        ))?;
 
     // Validate Kubernetes objects against the list of supported resources.
-    validate_k8s_objects(&k8s_objects, &k8s_config.cr_type_meta)?;
+    validate_k8s_objects(&k8s_objects.objects.clone(), &k8s_config.cr_type_meta)?;
 
     // Clone the k8s_client on each build.
-    Ok(CRSupervisor::new(agent_id.clone(), k8s_client, k8s_objects))
+    Ok(CRSupervisor::new(
+        agent_id.clone(),
+        k8s_client,
+        k8s_objects.clone(),
+    ))
 }
 
 fn validate_k8s_objects(
@@ -279,8 +205,8 @@ fn validate_k8s_objects(
 #[cfg(test)]
 pub mod test {
     use super::*;
-    use crate::agent_type::agent_metadata::AgentMetadata;
-    use crate::agent_type::runtime_config::{Deployment, K8s, Runtime};
+    use crate::agent_type::runtime_config;
+    use crate::agent_type::runtime_config::{Deployment, Runtime};
     use crate::event::channel::pub_sub;
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
@@ -292,6 +218,7 @@ pub mod test {
     use crate::sub_agent::event_processor::test::MockEventProcessorMock;
     use crate::sub_agent::event_processor_builder::test::MockSubAgentEventProcessorBuilderMock;
     use crate::sub_agent::k8s::sub_agent::test::TEST_AGENT_ID;
+    use crate::super_agent::config::AgentTypeFQN;
     use crate::super_agent::defaults::PARENT_AGENT_ID_ATTRIBUTE_KEY;
     use crate::{
         k8s::client::MockSyncK8sClient, opamp::client_builder::test::MockOpAMPClientBuilderMock,
@@ -306,7 +233,8 @@ pub mod test {
     fn k8s_agent_build_success() {
         let agent_id = AgentID::new(TEST_AGENT_ID).unwrap();
         let sub_agent_config = SubAgentConfig {
-            agent_type: AgentMetadata::default().to_string().as_str().into(),
+            agent_type: AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure_agent:0.0.2")
+                .unwrap(),
         };
 
         // instance K8s client mock
@@ -349,7 +277,8 @@ pub mod test {
     fn build_error_with_invalid_object_kind() {
         let agent_id = AgentID::new(TEST_AGENT_ID).unwrap();
         let sub_agent_config = SubAgentConfig {
-            agent_type: AgentMetadata::default().to_string().as_str().into(),
+            agent_type: AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure_agent:0.0.2")
+                .unwrap(),
         };
 
         // event processor mock
@@ -393,9 +322,7 @@ pub mod test {
             Runtime {
                 deployment: Deployment {
                     on_host: None,
-                    k8s: Some(K8s {
-                        objects: k8s_sample_obj(valid_kind),
-                    }),
+                    k8s: Some(k8s_sample_runtime_config(valid_kind)),
                 },
             },
         );
@@ -410,22 +337,25 @@ pub mod test {
         effective_agent_assembler
     }
 
-    pub fn k8s_sample_obj(valid_kind: bool) -> HashMap<String, K8sObject> {
+    pub fn k8s_sample_runtime_config(valid_kind: bool) -> runtime_config::K8s {
         let kind = if valid_kind {
-            "HelmRepository".to_string()
+            "HelmRelease".to_string()
         } else {
             "UnsupportedKind".to_string()
         };
 
         let k8s_object = K8sObject {
-            api_version: "source.toolkit.fluxcd.io/v1beta2".to_string(),
+            api_version: "helm.toolkit.fluxcd.io/v2beta2".to_string(),
             kind,
             ..Default::default()
         };
 
         let mut objects = HashMap::new();
         objects.insert("sample_object".to_string(), k8s_object);
-        objects
+        runtime_config::K8s {
+            objects,
+            health: None,
+        }
     }
 
     fn get_common_mocks(

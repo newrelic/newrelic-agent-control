@@ -7,30 +7,79 @@ use duration_str::deserialize_duration;
 use serde::Deserialize;
 use std::{collections::HashMap, time::Duration};
 
+const DEFAULT_HEALTH_CHECK_INTERVAL: Duration = Duration::from_secs(60);
+const DEFAULT_HEALTH_CHECK_TIMEOUT: Duration = Duration::from_secs(15);
+
+#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+pub struct K8sHealthConfig {
+    /// The duration to wait between health checks.
+    pub(crate) interval: HealthCheckInterval,
+}
+
 /// Represents the configuration for health checks.
 ///
 /// This structure includes parameters to define intervals between health checks,
 /// timeouts for checks, and the specific health check method—either HTTP or execute command.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
-pub struct HealthConfig {
+pub struct OnHostHealthConfig {
     /// The duration to wait between health checks.
-    #[serde(deserialize_with = "deserialize_duration")]
-    pub(crate) interval: Duration,
+    pub(crate) interval: HealthCheckInterval,
 
     /// The maximum duration a health check may run before considered failed.
-    #[serde(deserialize_with = "deserialize_duration")]
-    pub(crate) timeout: Duration,
+    pub(crate) timeout: HealthCheckTimeout,
 
     /// Details on the type of health check. Defined by the `HealthCheck` enumeration.
     #[serde(flatten)]
-    pub(crate) check: HealthCheck,
+    pub(crate) check: OnHostHealthCheck,
+}
+
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq)]
+pub struct HealthCheckInterval(#[serde(deserialize_with = "deserialize_duration")] Duration);
+
+impl From<HealthCheckInterval> for Duration {
+    fn from(value: HealthCheckInterval) -> Self {
+        value.0
+    }
+}
+
+impl From<Duration> for HealthCheckInterval {
+    fn from(value: Duration) -> Self {
+        Self(value)
+    }
+}
+
+impl Default for HealthCheckInterval {
+    fn default() -> Self {
+        Self(DEFAULT_HEALTH_CHECK_INTERVAL)
+    }
+}
+
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq)]
+pub struct HealthCheckTimeout(#[serde(deserialize_with = "deserialize_duration")] Duration);
+
+impl From<HealthCheckTimeout> for Duration {
+    fn from(value: HealthCheckTimeout) -> Self {
+        value.0
+    }
+}
+
+impl From<Duration> for HealthCheckTimeout {
+    fn from(value: Duration) -> Self {
+        Self(value)
+    }
+}
+
+impl Default for HealthCheckTimeout {
+    fn default() -> Self {
+        Self(DEFAULT_HEALTH_CHECK_TIMEOUT)
+    }
 }
 
 /// Enumeration representing the possible types of health checks.
 ///
 /// Variants include `HttpHealth` and `ExecHealth`, corresponding to health checks via HTTP and execute command, respectively.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
-pub(crate) enum HealthCheck {
+pub(crate) enum OnHostHealthCheck {
     #[serde(rename = "http")]
     HttpHealth(HttpHealth),
     // #[serde(rename = "exec")]
@@ -156,7 +205,7 @@ pub(crate) struct ExecHealth {
     pub(crate) healthy_exit_codes: Vec<i32>,
 }
 
-impl Templateable for HealthConfig {
+impl Templateable for OnHostHealthConfig {
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         Ok(Self {
             check: self.check.template_with(variables)?,
@@ -165,17 +214,17 @@ impl Templateable for HealthConfig {
     }
 }
 
-impl Templateable for HealthCheck {
+impl Templateable for OnHostHealthCheck {
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         Ok(match self {
-            HealthCheck::HttpHealth(conf) => {
+            OnHostHealthCheck::HttpHealth(conf) => {
                 let health_conf = HttpHealth {
                     host: conf.host.template_with(variables)?,
                     path: conf.path.template_with(variables)?,
                     port: conf.port.template_with(variables)?,
                     ..conf
                 };
-                HealthCheck::HttpHealth(health_conf)
+                OnHostHealthCheck::HttpHealth(health_conf)
             }
         })
     }

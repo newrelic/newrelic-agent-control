@@ -32,7 +32,7 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
       - name: Install stable
-        uses: dtolnay/rust-toolchain@4f366e621dc8fa63f557ca04b8f4361824a35a45
+        uses: dtolnay/rust-toolchain@1.78.0
         with:
           components: rustfmt
       - name: Check code formatting
@@ -56,7 +56,7 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
       - name: Install ${{ matrix.toolchain }}
-        uses: dtolnay/rust-toolchain@4f366e621dc8fa63f557ca04b8f4361824a35a45
+        uses: dtolnay/rust-toolchain@1.78.0
         with:
           toolchain: ${{ matrix.toolchain }}
           components: clippy
@@ -82,7 +82,7 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
       - name: Install nightly
-        uses: dtolnay/rust-toolchain@4f366e621dc8fa63f557ca04b8f4361824a35a45
+        uses: dtolnay/rust-toolchain@1.78.0
       - name: Create on-host documentation
         run: cargo doc --no-deps --features=onhost
         env:
@@ -95,7 +95,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        msrv: [ 1.76.0 ]
+        msrv: [ 1.78.0 ]
     name: ubuntu / ${{ matrix.msrv }}
     steps:
       - uses: actions/checkout@v4
@@ -106,7 +106,7 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
       - name: Install ${{ matrix.msrv }}
-        uses: dtolnay/rust-toolchain@4f366e621dc8fa63f557ca04b8f4361824a35a45
+        uses: dtolnay/rust-toolchain@1.78.0
         with:
           toolchain: ${{ matrix.msrv }}
       - name: cargo +${{ matrix.msrv }} check onK8s

@@ -1,7 +1,9 @@
 use newrelic_super_agent::cli::Cli;
 use newrelic_super_agent::event::channel::{pub_sub, EventConsumer, EventPublisher};
 use newrelic_super_agent::event::{ApplicationEvent, SuperAgentEvent};
-use newrelic_super_agent::opamp::client_builder::OpAMPHttpClientBuilder;
+use newrelic_super_agent::opamp::client_builder::DefaultOpAMPClientBuilder;
+use newrelic_super_agent::opamp::http::builder::DefaultHttpClientBuilder;
+use newrelic_super_agent::opamp::http::builder::HttpClientBuilder;
 use newrelic_super_agent::opamp::instance_id::getter::ULIDInstanceIDGetter;
 use newrelic_super_agent::opamp::instance_id::Identifiers;
 use newrelic_super_agent::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
@@ -72,10 +74,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     debug!("Creating the signal handler");
     create_shutdown_signal_handler(application_event_publisher)?;
 
-    let opamp_client_builder: Option<OpAMPHttpClientBuilder> = super_agent_config
-        .opamp
-        .as_ref()
-        .map(|opamp_config| OpAMPHttpClientBuilder::new(opamp_config.clone()));
+    let opamp_client_builder: Option<DefaultOpAMPClientBuilder<_>> =
+        super_agent_config.opamp.as_ref().map(|opamp_config| {
+            let http_builder = DefaultHttpClientBuilder::new(opamp_config.clone());
+            DefaultOpAMPClientBuilder::new(opamp_config.clone(), http_builder)
+        });
 
     // create Super Agent events channel
     let (super_agent_publisher, super_agent_consumer) = pub_sub::<SuperAgentEvent>();
@@ -117,11 +120,11 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 #[cfg(feature = "onhost")]
-fn run_super_agent(
+fn run_super_agent<C: HttpClientBuilder>(
     _runtime: Arc<Runtime>,
     sa_config_storer: SuperAgentConfigStoreFile,
     application_events_consumer: EventConsumer<ApplicationEvent>,
-    opamp_client_builder: Option<OpAMPHttpClientBuilder>,
+    opamp_client_builder: Option<DefaultOpAMPClientBuilder<C>>,
     super_agent_publisher: EventPublisher<SuperAgentEvent>,
 ) -> Result<(), AgentError> {
     use newrelic_super_agent::agent_type::renderer::TemplateRenderer;
@@ -152,8 +155,7 @@ fn run_super_agent(
         .with_host_id(config.host_id)
         .with_fleet_id(config.fleet_id);
     let identifiers = identifiers_provider.provide().unwrap_or_default();
-    //Print identifiers for troubleshooting
-    print_identifiers(&identifiers);
+    info!("Instance Identifiers: {}", identifiers);
 
     let non_identifying_attributes = super_agent_opamp_non_identifying_attributes(&identifiers);
 
@@ -210,16 +212,12 @@ fn run_super_agent(
     .run(application_events_consumer, maybe_sa_opamp_consumer)
 }
 
-fn print_identifiers(identifiers: &Identifiers) {
-    info!("Instance Identifiers: {}", identifiers);
-}
-
 #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
-fn run_super_agent(
+fn run_super_agent<C: HttpClientBuilder>(
     runtime: Arc<Runtime>,
     sa_local_config_storer: SuperAgentConfigStoreFile,
     application_event_consumer: EventConsumer<ApplicationEvent>,
-    opamp_client_builder: Option<OpAMPHttpClientBuilder>,
+    opamp_client_builder: Option<DefaultOpAMPClientBuilder<C>>,
     super_agent_publisher: EventPublisher<SuperAgentEvent>,
 ) -> Result<(), AgentError> {
     use newrelic_super_agent::k8s::garbage_collector::NotStartedK8sGarbageCollector;
@@ -247,8 +245,7 @@ fn run_super_agent(
 
     let identifiers =
         instance_id::get_identifiers(k8s_config.cluster_name.clone(), config.fleet_id);
-    //Print identifiers for troubleshooting
-    print_identifiers(&identifiers);
+    info!("Instance Identifiers: {}", identifiers);
 
     let mut non_identifying_attributes = super_agent_opamp_non_identifying_attributes(&identifiers);
     non_identifying_attributes.insert(
@@ -340,8 +337,7 @@ fn create_shutdown_signal_handler(
 fn super_agent_opamp_non_identifying_attributes(
     identifiers: &Identifiers,
 ) -> HashMap<String, DescriptionValueType> {
-    use newrelic_super_agent::utils::hostname::HostnameGetter;
-
+    use resource_detection::system::hostname::HostnameGetter;
     let hostname = HostnameGetter::default()
         .get()
         .unwrap_or_else(|e| {

@@ -142,7 +142,6 @@ pub struct MigrationAgentConfig {
 
 impl MigrationAgentConfig {
     pub(crate) fn get_agent_type_fqn(&self) -> AgentTypeFQN {
-        //AgentTypeFQN::from(self.agent_type_fqn.as_str())
         self.agent_type_fqn.clone()
     }
 }
@@ -214,20 +213,36 @@ configs:
     dirs_map:
 "#;
 
-        let expected_fqns_in_order = vec![
-            "francisco-partners/com.newrelic.another:0.0.2".into(),
-            "newrelic/com.newrelic.another:0.0.1".into(),
-            "newrelic/com.newrelic.another:1.0.0".into(),
-            "newrelic/com.newrelic.infrastructure_agent:0.0.2".into(),
-            "newrelic/com.newrelic.infrastructure_agent:0.1.2".into(),
-            "newrelic/com.newrelic.infrastructure_agent:1.0.1".into(),
+        let expected_fqns_in_order = [
+            "francisco-partners/com.newrelic.another:0.0.2"
+                .try_into()
+                .unwrap(),
+            "newrelic/com.newrelic.another:0.0.1".try_into().unwrap(),
+            "newrelic/com.newrelic.another:1.0.0".try_into().unwrap(),
+            "newrelic/com.newrelic.infrastructure_agent:0.0.2"
+                .try_into()
+                .unwrap(),
+            "newrelic/com.newrelic.infrastructure_agent:0.1.2"
+                .try_into()
+                .unwrap(),
+            "newrelic/com.newrelic.infrastructure_agent:1.0.1"
+                .try_into()
+                .unwrap(),
         ];
         let expected_next_fqns_in_order: Vec<Option<AgentTypeFQN>> = vec![
             None,
-            Some("newrelic/com.newrelic.another:1.0.0".into()),
+            Some("newrelic/com.newrelic.another:1.0.0".try_into().unwrap()),
             None,
-            Some("newrelic/com.newrelic.infrastructure_agent:0.1.2".into()),
-            Some("newrelic/com.newrelic.infrastructure_agent:1.0.1".into()),
+            Some(
+                "newrelic/com.newrelic.infrastructure_agent:0.1.2"
+                    .try_into()
+                    .unwrap(),
+            ),
+            Some(
+                "newrelic/com.newrelic.infrastructure_agent:1.0.1"
+                    .try_into()
+                    .unwrap(),
+            ),
             None,
         ];
 

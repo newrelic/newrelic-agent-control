@@ -1,9 +1,12 @@
+use crate::agent_type::restart_policy::{
+    BackoffStrategyConfig, BackoffStrategyType, RestartPolicyConfig,
+};
 use std::cmp::max;
 use std::time::{Duration, Instant};
 
 #[derive(Clone, Debug)]
 pub struct RestartPolicy {
-    pub(super) backoff: BackoffStrategy,
+    pub backoff: BackoffStrategy,
     // If empty all codes trigger restart if populated, only the existing codes will.
     restart_exit_codes: Vec<i32>,
 }
@@ -40,6 +43,12 @@ impl RestartPolicy {
 impl Default for RestartPolicy {
     fn default() -> Self {
         RestartPolicy::new(BackoffStrategy::None, Vec::new())
+    }
+}
+
+impl From<RestartPolicyConfig> for RestartPolicy {
+    fn from(value: RestartPolicyConfig) -> Self {
+        RestartPolicy::new((&value.backoff_strategy).into(), value.restart_exit_codes)
     }
 }
 
@@ -137,6 +146,26 @@ impl Backoff {
         self.last_retry = Instant::now();
         self.tries += 1;
     }
+}
+
+impl From<&BackoffStrategyConfig> for BackoffStrategy {
+    fn from(value: &BackoffStrategyConfig) -> Self {
+        match value.clone().backoff_type.get() {
+            BackoffStrategyType::Fixed => BackoffStrategy::Fixed(realize_backoff_config(value)),
+            BackoffStrategyType::Linear => BackoffStrategy::Linear(realize_backoff_config(value)),
+            BackoffStrategyType::Exponential => {
+                BackoffStrategy::Exponential(realize_backoff_config(value))
+            }
+            BackoffStrategyType::None => BackoffStrategy::None,
+        }
+    }
+}
+
+fn realize_backoff_config(i: &BackoffStrategyConfig) -> Backoff {
+    Backoff::new()
+        .with_initial_delay(i.backoff_delay.clone().get().into())
+        .with_max_retries(i.max_retries.clone().get().into())
+        .with_last_retry_interval(i.last_retry_interval.clone().get().into())
 }
 
 /// fixed is a function executing a sleep function with a constant delay

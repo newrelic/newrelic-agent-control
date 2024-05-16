@@ -3,9 +3,7 @@ use crate::event::OpAMPEvent;
 use crate::opamp::instance_id;
 use crate::super_agent::config::{AgentID, OpAMPClientConfig};
 use opamp_client::http::config::HttpConfigError;
-use opamp_client::http::{
-    HttpClientError, HttpClientUreq, HttpConfig, NotStartedHttpClient, StartedHttpClient,
-};
+use opamp_client::http::{HttpClientError, NotStartedHttpClient, StartedHttpClient};
 use opamp_client::operation::callbacks::Callbacks;
 use opamp_client::operation::settings::StartSettings;
 use opamp_client::{NotStartedClient, NotStartedClientError, StartedClient, StartedClientError};
@@ -14,6 +12,7 @@ use thiserror::Error;
 use tracing::{error, info};
 
 use super::callbacks::AgentCallbacks;
+use super::http::builder::HttpClientBuilder;
 
 #[derive(Error, Debug)]
 pub enum OpAMPClientBuilderError {
@@ -33,9 +32,11 @@ pub enum OpAMPClientBuilderError {
     GetUlidError(#[from] instance_id::GetterError),
 }
 
-pub trait OpAMPClientBuilder<CB: Callbacks> {
+pub trait OpAMPClientBuilder<CB>
+where
+    CB: Callbacks,
+{
     type Client: StartedClient<CB> + 'static;
-    // type StartedClient: StartedClient;
     fn build_and_start(
         &self,
         opamp_publisher: EventPublisher<OpAMPEvent>,
@@ -44,28 +45,20 @@ pub trait OpAMPClientBuilder<CB: Callbacks> {
     ) -> Result<Self::Client, OpAMPClientBuilderError>;
 }
 
-pub fn build_http_client(
-    config: &OpAMPClientConfig,
-) -> Result<HttpClientUreq, OpAMPClientBuilderError> {
-    let headers = config.headers.clone().unwrap_or_default();
-    let headers: Vec<(&str, &str)> = headers
-        .iter()
-        .map(|(h, v)| (h.as_str(), v.as_str()))
-        .collect();
-
-    let http_client =
-        HttpClientUreq::new(HttpConfig::new(config.endpoint.as_str())?.with_headers(headers)?)?;
-
-    Ok(http_client)
-}
-
-pub struct OpAMPHttpClientBuilder {
+pub struct DefaultOpAMPClientBuilder<C> {
     config: OpAMPClientConfig,
+    http_client_builder: C,
 }
 
-impl OpAMPHttpClientBuilder {
-    pub fn new(config: OpAMPClientConfig) -> Self {
-        Self { config }
+impl<C> DefaultOpAMPClientBuilder<C>
+where
+    C: HttpClientBuilder,
+{
+    pub fn new(config: OpAMPClientConfig, http_client_builder: C) -> Self {
+        Self {
+            config,
+            http_client_builder,
+        }
     }
 
     pub fn config(&self) -> &OpAMPClientConfig {
@@ -73,15 +66,18 @@ impl OpAMPHttpClientBuilder {
     }
 }
 
-impl OpAMPClientBuilder<AgentCallbacks> for OpAMPHttpClientBuilder {
-    type Client = StartedHttpClient<AgentCallbacks, HttpClientUreq>;
+impl<C> OpAMPClientBuilder<AgentCallbacks> for DefaultOpAMPClientBuilder<C>
+where
+    C: HttpClientBuilder,
+{
+    type Client = StartedHttpClient<AgentCallbacks, C::Client>;
     fn build_and_start(
         &self,
         opamp_publisher: EventPublisher<OpAMPEvent>,
         agent_id: AgentID,
         start_settings: StartSettings,
     ) -> Result<Self::Client, OpAMPClientBuilderError> {
-        let http_client = build_http_client(&self.config)?;
+        let http_client = self.http_client_builder.build()?;
         let callbacks = AgentCallbacks::new(agent_id, opamp_publisher);
         let not_started_client = NotStartedHttpClient::new(http_client);
         let started_client = not_started_client.start(callbacks, start_settings)?;

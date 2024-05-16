@@ -1,11 +1,9 @@
-use std::path::PathBuf;
-
-use serde::Deserialize;
-
-use crate::super_agent::defaults::{SUPER_AGENT_LOG_DIR, SUPER_AGENT_LOG_FILENAME};
-
 use super::config::LoggingError;
+use crate::super_agent::defaults::{SUPER_AGENT_LOG_DIR, SUPER_AGENT_LOG_FILENAME};
+use serde::Deserialize;
+use std::path::PathBuf;
 use tracing_appender::non_blocking::{NonBlocking, WorkerGuard};
+
 #[derive(Debug, Deserialize, Default, PartialEq, Clone)]
 pub(crate) struct FileLoggingConfig {
     pub(crate) enable: bool,

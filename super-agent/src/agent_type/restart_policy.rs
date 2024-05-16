@@ -1,10 +1,7 @@
-use std::{str::FromStr, time::Duration};
-
-use crate::sub_agent::restart_policy::{Backoff, BackoffStrategy, RestartPolicy};
+use super::{definition::TemplateableValue, error::AgentTypeError};
 use duration_str::deserialize_duration;
 use serde::Deserialize;
-
-use super::{definition::TemplateableValue, error::AgentTypeError};
+use std::{str::FromStr, time::Duration};
 
 /// Defines the Restart Policy configuration.
 /// This policy outlines the procedures followed for restarting agents when their execution encounters failure.
@@ -114,9 +111,9 @@ impl From<MaxRetries> for usize {
 pub struct BackoffStrategyConfig {
     #[serde(rename = "type")]
     pub backoff_type: TemplateableValue<BackoffStrategyType>,
-    pub(super) backoff_delay: TemplateableValue<BackoffDelay>,
+    pub backoff_delay: TemplateableValue<BackoffDelay>,
     pub max_retries: TemplateableValue<MaxRetries>,
-    pub(super) last_retry_interval: TemplateableValue<BackoffLastRetryInterval>,
+    pub last_retry_interval: TemplateableValue<BackoffLastRetryInterval>,
 }
 
 impl BackoffStrategyConfig {
@@ -156,25 +153,6 @@ impl FromStr for BackoffStrategyType {
     }
 }
 
-impl From<RestartPolicyConfig> for RestartPolicy {
-    fn from(value: RestartPolicyConfig) -> Self {
-        RestartPolicy::new((&value.backoff_strategy).into(), value.restart_exit_codes)
-    }
-}
-
-impl From<&BackoffStrategyConfig> for BackoffStrategy {
-    fn from(value: &BackoffStrategyConfig) -> Self {
-        match value.clone().backoff_type.get() {
-            BackoffStrategyType::Fixed => BackoffStrategy::Fixed(realize_backoff_config(value)),
-            BackoffStrategyType::Linear => BackoffStrategy::Linear(realize_backoff_config(value)),
-            BackoffStrategyType::Exponential => {
-                BackoffStrategy::Exponential(realize_backoff_config(value))
-            }
-            BackoffStrategyType::None => BackoffStrategy::None,
-        }
-    }
-}
-
 impl Default for BackoffStrategyConfig {
     fn default() -> Self {
         Self {
@@ -186,18 +164,10 @@ impl Default for BackoffStrategyConfig {
     }
 }
 
-fn realize_backoff_config(i: &BackoffStrategyConfig) -> Backoff {
-    Backoff::new()
-        .with_initial_delay(i.backoff_delay.clone().get().into())
-        .with_max_retries(i.max_retries.clone().get().into())
-        .with_last_retry_interval(i.last_retry_interval.clone().get().into())
-}
-
 #[cfg(test)]
 mod test {
-    use crate::agent_type::definition::TemplateableValue;
-
     use super::{BackoffStrategyConfig, BackoffStrategyType};
+    use crate::agent_type::definition::TemplateableValue;
 
     #[test]
     fn values_in_sync_with_type() {

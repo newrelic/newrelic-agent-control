@@ -38,7 +38,7 @@ pub enum AgentTypeDefinitionError {
     EnvironmentError(AgentTypeError, Environment),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct EffectiveAgent {
     agent_id: AgentID,
     runtime_config: Runtime,
@@ -193,17 +193,17 @@ pub fn build_agent_type(
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use assert_matches::assert_matches;
-    use mockall::{mock, predicate};
-
+    use super::*;
+    use crate::agent_type::agent_metadata::AgentMetadata;
     use crate::agent_type::agent_type_registry::tests::MockAgentRegistryMock;
     use crate::agent_type::agent_values::AgentValues;
     use crate::agent_type::definition::AgentTypeDefinition;
     use crate::agent_type::renderer::tests::MockRendererMock;
     use crate::agent_type::runtime_config;
     use crate::sub_agent::values::values_repository::test::MockRemoteValuesRepositoryMock;
-
-    use super::*;
+    use assert_matches::assert_matches;
+    use mockall::{mock, predicate};
+    use semver::Version;
 
     mock! {
         pub(crate) EffectiveAgentAssemblerMock {}
@@ -224,7 +224,7 @@ pub(crate) mod tests {
             agent_id: &AgentID,
             agent_cfg: &SubAgentConfig,
             environment: &Environment,
-            efective_agent: EffectiveAgent,
+            effective_agent: EffectiveAgent,
         ) {
             self.expect_assemble_agent()
                 .once()
@@ -233,7 +233,7 @@ pub(crate) mod tests {
                     predicate::eq(agent_cfg.clone()),
                     predicate::eq(environment.clone()),
                 )
-                .returning(move |_, _, _| Ok(efective_agent.clone()));
+                .returning(move |_, _, _| Ok(effective_agent.clone()));
         }
     }
 
@@ -255,12 +255,13 @@ pub(crate) mod tests {
     // Returns a testing runtime config with some content.
     fn testing_rendered_runtime_config() -> Runtime {
         Runtime {
-            deployment: runtime_config::Deployment {
+            deployment: Deployment {
                 on_host: None,
                 k8s: Some(runtime_config::K8s {
                     objects: vec![("key".to_string(), runtime_config::K8sObject::default())]
                         .into_iter()
                         .collect(),
+                    health: Some(Default::default()),
                 }),
             },
         }
@@ -283,17 +284,21 @@ pub(crate) mod tests {
         // Objects
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let environment = Environment::OnHost;
-        let agent_type_definition = AgentTypeDefinition::default();
+        let agent_type_definition = AgentTypeDefinition::empty_with_metadata(AgentMetadata {
+            name: "some_fqn".into(),
+            version: Version::parse("0.0.1").unwrap(),
+            namespace: "ns".into(),
+        });
         let agent_type = build_agent_type(agent_type_definition.clone(), &environment).unwrap();
         let values = AgentValues::default();
         let sub_agent_config = SubAgentConfig {
-            agent_type: "some_fqn".into(),
+            agent_type: "ns/some_fqn:0.0.1".try_into().unwrap(),
         };
         let attributes = testing_agent_attributes(&agent_id);
         let rendered_runtime_config = testing_rendered_runtime_config();
 
         //Expectations
-        registry.should_get("some_fqn".to_string(), &agent_type_definition);
+        registry.should_get("ns/some_fqn:0.0.1".to_string(), &agent_type_definition);
 
         sub_agent_values_repo.should_load(&agent_id, &agent_type, &values);
         renderer.should_render(
@@ -328,11 +333,11 @@ pub(crate) mod tests {
         // Objects
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let sub_agent_config = SubAgentConfig {
-            agent_type: "some_fqn".into(),
+            agent_type: "namespace/some_fqn:0.0.1".try_into().unwrap(),
         };
 
         //Expectations
-        registry.should_not_get("some_fqn".to_string());
+        registry.should_not_get("namespace/some_fqn:0.0.1".to_string());
 
         let assembler = LocalEffectiveAgentsAssembler::new_for_testing(
             registry,
@@ -359,14 +364,18 @@ pub(crate) mod tests {
         // Objects
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let environment = Environment::OnHost;
-        let agent_type_definition = AgentTypeDefinition::default();
+        let agent_type_definition = AgentTypeDefinition::empty_with_metadata(AgentMetadata {
+            name: "some_fqn".into(),
+            version: Version::parse("0.0.1").unwrap(),
+            namespace: "ns".into(),
+        });
         let agent_type = build_agent_type(agent_type_definition.clone(), &environment).unwrap();
         let sub_agent_config = SubAgentConfig {
-            agent_type: "some_fqn".into(),
+            agent_type: "ns/some_fqn:0.0.1".try_into().unwrap(),
         };
 
         //Expectations
-        registry.should_get("some_fqn".to_string(), &agent_type_definition);
+        registry.should_get("ns/some_fqn:0.0.1".to_string(), &agent_type_definition);
         sub_agent_values_repo.should_not_load(&agent_id, &agent_type);
 
         let assembler = LocalEffectiveAgentsAssembler::new_for_testing(

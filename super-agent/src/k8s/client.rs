@@ -1,10 +1,12 @@
 use super::{
-    error::K8sError,
-    error::K8sError::UnexpectedKind,
-    reader::{DynamicObjectReflector, ReflectorBuilder},
+    error::K8sError::{self},
+    reflectors::{Reflector, ReflectorBuilder, ResourceWithReflector},
 };
+use crate::super_agent::config::helm_release_type_meta;
+use k8s_openapi::api::apps::v1::{DaemonSet, Deployment, ReplicaSet, StatefulSet};
 use k8s_openapi::api::core::v1::{ConfigMap, Namespace};
 use kube::api::entry::Entry;
+use kube::api::ObjectList;
 use kube::{
     api::{DeleteParams, ListParams, PostParams},
     config::KubeConfigOptions,
@@ -128,6 +130,11 @@ impl SyncK8sClient {
         ))
     }
 
+    pub fn get_helm_release(&self, name: &str) -> Result<Option<Arc<DynamicObject>>, K8sError> {
+        let tm = helm_release_type_meta();
+        self.get_dynamic_object(&tm, name)
+    }
+
     pub fn delete_configmap_key(&self, configmap_name: &str, key: &str) -> Result<(), K8sError> {
         self.runtime
             .block_on(self.async_client.delete_configmap_key(configmap_name, key))
@@ -137,6 +144,10 @@ impl SyncK8sClient {
         self.async_client.supported_type_meta_collection()
     }
 
+    pub fn list_stateful_set(&self) -> Result<ObjectList<StatefulSet>, K8sError> {
+        self.runtime.block_on(self.async_client.list_stateful_set())
+    }
+
     pub fn default_namespace(&self) -> &str {
         self.async_client.default_namespace()
     }
@@ -144,13 +155,32 @@ impl SyncK8sClient {
 
 pub struct AsyncK8sClient {
     client: Client,
-    dynamics: HashMap<TypeMeta, Dynamic>,
+    reflectors: Option<Reflectors>,
 }
 
 struct Dynamic {
     object_api: Api<DynamicObject>,
-    object_reflector: DynamicObjectReflector,
+    object_reflector: Reflector<DynamicObject>,
 }
+
+struct Reflectors {
+    dynamics: HashMap<TypeMeta, Dynamic>,
+    #[allow(dead_code)]
+    controllers: ControllerReflectors,
+}
+
+#[allow(dead_code)]
+struct ControllerReflectors {
+    daemon_sets: Reflector<DaemonSet>,
+    deployments: Reflector<Deployment>,
+    replica_sets: Reflector<ReplicaSet>,
+    stateful_sets: Reflector<StatefulSet>,
+}
+
+impl ResourceWithReflector for DaemonSet {}
+impl ResourceWithReflector for Deployment {}
+impl ResourceWithReflector for ReplicaSet {}
+impl ResourceWithReflector for StatefulSet {}
 
 impl AsyncK8sClient {
     /// Constructs a new Kubernetes client.
@@ -158,8 +188,6 @@ impl AsyncK8sClient {
     /// If loading from the inCluster config fail we fall back to kube-config
     /// This will respect the `$KUBECONFIG` envvar, but otherwise default to `~/.kube/config`.
     /// Not leveraging infer() to check inClusterConfig first
-    ///
-    ///
     pub async fn try_new(namespace: String) -> Result<Self, K8sError> {
         debug!("trying inClusterConfig for k8s client");
 
@@ -189,7 +217,7 @@ impl AsyncK8sClient {
         debug!("client creation succeeded");
         Ok(Self {
             client,
-            dynamics: HashMap::new(),
+            reflectors: None,
         })
     }
 
@@ -197,18 +225,29 @@ impl AsyncK8sClient {
         namespace: String,
         cr_type_metas: Vec<TypeMeta>,
     ) -> Result<Self, K8sError> {
-        Self::try_new(namespace)
+        Self::try_new(namespace.clone())
             .await?
-            .with_dynamics_objects(cr_type_metas)
+            .with_reflectors(cr_type_metas)
             .await
     }
 
-    async fn with_dynamics_objects(
-        mut self,
-        cr_type_metas: Vec<TypeMeta>,
-    ) -> Result<Self, K8sError> {
-        let reflector_builder = ReflectorBuilder::new(self.client.to_owned());
+    async fn with_reflectors(mut self, cr_type_metas: Vec<TypeMeta>) -> Result<Self, K8sError> {
+        let dynamics = self.create_dynamic_reflectors(cr_type_metas).await?;
+        let controllers = self.create_controllers().await?;
+        self.reflectors = Some(Reflectors {
+            dynamics,
+            controllers,
+        });
 
+        Ok(self)
+    }
+
+    async fn create_dynamic_reflectors(
+        &self,
+        cr_type_metas: Vec<TypeMeta>,
+    ) -> Result<HashMap<TypeMeta, Dynamic>, K8sError> {
+        let mut dynamics = HashMap::new();
+        let reflector_builder = ReflectorBuilder::new(self.client.to_owned());
         for tm in cr_type_metas.iter() {
             let gvk = &GroupVersion::from_str(tm.api_version.as_str())?.with_kind(tm.kind.as_str());
 
@@ -223,32 +262,59 @@ impl AsyncK8sClient {
                 }
             };
 
-            self.dynamics.insert(
+            dynamics.insert(
                 tm.to_owned(),
                 Dynamic {
                     object_api: Api::default_namespaced_with(self.client.to_owned(), &ar),
-                    object_reflector: reflector_builder.dynamic_object_reflector(&ar).await?,
+                    object_reflector: reflector_builder.try_build_with_api_resource(&ar).await?,
                 },
             );
         }
-        Ok(self)
+        Ok(dynamics)
+    }
+
+    /// Set up reflectors for DaemonSets, Deployments, StatefulSets, and ReplicaSets.
+    ///
+    /// This function initializes a reflector for each supported resource type within the provided namespace.
+    async fn create_controllers(&self) -> Result<ControllerReflectors, K8sError> {
+        let reflector_builder = ReflectorBuilder::new(self.client.clone());
+
+        Ok(ControllerReflectors {
+            daemon_sets: reflector_builder.try_build::<DaemonSet>().await?,
+            deployments: reflector_builder.try_build::<Deployment>().await?,
+            replica_sets: reflector_builder.try_build::<ReplicaSet>().await?,
+            stateful_sets: reflector_builder.try_build::<StatefulSet>().await?,
+        })
+    }
+
+    fn get_reflectors(&self) -> Result<&Reflectors, K8sError> {
+        self.reflectors
+            .as_ref()
+            .ok_or_else(|| K8sError::ReflectorsNotInitialized)
     }
 
     pub fn supported_type_meta_collection(&self) -> Vec<TypeMeta> {
-        self.dynamics.keys().cloned().collect()
+        self.get_reflectors()
+            .map(|reflectors| reflectors.dynamics.keys().cloned().collect())
+            .unwrap_or_default()
     }
 
     pub async fn apply_dynamic_object(&self, obj: &DynamicObject) -> Result<(), K8sError> {
         let tm = get_type_meta(obj)?;
         let name = get_name(obj)?;
-        let api = &self
+        let dynamic = &self
+            .get_reflectors()?
             .dynamics
             .get(&tm)
-            .ok_or(UnexpectedKind(format!("applying dynamic object {:?}", tm)))?
+            .ok_or(K8sError::UnexpectedKind(format!(
+                "applying dynamic object {:?}",
+                tm
+            )))?
             .object_api;
 
         // We are getting and modifying the object, but if not available we are creating it
-        api.entry(name.as_str())
+        dynamic
+            .entry(name.as_str())
             .await
             .map_err(|e| {
                 K8sError::GetDynamic(format!("getting dynamic object with name {}: {}", name, e))
@@ -303,13 +369,20 @@ impl AsyncK8sClient {
     }
 
     pub async fn delete_dynamic_object(&self, tm: TypeMeta, name: &str) -> Result<(), K8sError> {
-        let api = &self
+        let dynamic = self
+            .get_reflectors()?
             .dynamics
             .get(&tm)
-            .ok_or(UnexpectedKind(format!("deleting dynamic object {:?}", tm)))?
-            .object_api;
+            .ok_or(K8sError::UnexpectedKind(format!(
+                "Deleting dynamic object {:?}",
+                tm
+            )))?;
 
-        match api.delete(name, &DeleteParams::default()).await? {
+        match dynamic
+            .object_api
+            .delete(name, &DeleteParams::default())
+            .await?
+        {
             // List of objects being deleted.
             either::Left(dynamic_object) => {
                 debug!("Deleting object: {:?}", dynamic_object.meta().name);
@@ -327,13 +400,17 @@ impl AsyncK8sClient {
         tm: &TypeMeta,
         name: &str,
     ) -> Result<Option<Arc<DynamicObject>>, K8sError> {
-        let reflector = &self
+        let dynamic = self
+            .get_reflectors()?
             .dynamics
             .get(tm)
-            .ok_or(UnexpectedKind(format!("getting dynamic object {:?}", tm)))?
-            .object_reflector;
+            .ok_or(K8sError::UnexpectedKind(format!(
+                "Getting dynamic object {:?}",
+                tm
+            )))?;
 
-        Ok(reflector
+        Ok(dynamic
+            .object_reflector
             .reader()
             .find(|obj| obj.metadata.name.to_owned().is_some_and(|n| n.eq(name))))
     }
@@ -344,10 +421,11 @@ impl AsyncK8sClient {
         label_selector: &str,
     ) -> Result<(), K8sError> {
         let api = &self
+            .get_reflectors()?
             .dynamics
             .get(tm)
-            .ok_or(UnexpectedKind(format!(
-                "deleting dynamic object collection {:?}",
+            .ok_or(K8sError::UnexpectedKind(format!(
+                "Deleting dynamic object collection {:?}",
                 tm
             )))?
             .object_api;
@@ -437,6 +515,14 @@ impl AsyncK8sClient {
         Ok(())
     }
 
+    pub async fn list_stateful_set(&self) -> Result<ObjectList<StatefulSet>, K8sError> {
+        let ss_client: Api<StatefulSet> =
+            Api::<StatefulSet>::default_namespaced(self.client.clone());
+        let list_stateful_set = ss_client.list(&ListParams::default()).await?;
+
+        Ok(list_stateful_set)
+    }
+
     pub fn default_namespace(&self) -> &str {
         self.client.default_namespace()
     }
@@ -485,13 +571,27 @@ pub fn get_type_meta(obj: &DynamicObject) -> Result<TypeMeta, K8sError> {
     obj.types.clone().ok_or(K8sError::MissingKind())
 }
 
+/// This function returns true if there are labels and they contain the provided key, value.
+pub fn contains_label_with_value(
+    labels: &Option<BTreeMap<String, String>>,
+    key: &str,
+    value: &str,
+) -> bool {
+    labels
+        .as_ref()
+        .and_then(|labels| labels.get(key))
+        .map_or(false, |v| v.as_str() == value)
+}
+
 #[cfg(test)]
 pub(crate) mod test {
     use super::*;
     use assert_matches::assert_matches;
     use k8s_openapi::serde_json;
+    use kube::runtime::reflector;
     use kube::Client;
     use tower_test::mock;
+    use K8sError::UnexpectedKind;
 
     #[tokio::test]
     async fn test_create_dynamic_object_fail_when_missing_resource_definition() {
@@ -500,7 +600,7 @@ pub(crate) mod test {
             kind: "Foo".to_string(),
         };
         let k = get_mocked_client(Scenario::APIResource)
-            .with_dynamics_objects(vec![tm.clone()])
+            .with_reflectors(vec![tm.clone()])
             .await
             .unwrap();
 
@@ -536,7 +636,7 @@ pub(crate) mod test {
         };
 
         let k = get_mocked_client(Scenario::APIResource)
-            .with_dynamics_objects(vec![tm_not_existing, tm.clone()])
+            .with_reflectors(vec![tm_not_existing, tm.clone()])
             .await
             .unwrap();
 
@@ -554,6 +654,54 @@ pub(crate) mod test {
         assert!(result.is_ok());
     }
 
+    #[tokio::test]
+    async fn test_client_build_with_reflectors_and_get_resources() {
+        let async_client = get_mocked_client(Scenario::APIResource)
+            .with_reflectors(vec![])
+            .await
+            .unwrap();
+
+        // Ensure that the reflectors field itself is initialized
+        let reflectors = async_client
+            .reflectors
+            .as_ref()
+            .expect("Reflectors should be initialized");
+
+        let deployment_reader = reflectors.controllers.deployments.reader();
+        let daemonset_reader = reflectors.controllers.daemon_sets.reader();
+
+        fn find_resource_by_name<K>(reader: &reflector::Store<K>, name: &str) -> Option<Arc<K>>
+        where
+            K: ResourceWithReflector,
+        {
+            reader.find(|resource| resource.metadata().name.as_deref() == Some(name))
+        }
+
+        // Check for an existing deployment
+        let existing_deployment =
+            find_resource_by_name::<Deployment>(&deployment_reader, "test-deployment");
+        assert!(
+            existing_deployment.is_some(),
+            "Expected deployment to be found"
+        );
+
+        // Check for an existing daemonset
+        let existing_daemonset =
+            find_resource_by_name::<DaemonSet>(&daemonset_reader, "test-daemonset");
+        assert!(
+            existing_daemonset.is_some(),
+            "Expected daemonset to be found"
+        );
+
+        // Check for a non-existent deployment
+        let non_existent_deployment =
+            find_resource_by_name::<Deployment>(&deployment_reader, "unexistent-deployment");
+        assert!(
+            non_existent_deployment.is_none(),
+            "Expected no deployment to be found"
+        );
+    }
+
     fn get_mocked_client(scenario: Scenario) -> AsyncK8sClient {
         let (mock_service, handle) =
             mock::pair::<http::Request<kube::client::Body>, http::Response<kube::client::Body>>();
@@ -561,7 +709,7 @@ pub(crate) mod test {
         let client = Client::new(mock_service, "default");
         AsyncK8sClient {
             client,
-            dynamics: HashMap::new(),
+            reflectors: None,
         }
     }
 
@@ -590,6 +738,14 @@ pub(crate) mod test {
                             serde_json::json!({})
                         } else if read.uri().to_string().contains("test_name_create") {
                             ApiServerVerifier::get_create_resource()
+                        } else if read.uri().to_string().contains("/deployments") {
+                            ApiServerVerifier::get_deployment_data()
+                        } else if read.uri().to_string().contains("/daemonsets") {
+                            ApiServerVerifier::get_daemonset_data()
+                        } else if read.uri().to_string().contains("/replicasets") {
+                            ApiServerVerifier::get_replicaset_data()
+                        } else if read.uri().to_string().contains("/statefulsets") {
+                            ApiServerVerifier::get_statefulset_data()
                         } else {
                             ApiServerVerifier::get_not_found()
                         };
@@ -605,6 +761,7 @@ pub(crate) mod test {
                 }
             })
         }
+
         fn get_watch_foo_data() -> serde_json::Value {
             serde_json::json!({
               "apiVersion": "newrelic.com/v1",
@@ -674,5 +831,145 @@ pub(crate) mod test {
               ]
             })
         }
+
+        fn get_deployment_data() -> serde_json::Value {
+            serde_json::json!(
+                {
+                    "kind": "DeploymentList",
+                    "apiVersion": "apps/v1",
+                    "metadata": {
+                      "resourceVersion": "123456",
+                      "continue": "",
+                    },
+                    "items": [
+                        {
+                            "kind": "Deployment",
+                            "apiVersion": "apps/v1",
+                            "metadata": {
+                                "name": "test-deployment",
+                                "namespace": "default",
+                                "resourceVersion": "123456",
+                                "uid": "unique-deployment-uid"
+                            }
+                        },
+                    ]
+                }
+            )
+        }
+
+        fn get_daemonset_data() -> serde_json::Value {
+            serde_json::json!(
+                {
+                    "kind": "DaemonList",
+                    "apiVersion": "apps/v1",
+                    "metadata": {
+                      "resourceVersion": "123456",
+                      "continue": ""
+                    },
+                    "items": [
+                        {
+                            "kind": "DaemonSet",
+                            "apiVersion": "apps/v1",
+                            "metadata": {
+                                "name": "test-daemonset",
+                                "namespace": "default",
+                                "resourceVersion": "123456",
+                                "uid": "unique-daemonset-uid"
+                            }
+                        }
+                    ]
+                }
+            )
+        }
+
+        fn get_statefulset_data() -> serde_json::Value {
+            serde_json::json!(
+                {
+                    "kind": "StatefulSetList",
+                    "apiVersion": "apps/v1",
+                    "metadata": {
+                        "resourceVersion": "123456",
+                        "continue": ""
+                    },
+                    "items": []
+                }
+            )
+        }
+
+        fn get_replicaset_data() -> serde_json::Value {
+            serde_json::json!(
+                {
+                    "kind": "ReplicaSetList",
+                    "apiVersion": "apps/v1",
+                    "metadata": {
+                        "resourceVersion": "123456",
+                        "continue": ""
+                    },
+                    "items": []
+                }
+            )
+        }
+    }
+
+    #[test]
+    fn test_contains_label_with_value() {
+        struct TestCase<'a> {
+            name: &'a str,
+            labels: &'a Option<BTreeMap<String, String>>,
+            key: &'a str,
+            value: &'a str,
+            expected: bool,
+        }
+
+        impl TestCase<'_> {
+            fn run(&self) {
+                assert_eq!(
+                    self.expected,
+                    contains_label_with_value(self.labels, self.key, self.value),
+                    "{}",
+                    self.name
+                )
+            }
+        }
+
+        let test_cases = [
+            TestCase {
+                name: "No labels",
+                labels: &None,
+                key: "key",
+                value: "value",
+                expected: false,
+            },
+            TestCase {
+                name: "Empty labels",
+                labels: &Some(BTreeMap::default()),
+                key: "key",
+                value: "value",
+                expected: false,
+            },
+            TestCase {
+                name: "No matching label",
+                labels: &Some([("a".to_string(), "b".to_string())].into()),
+                key: "key",
+                value: "value",
+                expected: false,
+            },
+            TestCase {
+                name: "Matching label with different value",
+                labels: &Some([("key".to_string(), "other".to_string())].into()),
+                key: "key",
+                value: "value",
+                expected: false,
+            },
+            TestCase {
+                name: "Matching label and value",
+                labels: &Some([("key".to_string(), "value".to_string())].into()),
+                key: "key",
+                value: "value",
+                expected: true,
+            },
+        ];
+
+        test_cases.iter().for_each(|tc| tc.run());
     }
 }

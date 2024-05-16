@@ -1,16 +1,12 @@
-// Common subagent modules
 pub mod collection;
 pub mod effective_agents_assembler;
 pub mod error;
 mod event_handler;
 pub mod event_processor;
 pub mod event_processor_builder;
+pub mod health;
 pub mod persister;
-pub mod restart_policy;
 pub mod values;
-
-#[cfg(feature = "onhost")]
-mod health;
 
 #[cfg(feature = "k8s")]
 pub mod k8s;

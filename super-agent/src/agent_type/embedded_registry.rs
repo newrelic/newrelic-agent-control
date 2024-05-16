@@ -1,5 +1,9 @@
 use std::collections::HashMap;
 
+use crate::super_agent::defaults::DYNAMIC_AGENT_TYPE;
+use std::fs;
+use tracing::debug;
+
 use super::{
     agent_type_registry::{AgentRegistry, AgentRepositoryError},
     definition::AgentTypeDefinition,
@@ -25,6 +29,20 @@ impl Default for EmbeddedRegistry {
             serde_yaml::from_reader::<_, AgentTypeDefinition>(file_content_ref.to_owned())
                 .expect("Invalid yaml in default agent types")
         });
+
+        // Read the dynamic agent type and merge with the static ones.
+        // Log failure but not fail the whole registry creation
+        let dynamic_agent_type = fs::read(DYNAMIC_AGENT_TYPE)
+            .inspect_err(|e| debug!("Failed to load dynamic agent type: {}", e))
+            .ok()
+            .and_then(|content| {
+                serde_yaml::from_slice::<AgentTypeDefinition>(content.as_slice())
+                    .inspect_err(|e| debug!("Failed to parse dynamic agent type: {}", e))
+                    .ok()
+            });
+
+        let definitions = definitions.chain(dynamic_agent_type);
+
         Self::try_new(definitions).expect("Conflicting agent type definitions")
     }
 }
@@ -62,34 +80,11 @@ impl EmbeddedRegistry {
 #[cfg(test)]
 pub mod tests {
     use assert_matches::assert_matches;
+    use semver::Version;
 
-    use crate::agent_type::{
-        agent_metadata::AgentMetadata,
-        definition::{AgentTypeVariables, VariableTree},
-        runtime_config::{Deployment, Runtime},
-    };
+    use crate::agent_type::agent_metadata::AgentMetadata;
 
     use super::*;
-
-    impl AgentTypeDefinition {
-        /// This helper returns an [AgentTypeDefinition] including only the provided metadata
-        pub fn empty_with_metadata(metadata: AgentMetadata) -> Self {
-            Self {
-                metadata,
-                variables: AgentTypeVariables {
-                    common: VariableTree::default(),
-                    k8s: VariableTree::default(),
-                    on_host: VariableTree::default(),
-                },
-                runtime_config: Runtime {
-                    deployment: Deployment {
-                        on_host: None,
-                        k8s: None,
-                    },
-                },
-            }
-        }
-    }
 
     #[test]
     fn test_default_embedded_registry() {
@@ -112,12 +107,12 @@ pub mod tests {
         let definitions = vec![
             AgentTypeDefinition::empty_with_metadata(AgentMetadata {
                 name: "agent-1".into(),
-                version: "0.0.0".into(),
+                version: Version::parse("0.0.0").unwrap(),
                 namespace: "ns".into(),
             }),
             AgentTypeDefinition::empty_with_metadata(AgentMetadata {
                 name: "agent-2".into(),
-                version: "0.0.0".into(),
+                version: Version::parse("0.0.0").unwrap(),
                 namespace: "ns".into(),
             }),
         ];
@@ -139,7 +134,7 @@ pub mod tests {
 
         let definition = AgentTypeDefinition::empty_with_metadata(AgentMetadata {
             name: "agent".into(),
-            version: "0.0.0".into(),
+            version: Version::parse("0.0.0").unwrap(),
             namespace: "ns".into(),
         });
         let duplicate = definition.clone();

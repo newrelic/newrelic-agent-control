@@ -6,15 +6,13 @@ use crate::sub_agent::error::SubAgentError;
 use crate::sub_agent::values::values_repository::ValuesRepository;
 use crate::sub_agent::SubAgentCallbacks;
 use crate::super_agent::config::AgentID;
-use crate::utils::time::get_sys_time_nano;
 use crossbeam::channel::never;
 use crossbeam::select;
-use opamp_client::opamp::proto::ComponentHealth;
 use opamp_client::StartedClient;
 use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 
 // This trait is meant for testing, there are no multiple implementations expected
 // It cannot be doubled as the implementation has a lifetime constraint
@@ -84,20 +82,6 @@ where
                 "event processor started"
             );
 
-            //TODO: this will change when we define specific health events
-            if let Some(client) = &self.maybe_opamp_client {
-                info!(
-                    agent_id = &self.agent_id.to_string(),
-                    "reporting agent as healthy"
-                );
-                client.set_health(ComponentHealth {
-                    healthy: true,
-                    start_time_unix_nano: get_sys_time_nano()?,
-                    last_error: "".to_string(),
-                    ..Default::default()
-                })?;
-            }
-
             // The below two lines are used to create a channel that never receives any message
             // if the sub_agent_opamp_consumer is None. Thus, we avoid erroring if there is no
             // publisher for OpAMP events and we attempt to receive them, as erroring while reading
@@ -137,14 +121,13 @@ where
                                 debug!("sub_agent_internal_consumer :: StopRequested");
                                 break;
                             },
-                            Ok(SubAgentInternalEvent::AgentBecameUnhealthy(msg))=>{
+                            Ok(SubAgentInternalEvent::AgentBecameUnhealthy(unhealthy))=>{
                                 debug!("sub_agent_internal_consumer :: UnhealthyAgent");
-                                let _ = self.on_became_unhealthy(msg).inspect_err(|e| error!("error processing unhealthy status: {}",e));
-
+                                let _ = self.on_health(unhealthy.into()).inspect_err(|e| error!("error processing unhealthy status: {}",e));
                             }
-                            Ok(SubAgentInternalEvent::AgentBecameHealthy)=>{
+                            Ok(SubAgentInternalEvent::AgentBecameHealthy(healthy))=>{
                                 debug!("sub_agent_internal_consumer :: HealthyAgent");
-                               let _ = self.on_became_healthy().inspect_err(|e| error!("error processing healthy status: {}",e));
+                                let _ = self.on_health(healthy.into()).inspect_err(|e| error!("error processing healthy status: {}",e));
                             }
                          }
                     }
@@ -206,7 +189,6 @@ pub mod test {
         let values_repository = MockRemoteValuesRepositoryMock::default();
 
         //opamp client expects to be stopped
-        opamp_client.should_set_health(1);
         opamp_client.should_stop(1);
 
         let event_processor = EventProcessor::new(
@@ -258,7 +240,6 @@ pub mod test {
         let remote_config = RemoteConfig::new(agent_id.clone(), hash, Some(config_map));
 
         //opamp client expects to be stopped
-        opamp_client.should_set_health(1);
         opamp_client.should_stop(1);
 
         let event_processor = EventProcessor::new(

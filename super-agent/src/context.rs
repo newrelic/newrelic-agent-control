@@ -1,7 +1,4 @@
-use std::{
-    mem::take,
-    sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError},
-};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 
 #[derive(Debug, Clone, Default)]
 pub struct Context<T>(Arc<(Mutex<T>, Condvar)>);
@@ -22,17 +19,6 @@ where
         *lck = val;
         cvar.notify_all();
         Ok(())
-    }
-
-    // waits for and update in the condvar returning the modified value and setting the default in
-    // the internal mutex
-    pub fn wait_condvar(&self) -> Result<T, PoisonError<MutexGuard<'_, T>>> /* this is the error type returned by a failed `lock()` */
-    {
-        let (lck, cvar) = &*self.0;
-        let mut lck = lck.lock()?;
-        lck = cvar.wait(lck)?;
-        let current = take(&mut *lck);
-        Ok(current)
     }
 
     pub fn get_lock_cvar(&self) -> &(Mutex<T>, Condvar) {

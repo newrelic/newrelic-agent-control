@@ -1,10 +1,6 @@
-use std::io;
-
-use thiserror::Error;
-
 use crate::sub_agent::persister::config_persister::PersistError;
-
-use super::trivial_value::TrivialValue;
+use std::io;
+use thiserror::Error;
 
 /// The different error types to be returned by operations involving the [`Agent`] type.
 #[derive(Error, Debug)]
@@ -13,49 +9,24 @@ pub enum AgentTypeError {
     SerdeYaml(#[from] serde_yaml::Error),
     #[error("Missing required key in agent type config values: `{0}`")]
     MissingRequiredKey(String),
-    #[error(
-        "Type mismatch while parsing. Expected type {expected_type}, got value {actual_value:?}"
-    )]
-    TypeMismatch {
-        expected_type: String,
-        actual_value: TrivialValue,
-    },
     #[error("Unexpected key in agent type config values: {0}")]
     UnexpectedValueKey(String),
     #[error("I/O error: `{0}`")]
     IOError(#[from] io::Error),
-    #[error("Attempted to store an invalid path on a FilePathWithContent object")]
-    InvalidFilePath,
     #[error("Missing required template key: `{0}`")]
     MissingTemplateKey(String),
-
-    #[error("Map values must be of the same type")]
-    InvalidMap,
-
     #[error("Missing default value for a non-required spec key")]
     MissingDefault,
-    #[error("Missing default value for spec key `{0}`")]
-    MissingDefaultWithKey(String),
-    #[error("Invalid default value for spec key `{key}`: expected a {type_}")]
-    InvalidDefaultForSpec { key: String, type_: String },
-
-    #[error("Invalid value for spec key `{key}`: expected a {type_}")]
-    InvalidValueForSpec { key: String, type_: String },
-
     #[error("Not all values for this agent type have been populated: {0:?}")]
     ValuesNotPopulated(Vec<String>),
-
     #[error("Template value not parseable from the string `{0}")]
     ValueNotParseableFromString(String),
-
     #[error("Unknown backoff strategy type: `{0}`")]
     UnknownBackoffStrategyType(String),
-
     #[error("Invalid variant provided as a value: `{0}`. Variants allowed: {1:?}")]
     InvalidVariant(String, Vec<String>),
     #[error("error assembling agents: `{0}`")]
     ConfigurationPersisterError(#[from] PersistError),
-
     #[error("Conflicting variable definition: `{0}`")]
     ConflictingVariableDefinition(String),
 }

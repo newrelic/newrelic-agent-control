@@ -93,22 +93,22 @@ jobs:
           local_packages_path: "/srv/dist/"
           apt_skip_mirror: false
 
-
-  onhost-e2e:
-    uses: ./.github/workflows/component_onhost_e2e.yaml
-    needs: [ build-nightly ]
-    with:
-      TAG: "${{ needs.build-nightly.outputs.tag }}"
-      UNIQUE_NAME: "nightly:e2e"
-      EC2_FILTERS: '[\"al-2023\"]'
-      REPOSITORY_ENDPOINT: "http://nr-downloads-ohai-testing.s3-website-us-east-1.amazonaws.com/super-agent-nightlies"
-    secrets:
-      AWS_ROLE_ARN: ${{ secrets.TMP_AWS_ROLE_ARN }}
-      AWS_VPC_SUBNET: ${{ secrets.TMP_AWS_VPC_SUBNET }}
+# All current test on test/e2e depend on fleet API checks which at the moment is WIP in staging and outdated in prod.
+  # onhost-e2e:
+  #   uses: ./.github/workflows/component_onhost_e2e.yaml
+  #   needs: [ build-nightly ]
+  #   with:
+  #     TAG: "${{ needs.build-nightly.outputs.tag }}"
+  #     UNIQUE_NAME: "nightly:e2e"
+  #     EC2_FILTERS: '[\"al-2023\"]'
+  #     REPOSITORY_ENDPOINT: "http://nr-downloads-ohai-testing.s3-website-us-east-1.amazonaws.com/super-agent-nightlies"
+  #   secrets:
+  #     AWS_ROLE_ARN: ${{ secrets.TMP_AWS_ROLE_ARN }}
+  #     AWS_VPC_SUBNET: ${{ secrets.TMP_AWS_VPC_SUBNET }}
 
   notify-failure:
     if: ${{ always() && failure() }}
-    needs: [ onhost-e2e ]
+    # needs: [ onhost-e2e ]
     runs-on: ubuntu-latest
     steps:
       - name: Notify failure via Slack

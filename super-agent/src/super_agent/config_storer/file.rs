@@ -122,8 +122,10 @@ pub(crate) mod tests {
     use crate::super_agent::config::{
         AgentID, AgentTypeFQN, OpAMPClientConfig, SubAgentConfig, SuperAgentConfig,
     };
+    use http::HeaderMap;
     use std::{collections::HashMap, io::Write};
     use tempfile::NamedTempFile;
+    use url::Url;
 
     #[test]
     fn load_agents_local_remote() {
@@ -140,7 +142,7 @@ opamp:
         let remote_config = r#"
 agents:
   rolldice:
-    agent_type: "com.newrelic.infrastructure_agent:0.0.2"
+    agent_type: "namespace/com.newrelic.infrastructure_agent:0.0.2"
 "#;
         write!(remote_file, "{}", remote_config).unwrap();
 
@@ -154,13 +156,16 @@ agents:
             dynamic: HashMap::from([(
                 AgentID::new("rolldice").unwrap(),
                 SubAgentConfig {
-                    agent_type: AgentTypeFQN::from("com.newrelic.infrastructure_agent:0.0.2"),
+                    agent_type: AgentTypeFQN::try_from(
+                        "namespace/com.newrelic.infrastructure_agent:0.0.2",
+                    )
+                    .unwrap(),
                 },
             )])
             .into(),
             opamp: Some(OpAMPClientConfig {
-                endpoint: "http://127.0.0.1/v1/opamp".to_string(),
-                headers: None,
+                endpoint: Url::try_from("http://127.0.0.1/v1/opamp").unwrap(),
+                headers: HeaderMap::default(),
             }),
             k8s: None,
             ..Default::default()
