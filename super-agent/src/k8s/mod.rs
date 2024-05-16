@@ -1,6 +1,6 @@
 pub use error::K8sError as Error;
 pub mod client;
-mod dynamic_resource;
+mod dynamic_object;
 pub mod error;
 pub mod garbage_collector;
 pub mod labels;

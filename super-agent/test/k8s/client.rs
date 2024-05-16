@@ -44,7 +44,7 @@ async fn k8s_create_dynamic_resource() {
             .unwrap();
 
     k8s_client
-        .dynamics()
+        .dynamic_object_managers()
         .try_get(&foo_type_meta())
         .unwrap()
         .apply(&obj)
@@ -72,7 +72,7 @@ async fn k8s_get_dynamic_resource() {
 
     assert!(
         k8s_client
-            .dynamics()
+            .dynamic_object_managers()
             .try_get(&foo_type_meta())
             .unwrap()
             .get(cr_name)
@@ -83,7 +83,7 @@ async fn k8s_get_dynamic_resource() {
     create_foo_cr(test.client.to_owned(), test_ns.as_str(), cr_name, None).await;
 
     let cr = k8s_client
-        .dynamics()
+        .dynamic_object_managers()
         .try_get(&foo_type_meta())
         .unwrap()
         .get(cr_name)
@@ -101,7 +101,7 @@ async fn k8s_get_dynamic_resource() {
 
     assert!(
         k8s_client
-            .dynamics()
+            .dynamic_object_managers()
             .try_get(&foo_type_meta())
             .unwrap()
             .get(cr_name)
@@ -125,7 +125,7 @@ async fn k8s_dynamic_resource_has_changed() {
 
     assert!(
         k8s_client
-            .dynamics()
+            .dynamic_object_managers()
             .try_get(&foo_type_meta())
             .unwrap()
             .get(cr_name)
@@ -136,7 +136,7 @@ async fn k8s_dynamic_resource_has_changed() {
     create_foo_cr(test.client.to_owned(), test_ns.as_str(), cr_name, None).await;
 
     let cr = k8s_client
-        .dynamics()
+        .dynamic_object_managers()
         .try_get(&foo_type_meta())
         .unwrap()
         .get(cr_name)
@@ -144,7 +144,7 @@ async fn k8s_dynamic_resource_has_changed() {
 
     assert!(
         !k8s_client
-            .dynamics()
+            .dynamic_object_managers()
             .try_get(&foo_type_meta())
             .unwrap()
             .has_changed(cr.as_ref())
@@ -162,7 +162,7 @@ async fn k8s_dynamic_resource_has_changed() {
 
     assert!(
         k8s_client
-            .dynamics()
+            .dynamic_object_managers()
             .try_get(&foo_type_meta())
             .unwrap()
             .has_changed(&cr_labels_modified)
@@ -180,7 +180,7 @@ async fn k8s_dynamic_resource_has_changed() {
 
     assert!(
         k8s_client
-            .dynamics()
+            .dynamic_object_managers()
             .try_get(&foo_type_meta())
             .unwrap()
             .has_changed(&cr_specs_modified)
@@ -204,7 +204,7 @@ async fn k8s_delete_dynamic_resource() {
             .unwrap();
 
     k8s_client
-        .dynamics()
+        .dynamic_object_managers()
         .try_get(&foo_type_meta())
         .unwrap()
         .delete(cr_name)
@@ -233,7 +233,7 @@ async fn k8s_patch_dynamic_resource() {
             .await
             .unwrap();
     k8s_client
-        .dynamics()
+        .dynamic_object_managers()
         .try_get(&foo_type_meta())
         .unwrap()
         .apply(&obj)
@@ -277,7 +277,7 @@ async fn k8s_patch_dynamic_resource_metadata() {
             .await
             .unwrap();
     k8s_client
-        .dynamics()
+        .dynamic_object_managers()
         .try_get(&foo_type_meta())
         .unwrap()
         .apply(&obj)

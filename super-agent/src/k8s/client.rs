@@ -1,5 +1,5 @@
 use super::{
-    dynamic_resource::{DynamicResource, DynamicResources},
+    dynamic_object::{DynamicObjectManager, DynamicObjectManagers},
     error::K8sError,
     reflector::{definition::ReflectorBuilder, resources::Reflectors},
 };
@@ -52,26 +52,28 @@ impl SyncK8sClient {
     }
 
     /// helper to get the dynamic resource corresponding to a dynamic object.
-    fn dynamic_resource<'a>(
+    fn dynamic_object_manager<'a>(
         &'a self,
         obj: &DynamicObject,
-    ) -> Result<&'a DynamicResource, K8sError> {
+    ) -> Result<&'a DynamicObjectManager, K8sError> {
         let type_meta = get_type_meta(obj)?;
-        self.async_client.dynamics.try_get(&type_meta)
+        self.async_client
+            .dynamic_object_managers
+            .try_get(&type_meta)
     }
 
     pub fn apply_dynamic_object(&self, obj: &DynamicObject) -> Result<(), K8sError> {
         self.runtime
-            .block_on(self.dynamic_resource(obj)?.apply(obj))
+            .block_on(self.dynamic_object_manager(obj)?.apply(obj))
     }
 
     pub fn has_dynamic_object_changed(&self, obj: &DynamicObject) -> Result<bool, K8sError> {
-        self.dynamic_resource(obj)?.has_changed(obj)
+        self.dynamic_object_manager(obj)?.has_changed(obj)
     }
 
     pub fn apply_dynamic_object_if_changed(&self, obj: &DynamicObject) -> Result<(), K8sError> {
         self.runtime
-            .block_on(self.dynamic_resource(obj)?.apply_if_changed(obj))
+            .block_on(self.dynamic_object_manager(obj)?.apply_if_changed(obj))
     }
 
     pub fn get_dynamic_object(
@@ -79,7 +81,11 @@ impl SyncK8sClient {
         tm: &TypeMeta,
         name: &str,
     ) -> Result<Option<Arc<DynamicObject>>, K8sError> {
-        Ok(self.async_client.dynamics.try_get(tm)?.get(name))
+        Ok(self
+            .async_client
+            .dynamic_object_managers
+            .try_get(tm)?
+            .get(name))
     }
 
     pub fn delete_dynamic_object_collection(
@@ -89,7 +95,7 @@ impl SyncK8sClient {
     ) -> Result<(), K8sError> {
         self.runtime.block_on(
             self.async_client
-                .dynamics
+                .dynamic_object_managers
                 .try_get(tm)?
                 .delete_by_label_selector(label_selector),
         )
@@ -137,7 +143,9 @@ impl SyncK8sClient {
     }
 
     pub fn supported_type_meta_collection(&self) -> Vec<TypeMeta> {
-        self.async_client.dynamics().supported_dynamic_type_metas()
+        self.async_client
+            .dynamic_object_managers()
+            .supported_dynamic_type_metas()
     }
 
     pub fn list_stateful_set(&self) -> Result<ObjectList<StatefulSet>, K8sError> {
@@ -152,7 +160,7 @@ impl SyncK8sClient {
 pub struct AsyncK8sClient {
     client: Client,
     reflectors: Reflectors,
-    dynamics: DynamicResources,
+    dynamic_object_managers: DynamicObjectManagers,
 }
 
 impl AsyncK8sClient {
@@ -192,12 +200,17 @@ impl AsyncK8sClient {
         Ok(Self {
             client: client.clone(),
             reflectors: Reflectors::try_new(&reflector_builder).await?,
-            dynamics: DynamicResources::try_new(type_metas, &client, &reflector_builder).await?,
+            dynamic_object_managers: DynamicObjectManagers::try_new(
+                type_metas,
+                &client,
+                &reflector_builder,
+            )
+            .await?,
         })
     }
 
-    pub fn dynamics(&self) -> &DynamicResources {
-        &self.dynamics
+    pub fn dynamic_object_managers(&self) -> &DynamicObjectManagers {
+        &self.dynamic_object_managers
     }
 
     pub fn reflectors(&self) -> &Reflectors {
@@ -413,9 +426,13 @@ pub(crate) mod test {
         AsyncK8sClient {
             client: client.clone(),
             reflectors: Reflectors::try_new(&reflector_builder).await.unwrap(),
-            dynamics: DynamicResources::try_new(dynamic_types, &client, &reflector_builder)
-                .await
-                .unwrap(),
+            dynamic_object_managers: DynamicObjectManagers::try_new(
+                dynamic_types,
+                &client,
+                &reflector_builder,
+            )
+            .await
+            .unwrap(),
         }
     }
 

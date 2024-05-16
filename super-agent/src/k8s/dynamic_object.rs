@@ -1,3 +1,5 @@
+//! This module holds helpers and to perform k8s operations with resources whose type is known at runtime
+//! (DynamicObjects).
 use std::{collections::HashMap, str::FromStr, sync::Arc};
 
 use kube::{
@@ -17,16 +19,16 @@ use super::{
 /// An abstraction of [DynamicObject] that allow performing operations concerning objects known at Runtime either
 /// using the k8s API or a [Reflector].
 #[derive(Debug)]
-pub struct DynamicResource {
+pub struct DynamicObjectManager {
     api: Api<DynamicObject>,
     reflector: Reflector<DynamicObject>,
 }
 
-/// [DynamicResource] collection. Each resource is accessible through the corresponding [TypeMeta].
+/// [DynamicObjectManager] collection. Each resource is accessible through the corresponding [TypeMeta].
 #[derive(Debug)]
-pub struct DynamicResources(HashMap<TypeMeta, DynamicResource>);
+pub struct DynamicObjectManagers(HashMap<TypeMeta, DynamicObjectManager>);
 
-impl DynamicResource {
+impl DynamicObjectManager {
     pub async fn try_new(
         api_resource: &ApiResource,
         client: kube::Client,
@@ -80,9 +82,8 @@ impl DynamicResource {
             })?
             .and_modify(|obj_old| {
                 obj_old.data.clone_from(&obj.data);
-                // TODO: update comment.
-                // We are updating just particular metadata fields, the ones that are supported currently by the config
-                // Moreover, if you add a new one you need to consider them in has_dynamic_object_changed
+                // We are updating just particular metadata fields, the ones that are supported currently by the config.
+                // Moreover, if you add a new one you need to consider them in in the `has_changed` method.
                 obj_old.metadata.labels.clone_from(&obj.metadata.labels);
             })
             .or_insert(|| obj.clone())
@@ -124,7 +125,7 @@ impl DynamicResource {
     }
 }
 
-impl DynamicResources {
+impl DynamicObjectManagers {
     pub async fn try_new(
         dynamic_types: impl IntoIterator<Item = TypeMeta>,
         client: &kube::Client,
@@ -149,7 +150,7 @@ impl DynamicResources {
 
             inner.insert(
                 type_meta,
-                DynamicResource::try_new(&api_resource, client.to_owned(), builder).await?,
+                DynamicObjectManager::try_new(&api_resource, client.to_owned(), builder).await?,
             );
         }
         Ok(Self(inner))
@@ -159,7 +160,7 @@ impl DynamicResources {
         self.0.keys().cloned().collect()
     }
 
-    pub fn try_get(&self, type_meta: &TypeMeta) -> Result<&DynamicResource, K8sError> {
+    pub fn try_get(&self, type_meta: &TypeMeta) -> Result<&DynamicObjectManager, K8sError> {
         let ds = self.0.get(type_meta).ok_or_else(|| {
             K8sError::UnexpectedKind(format!("no reflector for type {:?}", type_meta))
         })?;
@@ -176,7 +177,7 @@ mod test {
 
     #[test]
     fn test_error_on_missing_resource_definition() {
-        let dynamics = DynamicResources(HashMap::default());
+        let dynamics = DynamicObjectManagers(HashMap::default());
         let type_meta = TypeMeta {
             api_version: "newrelic.com/v1".to_string(),
             kind: "Foo".to_string(),
