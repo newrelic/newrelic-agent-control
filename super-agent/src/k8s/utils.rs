@@ -69,6 +69,40 @@ impl TryFrom<String> for IntOrPercentage {
     }
 }
 
+impl IntOrPercentage {
+    /// Returns a scaled value from an IntOrPercentage type. If the IntOrPercentage is a percentage
+    /// it's treated as a percentage and scaled appropriately in accordance to the total, if it's
+    /// an int value it's treated as a simple value.
+    ///
+    /// This function mimics a missing function from apimachinery that rust does not have but
+    /// go-client has:
+    /// https://pkg.go.dev/k8s.io/apimachinery/pkg/util/intstr#GetScaledValueFromIntOrPercent
+    ///
+    /// ```
+    /// use newrelic_super_agent::k8s::utils::IntOrPercentage;
+
+    /// let int = IntOrPercentage::try_from("5").unwrap();
+    /// let percent = IntOrPercentage::try_from("33%").unwrap();
+    /// let total = 20;
+    ///
+    /// assert_eq!(int.get_scaled_value_from_int_or_percent(total, false), 5);
+    /// assert_eq!(percent.get_scaled_value_from_int_or_percent(total, false), 6);
+    /// assert_eq!(percent.get_scaled_value_from_int_or_percent(total, true), 7);
+    /// ```
+    pub fn get_scaled_value_from_int_or_percent(&self, total: i32, round_up: bool) -> i32 {
+        match self {
+            IntOrPercentage::Int(i) => *i,
+            IntOrPercentage::Percentage(percent) => {
+                if round_up {
+                    (total as f32 * *percent).ceil() as i32
+                } else {
+                    (total as f32 * *percent).floor() as i32
+                }
+            }
+        }
+    }
+}
+
 impl std::fmt::Display for IntOrPercentage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
