@@ -12,7 +12,7 @@ use thiserror::Error;
 use tracing::{error, info};
 
 use super::callbacks::AgentCallbacks;
-use super::http::builder::HttpClientBuilder;
+use super::http::builder::{HttpClientBuilder, HttpClientBuilderError};
 
 #[derive(Error, Debug)]
 pub enum OpAMPClientBuilderError {
@@ -30,6 +30,8 @@ pub enum OpAMPClientBuilderError {
     SystemTimeError(#[from] SystemTimeError),
     #[error("error getting agent ulid: `{0}`")]
     GetUlidError(#[from] instance_id::GetterError),
+    #[error("error building http client: `{0}`")]
+    HttpClientBuilderError(#[from] HttpClientBuilderError),
 }
 
 pub trait OpAMPClientBuilder<CB>
@@ -89,6 +91,11 @@ where
 #[cfg(test)]
 pub(crate) mod test {
     use super::*;
+    use crate::event::channel::pub_sub;
+    use crate::opamp::http::auth_token_retriever::test::MockTokenRetrieverBuilderMock;
+    use crate::opamp::http::auth_token_retriever::TokenRetrieverBuilderError;
+    use crate::opamp::http::builder::DefaultHttpClientBuilder;
+    use http::HeaderMap;
     use mockall::{mock, predicate};
     use opamp_client::operation::settings::StartSettings;
     use opamp_client::ClientError;
@@ -97,6 +104,7 @@ pub(crate) mod test {
         Client, ClientResult, NotStartedClient, NotStartedClientResult, StartedClient,
         StartedClientResult,
     };
+    use url::Url;
 
     mock! {
         pub NotStartedOpAMPClientMock {}
@@ -215,6 +223,37 @@ pub(crate) mod test {
                 )
                 .once()
                 .return_once(move |_, _, _| Ok(client));
+        }
+    }
+
+    #[test]
+    fn test_build_and_start_http_client_builder_fails() {
+        let opamp_config = OpAMPClientConfig {
+            headers: HeaderMap::default(),
+            endpoint: Url::parse("http://example.com").unwrap(),
+        };
+
+        let mut token_retriever_builder = MockTokenRetrieverBuilderMock::default();
+        token_retriever_builder.should_fail_on_build(TokenRetrieverBuilderError::BuildingError(
+            String::from("this is an error"),
+        ));
+
+        let http_client_builder =
+            DefaultHttpClientBuilder::new(opamp_config.clone(), token_retriever_builder);
+        let builder = DefaultOpAMPClientBuilder::new(opamp_config, http_client_builder);
+
+        let (tx, _rx) = pub_sub();
+        let agent_id = AgentID::new_super_agent_id();
+        let start_settings = StartSettings::default();
+
+        let res = builder.build_and_start(tx, agent_id, start_settings);
+        // cannot use unwrap_err here :(
+        // the trait `std::fmt::Debug` is not implemented for `StartedHttpClient<opamp::callbacks::AgentCallbacks, opamp::http::client::HttpClientUreq<MockTokenRetrieverMock>>`
+        match res {
+            Err(e) => {
+                assert_eq!("error building http client: ``errors building the TokenRetriever: `this is an error```", e.to_string())
+            }
+            _ => panic!(""),
         }
     }
 }

@@ -1,36 +1,94 @@
-use opamp_client::http::{http_client::HttpClient, HttpClientError};
+use http::{HeaderMap, HeaderValue};
+use std::time::Duration;
 
+use opamp_client::http::http_client::HttpClient;
+use ureq::Agent;
+
+use crate::opamp::http::auth_token_retriever::TokenRetrieverBuilder;
 use crate::super_agent::config::OpAMPClientConfig;
 
 use super::client::HttpClientUreq;
 
+/// Default client timeout is 30 seconds
+const DEFAULT_CLIENT_TIMEOUT: Duration = Duration::from_secs(30);
+
+#[derive(thiserror::Error, Debug)]
+pub enum HttpClientBuilderError {
+    #[error("`{0}`")]
+    BuildingError(String),
+}
+
 pub trait HttpClientBuilder {
     type Client: HttpClient + Send + Sync + 'static;
 
-    fn build(&self) -> Result<Self::Client, HttpClientError>;
+    fn build(&self) -> Result<Self::Client, HttpClientBuilderError>;
 }
 
 #[derive(Debug, Clone)]
-pub struct DefaultHttpClientBuilder {
+pub struct DefaultHttpClientBuilder<TB> {
     config: OpAMPClientConfig,
+    token_retriever_builder: TB,
 }
 
-impl DefaultHttpClientBuilder {
-    pub fn new(config: OpAMPClientConfig) -> Self {
-        Self { config }
+impl<TB> DefaultHttpClientBuilder<TB>
+where
+    TB: TokenRetrieverBuilder,
+{
+    pub fn new(config: OpAMPClientConfig, token_retriever_builder: TB) -> Self {
+        Self {
+            config,
+            token_retriever_builder,
+        }
+    }
+
+    /// Return the headers from the configuration + the Content-Type header
+    /// necessary for OpAMP (application/x-protobuf)
+    fn headers(&self) -> HeaderMap {
+        let mut headers = self.config.headers.clone();
+        // Add headers for protobuf wire format communication
+        headers.insert(
+            "Content-Type",
+            HeaderValue::from_static("application/x-protobuf"),
+        );
+        headers
     }
 }
 
-impl HttpClientBuilder for DefaultHttpClientBuilder {
-    type Client = HttpClientUreq;
-    fn build(&self) -> Result<Self::Client, HttpClientError> {
-        Ok(HttpClientUreq::from(&self.config))
+impl<TB> HttpClientBuilder for DefaultHttpClientBuilder<TB>
+where
+    TB: TokenRetrieverBuilder,
+{
+    type Client = HttpClientUreq<TB::TokenRetriever>;
+
+    /// Build the HTTP Client. It will contain a Token Retriever, so in all
+    /// post requests a Token will be retrieved from Identity System Service
+    /// and injected as authorization header.
+    fn build(&self) -> Result<Self::Client, HttpClientBuilderError> {
+        let client = build_ureq_client();
+        let url = self.config.endpoint.clone();
+        let headers = self.headers();
+        let token_retriever = self
+            .token_retriever_builder
+            .build()
+            .map_err(|e| HttpClientBuilderError::BuildingError(e.to_string()))?;
+
+        Ok(HttpClientUreq::new(client, url, headers, token_retriever))
     }
+}
+
+pub(super) fn build_ureq_client() -> Agent {
+    ureq::AgentBuilder::new()
+        .timeout_connect(DEFAULT_CLIENT_TIMEOUT)
+        .timeout(DEFAULT_CLIENT_TIMEOUT)
+        .build()
 }
 
 #[cfg(test)]
 pub(crate) mod test {
-    use std::io;
+    use http::{HeaderMap, Response};
+    use mockall::mock;
+    use opamp_client::http::HttpClientError;
+    use opamp_client::operation::settings::StartSettings;
 
     use crate::{
         event::channel::pub_sub,
@@ -39,14 +97,11 @@ pub(crate) mod test {
     };
 
     use super::*;
-    use http::{HeaderMap, Response};
-    use mockall::mock;
-    use opamp_client::operation::settings::StartSettings;
 
     // Mock the HttpClient
     mock! {
-        pub HttpClientUreqMock {}
-        impl HttpClient for HttpClientUreqMock {
+        pub HttpClientMock {}
+        impl HttpClient for HttpClientMock {
             fn post(&self, body: Vec<u8>) -> Result<Response<Vec<u8>>, HttpClientError>;
         }
     }
@@ -55,14 +110,14 @@ pub(crate) mod test {
     mock! {
         pub HttpClientBuilderMock {}
         impl HttpClientBuilder for HttpClientBuilderMock {
-            type Client = MockHttpClientUreqMock;
-            fn build(&self) -> Result<MockHttpClientUreqMock, HttpClientError>;
+            type Client = MockHttpClientMock;
+            fn build(&self) -> Result<MockHttpClientMock, HttpClientBuilderError>;
         }
     }
 
     #[test]
     fn test_default_http_client_builder() {
-        let mut http_client = MockHttpClientUreqMock::new();
+        let mut http_client = MockHttpClientMock::default();
         let mut http_builder = MockHttpClientBuilderMock::new();
         let opamp_config = OpAMPClientConfig {
             endpoint: "http://localhost".try_into().unwrap(),
@@ -101,9 +156,8 @@ pub(crate) mod test {
 
         // Define http builder behavior for this test
         http_builder.expect_build().times(1).return_once(|| {
-            Err(HttpClientError::IOError(io::Error::new(
-                io::ErrorKind::Other,
-                "test",
+            Err(HttpClientBuilderError::BuildingError(String::from(
+                "bad config",
             )))
         });
 
@@ -117,8 +171,8 @@ pub(crate) mod test {
             panic!("Expected an error");
         };
         assert_eq!(
-            err.to_string(),
-            "unable to create OpAMP HTTP client: ``test``"
+            "error building http client: ``bad config``",
+            err.to_string()
         );
     }
 }

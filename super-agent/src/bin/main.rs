@@ -2,6 +2,7 @@ use newrelic_super_agent::cli::Cli;
 use newrelic_super_agent::event::channel::{pub_sub, EventConsumer, EventPublisher};
 use newrelic_super_agent::event::{ApplicationEvent, SuperAgentEvent};
 use newrelic_super_agent::opamp::client_builder::DefaultOpAMPClientBuilder;
+use newrelic_super_agent::opamp::http::auth_token_retriever::TokenRetrieverBuilderDefault;
 use newrelic_super_agent::opamp::http::builder::DefaultHttpClientBuilder;
 use newrelic_super_agent::opamp::http::builder::HttpClientBuilder;
 use newrelic_super_agent::opamp::instance_id::getter::ULIDInstanceIDGetter;
@@ -96,7 +97,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let opamp_client_builder: Option<DefaultOpAMPClientBuilder<_>> =
         super_agent_config.opamp.as_ref().map(|opamp_config| {
-            let http_builder = DefaultHttpClientBuilder::new(opamp_config.clone());
+            let token_retriever_builder = TokenRetrieverBuilderDefault;
+            let http_builder =
+                DefaultHttpClientBuilder::new(opamp_config.clone(), token_retriever_builder);
             DefaultOpAMPClientBuilder::new(opamp_config.clone(), http_builder)
         });
 
