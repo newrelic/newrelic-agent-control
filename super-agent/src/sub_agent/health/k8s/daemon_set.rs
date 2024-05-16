@@ -220,10 +220,7 @@ pub mod test {
             TestCase {
                 name: "ds without spec",
                 ds: DaemonSet {
-                    metadata: ObjectMeta {
-                        name: Some(String::from("test")),
-                        ..Default::default()
-                    },
+                    metadata: test_util_get_common_metadata(),
                     spec: None,
                     status: Some(DaemonSetStatus {
                         ..Default::default()
@@ -234,10 +231,7 @@ pub mod test {
             TestCase {
                 name: "ds without update strategy",
                 ds: DaemonSet {
-                    metadata: ObjectMeta {
-                        name: Some(String::from("test")),
-                        ..Default::default()
-                    },
+                    metadata: test_util_get_common_metadata(),
                     spec: Some(DaemonSetSpec {
                         update_strategy: None,
                         ..Default::default()
@@ -251,10 +245,7 @@ pub mod test {
             TestCase {
                 name: "ds with unknown update strategy",
                 ds: DaemonSet {
-                    metadata: ObjectMeta {
-                        name: Some(String::from("test")),
-                        ..Default::default()
-                    },
+                    metadata: test_util_get_common_metadata(),
                     spec: Some(DaemonSetSpec {
                         update_strategy: Some(DaemonSetUpdateStrategy {
                             type_: Some(String::from("Unknown-TEST")),
@@ -271,10 +262,7 @@ pub mod test {
             TestCase {
                 name: "ds which update strategy is rolling but has no struct",
                 ds: DaemonSet {
-                    metadata: ObjectMeta {
-                        name: Some(String::from("test")),
-                        ..Default::default()
-                    },
+                    metadata: test_util_get_common_metadata(),
                     spec: Some(DaemonSetSpec {
                         update_strategy: Some(DaemonSetUpdateStrategy {
                             type_: Some(ROLLING_UPDATE.to_string()),
@@ -291,10 +279,7 @@ pub mod test {
             TestCase {
                 name: "ds update strategy policy has non-parsable max_unavailable",
                 ds: DaemonSet {
-                    metadata: ObjectMeta {
-                        name: Some(String::from("test")),
-                        ..Default::default()
-                    },
+                    metadata: test_util_get_common_metadata(),
                     spec: Some(DaemonSetSpec {
                         update_strategy: Some(DaemonSetUpdateStrategy {
                             type_: Some(ROLLING_UPDATE.to_string()),
@@ -317,10 +302,7 @@ pub mod test {
             TestCase {
                 name: "ds which update strategy is rolling but has no struct",
                 ds: DaemonSet {
-                    metadata: ObjectMeta {
-                        name: Some(String::from("test")),
-                        ..Default::default()
-                    },
+                    metadata: test_util_get_common_metadata(),
                     spec: Some(DaemonSetSpec {
                         update_strategy: Some(DaemonSetUpdateStrategy {
                             type_: Some(ROLLING_UPDATE.to_string()),
@@ -366,10 +348,7 @@ pub mod test {
             TestCase {
                 name: "ds without status",
                 ds: DaemonSet {
-                    metadata: ObjectMeta {
-                        name: Some(String::from("test")),
-                        ..Default::default()
-                    },
+                    metadata: test_util_get_common_metadata(),
                     spec: None,
                     status: None,
                 },
@@ -381,10 +360,7 @@ pub mod test {
             TestCase {
                 name: "ds has on delete update strategy type",
                 ds: DaemonSet {
-                    metadata: ObjectMeta {
-                        name: Some(String::from("test")),
-                        ..Default::default()
-                    },
+                    metadata: test_util_get_common_metadata(),
                     spec: Some(DaemonSetSpec {
                         update_strategy: Some(DaemonSetUpdateStrategy {
                             type_: Some(ON_DELETE.to_string()),
@@ -403,10 +379,7 @@ pub mod test {
             TestCase {
                 name: "ds without updated_number_scheduled",
                 ds: DaemonSet {
-                    metadata: ObjectMeta {
-                        name: Some(String::from("test")),
-                        ..Default::default()
-                    },
+                    metadata: test_util_get_common_metadata(),
                     spec: Some(DaemonSetSpec {
                         update_strategy: Some(DaemonSetUpdateStrategy{
                             type_: Some(ROLLING_UPDATE.to_string()),
@@ -428,10 +401,7 @@ pub mod test {
             TestCase {
                 name: "ds with no unschedulable pods",
                 ds: DaemonSet {
-                    metadata: ObjectMeta {
-                        name: Some(String::from("test")),
-                        ..Default::default()
-                    },
+                    metadata: test_util_get_common_metadata(),
                     spec: Some(DaemonSetSpec {
                         update_strategy: Some(DaemonSetUpdateStrategy {
                             type_: Some(ROLLING_UPDATE.to_string()),
@@ -457,10 +427,7 @@ pub mod test {
             TestCase {
                 name: "ds without max_unavailable",
                 ds: DaemonSet {
-                    metadata: ObjectMeta {
-                        name: Some(String::from("test")),
-                        ..Default::default()
-                    },
+                    metadata: test_util_get_common_metadata(),
                     spec: Some(DaemonSetSpec {
                         update_strategy: Some(DaemonSetUpdateStrategy {
                             type_: Some(ROLLING_UPDATE.to_string()),
@@ -486,10 +453,7 @@ pub mod test {
             TestCase {
                 name: "unhealthy ds with int max_unavailable",
                 ds: DaemonSet {
-                    metadata: ObjectMeta {
-                        name: Some(String::from("test")),
-                        ..Default::default()
-                    },
+                    metadata: test_util_get_common_metadata(),
                     spec: Some(DaemonSetSpec {
                         update_strategy: Some(DaemonSetUpdateStrategy {
                             type_: Some(ROLLING_UPDATE.to_string()),
@@ -517,10 +481,7 @@ pub mod test {
             TestCase {
                 name: "unhealthy ds with percent max_unavailable",
                 ds: DaemonSet {
-                    metadata: ObjectMeta {
-                        name: Some(String::from("test")),
-                        ..Default::default()
-                    },
+                    metadata: test_util_get_common_metadata(),
                     spec: Some(DaemonSetSpec {
                         update_strategy: Some(DaemonSetUpdateStrategy {
                             type_: Some(ROLLING_UPDATE.to_string()),
@@ -548,10 +509,7 @@ pub mod test {
             TestCase {
                 name: "healthy ds with int max_unavailable",
                 ds: DaemonSet {
-                    metadata: ObjectMeta {
-                        name: Some(String::from("test")),
-                        ..Default::default()
-                    },
+                    metadata: test_util_get_common_metadata(),
                     spec: Some(DaemonSetSpec {
                         update_strategy: Some(DaemonSetUpdateStrategy {
                             type_: Some(ROLLING_UPDATE.to_string()),
@@ -576,10 +534,7 @@ pub mod test {
             TestCase {
                 name: "healthy ds with percent max_unavailable",
                 ds: DaemonSet {
-                    metadata: ObjectMeta {
-                        name: Some(String::from("test")),
-                        ..Default::default()
-                    },
+                    metadata: test_util_get_common_metadata(),
                     spec: Some(DaemonSetSpec {
                         update_strategy: Some(DaemonSetUpdateStrategy {
                             type_: Some(ROLLING_UPDATE.to_string()),
@@ -604,5 +559,12 @@ pub mod test {
         ];
 
         test_cases.into_iter().for_each(|tc| tc.run());
+    }
+
+    fn test_util_get_common_metadata() -> ObjectMeta {
+        ObjectMeta {
+            name: Some(String::from("test")),
+            ..Default::default()
+        }
     }
 }
