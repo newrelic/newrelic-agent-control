@@ -55,6 +55,8 @@ deployment:
             path: "${nr-var:health_check.path}"
             port: ${nr-var:health_check.port}
   k8s:
+    health:
+      interval: 30s
     objects:
       repository:
         apiVersion: source.toolkit.fluxcd.io/v1beta2
