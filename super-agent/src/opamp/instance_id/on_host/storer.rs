@@ -45,11 +45,11 @@ pub enum StorerError {
 
 fn get_uild_path(agent_id: &AgentID) -> PathBuf {
     if agent_id.is_super_agent_id() {
-        PathBuf::from(SUPER_AGENT_IDENTIFIERS_PATH)
+        PathBuf::from(SUPER_AGENT_IDENTIFIERS_PATH())
     } else {
         PathBuf::from(format!(
             "{}/{}/identifiers.yaml",
-            REMOTE_AGENT_DATA_DIR,
+            REMOTE_AGENT_DATA_DIR(),
             agent_id.get()
         ))
     }
@@ -146,12 +146,12 @@ mod test {
         let path = get_uild_path(&agent_id);
         assert_eq!(
             path,
-            PathBuf::from(format!("{}/test/identifiers.yaml", REMOTE_AGENT_DATA_DIR))
+            PathBuf::from(format!("{}/test/identifiers.yaml", REMOTE_AGENT_DATA_DIR()))
         );
 
         let super_agent_id = AgentID::new_super_agent_id();
         let path = get_uild_path(&super_agent_id);
-        assert_eq!(path, PathBuf::from(SUPER_AGENT_IDENTIFIERS_PATH));
+        assert_eq!(path, PathBuf::from(SUPER_AGENT_IDENTIFIERS_PATH()));
     }
 
     #[test]

@@ -85,7 +85,7 @@ impl SuperAgentConfigStoreFile {
     pub fn with_remote(self) -> Self {
         let remote_path = format!(
             "{}/{}",
-            crate::super_agent::defaults::SUPER_AGENT_DATA_DIR,
+            crate::super_agent::defaults::SUPER_AGENT_DATA_DIR(),
             "config.yaml"
         );
 

@@ -54,8 +54,8 @@ impl Default for ValuesRepositoryFile<LocalFile, DirectoryManagerFs> {
         ValuesRepositoryFile {
             directory_manager: DirectoryManagerFs {},
             file_rw: LocalFile,
-            remote_conf_path: REMOTE_AGENT_DATA_DIR.to_string(),
-            local_conf_path: LOCAL_AGENT_DATA_DIR.to_string(),
+            remote_conf_path: REMOTE_AGENT_DATA_DIR().to_string(),
+            local_conf_path: LOCAL_AGENT_DATA_DIR().to_string(),
             remote_enabled: false,
         }
     }
@@ -83,7 +83,10 @@ where
     pub fn get_values_file_path(&self, agent_id: &AgentID) -> PathBuf {
         PathBuf::from(format!(
             "{}/{}/{}/{}",
-            self.local_conf_path, agent_id, VALUES_DIR, VALUES_FILE
+            self.local_conf_path,
+            agent_id,
+            VALUES_DIR(),
+            VALUES_FILE()
         ))
     }
 
@@ -94,7 +97,10 @@ where
         // be recreated each time a remote config is received, leaving the other files untouched.
         PathBuf::from(format!(
             "{}/{}/{}/{}",
-            self.remote_conf_path, agent_id, VALUES_DIR, VALUES_FILE
+            self.remote_conf_path,
+            agent_id,
+            VALUES_DIR(),
+            VALUES_FILE()
         ))
     }
 

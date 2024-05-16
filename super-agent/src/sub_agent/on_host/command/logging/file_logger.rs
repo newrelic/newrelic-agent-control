@@ -32,7 +32,7 @@ where
 
 impl FileAppender<RollingFileAppender> {
     pub fn new(agent_id: &AgentID, file_prefix: impl AsRef<Path>) -> Self {
-        let logging_path = Path::new(SUB_AGENT_LOG_DIR).join(agent_id);
+        let logging_path = Path::new(SUB_AGENT_LOG_DIR()).join(agent_id);
         let file_appender = tracing_appender::rolling::hourly(logging_path, file_prefix);
         Self(file_appender)
     }

@@ -248,7 +248,7 @@ fn k8s_garbage_collector_does_not_remove_super_agent() {
     // Expects the GC do not clean any resource related to the SA.
     gc.collect().unwrap();
     let api: Api<Foo> = Api::namespaced(test.client.clone(), &test_ns);
-    block_on(api.get(SUPER_AGENT_ID)).expect("CR should exist");
+    block_on(api.get(SUPER_AGENT_ID())).expect("CR should exist");
     assert_eq!(
         sa_ulid,
         instance_id_getter.get(sa_id).unwrap(),

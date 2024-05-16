@@ -39,7 +39,7 @@ where
     let parent_instance_id = instance_id_getter.get(&super_agent_id)?.to_string();
 
     non_identifying_attributes.insert(
-        PARENT_AGENT_ID_ATTRIBUTE_KEY.to_string(),
+        PARENT_AGENT_ID_ATTRIBUTE_KEY().to_string(),
         DescriptionValueType::String(parent_instance_id),
     );
 

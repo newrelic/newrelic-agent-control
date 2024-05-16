@@ -62,7 +62,7 @@ impl HashRepositoryFile<LocalFile, DirectoryManagerFs> {
 
 impl Default for HashRepositoryFile {
     fn default() -> Self {
-        HashRepositoryFile::new(SUPER_AGENT_DATA_DIR.to_string())
+        HashRepositoryFile::new(SUPER_AGENT_DATA_DIR().to_string())
     }
 }
 
@@ -98,7 +98,7 @@ where
 
 impl HashRepositoryFile {
     pub fn new_sub_agent_repository() -> Self {
-        HashRepositoryFile::new(REMOTE_AGENT_DATA_DIR.to_string())
+        HashRepositoryFile::new(REMOTE_AGENT_DATA_DIR().to_string())
     }
 }
 

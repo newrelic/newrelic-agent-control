@@ -12,6 +12,22 @@ pub struct Cli {
 
     #[arg(long)]
     version: bool,
+
+    #[cfg(debug_assertions)]
+    #[arg(long)]
+    pub local_dir: Option<PathBuf>,
+
+    #[cfg(debug_assertions)]
+    #[arg(long)]
+    pub remote_dir: Option<PathBuf>,
+
+    #[cfg(debug_assertions)]
+    #[arg(long)]
+    pub logs_dir: Option<PathBuf>,
+
+    #[cfg(debug_assertions)]
+    #[arg(long, value_name = "DATA_DIR")]
+    pub debug: Option<PathBuf>,
 }
 
 impl Cli {

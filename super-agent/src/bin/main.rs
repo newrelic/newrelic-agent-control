@@ -10,6 +10,8 @@ use newrelic_super_agent::sub_agent::effective_agents_assembler::LocalEffectiveA
 use newrelic_super_agent::sub_agent::event_processor_builder::EventProcessorBuilder;
 use newrelic_super_agent::super_agent::config_storer::storer::SuperAgentConfigLoader;
 use newrelic_super_agent::super_agent::config_storer::SuperAgentConfigStoreFile;
+#[cfg(debug_assertions)]
+use newrelic_super_agent::super_agent::defaults;
 use newrelic_super_agent::super_agent::defaults::{
     FLEET_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
 };
@@ -36,6 +38,24 @@ fn main() -> Result<(), Box<dyn Error>> {
     if cli.print_version() {
         println!("{}", binary_metadata());
         return Ok(());
+    }
+
+    #[cfg(debug_assertions)]
+    {
+        // Changing default directories if configured in CLI args
+        // Explicit location flags get precedence over the general `debug`
+        if let Some(ref local_path) = cli.local_dir {
+            defaults::set_local_dir(local_path);
+        }
+        if let Some(ref remote_path) = cli.remote_dir {
+            defaults::set_remote_dir(remote_path);
+        }
+        if let Some(ref log_path) = cli.logs_dir {
+            defaults::set_log_dir(log_path);
+        }
+        if let Some(ref debug_path) = cli.debug {
+            defaults::set_debug_mode_dirs(debug_path);
+        }
     }
 
     let sa_local_config_storer = SuperAgentConfigStoreFile::new(&cli.get_config_path());
@@ -349,11 +369,11 @@ fn super_agent_opamp_non_identifying_attributes(
 
     HashMap::from([
         (
-            HOST_NAME_ATTRIBUTE_KEY.to_string(),
+            HOST_NAME_ATTRIBUTE_KEY().to_string(),
             DescriptionValueType::String(hostname),
         ),
         (
-            FLEET_ID_ATTRIBUTE_KEY.to_string(),
+            FLEET_ID_ATTRIBUTE_KEY().to_string(),
             DescriptionValueType::String(identifiers.fleet_id.clone()),
         ),
     ])
@@ -367,15 +387,15 @@ fn super_agent_opamp_non_identifying_attributes(
 
     HashMap::from([
         (
-            HOST_NAME_ATTRIBUTE_KEY.to_string(),
+            HOST_NAME_ATTRIBUTE_KEY().to_string(),
             DescriptionValueType::String(identifiers.hostname.clone()),
         ),
         (
-            HOST_ID_ATTRIBUTE_KEY.to_string(),
+            HOST_ID_ATTRIBUTE_KEY().to_string(),
             DescriptionValueType::String(identifiers.host_id.clone()),
         ),
         (
-            FLEET_ID_ATTRIBUTE_KEY.to_string(),
+            FLEET_ID_ATTRIBUTE_KEY().to_string(),
             DescriptionValueType::String(identifiers.fleet_id.clone()),
         ),
     ])

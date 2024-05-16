@@ -75,7 +75,7 @@ impl<C: ConfigurationPersister> Default for TemplateRenderer<C> {
     fn default() -> Self {
         Self {
             persister: None,
-            config_base_dir: SUPER_AGENT_DATA_DIR.to_string(),
+            config_base_dir: SUPER_AGENT_DATA_DIR().to_string(),
         }
     }
 }
@@ -92,7 +92,9 @@ impl<C: ConfigurationPersister> TemplateRenderer<C> {
     fn subagent_config_path(&self, agent_id: &AgentID) -> PathBuf {
         PathBuf::from(format!(
             "{}/{}/{}",
-            self.config_base_dir, GENERATED_FOLDER_NAME, agent_id
+            self.config_base_dir,
+            GENERATED_FOLDER_NAME(),
+            agent_id
         ))
     }
 
@@ -269,8 +271,11 @@ pub(crate) mod tests {
         let values = testing_values(AGENT_VALUES_WITH_FILES);
         let attributes = testing_agent_attributes(&agent_id);
         // The persister should receive filled variables with the path expanded.
-        let path_as_string =
-            format!("{SUPER_AGENT_DATA_DIR}/{GENERATED_FOLDER_NAME}/some-agent-id");
+        let path_as_string = format!(
+            "{}/{}/some-agent-id",
+            SUPER_AGENT_DATA_DIR(),
+            GENERATED_FOLDER_NAME()
+        );
         let subagent_config_path = path_as_string.as_str();
         let filled_variables = agent_type
             .variables

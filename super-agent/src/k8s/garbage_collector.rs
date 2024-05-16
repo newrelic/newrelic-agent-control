@@ -146,7 +146,7 @@ where
     fn garbage_label_selector(active_agents: &ActiveAgents) -> String {
         // We add SUPER_AGENT_ID to prevent removing any resource related to it.
         let id_list = active_agents.iter().fold(
-            super_agent::defaults::SUPER_AGENT_ID.to_string(),
+            super_agent::defaults::SUPER_AGENT_ID().to_string(),
             |acc, id| format!("{acc},{id}"),
         );
 
@@ -213,8 +213,9 @@ pub(crate) mod test {
         let labels = Labels::default();
         assert_eq!(
             format!(
-                "{},{AGENT_ID_LABEL_KEY} notin ({SUPER_AGENT_ID},{agent_id})",
+                "{},{AGENT_ID_LABEL_KEY} notin ({},{agent_id})",
                 labels.selector(),
+                SUPER_AGENT_ID()
             ),
             NotStartedK8sGarbageCollector::<MockSuperAgentDynamicConfigLoader>::garbage_label_selector(
                 &ActiveAgents::from([agent_id.get()])
@@ -223,8 +224,9 @@ pub(crate) mod test {
         let second_agent_id = AgentID::new("agent-2").unwrap();
         assert_eq!(
             format!(
-                "{},{AGENT_ID_LABEL_KEY} notin ({SUPER_AGENT_ID},{agent_id},{second_agent_id})",
+                "{},{AGENT_ID_LABEL_KEY} notin ({},{agent_id},{second_agent_id})",
                 labels.selector(),
+                SUPER_AGENT_ID()
             ),
             NotStartedK8sGarbageCollector::<MockSuperAgentDynamicConfigLoader>::garbage_label_selector(
                 &ActiveAgents::from([agent_id.get(), second_agent_id.get()])
@@ -232,8 +234,9 @@ pub(crate) mod test {
         );
         assert_eq!(
             format!(
-                "{},{AGENT_ID_LABEL_KEY} notin ({SUPER_AGENT_ID})",
+                "{},{AGENT_ID_LABEL_KEY} notin ({})",
                 labels.selector(),
+                SUPER_AGENT_ID()
             ),
             NotStartedK8sGarbageCollector::<MockSuperAgentDynamicConfigLoader>::garbage_label_selector(
                 &ActiveAgents::new()
