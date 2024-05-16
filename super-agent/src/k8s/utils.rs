@@ -85,11 +85,11 @@ impl IntOrPercentage {
     /// let percent = IntOrPercentage::try_from("33%").unwrap();
     /// let total = 20;
     ///
-    /// assert_eq!(int.get_scaled_value_from_int_or_percent(total, false), 5);
-    /// assert_eq!(percent.get_scaled_value_from_int_or_percent(total, false), 6);
-    /// assert_eq!(percent.get_scaled_value_from_int_or_percent(total, true), 7);
+    /// assert_eq!(int.scaled_value(total, false), 5);
+    /// assert_eq!(percent.scaled_value(total, false), 6);
+    /// assert_eq!(percent.scaled_value(total, true), 7);
     /// ```
-    pub fn get_scaled_value_from_int_or_percent(&self, total: i32, round_up: bool) -> i32 {
+    pub fn scaled_value(&self, total: i32, round_up: bool) -> i32 {
         match self {
             IntOrPercentage::Int(i) => *i,
             IntOrPercentage::Percentage(percent) => {

@@ -81,13 +81,11 @@ impl K8sHealthDaemonSet {
                 HealthCheckerError::new(format!("Daemonset '{name}' has no update strategy"))
             })?;
 
-        let rolling_update = match update_strategy
-            .type_
-            .ok_or_else(|| {
-                HealthCheckerError::new(format!("Daemonset '{name}' has no update strategy type"))
-            })?
-            .as_str()
-        {
+        let rolling_update_type = update_strategy.type_.ok_or_else(|| {
+            HealthCheckerError::new(format!("Daemonset '{name}' has no update strategy type"))
+        })?;
+
+        let rolling_update = match rolling_update_type.as_str() {
             // If the update strategy is not a rolling update, there will be nothing to wait for
             ON_DELETE => {
                 return Ok(Healthy {
@@ -139,7 +137,7 @@ impl K8sHealthDaemonSet {
                 HealthCheckerError::new(format!(
                     "Daemonset '{name}' has an non-parsable Max Availability on Update Strategy: '{err}'"
                 ))
-            })?.get_scaled_value_from_int_or_percent(status.desired_number_scheduled, true),
+            })?.scaled_value(status.desired_number_scheduled, true),
         };
 
         let expected_ready = status.desired_number_scheduled - max_unavailable;
