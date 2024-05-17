@@ -6,7 +6,7 @@ use tempfile::TempDir;
 
 // when the TempDir is dropped, the temporal directory is removed, thus, the its
 // ownership must remain on the parent function.
-fn create_temp_file(
+pub fn create_temp_file(
     dir: &TempDir,
     file_name: &str,
     data: &str,
