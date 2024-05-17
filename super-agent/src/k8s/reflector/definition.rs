@@ -2,10 +2,8 @@ use futures::StreamExt;
 use std::fmt::Debug;
 use std::future;
 
-use k8s_openapi::{Metadata, NamespaceResourceScope, Resource};
-
 use kube::{
-    core::{DynamicObject, ObjectMeta},
+    core::DynamicObject,
     discovery::ApiResource,
     runtime::{
         reflector::{self, store::Writer},
@@ -18,31 +16,7 @@ use serde::de::DeserializeOwned;
 use tokio::task::{AbortHandle, JoinHandle};
 use tracing::warn;
 
-use super::error::K8sError;
-
-/// The `ResourceWithReflector` trait represents Kubernetes resources that have a namespace scope.
-/// It includes metadata and traits required for Kubernetes object reflection and caching.
-///
-/// # Type Parameters
-///   - Implement the `Resource` trait with a `NamespaceResourceScope`.
-///   - Have a static `ObjectMeta` metadata type through `Metadata`.
-///   - Be capable of being deserialized via `DeserializeOwned`.
-///   - Be clonable, debuggable, and thread-safe (`Send` and `Sync`).
-///
-/// By implementing this trait for various Kubernetes resources like DaemonSet, Deployment, ReplicaSet,
-/// and StatefulSet, we ensure that they can be managed using a generic pattern. Besides, we ensure
-/// that reflectors can only be built for supported types.
-pub trait ResourceWithReflector:
-    Resource<Scope = NamespaceResourceScope>
-    + Clone
-    + DeserializeOwned
-    + Debug
-    + Metadata<Ty = ObjectMeta>
-    + Send
-    + Sync
-    + 'static
-{
-}
+use super::{super::error::K8sError, resources::ResourceWithReflector};
 
 /// Reflector builder holds the arguments to build a reflector.
 /// Its implementation allows creating a reflector for supported types.
@@ -112,16 +86,17 @@ impl ReflectorBuilder {
     }
 }
 
-/// A generic Kubernetes reflector for resources that implement the `k8s_openapi::Resource` trait and have a namespace scope.
-/// The `K8sControllerReflector` works by keeping an internal reader-writer pair:
+/// A generic Kubernetes reflector for resources implementing the [kube::core::Resource].
+/// It works by keeping an internal reader-writer pair:
 /// - The reader keeps a read-only cache of Kubernetes objects.
 /// - The writer continuously updates the cache based on the API stream.
 ///
 /// The writer's async task is aborted when the reflector is dropped.
+#[derive(Debug)]
 pub struct Reflector<K>
 where
     K: kube::core::Resource + Clone + DeserializeOwned + Debug + Send + Sync + 'static,
-    K::DynamicType: Eq + std::hash::Hash + Clone,
+    K::DynamicType: Eq + std::hash::Hash + Clone + Debug,
 {
     /// The read-only store that maintains a cache of Kubernetes objects of type `K`.
     reader: reflector::Store<K>,
@@ -132,7 +107,7 @@ where
 impl<K> Reflector<K>
 where
     K: kube::core::Resource + Clone + DeserializeOwned + Debug + Send + Sync + 'static,
-    K::DynamicType: Eq + std::hash::Hash + Clone,
+    K::DynamicType: Eq + std::hash::Hash + Clone + Debug,
 {
     /// Creates a new [Reflector] using the specified API, writer, and watcher config.
     ///
@@ -184,7 +159,7 @@ where
 impl<K> Drop for Reflector<K>
 where
     K: kube::core::Resource + Clone + DeserializeOwned + Debug + Send + Sync + 'static,
-    K::DynamicType: Eq + std::hash::Hash + Clone,
+    K::DynamicType: Eq + std::hash::Hash + Clone + Debug,
 {
     /// When dropped, abort the writer task to ensure proper cleanup.
     fn drop(&mut self) {

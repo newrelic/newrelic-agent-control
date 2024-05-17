@@ -1,27 +1,24 @@
 use super::{
-    error::K8sError::{self},
-    reflectors::{Reflector, ReflectorBuilder, ResourceWithReflector},
+    dynamic_object::{DynamicObjectManager, DynamicObjectManagers},
+    error::K8sError,
+    reflector::{definition::ReflectorBuilder, resources::Reflectors},
 };
 use crate::super_agent::config::helm_release_type_meta;
-use k8s_openapi::api::apps::v1::{DaemonSet, Deployment, ReplicaSet, StatefulSet};
+use k8s_openapi::api::apps::v1::StatefulSet;
 use k8s_openapi::api::core::v1::{ConfigMap, Namespace};
 use kube::api::entry::Entry;
 use kube::api::ObjectList;
 use kube::{
     api::{DeleteParams, ListParams, PostParams},
     config::KubeConfigOptions,
-    core::{DynamicObject, GroupVersion, ObjectMeta, TypeMeta},
+    core::{DynamicObject, ObjectMeta, TypeMeta},
     Api, Client, Config, Resource,
 };
 use serde::de::DeserializeOwned;
 use std::fmt::Debug;
-use std::{
-    collections::{BTreeMap, HashMap},
-    str::FromStr,
-    sync::Arc,
-};
+use std::{collections::BTreeMap, sync::Arc};
 use tokio::runtime::Runtime;
-use tracing::{debug, warn};
+use tracing::debug;
 
 /// Provides a _sync_ implementation of [AsyncK8sClient].
 ///
@@ -43,40 +40,40 @@ pub struct SyncK8sClient {
 
 #[cfg_attr(test, mockall::automock)]
 impl SyncK8sClient {
-    pub fn try_new(runtime: Arc<Runtime>, namespace: String) -> Result<Self, K8sError> {
-        Ok(Self {
-            async_client: runtime.block_on(AsyncK8sClient::try_new(namespace))?,
-            runtime,
-        })
-    }
-
-    pub fn try_new_with_reflectors(
+    pub fn try_new(
         runtime: Arc<Runtime>,
         namespace: String,
         cr_type_metas: Vec<TypeMeta>,
     ) -> Result<Self, K8sError> {
         Ok(Self {
-            async_client: runtime.block_on(AsyncK8sClient::try_new_with_reflectors(
-                namespace,
-                cr_type_metas,
-            ))?,
+            async_client: runtime.block_on(AsyncK8sClient::try_new(namespace, cr_type_metas))?,
             runtime,
         })
     }
 
+    /// helper to get the dynamic resource corresponding to a dynamic object.
+    fn dynamic_object_manager<'a>(
+        &'a self,
+        obj: &DynamicObject,
+    ) -> Result<&'a DynamicObjectManager, K8sError> {
+        let type_meta = get_type_meta(obj)?;
+        self.async_client
+            .dynamic_object_managers
+            .try_get(&type_meta)
+    }
+
     pub fn apply_dynamic_object(&self, obj: &DynamicObject) -> Result<(), K8sError> {
         self.runtime
-            .block_on(self.async_client.apply_dynamic_object(obj))
+            .block_on(self.dynamic_object_manager(obj)?.apply(obj))
     }
 
     pub fn has_dynamic_object_changed(&self, obj: &DynamicObject) -> Result<bool, K8sError> {
-        self.runtime
-            .block_on(self.async_client.has_dynamic_object_changed(obj))
+        self.dynamic_object_manager(obj)?.has_changed(obj)
     }
 
     pub fn apply_dynamic_object_if_changed(&self, obj: &DynamicObject) -> Result<(), K8sError> {
         self.runtime
-            .block_on(self.async_client.apply_dynamic_object_if_changed(obj))
+            .block_on(self.dynamic_object_manager(obj)?.apply_if_changed(obj))
     }
 
     pub fn get_dynamic_object(
@@ -84,8 +81,11 @@ impl SyncK8sClient {
         tm: &TypeMeta,
         name: &str,
     ) -> Result<Option<Arc<DynamicObject>>, K8sError> {
-        self.runtime
-            .block_on(self.async_client.get_dynamic_object(tm, name))
+        Ok(self
+            .async_client
+            .dynamic_object_managers
+            .try_get(tm)?
+            .get(name))
     }
 
     pub fn delete_dynamic_object_collection(
@@ -95,7 +95,9 @@ impl SyncK8sClient {
     ) -> Result<(), K8sError> {
         self.runtime.block_on(
             self.async_client
-                .delete_dynamic_object_collection(tm, label_selector),
+                .dynamic_object_managers
+                .try_get(tm)?
+                .delete_by_label_selector(label_selector),
         )
     }
 
@@ -141,7 +143,9 @@ impl SyncK8sClient {
     }
 
     pub fn supported_type_meta_collection(&self) -> Vec<TypeMeta> {
-        self.async_client.supported_type_meta_collection()
+        self.async_client
+            .dynamic_object_managers()
+            .supported_dynamic_type_metas()
     }
 
     pub fn list_stateful_set(&self) -> Result<ObjectList<StatefulSet>, K8sError> {
@@ -155,32 +159,9 @@ impl SyncK8sClient {
 
 pub struct AsyncK8sClient {
     client: Client,
-    reflectors: Option<Reflectors>,
+    reflectors: Reflectors,
+    dynamic_object_managers: DynamicObjectManagers,
 }
-
-struct Dynamic {
-    object_api: Api<DynamicObject>,
-    object_reflector: Reflector<DynamicObject>,
-}
-
-struct Reflectors {
-    dynamics: HashMap<TypeMeta, Dynamic>,
-    #[allow(dead_code)]
-    controllers: ControllerReflectors,
-}
-
-#[allow(dead_code)]
-struct ControllerReflectors {
-    daemon_sets: Reflector<DaemonSet>,
-    deployments: Reflector<Deployment>,
-    replica_sets: Reflector<ReplicaSet>,
-    stateful_sets: Reflector<StatefulSet>,
-}
-
-impl ResourceWithReflector for DaemonSet {}
-impl ResourceWithReflector for Deployment {}
-impl ResourceWithReflector for ReplicaSet {}
-impl ResourceWithReflector for StatefulSet {}
 
 impl AsyncK8sClient {
     /// Constructs a new Kubernetes client.
@@ -188,7 +169,7 @@ impl AsyncK8sClient {
     /// If loading from the inCluster config fail we fall back to kube-config
     /// This will respect the `$KUBECONFIG` envvar, but otherwise default to `~/.kube/config`.
     /// Not leveraging infer() to check inClusterConfig first
-    pub async fn try_new(namespace: String) -> Result<Self, K8sError> {
+    pub async fn try_new(namespace: String, type_meta: Vec<TypeMeta>) -> Result<Self, K8sError> {
         debug!("trying inClusterConfig for k8s client");
 
         let mut config = match Config::incluster() {
@@ -215,223 +196,25 @@ impl AsyncK8sClient {
             })?;
 
         debug!("client creation succeeded");
+        let reflector_builder = ReflectorBuilder::new(client.clone());
         Ok(Self {
-            client,
-            reflectors: None,
+            client: client.clone(),
+            reflectors: Reflectors::try_new(&reflector_builder).await?,
+            dynamic_object_managers: DynamicObjectManagers::try_new(
+                type_meta,
+                &client,
+                &reflector_builder,
+            )
+            .await?,
         })
     }
 
-    pub async fn try_new_with_reflectors(
-        namespace: String,
-        cr_type_metas: Vec<TypeMeta>,
-    ) -> Result<Self, K8sError> {
-        Self::try_new(namespace.clone())
-            .await?
-            .with_reflectors(cr_type_metas)
-            .await
+    pub fn dynamic_object_managers(&self) -> &DynamicObjectManagers {
+        &self.dynamic_object_managers
     }
 
-    async fn with_reflectors(mut self, cr_type_metas: Vec<TypeMeta>) -> Result<Self, K8sError> {
-        let dynamics = self.create_dynamic_reflectors(cr_type_metas).await?;
-        let controllers = self.create_controllers().await?;
-        self.reflectors = Some(Reflectors {
-            dynamics,
-            controllers,
-        });
-
-        Ok(self)
-    }
-
-    async fn create_dynamic_reflectors(
-        &self,
-        cr_type_metas: Vec<TypeMeta>,
-    ) -> Result<HashMap<TypeMeta, Dynamic>, K8sError> {
-        let mut dynamics = HashMap::new();
-        let reflector_builder = ReflectorBuilder::new(self.client.to_owned());
-        for tm in cr_type_metas.iter() {
-            let gvk = &GroupVersion::from_str(tm.api_version.as_str())?.with_kind(tm.kind.as_str());
-
-            let (ar, _) = match kube::discovery::pinned_kind(&self.client, gvk).await {
-                Ok(r) => r,
-                Err(e) => {
-                    warn!(
-                        "The gvk '{:?}' was not found in the cluster and cannot be used: {}",
-                        gvk, e
-                    );
-                    continue;
-                }
-            };
-
-            dynamics.insert(
-                tm.to_owned(),
-                Dynamic {
-                    object_api: Api::default_namespaced_with(self.client.to_owned(), &ar),
-                    object_reflector: reflector_builder.try_build_with_api_resource(&ar).await?,
-                },
-            );
-        }
-        Ok(dynamics)
-    }
-
-    /// Set up reflectors for DaemonSets, Deployments, StatefulSets, and ReplicaSets.
-    ///
-    /// This function initializes a reflector for each supported resource type within the provided namespace.
-    async fn create_controllers(&self) -> Result<ControllerReflectors, K8sError> {
-        let reflector_builder = ReflectorBuilder::new(self.client.clone());
-
-        Ok(ControllerReflectors {
-            daemon_sets: reflector_builder.try_build::<DaemonSet>().await?,
-            deployments: reflector_builder.try_build::<Deployment>().await?,
-            replica_sets: reflector_builder.try_build::<ReplicaSet>().await?,
-            stateful_sets: reflector_builder.try_build::<StatefulSet>().await?,
-        })
-    }
-
-    fn get_reflectors(&self) -> Result<&Reflectors, K8sError> {
-        self.reflectors
-            .as_ref()
-            .ok_or_else(|| K8sError::ReflectorsNotInitialized)
-    }
-
-    pub fn supported_type_meta_collection(&self) -> Vec<TypeMeta> {
-        self.get_reflectors()
-            .map(|reflectors| reflectors.dynamics.keys().cloned().collect())
-            .unwrap_or_default()
-    }
-
-    pub async fn apply_dynamic_object(&self, obj: &DynamicObject) -> Result<(), K8sError> {
-        let tm = get_type_meta(obj)?;
-        let name = get_name(obj)?;
-        let dynamic = &self
-            .get_reflectors()?
-            .dynamics
-            .get(&tm)
-            .ok_or(K8sError::UnexpectedKind(format!(
-                "applying dynamic object {:?}",
-                tm
-            )))?
-            .object_api;
-
-        // We are getting and modifying the object, but if not available we are creating it
-        dynamic
-            .entry(name.as_str())
-            .await
-            .map_err(|e| {
-                K8sError::GetDynamic(format!("getting dynamic object with name {}: {}", name, e))
-            })?
-            .and_modify(|obj_old| {
-                obj_old.data.clone_from(&obj.data);
-                // We are updating just particular metadata fields, the ones that are supported currently by the config
-                // Moreover, if you add a new one you need to consider them in has_dynamic_object_changed
-                obj_old.metadata.labels.clone_from(&obj.metadata.labels);
-            })
-            .or_insert(|| obj.clone())
-            .commit(&PostParams::default())
-            .await?;
-        Ok(())
-    }
-
-    pub async fn has_dynamic_object_changed(&self, obj: &DynamicObject) -> Result<bool, K8sError> {
-        let name = get_name(obj)?;
-        let tm = get_type_meta(obj)?;
-        let existing_obj = self.get_dynamic_object(&tm, name.as_str()).await?;
-
-        match existing_obj {
-            None => Ok(true),
-            Some(obj_old) => {
-                // We check only specs and labels since those are the only data we are currently
-                // setting up. Moreover, there are many fields autogenerated by k8s controlplane
-                // that we need to ignore (es: data.status or metadata.resourceVersion:)
-                if obj_old.data["spec"] != obj.data["spec"] {
-                    return Ok(true);
-                }
-                if obj_old.metadata.labels != obj.metadata.labels {
-                    return Ok(true);
-                }
-                Ok(false)
-            }
-        }
-    }
-
-    pub async fn apply_dynamic_object_if_changed(
-        &self,
-        obj: &DynamicObject,
-    ) -> Result<(), K8sError> {
-        if !self.has_dynamic_object_changed(obj).await? {
-            debug!("not applying k8s resource since it has not changed",);
-            return Ok(());
-        }
-        debug!(
-            "applying k8s object since it has changed: '{:?}'",
-            obj.metadata
-        );
-        self.apply_dynamic_object(obj).await
-    }
-
-    pub async fn delete_dynamic_object(&self, tm: TypeMeta, name: &str) -> Result<(), K8sError> {
-        let dynamic = self
-            .get_reflectors()?
-            .dynamics
-            .get(&tm)
-            .ok_or(K8sError::UnexpectedKind(format!(
-                "Deleting dynamic object {:?}",
-                tm
-            )))?;
-
-        match dynamic
-            .object_api
-            .delete(name, &DeleteParams::default())
-            .await?
-        {
-            // List of objects being deleted.
-            either::Left(dynamic_object) => {
-                debug!("Deleting object: {:?}", dynamic_object.meta().name);
-            }
-            // Status response of the deleted objects.
-            either::Right(status) => {
-                debug!("Deleted collection: status={:?}", status);
-            }
-        }
-        Ok(())
-    }
-
-    pub async fn get_dynamic_object(
-        &self,
-        tm: &TypeMeta,
-        name: &str,
-    ) -> Result<Option<Arc<DynamicObject>>, K8sError> {
-        let dynamic = self
-            .get_reflectors()?
-            .dynamics
-            .get(tm)
-            .ok_or(K8sError::UnexpectedKind(format!(
-                "Getting dynamic object {:?}",
-                tm
-            )))?;
-
-        Ok(dynamic
-            .object_reflector
-            .reader()
-            .find(|obj| obj.metadata.name.to_owned().is_some_and(|n| n.eq(name))))
-    }
-
-    pub async fn delete_dynamic_object_collection(
-        &self,
-        tm: &TypeMeta,
-        label_selector: &str,
-    ) -> Result<(), K8sError> {
-        let api = &self
-            .get_reflectors()?
-            .dynamics
-            .get(tm)
-            .ok_or(K8sError::UnexpectedKind(format!(
-                "Deleting dynamic object collection {:?}",
-                tm
-            )))?
-            .object_api;
-
-        debug!("deleting dynamic object collection: {:?}", tm.kind);
-        delete_collection(api, label_selector).await
+    pub fn reflectors(&self) -> &Reflectors {
+        &self.reflectors
     }
 
     pub async fn delete_configmap_collection(&self, label_selector: &str) -> Result<(), K8sError> {
@@ -530,7 +313,7 @@ impl AsyncK8sClient {
 
 //  delete_collection has been moved outside the client to be able to use mockall in the client
 //  without having to make K 'static.
-async fn delete_collection<K>(api: &Api<K>, label_selector: &str) -> Result<(), K8sError>
+pub(super) async fn delete_collection<K>(api: &Api<K>, label_selector: &str) -> Result<(), K8sError>
 where
     K: Resource + Clone + DeserializeOwned + Debug,
 {
@@ -585,90 +368,21 @@ pub fn contains_label_with_value(
 
 #[cfg(test)]
 pub(crate) mod test {
+    use crate::k8s::reflector::resources::ResourceWithReflector;
+
     use super::*;
-    use assert_matches::assert_matches;
+    use k8s_openapi::api::apps::v1::{DaemonSet, Deployment};
     use k8s_openapi::serde_json;
     use kube::runtime::reflector;
     use kube::Client;
     use tower_test::mock;
-    use K8sError::UnexpectedKind;
-
-    #[tokio::test]
-    async fn test_create_dynamic_object_fail_when_missing_resource_definition() {
-        let tm = TypeMeta {
-            api_version: "newrelic.com/v1".to_string(),
-            kind: "Foo".to_string(),
-        };
-        let k = get_mocked_client(Scenario::APIResource)
-            .with_reflectors(vec![tm.clone()])
-            .await
-            .unwrap();
-
-        let tm = TypeMeta {
-            api_version: "missing_group/ver".to_string(),
-            kind: "kind".to_string(),
-        };
-        let err = k
-            .apply_dynamic_object(&DynamicObject {
-                types: Some(tm),
-                metadata: ObjectMeta {
-                    name: Some("test_name".to_string()),
-                    ..Default::default()
-                },
-                data: Default::default(),
-            })
-            .await
-            .err()
-            .unwrap();
-
-        assert_matches!(err, UnexpectedKind(_));
-    }
-
-    #[tokio::test]
-    async fn test_create_dynamic_object_succeeds_and_ignores_missing_kind() {
-        let tm = TypeMeta {
-            api_version: "newrelic.com/v1".to_string(),
-            kind: "Foo".to_string(),
-        };
-        let tm_not_existing = TypeMeta {
-            api_version: "not.existing/v0".to_string(),
-            kind: "NotExisting".to_string(),
-        };
-
-        let k = get_mocked_client(Scenario::APIResource)
-            .with_reflectors(vec![tm_not_existing, tm.clone()])
-            .await
-            .unwrap();
-
-        let result = k
-            .apply_dynamic_object(&DynamicObject {
-                types: Some(tm),
-                metadata: ObjectMeta {
-                    name: Some("test_name_create".to_string()),
-                    ..Default::default()
-                },
-                data: Default::default(),
-            })
-            .await;
-
-        assert!(result.is_ok());
-    }
 
     #[tokio::test]
     async fn test_client_build_with_reflectors_and_get_resources() {
-        let async_client = get_mocked_client(Scenario::APIResource)
-            .with_reflectors(vec![])
-            .await
-            .unwrap();
+        let async_client = get_mocked_client(Scenario::APIResource, vec![]).await;
 
-        // Ensure that the reflectors field itself is initialized
-        let reflectors = async_client
-            .reflectors
-            .as_ref()
-            .expect("Reflectors should be initialized");
-
-        let deployment_reader = reflectors.controllers.deployments.reader();
-        let daemonset_reader = reflectors.controllers.daemon_sets.reader();
+        let deployment_reader = async_client.reflectors.deployment.reader();
+        let daemonset_reader = async_client.reflectors.daemon_set.reader();
 
         fn find_resource_by_name<K>(reader: &reflector::Store<K>, name: &str) -> Option<Arc<K>>
         where
@@ -702,14 +416,23 @@ pub(crate) mod test {
         );
     }
 
-    fn get_mocked_client(scenario: Scenario) -> AsyncK8sClient {
+    async fn get_mocked_client(scenario: Scenario, dynamic_types: Vec<TypeMeta>) -> AsyncK8sClient {
         let (mock_service, handle) =
             mock::pair::<http::Request<kube::client::Body>, http::Response<kube::client::Body>>();
         ApiServerVerifier(handle).run(scenario);
         let client = Client::new(mock_service, "default");
+
+        let reflector_builder = ReflectorBuilder::new(client.clone());
         AsyncK8sClient {
-            client,
-            reflectors: None,
+            client: client.clone(),
+            reflectors: Reflectors::try_new(&reflector_builder).await.unwrap(),
+            dynamic_object_managers: DynamicObjectManagers::try_new(
+                dynamic_types,
+                &client,
+                &reflector_builder,
+            )
+            .await
+            .unwrap(),
         }
     }
 
@@ -718,7 +441,7 @@ pub(crate) mod test {
 
     struct ApiServerVerifier(ApiServerHandle);
 
-    enum Scenario {
+    pub(crate) enum Scenario {
         APIResource,
     }
 
