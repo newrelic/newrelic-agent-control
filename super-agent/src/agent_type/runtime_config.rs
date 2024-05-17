@@ -23,10 +23,16 @@ pub struct Deployment {
 /// It contains the instructions of what are the agent binaries, command-line arguments, the environment variables passed to it and the restart policy of the supervisor.
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub struct OnHost {
+    #[serde(default)]
+    pub setup: Vec<SetupCommand>,
     pub executables: Vec<Executable>,
     #[serde(default)]
     pub enable_file_logging: TemplateableValue<bool>,
 }
+
+/// The definition for a setup command.
+#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+pub struct SetupCommand(pub TemplateableValue<String>);
 
 /* FIXME: This is not TEMPLATEABLE for the moment, we need to think what would be the strategy here and clarify:
 
