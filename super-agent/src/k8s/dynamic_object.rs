@@ -42,12 +42,9 @@ impl DynamicObjectManager {
 
     /// Looks for a [DynamicObject] by name, using the corresponding reflector.
     pub fn get(&self, name: &str) -> Option<Arc<DynamicObject>> {
-        self.reflector.reader().find(|obj| {
-            obj.metadata
-                .name
-                .as_ref()
-                .is_some_and(|obj_name| obj_name.eq(name))
-        })
+        self.reflector
+            .reader()
+            .find(|obj| obj.metadata.name.as_deref() == Some(name))
     }
 
     /// Check if the provided object has changed according to the fields the super-agent sets up.

@@ -169,7 +169,7 @@ impl AsyncK8sClient {
     /// If loading from the inCluster config fail we fall back to kube-config
     /// This will respect the `$KUBECONFIG` envvar, but otherwise default to `~/.kube/config`.
     /// Not leveraging infer() to check inClusterConfig first
-    pub async fn try_new(namespace: String, type_metas: Vec<TypeMeta>) -> Result<Self, K8sError> {
+    pub async fn try_new(namespace: String, type_meta: Vec<TypeMeta>) -> Result<Self, K8sError> {
         debug!("trying inClusterConfig for k8s client");
 
         let mut config = match Config::incluster() {
@@ -201,7 +201,7 @@ impl AsyncK8sClient {
             client: client.clone(),
             reflectors: Reflectors::try_new(&reflector_builder).await?,
             dynamic_object_managers: DynamicObjectManagers::try_new(
-                type_metas,
+                type_meta,
                 &client,
                 &reflector_builder,
             )
