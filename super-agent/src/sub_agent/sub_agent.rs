@@ -48,11 +48,12 @@ pub trait SubAgentBuilder {
     ) -> Result<Self::NotStartedSubAgent, error::SubAgentBuilderError>;
 }
 
-pub(crate) fn build_supervisor_or_default<HR, O, T, F>(
+pub(crate) fn build_supervisor_or_default<HR, O, T, F, G>(
     agent_id: &AgentID,
     hash_repository: &Arc<HR>,
     maybe_opamp_client: &Option<O::Client>,
     effective_agent_res: Result<EffectiveAgent, EffectiveAgentsAssemblerError>,
+    supervisor_setup_fn: G,
     supervisor_builder_fn: F,
 ) -> Result<T, SubAgentBuilderError>
 where
@@ -60,6 +61,7 @@ where
     O: OpAMPClientBuilder<SubAgentCallbacks>,
     T: Default,
     F: FnOnce(EffectiveAgent) -> Result<T, SubAgentBuilderError>,
+    G: FnOnce(&EffectiveAgent) -> Result<(), SubAgentBuilderError>,
 {
     // A sub-agent's supervisor can be started without a valid effective agent when an OpAMP
     // client is available. This is useful when the agent is in a failed state and the OpAMP
@@ -98,11 +100,17 @@ where
             }
             (None, Ok(effective_agent)) => {
                 debug!(%agent_id, "no previous remote config found");
+
+                // This would be the first time this agent is being started, so we run the setup steps
+                supervisor_setup_fn(&effective_agent)?;
                 supervisor_builder_fn(effective_agent)
             }
         }
     } else {
-        supervisor_builder_fn(effective_agent_res?)
+        // No way to know if this is the first time this agent is being started, so we run the setup steps
+        let effective_agent = effective_agent_res?;
+        supervisor_setup_fn(&effective_agent)?;
+        supervisor_builder_fn(effective_agent)
     }
 }
 
@@ -281,11 +289,13 @@ pub mod test {
             MockOpAMPClientBuilderMock<SubAgentCallbacks>,
             _,
             _,
+            _,
         >(
             &agent_id,
             &Arc::new(hash_repository),
             &Some(started_opamp_client),
             effective_agent,
+            |_| Ok(()),
             |effective_agent| {
                 Ok(assert_eq!(
                     EffectiveAgent::new(agent_id.clone(), Runtime::default()),
@@ -339,11 +349,13 @@ pub mod test {
             MockOpAMPClientBuilderMock<SubAgentCallbacks>,
             _,
             _,
+            _,
         >(
             &agent_id,
             &Arc::new(hash_repository),
             &Some(started_opamp_client),
             effective_agent_res,
+            |_| Ok(()),
             |_| Ok(Some(())), // On error, we don't actually call this function and should be using the default for the Option<()> which is None, note we test this below!
         );
 
@@ -375,11 +387,13 @@ pub mod test {
             MockOpAMPClientBuilderMock<SubAgentCallbacks>,
             _,
             _,
+            _,
         >(
             &agent_id,
             &Arc::new(hash_repository),
             &Some(started_opamp_client),
             effective_agent_res,
+            |_| Ok(()),
             |effective_agent| {
                 Ok(assert_eq!(
                     EffectiveAgent::new(agent_id.clone(), Runtime::default()),
@@ -417,11 +431,13 @@ pub mod test {
             MockOpAMPClientBuilderMock<SubAgentCallbacks>,
             _,
             _,
+            _,
         >(
             &agent_id,
             &Arc::new(hash_repository),
             &Some(started_opamp_client),
             effective_agent_res,
+            |_| Ok(()),
             |_| Ok(Some(())), // On error, we don't actually call this function and should be using the default for the Option<()> which is None, note we test this below!
         );
 
@@ -447,11 +463,13 @@ pub mod test {
             MockOpAMPClientBuilderMock<SubAgentCallbacks>,
             _,
             _,
+            _,
         >(
             &agent_id,
             &Arc::new(hash_repository),
             &None,
             effective_agent_res,
+            |_| Ok(()),
             |effective_agent| {
                 Ok(assert_eq!(
                     EffectiveAgent::new(agent_id.clone(), Runtime::default()),
@@ -483,11 +501,13 @@ pub mod test {
             MockOpAMPClientBuilderMock<SubAgentCallbacks>,
             _,
             _,
+            _,
         >(
             &agent_id,
             &Arc::new(hash_repository),
             &None,
             effective_agent_res,
+            |_| Ok(()),
             |_| Ok(Some(())), // On error, we don't actually call this function, this time, the call to `build_supervisor_or_default` will bubble up the error!
         );
 

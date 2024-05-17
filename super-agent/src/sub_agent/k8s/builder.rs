@@ -118,11 +118,12 @@ where
 
         // A sub-agent can be started without supervisor, when running with opamp activated, in order to
         // be able to receive messages.
-        let supervisor = build_supervisor_or_default::<HR, O, _, _>(
+        let supervisor = build_supervisor_or_default::<HR, O, _, _, _>(
             &agent_id,
             &self.hash_repository,
             &maybe_opamp_client,
             effective_agent_res,
+            |_| Ok(()), // no-op
             |effective_agent| {
                 build_cr_supervisors(
                     &agent_id,
