@@ -25,6 +25,7 @@ pub struct Deployment {
 pub struct OnHost {
     #[serde(default)]
     pub setup: Vec<SetupCommand>,
+    #[serde(default)]
     pub executables: Vec<Executable>,
     #[serde(default)]
     pub enable_file_logging: TemplateableValue<bool>,
