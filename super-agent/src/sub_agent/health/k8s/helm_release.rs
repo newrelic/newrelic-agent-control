@@ -1,10 +1,10 @@
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use crate::sub_agent::health::health_checker::{Health, HealthChecker, Healthy};
+use crate::sub_agent::health::health_checker::{
+    Health, HealthChecker, HealthCheckerError, Healthy,
+};
 use k8s_openapi::serde_json::{Map, Value};
 use std::sync::Arc;
-
-use super::error::HealthCheckerError;
 
 const CONDITION_READY: &str = "Ready";
 

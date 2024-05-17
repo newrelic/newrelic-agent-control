@@ -271,8 +271,9 @@ pub mod sleep_supervisor_tests {
     use super::*;
     use crate::context::Context;
     use crate::event::channel::pub_sub;
-    use crate::sub_agent::health::health_checker::{Health, HealthChecker, Healthy};
-    use crate::sub_agent::health::HealthCheckerError;
+    use crate::sub_agent::health::health_checker::{
+        Health, HealthChecker, HealthCheckerError, Healthy,
+    };
     use crate::sub_agent::on_host::supervisor::command_supervisor_config::ExecutableData;
     use crate::sub_agent::on_host::supervisor::restart_policy::{Backoff, RestartPolicy};
     use mockall::{mock, Sequence};

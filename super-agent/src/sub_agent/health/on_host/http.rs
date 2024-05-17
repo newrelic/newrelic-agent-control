@@ -1,13 +1,13 @@
 use crate::agent_type::health_config::{
     HealthCheckTimeout, HttpHealth, OnHostHealthCheck, OnHostHealthConfig,
 };
-use crate::sub_agent::health::health_checker::{Health, HealthChecker, Healthy, Unhealthy};
+use crate::sub_agent::health::health_checker::{
+    Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
+};
 use std::collections::HashMap;
 use thiserror::Error;
 use tracing::error;
 use url::Url;
-
-use super::error::HealthCheckerError;
 
 const DEFAULT_PROTOCOL: &str = "http://";
 

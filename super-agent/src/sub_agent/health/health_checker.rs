@@ -5,12 +5,26 @@ use crate::super_agent::config::AgentID;
 use std::thread;
 use tracing::{debug, error};
 
-use super::HealthCheckerError;
+#[cfg(all(not(feature = "onhost"), feature = "k8s"))]
+use crate::k8s;
 
 #[derive(Debug, PartialEq)]
 pub enum Health {
     Healthy(Healthy),
     Unhealthy(Unhealthy),
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum HealthCheckerError {
+    #[error("{0}")]
+    Generic(String),
+    // TODO: actually use the error variants below in k8s implementation
+    #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
+    #[error("The invalid or missing field `{0}` in `{1}`")]
+    InvalidField(String, String),
+    #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
+    #[error("Error fetching k8s object {0}")]
+    K8sError(#[from] k8s::Error),
 }
 
 impl From<Healthy> for Health {

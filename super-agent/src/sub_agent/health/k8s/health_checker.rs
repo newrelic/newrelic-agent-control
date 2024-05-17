@@ -1,13 +1,13 @@
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use crate::sub_agent::health::health_checker::{Health, HealthChecker, Healthy};
+use crate::sub_agent::health::health_checker::{
+    Health, HealthChecker, HealthCheckerError, Healthy,
+};
 use crate::sub_agent::health::k8s::helm_release::K8sHealthFluxHelmRelease;
 use crate::sub_agent::health::k8s::stateful_set::K8sHealthStatefulSet;
 use crate::super_agent::config::helm_release_type_meta;
 use kube::api::DynamicObject;
 use std::sync::Arc;
-
-use super::error::HealthCheckerError;
 
 // This label selector is added in post-render and present no matter the chart we are installing
 // https://github.com/fluxcd/helm-controller/blob/main/CHANGELOG.md#090
@@ -89,9 +89,8 @@ where
 pub mod test {
     use crate::k8s::client::MockSyncK8sClient;
     use crate::sub_agent::health::health_checker::test::MockHealthCheckMock;
-    use crate::sub_agent::health::health_checker::HealthChecker;
+    use crate::sub_agent::health::health_checker::{HealthChecker, HealthCheckerError};
     use crate::sub_agent::health::k8s::health_checker::SubAgentHealthChecker;
-    use crate::sub_agent::health::HealthCheckerError;
     use crate::super_agent::config::helm_release_type_meta;
     use assert_matches::assert_matches;
     use kube::api::DynamicObject;
