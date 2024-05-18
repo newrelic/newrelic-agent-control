@@ -74,3 +74,36 @@ impl ExecutableData {
         Self { env, ..self }
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct SupervisorConfigOnHostNonExec {
+    pub(super) id: AgentID,
+    pub(super) ctx: Context<bool>,
+    pub(super) log_to_file: bool,
+    pub(super) health: Option<OnHostHealthConfig>,
+}
+
+impl SupervisorConfigOnHostNonExec {
+    pub fn new(id: AgentID, ctx: Context<bool>) -> Self {
+        SupervisorConfigOnHostNonExec {
+            id,
+            ctx,
+            log_to_file: false,
+            health: None,
+        }
+    }
+
+    pub fn with_file_logging(self, log_to_file: bool) -> Self {
+        Self {
+            log_to_file,
+            ..self
+        }
+    }
+
+    pub fn with_health_check(self, health: OnHostHealthConfig) -> Self {
+        Self {
+            health: Some(health),
+            ..self
+        }
+    }
+}

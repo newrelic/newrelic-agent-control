@@ -23,6 +23,8 @@ use std::{
 };
 use tracing::{error, info, warn};
 
+use super::command_supervisor_config::SupervisorConfigOnHostNonExec;
+
 ////////////////////////////////////////////////////////////////////////////////////
 // States for Started/Not Started supervisor
 ////////////////////////////////////////////////////////////////////////////////////
@@ -32,6 +34,18 @@ pub struct NotStarted {
 pub struct Started {
     handle: JoinHandle<()>,
     ctx: Context<bool>,
+}
+
+pub struct NotStartedNonExec {
+    config: SupervisorConfigOnHostNonExec,
+}
+
+impl SupervisorOnHost<NotStartedNonExec> {
+    pub fn new_nonexec(config: SupervisorConfigOnHostNonExec) -> Self {
+        SupervisorOnHost {
+            state: NotStartedNonExec { config },
+        }
+    }
 }
 
 #[derive(Debug)]
