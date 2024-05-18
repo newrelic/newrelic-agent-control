@@ -5,6 +5,7 @@ use regex::Regex;
 use tracing::warn;
 
 use super::definition::Variables;
+use super::runtime_config::SetupCommand;
 use super::variable::definition::VariableDefinition;
 use super::variable::kind::Kind;
 use super::{
@@ -80,6 +81,15 @@ pub trait Templateable {
         Self: std::marker::Sized;
 }
 
+impl Templateable for SetupCommand {
+    fn template_with(
+        self,
+        variables: &super::definition::Variables,
+    ) -> Result<Self, AgentTypeError> {
+        Ok(SetupCommand(self.0.template_with(variables)?))
+    }
+}
+
 impl Templateable for Executable {
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         Ok(Self {
@@ -115,11 +125,16 @@ fn template_string(s: String, variables: &Variables) -> Result<String, AgentType
 impl Templateable for OnHost {
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         Ok(Self {
+            setup: self
+                .setup
+                .into_iter()
+                .map(|s| s.template_with(variables))
+                .collect::<Result<Vec<SetupCommand>, _>>()?,
             executables: self
                 .executables
                 .into_iter()
                 .map(|e| e.template_with(variables))
-                .collect::<Result<Vec<Executable>, AgentTypeError>>()?,
+                .collect::<Result<Vec<Executable>, _>>()?,
             enable_file_logging: self.enable_file_logging.template_with(variables)?,
         })
     }

@@ -393,6 +393,7 @@ mod test {
             Runtime {
                 deployment: Deployment {
                     on_host: Some(OnHost {
+                        setup: Vec::new(),
                         executables: Vec::new(),
                         enable_file_logging: TemplateableValue::new(false),
                     }),
