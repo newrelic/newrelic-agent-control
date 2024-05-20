@@ -2,13 +2,14 @@ use crate::agent_type::runtime_config;
 use crate::agent_type::runtime_config::K8sObject;
 use crate::event::channel::{pub_sub, EventPublisher};
 use crate::event::SubAgentInternalEvent;
+use crate::k8s::annotations::Annotations;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::error::K8sError;
 use crate::k8s::labels::Labels;
 use crate::sub_agent::health::health_checker::{spawn_health_checker, HealthCheckerError};
 use crate::sub_agent::health::k8s::health_checker::SubAgentHealthChecker;
-use crate::super_agent::config::AgentID;
+use crate::super_agent::config::{AgentID, AgentTypeFQN};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use k8s_openapi::serde_json;
 use kube::{api::DynamicObject, core::TypeMeta};
@@ -36,6 +37,7 @@ pub enum SupervisorError {
 /// - Uses shared k8s client via Arc; consider design implications about sharing client through all the supervisors.
 pub struct CRSupervisor {
     agent_id: AgentID,
+    agent_fqn: AgentTypeFQN,
     k8s_client: Arc<SyncK8sClient>,
     k8s_config: runtime_config::K8s,
 }
@@ -43,6 +45,7 @@ pub struct CRSupervisor {
 impl CRSupervisor {
     pub fn new(
         agent_id: AgentID,
+        agent_fqn: AgentTypeFQN,
         k8s_client: Arc<SyncK8sClient>,
         k8s_config: runtime_config::K8s,
     ) -> Self {
@@ -50,6 +53,7 @@ impl CRSupervisor {
             agent_id,
             k8s_client,
             k8s_config,
+            agent_fqn,
         }
     }
 
@@ -83,14 +87,16 @@ impl CRSupervisor {
         };
 
         let mut labels = Labels::new(&self.agent_id);
-
         // Merge default labels with the ones coming from the config with default labels taking precedence.
         labels.append_extra_labels(&k8s_obj.metadata.labels);
+
+        let annotations = Annotations::new_agent_fqn_annotation(&self.agent_fqn);
 
         let metadata = ObjectMeta {
             name: Some(k8s_obj.metadata.name.clone()),
             namespace: Some(self.k8s_client.default_namespace().to_string()),
             labels: Some(labels.get()),
+            annotations: Some(annotations.get()),
             ..Default::default()
         };
 
@@ -170,9 +176,11 @@ pub mod test {
         let mut mock_k8s_client = MockSyncK8sClient::default();
 
         let agent_id = AgentID::new("test").unwrap();
+        let agent_fqn = AgentTypeFQN::try_from("ns/test:0.1.2").unwrap();
 
         let mut labels = Labels::new(&agent_id);
         labels.append_extra_labels(&k8s_object().metadata.labels);
+        let annotations = Annotations::new_agent_fqn_annotation(&agent_fqn);
 
         let expected = DynamicObject {
             types: Some(TypeMeta {
@@ -183,6 +191,7 @@ pub mod test {
                 name: Some(TEST_NAME.to_string()),
                 namespace: Some(TEST_NAMESPACE.to_string()),
                 labels: Some(labels.get()),
+                annotations: Some(annotations.get()),
                 ..Default::default()
             },
             data: json!({}),
@@ -199,6 +208,7 @@ pub mod test {
 
         let supervisor = CRSupervisor::new(
             agent_id,
+            agent_fqn,
             Arc::new(mock_k8s_client),
             runtime_config::K8s {
                 objects: HashMap::from([

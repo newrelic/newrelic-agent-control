@@ -12,7 +12,7 @@ use crate::sub_agent::build_supervisor_or_default;
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
 use crate::sub_agent::event_processor_builder::SubAgentEventProcessorBuilder;
 use crate::sub_agent::{NotStarted, SubAgentCallbacks};
-use crate::super_agent::config::{AgentID, K8sConfig, SubAgentConfig};
+use crate::super_agent::config::{AgentID, AgentTypeFQN, K8sConfig, SubAgentConfig};
 use crate::super_agent::defaults::CLUSTER_NAME_ATTRIBUTE_KEY;
 use crate::{
     opamp::client_builder::OpAMPClientBuilder,
@@ -129,6 +129,7 @@ where
                     effective_agent,
                     self.k8s_client.clone(),
                     &self.k8s_config,
+                    sub_agent_config.agent_type.clone(),
                 )
                 .map(Some) // Doing this as `supervisor` is expected to be an Option<_>.
                            // It also ensures the return type has a Default (None) so it complies with the expected signature
@@ -158,6 +159,7 @@ fn build_cr_supervisors(
     effective_agent: EffectiveAgent,
     k8s_client: Arc<SyncK8sClient>,
     k8s_config: &K8sConfig,
+    agent_type_fqn: AgentTypeFQN,
 ) -> Result<CRSupervisor, SubAgentBuilderError> {
     debug!("Building CR supervisors {}", agent_id);
 
@@ -176,6 +178,7 @@ fn build_cr_supervisors(
     // Clone the k8s_client on each build.
     Ok(CRSupervisor::new(
         agent_id.clone(),
+        agent_type_fqn,
         k8s_client,
         k8s_objects.clone(),
     ))

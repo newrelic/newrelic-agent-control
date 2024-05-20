@@ -1,6 +1,5 @@
-use std::collections::BTreeMap;
-
 use crate::super_agent::config::AgentID;
+use std::collections::BTreeMap;
 
 pub const MANAGED_BY_KEY: &str = "app.kubernetes.io/managed-by";
 pub const MANAGED_BY_VAL: &str = "newrelic-super-agent";
@@ -50,13 +49,20 @@ impl Labels {
     }
 }
 
+/// returns true if labels indicates that is managed by the superAgent
+pub fn is_managed_by_superagent(labels: &BTreeMap<String, String>) -> bool {
+    return MANAGED_BY_VAL == labels.get(MANAGED_BY_KEY).unwrap_or(&String::from(""));
+}
+
+pub fn get_agent_id(labels: &BTreeMap<String, String>) -> Option<&String> {
+    return labels.get(AGENT_ID_LABEL_KEY);
+}
+
 #[cfg(test)]
 pub(crate) mod test {
-    use std::collections::BTreeMap;
-
-    use crate::super_agent::config::AgentID;
-
     use super::{Labels, AGENT_ID_LABEL_KEY, MANAGED_BY_KEY, MANAGED_BY_VAL};
+    use crate::super_agent::config::AgentID;
+    use std::collections::BTreeMap;
 
     #[test]
     fn test_selector() {

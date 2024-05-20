@@ -145,6 +145,7 @@ pub mod test {
 
     const TEST_K8S_ISSUE: &str = "random issue";
     pub const TEST_AGENT_ID: &str = "k8s-test";
+    pub const TEST_GENT_FQN: &str = "ns/test:0.1.2";
     #[test]
     fn k8s_sub_agent_start_and_stop() {
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -194,21 +195,24 @@ pub mod test {
         let (sub_agent_internal_publisher, _) = pub_sub();
 
         let agent_id = AgentID::new(TEST_AGENT_ID).unwrap();
+        let agent_fqn = AgentTypeFQN::try_from(TEST_GENT_FQN).unwrap();
+
         let mut k8s_obj = k8s_sample_runtime_config(true);
         k8s_obj.health = Some(K8sHealthConfig {
             interval: Duration::from_millis(500).into(),
         });
         let mock_client = MockSyncK8sClient::default();
 
-        let supervisor_res = CRSupervisor::new(agent_id.clone(), Arc::new(mock_client), k8s_obj)
-            .start_health_check(
-                sub_agent_internal_publisher,
-                vec![DynamicObject {
-                    types: Some(helm_release_type_meta()),
-                    metadata: Default::default(),
-                    data: Default::default(),
-                }],
-            );
+        let supervisor_res =
+            CRSupervisor::new(agent_id.clone(), agent_fqn, Arc::new(mock_client), k8s_obj)
+                .start_health_check(
+                    sub_agent_internal_publisher,
+                    vec![DynamicObject {
+                        types: Some(helm_release_type_meta()),
+                        metadata: Default::default(),
+                        data: Default::default(),
+                    }],
+                );
 
         assert_matches!(
             supervisor_res.err().unwrap(),
@@ -221,6 +225,7 @@ pub mod test {
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
 
         let agent_id = AgentID::new(TEST_AGENT_ID).unwrap();
+        let agent_fqn = AgentTypeFQN::try_from(TEST_GENT_FQN).unwrap();
 
         let mut k8s_obj = k8s_sample_runtime_config(true);
         k8s_obj.health = Some(K8sHealthConfig {
@@ -246,11 +251,12 @@ pub mod test {
         let mut processor = MockEventProcessorMock::new();
         processor.should_process();
 
-        let supervisor = CRSupervisor::new(agent_id.clone(), Arc::new(mock_client), k8s_obj);
+        let supervisor =
+            CRSupervisor::new(agent_id.clone(), agent_fqn, Arc::new(mock_client), k8s_obj);
 
         SubAgentK8s::new(
             agent_id.clone(),
-            AgentTypeFQN::try_from("namespace/test:0.0.1").unwrap(),
+            AgentTypeFQN::try_from(TEST_GENT_FQN).unwrap(),
             processor,
             sub_agent_internal_publisher.clone(),
             Some(supervisor),
@@ -276,6 +282,7 @@ pub mod test {
         k8s_client_should_fail: bool,
     ) -> SubAgentK8s<NotStarted<MockEventProcessorMock>> {
         let agent_id = AgentID::new(TEST_AGENT_ID).unwrap();
+        let agent_fqn = AgentTypeFQN::try_from(TEST_GENT_FQN).unwrap();
 
         // instance K8s client mock
         let mut mock_client = MockSyncK8sClient::default();
@@ -294,6 +301,7 @@ pub mod test {
 
         let supervisor = CRSupervisor::new(
             agent_id.clone(),
+            agent_fqn,
             Arc::new(mock_client),
             k8s_sample_runtime_config(true),
         );

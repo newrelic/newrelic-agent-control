@@ -65,6 +65,7 @@ pub async fn create_foo_cr(
     namespace: &str,
     name: &str,
     labels: Option<BTreeMap<String, String>>,
+    annotations: Option<BTreeMap<String, String>>,
 ) -> Foo {
     let api: Api<Foo> = Api::namespaced(client, namespace);
     let mut foo_cr = Foo::new(
@@ -75,6 +76,8 @@ pub async fn create_foo_cr(
     );
 
     foo_cr.metadata.labels = labels;
+    foo_cr.metadata.annotations = annotations;
+
     foo_cr = api.create(&PostParams::default(), &foo_cr).await.unwrap();
 
     // Sleeping to let watchers have the time to be updated

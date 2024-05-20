@@ -1,4 +1,4 @@
-use crate::super_agent::config::SuperAgentConfigError;
+use crate::super_agent::config::{AgentTypeError, SuperAgentConfigError};
 use kube::core::gvk::ParseGroupVersionError;
 use kube::{api, config::KubeconfigError};
 
@@ -54,4 +54,13 @@ pub enum GarbageCollectorK8sError {
 
     #[error("garbage collector executed with empty current agents list")]
     MissingActiveAgents(),
+
+    #[error("garbage collector fetched resources without required labels")]
+    MissingLabels(),
+
+    #[error("garbage collector fetched resources without required annotations")]
+    MissingAnnotations(),
+
+    #[error("unable to parse AgentType: `{0}`")]
+    ParsingAgentType(#[from] AgentTypeError),
 }
