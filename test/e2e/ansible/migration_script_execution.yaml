@@ -23,6 +23,7 @@
           NEW_RELIC_DOWNLOAD_URL: "https://nr-downloads-ohai-staging.s3.amazonaws.com/"
           NR_CLI_FLEET_ENABLED: true
           NR_CLI_HOST_MONITORING_SOURCE: newrelic
+          NR_SA_MIGRATE_INFRA_CONFIG: true
 
     - name: Modify infra-agent type to 0.1.2
       include_role:
