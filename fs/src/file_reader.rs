@@ -1,7 +1,7 @@
 use super::LocalFile;
 use std::fs::{read_dir, read_to_string};
 use std::io::Error as ioError;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -15,8 +15,13 @@ pub enum FileReaderError {
 }
 
 pub trait FileReader {
+    /// Read the contents of file_path and return them as string
+    /// If the file is not present it will return a FileReaderError
     fn read(&self, file_path: &Path) -> Result<String, FileReaderError>;
-    fn read_dir(&self, dir_path: &Path) -> Result<Vec<String>, FileReaderError>;
+
+    /// Return the files entries inside a given Path.
+    /// If the path does not exist it will return a FileReaderError
+    fn dir_entries(&self, dir_path: &Path) -> Result<Vec<PathBuf>, FileReaderError>;
 }
 
 impl FileReader for LocalFile {
@@ -33,7 +38,7 @@ impl FileReader for LocalFile {
         }
     }
 
-    fn read_dir(&self, dir_path: &Path) -> Result<Vec<String>, FileReaderError> {
+    fn dir_entries(&self, dir_path: &Path) -> Result<Vec<PathBuf>, FileReaderError> {
         if !dir_path.is_dir() {
             return Err(FileReaderError::DirNotFound(format!(
                 "{}",
@@ -41,9 +46,9 @@ impl FileReader for LocalFile {
             )));
         }
         let files = read_dir(dir_path)?;
-        let mut file_paths: Vec<String> = Vec::new();
+        let mut file_paths: Vec<PathBuf> = Vec::new();
         for path in files {
-            file_paths.push(path?.path().into_os_string().into_string().unwrap());
+            file_paths.push(path?.path());
         }
         Ok(file_paths)
     }
@@ -64,8 +69,15 @@ pub mod mock {
         pub fn should_read(&mut self, path: &Path, content: String) {
             self.expect_read()
                 .with(predicate::eq(PathBuf::from(path)))
-                .times(1)
-                .returning(move |_| Ok(content.clone()));
+                .once()
+                .return_once(|_| Ok(content));
+        }
+
+        pub fn should_dir_entries(&mut self, path: &Path, content: Vec<PathBuf>) {
+            self.expect_dir_entries()
+                .with(predicate::eq(PathBuf::from(path)))
+                .once()
+                .return_once(|_| Ok(content));
         }
 
         pub fn should_not_read_file_not_found(&mut self, path: &Path, error_message: String) {
@@ -84,20 +96,6 @@ pub mod mock {
                         ErrorKind::PermissionDenied,
                     )))
                 });
-        }
-
-        // the test is not idempotent as it iterates hashmap. For now let's use this
-        pub fn could_read(&mut self, path: &Path, content: String) {
-            self.expect_read()
-                .with(predicate::eq(PathBuf::from(path)))
-                .returning(move |_| Ok(content.clone()));
-        }
-
-        pub fn should_read_dir(&mut self, path: &Path, content: Vec<String>) {
-            self.expect_read_dir()
-                .with(predicate::eq(PathBuf::from(path)))
-                .times(1)
-                .returning(move |_| Ok(content.clone()));
         }
     }
 }
@@ -120,7 +118,7 @@ pub mod test {
     #[test]
     fn test_dir_not_found_should_return_error() {
         let reader = LocalFile;
-        let result = reader.read_dir(Path::new("/a/path/that/does/not/exist"));
+        let result = reader.dir_entries(Path::new("/a/path/that/does/not/exist"));
         assert!(result.is_err());
         assert_eq!(
             String::from("dir not found: `/a/path/that/does/not/exist`"),

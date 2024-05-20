@@ -2,7 +2,7 @@ use fs::{
     file_renamer::{FileRenamer, FileRenamerError},
     LocalFile,
 };
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 const LEGACY_PATH_BCK_TOKEN: &str = "bck";
 
@@ -19,9 +19,7 @@ impl Default for LegacyConfigRenamer<LocalFile> {
 }
 
 impl<F: FileRenamer> LegacyConfigRenamer<F> {
-    pub fn rename_path(&self, path: &str) -> Result<(), FileRenamerError> {
-        let original_path = PathBuf::from(path);
-
+    pub fn rename_path(&self, path: &Path) -> Result<(), FileRenamerError> {
         let mut dest_path = PathBuf::from(path);
         let mut extension = LEGACY_PATH_BCK_TOKEN.to_string();
         if let Some(ext) = dest_path.extension() {
@@ -29,7 +27,7 @@ impl<F: FileRenamer> LegacyConfigRenamer<F> {
         }
         dest_path.set_extension(extension);
 
-        self.file_renamer.rename(&original_path, &dest_path)
+        self.file_renamer.rename(path, dest_path.as_path())
     }
 }
 
@@ -47,31 +45,29 @@ mod test {
     fn test_rename_path_without_extension() {
         let mut file_renamer = MockLocalFile::new();
 
-        let path = "no-extension";
+        let path = PathBuf::from("no-extension");
         let expected_path = "no-extension.bck";
-        let original_path = PathBuf::from(path);
         let dest_path = PathBuf::from(expected_path);
 
-        file_renamer.should_rename(original_path.as_path(), dest_path.as_path());
+        file_renamer.should_rename(path.as_path(), dest_path.as_path());
 
         let legacy_config_renamer = LegacyConfigRenamer { file_renamer };
 
-        assert!(legacy_config_renamer.rename_path(path).is_ok());
+        assert!(legacy_config_renamer.rename_path(path.as_path()).is_ok());
     }
 
     #[test]
     fn test_rename_path_with_extension() {
         let mut file_renamer = MockLocalFile::new();
 
-        let path = "with-extension.d";
+        let path = PathBuf::from("with-extension.d");
         let expected_path = "with-extension.d.bck";
-        let original_path = PathBuf::from(path);
         let dest_path = PathBuf::from(expected_path);
 
-        file_renamer.should_rename(original_path.as_path(), dest_path.as_path());
+        file_renamer.should_rename(path.as_path(), dest_path.as_path());
 
         let legacy_config_renamer = LegacyConfigRenamer { file_renamer };
 
-        assert!(legacy_config_renamer.rename_path(path).is_ok());
+        assert!(legacy_config_renamer.rename_path(path.as_path()).is_ok());
     }
 }
