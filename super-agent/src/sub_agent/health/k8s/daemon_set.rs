@@ -54,12 +54,7 @@ pub struct K8sHealthDaemonSet {
 
 impl HealthChecker for K8sHealthDaemonSet {
     fn check_health(&self) -> Result<Health, HealthCheckerError> {
-        let daemon_set_list = self.k8s_client.list_daemon_set().map_err(|e| {
-            HealthCheckerError::new(format!(
-                "Error fetching DaemonSet '{}': {}",
-                &self.release_name, e
-            ))
-        })?;
+        let daemon_set_list = self.k8s_client.list_daemon_set()?;
 
         let filtered_list_daemon_set = daemon_set_list.into_iter().filter(|ds| {
             crate::k8s::utils::contains_label_with_value(
@@ -96,7 +91,11 @@ impl K8sHealthDaemonSet {
             Self::get_daemon_set_rolling_update_type(&ds)?,
         )
         .map_err(|err| {
-            HealthCheckerError::new(format!("Daemonset '{name}' Update Strategy error: {err}"))
+            HealthCheckerError::InvalidK8sObjectField(
+                ".spec.updateStrategy.type".to_string(),
+                name.clone(),
+                err.to_string(),
+            )
         })?;
 
         let rolling_update = match update_strategy_type {
@@ -131,14 +130,20 @@ impl K8sHealthDaemonSet {
         let max_unavailable = match rolling_update.max_unavailable {
             // If max unavailable is not set, the daemon set does not expect to have healthy pods.
             // Returning Healthiness as soon as possible.
-            None => return Ok(Self::healthy(format!(
-                    "DaemonSet '{name}' healthy: This daemon set does not expect to have healthy pods",
-                ))),
-            Some(value) => IntOrPercentage::try_from(value).map_err(|err| {
-                HealthCheckerError::new(format!(
-                    "Daemonset '{name}' has an non-parsable Max Availability on Update Strategy: '{err}'"
-                ))
-            })?.scaled_value(status.desired_number_scheduled, true),
+            None => {
+                return Ok(Self::healthy(format!(
+                "DaemonSet '{name}' healthy: This daemon set does not expect to have healthy pods",
+            )))
+            }
+            Some(value) => IntOrPercentage::try_from(value)
+                .map_err(|err| {
+                    HealthCheckerError::InvalidK8sObjectField(
+                        ".spec.updateStrategy.rollingUpdate.maxUnavailable".to_string(),
+                        name.clone(),
+                        err.to_string(),
+                    )
+                })?
+                .scaled_value(status.desired_number_scheduled, true),
         };
 
         let expected_ready = status.desired_number_scheduled - max_unavailable;
@@ -156,7 +161,10 @@ impl K8sHealthDaemonSet {
     }
 
     fn missing_field_error(name: &str, field: &str) -> HealthCheckerError {
-        HealthCheckerError::new(format!("Daemonset '{}' without {}", name, field))
+        HealthCheckerError::MissingK8sObjectField(
+            field.to_string(),
+            format!("Daemonset '{}'", name),
+        )
     }
 
     fn healthy(s: String) -> Health {
@@ -172,11 +180,11 @@ impl K8sHealthDaemonSet {
     }
 
     fn get_daemon_set_name(daemon_set: &DaemonSet) -> Result<String, HealthCheckerError> {
-        daemon_set
-            .metadata
-            .name
-            .clone()
-            .ok_or_else(|| HealthCheckerError::new("Daemonset without .metadata.name".into()))
+        daemon_set.metadata.name.clone().ok_or_else(|| {
+            HealthCheckerError::K8sError(crate::k8s::error::K8sError::MissingName(
+                "DaemonSet".to_string(),
+            ))
+        })
     }
 
     fn get_daemon_set_status(
@@ -187,7 +195,7 @@ impl K8sHealthDaemonSet {
         daemon_set
             .status
             .clone()
-            .ok_or_else(|| Self::missing_field_error(name.as_str(), "status"))
+            .ok_or_else(|| Self::missing_field_error(name.as_str(), ".status"))
     }
 
     fn get_daemon_set_update_strategy(
@@ -264,7 +272,9 @@ pub mod test {
                     spec: None,
                     status: None,
                 },
-                expected: HealthCheckerError::new("Daemonset without .metadata.name".into()),
+                expected: HealthCheckerError::K8sError(crate::k8s::error::K8sError::MissingName(
+                    "DaemonSet".to_string(),
+                )),
             },
             TestCase {
                 name: "ds without status",
@@ -273,9 +283,8 @@ pub mod test {
                     spec: None,
                     status: None,
                 },
-                expected: HealthCheckerError::new("Daemonset 'test' without status".into()),
+                expected: test_util_missing_field(".status"),
             },
-
             TestCase {
                 name: "ds without spec",
                 ds: DaemonSet {
@@ -285,7 +294,7 @@ pub mod test {
                         ..Default::default()
                     }),
                 },
-                expected: HealthCheckerError::new("Daemonset 'test' without .spec".into()),
+                expected: test_util_missing_field(".spec"),
             },
             TestCase {
                 name: "ds without update strategy",
@@ -299,7 +308,7 @@ pub mod test {
                         ..Default::default()
                     }),
                 },
-                expected: HealthCheckerError::new("Daemonset 'test' without .spec.updateStrategy".into()),
+                expected: test_util_missing_field(".spec.updateStrategy"),
             },
             TestCase {
                 name: "ds with unknown update strategy",
@@ -316,7 +325,11 @@ pub mod test {
                         ..Default::default()
                     }),
                 },
-                expected: HealthCheckerError::new("Daemonset 'test' Update Strategy error: Unknown Update Strategy Type: 'Unknown-TEST'".into()),
+                expected: HealthCheckerError::InvalidK8sObjectField(
+                    ".spec.updateStrategy.type".into(),
+                    "test".into(),
+                    "Unknown Update Strategy Type: 'Unknown-TEST'".into(),
+                ),
             },
             TestCase {
                 name: "ds which update strategy is rolling but has no struct",
@@ -333,7 +346,7 @@ pub mod test {
                         ..Default::default()
                     }),
                 },
-                expected: HealthCheckerError::new("Daemonset 'test' without .spec.updateStrategy.rollingUpdate".into()),
+                expected: test_util_missing_field(".spec.updateStrategy.rollingUpdate"),
             },
             TestCase {
                 name: "ds update strategy policy has non-parsable max_unavailable",
@@ -355,8 +368,11 @@ pub mod test {
                         ..Default::default()
                     }),
                 },
-                expected:
-                HealthCheckerError::new("Daemonset 'test' has an non-parsable Max Availability on Update Strategy: 'invalid digit found in string'".into()),
+                expected: HealthCheckerError::InvalidK8sObjectField(
+                    ".spec.updateStrategy.rollingUpdate.maxUnavailable".into(),
+                    "test".into(),
+                    "invalid digit found in string".into(),
+                ),
             },
         ];
 
@@ -596,5 +612,9 @@ pub mod test {
             name: Some(String::from("test")),
             ..Default::default()
         }
+    }
+
+    fn test_util_missing_field(field: &str) -> HealthCheckerError {
+        HealthCheckerError::MissingK8sObjectField(field.to_string(), "Daemonset 'test'".to_string())
     }
 }

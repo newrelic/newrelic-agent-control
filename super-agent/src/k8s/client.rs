@@ -4,7 +4,7 @@ use super::{
     reflector::{definition::ReflectorBuilder, resources::Reflectors},
 };
 use crate::super_agent::config::helm_release_type_meta;
-use k8s_openapi::api::apps::v1::StatefulSet;
+use k8s_openapi::api::apps::v1::{DaemonSet, StatefulSet};
 use k8s_openapi::api::core::v1::{ConfigMap, Namespace};
 use kube::api::entry::Entry;
 use kube::api::ObjectList;
@@ -358,11 +358,11 @@ where
 }
 
 pub fn get_name(obj: &DynamicObject) -> Result<String, K8sError> {
-    obj.metadata.clone().name.ok_or(K8sError::MissingName())
+    obj.metadata.clone().name.ok_or(K8sError::MissingCRName)
 }
 
 pub fn get_type_meta(obj: &DynamicObject) -> Result<TypeMeta, K8sError> {
-    obj.types.clone().ok_or(K8sError::MissingKind())
+    obj.types.clone().ok_or(K8sError::MissingCRKind)
 }
 
 #[cfg(test)]

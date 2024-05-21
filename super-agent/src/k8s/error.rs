@@ -20,10 +20,13 @@ pub enum K8sError {
     CommitError(#[from] api::entry::CommitError),
 
     #[error("the kind of the cr is missing")]
-    MissingKind(),
+    MissingCRKind,
 
     #[error("the name of the cr is missing")]
-    MissingName(),
+    MissingCRName,
+
+    #[error("{0} does not have .metadata.name")]
+    MissingName(String),
 
     #[error("error parsing GroupVersion: `{0}`")]
     ParseGroupVersion(#[from] ParseGroupVersionError),
