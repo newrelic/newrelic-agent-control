@@ -106,11 +106,12 @@
                 pass_filenames = false;
                 # For more options, check docs:
                 # https://github.com/cachix/pre-commit-hooks.nix#custom-hooks
-                extraPackages = with pkgs; [
+                extraPackages =
                   rustToolchain
-                  cargo-deny
-                  git
-                ];
+                  ++ (with pkgs; [
+                    cargo-deny
+                    git
+                  ]);
               };
               cargo-check-onhost = {
                 enable = true;
