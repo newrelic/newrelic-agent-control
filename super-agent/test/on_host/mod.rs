@@ -4,5 +4,6 @@ mod config_persister;
 mod consts;
 mod id;
 mod logging;
+mod restarting_processes;
 mod supervisor;
 mod values_repository;

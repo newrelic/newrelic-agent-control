@@ -1,0 +1,126 @@
+use crate::cli::create_temp_file;
+use assert_cmd::Command;
+use nix::{
+    sys::signal::{self, Signal},
+    unistd::Pid,
+};
+use std::thread;
+use std::time::Duration;
+use tempfile::TempDir;
+
+#[cfg(all(unix, feature = "onhost"))]
+#[test]
+fn killing_subprocess_with_signal_restarts_as_root() -> Result<(), Box<dyn std::error::Error>> {
+    let dir = TempDir::new()?;
+
+    let _agent_type_def = create_temp_file(
+        &dir,
+        "nrsa_local/dynamic-agent-type.yaml",
+        r#"
+namespace: newrelic
+name: com.newrelic.test-agent
+version: 0.0.1
+variables:
+  on_host:
+    message:
+      description: "Message to repeatedly output"
+      type: string
+      required: false
+      default: "yes"
+    file_logging:
+      description: "Enable file logging"
+      type: bool
+      required: false
+      default: false
+deployment:
+  on_host:
+    enable_file_logging: "${nr-var:file_logging}"
+    executables:
+      - path: /usr/bin/yes
+        args: "${nr-var:message}"
+        restart_policy:
+          backoff_strategy:
+            type: fixed
+            max_retries: 2
+            backoff_delay: 0s
+"#,
+    );
+
+    let _values_file = create_temp_file(
+        &dir,
+        "nrsa_local/fleet/agents.d/test-agent/values/values.yaml",
+        r#"
+message: "test yes"
+file_logging: true
+"#,
+    );
+
+    let config_path = create_temp_file(
+        &dir,
+        "config.yml",
+        r#"
+log:
+  level: debug
+  file:
+    enable: true
+agents:
+  test-agent:
+    agent_type: newrelic/com.newrelic.test-agent:0.0.1
+"#,
+    )?;
+
+    let tmpdir_path = dir.path().to_path_buf();
+
+    let super_agent_join = thread::spawn(move || {
+        let mut cmd = Command::cargo_bin("newrelic-super-agent").unwrap();
+        cmd.arg("--config")
+            .arg(config_path)
+            .arg("--debug")
+            .arg(tmpdir_path);
+        // cmd_assert is not made for long running programs, so we kill it anyway after 3 seconds
+        cmd.timeout(Duration::from_secs(10));
+        // But in any case we make sure that it actually attempted to create the supervisor group,
+        // so it works when the program is run as root
+        cmd.output().expect("failed to execute process");
+    });
+
+    thread::sleep(Duration::from_secs(2));
+
+    // Use `pgrep` to find the process id of the yes command
+    // It is expected that only one such process is found!
+    let yes_pid = Command::new("pgrep")
+        .arg("-f")
+        .arg("/usr/bin/yes test yes")
+        .output()
+        .expect("failed to execute process")
+        .stdout;
+
+    let yes_pid = String::from_utf8(yes_pid).unwrap();
+
+    // Send a SIGKILL to the yes command
+    signal::kill(
+        Pid::from_raw(yes_pid.trim().parse::<i32>().unwrap()),
+        Signal::SIGKILL,
+    )
+    .unwrap();
+
+    // Wait for the super-agent to restart the process
+    thread::sleep(Duration::from_secs(2));
+
+    // Get the pid for the new yes command
+    let new_yes_pid = Command::new("pgrep")
+        .arg("-f")
+        .arg("/usr/bin/yes test yes")
+        .output()
+        .expect("failed to execute process")
+        .stdout;
+
+    let new_yes_pid = String::from_utf8(new_yes_pid).unwrap();
+
+    super_agent_join.join().unwrap();
+
+    // Assert the PID is different
+    assert_ne!(yes_pid, new_yes_pid);
+
+    Ok(())
+}

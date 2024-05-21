@@ -15,6 +15,7 @@ use crate::sub_agent::on_host::command::shutdown::{
 use crate::sub_agent::on_host::supervisor::command_supervisor_config::SupervisorConfigOnHost;
 use crate::sub_agent::on_host::supervisor::restart_policy::BackoffStrategy;
 use crate::super_agent::config::AgentID;
+use std::os::unix::process::ExitStatusExt;
 use std::process::ExitStatus;
 use std::{
     ops::Deref,
@@ -135,24 +136,13 @@ impl SupervisorOnHost<NotStarted> {
                             err
                         );
                     })
-                    .map(|exit_code| {
-                        if !exit_code.success() {
-                            publish_health_event(
-                                &internal_event_publisher,
-                                Unhealthy {
-                                    last_error: format!("process exited with code: {}", exit_code),
-                                    ..Default::default()
-                                }
-                                .into(),
-                            );
-                            error!(
-                                agent_id = id.to_string(),
-                                supervisor = bin,
-                                exit_code = exit_code.code(),
-                                "supervisor process exited unsuccessfully"
-                            )
-                        }
-                        exit_code.code()
+                    .map(|exit_status| {
+                        handle_termination(
+                            exit_status,
+                            &internal_event_publisher,
+                            &id,
+                            bin.to_string(),
+                        )
                     });
 
                 // Cancel the health checker, log if it fails and continue with the shutdown
@@ -170,6 +160,8 @@ impl SupervisorOnHost<NotStarted> {
                 *current_pid.lock().unwrap() = None;
 
                 // check if restart policy needs to be applied
+                // As the exit code comes inside a Result but we don't care about the Err,
+                // we just unwrap or take the default value (0)
                 if !restart_policy.should_retry(exit_code.unwrap_or_default()) {
                     // Log if we are not restarting anymore due to the restart policy being broken
                     if restart_policy.backoff != BackoffStrategy::None {
@@ -228,6 +220,44 @@ impl SupervisorOnHost<Started> {
 ////////////////////////////////////////////////////////////////////////////////////
 // Helpers (TODO: Review and move?)
 ////////////////////////////////////////////////////////////////////////////////////
+
+/// From the `ExitStatus`, send appropriate event and emit logs, return exit code.
+fn handle_termination(
+    exit_status: ExitStatus,
+    internal_event_publisher: &EventPublisher<SubAgentInternalEvent>,
+    agent_id: &AgentID,
+    bin: String,
+) -> i32 {
+    if !exit_status.success() {
+        publish_health_event(
+            internal_event_publisher,
+            Unhealthy {
+                last_error: format!(
+                    "process exited with code: {:?}",
+                    exit_status.code().unwrap_or_default()
+                ),
+                ..Default::default()
+            }
+            .into(),
+        );
+        error!(
+            %agent_id,
+            supervisor = bin,
+            exit_code = ?exit_status.code(),
+            "supervisor process exited unsuccessfully"
+        )
+    }
+    // From the docs on `ExitStatus::code()`: "On Unix, this will return `None` if the process was terminated by a signal."
+    // Since we need to act on this exit code irrespective of it coming from a signal or not, we try to get the code,
+    // falling back to getting the signal if not, and finally to 0 if both fail.
+    let exit_code = exit_status.code();
+    let exit_signal = exit_status.signal();
+
+    // If in the future we need to act differently on signals, we can return a sum type that
+    // can contain either an exit code or a signal, has a sensible default for our use case,
+    // and have `RestartPolicy::should_retry` handle it.
+    exit_code.or(exit_signal).unwrap_or_default()
+}
 
 // launch_process starts a new process with a streamed channel and sets its current pid
 // into the provided variable. It waits until the process exits.
