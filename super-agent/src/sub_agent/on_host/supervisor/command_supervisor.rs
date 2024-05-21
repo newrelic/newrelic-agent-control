@@ -232,7 +232,7 @@ fn handle_termination(
         publish_health_event(
             internal_event_publisher,
             Unhealthy {
-                last_error: format!("process exited with code: {}", exit_status),
+                last_error: format!("process exited with code: {}", exit_status.code()),
                 ..Default::default()
             }
             .into(),
