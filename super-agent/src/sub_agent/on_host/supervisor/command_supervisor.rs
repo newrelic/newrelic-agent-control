@@ -484,7 +484,7 @@ pub mod sleep_supervisor_tests {
             .returning(move || {
                 // Ensure the health checker will quit after the second loop
                 cancel_publisher.publish(()).unwrap();
-                Err(HealthCheckerError::new(
+                Err(HealthCheckerError::Generic(
                     "mocked health check error!".to_string(),
                 ))
             });
@@ -503,7 +503,7 @@ pub mod sleep_supervisor_tests {
             vec![
                 Healthy::default().into(),
                 Unhealthy {
-                    last_error: "mocked health check error!".to_string(),
+                    last_error: "Health check error: mocked health check error!".to_string(),
                     ..Default::default()
                 }
                 .into(),
@@ -565,7 +565,7 @@ pub mod sleep_supervisor_tests {
             .once()
             .in_sequence(&mut seq)
             .returning(|| {
-                Err(HealthCheckerError::new(
+                Err(HealthCheckerError::Generic(
                     "mocked health check error!".to_string(),
                 ))
             });
@@ -576,7 +576,7 @@ pub mod sleep_supervisor_tests {
             .returning(move || {
                 // Ensure the health checker will quit after the second loop
                 cancel_publisher.publish(()).unwrap();
-                Err(HealthCheckerError::new(
+                Err(HealthCheckerError::Generic(
                     "mocked health check error!".to_string(),
                 ))
             });
@@ -594,12 +594,12 @@ pub mod sleep_supervisor_tests {
         let expected_health_events: Vec<SubAgentInternalEvent> = {
             vec![
                 Unhealthy {
-                    last_error: "mocked health check error!".to_string(),
+                    last_error: "Health check error: mocked health check error!".to_string(),
                     ..Default::default()
                 }
                 .into(),
                 Unhealthy {
-                    last_error: "mocked health check error!".to_string(),
+                    last_error: "Health check error: mocked health check error!".to_string(),
                     ..Default::default()
                 }
                 .into(),

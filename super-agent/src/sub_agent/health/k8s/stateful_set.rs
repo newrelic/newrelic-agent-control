@@ -20,7 +20,7 @@ impl HealthChecker for K8sHealthStatefulSet {
     fn check_health(&self) -> Result<Health, HealthCheckerError> {
         // TODO: Replace with reflector when ready
         let stateful_sets = self.k8s_client.list_stateful_set().map_err(|err| {
-            HealthCheckerError::new(format!(
+            HealthCheckerError::Generic(format!(
                 "Error fetching StatefulSets '{}': {}",
                 &self.release_name, err
             ))
@@ -55,7 +55,7 @@ impl K8sHealthStatefulSet {
         let name = ss
             .metadata
             .name
-            .ok_or_else(|| HealthCheckerError::new("StatefulSets without Name".to_string()))?;
+            .ok_or_else(|| HealthCheckerError::Generic("StatefulSets without Name".to_string()))?;
         let spec = ss.spec.ok_or(Self::missing_field_error(&name, "Spec"))?;
         let status = ss
             .status
@@ -109,7 +109,7 @@ impl K8sHealthStatefulSet {
 
     /// Helper to return an error when an expected field in the StatefulSet object is missing.
     fn missing_field_error(name: &str, field: &str) -> HealthCheckerError {
-        HealthCheckerError::new(format!("StatefulSets `{}` without {}", name, field))
+        HealthCheckerError::Generic(format!("StatefulSets `{}` without {}", name, field))
     }
 
     /// Gets the partition from the stateful_set spec.
@@ -282,7 +282,7 @@ mod test {
                         panic!("Expected error, got {:?} for test - {}", result, name)
                     })
                     .unwrap_err();
-                assert_eq!(expected_err, err, "{}", name);
+                assert_eq!(err.to_string(), expected_err.to_string());
             }
         }
 
@@ -290,7 +290,7 @@ mod test {
             TestCase {
                 name: "Invalid object, no name".into(),
                 ss: StatefulSet::default(),
-                expected_err: HealthCheckerError::new("StatefulSets without Name".into()),
+                expected_err: HealthCheckerError::Generic("StatefulSets without Name".into()),
             },
             TestCase {
                 name: "Invalid object, no spec".into(),
@@ -299,7 +299,9 @@ mod test {
                     spec: None,
                     status: Some(stateful_set_status()),
                 },
-                expected_err: HealthCheckerError::new("StatefulSets `name` without Spec".into()),
+                expected_err: HealthCheckerError::Generic(
+                    "StatefulSets `name` without Spec".into(),
+                ),
             },
             TestCase {
                 name: "Invalid object, no status".into(),
@@ -308,7 +310,9 @@ mod test {
                     spec: Some(StatefulSetSpec::default()),
                     status: None,
                 },
-                expected_err: HealthCheckerError::new("StatefulSets `name` without Status".into()),
+                expected_err: HealthCheckerError::Generic(
+                    "StatefulSets `name` without Status".into(),
+                ),
             },
             TestCase {
                 name: "Invalid object, no Status.UpdatedReplicas".into(),
@@ -320,7 +324,7 @@ mod test {
                         ..stateful_set_status()
                     }),
                 },
-                expected_err: HealthCheckerError::new(
+                expected_err: HealthCheckerError::Generic(
                     "StatefulSets `name` without Status.UpdatedReplicas".into(),
                 ),
             },
@@ -334,7 +338,7 @@ mod test {
                         ..stateful_set_status()
                     }),
                 },
-                expected_err: HealthCheckerError::new(
+                expected_err: HealthCheckerError::Generic(
                     "StatefulSets `name` without Status.ReadyReplicas".into(),
                 ),
             },

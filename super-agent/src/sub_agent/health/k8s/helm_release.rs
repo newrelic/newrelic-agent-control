@@ -50,7 +50,7 @@ impl K8sHealthFluxHelmRelease {
             .and_then(|s| s.as_object())
             .cloned()
             .ok_or_else(|| {
-                HealthCheckerError::new(format!(
+                HealthCheckerError::Generic(format!(
                     "Failed to parse status of HelmRelease '{}'",
                     &self.name
                 ))
@@ -67,7 +67,7 @@ impl K8sHealthFluxHelmRelease {
             .and_then(|c| c.as_array())
             .cloned()
             .ok_or_else(|| {
-                HealthCheckerError::new(format!(
+                HealthCheckerError::Generic(format!(
                     "No conditions found in status of HelmRelease '{}'",
                     &self.name
                 ))
@@ -125,17 +125,17 @@ impl HealthChecker for K8sHealthFluxHelmRelease {
             .k8s_client
             .get_helm_release(&self.name)
             .map_err(|e| {
-                HealthCheckerError::new(format!(
+                HealthCheckerError::Generic(format!(
                     "Error fetching HelmRelease '{}': {}",
                     &self.name, e
                 ))
             })?
             .ok_or_else(|| {
-                HealthCheckerError::new(format!("HelmRelease '{}' not found", &self.name))
+                HealthCheckerError::Generic(format!("HelmRelease '{}' not found", &self.name))
             })?;
 
         let helm_release_data = helm_release.data.as_object().ok_or_else(|| {
-            HealthCheckerError::new("HelmRelease data is not an object".to_string())
+            HealthCheckerError::Generic("HelmRelease data is not an object".to_string())
         })?;
 
         let status = self.get_status(helm_release_data)?;
@@ -220,7 +220,7 @@ pub mod test {
             ),
             (
                 "Error fetching HelmRelease",
-                Err(HealthCheckerError::new(
+                Err(HealthCheckerError::Generic(
                     "Error fetching HelmRelease 'example-release': while getting dynamic resource: Error".to_string(),
                 )),
                 Box::new(|mock: &mut MockSyncK8sClient| {
@@ -236,8 +236,17 @@ pub mod test {
             let checker =
                 K8sHealthFluxHelmRelease::new(Arc::new(mock_client), "example-release".to_string());
             let result = checker.check_health();
-
-            assert_eq!(result, expected, "{} failed: Health status mismatch", name);
+            match expected {
+                Ok(expected_health) => {
+                    let result_health =
+                        result.unwrap_or_else(|err| panic!("Unexpected {err} - {name}"));
+                    assert_eq!(result_health, expected_health);
+                }
+                Err(expected_err) => {
+                    let result_err = result.unwrap_err();
+                    assert_eq!(result_err.to_string(), expected_err.to_string(), "{}", name);
+                }
+            }
         }
     }
 

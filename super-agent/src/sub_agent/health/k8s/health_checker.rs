@@ -43,7 +43,7 @@ impl SubAgentHealthChecker<K8sHealthChecker> {
     ) -> Result<Self, HealthCheckerError> {
         let mut health_checkers = vec![];
         for resource in resources.iter() {
-            let type_meta = resource.types.clone().ok_or(HealthCheckerError::new(
+            let type_meta = resource.types.clone().ok_or(HealthCheckerError::Generic(
                 "not able to build flux health checker: type not found".to_string(),
             ))?;
             if type_meta != helm_release_type_meta() {
@@ -53,7 +53,7 @@ impl SubAgentHealthChecker<K8sHealthChecker> {
                 .metadata
                 .clone()
                 .name
-                .ok_or(HealthCheckerError::new(
+                .ok_or(HealthCheckerError::Generic(
                     "not able to build flux health checker: name not found".to_string(),
                 ))?;
 
@@ -92,6 +92,7 @@ pub mod test {
     use crate::sub_agent::health::health_checker::{HealthChecker, HealthCheckerError};
     use crate::sub_agent::health::k8s::health_checker::SubAgentHealthChecker;
     use crate::super_agent::config::helm_release_type_meta;
+    use assert_matches::assert_matches;
     use kube::api::DynamicObject;
     use std::sync::Arc;
 
@@ -110,7 +111,7 @@ pub mod test {
     fn failing_build_health_check_resource_with_no_type() {
         let mock_client = MockSyncK8sClient::default();
 
-        assert_eq!(
+        assert_matches!(
             SubAgentHealthChecker::try_new(
                 Arc::new(mock_client),
                 vec![DynamicObject {
@@ -122,9 +123,9 @@ pub mod test {
             )
             .err()
             .unwrap(),
-            HealthCheckerError::new(
-                "not able to build flux health checker: type not found".to_string(),
-            )
+            HealthCheckerError::Generic(s) => {
+                assert_eq!(s, "not able to build flux health checker: type not found".to_string())
+            }
         );
     }
 
@@ -132,7 +133,7 @@ pub mod test {
     fn failing_build_health_check_resource_with_no_name() {
         let mock_client = MockSyncK8sClient::default();
 
-        assert_eq!(
+        assert_matches!(
             SubAgentHealthChecker::try_new(
                 Arc::new(mock_client),
                 vec![DynamicObject {
@@ -144,9 +145,9 @@ pub mod test {
             )
             .err()
             .unwrap(),
-            HealthCheckerError::new(
-                "not able to build flux health checker: name not found".to_string(),
-            )
+            HealthCheckerError::Generic(s) => {
+                assert_eq!(s, "not able to build flux health checker: name not found".to_string())
+            }
         );
     }
 

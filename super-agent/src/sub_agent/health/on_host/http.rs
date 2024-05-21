@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use thiserror::Error;
 use tracing::error;
 use url::Url;
+
 const DEFAULT_PROTOCOL: &str = "http://";
 
 /// An enumeration of potential errors related to the HTTP client.
@@ -100,7 +101,7 @@ impl HttpHealthChecker<ureq::Agent> {
         );
 
         let mut url =
-            Url::parse(host.as_str()).map_err(|e| HealthCheckerError::new(e.to_string()))?;
+            Url::parse(host.as_str()).map_err(|e| HealthCheckerError::Generic(e.to_string()))?;
         let _ = url.set_port(Some(http_config.port.get().into()));
 
         let path: String = http_config.path.get().into();
@@ -126,7 +127,7 @@ impl<C: HttpClient> HealthChecker for HttpHealthChecker<C> {
         let response = self
             .client
             .get(self.url.as_str(), &self.headers)
-            .map_err(|e| HealthCheckerError::new(e.to_string()))?;
+            .map_err(|e| HealthCheckerError::Generic(e.to_string()))?;
         let status_code = response.status();
 
         let status = String::from_utf8_lossy(response.body()).into();
@@ -188,7 +189,7 @@ pub(crate) mod test {
 
         assert!(health_response.is_err());
         assert_eq!(
-            "Health check error: internal HTTP client error: `Timeout`".to_string(),
+            "internal HTTP client error: `Timeout`".to_string(),
             health_response.unwrap_err().to_string()
         );
     }

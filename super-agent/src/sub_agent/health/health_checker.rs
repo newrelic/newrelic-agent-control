@@ -3,13 +3,28 @@ use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::SubAgentInternalEvent;
 use crate::super_agent::config::AgentID;
 use std::thread;
-use thiserror::Error;
 use tracing::{debug, error};
+
+#[cfg(all(not(feature = "onhost"), feature = "k8s"))]
+use crate::k8s;
 
 #[derive(Debug, PartialEq)]
 pub enum Health {
     Healthy(Healthy),
     Unhealthy(Unhealthy),
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum HealthCheckerError {
+    #[error("{0}")]
+    Generic(String),
+    // TODO: actually use the error variants below in k8s implementation
+    #[cfg(feature = "k8s")]
+    #[error("invalid or missing field `{0}` in k8s object `{1}`")]
+    InvalidK8sObjectField(String, String),
+    #[cfg(feature = "k8s")]
+    #[error("error fetching k8s object {0}")]
+    K8sError(#[from] k8s::Error),
 }
 
 impl From<Healthy> for Health {
@@ -34,7 +49,7 @@ impl From<HealthCheckerError> for Health {
 impl From<HealthCheckerError> for Unhealthy {
     fn from(err: HealthCheckerError) -> Self {
         Unhealthy {
-            last_error: err.0,
+            last_error: format!("Health check error: {}", err),
             status: Default::default(),
         }
     }
@@ -107,17 +122,6 @@ pub trait HealthChecker {
     /// See OpAMP's [spec](https://github.com/open-telemetry/opamp-spec/blob/main/specification.md#componenthealthstatus)
     /// for more details.
     fn check_health(&self) -> Result<Health, HealthCheckerError>;
-}
-
-/// Health check errors.
-#[derive(Debug, Error, PartialEq)]
-#[error("Health check error: {0}")]
-pub struct HealthCheckerError(String);
-
-impl HealthCheckerError {
-    pub fn new(err: String) -> Self {
-        Self(err)
-    }
 }
 
 pub(crate) fn spawn_health_checker<H>(
@@ -199,7 +203,7 @@ pub mod test {
             let mut unhealthy = MockHealthCheckMock::new();
             unhealthy
                 .expect_check_health()
-                .returning(|| Err(HealthCheckerError::new("test".to_string())));
+                .returning(|| Err(HealthCheckerError::Generic("test".to_string())));
             unhealthy
         }
     }
