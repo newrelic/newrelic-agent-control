@@ -1,4 +1,4 @@
-use k8s_openapi::api::apps::v1::DaemonSet;
+use k8s_openapi::api::apps::v1::{DaemonSet, DaemonSetStatus, DaemonSetUpdateStrategy};
 
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
@@ -10,8 +10,40 @@ use std::sync::Arc;
 
 use super::health_checker::LABEL_RELEASE_FLUX;
 
+enum UpdateStrategyType {
+    OnDelete,
+    RollingUpdate,
+}
+
 const ROLLING_UPDATE: &str = "RollingUpdate";
 const ON_DELETE: &str = "OnDelete";
+
+#[derive(Debug, thiserror::Error, PartialEq)]
+#[error("Unknown Update Strategy Type: '{0}'")]
+pub struct UnknownUpdateStrategyType(String);
+
+impl TryFrom<String> for UpdateStrategyType {
+    type Error = UnknownUpdateStrategyType;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        match value.as_str() {
+            ROLLING_UPDATE => Ok(Self::RollingUpdate),
+            ON_DELETE => Ok(Self::OnDelete),
+            s => Err(UnknownUpdateStrategyType(s.to_string())),
+        }
+    }
+}
+
+impl std::fmt::Display for UpdateStrategyType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let result = match self {
+            UpdateStrategyType::RollingUpdate => ROLLING_UPDATE,
+            UpdateStrategyType::OnDelete => ON_DELETE,
+        };
+
+        write!(f, "{}", result)
+    }
+}
 
 pub struct K8sHealthDaemonSet {
     k8s_client: Arc<SyncK8sClient>,
@@ -57,82 +89,51 @@ impl K8sHealthDaemonSet {
     }
 
     pub fn check_health_single_daemon_set(ds: DaemonSet) -> Result<Health, HealthCheckerError> {
-        let name = ds
-            .metadata
-            .name
-            .ok_or_else(|| HealthCheckerError::new("Daemonset has no .metadata.name".into()))?;
-
-        let status = match ds.status {
-            Some(daemon_set_status) => daemon_set_status,
-            None => {
-                return Ok(Unhealthy {
-                    status: "DaemonSet unhealthy".to_string(),
-                    last_error: format!("Daemonset '{name}' is so new that it has no status yet"),
-                }
-                .into())
-            }
-        };
-
-        let update_strategy = ds
-            .spec
-            .ok_or_else(|| HealthCheckerError::new(format!("Daemonset '{name}' has no spec")))?
-            .update_strategy
-            .ok_or_else(|| {
-                HealthCheckerError::new(format!("Daemonset '{name}' has no update strategy"))
-            })?;
-
-        let rolling_update_type = update_strategy.type_.ok_or_else(|| {
-            HealthCheckerError::new(format!("Daemonset '{name}' has no update strategy type"))
+        let name = Self::get_daemon_set_name(&ds)?;
+        let status = Self::get_daemon_set_status(&ds)?;
+        let update_strategy = Self::get_daemon_set_update_strategy(&ds)?;
+        let update_strategy_type = UpdateStrategyType::try_from(
+            Self::get_daemon_set_rolling_update_type(&ds)?,
+        )
+        .map_err(|err| {
+            HealthCheckerError::new(format!("Daemonset '{name}' Update Strategy error: {err}"))
         })?;
 
-        let rolling_update = match rolling_update_type.as_str() {
+        let rolling_update = match update_strategy_type {
             // If the update strategy is not a rolling update, there will be nothing to wait for
-            ON_DELETE => {
-                return Ok(Healthy {
-                    status: format!("Daemonset '{name}' has on delete upgrade strategy"),
-                }
-                .into())
-            }
-            ROLLING_UPDATE => update_strategy.rolling_update.ok_or_else(|| {
-                HealthCheckerError::new(format!(
-                    "Daemonset '{name}' has rolling update strategy type and no struct"
-                ))
-            })?,
-            s => {
-                return Err(HealthCheckerError::new(format!(
-                    "Daemonset '{name}' has an unknown Update Strategy Type: '{s}'"
+            UpdateStrategyType::OnDelete => {
+                return Ok(Self::healthy(format!(
+                    "Daemonset '{name}' has on delete upgrade strategy"
                 )));
+            }
+            UpdateStrategyType::RollingUpdate => {
+                update_strategy.rolling_update.ok_or_else(|| {
+                    Self::missing_field_error(name.as_str(), ".spec.updateStrategy.rollingUpdate")
+                })?
             }
         };
 
         if status.updated_number_scheduled.is_none() {
-            return Ok(Unhealthy {
-                status: "DaemonSet unhealthy".to_string(),
-                last_error: format!("Daemonset '{name}' is so new that it has no `updated_number_scheduled` status yet"),
-            }.into());
+            return Ok(Self::unhealthy(format!(
+                "Daemonset '{name}' is so new that it has no `updated_number_scheduled` status yet"
+            )));
         }
 
         // Make sure all the updated pods have been scheduled
         if let Some(updated_number_scheduled) = status.updated_number_scheduled {
             if updated_number_scheduled != status.desired_number_scheduled {
-                return Ok(Unhealthy {
-                    status: "DaemonSet unhealthy".to_string(),
-                    last_error: format!(
-                        "Not all the pods of the DaemonSet '{name}' were able to schedule"
-                    ),
-                }
-                .into());
+                return Ok(Self::unhealthy(format!(
+                    "DaemonSet '{name}' Not all the pods of the were able to schedule"
+                )));
             }
         }
 
         let max_unavailable = match rolling_update.max_unavailable {
-            // If max unavailable is not set, the daemonset does not expect to have healthy pods.
+            // If max unavailable is not set, the daemon set does not expect to have healthy pods.
             // Returning Healthiness as soon as possible.
-            None => return Ok(Healthy {
-                status: format!(
-                    "DaemonSet '{name}' healthy: This daemonset does not expect to have healthy pods",
-                ),
-            }.into()),
+            None => return Ok(Self::healthy(format!(
+                    "DaemonSet '{name}' healthy: This daemon set does not expect to have healthy pods",
+                ))),
             Some(value) => IntOrPercentage::try_from(value).map_err(|err| {
                 HealthCheckerError::new(format!(
                     "Daemonset '{name}' has an non-parsable Max Availability on Update Strategy: '{err}'"
@@ -142,21 +143,75 @@ impl K8sHealthDaemonSet {
 
         let expected_ready = status.desired_number_scheduled - max_unavailable;
         if status.number_ready < expected_ready {
-            return Ok(Unhealthy {
-                status: "DaemonSet unhealthy".to_string(),
-                last_error: format!(
-                    "Daemonset '{name}': The number of pods ready is less that the desired: {} < {}",
-                    status.number_ready, expected_ready
-                ),
-            }.into());
+            return Ok(Self::unhealthy(format!(
+                "Daemonset '{name}': The number of pods ready is less that the desired: {} < {}",
+                status.number_ready, expected_ready
+            )));
         }
 
-        Ok(Healthy {
-            status: format!(
-                "DaemonSet '{name}' healthy: Pods ready are equal or greater than desired: {} >= {}",
-                status.number_ready, expected_ready
-            ),
-        }.into())
+        Ok(Self::healthy(format!(
+            "DaemonSet '{name}' healthy: Pods ready are equal or greater than desired: {} >= {}",
+            status.number_ready, expected_ready
+        )))
+    }
+
+    fn missing_field_error(name: &str, field: &str) -> HealthCheckerError {
+        HealthCheckerError::new(format!("Daemonset '{}' without {}", name, field))
+    }
+
+    fn healthy(s: String) -> Health {
+        Healthy { status: s }.into()
+    }
+
+    fn unhealthy(error: String) -> Health {
+        Unhealthy {
+            status: "".to_string(),
+            last_error: error,
+        }
+        .into()
+    }
+
+    fn get_daemon_set_name(daemon_set: &DaemonSet) -> Result<String, HealthCheckerError> {
+        daemon_set
+            .metadata
+            .name
+            .clone()
+            .ok_or_else(|| HealthCheckerError::new("Daemonset without .metadata.name".into()))
+    }
+
+    fn get_daemon_set_status(
+        daemon_set: &DaemonSet,
+    ) -> Result<DaemonSetStatus, HealthCheckerError> {
+        let name = Self::get_daemon_set_name(daemon_set)?;
+
+        daemon_set
+            .status
+            .clone()
+            .ok_or_else(|| Self::missing_field_error(name.as_str(), "status"))
+    }
+
+    fn get_daemon_set_update_strategy(
+        daemon_set: &DaemonSet,
+    ) -> Result<DaemonSetUpdateStrategy, HealthCheckerError> {
+        let name = Self::get_daemon_set_name(daemon_set)?;
+
+        daemon_set
+            .spec
+            .clone()
+            .ok_or_else(|| Self::missing_field_error(name.as_str(), ".spec"))?
+            .update_strategy
+            .ok_or_else(|| Self::missing_field_error(name.as_str(), ".spec.updateStrategy"))
+    }
+
+    fn get_daemon_set_rolling_update_type(
+        daemon_set: &DaemonSet,
+    ) -> Result<String, HealthCheckerError> {
+        let name = Self::get_daemon_set_name(daemon_set)?;
+
+        Self::get_daemon_set_update_strategy(daemon_set)?
+            .type_
+            .clone()
+            .ok_or_else(|| Self::missing_field_error(name.as_str(), ".spec.updateStrategy.Type"))
     }
 }
 
@@ -171,7 +226,7 @@ pub mod test {
     };
 
     #[test]
-    fn test_daemonset_spec_errors() {
+    fn test_daemon_set_spec_errors() {
         struct TestCase {
             name: &'static str,
             ds: DaemonSet,
@@ -209,8 +264,18 @@ pub mod test {
                     spec: None,
                     status: None,
                 },
-                expected: HealthCheckerError::new("Daemonset has no .metadata.name".into()),
+                expected: HealthCheckerError::new("Daemonset without .metadata.name".into()),
             },
+            TestCase {
+                name: "ds without status",
+                ds: DaemonSet {
+                    metadata: test_util_get_common_metadata(),
+                    spec: None,
+                    status: None,
+                },
+                expected: HealthCheckerError::new("Daemonset 'test' without status".into()),
+            },
+
             TestCase {
                 name: "ds without spec",
                 ds: DaemonSet {
@@ -220,7 +285,7 @@ pub mod test {
                         ..Default::default()
                     }),
                 },
-                expected: HealthCheckerError::new("Daemonset 'test' has no spec".into()),
+                expected: HealthCheckerError::new("Daemonset 'test' without .spec".into()),
             },
             TestCase {
                 name: "ds without update strategy",
@@ -234,7 +299,7 @@ pub mod test {
                         ..Default::default()
                     }),
                 },
-                expected: HealthCheckerError::new("Daemonset 'test' has no update strategy".into()),
+                expected: HealthCheckerError::new("Daemonset 'test' without .spec.updateStrategy".into()),
             },
             TestCase {
                 name: "ds with unknown update strategy",
@@ -251,7 +316,7 @@ pub mod test {
                         ..Default::default()
                     }),
                 },
-                expected: HealthCheckerError::new("Daemonset 'test' has an unknown Update Strategy Type: 'Unknown-TEST'".into()),
+                expected: HealthCheckerError::new("Daemonset 'test' Update Strategy error: Unknown Update Strategy Type: 'Unknown-TEST'".into()),
             },
             TestCase {
                 name: "ds which update strategy is rolling but has no struct",
@@ -268,7 +333,7 @@ pub mod test {
                         ..Default::default()
                     }),
                 },
-                expected: HealthCheckerError::new("Daemonset 'test' has rolling update strategy type and no struct".into()),
+                expected: HealthCheckerError::new("Daemonset 'test' without .spec.updateStrategy.rollingUpdate".into()),
             },
             TestCase {
                 name: "ds update strategy policy has non-parsable max_unavailable",
@@ -293,30 +358,13 @@ pub mod test {
                 expected:
                 HealthCheckerError::new("Daemonset 'test' has an non-parsable Max Availability on Update Strategy: 'invalid digit found in string'".into()),
             },
-            TestCase {
-                name: "ds which update strategy is rolling but has no struct",
-                ds: DaemonSet {
-                    metadata: test_util_get_common_metadata(),
-                    spec: Some(DaemonSetSpec {
-                        update_strategy: Some(DaemonSetUpdateStrategy {
-                            type_: Some(ROLLING_UPDATE.to_string()),
-                            rolling_update: None,
-                        }),
-                        ..Default::default()
-                    }),
-                    status: Some(DaemonSetStatus {
-                        ..Default::default()
-                    }),
-                },
-                expected: HealthCheckerError::new("Daemonset 'test' has rolling update strategy type and no struct".into()),
-            },
         ];
 
         test_cases.into_iter().for_each(|tc| tc.run());
     }
 
     #[test]
-    fn test_daemonset_healthiness() {
+    fn test_daemon_set_health() {
         #[derive(Debug)]
         struct TestCase {
             name: &'static str,
@@ -339,18 +387,6 @@ pub mod test {
         }
 
         let test_cases: Vec<TestCase> = vec![
-            TestCase {
-                name: "ds without status",
-                ds: DaemonSet {
-                    metadata: test_util_get_common_metadata(),
-                    spec: None,
-                    status: None,
-                },
-                expected: Unhealthy{
-                    status: String::from("DaemonSet unhealthy"),
-                    last_error: String::from("Daemonset 'test' is so new that it has no status yet")
-                }.into(),
-            },
             TestCase {
                 name: "ds has on delete update strategy type",
                 ds: DaemonSet {
@@ -388,7 +424,7 @@ pub mod test {
                     }),
                 },
                 expected: Unhealthy{
-                    status: String::from("DaemonSet unhealthy"),
+                    status: String::from(""),
                     last_error: String::from("Daemonset 'test' is so new that it has no `updated_number_scheduled` status yet")
                 }.into(),
             },
@@ -412,9 +448,9 @@ pub mod test {
                     }),
                 },
                 expected: Unhealthy {
-                    status: String::from("DaemonSet unhealthy"),
+                    status: String::from(""),
                     last_error: String::from(
-                        "Not all the pods of the DaemonSet 'test' were able to schedule",
+                        "DaemonSet 'test' Not all the pods of the were able to schedule",
                     ),
                 }.into(),
             },
@@ -440,7 +476,7 @@ pub mod test {
                 },
                 expected: Healthy {
                     status: String::from(
-                        "DaemonSet 'test' healthy: This daemonset does not expect to have healthy pods",
+                        "DaemonSet 'test' healthy: This daemon set does not expect to have healthy pods",
                     ),
                 }.into(),
             },
@@ -466,7 +502,7 @@ pub mod test {
                     }),
                 },
                 expected: Unhealthy {
-                    status: String::from("DaemonSet unhealthy"),
+                    status: String::from(""),
                     last_error: String::from(
                         "Daemonset 'test': The number of pods ready is less that the desired: 2 < 3",
                     ),
@@ -494,7 +530,7 @@ pub mod test {
                     }),
                 },
                 expected: Unhealthy {
-                    status: String::from("DaemonSet unhealthy"),
+                    status: String::from(""),
                     last_error: String::from(
                         "Daemonset 'test': The number of pods ready is less that the desired: 2 < 3",
                     ),

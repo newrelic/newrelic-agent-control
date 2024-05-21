@@ -132,22 +132,19 @@ pub mod test {
     use super::*;
 
     #[test]
-    fn int_or_percentage_parse_int() {
+    fn int_or_percentage_parse() {
         struct TestCase {
             name: &'static str,
             int_or_string: IntOrString,
-            expected: i32,
+            expected: IntOrPercentage,
         }
 
         impl TestCase {
             fn run(self) {
-                let IntOrPercentage::Int(int_or_percentage) =
-                    IntOrPercentage::try_from(self.int_or_string).unwrap_or_else(|err| {
-                        panic!("Test case '{}' resulted on error: {}", self.name, err)
-                    })
-                else {
-                    panic!("Test case '{}' parsed to percentage", self.name)
-                };
+                let int_or_percentage = IntOrPercentage::try_from(self.int_or_string)
+                    .unwrap_or_else(|err| {
+                        panic!("Test case '{}' resulted on error: {}", self.name, err);
+                    });
 
                 assert_eq!(int_or_percentage, self.expected, "{}", self.name);
             }
@@ -157,75 +154,47 @@ pub mod test {
             TestCase {
                 name: "int_or_percentage should parse as int: negative int",
                 int_or_string: IntOrString::Int(-100),
-                expected: -100,
+                expected: IntOrPercentage::Int(-100),
             },
             TestCase {
                 name: "int_or_percentage should parse as int: negative string",
                 int_or_string: IntOrString::String("-100".into()),
-                expected: -100,
+                expected: IntOrPercentage::Int(-100),
             },
             TestCase {
                 name: "int_or_percentage should parse as int: zero int",
                 int_or_string: IntOrString::Int(0),
-                expected: 0,
+                expected: IntOrPercentage::Int(0),
             },
             TestCase {
                 name: "int_or_percentage should parse as int: zero string",
                 int_or_string: IntOrString::String("0".into()),
-                expected: 0,
+                expected: IntOrPercentage::Int(0),
             },
             TestCase {
                 name: "int_or_percentage should parse as int: positive int",
                 int_or_string: IntOrString::Int(100),
-                expected: 100,
+                expected: IntOrPercentage::Int(100),
             },
             TestCase {
                 name: "int_or_percentage should parse as int: positive string",
                 int_or_string: IntOrString::String("100".into()),
-                expected: 100,
+                expected: IntOrPercentage::Int(100),
             },
-        ];
-
-        test_cases.into_iter().for_each(|tc| tc.run());
-    }
-
-    #[test]
-    fn int_or_percentage_parse_percentage() {
-        struct TestCase {
-            name: &'static str,
-            int_or_string: IntOrString,
-            expected: f32,
-        }
-
-        impl TestCase {
-            fn run(self) {
-                let IntOrPercentage::Percentage(int_or_percentage) =
-                    IntOrPercentage::try_from(self.int_or_string).unwrap_or_else(|err| {
-                        panic!("Test case '{}' resulted on error: {}", self.name, err)
-                    })
-                else {
-                    panic!("Test case '{}' parsed to integer", self.name)
-                };
-
-                assert_eq!(int_or_percentage, self.expected, "{}", self.name);
-            }
-        }
-
-        let test_cases = vec![
             TestCase {
-                name: "int_or_percentage should parse as int: negative string",
+                name: "int_or_percentage should parse as percent: negative string",
                 int_or_string: IntOrString::String("-100%".into()),
-                expected: -1.0,
+                expected: IntOrPercentage::Percentage(-1.0),
             },
             TestCase {
-                name: "int_or_percentage should parse as int: zero string",
+                name: "int_or_percentage should parse as percent: zero string",
                 int_or_string: IntOrString::String("0%".into()),
-                expected: 0.0,
+                expected: IntOrPercentage::Percentage(0.0),
             },
             TestCase {
-                name: "int_or_percentage should parse as int: positive string",
+                name: "int_or_percentage should parse as percent: positive string",
                 int_or_string: IntOrString::String("100%".into()),
-                expected: 1.0,
+                expected: IntOrPercentage::Percentage(1.0),
             },
         ];
 
@@ -254,23 +223,27 @@ pub mod test {
 
         let test_cases = vec![
             TestCase {
-                name: "int_or_percentage should parse as int: negative string",
+                name: "int_or_percentage should not parse: random string",
                 int_or_string: IntOrString::String("NaN".into()),
             },
             TestCase {
-                name: "int_or_percentage should parse as int: zero string",
+                name: "int_or_percentage should not parse: negative no-string",
+                int_or_string: IntOrString::String("-".into()),
+            },
+            TestCase {
+                name: "int_or_percentage should not parse: no-percentage",
                 int_or_string: IntOrString::String("%".into()),
             },
             TestCase {
-                name: "int_or_percentage should parse as int: zero string",
+                name: "int_or_percentage should not parse: negative no-percentage",
                 int_or_string: IntOrString::String("-%".into()),
             },
             TestCase {
-                name: "int_or_percentage should parse as int: zero string",
+                name: "int_or_percentage should not parse: zero string",
                 int_or_string: IntOrString::String("".into()),
             },
             TestCase {
-                name: "int_or_percentage should parse as int: zero string",
+                name: "int_or_percentage should not parse: broken percentage",
                 int_or_string: IntOrString::String("%100".into()),
             },
         ];
