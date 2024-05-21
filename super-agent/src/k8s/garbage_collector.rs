@@ -383,7 +383,12 @@ pub(crate) mod test {
 
     #[test]
     fn test_should_delete_dynamic_object_fail() {
-        let test_cases: Vec<(&str, ObjectMeta, fn(GarbageCollectorK8sError, String))> = vec![
+        type TestCase = (
+            &'static str,
+            ObjectMeta,
+            fn(GarbageCollectorK8sError, String),
+        );
+        let test_cases: Vec<TestCase> = vec![
             (
                 "missing-annotations",
                 ObjectMeta {

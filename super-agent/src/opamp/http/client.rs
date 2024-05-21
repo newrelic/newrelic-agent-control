@@ -6,7 +6,6 @@ use http::{HeaderMap, HeaderName, Response};
 use opamp_client::http::http_client::HttpClient;
 use opamp_client::http::HttpClientError;
 use opamp_client::http::HttpClientError::TransportError;
-use tracing::warn;
 use ureq::Request;
 use url::Url;
 

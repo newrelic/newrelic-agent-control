@@ -4,7 +4,7 @@ use super::{
     reflector::{definition::ReflectorBuilder, resources::Reflectors},
 };
 use crate::super_agent::config::helm_release_type_meta;
-use k8s_openapi::api::apps::v1::{DaemonSet, StatefulSet};
+use k8s_openapi::api::apps::v1::{DaemonSet, Deployment, ReplicaSet, StatefulSet};
 use k8s_openapi::api::core::v1::{ConfigMap, Namespace};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use kube::api::entry::Entry;
@@ -165,6 +165,20 @@ impl SyncK8sClient {
     pub fn list_daemon_set(&self) -> Vec<Arc<DaemonSet>> {
         self.async_client.reflectors.daemon_set.list()
     }
+
+    pub fn list_deployment(&self) -> Result<ObjectList<Deployment>, K8sError> {
+        self.runtime.block_on(self.async_client.list_deployment())
+    }
+
+    pub fn get_replica_sets_for_deployment(
+        &self,
+        deployment_name: &str,
+    ) -> Result<Vec<ReplicaSet>, K8sError> {
+        self.runtime.block_on(
+            self.async_client
+                .get_replica_sets_for_deployment(deployment_name),
+        )
+    }
 }
 
 pub struct AsyncK8sClient {
@@ -314,6 +328,35 @@ impl AsyncK8sClient {
         let list_stateful_set = ss_client.list(&ListParams::default()).await?;
 
         Ok(list_stateful_set)
+    }
+
+    pub async fn list_deployment(&self) -> Result<ObjectList<Deployment>, K8sError> {
+        let api: Api<Deployment> = Api::<Deployment>::default_namespaced(self.client.clone());
+        let list_deployment = api.list(&ListParams::default()).await?;
+
+        Ok(list_deployment)
+    }
+
+    pub async fn get_replica_sets_for_deployment(
+        &self,
+        deployment_name: &str,
+    ) -> Result<Vec<ReplicaSet>, K8sError> {
+        let rs_api: Api<ReplicaSet> = Api::<ReplicaSet>::default_namespaced(self.client.clone());
+        let rs_list = rs_api.list(&ListParams::default()).await?;
+
+        let mut associated_rs = Vec::new();
+
+        for rs in rs_list {
+            if let Some(owner_references) = rs.metadata.owner_references.as_ref() {
+                for owner in owner_references {
+                    if owner.kind == "Deployment" && owner.name == deployment_name {
+                        associated_rs.push(rs.clone());
+                    }
+                }
+            }
+        }
+
+        Ok(associated_rs)
     }
 
     pub fn default_namespace(&self) -> &str {
