@@ -19,11 +19,11 @@ pub enum HealthCheckerError {
     #[error("{0}")]
     Generic(String),
     // TODO: actually use the error variants below in k8s implementation
-    #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
-    #[error("Invalid or missing field `{0}` in `{1}`")]
-    InvalidField(String, String),
-    #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
-    #[error("Error fetching k8s object {0}")]
+    #[cfg(feature = "k8s")]
+    #[error("invalid or missing field `{0}` in k8s object `{1}`")]
+    InvalidK8sObjectField(String, String),
+    #[cfg(feature = "k8s")]
+    #[error("error fetching k8s object {0}")]
     K8sError(#[from] k8s::Error),
 }
 
