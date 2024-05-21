@@ -15,7 +15,6 @@ use newrelic_super_agent::sub_agent::effective_agents_assembler::{
     build_agent_type, AgentTypeDefinitionError,
 };
 use std::collections::HashMap;
-use std::path::Path;
 use thiserror::Error;
 use tracing::{debug, error};
 
@@ -94,7 +93,7 @@ impl<R: AgentRegistry, F: FileReader> ConfigConverter<R, F> {
         agent_type_field_fqn: AgentTypeFieldFQN,
         file_path: FilePath,
     ) -> Result<HashMap<String, AgentValueSpec>, ConversionError> {
-        let contents = self.file_reader.read(Path::new(file_path.as_str()))?;
+        let contents = self.file_reader.read(file_path.as_path())?;
         Ok(from_fqn_and_value(
             agent_type_field_fqn.clone(),
             AgentValueSpecEnd(contents),
@@ -106,17 +105,16 @@ impl<R: AgentRegistry, F: FileReader> ConfigConverter<R, F> {
         agent_type_field_fqn: AgentTypeFieldFQN,
         dir_path: DirPath,
     ) -> Result<HashMap<String, AgentValueSpec>, ConversionError> {
-        let files_paths = self.file_reader.read_dir(Path::new(dir_path.as_str()))?;
+        let files_paths = self.file_reader.dir_entries(dir_path.as_path())?;
         let mut res: Vec<HashMap<String, AgentValueSpec>> = Vec::new();
         // refactor file_path to path
-        for file in files_paths {
-            let path = Path::new(file.as_str());
+        for path in files_paths {
             let filename = path.file_name().unwrap().to_str().unwrap().to_string();
             // replace the file separator to not be treated as a leaf
             let escaped_filename = filename.replace(FILE_SEPARATOR, FILE_SEPARATOR_REPLACE);
             let full_agent_type_field_fqn: AgentTypeFieldFQN =
                 format!("{}.{}", agent_type_field_fqn, escaped_filename).into();
-            res.push(self.file_to_agent_value_spec(full_agent_type_field_fqn, file)?);
+            res.push(self.file_to_agent_value_spec(full_agent_type_field_fqn, path)?);
         }
         Ok(merge_agent_values(res)?)
     }

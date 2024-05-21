@@ -9,6 +9,7 @@ pub struct LocalFile;
 
 #[cfg(feature = "mocks")]
 pub mod mock {
+    use std::path::PathBuf;
     use std::{fs::Permissions, path::Path};
 
     use super::file_reader::{FileReader, FileReaderError};
@@ -21,7 +22,7 @@ pub mod mock {
 
         impl FileReader for LocalFile {
             fn read(&self, file_path: &Path) -> Result<String, FileReaderError>;
-            fn read_dir(&self, dir_path: &Path) -> Result<Vec<String>, FileReaderError>;
+            fn dir_entries(&self, dir_path: &Path) -> Result<Vec<PathBuf>, FileReaderError>;
         }
 
         impl FileRenamer for LocalFile {

@@ -4,6 +4,7 @@ use serde_yaml::Error;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
+use std::path::PathBuf;
 use thiserror::Error;
 use tracing::error;
 
@@ -11,8 +12,8 @@ pub const FILE_SEPARATOR: &str = ".";
 // Used to replace temporarily the . separator on files to not treat them as leafs on the hashmap
 pub const FILE_SEPARATOR_REPLACE: &str = "#";
 
-pub type FilePath = String;
-pub type DirPath = String;
+pub type FilePath = PathBuf;
+pub type DirPath = PathBuf;
 
 #[derive(Error, Debug)]
 pub enum MigrationConfigError {
