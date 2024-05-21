@@ -33,7 +33,9 @@ use crate::{
 use nix::unistd::gethostname;
 use resource_detection::Detector;
 use std::collections::HashMap;
+use std::process::{Command, Stdio};
 use std::sync::Arc;
+use tracing::debug;
 
 pub struct OnHostSubAgentBuilder<'a, O, I, HR, A, E>
 where
@@ -120,11 +122,12 @@ where
             &Environment::OnHost,
         );
 
-        let supervisors = build_supervisor_or_default::<HR, O, _, _>(
+        let supervisors = build_supervisor_or_default::<HR, O, _, _, _>(
             &agent_id,
             &self.hash_repository,
             &maybe_opamp_client,
             effective_agent_res,
+            pre_setup_supervisor,
             |effective_agent| build_supervisors(&self.identifiers_provider, effective_agent),
         )?;
 
@@ -144,6 +147,59 @@ where
             sub_agent_internal_publisher,
         ))
     }
+}
+
+fn pre_setup_supervisor(effective_agent: &EffectiveAgent) -> Result<(), SubAgentBuilderError> {
+    let setup_steps = effective_agent
+        .get_runtime_config()
+        .deployment
+        .on_host
+        .as_ref()
+        .map(|on_host| &on_host.setup);
+
+    // Act on the vector of setup steps if it exists
+    setup_steps
+        .map(|steps| {
+            steps.iter().try_for_each(|step| {
+                let cosa = step.0.clone().get();
+                if cosa.is_empty() {
+                    return Err(SubAgentBuilderError::SetupError(
+                        "Empty setup command found".into(),
+                    ));
+                }
+
+                let mut cmd_string = cosa.split_whitespace();
+                let bin = cmd_string.next().expect("Already checked that the string is not empty so it should have a first element");
+
+                let mut cmd = Command::new(bin);
+                cmd.stderr(Stdio::piped()).stdout(Stdio::piped());
+
+                cmd_string.fold(&mut cmd, |c, arg| c.arg(arg));
+
+                let output = cmd.spawn().map_err(|e| SubAgentBuilderError::SetupError(e.to_string()))?.wait_with_output().map_err(|e| SubAgentBuilderError::SetupError(e.to_string()))?;
+
+                // Print outputs
+                if !output.stdout.is_empty() {
+                    debug!("Setup command stdout: {}", String::from_utf8_lossy(&output.stdout).trim());
+                }
+
+                if !output.stderr.is_empty() {
+                    debug!("Setup command stderr: {}", String::from_utf8_lossy(&output.stderr).trim());
+                }
+
+                if !output.status.success() {
+                    return Err(SubAgentBuilderError::SetupError(format!(
+                        "Setup command failed with exit code: {}",
+                        output.status.code().unwrap_or_default()
+                    )));
+                }
+
+                Ok(())
+            })
+        })
+        .transpose()?;
+
+    Ok(())
 }
 
 fn build_supervisors(

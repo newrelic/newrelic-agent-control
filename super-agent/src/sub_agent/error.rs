@@ -63,6 +63,8 @@ pub enum SubAgentBuilderError {
     UnsupportedK8sObject(String),
     #[error("Invalid configuration: `{0}`")]
     ConfigError(String),
+    #[error("Error during sub agent setup: `{0}`")]
+    SetupError(String),
 }
 
 #[derive(Error, Debug)]
