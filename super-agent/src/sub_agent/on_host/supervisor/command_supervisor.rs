@@ -232,7 +232,10 @@ fn handle_termination(
         publish_health_event(
             internal_event_publisher,
             Unhealthy {
-                last_error: format!("process exited with code: {}", exit_status.code()),
+                last_error: format!(
+                    "process exited with code: {:?}",
+                    exit_status.code().unwrap_or_default()
+                ),
                 ..Default::default()
             }
             .into(),
@@ -240,7 +243,7 @@ fn handle_termination(
         error!(
             %agent_id,
             supervisor = bin,
-            exit_code = exit_status.code(),
+            exit_code = ?exit_status.code(),
             "supervisor process exited unsuccessfully"
         )
     }
