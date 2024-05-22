@@ -107,7 +107,7 @@
                 # For more options, check docs:
                 # https://github.com/cachix/pre-commit-hooks.nix#custom-hooks
                 extraPackages =
-                  rustToolchain
+                  [rustToolchain]
                   ++ (with pkgs; [
                     cargo-deny
                     git
