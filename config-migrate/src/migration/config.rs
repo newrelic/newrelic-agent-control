@@ -106,7 +106,7 @@ pub struct DirInfo {
 impl DirInfo {
     pub fn valid_file_type(&self, filename: &str) -> bool {
         for file_type in &self.file_types {
-            let re = Regex::new(file_type).unwrap();
+            let re = Regex::new(file_type).expect("invalid regex for valid file type");
             if re.is_match(filename) {
                 return true;
             }
