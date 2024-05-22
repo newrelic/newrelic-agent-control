@@ -1,10 +1,9 @@
-use crate::k8s::client::contains_label_with_value;
+use super::health_checker::LABEL_RELEASE_FLUX;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::sub_agent::health::health_checker::{
     Health, HealthChecker, HealthCheckerError, Healthy,
 };
-use crate::sub_agent::health::k8s::health_checker::LABEL_RELEASE_FLUX;
 use k8s_openapi::api::apps::v1::{StatefulSet, StatefulSetSpec};
 use std::sync::Arc;
 
@@ -28,7 +27,11 @@ impl HealthChecker for K8sHealthStatefulSet {
 
         let release_name = self.release_name.as_str();
         let matching_stateful_sets = stateful_sets.into_iter().filter(|ss| {
-            contains_label_with_value(&ss.metadata.labels, LABEL_RELEASE_FLUX, release_name)
+            crate::k8s::utils::contains_label_with_value(
+                &ss.metadata.labels,
+                LABEL_RELEASE_FLUX,
+                release_name,
+            )
         });
 
         for ss in matching_stateful_sets {

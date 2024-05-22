@@ -4,7 +4,7 @@ use super::{
     reflector::{definition::ReflectorBuilder, resources::Reflectors},
 };
 use crate::super_agent::config::helm_release_type_meta;
-use k8s_openapi::api::apps::v1::StatefulSet;
+use k8s_openapi::api::apps::v1::{DaemonSet, StatefulSet};
 use k8s_openapi::api::core::v1::{ConfigMap, Namespace};
 use kube::api::entry::Entry;
 use kube::api::ObjectList;
@@ -154,6 +154,10 @@ impl SyncK8sClient {
 
     pub fn default_namespace(&self) -> &str {
         self.async_client.default_namespace()
+    }
+
+    pub fn list_daemon_set(&self) -> Result<ObjectList<DaemonSet>, K8sError> {
+        self.runtime.block_on(self.async_client.list_daemon_set())
     }
 }
 
@@ -309,6 +313,13 @@ impl AsyncK8sClient {
     pub fn default_namespace(&self) -> &str {
         self.client.default_namespace()
     }
+
+    pub async fn list_daemon_set(&self) -> Result<ObjectList<DaemonSet>, K8sError> {
+        let ss_client: Api<DaemonSet> = Api::<DaemonSet>::default_namespaced(self.client.clone());
+        let list_daemon_set = ss_client.list(&ListParams::default()).await?;
+
+        Ok(list_daemon_set)
+    }
 }
 
 //  delete_collection has been moved outside the client to be able to use mockall in the client
@@ -347,23 +358,11 @@ where
 }
 
 pub fn get_name(obj: &DynamicObject) -> Result<String, K8sError> {
-    obj.metadata.clone().name.ok_or(K8sError::MissingName())
+    obj.metadata.clone().name.ok_or(K8sError::MissingCRName)
 }
 
 pub fn get_type_meta(obj: &DynamicObject) -> Result<TypeMeta, K8sError> {
-    obj.types.clone().ok_or(K8sError::MissingKind())
-}
-
-/// This function returns true if there are labels and they contain the provided key, value.
-pub fn contains_label_with_value(
-    labels: &Option<BTreeMap<String, String>>,
-    key: &str,
-    value: &str,
-) -> bool {
-    labels
-        .as_ref()
-        .and_then(|labels| labels.get(key))
-        .map_or(false, |v| v.as_str() == value)
+    obj.types.clone().ok_or(K8sError::MissingCRKind)
 }
 
 #[cfg(test)]
@@ -632,67 +631,5 @@ pub(crate) mod test {
                 }
             )
         }
-    }
-
-    #[test]
-    fn test_contains_label_with_value() {
-        struct TestCase<'a> {
-            name: &'a str,
-            labels: &'a Option<BTreeMap<String, String>>,
-            key: &'a str,
-            value: &'a str,
-            expected: bool,
-        }
-
-        impl TestCase<'_> {
-            fn run(&self) {
-                assert_eq!(
-                    self.expected,
-                    contains_label_with_value(self.labels, self.key, self.value),
-                    "{}",
-                    self.name
-                )
-            }
-        }
-
-        let test_cases = [
-            TestCase {
-                name: "No labels",
-                labels: &None,
-                key: "key",
-                value: "value",
-                expected: false,
-            },
-            TestCase {
-                name: "Empty labels",
-                labels: &Some(BTreeMap::default()),
-                key: "key",
-                value: "value",
-                expected: false,
-            },
-            TestCase {
-                name: "No matching label",
-                labels: &Some([("a".to_string(), "b".to_string())].into()),
-                key: "key",
-                value: "value",
-                expected: false,
-            },
-            TestCase {
-                name: "Matching label with different value",
-                labels: &Some([("key".to_string(), "other".to_string())].into()),
-                key: "key",
-                value: "value",
-                expected: false,
-            },
-            TestCase {
-                name: "Matching label and value",
-                labels: &Some([("key".to_string(), "value".to_string())].into()),
-                key: "key",
-                value: "value",
-                expected: true,
-            },
-        ];
-
-        test_cases.iter().for_each(|tc| tc.run());
     }
 }
