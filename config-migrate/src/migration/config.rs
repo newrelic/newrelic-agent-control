@@ -107,7 +107,7 @@ impl DirInfo {
     pub fn valid_filename(&self, filename: &str) -> bool {
         for filename_pattern in &self.filename_patterns {
             let re = Regex::new(filename_pattern)
-                .expect(format!("invalid filename_pattern: {}", filename_pattern).as_str());
+                .unwrap_or_else(|_| panic!("invalid filename_pattern: {}", filename_pattern));
             if re.is_match(filename) {
                 return true;
             }
