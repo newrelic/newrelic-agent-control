@@ -100,13 +100,14 @@ pub struct DirMap {
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct DirInfo {
     pub path: FilePath,
-    pub file_types: Vec<String>,
+    pub filename_patterns: Vec<String>,
 }
 
 impl DirInfo {
-    pub fn valid_file_type(&self, filename: &str) -> bool {
-        for file_type in &self.file_types {
-            let re = Regex::new(file_type).expect("invalid regex for valid file type");
+    pub fn valid_filename(&self, filename: &str) -> bool {
+        for filename_pattern in &self.filename_patterns {
+            let re = Regex::new(filename_pattern)
+                .expect(format!("invalid filename_pattern: {}", filename_pattern).as_str());
             if re.is_match(filename) {
                 return true;
             }
@@ -203,11 +204,11 @@ configs:
     dirs_map:
       config_ohis:
         path: /etc/newrelic-infra/integrations.d
-        file_types:
+        filename_patterns:
           - ".*\\.ya?ml$"
       logging:
         path: /etc/newrelic-infra/logging.d
-        file_types:
+        filename_patterns:
           - ".*\\.ya?ml$"
   -
     agent_type_fqn: newrelic/com.newrelic.another:1.0.0
@@ -221,12 +222,12 @@ configs:
     dirs_map:
       config_integrations:
         path: /etc/newrelic-infra/integrations.d
-        file_types:
+        filename_patterns:
           - ".*\\.ya?ml$"
 
       config_logging:
         path: /etc/newrelic-infra/logging.d
-        file_types:
+        filename_patterns:
           - ".*\\.ya?ml$"
 
   -
@@ -241,12 +242,12 @@ configs:
     dirs_map:
       config_integrations:
         path: /etc/newrelic-infra/integrations.d
-        file_types:
+        filename_patterns:
           - ".*\\.ya?ml$"
         
       config_logging:
         path: /etc/newrelic-infra/logging.d
-        file_types:
+        filename_patterns:
           - ".*\\.ya?ml$"
         
   -
@@ -307,16 +308,16 @@ configs: []
     #[test]
     fn test_dir_info() {
         let dir_info = DirInfo {
-            file_types: vec![String::from(".*\\.ya?ml$"), String::from(".*\\.otro$")],
+            filename_patterns: vec![String::from(".*\\.ya?ml$"), String::from(".*\\.otro$")],
             path: FilePath::from("some/path"),
         };
 
-        assert!(dir_info.valid_file_type("something.yaml"));
-        assert!(dir_info.valid_file_type("something.yml"));
-        assert!(dir_info.valid_file_type("something.other.yaml"));
-        assert!(dir_info.valid_file_type("something.otro"));
-        assert_eq!(false, dir_info.valid_file_type("something.yoml"));
-        assert_eq!(false, dir_info.valid_file_type("something.yaml.sample"));
+        assert!(dir_info.valid_filename("something.yaml"));
+        assert!(dir_info.valid_filename("something.yml"));
+        assert!(dir_info.valid_filename("something.other.yaml"));
+        assert!(dir_info.valid_filename("something.otro"));
+        assert_eq!(false, dir_info.valid_filename("something.yoml"));
+        assert_eq!(false, dir_info.valid_filename("something.yaml.sample"));
     }
 
     #[test]
@@ -326,11 +327,11 @@ configs: []
 
         for config in migration_config.configs {
             for dir_map in config.dirs_map {
-                assert!(dir_map.1.valid_file_type("something.yaml"));
-                assert!(dir_map.1.valid_file_type("something.yml"));
-                assert_eq!(false, dir_map.1.valid_file_type("something.yml.sample"));
-                assert_eq!(false, dir_map.1.valid_file_type("something.yaml.sample"));
-                assert_eq!(false, dir_map.1.valid_file_type("something.yoml"));
+                assert!(dir_map.1.valid_filename("something.yaml"));
+                assert!(dir_map.1.valid_filename("something.yml"));
+                assert_eq!(false, dir_map.1.valid_filename("something.yml.sample"));
+                assert_eq!(false, dir_map.1.valid_filename("something.yaml.sample"));
+                assert_eq!(false, dir_map.1.valid_filename("something.yoml"));
             }
         }
     }

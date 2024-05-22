@@ -9,11 +9,11 @@ configs:
     dirs_map:
       config_ohis:
         path: /etc/newrelic-infra/integrations.d
-        file_types:
+        filename_patterns:
           - ".*\\.ya?ml$"
       logging:
         path: /etc/newrelic-infra/logging.d
-        file_types:
+        filename_patterns:
           - ".*\\.ya?ml$"
   -
     agent_type_fqn: newrelic/com.newrelic.infrastructure_agent:0.1.0
@@ -22,11 +22,11 @@ configs:
     dirs_map:
       config_integrations:
         path: /etc/newrelic-infra/integrations.d
-        file_types:
+        filename_patterns:
           - ".*\\.ya?ml$"
       config_logging:
         path: /etc/newrelic-infra/logging.d
-        file_types:
+        filename_patterns:
           - ".*\\.ya?ml$"
   -
     agent_type_fqn: newrelic/com.newrelic.infrastructure_agent:0.1.1
@@ -35,11 +35,11 @@ configs:
     dirs_map:
       config_integrations:
         path: /etc/newrelic-infra/integrations.d
-        file_types:
+        filename_patterns:
           - ".*\\.ya?ml$"
       config_logging:
         path: /etc/newrelic-infra/logging.d
-        file_types:
+        filename_patterns:
           - ".*\\.ya?ml$"
   -
     agent_type_fqn: newrelic/com.newrelic.infrastructure_agent:0.1.2
@@ -48,10 +48,10 @@ configs:
     dirs_map:
       config_integrations:
         path: /etc/newrelic-infra/integrations.d
-        file_types:
+        filename_patterns:
           - ".*\\.ya?ml$"
       config_logging:
         path: /etc/newrelic-infra/logging.d
-        file_types:
+        filename_patterns:
           - ".*\\.ya?ml$"
 "#;

@@ -110,8 +110,8 @@ impl<R: AgentRegistry, F: FileReader> ConfigConverter<R, F> {
         // refactor file_path to path
         for path in files_paths {
             let filename = path.file_name().unwrap().to_str().unwrap().to_string();
-            //filter by file_type
-            if !dir_info.valid_file_type(filename.as_str()) {
+            //filter by filename
+            if !dir_info.valid_filename(filename.as_str()) {
                 continue;
             }
 
