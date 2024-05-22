@@ -32,10 +32,10 @@ fn test_supervisors() {
     let agent_id = "sleep-test".to_string().try_into().unwrap();
 
     let exec = ExecutableData::new("sh".to_string())
-        .with_args(vec!["-c".to_string(), "sleep 2".to_string()]);
+        .with_args(vec!["-c".to_string(), "sleep 2".to_string()])
+        .with_restart_policy(RestartPolicy::default());
 
-    let conf =
-        SupervisorConfigOnHost::new(agent_id, exec, Context::new(), RestartPolicy::default());
+    let conf = SupervisorConfigOnHost::new(agent_id, Context::new()).with_exec_data(exec);
 
     // Create 50 supervisors
     let agents: Vec<SupervisorOnHost<NotStarted>> = (0..10)

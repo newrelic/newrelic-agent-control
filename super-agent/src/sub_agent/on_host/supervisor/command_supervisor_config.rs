@@ -8,31 +8,26 @@ use std::collections::HashMap;
 pub struct SupervisorConfigOnHost {
     pub(super) id: AgentID,
     pub(super) ctx: Context<bool>,
-    pub(crate) bin: String,
-    pub(super) args: Vec<String>,
-    pub(super) env: HashMap<String, String>,
-    pub(super) restart_policy: RestartPolicy,
+    pub(crate) exec_data: Option<ExecutableData>,
     pub(super) log_to_file: bool,
     pub(super) health: Option<OnHostHealthConfig>,
 }
 
 impl SupervisorConfigOnHost {
-    pub fn new(
-        id: AgentID,
-        exec: ExecutableData,
-        ctx: Context<bool>,
-        restart_policy: RestartPolicy,
-    ) -> Self {
-        let ExecutableData { bin, args, env } = exec;
+    pub fn new(id: AgentID, ctx: Context<bool>) -> Self {
         SupervisorConfigOnHost {
             id,
             ctx,
-            bin,
-            args,
-            env,
-            restart_policy,
+            exec_data: None,
             log_to_file: false,
             health: None,
+        }
+    }
+
+    pub fn with_exec_data(self, exec_data: ExecutableData) -> Self {
+        Self {
+            exec_data: Some(exec_data),
+            ..self
         }
     }
 
@@ -51,10 +46,12 @@ impl SupervisorConfigOnHost {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct ExecutableData {
-    bin: String,
-    args: Vec<String>,
-    env: HashMap<String, String>,
+    pub(crate) bin: String,
+    pub(crate) args: Vec<String>,
+    pub(crate) env: HashMap<String, String>,
+    pub(crate) restart_policy: RestartPolicy,
 }
 
 impl ExecutableData {
@@ -63,6 +60,7 @@ impl ExecutableData {
             bin,
             args: Vec::default(),
             env: HashMap::default(),
+            restart_policy: RestartPolicy::default(),
         }
     }
 
@@ -73,36 +71,10 @@ impl ExecutableData {
     pub fn with_env(self, env: HashMap<String, String>) -> Self {
         Self { env, ..self }
     }
-}
 
-#[derive(Debug, Clone)]
-pub struct SupervisorConfigOnHostNonExec {
-    pub(super) id: AgentID,
-    pub(super) ctx: Context<bool>,
-    pub(super) log_to_file: bool,
-    pub(super) health: Option<OnHostHealthConfig>,
-}
-
-impl SupervisorConfigOnHostNonExec {
-    pub fn new(id: AgentID, ctx: Context<bool>) -> Self {
-        SupervisorConfigOnHostNonExec {
-            id,
-            ctx,
-            log_to_file: false,
-            health: None,
-        }
-    }
-
-    pub fn with_file_logging(self, log_to_file: bool) -> Self {
+    pub fn with_restart_policy(self, restart_policy: RestartPolicy) -> Self {
         Self {
-            log_to_file,
-            ..self
-        }
-    }
-
-    pub fn with_health_check(self, health: OnHostHealthConfig) -> Self {
-        Self {
-            health: Some(health),
+            restart_policy,
             ..self
         }
     }
