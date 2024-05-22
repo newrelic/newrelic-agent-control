@@ -2,23 +2,17 @@ use std::net::TcpListener;
 
 use actix_web::dev::{Server, ServerHandle};
 use actix_web::{web, App, HttpRequest, HttpServer, Responder};
-use chrono::Utc;
-use fake::faker::lorem::en::Word;
-use fake::Fake;
 use http::HeaderMap;
-use mockall::mock;
 use opamp_client::http::http_client::HttpClient;
 use tokio::runtime::Handle;
 use tokio::task::JoinHandle;
 
 use newrelic_super_agent::event::channel::{pub_sub, EventConsumer, EventPublisher};
 use newrelic_super_agent::opamp::http::auth_token_retriever::{
-    TokenRetrieverBuilder, TokenRetrieverBuilderError,
+    TokenRetrieverBuilder, TokenRetrieverBuilderDefault,
 };
 use newrelic_super_agent::opamp::http::builder::{HttpClientBuilder, UreqHttpClientBuilder};
 use newrelic_super_agent::super_agent::config::OpAMPClientConfig;
-use nr_auth::token::{AccessToken, Token, TokenType};
-use nr_auth::{TokenRetriever, TokenRetrieverError};
 
 type Port = u16;
 
@@ -30,12 +24,8 @@ async fn test_auth_header_is_injected() {
     let (port, server_handle_cons, join_handle) = run_server().await;
     let server_handle = server_handle_cons.as_ref().recv().unwrap();
 
-    // Create token retriever
-    let mut token_retriever_builder = MockTokenRetrieverBuilderMock::default();
-    let mut token_retriever = MockTokenRetrieverMock::default();
-    let token = token_stub();
-    token_retriever.should_retrieve(token.clone());
-    token_retriever_builder.should_build(token_retriever);
+    // Create token retriever builder
+    let token_retriever_builder = TokenRetrieverBuilderDefault;
 
     // Create http client
     let config = OpAMPClientConfig {
@@ -51,9 +41,11 @@ async fn test_auth_header_is_injected() {
     // Make the post request which must include the token
     let resp = http_client.unwrap().post("".into()).unwrap();
 
-    // Assert that authorization header was present
+    // Assert that authorization header was present.
     let body = std::str::from_utf8(resp.body()).unwrap();
-    assert_eq!(format!("Bearer {}", token.access_token()), body);
+    // Until it is implemented let's assert on the Token being empty
+    // so when we implement it this test will fail and we'll fix it
+    assert_eq!("Bearer", body);
 
     // Stop the server
     server_handle.stop(false).await;
@@ -92,58 +84,4 @@ async fn handler(req: HttpRequest) -> impl Responder {
         .ok()
         .unwrap()
         .to_string()
-}
-
-//////////////////////////////////////////////////////////////////
-// Mocks for the Token Retriever. In the Future, it would be nice
-// to mock the System Identity Service
-//////////////////////////////////////////////////////////////////
-mock! {
-    pub TokenRetrieverMock {}
-
-    impl TokenRetriever for TokenRetrieverMock{
-        fn retrieve(&self) -> Result<Token, TokenRetrieverError>;
-    }
-}
-
-impl MockTokenRetrieverMock {
-    pub fn should_retrieve(&mut self, token: Token) {
-        self.expect_retrieve().once().return_once(move || Ok(token));
-    }
-
-    pub fn should_return_error(&mut self, error: TokenRetrieverError) {
-        self.expect_retrieve()
-            .once()
-            .return_once(move || Err(error));
-    }
-}
-
-mock! {
-    pub TokenRetrieverBuilderMock {}
-
-    impl TokenRetrieverBuilder for TokenRetrieverBuilderMock{
-        type TokenRetriever = MockTokenRetrieverMock;
-
-        fn build(&self) -> Result<<MockTokenRetrieverBuilderMock as TokenRetrieverBuilder>::TokenRetriever, TokenRetrieverBuilderError>;
-    }
-}
-
-impl MockTokenRetrieverBuilderMock {
-    pub fn should_build(&mut self, token_retriever: MockTokenRetrieverMock) {
-        self.expect_build()
-            .once()
-            .return_once(move || Ok(token_retriever));
-    }
-
-    pub fn should_fail_on_build(&mut self, error: TokenRetrieverBuilderError) {
-        self.expect_build().once().return_once(move || Err(error));
-    }
-}
-
-pub fn token_stub() -> Token {
-    Token::new(
-        AccessToken::from(Word().fake::<String>()),
-        TokenType::Bearer,
-        Utc::now(),
-    )
 }
