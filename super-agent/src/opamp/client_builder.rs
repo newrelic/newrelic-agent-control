@@ -253,7 +253,7 @@ pub(crate) mod test {
             Err(e) => {
                 assert_eq!("error building http client: ``errors building the TokenRetriever: `this is an error```", e.to_string())
             }
-            _ => panic!(""),
+            _ => panic!("expected error building the http client"),
         }
     }
 }
