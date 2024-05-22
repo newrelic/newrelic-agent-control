@@ -85,15 +85,16 @@ impl K8sHealthDaemonSet {
 
     pub fn check_health_single_daemon_set(ds: DaemonSet) -> Result<Health, HealthCheckerError> {
         let name = Self::get_daemon_set_name(&ds)?;
-        let status = Self::get_daemon_set_status(&ds)?;
-        let update_strategy = Self::get_daemon_set_update_strategy(&ds)?;
+        let status = Self::get_daemon_set_status(name.as_str(), &ds)?;
+        let update_strategy = Self::get_daemon_set_update_strategy(name.as_str(), &ds)?;
+
         let update_strategy_type = UpdateStrategyType::try_from(
-            Self::get_daemon_set_rolling_update_type(&ds)?,
+            Self::get_daemon_set_rolling_update_type(name.as_str(), &update_strategy)?,
         )
         .map_err(|err| {
             HealthCheckerError::InvalidK8sObjectField(
                 ".spec.updateStrategy.type".to_string(),
-                name.clone(),
+                name.to_owned(),
                 err.to_string(),
             )
         })?;
@@ -139,7 +140,7 @@ impl K8sHealthDaemonSet {
                 .map_err(|err| {
                     HealthCheckerError::InvalidK8sObjectField(
                         ".spec.updateStrategy.rollingUpdate.maxUnavailable".to_string(),
-                        name.clone(),
+                        name.to_owned(),
                         err.to_string(),
                     )
                 })?
@@ -149,14 +150,14 @@ impl K8sHealthDaemonSet {
         let expected_ready = status.desired_number_scheduled - max_unavailable;
         if status.number_ready < expected_ready {
             return Ok(Self::unhealthy(format!(
-                "Daemonset '{name}': The number of pods ready is less that the desired: {} < {}",
-                status.number_ready, expected_ready
+                "Daemonset '{}': The number of pods ready is less that the desired: {} < {}",
+                name, status.number_ready, expected_ready
             )));
         }
 
         Ok(Self::healthy(format!(
-            "DaemonSet '{name}' healthy: Pods ready are equal or greater than desired: {} >= {}",
-            status.number_ready, expected_ready
+            "DaemonSet '{}' healthy: Pods ready are equal or greater than desired: {} >= {}",
+            name, status.number_ready, expected_ready
         )))
     }
 
@@ -188,38 +189,35 @@ impl K8sHealthDaemonSet {
     }
 
     fn get_daemon_set_status(
+        name: &str,
         daemon_set: &DaemonSet,
     ) -> Result<DaemonSetStatus, HealthCheckerError> {
-        let name = Self::get_daemon_set_name(daemon_set)?;
-
         daemon_set
             .status
             .clone()
-            .ok_or_else(|| Self::missing_field_error(name.as_str(), ".status"))
+            .ok_or_else(|| Self::missing_field_error(name, ".status"))
     }
 
     fn get_daemon_set_update_strategy(
+        name: &str,
         daemon_set: &DaemonSet,
     ) -> Result<DaemonSetUpdateStrategy, HealthCheckerError> {
-        let name = Self::get_daemon_set_name(daemon_set)?;
-
         daemon_set
             .spec
             .clone()
-            .ok_or_else(|| Self::missing_field_error(name.as_str(), ".spec"))?
+            .ok_or_else(|| Self::missing_field_error(name, ".spec"))?
             .update_strategy
-            .ok_or_else(|| Self::missing_field_error(name.as_str(), ".spec.updateStrategy"))
+            .ok_or_else(|| Self::missing_field_error(name, ".spec.updateStrategy"))
     }
 
     fn get_daemon_set_rolling_update_type(
-        daemon_set: &DaemonSet,
+        name: &str,
+        update_strategy: &DaemonSetUpdateStrategy,
     ) -> Result<String, HealthCheckerError> {
-        let name = Self::get_daemon_set_name(daemon_set)?;
-
-        Self::get_daemon_set_update_strategy(daemon_set)?
+        update_strategy
             .type_
             .clone()
-            .ok_or_else(|| Self::missing_field_error(name.as_str(), ".spec.updateStrategy.Type"))
+            .ok_or_else(|| Self::missing_field_error(name, ".spec.updateStrategy.Type"))
     }
 }
 
@@ -261,7 +259,7 @@ pub mod test {
             }
         }
 
-        let test_cases: Vec<TestCase> = vec![
+        let test_cases = vec![
             TestCase {
                 name: "ds without metadata name",
                 ds: DaemonSet {
@@ -381,7 +379,6 @@ pub mod test {
 
     #[test]
     fn test_daemon_set_health() {
-        #[derive(Debug)]
         struct TestCase {
             name: &'static str,
             ds: DaemonSet,
@@ -402,7 +399,7 @@ pub mod test {
             }
         }
 
-        let test_cases: Vec<TestCase> = vec![
+        let test_cases = vec![
             TestCase {
                 name: "ds has on delete update strategy type",
                 ds: DaemonSet {
