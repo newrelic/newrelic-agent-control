@@ -453,7 +453,7 @@ deployment:
     health:
       interval: 3s
       timeout: 10s
-      httpGet:
+      http:
         path: /healthz
         port: 8080
     executables:
@@ -916,7 +916,7 @@ deployment:
     health:
       interval: 3s
       timeout: 10s
-      httpGet:
+      http:
         path: /v1/status
         port: "${nr-var:status_server_port}"
     executables:
