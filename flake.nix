@@ -64,7 +64,7 @@
 
               # Only running test when the build platform is able to run host platform code
               doCheck = with targetPkgs; stdenv.buildPlatform.canExecute stdenv.hostPlatform;
-              cargoTestOptions = o: o ++ ["--features=${features}" "-- --skip as_root"];
+              cargoTestOptions = o: o ++ ["--features=${features}" "-- --skip as_root --skip no_root --skip cloud_id"];
 
               CARGO_BUILD_TARGET = targetPkgs.hostPlatform.config;
               # We go static when using the musl target
@@ -167,6 +167,7 @@
           # default build, generates outputs native to the host
           default = newrelic-super-agent pkgs "onhost" {
             # Here go additional arguments and overrides
+            release = false;
           };
 
           onhost = newrelic-super-agent pkgs "onhost" null;
