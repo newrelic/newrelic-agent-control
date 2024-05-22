@@ -29,6 +29,9 @@ pub struct OnHost {
     pub executables: Vec<Executable>,
     #[serde(default)]
     pub enable_file_logging: TemplateableValue<bool>,
+    /// Enables and define health checks configuration globally, in case the supervisor
+    /// does not have any executables defined.
+    pub health: Option<OnHostHealthConfig>,
 }
 
 /// The definition for a setup command.
