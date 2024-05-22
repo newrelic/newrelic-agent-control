@@ -160,47 +160,47 @@ pub mod test {
 
     #[test]
     fn test_helm_release() {
-        let test_cases = vec![
+        let test_cases : Vec<(&str,Result<Health, HealthCheckerError>, fn(&mut MockSyncK8sClient))> = vec![
             (
                 "Helm release healthy when ready and status true",
                 Ok(Healthy::default().into()),
-                Box::new(|mock: &mut MockSyncK8sClient| {
+                |mock: &mut MockSyncK8sClient| {
                     let status_conditions = json!({
                         "conditions": [
                             {"type": "Ready", "status": "True", "lastTransitionTime": "2021-01-01T12:00:00Z"},
                         ]
                     });
                     setup_mock_client_with_conditions(mock, status_conditions);
-                }) as Box<dyn Fn(&mut MockSyncK8sClient) + Send>,
+                },
             ),
             (
                 "Helm release unhealthy when ready and status false",
                 Ok(Health::unhealthy_with_last_error("HelmRelease not ready: test error".to_string())),
-                Box::new(|mock: &mut MockSyncK8sClient| {
+                |mock: &mut MockSyncK8sClient| {
                     let status_conditions = json!({
                         "conditions": [
                             {"type": "Ready", "status": "False", "lastTransitionTime": "2021-01-01T12:00:00Z","message":"test error"},
                         ]
                     });
                     setup_mock_client_with_conditions(mock, status_conditions);
-                }) as Box<dyn Fn(&mut MockSyncK8sClient) + Send>,
+                },
             ),
             (
                 "Helm release unhealthy when not ready conditions",
                 Ok(Health::unhealthy_with_last_error("No 'Ready' condition was found".to_string())),
-                Box::new(|mock: &mut MockSyncK8sClient| {
+                |mock: &mut MockSyncK8sClient| {
                     let status_conditions = json!({
                         "conditions": [
                             {"type": "Reconciling", "status": "True", "lastTransitionTime": "2021-01-02T12:00:00Z"}
                         ]
                     });
                     setup_mock_client_with_conditions(mock, status_conditions);
-                }) as Box<dyn Fn(&mut MockSyncK8sClient) + Send>,
+                },
             ),
             (
                 "Helm release unhealthy when not ready and other true condition types",
                 Ok(Health::unhealthy_with_last_error("HelmRelease not ready: No specific message found".to_string())),
-                Box::new(|mock: &mut MockSyncK8sClient| {
+                |mock: &mut MockSyncK8sClient| {
                     let status_conditions = json!({
                         "conditions": [
                             {"type": "Ready", "status": "False", "lastTransitionTime": "2021-01-01T12:00:00Z"},
@@ -208,25 +208,25 @@ pub mod test {
                         ]
                     });
                     setup_mock_client_with_conditions(mock, status_conditions);
-                }) as Box<dyn Fn(&mut MockSyncK8sClient) + Send>,
+                },
             ),
             (
                 "Helm release unhealthy when no conditions",
                 Ok(Health::unhealthy_with_last_error("No 'Ready' condition was found".to_string())),
-                Box::new(|mock: &mut MockSyncK8sClient| {
+                |mock: &mut MockSyncK8sClient| {
                     let status_conditions = json!({"conditions": []});
                     setup_mock_client_with_conditions(mock, status_conditions);
-                }) as Box<dyn Fn(&mut MockSyncK8sClient) + Send>,
+                },
             ),
             (
                 "Error fetching HelmRelease",
                 Err(HealthCheckerError::Generic(
                     "Error fetching HelmRelease 'example-release': while getting dynamic resource: Error".to_string(),
                 )),
-                Box::new(|mock: &mut MockSyncK8sClient| {
+                |mock: &mut MockSyncK8sClient| {
                     mock.expect_get_helm_release()
                         .returning(|_| Err(Error::GetDynamic("Error".to_string())));
-                }) as Box<dyn Fn(&mut MockSyncK8sClient) + Send>,
+                },
             ),
         ];
 
