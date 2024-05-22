@@ -2720,9 +2720,14 @@ checksum = "61807f77802ff30975e01f4f071c8ba10c022052f98b3294119f3e615d13e5be"
 name = "nr-auth"
 version = "0.0.1"
 dependencies = [
+ "assert_matches",
  "chrono",
+ "httpmock",
  "mockall",
+ "serde",
+ "serde_json",
  "thiserror",
+ "ureq",
 ]
 
 [[package]]
@@ -4332,6 +4337,8 @@ dependencies = [
  "rustls 0.22.4",
  "rustls-pki-types",
  "rustls-webpki",
+ "serde",
+ "serde_json",
  "url",
  "webpki-roots",
 ]

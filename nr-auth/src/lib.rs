@@ -1,3 +1,4 @@
+pub mod authenticator;
 pub mod token;
 pub mod token_retriever;
 
