@@ -1,5 +1,8 @@
+use fake::faker::lorem::en::Word;
+use fake::Fake;
 use http::HeaderMap;
-use httptest::{matchers::*, responders::*, Expectation, Server};
+use httpmock::Method::POST;
+use httpmock::MockServer;
 use opamp_client::http::http_client::HttpClient;
 use url::Url;
 
@@ -7,22 +10,20 @@ use newrelic_super_agent::opamp::http::auth_token_retriever::TokenRetrieverBuild
 use newrelic_super_agent::opamp::http::builder::{HttpClientBuilder, UreqHttpClientBuilder};
 use newrelic_super_agent::super_agent::config::OpAMPClientConfig;
 
-type Port = u16;
-
 // This test spawns a test http server to assert on the received
 // authorization headers
 #[tokio::test(flavor = "multi_thread")]
 async fn test_auth_header_is_injected() {
-    // Create the server with expectation
-    let server = Server::run();
-    server.expect(
-        Expectation::matching(all_of![
-            request::headers(contains(("authorization", "Bearer"))),
-            request::method("POST"),
-            request::path("/"),
-        ])
-        .respond_with(status_code(200)),
-    );
+    // Create the mock server
+    let server = MockServer::start();
+    // Return a specific response when the header is present so we can assert or response later
+    let expected_response = Word().fake::<&str>();
+    let _ = server.mock(|when, then| {
+        when.method(POST)
+            .header("authorization", "Bearer")
+            .path("/");
+        then.body(expected_response);
+    });
 
     // Create token retriever builder
     let token_retriever_builder = TokenRetrieverBuilderDefault;
@@ -36,5 +37,9 @@ async fn test_auth_header_is_injected() {
     let http_client = http_client_builder.build();
 
     // Make the post request which must include the token
-    http_client.unwrap().post("".into()).unwrap();
+    let response = http_client.unwrap().post("".into()).unwrap();
+    assert_eq!(
+        expected_response,
+        std::str::from_utf8(response.body()).unwrap()
+    );
 }
