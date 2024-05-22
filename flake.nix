@@ -40,7 +40,7 @@
             targets.x86_64-apple-darwin.stable.rust-std
           ];
 
-        naersk' = inputs'.naersk.lib.override {
+        naersk' = pkgs.callPackage inputs.naersk {
           cargo = rustToolchain;
           rustc = rustToolchain;
         };
