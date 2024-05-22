@@ -12,6 +12,7 @@ variables:
       type: file
       required: false
       default: ""
+      file_path: "java-agent-config.yml"
     license_key:
       description: "License key for the Java Agent"
       type: string
