@@ -1,27 +1,24 @@
 use std::net::TcpListener;
-use std::{net, thread};
 
 use actix_web::dev::{Server, ServerHandle};
 use actix_web::{web, App, HttpRequest, HttpServer, Responder};
 use chrono::Utc;
+use fake::faker::lorem::en::Word;
+use fake::Fake;
 use http::HeaderMap;
 use mockall::mock;
 use opamp_client::http::http_client::HttpClient;
-use tokio::runtime::{Handle, Runtime};
-use url::Url;
+use tokio::runtime::Handle;
+use tokio::task::JoinHandle;
 
 use newrelic_super_agent::event::channel::{pub_sub, EventConsumer, EventPublisher};
 use newrelic_super_agent::opamp::http::auth_token_retriever::{
-    TokenRetrieverBuilder, TokenRetrieverBuilderDefault, TokenRetrieverBuilderError,
+    TokenRetrieverBuilder, TokenRetrieverBuilderError,
 };
 use newrelic_super_agent::opamp::http::builder::{HttpClientBuilder, UreqHttpClientBuilder};
 use newrelic_super_agent::super_agent::config::OpAMPClientConfig;
 use nr_auth::token::{AccessToken, Token, TokenType};
 use nr_auth::{TokenRetriever, TokenRetrieverError};
-
-use fake::faker::lorem::en::Word;
-use fake::Fake;
-use tokio::task::JoinHandle;
 
 type Port = u16;
 
@@ -88,15 +85,13 @@ async fn start_server(server_pub: EventPublisher<ServerHandle>, listener: TcpLis
 
 // A simple handler that will get authorization header and return it as response body
 async fn handler(req: HttpRequest) -> impl Responder {
-    format!(
-        "{}",
-        req.headers()
-            .get("authorization")
-            .unwrap()
-            .to_str()
-            .ok()
-            .unwrap()
-    )
+    req.headers()
+        .get("authorization")
+        .unwrap()
+        .to_str()
+        .ok()
+        .unwrap()
+        .to_string()
 }
 
 //////////////////////////////////////////////////////////////////
