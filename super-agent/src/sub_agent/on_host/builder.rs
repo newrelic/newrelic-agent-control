@@ -161,20 +161,20 @@ fn pre_setup_supervisor(effective_agent: &EffectiveAgent) -> Result<(), SubAgent
     setup_steps
         .map(|steps| {
             steps.iter().try_for_each(|step| {
-                let cosa = step.0.clone().get();
-                if cosa.is_empty() {
+                let cmd_string = step.0.clone().get();
+                if cmd_string.is_empty() {
                     return Err(SubAgentBuilderError::SetupError(
                         "Empty setup command found".into(),
                     ));
                 }
 
-                let mut cmd_string = cosa.split_whitespace();
-                let bin = cmd_string.next().expect("Already checked that the string is not empty so it should have a first element");
+                let mut cmd_string_iter = cmd_string.split_whitespace();
+                let bin = cmd_string_iter.next().expect("Already checked that the string is not empty so it should have a first element");
 
                 let mut cmd = Command::new(bin);
                 cmd.stderr(Stdio::piped()).stdout(Stdio::piped());
 
-                cmd_string.fold(&mut cmd, |c, arg| c.arg(arg));
+                cmd_string_iter.fold(&mut cmd, |c, arg| c.arg(arg));
 
                 let output = cmd.spawn().map_err(|e| SubAgentBuilderError::SetupError(e.to_string()))?.wait_with_output().map_err(|e| SubAgentBuilderError::SetupError(e.to_string()))?;
 
