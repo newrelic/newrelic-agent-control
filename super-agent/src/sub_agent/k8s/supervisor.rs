@@ -9,11 +9,9 @@ use crate::k8s::labels::Labels;
 use crate::sub_agent::health::health_checker::{spawn_health_checker, HealthCheckerError};
 use crate::sub_agent::health::k8s::health_checker::SubAgentHealthChecker;
 use crate::super_agent::config::AgentID;
+use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use k8s_openapi::serde_json;
-use kube::{
-    api::DynamicObject,
-    core::{ObjectMeta, TypeMeta},
-};
+use kube::{api::DynamicObject, core::TypeMeta};
 use std::sync::Arc;
 use thiserror::Error;
 use tracing::{debug, error, info, trace};

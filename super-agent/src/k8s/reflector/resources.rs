@@ -1,15 +1,14 @@
-use k8s_openapi::{
-    api::apps::v1::{DaemonSet, Deployment, ReplicaSet, StatefulSet},
-    Metadata, NamespaceResourceScope, Resource,
-};
-use kube::api::ObjectMeta;
-use serde::de::DeserializeOwned;
-use std::fmt::Debug;
-
 use super::{
     super::error::K8sError,
     definition::{Reflector, ReflectorBuilder},
 };
+use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
+use k8s_openapi::{
+    api::apps::v1::{DaemonSet, Deployment, ReplicaSet, StatefulSet},
+    Metadata, NamespaceResourceScope, Resource,
+};
+use serde::de::DeserializeOwned;
+use std::fmt::Debug;
 
 /// The `ResourceWithReflector` trait represents Kubernetes resources that have a namespace scope.
 /// It includes metadata and traits required for Kubernetes object reflection and caching.
