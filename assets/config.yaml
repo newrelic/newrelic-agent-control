@@ -1,0 +1,8 @@
+log:
+  level: debug
+  file:
+    enable: true
+
+agents:
+  test-agent:
+    agent_type: newrelic/com.newrelic.test-agent:0.0.1

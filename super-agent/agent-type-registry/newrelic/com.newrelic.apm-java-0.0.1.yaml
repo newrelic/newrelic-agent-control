@@ -1,0 +1,35 @@
+namespace: newrelic
+name: com.newrelic.apm-java
+version: 0.0.1
+variables:
+  on_host:
+    jar_location:
+      description: "Location of the Java Agent jar"
+      type: string
+      required: true
+    agent_config:
+      description: "Configuration file for the Java Agent"
+      type: file
+      required: false
+      default: ""
+    license_key:
+      description: "License key for the Java Agent"
+      type: string
+      required: true
+    file_logging:
+      description: "Enable file logging"
+      type: bool
+      required: false
+      default: false
+deployment:
+  on_host:
+    enable_file_logging: "${nr-var:file_logging}"
+    setup:
+      - "echo 'running setup steps!'"
+      - "java -jar ${nr-var:jar_location} init-config -a ${nr-sub:agent_id} -l ${nr-var:license_key} -c ${nr-var:agent_config} -p 9876"
+    health:
+      interval: 5s
+      timeout: 5s
+      http:
+        path: "/_nr_/health"
+        port: 9876 # defined in the setup command, but it's configurable via templates

@@ -1,0 +1,3 @@
+# Place in ${workspaceDir}/debug/nrsa_local/fleet/agents.d/java-agent/values/values.yaml
+license_key: "<LICENSE_KEY>"
+jar_location: "/workspaces/newrelic-super-agent/assets/newrelic.jar"
