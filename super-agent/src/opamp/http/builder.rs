@@ -25,12 +25,12 @@ pub trait HttpClientBuilder {
 }
 
 #[derive(Debug, Clone)]
-pub struct DefaultHttpClientBuilder<TB> {
+pub struct UreqHttpClientBuilder<TB> {
     config: OpAMPClientConfig,
     token_retriever_builder: TB,
 }
 
-impl<TB> DefaultHttpClientBuilder<TB>
+impl<TB> UreqHttpClientBuilder<TB>
 where
     TB: TokenRetrieverBuilder,
 {
@@ -54,7 +54,7 @@ where
     }
 }
 
-impl<TB> HttpClientBuilder for DefaultHttpClientBuilder<TB>
+impl<TB> HttpClientBuilder for UreqHttpClientBuilder<TB>
 where
     TB: TokenRetrieverBuilder,
 {

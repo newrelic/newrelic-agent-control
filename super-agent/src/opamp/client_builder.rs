@@ -94,7 +94,7 @@ pub(crate) mod test {
     use crate::event::channel::pub_sub;
     use crate::opamp::http::auth_token_retriever::test::MockTokenRetrieverBuilderMock;
     use crate::opamp::http::auth_token_retriever::TokenRetrieverBuilderError;
-    use crate::opamp::http::builder::DefaultHttpClientBuilder;
+    use crate::opamp::http::builder::UreqHttpClientBuilder;
     use http::HeaderMap;
     use mockall::{mock, predicate};
     use opamp_client::operation::settings::StartSettings;
@@ -239,7 +239,7 @@ pub(crate) mod test {
         ));
 
         let http_client_builder =
-            DefaultHttpClientBuilder::new(opamp_config.clone(), token_retriever_builder);
+            UreqHttpClientBuilder::new(opamp_config.clone(), token_retriever_builder);
         let builder = DefaultOpAMPClientBuilder::new(opamp_config, http_client_builder);
 
         let (tx, _rx) = pub_sub();

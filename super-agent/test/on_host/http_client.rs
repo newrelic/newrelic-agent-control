@@ -14,7 +14,7 @@ use newrelic_super_agent::event::channel::{pub_sub, EventConsumer, EventPublishe
 use newrelic_super_agent::opamp::http::auth_token_retriever::{
     TokenRetrieverBuilder, TokenRetrieverBuilderDefault, TokenRetrieverBuilderError,
 };
-use newrelic_super_agent::opamp::http::builder::{DefaultHttpClientBuilder, HttpClientBuilder};
+use newrelic_super_agent::opamp::http::builder::{HttpClientBuilder, UreqHttpClientBuilder};
 use newrelic_super_agent::super_agent::config::OpAMPClientConfig;
 use nr_auth::token::{AccessToken, Token, TokenType};
 use nr_auth::{TokenRetriever, TokenRetrieverError};
@@ -48,7 +48,7 @@ async fn test_auth_header_is_injected() {
             .unwrap(),
         headers: HeaderMap::default(),
     };
-    let http_client_builder = DefaultHttpClientBuilder::new(config, token_retriever_builder);
+    let http_client_builder = UreqHttpClientBuilder::new(config, token_retriever_builder);
     let http_client = http_client_builder.build();
 
     // Make the post request which must include the token
