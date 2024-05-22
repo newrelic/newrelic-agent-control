@@ -75,6 +75,7 @@ tokio = { version = "1.32.0", features = ["rt-multi-thread", "macros"] }
 wiremock = "0.6.0"
 fake = { version = "2.9.2", features = ["derive", "http"] }
 prost = "0.12.4"
+httptest = "0.16.1"
 
 [build-dependencies]
 glob = "0.3.1"
