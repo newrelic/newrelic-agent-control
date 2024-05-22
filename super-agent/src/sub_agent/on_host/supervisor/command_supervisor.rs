@@ -7,8 +7,7 @@ use crate::sub_agent::health::on_host::http::HealthCheckerType;
 use crate::sub_agent::on_host::command::command::{
     CommandError, CommandTerminator, NotStartedCommand, StartedCommand,
 };
-use crate::sub_agent::on_host::command::command_os;
-use crate::sub_agent::on_host::command::command_os::CommandOS;
+use crate::sub_agent::on_host::command::command_os::{self, CommandOS};
 use crate::sub_agent::on_host::command::shutdown::{
     wait_exit_timeout, wait_exit_timeout_default, ProcessTerminator,
 };
@@ -16,12 +15,15 @@ use crate::sub_agent::on_host::supervisor::command_supervisor_config::Supervisor
 use crate::sub_agent::on_host::supervisor::restart_policy::BackoffStrategy;
 use crate::super_agent::config::AgentID;
 use std::process::ExitStatus;
+use std::time::Duration;
 use std::{
     ops::Deref,
     sync::{Arc, Mutex},
     thread::{self, JoinHandle},
 };
 use tracing::{error, info, warn};
+
+use super::command_supervisor_config::ExecutableData;
 
 ////////////////////////////////////////////////////////////////////////////////////
 // States for Started/Not Started supervisor
@@ -50,10 +52,6 @@ impl SupervisorOnHost<NotStarted> {
         self.state.config.id.clone()
     }
 
-    pub fn bin(&self) -> String {
-        self.state.config.bin.clone()
-    }
-
     pub fn logs_to_file(&self) -> bool {
         self.state.config.log_to_file
     }
@@ -63,149 +61,213 @@ impl SupervisorOnHost<NotStarted> {
         internal_event_publisher: EventPublisher<SubAgentInternalEvent>,
     ) -> SupervisorOnHost<Started> {
         let ctx = self.state.config.ctx.clone();
-        let handle = self.start_process_thread(internal_event_publisher);
+        let handle = if let Some(exec_data) = self.exec_data.clone() {
+            self.start_process_thread(internal_event_publisher, exec_data)
+        } else {
+            self.start_nonexec_thread(internal_event_publisher)
+        };
         SupervisorOnHost {
             state: Started { handle, ctx },
         }
     }
 
-    fn start_process_thread(
+    fn start_nonexec_thread(
         self,
         internal_event_publisher: EventPublisher<SubAgentInternalEvent>,
     ) -> JoinHandle<()> {
-        let mut restart_policy = self.restart_policy.clone();
+        let current_pid: Arc<Mutex<Option<u32>>> = Arc::new(Mutex::new(None)); // I don't need this
+        let shutdown_ctx = Context::new();
+        _ = wait_for_termination(current_pid.clone(), self.ctx.clone(), shutdown_ctx.clone());
+        thread::spawn(move || {
+            info!(
+                id = self.id().to_string(),
+                msg = "starting nonexec supervisor process"
+            );
+
+            shutdown_ctx.reset().unwrap();
+
+            publish_health_event(&internal_event_publisher, Healthy::default().into());
+
+            // Spawn the health checker thread
+            let (health_check_cancel_publisher, health_check_cancel_consumer) = pub_sub();
+            if let Some((health_checker, interval)) = self
+                .state
+                .config
+                .health
+                .as_ref()
+                .map(|h| (HealthCheckerType::try_from(h.clone()), h.interval))
+            {
+                match health_checker {
+                    Ok(health_checker) => spawn_health_checker(
+                        self.id(),
+                        health_checker,
+                        health_check_cancel_consumer,
+                        internal_event_publisher.clone(),
+                        interval,
+                    ),
+                    Err(e) => {
+                        error!(
+                            agent_id = self.id().to_string(),
+                            err = %e,
+                            "could not launch health checker",
+                        )
+                    }
+                }
+            }
+
+            // check if supervisor context is cancelled
+            while !*Context::get_lock_cvar(&self.ctx).0.lock().unwrap() {
+                // While this is not true we block this thread
+                thread::sleep(Duration::from_secs(1));
+            }
+
+            // Cancel the health checker, log if it fails and continue with the shutdown
+            _ = health_check_cancel_publisher.publish(()).inspect_err(|e| {
+                error!(
+                    agent_id = self.id().to_string(),
+                    err = e.to_string(),
+                    "could not cancel health checker thread"
+                );
+            });
+
+            // cancelling the shutdown ctx
+            shutdown_ctx.cancel_all(true).unwrap();
+        })
+    }
+
+    fn start_process_thread(
+        self,
+        internal_event_publisher: EventPublisher<SubAgentInternalEvent>,
+        exec_data: ExecutableData,
+    ) -> JoinHandle<()> {
+        let mut restart_policy = exec_data.restart_policy.clone();
         let current_pid: Arc<Mutex<Option<u32>>> = Arc::new(Mutex::new(None));
         let shutdown_ctx = Context::new();
         _ = wait_for_termination(current_pid.clone(), self.ctx.clone(), shutdown_ctx.clone());
-        thread::spawn({
-            move || loop {
-                // check if supervisor context is cancelled
-                if *Context::get_lock_cvar(&self.ctx).0.lock().unwrap() {
-                    break;
-                }
+        thread::spawn(move || loop {
+            // check if supervisor context is cancelled
+            if *Context::get_lock_cvar(&self.ctx).0.lock().unwrap() {
+                break;
+            }
 
-                info!(
-                    id = self.id().to_string(),
-                    supervisor = self.bin(),
-                    msg = "starting supervisor process"
-                );
+            let exec_data = exec_data.clone();
 
-                shutdown_ctx.reset().unwrap();
-                // Signals return exit_code 0, if in the future we need to act on them we can import
-                // std::os::unix::process::ExitStatusExt to get the code with the method into_raw
-                let not_started_command = self.not_started_command();
-                let bin = self.bin();
-                let id = self.id();
+            info!(
+                id = self.id().to_string(),
+                supervisor = &exec_data.bin,
+                msg = "starting supervisor process"
+            );
 
-                publish_health_event(&internal_event_publisher, Healthy::default().into());
+            shutdown_ctx.reset().unwrap();
+            // Signals return exit_code 0, if in the future we need to act on them we can import
+            // std::os::unix::process::ExitStatusExt to get the code with the method into_raw
+            let bin = exec_data.bin;
+            let id = self.id();
+            let not_started_command = CommandOS::<command_os::NotStarted>::new(
+                id.clone(),
+                &bin,
+                &exec_data.args,
+                &exec_data.env,
+                self.logs_to_file(),
+            );
 
-                // Spawn the health checker thread
-                let (health_check_cancel_publisher, health_check_cancel_consumer) = pub_sub();
+            publish_health_event(&internal_event_publisher, Healthy::default().into());
 
-                if let Some((health_checker, interval)) = self
-                    .health
-                    .as_ref()
-                    .map(|h| (HealthCheckerType::try_from(h.clone()), h.interval))
-                {
-                    match health_checker {
-                        Ok(health_checker) => spawn_health_checker(
-                            id.clone(),
-                            health_checker,
-                            health_check_cancel_consumer,
-                            internal_event_publisher.clone(),
-                            interval,
-                        ),
-                        Err(e) => {
-                            error!(
-                                agent_id = id.to_string(),
-                                supervisor = bin,
-                                err = %e,
-                                "could not launch health checker, using default",
-                            )
-                        }
-                    }
-                }
+            // Spawn the health checker thread
+            let (health_check_cancel_publisher, health_check_cancel_consumer) = pub_sub();
 
-                let exit_code = start_command(not_started_command, current_pid.clone())
-                    .inspect_err(|err| {
+            if let Some((health_checker, interval)) = self
+                .health
+                .as_ref()
+                .map(|h| (HealthCheckerType::try_from(h.clone()), h.interval))
+            {
+                match health_checker {
+                    Ok(health_checker) => spawn_health_checker(
+                        id.clone(),
+                        health_checker,
+                        health_check_cancel_consumer,
+                        internal_event_publisher.clone(),
+                        interval,
+                    ),
+                    Err(e) => {
                         error!(
                             agent_id = id.to_string(),
                             supervisor = bin,
-                            "error while launching supervisor process: {}",
-                            err
-                        );
-                    })
-                    .map(|exit_code| {
-                        if !exit_code.success() {
-                            publish_health_event(
-                                &internal_event_publisher,
-                                Unhealthy {
-                                    last_error: format!("process exited with code: {}", exit_code),
-                                    ..Default::default()
-                                }
-                                .into(),
-                            );
-                            error!(
-                                agent_id = id.to_string(),
-                                supervisor = bin,
-                                exit_code = exit_code.code(),
-                                "supervisor process exited unsuccessfully"
-                            )
-                        }
-                        exit_code.code()
-                    });
+                            err = %e,
+                            "could not launch health checker, using default",
+                        )
+                    }
+                }
+            }
 
-                // Cancel the health checker, log if it fails and continue with the shutdown
-                _ = health_check_cancel_publisher.publish(()).inspect_err(|e| {
+            let exit_code = start_command(not_started_command, current_pid.clone())
+                .inspect_err(|err| {
                     error!(
                         agent_id = id.to_string(),
-                        err = e.to_string(),
-                        "could not cancel health checker thread"
+                        supervisor = bin,
+                        "error while launching supervisor process: {}",
+                        err
                     );
-                });
-
-                // canceling the shutdown ctx must be done before getting current_pid lock
-                // as it locked by the wait_for_termination function
-                shutdown_ctx.cancel_all(true).unwrap();
-                *current_pid.lock().unwrap() = None;
-
-                // check if restart policy needs to be applied
-                if !restart_policy.should_retry(exit_code.unwrap_or_default()) {
-                    // Log if we are not restarting anymore due to the restart policy being broken
-                    if restart_policy.backoff != BackoffStrategy::None {
-                        warn!("supervisor for {id} won't restart anymore due to having exceeded its restart policy");
+                })
+                .map(|exit_code| {
+                    if !exit_code.success() {
                         publish_health_event(
                             &internal_event_publisher,
                             Unhealthy {
-                                last_error: "supervisor exceeded its defined restart policy"
-                                    .to_string(),
+                                last_error: format!("process exited with code: {}", exit_code),
                                 ..Default::default()
                             }
                             .into(),
                         );
+                        error!(
+                            agent_id = id.to_string(),
+                            supervisor = bin,
+                            exit_code = exit_code.code(),
+                            "supervisor process exited unsuccessfully"
+                        )
                     }
-                    break;
-                }
-
-                info!("restarting supervisor for {id}...");
-
-                restart_policy.backoff(|duration| {
-                    // early exit if supervisor timeout is canceled
-                    wait_exit_timeout(self.ctx.clone(), duration);
+                    exit_code.code()
                 });
-            }
-        })
-    }
 
-    pub fn not_started_command(&self) -> CommandOS<command_os::NotStarted> {
-        //TODO extract to to a builder so we can mock it
-        CommandOS::<command_os::NotStarted>::new(
-            self.state.config.id.clone(),
-            &self.state.config.bin,
-            &self.state.config.args,
-            &self.state.config.env,
-            self.logs_to_file(),
-        )
+            // Cancel the health checker, log if it fails and continue with the shutdown
+            _ = health_check_cancel_publisher.publish(()).inspect_err(|e| {
+                error!(
+                    agent_id = id.to_string(),
+                    err = e.to_string(),
+                    "could not cancel health checker thread"
+                );
+            });
+
+            // canceling the shutdown ctx must be done before getting current_pid lock
+            // as it locked by the wait_for_termination function
+            shutdown_ctx.cancel_all(true).unwrap();
+            *current_pid.lock().unwrap() = None;
+
+            // check if restart policy needs to be applied
+            if !restart_policy.should_retry(exit_code.unwrap_or_default()) {
+                // Log if we are not restarting anymore due to the restart policy being broken
+                if restart_policy.backoff != BackoffStrategy::None {
+                    warn!("supervisor for {id} won't restart anymore due to having exceeded its restart policy");
+                    publish_health_event(
+                        &internal_event_publisher,
+                        Unhealthy {
+                            last_error: "supervisor exceeded its defined restart policy"
+                                .to_string(),
+                            ..Default::default()
+                        }
+                        .into(),
+                    );
+                }
+                break;
+            }
+
+            info!("restarting supervisor for {id}...");
+
+            restart_policy.backoff(|duration| {
+                // early exit if supervisor timeout is canceled
+                wait_exit_timeout(self.ctx.clone(), duration);
+            });
+        })
     }
 }
 
@@ -294,14 +356,15 @@ pub mod sleep_supervisor_tests {
             .with_max_retries(3)
             .with_last_retry_interval(Duration::new(30, 0));
 
-        let exec = ExecutableData::new("wrong-command".to_owned()).with_args(vec!["x".to_owned()]);
+        let exec = ExecutableData::new("wrong-command".to_owned())
+            .with_args(vec!["x".to_owned()])
+            .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]));
 
         let config = SupervisorConfigOnHost::new(
             "wrong-command".to_owned().try_into().unwrap(),
-            exec,
             Context::new(),
-            RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]),
-        );
+        )
+        .with_exec_data(exec);
         let agent = SupervisorOnHost::new(config);
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -322,14 +385,15 @@ pub mod sleep_supervisor_tests {
             .with_max_retries(3)
             .with_last_retry_interval(Duration::new(30, 0));
 
-        let exec = ExecutableData::new("wrong-command".to_owned()).with_args(vec!["x".to_owned()]);
+        let exec = ExecutableData::new("wrong-command".to_owned())
+            .with_args(vec!["x".to_owned()])
+            .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]));
 
         let config = SupervisorConfigOnHost::new(
             "wrong-command".to_owned().try_into().unwrap(),
-            exec,
             Context::new(),
-            RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]),
-        );
+        )
+        .with_exec_data(exec);
         let agent = SupervisorOnHost::new(config);
 
         // run the agent with wrong command so it enters in restart policy
@@ -350,14 +414,13 @@ pub mod sleep_supervisor_tests {
             .with_max_retries(3)
             .with_last_retry_interval(Duration::new(30, 0));
 
-        let exec = ExecutableData::new("echo".to_owned()).with_args(vec!["hello!".to_owned()]);
+        let exec = ExecutableData::new("echo".to_owned())
+            .with_args(vec!["hello!".to_owned()])
+            .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]));
 
-        let config = SupervisorConfigOnHost::new(
-            "echo".to_owned().try_into().unwrap(),
-            exec,
-            Context::new(),
-            RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]),
-        );
+        let config =
+            SupervisorConfigOnHost::new("echo".to_owned().try_into().unwrap(), Context::new())
+                .with_exec_data(exec);
         let agent = SupervisorOnHost::new(config);
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -390,14 +453,13 @@ pub mod sleep_supervisor_tests {
 
         // FIXME using "echo 'hello!'" as a command clashes with the previous test when checking
         // the logger output. Why? See https://github.com/dbrgn/tracing-test/pull/19/ for clues.
-        let exec = ExecutableData::new("echo".to_owned()).with_args(vec!["".to_owned()]);
+        let exec = ExecutableData::new("echo".to_owned())
+            .with_args(vec!["".to_owned()])
+            .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]));
 
-        let config = SupervisorConfigOnHost::new(
-            "echo".to_owned().try_into().unwrap(),
-            exec,
-            Context::new(),
-            RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]),
-        );
+        let config =
+            SupervisorConfigOnHost::new("echo".to_owned().try_into().unwrap(), Context::new())
+                .with_exec_data(exec);
         let agent = SupervisorOnHost::new(config);
 
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();

@@ -218,6 +218,23 @@ fn build_supervisors(
 
     let mut supervisors = Vec::new();
     let enable_file_logging = on_host.enable_file_logging.get();
+
+    // If there are no executables defined, we create a single supervisor with non-exec config
+    if on_host.executables.is_empty() {
+        debug!("no executables found for agent {}", agent_id);
+
+        let mut config = SupervisorConfigOnHost::new(agent_id.clone(), Context::new())
+            .with_file_logging(enable_file_logging);
+
+        if let Some(health) = on_host.health {
+            config = config.with_health_check(health);
+        }
+
+        let not_started_supervisor = SupervisorOnHost::new(config);
+        supervisors.push(not_started_supervisor);
+    }
+
+    // If there are executables present, this will create a supervisor for each
     for exec in on_host.executables {
         let restart_policy: RestartPolicy = exec.restart_policy.into();
         let mut env = exec.env.get().into_map();
@@ -225,15 +242,12 @@ fn build_supervisors(
 
         let exec_data = ExecutableData::new(exec.path.get())
             .with_args(exec.args.get().into_vector())
-            .with_env(env);
+            .with_env(env)
+            .with_restart_policy(restart_policy);
 
-        let mut config = SupervisorConfigOnHost::new(
-            agent_id.clone(),
-            exec_data,
-            Context::new(),
-            restart_policy,
-        )
-        .with_file_logging(enable_file_logging);
+        let mut config = SupervisorConfigOnHost::new(agent_id.clone(), Context::new())
+            .with_file_logging(enable_file_logging)
+            .with_exec_data(exec_data);
 
         if let Some(health) = exec.health {
             config = config.with_health_check(health);
@@ -452,6 +466,7 @@ mod test {
                         setup: Vec::new(),
                         executables: Vec::new(),
                         enable_file_logging: TemplateableValue::new(false),
+                        health: None,
                     }),
                     k8s: None,
                 },
