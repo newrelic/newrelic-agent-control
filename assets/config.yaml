@@ -4,5 +4,5 @@ log:
     enable: true
 
 agents:
-  test-agent:
-    agent_type: newrelic/com.newrelic.test-agent:0.0.1
+  java-agent:
+    agent_type: newrelic/com.newrelic.apm-java:0.0.1
