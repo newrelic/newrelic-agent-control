@@ -1,4 +1,3 @@
-use super::health_checker::LABEL_RELEASE_FLUX;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::sub_agent::health::health_checker::{
@@ -7,41 +6,23 @@ use crate::sub_agent::health::health_checker::{
 use k8s_openapi::api::apps::v1::{StatefulSet, StatefulSetSpec};
 use std::sync::Arc;
 
+use super::items::{flux_release_filter, items_health_check};
+
 /// Represents a health checker for the StatefulSets or a release.
 pub struct K8sHealthStatefulSet {
     k8s_client: Arc<SyncK8sClient>,
     release_name: String,
-    // TODO Waiting on https://github.com/kube-rs/kube/pull/1482, Hardcoding label for now
-    // label_selector: String,
 }
 
 impl HealthChecker for K8sHealthStatefulSet {
     fn check_health(&self) -> Result<Health, HealthCheckerError> {
-        // TODO: Replace with reflector when ready
-        let stateful_sets = self.k8s_client.list_stateful_set().map_err(|err| {
-            HealthCheckerError::Generic(format!(
-                "Error fetching StatefulSets '{}': {}",
-                &self.release_name, err
-            ))
-        })?;
+        let stateful_sets = self.k8s_client.list_stateful_set_with_reflector();
 
-        let release_name = self.release_name.as_str();
-        let matching_stateful_sets = stateful_sets.into_iter().filter(|ss| {
-            crate::k8s::utils::contains_label_with_value(
-                &ss.metadata.labels,
-                LABEL_RELEASE_FLUX,
-                release_name,
-            )
-        });
+        let target_stateful_sets = stateful_sets
+            .into_iter()
+            .filter(flux_release_filter(self.release_name.clone()));
 
-        for ss in matching_stateful_sets {
-            let ss_health = K8sHealthStatefulSet::stateful_set_health(ss)?;
-            if !ss_health.is_healthy() {
-                return Ok(ss_health);
-            }
-        }
-
-        Ok(Healthy::default().into())
+        items_health_check(target_stateful_sets, Self::stateful_set_health)
     }
 }
 
@@ -54,17 +35,23 @@ impl K8sHealthStatefulSet {
     }
 
     /// Returns the health for a single stateful_set.
-    fn stateful_set_health(ss: StatefulSet) -> Result<Health, HealthCheckerError> {
+    fn stateful_set_health(ss: Arc<StatefulSet>) -> Result<Health, HealthCheckerError> {
         let name = ss
             .metadata
             .name
-            .ok_or_else(|| HealthCheckerError::Generic("StatefulSets without Name".to_string()))?;
-        let spec = ss.spec.ok_or(Self::missing_field_error(&name, "Spec"))?;
+            .as_deref()
+            .ok_or_else(|| HealthCheckerError::Generic("StatefulSets without Name".to_string()))?
+            .to_string();
+        let spec = ss
+            .spec
+            .as_ref()
+            .ok_or(Self::missing_field_error(&name, "Spec"))?;
         let status = ss
             .status
+            .as_ref()
             .ok_or_else(|| Self::missing_field_error(&name, "Status"))?;
 
-        let partition = Self::partition(&spec).unwrap_or(0);
+        let partition = Self::partition(spec).unwrap_or(0);
         let replicas = spec.replicas.unwrap_or(1);
 
         let expected_replicas = replicas - partition;
@@ -112,7 +99,11 @@ impl K8sHealthStatefulSet {
 
     /// Helper to return an error when an expected field in the StatefulSet object is missing.
     fn missing_field_error(name: &str, field: &str) -> HealthCheckerError {
-        HealthCheckerError::Generic(format!("StatefulSets `{}` without {}", name, field))
+        HealthCheckerError::MissingK8sObjectField(
+            field.to_string(),
+            "StatefulSet".to_string(),
+            name.to_string(),
+        )
     }
 
     /// Gets the partition from the stateful_set spec.
@@ -127,6 +118,10 @@ impl K8sHealthStatefulSet {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::{
+        k8s::client::MockSyncK8sClient, sub_agent::health::k8s::health_checker::LABEL_RELEASE_FLUX,
+    };
+    use assert_matches::assert_matches;
     use k8s_openapi::api::apps::v1::{
         RollingUpdateStatefulSetStrategy, StatefulSetStatus, StatefulSetUpdateStrategy,
     };
@@ -177,7 +172,7 @@ mod test {
         impl TestCase {
             fn run(self) {
                 let (name, ss, expected) = (self.name, self.ss, self.expected);
-                let result = K8sHealthStatefulSet::stateful_set_health(ss)
+                let result = K8sHealthStatefulSet::stateful_set_health(Arc::new(ss))
                     .inspect_err(|err| {
                         panic!("Unexpected error getting health: {} - {}", err, name);
                     })
@@ -271,20 +266,27 @@ mod test {
     #[test]
     fn test_stateful_set_health_errors() {
         struct TestCase {
-            name: String,
+            name: &'static str,
             ss: StatefulSet,
-            expected_err: HealthCheckerError,
+            err_check_fn: Box<dyn Fn(HealthCheckerError, &'static str)>,
         }
 
         impl TestCase {
-            fn run(self) {
-                let (name, ss, expected_err) = (self.name, self.ss, self.expected_err);
-                let err = K8sHealthStatefulSet::stateful_set_health(ss)
+            fn run(&self) {
+                let err = K8sHealthStatefulSet::stateful_set_health(Arc::new(self.ss.clone()))
                     .inspect(|result| {
-                        panic!("Expected error, got {:?} for test - {}", result, name)
+                        panic!("Expected error, got {:?} for test - {}", result, self.name)
                     })
                     .unwrap_err();
-                assert_eq!(err.to_string(), expected_err.to_string());
+                (self.err_check_fn)(err, self.name)
+            }
+            fn assert_missing_field(err: HealthCheckerError, name: &'static str) {
+                assert_matches!(
+                    err,
+                    HealthCheckerError::MissingK8sObjectField(_, _, _),
+                    "{}",
+                    name
+                );
             }
         }
 
@@ -292,7 +294,10 @@ mod test {
             TestCase {
                 name: "Invalid object, no name".into(),
                 ss: StatefulSet::default(),
-                expected_err: HealthCheckerError::Generic("StatefulSets without Name".into()),
+                err_check_fn: Box::new(|err, name| {
+                    let s = assert_matches!(err, HealthCheckerError::Generic(s) => s, "{}", name);
+                    assert_eq!(s, "StatefulSets without Name".to_string(), "{}", name);
+                }),
             },
             TestCase {
                 name: "Invalid object, no spec".into(),
@@ -301,9 +306,7 @@ mod test {
                     spec: None,
                     status: Some(stateful_set_status()),
                 },
-                expected_err: HealthCheckerError::Generic(
-                    "StatefulSets `name` without Spec".into(),
-                ),
+                err_check_fn: Box::new(TestCase::assert_missing_field),
             },
             TestCase {
                 name: "Invalid object, no status".into(),
@@ -312,9 +315,7 @@ mod test {
                     spec: Some(StatefulSetSpec::default()),
                     status: None,
                 },
-                expected_err: HealthCheckerError::Generic(
-                    "StatefulSets `name` without Status".into(),
-                ),
+                err_check_fn: Box::new(TestCase::assert_missing_field),
             },
             TestCase {
                 name: "Invalid object, no Status.UpdatedReplicas".into(),
@@ -326,9 +327,7 @@ mod test {
                         ..stateful_set_status()
                     }),
                 },
-                expected_err: HealthCheckerError::Generic(
-                    "StatefulSets `name` without Status.UpdatedReplicas".into(),
-                ),
+                err_check_fn: Box::new(TestCase::assert_missing_field),
             },
             TestCase {
                 name: "Invalid object, no Status.ReadyReplicas".into(),
@@ -340,12 +339,58 @@ mod test {
                         ..stateful_set_status()
                     }),
                 },
-                expected_err: HealthCheckerError::Generic(
-                    "StatefulSets `name` without Status.ReadyReplicas".into(),
-                ),
+                err_check_fn: Box::new(TestCase::assert_missing_field),
             },
         ];
 
         test_cases.into_iter().for_each(|tc| tc.run());
+    }
+
+    #[test]
+    fn test_check_health() {
+        let mut k8s_client = MockSyncK8sClient::new();
+        let release_name = "flux-release";
+
+        let healthy_matching = StatefulSet {
+            metadata: ObjectMeta {
+                labels: Some([(LABEL_RELEASE_FLUX.to_string(), release_name.to_string())].into()),
+                ..stateful_set_meta("name", stateful_set_status().observed_generation)
+            },
+            spec: Some(StatefulSetSpec::default()),
+            status: Some(StatefulSetStatus {
+                updated_replicas: Some(1),
+                ready_replicas: Some(1),
+                ..stateful_set_status()
+            }),
+        };
+
+        let with_err_not_matching = StatefulSet {
+            metadata: ObjectMeta {
+                labels: Some(
+                    [(
+                        LABEL_RELEASE_FLUX.to_string(),
+                        "another-release".to_string(),
+                    )]
+                    .into(),
+                ),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        k8s_client
+            .expect_list_stateful_set_with_reflector()
+            .times(1)
+            .returning(move || {
+                vec![
+                    Arc::new(with_err_not_matching.clone()),
+                    Arc::new(healthy_matching.clone()),
+                ]
+            });
+
+        let health_checker =
+            K8sHealthStatefulSet::new(Arc::new(k8s_client), release_name.to_string());
+        let result = health_checker.check_health().unwrap();
+        assert_eq!(result, Health::Healthy(Healthy::default()));
     }
 }

@@ -6,7 +6,7 @@ use k8s_openapi::{
     Metadata, NamespaceResourceScope, Resource,
 };
 use serde::de::DeserializeOwned;
-use std::fmt::Debug;
+use std::{fmt::Debug, sync::Arc};
 
 /// The `ResourceWithReflector` trait represents Kubernetes resources that have a namespace scope.
 /// It includes metadata and traits required for Kubernetes object reflection and caching.
@@ -54,5 +54,11 @@ impl Reflectors {
             replica_set: builder.try_build().await?,
             stateful_set: builder.try_build().await?,
         })
+    }
+}
+
+impl<K: ResourceWithReflector> Reflector<K> {
+    pub fn list(&self) -> Vec<Arc<K>> {
+        self.reader().state()
     }
 }

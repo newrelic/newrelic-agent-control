@@ -164,7 +164,8 @@ impl K8sHealthDaemonSet {
     fn missing_field_error(name: &str, field: &str) -> HealthCheckerError {
         HealthCheckerError::MissingK8sObjectField(
             field.to_string(),
-            format!("Daemonset '{}'", name),
+            "DaemonSet".to_string(),
+            name.to_string(),
         )
     }
 
@@ -612,6 +613,10 @@ pub mod test {
     }
 
     fn test_util_missing_field(field: &str) -> HealthCheckerError {
-        HealthCheckerError::MissingK8sObjectField(field.to_string(), "Daemonset 'test'".to_string())
+        HealthCheckerError::MissingK8sObjectField(
+            field.to_string(),
+            "DaemonSet".to_string(),
+            "test".to_string(),
+        )
     }
 }

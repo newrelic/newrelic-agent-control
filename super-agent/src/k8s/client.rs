@@ -152,8 +152,8 @@ impl SyncK8sClient {
             .supported_dynamic_type_metas()
     }
 
-    pub fn list_stateful_set(&self) -> Result<ObjectList<StatefulSet>, K8sError> {
-        self.runtime.block_on(self.async_client.list_stateful_set())
+    pub fn list_stateful_set_with_reflector(&self) -> Vec<Arc<StatefulSet>> {
+        self.async_client.reflectors.stateful_set.list()
     }
 
     pub fn default_namespace(&self) -> &str {
