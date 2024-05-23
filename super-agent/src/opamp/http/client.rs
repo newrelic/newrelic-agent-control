@@ -1,5 +1,6 @@
 //! # Synchronous HTTP Client Module
 use std::io::Cursor;
+use std::sync::Arc;
 
 use http::{HeaderMap, HeaderName, Response};
 use opamp_client::http::http_client::HttpClient;
@@ -24,18 +25,18 @@ pub struct HttpClientUreq<T> {
     client: ureq::Agent,
     url: Url,
     headers: HeaderMap,
-    token_retriever: T,
+    token_retriever: Arc<T>,
 }
 
 impl<T> HttpClientUreq<T>
 where
-    T: TokenRetriever,
+    T: TokenRetriever + Send + Sync + 'static,
 {
     pub(super) fn new(
         client: ureq::Agent,
         url: Url,
         headers: HeaderMap,
-        token_retriever: T,
+        token_retriever: Arc<T>,
     ) -> Self {
         Self {
             client,
@@ -82,7 +83,7 @@ where
 
 impl<T> HttpClient for HttpClientUreq<T>
 where
-    T: TokenRetriever,
+    T: TokenRetriever + Send + Sync + 'static,
 {
     fn post(&self, body: Vec<u8>) -> Result<Response<Vec<u8>>, HttpClientError> {
         let headers = self.headers().map_err(|e| TransportError(e.to_string()))?;
@@ -120,21 +121,45 @@ fn build_response(response: ureq::Response) -> Result<Response<Vec<u8>>, HttpCli
 #[cfg(test)]
 pub(crate) mod test {
     use http::{HeaderName, HeaderValue};
-    use nr_auth::TokenRetrieverError;
 
-    use crate::opamp::http::auth_token_retriever::test::{token_stub, MockTokenRetrieverMock};
     use crate::opamp::http::builder::build_ureq_client;
 
     use super::*;
 
-    impl<T> HttpClientUreq<T>
-    where
-        T: TokenRetriever,
-    {
-        pub fn additional_headers(mut self, headers: HeaderMap) -> Self {
-            self.headers.extend(headers);
-            self
+    use chrono::Utc;
+    use fake::faker::lorem::en::Word;
+    use fake::Fake;
+    use mockall::mock;
+
+    use nr_auth::token::{AccessToken, Token, TokenType};
+    use nr_auth::{TokenRetriever, TokenRetrieverError};
+
+    mock! {
+        pub TokenRetrieverMock {}
+
+        impl TokenRetriever for TokenRetrieverMock{
+            fn retrieve(&self) -> Result<Token, TokenRetrieverError>;
         }
+    }
+
+    impl MockTokenRetrieverMock {
+        pub fn should_retrieve(&mut self, token: Token) {
+            self.expect_retrieve().once().return_once(move || Ok(token));
+        }
+
+        pub fn should_return_error(&mut self, error: TokenRetrieverError) {
+            self.expect_retrieve()
+                .once()
+                .return_once(move || Err(error));
+        }
+    }
+
+    pub fn token_stub() -> Token {
+        Token::new(
+            AccessToken::from(Word().fake::<String>()),
+            TokenType::Bearer,
+            Utc::now(),
+        )
     }
 
     #[test]
@@ -144,7 +169,7 @@ pub(crate) mod test {
         let ureq_client = build_ureq_client();
         let token_retriever = MockTokenRetrieverMock::default();
 
-        let client = HttpClientUreq::new(ureq_client, url, headers, token_retriever);
+        let client = HttpClientUreq::new(ureq_client, url, headers, Arc::new(token_retriever));
 
         let new_headers = HeaderMap::from_iter(vec![(
             HeaderName::from_static("new-key"),
@@ -166,7 +191,7 @@ pub(crate) mod test {
             HeaderValue::from_static("existing_value"),
         )]);
 
-        let client = HttpClientUreq::new(ureq_client, url, headers, token_retriever);
+        let client = HttpClientUreq::new(ureq_client, url, headers, Arc::new(token_retriever));
 
         let new_headers = HeaderMap::from_iter(vec![(
             HeaderName::from_static("existing-key"),
@@ -188,7 +213,7 @@ pub(crate) mod test {
             HeaderValue::from_static("existing_value"),
         )]);
 
-        let client = HttpClientUreq::new(ureq_client, url, headers, token_retriever);
+        let client = HttpClientUreq::new(ureq_client, url, headers, Arc::new(token_retriever));
 
         let new_headers = HeaderMap::from_iter(vec![(
             HeaderName::from_static("new-key"),
@@ -213,7 +238,7 @@ pub(crate) mod test {
         let token = token_stub();
         token_retriever.should_retrieve(token.clone());
 
-        let client = HttpClientUreq::new(ureq_client, url, headers, token_retriever);
+        let client = HttpClientUreq::new(ureq_client, url, headers, Arc::new(token_retriever));
 
         let headers = client.headers().unwrap();
 
@@ -237,7 +262,7 @@ pub(crate) mod test {
         let mut token_retriever = MockTokenRetrieverMock::default();
         token_retriever.should_return_error(TokenRetrieverError::NotDefinedYetError);
 
-        let client = HttpClientUreq::new(ureq_client, url, headers, token_retriever);
+        let client = HttpClientUreq::new(ureq_client, url, headers, Arc::new(token_retriever));
 
         let headers = client.headers().unwrap_err();
 
@@ -259,7 +284,7 @@ pub(crate) mod test {
         let mut token_retriever = MockTokenRetrieverMock::default();
         token_retriever.should_return_error(TokenRetrieverError::NotDefinedYetError);
 
-        let client = HttpClientUreq::new(ureq_client, url, headers, token_retriever);
+        let client = HttpClientUreq::new(ureq_client, url, headers, Arc::new(token_retriever));
 
         let res = client.post("test".into()).unwrap_err();
         assert_eq!(

@@ -1,10 +1,11 @@
 use http::{HeaderMap, HeaderValue};
+use std::sync::Arc;
 use std::time::Duration;
 
+use nr_auth::TokenRetriever;
 use opamp_client::http::http_client::HttpClient;
 use ureq::Agent;
 
-use crate::opamp::http::auth_token_retriever::TokenRetrieverBuilder;
 use crate::super_agent::config::OpAMPClientConfig;
 
 use super::client::HttpClientUreq;
@@ -25,19 +26,19 @@ pub trait HttpClientBuilder {
 }
 
 #[derive(Debug, Clone)]
-pub struct UreqHttpClientBuilder<TB> {
+pub struct UreqHttpClientBuilder<T> {
     config: OpAMPClientConfig,
-    token_retriever_builder: TB,
+    token_retriever: Arc<T>,
 }
 
-impl<TB> UreqHttpClientBuilder<TB>
+impl<T> UreqHttpClientBuilder<T>
 where
-    TB: TokenRetrieverBuilder,
+    T: TokenRetriever + Send + Sync + 'static,
 {
-    pub fn new(config: OpAMPClientConfig, token_retriever_builder: TB) -> Self {
+    pub fn new(config: OpAMPClientConfig, token_retriever: Arc<T>) -> Self {
         Self {
             config,
-            token_retriever_builder,
+            token_retriever,
         }
     }
 
@@ -54,11 +55,11 @@ where
     }
 }
 
-impl<TB> HttpClientBuilder for UreqHttpClientBuilder<TB>
+impl<T> HttpClientBuilder for UreqHttpClientBuilder<T>
 where
-    TB: TokenRetrieverBuilder,
+    T: TokenRetriever + Send + Sync + 'static,
 {
-    type Client = HttpClientUreq<TB::TokenRetriever>;
+    type Client = HttpClientUreq<T>;
 
     /// Build the HTTP Client. It will contain a Token Retriever, so in all
     /// post requests a Token will be retrieved from Identity System Service
@@ -67,10 +68,7 @@ where
         let client = build_ureq_client();
         let url = self.config.endpoint.clone();
         let headers = self.headers();
-        let token_retriever = self
-            .token_retriever_builder
-            .build()
-            .map_err(|e| HttpClientBuilderError::BuildingError(e.to_string()))?;
+        let token_retriever = self.token_retriever.clone();
 
         Ok(HttpClientUreq::new(client, url, headers, token_retriever))
     }
