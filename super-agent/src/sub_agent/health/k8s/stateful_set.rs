@@ -1,3 +1,4 @@
+use super::items::{flux_release_filter, items_health_check};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::{
@@ -7,7 +8,7 @@ use crate::{
 use k8s_openapi::api::apps::v1::{StatefulSet, StatefulSetSpec};
 use std::sync::Arc;
 
-use super::items::{flux_release_filter, items_health_check};
+const STATEFUL_SET_KIND: &str = "StatefulSet";
 
 /// Represents a health checker for the StatefulSets or a release.
 pub struct K8sHealthStatefulSet {
@@ -41,7 +42,7 @@ impl K8sHealthStatefulSet {
             .metadata
             .name
             .as_deref()
-            .ok_or_else(|| k8s::Error::MissingName("StatefulSet".into()))?
+            .ok_or_else(|| k8s::Error::MissingName(STATEFUL_SET_KIND.into()))?
             .to_string();
         let spec = ss
             .spec
@@ -101,7 +102,7 @@ impl K8sHealthStatefulSet {
     /// Helper to return an error when an expected field in the StatefulSet object is missing.
     fn missing_field_error(name: &str, field: &str) -> HealthCheckerError {
         HealthCheckerError::MissingK8sObjectField {
-            kind: "StatefulSet".to_string(),
+            kind: STATEFUL_SET_KIND.to_string(),
             name: name.to_string(),
             field: field.to_string(),
         }
