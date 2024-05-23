@@ -22,9 +22,7 @@ env:
 jobs:
   molecule-test-packages:
     name: Test package installation
-    ### IMPORTANT DO NOT BUMP THIS RUNNER UNTIL THE ACTION SUPPORTS NEWER VERSIONS
-    runs-on: ubuntu-20.04
-    ###
+    runs-on: ubuntu-latest
     steps:
       - uses: newrelic/pkg-installation-testing-action@v1
         with:
@@ -32,4 +30,4 @@ jobs:
           repo_base_url: ${{ inputs.REPO_ENDPOINT }}
           package_name: ${{ inputs.PACKAGE_NAME }}
           package_version: ${{ inputs.TAG }}
-          platforms: "al2023,centos8,debian-bullseye,debian-bookworm,redhat8,redhat9,suse15.3,suse15.4,suse15.5,ubuntu2004,ubuntu2204"
+          platforms: "al2023,centos8,debian-bullseye,debian-bookworm,redhat8,redhat9,suse15.3,suse15.4,suse15.5,ubuntu2004,ubuntu2204,ubuntu2404"
