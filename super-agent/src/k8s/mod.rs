@@ -1,4 +1,5 @@
 pub use error::K8sError as Error;
+pub mod annotations;
 pub mod client;
 mod dynamic_object;
 pub mod error;

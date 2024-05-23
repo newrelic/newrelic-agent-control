@@ -55,7 +55,7 @@ impl ReflectorBuilder {
             Api::default_namespaced_with(self.client.to_owned(), api_resource);
 
         // Initialize the writer for the dynamic type.
-        let writer: Writer<DynamicObject> = reflector::store::Writer::new(api_resource.to_owned());
+        let writer: Writer<DynamicObject> = Writer::new(api_resource.to_owned());
 
         Reflector::try_new(api, writer, self.watcher_config()).await
     }

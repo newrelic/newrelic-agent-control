@@ -80,7 +80,14 @@ async fn k8s_get_dynamic_resource() {
         "Get doesn't find any object before creation"
     );
 
-    create_foo_cr(test.client.to_owned(), test_ns.as_str(), cr_name, None).await;
+    create_foo_cr(
+        test.client.to_owned(),
+        test_ns.as_str(),
+        cr_name,
+        None,
+        None,
+    )
+    .await;
 
     let cr = k8s_client
         .dynamic_object_managers()
@@ -133,7 +140,14 @@ async fn k8s_dynamic_resource_has_changed() {
         "Get doesn't find any object after deletion"
     );
 
-    create_foo_cr(test.client.to_owned(), test_ns.as_str(), cr_name, None).await;
+    create_foo_cr(
+        test.client.to_owned(),
+        test_ns.as_str(),
+        cr_name,
+        None,
+        None,
+    )
+    .await;
 
     let cr = k8s_client
         .dynamic_object_managers()
@@ -187,6 +201,24 @@ async fn k8s_dynamic_resource_has_changed() {
             .unwrap(),
         "The object found has changed after changing the specs"
     );
+
+    // changing annotations
+    let mut cr_specs_modified = DynamicObject {
+        types: cr.types.clone(),
+        metadata: cr.metadata.clone(),
+        data: cr.data.clone(),
+    };
+    cr_specs_modified.metadata.annotations = Some([("c".to_string(), "d".to_string())].into());
+
+    assert!(
+        k8s_client
+            .dynamic_object_managers()
+            .try_get(&foo_type_meta())
+            .unwrap()
+            .has_changed(&cr_specs_modified)
+            .unwrap(),
+        "The object found has changed after changing the specs"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -196,7 +228,14 @@ async fn k8s_delete_dynamic_resource() {
     let test_ns = test.test_namespace().await;
 
     let cr_name = "delete-test";
-    create_foo_cr(test.client.to_owned(), test_ns.as_str(), cr_name, None).await;
+    create_foo_cr(
+        test.client.to_owned(),
+        test_ns.as_str(),
+        cr_name,
+        None,
+        None,
+    )
+    .await;
 
     let k8s_client: AsyncK8sClient =
         AsyncK8sClient::try_new(test_ns.to_string(), vec![foo_type_meta()])
@@ -222,7 +261,14 @@ async fn k8s_patch_dynamic_resource() {
     let test_ns = test.test_namespace().await;
 
     let cr_name = "patch-test";
-    let mut cr = create_foo_cr(test.client.to_owned(), test_ns.as_str(), cr_name, None).await;
+    let mut cr = create_foo_cr(
+        test.client.to_owned(),
+        test_ns.as_str(),
+        cr_name,
+        None,
+        None,
+    )
+    .await;
 
     cr.spec.data = "patched".to_string();
     let obj: DynamicObject =
@@ -257,6 +303,7 @@ async fn k8s_patch_dynamic_resource_metadata() {
         test_ns.as_str(),
         cr_name,
         Some([("a".to_string(), "b".to_string())].into()),
+        None,
     )
     .await;
 

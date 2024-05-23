@@ -7,6 +7,8 @@ use k8s_openapi::{api::core::v1::ConfigMap, Resource};
 use kube::{api::Api, core::TypeMeta};
 use mockall::{mock, Sequence};
 use newrelic_super_agent::agent_type::runtime_config;
+use newrelic_super_agent::k8s::annotations::Annotations;
+use newrelic_super_agent::super_agent::config::AgentTypeFQN;
 use newrelic_super_agent::{
     agent_type::runtime_config::K8sObject,
     k8s::{
@@ -53,6 +55,7 @@ fn k8s_garbage_collector_cleans_removed_agent() {
     let test_ns = block_on(test.test_namespace());
 
     let agent_id = &AgentID::new("sub-agent").unwrap();
+    let agent_fqn = AgentTypeFQN::try_from("ns/test:1.2.3").unwrap();
 
     let k8s_client = Arc::new(
         SyncK8sClient::try_new(tokio_runtime(), test_ns.to_string(), vec![foo_type_meta()])
@@ -63,6 +66,7 @@ fn k8s_garbage_collector_cleans_removed_agent() {
 
     let s = CRSupervisor::new(
         agent_id.clone(),
+        agent_fqn.clone(),
         k8s_client.clone(),
         runtime_config::K8s {
             objects: HashMap::from([(
@@ -106,7 +110,7 @@ metadata:
         r#"
 agents:
   {agent_id}:
-    agent_type: test
+    agent_type: {agent_fqn}
 "#
     );
     let mut seq = Sequence::new();
@@ -165,6 +169,7 @@ fn k8s_garbage_collector_with_missing_and_extra_kinds() {
         test_ns.as_str(),
         removed_agent_id,
         Some(Labels::new(&AgentID::try_from(removed_agent_id.to_string()).unwrap()).get()),
+        None,
     ));
 
     // Executes the GC passing only current agent in the config.
@@ -215,6 +220,7 @@ fn k8s_garbage_collector_does_not_remove_super_agent() {
         test_ns.as_str(),
         sa_id,
         Some(Labels::new(sa_id).get()),
+        None,
     ));
 
     let k8s_client = Arc::new(
@@ -246,4 +252,85 @@ fn k8s_garbage_collector_does_not_remove_super_agent() {
         instance_id_getter.get(sa_id).unwrap(),
         "Expects the ULID keeps the same since is get from the CM"
     );
+}
+
+#[test]
+#[ignore = "needs k8s cluster"]
+fn k8s_garbage_collector_deletes_only_expected_resources() {
+    let mut test = block_on(K8sEnv::new());
+    let test_ns = block_on(test.test_namespace());
+    let fqn = &AgentTypeFQN::try_from("ns/test:1.2.3").unwrap();
+    let fqn_old = &AgentTypeFQN::try_from("ns/test:0.0.1").unwrap();
+    let agent_id = &AgentID::new("agent-id").unwrap();
+    let agent_id_unknonw = &AgentID::new("agent-id-unknown").unwrap();
+
+    block_on(create_foo_cr(
+        test.client.to_owned(),
+        test_ns.as_str(),
+        "not-deleted",
+        Some(Labels::new(agent_id).get()),
+        Some(Annotations::new_agent_fqn_annotation(fqn).get()),
+    ));
+
+    block_on(create_foo_cr(
+        test.client.to_owned(),
+        test_ns.as_str(),
+        "sa-id",
+        Some(Labels::new(&AgentID::new_super_agent_id()).get()),
+        None,
+    ));
+
+    block_on(create_foo_cr(
+        test.client.to_owned(),
+        test_ns.as_str(),
+        "unmanaged-missing-labels",
+        None,
+        None,
+    ));
+
+    block_on(create_foo_cr(
+        test.client.to_owned(),
+        test_ns.as_str(),
+        "old-fqn",
+        Some(Labels::new(agent_id).get()),
+        Some(Annotations::new_agent_fqn_annotation(fqn_old).get()),
+    ));
+
+    block_on(create_foo_cr(
+        test.client.to_owned(),
+        test_ns.as_str(),
+        "id-unknown",
+        Some(Labels::new(agent_id_unknonw).get()),
+        Some(Annotations::new_agent_fqn_annotation(fqn).get()),
+    ));
+
+    let k8s_client = Arc::new(
+        SyncK8sClient::try_new(tokio_runtime(), test_ns.to_string(), vec![foo_type_meta()])
+            .unwrap(),
+    );
+
+    let mut config_loader = MockSuperAgentDynamicConfigLoaderMock::new();
+    let config = format!(
+        r#"
+agents:
+  {agent_id}:
+    agent_type: {fqn}
+"#
+    );
+    config_loader.expect_load().times(1).returning(move || {
+        Ok(serde_yaml::from_str::<SuperAgentDynamicConfig>(config.as_str()).unwrap())
+    });
+
+    let mut gc = NotStartedK8sGarbageCollector::new(Arc::new(config_loader), k8s_client);
+
+    // Expects the GC do not clean any resource related to the SA, running SubAgents or unmanaged resources.
+    gc.collect().unwrap();
+    let api: Api<Foo> = Api::namespaced(test.client.clone(), &test_ns);
+
+    block_on(api.get("not-deleted")).expect("CR should exist");
+    block_on(api.get("sa-id")).expect("CR should exist");
+    block_on(api.get("unmanaged-missing-labels")).expect("CR should exist");
+
+    block_on(api.get("old-fqn")).expect_err("CR should not exist");
+    block_on(api.get("id-unknown")).expect_err("CR should not exist");
 }

@@ -1,11 +1,11 @@
+use super::runtime::tokio_runtime;
 use actix_web::{web, App, HttpResponse, HttpServer};
 use opamp_client::opamp;
 use prost::Message;
 use std::sync::Mutex;
+use std::time::Duration;
 use std::{collections::HashMap, net, sync::Arc};
 use tokio::task::JoinHandle;
-
-use super::runtime::tokio_runtime;
 
 const FAKE_SERVER_PATH: &str = "/opamp-fake-server";
 
@@ -124,6 +124,9 @@ async fn config_handler(
     let message = opamp::proto::AgentToServer::decode(req).unwrap();
 
     let mut config_responses = state.lock().unwrap();
+
+    // This sleep helps when following the logs. Otherwise, in case of errors the SA is feed continuously with configs
+    tokio::time::sleep(Duration::from_secs(1)).await;
 
     let identifier = message.instance_uid.to_string();
 

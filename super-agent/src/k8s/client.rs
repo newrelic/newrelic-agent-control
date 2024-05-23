@@ -52,7 +52,7 @@ impl SyncK8sClient {
         })
     }
 
-    /// helper to get the dynamic resource corresponding to a dynamic object.
+    /// helper to get the dynamic object manager corresponding to a dynamic object.
     fn dynamic_object_manager<'a>(
         &'a self,
         obj: &DynamicObject,
@@ -88,18 +88,21 @@ impl SyncK8sClient {
             .try_get(tm)?
             .get(name))
     }
-
-    pub fn delete_dynamic_object_collection(
-        &self,
-        tm: &TypeMeta,
-        label_selector: &str,
-    ) -> Result<(), K8sError> {
+    pub fn delete_dynamic_object(&self, tm: &TypeMeta, name: &str) -> Result<(), K8sError> {
         self.runtime.block_on(
             self.async_client
                 .dynamic_object_managers
                 .try_get(tm)?
-                .delete_by_label_selector(label_selector),
+                .delete(name),
         )
+    }
+
+    pub fn list_dynamic_objects(&self, tm: &TypeMeta) -> Result<Vec<Arc<DynamicObject>>, K8sError> {
+        Ok(self
+            .async_client
+            .dynamic_object_managers
+            .try_get(tm)?
+            .list())
     }
 
     pub fn delete_configmap_collection(&self, label_selector: &str) -> Result<(), K8sError> {
@@ -334,7 +337,7 @@ where
             &DeleteParams::default(),
             &ListParams {
                 label_selector: Some(label_selector.to_string()),
-                ..ListParams::default()
+                ..Default::default()
             },
         )
         .await?

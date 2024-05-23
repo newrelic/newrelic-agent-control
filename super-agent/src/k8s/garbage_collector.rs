@@ -2,35 +2,40 @@ use super::labels::{Labels, AGENT_ID_LABEL_KEY};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::error::GarbageCollectorK8sError;
+use crate::k8s::error::GarbageCollectorK8sError::{
+    MissingActiveAgents, MissingAnnotations, MissingLabels,
+};
+use crate::k8s::Error::MissingName;
+use crate::k8s::{annotations, labels};
+use crate::super_agent::config::{AgentID, AgentTypeFQN, SubAgentsMap};
 use crate::super_agent::config_storer::storer::SuperAgentDynamicConfigLoader;
-use crate::super_agent::{self};
+use crate::super_agent::defaults::SUPER_AGENT_ID;
 use crossbeam::{
     channel::{tick, unbounded, Sender},
     select,
 };
-use std::{collections::BTreeSet, sync::Arc, thread, time::Duration};
+use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
+use std::{sync::Arc, thread, time::Duration};
 use tracing::{debug, info, trace, warn};
 
 const DEFAULT_INTERVAL_SEC: u64 = 30;
 const GRACEFUL_STOP_RETRY_INTERVAL_MS: u64 = 10;
 
-type ActiveAgents = BTreeSet<String>;
-
 /// Responsible for cleaning resources created by the super agent that are not longer used.
 pub struct NotStartedK8sGarbageCollector<S>
 where
-    S: SuperAgentDynamicConfigLoader + std::marker::Sync + std::marker::Send + 'static,
+    S: SuperAgentDynamicConfigLoader + Sync + Send + 'static,
 {
     config_store: Arc<S>,
     k8s_client: Arc<SyncK8sClient>,
     interval: Duration,
-    // None active_agents is representing the initial state before the first load.
-    active_agents: Option<ActiveAgents>,
+    // None active_config is representing the initial state before the first load.
+    active_config: Option<SubAgentsMap>,
 }
 
 pub struct K8sGarbageCollectorStarted {
     stop_tx: Sender<()>,
-    handle: std::thread::JoinHandle<()>,
+    handle: thread::JoinHandle<()>,
 }
 
 impl K8sGarbageCollectorStarted {
@@ -53,14 +58,14 @@ impl Drop for K8sGarbageCollectorStarted {
 
 impl<S> NotStartedK8sGarbageCollector<S>
 where
-    S: SuperAgentDynamicConfigLoader + std::marker::Sync + std::marker::Send,
+    S: SuperAgentDynamicConfigLoader + Sync + Send,
 {
     pub fn new(config_store: Arc<S>, k8s_client: Arc<SyncK8sClient>) -> Self {
         NotStartedK8sGarbageCollector {
             config_store,
             k8s_client,
             interval: Duration::from_secs(DEFAULT_INTERVAL_SEC),
-            active_agents: None,
+            active_config: None,
         }
     }
 
@@ -79,7 +84,7 @@ where
         let (stop_tx, stop_rx) = unbounded();
         let ticker = tick(self.interval);
 
-        let handle = std::thread::spawn(move || {
+        let handle = thread::spawn(move || {
             loop {
                 select! {
                     recv(stop_rx)-> _ => break,
@@ -99,56 +104,111 @@ where
     /// the previous execution.
     pub fn collect(&mut self) -> Result<(), GarbageCollectorK8sError> {
         // check if current active agents differs from previous execution.
-        if !self.update_active_agents()? {
+        if !self.update_active_config()? {
             trace!("no agents to clean since last execution");
             return Ok(());
         };
-
-        let selector = Self::garbage_label_selector(
-            self.active_agents
-                .as_ref()
-                .ok_or(GarbageCollectorK8sError::MissingActiveAgents())?,
-        );
-
-        debug!("collecting resources: `{selector}`");
-
-        // Garbage collect all supported custom resources managed by the SA and associated to sub agents that currently don't exists
-        for tm in self.k8s_client.supported_type_meta_collection().into_iter() {
-            let _ = self
-                .k8s_client
-                .delete_dynamic_object_collection(&tm, selector.as_str())
-                .inspect_err(|e| warn!("fail trying to delete collection of {:?}: {}", tm, e));
-        }
-
-        // Garbage collect CM of identifiers
-        self.k8s_client
-            .delete_configmap_collection(selector.as_str())?;
+        self.collect_config_maps()?;
+        self.collect_dynamic_resources()?;
 
         Ok(())
     }
 
+    fn collect_config_maps(&self) -> Result<(), GarbageCollectorK8sError> {
+        let selector_agent_id = Self::garbage_label_selector_agent_id(
+            self.active_config.as_ref().ok_or(MissingActiveAgents())?,
+        );
+        debug!("collecting config_maps: `{selector_agent_id}`");
+
+        self.k8s_client
+            .delete_configmap_collection(selector_agent_id.as_str())?;
+
+        Ok(())
+    }
+
+    fn collect_dynamic_resources(&self) -> Result<(), GarbageCollectorK8sError> {
+        self.k8s_client
+            .supported_type_meta_collection()
+            .iter()
+            .try_for_each(|tm| {
+                self.k8s_client
+                    .list_dynamic_objects(tm)?
+                    .into_iter()
+                    .try_for_each(|d| {
+                        if self.should_delete_dynamic_object(d.metadata.clone())? {
+                            let name = d
+                                .metadata
+                                .name
+                                .as_ref()
+                                .ok_or(MissingName(d.types.clone().unwrap_or_default().kind))?;
+                            debug!("deleting dynamic_resource: `{}/{}`", tm.kind, name);
+                            self.k8s_client.delete_dynamic_object(tm, name.as_str())?;
+                        }
+                        let ok: Result<(), GarbageCollectorK8sError> = Ok(());
+                        ok
+                    })
+            })?;
+
+        Ok(())
+    }
+
+    /// should_delete_dynamic_object checks if the AgentID is "known" and if the agentType is the expected one
+    fn should_delete_dynamic_object(
+        &self,
+        object_metadata: ObjectMeta,
+    ) -> Result<bool, GarbageCollectorK8sError> {
+        let labels = object_metadata.labels.clone().unwrap_or_default();
+        let annotations = object_metadata.annotations.unwrap_or_default();
+
+        // we delete resources only if they are managed by the superAgent
+        if !labels::is_managed_by_superagent(&labels) {
+            return Ok(false);
+        }
+
+        let agent_id = labels::get_agent_id(&labels).ok_or(MissingLabels())?;
+
+        // we do not want to delete anything related to the superAgent by mistake
+        if SUPER_AGENT_ID() == agent_id {
+            return Ok(false);
+        }
+
+        let active_config = self.active_config.clone().ok_or(MissingActiveAgents())?;
+
+        return match active_config.get(&AgentID::new(agent_id.as_str())?) {
+            None => Ok(true),
+            Some(config) => {
+                let fqn = AgentTypeFQN::try_from(
+                    annotations::get_agent_fqn_value(&annotations)
+                        .ok_or(MissingAnnotations())?
+                        .as_str(),
+                )?;
+                Ok(config.agent_type != fqn)
+            }
+        };
+    }
+
     /// Loads the latest agents list from the conf store and returns True if differs from
     /// the cached one.
-    fn update_active_agents(&mut self) -> Result<bool, GarbageCollectorK8sError> {
-        let sub_agents_config = self.config_store.load()?.agents;
-        let latest_active_agents = Some(sub_agents_config.keys().map(|a| a.get()).collect());
+    fn update_active_config(&mut self) -> Result<bool, GarbageCollectorK8sError> {
+        let sub_agents_config = Some(self.config_store.load()?.agents);
 
-        // On the first execution self.active_agents is None so the list is updated.
-        if self.active_agents == latest_active_agents {
+        // On the first execution self.active_config is None so the list is updated.
+        if self.active_config == sub_agents_config {
             Ok(false)
         } else {
-            self.active_agents = latest_active_agents;
+            self.active_config = sub_agents_config;
             Ok(true)
         }
     }
 
-    /// Generates a selector that will match resources generated by the SA for sub-agents not in the list of active_agents.
-    fn garbage_label_selector(active_agents: &ActiveAgents) -> String {
+    /// Generates a selector that will match config_maps generated by the SA.
+    fn garbage_label_selector_agent_id(active_config: &SubAgentsMap) -> String {
         // We add SUPER_AGENT_ID to prevent removing any resource related to it.
-        let id_list = active_agents.iter().fold(
-            super_agent::defaults::SUPER_AGENT_ID().to_string(),
-            |acc, id| format!("{acc},{id}"),
-        );
+        let id_list = active_config
+            .keys()
+            .fold(SUPER_AGENT_ID().to_string(), |acc, id| {
+                format!("{},{}", acc, id)
+            });
 
         format!(
             "{},{AGENT_ID_LABEL_KEY} notin ({id_list})",
@@ -159,19 +219,26 @@ where
 
 #[cfg(test)]
 pub(crate) mod test {
-    use super::{ActiveAgents, NotStartedK8sGarbageCollector};
-    use crate::k8s::labels::{Labels, AGENT_ID_LABEL_KEY};
-    use crate::super_agent::config::{
-        AgentID, AgentTypeFQN, SubAgentConfig, SuperAgentDynamicConfig,
-    };
-    use crate::super_agent::defaults::SUPER_AGENT_ID;
-    use std::collections::HashMap;
-    use std::sync::Arc;
-    use std::time::Duration;
-
+    use super::NotStartedK8sGarbageCollector;
+    use crate::k8s::annotations::Annotations;
+    use crate::k8s::client::MockSyncK8sClient;
     #[mockall_double::double]
     use crate::k8s::client::SyncK8sClient;
+    use crate::k8s::error::GarbageCollectorK8sError;
+    use crate::k8s::error::GarbageCollectorK8sError::{
+        MissingActiveAgents, MissingAnnotations, MissingLabels,
+    };
+    use crate::k8s::labels::{Labels, AGENT_ID_LABEL_KEY, MANAGED_BY_KEY, MANAGED_BY_VAL};
+    use crate::super_agent::config::{
+        AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsMap, SuperAgentDynamicConfig,
+    };
     use crate::super_agent::config_storer::storer::MockSuperAgentDynamicConfigLoader;
+    use crate::super_agent::defaults::SUPER_AGENT_ID;
+    use assert_matches::assert_matches;
+    use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
+    use std::collections::{BTreeMap, HashMap};
+    use std::sync::Arc;
+    use std::time::Duration;
 
     #[test]
     fn test_start_executes_collection_as_expected() {
@@ -208,8 +275,9 @@ pub(crate) mod test {
     }
 
     #[test]
-    fn test_garbage_label_selector() {
-        let agent_id = AgentID::new("agent").unwrap();
+    fn test_garbage_label_selector_agent_id() {
+        let fqn = "ns/test:1.2.3";
+        let agent_id = "agent";
         let labels = Labels::default();
         assert_eq!(
             format!(
@@ -217,19 +285,9 @@ pub(crate) mod test {
                 labels.selector(),
                 SUPER_AGENT_ID()
             ),
-            NotStartedK8sGarbageCollector::<MockSuperAgentDynamicConfigLoader>::garbage_label_selector(
-                &ActiveAgents::from([agent_id.get()])
-            )
-        );
-        let second_agent_id = AgentID::new("agent-2").unwrap();
-        assert_eq!(
-            format!(
-                "{},{AGENT_ID_LABEL_KEY} notin ({},{agent_id},{second_agent_id})",
-                labels.selector(),
-                SUPER_AGENT_ID()
-            ),
-            NotStartedK8sGarbageCollector::<MockSuperAgentDynamicConfigLoader>::garbage_label_selector(
-                &ActiveAgents::from([agent_id.get(), second_agent_id.get()])
+
+            NotStartedK8sGarbageCollector::<MockSuperAgentDynamicConfigLoader>::garbage_label_selector_agent_id(
+                &SubAgentsMap::from([get_mock_agent_entry(agent_id, fqn)])
             )
         );
         assert_eq!(
@@ -238,13 +296,161 @@ pub(crate) mod test {
                 labels.selector(),
                 SUPER_AGENT_ID()
             ),
-            NotStartedK8sGarbageCollector::<MockSuperAgentDynamicConfigLoader>::garbage_label_selector(
-                &ActiveAgents::new()
+            NotStartedK8sGarbageCollector::<MockSuperAgentDynamicConfigLoader>::garbage_label_selector_agent_id(
+                &SubAgentsMap::from([])
             )
         );
     }
 
+    #[test]
+    fn test_should_delete_dynamic_object_valid() {
+        let test_cases: Vec<(&str, ObjectMeta, bool)> = vec![
+            ("no-labels-no-annotations", ObjectMeta::default(), false),
+            (
+                "super-agent-label-no-annotations",
+                ObjectMeta {
+                    labels: Some(Labels::new(&AgentID::new_super_agent_id()).get()),
+                    ..Default::default()
+                },
+                false,
+            ),
+            (
+                "random-label-no-annotations",
+                ObjectMeta {
+                    labels: Some(BTreeMap::from([("test".to_string(), "test2".to_string())])),
+                    ..Default::default()
+                },
+                false,
+            ),
+            (
+                "unknown-id",
+                ObjectMeta {
+                    labels: Some(Labels::new(&AgentID::new("unknown").unwrap()).get()),
+                    ..Default::default()
+                },
+                true,
+            ),
+            (
+                "known-id-unknown-fqn",
+                ObjectMeta {
+                    labels: Some(Labels::new(&AgentID::new("test-id").unwrap()).get()),
+                    annotations: Some(
+                        Annotations::new_agent_fqn_annotation(
+                            &AgentTypeFQN::try_from("ns/unknown:1.2.3").unwrap(),
+                        )
+                        .get(),
+                    ),
+                    ..Default::default()
+                },
+                true,
+            ),
+            (
+                "known-id-known-fqn",
+                ObjectMeta {
+                    labels: Some(Labels::new(&AgentID::new("test-id").unwrap()).get()),
+                    annotations: Some(
+                        Annotations::new_agent_fqn_annotation(
+                            &AgentTypeFQN::try_from("ns/test-fqn:1.2.3").unwrap(),
+                        )
+                        .get(),
+                    ),
+                    ..Default::default()
+                },
+                false,
+            ),
+        ];
+
+        for (name, input, output) in test_cases {
+            let test_id = "test-id";
+            let test_fqn = "ns/test-fqn:1.2.3";
+            let config: SubAgentsMap =
+                SubAgentsMap::from([get_mock_agent_entry(test_id, test_fqn)]);
+
+            let gc = NotStartedK8sGarbageCollector {
+                config_store: Arc::new(MockSuperAgentDynamicConfigLoader::new()),
+                k8s_client: Arc::new(MockSyncK8sClient::new()),
+                interval: Default::default(),
+                active_config: Some(config),
+            };
+
+            assert_eq!(
+                gc.should_delete_dynamic_object(input).unwrap(),
+                output,
+                "{name} failed"
+            );
+        }
+    }
+
+    #[test]
+    fn test_should_delete_dynamic_object_fail() {
+        let test_cases: Vec<(&str, ObjectMeta, fn(GarbageCollectorK8sError, String))> = vec![
+            (
+                "missing-annotations",
+                ObjectMeta {
+                    labels: Some(Labels::new(&AgentID::new("test-id").unwrap()).get()),
+                    annotations: None,
+                    ..Default::default()
+                },
+                |err: GarbageCollectorK8sError, name: String| {
+                    assert_matches!(err, MissingAnnotations(), "{}", name)
+                },
+            ),
+            (
+                "missing-labels",
+                ObjectMeta {
+                    labels: Some(BTreeMap::from([(
+                        MANAGED_BY_KEY.to_string(),
+                        MANAGED_BY_VAL.to_string(),
+                    )])),
+                    ..Default::default()
+                },
+                |err: GarbageCollectorK8sError, name: String| {
+                    assert_matches!(err, MissingLabels(), "{}", name)
+                },
+            ),
+        ];
+
+        let mut gc = NotStartedK8sGarbageCollector {
+            config_store: Arc::new(MockSuperAgentDynamicConfigLoader::new()),
+            k8s_client: Arc::new(MockSyncK8sClient::new()),
+            interval: Default::default(),
+            active_config: None,
+        };
+
+        assert_matches!(
+            gc.should_delete_dynamic_object(ObjectMeta {
+                labels: Some(Labels::new(&AgentID::new("unknown").unwrap()).get()),
+                ..Default::default()
+            })
+            .unwrap_err(),
+            MissingActiveAgents(..),
+            "no active agents"
+        );
+
+        for (name, input, test_fn) in test_cases {
+            let test_id = "test-id";
+            let test_fqn = "ns/test-fqn:1.2.3";
+            gc.active_config = Some(SubAgentsMap::from([get_mock_agent_entry(
+                test_id, test_fqn,
+            )]));
+
+            test_fn(
+                gc.should_delete_dynamic_object(input).unwrap_err(),
+                name.to_string(),
+            );
+        }
+    }
+
     // HELPERS
+    fn get_mock_agent_entry(agent_id: &str, agent_fqn: &str) -> (AgentID, SubAgentConfig) {
+        (
+            AgentID::new(agent_id).unwrap(),
+            SubAgentConfig {
+                agent_type: agent_fqn.try_into().unwrap(),
+            },
+        )
+    }
+
     fn sub_agents_config(agent_id: &str) -> SuperAgentDynamicConfig {
         SuperAgentDynamicConfig {
             agents: HashMap::from([(
