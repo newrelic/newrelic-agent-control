@@ -1,11 +1,10 @@
-use k8s_openapi::api::apps::v1::{DaemonSet, DaemonSetStatus, DaemonSetUpdateStrategy};
-
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::utils::IntOrPercentage;
 use crate::sub_agent::health::health_checker::{
     Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
+use k8s_openapi::api::apps::v1::{DaemonSet, DaemonSetStatus, DaemonSetUpdateStrategy};
 use std::sync::Arc;
 
 use super::health_checker::LABEL_RELEASE_FLUX;
@@ -325,7 +324,7 @@ pub mod test {
                 },
                 expected: HealthCheckerError::InvalidK8sObject {
                     kind: DAEMON_SET_KIND.to_string(),
-                    name: "test".to_string(),
+                    name: daemon_set_name(),
                     err: "unexpected value for .spec.updateStrategy.type: Unknown Update Strategy Type: 'Unknown-TEST'".to_string(),
                 },
             },
@@ -368,7 +367,7 @@ pub mod test {
                 },
                 expected: HealthCheckerError::InvalidK8sObject{
                     kind: DAEMON_SET_KIND.to_string(),
-                    name: "test".to_string(),
+                    name: daemon_set_name(),
                     err: "unexpected value for .spec.updateStrategy.rollingUpdate.maxUnavailable: invalid digit found in string".to_string(),
                 },
             },
@@ -604,9 +603,13 @@ pub mod test {
         test_cases.into_iter().for_each(|tc| tc.run());
     }
 
+    fn daemon_set_name() -> String {
+        "test".to_string()
+    }
+
     fn test_util_get_common_metadata() -> ObjectMeta {
         ObjectMeta {
-            name: Some(String::from("test")),
+            name: Some(daemon_set_name()),
             ..Default::default()
         }
     }
@@ -614,7 +617,7 @@ pub mod test {
     fn test_util_missing_field(field: &str) -> HealthCheckerError {
         HealthCheckerError::MissingK8sObjectField {
             kind: DAEMON_SET_KIND.to_string(),
-            name: "test".to_string(),
+            name: daemon_set_name(),
             field: field.to_string(),
         }
     }
