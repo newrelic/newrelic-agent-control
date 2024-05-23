@@ -270,11 +270,7 @@ pub mod test {
         let client = HttpClientUreq::new(ureq_client, url, headers, Arc::new(token_retriever));
 
         let headers_err = client.headers().unwrap_err();
-        assert_matches!(
-            headers_err,
-            AuthorizationHeadersError(_) => {
-            }
-        );
+        assert_matches!(headers_err, AuthorizationHeadersError(_));
     }
 
     #[test]
