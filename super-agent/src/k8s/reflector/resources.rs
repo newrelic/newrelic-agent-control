@@ -1,7 +1,5 @@
-use super::{
-    super::error::K8sError,
-    definition::{Reflector, ReflectorBuilder},
-};
+use super::definition::{Reflector, ReflectorBuilder};
+use crate::k8s::error::K8sError;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use k8s_openapi::{
     api::apps::v1::{DaemonSet, Deployment, ReplicaSet, StatefulSet},
