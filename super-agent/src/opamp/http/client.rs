@@ -123,7 +123,7 @@ fn build_response(response: ureq::Response) -> Result<Response<Vec<u8>>, HttpCli
 }
 
 #[cfg(test)]
-pub(crate) mod test {
+pub mod test {
     use assert_matches::assert_matches;
     use http::{HeaderName, HeaderValue};
 
