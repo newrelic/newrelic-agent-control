@@ -10,7 +10,7 @@ use kube::api::ObjectMeta;
 use std::{any::Any, sync::Arc};
 
 /// Executes the provided health-check function over the items provided.
-/// # returns
+/// It returns:
 /// * A healthy result if the result of execution is healthy for all the items.
 /// * The first encountered error or unhealthy result, otherwise.
 pub fn items_health_check<K, F>(
