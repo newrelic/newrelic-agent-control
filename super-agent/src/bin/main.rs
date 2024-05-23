@@ -122,7 +122,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         super_agent_config.opamp.clone(),
     );
 
-    #[cfg(any(feature = "onhost", feature = "k8s"))]
     run_super_agent(
         runtime.clone(),
         sa_local_config_storer,
@@ -234,7 +233,7 @@ fn run_super_agent<C: HttpClientBuilder>(
     .run(application_events_consumer, maybe_sa_opamp_consumer)
 }
 
-#[cfg(all(not(feature = "onhost"), feature = "k8s"))]
+#[cfg(feature = "k8s")]
 fn run_super_agent<C: HttpClientBuilder>(
     runtime: Arc<Runtime>,
     sa_local_config_storer: SuperAgentConfigStoreFile,
@@ -355,7 +354,7 @@ fn create_shutdown_signal_handler(
     Ok(())
 }
 
-#[cfg(all(not(feature = "onhost"), feature = "k8s"))]
+#[cfg(feature = "k8s")]
 fn super_agent_opamp_non_identifying_attributes(
     identifiers: &Identifiers,
 ) -> HashMap<String, DescriptionValueType> {
