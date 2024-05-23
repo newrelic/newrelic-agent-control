@@ -126,12 +126,11 @@ impl K8sHealthStatefulSet {
 
 #[cfg(test)]
 mod test {
+    use super::*;
     use k8s_openapi::api::apps::v1::{
         RollingUpdateStatefulSetStrategy, StatefulSetStatus, StatefulSetUpdateStrategy,
     };
-    use kube::api::ObjectMeta;
-
-    use super::*;
+    use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 
     /// Returns a [ObjectMeta] valid for for health-check
     fn stateful_set_meta(name: &str, generation: Option<i64>) -> ObjectMeta {

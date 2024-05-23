@@ -6,12 +6,13 @@ use super::{
 use crate::super_agent::config::helm_release_type_meta;
 use k8s_openapi::api::apps::v1::{DaemonSet, StatefulSet};
 use k8s_openapi::api::core::v1::{ConfigMap, Namespace};
+use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use kube::api::entry::Entry;
 use kube::api::ObjectList;
 use kube::{
     api::{DeleteParams, ListParams, PostParams},
     config::KubeConfigOptions,
-    core::{DynamicObject, ObjectMeta, TypeMeta},
+    core::{DynamicObject, TypeMeta},
     Api, Client, Config, Resource,
 };
 use serde::de::DeserializeOwned;

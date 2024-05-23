@@ -155,7 +155,8 @@ pub mod test {
     use super::*;
     use crate::k8s::{client::MockSyncK8sClient, Error};
     use crate::super_agent::config::helm_release_type_meta;
-    use kube::core::{DynamicObject, ObjectMeta};
+    use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
+    use kube::core::DynamicObject;
     use serde_json::json;
 
     #[test]
