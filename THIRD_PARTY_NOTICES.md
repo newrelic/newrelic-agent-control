@@ -225,6 +225,13 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
+## atomic-waker https://crates.io/crates/atomic-waker
+
+Distributed under the following license(s):
+* Apache-2.0
+* MIT
+
+
 ## autocfg https://crates.io/crates/autocfg
 
 Distributed under the following license(s):
@@ -959,6 +966,13 @@ Distributed under the following license(s):
 * BSD-3-Clause
 
 
+## is_terminal_polyfill https://crates.io/crates/is_terminal_polyfill
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
 ## itertools https://crates.io/crates/itertools
 
 Distributed under the following license(s):
@@ -1499,6 +1513,13 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
+## regex-lite https://crates.io/crates/regex-lite
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
 ## regex-syntax https://crates.io/crates/regex-syntax
 
 Distributed under the following license(s):
@@ -1784,12 +1805,6 @@ Distributed under the following license(s):
 * MIT
 
 
-## strsim https://crates.io/crates/strsim
-
-Distributed under the following license(s):
-* MIT
-
-
 ## subtle https://crates.io/crates/subtle
 
 Distributed under the following license(s):
@@ -2004,13 +2019,6 @@ Distributed under the following license(s):
 * MIT
 
 
-## treediff https://crates.io/crates/treediff
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
 ## try-lock https://crates.io/crates/try-lock
 
 Distributed under the following license(s):
@@ -2156,6 +2164,13 @@ Distributed under the following license(s):
 ## valuable https://crates.io/crates/valuable
 
 Distributed under the following license(s):
+* MIT
+
+
+## value-bag https://crates.io/crates/value-bag
+
+Distributed under the following license(s):
+* Apache-2.0
 * MIT
 
 
