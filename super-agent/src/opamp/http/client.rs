@@ -9,7 +9,7 @@ use opamp_client::http::HttpClientError::TransportError;
 use ureq::Request;
 use url::Url;
 
-use crate::opamp::http::client::HttpClientUreqError::HeadersError;
+use crate::opamp::http::client::HttpClientUreqError::AuthorizationHeadersError;
 use nr_auth::TokenRetriever;
 
 #[derive(thiserror::Error, Debug)]
@@ -17,7 +17,7 @@ pub enum HttpClientUreqError {
     #[error("errors happened creating request: `{0}`")]
     RequestError(String),
     #[error("errors happened creating headers: `{0}`")]
-    HeadersError(String),
+    AuthorizationHeadersError(String),
 }
 
 /// An implementation of the `HttpClient` trait using the ureq library.
@@ -52,10 +52,9 @@ where
         let mut headers = self.headers.clone();
 
         // Get authorization token from the token retriever
-        let token = self
-            .token_retriever
-            .retrieve()
-            .map_err(|e| HeadersError(format!("cannot retrieve auth header: {}", e)))?;
+        let token = self.token_retriever.retrieve().map_err(|e| {
+            AuthorizationHeadersError(format!("cannot retrieve auth header: {}", e))
+        })?;
 
         // Insert auth token header
         headers.insert(
@@ -120,6 +119,7 @@ fn build_response(response: ureq::Response) -> Result<Response<Vec<u8>>, HttpCli
 
 #[cfg(test)]
 pub(crate) mod test {
+    use assert_matches::assert_matches;
     use http::{HeaderName, HeaderValue};
 
     use crate::opamp::http::builder::build_ureq_client;
@@ -264,11 +264,11 @@ pub(crate) mod test {
 
         let client = HttpClientUreq::new(ureq_client, url, headers, Arc::new(token_retriever));
 
-        let headers = client.headers().unwrap_err();
-
-        assert_eq!(
-            "errors happened creating headers: `cannot retrieve auth header: not defined yet`",
-            headers.to_string()
+        let headers_err = client.headers().unwrap_err();
+        assert_matches!(
+            headers_err,
+            AuthorizationHeadersError(_) => {
+            }
         );
     }
 
