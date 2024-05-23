@@ -37,13 +37,13 @@ where
     K: Metadata<Ty = ObjectMeta>,
 {
     // TODO: when https://github.com/kube-rs/kube/pull/1482, is ready, a label-selector could be used instead.
-    return move |obj| {
+    move |obj| {
         contains_label_with_value(
             &obj.metadata().labels,
             LABEL_RELEASE_FLUX,
             release_name.as_str(),
         )
-    };
+    }
 }
 
 #[cfg(test)]
@@ -54,39 +54,54 @@ mod test {
     use k8s_openapi::api::core::v1::Pod;
 
     #[test]
-    fn test_items_health_check() {
-        let items = vec!["a", "b", "c", "d"];
-
-        let result =
-            items_health_check(items.clone().into_iter(), |_| Ok(Healthy::default().into()))
-                .unwrap_or_else(|err| panic!("unexpected error {err}"));
+    fn test_items_health_check_healthy() {
+        let result = items_health_check(vec!["a", "b", "c", "d"].into_iter(), |_| {
+            Ok(Healthy::default().into())
+        })
+        .unwrap_or_else(|err| panic!("unexpected error {err} when all items are healthy"));
         assert_eq!(
             result,
             Health::Healthy(Healthy::default()),
             "Expected healthy when all items are healthy"
         );
 
-        let result = items_health_check(items.clone().into_iter(), |s| match s {
+        let result = items_health_check(Vec::new().into_iter(), |_: &str| {
+            Err(HealthCheckerError::Generic("fail!".to_string()))
+        })
+        .unwrap_or_else(|err| panic!("unexpected error {err} when there are no items"));
+        assert_eq!(
+            result,
+            Health::Healthy(Healthy::default()),
+            "expected healthy when there are no items"
+        );
+    }
+
+    #[test]
+    fn test_items_health_check_unhealthy() {
+        let result = items_health_check(vec!["a", "b", "c", "d"].into_iter(), |s| match s {
             "a" | "b" => Ok(Healthy::default().into()),
             _ => Ok(Health::unhealthy_with_last_error(s.to_string())),
         })
-        .unwrap_or_else(|err| panic!("unexpected error {err}"));
+        .unwrap_or_else(|err| panic!("unexpected error {err} when unhealthy is expected"));
         assert_eq!(
             result,
             Health::Unhealthy(Unhealthy {
                 last_error: "c".to_string(),
                 ..Default::default()
             }),
-            "Expected the first unhealthy found",
+            "expected the first unhealthy found",
         );
+    }
 
-        let result = items_health_check(items.clone().into_iter(), |s| match s {
+    #[test]
+    fn test_items_health_check_err() {
+        let result = items_health_check(vec!["a", "b", "c", "d"].into_iter(), |s| match s {
             "a" | "b" => Ok(Healthy::default().into()),
             _ => Err(HealthCheckerError::Generic(s.to_string())),
         })
         .unwrap_err();
         let s = assert_matches!(result, HealthCheckerError::Generic(s) => s);
-        assert_eq!(s, "c", "Expected the first error found");
+        assert_eq!(s, "c", "expected the first error found");
     }
 
     #[test]

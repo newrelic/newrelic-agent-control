@@ -91,12 +91,10 @@ impl K8sHealthDaemonSet {
         let update_strategy_type = UpdateStrategyType::try_from(
             Self::get_daemon_set_rolling_update_type(name.as_str(), &update_strategy)?,
         )
-        .map_err(|err| {
-            HealthCheckerError::InvalidK8sObjectField(
-                ".spec.updateStrategy.type".to_string(),
-                name.to_owned(),
-                err.to_string(),
-            )
+        .map_err(|err| HealthCheckerError::InvalidK8sObject {
+            kind: "DaemonSet".to_string(),
+            name: name.to_string(),
+            err: format!("unexpected value for .spec.updateStrategy.type: {err}"),
         })?;
 
         let rolling_update = match update_strategy_type {
@@ -138,11 +136,11 @@ impl K8sHealthDaemonSet {
             }
             Some(value) => IntOrPercentage::try_from(value)
                 .map_err(|err| {
-                    HealthCheckerError::InvalidK8sObjectField(
-                        ".spec.updateStrategy.rollingUpdate.maxUnavailable".to_string(),
-                        name.to_owned(),
-                        err.to_string(),
-                    )
+                    HealthCheckerError::InvalidK8sObject{
+                        kind: "DaemonSet".to_string(),
+                        name: name.to_string(),
+                        err: format!("unexpected value for .spec.updateStrategy.rollingUpdate.maxUnavailable: {err}"),
+                    }
                 })?
                 .scaled_value(status.desired_number_scheduled, true),
         };
@@ -162,11 +160,11 @@ impl K8sHealthDaemonSet {
     }
 
     fn missing_field_error(name: &str, field: &str) -> HealthCheckerError {
-        HealthCheckerError::MissingK8sObjectField(
-            field.to_string(),
-            "DaemonSet".to_string(),
-            name.to_string(),
-        )
+        HealthCheckerError::MissingK8sObjectField {
+            kind: "DaemonSet".to_string(),
+            name: name.to_string(),
+            field: field.to_string(),
+        }
     }
 
     fn healthy(s: String) -> Health {
@@ -324,11 +322,11 @@ pub mod test {
                         ..Default::default()
                     }),
                 },
-                expected: HealthCheckerError::InvalidK8sObjectField(
-                    ".spec.updateStrategy.type".into(),
-                    "test".into(),
-                    "Unknown Update Strategy Type: 'Unknown-TEST'".into(),
-                ),
+                expected: HealthCheckerError::InvalidK8sObject {
+                    kind: "DaemonSet".to_string(),
+                    name: "test".to_string(),
+                    err: "unexpected value for .spec.updateStrategy.type: Unknown Update Strategy Type: 'Unknown-TEST'".to_string(),
+                },
             },
             TestCase {
                 name: "ds which update strategy is rolling but has no struct",
@@ -367,11 +365,11 @@ pub mod test {
                         ..Default::default()
                     }),
                 },
-                expected: HealthCheckerError::InvalidK8sObjectField(
-                    ".spec.updateStrategy.rollingUpdate.maxUnavailable".into(),
-                    "test".into(),
-                    "invalid digit found in string".into(),
-                ),
+                expected: HealthCheckerError::InvalidK8sObject{
+                    kind: "DaemonSet".to_string(),
+                    name: "test".to_string(),
+                    err: "unexpected value for .spec.updateStrategy.rollingUpdate.maxUnavailable: invalid digit found in string".to_string(),
+                },
             },
         ];
 
@@ -613,10 +611,10 @@ pub mod test {
     }
 
     fn test_util_missing_field(field: &str) -> HealthCheckerError {
-        HealthCheckerError::MissingK8sObjectField(
-            field.to_string(),
-            "DaemonSet".to_string(),
-            "test".to_string(),
-        )
+        HealthCheckerError::MissingK8sObjectField {
+            kind: "DaemonSet".to_string(),
+            name: "test".to_string(),
+            field: field.to_string(),
+        }
     }
 }

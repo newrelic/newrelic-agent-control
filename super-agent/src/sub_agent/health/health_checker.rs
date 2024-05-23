@@ -19,11 +19,19 @@ pub enum HealthCheckerError {
     #[error("{0}")]
     Generic(String),
     #[cfg(feature = "k8s")]
-    #[error("missing field `{0}` in k8s object `{1}` with name `{2}`")]
-    MissingK8sObjectField(String, String, String),
+    #[error("{kind} with name `{name}` misses field `{field}`")]
+    MissingK8sObjectField {
+        kind: String,
+        name: String,
+        field: String,
+    },
     #[cfg(feature = "k8s")]
-    #[error("invalid field `{0}` in k8s object `{1}`: {2}")]
-    InvalidK8sObjectField(String, String, String),
+    #[error("{kind} with name `{name}` is invalid: {err}")]
+    InvalidK8sObject {
+        kind: String,
+        name: String,
+        err: String,
+    },
     #[cfg(feature = "k8s")]
     #[error("error fetching k8s object {0}")]
     K8sError(#[from] k8s::Error),

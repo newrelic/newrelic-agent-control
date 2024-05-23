@@ -1,7 +1,8 @@
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use crate::sub_agent::health::health_checker::{
-    Health, HealthChecker, HealthCheckerError, Healthy,
+use crate::{
+    k8s,
+    sub_agent::health::health_checker::{Health, HealthChecker, HealthCheckerError, Healthy},
 };
 use k8s_openapi::api::apps::v1::{StatefulSet, StatefulSetSpec};
 use std::sync::Arc;
@@ -40,7 +41,7 @@ impl K8sHealthStatefulSet {
             .metadata
             .name
             .as_deref()
-            .ok_or_else(|| HealthCheckerError::Generic("StatefulSets without Name".to_string()))?
+            .ok_or_else(|| k8s::Error::MissingName("StatefulSet".into()))?
             .to_string();
         let spec = ss
             .spec
@@ -99,11 +100,11 @@ impl K8sHealthStatefulSet {
 
     /// Helper to return an error when an expected field in the StatefulSet object is missing.
     fn missing_field_error(name: &str, field: &str) -> HealthCheckerError {
-        HealthCheckerError::MissingK8sObjectField(
-            field.to_string(),
-            "StatefulSet".to_string(),
-            name.to_string(),
-        )
+        HealthCheckerError::MissingK8sObjectField {
+            kind: "StatefulSet".to_string(),
+            name: name.to_string(),
+            field: field.to_string(),
+        }
     }
 
     /// Gets the partition from the stateful_set spec.
@@ -165,7 +166,7 @@ mod test {
     #[test]
     fn test_stateful_set_health() {
         struct TestCase {
-            name: String,
+            name: &'static str,
             ss: StatefulSet,
             expected: Health,
         }
@@ -183,7 +184,7 @@ mod test {
 
         let test_cases = [
             TestCase {
-                name: "Observed generation and matching generation don't match".to_string(),
+                name: "Observed generation and matching generation don't match",
                 ss: StatefulSet {
                     metadata: stateful_set_meta("name", Some(42)),
                     spec: Some(StatefulSetSpec::default()),
@@ -192,7 +193,7 @@ mod test {
                 expected: Health::unhealthy_with_last_error("StatefulSets `name` not ready: observed_generation not matching generation".into())
             },
             TestCase {
-                name: "Updated replicas fewer than expected".to_string(),
+                name: "Updated replicas fewer than expected",
                 ss: StatefulSet {
                     metadata: stateful_set_meta("name", stateful_set_status().observed_generation),
                     spec: Some(stateful_set_spec(3, 5)),
@@ -204,7 +205,7 @@ mod test {
                 expected: Health::unhealthy_with_last_error("StatefulSets `name` not ready: updated_replicas `1` fewer than expected_replicas `2`".into()),
             },
             TestCase {
-                name: "Not ready and ready replicas not matching".to_string(),
+                name: "Not ready and ready replicas not matching",
                 ss: StatefulSet {
                     metadata: stateful_set_meta("name", stateful_set_status().observed_generation),
                     spec: Some(stateful_set_spec(3, 5)),
@@ -217,7 +218,7 @@ mod test {
                 expected: Health::unhealthy_with_last_error("StatefulSets `name` not ready: replicas `5` different from ready_replicas `1`".into()),
             },
             TestCase {
-                name: "Current and update revision not matching when partition is 0".to_string(),
+                name: "Current and update revision not matching when partition is 0",
                 ss: StatefulSet {
                     metadata: stateful_set_meta("name", stateful_set_status().observed_generation),
                     spec: Some(StatefulSetSpec::default()), // partition defaults to 0 when not defined
@@ -230,7 +231,7 @@ mod test {
                 expected: Health::unhealthy_with_last_error("StatefulSets `name` not ready: current_revision not matching update_revision".into()),
             },
             TestCase {
-                name: "Healthy with not matching current and update revision".to_string(),
+                name: "Healthy with not matching current and update revision",
                 ss: StatefulSet {
                     metadata: stateful_set_meta("name", stateful_set_status().observed_generation),
                     spec: Some(stateful_set_spec(3, 5)),
@@ -245,7 +246,7 @@ mod test {
                 expected: Healthy::default().into(),
             },
             TestCase {
-                name: "Healthy when partition is 0".to_string(),
+                name: "Healthy when partition is 0",
                 ss: StatefulSet {
                     metadata: stateful_set_meta("name", stateful_set_status().observed_generation),
                     spec: Some(StatefulSetSpec::default()), // partition and replicas default to 0 and 1
@@ -257,7 +258,6 @@ mod test {
                 },
                 expected: Healthy::default().into(),
             },
-
         ];
 
         test_cases.into_iter().for_each(|tc| tc.run());
@@ -268,7 +268,7 @@ mod test {
         struct TestCase {
             name: &'static str,
             ss: StatefulSet,
-            err_check_fn: Box<dyn Fn(HealthCheckerError, &'static str)>,
+            err_check_fn: fn(HealthCheckerError, &str),
         }
 
         impl TestCase {
@@ -280,45 +280,49 @@ mod test {
                     .unwrap_err();
                 (self.err_check_fn)(err, self.name)
             }
-            fn assert_missing_field(err: HealthCheckerError, name: &'static str) {
+            fn assert_missing_field(err: HealthCheckerError, name: &str) {
                 assert_matches!(
                     err,
-                    HealthCheckerError::MissingK8sObjectField(_, _, _),
+                    HealthCheckerError::MissingK8sObjectField {
+                        kind: _,
+                        name: _,
+                        field: _
+                    },
                     "{}",
                     name
                 );
+            }
+            fn assert_missing_metadata_name(err: HealthCheckerError, name: &str) {
+                assert_matches!(err, HealthCheckerError::K8sError(_), "{}", name);
             }
         }
 
         let test_cases = [
             TestCase {
-                name: "Invalid object, no name".into(),
+                name: "Invalid object, no name",
                 ss: StatefulSet::default(),
-                err_check_fn: Box::new(|err, name| {
-                    let s = assert_matches!(err, HealthCheckerError::Generic(s) => s, "{}", name);
-                    assert_eq!(s, "StatefulSets without Name".to_string(), "{}", name);
-                }),
+                err_check_fn: TestCase::assert_missing_metadata_name,
             },
             TestCase {
-                name: "Invalid object, no spec".into(),
+                name: "Invalid object, no spec",
                 ss: StatefulSet {
                     metadata: stateful_set_meta("name", None),
                     spec: None,
                     status: Some(stateful_set_status()),
                 },
-                err_check_fn: Box::new(TestCase::assert_missing_field),
+                err_check_fn: TestCase::assert_missing_field,
             },
             TestCase {
-                name: "Invalid object, no status".into(),
+                name: "Invalid object, no status",
                 ss: StatefulSet {
                     metadata: stateful_set_meta("name", None),
                     spec: Some(StatefulSetSpec::default()),
                     status: None,
                 },
-                err_check_fn: Box::new(TestCase::assert_missing_field),
+                err_check_fn: TestCase::assert_missing_field,
             },
             TestCase {
-                name: "Invalid object, no Status.UpdatedReplicas".into(),
+                name: "Invalid object, no Status.UpdatedReplicas",
                 ss: StatefulSet {
                     metadata: stateful_set_meta("name", None),
                     spec: Some(StatefulSetSpec::default()),
@@ -327,10 +331,10 @@ mod test {
                         ..stateful_set_status()
                     }),
                 },
-                err_check_fn: Box::new(TestCase::assert_missing_field),
+                err_check_fn: TestCase::assert_missing_field,
             },
             TestCase {
-                name: "Invalid object, no Status.ReadyReplicas".into(),
+                name: "Invalid object, no Status.ReadyReplicas",
                 ss: StatefulSet {
                     metadata: stateful_set_meta("name", None),
                     spec: Some(StatefulSetSpec::default()),
@@ -339,7 +343,7 @@ mod test {
                         ..stateful_set_status()
                     }),
                 },
-                err_check_fn: Box::new(TestCase::assert_missing_field),
+                err_check_fn: TestCase::assert_missing_field,
             },
         ];
 
