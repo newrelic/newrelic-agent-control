@@ -1,4 +1,4 @@
-use super::items::{flux_release_filter, items_health_check};
+use super::items::{check_health_for_items, flux_release_filter};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::utils::IntOrPercentage;
@@ -57,7 +57,7 @@ impl HealthChecker for K8sHealthDaemonSet {
             .into_iter()
             .filter(flux_release_filter(self.release_name.clone()));
 
-        items_health_check(target_daemon_sets, Self::check_health_single_daemon_set)
+        check_health_for_items(target_daemon_sets, Self::check_health_single_daemon_set)
     }
 }
 
@@ -669,7 +669,7 @@ pub mod test {
         );
         assert!(
             unhealthy.last_error().contains("unhealthy-daemon-set"),
-            "The unhealthy message point to the unhealthy daemon-set, got {:?}",
+            "The unhealthy message should point to the unhealthy daemon-set, got {:?}",
             unhealthy
         );
     }

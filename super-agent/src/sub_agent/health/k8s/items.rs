@@ -13,7 +13,7 @@ use std::{any::Any, sync::Arc};
 /// It returns:
 /// * A healthy result if the result of execution is healthy for all the items.
 /// * The first encountered error or unhealthy result, otherwise.
-pub fn items_health_check<K, F>(
+pub fn check_health_for_items<K, F>(
     items: impl Iterator<Item = K>,
     health_check_fn: F,
 ) -> Result<Health, HealthCheckerError>
@@ -55,7 +55,7 @@ mod test {
 
     #[test]
     fn test_items_health_check_healthy() {
-        let result = items_health_check(vec!["a", "b", "c", "d"].into_iter(), |_| {
+        let result = check_health_for_items(vec!["a", "b", "c", "d"].into_iter(), |_| {
             Ok(Healthy::default().into())
         })
         .unwrap_or_else(|err| panic!("unexpected error {err} when all items are healthy"));
@@ -65,7 +65,7 @@ mod test {
             "Expected healthy when all items are healthy"
         );
 
-        let result = items_health_check(Vec::new().into_iter(), |_: &str| {
+        let result = check_health_for_items(Vec::new().into_iter(), |_: &str| {
             Err(HealthCheckerError::Generic("fail!".to_string()))
         })
         .unwrap_or_else(|err| panic!("unexpected error {err} when there are no items"));
@@ -78,7 +78,7 @@ mod test {
 
     #[test]
     fn test_items_health_check_unhealthy() {
-        let result = items_health_check(vec!["a", "b", "c", "d"].into_iter(), |s| match s {
+        let result = check_health_for_items(vec!["a", "b", "c", "d"].into_iter(), |s| match s {
             "a" | "b" => Ok(Healthy::default().into()),
             _ => Ok(Health::unhealthy_with_last_error(s.to_string())),
         })
@@ -95,7 +95,7 @@ mod test {
 
     #[test]
     fn test_items_health_check_err() {
-        let result = items_health_check(vec!["a", "b", "c", "d"].into_iter(), |s| match s {
+        let result = check_health_for_items(vec!["a", "b", "c", "d"].into_iter(), |s| match s {
             "a" | "b" => Ok(Healthy::default().into()),
             _ => Err(HealthCheckerError::Generic(s.to_string())),
         })

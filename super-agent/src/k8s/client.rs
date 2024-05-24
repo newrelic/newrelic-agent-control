@@ -319,13 +319,6 @@ impl AsyncK8sClient {
     pub fn default_namespace(&self) -> &str {
         self.client.default_namespace()
     }
-
-    pub async fn list_daemon_set(&self) -> Result<ObjectList<DaemonSet>, K8sError> {
-        let ss_client: Api<DaemonSet> = Api::<DaemonSet>::default_namespaced(self.client.clone());
-        let list_daemon_set = ss_client.list(&ListParams::default()).await?;
-
-        Ok(list_daemon_set)
-    }
 }
 
 //  delete_collection has been moved outside the client to be able to use mockall in the client
