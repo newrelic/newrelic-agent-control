@@ -6,7 +6,7 @@ use http::{HeaderMap, HeaderName, Response};
 use opamp_client::http::http_client::HttpClient;
 use opamp_client::http::HttpClientError;
 use opamp_client::http::HttpClientError::TransportError;
-use tracing::{debug, warn};
+use tracing::warn;
 use ureq::Request;
 use url::Url;
 
@@ -58,15 +58,14 @@ where
         })?;
 
         // Insert auth token header
-        if token.access_token().is_empty() {
-            //TODO move to warning once TokenRetriever is implemented
-            debug!("received empty authorization token");
-        } else {
+        if !token.access_token().is_empty() {
             headers.insert(
                 HeaderName::from_static("authorization"),
                 format!("Bearer {}", token.access_token()).parse().unwrap(),
             );
         }
+        //TODO warn else case :point-up: once TokenRetriever is implemented
+        //warn!("received empty authorization token");
 
         Ok(headers)
     }
