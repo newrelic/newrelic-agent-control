@@ -1,10 +1,10 @@
+use crate::super_agent::config::AgentTypeError;
 use semver::Version;
+use serde::{Deserialize, Deserializer};
 use std::fmt::{Display, Formatter};
 
-use crate::super_agent::config::AgentTypeError;
-use serde::{Deserialize, Deserializer};
-
 const NAME_NAMESPACE_MIN_LENGTH: usize = 1;
+const NAME_NAMESPACE_MAX_LENGTH: usize = 64;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct AgentMetadata {
@@ -16,6 +16,7 @@ pub struct AgentMetadata {
 impl AgentMetadata {
     fn check_string(s: &str) -> bool {
         s.len() >= NAME_NAMESPACE_MIN_LENGTH
+            && s.len() <= NAME_NAMESPACE_MAX_LENGTH
             && s.starts_with(|c: char| c.is_ascii_alphabetic())
             && s.ends_with(|c: char| c.is_ascii_alphanumeric())
             && s.chars().all(|c| {
@@ -151,6 +152,22 @@ version: 0.1.0
                 metadata: r#"
 name: nrdot
 namespace: newrelic/
+version: 0.1.0
+"#,
+            },
+            TestCase {
+                name: "error name exceeding allowed number of chars",
+                metadata: r#"
+name: test_test_test_test_test_test_test_test_test_test_test_test_test_test
+namespace: newrelic/
+version: 0.1.0
+"#,
+            },
+            TestCase {
+                name: "error namespace exceeding allowed number of chars",
+                metadata: r#"
+name: nrdot
+namespace: test_test_test_test_test_test_test_test_test_test_test_test_test_test/
 version: 0.1.0
 "#,
             },
