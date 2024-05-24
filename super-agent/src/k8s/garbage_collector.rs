@@ -211,7 +211,7 @@ where
             });
 
         format!(
-            "{},{AGENT_ID_LABEL_KEY} notin ({id_list})",
+            "{},{AGENT_ID_LABEL_KEY} notin ({id_list})", //codespell:ignore
             Labels::default().selector(),
         )
     }
@@ -281,7 +281,7 @@ pub(crate) mod test {
         let labels = Labels::default();
         assert_eq!(
             format!(
-                "{},{AGENT_ID_LABEL_KEY} notin ({},{agent_id})",
+                "{},{AGENT_ID_LABEL_KEY} notin ({},{agent_id})", //codespell:ignore
                 labels.selector(),
                 SUPER_AGENT_ID()
             ),
@@ -292,7 +292,7 @@ pub(crate) mod test {
         );
         assert_eq!(
             format!(
-                "{},{AGENT_ID_LABEL_KEY} notin ({})",
+                "{},{AGENT_ID_LABEL_KEY} notin ({})", //codespell:ignore
                 labels.selector(),
                 SUPER_AGENT_ID()
             ),
