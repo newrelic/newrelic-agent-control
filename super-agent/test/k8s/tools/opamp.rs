@@ -123,32 +123,54 @@ async fn config_handler(
 ) -> HttpResponse {
     let message = opamp::proto::AgentToServer::decode(req).unwrap();
 
-    let mut config_responses = state.lock().unwrap();
-
-    // This sleep helps when following the logs. Otherwise, in case of errors the SA is feed continuously with configs
-    tokio::time::sleep(Duration::from_secs(1)).await;
-
     let identifier = message.instance_uid.to_string();
+    let mut needs_sleep = false;
 
-    // OpAMP protocol implements compression, so the agent_description will only be set on first message.
-    // So whenever we receive agent_description means is the first message from an OpAMP agent and we
-    // cached the ulid.
-    if message.agent_description.is_some() {
-        // The cache is implemented in a very simple say just introducing the same value of a given identifier
-        // to it correspond ulid.
-        let indirect_identifier = response_identifier(&message);
-        let config_response = config_responses.get(&indirect_identifier).unwrap().clone();
-        config_responses.insert(identifier.clone(), config_response);
+    {
+        let mut config_responses = state.lock().unwrap();
+
+        // OpAMP protocol implements compression, so the agent_description will only be set on the first message.
+        // So whenever we receive agent_description, it means it's the first message from an OpAMP agent and we
+        // cache the ulid.
+        if message.agent_description.is_some() {
+            // The cache is implemented in a very simple way, just introducing the same value of a given identifier
+            // to its corresponding ulid.
+            let indirect_identifier = response_identifier(&message);
+            let config_response = config_responses.get(&indirect_identifier).cloned();
+            if let Some(config_response) = config_response {
+                config_responses.insert(identifier.clone(), config_response);
+            }
+        };
+
+        let config_response = config_responses
+            .get_mut(&identifier)
+            .unwrap_or_else(|| panic!("missing config response for identifier {}", identifier));
+
+        // Remove the config if it was already applied
+        if remote_config_is_applied(&message) {
+            config_response.raw_body = None;
+        } else {
+            needs_sleep = true;
+        }
+    } // Mutex guard is dropped here
+
+    // This sleep helps when following the logs. Otherwise, in case of errors the SA is fed continuously with configs.
+    if needs_sleep {
+        tokio::time::sleep(Duration::from_secs(1)).await;
+    }
+
+    let config_response = {
+        let config_responses = state.lock().unwrap();
+        config_responses.get(&identifier).cloned()
     };
 
-    let config_response = config_responses
-        .get_mut(&identifier)
-        .unwrap_or_else(|| panic!("missing config response for identifier {}", identifier));
-    // remove the config if it was already applied
-    if remote_config_is_applied(&message) {
-        config_response.raw_body = None;
+    match config_response {
+        Some(config_response) => HttpResponse::Ok().body(config_response.encode()),
+        None => HttpResponse::InternalServerError().body(format!(
+            "missing config response for identifier {}",
+            identifier
+        )),
     }
-    HttpResponse::Ok().body(config_response.encode())
 }
 
 /// Checks if the remote is applied according to the agent message

@@ -161,7 +161,12 @@ pub mod test {
 
     #[test]
     fn test_helm_release() {
-        let test_cases : Vec<(&str,Result<Health, HealthCheckerError>, fn(&mut MockSyncK8sClient))> = vec![
+        type TestCase = (
+            &'static str,
+            Result<Health, HealthCheckerError>,
+            fn(&mut MockSyncK8sClient),
+        );
+        let test_cases : Vec<TestCase> = vec![
             (
                 "Helm release healthy when ready and status true",
                 Ok(Healthy::default().into()),
