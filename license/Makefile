@@ -2,7 +2,9 @@
 third-party-notices:
 	@if ! cargo install --list | grep -q cargo-deny ; then\
         cargo install --locked cargo-deny;\
-    fi ;\
+    fi;\
+    cargo --version; \
+    cargo deny --version; \
     LICENSES=$$(cargo deny --all-features --manifest-path ../Cargo.toml list -l crate -f json 2>&1); \
 	cargo run --all-features -- --dependencies "$$(printf "%s " $$LICENSES)" --output-file "../THIRD_PARTY_NOTICES.md"
 

@@ -1,32 +1,81 @@
 //! # Synchronous HTTP Client Module
-use http::{HeaderMap, HeaderValue, Response};
+use std::io::Cursor;
+use std::sync::Arc;
+
+use http::{HeaderMap, HeaderName, Response};
 use opamp_client::http::http_client::HttpClient;
 use opamp_client::http::HttpClientError;
-use std::io::Cursor;
-use std::time::Duration;
+use opamp_client::http::HttpClientError::TransportError;
+use tracing::warn;
 use ureq::Request;
 use url::Url;
 
-use crate::super_agent::config::OpAMPClientConfig;
+use crate::opamp::http::client::HttpClientUreqError::AuthorizationHeadersError;
+use nr_auth::TokenRetriever;
 
-/// Default client timeout is 30 seconds
-const DEFAULT_CLIENT_TIMEOUT: Duration = Duration::from_secs(30);
+#[derive(thiserror::Error, Debug)]
+pub enum HttpClientUreqError {
+    #[error("errors happened creating request: `{0}`")]
+    RequestError(String),
+    #[error("errors happened creating headers: `{0}`")]
+    AuthorizationHeadersError(String),
+}
 
 /// An implementation of the `HttpClient` trait using the ureq library.
-pub struct HttpClientUreq {
+pub struct HttpClientUreq<T> {
     client: ureq::Agent,
     url: Url,
     headers: HeaderMap,
+    token_retriever: Arc<T>,
 }
 
-impl HttpClientUreq {
-    fn build_request(&self, extra_headers: &HeaderMap) -> Request {
+impl<T> HttpClientUreq<T>
+where
+    T: TokenRetriever + Send + Sync + 'static,
+{
+    pub(super) fn new(
+        client: ureq::Agent,
+        url: Url,
+        headers: HeaderMap,
+        token_retriever: Arc<T>,
+    ) -> Self {
+        Self {
+            client,
+            url,
+            headers,
+            token_retriever,
+        }
+    }
+
+    /// headers will return the "static" headers that are added to the client in
+    /// creation time + the authorization header retrieved byt the TokenRetriever
+    fn headers(&self) -> Result<HeaderMap, HttpClientUreqError> {
+        let mut headers = self.headers.clone();
+
+        // Get authorization token from the token retriever
+        let token = self.token_retriever.retrieve().map_err(|e| {
+            AuthorizationHeadersError(format!("cannot retrieve auth header: {}", e))
+        })?;
+
+        // Insert auth token header
+        if !token.access_token().is_empty() {
+            headers.insert(
+                HeaderName::from_static("authorization"),
+                format!("Bearer {}", token.access_token()).parse().unwrap(),
+            );
+        }
+        //TODO warn else case :point-up: once TokenRetriever is implemented
+        //warn!("received empty authorization token");
+
+        Ok(headers)
+    }
+
+    /// create the HTTP Request and add the headers to it
+    fn build_request(&self, headers: &HeaderMap) -> Request {
         let req = self.client.post(self.url.as_ref());
 
-        let headers = self.headers.iter().chain(extra_headers.iter());
-
         // Add all headers to the request, omitting invalid values
-        headers.fold(req, |r, (key, val)| {
+        headers.iter().fold(req, |r, (key, val)| {
             let Ok(value) = val.to_str() else {
                 tracing::error!("invalid header value string: {:?}, skipping", val);
                 return r;
@@ -36,42 +85,19 @@ impl HttpClientUreq {
     }
 }
 
-/// Implement TryFrom trait to create a ureq::Agent from HttpConfig
-impl From<&OpAMPClientConfig> for HttpClientUreq {
-    fn from(config: &OpAMPClientConfig) -> Self {
-        let client = ureq::AgentBuilder::new()
-            .timeout_connect(DEFAULT_CLIENT_TIMEOUT)
-            .timeout(DEFAULT_CLIENT_TIMEOUT)
-            .build();
-        let url = config.endpoint.clone();
-
-        let mut headers = config.headers.clone();
-        // Add headers for protobuf wire format communication
-        headers.insert(
-            "Content-Type",
-            HeaderValue::from_static("application/x-protobuf"),
-        );
-
-        Self {
-            client,
-            url,
-            headers,
-        }
-    }
-}
-
-impl HttpClient for HttpClientUreq {
+impl<T> HttpClient for HttpClientUreq<T>
+where
+    T: TokenRetriever + Send + Sync + 'static,
+{
     fn post(&self, body: Vec<u8>) -> Result<Response<Vec<u8>>, HttpClientError> {
-        // The idea here is that we can add additional headers to the request for authentication
-        // with New Relic. These headers will be retrieved from a call to the appropriate auth
-        // service. So we assume we can just merge them with the existing headers.
-        let auth_headers = HeaderMap::new(); // CHANGEME
+        let headers = self.headers().map_err(|e| TransportError(e.to_string()))?;
+        let request = self.build_request(&headers);
 
-        let req = self.build_request(&auth_headers);
-
-        match req.send(Cursor::new(body)) {
+        match request.send(Cursor::new(body)) {
             Ok(response) | Err(ureq::Error::Status(_, response)) => build_response(response),
-            Err(ureq::Error::Transport(e)) => Err(HttpClientError::TransportError(e.to_string())),
+            Err(ureq::Error::Transport(e)) => {
+                Err(TransportError(format!("error sending request: {}", e)))
+            }
         }
     }
 }
@@ -97,25 +123,58 @@ fn build_response(response: ureq::Response) -> Result<Response<Vec<u8>>, HttpCli
 }
 
 #[cfg(test)]
-pub(crate) mod test {
+pub mod test {
+    use assert_matches::assert_matches;
     use http::{HeaderName, HeaderValue};
+
+    use crate::opamp::http::builder::build_ureq_client;
 
     use super::*;
 
-    impl HttpClientUreq {
-        pub fn additional_headers(mut self, headers: HeaderMap) -> Self {
-            self.headers.extend(headers);
-            self
+    use chrono::Utc;
+    use fake::faker::lorem::en::Word;
+    use fake::Fake;
+    use mockall::mock;
+
+    use nr_auth::token::{AccessToken, Token, TokenType};
+    use nr_auth::{TokenRetriever, TokenRetrieverError};
+
+    mock! {
+        pub TokenRetrieverMock {}
+
+        impl TokenRetriever for TokenRetrieverMock{
+            fn retrieve(&self) -> Result<Token, TokenRetrieverError>;
         }
+    }
+
+    impl MockTokenRetrieverMock {
+        pub fn should_retrieve(&mut self, token: Token) {
+            self.expect_retrieve().once().return_once(move || Ok(token));
+        }
+
+        pub fn should_return_error(&mut self, error: TokenRetrieverError) {
+            self.expect_retrieve()
+                .once()
+                .return_once(move || Err(error));
+        }
+    }
+
+    pub fn token_stub() -> Token {
+        Token::new(
+            AccessToken::from(Word().fake::<String>()),
+            TokenType::Bearer,
+            Utc::now(),
+        )
     }
 
     #[test]
     fn test_build_request_extra_headers() {
-        let config = OpAMPClientConfig {
-            endpoint: "http://localhost".try_into().unwrap(),
-            headers: Default::default(),
-        };
-        let client = HttpClientUreq::from(&config);
+        let url = "http://localhost".try_into().unwrap();
+        let headers = Default::default();
+        let ureq_client = build_ureq_client();
+        let token_retriever = MockTokenRetrieverMock::default();
+
+        let client = HttpClientUreq::new(ureq_client, url, headers, Arc::new(token_retriever));
 
         let new_headers = HeaderMap::from_iter(vec![(
             HeaderName::from_static("new-key"),
@@ -129,16 +188,16 @@ pub(crate) mod test {
 
     #[test]
     fn test_build_request_extra_headers_override() {
-        let config = OpAMPClientConfig {
-            endpoint: "http://localhost".try_into().unwrap(),
-            headers: Default::default(),
-        };
-        let existing_headers = HeaderMap::from_iter(vec![(
-            HeaderName::from_static("existing-key"),
+        let url = "http://localhost".try_into().unwrap();
+        let ureq_client = build_ureq_client();
+        let token_retriever = MockTokenRetrieverMock::default();
+        let headers = HeaderMap::from_iter(vec![(
+            HeaderName::from_static("authorization"),
             HeaderValue::from_static("existing_value"),
         )]);
 
-        let client = HttpClientUreq::from(&config).additional_headers(existing_headers);
+        let client = HttpClientUreq::new(ureq_client, url, headers, Arc::new(token_retriever));
+
         let new_headers = HeaderMap::from_iter(vec![(
             HeaderName::from_static("existing-key"),
             HeaderValue::from_static("new_value"),
@@ -151,16 +210,15 @@ pub(crate) mod test {
 
     #[test]
     fn test_build_request_extra_headers_invalid_skipped() {
-        let config = OpAMPClientConfig {
-            endpoint: "http://localhost".try_into().unwrap(),
-            headers: Default::default(),
-        };
-        let existing_headers = HeaderMap::from_iter(vec![(
+        let url = "http://localhost".try_into().unwrap();
+        let ureq_client = build_ureq_client();
+        let token_retriever = MockTokenRetrieverMock::default();
+        let headers = HeaderMap::from_iter(vec![(
             HeaderName::from_static("existing-key"),
             HeaderValue::from_static("existing_value"),
         )]);
 
-        let client = HttpClientUreq::from(&config).additional_headers(existing_headers);
+        let client = HttpClientUreq::new(ureq_client, url, headers, Arc::new(token_retriever));
 
         let new_headers = HeaderMap::from_iter(vec![(
             HeaderName::from_static("new-key"),
@@ -170,5 +228,69 @@ pub(crate) mod test {
         let req = client.build_request(&new_headers);
 
         assert_eq!(req.header("new-key"), None);
+    }
+
+    #[test]
+    fn test_headers_auth_token_is_added() {
+        let url = "http://localhost".try_into().unwrap();
+        let ureq_client = build_ureq_client();
+        let headers = HeaderMap::from_iter(vec![(
+            HeaderName::from_static("existing-key"),
+            HeaderValue::from_static("existing_value"),
+        )]);
+
+        let mut token_retriever = MockTokenRetrieverMock::default();
+        let token = token_stub();
+        token_retriever.should_retrieve(token.clone());
+
+        let client = HttpClientUreq::new(ureq_client, url, headers, Arc::new(token_retriever));
+
+        let headers = client.headers().unwrap();
+
+        assert_eq!(2, headers.len());
+        assert_eq!("existing_value", headers.get("existing-key").unwrap());
+        assert_eq!(
+            format!("Bearer {}", token.access_token()).as_str(),
+            headers.get("authorization").unwrap()
+        );
+    }
+
+    #[test]
+    fn test_headers_auth_token_returns_error() {
+        let url = "http://localhost".try_into().unwrap();
+        let ureq_client = build_ureq_client();
+        let headers = HeaderMap::from_iter(vec![(
+            HeaderName::from_static("existing-key"),
+            HeaderValue::from_static("existing_value"),
+        )]);
+
+        let mut token_retriever = MockTokenRetrieverMock::default();
+        token_retriever.should_return_error(TokenRetrieverError::NotDefinedYetError);
+
+        let client = HttpClientUreq::new(ureq_client, url, headers, Arc::new(token_retriever));
+
+        let headers_err = client.headers().unwrap_err();
+        assert_matches!(headers_err, AuthorizationHeadersError(_));
+    }
+
+    #[test]
+    fn error_in_headers_should_be_bubbled_on_post() {
+        let url = "http://localhost".try_into().unwrap();
+        let ureq_client = build_ureq_client();
+        let headers = HeaderMap::from_iter(vec![(
+            HeaderName::from_static("existing-key"),
+            HeaderValue::from_static("existing_value"),
+        )]);
+
+        let mut token_retriever = MockTokenRetrieverMock::default();
+        token_retriever.should_return_error(TokenRetrieverError::NotDefinedYetError);
+
+        let client = HttpClientUreq::new(ureq_client, url, headers, Arc::new(token_retriever));
+
+        let res = client.post("test".into()).unwrap_err();
+        assert_eq!(
+            "`errors happened creating headers: `cannot retrieve auth header: not defined yet``",
+            res.to_string()
+        )
     }
 }

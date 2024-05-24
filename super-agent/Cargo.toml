@@ -27,7 +27,6 @@ async-trait = { version = "0.1.71", optional = true }
 tokio = { version = "1.35.1", features = ["rt-multi-thread", "macros", "sync"] }
 ulid = { workspace = true, features = ["serde"] }
 duration-str = "0.7.0"
-fs = { path = "../fs" }
 konst = { workspace = true }
 http = { workspace = true }
 ureq = { workspace = true, features = ["http-crate"] }
@@ -35,6 +34,10 @@ url = { version = "2.5.0", features = ["serde"] }
 actix-web = "4"
 serde_json = { workspace = true }
 semver = { workspace = true, features = ["serde"] }
+chrono = { workspace = true }
+# local dependencies
+fs = { path = "../fs" }
+nr-auth = { path = "../nr-auth" }
 
 # OnHost subagent dependencies
 # IMPORTANT: All onhost only deps needs to be `optional = true` so they won't be compiled by default
@@ -72,6 +75,7 @@ tokio = { version = "1.32.0", features = ["rt-multi-thread", "macros"] }
 wiremock = "0.6.0"
 fake = { version = "2.9.2", features = ["derive", "http"] }
 prost = "0.12.4"
+httpmock = "0.7.0"
 
 [build-dependencies]
 glob = "0.3.1"

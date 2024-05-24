@@ -1,18 +1,20 @@
-use crate::event::channel::EventPublisher;
-use crate::event::OpAMPEvent;
-use crate::opamp::instance_id;
-use crate::super_agent::config::{AgentID, OpAMPClientConfig};
+use std::time::SystemTimeError;
+
 use opamp_client::http::config::HttpConfigError;
 use opamp_client::http::{HttpClientError, NotStartedHttpClient, StartedHttpClient};
 use opamp_client::operation::callbacks::Callbacks;
 use opamp_client::operation::settings::StartSettings;
 use opamp_client::{NotStartedClient, NotStartedClientError, StartedClient, StartedClientError};
-use std::time::SystemTimeError;
 use thiserror::Error;
 use tracing::{error, info};
 
+use crate::event::channel::EventPublisher;
+use crate::event::OpAMPEvent;
+use crate::opamp::instance_id;
+use crate::super_agent::config::{AgentID, OpAMPClientConfig};
+
 use super::callbacks::AgentCallbacks;
-use super::http::builder::HttpClientBuilder;
+use super::http::builder::{HttpClientBuilder, HttpClientBuilderError};
 
 #[derive(Error, Debug)]
 pub enum OpAMPClientBuilderError {
@@ -30,6 +32,8 @@ pub enum OpAMPClientBuilderError {
     SystemTimeError(#[from] SystemTimeError),
     #[error("error getting agent ulid: `{0}`")]
     GetUlidError(#[from] instance_id::GetterError),
+    #[error("error building http client: `{0}`")]
+    HttpClientBuilderError(#[from] HttpClientBuilderError),
 }
 
 pub trait OpAMPClientBuilder<CB>
@@ -88,7 +92,6 @@ where
 
 #[cfg(test)]
 pub(crate) mod test {
-    use super::*;
     use mockall::{mock, predicate};
     use opamp_client::operation::settings::StartSettings;
     use opamp_client::ClientError;
@@ -97,6 +100,8 @@ pub(crate) mod test {
         Client, ClientResult, NotStartedClient, NotStartedClientResult, StartedClient,
         StartedClientResult,
     };
+
+    use super::*;
 
     mock! {
         pub NotStartedOpAMPClientMock {}

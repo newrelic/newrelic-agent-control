@@ -2,6 +2,7 @@ mod cli;
 mod command;
 mod config_persister;
 mod consts;
+mod http_client;
 mod id;
 mod logging;
 mod restarting_processes;

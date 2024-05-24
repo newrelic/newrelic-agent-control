@@ -1,0 +1,14 @@
+[package]
+name = "nr-auth"
+description = "Crate to manage NR System Identity Service authentication"
+version = "0.0.1"
+edition = "2021"
+authors = ["The New Relic Super Agent Team"]
+publish = false
+
+[dependencies]
+chrono = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+mockall = { workspace = true }
