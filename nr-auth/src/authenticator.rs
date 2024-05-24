@@ -6,12 +6,23 @@ use crate::token::AccessToken;
 
 #[derive(Error, Debug)]
 pub enum AuthenticateError {
-    #[error("identity server error: Status code: `{0}`, response `{1}`")]
-    HttpResponseError(u16, String),
     #[error("unable to deserialize token: `{0}`")]
     DeserializeError(String),
+    #[error("identity server error: Status code: `{0}`, response `{1}`")]
+    HttpResponseError(u16, String),
     #[error("http transport error: `{0}`")]
     HttpTransportError(String),
+}
+
+impl From<ureq::Error> for AuthenticateError {
+    fn from(value: ureq::Error) -> Self {
+        match value {
+            ureq::Error::Status(code, resp) => {
+                AuthenticateError::HttpResponseError(code, resp.into_string().unwrap_or_default())
+            }
+            ureq::Error::Transport(e) => AuthenticateError::HttpTransportError(e.to_string()),
+        }
+    }
 }
 
 /// The Authenticator is responsible for obtaining a valid JWT token from System Identity Service.
@@ -41,19 +52,7 @@ impl Authenticator {
 
     /// Executes a POST request to Authentication Server with the `Request` as a body and returns a `Response`.
     pub fn authenticate(&self, req: Request) -> Result<Response, AuthenticateError> {
-        let encoded_response =
-            self.http_client
-                .post(&self.url)
-                .send_json(req)
-                .map_err(|e| match e {
-                    ureq::Error::Status(code, resp) => AuthenticateError::HttpResponseError(
-                        code,
-                        resp.into_string().unwrap_or_default(),
-                    ),
-                    ureq::Error::Transport(e) => {
-                        AuthenticateError::HttpTransportError(e.to_string())
-                    }
-                })?;
+        let encoded_response = self.http_client.post(&self.url).send_json(req)?;
 
         let response: Response = encoded_response
             .into_json()
