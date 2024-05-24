@@ -1,4 +1,4 @@
-use super::items::{flux_release_filter, items_health_check};
+use super::items::{check_health_for_items, flux_release_filter};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::{
@@ -18,13 +18,13 @@ pub struct K8sHealthStatefulSet {
 
 impl HealthChecker for K8sHealthStatefulSet {
     fn check_health(&self) -> Result<Health, HealthCheckerError> {
-        let stateful_sets = self.k8s_client.list_stateful_set_with_reflector();
+        let stateful_sets = self.k8s_client.list_stateful_set();
 
         let target_stateful_sets = stateful_sets
             .into_iter()
             .filter(flux_release_filter(self.release_name.clone()));
 
-        items_health_check(target_stateful_sets, Self::stateful_set_health)
+        check_health_for_items(target_stateful_sets, Self::stateful_set_health)
     }
 }
 
@@ -384,7 +384,7 @@ mod test {
         };
 
         k8s_client
-            .expect_list_stateful_set_with_reflector()
+            .expect_list_stateful_set()
             .times(1)
             .returning(move || {
                 vec![

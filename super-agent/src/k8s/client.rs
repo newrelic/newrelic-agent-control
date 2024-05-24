@@ -152,16 +152,18 @@ impl SyncK8sClient {
             .supported_dynamic_type_metas()
     }
 
-    pub fn list_stateful_set_with_reflector(&self) -> Vec<Arc<StatefulSet>> {
-        self.async_client.reflectors.stateful_set.list()
-    }
-
     pub fn default_namespace(&self) -> &str {
         self.async_client.default_namespace()
     }
 
-    pub fn list_daemon_set(&self) -> Result<ObjectList<DaemonSet>, K8sError> {
-        self.runtime.block_on(self.async_client.list_daemon_set())
+    /// Returns the stateful_set list using the corresponding reflector.
+    pub fn list_stateful_set(&self) -> Vec<Arc<StatefulSet>> {
+        self.async_client.reflectors.stateful_set.list()
+    }
+
+    /// Returns the daemon_set list using the corresponding reflector.
+    pub fn list_daemon_set(&self) -> Vec<Arc<DaemonSet>> {
+        self.async_client.reflectors.daemon_set.list()
     }
 }
 
@@ -316,13 +318,6 @@ impl AsyncK8sClient {
 
     pub fn default_namespace(&self) -> &str {
         self.client.default_namespace()
-    }
-
-    pub async fn list_daemon_set(&self) -> Result<ObjectList<DaemonSet>, K8sError> {
-        let ss_client: Api<DaemonSet> = Api::<DaemonSet>::default_namespaced(self.client.clone());
-        let list_daemon_set = ss_client.list(&ListParams::default()).await?;
-
-        Ok(list_daemon_set)
     }
 }
 

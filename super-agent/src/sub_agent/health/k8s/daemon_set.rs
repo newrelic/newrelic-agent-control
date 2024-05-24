@@ -1,3 +1,4 @@
+use super::items::{check_health_for_items, flux_release_filter};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::utils::IntOrPercentage;
@@ -6,8 +7,6 @@ use crate::sub_agent::health::health_checker::{
 };
 use k8s_openapi::api::apps::v1::{DaemonSet, DaemonSetStatus, DaemonSetUpdateStrategy};
 use std::sync::Arc;
-
-use super::health_checker::LABEL_RELEASE_FLUX;
 
 enum UpdateStrategyType {
     OnDelete,
@@ -48,30 +47,17 @@ impl std::fmt::Display for UpdateStrategyType {
 pub struct K8sHealthDaemonSet {
     k8s_client: Arc<SyncK8sClient>,
     release_name: String,
-    // TODO Waiting on https://github.com/kube-rs/kube/pull/1482, Hardcoding label for now
-    // label_selector: String,
 }
 
 impl HealthChecker for K8sHealthDaemonSet {
     fn check_health(&self) -> Result<Health, HealthCheckerError> {
-        let daemon_set_list = self.k8s_client.list_daemon_set()?;
+        let daemon_sets = self.k8s_client.list_daemon_set();
 
-        let filtered_list_daemon_set = daemon_set_list.into_iter().filter(|ds| {
-            crate::k8s::utils::contains_label_with_value(
-                &ds.metadata.labels,
-                LABEL_RELEASE_FLUX,
-                self.release_name.as_str(),
-            )
-        });
+        let target_daemon_sets = daemon_sets
+            .into_iter()
+            .filter(flux_release_filter(self.release_name.clone()));
 
-        for ds in filtered_list_daemon_set {
-            let health = K8sHealthDaemonSet::check_health_single_daemon_set(ds)?;
-            if !health.is_healthy() {
-                return Ok(health);
-            }
-        }
-
-        Ok(Healthy::default().into())
+        check_health_for_items(target_daemon_sets, Self::check_health_single_daemon_set)
     }
 }
 
@@ -83,7 +69,9 @@ impl K8sHealthDaemonSet {
         }
     }
 
-    pub fn check_health_single_daemon_set(ds: DaemonSet) -> Result<Health, HealthCheckerError> {
+    pub fn check_health_single_daemon_set(
+        ds: Arc<DaemonSet>,
+    ) -> Result<Health, HealthCheckerError> {
         let name = Self::get_daemon_set_name(&ds)?;
         let status = Self::get_daemon_set_status(name.as_str(), &ds)?;
         let update_strategy = Self::get_daemon_set_update_strategy(name.as_str(), &ds)?;
@@ -223,6 +211,10 @@ impl K8sHealthDaemonSet {
 #[cfg(test)]
 pub mod test {
     use super::*;
+    use crate::{
+        k8s::client::MockSyncK8sClient, sub_agent::health::k8s::health_checker::LABEL_RELEASE_FLUX,
+    };
+    use assert_matches::assert_matches;
     use k8s_openapi::{
         api::apps::v1::{
             DaemonSetSpec, DaemonSetStatus, DaemonSetUpdateStrategy, RollingUpdateDaemonSet,
@@ -240,14 +232,15 @@ pub mod test {
 
         impl TestCase {
             fn run(self) {
-                let err_result = K8sHealthDaemonSet::check_health_single_daemon_set(self.ds)
-                    .inspect(|ok| {
-                        panic!(
-                            "Test Case '{}' is returning a Health Result: {:?}",
-                            self.name, ok
-                        );
-                    })
-                    .unwrap_err();
+                let err_result =
+                    K8sHealthDaemonSet::check_health_single_daemon_set(Arc::new(self.ds))
+                        .inspect(|ok| {
+                            panic!(
+                                "Test Case '{}' is returning a Health Result: {:?}",
+                                self.name, ok
+                            );
+                        })
+                        .unwrap_err();
 
                 assert_eq!(
                     err_result.to_string(),
@@ -387,7 +380,7 @@ pub mod test {
         impl TestCase {
             fn run(self) {
                 let health_run: Result<Health, HealthCheckerError> =
-                    K8sHealthDaemonSet::check_health_single_daemon_set(self.ds);
+                    K8sHealthDaemonSet::check_health_single_daemon_set(Arc::new(self.ds));
                 let health_result = health_run.unwrap_or_else(|err| {
                     panic!(
                         "Test case '{}' is not returning a Health Result: {}",
@@ -605,6 +598,80 @@ pub mod test {
 
     fn daemon_set_name() -> String {
         "test".to_string()
+    }
+
+    #[test]
+    fn test_check_health() {
+        let mut k8s_client = MockSyncK8sClient::new();
+        let release_name = "flux-release";
+
+        let healthy_matching = DaemonSet {
+            metadata: ObjectMeta {
+                name: Some("healthy-daemon-set".to_string()),
+                labels: Some([(LABEL_RELEASE_FLUX.to_string(), release_name.to_string())].into()),
+                ..Default::default()
+            },
+            spec: Some(DaemonSetSpec {
+                update_strategy: Some(DaemonSetUpdateStrategy {
+                    type_: Some(ON_DELETE.to_string()), // on-delete are always healthy
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            status: Some(DaemonSetStatus {
+                ..Default::default()
+            }),
+        };
+
+        let unhealthy_matching = DaemonSet {
+            metadata: ObjectMeta {
+                name: Some("unhealthy-daemon-set".to_string()),
+                labels: Some([(LABEL_RELEASE_FLUX.to_string(), release_name.to_string())].into()),
+                ..Default::default()
+            },
+            spec: Some(DaemonSetSpec {
+                update_strategy: Some(DaemonSetUpdateStrategy {
+                    type_: Some(ROLLING_UPDATE.to_string()),
+                    rolling_update: Some(RollingUpdateDaemonSet {
+                        max_unavailable: Some(IntOrString::Int(2)),
+                        ..Default::default()
+                    }),
+                }),
+                ..Default::default()
+            }),
+            status: Some(DaemonSetStatus {
+                updated_number_scheduled: Some(5),
+                desired_number_scheduled: 5,
+                number_ready: 2, // There are 3 unavailable, maximum allowed are 2.
+                ..Default::default()
+            }),
+        };
+
+        k8s_client
+            .expect_list_daemon_set()
+            .times(1)
+            .returning(move || {
+                vec![
+                    Arc::new(healthy_matching.clone()),
+                    Arc::new(unhealthy_matching.clone()),
+                ]
+            });
+
+        let health_checker =
+            K8sHealthDaemonSet::new(Arc::new(k8s_client), release_name.to_string());
+        let result = health_checker.check_health().unwrap();
+
+        let unhealthy = assert_matches!(
+            result,
+            Health::Unhealthy(unhealthy) => unhealthy,
+            "Expected Unhealthy, got: {:?}",
+            result
+        );
+        assert!(
+            unhealthy.last_error().contains("unhealthy-daemon-set"),
+            "The unhealthy message should point to the unhealthy daemon-set, got {:?}",
+            unhealthy
+        );
     }
 
     fn test_util_get_common_metadata() -> ObjectMeta {
