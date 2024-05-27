@@ -127,7 +127,7 @@ jobs:
       matrix:
         msrv: [ 1.78.0 ]
         feature: [ onhost, k8s ]
-    name: ubuntu / ${{ matrix.msrv }}
+    name: ubuntu / ${{ matrix.msrv }} / ${{ matrix.feature }}
     steps:
       - uses: actions/checkout@v4
         with:
