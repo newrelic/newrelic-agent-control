@@ -48,7 +48,7 @@ jobs:
         run: cargo test --locked --package resource-detection --all-targets
 
       - name: Run tests super agent excluding root-required tests (on-host)
-        run: CARGO_ARGS="--locked --features=onhost --all-targets -- --skip as_root" make
+        run: CARGO_ARGS="--locked --features=onhost --all-targets -- --skip as_root" make super-agent
 
       - name: Run tests super agent (k8s)
         run: cargo test --locked --package newrelic_super_agent --features=k8s --all-targets
