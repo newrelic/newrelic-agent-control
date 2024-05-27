@@ -18,6 +18,10 @@ if [ -z "${BIN}" ]; then
     echo "BIN not provided; defaulting to 'newrelic-super-agent'."
 fi
 
+if [ -z "${PKG}" ]; then
+    PKG="newrelic_super_agent"
+    echo "BUILDPKG_FEATURE not provided; defaulting to 'newrelic_super_agent'."
+fi
 
 if [ -z "${BUILD_FEATURE}" ]; then
     BUILD_FEATURE="onhost"
@@ -31,6 +35,7 @@ docker build --platform linux/amd64 -t "rust-cross-${ARCH_NAME}-${BIN}" \
     --build-arg ARCH_NAME="${ARCH_NAME}" \
     --build-arg BUILD_MODE="${BUILD_MODE}" \
     --build-arg BUILD_FEATURE="${BUILD_FEATURE}" \
+    --build-arg BUILD_PKG="${PKG}" \
     --build-arg BUILD_BIN="${BIN}" \
     .
 

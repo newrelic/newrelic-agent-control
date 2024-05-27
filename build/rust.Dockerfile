@@ -41,11 +41,14 @@ ARG BUILD_FEATURE
 ENV BUILD_FEATURE_ENV=${BUILD_FEATURE}
 ARG BUILD_BIN
 ENV BUILD_BIN_ENV=${BUILD_BIN}
+ARG BUILD_PKG
+ENV BUILD_PKG_ENV=${BUILD_PKG}
 
 # Execute the command dynamically at runtime
 CMD [ "sh", "-c", "\
      CMD_STRING='cargo build'; \
      [ \"$BUILD_MODE_ENV\" != 'debug' ] && CMD_STRING='cargo build --release'; \
+     CMD_STRING=\"$CMD_STRING --package $BUILD_PKG_ENV\"; \
      CMD_STRING=\"$CMD_STRING --features $BUILD_FEATURE_ENV\"; \
      CMD_STRING=\"$CMD_STRING --target $ARCH_NAME-unknown-linux-musl\"; \
      CMD_STRING=\"$CMD_STRING --bin $BUILD_BIN_ENV\"; \
