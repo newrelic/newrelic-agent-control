@@ -90,7 +90,11 @@ where
         let mut conf_path = self.conf_path.clone();
         let hash_path = self.hash_file_path(agent_id, &mut conf_path);
         debug!("Reading hash file at {}", hash_path.to_string_lossy());
+        // Reading and failing to get a hash should not interrupt the program execution,
+        // but should indicate that there is no hash info available.
+        // Hence, we discard the error variant and transform it to a `None: Option<String>`.
         let contents = self.file_rw.read(hash_path).ok();
+        // We attempt to parse the `Hash` from the String if we got it, failing if we cannot parse. 
         let result = contents.map(|s| serde_yaml::from_str(&s)).transpose();
         Ok(result?)
     }
