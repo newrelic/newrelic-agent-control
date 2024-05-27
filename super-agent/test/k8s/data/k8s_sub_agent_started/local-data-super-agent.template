@@ -3,6 +3,6 @@ k8s:
   cluster_name: <cluster-name>
 agents:
   my-agent-id:
-    agent_type: "newrelic/io.opentelemetry.collector:0.0.1"
+    agent_type: "newrelic/io.opentelemetry.collector:0.1.1"
   my-agent-id-2:
-    agent_type: "newrelic/io.opentelemetry.collector:0.0.1"
+    agent_type: "newrelic/io.opentelemetry.collector:0.1.1"

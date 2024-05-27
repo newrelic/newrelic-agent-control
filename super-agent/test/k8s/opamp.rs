@@ -34,11 +34,10 @@ fn k8s_opamp_enabled_with_no_remote_configuration() {
 
     // Check the expected HelmRelease is created with the spec values from local configuration
     let expected_spec_values = r#"
-mode: deployment
-config:
-  exporters:
-    logging: { }
+cluster: minikube
+licenseKey: test
     "#;
+
     retry(30, Duration::from_secs(5), || {
         block_on(check_helmrelease_spec_values(
             k8s.client.clone(),
@@ -173,15 +172,19 @@ fn k8s_opamp_add_subagent() {
     // Add new agent in the super-agent configuration.
     // open-telemetry-2 will use the local config since the configuration from the server is empty
     // for io.opentelemetry.collector
+    //
+    // Note: This test won't work with the NewRelic k8s collector chart since the collector
+    // configuration cannot yet be modified. This chart is introduced from agent type
+    // version 0.2.0, so we leverage the latest agent type using the community chart.
     server.set_config_response(
         uuid::get_instance_id(&namespace, &AgentID::new_super_agent_id()),
         ConfigResponse::from(
             r#"
 agents:
   open-telemetry:
-    agent_type: "newrelic/io.opentelemetry.collector:0.0.1"
+    agent_type: "newrelic/io.opentelemetry.collector:0.1.1"
   open-telemetry-2:
-    agent_type: "newrelic/io.opentelemetry.collector:0.0.1"
+    agent_type: "newrelic/io.opentelemetry.collector:0.1.1"
             "#,
         ),
     );

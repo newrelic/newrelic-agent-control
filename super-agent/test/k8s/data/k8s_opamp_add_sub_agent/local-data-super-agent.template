@@ -7,4 +7,4 @@ k8s:
   cluster_name: <cluster-name>
 agents:
   open-telemetry:
-    agent_type: "newrelic/io.opentelemetry.collector:0.0.1"
+    agent_type: "newrelic/io.opentelemetry.collector:0.1.1"
