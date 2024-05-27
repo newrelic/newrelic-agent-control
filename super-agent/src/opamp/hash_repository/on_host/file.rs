@@ -90,8 +90,8 @@ where
         let mut conf_path = self.conf_path.clone();
         let hash_path = self.hash_file_path(agent_id, &mut conf_path);
         debug!("Reading hash file at {}", hash_path.to_string_lossy());
-        let contents = self.file_rw.read(hash_path)?;
-        let result = serde_yaml::from_str(&contents);
+        let contents = self.file_rw.read(hash_path).ok();
+        let result = contents.map(|s| serde_yaml::from_str(&s)).transpose();
         Ok(result?)
     }
 }
