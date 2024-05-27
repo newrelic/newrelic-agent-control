@@ -238,7 +238,7 @@ impl K8sHealthDeployment {
                 .cmp(&a.metadata.creation_timestamp)
         });
 
-        replica_sets.into_iter().nth(0) // replica_sets.first() would return a reference
+        replica_sets.into_iter().next() // replica_sets.first() would return a reference
     }
 }
 
