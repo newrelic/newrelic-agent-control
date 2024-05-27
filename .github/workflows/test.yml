@@ -20,14 +20,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: true
+
       - name: Give GitHub Actions access to private crates
         uses: webfactory/ssh-agent@v0.8.0
         with:
           ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
+
       - name: Install ${{ matrix.toolchain }}
         uses: dtolnay/rust-toolchain@1.78.0
         with:
           toolchain: ${{ matrix.toolchain }}
+
       - name: cargo generate-lockfile
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
@@ -54,10 +57,10 @@ jobs:
         run: cargo test --locked --package newrelic_super_agent --features=k8s --all-targets
 
       - name: Run documentation tests onhost
-        run: cargo test --locked --features=onhost --doc
+        run: cargo test --locked --package newrelic_super_agent --features=onhost --doc
 
       - name: Run documentation tests k8st
-        run: cargo test --locked --features=k8s --doc
+        run: cargo test --locked --package newrelic_super_agent --features=k8s --doc
 
   # Test using root can be troublesome to perform as usually the Rust toolchain is installed local to the user.
   # To test for root privileges, we can run from a container (disabling the test that fail if running non-root).
@@ -69,14 +72,19 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: true
+
       - name: Give GitHub Actions access to private crates
         uses: webfactory/ssh-agent@v0.8.0
         with:
           ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
-      - name: Run k8s root-required tests only
-        run: cargo test --locked --features=k8s --all-targets
+          
+      - name: Install ${{ matrix.toolchain }}
+        uses: dtolnay/rust-toolchain@1.78.0
+        with:
+          toolchain: ${{ matrix.toolchain }}
+
       - name: Run onHost root-required tests only
-        run: CARGO_ARGS="--locked --features=onhost --all-targets -- --skip no_root" make super-agent
+        run: CARGO_ARGS="--locked --package newrelic_super_agent --features=onhost --all-targets -- --skip no_root" make super-agent
 
   embedded:
     name: Unit test for embedded downloader
