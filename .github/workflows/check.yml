@@ -112,11 +112,11 @@ jobs:
       - name: Install nightly
         uses: dtolnay/rust-toolchain@1.78.0
       - name: Create on-host documentation
-        run: cargo doc --no-deps --features=onhost
+        run: cargo doc --no-deps --features=onhost --package newrelic_super_agent
         env:
           RUSTDOCFLAGS: --cfg docsrs
       - name: Create K8s documentation
-        run: cargo doc --no-deps --features=k8s
+        run: cargo doc --no-deps --features=k8s --package newrelic_super_agent
         env:
           RUSTDOCFLAGS: --cfg docsrs
 
@@ -144,7 +144,7 @@ jobs:
           toolchain: ${{ matrix.msrv }}
 
       - name: cargo +${{ matrix.msrv }} check ${{ matrix.feature }}
-        run: cargo check --features=${{ matrix.feature }}
+        run: cargo check --package newrelic_super_agent --features=${{ matrix.feature }}
 
   # msrv = Minimum Supported Rust Version
   msrv_packages:
