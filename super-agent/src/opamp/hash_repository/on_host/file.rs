@@ -89,9 +89,20 @@ where
     fn get(&self, agent_id: &AgentID) -> Result<Option<Hash>, HashRepositoryError> {
         let mut conf_path = self.conf_path.clone();
         let hash_path = self.hash_file_path(agent_id, &mut conf_path);
-        debug!("Reading hash file at {}", hash_path.to_string_lossy());
-        let contents = self.file_rw.read(hash_path)?;
-        let result = serde_yaml::from_str(&contents);
+        debug!("reading hash file at {}", hash_path.to_string_lossy());
+        // Reading and failing to get a file should not interrupt the program execution,
+        // but should indicate that there is no hash info available.
+        // Hence, we discard this error and transform it to a `None: Option<String>`.
+        let contents = match self.file_rw.read(hash_path) {
+            Ok(c) => Some(c),
+            Err(FileReaderError::FileNotFound(e)) => {
+                debug!("no hash file found: {e}");
+                None
+            }
+            Err(e) => return Err(e.into()),
+        };
+        // We attempt to parse the `Hash` from the String if we got it, failing if we cannot parse.
+        let result = contents.map(|s| serde_yaml::from_str(&s)).transpose();
         Ok(result?)
     }
 }
