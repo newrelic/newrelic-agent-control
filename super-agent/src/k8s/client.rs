@@ -166,18 +166,14 @@ impl SyncK8sClient {
         self.async_client.reflectors.daemon_set.list()
     }
 
-    pub fn list_deployment(&self) -> Result<ObjectList<Deployment>, K8sError> {
-        self.runtime.block_on(self.async_client.list_deployment())
+    /// Returns the deployment list using the corresponding reflector.
+    pub fn list_deployment(&self) -> Vec<Arc<Deployment>> {
+        self.async_client.reflectors.deployment.list()
     }
 
-    pub fn get_replica_sets_for_deployment(
-        &self,
-        deployment_name: &str,
-    ) -> Result<Vec<ReplicaSet>, K8sError> {
-        self.runtime.block_on(
-            self.async_client
-                .get_replica_sets_for_deployment(deployment_name),
-        )
+    /// Returns the replica_set list using the corresponding reflector.
+    pub fn list_replica_set(&self) -> Vec<Arc<ReplicaSet>> {
+        self.async_client.reflectors.replica_set.list()
     }
 }
 
@@ -328,35 +324,6 @@ impl AsyncK8sClient {
         let list_stateful_set = ss_client.list(&ListParams::default()).await?;
 
         Ok(list_stateful_set)
-    }
-
-    pub async fn list_deployment(&self) -> Result<ObjectList<Deployment>, K8sError> {
-        let api: Api<Deployment> = Api::<Deployment>::default_namespaced(self.client.clone());
-        let list_deployment = api.list(&ListParams::default()).await?;
-
-        Ok(list_deployment)
-    }
-
-    pub async fn get_replica_sets_for_deployment(
-        &self,
-        deployment_name: &str,
-    ) -> Result<Vec<ReplicaSet>, K8sError> {
-        let rs_api: Api<ReplicaSet> = Api::<ReplicaSet>::default_namespaced(self.client.clone());
-        let rs_list = rs_api.list(&ListParams::default()).await?;
-
-        let mut associated_rs = Vec::new();
-
-        for rs in rs_list {
-            if let Some(owner_references) = rs.metadata.owner_references.as_ref() {
-                for owner in owner_references {
-                    if owner.kind == "Deployment" && owner.name == deployment_name {
-                        associated_rs.push(rs.clone());
-                    }
-                }
-            }
-        }
-
-        Ok(associated_rs)
     }
 
     pub fn default_namespace(&self) -> &str {

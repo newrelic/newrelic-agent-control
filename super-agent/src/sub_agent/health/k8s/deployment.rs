@@ -5,11 +5,12 @@ use crate::k8s::utils::IntOrPercentage;
 use crate::sub_agent::health::health_checker::{
     Health, HealthChecker, HealthCheckerError, Healthy,
 };
-use crate::sub_agent::health::k8s::health_checker::LABEL_RELEASE_FLUX;
 use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec, ReplicaSet};
 use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
 use kube::core::ObjectMeta;
 use std::sync::Arc;
+
+use super::items::{check_health_for_items, flux_release_filter};
 
 const ROLLING_UPDATE: &str = "RollingUpdate";
 const DEPLOYMENT_KIND: &str = "Deployment";
@@ -17,46 +18,26 @@ const DEPLOYMENT_KIND: &str = "Deployment";
 pub struct K8sHealthDeployment {
     k8s_client: Arc<SyncK8sClient>,
     release_name: String,
-    // TODO Waiting on https://github.com/kube-rs/kube/pull/1482, Hardcoding label for now
-    // label_selector: String,
 }
 
 impl HealthChecker for K8sHealthDeployment {
     fn check_health(&self) -> Result<Health, HealthCheckerError> {
-        // TODO: Use the client reflector when ready
-        let deployments = self.k8s_client.list_deployment()?;
+        let deployments = self.k8s_client.list_deployment();
 
-        let release_name = self.release_name.as_str();
-        let matching_deployments = deployments.into_iter().filter(|ss| {
-            crate::k8s::utils::contains_label_with_value(
-                &ss.metadata.labels,
-                LABEL_RELEASE_FLUX,
-                release_name,
-            )
-        });
+        let target_deployments = deployments
+            .into_iter()
+            .filter(flux_release_filter(self.release_name.clone()));
 
-        for deployment in matching_deployments {
+        check_health_for_items(target_deployments, |deployment: Arc<Deployment>| {
             let name = Self::get_metadata_name(&deployment.metadata)?;
-
-            let rs = self.get_newest_replica_set(name.as_str())?;
-            match rs {
-                Some(rs) => {
-                    let deployment_health =
-                        K8sHealthDeployment::check_deployment_health(deployment, rs)?;
-                    if !deployment_health.is_healthy() {
-                        return Ok(deployment_health);
-                    }
-                }
-                None => {
-                    return Ok(Health::unhealthy_with_last_error(format!(
-                        "ReplicaSet not found for Deployment '{}'",
-                        name,
-                    )));
-                }
-            }
-        }
-
-        Ok(Healthy::default().into())
+            self.latest_replica_set_for_deployment(name.as_str())
+                .map(|replica_set| Self::check_deployment_health(deployment, replica_set))
+                .unwrap_or_else(|| {
+                    Ok(Health::unhealthy_with_last_error(format!(
+                        "ReplicaSet not found for Deployment {name}"
+                    )))
+                })
+        })
     }
 }
 
@@ -78,8 +59,8 @@ impl K8sHealthDeployment {
 
     /// Checks the health of a specific deployment and its associated ReplicaSet.
     pub fn check_deployment_health(
-        deployment: Deployment,
-        rs: ReplicaSet,
+        deployment: Arc<Deployment>,
+        rs: Arc<ReplicaSet>,
     ) -> Result<Health, HealthCheckerError> {
         let name = Self::get_metadata_name(&deployment.metadata)?;
 
@@ -231,46 +212,50 @@ impl K8sHealthDeployment {
         }
     }
 
-    // TODO: no unit test is added since this fn is going to be updated once we leverage
-    // reflectors.
-    //
+    // Returns the latest replica_set owned by the deployment whose name has been provided as parameter.
     /// In Kubernetes, it is possible to have multiple ReplicaSets for a single Deployment,
     /// especially during rollouts and updates. This function retrieves all ReplicaSets
     /// associated with the specified Deployment and returns the newest one based on the
     /// creation timestamp.
-    fn get_newest_replica_set(
-        &self,
-        deployment_name: &str,
-    ) -> Result<Option<ReplicaSet>, HealthCheckerError> {
-        let mut replica_sets = self
+    fn latest_replica_set_for_deployment(&self, deployment_name: &str) -> Option<Arc<ReplicaSet>> {
+        // Filter the list of ReplicaSets referencing to the deployment
+        let mut replica_sets: Vec<Arc<ReplicaSet>> = self
             .k8s_client
-            .get_replica_sets_for_deployment(deployment_name)?;
+            .list_replica_set()
+            .into_iter()
+            .filter(|rs| match &rs.metadata.owner_references {
+                Some(owner_refereces) => owner_refereces
+                    .iter()
+                    .any(|owner| owner.kind == DEPLOYMENT_KIND && owner.name == deployment_name),
+                None => false,
+            })
+            .collect();
 
-        if replica_sets.is_empty() {
-            return Ok(None);
-        }
-
-        // Sort ReplicaSets by creation timestamp in descending order and select the newest one
+        // Sort ReplicaSets by creation timestamp in descending order and select the newest one.
         replica_sets.sort_by(|a, b| {
             b.metadata
                 .creation_timestamp
                 .cmp(&a.metadata.creation_timestamp)
         });
 
-        let newest_rs = replica_sets.into_iter().next();
-
-        Ok(newest_rs)
+        replica_sets.into_iter().next() // replica_sets.first() would return a reference
     }
 }
 
 #[cfg(test)]
 mod test {
+    use std::str::FromStr;
+
     use super::*;
+    use crate::{
+        k8s::client::MockSyncK8sClient, sub_agent::health::k8s::health_checker::LABEL_RELEASE_FLUX,
+    };
+    use chrono::{DateTime, Utc};
     use k8s_openapi::api::apps::v1::{
         Deployment, DeploymentSpec, DeploymentStatus, DeploymentStrategy, ReplicaSetStatus,
         RollingUpdateDeployment,
     };
-    use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
+    use k8s_openapi::apimachinery::pkg::apis::meta::v1::{ObjectMeta, OwnerReference, Time};
 
     #[test]
     fn test_deployment_check_health() {
@@ -284,11 +269,14 @@ mod test {
         impl TestCase {
             fn run(self) {
                 let result = if let Some(rs) = self.rs {
-                    K8sHealthDeployment::check_deployment_health(self.deployment, rs)
-                        .inspect_err(|err| {
-                            panic!("Unexpected error getting health: {} - {}", err, self.name);
-                        })
-                        .unwrap()
+                    K8sHealthDeployment::check_deployment_health(
+                        Arc::new(self.deployment),
+                        Arc::new(rs),
+                    )
+                    .inspect_err(|err| {
+                        panic!("Unexpected error getting health: {} - {}", err, self.name);
+                    })
+                    .unwrap()
                 } else {
                     Health::unhealthy_with_last_error(format!(
                         "ReplicaSet not found for Deployment '{}'",
@@ -383,11 +371,14 @@ mod test {
 
         impl TestCase {
             fn run(self) {
-                let err = K8sHealthDeployment::check_deployment_health(self.deployment, self.rs)
-                    .inspect(|result| {
-                        panic!("Expected error, got {:?} for test - {}", result, self.name)
-                    })
-                    .unwrap_err();
+                let err = K8sHealthDeployment::check_deployment_health(
+                    Arc::new(self.deployment),
+                    Arc::new(self.rs),
+                )
+                .inspect(|result| {
+                    panic!("Expected error, got {:?} for test - {}", result, self.name)
+                })
+                .unwrap_err();
                 assert_eq!(
                     err.to_string(),
                     self.expected_err.to_string(),
@@ -500,6 +491,123 @@ mod test {
         ];
 
         test_cases.into_iter().for_each(|tc| tc.run());
+    }
+
+    #[test]
+    fn test_latest_replica_for_deployment() {
+        const DEPLOYMENT_NAME: &str = "deployment-name";
+
+        struct TestCase {
+            name: &'static str,
+            replica_sets: Vec<Arc<ReplicaSet>>,
+            expected_rs_name: Option<String>,
+        }
+
+        impl TestCase {
+            fn run(self) {
+                let mut k8s_client = MockSyncK8sClient::new();
+                let (name, replica_sets, expected) =
+                    (self.name, self.replica_sets, self.expected_rs_name);
+                k8s_client
+                    .expect_list_replica_set()
+                    .times(1)
+                    .returning(move || replica_sets.clone());
+
+                let health_checker = K8sHealthDeployment {
+                    k8s_client: Arc::new(k8s_client),
+                    release_name: "release-name".to_string(),
+                };
+
+                let result = health_checker.latest_replica_set_for_deployment(DEPLOYMENT_NAME);
+                assert_eq!(
+                    result.map(|rs| rs.metadata.clone().name.unwrap()),
+                    expected,
+                    "Error in TestCase '{name}'"
+                );
+            }
+        }
+
+        let test_cases = [
+            TestCase {
+                name: "No replica-sets",
+                replica_sets: Vec::new(),
+                expected_rs_name: None,
+            },
+            TestCase {
+                name: "No matching replica-set",
+                replica_sets: vec![
+                    Arc::new(create_replica_set(
+                        "no-matching-kind",
+                        "no-deployment-kind",
+                        DEPLOYMENT_NAME,
+                        None,
+                    )),
+                    Arc::new(create_replica_set(
+                        "no-matching-name",
+                        DEPLOYMENT_KIND,
+                        "no-matching-name",
+                        None,
+                    )),
+                    Arc::new(ReplicaSet::default()),
+                ],
+                expected_rs_name: None,
+            },
+            TestCase {
+                name: "Only one matching",
+                replica_sets: vec![
+                    Arc::new(create_replica_set(
+                        "no-matching-name",
+                        DEPLOYMENT_KIND,
+                        "no-matching-name",
+                        None,
+                    )),
+                    Arc::new(create_replica_set(
+                        "matching",
+                        DEPLOYMENT_KIND,
+                        DEPLOYMENT_NAME,
+                        None,
+                    )),
+                ],
+                expected_rs_name: Some("matching".to_string()),
+            },
+            TestCase {
+                name: "Matching latest",
+                replica_sets: vec![
+                    Arc::new(create_replica_set(
+                        "matching-1",
+                        DEPLOYMENT_KIND,
+                        DEPLOYMENT_NAME,
+                        Some(Time(
+                            DateTime::<Utc>::from_str("2024-05-27 09:00:00 +00:00").unwrap(),
+                        )),
+                    )),
+                    Arc::new(create_replica_set(
+                        "no-matching-name",
+                        DEPLOYMENT_KIND,
+                        "no-matching-name",
+                        None,
+                    )),
+                    Arc::new(create_replica_set(
+                        "matching-2",
+                        DEPLOYMENT_KIND,
+                        DEPLOYMENT_NAME,
+                        Some(Time(
+                            DateTime::<Utc>::from_str("2024-05-27 10:00:00 +00:00").unwrap(),
+                        )),
+                    )),
+                    Arc::new(create_replica_set(
+                        "matching-3",
+                        DEPLOYMENT_KIND,
+                        DEPLOYMENT_NAME,
+                        Some(Time(
+                            DateTime::<Utc>::from_str("2024-05-27 09:30:00 +00:00").unwrap(),
+                        )),
+                    )),
+                ],
+                expected_rs_name: Some("matching-2".to_string()),
+            },
+        ];
+        test_cases.into_iter().for_each(|ts| ts.run())
     }
 
     #[test]
@@ -627,6 +735,66 @@ mod test {
         test_cases.into_iter().for_each(|tc| tc.run());
     }
 
+    #[test]
+    fn test_health_check() {
+        let release_name = "flux-release";
+        let mut k8s_client = MockSyncK8sClient::new();
+
+        let healthy_deployment_matching = Deployment {
+            metadata: ObjectMeta {
+                labels: Some([(LABEL_RELEASE_FLUX.to_string(), release_name.to_string())].into()),
+                ..create_metadata("test-deployment")
+            },
+            spec: Some(create_deployment_spec(10, "30%", "20%")),
+            status: Some(create_deployment_status(10)),
+        };
+
+        let deployment_with_no_replica_set = Deployment {
+            metadata: ObjectMeta {
+                labels: Some([(LABEL_RELEASE_FLUX.to_string(), release_name.to_string())].into()),
+                ..create_metadata("test-deployment-2")
+            },
+            spec: Some(create_deployment_spec(10, "30%", "20%")),
+            status: Some(create_deployment_status(10)),
+        };
+
+        let replica_sets = vec![Arc::new(ReplicaSet {
+            status: Some(create_replica_set_status(8)),
+            ..create_replica_set(
+                "rs",
+                DEPLOYMENT_KIND,
+                "test-deployment",
+                Some(Time(
+                    DateTime::<Utc>::from_str("2024-05-27 10:00:00 +00:00").unwrap(),
+                )),
+            )
+        })];
+
+        k8s_client
+            .expect_list_deployment()
+            .times(1)
+            .returning(move || {
+                vec![
+                    Arc::new(healthy_deployment_matching.clone()),
+                    Arc::new(deployment_with_no_replica_set.clone()),
+                ]
+            });
+        k8s_client
+            .expect_list_replica_set()
+            .times(2)
+            .returning(move || replica_sets.clone());
+
+        let health_checker =
+            K8sHealthDeployment::new(Arc::new(k8s_client), release_name.to_string());
+        let result = health_checker.check_health().unwrap();
+        assert_eq!(
+            result,
+            Health::unhealthy_with_last_error(
+                "ReplicaSet not found for Deployment test-deployment-2".to_string()
+            )
+        );
+    }
+
     fn create_metadata(name: &str) -> ObjectMeta {
         ObjectMeta {
             name: Some(name.to_string()),
@@ -662,6 +830,27 @@ mod test {
     fn create_replica_set_status(ready_replicas: i32) -> ReplicaSetStatus {
         ReplicaSetStatus {
             ready_replicas: Some(ready_replicas),
+            ..Default::default()
+        }
+    }
+
+    fn create_replica_set(
+        name: &str,
+        owner_kind: &str,
+        owner_name: &str,
+        creation_timestamp: Option<Time>,
+    ) -> ReplicaSet {
+        ReplicaSet {
+            metadata: ObjectMeta {
+                name: Some(name.to_string()),
+                owner_references: Some(vec![OwnerReference {
+                    kind: owner_kind.to_string(),
+                    name: owner_name.to_string(),
+                    ..Default::default()
+                }]),
+                creation_timestamp,
+                ..Default::default()
+            },
             ..Default::default()
         }
     }
