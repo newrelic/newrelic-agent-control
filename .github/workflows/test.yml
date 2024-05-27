@@ -31,12 +31,31 @@ jobs:
       - name: cargo generate-lockfile
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
-      - name: Run tests onHost excluding root-required tests
-        run: CARGO_ARGS="--locked --features=onhost --all-targets -- --skip as_root" make super-agent
-      - name: Run tests onK8s
-        run: cargo test --locked --features=k8s  --all-targets
+
+      - name: Run tests config-migrate
+        run: cargo test --locked --package config-migrate --all-targets
+
+      - name: Run tests fs
+        run: cargo test --locked --package fs --all-targets
+
+      - name: Run tests license
+        run: cargo test --locked --package license --all-targets
+
+      - name: Run tests nr-auth
+        run: cargo test --locked --package nr-auth --all-targets
+
+      - name: Run tests resource-detection
+        run: cargo test --locked --package resource-detection --all-targets
+
+      - name: Run tests super agent excluding root-required tests (on-host)
+        run: cargo test --locked --package newrelic_super_agent --features=onhost --all-targets -- --skip as_root
+
+      - name: Run tests super agent (k8s)
+        run: cargo test --locked --package newrelic_super_agent --features=k8s --all-targets
+
       - name: Run documentation tests onhost
-        run: cargo test --locked --features=onhost  --doc
+        run: cargo test --locked --features=onhost --doc
+
       - name: Run documentation tests k8st
         run: cargo test --locked --features=k8s --doc
 

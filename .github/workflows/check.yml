@@ -51,25 +51,39 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: true
+
       - name: Give GitHub Actions access to private crates
         uses: webfactory/ssh-agent@v0.8.0
         with:
           ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
+
       - name: Install ${{ matrix.toolchain }}
         uses: dtolnay/rust-toolchain@1.78.0
         with:
           toolchain: ${{ matrix.toolchain }}
           components: clippy
-      - name: cargo clippy
-        uses: actions-rs/clippy-check@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          args: --features=onhost  -- -D clippy::all
-      - name: cargo clippy
-        uses: actions-rs/clippy-check@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          args: --features=k8s --tests -- -D clippy::all
+
+      - name: cargo clippy config-migrate
+        run: cargo clippy --package config-migrate --message-format=json --tests -- -D clippy::all
+
+      - name: cargo clippy fs
+        run: cargo clippy --package fs --message-format=json --tests -- -D clippy::all
+
+      - name: cargo clippy license
+        run: cargo clippy --package license --message-format=json --tests -- -D clippy::all
+
+      - name: cargo clippy nr-auth
+        run: cargo clippy --package nr-auth --message-format=json --tests -- -D clippy::all
+
+      - name: cargo clippy resource-detection
+        run: cargo clippy --package resource-detection --message-format=json --tests -- -D clippy::all
+
+      - name: cargo clippy super agent (on-host)
+        run: cargo clippy --package newrelic_super_agent --features=onhost --message-format=json --tests -- -D clippy::all
+
+      - name: cargo clippy super agent (k8s)
+        run: cargo clippy --package newrelic_super_agent --features=k8s  --message-format=json --tests -- -D clippy::all
+
   doc:
     runs-on: ubuntu-latest
     name: stable / doc
