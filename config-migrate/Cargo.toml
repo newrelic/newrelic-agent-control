@@ -17,7 +17,7 @@ nix = { workspace = true, features = ["signal", "user", "hostname"] }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 tracing = { workspace = true }
 serde_yaml = { workspace = true }
-newrelic_super_agent = { path = "../super-agent" }
+newrelic_super_agent = { path = "../super-agent", features = ["onhost"] }
 fs = { path = "../fs" }
 semver = { workspace = true }
 
