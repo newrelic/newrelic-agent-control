@@ -1,21 +1,23 @@
 ---
-# TODO try debug again when the API gets stable.
+# TODO <disabled until FM API gets stable>
 # - name: Agents registration/unregistration
 #   import_playbook: agents_registration_unregistration.yaml
 
-- name: Super Agent valid remote config
-  import_playbook: super_agent_valid_remote_config.yaml
+#- name: Super Agent valid remote config
+#  import_playbook: super_agent_valid_remote_config.yaml
+#
+#- name: Super Agent invalid remote config
+#  import_playbook: super_agent_invalid_remote_config.yaml
+# TODO </disabled until FM API gets stable>
 
-- name: Super Agent invalid remote config
-  import_playbook: super_agent_invalid_remote_config.yaml
+- name: Migration Script Execution
+  import_playbook: migration_script_execution.yaml
 
-# TODO On-hold until this PR https://github.com/newrelic/open-install-library/pull/1056 is released
-#- name: Migration Script Execution
-#  import_playbook: migration_script_execution.yaml
-
-- name: Sub Agents invalid remote config
-  import_playbook: sub_agent_valid_remote_config.yaml
-
-- name: Sub Agents invalid remote config
-  import_playbook: sub_agent_invalid_remote_config.yaml
+# TODO <disabled until FM API gets stable>
+#- name: Sub Agents invalid remote config
+#  import_playbook: sub_agent_valid_remote_config.yaml
+#
+#- name: Sub Agents invalid remote config
+#  import_playbook: sub_agent_invalid_remote_config.yaml
+# TODO </disabled until FM API gets stable>
 

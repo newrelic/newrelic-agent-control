@@ -35,7 +35,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         match config_migrator.migrate(&cfg) {
             Ok(_) => {
                 for (_, dir_path) in cfg.dirs_map {
-                    legacy_config_renamer.rename_path(dir_path.as_path())?;
+                    legacy_config_renamer.rename_path(dir_path.path.as_path())?;
                 }
                 for (_, file_path) in cfg.files_map {
                     legacy_config_renamer.rename_path(file_path.as_path())?;

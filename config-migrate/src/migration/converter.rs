@@ -2,7 +2,7 @@ use crate::migration::agent_value_spec::AgentValueSpec::AgentValueSpecEnd;
 use crate::migration::agent_value_spec::{
     from_fqn_and_value, merge_agent_values, AgentValueError, AgentValueSpec,
 };
-use crate::migration::config::{AgentTypeFieldFQN, DirPath, FilePath, MigrationAgentConfig};
+use crate::migration::config::{AgentTypeFieldFQN, DirInfo, FilePath, MigrationAgentConfig};
 use crate::migration::config::{FILE_SEPARATOR, FILE_SEPARATOR_REPLACE};
 use crate::migration::converter::ConversionError::RequiredFileMappingNotFoundError;
 use fs::file_reader::{FileReader, FileReaderError};
@@ -72,12 +72,12 @@ impl<R: AgentRegistry, F: FileReader> ConfigConverter<R, F> {
                 }
                 Kind::MapStringFile(_) => {
                     // look for file mapping, if not found and required throw an error
-                    let file_map = migration_agent_config.get_dir(agent_type_fqn.clone());
-                    if spec.is_required() && file_map.is_none() {
+                    let dir_info = migration_agent_config.get_dir(agent_type_fqn.clone());
+                    if spec.is_required() && dir_info.is_none() {
                         return Err(RequiredFileMappingNotFoundError);
                     }
                     agent_values_specs
-                        .push(self.dir_to_agent_value_spec(agent_type_fqn, file_map.unwrap())?)
+                        .push(self.dir_to_agent_value_spec(agent_type_fqn, dir_info.unwrap())?)
                 }
                 _ => {
                     debug!("skipping variable {}", agent_type_fqn.as_string())
@@ -103,13 +103,18 @@ impl<R: AgentRegistry, F: FileReader> ConfigConverter<R, F> {
     fn dir_to_agent_value_spec(
         &self,
         agent_type_field_fqn: AgentTypeFieldFQN,
-        dir_path: DirPath,
+        dir_info: DirInfo,
     ) -> Result<HashMap<String, AgentValueSpec>, ConversionError> {
-        let files_paths = self.file_reader.dir_entries(dir_path.as_path())?;
+        let files_paths = self.file_reader.dir_entries(dir_info.path.as_path())?;
         let mut res: Vec<HashMap<String, AgentValueSpec>> = Vec::new();
         // refactor file_path to path
         for path in files_paths {
             let filename = path.file_name().unwrap().to_str().unwrap().to_string();
+            //filter by filename
+            if !dir_info.valid_filename(filename.as_str()) {
+                continue;
+            }
+
             // replace the file separator to not be treated as a leaf
             let escaped_filename = filename.replace(FILE_SEPARATOR, FILE_SEPARATOR_REPLACE);
             let full_agent_type_field_fqn: AgentTypeFieldFQN =

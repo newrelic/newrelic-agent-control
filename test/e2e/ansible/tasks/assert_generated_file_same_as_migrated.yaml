@@ -1,5 +1,5 @@
 ---
-- name: Wait for identifiers file to be created
+- name: Wait for generated_file_path file to be created
   ansible.builtin.wait_for:
     path: "{{ generated_file_path }}"
     state: present
