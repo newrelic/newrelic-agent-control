@@ -94,7 +94,7 @@ where
         // but should indicate that there is no hash info available.
         // Hence, we discard the error variant and transform it to a `None: Option<String>`.
         let contents = self.file_rw.read(hash_path).ok();
-        // We attempt to parse the `Hash` from the String if we got it, failing if we cannot parse. 
+        // We attempt to parse the `Hash` from the String if we got it, failing if we cannot parse.
         let result = contents.map(|s| serde_yaml::from_str(&s)).transpose();
         Ok(result?)
     }
