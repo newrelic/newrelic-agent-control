@@ -7,10 +7,13 @@ use http::HeaderMap;
 use httpmock::Method::POST;
 use httpmock::MockServer;
 use opamp_client::http::http_client::HttpClient;
+use serde::de;
 use url::Url;
 
 use newrelic_super_agent::opamp::http::builder::{HttpClientBuilder, UreqHttpClientBuilder};
-use newrelic_super_agent::super_agent::config::OpAMPClientConfig;
+use newrelic_super_agent::super_agent::config::{
+    AuthConfig, LocalProviderConfig, OpAMPClientConfig, Provider,
+};
 use nr_auth::token::{AccessToken, Token, TokenType};
 use nr_auth::token_retriever::TokenRetrieverDefault;
 use nr_auth::{TokenRetriever, TokenRetrieverError};
@@ -35,6 +38,7 @@ async fn test_empty_auth_header_is_not_injected() {
     let config = OpAMPClientConfig {
         endpoint: Url::parse(server.url("/").to_string().as_str()).unwrap(),
         headers: HeaderMap::default(),
+        auth_config: None,
     };
     let http_client_builder = UreqHttpClientBuilder::new(config, token_retriever);
     let http_client = http_client_builder.build();
@@ -75,6 +79,7 @@ async fn test_non_empty_auth_header_is_injected() {
     let config = OpAMPClientConfig {
         endpoint: Url::parse(server.url("/").to_string().as_str()).unwrap(),
         headers: HeaderMap::default(),
+        auth_config: None,
     };
     let http_client_builder = UreqHttpClientBuilder::new(config, Arc::new(token_retriever));
     let http_client = http_client_builder.build();

@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use thiserror::Error;
 
-use crate::token::AccessToken;
+use crate::{token::AccessToken, ClientID};
 
 #[derive(Error, Debug)]
 pub enum AuthenticateError {
@@ -74,7 +74,6 @@ pub enum ClientAssertionType {
     JwtBearer,
 }
 
-pub type ClientID = String;
 type ClientAssertion = String;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
