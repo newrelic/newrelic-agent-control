@@ -231,16 +231,13 @@ impl K8sHealthDeployment {
             })
             .collect();
 
-        if replica_sets.is_empty() {
-            return None;
-        }
-
         // Sort ReplicaSets by creation timestamp in descending order and select the newest one.
         replica_sets.sort_by(|a, b| {
             b.metadata
                 .creation_timestamp
                 .cmp(&a.metadata.creation_timestamp)
         });
+
         replica_sets.into_iter().nth(0) // replica_sets.first() would return a reference
     }
 }
