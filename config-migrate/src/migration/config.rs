@@ -316,8 +316,8 @@ configs: []
         assert!(dir_info.valid_filename("something.yml"));
         assert!(dir_info.valid_filename("something.other.yaml"));
         assert!(dir_info.valid_filename("something.otro"));
-        assert_eq!(false, dir_info.valid_filename("something.yoml"));
-        assert_eq!(false, dir_info.valid_filename("something.yaml.sample"));
+        assert!(!dir_info.valid_filename("something.yoml"));
+        assert!(!dir_info.valid_filename("something.yaml.sample"));
     }
 
     #[test]
@@ -329,9 +329,9 @@ configs: []
             for dir_map in config.dirs_map {
                 assert!(dir_map.1.valid_filename("something.yaml"));
                 assert!(dir_map.1.valid_filename("something.yml"));
-                assert_eq!(false, dir_map.1.valid_filename("something.yml.sample"));
-                assert_eq!(false, dir_map.1.valid_filename("something.yaml.sample"));
-                assert_eq!(false, dir_map.1.valid_filename("something.yoml"));
+                assert!(!dir_map.1.valid_filename("something.yml.sample"));
+                assert!(!dir_map.1.valid_filename("something.yaml.sample"));
+                assert!(!dir_map.1.valid_filename("something.yoml"));
             }
         }
     }
