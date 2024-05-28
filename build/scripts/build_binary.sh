@@ -29,7 +29,7 @@ docker build --platform linux/amd64 -t "rust-cross-${ARCH_NAME}-${BIN}" \
     -f ./build/rust.Dockerfile \
     --build-arg ARCH_NAME="${ARCH_NAME}" \
     --build-arg BUILD_MODE="${BUILD_MODE}" \
-    --build-arg BUILD_FEATURE="${BUILD_FEATURE}" \
+    --build-arg BUILD_FEATURE="'${BUILD_FEATURE}'" \
     --build-arg BUILD_PKG="${PKG}" \
     --build-arg BUILD_BIN="${BIN}" \
     .
