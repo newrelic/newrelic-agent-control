@@ -6,7 +6,7 @@ use crate::jwt::{claims::Claims, error::JwtEncoderError, signed::SignedJwt};
 use super::JwtSigner;
 
 #[derive(Debug)]
-pub struct LocalPrivateKeySignerBuilder {
+pub struct LocalPrivateKeySignerConfig {
     pub private_key: Vec<u8>,
     pub algorithm: Algorithm,
 }
@@ -16,10 +16,10 @@ pub struct LocalPrivateKeySigner {
     algorithm: Algorithm, // TODO what algos should we support?
 }
 
-impl TryFrom<LocalPrivateKeySignerBuilder> for LocalPrivateKeySigner {
+impl TryFrom<LocalPrivateKeySignerConfig> for LocalPrivateKeySigner {
     type Error = JwtEncoderError;
 
-    fn try_from(builder: LocalPrivateKeySignerBuilder) -> Result<Self, Self::Error> {
+    fn try_from(builder: LocalPrivateKeySignerConfig) -> Result<Self, Self::Error> {
         let encoding_key = {
             use Algorithm::*;
             match builder.algorithm {
@@ -97,7 +97,7 @@ MCowBQYDK2VwAyEAUm7btVmPKCeaBDWIWUz5rL5hUkqlKPjX9z5kMfxgEns=
         validation.set_required_spec_claims(&["exp", "sub", "aud"]);
 
         // Create local signer
-        let signer_builder = LocalPrivateKeySignerBuilder {
+        let signer_builder = LocalPrivateKeySignerConfig {
             private_key: b"secret".to_vec(),
             algorithm: Algorithm::HS256, // secret-based
         };
@@ -137,7 +137,7 @@ MCowBQYDK2VwAyEAUm7btVmPKCeaBDWIWUz5rL5hUkqlKPjX9z5kMfxgEns=
         validation.set_required_spec_claims(&["exp", "sub", "aud"]);
 
         // Create local signer
-        let signer_builder = LocalPrivateKeySignerBuilder {
+        let signer_builder = LocalPrivateKeySignerConfig {
             private_key: ED25519_PRIVATE_KEY.as_bytes().to_vec(),
             algorithm: Algorithm::EdDSA,
         };
