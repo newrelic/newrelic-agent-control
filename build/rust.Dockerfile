@@ -49,7 +49,7 @@ CMD [ "sh", "-c", "\
      CMD_STRING='cargo build'; \
      [ \"$BUILD_MODE_ENV\" != 'debug' ] && CMD_STRING='cargo build --release'; \
      CMD_STRING=\"$CMD_STRING --package $BUILD_PKG_ENV\"; \
-     CMD_STRING=\"$CMD_STRING --features $BUILD_FEATURE_ENV\"; \
+     [ \"$BUILD_FEATURE_ENV\" != '' ] && CMD_STRING=\"$CMD_STRING --features $BUILD_FEATURE_ENV\"; \
      CMD_STRING=\"$CMD_STRING --target $ARCH_NAME-unknown-linux-musl\"; \
      CMD_STRING=\"$CMD_STRING --bin $BUILD_BIN_ENV\"; \
      CMD_STRING=\"$CMD_STRING --target-dir target-$BUILD_BIN_ENV\"; \
