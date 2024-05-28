@@ -4,24 +4,24 @@ use ulid::Ulid;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
     /// JWT ID. Required.
-    jti: Ulid,
+    pub(crate) jti: Ulid,
     /// Audience. Optional.
-    aud: String,
+    pub(crate) aud: String,
     /// Expiration time (as UTC timestamp). Required.
-    pub(crate) exp: usize,
+    pub(crate) exp: u64,
     /// Issued at (as UTC timestamp). Optional.
-    iat: usize,
+    pub(crate) iat: u64,
     /// Issuer. Optional.
-    iss: String,
+    pub(crate) iss: String,
     /// Not before (as UTC timestamp). Optional.
-    nbf: usize,
+    pub(crate) nbf: u64,
     /// Subject (whom token refers to). Optional.
-    sub: String,
+    pub(crate) sub: String,
 }
 
 impl Claims {
     /// Create a new Claims instance
-    pub fn new(exp: usize) -> Self {
+    pub fn new(exp: u64) -> Self {
         Self {
             jti: Ulid::new(),
             aud: String::new(),
@@ -39,7 +39,7 @@ impl Claims {
     }
 
     /// Set the issued at
-    pub fn with_issued_at(self, iat: usize) -> Self {
+    pub fn with_issued_at(self, iat: u64) -> Self {
         Self { iat, ..self }
     }
 
@@ -49,7 +49,7 @@ impl Claims {
     }
 
     /// Set the not before
-    pub fn with_not_before(self, nbf: usize) -> Self {
+    pub fn with_not_before(self, nbf: u64) -> Self {
         Self { nbf, ..self }
     }
 
