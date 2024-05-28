@@ -6,20 +6,20 @@ use crate::jwt::{claims::Claims, error::JwtEncoderError, signed::SignedJwt};
 use super::JwtSigner;
 
 #[derive(Debug)]
-struct LocalPrivateKeySignerBuilder {
-    private_key: Vec<u8>,
-    algorithm: Algorithm,
+pub struct LocalPrivateKeySignerBuilder {
+    pub private_key: Vec<u8>,
+    pub algorithm: Algorithm,
 }
 
 impl LocalPrivateKeySignerBuilder {
-    fn with_private_key(self, private_key: Vec<u8>) -> Self {
+    pub fn with_private_key(self, private_key: Vec<u8>) -> Self {
         Self {
             private_key,
             ..self
         }
     }
 
-    fn with_algorithm(self, algorithm: Algorithm) -> Self {
+    pub fn with_algorithm(self, algorithm: Algorithm) -> Self {
         Self { algorithm, ..self }
     }
 }
@@ -33,7 +33,7 @@ impl Default for LocalPrivateKeySignerBuilder {
     }
 }
 
-struct LocalPrivateKeySigner {
+pub struct LocalPrivateKeySigner {
     encoding_key: EncodingKey,
     algorithm: Algorithm,
 }
