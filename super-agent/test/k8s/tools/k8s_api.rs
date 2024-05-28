@@ -1,4 +1,5 @@
 use k8s_openapi::api::apps::v1::Deployment;
+use k8s_openapi::api::core::v1::ConfigMap;
 use kube::{api::DynamicObject, core::GroupVersion, Api, Client};
 use std::{error::Error, str::FromStr};
 
@@ -17,6 +18,20 @@ pub async fn check_deployments_exist(
             ))
         })?;
     }
+    Ok(())
+}
+
+pub async fn check_config_map_exist(
+    k8s_client: Client,
+    name: &str,
+    namespace: &str,
+) -> Result<(), Box<dyn Error>> {
+    let api: Api<ConfigMap> = Api::namespaced(k8s_client.clone(), namespace);
+
+    let _ = api.get(name).await.map_err(|err| {
+        std::convert::Into::<Box<dyn Error>>::into(format!("ConfigMap {name} not found: {err}"))
+    })?;
+
     Ok(())
 }
 

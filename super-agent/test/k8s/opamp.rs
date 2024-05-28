@@ -6,7 +6,8 @@ use super::tools::{
     runtime::block_on,
     super_agent::start_super_agent_with_testdata_config,
 };
-use std::{thread::sleep as thread_sleep, time::Duration};
+use crate::tools::k8s_api::check_config_map_exist;
+use std::time::Duration;
 
 #[test]
 #[ignore = "needs k8s cluster"]
@@ -195,8 +196,14 @@ fn k8s_opamp_add_subagent() {
         vec!["local-data-open-telemetry", "local-data-open-telemetry-2"],
     );
 
-    // Wait some time to let the super agent to be up.
-    thread_sleep(Duration::from_secs(30));
+    // check that the expected cm exist, meaning that the SA started
+    retry(30, Duration::from_secs(5), || {
+        block_on(check_config_map_exist(
+            k8s.client.clone(),
+            "opamp-data-super-agent",
+            namespace.as_str(),
+        ))
+    });
 
     // Add new agent in the super-agent configuration.
     // open-telemetry-2 will use the local config since the configuration from the server is empty
