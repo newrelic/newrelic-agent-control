@@ -6,13 +6,12 @@ use tracing::debug;
 use ulid::Ulid;
 
 // InstanceID holds the to_string of Ulid assigned to a Agent
-#[derive(Default, Debug, Deserialize, Serialize, PartialEq, Clone)]
+#[derive(Default, Debug, Deserialize, Serialize, PartialEq, Clone, Eq, Hash)]
 pub struct InstanceID(String);
 
 impl InstanceID {
-    #[cfg(test)]
     #[allow(dead_code)]
-    pub(crate) fn new(id: String) -> InstanceID {
+    pub fn new(id: String) -> InstanceID {
         InstanceID(id)
     }
 }

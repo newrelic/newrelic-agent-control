@@ -1,4 +1,6 @@
 use super::runtime::block_on;
+use crate::tools::k8s_api::check_config_map_exist;
+use crate::tools::retry;
 use k8s_openapi::api::core::v1::ConfigMap;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use kube::{
@@ -9,6 +11,7 @@ use newrelic_super_agent::k8s::store::STORE_KEY_LOCAL_DATA_CONFIG;
 use std::io::Read;
 use std::path::Path;
 use std::process::{Command, Stdio};
+use std::time::Duration;
 use std::{collections::BTreeMap, path::PathBuf};
 use std::{fs::File, io::Write};
 
@@ -123,4 +126,15 @@ pub fn create_local_super_agent_config(
         .write_all(content.as_bytes())
         .unwrap();
     PathBuf::from(file_path)
+}
+
+pub fn wait_until_super_agent_with_opamp_is_started(k8s_client: Client, namespace: &str) {
+    // check that the expected cm exist, meaning that the SA started
+    retry(30, Duration::from_secs(5), || {
+        block_on(check_config_map_exist(
+            k8s_client.clone(),
+            "opamp-data-super-agent",
+            namespace,
+        ))
+    });
 }

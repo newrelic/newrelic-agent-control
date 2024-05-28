@@ -1,31 +1,22 @@
 use super::tools::{
     k8s_api::{check_deployments_exist, check_helmrelease_spec_values},
     k8s_env::K8sEnv,
-    opamp::{ConfigResponse, ConfigResponses, FakeServer, Identifier},
+    opamp::{ConfigResponse, FakeServer},
     retry,
     runtime::block_on,
     super_agent::start_super_agent_with_testdata_config,
+    uuid,
 };
-use std::{thread::sleep as thread_sleep, time::Duration};
+use crate::tools::super_agent::wait_until_super_agent_with_opamp_is_started;
+use newrelic_super_agent::super_agent::config::AgentID;
+use std::time::Duration;
 
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_opamp_enabled_with_no_remote_configuration() {
     // OpAMP is enabled but there is no remote configuration.
     let test_name = "k8s_opamp_enabled_with_no_remote_configuration";
-
-    // setup the fake-opamp-server
-    let server_responses = ConfigResponses::from([
-        (
-            Identifier::from("com.newrelic.super_agent"),
-            ConfigResponse::default(),
-        ),
-        (
-            Identifier::from("io.opentelemetry.collector"),
-            ConfigResponse::default(),
-        ),
-    ]);
-    let server = FakeServer::start_new(server_responses);
+    let server = FakeServer::start_new();
 
     // setup the k8s environment
     let mut k8s = block_on(K8sEnv::new());
@@ -39,6 +30,7 @@ fn k8s_opamp_enabled_with_no_remote_configuration() {
         Some(&server.endpoint()),
         vec!["local-data-open-telemetry-agent-id"],
     );
+    wait_until_super_agent_with_opamp_is_started(k8s.client.clone(), namespace.as_str());
 
     // Check the expected HelmRelease is created with the spec values from local configuration
     let expected_spec_values = r#"
@@ -65,32 +57,7 @@ fn k8s_opamp_subagent_configuration_change() {
     // in the corresponding HelmRelease resource.
     let test_name = "k8s_opamp_subagent_configuration_change";
 
-    // setup the fake-opamp-server
-    let server_responses = ConfigResponses::from([
-        (
-            Identifier::from("com.newrelic.super_agent"),
-            ConfigResponse::from(
-                r#"
-agents:
-  open-telemetry-agent-id:
-    agent_type: "newrelic/io.opentelemetry.collector:0.0.1"
-"#,
-            ),
-        ),
-        (
-            Identifier::from("io.opentelemetry.collector"),
-            ConfigResponse::from(
-                r#"
-chart_values:
-  mode: deployment
-  config:
-    exporters:
-      logging: { }
-       "#,
-            ),
-        ),
-    ]);
-    let mut server = FakeServer::start_new(server_responses);
+    let mut server = FakeServer::start_new();
 
     // setup the k8s environment
     let mut k8s = block_on(K8sEnv::new());
@@ -103,6 +70,24 @@ chart_values:
         &namespace,
         Some(&server.endpoint()),
         vec!["local-data-open-telemetry-agent-id"],
+    );
+    wait_until_super_agent_with_opamp_is_started(k8s.client.clone(), namespace.as_str());
+
+    // Update the agent configuration via OpAMP
+    server.set_config_response(
+        uuid::get_instance_id(
+            &namespace,
+            &AgentID::new("open-telemetry-agent-id").unwrap(),
+        ),
+        ConfigResponse::from(
+            r#"
+    chart_values:
+      mode: deployment
+      config:
+        exporters:
+          logging: { }
+           "#,
+        ),
     );
 
     // Check the expected HelmRelease is created with the spec values
@@ -124,7 +109,10 @@ config:
 
     // Update the agent configuration via OpAMP
     server.set_config_response(
-        Identifier::from("io.opentelemetry.collector"),
+        uuid::get_instance_id(
+            &namespace,
+            &AgentID::new("open-telemetry-agent-id").unwrap(),
+        ),
         ConfigResponse::from(
             r#"
 chart_values:
@@ -166,17 +154,7 @@ fn k8s_opamp_add_subagent() {
     let test_name = "k8s_opamp_add_sub_agent";
 
     // setup the fake-opamp-server, with empty configuration for agents in local config local config should be used.
-    let server_responses = ConfigResponses::from([
-        (
-            Identifier::from("com.newrelic.super_agent"),
-            ConfigResponse::default(),
-        ),
-        (
-            Identifier::from("io.opentelemetry.collector"),
-            ConfigResponse::default(),
-        ),
-    ]);
-    let mut server = FakeServer::start_new(server_responses);
+    let mut server = FakeServer::start_new();
 
     // setup the k8s environment
     let mut k8s = block_on(K8sEnv::new());
@@ -190,15 +168,13 @@ fn k8s_opamp_add_subagent() {
         Some(&server.endpoint()),
         vec!["local-data-open-telemetry", "local-data-open-telemetry-2"],
     );
-
-    // Wait some time to let the super agent to be up.
-    thread_sleep(Duration::from_secs(3));
+    wait_until_super_agent_with_opamp_is_started(k8s.client.clone(), namespace.as_str());
 
     // Add new agent in the super-agent configuration.
     // open-telemetry-2 will use the local config since the configuration from the server is empty
     // for io.opentelemetry.collector
     server.set_config_response(
-        Identifier::from("com.newrelic.super_agent"),
+        uuid::get_instance_id(&namespace, &AgentID::new_super_agent_id()),
         ConfigResponse::from(
             r#"
 agents:

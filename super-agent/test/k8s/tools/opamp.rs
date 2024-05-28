@@ -1,5 +1,6 @@
 use super::runtime::tokio_runtime;
 use actix_web::{web, App, HttpResponse, HttpServer};
+use newrelic_super_agent::opamp::instance_id::InstanceID;
 use opamp_client::opamp;
 use prost::Message;
 use std::sync::Mutex;
@@ -9,8 +10,7 @@ use tokio::task::JoinHandle;
 
 const FAKE_SERVER_PATH: &str = "/opamp-fake-server";
 
-pub type Identifier = String;
-pub type ConfigResponses = HashMap<Identifier, ConfigResponse>;
+pub type ConfigResponses = HashMap<InstanceID, ConfigResponse>;
 
 #[derive(Clone, Debug, Default)]
 /// Configuration response to be returned by the server until the agent informs it is applied.
@@ -69,8 +69,8 @@ impl FakeServer {
     }
 
     /// Starts and returns new FakeServer in a random port with the provided responses.
-    pub fn start_new(config_responses: ConfigResponses) -> Self {
-        let state = Arc::new(Mutex::new(config_responses));
+    pub fn start_new() -> Self {
+        let state = Arc::new(Mutex::new(ConfigResponses::default()));
         // While binding to port 0, the kernel gives you a free ephemeral port.
         let listener = net::TcpListener::bind("0.0.0.0:0").unwrap();
         let port = listener.local_addr().unwrap().port();
@@ -101,7 +101,8 @@ impl FakeServer {
     /// Sets a response for the provided identifier. If a response already existed, it is overwritten.
     /// It will be returned by the server until the agent informs that the remote configuration has been applied,
     /// then the server will return a `None` (no-changes) configuration in following requests.
-    pub fn set_config_response(&mut self, identifier: Identifier, response: ConfigResponse) {
+    /// The identifier should be a valid uuid since only the first request is based on service_name
+    pub fn set_config_response(&mut self, identifier: InstanceID, response: ConfigResponse) {
         let mut responses = self.responses.lock().unwrap();
         responses.insert(identifier, response);
     }
@@ -121,56 +122,23 @@ async fn config_handler(
     state: web::Data<Arc<Mutex<ConfigResponses>>>,
     req: web::Bytes,
 ) -> HttpResponse {
+    tokio::time::sleep(Duration::from_secs(1)).await;
     let message = opamp::proto::AgentToServer::decode(req).unwrap();
+    let uuid = message.instance_uid.to_string();
 
-    let identifier = message.instance_uid.to_string();
-    let mut needs_sleep = false;
+    let mut config_responses = state.lock().unwrap();
 
-    {
-        let mut config_responses = state.lock().unwrap();
-
-        // OpAMP protocol implements compression, so the agent_description will only be set on the first message.
-        // So whenever we receive agent_description, it means it's the first message from an OpAMP agent and we
-        // cache the ulid.
-        if message.agent_description.is_some() {
-            // The cache is implemented in a very simple way, just introducing the same value of a given identifier
-            // to its corresponding ulid.
-            let indirect_identifier = response_identifier(&message);
-            let config_response = config_responses.get(&indirect_identifier).cloned();
-            if let Some(config_response) = config_response {
-                config_responses.insert(identifier.clone(), config_response);
+    let config_response = config_responses
+        .get_mut(&InstanceID::new(uuid))
+        .map(|config_response| {
+            if remote_config_is_applied(&message) {
+                config_response.raw_body = None;
             }
-        };
+            config_response.to_owned()
+        })
+        .unwrap_or_default();
 
-        let config_response = config_responses
-            .get_mut(&identifier)
-            .unwrap_or_else(|| panic!("missing config response for identifier {}", identifier));
-
-        // Remove the config if it was already applied
-        if remote_config_is_applied(&message) {
-            config_response.raw_body = None;
-        } else {
-            needs_sleep = true;
-        }
-    } // Mutex guard is dropped here
-
-    // This sleep helps when following the logs. Otherwise, in case of errors the SA is fed continuously with configs.
-    if needs_sleep {
-        tokio::time::sleep(Duration::from_secs(1)).await;
-    }
-
-    let config_response = {
-        let config_responses = state.lock().unwrap();
-        config_responses.get(&identifier).cloned()
-    };
-
-    match config_response {
-        Some(config_response) => HttpResponse::Ok().body(config_response.encode()),
-        None => HttpResponse::InternalServerError().body(format!(
-            "missing config response for identifier {}",
-            identifier
-        )),
-    }
+    HttpResponse::Ok().body(config_response.encode())
 }
 
 /// Checks if the remote is applied according to the agent message
@@ -180,28 +148,4 @@ fn remote_config_is_applied(message: &opamp::proto::AgentToServer) -> bool {
             == opamp::proto::RemoteConfigStatuses::Applied;
     }
     false
-}
-
-/// Gets the corresponding response identifier for the provided a OpAMP message.
-/// # Panics
-/// When the expected identifier is not set in the message or it doesn't have the expected format.
-fn response_identifier(message: &opamp::proto::AgentToServer) -> String {
-    // TODO: We use `service.name` for now, but we need to identify each agent separately.
-    // `message.instance_uid` contains the ulid but it cannot be easily obtained from expectations.
-    let agent_description = message.agent_description.clone().unwrap();
-    let service_name_value = agent_description
-        .identifying_attributes
-        .iter()
-        .find(|key_value| key_value.key == "service.name")
-        .unwrap() // KeyValue
-        .value // AnyValue
-        .clone()
-        .unwrap()
-        .value // Value
-        .unwrap();
-    let service_name = match service_name_value {
-        opamp::proto::any_value::Value::StringValue(value) => value.clone(),
-        _ => panic!("'service.name' should be a string"),
-    };
-    service_name.to_string()
 }
