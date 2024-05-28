@@ -196,7 +196,7 @@ fn k8s_opamp_add_subagent() {
     );
 
     // Wait some time to let the super agent to be up.
-    thread_sleep(Duration::from_secs(3));
+    thread_sleep(Duration::from_secs(30));
 
     // Add new agent in the super-agent configuration.
     // open-telemetry-2 will use the local config since the configuration from the server is empty
