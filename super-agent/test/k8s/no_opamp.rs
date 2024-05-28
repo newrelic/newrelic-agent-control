@@ -24,7 +24,7 @@ fn k8s_sub_agent_started_with_no_opamp() {
     let deployment_name_2 = "my-agent-id-2-opentelemetry-collector";
 
     // Check deployment for first Agent is created with retry.
-    retry(30, Duration::from_secs(5), || {
+    let res = retry(30, Duration::from_secs(5), || {
         block_on(check_deployments_exist(
             k8s.client.clone(),
             &[deployment_name, deployment_name_2],
@@ -33,6 +33,7 @@ fn k8s_sub_agent_started_with_no_opamp() {
     });
 
     child.kill().expect("Failed to kill child process");
+    res.unwrap_or_else(|err| panic!("retry failed {err}"));
 
     // TODO Clean resources after finish when working with this test in the future.
 }

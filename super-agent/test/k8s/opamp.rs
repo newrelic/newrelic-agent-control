@@ -47,7 +47,7 @@ config:
   exporters:
     logging: { }
     "#;
-    retry(30, Duration::from_secs(5), || {
+    let res = retry(30, Duration::from_secs(5), || {
         block_on(check_helmrelease_spec_values(
             k8s.client.clone(),
             namespace.as_str(),
@@ -57,6 +57,7 @@ config:
     });
 
     let _ = sa.kill();
+    res.unwrap_or_else(|err| panic!("retry failed: {err}"));
 }
 
 #[test]
@@ -122,6 +123,10 @@ config:
             "open-telemetry-agent-id",
             expected_spec_values,
         ))
+    })
+    .unwrap_or_else(|err| {
+        let _ = sa.kill();
+        panic!("retry failed {err}")
     });
 
     // Update the agent configuration via OpAMP
@@ -150,7 +155,7 @@ image:
   tag: "latest"
     "#;
 
-    retry(30, Duration::from_secs(5), || {
+    let res = retry(30, Duration::from_secs(5), || {
         block_on(check_helmrelease_spec_values(
             k8s.client.clone(),
             namespace.as_str(),
@@ -160,6 +165,7 @@ image:
     });
 
     let _ = sa.kill();
+    res.unwrap_or_else(|err| panic!("retry failed {err}"));
 }
 
 #[test]
@@ -215,7 +221,7 @@ agents:
     );
 
     // check that the expected deployments exist
-    retry(30, Duration::from_secs(5), || {
+    let res = retry(30, Duration::from_secs(5), || {
         block_on(check_deployments_exist(
             k8s.client.clone(),
             &[
@@ -227,4 +233,5 @@ agents:
     });
 
     let _ = sa.kill();
+    res.unwrap_or_else(|err| panic!("retry failed {err}"));
 }
