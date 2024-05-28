@@ -20,12 +20,7 @@ fi
 
 if [ -z "${PKG}" ]; then
     PKG="newrelic_super_agent"
-    echo "BUILDPKG_FEATURE not provided; defaulting to 'newrelic_super_agent'."
-fi
-
-if [ -z "${BUILD_FEATURE}" ]; then
-    BUILD_FEATURE="onhost"
-    echo "BUILD_FEATURE not provided; defaulting to 'onhost'."
+    echo "PKG not provided; defaulting to 'newrelic_super_agent'."
 fi
 
 echo "arch: ${ARCH}, arch_name: ${ARCH_NAME}"
