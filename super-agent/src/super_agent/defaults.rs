@@ -10,6 +10,8 @@ use tracing::debug;
 
 // What does this do?
 // This macro generates a static variable and a function that returns a reference to that variable.
+// This allows to set this variables on initialization, like what is done when using the super-agent
+// `--debug` flag.
 // Given an identifier `SUPER_AGENT_ID` and a value `"super-agent"` of type `&str`, the macro call
 // `generate_const_getter!(SUPER_AGENT_ID, "super-agent")` generates the following:
 //

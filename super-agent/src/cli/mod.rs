@@ -13,18 +13,29 @@ pub struct Cli {
     #[arg(long)]
     version: bool,
 
+    /// Overrides the default local configuration path `/etc/newrelic-super-agent/`.
+    /// This config takes precedence over the general `debug`
     #[cfg(debug_assertions)]
     #[arg(long)]
     pub local_dir: Option<PathBuf>,
 
+    /// Overrides the default remote configuration path `/var/lib/newrelic-super-agent`.
+    /// This config takes precedence over the general `debug`
     #[cfg(debug_assertions)]
     #[arg(long)]
     pub remote_dir: Option<PathBuf>,
 
+    /// Overrides the default log path `/var/log/newrelic-super-agent`.
+    /// This config takes precedence over the general `debug`    
     #[cfg(debug_assertions)]
     #[arg(long)]
     pub logs_dir: Option<PathBuf>,
 
+    /// Overrides the default paths used for local/remote configuration and logs to the following
+    /// relatives paths.
+    /// `/etc/newrelic-super-agent/` -> <defined path>/nrsa_local
+    /// `/var/lib/newrelic-super-agent` -> <defined path>/nrsa_remote
+    /// `/var/log/newrelic-super-agent` -> <defined path>/nrsa_logs
     #[cfg(debug_assertions)]
     #[arg(long, value_name = "DATA_DIR")]
     pub debug: Option<PathBuf>,

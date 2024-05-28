@@ -43,8 +43,6 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     #[cfg(debug_assertions)]
     {
-        // Changing default directories if configured in CLI args
-        // Explicit location flags get precedence over the general `debug`
         if let Some(ref local_path) = cli.local_dir {
             defaults::set_local_dir(local_path);
         }
