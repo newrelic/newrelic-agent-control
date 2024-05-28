@@ -52,7 +52,7 @@ fn k8s_instance_id_store() {
     let agent_id_2 = AgentID::new(AGENT_ID_2).unwrap();
 
     let instance_id_getter =
-        ULIDInstanceIDGetter::try_with_identifiers(k8s_store, Identifiers::default()).unwrap();
+        ULIDInstanceIDGetter::new_with_identifiers(k8s_store, Identifiers::default());
 
     let instance_id_created_1 = instance_id_getter.get(&agent_id_1).unwrap();
     let instance_id_1 = instance_id_getter.get(&agent_id_1).unwrap();
@@ -252,8 +252,7 @@ fn k8s_multiple_store_entries() {
     // Persisters sharing the ConfigMap
     let hash_repository = HashRepositoryConfigMap::new(k8s_store.clone());
     let instance_id_getter =
-        ULIDInstanceIDGetter::try_with_identifiers(k8s_store.clone(), Identifiers::default())
-            .unwrap();
+        ULIDInstanceIDGetter::new_with_identifiers(k8s_store.clone(), Identifiers::default());
 
     // Add entries to from all persisters
     let hash = Hash::new("hash-test".to_string());
