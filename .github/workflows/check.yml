@@ -37,9 +37,10 @@ jobs:
           components: rustfmt
       - name: Check code formatting
         run: cargo fmt --check
-  clippy:
+
+  clippy_packages:
     runs-on: ubuntu-latest
-    name: ${{ matrix.toolchain }} / clippy
+    name: ${{ matrix.toolchain }} / ${{ matrix.package }} / clippy
     permissions:
       contents: read
       checks: write
@@ -47,29 +48,56 @@ jobs:
       fail-fast: false
       matrix:
         toolchain: [ stable, beta ]
+        package: [ config-migrate, fs, license, nr-auth, resource-detection ]
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: true
+
       - name: Give GitHub Actions access to private crates
         uses: webfactory/ssh-agent@v0.8.0
         with:
           ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
+
       - name: Install ${{ matrix.toolchain }}
         uses: dtolnay/rust-toolchain@1.78.0
         with:
           toolchain: ${{ matrix.toolchain }}
           components: clippy
-      - name: cargo clippy
-        uses: actions-rs/clippy-check@v1
+
+      - name: cargo clippy ${{ matrix.package }}
+        run: cargo clippy --package ${{ matrix.package }} --message-format=json --tests -- -D clippy::all
+
+  clippy_super_agent:
+    runs-on: ubuntu-latest
+    name: ${{ matrix.toolchain }} / ${{ matrix.feature }} / clippy
+    permissions:
+      contents: read
+      checks: write
+    strategy:
+      fail-fast: false
+      matrix:
+        toolchain: [ stable, beta ]
+        feature: [ onhost, k8s ]
+    steps:
+      - uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          args: --features=onhost  -- -D clippy::all
-      - name: cargo clippy
-        uses: actions-rs/clippy-check@v1
+          submodules: true
+
+      - name: Give GitHub Actions access to private crates
+        uses: webfactory/ssh-agent@v0.8.0
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          args: --features=k8s --tests -- -D clippy::all
+          ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
+
+      - name: Install ${{ matrix.toolchain }}
+        uses: dtolnay/rust-toolchain@1.78.0
+        with:
+          toolchain: ${{ matrix.toolchain }}
+          components: clippy
+
+      - name: cargo clippy super agent (${{ matrix.feature }})
+        run: cargo clippy --package newrelic_super_agent --features=${{ matrix.feature }} --message-format=json --tests -- -D clippy::all
+
   doc:
     runs-on: ubuntu-latest
     name: stable / doc
@@ -84,36 +112,66 @@ jobs:
       - name: Install nightly
         uses: dtolnay/rust-toolchain@1.78.0
       - name: Create on-host documentation
-        run: cargo doc --no-deps --features=onhost
+        run: cargo doc --no-deps --features=onhost --package newrelic_super_agent
         env:
           RUSTDOCFLAGS: --cfg docsrs
       - name: Create K8s documentation
-        run: cargo doc --no-deps --features=k8s
+        run: cargo doc --no-deps --features=k8s --package newrelic_super_agent
         env:
           RUSTDOCFLAGS: --cfg docsrs
-  msrv:
+
+  # msrv = Minimum Supported Rust Version
+  msrv_super_agent:
     runs-on: ubuntu-latest
     strategy:
       matrix:
         msrv: [ 1.78.0 ]
+        feature: [ onhost, k8s ]
+    name: ubuntu / ${{ matrix.msrv }} / ${{ matrix.feature }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Give GitHub Actions access to private crates
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
+
+      - name: Install ${{ matrix.msrv }}
+        uses: dtolnay/rust-toolchain@1.78.0
+        with:
+          toolchain: ${{ matrix.msrv }}
+
+      - name: cargo +${{ matrix.msrv }} check ${{ matrix.feature }}
+        run: cargo check --package newrelic_super_agent --features=${{ matrix.feature }}
+
+  # msrv = Minimum Supported Rust Version
+  msrv_packages:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        msrv: [ 1.78.0 ]
+        package: [ config-migrate, fs, license, nr-auth, resource-detection ]
+
     name: ubuntu / ${{ matrix.msrv }}
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: true
+
       - name: Give GitHub Actions access to private crates
         uses: webfactory/ssh-agent@v0.8.0
         with:
           ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
+
       - name: Install ${{ matrix.msrv }}
         uses: dtolnay/rust-toolchain@1.78.0
         with:
           toolchain: ${{ matrix.msrv }}
-      - name: cargo +${{ matrix.msrv }} check onK8s
-        run: cargo check --features=k8s
-      - name: cargo +${{ matrix.msrv }} check onHost
-        run: cargo check --features=onhost
 
+      - name: cargo +${{ matrix.msrv }} check ${{ matrix.package }}
+        run: cargo check --package ${{ matrix.package }}
 
   licenses:
     name: Validate third party libraries

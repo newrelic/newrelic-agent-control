@@ -5,7 +5,7 @@ use crate::super_agent::config::AgentID;
 use std::thread;
 use tracing::{debug, error};
 
-#[cfg(all(not(feature = "onhost"), feature = "k8s"))]
+#[cfg(feature = "k8s")]
 use crate::k8s;
 
 #[derive(Debug, PartialEq)]

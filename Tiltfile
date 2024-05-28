@@ -40,7 +40,7 @@ feature_branch = '<feature-branch>'
 if build_with == 'cargo':
   local_resource(
       'build-binary',
-      cmd="cargo build --features=k8s && mkdir -p bin && mv target/debug/newrelic-super-agent bin/newrelic-super-agent-"+arch,
+      cmd="cargo build --package newrelic_super_agent --features=k8s && mkdir -p bin && mv target/debug/newrelic-super-agent bin/newrelic-super-agent-"+arch,
       deps=[
         './super-agent',
       ]

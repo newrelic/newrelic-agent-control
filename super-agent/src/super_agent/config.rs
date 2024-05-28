@@ -3,7 +3,7 @@ use crate::opamp::remote_config::RemoteConfigError;
 use crate::super_agent::config_storer::file::ConfigStoreError;
 use crate::super_agent::defaults::{default_capabilities, SUPER_AGENT_ID};
 use http::HeaderMap;
-#[cfg(all(not(feature = "onhost"), feature = "k8s"))]
+#[cfg(feature = "k8s")]
 use kube::api::TypeMeta;
 use opamp_client::operation::capabilities::Capabilities;
 use serde::{Deserialize, Serialize};
@@ -37,7 +37,7 @@ pub enum AgentTypeError {
 
 #[derive(Error, Debug)]
 pub enum SuperAgentConfigError {
-    #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
+    #[cfg(feature = "k8s")]
     #[error("error from k8s storer loading SAConfig: {0}")]
     FailedToPersistK8s(#[from] crate::k8s::Error),
 
@@ -248,12 +248,12 @@ pub struct K8sConfig {
     pub namespace: String,
 
     /// CRDs is a list of crds that the SA should watch and be able to create/delete.
-    #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
+    #[cfg(feature = "k8s")]
     #[serde(default = "default_group_version_kinds")]
     pub cr_type_meta: Vec<TypeMeta>,
 }
 
-#[cfg(all(not(feature = "onhost"), feature = "k8s"))]
+#[cfg(feature = "k8s")]
 impl Default for K8sConfig {
     fn default() -> Self {
         Self {
@@ -264,7 +264,7 @@ impl Default for K8sConfig {
     }
 }
 
-#[cfg(all(not(feature = "onhost"), feature = "k8s"))]
+#[cfg(feature = "k8s")]
 pub fn helm_repository_type_meta() -> TypeMeta {
     TypeMeta {
         api_version: "source.toolkit.fluxcd.io/v1beta2".to_string(),
@@ -272,7 +272,7 @@ pub fn helm_repository_type_meta() -> TypeMeta {
     }
 }
 
-#[cfg(all(not(feature = "onhost"), feature = "k8s"))]
+#[cfg(feature = "k8s")]
 pub fn helm_release_type_meta() -> TypeMeta {
     TypeMeta {
         api_version: "helm.toolkit.fluxcd.io/v2beta2".to_string(),
@@ -280,7 +280,7 @@ pub fn helm_release_type_meta() -> TypeMeta {
     }
 }
 
-#[cfg(all(not(feature = "onhost"), feature = "k8s"))]
+#[cfg(feature = "k8s")]
 fn default_group_version_kinds() -> Vec<TypeMeta> {
     // In flux health check we are currently supporting just a single helm_release_type_meta
     // Each time we support a new version we should decide if and how to support retrieving its health

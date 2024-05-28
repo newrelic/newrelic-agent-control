@@ -16,6 +16,7 @@ builds:
             - BUILD_FEATURE=onhost
             - BIN=newrelic-super-agent
             - SUPER_AGENT_VERSION={{ .Version }}
+            - PKG=newrelic_super_agent
         - cmd: sh ./build/scripts/replace_go_with_rust.sh
           env:
             - ARCH={{ .Arch }}
@@ -37,8 +38,8 @@ builds:
         - cmd: sh ./build/scripts/build_binary.sh
           env:
             - ARCH={{ .Arch }}
-            - BUILD_FEATURE=onhost
             - BIN=newrelic-config-migrate
+            - PKG=config-migrate
             - SUPER_AGENT_VERSION={{ .Version }}
         - cmd: sh ./build/scripts/replace_go_with_rust.sh
           env:

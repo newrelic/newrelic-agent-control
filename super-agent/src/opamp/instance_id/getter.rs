@@ -219,7 +219,7 @@ pub mod test {
     }
 
     fn get_different_identifier() -> Identifiers {
-        #[cfg(all(not(feature = "onhost"), feature = "k8s"))]
+        #[cfg(feature = "k8s")]
         return Identifiers {
             cluster_name: "test".to_string(),
             fleet_id: "test".to_string(),
