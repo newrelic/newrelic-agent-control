@@ -1,4 +1,4 @@
-use super::items::{check_health_for_items, flux_release_filter};
+use super::utils::{self, check_health_for_items, flux_release_filter};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::utils::IntOrPercentage;
@@ -70,11 +70,13 @@ impl K8sHealthDaemonSet {
     }
 
     pub fn check_health_single_daemon_set(
-        ds: Arc<DaemonSet>,
+        arc_ds: Arc<DaemonSet>,
     ) -> Result<Health, HealthCheckerError> {
-        let name = Self::get_daemon_set_name(&ds)?;
-        let status = Self::get_daemon_set_status(name.as_str(), &ds)?;
-        let update_strategy = Self::get_daemon_set_update_strategy(name.as_str(), &ds)?;
+        let ds: &DaemonSet = &arc_ds; // Dereferencing the Arc so it is usable by generics.
+
+        let name = utils::get_metadata_name(ds)?;
+        let status = Self::get_daemon_set_status(name.as_str(), ds)?;
+        let update_strategy = Self::get_daemon_set_update_strategy(name.as_str(), ds)?;
 
         let update_strategy_type = UpdateStrategyType::try_from(
             Self::get_daemon_set_rolling_update_type(name.as_str(), &update_strategy)?,
@@ -165,14 +167,6 @@ impl K8sHealthDaemonSet {
             last_error: error,
         }
         .into()
-    }
-
-    fn get_daemon_set_name(daemon_set: &DaemonSet) -> Result<String, HealthCheckerError> {
-        daemon_set.metadata.name.clone().ok_or_else(|| {
-            HealthCheckerError::K8sError(crate::k8s::error::K8sError::MissingName(
-                DAEMON_SET_KIND.to_string(),
-            ))
-        })
     }
 
     fn get_daemon_set_status(

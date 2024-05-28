@@ -1,16 +1,14 @@
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use crate::k8s::error::K8sError;
 use crate::k8s::utils::IntOrPercentage;
 use crate::sub_agent::health::health_checker::{
     Health, HealthChecker, HealthCheckerError, Healthy,
 };
 use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec, ReplicaSet};
 use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
-use kube::core::ObjectMeta;
 use std::sync::Arc;
 
-use super::items::{check_health_for_items, flux_release_filter};
+use super::utils::{self, check_health_for_items, flux_release_filter};
 
 const ROLLING_UPDATE: &str = "RollingUpdate";
 const DEPLOYMENT_KIND: &str = "Deployment";
@@ -28,10 +26,12 @@ impl HealthChecker for K8sHealthDeployment {
             .into_iter()
             .filter(flux_release_filter(self.release_name.clone()));
 
-        check_health_for_items(target_deployments, |deployment: Arc<Deployment>| {
-            let name = Self::get_metadata_name(&deployment.metadata)?;
+        check_health_for_items(target_deployments, |arc_deployment: Arc<Deployment>| {
+            let deployment: &Deployment = &arc_deployment; // Dereferencing the Arc so it is usable by generics.
+            let name = utils::get_metadata_name(deployment)?;
+
             self.latest_replica_set_for_deployment(name.as_str())
-                .map(|replica_set| Self::check_deployment_health(deployment, replica_set))
+                .map(|replica_set| Self::check_deployment_health(arc_deployment, replica_set))
                 .unwrap_or_else(|| {
                     Ok(Health::unhealthy_with_last_error(format!(
                         "ReplicaSet not found for Deployment {name}"
@@ -59,10 +59,12 @@ impl K8sHealthDeployment {
 
     /// Checks the health of a specific deployment and its associated ReplicaSet.
     pub fn check_deployment_health(
-        deployment: Arc<Deployment>,
+        arc_deployment: Arc<Deployment>,
         rs: Arc<ReplicaSet>,
     ) -> Result<Health, HealthCheckerError> {
-        let name = Self::get_metadata_name(&deployment.metadata)?;
+        let deployment: &Deployment = &arc_deployment; // Dereferencing the Arc so it is usable by generics.
+
+        let name = utils::get_metadata_name(deployment)?;
 
         let status = deployment
             .status
@@ -112,12 +114,6 @@ impl K8sHealthDeployment {
         }
 
         Ok(Healthy::default().into())
-    }
-
-    fn get_metadata_name(metadata: &ObjectMeta) -> Result<String, HealthCheckerError> {
-        metadata.name.clone().ok_or_else(|| {
-            HealthCheckerError::K8sError(K8sError::MissingName("Deployment".to_string()))
-        })
     }
 
     /// Calculates the maximum number of unavailable pods during a rolling update.

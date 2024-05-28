@@ -1,9 +1,8 @@
-use super::items::{check_health_for_items, flux_release_filter};
+use super::utils::{self, check_health_for_items, flux_release_filter};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use crate::{
-    k8s,
-    sub_agent::health::health_checker::{Health, HealthChecker, HealthCheckerError, Healthy},
+use crate::sub_agent::health::health_checker::{
+    Health, HealthChecker, HealthCheckerError, Healthy,
 };
 use k8s_openapi::api::apps::v1::{StatefulSet, StatefulSetSpec};
 use std::sync::Arc;
@@ -37,13 +36,10 @@ impl K8sHealthStatefulSet {
     }
 
     /// Returns the health for a single stateful_set.
-    fn stateful_set_health(ss: Arc<StatefulSet>) -> Result<Health, HealthCheckerError> {
-        let name = ss
-            .metadata
-            .name
-            .as_deref()
-            .ok_or_else(|| k8s::Error::MissingName(STATEFUL_SET_KIND.into()))?
-            .to_string();
+    fn stateful_set_health(arc_ss: Arc<StatefulSet>) -> Result<Health, HealthCheckerError> {
+        let ss: &StatefulSet = &arc_ss; // Dereferencing the Arc so it is usable by generics.
+
+        let name = utils::get_metadata_name(ss)?;
         let spec = ss
             .spec
             .as_ref()

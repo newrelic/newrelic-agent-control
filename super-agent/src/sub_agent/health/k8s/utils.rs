@@ -5,8 +5,9 @@ use crate::{
     k8s::utils::contains_label_with_value,
     sub_agent::health::health_checker::{Health, HealthCheckerError, Healthy},
 };
-use k8s_openapi::Metadata;
-use kube::api::ObjectMeta;
+use k8s_openapi::{
+    apimachinery::pkg::apis::meta::v1::ObjectMeta, Metadata, NamespaceResourceScope, Resource,
+};
 use std::{any::Any, sync::Arc};
 
 /// Executes the provided health-check function over the items provided.
@@ -46,10 +47,24 @@ where
     }
 }
 
+/// Return the value of `.metadata.name` of the object that is passed.
+pub fn get_metadata_name<K>(obj: &K) -> Result<String, HealthCheckerError>
+where
+    K: Resource<Scope = NamespaceResourceScope> + Metadata<Ty = ObjectMeta>,
+{
+    let metadata = obj.metadata();
+
+    metadata.name.clone().ok_or_else(|| {
+        HealthCheckerError::K8sError(crate::k8s::error::K8sError::MissingName(
+            K::KIND.to_string(),
+        ))
+    })
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::sub_agent::health::health_checker::Unhealthy;
+    use crate::{k8s::Error, sub_agent::health::health_checker::Unhealthy};
     use assert_matches::assert_matches;
     use k8s_openapi::api::core::v1::Pod;
 
@@ -133,5 +148,35 @@ mod test {
                 .map(|pod| pod.metadata.name.as_ref().unwrap().clone())
                 .collect::<Vec<String>>()
         );
+    }
+
+    #[test]
+    fn test_metadata_name() {
+        // As it is a generic, I want to test with at least two different types.
+        // Let's start with a Deployment
+        let mut deployment = k8s_openapi::api::apps::v1::Deployment {
+            ..Default::default()
+        };
+        let deployment_error = get_metadata_name(&deployment).unwrap_err();
+        deployment.metadata.name = Some("name".into());
+        let deployment_name = get_metadata_name(&deployment).unwrap();
+        assert_eq!(
+            deployment_error.to_string(),
+            HealthCheckerError::K8sError(Error::MissingName("Deployment".to_string())).to_string()
+        );
+        assert_eq!(deployment_name, "name".to_string());
+
+        // Now a DaemonSet
+        let mut daemon_set = k8s_openapi::api::apps::v1::DaemonSet {
+            ..Default::default()
+        };
+        let daemon_set_error = get_metadata_name(&daemon_set).unwrap_err();
+        daemon_set.metadata.name = Some("name".into());
+        let daemon_set_name = get_metadata_name(&daemon_set).unwrap();
+        assert_eq!(
+            daemon_set_error.to_string(),
+            HealthCheckerError::K8sError(Error::MissingName("DaemonSet".to_string())).to_string()
+        );
+        assert_eq!(daemon_set_name, "name".to_string());
     }
 }
