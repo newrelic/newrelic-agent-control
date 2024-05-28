@@ -39,10 +39,7 @@ pub enum GetterError {
 }
 
 impl ULIDInstanceIDGetter<Storer> {
-    pub fn try_with_identifiers(
-        k8s_store: Arc<K8sStore>,
-        identifiers: Identifiers,
-    ) -> Result<Self, GetterError> {
-        Ok(Self::new(Storer::new(k8s_store), identifiers))
+    pub fn new_k8s_instance_id_getter(k8s_store: Arc<K8sStore>, identifiers: Identifiers) -> Self {
+        Self::new(Storer::new(k8s_store), identifiers)
     }
 }
