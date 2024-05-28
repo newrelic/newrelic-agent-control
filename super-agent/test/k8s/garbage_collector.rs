@@ -99,7 +99,7 @@ metadata:
     let k8s_store = Arc::new(K8sStore::new(k8s_client.clone()));
 
     let instance_id_getter =
-        ULIDInstanceIDGetter::new_with_identifiers(k8s_store.clone(), Identifiers::default());
+        ULIDInstanceIDGetter::new_k8s_instance_id_getter(k8s_store.clone(), Identifiers::default());
 
     // Creates ULID CM correctly tagged.
     let agent_ulid = instance_id_getter.get(agent_id).unwrap();
@@ -229,7 +229,7 @@ fn k8s_garbage_collector_does_not_remove_super_agent() {
     let k8s_store = Arc::new(K8sStore::new(k8s_client.clone()));
 
     let instance_id_getter =
-        ULIDInstanceIDGetter::new_with_identifiers(k8s_store.clone(), Identifiers::default());
+        ULIDInstanceIDGetter::new_k8s_instance_id_getter(k8s_store.clone(), Identifiers::default());
 
     let sa_ulid = instance_id_getter.get(sa_id).unwrap();
 

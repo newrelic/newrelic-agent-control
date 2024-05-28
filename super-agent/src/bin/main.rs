@@ -276,7 +276,7 @@ fn run_super_agent<C: HttpClientBuilder>(
     );
 
     let instance_id_getter =
-        ULIDInstanceIDGetter::new_with_identifiers(k8s_store.clone(), identifiers);
+        ULIDInstanceIDGetter::new_k8s_instance_id_getter(k8s_store.clone(), identifiers);
 
     let mut vr = ValuesRepositoryConfigMap::new(k8s_store.clone());
     if opamp_client_builder.is_some() {
