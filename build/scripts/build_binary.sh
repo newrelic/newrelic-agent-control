@@ -25,14 +25,24 @@ fi
 
 echo "arch: ${ARCH}, arch_name: ${ARCH_NAME}"
 
-docker build --platform linux/amd64 -t "rust-cross-${ARCH_NAME}-${BIN}" \
-    -f ./build/rust.Dockerfile \
-    --build-arg ARCH_NAME="${ARCH_NAME}" \
-    --build-arg BUILD_MODE="${BUILD_MODE}" \
-    --build-arg BUILD_FEATURE="'${BUILD_FEATURE}'" \
-    --build-arg BUILD_PKG="${PKG}" \
-    --build-arg BUILD_BIN="${BIN}" \
-    .
+if [ -z "${BUILD_FEATURE}" ]; then
+  docker build --platform linux/amd64 -t "rust-cross-${ARCH_NAME}-${BIN}" \
+      -f ./build/rust.Dockerfile \
+      --build-arg ARCH_NAME="${ARCH_NAME}" \
+      --build-arg BUILD_MODE="${BUILD_MODE}" \
+      --build-arg BUILD_PKG="${PKG}" \
+      --build-arg BUILD_BIN="${BIN}" \
+      .
+else
+  docker build --platform linux/amd64 -t "rust-cross-${ARCH_NAME}-${BIN}" \
+      -f ./build/rust.Dockerfile \
+      --build-arg ARCH_NAME="${ARCH_NAME}" \
+      --build-arg BUILD_MODE="${BUILD_MODE}" \
+      --build-arg BUILD_FEATURE="${BUILD_FEATURE}" \
+      --build-arg BUILD_PKG="${PKG}" \
+      --build-arg BUILD_BIN="${BIN}" \
+      .
+fi
 
 # Binary metadata
 GIT_COMMIT=$( git rev-parse HEAD )
