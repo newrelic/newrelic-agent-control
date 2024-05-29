@@ -32,7 +32,7 @@ fn k8s_opamp_enabled_with_no_remote_configuration() {
     let namespace = block_on(k8s.test_namespace());
 
     // start the super-agent
-    let mut sa = start_super_agent_with_testdata_config(
+    let _sa = start_super_agent_with_testdata_config(
         test_name,
         k8s.client.clone(),
         &namespace,
@@ -47,7 +47,7 @@ config:
   exporters:
     logging: { }
     "#;
-    let res = retry(30, Duration::from_secs(5), || {
+    retry(30, Duration::from_secs(5), || {
         block_on(check_helmrelease_spec_values(
             k8s.client.clone(),
             namespace.as_str(),
@@ -55,9 +55,6 @@ config:
             expected_spec_values,
         ))
     });
-
-    let _ = sa.kill();
-    res.unwrap_or_else(|err| panic!("retry failed: {err}"));
 }
 
 #[test]
@@ -100,7 +97,7 @@ chart_values:
     let namespace = block_on(k8s.test_namespace());
 
     // start the super-agent
-    let mut sa = start_super_agent_with_testdata_config(
+    let _sa = start_super_agent_with_testdata_config(
         test_name,
         k8s.client.clone(),
         &namespace,
@@ -123,10 +120,6 @@ config:
             "open-telemetry-agent-id",
             expected_spec_values,
         ))
-    })
-    .unwrap_or_else(|err| {
-        let _ = sa.kill();
-        panic!("retry failed {err}")
     });
 
     // Update the agent configuration via OpAMP
@@ -155,7 +148,7 @@ image:
   tag: "latest"
     "#;
 
-    let res = retry(30, Duration::from_secs(5), || {
+    retry(30, Duration::from_secs(5), || {
         block_on(check_helmrelease_spec_values(
             k8s.client.clone(),
             namespace.as_str(),
@@ -163,9 +156,6 @@ image:
             expected_spec_values,
         ))
     });
-
-    let _ = sa.kill();
-    res.unwrap_or_else(|err| panic!("retry failed {err}"));
 }
 
 #[test]
@@ -193,7 +183,7 @@ fn k8s_opamp_add_subagent() {
     let namespace = block_on(k8s.test_namespace());
 
     // start the super-agent
-    let mut sa = start_super_agent_with_testdata_config(
+    let _sa = start_super_agent_with_testdata_config(
         test_name,
         k8s.client.clone(),
         &namespace,
@@ -221,7 +211,7 @@ agents:
     );
 
     // check that the expected deployments exist
-    let res = retry(30, Duration::from_secs(5), || {
+    retry(30, Duration::from_secs(5), || {
         block_on(check_deployments_exist(
             k8s.client.clone(),
             &[
@@ -231,7 +221,4 @@ agents:
             namespace.as_str(),
         ))
     });
-
-    let _ = sa.kill();
-    res.unwrap_or_else(|err| panic!("retry failed {err}"));
 }
