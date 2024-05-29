@@ -13,5 +13,6 @@ pub mod runtime;
 /// and specific initial configuration. Any helper receiving a `folder_name` assumes that the folder exists
 /// in the path `test/k8s/data/`.
 pub mod super_agent;
+pub mod uuid;
 
 pub use retry::retry;

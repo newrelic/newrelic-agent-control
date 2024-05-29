@@ -1,4 +1,6 @@
 use super::runtime::block_on;
+use crate::tools::k8s_api::check_config_map_exist;
+use crate::tools::retry;
 use k8s_openapi::api::core::v1::ConfigMap;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use kube::{
@@ -9,8 +11,11 @@ use newrelic_super_agent::k8s::store::STORE_KEY_LOCAL_DATA_CONFIG;
 use std::io::Read;
 use std::path::Path;
 use std::process::{Command, Stdio};
+use std::time::Duration;
 use std::{collections::BTreeMap, path::PathBuf};
 use std::{fs::File, io::Write};
+
+pub const TEST_CLUSTER_NAME: &str = "minikube";
 
 /// Starts the super-agent through [start_super_agent] after setting up the corresponding configuration file
 /// and config map according to the provided `folder_name` and the provided `file_names`.
@@ -114,7 +119,9 @@ pub fn create_local_super_agent_config(
     .unwrap();
 
     let file_path = format!("test/k8s/data/{}/local-sa.k8s_tmp", folder_name);
-    let mut content = content.replace("<ns>", test_ns);
+    let mut content = content
+        .replace("<ns>", test_ns)
+        .replace("<cluster-name>", TEST_CLUSTER_NAME);
     if let Some(endpoint) = opamp_endpoint {
         content = content.replace("<opamp-endpoint>", endpoint);
     }
@@ -123,4 +130,17 @@ pub fn create_local_super_agent_config(
         .write_all(content.as_bytes())
         .unwrap();
     PathBuf::from(file_path)
+}
+
+/// This function checks that the cm containing the uuid of the superAgent has been created.
+/// If it is present we assume that the SuperAgent was started and was able to connect to the cluster.
+pub fn wait_until_super_agent_with_opamp_is_started(k8s_client: Client, namespace: &str) {
+    // check that the expected cm exist, meaning that the SA started
+    retry(30, Duration::from_secs(5), || {
+        block_on(check_config_map_exist(
+            k8s_client.clone(),
+            "opamp-data-super-agent",
+            namespace,
+        ))
+    });
 }

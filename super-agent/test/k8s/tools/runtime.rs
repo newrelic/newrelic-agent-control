@@ -10,7 +10,7 @@ pub fn tokio_runtime() -> Arc<tokio::runtime::Runtime> {
         .get_or_init(|| {
             Arc::new(
                 tokio::runtime::Builder::new_multi_thread()
-                    .worker_threads(2)
+                    .worker_threads(5)
                     .enable_all()
                     .build()
                     .unwrap(),

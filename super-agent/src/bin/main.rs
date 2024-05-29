@@ -60,7 +60,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let sa_local_config_storer = SuperAgentConfigStoreFile::new(&cli.get_config_path());
 
     let super_agent_config = sa_local_config_storer.load().inspect_err(|err| {
-        error!(
+        println!(
             "Could not read Super Agent config from {}: {}",
             sa_local_config_storer.config_path().to_string_lossy(),
             err
@@ -72,7 +72,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     // as long as we want the logs to be written to file, hence, we assign it here so it is dropped
     // when the program exits.
     let _guard = super_agent_config.log.try_init()?;
-    info!("Starting NewRelic Super Agent");
+    info!(
+        "Starting NewRelic Super Agent with config '{}'",
+        sa_local_config_storer.config_path().to_string_lossy()
+    );
 
     info!("{}", binary_metadata());
     if cli.print_debug_info() {
