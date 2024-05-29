@@ -12,11 +12,10 @@ pub async fn check_deployments_exist(
     let api: Api<Deployment> = Api::namespaced(k8s_client.clone(), namespace);
 
     for &name in names {
-        let _ = api.get(name).await.map_err(|err| {
-            std::convert::Into::<Box<dyn Error>>::into(format!(
-                "Deployment {name} not found: {err}"
-            ))
-        })?;
+        let _ = api
+            .get(name)
+            .await
+            .map_err(|err| format!("Deployment {name} not found: {err}"))?;
     }
     Ok(())
 }
@@ -28,9 +27,10 @@ pub async fn check_config_map_exist(
 ) -> Result<(), Box<dyn Error>> {
     let api: Api<ConfigMap> = Api::namespaced(k8s_client.clone(), namespace);
 
-    let _ = api.get(name).await.map_err(|err| {
-        std::convert::Into::<Box<dyn Error>>::into(format!("ConfigMap {name} not found: {err}"))
-    })?;
+    let _ = api
+        .get(name)
+        .await
+        .map_err(|err| format!("ConfigMap {name} not found: {err}"))?;
 
     Ok(())
 }
