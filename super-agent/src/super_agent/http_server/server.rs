@@ -50,7 +50,7 @@ pub async fn run_status_server(
         let _ = run_server(server_config, server_handle_publisher, status_clone)
             .await
             .inspect_err(|err| {
-                error!(error_msg = err.to_string(), "starting HTTP server");
+                error!(error_msg = %err, "starting HTTP server");
             });
     });
 

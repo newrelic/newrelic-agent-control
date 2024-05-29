@@ -157,10 +157,9 @@ pub(crate) fn spawn_health_checker<H>(
         debug!(%agent_id, "starting to check health with the configured checker");
         match health_checker.check_health() {
             Ok(health) => publish_health_event(&health_publisher, health.into()),
-            Err(e) => {
-                let last_error_msg = e.to_string();
-                debug!(%agent_id, last_error = last_error_msg, "the configured health check failed");
-                publish_health_event(&health_publisher, Unhealthy::from(e).into())
+            Err(err) => {
+                debug!(%agent_id, last_error = %err, "the configured health check failed");
+                publish_health_event(&health_publisher, Unhealthy::from(err).into())
             }
         }
     });

@@ -69,7 +69,7 @@ impl Runner {
                     maybe_opamp_client_config,
                 ))
                 .inspect_err(|err| {
-                    error!(error_msg = err.to_string(), "error running status server");
+                    error!(error_msg = %err, "error running status server");
                 });
 
             // Wait until the bridge is closed
@@ -83,9 +83,9 @@ impl Runner {
                 Ok(_) => {
                     //do nothing
                 }
-                Err(e) => {
+                Err(err) => {
                     debug!(
-                        error_msg = e.to_string(),
+                        error_msg = %err,
                         "http server event drain processor closed"
                     );
                     break;
