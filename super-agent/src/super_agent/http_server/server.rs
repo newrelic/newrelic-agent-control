@@ -46,27 +46,27 @@ pub async fn run_status_server(
 
     debug!("spawning thread for status server");
     let status_clone = status.clone();
-    let server_join_handle = rt.spawn(run_server(
-        server_config,
-        server_handle_publisher,
-        status_clone,
-    ));
-
-    // Get the Server Handle so we can stop it later
-    let server_handle = server_handle_consumer.recv()?;
+    let server_join_handle = rt.spawn(async {
+        let _ = run_server(server_config, server_handle_publisher, status_clone)
+            .await
+            .inspect_err(|err| {
+                error!(error_msg = %err, "starting HTTP server");
+            });
+    });
 
     debug!("waiting for the event_join_handle");
     event_join_handle.await?;
     debug!("event_join_handle succeeded");
 
-    debug!("stopping status server");
-    server_handle.stop(true).await;
-    debug!("status server stopped succeeded");
+    // The server could have failed to start and in that case the channel will be closed.
+    if let Ok(server_handle) = server_handle_consumer.recv() {
+        debug!("stopping status server");
+        server_handle.stop(true).await;
+        debug!("status server stopped succeeded");
+    }
 
     debug!("waiting for status server join handle");
-    _ = server_join_handle
-        .await?
-        .inspect_err(|e| error!(error_msg = e.to_string(), "error in server_join_handle"));
+    server_join_handle.await?;
 
     Ok(())
 }

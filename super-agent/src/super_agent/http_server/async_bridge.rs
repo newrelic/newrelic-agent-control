@@ -14,16 +14,16 @@ pub fn run_async_sync_bridge(
     thread::spawn(move || loop {
         match super_agent_consumer.as_ref().recv() {
             Ok(super_agent_event) => {
-                let _ = async_publisher.send(super_agent_event).inspect_err(|e| {
+                let _ = async_publisher.send(super_agent_event).inspect_err(|err| {
                     error!(
-                        error_msg = e.to_string(),
+                        error_msg = %err,
                         "cannot forward super agent event"
                     );
                 });
             }
-            Err(e) => {
+            Err(err) => {
                 debug!(
-                    error_msg = e.to_string(),
+                    error_msg = %err,
                     "status server bridge channel closed"
                 );
                 break;

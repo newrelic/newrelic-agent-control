@@ -97,9 +97,9 @@ impl AgentCallbacks {
         let _ = self
             .publisher
             .publish(OpAMPEvent::Connected)
-            .inspect_err(|e| {
+            .inspect_err(|err| {
                 error!(
-                    error_msg = e.to_string(),
+                    error_msg = %err,
                     "error publishing opamp_event.connected"
                 )
             });
@@ -115,10 +115,10 @@ impl AgentCallbacks {
         let _ = self
             .publisher
             .publish(OpAMPEvent::ConnectFailed(code, reason))
-            .inspect_err(|e| {
+            .inspect_err(|err| {
                 error!(
                     %self.agent_id,
-                    error_msg = e.to_string(),
+                    error_msg = %err,
                     "error publishing opamp_event.connected"
                 )
             });

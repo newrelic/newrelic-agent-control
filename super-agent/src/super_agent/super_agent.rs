@@ -218,9 +218,9 @@ where
             <<S as SubAgentBuilder>::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
     ) -> Result<(), AgentError> {
-        let _ = self
-            .report_healthy(Healthy::default())
-            .inspect_err(|e| error!("Error reporting health on Super Agent start: {}", e));
+        let _ = self.report_healthy(Healthy::default()).inspect_err(
+            |err| error!(error_msg = %err,"Error reporting health on Super Agent start"),
+        );
 
         debug!("Listening for events from agents");
         let never_receive = EventConsumer::from(never());
@@ -233,17 +233,17 @@ where
                     match opamp_event.unwrap() {
                         OpAMPEvent::RemoteConfigReceived(remote_config) => {
                             let _ = self.remote_config(remote_config, sub_agent_publisher.clone(), &mut sub_agents )
-                            .inspect_err(|e| error!("Error processing valid remote config: {}", e));
+                            .inspect_err(|err| error!(error_msg = %err,"Error processing valid remote config"));
                         }
                         OpAMPEvent::Connected => {
                             let _ = self.super_agent_publisher
                             .publish(SuperAgentEvent::OpAMPConnected)
-                            .inspect_err(|e| error!(error_msg = e.to_string(),"cannot publish super_agent_event::super_agent_opamp_connected"));
+                            .inspect_err(|err| error!(error_msg = %err,"cannot publish super_agent_event::super_agent_opamp_connected"));
                         }
                         OpAMPEvent::ConnectFailed(error_code, error_message) => {
                             let _ = self.super_agent_publisher
                             .publish(SuperAgentEvent::OpAMPConnectFailed(error_code, error_message))
-                            .inspect_err(|e| error!(error_msg = e.to_string(),"cannot publish super_agent_event::super_agent_opamp_connect_failed"));
+                            .inspect_err(|err| error!(error_msg = %err,"cannot publish super_agent_event::super_agent_opamp_connect_failed"));
                         }
                     }
                 },
@@ -252,7 +252,7 @@ where
 
                     let _ = self.super_agent_publisher
                     .publish(SuperAgentEvent::SuperAgentStopped)
-                    .inspect_err(|e| error!(error_msg = e.to_string(),"cannot publish super_agent_event::super_agent_stopped"));
+                    .inspect_err(|err| error!(error_msg = %err,"cannot publish super_agent_event::super_agent_stopped"));
 
                     break sub_agents.stop()?;
                 },
@@ -278,7 +278,7 @@ where
 
                                     let _ = self.super_agent_publisher
                                     .publish(SuperAgentEvent::SubAgentBecameHealthy(agent_id,sub_agent.agent_type(), healthy))
-                                    .inspect_err(|e| error!(error_msg = e.to_string(),"cannot publish super_agent_event.sub_agent_became_healthy"));
+                                    .inspect_err(|err| error!(error_msg = %err,"cannot publish super_agent_event.sub_agent_became_healthy"));
                                 },
                                 SubAgentEvent::SubAgentBecameUnhealthy(agent_id, unhealthy) => {
                                     debug!(agent_id = agent_id.to_string(), error_message = unhealthy.last_error() ,"sub agent is unhealthy");
@@ -289,7 +289,7 @@ where
 
                                     let _ = self.super_agent_publisher
                                     .publish(SuperAgentEvent::SubAgentBecameUnhealthy(agent_id,sub_agent.agent_type(), unhealthy))
-                                    .inspect_err(|e| error!(error_msg = e.to_string(),"cannot publish super_agent_event.sub_agent_became_unhealthy"));
+                                    .inspect_err(|err| error!(error_msg = %err,"cannot publish super_agent_event.sub_agent_became_unhealthy"));
                                 },
                             }
                         }
@@ -374,9 +374,9 @@ where
                     let _ = self
                         .super_agent_publisher
                         .publish(SuperAgentEvent::SubAgentRemoved(agent_id.clone()))
-                        .inspect_err(|e| {
+                        .inspect_err(|err| {
                             error!(
-                                error_msg = e.to_string(),
+                                error_msg = %err,
                                 "cannot publish super_agent_event.sub_agent_removed"
                             )
                         });
