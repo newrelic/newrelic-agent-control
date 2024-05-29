@@ -27,8 +27,7 @@ pub async fn check_config_map_exist(
 ) -> Result<(), Box<dyn Error>> {
     let api: Api<ConfigMap> = Api::namespaced(k8s_client.clone(), namespace);
 
-    let _ = api
-        .get(name)
+    api.get(name)
         .await
         .map_err(|err| format!("ConfigMap {name} not found: {err}"))?;
 
