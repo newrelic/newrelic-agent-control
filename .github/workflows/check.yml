@@ -66,7 +66,7 @@ jobs:
           components: clippy
 
       - name: cargo clippy ${{ matrix.package }}
-        run: cargo clippy --package ${{ matrix.package }} --message-format=json --tests -- -D clippy::all
+        run: cargo clippy --package ${{ matrix.package }} --tests -- -D clippy::all
 
   clippy_super_agent:
     runs-on: ubuntu-latest
@@ -96,7 +96,7 @@ jobs:
           components: clippy
 
       - name: cargo clippy super agent (${{ matrix.feature }})
-        run: cargo clippy --package newrelic_super_agent --features=${{ matrix.feature }} --message-format=json --tests -- -D clippy::all
+        run: cargo clippy --package newrelic_super_agent --features=${{ matrix.feature }} --tests -- -D clippy::all
 
   doc:
     runs-on: ubuntu-latest
