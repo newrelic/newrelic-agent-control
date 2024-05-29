@@ -12,7 +12,7 @@ use url::Url;
 
 use newrelic_super_agent::opamp::http::builder::{HttpClientBuilder, UreqHttpClientBuilder};
 use newrelic_super_agent::super_agent::config::{
-    AuthConfig, LocalProviderConfig, OpAMPClientConfig, Provider,
+    AuthConfig, LocalConfig, OpAMPClientConfig, ProviderConfig,
 };
 use nr_auth::token::{AccessToken, Token, TokenType};
 use nr_auth::token_retriever::TokenRetrieverDefault;

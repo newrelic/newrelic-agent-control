@@ -7,13 +7,14 @@ use http::HeaderMap;
 use kube::api::TypeMeta;
 use nr_auth::ClientID;
 use opamp_client::operation::capabilities::Capabilities;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::{collections::HashMap, fmt::Display};
 use thiserror::Error;
 use url::Url;
 
+use super::defaults::{AUTH_PUB_KEY_FILE_NAME, SUPER_AGENT_LOCAL_DATA_DIR};
 use super::http_server::config::ServerConfig;
 
 const AGENT_ID_MAX_LENGTH: usize = 32;
@@ -249,24 +250,49 @@ pub struct AuthConfig {
     /// Auth client id associated with the provided key.
     pub client_id: ClientID,
     /// Method to sign the client secret used to retrieve the access token.
-    #[serde(flatten)]
-    pub provider: Provider,
+    #[serde(flatten, deserialize_with = "deserialize_default_provider")]
+    pub provider: ProviderConfig,
+}
+
+// This is a workaround for a bug on serde not being able to use default on flattened fields.
+// https://github.com/serde-rs/serde/issues/1879
+fn deserialize_default_provider<'de, D>(deserializer: D) -> Result<ProviderConfig, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let meta = Option::<ProviderConfig>::deserialize(deserializer)?;
+    Ok(meta.unwrap_or(ProviderConfig::default()))
 }
 
 /// Supported access token request signers methods
 #[derive(Debug, Deserialize, PartialEq, Clone)]
-#[serde(tag = "provider_type")]
-pub enum Provider {
+#[serde(tag = "provider")]
+pub enum ProviderConfig {
     #[serde(rename = "local")]
-    LocalProviderConfig(LocalProviderConfig),
+    Local(LocalConfig),
+}
+
+impl Default for ProviderConfig {
+    fn default() -> Self {
+        Self::Local(LocalConfig::default())
+    }
 }
 
 /// Uses a local private key to sign the access token request.
 #[derive(Debug, Deserialize, PartialEq, Clone)]
-#[serde(deny_unknown_fields)]
-pub struct LocalProviderConfig {
+#[serde(default, deny_unknown_fields)]
+pub struct LocalConfig {
     /// Private key absolute path.
     pub private_key_path: PathBuf,
+}
+
+impl Default for LocalConfig {
+    fn default() -> Self {
+        Self {
+            private_key_path: PathBuf::from(SUPER_AGENT_LOCAL_DATA_DIR())
+                .join(AUTH_PUB_KEY_FILE_NAME()),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
@@ -468,8 +494,17 @@ opamp:
   auth_config:
     token_url: "http://fake.com/oauth2/v1/token"
     client_id: "fake"
-    provider_type: "local"
+    provider: "local"
     private_key_path: "path/to/key"
+agents: {}
+"#;
+
+    const EXAMPLE_OPAMP_AUTH_DEFAULT: &str = r#"
+opamp:
+  endpoint: http://localhost:8080/some/path
+  auth_config:
+    token_url: "http://fake.com/oauth2/v1/token"
+    client_id: "fake"
 agents: {}
 "#;
 
@@ -688,5 +723,14 @@ agents: {}
     fn fleet_id_config() {
         let config = serde_yaml::from_str::<SuperAgentConfig>(SUPERAGENT_FLEET_ID).unwrap();
         assert_eq!(config.fleet_id, "123");
+    }
+
+    #[test]
+    fn default_auth() {
+        let config = serde_yaml::from_str::<SuperAgentConfig>(EXAMPLE_OPAMP_AUTH_DEFAULT).unwrap();
+        assert_eq!(
+            config.clone().opamp.unwrap().auth_config.unwrap().provider,
+            ProviderConfig::default()
+        );
     }
 }
