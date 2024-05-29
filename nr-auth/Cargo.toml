@@ -14,6 +14,7 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 jsonwebtoken = "9.3.0"
 ulid = { workspace = true, features = ["serde"] }
+url = { version = "2.5.0", features = ["serde"] }
 
 [dev-dependencies]
 assert_matches = { workspace = true }

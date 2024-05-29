@@ -1,60 +1,30 @@
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
+use url::Url;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
-    /// JWT ID. Required.
-    pub(crate) jti: Ulid,
-    /// Audience. Optional.
-    pub(crate) aud: String,
-    /// Expiration time (as UTC timestamp). Required.
-    pub(crate) exp: u64,
-    /// Issued at (as UTC timestamp). Optional.
-    pub(crate) iat: u64,
-    /// Issuer. Optional.
+    /// Issuer. Client ID will be used here.
     pub(crate) iss: String,
-    /// Not before (as UTC timestamp). Optional.
-    pub(crate) nbf: u64,
-    /// Subject (whom token refers to). Optional.
+    /// Subject (whom token refers to). Client ID will be used here.
     pub(crate) sub: String,
+    /// Audience. Full URL to the token generation endpoint.
+    pub(crate) aud: String,
+    /// JWT ID. Must not be re-used. Using ULID.
+    pub(crate) jti: Ulid,
+    /// Expiration time (as UTC timestamp).
+    pub(crate) exp: u64,
 }
 
 impl Claims {
     /// Create a new Claims instance
-    pub fn new(exp: u64) -> Self {
+    pub fn new(client_id: String, aud: Url, exp: u64) -> Self {
         Self {
-            jti: Ulid::new(),
-            aud: String::new(),
+            iss: client_id.clone(),
+            sub: client_id,
+            aud: aud.to_string(),
+            jti: Ulid::new(), // Non-reusable JWT ID
             exp,
-            iat: 0,
-            iss: String::new(),
-            nbf: 0,
-            sub: String::new(),
         }
-    }
-
-    /// Set the audience
-    pub fn with_audience(self, aud: String) -> Self {
-        Self { aud, ..self }
-    }
-
-    /// Set the issued at
-    pub fn with_issued_at(self, iat: u64) -> Self {
-        Self { iat, ..self }
-    }
-
-    /// Set the issuer
-    pub fn with_issuer(self, iss: String) -> Self {
-        Self { iss, ..self }
-    }
-
-    /// Set the not before
-    pub fn with_not_before(self, nbf: u64) -> Self {
-        Self { nbf, ..self }
-    }
-
-    /// Set the subject
-    pub fn with_subject(self, sub: String) -> Self {
-        Self { sub, ..self }
     }
 }

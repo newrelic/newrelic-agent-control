@@ -74,6 +74,7 @@ impl JwtSigner for LocalPrivateKeySigner {
 mod test {
     use super::*;
     use jsonwebtoken::{get_current_timestamp, DecodingKey, Validation};
+    use url::Url;
 
     const ED25519_PRIVATE_KEY: &str = r#"-----BEGIN PRIVATE KEY-----
 MC4CAQAwBQYDK2VwBCIEIDsQN721qUT+IHzmkDDx6+Oqwi83yLhznh7tmjnrCdW1
@@ -85,15 +86,21 @@ MCowBQYDK2VwAyEAUm7btVmPKCeaBDWIWUz5rL5hUkqlKPjX9z5kMfxgEns=
 
     #[test]
     fn local_private_key_signer_hmac() {
+        // Set expected claims content
+        let audience = Url::parse("http://127.0.0.1/").unwrap();
+        let client_id = "test"; // For both issuer and subject
+
         // Claims
-        let claims = Claims::new(get_current_timestamp())
-            .with_subject("test".to_owned())
-            .with_audience("test".to_owned());
+        let claims = Claims::new(
+            client_id.to_owned(),
+            audience.clone(),
+            get_current_timestamp(),
+        );
 
         // Validation
         let mut validation = Validation::new(Algorithm::HS256);
-        validation.sub = Some("test".to_owned());
-        validation.set_audience(&["test"]);
+        validation.sub = Some(client_id.to_owned());
+        validation.set_audience(&[audience.clone()]);
         validation.set_required_spec_claims(&["exp", "sub", "aud"]);
 
         // Create local signer
@@ -114,26 +121,33 @@ MCowBQYDK2VwAyEAUm7btVmPKCeaBDWIWUz5rL5hUkqlKPjX9z5kMfxgEns=
             &DecodingKey::from_secret(b"secret"),
             &validation,
         );
+
         // Assertions
         assert!(decoded.is_ok());
 
         let decoded_claims = decoded.unwrap().claims;
         assert_eq!(decoded_claims.sub, "test");
-        assert_eq!(decoded_claims.aud, "test");
+        assert_eq!(decoded_claims.aud, audience.to_string());
     }
 
     // Other algorithms that take PEM files should work the same way, so we only test this one.
     #[test]
     fn local_private_key_signer_pem_ecdsa() {
+        // Set expected claims content
+        let audience = Url::parse("http://127.0.0.1/").unwrap();
+        let client_id = "test"; // For both issuer and subject
+
         // Claims
-        let claims = Claims::new(get_current_timestamp())
-            .with_subject("test".to_owned())
-            .with_audience("test".to_owned());
+        let claims = Claims::new(
+            client_id.to_owned(),
+            audience.clone(),
+            get_current_timestamp(),
+        );
 
         // Validation
         let mut validation = Validation::new(Algorithm::EdDSA);
-        validation.sub = Some("test".to_owned());
-        validation.set_audience(&["test"]);
+        validation.sub = Some(client_id.to_owned());
+        validation.set_audience(&[audience.clone()]);
         validation.set_required_spec_claims(&["exp", "sub", "aud"]);
 
         // Create local signer
@@ -154,11 +168,12 @@ MCowBQYDK2VwAyEAUm7btVmPKCeaBDWIWUz5rL5hUkqlKPjX9z5kMfxgEns=
             &DecodingKey::from_ed_pem(ED25519_PUBLIC_KEY.as_bytes()).unwrap(),
             &validation,
         );
+
         // Assertions
         assert!(decoded.is_ok());
 
         let decoded_claims = decoded.unwrap().claims;
         assert_eq!(decoded_claims.sub, "test");
-        assert_eq!(decoded_claims.aud, "test");
+        assert_eq!(decoded_claims.aud, audience.to_string());
     }
 }
