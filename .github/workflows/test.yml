@@ -36,7 +36,7 @@ jobs:
         run: cargo generate-lockfile
 
       - name: Run tests config-migrate
-        run: cargo test --locked --package config-migrate --all-targets
+        run: cargo test --locked --package config-migrate --features=onhost --all-targets
 
       - name: Run tests fs
         run: cargo test --locked --package fs --all-targets
