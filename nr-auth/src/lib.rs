@@ -5,6 +5,8 @@ pub mod token_retriever;
 use crate::token::Token;
 use thiserror::Error;
 
+pub type ClientID = String;
+
 #[derive(Error, Debug)]
 pub enum TokenRetrieverError {
     #[error("not defined yet")]

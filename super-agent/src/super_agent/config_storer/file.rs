@@ -165,7 +165,7 @@ agents:
             .into(),
             opamp: Some(OpAMPClientConfig {
                 endpoint: Url::try_from("http://127.0.0.1/v1/opamp").unwrap(),
-                headers: HeaderMap::default(),
+                ..Default::default()
             }),
             k8s: None,
             ..Default::default()

@@ -83,7 +83,7 @@ pub(super) fn build_ureq_client() -> Agent {
 
 #[cfg(test)]
 pub(crate) mod test {
-    use http::{HeaderMap, Response};
+    use http::Response;
     use mockall::mock;
     use opamp_client::http::HttpClientError;
     use opamp_client::operation::settings::StartSettings;
@@ -117,10 +117,7 @@ pub(crate) mod test {
     fn test_default_http_client_builder() {
         let mut http_client = MockHttpClientMock::default();
         let mut http_builder = MockHttpClientBuilderMock::new();
-        let opamp_config = OpAMPClientConfig {
-            endpoint: "http://localhost".try_into().unwrap(),
-            headers: HeaderMap::default(),
-        };
+        let opamp_config = OpAMPClientConfig::default();
         let (tx, _rx) = pub_sub();
         let agent_id = AgentID::new_super_agent_id();
         let start_settings = StartSettings::default();
@@ -144,10 +141,7 @@ pub(crate) mod test {
     #[test]
     fn test_default_http_client_builder_error() {
         let mut http_builder = MockHttpClientBuilderMock::new();
-        let opamp_config = OpAMPClientConfig {
-            endpoint: "http://localhost".try_into().unwrap(),
-            headers: HeaderMap::default(),
-        };
+        let opamp_config = OpAMPClientConfig::default();
         let (tx, _rx) = pub_sub();
         let agent_id = AgentID::new_super_agent_id();
         let start_settings = StartSettings::default();
