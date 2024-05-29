@@ -61,6 +61,26 @@ where
     })
 }
 
+/// Return Kind of given object.
+pub fn get_kind<K>(_: &K) -> &str
+where
+    K: Resource<Scope = NamespaceResourceScope>,
+{
+    K::KIND
+}
+
+/// Helper to return an error when an expected field in the StatefulSet object is missing.
+pub fn missing_field_error<K>(obj: &K, name: &str, field: &str) -> HealthCheckerError
+where
+    K: Resource<Scope = NamespaceResourceScope>,
+{
+    HealthCheckerError::MissingK8sObjectField {
+        kind: get_kind(obj).to_string(),
+        name: name.to_string(),
+        field: field.to_string(),
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -178,5 +198,21 @@ mod test {
             HealthCheckerError::K8sError(Error::MissingName("DaemonSet".to_string())).to_string()
         );
         assert_eq!(daemon_set_name, "name".to_string());
+    }
+
+    #[test]
+    fn test_kind() {
+        // As it is a generic, I want to test with at least two different types.
+        // Let's start with a Deployment
+        let deployment = k8s_openapi::api::apps::v1::Deployment {
+            ..Default::default()
+        };
+        assert_eq!(get_kind(&deployment), "Deployment");
+
+        // Now a DaemonSet
+        let daemon_set = k8s_openapi::api::apps::v1::DaemonSet {
+            ..Default::default()
+        };
+        assert_eq!(get_kind(&daemon_set), "DaemonSet");
     }
 }

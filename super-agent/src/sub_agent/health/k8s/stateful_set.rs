@@ -7,8 +7,6 @@ use crate::sub_agent::health::health_checker::{
 use k8s_openapi::api::apps::v1::{StatefulSet, StatefulSetSpec};
 use std::sync::Arc;
 
-const STATEFUL_SET_KIND: &str = "StatefulSet";
-
 /// Represents a health checker for the StatefulSets or a release.
 pub struct K8sHealthStatefulSet {
     k8s_client: Arc<SyncK8sClient>,
@@ -43,11 +41,11 @@ impl K8sHealthStatefulSet {
         let spec = ss
             .spec
             .as_ref()
-            .ok_or(Self::missing_field_error(&name, "Spec"))?;
+            .ok_or(utils::missing_field_error(ss, &name, "Spec"))?;
         let status = ss
             .status
             .as_ref()
-            .ok_or_else(|| Self::missing_field_error(&name, "Status"))?;
+            .ok_or_else(|| utils::missing_field_error(ss, &name, "Status"))?;
 
         let partition = Self::partition(spec).unwrap_or(0);
         let replicas = spec.replicas.unwrap_or(1);
@@ -64,7 +62,7 @@ impl K8sHealthStatefulSet {
 
         let updated_replicas = status
             .updated_replicas
-            .ok_or_else(|| Self::missing_field_error(&name, "Status.UpdatedReplicas"))?;
+            .ok_or_else(|| utils::missing_field_error(ss, &name, "Status.UpdatedReplicas"))?;
         if updated_replicas < expected_replicas {
             return Ok(Health::unhealthy_with_last_error(format!(
                         "StatefulSets `{}` not ready: updated_replicas `{}` fewer than expected_replicas `{}`",
@@ -76,7 +74,7 @@ impl K8sHealthStatefulSet {
 
         let ready_replicas = status
             .ready_replicas
-            .ok_or_else(|| Self::missing_field_error(&name, "Status.ReadyReplicas"))?;
+            .ok_or_else(|| utils::missing_field_error(ss, &name, "Status.ReadyReplicas"))?;
         if replicas != ready_replicas {
             return Ok(Health::unhealthy_with_last_error(format!(
                 "StatefulSets `{}` not ready: replicas `{}` different from ready_replicas `{}`",
@@ -93,15 +91,6 @@ impl K8sHealthStatefulSet {
         }
 
         Ok(Healthy::default().into())
-    }
-
-    /// Helper to return an error when an expected field in the StatefulSet object is missing.
-    fn missing_field_error(name: &str, field: &str) -> HealthCheckerError {
-        HealthCheckerError::MissingK8sObjectField {
-            kind: STATEFUL_SET_KIND.to_string(),
-            name: name.to_string(),
-            field: field.to_string(),
-        }
     }
 
     /// Gets the partition from the stateful_set spec.

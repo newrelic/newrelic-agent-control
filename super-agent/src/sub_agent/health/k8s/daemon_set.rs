@@ -15,7 +15,6 @@ enum UpdateStrategyType {
 
 const ROLLING_UPDATE: &str = "RollingUpdate";
 const ON_DELETE: &str = "OnDelete";
-const DAEMON_SET_KIND: &str = "DaemonSet";
 
 #[derive(Debug, thiserror::Error, PartialEq)]
 #[error("Unknown Update Strategy Type: '{0}'")]
@@ -79,10 +78,10 @@ impl K8sHealthDaemonSet {
         let update_strategy = Self::get_daemon_set_update_strategy(name.as_str(), ds)?;
 
         let update_strategy_type = UpdateStrategyType::try_from(
-            Self::get_daemon_set_rolling_update_type(name.as_str(), &update_strategy)?,
+            Self::get_daemon_set_rolling_update_type(name.as_str(), ds, &update_strategy)?,
         )
         .map_err(|err| HealthCheckerError::InvalidK8sObject {
-            kind: DAEMON_SET_KIND.to_string(),
+            kind: utils::get_kind(ds).into(),
             name: name.to_string(),
             err: format!("unexpected value for .spec.updateStrategy.type: {err}"),
         })?;
@@ -96,7 +95,11 @@ impl K8sHealthDaemonSet {
             }
             UpdateStrategyType::RollingUpdate => {
                 update_strategy.rolling_update.ok_or_else(|| {
-                    Self::missing_field_error(name.as_str(), ".spec.updateStrategy.rollingUpdate")
+                    utils::missing_field_error(
+                        ds,
+                        name.as_str(),
+                        ".spec.updateStrategy.rollingUpdate",
+                    )
                 })?
             }
         };
@@ -127,7 +130,7 @@ impl K8sHealthDaemonSet {
             Some(value) => IntOrPercentage::try_from(value)
                 .map_err(|err| {
                     HealthCheckerError::InvalidK8sObject{
-                        kind: DAEMON_SET_KIND.to_string(),
+                        kind: utils::get_kind(ds).into(),
                         name: name.to_string(),
                         err: format!("unexpected value for .spec.updateStrategy.rollingUpdate.maxUnavailable: {err}"),
                     }
@@ -149,14 +152,6 @@ impl K8sHealthDaemonSet {
         )))
     }
 
-    fn missing_field_error(name: &str, field: &str) -> HealthCheckerError {
-        HealthCheckerError::MissingK8sObjectField {
-            kind: DAEMON_SET_KIND.to_string(),
-            name: name.to_string(),
-            field: field.to_string(),
-        }
-    }
-
     fn healthy(s: String) -> Health {
         Healthy { status: s }.into()
     }
@@ -176,7 +171,7 @@ impl K8sHealthDaemonSet {
         daemon_set
             .status
             .clone()
-            .ok_or_else(|| Self::missing_field_error(name, ".status"))
+            .ok_or_else(|| utils::missing_field_error(daemon_set, name, ".status"))
     }
 
     fn get_daemon_set_update_strategy(
@@ -186,19 +181,19 @@ impl K8sHealthDaemonSet {
         daemon_set
             .spec
             .clone()
-            .ok_or_else(|| Self::missing_field_error(name, ".spec"))?
+            .ok_or_else(|| utils::missing_field_error(daemon_set, name, ".spec"))?
             .update_strategy
-            .ok_or_else(|| Self::missing_field_error(name, ".spec.updateStrategy"))
+            .ok_or_else(|| utils::missing_field_error(daemon_set, name, ".spec.updateStrategy"))
     }
 
     fn get_daemon_set_rolling_update_type(
         name: &str,
+        daemon_set: &DaemonSet,
         update_strategy: &DaemonSetUpdateStrategy,
     ) -> Result<String, HealthCheckerError> {
-        update_strategy
-            .type_
-            .clone()
-            .ok_or_else(|| Self::missing_field_error(name, ".spec.updateStrategy.Type"))
+        update_strategy.type_.clone().ok_or_else(|| {
+            utils::missing_field_error(daemon_set, name, ".spec.updateStrategy.Type")
+        })
     }
 }
 
@@ -257,7 +252,7 @@ pub mod test {
                     status: None,
                 },
                 expected: HealthCheckerError::K8sError(crate::k8s::error::K8sError::MissingName(
-                    DAEMON_SET_KIND.to_string(),
+                    test_util_get_daemon_set_kind(),
                 )),
             },
             TestCase {
@@ -310,7 +305,7 @@ pub mod test {
                     }),
                 },
                 expected: HealthCheckerError::InvalidK8sObject {
-                    kind: DAEMON_SET_KIND.to_string(),
+                    kind: test_util_get_daemon_set_kind(),
                     name: daemon_set_name(),
                     err: "unexpected value for .spec.updateStrategy.type: Unknown Update Strategy Type: 'Unknown-TEST'".to_string(),
                 },
@@ -353,7 +348,7 @@ pub mod test {
                     }),
                 },
                 expected: HealthCheckerError::InvalidK8sObject{
-                    kind: DAEMON_SET_KIND.to_string(),
+                    kind: test_util_get_daemon_set_kind(),
                     name: daemon_set_name(),
                     err: "unexpected value for .spec.updateStrategy.rollingUpdate.maxUnavailable: invalid digit found in string".to_string(),
                 },
@@ -677,9 +672,19 @@ pub mod test {
 
     fn test_util_missing_field(field: &str) -> HealthCheckerError {
         HealthCheckerError::MissingK8sObjectField {
-            kind: DAEMON_SET_KIND.to_string(),
+            kind: test_util_get_daemon_set_kind(),
             name: daemon_set_name(),
             field: field.to_string(),
         }
+    }
+
+    fn test_util_get_empty_daemon_set() -> DaemonSet {
+        DaemonSet {
+            ..Default::default()
+        }
+    }
+
+    fn test_util_get_daemon_set_kind() -> String {
+        utils::get_kind(&test_util_get_empty_daemon_set()).into()
     }
 }

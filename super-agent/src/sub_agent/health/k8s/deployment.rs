@@ -11,7 +11,6 @@ use std::sync::Arc;
 use super::utils::{self, check_health_for_items, flux_release_filter};
 
 const ROLLING_UPDATE: &str = "RollingUpdate";
-const DEPLOYMENT_KIND: &str = "Deployment";
 
 pub struct K8sHealthDeployment {
     k8s_client: Arc<SyncK8sClient>,
@@ -30,7 +29,7 @@ impl HealthChecker for K8sHealthDeployment {
             let deployment: &Deployment = &arc_deployment; // Dereferencing the Arc so it is usable by generics.
             let name = utils::get_metadata_name(deployment)?;
 
-            self.latest_replica_set_for_deployment(name.as_str())
+            self.latest_replica_set_for_deployment(deployment, name.as_str())
                 .map(|replica_set| Self::check_deployment_health(arc_deployment, replica_set))
                 .unwrap_or_else(|| {
                     Ok(Health::unhealthy_with_last_error(format!(
@@ -49,14 +48,6 @@ impl K8sHealthDeployment {
         }
     }
 
-    fn missing_field_error(name: &str, field: &str) -> HealthCheckerError {
-        HealthCheckerError::MissingK8sObjectField {
-            kind: DEPLOYMENT_KIND.to_string(),
-            name: name.to_string(),
-            field: field.to_string(),
-        }
-    }
-
     /// Checks the health of a specific deployment and its associated ReplicaSet.
     pub fn check_deployment_health(
         arc_deployment: Arc<Deployment>,
@@ -69,12 +60,12 @@ impl K8sHealthDeployment {
         let status = deployment
             .status
             .as_ref()
-            .ok_or_else(|| Self::missing_field_error(&name, "status"))?;
+            .ok_or_else(|| utils::missing_field_error(deployment, &name, "status"))?;
 
         let spec = deployment
             .spec
             .as_ref()
-            .ok_or_else(|| Self::missing_field_error(&name, "spec"))?;
+            .ok_or_else(|| utils::missing_field_error(deployment, &name, "spec"))?;
 
         // If the deployment is paused, consider it unhealthy
         if let Some(true) = spec.paused {
@@ -86,9 +77,9 @@ impl K8sHealthDeployment {
 
         let replicas = status
             .replicas
-            .ok_or_else(|| Self::missing_field_error(&name, "status.replicas"))?;
+            .ok_or_else(|| utils::missing_field_error(deployment, &name, "status.replicas"))?;
 
-        let max_unavailable = Self::max_unavailable(&name, spec)?;
+        let max_unavailable = Self::max_unavailable(deployment, &name, spec)?;
 
         let expected_ready = replicas.checked_sub(max_unavailable).ok_or_else(|| {
             HealthCheckerError::Generic(format!(
@@ -100,11 +91,11 @@ impl K8sHealthDeployment {
         let rs_status = rs
             .status
             .as_ref()
-            .ok_or_else(|| Self::missing_field_error(&name, "replica set status"))?;
+            .ok_or_else(|| utils::missing_field_error(deployment, &name, "replica set status"))?;
 
         let ready_replicas = rs_status
             .ready_replicas
-            .ok_or_else(|| Self::missing_field_error(&name, "ready replicas"))?;
+            .ok_or_else(|| utils::missing_field_error(deployment, &name, "ready replicas"))?;
 
         if ready_replicas < expected_ready {
             return Ok(Health::unhealthy_with_last_error(format!(
@@ -118,14 +109,15 @@ impl K8sHealthDeployment {
 
     /// Calculates the maximum number of unavailable pods during a rolling update.
     fn max_unavailable(
+        deployment: &Deployment,
         metadata_name: &str,
         spec: &DeploymentSpec,
     ) -> Result<i32, HealthCheckerError> {
-        let replicas = spec
-            .replicas
-            .ok_or_else(|| Self::missing_field_error(metadata_name, "spec.replicas"))?;
+        let replicas = spec.replicas.ok_or_else(|| {
+            utils::missing_field_error(deployment, metadata_name, "spec.replicas")
+        })?;
 
-        if !Self::is_rolling_update(metadata_name, spec)? || replicas == 0 {
+        if !Self::is_rolling_update(deployment, metadata_name, spec)? || replicas == 0 {
             return Ok(0);
         }
 
@@ -136,26 +128,30 @@ impl K8sHealthDeployment {
         let max_surge = rolling_update_strategy.and_then(|ru| ru.max_surge.as_ref());
         let max_unavailable = rolling_update_strategy.and_then(|ru| ru.max_unavailable.as_ref());
 
-        let max_unavailable =
-            Self::resolve_fenceposts(max_surge, max_unavailable, metadata_name, replicas)?;
+        let max_unavailable = Self::resolve_fenceposts(
+            deployment,
+            max_surge,
+            max_unavailable,
+            metadata_name,
+            replicas,
+        )?;
 
         Ok(max_unavailable.min(replicas))
     }
 
     /// Checks if the deployment strategy is a rolling update.
     fn is_rolling_update(
+        deployment: &Deployment,
         metadata_name: &str,
         spec: &DeploymentSpec,
     ) -> Result<bool, HealthCheckerError> {
-        let strategy = spec
-            .strategy
-            .as_ref()
-            .ok_or_else(|| Self::missing_field_error(metadata_name, "spec.strategy"))?;
+        let strategy = spec.strategy.as_ref().ok_or_else(|| {
+            utils::missing_field_error(deployment, metadata_name, "spec.strategy")
+        })?;
 
-        let type_ = strategy
-            .type_
-            .as_deref()
-            .ok_or_else(|| Self::missing_field_error(metadata_name, "spec.strategy.type"))?;
+        let type_ = strategy.type_.as_deref().ok_or_else(|| {
+            utils::missing_field_error(deployment, metadata_name, "spec.strategy.type")
+        })?;
 
         Ok(type_ == ROLLING_UPDATE)
     }
@@ -165,14 +161,22 @@ impl K8sHealthDeployment {
     /// Ensures the calculated value is within reasonable bounds and defaults to 1 if both
     /// max_surge and max_unavailable resolve to zero.
     fn resolve_fenceposts(
+        deployment: &Deployment,
         max_surge: Option<&IntOrString>,
         max_unavailable: Option<&IntOrString>,
         name: &str,
         desired: i32,
     ) -> Result<i32, HealthCheckerError> {
-        let surge = Self::int_or_string_to_value(max_surge, name, "max_surge", desired, true)?;
-        let unavailable =
-            Self::int_or_string_to_value(max_unavailable, name, "max_unavailable", desired, false)?;
+        let surge =
+            Self::int_or_string_to_value(deployment, max_surge, name, "max_surge", desired, true)?;
+        let unavailable = Self::int_or_string_to_value(
+            deployment,
+            max_unavailable,
+            name,
+            "max_unavailable",
+            desired,
+            false,
+        )?;
 
         // Validation should never allow zero values for both max_surge and max_unavailable.
         // If both resolve to zero, set unavailable to 1 to ensure proper functionality.
@@ -185,6 +189,7 @@ impl K8sHealthDeployment {
 
     /// Converts an IntOrString to its scaled value based on the total desired pods.
     fn int_or_string_to_value(
+        deployment: &Deployment,
         int_or_string: Option<&IntOrString>,
         name: &str,
         field: &str,
@@ -196,7 +201,7 @@ impl K8sHealthDeployment {
                 let int_or_percentage =
                     IntOrPercentage::try_from(value.clone()).map_err(|err| {
                         HealthCheckerError::InvalidK8sObject {
-                            kind: DEPLOYMENT_KIND.to_string(),
+                            kind: utils::get_kind(deployment).into(),
                             name: name.to_string(),
                             err: format!("Invalid IntOrString value: {}", err),
                         }
@@ -204,7 +209,7 @@ impl K8sHealthDeployment {
 
                 Ok(int_or_percentage.scaled_value(desired, round_up))
             }
-            None => Err(K8sHealthDeployment::missing_field_error(name, field)),
+            None => Err(utils::missing_field_error(deployment, name, field)),
         }
     }
 
@@ -213,16 +218,20 @@ impl K8sHealthDeployment {
     /// especially during rollouts and updates. This function retrieves all ReplicaSets
     /// associated with the specified Deployment and returns the newest one based on the
     /// creation timestamp.
-    fn latest_replica_set_for_deployment(&self, deployment_name: &str) -> Option<Arc<ReplicaSet>> {
+    fn latest_replica_set_for_deployment(
+        &self,
+        deployment: &Deployment,
+        deployment_name: &str,
+    ) -> Option<Arc<ReplicaSet>> {
         // Filter the list of ReplicaSets referencing to the deployment
         let mut replica_sets: Vec<Arc<ReplicaSet>> = self
             .k8s_client
             .list_replica_set()
             .into_iter()
             .filter(|rs| match &rs.metadata.owner_references {
-                Some(owner_refereces) => owner_refereces
-                    .iter()
-                    .any(|owner| owner.kind == DEPLOYMENT_KIND && owner.name == deployment_name),
+                Some(owner_refereces) => owner_refereces.iter().any(|owner| {
+                    owner.kind == utils::get_kind(deployment) && owner.name == deployment_name
+                }),
                 None => false,
             })
             .collect();
@@ -292,13 +301,13 @@ mod test {
             TestCase {
                 name: "Deployment ready",
                 deployment: Deployment {
-                    metadata: create_metadata("test-deployment"),
-                    spec: Some(create_deployment_spec(10, "30%", "20%")),
-                    status: Some(create_deployment_status(10)),
+                    metadata: test_util_create_metadata("test-deployment"),
+                    spec: Some(test_util_create_deployment_spec(10, "30%", "20%")),
+                    status: Some(test_util_create_deployment_status(10)),
                 },
                 rs: Some(ReplicaSet {
-                    metadata: create_metadata("test-rs"),
-                    status: Some(create_replica_set_status(8)),
+                    metadata: test_util_create_metadata("test-rs"),
+                    status: Some(test_util_create_replica_set_status(8)),
                     ..Default::default()
                 }),
                 expected: Healthy::default().into(),
@@ -306,13 +315,13 @@ mod test {
             TestCase {
                 name: "Deployment not ready",
                 deployment: Deployment {
-                    metadata: create_metadata("test-deployment"),
-                    spec: Some(create_deployment_spec(10, "30%", "20%")),
-                    status: Some(create_deployment_status(10)),
+                    metadata: test_util_create_metadata("test-deployment"),
+                    spec: Some(test_util_create_deployment_spec(10, "30%", "20%")),
+                    status: Some(test_util_create_deployment_status(10)),
                 },
                 rs: Some(ReplicaSet {
-                    metadata: create_metadata("test-rs"),
-                    status: Some(create_replica_set_status(6)),
+                    metadata: test_util_create_metadata("test-rs"),
+                    status: Some(test_util_create_replica_set_status(6)),
                     ..Default::default()
                 }),
                 expected: Health::unhealthy_with_last_error(
@@ -323,16 +332,16 @@ mod test {
             TestCase {
                 name: "Deployment paused",
                 deployment: Deployment {
-                    metadata: create_metadata("test-deployment"),
+                    metadata: test_util_create_metadata("test-deployment"),
                     spec: Some(DeploymentSpec {
                         paused: Some(true),
-                        ..create_deployment_spec(10, "30%", "20%")
+                        ..test_util_create_deployment_spec(10, "30%", "20%")
                     }),
-                    status: Some(create_deployment_status(10)),
+                    status: Some(test_util_create_deployment_status(10)),
                 },
                 rs: Some(ReplicaSet {
-                    metadata: create_metadata("test-rs"),
-                    status: Some(create_replica_set_status(8)),
+                    metadata: test_util_create_metadata("test-rs"),
+                    status: Some(test_util_create_replica_set_status(8)),
                     ..Default::default()
                 }),
                 expected: Health::unhealthy_with_last_error(
@@ -342,9 +351,9 @@ mod test {
             TestCase {
                 name: "No ReplicaSet found",
                 deployment: Deployment {
-                    metadata: create_metadata("test-deployment"),
-                    spec: Some(create_deployment_spec(10, "30%", "20%")),
-                    status: Some(create_deployment_status(10)),
+                    metadata: test_util_create_metadata("test-deployment"),
+                    spec: Some(test_util_create_deployment_spec(10, "30%", "20%")),
+                    status: Some(test_util_create_deployment_status(10)),
                 },
                 rs: None,
                 expected: Health::unhealthy_with_last_error(
@@ -395,7 +404,7 @@ mod test {
                     ..Default::default()
                 },
                 rs: ReplicaSet {
-                    metadata: create_metadata("test-rs"),
+                    metadata: test_util_create_metadata("test-rs"),
                     ..Default::default()
                 },
                 expected_err: HealthCheckerError::Generic(
@@ -405,44 +414,53 @@ mod test {
             TestCase {
                 name: "Deployment without status",
                 deployment: Deployment {
-                    metadata: create_metadata("test-deployment"),
-                    spec: Some(create_deployment_spec(10, "30%", "20%")),
+                    metadata: test_util_create_metadata("test-deployment"),
+                    spec: Some(test_util_create_deployment_spec(10, "30%", "20%")),
                     status: None,
                 },
                 rs: ReplicaSet {
-                    metadata: create_metadata("test-rs"),
+                    metadata: test_util_create_metadata("test-rs"),
                     ..Default::default()
                 },
-                expected_err: K8sHealthDeployment::missing_field_error("test-deployment", "status"),
+                expected_err: utils::missing_field_error(
+                    &test_util_get_empty_deployment(),
+                    "test-deployment",
+                    "status",
+                ),
             },
             TestCase {
                 name: "Deployment without spec",
                 deployment: Deployment {
-                    metadata: create_metadata("test-deployment"),
+                    metadata: test_util_create_metadata("test-deployment"),
                     spec: None,
-                    status: Some(create_deployment_status(10)),
+                    status: Some(test_util_create_deployment_status(10)),
                 },
                 rs: ReplicaSet {
-                    metadata: create_metadata("test-rs"),
+                    metadata: test_util_create_metadata("test-rs"),
                     ..Default::default()
                 },
-                expected_err: K8sHealthDeployment::missing_field_error("test-deployment", "spec"),
+                expected_err: utils::missing_field_error(
+                    &test_util_get_empty_deployment(),
+                    "test-deployment",
+                    "spec",
+                ),
             },
             TestCase {
                 name: "Deployment without status.replicas",
                 deployment: Deployment {
-                    metadata: create_metadata("test-deployment"),
-                    spec: Some(create_deployment_spec(10, "30%", "20%")),
+                    metadata: test_util_create_metadata("test-deployment"),
+                    spec: Some(test_util_create_deployment_spec(10, "30%", "20%")),
                     status: Some(DeploymentStatus {
                         replicas: None,
                         ..Default::default()
                     }),
                 },
                 rs: ReplicaSet {
-                    metadata: create_metadata("test-rs"),
+                    metadata: test_util_create_metadata("test-rs"),
                     ..Default::default()
                 },
-                expected_err: K8sHealthDeployment::missing_field_error(
+                expected_err: utils::missing_field_error(
+                    &test_util_get_empty_deployment(),
                     "test-deployment",
                     "status.replicas",
                 ),
@@ -450,16 +468,17 @@ mod test {
             TestCase {
                 name: "ReplicaSet without status",
                 deployment: Deployment {
-                    metadata: create_metadata("test-deployment"),
-                    spec: Some(create_deployment_spec(10, "30%", "20%")),
-                    status: Some(create_deployment_status(10)),
+                    metadata: test_util_create_metadata("test-deployment"),
+                    spec: Some(test_util_create_deployment_spec(10, "30%", "20%")),
+                    status: Some(test_util_create_deployment_status(10)),
                 },
                 rs: ReplicaSet {
-                    metadata: create_metadata("test-rs"),
+                    metadata: test_util_create_metadata("test-rs"),
                     status: None,
                     ..Default::default()
                 },
-                expected_err: K8sHealthDeployment::missing_field_error(
+                expected_err: utils::missing_field_error(
+                    &test_util_get_empty_deployment(),
                     "test-deployment",
                     "replica set status",
                 ),
@@ -467,19 +486,20 @@ mod test {
             TestCase {
                 name: "ReplicaSet without status.ready_replicas",
                 deployment: Deployment {
-                    metadata: create_metadata("test-deployment"),
-                    spec: Some(create_deployment_spec(10, "30%", "20%")),
-                    status: Some(create_deployment_status(10)),
+                    metadata: test_util_create_metadata("test-deployment"),
+                    spec: Some(test_util_create_deployment_spec(10, "30%", "20%")),
+                    status: Some(test_util_create_deployment_status(10)),
                 },
                 rs: ReplicaSet {
-                    metadata: create_metadata("test-rs"),
+                    metadata: test_util_create_metadata("test-rs"),
                     status: Some(ReplicaSetStatus {
                         ready_replicas: None,
                         ..Default::default()
                     }),
                     ..Default::default()
                 },
-                expected_err: K8sHealthDeployment::missing_field_error(
+                expected_err: utils::missing_field_error(
+                    &test_util_get_empty_deployment(),
                     "test-deployment",
                     "ready replicas",
                 ),
@@ -514,7 +534,10 @@ mod test {
                     release_name: "release-name".to_string(),
                 };
 
-                let result = health_checker.latest_replica_set_for_deployment(DEPLOYMENT_NAME);
+                let result = health_checker.latest_replica_set_for_deployment(
+                    &test_util_get_empty_deployment(),
+                    DEPLOYMENT_NAME,
+                );
                 assert_eq!(
                     result.map(|rs| rs.metadata.clone().name.unwrap()),
                     expected,
@@ -532,15 +555,15 @@ mod test {
             TestCase {
                 name: "No matching replica-set",
                 replica_sets: vec![
-                    Arc::new(create_replica_set(
+                    Arc::new(test_util_create_replica_set(
                         "no-matching-kind",
-                        "no-deployment-kind",
+                        "no-deployment-kind".into(),
                         DEPLOYMENT_NAME,
                         None,
                     )),
-                    Arc::new(create_replica_set(
+                    Arc::new(test_util_create_replica_set(
                         "no-matching-name",
-                        DEPLOYMENT_KIND,
+                        test_util_get_deployment_kind(),
                         "no-matching-name",
                         None,
                     )),
@@ -551,15 +574,15 @@ mod test {
             TestCase {
                 name: "Only one matching",
                 replica_sets: vec![
-                    Arc::new(create_replica_set(
+                    Arc::new(test_util_create_replica_set(
                         "no-matching-name",
-                        DEPLOYMENT_KIND,
+                        test_util_get_deployment_kind(),
                         "no-matching-name",
                         None,
                     )),
-                    Arc::new(create_replica_set(
+                    Arc::new(test_util_create_replica_set(
                         "matching",
-                        DEPLOYMENT_KIND,
+                        test_util_get_deployment_kind(),
                         DEPLOYMENT_NAME,
                         None,
                     )),
@@ -569,31 +592,31 @@ mod test {
             TestCase {
                 name: "Matching latest",
                 replica_sets: vec![
-                    Arc::new(create_replica_set(
+                    Arc::new(test_util_create_replica_set(
                         "matching-1",
-                        DEPLOYMENT_KIND,
+                        test_util_get_deployment_kind(),
                         DEPLOYMENT_NAME,
                         Some(Time(
                             DateTime::<Utc>::from_str("2024-05-27 09:00:00 +00:00").unwrap(),
                         )),
                     )),
-                    Arc::new(create_replica_set(
+                    Arc::new(test_util_create_replica_set(
                         "no-matching-name",
-                        DEPLOYMENT_KIND,
+                        test_util_get_deployment_kind(),
                         "no-matching-name",
                         None,
                     )),
-                    Arc::new(create_replica_set(
+                    Arc::new(test_util_create_replica_set(
                         "matching-2",
-                        DEPLOYMENT_KIND,
+                        test_util_get_deployment_kind(),
                         DEPLOYMENT_NAME,
                         Some(Time(
                             DateTime::<Utc>::from_str("2024-05-27 10:00:00 +00:00").unwrap(),
                         )),
                     )),
-                    Arc::new(create_replica_set(
+                    Arc::new(test_util_create_replica_set(
                         "matching-3",
-                        DEPLOYMENT_KIND,
+                        test_util_get_deployment_kind(),
                         DEPLOYMENT_NAME,
                         Some(Time(
                             DateTime::<Utc>::from_str("2024-05-27 09:30:00 +00:00").unwrap(),
@@ -623,7 +646,11 @@ mod test {
                     .as_deref()
                     .unwrap_or("unknown");
                 let spec = self.deployment.spec.as_ref().unwrap();
-                let result = K8sHealthDeployment::max_unavailable(metadata_name, spec);
+                let result = K8sHealthDeployment::max_unavailable(
+                    &test_util_get_empty_deployment(),
+                    metadata_name,
+                    spec,
+                );
                 assert!(
                     match (&result, &self.expected) {
                         (Ok(r), Ok(e)) => r == e,
@@ -640,8 +667,8 @@ mod test {
             TestCase {
                 name: "MaxUnavailable as percentage",
                 deployment: Deployment {
-                    metadata: create_metadata("test-deployment"),
-                    spec: Some(create_deployment_spec(10, "30%", "20%")),
+                    metadata: test_util_create_metadata("test-deployment"),
+                    spec: Some(test_util_create_deployment_spec(10, "30%", "20%")),
                     ..Default::default()
                 },
                 expected: Ok(2),
@@ -649,8 +676,8 @@ mod test {
             TestCase {
                 name: "MaxUnavailable as integer",
                 deployment: Deployment {
-                    metadata: create_metadata("test-deployment"),
-                    spec: Some(create_deployment_spec(10, "3", "2")),
+                    metadata: test_util_create_metadata("test-deployment"),
+                    spec: Some(test_util_create_deployment_spec(10, "3", "2")),
                     ..Default::default()
                 },
                 expected: Ok(2),
@@ -658,7 +685,7 @@ mod test {
             TestCase {
                 name: "No replicas specified",
                 deployment: Deployment {
-                    metadata: create_metadata("test-deployment"),
+                    metadata: test_util_create_metadata("test-deployment"),
                     spec: Some(DeploymentSpec {
                         replicas: None,
                         strategy: Some(DeploymentStrategy {
@@ -681,8 +708,8 @@ mod test {
             TestCase {
                 name: "MaxUnavailable greater than replicas",
                 deployment: Deployment {
-                    metadata: create_metadata("test-deployment"),
-                    spec: Some(create_deployment_spec(2, "30%", "100%")),
+                    metadata: test_util_create_metadata("test-deployment"),
+                    spec: Some(test_util_create_deployment_spec(2, "30%", "100%")),
                     ..Default::default()
                 },
                 expected: Ok(2),
@@ -690,7 +717,7 @@ mod test {
             TestCase {
                 name: "Invalid MaxSurge",
                 deployment: Deployment {
-                    metadata: create_metadata("test-deployment"),
+                    metadata: test_util_create_metadata("test-deployment"),
                     spec: Some(DeploymentSpec {
                         replicas: Some(10),
                         strategy: Some(DeploymentStrategy {
@@ -705,7 +732,7 @@ mod test {
                     ..Default::default()
                 },
                 expected: Err(HealthCheckerError::InvalidK8sObject {
-                    kind: DEPLOYMENT_KIND.to_string(),
+                    kind: test_util_get_deployment_kind(),
                     name: "test-deployment".to_string(),
                     err: "Invalid IntOrString value: invalid digit found in string".to_string(),
                 }),
@@ -713,7 +740,7 @@ mod test {
             TestCase {
                 name: "Non-rolling update strategy",
                 deployment: Deployment {
-                    metadata: create_metadata("test-deployment"),
+                    metadata: test_util_create_metadata("test-deployment"),
                     spec: Some(DeploymentSpec {
                         replicas: Some(10),
                         strategy: Some(DeploymentStrategy {
@@ -739,26 +766,26 @@ mod test {
         let healthy_deployment_matching = Deployment {
             metadata: ObjectMeta {
                 labels: Some([(LABEL_RELEASE_FLUX.to_string(), release_name.to_string())].into()),
-                ..create_metadata("test-deployment")
+                ..test_util_create_metadata("test-deployment")
             },
-            spec: Some(create_deployment_spec(10, "30%", "20%")),
-            status: Some(create_deployment_status(10)),
+            spec: Some(test_util_create_deployment_spec(10, "30%", "20%")),
+            status: Some(test_util_create_deployment_status(10)),
         };
 
         let deployment_with_no_replica_set = Deployment {
             metadata: ObjectMeta {
                 labels: Some([(LABEL_RELEASE_FLUX.to_string(), release_name.to_string())].into()),
-                ..create_metadata("test-deployment-2")
+                ..test_util_create_metadata("test-deployment-2")
             },
-            spec: Some(create_deployment_spec(10, "30%", "20%")),
-            status: Some(create_deployment_status(10)),
+            spec: Some(test_util_create_deployment_spec(10, "30%", "20%")),
+            status: Some(test_util_create_deployment_status(10)),
         };
 
         let replica_sets = vec![Arc::new(ReplicaSet {
-            status: Some(create_replica_set_status(8)),
-            ..create_replica_set(
+            status: Some(test_util_create_replica_set_status(8)),
+            ..test_util_create_replica_set(
                 "rs",
-                DEPLOYMENT_KIND,
+                test_util_get_deployment_kind(),
                 "test-deployment",
                 Some(Time(
                     DateTime::<Utc>::from_str("2024-05-27 10:00:00 +00:00").unwrap(),
@@ -791,14 +818,14 @@ mod test {
         );
     }
 
-    fn create_metadata(name: &str) -> ObjectMeta {
+    fn test_util_create_metadata(name: &str) -> ObjectMeta {
         ObjectMeta {
             name: Some(name.to_string()),
             ..Default::default()
         }
     }
 
-    fn create_deployment_spec(
+    fn test_util_create_deployment_spec(
         replicas: i32,
         max_surge: &str,
         max_unavailable: &str,
@@ -816,23 +843,23 @@ mod test {
         }
     }
 
-    fn create_deployment_status(replicas: i32) -> DeploymentStatus {
+    fn test_util_create_deployment_status(replicas: i32) -> DeploymentStatus {
         DeploymentStatus {
             replicas: Some(replicas),
             ..Default::default()
         }
     }
 
-    fn create_replica_set_status(ready_replicas: i32) -> ReplicaSetStatus {
+    fn test_util_create_replica_set_status(ready_replicas: i32) -> ReplicaSetStatus {
         ReplicaSetStatus {
             ready_replicas: Some(ready_replicas),
             ..Default::default()
         }
     }
 
-    fn create_replica_set(
+    fn test_util_create_replica_set(
         name: &str,
-        owner_kind: &str,
+        owner_kind: String,
         owner_name: &str,
         creation_timestamp: Option<Time>,
     ) -> ReplicaSet {
@@ -840,7 +867,7 @@ mod test {
             metadata: ObjectMeta {
                 name: Some(name.to_string()),
                 owner_references: Some(vec![OwnerReference {
-                    kind: owner_kind.to_string(),
+                    kind: owner_kind,
                     name: owner_name.to_string(),
                     ..Default::default()
                 }]),
@@ -849,5 +876,15 @@ mod test {
             },
             ..Default::default()
         }
+    }
+
+    fn test_util_get_empty_deployment() -> Deployment {
+        Deployment {
+            ..Default::default()
+        }
+    }
+
+    fn test_util_get_deployment_kind() -> String {
+        utils::get_kind(&test_util_get_empty_deployment()).into()
     }
 }
