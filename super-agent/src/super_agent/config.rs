@@ -260,8 +260,8 @@ fn deserialize_default_provider<'de, D>(deserializer: D) -> Result<ProviderConfi
 where
     D: Deserializer<'de>,
 {
-    let meta = Option::<ProviderConfig>::deserialize(deserializer)?;
-    Ok(meta.unwrap_or(ProviderConfig::default()))
+    let provider_config = Option::<ProviderConfig>::deserialize(deserializer)?;
+    Ok(provider_config.unwrap_or(ProviderConfig::default()))
 }
 
 /// Supported access token request signers methods
