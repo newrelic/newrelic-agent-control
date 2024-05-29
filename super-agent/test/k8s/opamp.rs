@@ -32,7 +32,7 @@ fn k8s_opamp_enabled_with_no_remote_configuration() {
     let namespace = block_on(k8s.test_namespace());
 
     // start the super-agent
-    let mut sa = start_super_agent_with_testdata_config(
+    let _sa = start_super_agent_with_testdata_config(
         test_name,
         k8s.client.clone(),
         &namespace,
@@ -55,8 +55,6 @@ config:
             expected_spec_values,
         ))
     });
-
-    let _ = sa.kill();
 }
 
 #[test]
@@ -99,7 +97,7 @@ chart_values:
     let namespace = block_on(k8s.test_namespace());
 
     // start the super-agent
-    let mut sa = start_super_agent_with_testdata_config(
+    let _sa = start_super_agent_with_testdata_config(
         test_name,
         k8s.client.clone(),
         &namespace,
@@ -158,8 +156,6 @@ image:
             expected_spec_values,
         ))
     });
-
-    let _ = sa.kill();
 }
 
 #[test]
@@ -187,7 +183,7 @@ fn k8s_opamp_add_subagent() {
     let namespace = block_on(k8s.test_namespace());
 
     // start the super-agent
-    let mut sa = start_super_agent_with_testdata_config(
+    let _sa = start_super_agent_with_testdata_config(
         test_name,
         k8s.client.clone(),
         &namespace,
@@ -225,6 +221,4 @@ agents:
             namespace.as_str(),
         ))
     });
-
-    let _ = sa.kill();
 }

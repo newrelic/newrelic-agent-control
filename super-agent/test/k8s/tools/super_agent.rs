@@ -1,3 +1,4 @@
+use super::runtime::block_on;
 use k8s_openapi::api::core::v1::ConfigMap;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use kube::{
@@ -11,8 +12,6 @@ use std::process::{Command, Stdio};
 use std::{collections::BTreeMap, path::PathBuf};
 use std::{fs::File, io::Write};
 
-use super::runtime::block_on;
-
 /// Starts the super-agent through [start_super_agent] after setting up the corresponding configuration file
 /// and config map according to the provided `folder_name` and the provided `file_names`.
 pub fn start_super_agent_with_testdata_config(
@@ -21,7 +20,7 @@ pub fn start_super_agent_with_testdata_config(
     ns: &str,
     opamp_endpoint: Option<&str>,
     subagent_file_names: Vec<&str>,
-) -> std::process::Child {
+) -> AutoDroppingChild {
     let config_local = create_local_super_agent_config(ns, opamp_endpoint, folder_name);
     for file_name in subagent_file_names {
         block_on(create_local_config_map(
@@ -31,7 +30,20 @@ pub fn start_super_agent_with_testdata_config(
             file_name,
         ))
     }
-    start_super_agent(&config_local)
+    AutoDroppingChild {
+        child: start_super_agent(&config_local),
+    }
+}
+
+pub struct AutoDroppingChild {
+    pub child: std::process::Child,
+}
+
+impl Drop for AutoDroppingChild {
+    fn drop(&mut self) {
+        println!("Killing SuperAgent Process");
+        self.child.kill().expect("Failed to kill child process");
+    }
 }
 
 /// Starts the super-agent compiled with the k8s feature and the provided configuration file.
