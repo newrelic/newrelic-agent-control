@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 use url::Url;
 
+/// JWT Claims supported by the service.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
     /// Issuer. Client ID will be used here.
