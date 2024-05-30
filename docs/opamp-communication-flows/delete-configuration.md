@@ -11,16 +11,16 @@ sequenceDiagram
     participant Server
 
     Note right of Server: Remote configuration with hash=x is set.
-    Server->>+Client: ServerToServer(RemoteConfiguration, hash=x)
-    Client->>Server: AgentToAgent(RemoteConfigStatus(Applying), hash=x)
+    Server->>+Client: ServerToAgent(RemoteConfiguration, hash=x)
+    Client->>Server: AgentToServer(RemoteConfigStatus(Applying), hash=x)
     Note left of Client: Configuration successfully applied.
-    Client->>-Server: AgentToAgent(RemoteConfigStatus(Applied), hash=x)
+    Client->>-Server: AgentToServer(RemoteConfigStatus(Applied), hash=x)
 
     Note right of Server: Remote configuration with hash=x is deleted.<br/>Empty configuration is sent.
-    Server->>+Client: ServerToServer(RemoteConfiguration, hash=x, empty)
-    Client->>Server: AgentToAgent(RemoteConfigStatus(Applying), hash=y)
+    Server->>+Client: ServerToAgent(RemoteConfiguration, hash=x, empty)
+    Client->>Server: AgentToServer(RemoteConfigStatus(Applying), hash=y)
     Note left of Client: The remote configuration is successfully deleted.<br/>Falls back to local.
-    Client->>-Server: AgentToAgent(RemoteConfigStatus(Applied), hash=y)
+    Client->>-Server: AgentToServer(RemoteConfigStatus(Applied), hash=y)
 ```
 
 ## ❌ RemoteConfigStatus 'UNSET' value
