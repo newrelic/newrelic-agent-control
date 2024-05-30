@@ -1,9 +1,7 @@
 use super::utils::{self, check_health_for_items, flux_release_filter};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use crate::sub_agent::health::health_checker::{
-    Health, HealthChecker, HealthCheckerError, Healthy,
-};
+use crate::sub_agent::health::health_checker::{Health, HealthChecker, HealthCheckerError};
 use k8s_openapi::api::apps::v1::{StatefulSet, StatefulSetSpec};
 use std::sync::Arc;
 
@@ -90,7 +88,7 @@ impl K8sHealthStatefulSet {
             )));
         }
 
-        Ok(Healthy::default().into())
+        Ok(utils::healthy("".into()))
     }
 
     /// Gets the partition from the stateful_set spec.
@@ -105,6 +103,7 @@ impl K8sHealthStatefulSet {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::sub_agent::health::health_checker::Healthy;
     use crate::{
         k8s::client::MockSyncK8sClient, sub_agent::health::k8s::health_checker::LABEL_RELEASE_FLUX,
     };

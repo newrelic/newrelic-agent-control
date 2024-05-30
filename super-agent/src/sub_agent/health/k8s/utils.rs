@@ -81,6 +81,11 @@ where
     }
 }
 
+/// Helper to return an healthy status.
+pub fn healthy(s: String) -> Health {
+    Healthy { status: s }.into()
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

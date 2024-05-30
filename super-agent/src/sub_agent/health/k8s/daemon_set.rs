@@ -3,7 +3,7 @@ use super::utils::{self, check_health_for_items, flux_release_filter};
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::utils::IntOrPercentage;
 use crate::sub_agent::health::health_checker::{
-    Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
+    Health, HealthChecker, HealthCheckerError, Unhealthy,
 };
 use k8s_openapi::api::apps::v1::{DaemonSet, DaemonSetStatus, DaemonSetUpdateStrategy};
 use std::sync::Arc;
@@ -89,7 +89,7 @@ impl K8sHealthDaemonSet {
         let rolling_update = match update_strategy_type {
             // If the update strategy is not a rolling update, there will be nothing to wait for
             UpdateStrategyType::OnDelete => {
-                return Ok(Self::healthy(format!(
+                return Ok(utils::healthy(format!(
                     "Daemonset '{name}' has on delete upgrade strategy"
                 )));
             }
@@ -123,7 +123,7 @@ impl K8sHealthDaemonSet {
             // If max unavailable is not set, the daemon set does not expect to have healthy pods.
             // Returning Healthiness as soon as possible.
             None => {
-                return Ok(Self::healthy(format!(
+                return Ok(utils::healthy(format!(
                 "DaemonSet '{name}' healthy: This daemon set does not expect to have healthy pods",
             )))
             }
@@ -146,14 +146,10 @@ impl K8sHealthDaemonSet {
             )));
         }
 
-        Ok(Self::healthy(format!(
+        Ok(utils::healthy(format!(
             "DaemonSet '{}' healthy: Pods ready are equal or greater than desired: {} >= {}",
             name, status.number_ready, expected_ready
         )))
-    }
-
-    fn healthy(s: String) -> Health {
-        Healthy { status: s }.into()
     }
 
     fn unhealthy(error: String) -> Health {
@@ -201,7 +197,8 @@ impl K8sHealthDaemonSet {
 pub mod test {
     use super::*;
     use crate::{
-        k8s::client::MockSyncK8sClient, sub_agent::health::k8s::health_checker::LABEL_RELEASE_FLUX,
+        k8s::client::MockSyncK8sClient,
+        sub_agent::health::{health_checker::Healthy, k8s::health_checker::LABEL_RELEASE_FLUX},
     };
     use assert_matches::assert_matches;
     use k8s_openapi::{

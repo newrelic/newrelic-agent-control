@@ -1,9 +1,7 @@
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::utils::IntOrPercentage;
-use crate::sub_agent::health::health_checker::{
-    Health, HealthChecker, HealthCheckerError, Healthy,
-};
+use crate::sub_agent::health::health_checker::{Health, HealthChecker, HealthCheckerError};
 use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec, ReplicaSet};
 use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
 use std::sync::Arc;
@@ -104,7 +102,7 @@ impl K8sHealthDeployment {
             )));
         }
 
-        Ok(Healthy::default().into())
+        Ok(utils::healthy("".into()))
     }
 
     /// Calculates the maximum number of unavailable pods during a rolling update.
@@ -252,6 +250,7 @@ mod test {
     use std::str::FromStr;
 
     use super::*;
+    use crate::sub_agent::health::health_checker::Healthy;
     use crate::{
         k8s::client::MockSyncK8sClient, sub_agent::health::k8s::health_checker::LABEL_RELEASE_FLUX,
     };
