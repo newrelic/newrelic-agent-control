@@ -219,7 +219,7 @@ agents:
   infra-agent-b:
     agent_type: "com.newrelic.infrastructure_agent:0.0.2"
   not-infra-agent:
-    agent_type: "io.opentelemetry.collector:0.0.1"
+    agent_type: "io.opentelemetry.collector:0.2.0"
 "#;
     assert!(store_sa
         .store(&from_str::<SuperAgentDynamicConfig>(agents_cfg).unwrap())

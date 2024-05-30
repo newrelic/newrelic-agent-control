@@ -9,12 +9,15 @@ config:
   superAgent:
     content:
       agents: 
+        # E2E tests won't work with the NewRelic k8s collector chart since the collector configuration cannot yet be modified.
+        # This chart is introduced from agent type version 0.2.0, so E2E tests won't be able to update the agent type version
+        # until this issue is resolved.
         open-telemetry:
-          agent_type: "newrelic/io.opentelemetry.collector:0.0.1"
+          agent_type: "newrelic/io.opentelemetry.collector:0.1.1"
         open-telemetry-1:
-          agent_type: "newrelic/io.opentelemetry.collector:0.0.1"
+          agent_type: "newrelic/io.opentelemetry.collector:0.1.1"
         open-telemetry-2:
-          agent_type: "newrelic/io.opentelemetry.collector:0.0.1"
+          agent_type: "newrelic/io.opentelemetry.collector:0.1.1"
   # All sub-agents configs are similar, the goal is just to have the otel collector sending metrics
   # with metadata that helps to identify the instance. 
   subAgents: 

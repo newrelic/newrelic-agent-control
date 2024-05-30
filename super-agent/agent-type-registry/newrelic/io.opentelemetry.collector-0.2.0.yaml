@@ -1,0 +1,109 @@
+namespace: newrelic
+name: io.opentelemetry.collector
+version: 0.2.0
+variables:
+  on_host:
+    config:
+      description: "Newrelic otel collector configuration"
+      type: file
+      required: false
+      default: ""
+      file_path: "config.yaml"
+    backoff_delay:
+      description: "seconds until next retry if agent fails to start"
+      type: string
+      required: false
+      default: 20s
+    health_check:
+      # Note the configs added here must align with the health check extension being used on the collector config variable.
+      # See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/extension/healthcheckv2extension/README.md#configuration
+      # For more details
+      path:
+        description: "path to health check endpoint"
+        type: string
+        required: false
+        default: "/health/status" # Taken from example at: https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/extension/healthcheckv2extension/README.md#configuration
+      port:
+        description: "port to health check endpoint"
+        type: number
+        required: false
+        default: 13133
+  k8s:
+    chart_values:
+      description: "Newrelic otel collector chart values"
+      type: yaml
+      required: true
+    chart_version:
+      description: "Newrelic otel collector chart version"
+      type: string
+      required: true
+      default: "0.1.2"
+deployment:
+  on_host:
+    executables:
+      - path: /usr/bin/nr-otel-collector
+        args: "--config=${nr-var:config} --feature-gates=-pkg.translator.prometheus.NormalizeName"
+        env: ""
+        restart_policy:
+          backoff_strategy:
+            type: fixed
+            backoff_delay: ${nr-var:backoff_delay}
+        health:
+          interval: 5s
+          timeout: 5s
+          http:
+            path: "${nr-var:health_check.path}"
+            port: ${nr-var:health_check.port}
+  k8s:
+    health:
+      interval: 30s
+    objects:
+      repository:
+        apiVersion: source.toolkit.fluxcd.io/v1beta2
+        kind: HelmRepository
+        metadata:
+          name: ${nr-sub:agent_id}
+        spec:
+          # Increasing the interval to 30 minutes because the HelmRepository is not as prone to frequent changes
+          # as HelmRelease objects might be. Given repositories typically have fewer updates than the resources
+          # they trigger, a longer interval helps in reducing unnecessary load on the cluster without significantly
+          # delaying the application of important updates.
+          interval: 30m
+          provider: generic
+          url: https://helm-charts.newrelic.com
+      release:
+        apiVersion: helm.toolkit.fluxcd.io/v2beta2
+        kind: HelmRelease
+        metadata:
+          name: ${nr-sub:agent_id}
+        spec:
+          interval: 3m
+          chart:
+            spec:
+              chart: nr-k8s-otel-collector
+              version: ${nr-var:chart_version}
+              reconcileStrategy: ChartVersion
+              sourceRef:
+                kind: HelmRepository
+                name: ${nr-sub:agent_id}
+              interval: 3m
+          install:
+            # Wait are disabled to avoid blocking the modifications/deletions of this CR while in reconciling state.
+            disableWait: true
+            disableWaitForJobs: true
+            remediation:
+              retries: 3
+            replace: true
+          upgrade:
+            disableWait: true
+            disableWaitForJobs: true
+            cleanupOnFail: true
+            force: true
+            remediation:
+              retries: 3
+              strategy: rollback
+          rollback:
+            disableWait: true
+            disableWaitForJobs: true
+          values:
+            ${nr-var:chart_values}
