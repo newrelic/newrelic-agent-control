@@ -43,7 +43,7 @@ pub enum StorerError {
     ReadError(#[from] FileReaderError),
 }
 
-fn get_uild_path(agent_id: &AgentID) -> PathBuf {
+fn get_uuid_path(agent_id: &AgentID) -> PathBuf {
     if agent_id.is_super_agent_id() {
         PathBuf::from(SUPER_AGENT_IDENTIFIERS_PATH())
     } else {
@@ -88,7 +88,7 @@ where
     F: FileWriter + FileReader,
 {
     fn write_contents(&self, agent_id: &AgentID, ds: &DataStored) -> Result<(), StorerError> {
-        let dest_file = get_uild_path(agent_id);
+        let dest_file = get_uuid_path(agent_id);
         // Get a ref to the target file's parent directory
         let dest_dir = dest_file
             .parent()
@@ -106,7 +106,7 @@ where
     }
 
     fn read_contents(&self, agent_id: &AgentID) -> Result<Option<DataStored>, StorerError> {
-        let dest_path = get_uild_path(agent_id);
+        let dest_path = get_uuid_path(agent_id);
         let file_str = match self.file_rw.read(dest_path.as_path()) {
             Ok(s) => s,
             Err(e) => {
@@ -127,7 +127,7 @@ where
 #[cfg(test)]
 mod test {
     use crate::opamp::instance_id::getter::DataStored;
-    use crate::opamp::instance_id::on_host::storer::get_uild_path;
+    use crate::opamp::instance_id::on_host::storer::get_uuid_path;
     use crate::opamp::instance_id::storer::InstanceIDStorer;
     use crate::opamp::instance_id::{Identifiers, InstanceID, Storer};
     use crate::super_agent::config::AgentID;
@@ -143,14 +143,14 @@ mod test {
     #[test]
     fn basic_get_uild_path() {
         let agent_id = AgentID::new("test").unwrap();
-        let path = get_uild_path(&agent_id);
+        let path = get_uuid_path(&agent_id);
         assert_eq!(
             path,
             PathBuf::from(format!("{}/test/identifiers.yaml", REMOTE_AGENT_DATA_DIR()))
         );
 
         let super_agent_id = AgentID::new_super_agent_id();
-        let path = get_uild_path(&super_agent_id);
+        let path = get_uuid_path(&super_agent_id);
         assert_eq!(path, PathBuf::from(SUPER_AGENT_IDENTIFIERS_PATH()));
     }
 
@@ -165,7 +165,7 @@ mod test {
             identifiers: test_identifiers(),
         };
 
-        let uuid_path = get_uild_path(&agent_id);
+        let uuid_path = get_uuid_path(&agent_id);
 
         // Expectations
         dir_manager.should_create(uuid_path.parent().unwrap(), Permissions::from_mode(0o700));
@@ -179,14 +179,15 @@ mod test {
     fn test_unsuccessful_write() {
         // Data
         let agent_id = AgentID::new("test").unwrap();
+        let instance_uuid = uuid::Uuid::now_v7();
         let mut file_rw = MockLocalFile::default();
         let mut dir_manager = MockDirectoryManagerMock::default();
         let ds = DataStored {
-            uuid: InstanceID::new(uuid::Uuid::now_v7()),
+            uuid: InstanceID::new(instance_uuid),
             identifiers: test_identifiers(),
         };
 
-        let uuid_path = get_uild_path(&agent_id);
+        let uuid_path = get_uuid_path(&agent_id);
 
         // Expectations
         file_rw.should_not_write(&uuid_path, expected_file(), Permissions::from_mode(0o600));
@@ -207,7 +208,7 @@ mod test {
             identifiers: test_identifiers(),
         };
         let expected = Some(ds.clone());
-        let uuid_path = get_uild_path(&agent_id);
+        let uuid_path = get_uuid_path(&agent_id);
 
         // Expectations
         file_rw
@@ -227,7 +228,7 @@ mod test {
         let agent_id = AgentID::new("test").unwrap();
         let mut file_rw = MockLocalFile::default();
         let dir_manager = MockDirectoryManagerMock::default();
-        let uuid_path = get_uild_path(&agent_id);
+        let uuid_path = get_uuid_path(&agent_id);
 
         file_rw
             .expect_read()

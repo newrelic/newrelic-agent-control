@@ -230,15 +230,17 @@ mod test {
     use nix::unistd::gethostname;
     use opamp_client::opamp::proto::RemoteConfigStatus;
     use opamp_client::opamp::proto::RemoteConfigStatuses::Failed;
-    use opamp_client::operation::{
-        capabilities::Capabilities,
-        settings::{AgentDescription, DescriptionValueType, StartSettings},
+    use opamp_client::operation::settings::{
+        AgentDescription, DescriptionValueType, StartSettings,
     };
     use resource_detection::cloud::cloud_id::detector::CloudIdDetectorError;
     use resource_detection::system::detector::SystemDetectorError;
     use resource_detection::{DetectError, Resource};
     use std::collections::HashMap;
-    use uuid::Uuid;
+    use uuid::{uuid, Uuid};
+
+    const INFRA_AGENT_INSTANCE_ID: Uuid = uuid!("018fc93b-b114-7004-b727-6bcb27630124");
+    const SUPER_AGENT_INSTANCE_ID: Uuid = uuid!("018fc93f-6a06-7d50-a992-843f7abf02f1");
 
     #[test]
     fn build_start_stop() {
@@ -251,7 +253,7 @@ mod test {
         };
         let start_settings_infra = infra_agent_default_start_settings(
             &hostname,
-            "super_agent_instance_id",
+            SUPER_AGENT_INSTANCE_ID,
             &sub_agent_config,
         );
 
@@ -270,11 +272,8 @@ mod test {
         );
 
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
-        let timestamp = uuid::timestamp::Timestamp::now(uuid::NoContext);
-        let super_agent_uuid = Uuid::new_v7(timestamp);
-        let sub_agent_uuid = Uuid::new_v7(timestamp);
-        instance_id_getter.should_get(&super_agent_id, super_agent_uuid);
-        instance_id_getter.should_get(&sub_agent_id, sub_agent_uuid);
+        instance_id_getter.should_get(&sub_agent_id, INFRA_AGENT_INSTANCE_ID);
+        instance_id_getter.should_get(&super_agent_id, SUPER_AGENT_INSTANCE_ID);
 
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         hash_repository_mock.expect_get().times(1).returning(|_| {
@@ -331,7 +330,7 @@ mod test {
         };
         let start_settings_infra = infra_agent_default_start_settings(
             &hostname,
-            "super_agent_instance_id",
+            SUPER_AGENT_INSTANCE_ID,
             &sub_agent_config,
         );
         let super_agent_id = AgentID::new_super_agent_id();
@@ -340,11 +339,8 @@ mod test {
 
         // Expectations
         // Infra Agent OpAMP no final stop nor health, just after stopping on reload
-        let timestamp = uuid::timestamp::Timestamp::now(uuid::NoContext);
-        let super_agent_uuid = Uuid::new_v7(timestamp);
-        let sub_agent_uuid = Uuid::new_v7(timestamp);
-        instance_id_getter.should_get(&super_agent_id, super_agent_uuid);
-        instance_id_getter.should_get(&sub_agent_id, sub_agent_uuid);
+        instance_id_getter.should_get(&sub_agent_id, INFRA_AGENT_INSTANCE_ID);
+        instance_id_getter.should_get(&super_agent_id, SUPER_AGENT_INSTANCE_ID);
 
         let mut started_client = MockStartedOpAMPClientMock::new();
         // failed conf should be reported
@@ -411,37 +407,26 @@ mod test {
 
     fn infra_agent_default_start_settings(
         hostname: &str,
-        parent_id: &str,
+        parent_id: Uuid,
         agent_config: &SubAgentConfig,
     ) -> StartSettings {
-        start_settings(
-            "infra_agent_instance_id".into(),
-            default_capabilities(),
-            agent_config.agent_type.name(),
-            agent_config.agent_type.version(),
-            agent_config.agent_type.namespace(),
-            hostname,
-            parent_id,
-        )
-    }
-
-    fn start_settings(
-        instance_id: Vec<u8>,
-        capabilities: Capabilities,
-        agent_type: String,
-        agent_version: String,
-        agent_namespace: String,
-        hostname: &str,
-        parent_id: &str,
-    ) -> StartSettings {
         StartSettings {
-            instance_id,
-            capabilities,
+            instance_id: INFRA_AGENT_INSTANCE_ID.into(),
+            capabilities: default_capabilities(),
             agent_description: AgentDescription {
                 identifying_attributes: HashMap::<String, DescriptionValueType>::from([
-                    ("service.name".to_string(), agent_type.into()),
-                    ("service.namespace".to_string(), agent_namespace.into()),
-                    ("service.version".to_string(), agent_version.into()),
+                    (
+                        "service.name".to_string(),
+                        agent_config.agent_type.name().into(),
+                    ),
+                    (
+                        "service.namespace".to_string(),
+                        agent_config.agent_type.namespace().into(),
+                    ),
+                    (
+                        "service.version".to_string(),
+                        agent_config.agent_type.version().into(),
+                    ),
                 ]),
                 non_identifying_attributes: HashMap::from([
                     (

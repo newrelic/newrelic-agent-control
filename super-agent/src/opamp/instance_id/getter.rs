@@ -10,7 +10,6 @@ use uuid::Uuid;
 pub struct InstanceID(Uuid);
 
 impl InstanceID {
-    #[allow(dead_code)]
     pub fn new(uuid: Uuid) -> InstanceID {
         InstanceID(uuid)
     }
