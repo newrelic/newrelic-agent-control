@@ -1,6 +1,7 @@
 use crate::agent_type::agent_values::AgentValues;
 use crate::event::SubAgentEvent;
 use crate::opamp::remote_config::RemoteConfigError;
+use crate::opamp::remote_config_report::report_remote_config_status_applying;
 use crate::sub_agent::error::SubAgentError;
 use crate::sub_agent::event_processor::EventProcessor;
 use crate::sub_agent::SubAgentCallbacks;
@@ -21,10 +22,18 @@ where
     S: HashRepository,
     R: ValuesRepository,
 {
+    /// This method retrieves, stores the remote configuration (hash and values) and publish an event super-agent event
+    /// in order that the super-agent handles it.
+    /// When the configuration is empty, the values are deleted instead (an empty configuration means that the remote
+    /// configuration should not apply anymore).
     pub(crate) fn remote_config(&self, remote_config: RemoteConfig) -> Result<(), SubAgentError> {
         let Some(opamp_client) = &self.maybe_opamp_client else {
             unreachable!("got remote config without OpAMP being enabled")
         };
+
+        report_remote_config_status_applying(opamp_client, &remote_config.hash)?;
+        // TODO: should any error be reported as using `report_remote_config_status_error`?
+        // Errors persisting the remote_config hash and values are not reported.
 
         self.sub_agent_remote_config_hash_repository
             .save(&remote_config.agent_id, &remote_config.hash)?;
@@ -71,6 +80,7 @@ where
             .sub_agent_publisher
             .publish(SubAgentEvent::ConfigUpdated(self.agent_id()))?)
     }
+
     pub(crate) fn process_remote_config(
         &self,
         remote_config: &RemoteConfig,
@@ -110,7 +120,7 @@ mod tests {
         sub_agent::values::values_repository::test::MockRemoteValuesRepositoryMock,
     };
     use opamp_client::opamp::proto::RemoteConfigStatus;
-    use opamp_client::opamp::proto::RemoteConfigStatuses::Failed;
+    use opamp_client::opamp::proto::RemoteConfigStatuses;
     use serde::de::Error;
     use std::collections::HashMap;
     use std::sync::Arc;
@@ -118,7 +128,7 @@ mod tests {
 
     #[test]
     fn test_config_success() {
-        let opamp_client = MockStartedOpAMPClientMock::new();
+        let mut opamp_client = MockStartedOpAMPClientMock::new();
         let (sub_agent_publisher, sub_agent_consumer) = pub_sub();
         let (_sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
         let (_sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
@@ -138,6 +148,9 @@ mod tests {
             &agent_id,
             &AgentValues::new(HashMap::from([("some_item".into(), "some_value".into())])),
         );
+
+        // Applying status should be reported
+        opamp_client.should_set_remote_config_status(applying_status(&hash));
 
         let remote_config = RemoteConfig::new(agent_id.clone(), hash, Some(config_map));
 
@@ -159,7 +172,7 @@ mod tests {
 
     #[test]
     fn test_config_with_empty_agents() {
-        let opamp_client = MockStartedOpAMPClientMock::new();
+        let mut opamp_client = MockStartedOpAMPClientMock::new();
         let (sub_agent_publisher, sub_agent_consumer) = pub_sub();
         let (_sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
         let (_sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
@@ -175,6 +188,9 @@ mod tests {
 
         // Expect to remove current remote config when receiving an empty agents remote config.
         values_repository.should_delete_remote(&agent_id);
+
+        // Applying status should be reported
+        opamp_client.should_set_remote_config_status(applying_status(&hash));
 
         let remote_config = RemoteConfig::new(agent_id.clone(), hash, Some(config_map));
 
@@ -230,13 +246,10 @@ mod tests {
         hash.fail(expected_error.to_string());
         hash_repository.should_save_hash(&agent_id, &hash);
 
-        // report failed config
-        let status = RemoteConfigStatus {
-            status: Failed as i32,
-            last_remote_config_hash: hash.get().into_bytes(),
-            error_message: format!("{}: {}", ERROR_REMOTE_CONFIG, expected_error),
-        };
-        opamp_client.should_set_remote_config_status(status);
+        // Applying config status should be reported
+        opamp_client.should_set_remote_config_status(applying_status(&hash));
+        // Failed config status should be reported
+        opamp_client.should_set_remote_config_status(failing_status(&hash, &expected_error));
 
         let event_processor = EventProcessor::new(
             agent_id,
@@ -283,13 +296,10 @@ mod tests {
         hash.fail(expected_error.to_string());
         hash_repository.should_save_hash(&agent_id, &hash);
 
-        // report failed config
-        let status = RemoteConfigStatus {
-            status: Failed as i32,
-            last_remote_config_hash: hash.get().into_bytes(),
-            error_message: format!("{}: {}", ERROR_REMOTE_CONFIG, expected_error),
-        };
-        opamp_client.should_set_remote_config_status(status);
+        // Applying config status should be reported
+        opamp_client.should_set_remote_config_status(applying_status(&hash));
+        // Failed config status should be reported
+        opamp_client.should_set_remote_config_status(failing_status(&hash, &expected_error));
 
         let event_processor = EventProcessor::new(
             agent_id,
@@ -334,13 +344,10 @@ mod tests {
 
         hash_repository.should_save_hash(&agent_id, &hash);
 
-        // report failed config
-        let status = RemoteConfigStatus {
-            status: Failed as i32,
-            last_remote_config_hash: hash.get().into_bytes(),
-            error_message: format!("{}: {}", ERROR_REMOTE_CONFIG, expected_error),
-        };
-        opamp_client.should_set_remote_config_status(status);
+        // Applying config status should be reported
+        opamp_client.should_set_remote_config_status(applying_status(&hash));
+        // Failed config status should be reported
+        opamp_client.should_set_remote_config_status(failing_status(&hash, &expected_error));
 
         let event_processor = EventProcessor::new(
             agent_id,
@@ -359,5 +366,21 @@ mod tests {
                 .unwrap_err()
                 .to_string()
         )
+    }
+
+    fn applying_status(hash: &Hash) -> RemoteConfigStatus {
+        RemoteConfigStatus {
+            status: RemoteConfigStatuses::Applying as i32,
+            last_remote_config_hash: hash.get().into_bytes(),
+            error_message: Default::default(),
+        }
+    }
+
+    fn failing_status(hash: &Hash, error: &SubAgentError) -> RemoteConfigStatus {
+        RemoteConfigStatus {
+            status: RemoteConfigStatuses::Failed as i32,
+            last_remote_config_hash: hash.get().into_bytes(),
+            error_message: format!("{}: {}", ERROR_REMOTE_CONFIG, error),
+        }
     }
 }
