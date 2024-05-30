@@ -229,6 +229,7 @@ pub mod test {
     use assert_matches::assert_matches;
     use opamp_client::operation::settings::DescriptionValueType;
     use std::collections::HashMap;
+    use uuid::{uuid, Uuid};
 
     const TEST_CLUSTER_NAME: &str = "cluster_name";
     const TEST_NAMESPACE: &str = "test-namespace";
@@ -369,14 +370,14 @@ pub mod test {
         MockInstanceIDGetterMock,
         MockHashRepositoryMock,
     ) {
-        let instance_id = "fake-uuid";
+        let instance_id: Uuid = uuid!("018fca06-70a8-7968-9d04-fabdde189b8c");
 
         // opamp builder mock
         let mut started_client = MockStartedOpAMPClientMock::new();
         started_client.should_set_any_remote_config_status(1);
         let mut opamp_builder = MockOpAMPClientBuilderMock::new();
         let start_settings = start_settings(
-            instance_id.to_string(),
+            instance_id,
             &sub_agent_config.agent_type,
             HashMap::from([
                 (
@@ -385,7 +386,7 @@ pub mod test {
                 ),
                 (
                     PARENT_AGENT_ID_ATTRIBUTE_KEY().to_string(),
-                    DescriptionValueType::String("super_agent_instance_id".to_string()),
+                    DescriptionValueType::String(instance_id.into()),
                 ),
             ]),
         );
@@ -393,11 +394,8 @@ pub mod test {
 
         // instance id getter mock
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
-        instance_id_getter.should_get(&agent_id, instance_id.to_string());
-        instance_id_getter.should_get(
-            &AgentID::new_super_agent_id(),
-            "super_agent_instance_id".to_string(),
-        );
+        instance_id_getter.should_get(&agent_id, instance_id);
+        instance_id_getter.should_get(&AgentID::new_super_agent_id(), instance_id);
 
         // hash_repository_mock
         let mut hash_repository_mock = MockHashRepositoryMock::new();

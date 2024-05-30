@@ -124,7 +124,7 @@ async fn config_handler(
 ) -> HttpResponse {
     tokio::time::sleep(Duration::from_secs(1)).await;
     let message = opamp::proto::AgentToServer::decode(req).unwrap();
-    let uuid = message.instance_uid.to_string();
+    let uuid = uuid::Uuid::try_from(message.clone().instance_uid).unwrap();
 
     let mut config_responses = state.lock().unwrap();
 
