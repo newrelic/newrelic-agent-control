@@ -139,6 +139,7 @@ mod test {
     use std::io::{self, ErrorKind};
     use std::os::unix::fs::PermissionsExt;
     use std::path::PathBuf;
+    use uuid::{uuid, Uuid};
 
     #[test]
     fn basic_get_uild_path() {
@@ -161,7 +162,7 @@ mod test {
         let mut file_rw = MockLocalFile::default();
         let mut dir_manager = MockDirectoryManagerMock::default();
         let ds = DataStored {
-            uuid: InstanceID::new(uuid::Uuid::now_v7()),
+            uuid: InstanceID::new(UUID),
             identifiers: test_identifiers(),
         };
 
@@ -179,11 +180,10 @@ mod test {
     fn test_unsuccessful_write() {
         // Data
         let agent_id = AgentID::new("test").unwrap();
-        let instance_uuid = uuid::Uuid::now_v7();
         let mut file_rw = MockLocalFile::default();
         let mut dir_manager = MockDirectoryManagerMock::default();
         let ds = DataStored {
-            uuid: InstanceID::new(instance_uuid),
+            uuid: InstanceID::new(UUID),
             identifiers: test_identifiers(),
         };
 
@@ -204,7 +204,7 @@ mod test {
         let mut file_rw = MockLocalFile::default();
         let dir_manager = MockDirectoryManagerMock::default();
         let ds = DataStored {
-            uuid: InstanceID::new(uuid::Uuid::now_v7()),
+            uuid: InstanceID::new(UUID),
             identifiers: test_identifiers(),
         };
         let expected = Some(ds.clone());
@@ -239,24 +239,31 @@ mod test {
         let storer = Storer::new(file_rw, dir_manager);
         let expected = storer.get(&agent_id);
 
-        // As said above, we are not generatinc the error variant here
+        // As said above, we are not generating the error variant here
         assert!(expected.is_ok());
         assert!(expected.unwrap().is_none());
     }
 
     /// HELPERS
 
+    const UUID: Uuid = uuid!("018fc9f0-bbb5-7403-a1de-cf02c6433623");
+    const HOSTNAME: &str = "test-hostname";
+    const MICHINE_ID: &str = "test-machine-id";
+    const CLOUD_INSTANCE_ID: &str = "test-instance-id";
+    const HOST_ID: &str = "test-host-id";
+    const FLEET_ID: &str = "test-fleet-id";
+
     fn expected_file() -> String {
-        String::from("uuid: test-UUID\nidentifiers:\n  hostname: test-hostname\n  machine_id: test-machine-id\n  cloud_instance_id: test-instance-id\n  host_id: test-host-id\n  fleet_id: test-fleet-id\n")
+        format!("uuid: {UUID}\nidentifiers:\n  hostname: {HOSTNAME}\n  machine_id: {MICHINE_ID}\n  cloud_instance_id: {CLOUD_INSTANCE_ID}\n  host_id: {HOST_ID}\n  fleet_id: {FLEET_ID}\n")
     }
 
     fn test_identifiers() -> Identifiers {
         Identifiers {
-            hostname: "test-hostname".to_string(),
-            machine_id: "test-machine-id".to_string(),
-            cloud_instance_id: "test-instance-id".to_string(),
-            host_id: "test-host-id".to_string(),
-            fleet_id: "test-fleet-id".to_string(),
+            hostname: HOSTNAME.into(),
+            machine_id: MICHINE_ID.into(),
+            cloud_instance_id: CLOUD_INSTANCE_ID.into(),
+            host_id: HOST_ID.into(),
+            fleet_id: FLEET_ID.into(),
         }
     }
 }
