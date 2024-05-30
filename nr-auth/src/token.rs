@@ -2,12 +2,12 @@ use chrono::{DateTime, Utc};
 
 pub type AccessToken = String;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum TokenType {
     Bearer,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Token {
     expires_at: DateTime<Utc>,
     access_token: AccessToken,

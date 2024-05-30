@@ -9,7 +9,7 @@ use crate::{token::AccessToken, ClientID};
 pub enum AuthenticateError {
     #[error("unable to deserialize token: `{0}`")]
     DeserializeError(String),
-    #[error("identity server error: Status code: `{0}`, response `{1}`")]
+    #[error("identity server error: Status code: `{0}`, Reason: `{1}`")]
     HttpResponseError(u16, String),
     #[error("http transport error: `{0}`")]
     HttpTransportError(String),
@@ -19,13 +19,14 @@ impl From<ureq::Error> for AuthenticateError {
     fn from(value: ureq::Error) -> Self {
         match value {
             ureq::Error::Status(code, resp) => {
-                AuthenticateError::HttpResponseError(code, resp.into_string().unwrap_or_default())
+                AuthenticateError::HttpResponseError(code, resp.status_text().to_string())
             }
             ureq::Error::Transport(e) => AuthenticateError::HttpTransportError(e.to_string()),
         }
     }
 }
 
+#[cfg_attr(test, mockall::automock)]
 pub trait Authenticator {
     fn authenticate(&self, req: Request) -> Result<Response, AuthenticateError>;
 }
@@ -70,13 +71,13 @@ impl Authenticator for HttpAuthenticator {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum GrantType {
     ClientCredentials,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ClientAssertionType {
     #[serde(rename(serialize = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"))]
     JwtBearer,
@@ -84,7 +85,7 @@ pub enum ClientAssertionType {
 
 type ClientAssertion = String;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Request {
     pub client_id: ClientID,
     pub grant_type: GrantType,
@@ -92,9 +93,10 @@ pub struct Request {
     pub client_assertion: ClientAssertion,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct Response {
     pub access_token: AccessToken,
+    /// The lifetime in seconds of the access token.
     pub expires_in: u32,
     pub token_type: String,
 }

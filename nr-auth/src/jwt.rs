@@ -1,4 +1,4 @@
-mod claims;
-mod error;
-mod signed;
-mod signer;
+pub mod claims;
+pub mod error;
+pub mod signed;
+pub mod signer;
