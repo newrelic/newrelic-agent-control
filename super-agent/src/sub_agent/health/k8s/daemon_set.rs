@@ -2,9 +2,7 @@ use super::utils::{self, check_health_for_items, flux_release_filter};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::utils::IntOrPercentage;
-use crate::sub_agent::health::health_checker::{
-    Health, HealthChecker, HealthCheckerError, Unhealthy,
-};
+use crate::sub_agent::health::health_checker::{Health, HealthChecker, HealthCheckerError};
 use k8s_openapi::api::apps::v1::{DaemonSet, DaemonSetStatus, DaemonSetUpdateStrategy};
 use std::sync::Arc;
 
@@ -87,9 +85,7 @@ impl K8sHealthDaemonSet {
         let rolling_update = match update_strategy_type {
             // If the update strategy is not a rolling update, there will be nothing to wait for
             UpdateStrategyType::OnDelete => {
-                return Ok(utils::healthy(format!(
-                    "Daemonset '{name}' has on delete upgrade strategy"
-                )));
+                return Ok(Health::healthy());
             }
             UpdateStrategyType::RollingUpdate => {
                 update_strategy.rolling_update.ok_or_else(|| {
@@ -103,7 +99,7 @@ impl K8sHealthDaemonSet {
         };
 
         if status.updated_number_scheduled.is_none() {
-            return Ok(Self::unhealthy(format!(
+            return Ok(Health::unhealthy_with_last_error(format!(
                 "Daemonset '{name}' is so new that it has no `updated_number_scheduled` status yet"
             )));
         }
@@ -111,7 +107,7 @@ impl K8sHealthDaemonSet {
         // Make sure all the updated pods have been scheduled
         if let Some(updated_number_scheduled) = status.updated_number_scheduled {
             if updated_number_scheduled != status.desired_number_scheduled {
-                return Ok(Self::unhealthy(format!(
+                return Ok(Health::unhealthy_with_last_error(format!(
                     "DaemonSet '{name}' Not all the pods of the were able to schedule"
                 )));
             }
@@ -121,9 +117,7 @@ impl K8sHealthDaemonSet {
             // If max unavailable is not set, the daemon set does not expect to have healthy pods.
             // Returning Healthiness as soon as possible.
             None => {
-                return Ok(utils::healthy(format!(
-                "DaemonSet '{name}' healthy: This daemon set does not expect to have healthy pods",
-            )))
+                return Ok(Health::healthy())
             }
             Some(value) => IntOrPercentage::try_from(value)
                 .map_err(|err| {
@@ -138,24 +132,13 @@ impl K8sHealthDaemonSet {
 
         let expected_ready = status.desired_number_scheduled - max_unavailable;
         if status.number_ready < expected_ready {
-            return Ok(Self::unhealthy(format!(
+            return Ok(Health::unhealthy_with_last_error(format!(
                 "Daemonset '{}': The number of pods ready is less that the desired: {} < {}",
                 name, status.number_ready, expected_ready
             )));
         }
 
-        Ok(utils::healthy(format!(
-            "DaemonSet '{}' healthy: Pods ready are equal or greater than desired: {} >= {}",
-            name, status.number_ready, expected_ready
-        )))
-    }
-
-    fn unhealthy(error: String) -> Health {
-        Unhealthy {
-            status: "".to_string(),
-            last_error: error,
-        }
-        .into()
+        Ok(Health::healthy())
     }
 
     fn get_daemon_set_status(
@@ -196,7 +179,10 @@ pub mod test {
     use super::*;
     use crate::{
         k8s::client::MockSyncK8sClient,
-        sub_agent::health::{health_checker::Healthy, k8s::health_checker::LABEL_RELEASE_FLUX},
+        sub_agent::health::{
+            health_checker::{Healthy, Unhealthy},
+            k8s::health_checker::LABEL_RELEASE_FLUX,
+        },
     };
     use assert_matches::assert_matches;
     use k8s_openapi::{

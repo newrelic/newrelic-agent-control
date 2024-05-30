@@ -100,7 +100,7 @@ impl K8sHealthDeployment {
             )));
         }
 
-        Ok(utils::healthy("".into()))
+        Ok(Health::healthy())
     }
 
     /// Calculates the maximum number of unavailable pods during a rolling update.

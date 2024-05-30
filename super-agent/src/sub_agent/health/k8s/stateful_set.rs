@@ -86,7 +86,7 @@ impl K8sHealthStatefulSet {
             )));
         }
 
-        Ok(utils::healthy("".into()))
+        Ok(Health::healthy())
     }
 
     /// Gets the partition from the stateful_set spec.

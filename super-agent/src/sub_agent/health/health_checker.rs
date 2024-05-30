@@ -99,9 +99,15 @@ impl Unhealthy {
 }
 
 impl Health {
-    pub fn unhealthy_with_last_error(last_error: String) -> Health {
-        Health::Unhealthy(Unhealthy {
+    pub fn unhealthy_with_last_error(last_error: String) -> Self {
+        Self::Unhealthy(Unhealthy {
             last_error,
+            ..Default::default()
+        })
+    }
+
+    pub fn healthy() -> Self {
+        Self::Healthy(Healthy {
             ..Default::default()
         })
     }
