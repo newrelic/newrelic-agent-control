@@ -122,7 +122,6 @@ pub(crate) mod tests {
     use crate::super_agent::config::{
         AgentID, AgentTypeFQN, OpAMPClientConfig, SubAgentConfig, SuperAgentConfig,
     };
-    use http::HeaderMap;
     use std::{collections::HashMap, io::Write};
     use tempfile::NamedTempFile;
     use url::Url;

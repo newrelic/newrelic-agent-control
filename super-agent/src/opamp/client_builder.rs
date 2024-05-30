@@ -30,8 +30,8 @@ pub enum OpAMPClientBuilderError {
     StartedOpAMPlientError(#[from] opamp_client::ClientError),
     #[error("system time error: `{0}`")]
     SystemTimeError(#[from] SystemTimeError),
-    #[error("error getting agent ulid: `{0}`")]
-    GetUlidError(#[from] instance_id::GetterError),
+    #[error("error getting agent uuid: `{0}`")]
+    GetUuidError(#[from] instance_id::GetterError),
     #[error("error building http client: `{0}`")]
     HttpClientBuilderError(#[from] HttpClientBuilderError),
 }

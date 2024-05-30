@@ -1,4 +1,4 @@
-use crate::opamp::instance_id::getter::ULIDInstanceIDGetter;
+use crate::opamp::instance_id::getter::UUIDInstanceIDGetter;
 use crate::opamp::instance_id::on_host::storer::{Storer, StorerError};
 use resource_detection::cloud::aws::detector::AWSDetector;
 use resource_detection::cloud::azure::detector::AzureDetector;
@@ -150,7 +150,7 @@ pub enum GetterError {
     Persisting(#[from] StorerError),
 }
 
-impl Default for ULIDInstanceIDGetter<Storer> {
+impl Default for UUIDInstanceIDGetter<Storer> {
     fn default() -> Self {
         Self::new(Storer::default(), Identifiers::default())
     }

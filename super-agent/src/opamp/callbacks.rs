@@ -187,7 +187,7 @@ fn log_connection_error(err: &ConnectionError, agent_id: AgentID) {
     // Check if the error comes from receiving an undesired HTTP status code
     if let HTTPClientError(UnsuccessfulResponse(http_code, http_reason)) = &err {
         let reason = match http_code {
-            400 => "The request was malformed. Possible reason: invalid ULID",
+            400 => "The request was malformed. Possible reason: invalid UUID",
             401 => "Check for missing or invalid license key",
             403 => "The account provided is not allowed to use this resource",
             404 => "The requested resource was not found",

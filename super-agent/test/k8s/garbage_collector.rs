@@ -15,7 +15,7 @@ use newrelic_super_agent::{
         client::SyncK8sClient, garbage_collector::NotStartedK8sGarbageCollector, store::K8sStore,
     },
     opamp::instance_id::{
-        getter::{InstanceIDGetter, ULIDInstanceIDGetter},
+        getter::{InstanceIDGetter, UUIDInstanceIDGetter},
         Identifiers,
     },
     sub_agent::k8s::CRSupervisor,
@@ -99,10 +99,10 @@ metadata:
     let k8s_store = Arc::new(K8sStore::new(k8s_client.clone()));
 
     let instance_id_getter =
-        ULIDInstanceIDGetter::new_k8s_instance_id_getter(k8s_store.clone(), Identifiers::default());
+        UUIDInstanceIDGetter::new_k8s_instance_id_getter(k8s_store.clone(), Identifiers::default());
 
-    // Creates ULID CM correctly tagged.
-    let agent_ulid = instance_id_getter.get(agent_id).unwrap();
+    // Creates UUID CM correctly tagged.
+    let agent_uuid = instance_id_getter.get(agent_id).unwrap();
 
     let mut config_loader = MockSuperAgentDynamicConfigLoaderMock::new();
     let config = format!(
@@ -140,18 +140,18 @@ agents:
     let api: Api<Foo> = Api::namespaced(test.client.clone(), &test_ns);
     block_on(api.get(resource_name)).expect("CR should exist");
     assert_eq!(
-        agent_ulid,
+        agent_uuid,
         instance_id_getter.get(agent_id).unwrap(),
-        "Expects the ULID keeps the same since is get from the CM"
+        "Expects the UUID keeps the same since is get from the CM"
     );
 
     // Expect that the current_agent is removed on the second call.
     gc.collect().unwrap();
     block_on(api.get(resource_name)).expect_err("CR should be removed");
     assert_ne!(
-        agent_ulid,
+        agent_uuid,
         instance_id_getter.get(agent_id).unwrap(),
-        "Expects the new ULID is generated after the CM removal"
+        "Expects the new UUID is generated after the CM removal"
     );
 }
 
@@ -229,9 +229,9 @@ fn k8s_garbage_collector_does_not_remove_super_agent() {
     let k8s_store = Arc::new(K8sStore::new(k8s_client.clone()));
 
     let instance_id_getter =
-        ULIDInstanceIDGetter::new_k8s_instance_id_getter(k8s_store.clone(), Identifiers::default());
+        UUIDInstanceIDGetter::new_k8s_instance_id_getter(k8s_store.clone(), Identifiers::default());
 
-    let sa_ulid = instance_id_getter.get(sa_id).unwrap();
+    let sa_uuid = instance_id_getter.get(sa_id).unwrap();
 
     let mut config_loader = MockSuperAgentDynamicConfigLoaderMock::new();
 
@@ -246,9 +246,9 @@ fn k8s_garbage_collector_does_not_remove_super_agent() {
     let api: Api<Foo> = Api::namespaced(test.client.clone(), &test_ns);
     block_on(api.get(SUPER_AGENT_ID())).expect("CR should exist");
     assert_eq!(
-        sa_ulid,
+        sa_uuid,
         instance_id_getter.get(sa_id).unwrap(),
-        "Expects the ULID keeps the same since is get from the CM"
+        "Expects the UUID keeps the same since is get from the CM"
     );
 }
 

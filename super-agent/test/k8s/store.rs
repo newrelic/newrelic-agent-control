@@ -17,7 +17,7 @@ use newrelic_super_agent::k8s::store::{
 };
 use newrelic_super_agent::opamp::hash_repository::{HashRepository, HashRepositoryConfigMap};
 use newrelic_super_agent::opamp::instance_id::{
-    getter::{InstanceIDGetter, ULIDInstanceIDGetter},
+    getter::{InstanceIDGetter, UUIDInstanceIDGetter},
     Identifiers,
 };
 use newrelic_super_agent::opamp::remote_config_hash::Hash;
@@ -38,8 +38,8 @@ const AGENT_ID_2: &str = "agent-different-id-test";
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_instance_id_store() {
-    // This test covers the happy path of ULIDInstanceIDGetter on K8s.
-    // It checks that with same AgentID the the Ulid is the same and if different the ULID is different
+    // This test covers the happy path of UUIDInstanceIDGetter on K8s.
+    // It checks that with same AgentID the the Uuid is the same and if different the UUID is different
 
     let mut test = block_on(K8sEnv::new());
     let test_ns = block_on(test.test_namespace());
@@ -52,7 +52,7 @@ fn k8s_instance_id_store() {
     let agent_id_2 = AgentID::new(AGENT_ID_2).unwrap();
 
     let instance_id_getter =
-        ULIDInstanceIDGetter::new_k8s_instance_id_getter(k8s_store, Identifiers::default());
+        UUIDInstanceIDGetter::new_k8s_instance_id_getter(k8s_store, Identifiers::default());
 
     let instance_id_created_1 = instance_id_getter.get(&agent_id_1).unwrap();
     let instance_id_1 = instance_id_getter.get(&agent_id_1).unwrap();
@@ -252,7 +252,7 @@ fn k8s_multiple_store_entries() {
     // Persisters sharing the ConfigMap
     let hash_repository = HashRepositoryConfigMap::new(k8s_store.clone());
     let instance_id_getter =
-        ULIDInstanceIDGetter::new_k8s_instance_id_getter(k8s_store.clone(), Identifiers::default());
+        UUIDInstanceIDGetter::new_k8s_instance_id_getter(k8s_store.clone(), Identifiers::default());
 
     // Add entries to from all persisters
     let hash = Hash::new("hash-test".to_string());

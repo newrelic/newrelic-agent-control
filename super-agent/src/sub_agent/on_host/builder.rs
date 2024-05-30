@@ -238,6 +238,7 @@ mod test {
     use resource_detection::system::detector::SystemDetectorError;
     use resource_detection::{DetectError, Resource};
     use std::collections::HashMap;
+    use uuid::Uuid;
 
     #[test]
     fn build_start_stop() {
@@ -269,8 +270,11 @@ mod test {
         );
 
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
-        instance_id_getter.should_get(&sub_agent_id, "infra_agent_instance_id".to_string());
-        instance_id_getter.should_get(&super_agent_id, "super_agent_instance_id".to_string());
+        let timestamp = uuid::timestamp::Timestamp::now(uuid::NoContext);
+        let super_agent_uuid = Uuid::new_v7(timestamp);
+        let sub_agent_uuid = Uuid::new_v7(timestamp);
+        instance_id_getter.should_get(&super_agent_id, super_agent_uuid);
+        instance_id_getter.should_get(&sub_agent_id, sub_agent_uuid);
 
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         hash_repository_mock.expect_get().times(1).returning(|_| {
@@ -336,8 +340,11 @@ mod test {
 
         // Expectations
         // Infra Agent OpAMP no final stop nor health, just after stopping on reload
-        instance_id_getter.should_get(&sub_agent_id, "infra_agent_instance_id".to_string());
-        instance_id_getter.should_get(&super_agent_id, "super_agent_instance_id".to_string());
+        let timestamp = uuid::timestamp::Timestamp::now(uuid::NoContext);
+        let super_agent_uuid = Uuid::new_v7(timestamp);
+        let sub_agent_uuid = Uuid::new_v7(timestamp);
+        instance_id_getter.should_get(&super_agent_id, super_agent_uuid);
+        instance_id_getter.should_get(&sub_agent_id, sub_agent_uuid);
 
         let mut started_client = MockStartedOpAMPClientMock::new();
         // failed conf should be reported
@@ -408,7 +415,7 @@ mod test {
         agent_config: &SubAgentConfig,
     ) -> StartSettings {
         start_settings(
-            "infra_agent_instance_id".to_string(),
+            "infra_agent_instance_id".into(),
             default_capabilities(),
             agent_config.agent_type.name(),
             agent_config.agent_type.version(),
@@ -419,7 +426,7 @@ mod test {
     }
 
     fn start_settings(
-        instance_id: String,
+        instance_id: Vec<u8>,
         capabilities: Capabilities,
         agent_type: String,
         agent_version: String,

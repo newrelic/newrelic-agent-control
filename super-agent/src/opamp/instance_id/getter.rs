@@ -3,16 +3,20 @@ use crate::{opamp::instance_id::storer::InstanceIDStorer, super_agent::config::A
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 use tracing::debug;
-use ulid::Ulid;
+use uuid::Uuid;
 
-// InstanceID holds the to_string of Ulid assigned to a Agent
+// InstanceID holds the to_string of Uuid assigned to a Agent
 #[derive(Default, Debug, Deserialize, Serialize, PartialEq, Clone, Eq, Hash)]
-pub struct InstanceID(String);
+pub struct InstanceID(Uuid);
 
 impl InstanceID {
     #[allow(dead_code)]
-    pub fn new(id: String) -> InstanceID {
-        InstanceID(id)
+    pub fn new(uuid: Uuid) -> InstanceID {
+        InstanceID(uuid)
+    }
+
+    pub fn get_uuid(&self) -> Uuid {
+        self.0
     }
 }
 
@@ -27,7 +31,7 @@ pub trait InstanceIDGetter {
     fn get(&self, agent_id: &AgentID) -> Result<InstanceID, GetterError>;
 }
 
-pub struct ULIDInstanceIDGetter<S>
+pub struct UUIDInstanceIDGetter<S>
 where
     S: InstanceIDStorer,
 {
@@ -35,7 +39,7 @@ where
     identifiers: Identifiers,
 }
 
-impl<S> ULIDInstanceIDGetter<S>
+impl<S> UUIDInstanceIDGetter<S>
 where
     S: InstanceIDStorer,
 {
@@ -51,19 +55,19 @@ where
     }
 }
 
-impl<S> InstanceIDGetter for ULIDInstanceIDGetter<S>
+impl<S> InstanceIDGetter for UUIDInstanceIDGetter<S>
 where
     S: InstanceIDStorer,
 {
     fn get(&self, agent_id: &AgentID) -> Result<InstanceID, GetterError> {
-        debug!("retrieving ulid");
+        debug!("retrieving uuid");
         let data = self.storer.get(agent_id)?;
 
         match data {
             None => {
                 debug!("storer returned no data");
             }
-            Some(d) if d.identifiers == self.identifiers => return Ok(d.ulid),
+            Some(d) if d.identifiers == self.identifiers => return Ok(d.uuid),
             Some(d) => debug!(
                 "stored data had different identifiers {:?}!={:?}",
                 d.identifiers, self.identifiers
@@ -71,27 +75,27 @@ where
         }
 
         let new_data = DataStored {
-            ulid: InstanceID(Ulid::new().to_string()),
+            uuid: InstanceID(Uuid::now_v7()),
             identifiers: self.identifiers.clone(),
         };
 
-        debug!("persisting ulid {}", new_data.ulid);
+        debug!("persisting uuid {}", new_data.uuid);
         self.storer.set(agent_id, &new_data)?;
 
-        Ok(new_data.ulid)
+        Ok(new_data.uuid)
     }
 }
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Clone)]
 pub struct DataStored {
-    pub ulid: InstanceID,
+    pub uuid: InstanceID,
     pub identifiers: Identifiers,
 }
 
 #[cfg(test)]
 pub mod test {
     use super::*;
-    use crate::opamp::instance_id::getter::{DataStored, ULIDInstanceIDGetter};
+    use crate::opamp::instance_id::getter::{DataStored, UUIDInstanceIDGetter};
     use crate::opamp::instance_id::storer::test::MockInstanceIDStorerMock;
     use crate::opamp::instance_id::StorerError;
     use mockall::{mock, predicate};
@@ -105,11 +109,11 @@ pub mod test {
     }
 
     impl MockInstanceIDGetterMock {
-        pub fn should_get(&mut self, agent_id: &AgentID, ulid: String) {
+        pub fn should_get(&mut self, agent_id: &AgentID, uuid: Uuid) {
             self.expect_get()
                 .once()
                 .with(predicate::eq(agent_id.clone()))
-                .returning(move |_| Ok(InstanceID(ulid.clone())));
+                .returning(move |_| Ok(InstanceID(uuid)));
         }
     }
 
@@ -128,7 +132,7 @@ pub mod test {
             .once()
             .with(predicate::eq(agent_id.clone()), predicate::always())
             .returning(|_, _| Ok(()));
-        let getter = ULIDInstanceIDGetter::new(mock, Identifiers::default());
+        let getter = UUIDInstanceIDGetter::new(mock, Identifiers::default());
         let res = getter.get(&AgentID::new(AGENT_NAME).unwrap());
 
         assert!(res.is_ok());
@@ -143,7 +147,7 @@ pub mod test {
             .once()
             .with(predicate::eq(agent_id.clone()))
             .returning(|_| Err(StorerError::Generic));
-        let getter = ULIDInstanceIDGetter::new(mock, Identifiers::default());
+        let getter = UUIDInstanceIDGetter::new(mock, Identifiers::default());
         let res = getter.get(&AgentID::new(AGENT_NAME).unwrap());
 
         assert!(res.is_err());
@@ -163,16 +167,16 @@ pub mod test {
             .with(predicate::eq(agent_id.clone()), predicate::always())
             .returning(|_, _| Err(StorerError::Generic));
 
-        let getter = ULIDInstanceIDGetter::new(mock, Identifiers::default());
+        let getter = UUIDInstanceIDGetter::new(mock, Identifiers::default());
         let res = getter.get(&AgentID::new(AGENT_NAME).unwrap());
 
         assert!(res.is_err());
     }
 
     #[test]
-    fn test_ulid_already_present() {
+    fn test_uuid_already_present() {
         let mut mock = MockInstanceIDStorerMock::new();
-        let ulid = Ulid::new();
+        let uuid = Uuid::now_v7();
         let agent_id = AgentID::new(AGENT_NAME).unwrap();
 
         mock.expect_get()
@@ -180,21 +184,21 @@ pub mod test {
             .with(predicate::eq(agent_id.clone()))
             .returning(move |_| {
                 Ok(Some(DataStored {
-                    ulid: InstanceID(ulid.to_string()),
+                    uuid: InstanceID(uuid),
                     identifiers: Default::default(),
                 }))
             });
-        let getter = ULIDInstanceIDGetter::new(mock, Identifiers::default());
+        let getter = UUIDInstanceIDGetter::new(mock, Identifiers::default());
         let res = getter.get(&AgentID::new(AGENT_NAME).unwrap());
 
         assert!(res.is_ok());
-        assert_eq!(InstanceID(ulid.to_string()), res.unwrap());
+        assert_eq!(InstanceID(uuid), res.unwrap());
     }
 
     #[test]
-    fn test_ulid_present_but_different_identifiers() {
+    fn test_uuid_present_but_different_identifiers() {
         let mut mock = MockInstanceIDStorerMock::new();
-        let ulid = ulid::Ulid::new();
+        let uuid = Uuid::now_v7();
         let agent_id = AgentID::new(AGENT_NAME).unwrap();
 
         mock.expect_get()
@@ -202,7 +206,7 @@ pub mod test {
             .with(predicate::eq(agent_id.clone()))
             .returning(move |_| {
                 Ok(Some(DataStored {
-                    ulid: InstanceID(ulid.to_string()),
+                    uuid: InstanceID(uuid),
                     identifiers: get_different_identifier(),
                 }))
             });
@@ -210,11 +214,11 @@ pub mod test {
             .once()
             .with(predicate::eq(agent_id.clone()), predicate::always())
             .returning(|_, _| Ok(()));
-        let getter = ULIDInstanceIDGetter::new(mock, Identifiers::default());
+        let getter = UUIDInstanceIDGetter::new(mock, Identifiers::default());
         let res = getter.get(&AgentID::new(AGENT_NAME).unwrap());
 
         assert!(res.is_ok());
-        assert_ne!(InstanceID(ulid.to_string()), res.unwrap());
+        assert_ne!(InstanceID(uuid), res.unwrap());
     }
 
     fn get_different_identifier() -> Identifiers {

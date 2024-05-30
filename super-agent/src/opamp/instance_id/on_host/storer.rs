@@ -161,15 +161,15 @@ mod test {
         let mut file_rw = MockLocalFile::default();
         let mut dir_manager = MockDirectoryManagerMock::default();
         let ds = DataStored {
-            ulid: InstanceID::new("test-ULID".to_owned()),
+            uuid: InstanceID::new(uuid::Uuid::now_v7()),
             identifiers: test_identifiers(),
         };
 
-        let ulid_path = get_uild_path(&agent_id);
+        let uuid_path = get_uild_path(&agent_id);
 
         // Expectations
-        dir_manager.should_create(ulid_path.parent().unwrap(), Permissions::from_mode(0o700));
-        file_rw.should_write(&ulid_path, expected_file(), Permissions::from_mode(0o600));
+        dir_manager.should_create(uuid_path.parent().unwrap(), Permissions::from_mode(0o700));
+        file_rw.should_write(&uuid_path, expected_file(), Permissions::from_mode(0o600));
 
         let storer = Storer::new(file_rw, dir_manager);
         assert!(storer.set(&agent_id, &ds).is_ok());
@@ -182,15 +182,15 @@ mod test {
         let mut file_rw = MockLocalFile::default();
         let mut dir_manager = MockDirectoryManagerMock::default();
         let ds = DataStored {
-            ulid: InstanceID::new("test-ULID".to_owned()),
+            uuid: InstanceID::new(uuid::Uuid::now_v7()),
             identifiers: test_identifiers(),
         };
 
-        let ulid_path = get_uild_path(&agent_id);
+        let uuid_path = get_uild_path(&agent_id);
 
         // Expectations
-        file_rw.should_not_write(&ulid_path, expected_file(), Permissions::from_mode(0o600));
-        dir_manager.should_create(ulid_path.parent().unwrap(), Permissions::from_mode(0o700));
+        file_rw.should_not_write(&uuid_path, expected_file(), Permissions::from_mode(0o600));
+        dir_manager.should_create(uuid_path.parent().unwrap(), Permissions::from_mode(0o700));
 
         let storer = Storer::new(file_rw, dir_manager);
         assert!(storer.set(&agent_id, &ds).is_err());
@@ -203,16 +203,16 @@ mod test {
         let mut file_rw = MockLocalFile::default();
         let dir_manager = MockDirectoryManagerMock::default();
         let ds = DataStored {
-            ulid: InstanceID::new("test-ULID".to_owned()),
+            uuid: InstanceID::new(uuid::Uuid::now_v7()),
             identifiers: test_identifiers(),
         };
         let expected = Some(ds.clone());
-        let ulid_path = get_uild_path(&agent_id);
+        let uuid_path = get_uild_path(&agent_id);
 
         // Expectations
         file_rw
             .expect_read()
-            .with(predicate::function(move |p| p == ulid_path.as_path()))
+            .with(predicate::function(move |p| p == uuid_path.as_path()))
             .once()
             .return_once(|_| Ok(expected_file()));
 
@@ -227,11 +227,11 @@ mod test {
         let agent_id = AgentID::new("test").unwrap();
         let mut file_rw = MockLocalFile::default();
         let dir_manager = MockDirectoryManagerMock::default();
-        let ulid_path = get_uild_path(&agent_id);
+        let uuid_path = get_uild_path(&agent_id);
 
         file_rw
             .expect_read()
-            .with(predicate::function(move |p| p == ulid_path.as_path()))
+            .with(predicate::function(move |p| p == uuid_path.as_path()))
             .once()
             .return_once(|_| Err(io::Error::new(ErrorKind::Other, "some error message").into()));
 
@@ -246,7 +246,7 @@ mod test {
     /// HELPERS
 
     fn expected_file() -> String {
-        String::from("ulid: test-ULID\nidentifiers:\n  hostname: test-hostname\n  machine_id: test-machine-id\n  cloud_instance_id: test-instance-id\n  host_id: test-host-id\n  fleet_id: test-fleet-id\n")
+        String::from("uuid: test-UUID\nidentifiers:\n  hostname: test-hostname\n  machine_id: test-machine-id\n  cloud_instance_id: test-instance-id\n  host_id: test-host-id\n  fleet_id: test-fleet-id\n")
     }
 
     fn test_identifiers() -> Identifiers {

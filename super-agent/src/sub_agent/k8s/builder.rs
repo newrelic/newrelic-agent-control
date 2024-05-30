@@ -369,7 +369,7 @@ pub mod test {
         MockInstanceIDGetterMock,
         MockHashRepositoryMock,
     ) {
-        let instance_id = "fake-ulid";
+        let instance_id = "fake-uuid";
 
         // opamp builder mock
         let mut started_client = MockStartedOpAMPClientMock::new();

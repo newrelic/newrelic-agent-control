@@ -56,8 +56,8 @@ pub enum AgentError {
     #[error("error persisting agent config: `{0}`")]
     PersistError(#[from] PersistError),
 
-    #[error("error getting agent ulid: `{0}`")]
-    GetUlidError(#[from] instance_id::GetterError),
+    #[error("error getting agent uuid: `{0}`")]
+    GetUuidError(#[from] instance_id::GetterError),
 
     #[error("`Sub Agent error: {0}`")]
     SubAgentError(#[from] SubAgentError),
