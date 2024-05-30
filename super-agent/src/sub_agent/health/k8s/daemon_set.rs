@@ -69,19 +69,17 @@ impl K8sHealthDaemonSet {
     }
 
     pub fn check_health_single_daemon_set(
-        arc_ds: Arc<DaemonSet>,
+        ds: Arc<DaemonSet>,
     ) -> Result<Health, HealthCheckerError> {
-        let ds: &DaemonSet = &arc_ds; // Dereferencing the Arc so it is usable by generics.
-
-        let name = utils::get_metadata_name(ds)?;
-        let status = Self::get_daemon_set_status(name.as_str(), ds)?;
-        let update_strategy = Self::get_daemon_set_update_strategy(name.as_str(), ds)?;
+        let name = utils::get_metadata_name(&*ds)?;
+        let status = Self::get_daemon_set_status(name.as_str(), &ds)?;
+        let update_strategy = Self::get_daemon_set_update_strategy(name.as_str(), &ds)?;
 
         let update_strategy_type = UpdateStrategyType::try_from(
-            Self::get_daemon_set_rolling_update_type(name.as_str(), ds, &update_strategy)?,
+            Self::get_daemon_set_rolling_update_type(name.as_str(), &ds, &update_strategy)?,
         )
         .map_err(|err| HealthCheckerError::InvalidK8sObject {
-            kind: utils::get_kind(ds).into(),
+            kind: utils::get_kind(&*ds).into(),
             name: name.to_string(),
             err: format!("unexpected value for .spec.updateStrategy.type: {err}"),
         })?;
@@ -96,7 +94,7 @@ impl K8sHealthDaemonSet {
             UpdateStrategyType::RollingUpdate => {
                 update_strategy.rolling_update.ok_or_else(|| {
                     utils::missing_field_error(
-                        ds,
+                        &*ds,
                         name.as_str(),
                         ".spec.updateStrategy.rollingUpdate",
                     )
@@ -130,7 +128,7 @@ impl K8sHealthDaemonSet {
             Some(value) => IntOrPercentage::try_from(value)
                 .map_err(|err| {
                     HealthCheckerError::InvalidK8sObject{
-                        kind: utils::get_kind(ds).into(),
+                        kind: utils::get_kind(&*ds).into(),
                         name: name.to_string(),
                         err: format!("unexpected value for .spec.updateStrategy.rollingUpdate.maxUnavailable: {err}"),
                     }

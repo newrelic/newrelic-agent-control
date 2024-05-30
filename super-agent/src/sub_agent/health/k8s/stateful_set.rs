@@ -32,18 +32,16 @@ impl K8sHealthStatefulSet {
     }
 
     /// Returns the health for a single stateful_set.
-    fn stateful_set_health(arc_ss: Arc<StatefulSet>) -> Result<Health, HealthCheckerError> {
-        let ss: &StatefulSet = &arc_ss; // Dereferencing the Arc so it is usable by generics.
-
-        let name = utils::get_metadata_name(ss)?;
+    fn stateful_set_health(ss: Arc<StatefulSet>) -> Result<Health, HealthCheckerError> {
+        let name = utils::get_metadata_name(&*ss)?;
         let spec = ss
             .spec
             .as_ref()
-            .ok_or(utils::missing_field_error(ss, &name, "Spec"))?;
+            .ok_or(utils::missing_field_error(&*ss, &name, "Spec"))?;
         let status = ss
             .status
             .as_ref()
-            .ok_or_else(|| utils::missing_field_error(ss, &name, "Status"))?;
+            .ok_or_else(|| utils::missing_field_error(&*ss, &name, "Status"))?;
 
         let partition = Self::partition(spec).unwrap_or(0);
         let replicas = spec.replicas.unwrap_or(1);
@@ -60,7 +58,7 @@ impl K8sHealthStatefulSet {
 
         let updated_replicas = status
             .updated_replicas
-            .ok_or_else(|| utils::missing_field_error(ss, &name, "Status.UpdatedReplicas"))?;
+            .ok_or_else(|| utils::missing_field_error(&*ss, &name, "Status.UpdatedReplicas"))?;
         if updated_replicas < expected_replicas {
             return Ok(Health::unhealthy_with_last_error(format!(
                         "StatefulSets `{}` not ready: updated_replicas `{}` fewer than expected_replicas `{}`",
@@ -72,7 +70,7 @@ impl K8sHealthStatefulSet {
 
         let ready_replicas = status
             .ready_replicas
-            .ok_or_else(|| utils::missing_field_error(ss, &name, "Status.ReadyReplicas"))?;
+            .ok_or_else(|| utils::missing_field_error(&*ss, &name, "Status.ReadyReplicas"))?;
         if replicas != ready_replicas {
             return Ok(Health::unhealthy_with_last_error(format!(
                 "StatefulSets `{}` not ready: replicas `{}` different from ready_replicas `{}`",
