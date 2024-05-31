@@ -36,6 +36,10 @@ pub enum HashRepositoryError {
 
     #[error("no path found")]
     WrongPath,
+
+    #[cfg(test)]
+    #[error("common variant for k8s and on-host implementations")]
+    Generic,
 }
 
 pub struct HashRepositoryFile<F = LocalFile, D = DirectoryManagerFs>

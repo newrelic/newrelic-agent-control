@@ -32,18 +32,9 @@ where
         };
 
         report_remote_config_status_applying(opamp_client, &remote_config.hash)?;
-        // TODO: should any error be reported as using `report_remote_config_status_error`?
-        // Errors persisting the remote_config hash and values are not reported.
 
-        self.sub_agent_remote_config_hash_repository
-            .save(&remote_config.agent_id, &remote_config.hash)?;
-
-        // Remote config could already been in failure status.
-        if let Some(e) = remote_config.hash.error_message() {
-            let err = SubAgentError::RemoteConfigError(RemoteConfigError::InvalidConfig(
-                remote_config.hash.get(),
-                e,
-            ));
+        let mut remote_config = remote_config;
+        if let Err(err) = self.store_remote_config_hash_and_values(&mut remote_config) {
             report_remote_config_status_error(
                 opamp_client,
                 &remote_config.hash,
@@ -52,37 +43,42 @@ where
             return Err(err);
         }
 
-        let mut remote_config = remote_config;
-        match self.process_remote_config(&remote_config) {
-            Err(err) => {
-                remote_config.hash.fail(err.to_string());
-                self.sub_agent_remote_config_hash_repository
-                    .save(&remote_config.agent_id, &remote_config.hash)?;
-                report_remote_config_status_error(
-                    opamp_client,
-                    &remote_config.hash,
-                    format!("{}: {}", ERROR_REMOTE_CONFIG, &err),
-                )?;
-                return Err(err);
-            }
-            // If remote config is empty, we delete the persisted remote config so later the store
-            // will load the local config
-            Ok(None) => self
-                .remote_values_repo
-                .delete_remote(&remote_config.agent_id)?,
-
-            Ok(Some(agent_values)) => self
-                .remote_values_repo
-                .store_remote(&remote_config.agent_id, &agent_values)?,
-        }
-
         Ok(self
             .sub_agent_publisher
             .publish(SubAgentEvent::ConfigUpdated(self.agent_id()))?)
     }
 
-    pub(crate) fn process_remote_config(
+    fn store_remote_config_hash_and_values(
         &self,
+        remote_config: &mut RemoteConfig,
+    ) -> Result<(), SubAgentError> {
+        // Save the configuration hash
+        self.sub_agent_remote_config_hash_repository
+            .save(&remote_config.agent_id, &remote_config.hash)?;
+        // The remote configuration can be invalid (checked while deserializing)
+        if let Some(err) = remote_config.hash.error_message() {
+            return Err(RemoteConfigError::InvalidConfig(remote_config.hash.get(), err).into());
+        }
+        // Save the configuration values
+        match Self::process_remote_config(remote_config) {
+            Err(err) => {
+                // Store the hash failure if values cannot be obtained from remote config
+                remote_config.hash.fail(err.to_string());
+                self.sub_agent_remote_config_hash_repository
+                    .save(&remote_config.agent_id, &remote_config.hash)?;
+                Err(err)
+            }
+            // Remove previously persisted values when the configuration is empty
+            Ok(None) => Ok(self
+                .remote_values_repo
+                .delete_remote(&remote_config.agent_id)?),
+            Ok(Some(agent_values)) => Ok(self
+                .remote_values_repo
+                .store_remote(&remote_config.agent_id, &agent_values)?),
+        }
+    }
+
+    fn process_remote_config(
         remote_config: &RemoteConfig,
     ) -> Result<Option<AgentValues>, SubAgentError> {
         let remote_config_value = remote_config.get_unique()?;
@@ -104,10 +100,14 @@ where
 mod tests {
     use super::ERROR_REMOTE_CONFIG;
     use crate::agent_type::agent_values::{AgentValues, AgentValuesError};
-    use crate::event::SubAgentEvent::ConfigUpdated;
+    use crate::event::channel::EventConsumer;
+    use crate::event::SubAgentEvent::{self, ConfigUpdated};
+    use crate::opamp::callbacks::AgentCallbacks;
+    use crate::opamp::hash_repository::HashRepositoryError;
     use crate::opamp::remote_config::RemoteConfigError;
     use crate::sub_agent::error::SubAgentError;
     use crate::sub_agent::event_processor::EventProcessor;
+    use crate::sub_agent::values::ValuesRepositoryError;
     use crate::super_agent::config::AgentID;
     use crate::{
         event::channel::pub_sub,
@@ -119,6 +119,7 @@ mod tests {
         },
         sub_agent::values::values_repository::test::MockRemoteValuesRepositoryMock,
     };
+    use mockall::predicate;
     use opamp_client::opamp::proto::RemoteConfigStatus;
     use opamp_client::opamp::proto::RemoteConfigStatuses;
     use serde::de::Error;
@@ -128,14 +129,6 @@ mod tests {
 
     #[test]
     fn test_config_success() {
-        let mut opamp_client = MockStartedOpAMPClientMock::new();
-        let (sub_agent_publisher, sub_agent_consumer) = pub_sub();
-        let (_sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
-        let (_sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
-        let mut hash_repository = MockHashRepositoryMock::default();
-        let mut values_repository = MockRemoteValuesRepositoryMock::default();
-
-        // Event's config
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let hash = Hash::new(String::from("some-hash"));
         let config_map = ConfigMap::new(HashMap::from([(
@@ -143,26 +136,21 @@ mod tests {
             "some_item: some_value".to_string(),
         )]));
 
-        hash_repository.should_save_hash(&agent_id, &hash);
-        values_repository.should_store_remote(
-            &agent_id,
-            &AgentValues::new(HashMap::from([("some_item".into(), "some_value".into())])),
-        );
+        let (event_processor, sub_agent_consumer) =
+            setup_testing_event_processor(&agent_id, |mocks| {
+                mocks.hash_repository.should_save_hash(&agent_id, &hash);
+                mocks.values_repository.should_store_remote(
+                    &agent_id,
+                    &AgentValues::new(HashMap::from([("some_item".into(), "some_value".into())])),
+                );
 
-        // Applying status should be reported
-        opamp_client.should_set_remote_config_status(applying_status(&hash));
+                // Applying status should be reported
+                mocks
+                    .opamp_client
+                    .should_set_remote_config_status(applying_status(&hash));
+            });
 
         let remote_config = RemoteConfig::new(agent_id.clone(), hash, Some(config_map));
-
-        let event_processor = EventProcessor::new(
-            agent_id.clone(),
-            sub_agent_publisher,
-            sub_agent_opamp_consumer.into(),
-            sub_agent_internal_consumer,
-            Some(opamp_client),
-            Arc::new(hash_repository),
-            Arc::new(values_repository),
-        );
 
         event_processor.remote_config(remote_config).unwrap();
 
@@ -171,38 +159,24 @@ mod tests {
     }
 
     #[test]
-    fn test_config_with_empty_agents() {
-        let mut opamp_client = MockStartedOpAMPClientMock::new();
-        let (sub_agent_publisher, sub_agent_consumer) = pub_sub();
-        let (_sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
-        let (_sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
-        let mut hash_repository = MockHashRepositoryMock::default();
-        let mut values_repository = MockRemoteValuesRepositoryMock::default();
-
-        // Event's config
+    fn test_config_empty() {
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let hash = Hash::new(String::from("some-hash"));
         let config_map = ConfigMap::new(HashMap::from([("".to_string(), "".to_string())]));
 
-        hash_repository.should_save_hash(&agent_id, &hash);
+        let (event_processor, sub_agent_consumer) =
+            setup_testing_event_processor(&agent_id, |mocks| {
+                mocks.hash_repository.should_save_hash(&agent_id, &hash);
 
-        // Expect to remove current remote config when receiving an empty agents remote config.
-        values_repository.should_delete_remote(&agent_id);
-
-        // Applying status should be reported
-        opamp_client.should_set_remote_config_status(applying_status(&hash));
+                // Expect to remove current remote config when receiving an empty agents remote config.
+                mocks.values_repository.should_delete_remote(&agent_id);
+                // Applying status should be reported
+                mocks
+                    .opamp_client
+                    .should_set_remote_config_status(applying_status(&hash));
+            });
 
         let remote_config = RemoteConfig::new(agent_id.clone(), hash, Some(config_map));
-
-        let event_processor = EventProcessor::new(
-            agent_id.clone(),
-            sub_agent_publisher,
-            sub_agent_opamp_consumer.into(),
-            sub_agent_internal_consumer,
-            Some(opamp_client),
-            Arc::new(hash_repository),
-            Arc::new(values_repository),
-        );
 
         event_processor.remote_config(remote_config).unwrap();
 
@@ -218,21 +192,13 @@ mod tests {
 
     #[test]
     fn test_config_invalid_agent_values() {
-        let mut opamp_client = MockStartedOpAMPClientMock::new();
-        let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
-        let (_sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
-        let (_sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
-        let mut hash_repository = MockHashRepositoryMock::default();
-        let values_repository = MockRemoteValuesRepositoryMock::default();
-
-        // Event's config
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let config_map = ConfigMap::new(HashMap::from([(
             "".to_string(),
             "this is not valid yaml".to_string(),
         )]));
 
-        let mut hash = Hash::new(String::from("some-hash"));
+        let hash = Hash::new(String::from("some-hash"));
 
         let remote_config = RemoteConfig::new(agent_id.clone(), hash.clone(), Some(config_map));
 
@@ -241,25 +207,25 @@ mod tests {
                 "invalid type: string \"this is not valid yaml\", expected a map",
             ),
         ));
-        hash_repository.should_save_hash(&agent_id, &hash);
-        // Fail the hash and report the error
-        hash.fail(expected_error.to_string());
-        hash_repository.should_save_hash(&agent_id, &hash);
 
-        // Applying config status should be reported
-        opamp_client.should_set_remote_config_status(applying_status(&hash));
-        // Failed config status should be reported
-        opamp_client.should_set_remote_config_status(failing_status(&hash, &expected_error));
+        let (event_processor, _) = setup_testing_event_processor(&agent_id, |mocks| {
+            // hash should be stored even before finding out it will fail.
+            mocks.hash_repository.should_save_hash(&agent_id, &hash);
+            // Once the error is detected the failing version should be persisted
+            let mut hash = hash.clone();
+            // Fail the hash and report the error
+            hash.fail(expected_error.to_string());
+            mocks.hash_repository.should_save_hash(&agent_id, &hash);
 
-        let event_processor = EventProcessor::new(
-            agent_id,
-            sub_agent_publisher,
-            sub_agent_opamp_consumer.into(),
-            sub_agent_internal_consumer,
-            Some(opamp_client),
-            Arc::new(hash_repository),
-            Arc::new(values_repository),
-        );
+            // Applying config status should be reported
+            mocks
+                .opamp_client
+                .should_set_remote_config_status(applying_status(&hash));
+            // Failed config status should be reported
+            mocks
+                .opamp_client
+                .should_set_remote_config_status(failing_status(&hash, &expected_error));
+        });
 
         assert_eq!(
             expected_error.to_string(),
@@ -272,18 +238,11 @@ mod tests {
 
     #[test]
     fn test_config_missing_config() {
-        let mut opamp_client = MockStartedOpAMPClientMock::new();
-        let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
-        let (_sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
-        let (_sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
-        let mut hash_repository = MockHashRepositoryMock::default();
-        let values_repository = MockRemoteValuesRepositoryMock::default();
-
         // Event's config
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let config_map = ConfigMap::new(HashMap::new());
 
-        let mut hash = Hash::new(String::from("some-hash"));
+        let hash = Hash::new(String::from("some-hash"));
 
         let remote_config = RemoteConfig::new(agent_id.clone(), hash.clone(), Some(config_map));
 
@@ -291,25 +250,24 @@ mod tests {
             hash.get(),
             "empty config map".into(),
         ));
-        hash_repository.should_save_hash(&agent_id, &hash);
-        // Fail the hash and report the error
-        hash.fail(expected_error.to_string());
-        hash_repository.should_save_hash(&agent_id, &hash);
 
-        // Applying config status should be reported
-        opamp_client.should_set_remote_config_status(applying_status(&hash));
-        // Failed config status should be reported
-        opamp_client.should_set_remote_config_status(failing_status(&hash, &expected_error));
+        let (event_processor, _) = setup_testing_event_processor(&agent_id, |mocks| {
+            // hash should be stored even before finding out it will fail.
+            mocks.hash_repository.should_save_hash(&agent_id, &hash);
+            // Once the error is detected the failing version should be persisted
+            let mut hash = hash.clone();
+            hash.fail(expected_error.to_string());
+            mocks.hash_repository.should_save_hash(&agent_id, &hash);
 
-        let event_processor = EventProcessor::new(
-            agent_id,
-            sub_agent_publisher,
-            sub_agent_opamp_consumer.into(),
-            sub_agent_internal_consumer,
-            Some(opamp_client),
-            Arc::new(hash_repository),
-            Arc::new(values_repository),
-        );
+            // Applying config status should be reported
+            mocks
+                .opamp_client
+                .should_set_remote_config_status(applying_status(&hash));
+            // Failed config status should be reported
+            mocks
+                .opamp_client
+                .should_set_remote_config_status(failing_status(&hash, &expected_error));
+        });
 
         assert_eq!(
             expected_error.to_string(),
@@ -322,13 +280,6 @@ mod tests {
 
     #[test]
     fn test_config_with_failing_status() {
-        let mut opamp_client = MockStartedOpAMPClientMock::new();
-        let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
-        let (_sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
-        let (_sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
-        let mut hash_repository = MockHashRepositoryMock::default();
-        let values_repository = MockRemoteValuesRepositoryMock::default();
-
         // Event's config
         let agent_id = AgentID::new("some-agent-id").unwrap();
 
@@ -342,22 +293,17 @@ mod tests {
             hash.error_message().unwrap(),
         ));
 
-        hash_repository.should_save_hash(&agent_id, &hash);
-
-        // Applying config status should be reported
-        opamp_client.should_set_remote_config_status(applying_status(&hash));
-        // Failed config status should be reported
-        opamp_client.should_set_remote_config_status(failing_status(&hash, &expected_error));
-
-        let event_processor = EventProcessor::new(
-            agent_id,
-            sub_agent_publisher,
-            sub_agent_opamp_consumer.into(),
-            sub_agent_internal_consumer,
-            Some(opamp_client),
-            Arc::new(hash_repository),
-            Arc::new(values_repository),
-        );
+        let (event_processor, _) = setup_testing_event_processor(&agent_id, |mocks| {
+            mocks.hash_repository.should_save_hash(&agent_id, &hash);
+            // Applying config status should be reported
+            mocks
+                .opamp_client
+                .should_set_remote_config_status(applying_status(&hash));
+            // Failed config status should be reported
+            mocks
+                .opamp_client
+                .should_set_remote_config_status(failing_status(&hash, &expected_error));
+        });
 
         assert_eq!(
             expected_error.to_string(),
@@ -365,6 +311,180 @@ mod tests {
                 .remote_config(remote_config)
                 .unwrap_err()
                 .to_string()
+        )
+    }
+
+    #[test]
+    fn test_config_hash_repository_error() {
+        let agent_id = AgentID::new("some-agent-id").unwrap();
+        let hash = Hash::new(String::from("some-hash"));
+        let remote_config = RemoteConfig::new(agent_id.clone(), hash.clone(), None);
+
+        let expected_error = SubAgentError::from(HashRepositoryError::Generic);
+
+        let (event_processor, _) = setup_testing_event_processor(&agent_id, |mocks| {
+            mocks
+                .hash_repository
+                .expect_save()
+                .with(predicate::eq(agent_id.clone()), predicate::eq(hash.clone()))
+                .once()
+                .returning(move |_, _| Err(HashRepositoryError::Generic));
+
+            // Applying config status should be reported
+            mocks
+                .opamp_client
+                .should_set_remote_config_status(applying_status(&hash));
+            // Failed config status should be reported
+            mocks
+                .opamp_client
+                .should_set_remote_config_status(failing_status(&hash, &expected_error));
+        });
+
+        assert_eq!(
+            expected_error.to_string(),
+            event_processor
+                .remote_config(remote_config)
+                .unwrap_err()
+                .to_string()
+        )
+    }
+
+    #[test]
+    fn test_config_values_repository_error_on_store() {
+        // Event's config
+        let agent_id = AgentID::new("some-agent-id").unwrap();
+        let hash = Hash::new(String::from("some-hash"));
+        let config_map = ConfigMap::new(HashMap::from([(
+            "".to_string(),
+            "some_item: some_value".to_string(),
+        )]));
+
+        let expected_error = SubAgentError::from(ValuesRepositoryError::Generic);
+
+        let (event_processor, _) = setup_testing_event_processor(&agent_id, |mocks| {
+            mocks.hash_repository.should_save_hash(&agent_id, &hash);
+            mocks
+                .values_repository
+                .expect_store_remote()
+                .once()
+                .with(
+                    predicate::eq(agent_id.clone()),
+                    predicate::eq(AgentValues::new(HashMap::from([(
+                        "some_item".into(),
+                        "some_value".into(),
+                    )]))),
+                )
+                .returning(|_, _| Err(ValuesRepositoryError::Generic));
+
+            // Applying status should be reported
+            mocks
+                .opamp_client
+                .should_set_remote_config_status(applying_status(&hash));
+            // Failed config status should be reported
+            mocks
+                .opamp_client
+                .should_set_remote_config_status(failing_status(&hash, &expected_error));
+        });
+
+        let remote_config = RemoteConfig::new(agent_id.clone(), hash, Some(config_map));
+
+        assert_eq!(
+            expected_error.to_string(),
+            event_processor
+                .remote_config(remote_config)
+                .unwrap_err()
+                .to_string()
+        )
+    }
+
+    #[test]
+    fn test_config_error_on_delete() {
+        let agent_id = AgentID::new("some-agent-id").unwrap();
+        let hash = Hash::new(String::from("some-hash"));
+        let config_map = ConfigMap::new(HashMap::from([("".to_string(), "".to_string())]));
+
+        let expected_error = SubAgentError::from(ValuesRepositoryError::Generic);
+
+        let (event_processor, _) = setup_testing_event_processor(&agent_id, |mocks| {
+            mocks.hash_repository.should_save_hash(&agent_id, &hash);
+
+            // Failure removing the values (removing since the configuration is empty)
+            mocks
+                .values_repository
+                .expect_delete_remote()
+                .once()
+                .with(predicate::eq(agent_id.clone()))
+                .returning(|_| Err(ValuesRepositoryError::Generic));
+
+            // Applying status should be reported
+            mocks
+                .opamp_client
+                .should_set_remote_config_status(applying_status(&hash));
+            // Failed config status should be reported
+            mocks
+                .opamp_client
+                .should_set_remote_config_status(failing_status(&hash, &expected_error));
+        });
+
+        let remote_config = RemoteConfig::new(agent_id.clone(), hash, Some(config_map));
+
+        assert_eq!(
+            expected_error.to_string(),
+            event_processor
+                .remote_config(remote_config)
+                .unwrap_err()
+                .to_string()
+        )
+    }
+
+    /// Helper struct to group test mocks
+    struct TestMocks {
+        hash_repository: MockHashRepositoryMock,
+        values_repository: MockRemoteValuesRepositoryMock,
+        opamp_client: MockStartedOpAMPClientMock<AgentCallbacks>,
+    }
+
+    type TestingEventProcessor = EventProcessor<
+        MockStartedOpAMPClientMock<AgentCallbacks>,
+        MockHashRepositoryMock,
+        MockRemoteValuesRepositoryMock,
+    >;
+
+    /// Setups and event_processor for testing `remote_config`, given the provided agent_type and mock expectations.
+    /// It returns the event_processor and the corresponding sub-agent consumer.
+    fn setup_testing_event_processor<F>(
+        agent_id: &AgentID,
+        expectations_fn: F,
+    ) -> (TestingEventProcessor, EventConsumer<SubAgentEvent>)
+    where
+        F: Fn(&mut TestMocks),
+    {
+        let opamp_client = MockStartedOpAMPClientMock::new();
+        let (sub_agent_publisher, sub_agent_consumer) = pub_sub();
+        let (_sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
+        let (_sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
+        let hash_repository = MockHashRepositoryMock::default();
+        let values_repository = MockRemoteValuesRepositoryMock::default();
+
+        let mut test_values = TestMocks {
+            hash_repository,
+            values_repository,
+            opamp_client,
+        };
+
+        expectations_fn(&mut test_values);
+
+        (
+            EventProcessor::new(
+                agent_id.clone(),
+                sub_agent_publisher,
+                sub_agent_opamp_consumer.into(),
+                sub_agent_internal_consumer,
+                Some(test_values.opamp_client),
+                Arc::new(test_values.hash_repository),
+                Arc::new(test_values.values_repository),
+            ),
+            sub_agent_consumer,
         )
     }
 

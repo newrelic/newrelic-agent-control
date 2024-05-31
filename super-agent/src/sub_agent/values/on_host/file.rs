@@ -35,6 +35,9 @@ pub enum ValuesRepositoryError {
     WriteError(#[from] WriteError),
     #[error("file read error: `{0}`")]
     ReadError(#[from] FileReaderError),
+    #[cfg(test)]
+    #[error("common variant for k8s and on-host implementations")]
+    Generic,
 }
 
 pub struct ValuesRepositoryFile<F, S>

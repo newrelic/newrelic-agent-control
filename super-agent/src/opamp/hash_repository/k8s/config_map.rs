@@ -12,6 +12,9 @@ use tracing::debug;
 pub enum HashRepositoryError {
     #[error("failed to persist on Config Map {0}")]
     FailedToPersistK8s(#[from] k8s::Error),
+    #[cfg(test)]
+    #[error("common variant for k8s and on-host implementations")]
+    Generic,
 }
 
 pub struct HashRepositoryConfigMap {

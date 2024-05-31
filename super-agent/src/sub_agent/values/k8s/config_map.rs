@@ -19,6 +19,9 @@ pub enum ValuesRepositoryError {
     FailedToPersistK8s(#[from] k8s::Error),
     #[error("serialize error on store while loading SubAgentConfig: `{0}`")]
     StoreSerializeError(#[from] serde_yaml::Error),
+    #[cfg(test)]
+    #[error("common variant for k8s and on-host implementations")]
+    Generic,
 }
 
 impl ValuesRepositoryConfigMap {
