@@ -1,5 +1,6 @@
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
+use crate::k8s::utils as client_utils;
 use crate::k8s::utils::IntOrPercentage;
 use crate::sub_agent::health::health_checker::{Health, HealthChecker, HealthCheckerError};
 use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec, ReplicaSet};
@@ -25,7 +26,7 @@ impl HealthChecker for K8sHealthDeployment {
 
         check_health_for_items(target_deployments, |arc_deployment: Arc<Deployment>| {
             let deployment: &Deployment = &arc_deployment; // Dereferencing the Arc so it is usable by generics.
-            let name = utils::get_metadata_name(deployment)?;
+            let name = client_utils::get_metadata_name(deployment)?;
 
             self.latest_replica_set_for_deployment(deployment, name.as_str())
                 .map(|replica_set| Self::check_deployment_health(arc_deployment, replica_set))
@@ -51,7 +52,7 @@ impl K8sHealthDeployment {
         deployment: Arc<Deployment>,
         rs: Arc<ReplicaSet>,
     ) -> Result<Health, HealthCheckerError> {
-        let name = utils::get_metadata_name(&*deployment)?;
+        let name = client_utils::get_metadata_name(&*deployment)?;
 
         let status = deployment
             .status
@@ -197,7 +198,7 @@ impl K8sHealthDeployment {
                 let int_or_percentage =
                     IntOrPercentage::try_from(value.clone()).map_err(|err| {
                         HealthCheckerError::InvalidK8sObject {
-                            kind: utils::get_kind(deployment).into(),
+                            kind: client_utils::get_kind(deployment).into(),
                             name: name.to_string(),
                             err: format!("Invalid IntOrString value: {}", err),
                         }
@@ -226,7 +227,8 @@ impl K8sHealthDeployment {
             .into_iter()
             .filter(|rs| match &rs.metadata.owner_references {
                 Some(owner_refereces) => owner_refereces.iter().any(|owner| {
-                    owner.kind == utils::get_kind(deployment) && owner.name == deployment_name
+                    owner.kind == client_utils::get_kind(deployment)
+                        && owner.name == deployment_name
                 }),
                 None => false,
             })
@@ -882,6 +884,6 @@ mod test {
     }
 
     fn test_util_get_deployment_kind() -> String {
-        utils::get_kind(&test_util_get_empty_deployment()).into()
+        client_utils::get_kind(&test_util_get_empty_deployment()).into()
     }
 }

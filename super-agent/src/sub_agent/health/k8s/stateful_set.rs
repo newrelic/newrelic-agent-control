@@ -1,6 +1,7 @@
-use super::utils::{self, check_health_for_items, flux_release_filter};
+use super::utils;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
+use crate::k8s::utils as client_utils;
 use crate::sub_agent::health::health_checker::{Health, HealthChecker, HealthCheckerError};
 use k8s_openapi::api::apps::v1::{StatefulSet, StatefulSetSpec};
 use std::sync::Arc;
@@ -17,9 +18,9 @@ impl HealthChecker for K8sHealthStatefulSet {
 
         let target_stateful_sets = stateful_sets
             .into_iter()
-            .filter(flux_release_filter(self.release_name.clone()));
+            .filter(utils::flux_release_filter(self.release_name.clone()));
 
-        check_health_for_items(target_stateful_sets, Self::stateful_set_health)
+        utils::check_health_for_items(target_stateful_sets, Self::stateful_set_health)
     }
 }
 
@@ -33,15 +34,15 @@ impl K8sHealthStatefulSet {
 
     /// Returns the health for a single stateful_set.
     fn stateful_set_health(ss: Arc<StatefulSet>) -> Result<Health, HealthCheckerError> {
-        let name = utils::get_metadata_name(&*ss)?;
+        let name = client_utils::get_metadata_name(&*ss)?;
         let spec = ss
             .spec
             .as_ref()
-            .ok_or(utils::missing_field_error(&*ss, &name, "Spec"))?;
+            .ok_or(utils::missing_field_error(&*ss, &name, ".spec"))?;
         let status = ss
             .status
             .as_ref()
-            .ok_or_else(|| utils::missing_field_error(&*ss, &name, "Status"))?;
+            .ok_or_else(|| utils::missing_field_error(&*ss, &name, ".status"))?;
 
         let partition = Self::partition(spec).unwrap_or(0);
         let replicas = spec.replicas.unwrap_or(1);
@@ -51,17 +52,16 @@ impl K8sHealthStatefulSet {
         // TODO: should we fail if `status.observed_generation` or `metadata.observed_generation are none?
         if status.observed_generation != ss.metadata.generation {
             return Ok(Health::unhealthy_with_last_error(format!(
-                "StatefulSets `{}` not ready: observed_generation not matching generation",
-                name
+                "StatefulSet `{name}` not ready: observed_generation not matching generation"
             )));
         }
 
         let updated_replicas = status
             .updated_replicas
-            .ok_or_else(|| utils::missing_field_error(&*ss, &name, "Status.UpdatedReplicas"))?;
+            .ok_or_else(|| utils::missing_field_error(&*ss, &name, ".status.updatedReplicas"))?;
         if updated_replicas < expected_replicas {
             return Ok(Health::unhealthy_with_last_error(format!(
-                        "StatefulSets `{}` not ready: updated_replicas `{}` fewer than expected_replicas `{}`",
+                        "StatefulSet `{}` not ready: updated_replicas `{}` fewer than expected_replicas `{}`",
                         name,
                         updated_replicas,
                         expected_replicas,
@@ -70,10 +70,10 @@ impl K8sHealthStatefulSet {
 
         let ready_replicas = status
             .ready_replicas
-            .ok_or_else(|| utils::missing_field_error(&*ss, &name, "Status.ReadyReplicas"))?;
+            .ok_or_else(|| utils::missing_field_error(&*ss, &name, ".status.readyReplicas"))?;
         if replicas != ready_replicas {
             return Ok(Health::unhealthy_with_last_error(format!(
-                "StatefulSets `{}` not ready: replicas `{}` different from ready_replicas `{}`",
+                "StatefulSet `{}` not ready: replicas `{}` different from ready_replicas `{}`",
                 name, replicas, ready_replicas,
             )));
         }
@@ -81,8 +81,7 @@ impl K8sHealthStatefulSet {
         // TODO: should we fail if `status.current_revision` and/or `status.update_revision` are None?
         if partition == 0 && status.current_revision != status.update_revision {
             return Ok(Health::unhealthy_with_last_error(format!(
-                "StatefulSets `{}` not ready: current_revision not matching update_revision",
-                name
+                "StatefulSet `{name}` not ready: current_revision not matching update_revision",
             )));
         }
 
@@ -173,7 +172,7 @@ mod test {
                     spec: Some(StatefulSetSpec::default()),
                     status: Some(stateful_set_status()),
                 },
-                expected: Health::unhealthy_with_last_error("StatefulSets `name` not ready: observed_generation not matching generation".into())
+                expected: Health::unhealthy_with_last_error("StatefulSet `name` not ready: observed_generation not matching generation".into())
             },
             TestCase {
                 name: "Updated replicas fewer than expected",
@@ -185,7 +184,7 @@ mod test {
                         ..stateful_set_status()
                     }),
                 },
-                expected: Health::unhealthy_with_last_error("StatefulSets `name` not ready: updated_replicas `1` fewer than expected_replicas `2`".into()),
+                expected: Health::unhealthy_with_last_error("StatefulSet `name` not ready: updated_replicas `1` fewer than expected_replicas `2`".into()),
             },
             TestCase {
                 name: "Not ready and ready replicas not matching",
@@ -198,7 +197,7 @@ mod test {
                         ..stateful_set_status()
                     }),
                 },
-                expected: Health::unhealthy_with_last_error("StatefulSets `name` not ready: replicas `5` different from ready_replicas `1`".into()),
+                expected: Health::unhealthy_with_last_error("StatefulSet `name` not ready: replicas `5` different from ready_replicas `1`".into()),
             },
             TestCase {
                 name: "Current and update revision not matching when partition is 0",
@@ -211,7 +210,7 @@ mod test {
                         ..stateful_set_status()
                     }),
                 },
-                expected: Health::unhealthy_with_last_error("StatefulSets `name` not ready: current_revision not matching update_revision".into()),
+                expected: Health::unhealthy_with_last_error("StatefulSet `name` not ready: current_revision not matching update_revision".into()),
             },
             TestCase {
                 name: "Healthy with not matching current and update revision",
@@ -305,7 +304,7 @@ mod test {
                 err_check_fn: TestCase::assert_missing_field,
             },
             TestCase {
-                name: "Invalid object, no Status.UpdatedReplicas",
+                name: "Invalid object, no .status.updatedReplicas",
                 ss: StatefulSet {
                     metadata: stateful_set_meta("name", None),
                     spec: Some(StatefulSetSpec::default()),
@@ -317,7 +316,7 @@ mod test {
                 err_check_fn: TestCase::assert_missing_field,
             },
             TestCase {
-                name: "Invalid object, no Status.ReadyReplicas",
+                name: "Invalid object, no .status.readyReplicas",
                 ss: StatefulSet {
                     metadata: stateful_set_meta("name", None),
                     spec: Some(StatefulSetSpec::default()),

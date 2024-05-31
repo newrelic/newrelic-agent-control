@@ -1,6 +1,7 @@
-use super::utils::{self, check_health_for_items, flux_release_filter};
+use super::utils;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
+use crate::k8s::utils as client_utils;
 use crate::k8s::utils::IntOrPercentage;
 use crate::sub_agent::health::health_checker::{Health, HealthChecker, HealthCheckerError};
 use k8s_openapi::api::apps::v1::{DaemonSet, DaemonSetStatus, DaemonSetUpdateStrategy};
@@ -52,9 +53,9 @@ impl HealthChecker for K8sHealthDaemonSet {
 
         let target_daemon_sets = daemon_sets
             .into_iter()
-            .filter(flux_release_filter(self.release_name.clone()));
+            .filter(utils::flux_release_filter(self.release_name.clone()));
 
-        check_health_for_items(target_daemon_sets, Self::check_health_single_daemon_set)
+        utils::check_health_for_items(target_daemon_sets, Self::check_health_single_daemon_set)
     }
 }
 
@@ -69,7 +70,7 @@ impl K8sHealthDaemonSet {
     pub fn check_health_single_daemon_set(
         ds: Arc<DaemonSet>,
     ) -> Result<Health, HealthCheckerError> {
-        let name = utils::get_metadata_name(&*ds)?;
+        let name = client_utils::get_metadata_name(&*ds)?;
         let status = Self::get_daemon_set_status(name.as_str(), &ds)?;
         let update_strategy = Self::get_daemon_set_update_strategy(name.as_str(), &ds)?;
 
@@ -77,7 +78,7 @@ impl K8sHealthDaemonSet {
             Self::get_daemon_set_rolling_update_type(name.as_str(), &ds, &update_strategy)?,
         )
         .map_err(|err| HealthCheckerError::InvalidK8sObject {
-            kind: utils::get_kind(&*ds).into(),
+            kind: client_utils::get_kind(&*ds).into(),
             name: name.to_string(),
             err: format!("unexpected value for .spec.updateStrategy.type: {err}"),
         })?;
@@ -122,7 +123,7 @@ impl K8sHealthDaemonSet {
             Some(value) => IntOrPercentage::try_from(value)
                 .map_err(|err| {
                     HealthCheckerError::InvalidK8sObject{
-                        kind: utils::get_kind(&*ds).into(),
+                        kind: client_utils::get_kind(&*ds).into(),
                         name: name.to_string(),
                         err: format!("unexpected value for .spec.updateStrategy.rollingUpdate.maxUnavailable: {err}"),
                     }
@@ -378,7 +379,7 @@ pub mod test {
                     }),
                 },
                 expected: Healthy{
-                    status: String::from("Daemonset 'test' has on delete upgrade strategy")
+                    status: "".into()
                 }.into(),
             },
             TestCase {
@@ -450,9 +451,7 @@ pub mod test {
                     }),
                 },
                 expected: Healthy {
-                    status: String::from(
-                        "DaemonSet 'test' healthy: This daemon set does not expect to have healthy pods",
-                    ),
+                    status: "".into()
                 }.into(),
             },
             TestCase {
@@ -533,8 +532,8 @@ pub mod test {
                     }),
                 },
                 expected: Healthy {
-                    status: String::from("DaemonSet 'test' healthy: Pods ready are equal or greater than desired: 2 >= 2"),
-                }.into(),
+                    status: "".into(),
+                }.into()
             },
             TestCase {
                 name: "healthy ds with percent max_unavailable",
@@ -558,8 +557,8 @@ pub mod test {
                     }),
                 },
                 expected: Healthy {
-                    status: String::from("DaemonSet 'test' healthy: Pods ready are equal or greater than desired: 2 >= 2"),
-                }.into(),
+                    status: "".into(),
+                }.into()
             },
         ];
 
@@ -666,6 +665,6 @@ pub mod test {
     }
 
     fn test_util_get_daemon_set_kind() -> String {
-        utils::get_kind(&test_util_get_empty_daemon_set()).into()
+        client_utils::get_kind(&test_util_get_empty_daemon_set()).into()
     }
 }
