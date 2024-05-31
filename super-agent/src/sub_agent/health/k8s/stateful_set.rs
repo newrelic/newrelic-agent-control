@@ -49,7 +49,22 @@ impl K8sHealthStatefulSet {
 
         let expected_replicas = replicas - partition;
 
-        // TODO: should we fail if `status.observed_generation` or `metadata.observed_generation are none?
+        let generation = ss
+            .metadata
+            .generation
+            .ok_or_else(|| utils::missing_field_error(&*ss, &name, ".metadata.generation"))?;
+        let Some(observed_generation) = status.observed_generation else {
+            return Ok(Health::unhealthy_with_last_error(format!(
+                "StatefulSet `{name}` is so new that it has no `observed_generation` status yet"
+            )));
+        };
+
+        if observed_generation != generation {
+            return Ok(Health::unhealthy_with_last_error(format!(
+                "StatefulSet `{name}` not ready: observed_generation not matching generation"
+            )));
+        }
+
         if status.observed_generation != ss.metadata.generation {
             return Ok(Health::unhealthy_with_last_error(format!(
                 "StatefulSet `{name}` not ready: observed_generation not matching generation"
@@ -126,6 +141,7 @@ mod test {
             ready_replicas: Some(1),
             current_revision: Some("rev".into()),
             update_revision: Some("rev".into()),
+            observed_generation: Some(1),
             ..Default::default()
         }
     }
