@@ -21,7 +21,7 @@ use uuid::Uuid;
 
 use super::{
     client_builder::{OpAMPClientBuilder, OpAMPClientBuilderError},
-    instance_id::getter::InstanceIDGetter,
+    instance_id::getter::IDGetter,
 };
 
 pub fn build_sub_agent_opamp<CB, OB, IG>(
@@ -34,7 +34,7 @@ pub fn build_sub_agent_opamp<CB, OB, IG>(
 where
     CB: Callbacks,
     OB: OpAMPClientBuilder<CB>,
-    IG: InstanceIDGetter,
+    IG: IDGetter,
 {
     let super_agent_id = AgentID::new_super_agent_id();
     let parent_instance_id = instance_id_getter.get(&super_agent_id)?.to_string();
@@ -63,7 +63,7 @@ pub fn build_opamp_with_channel<CB, OB, IG>(
 where
     CB: Callbacks,
     OB: OpAMPClientBuilder<CB>,
-    IG: InstanceIDGetter,
+    IG: IDGetter,
 {
     let (tx, rx) = pub_sub();
     let client = build_opamp_and_start_client(
@@ -88,7 +88,7 @@ pub fn build_opamp_and_start_client<CB, OB, IG>(
 where
     CB: Callbacks,
     OB: OpAMPClientBuilder<CB>,
-    IG: InstanceIDGetter,
+    IG: IDGetter,
 {
     let start_settings = start_settings(
         instance_id_getter.get(&agent_id)?.get_uuid(),

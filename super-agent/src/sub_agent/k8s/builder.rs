@@ -6,7 +6,7 @@ use crate::event::SubAgentEvent;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::opamp::hash_repository::HashRepository;
-use crate::opamp::instance_id::getter::InstanceIDGetter;
+use crate::opamp::instance_id::getter::IDGetter;
 use crate::opamp::operations::build_sub_agent_opamp;
 use crate::sub_agent::build_supervisor_or_default;
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
@@ -28,7 +28,7 @@ use tracing::debug;
 pub struct K8sSubAgentBuilder<'a, O, I, HR, A, E>
 where
     O: OpAMPClientBuilder<SubAgentCallbacks>,
-    I: InstanceIDGetter,
+    I: IDGetter,
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
     E: SubAgentEventProcessorBuilder<O::Client>,
@@ -45,7 +45,7 @@ where
 impl<'a, O, I, HR, A, E> K8sSubAgentBuilder<'a, O, I, HR, A, E>
 where
     O: OpAMPClientBuilder<SubAgentCallbacks>,
-    I: InstanceIDGetter,
+    I: IDGetter,
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
     E: SubAgentEventProcessorBuilder<O::Client>,
@@ -74,7 +74,7 @@ where
 impl<'a, O, I, HR, A, E> SubAgentBuilder for K8sSubAgentBuilder<'a, O, I, HR, A, E>
 where
     O: OpAMPClientBuilder<SubAgentCallbacks>,
-    I: InstanceIDGetter,
+    I: IDGetter,
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
     E: SubAgentEventProcessorBuilder<O::Client>,

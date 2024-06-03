@@ -43,7 +43,7 @@ pub enum StorerError {
     ReadError(#[from] FileReaderError),
 }
 
-fn get_uuid_path(agent_id: &AgentID) -> PathBuf {
+fn get_instance_id_path(agent_id: &AgentID) -> PathBuf {
     if agent_id.is_super_agent_id() {
         PathBuf::from(SUPER_AGENT_IDENTIFIERS_PATH())
     } else {
@@ -88,7 +88,7 @@ where
     F: FileWriter + FileReader,
 {
     fn write_contents(&self, agent_id: &AgentID, ds: &DataStored) -> Result<(), StorerError> {
-        let dest_file = get_uuid_path(agent_id);
+        let dest_file = get_instance_id_path(agent_id);
         // Get a ref to the target file's parent directory
         let dest_dir = dest_file
             .parent()
@@ -106,7 +106,7 @@ where
     }
 
     fn read_contents(&self, agent_id: &AgentID) -> Result<Option<DataStored>, StorerError> {
-        let dest_path = get_uuid_path(agent_id);
+        let dest_path = get_instance_id_path(agent_id);
         let file_str = match self.file_rw.read(dest_path.as_path()) {
             Ok(s) => s,
             Err(e) => {
@@ -127,7 +127,7 @@ where
 #[cfg(test)]
 mod test {
     use crate::opamp::instance_id::getter::DataStored;
-    use crate::opamp::instance_id::on_host::storer::get_uuid_path;
+    use crate::opamp::instance_id::on_host::storer::get_instance_id_path;
     use crate::opamp::instance_id::storer::InstanceIDStorer;
     use crate::opamp::instance_id::{Identifiers, InstanceID, Storer};
     use crate::super_agent::config::AgentID;
@@ -144,14 +144,14 @@ mod test {
     #[test]
     fn basic_get_uild_path() {
         let agent_id = AgentID::new("test").unwrap();
-        let path = get_uuid_path(&agent_id);
+        let path = get_instance_id_path(&agent_id);
         assert_eq!(
             path,
             PathBuf::from(format!("{}/test/identifiers.yaml", REMOTE_AGENT_DATA_DIR()))
         );
 
         let super_agent_id = AgentID::new_super_agent_id();
-        let path = get_uuid_path(&super_agent_id);
+        let path = get_instance_id_path(&super_agent_id);
         assert_eq!(path, PathBuf::from(SUPER_AGENT_IDENTIFIERS_PATH()));
     }
 
@@ -162,15 +162,22 @@ mod test {
         let mut file_rw = MockLocalFile::default();
         let mut dir_manager = MockDirectoryManagerMock::default();
         let ds = DataStored {
-            uuid: InstanceID::new(UUID),
+            instance_id: InstanceID::new(UUID),
             identifiers: test_identifiers(),
         };
 
-        let uuid_path = get_uuid_path(&agent_id);
+        let instance_id_path = get_instance_id_path(&agent_id);
 
         // Expectations
-        dir_manager.should_create(uuid_path.parent().unwrap(), Permissions::from_mode(0o700));
-        file_rw.should_write(&uuid_path, expected_file(), Permissions::from_mode(0o600));
+        dir_manager.should_create(
+            instance_id_path.parent().unwrap(),
+            Permissions::from_mode(0o700),
+        );
+        file_rw.should_write(
+            &instance_id_path,
+            expected_file(),
+            Permissions::from_mode(0o600),
+        );
 
         let storer = Storer::new(file_rw, dir_manager);
         assert!(storer.set(&agent_id, &ds).is_ok());
@@ -183,15 +190,22 @@ mod test {
         let mut file_rw = MockLocalFile::default();
         let mut dir_manager = MockDirectoryManagerMock::default();
         let ds = DataStored {
-            uuid: InstanceID::new(UUID),
+            instance_id: InstanceID::new(UUID),
             identifiers: test_identifiers(),
         };
 
-        let uuid_path = get_uuid_path(&agent_id);
+        let instance_id_path = get_instance_id_path(&agent_id);
 
         // Expectations
-        file_rw.should_not_write(&uuid_path, expected_file(), Permissions::from_mode(0o600));
-        dir_manager.should_create(uuid_path.parent().unwrap(), Permissions::from_mode(0o700));
+        file_rw.should_not_write(
+            &instance_id_path,
+            expected_file(),
+            Permissions::from_mode(0o600),
+        );
+        dir_manager.should_create(
+            instance_id_path.parent().unwrap(),
+            Permissions::from_mode(0o700),
+        );
 
         let storer = Storer::new(file_rw, dir_manager);
         assert!(storer.set(&agent_id, &ds).is_err());
@@ -204,16 +218,18 @@ mod test {
         let mut file_rw = MockLocalFile::default();
         let dir_manager = MockDirectoryManagerMock::default();
         let ds = DataStored {
-            uuid: InstanceID::new(UUID),
+            instance_id: InstanceID::new(UUID),
             identifiers: test_identifiers(),
         };
         let expected = Some(ds.clone());
-        let uuid_path = get_uuid_path(&agent_id);
+        let instance_id_path = get_instance_id_path(&agent_id);
 
         // Expectations
         file_rw
             .expect_read()
-            .with(predicate::function(move |p| p == uuid_path.as_path()))
+            .with(predicate::function(move |p| {
+                p == instance_id_path.as_path()
+            }))
             .once()
             .return_once(|_| Ok(expected_file()));
 
@@ -228,11 +244,13 @@ mod test {
         let agent_id = AgentID::new("test").unwrap();
         let mut file_rw = MockLocalFile::default();
         let dir_manager = MockDirectoryManagerMock::default();
-        let uuid_path = get_uuid_path(&agent_id);
+        let instance_id_path = get_instance_id_path(&agent_id);
 
         file_rw
             .expect_read()
-            .with(predicate::function(move |p| p == uuid_path.as_path()))
+            .with(predicate::function(move |p| {
+                p == instance_id_path.as_path()
+            }))
             .once()
             .return_once(|_| Err(io::Error::new(ErrorKind::Other, "some error message").into()));
 
@@ -254,7 +272,14 @@ mod test {
     const FLEET_ID: &str = "test-fleet-id";
 
     fn expected_file() -> String {
-        format!("uuid: {UUID}\nidentifiers:\n  hostname: {HOSTNAME}\n  machine_id: {MICHINE_ID}\n  cloud_instance_id: {CLOUD_INSTANCE_ID}\n  host_id: {HOST_ID}\n  fleet_id: {FLEET_ID}\n")
+        format!("instance_id: {}\nidentifiers:\n  hostname: {}\n  machine_id: {}\n  cloud_instance_id: {}\n  host_id: {}\n  fleet_id: {}\n",
+            UUID,
+            HOSTNAME,
+            MICHINE_ID,
+            CLOUD_INSTANCE_ID,
+            HOST_ID,
+            FLEET_ID,
+        )
     }
 
     fn test_identifiers() -> Identifiers {

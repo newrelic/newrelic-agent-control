@@ -101,7 +101,7 @@ impl FakeServer {
     /// Sets a response for the provided identifier. If a response already existed, it is overwritten.
     /// It will be returned by the server until the agent informs that the remote configuration has been applied,
     /// then the server will return a `None` (no-changes) configuration in following requests.
-    /// The identifier should be a valid uuid
+    /// The identifier should be a valid UUID.
     pub fn set_config_response(&mut self, identifier: InstanceID, response: ConfigResponse) {
         let mut responses = self.responses.lock().unwrap();
         responses.insert(identifier, response);

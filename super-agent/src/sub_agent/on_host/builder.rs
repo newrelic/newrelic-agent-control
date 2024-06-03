@@ -9,7 +9,7 @@ use crate::agent_type::environment::Environment;
 use crate::event::channel::{pub_sub, EventPublisher};
 use crate::event::SubAgentEvent;
 use crate::opamp::hash_repository::HashRepository;
-use crate::opamp::instance_id::getter::InstanceIDGetter;
+use crate::opamp::instance_id::getter::IDGetter;
 use crate::opamp::instance_id::IdentifiersProvider;
 use crate::opamp::operations::build_sub_agent_opamp;
 use crate::sub_agent::build_supervisor_or_default;
@@ -38,7 +38,7 @@ use std::sync::Arc;
 pub struct OnHostSubAgentBuilder<'a, O, I, HR, A, E>
 where
     O: OpAMPClientBuilder<SubAgentCallbacks>,
-    I: InstanceIDGetter,
+    I: IDGetter,
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
     E: SubAgentEventProcessorBuilder<O::Client>,
@@ -54,7 +54,7 @@ where
 impl<'a, O, I, HR, A, E> OnHostSubAgentBuilder<'a, O, I, HR, A, E>
 where
     O: OpAMPClientBuilder<SubAgentCallbacks>,
-    I: InstanceIDGetter,
+    I: IDGetter,
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
     E: SubAgentEventProcessorBuilder<O::Client>,
@@ -81,7 +81,7 @@ where
 impl<'a, O, I, HR, A, E> SubAgentBuilder for OnHostSubAgentBuilder<'a, O, I, HR, A, E>
 where
     O: OpAMPClientBuilder<SubAgentCallbacks>,
-    I: InstanceIDGetter,
+    I: IDGetter,
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
     E: SubAgentEventProcessorBuilder<O::Client>,

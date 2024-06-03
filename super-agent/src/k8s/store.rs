@@ -10,7 +10,7 @@ use std::sync::{Arc, RwLock};
 /// the SA treats those CM as read-only.
 pub const CM_NAME_LOCAL_DATA_PREFIX: &str = "local-data-";
 /// The cm having CM_NAME_OPAMP_DATA_PREFIX as prefix stores all the data related with opamp:
-/// UUIDs, hashes, and remote configs. The Sa reads and writes those CMs.
+/// Instance IDs, hashes, and remote configs. The Sa reads and writes those CMs.
 pub const CM_NAME_OPAMP_DATA_PREFIX: &str = "opamp-data-";
 
 /// The key used to identify the data in the Store.
@@ -38,7 +38,7 @@ impl K8sStore {
     }
 
     /// get_opamp_data is used to get data from CMs storing data related with opamp:
-    /// UUIDs, hashes, and remote configs.
+    /// Instance IDs, hashes, and remote configs.
     pub fn get_opamp_data<T>(&self, agent_id: &AgentID, key: &StoreKey) -> Result<Option<T>, Error>
     where
         T: serde::de::DeserializeOwned,
