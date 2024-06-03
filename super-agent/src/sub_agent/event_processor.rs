@@ -103,6 +103,15 @@ where
                                 debug!("sub_agent_opamp_consumer :: channel closed");
                                 break;
                             }
+                            // TODO: the OpAMP flow when a remote configuration is received should be the same
+                            // for sub-agent and super-agent:
+                            // 1. Remote config is received and an APPLYING message is reported
+                            // 2. The configuration is persisted and applied and then an APPLIED message is reported
+                            // (considering errors when config is not valid or cannot be applied)
+                            // However, the code cannot be the same as of now since the current sub-agent supervisor
+                            // will persists the configuration and ask will notify the super-agent which will stop
+                            // the current sub-agent supervisor and start a new one which will be in charge of notifying
+                            // the APPLIED message.
                             Ok(OpAMPEvent::RemoteConfigReceived(remote_config)) => {
                                 debug!("remote config received for: {}", self.agent_id);
                                 if let Err(e) = self.remote_config(remote_config){
@@ -143,21 +152,22 @@ pub mod test {
     use crate::agent_type::agent_values::AgentValues;
     use crate::event::channel::pub_sub;
     use crate::event::OpAMPEvent;
+    use crate::event::SubAgentEvent::ConfigUpdated;
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
+    use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
     use crate::opamp::remote_config::{ConfigMap, RemoteConfig};
     use crate::opamp::remote_config_hash::Hash;
+    use crate::sub_agent::error::SubAgentError;
     use crate::sub_agent::event_processor::{EventProcessor, SubAgentEventProcessor};
+    use crate::sub_agent::values::values_repository::test::MockRemoteValuesRepositoryMock;
     use crate::super_agent::config::AgentID;
     use mockall::mock;
+    use opamp_client::opamp::proto::RemoteConfigStatus;
+    use opamp_client::opamp::proto::RemoteConfigStatuses::Applying;
     use std::collections::HashMap;
     use std::sync::Arc;
     use std::thread;
     use std::thread::JoinHandle;
-
-    use crate::event::SubAgentEvent::ConfigUpdated;
-    use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
-    use crate::sub_agent::error::SubAgentError;
-    use crate::sub_agent::values::values_repository::test::MockRemoteValuesRepositoryMock;
     use tracing_test::internal::logs_with_scope_contain;
     use tracing_test::traced_test;
 
@@ -237,8 +247,14 @@ pub mod test {
             &AgentValues::new(HashMap::from([("some_item".into(), "some_value".into())])),
         );
 
-        let remote_config = RemoteConfig::new(agent_id.clone(), hash, Some(config_map));
+        let remote_config = RemoteConfig::new(agent_id.clone(), hash.clone(), Some(config_map));
 
+        // Applying config status should be reported
+        opamp_client.should_set_remote_config_status(RemoteConfigStatus {
+            status: Applying as i32,
+            last_remote_config_hash: hash.get().into_bytes(),
+            error_message: Default::default(),
+        });
         //opamp client expects to be stopped
         opamp_client.should_stop(1);
 
