@@ -225,6 +225,13 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
+## atomic https://crates.io/crates/atomic
+
+Distributed under the following license(s):
+* Apache-2.0
+* MIT
+
+
 ## atomic-waker https://crates.io/crates/atomic-waker
 
 Distributed under the following license(s):
@@ -2181,6 +2188,13 @@ Distributed under the following license(s):
 
 
 ## utf8parse https://crates.io/crates/utf8parse
+
+Distributed under the following license(s):
+* Apache-2.0
+* MIT
+
+
+## uuid https://crates.io/crates/uuid
 
 Distributed under the following license(s):
 * Apache-2.0
