@@ -5,6 +5,7 @@ use crate::k8s::utils::IntOrPercentage;
 use crate::sub_agent::health::health_checker::{Health, HealthChecker, HealthCheckerError};
 use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec, ReplicaSet};
 use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
+use k8s_openapi::Resource as _; // Needed to access resource's KIND. e.g.: Deployment::KIND
 use std::sync::Arc;
 
 use super::utils::{self, check_health_for_items, flux_release_filter};
@@ -28,7 +29,7 @@ impl HealthChecker for K8sHealthDeployment {
             let deployment: &Deployment = &arc_deployment; // Dereferencing the Arc so it is usable by generics.
             let name = client_utils::get_metadata_name(deployment)?;
 
-            self.latest_replica_set_for_deployment(deployment, name.as_str())
+            self.latest_replica_set_for_deployment(name.as_str())
                 .map(|replica_set| Self::check_deployment_health(arc_deployment, replica_set))
                 .unwrap_or_else(|| {
                     Ok(Health::unhealthy_with_last_error(format!(
@@ -198,7 +199,7 @@ impl K8sHealthDeployment {
                 let int_or_percentage =
                     IntOrPercentage::try_from(value.clone()).map_err(|err| {
                         HealthCheckerError::InvalidK8sObject {
-                            kind: client_utils::get_kind(deployment).into(),
+                            kind: Deployment::KIND.to_string(),
                             name: name.to_string(),
                             err: format!("Invalid IntOrString value: {}", err),
                         }
@@ -215,21 +216,16 @@ impl K8sHealthDeployment {
     /// especially during rollouts and updates. This function retrieves all ReplicaSets
     /// associated with the specified Deployment and returns the newest one based on the
     /// creation timestamp.
-    fn latest_replica_set_for_deployment(
-        &self,
-        deployment: &Deployment,
-        deployment_name: &str,
-    ) -> Option<Arc<ReplicaSet>> {
+    fn latest_replica_set_for_deployment(&self, deployment_name: &str) -> Option<Arc<ReplicaSet>> {
         // Filter the list of ReplicaSets referencing to the deployment
         let mut replica_sets: Vec<Arc<ReplicaSet>> = self
             .k8s_client
             .list_replica_set()
             .into_iter()
             .filter(|rs| match &rs.metadata.owner_references {
-                Some(owner_refereces) => owner_refereces.iter().any(|owner| {
-                    owner.kind == client_utils::get_kind(deployment)
-                        && owner.name == deployment_name
-                }),
+                Some(owner_refereces) => owner_refereces
+                    .iter()
+                    .any(|owner| owner.kind == Deployment::KIND && owner.name == deployment_name),
                 None => false,
             })
             .collect();
@@ -422,7 +418,7 @@ mod test {
                     ..Default::default()
                 },
                 expected_err: utils::missing_field_error(
-                    &test_util_get_empty_deployment(),
+                    &Deployment::default(),
                     "test-deployment",
                     "status",
                 ),
@@ -439,7 +435,7 @@ mod test {
                     ..Default::default()
                 },
                 expected_err: utils::missing_field_error(
-                    &test_util_get_empty_deployment(),
+                    &Deployment::default(),
                     "test-deployment",
                     "spec",
                 ),
@@ -459,7 +455,7 @@ mod test {
                     ..Default::default()
                 },
                 expected_err: utils::missing_field_error(
-                    &test_util_get_empty_deployment(),
+                    &Deployment::default(),
                     "test-deployment",
                     "status.replicas",
                 ),
@@ -477,7 +473,7 @@ mod test {
                     ..Default::default()
                 },
                 expected_err: utils::missing_field_error(
-                    &test_util_get_empty_deployment(),
+                    &Deployment::default(),
                     "test-deployment",
                     "replica set status",
                 ),
@@ -498,7 +494,7 @@ mod test {
                     ..Default::default()
                 },
                 expected_err: utils::missing_field_error(
-                    &test_util_get_empty_deployment(),
+                    &Deployment::default(),
                     "test-deployment",
                     "ready replicas",
                 ),
@@ -533,10 +529,7 @@ mod test {
                     release_name: "release-name".to_string(),
                 };
 
-                let result = health_checker.latest_replica_set_for_deployment(
-                    &test_util_get_empty_deployment(),
-                    DEPLOYMENT_NAME,
-                );
+                let result = health_checker.latest_replica_set_for_deployment(DEPLOYMENT_NAME);
                 assert_eq!(
                     result.map(|rs| rs.metadata.clone().name.unwrap()),
                     expected,
@@ -556,13 +549,13 @@ mod test {
                 replica_sets: vec![
                     Arc::new(test_util_create_replica_set(
                         "no-matching-kind",
-                        "no-deployment-kind".into(),
+                        "no-deployment-kind",
                         DEPLOYMENT_NAME,
                         None,
                     )),
                     Arc::new(test_util_create_replica_set(
                         "no-matching-name",
-                        test_util_get_deployment_kind(),
+                        Deployment::KIND,
                         "no-matching-name",
                         None,
                     )),
@@ -575,13 +568,13 @@ mod test {
                 replica_sets: vec![
                     Arc::new(test_util_create_replica_set(
                         "no-matching-name",
-                        test_util_get_deployment_kind(),
+                        Deployment::KIND,
                         "no-matching-name",
                         None,
                     )),
                     Arc::new(test_util_create_replica_set(
                         "matching",
-                        test_util_get_deployment_kind(),
+                        Deployment::KIND,
                         DEPLOYMENT_NAME,
                         None,
                     )),
@@ -593,7 +586,7 @@ mod test {
                 replica_sets: vec![
                     Arc::new(test_util_create_replica_set(
                         "matching-1",
-                        test_util_get_deployment_kind(),
+                        Deployment::KIND,
                         DEPLOYMENT_NAME,
                         Some(Time(
                             DateTime::<Utc>::from_str("2024-05-27 09:00:00 +00:00").unwrap(),
@@ -601,13 +594,13 @@ mod test {
                     )),
                     Arc::new(test_util_create_replica_set(
                         "no-matching-name",
-                        test_util_get_deployment_kind(),
+                        Deployment::KIND,
                         "no-matching-name",
                         None,
                     )),
                     Arc::new(test_util_create_replica_set(
                         "matching-2",
-                        test_util_get_deployment_kind(),
+                        Deployment::KIND,
                         DEPLOYMENT_NAME,
                         Some(Time(
                             DateTime::<Utc>::from_str("2024-05-27 10:00:00 +00:00").unwrap(),
@@ -615,7 +608,7 @@ mod test {
                     )),
                     Arc::new(test_util_create_replica_set(
                         "matching-3",
-                        test_util_get_deployment_kind(),
+                        Deployment::KIND,
                         DEPLOYMENT_NAME,
                         Some(Time(
                             DateTime::<Utc>::from_str("2024-05-27 09:30:00 +00:00").unwrap(),
@@ -646,7 +639,7 @@ mod test {
                     .unwrap_or("unknown");
                 let spec = self.deployment.spec.as_ref().unwrap();
                 let result = K8sHealthDeployment::max_unavailable(
-                    &test_util_get_empty_deployment(),
+                    &Deployment::default(),
                     metadata_name,
                     spec,
                 );
@@ -731,7 +724,7 @@ mod test {
                     ..Default::default()
                 },
                 expected: Err(HealthCheckerError::InvalidK8sObject {
-                    kind: test_util_get_deployment_kind(),
+                    kind: Deployment::KIND.to_string(),
                     name: "test-deployment".to_string(),
                     err: "Invalid IntOrString value: invalid digit found in string".to_string(),
                 }),
@@ -784,7 +777,7 @@ mod test {
             status: Some(test_util_create_replica_set_status(8)),
             ..test_util_create_replica_set(
                 "rs",
-                test_util_get_deployment_kind(),
+                Deployment::KIND,
                 "test-deployment",
                 Some(Time(
                     DateTime::<Utc>::from_str("2024-05-27 10:00:00 +00:00").unwrap(),
@@ -858,7 +851,7 @@ mod test {
 
     fn test_util_create_replica_set(
         name: &str,
-        owner_kind: String,
+        owner_kind: &str,
         owner_name: &str,
         creation_timestamp: Option<Time>,
     ) -> ReplicaSet {
@@ -866,7 +859,7 @@ mod test {
             metadata: ObjectMeta {
                 name: Some(name.to_string()),
                 owner_references: Some(vec![OwnerReference {
-                    kind: owner_kind,
+                    kind: owner_kind.to_string(),
                     name: owner_name.to_string(),
                     ..Default::default()
                 }]),
@@ -875,15 +868,5 @@ mod test {
             },
             ..Default::default()
         }
-    }
-
-    fn test_util_get_empty_deployment() -> Deployment {
-        Deployment {
-            ..Default::default()
-        }
-    }
-
-    fn test_util_get_deployment_kind() -> String {
-        client_utils::get_kind(&test_util_get_empty_deployment()).into()
     }
 }

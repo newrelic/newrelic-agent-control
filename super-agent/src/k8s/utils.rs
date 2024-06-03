@@ -145,14 +145,6 @@ where
         .ok_or_else(|| Error::MissingName(K::KIND.to_string()))
 }
 
-/// Return Kind of given object.
-pub fn get_kind<K>(_: &K) -> &str
-where
-    K: Resource<Scope = NamespaceResourceScope>,
-{
-    K::KIND
-}
-
 #[cfg(test)]
 pub mod test {
     use super::*;
@@ -357,9 +349,7 @@ pub mod test {
         assert_eq!(deployment_name, "name".to_string());
 
         // Now a DaemonSet
-        let mut daemon_set = DaemonSet {
-            ..Default::default()
-        };
+        let mut daemon_set = DaemonSet::default();
         let daemon_set_error = get_metadata_name(&daemon_set).unwrap_err();
         daemon_set.metadata.name = Some("name".into());
         let daemon_set_name = get_metadata_name(&daemon_set).unwrap();
@@ -368,21 +358,5 @@ pub mod test {
             Error::MissingName("DaemonSet".to_string()).to_string()
         );
         assert_eq!(daemon_set_name, "name".to_string());
-    }
-
-    #[test]
-    fn test_kind() {
-        // As it is a generic, I want to test with at least two different types.
-        // Let's start with a Deployment
-        let deployment = k8s_openapi::api::apps::v1::Deployment {
-            ..Default::default()
-        };
-        assert_eq!(get_kind(&deployment), "Deployment");
-
-        // Now a DaemonSet
-        let daemon_set = k8s_openapi::api::apps::v1::DaemonSet {
-            ..Default::default()
-        };
-        assert_eq!(get_kind(&daemon_set), "DaemonSet");
     }
 }

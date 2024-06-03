@@ -5,6 +5,7 @@ use crate::k8s::utils as client_utils;
 use crate::k8s::utils::IntOrPercentage;
 use crate::sub_agent::health::health_checker::{Health, HealthChecker, HealthCheckerError};
 use k8s_openapi::api::apps::v1::{DaemonSet, DaemonSetStatus, DaemonSetUpdateStrategy};
+use k8s_openapi::Resource as _; // Needed to access resource's KIND. e.g.: Deployment::KIND
 use std::sync::Arc;
 
 enum UpdateStrategyType {
@@ -78,7 +79,7 @@ impl K8sHealthDaemonSet {
             Self::get_daemon_set_rolling_update_type(name.as_str(), &ds, &update_strategy)?,
         )
         .map_err(|err| HealthCheckerError::InvalidK8sObject {
-            kind: client_utils::get_kind(&*ds).into(),
+            kind: DaemonSet::KIND.to_string(),
             name: name.to_string(),
             err: format!("unexpected value for .spec.updateStrategy.type: {err}"),
         })?;
@@ -123,7 +124,7 @@ impl K8sHealthDaemonSet {
             Some(value) => IntOrPercentage::try_from(value)
                 .map_err(|err| {
                     HealthCheckerError::InvalidK8sObject{
-                        kind: client_utils::get_kind(&*ds).into(),
+                        kind: DaemonSet::KIND.to_string(),
                         name: name.to_string(),
                         err: format!("unexpected value for .spec.updateStrategy.rollingUpdate.maxUnavailable: {err}"),
                     }
@@ -193,6 +194,8 @@ pub mod test {
         apimachinery::pkg::{apis::meta::v1::ObjectMeta, util::intstr::IntOrString},
     };
 
+    const TEST_DAEMON_SET_NAME: &str = "test-daemonset";
+
     #[test]
     fn test_daemon_set_spec_errors() {
         struct TestCase {
@@ -234,7 +237,7 @@ pub mod test {
                     status: None,
                 },
                 expected: HealthCheckerError::K8sError(crate::k8s::error::K8sError::MissingName(
-                    test_util_get_daemon_set_kind(),
+                    DaemonSet::KIND.to_string(),
                 )),
             },
             TestCase {
@@ -287,8 +290,8 @@ pub mod test {
                     }),
                 },
                 expected: HealthCheckerError::InvalidK8sObject {
-                    kind: test_util_get_daemon_set_kind(),
-                    name: daemon_set_name(),
+                    kind: DaemonSet::KIND.to_string(),
+                    name: TEST_DAEMON_SET_NAME.to_string(),
                     err: "unexpected value for .spec.updateStrategy.type: Unknown Update Strategy Type: 'Unknown-TEST'".to_string(),
                 },
             },
@@ -330,8 +333,8 @@ pub mod test {
                     }),
                 },
                 expected: HealthCheckerError::InvalidK8sObject{
-                    kind: test_util_get_daemon_set_kind(),
-                    name: daemon_set_name(),
+                    kind: DaemonSet::KIND.to_string(),
+                    name: TEST_DAEMON_SET_NAME.to_string(),
                     err: "unexpected value for .spec.updateStrategy.rollingUpdate.maxUnavailable: invalid digit found in string".to_string(),
                 },
             },
@@ -565,10 +568,6 @@ pub mod test {
         test_cases.into_iter().for_each(|tc| tc.run());
     }
 
-    fn daemon_set_name() -> String {
-        "test".to_string()
-    }
-
     #[test]
     fn test_check_health() {
         let mut k8s_client = MockSyncK8sClient::new();
@@ -645,26 +644,16 @@ pub mod test {
 
     fn test_util_get_common_metadata() -> ObjectMeta {
         ObjectMeta {
-            name: Some(daemon_set_name()),
+            name: Some(TEST_DAEMON_SET_NAME.to_string()),
             ..Default::default()
         }
     }
 
     fn test_util_missing_field(field: &str) -> HealthCheckerError {
         HealthCheckerError::MissingK8sObjectField {
-            kind: test_util_get_daemon_set_kind(),
-            name: daemon_set_name(),
+            kind: DaemonSet::KIND.to_string(),
+            name: TEST_DAEMON_SET_NAME.to_string(),
             field: field.to_string(),
         }
-    }
-
-    fn test_util_get_empty_daemon_set() -> DaemonSet {
-        DaemonSet {
-            ..Default::default()
-        }
-    }
-
-    fn test_util_get_daemon_set_kind() -> String {
-        client_utils::get_kind(&test_util_get_empty_daemon_set()).into()
     }
 }

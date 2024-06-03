@@ -48,12 +48,12 @@ where
 }
 
 /// Helper to return an error when an expected field in the StatefulSet object is missing.
-pub fn missing_field_error<K>(obj: &K, name: &str, field: &str) -> HealthCheckerError
+pub fn missing_field_error<K>(_: &K, name: &str, field: &str) -> HealthCheckerError
 where
     K: Resource<Scope = NamespaceResourceScope>,
 {
     HealthCheckerError::MissingK8sObjectField {
-        kind: client_utils::get_kind(obj).to_string(),
+        kind: K::KIND.to_string(),
         name: name.to_string(),
         field: field.to_string(),
     }
