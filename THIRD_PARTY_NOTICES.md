@@ -225,6 +225,13 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
+## atomic https://crates.io/crates/atomic
+
+Distributed under the following license(s):
+* Apache-2.0
+* MIT
+
+
 ## atomic-waker https://crates.io/crates/atomic-waker
 
 Distributed under the following license(s):
@@ -1020,6 +1027,12 @@ Distributed under the following license(s):
 * MIT
 
 
+## jsonwebtoken https://crates.io/crates/jsonwebtoken
+
+Distributed under the following license(s):
+* MIT
+
+
 ## k8s-openapi https://crates.io/crates/k8s-openapi
 
 Distributed under the following license(s):
@@ -1221,7 +1234,21 @@ Distributed under the following license(s):
 * MIT
 
 
+## num-bigint https://crates.io/crates/num-bigint
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
 ## num-conv https://crates.io/crates/num-conv
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+## num-integer https://crates.io/crates/num-integer
 
 Distributed under the following license(s):
 * MIT
@@ -1773,6 +1800,12 @@ Distributed under the following license(s):
 * MIT
 
 
+## simple_asn1 https://crates.io/crates/simple_asn1
+
+Distributed under the following license(s):
+* ISC
+
+
 ## slab https://crates.io/crates/slab
 
 Distributed under the following license(s):
@@ -2155,6 +2188,13 @@ Distributed under the following license(s):
 
 
 ## utf8parse https://crates.io/crates/utf8parse
+
+Distributed under the following license(s):
+* Apache-2.0
+* MIT
+
+
+## uuid https://crates.io/crates/uuid
 
 Distributed under the following license(s):
 * Apache-2.0
