@@ -1,7 +1,5 @@
-use std::{io, path::Path};
-
-use chrono::{offset::LocalResult, TimeZone, Utc};
 use jsonwebtoken::{Algorithm, EncodingKey, Header};
+use std::{io, path::Path};
 use thiserror::Error;
 
 use crate::jwt::{claims::Claims, error::JwtEncoderError, signed::SignedJwt};
@@ -53,32 +51,9 @@ impl JwtSigner for LocalPrivateKeySigner {
     // Algorithm-agnostic, though we only support RS256.
     // Change the algorithm and encoding key in LocalPrivateKeySigner to support other.
     fn sign(&self, claims: Claims) -> Result<SignedJwt, JwtEncoderError> {
-        let expiration_date = match Utc.timestamp_millis_opt(claims.exp as i64) {
-            // able to retrieve a single value, correct timestamp
-            LocalResult::Single(date) => date,
-            // the variants below deal with unusual timestamp values due to daylight saving time
-            // I'm not sure of the implications of this regarding security, so for the moment we only
-            // accept a single value for the timestamp.
-
-            // the ambiguous time result happens when the clock is turned backwards during a transition for example due to daylight saving time
-            LocalResult::Ambiguous(earliest, latest) => {
-                return Err(JwtEncoderError::InvalidTimestamp(format!(
-                    "ambiguous timestamp. Earliest: {earliest}, Latest: {latest}"
-                )))
-            }
-            // the none result happens when the clock is turned forwards during a transition for example due to daylight saving time
-            LocalResult::None => {
-                return Err(JwtEncoderError::InvalidTimestamp(
-                    "invalid timestamp was provided".to_owned(),
-                ))
-            }
-        };
         let value = jsonwebtoken::encode(&Header::new(self.algorithm), &claims, &self.encoding_key)
             .map_err(|e| JwtEncoderError::TokenEncoding(e.to_string()))?;
-        Ok(SignedJwt {
-            expiration_date,
-            value,
-        })
+        Ok(SignedJwt { value })
     }
 }
 
