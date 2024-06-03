@@ -1,3 +1,4 @@
+pub mod auth;
 pub mod callbacks;
 pub mod client_builder;
 pub mod hash_repository;
