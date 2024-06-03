@@ -73,8 +73,8 @@ impl JwtSigner for LocalPrivateKeySigner {
                 ))
             }
         };
-        let value =
-            jsonwebtoken::encode(&Header::new(self.algorithm), &claims, &self.encoding_key)?;
+        let value = jsonwebtoken::encode(&Header::new(self.algorithm), &claims, &self.encoding_key)
+            .map_err(|e| JwtEncoderError::TokenEncoding(e.to_string()))?;
         Ok(SignedJwt {
             expiration_date,
             value,
