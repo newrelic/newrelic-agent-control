@@ -25,18 +25,19 @@ impl HealthChecker for K8sHealthDeployment {
             .into_iter()
             .filter(flux_release_filter(self.release_name.clone()));
 
-        check_health_for_items(target_deployments, |arc_deployment: Arc<Deployment>| {
-            let deployment: &Deployment = &arc_deployment; // Dereferencing the Arc so it is usable by generics.
+        let health_function = |deployment: &Deployment| {
             let name = client_utils::get_metadata_name(deployment)?;
 
             self.latest_replica_set_for_deployment(name.as_str())
-                .map(|replica_set| Self::check_deployment_health(arc_deployment, replica_set))
+                .map(|replica_set| Self::check_deployment_health(deployment, &replica_set))
                 .unwrap_or_else(|| {
                     Ok(Health::unhealthy_with_last_error(format!(
                         "ReplicaSet not found for Deployment {name}"
                     )))
                 })
-        })
+        };
+
+        check_health_for_items(target_deployments, health_function)
     }
 }
 
@@ -50,20 +51,20 @@ impl K8sHealthDeployment {
 
     /// Checks the health of a specific deployment and its associated ReplicaSet.
     pub fn check_deployment_health(
-        deployment: Arc<Deployment>,
-        rs: Arc<ReplicaSet>,
+        deployment: &Deployment,
+        rs: &ReplicaSet,
     ) -> Result<Health, HealthCheckerError> {
-        let name = client_utils::get_metadata_name(&*deployment)?;
+        let name = client_utils::get_metadata_name(deployment)?;
 
         let status = deployment
             .status
             .as_ref()
-            .ok_or_else(|| utils::missing_field_error(&*deployment, &name, "status"))?;
+            .ok_or_else(|| utils::missing_field_error(deployment, &name, "status"))?;
 
         let spec = deployment
             .spec
             .as_ref()
-            .ok_or_else(|| utils::missing_field_error(&*deployment, &name, "spec"))?;
+            .ok_or_else(|| utils::missing_field_error(deployment, &name, "spec"))?;
 
         // If the deployment is paused, consider it unhealthy
         if let Some(true) = spec.paused {
@@ -75,9 +76,9 @@ impl K8sHealthDeployment {
 
         let replicas = status
             .replicas
-            .ok_or_else(|| utils::missing_field_error(&*deployment, &name, "status.replicas"))?;
+            .ok_or_else(|| utils::missing_field_error(deployment, &name, "status.replicas"))?;
 
-        let max_unavailable = Self::max_unavailable(&deployment, &name, spec)?;
+        let max_unavailable = Self::max_unavailable(deployment, &name, spec)?;
 
         let expected_ready = replicas.checked_sub(max_unavailable).ok_or_else(|| {
             HealthCheckerError::Generic(format!(
@@ -89,11 +90,11 @@ impl K8sHealthDeployment {
         let rs_status = rs
             .status
             .as_ref()
-            .ok_or_else(|| utils::missing_field_error(&*deployment, &name, "replica set status"))?;
+            .ok_or_else(|| utils::missing_field_error(deployment, &name, "replica set status"))?;
 
         let ready_replicas = rs_status
             .ready_replicas
-            .ok_or_else(|| utils::missing_field_error(&*deployment, &name, "ready replicas"))?;
+            .ok_or_else(|| utils::missing_field_error(deployment, &name, "ready replicas"))?;
 
         if ready_replicas < expected_ready {
             return Ok(Health::unhealthy_with_last_error(format!(
@@ -269,14 +270,11 @@ mod test {
         impl TestCase {
             fn run(self) {
                 let result = if let Some(rs) = self.rs {
-                    K8sHealthDeployment::check_deployment_health(
-                        Arc::new(self.deployment),
-                        Arc::new(rs),
-                    )
-                    .inspect_err(|err| {
-                        panic!("Unexpected error getting health: {} - {}", err, self.name);
-                    })
-                    .unwrap()
+                    K8sHealthDeployment::check_deployment_health(&self.deployment, &rs)
+                        .inspect_err(|err| {
+                            panic!("Unexpected error getting health: {} - {}", err, self.name);
+                        })
+                        .unwrap()
                 } else {
                     Health::unhealthy_with_last_error(format!(
                         "ReplicaSet not found for Deployment '{}'",
@@ -371,14 +369,11 @@ mod test {
 
         impl TestCase {
             fn run(self) {
-                let err = K8sHealthDeployment::check_deployment_health(
-                    Arc::new(self.deployment),
-                    Arc::new(self.rs),
-                )
-                .inspect(|result| {
-                    panic!("Expected error, got {:?} for test - {}", result, self.name)
-                })
-                .unwrap_err();
+                let err = K8sHealthDeployment::check_deployment_health(&self.deployment, &self.rs)
+                    .inspect(|result| {
+                        panic!("Expected error, got {:?} for test - {}", result, self.name)
+                    })
+                    .unwrap_err();
                 assert_eq!(
                     err.to_string(),
                     self.expected_err.to_string(),

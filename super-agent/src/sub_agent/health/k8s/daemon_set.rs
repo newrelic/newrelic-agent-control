@@ -68,15 +68,13 @@ impl K8sHealthDaemonSet {
         }
     }
 
-    pub fn check_health_single_daemon_set(
-        ds: Arc<DaemonSet>,
-    ) -> Result<Health, HealthCheckerError> {
-        let name = client_utils::get_metadata_name(&*ds)?;
-        let status = Self::get_daemon_set_status(name.as_str(), &ds)?;
-        let update_strategy = Self::get_daemon_set_update_strategy(name.as_str(), &ds)?;
+    pub fn check_health_single_daemon_set(ds: &DaemonSet) -> Result<Health, HealthCheckerError> {
+        let name = client_utils::get_metadata_name(ds)?;
+        let status = Self::get_daemon_set_status(name.as_str(), ds)?;
+        let update_strategy = Self::get_daemon_set_update_strategy(name.as_str(), ds)?;
 
         let update_strategy_type = UpdateStrategyType::try_from(
-            Self::get_daemon_set_rolling_update_type(name.as_str(), &ds, &update_strategy)?,
+            Self::get_daemon_set_rolling_update_type(name.as_str(), ds, &update_strategy)?,
         )
         .map_err(|err| HealthCheckerError::InvalidK8sObject {
             kind: DaemonSet::KIND.to_string(),
@@ -92,7 +90,7 @@ impl K8sHealthDaemonSet {
             UpdateStrategyType::RollingUpdate => {
                 update_strategy.rolling_update.ok_or_else(|| {
                     utils::missing_field_error(
-                        &*ds,
+                        ds,
                         name.as_str(),
                         ".spec.updateStrategy.rollingUpdate",
                     )
@@ -102,7 +100,8 @@ impl K8sHealthDaemonSet {
 
         if status.updated_number_scheduled.is_none() {
             return Ok(Health::unhealthy_with_last_error(format!(
-                "Daemonset '{name}' is so new that it has no `updated_number_scheduled` status yet"
+                "DaemonSet `{}` is so new that it has no `updated_number_scheduled` status yet",
+                name
             )));
         }
 
@@ -110,7 +109,8 @@ impl K8sHealthDaemonSet {
         if let Some(updated_number_scheduled) = status.updated_number_scheduled {
             if updated_number_scheduled != status.desired_number_scheduled {
                 return Ok(Health::unhealthy_with_last_error(format!(
-                    "DaemonSet '{name}' Not all the pods of the were able to schedule"
+                    "DaemonSet `{}` Not all the pods of the were able to schedule",
+                    name
                 )));
             }
         }
@@ -194,7 +194,7 @@ pub mod test {
         apimachinery::pkg::{apis::meta::v1::ObjectMeta, util::intstr::IntOrString},
     };
 
-    const TEST_DAEMON_SET_NAME: &str = "test-daemonset";
+    const TEST_DAEMON_SET_NAME: &str = "test";
 
     #[test]
     fn test_daemon_set_spec_errors() {
@@ -206,15 +206,14 @@ pub mod test {
 
         impl TestCase {
             fn run(self) {
-                let err_result =
-                    K8sHealthDaemonSet::check_health_single_daemon_set(Arc::new(self.ds))
-                        .inspect(|ok| {
-                            panic!(
-                                "Test Case '{}' is returning a Health Result: {:?}",
-                                self.name, ok
-                            );
-                        })
-                        .unwrap_err();
+                let err_result = K8sHealthDaemonSet::check_health_single_daemon_set(&self.ds)
+                    .inspect(|ok| {
+                        panic!(
+                            "Test Case '{}' is returning a Health Result: {:?}",
+                            self.name, ok
+                        );
+                    })
+                    .unwrap_err();
 
                 assert_eq!(
                     err_result.to_string(),
@@ -354,7 +353,7 @@ pub mod test {
         impl TestCase {
             fn run(self) {
                 let health_run: Result<Health, HealthCheckerError> =
-                    K8sHealthDaemonSet::check_health_single_daemon_set(Arc::new(self.ds));
+                    K8sHealthDaemonSet::check_health_single_daemon_set(&self.ds);
                 let health_result = health_run.unwrap_or_else(|err| {
                     panic!(
                         "Test case '{}' is not returning a Health Result: {}",
@@ -404,7 +403,7 @@ pub mod test {
                 },
                 expected: Unhealthy{
                     status: String::from(""),
-                    last_error: String::from("Daemonset 'test' is so new that it has no `updated_number_scheduled` status yet")
+                    last_error: String::from("DaemonSet `test` is so new that it has no `updated_number_scheduled` status yet")
                 }.into(),
             },
             TestCase {
@@ -429,7 +428,7 @@ pub mod test {
                 expected: Unhealthy {
                     status: String::from(""),
                     last_error: String::from(
-                        "DaemonSet 'test' Not all the pods of the were able to schedule",
+                        "DaemonSet `test` Not all the pods of the were able to schedule",
                     ),
                 }.into(),
             },

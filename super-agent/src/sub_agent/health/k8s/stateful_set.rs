@@ -33,26 +33,26 @@ impl K8sHealthStatefulSet {
     }
 
     /// Returns the health for a single stateful_set.
-    fn stateful_set_health(ss: Arc<StatefulSet>) -> Result<Health, HealthCheckerError> {
-        let name = client_utils::get_metadata_name(&*ss)?;
-        let spec = ss
+    fn stateful_set_health(sts: &StatefulSet) -> Result<Health, HealthCheckerError> {
+        let name = client_utils::get_metadata_name(sts)?;
+        let spec = sts
             .spec
             .as_ref()
-            .ok_or(utils::missing_field_error(&*ss, &name, ".spec"))?;
-        let status = ss
+            .ok_or(utils::missing_field_error(sts, &name, ".spec"))?;
+        let status = sts
             .status
             .as_ref()
-            .ok_or_else(|| utils::missing_field_error(&*ss, &name, ".status"))?;
+            .ok_or_else(|| utils::missing_field_error(sts, &name, ".status"))?;
 
         let partition = Self::partition(spec).unwrap_or(0);
         let replicas = spec.replicas.unwrap_or(1);
 
         let expected_replicas = replicas - partition;
 
-        let generation = ss
+        let generation = sts
             .metadata
             .generation
-            .ok_or_else(|| utils::missing_field_error(&*ss, &name, ".metadata.generation"))?;
+            .ok_or_else(|| utils::missing_field_error(sts, &name, ".metadata.generation"))?;
         let Some(observed_generation) = status.observed_generation else {
             return Ok(Health::unhealthy_with_last_error(format!(
                 "StatefulSet `{name}` is so new that it has no `observed_generation` status yet"
@@ -65,7 +65,7 @@ impl K8sHealthStatefulSet {
             )));
         }
 
-        if status.observed_generation != ss.metadata.generation {
+        if status.observed_generation != sts.metadata.generation {
             return Ok(Health::unhealthy_with_last_error(format!(
                 "StatefulSet `{name}` not ready: observed_generation not matching generation"
             )));
@@ -73,7 +73,7 @@ impl K8sHealthStatefulSet {
 
         let updated_replicas = status
             .updated_replicas
-            .ok_or_else(|| utils::missing_field_error(&*ss, &name, ".status.updatedReplicas"))?;
+            .ok_or_else(|| utils::missing_field_error(sts, &name, ".status.updatedReplicas"))?;
         if updated_replicas < expected_replicas {
             return Ok(Health::unhealthy_with_last_error(format!(
                         "StatefulSet `{}` not ready: updated_replicas `{}` fewer than expected_replicas `{}`",
@@ -85,7 +85,7 @@ impl K8sHealthStatefulSet {
 
         let ready_replicas = status
             .ready_replicas
-            .ok_or_else(|| utils::missing_field_error(&*ss, &name, ".status.readyReplicas"))?;
+            .ok_or_else(|| utils::missing_field_error(sts, &name, ".status.readyReplicas"))?;
         if replicas != ready_replicas {
             return Ok(Health::unhealthy_with_last_error(format!(
                 "StatefulSet `{}` not ready: replicas `{}` different from ready_replicas `{}`",
@@ -165,13 +165,13 @@ mod test {
     fn test_stateful_set_health() {
         struct TestCase {
             name: &'static str,
-            ss: StatefulSet,
+            sts: StatefulSet,
             expected: Health,
         }
         impl TestCase {
             fn run(self) {
-                let (name, ss, expected) = (self.name, self.ss, self.expected);
-                let result = K8sHealthStatefulSet::stateful_set_health(Arc::new(ss))
+                let (name, sts, expected) = (self.name, self.sts, self.expected);
+                let result = K8sHealthStatefulSet::stateful_set_health(&sts)
                     .inspect_err(|err| {
                         panic!("Unexpected error getting health: {} - {}", err, name);
                     })
@@ -183,7 +183,7 @@ mod test {
         let test_cases = [
             TestCase {
                 name: "Observed generation and matching generation don't match",
-                ss: StatefulSet {
+                sts: StatefulSet {
                     metadata: stateful_set_meta("name", Some(42)),
                     spec: Some(StatefulSetSpec::default()),
                     status: Some(stateful_set_status()),
@@ -192,7 +192,7 @@ mod test {
             },
             TestCase {
                 name: "Updated replicas fewer than expected",
-                ss: StatefulSet {
+                sts: StatefulSet {
                     metadata: stateful_set_meta("name", stateful_set_status().observed_generation),
                     spec: Some(stateful_set_spec(3, 5)),
                     status: Some(StatefulSetStatus {
@@ -204,7 +204,7 @@ mod test {
             },
             TestCase {
                 name: "Not ready and ready replicas not matching",
-                ss: StatefulSet {
+                sts: StatefulSet {
                     metadata: stateful_set_meta("name", stateful_set_status().observed_generation),
                     spec: Some(stateful_set_spec(3, 5)),
                     status: Some(StatefulSetStatus {
@@ -217,7 +217,7 @@ mod test {
             },
             TestCase {
                 name: "Current and update revision not matching when partition is 0",
-                ss: StatefulSet {
+                sts: StatefulSet {
                     metadata: stateful_set_meta("name", stateful_set_status().observed_generation),
                     spec: Some(StatefulSetSpec::default()), // partition defaults to 0 when not defined
                     status: Some(StatefulSetStatus {
@@ -230,7 +230,7 @@ mod test {
             },
             TestCase {
                 name: "Healthy with not matching current and update revision",
-                ss: StatefulSet {
+                sts: StatefulSet {
                     metadata: stateful_set_meta("name", stateful_set_status().observed_generation),
                     spec: Some(stateful_set_spec(3, 5)),
                     status: Some(StatefulSetStatus {
@@ -245,7 +245,7 @@ mod test {
             },
             TestCase {
                 name: "Healthy when partition is 0",
-                ss: StatefulSet {
+                sts: StatefulSet {
                     metadata: stateful_set_meta("name", stateful_set_status().observed_generation),
                     spec: Some(StatefulSetSpec::default()), // partition and replicas default to 0 and 1
                     status: Some(StatefulSetStatus {
@@ -265,13 +265,13 @@ mod test {
     fn test_stateful_set_health_errors() {
         struct TestCase {
             name: &'static str,
-            ss: StatefulSet,
+            sts: StatefulSet,
             err_check_fn: fn(HealthCheckerError, &str),
         }
 
         impl TestCase {
             fn run(&self) {
-                let err = K8sHealthStatefulSet::stateful_set_health(Arc::new(self.ss.clone()))
+                let err = K8sHealthStatefulSet::stateful_set_health(&self.sts.clone())
                     .inspect(|result| {
                         panic!("Expected error, got {:?} for test - {}", result, self.name)
                     })
@@ -298,12 +298,12 @@ mod test {
         let test_cases = [
             TestCase {
                 name: "Invalid object, no name",
-                ss: StatefulSet::default(),
+                sts: StatefulSet::default(),
                 err_check_fn: TestCase::assert_missing_metadata_name,
             },
             TestCase {
                 name: "Invalid object, no spec",
-                ss: StatefulSet {
+                sts: StatefulSet {
                     metadata: stateful_set_meta("name", None),
                     spec: None,
                     status: Some(stateful_set_status()),
@@ -312,7 +312,7 @@ mod test {
             },
             TestCase {
                 name: "Invalid object, no status",
-                ss: StatefulSet {
+                sts: StatefulSet {
                     metadata: stateful_set_meta("name", None),
                     spec: Some(StatefulSetSpec::default()),
                     status: None,
@@ -321,7 +321,7 @@ mod test {
             },
             TestCase {
                 name: "Invalid object, no .status.updatedReplicas",
-                ss: StatefulSet {
+                sts: StatefulSet {
                     metadata: stateful_set_meta("name", None),
                     spec: Some(StatefulSetSpec::default()),
                     status: Some(StatefulSetStatus {
@@ -333,7 +333,7 @@ mod test {
             },
             TestCase {
                 name: "Invalid object, no .status.readyReplicas",
-                ss: StatefulSet {
+                sts: StatefulSet {
                     metadata: stateful_set_meta("name", None),
                     spec: Some(StatefulSetSpec::default()),
                     status: Some(StatefulSetStatus {
