@@ -5,6 +5,8 @@ use crate::super_agent::config_storer::storer::{
     SuperAgentConfigLoader, SuperAgentDynamicConfigDeleter, SuperAgentDynamicConfigLoader,
     SuperAgentDynamicConfigStorer,
 };
+use config::builder::DefaultState;
+use config::{Config, ConfigBuilder, Environment, File, FileFormat};
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 use tracing::warn;
@@ -16,11 +18,15 @@ pub enum ConfigStoreError {
 
     #[error("error loading config: `{0}`")]
     SerdeYamlError(#[from] serde_yaml::Error),
+
+    #[error("error retrieving config: `{0}`")]
+    ConfigError(#[from] config::ConfigError),
 }
 
 pub struct SuperAgentConfigStoreFile {
     local_path: PathBuf,
     remote_path: Option<PathBuf>,
+    config_builder: ConfigBuilder<DefaultState>,
     rw_lock: RwLock<()>,
 }
 
@@ -66,9 +72,23 @@ impl SuperAgentDynamicConfigStorer for SuperAgentConfigStoreFile {
 
 impl SuperAgentConfigStoreFile {
     pub fn new(file_path: &Path) -> Self {
+        let config_builder = Config::builder()
+            // Pass default config file location and optionally, so we could pass all config through
+            // env vars and no file!
+            .add_source(File::new(&file_path.to_string_lossy(), FileFormat::Yaml).required(false))
+            // Add in settings from the environment (with a prefix of `NR` and separator double underscore, `__`)
+            // Eg.. `NR__DEBUG=1 ./target/app` would set the `debug` key
+            // We use double underscore because we already use snake_case for the config keys. TODO to change?
+            .add_source(
+                Environment::with_prefix("NR")
+                    .prefix_separator("_")
+                    .separator("__"),
+            );
+
         Self {
             local_path: file_path.to_path_buf(),
             remote_path: None,
+            config_builder,
             rw_lock: RwLock::new(()),
         }
     }
@@ -95,8 +115,13 @@ impl SuperAgentConfigStoreFile {
 
     fn _load_config(&self) -> Result<SuperAgentConfig, ConfigStoreError> {
         let _read_guard = self.rw_lock.read().unwrap();
-        let local_config_file = std::fs::File::open(&self.local_path)?;
-        let mut local_config: SuperAgentConfig = serde_yaml::from_reader(local_config_file)?;
+
+        let mut local_config = self
+            .config_builder
+            // `build_cloned` performs all the I/O operations from a reference to the builder
+            .build_cloned()?
+            // From the retrieved config, attempt to generate the `SuperAgentConfig`
+            .try_deserialize::<SuperAgentConfig>()?;
 
         if let Some(remote_config_file) = &self.remote_path {
             if remote_config_file.as_path().exists() {
@@ -122,7 +147,7 @@ pub(crate) mod tests {
     use crate::super_agent::config::{
         AgentID, AgentTypeFQN, OpAMPClientConfig, SubAgentConfig, SuperAgentConfig,
     };
-    use std::{collections::HashMap, io::Write};
+    use std::{collections::HashMap, env, io::Write};
     use tempfile::NamedTempFile;
     use url::Url;
 
@@ -169,6 +194,105 @@ agents:
             k8s: None,
             ..Default::default()
         };
+
+        assert!(actual.is_ok());
+        assert_eq!(actual.unwrap(), expected);
+    }
+
+    #[test]
+    fn load_config_env_vars() {
+        let mut local_file = NamedTempFile::new().unwrap();
+        // Note the file contains no `agents` key, which would fail if this config was the only
+        // source checked when loading the local config.
+        let local_config = r#"
+opamp:
+  endpoint: http://127.0.0.1/v1/opamp
+"#;
+        write!(local_file, "{}", local_config).unwrap();
+
+        // We set the environment variable with the `__` separator which will create the nested
+        // configs appropriately.
+        let env_var_name = "NR_AGENTS__ROLLDICE__AGENT_TYPE";
+        env::set_var(
+            env_var_name,
+            "namespace/com.newrelic.infrastructure_agent:0.0.2",
+        );
+
+        let store = SuperAgentConfigStoreFile::new(local_file.path());
+        let actual = SuperAgentConfigLoader::load(&store);
+
+        let expected = SuperAgentConfig {
+            dynamic: HashMap::from([(
+                AgentID::new("rolldice").unwrap(),
+                SubAgentConfig {
+                    agent_type: AgentTypeFQN::try_from(
+                        "namespace/com.newrelic.infrastructure_agent:0.0.2",
+                    )
+                    .unwrap(),
+                },
+            )])
+            .into(),
+            opamp: Some(OpAMPClientConfig {
+                endpoint: Url::try_from("http://127.0.0.1/v1/opamp").unwrap(),
+                ..Default::default()
+            }),
+            k8s: None,
+            ..Default::default()
+        };
+
+        // Env cleanup
+        env::remove_var(env_var_name);
+
+        assert!(actual.is_ok());
+        assert_eq!(actual.unwrap(), expected);
+    }
+
+    #[test]
+    fn load_config_env_vars_override() {
+        let mut local_file = NamedTempFile::new().unwrap();
+        // Note the file contains no `agents` key, which would fail if this config was the only
+        // source checked when loading the local config.
+        let local_config = r#"
+opamp:
+  endpoint: http://127.0.0.1/v1/opamp
+agents:
+  rolldice:
+    agent_type: "namespace/will.be.overridden:0.0.1"
+"#;
+        write!(local_file, "{}", local_config).unwrap();
+
+        // We set the environment variable with the `__` separator which will create the nested
+        // configs appropriately.
+        let env_var_name = "NR_AGENTS__ROLLDICE__AGENT_TYPE";
+        env::set_var(
+            env_var_name,
+            "namespace/com.newrelic.infrastructure_agent:0.0.2",
+        );
+
+        let store = SuperAgentConfigStoreFile::new(local_file.path());
+        let actual = SuperAgentConfigLoader::load(&store);
+
+        let expected = SuperAgentConfig {
+            dynamic: HashMap::from([(
+                AgentID::new("rolldice").unwrap(),
+                SubAgentConfig {
+                    agent_type: AgentTypeFQN::try_from(
+                        "namespace/com.newrelic.infrastructure_agent:0.0.2",
+                    )
+                    .unwrap(),
+                },
+            )])
+            .into(),
+            opamp: Some(OpAMPClientConfig {
+                endpoint: Url::try_from("http://127.0.0.1/v1/opamp").unwrap(),
+                ..Default::default()
+            }),
+            k8s: None,
+            ..Default::default()
+        };
+
+        // Env cleanup
+        env::remove_var(env_var_name);
 
         assert!(actual.is_ok());
         assert_eq!(actual.unwrap(), expected);
