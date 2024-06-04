@@ -13,9 +13,11 @@ impl InstanceID {
     pub fn new(uuid: Uuid) -> InstanceID {
         InstanceID(uuid)
     }
+}
 
-    pub fn get_uuid(&self) -> Uuid {
-        self.0
+impl From<InstanceID> for Vec<u8> {
+    fn from(val: InstanceID) -> Self {
+        val.0.into()
     }
 }
 

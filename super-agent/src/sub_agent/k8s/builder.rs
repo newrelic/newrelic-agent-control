@@ -214,6 +214,7 @@ pub mod test {
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
     use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
+    use crate::opamp::instance_id::InstanceID;
     use crate::opamp::operations::start_settings;
     use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
@@ -377,7 +378,7 @@ pub mod test {
         started_client.should_set_any_remote_config_status(1);
         let mut opamp_builder = MockOpAMPClientBuilderMock::new();
         let start_settings = start_settings(
-            instance_id,
+            InstanceID::new(instance_id),
             &sub_agent_config.agent_type,
             HashMap::from([
                 (
