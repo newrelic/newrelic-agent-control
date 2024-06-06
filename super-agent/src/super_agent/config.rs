@@ -1,6 +1,6 @@
 use crate::logging::config::LoggingConfig;
 use crate::opamp::remote_config::RemoteConfigError;
-use crate::super_agent::config_storer::file::ConfigStoreError;
+use crate::super_agent::config_storer::store::ConfigStoreError;
 use crate::super_agent::defaults::{default_capabilities, SUPER_AGENT_ID};
 use http::HeaderMap;
 #[cfg(feature = "k8s")]

@@ -8,7 +8,7 @@ use crate::k8s::error::GarbageCollectorK8sError::{
 use crate::k8s::Error::MissingName;
 use crate::k8s::{annotations, labels};
 use crate::super_agent::config::{AgentID, AgentTypeFQN, SubAgentsMap};
-use crate::super_agent::config_storer::storer::SuperAgentDynamicConfigLoader;
+use crate::super_agent::config_storer::loader_storer::SuperAgentDynamicConfigLoader;
 use crate::super_agent::defaults::SUPER_AGENT_ID;
 use crossbeam::{
     channel::{tick, unbounded, Sender},
@@ -232,7 +232,7 @@ pub(crate) mod test {
     use crate::super_agent::config::{
         AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsMap, SuperAgentDynamicConfig,
     };
-    use crate::super_agent::config_storer::storer::MockSuperAgentDynamicConfigLoader;
+    use crate::super_agent::config_storer::loader_storer::MockSuperAgentDynamicConfigLoader;
     use crate::super_agent::defaults::SUPER_AGENT_ID;
     use assert_matches::assert_matches;
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;

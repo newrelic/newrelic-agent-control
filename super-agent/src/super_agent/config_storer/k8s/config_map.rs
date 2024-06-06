@@ -1,6 +1,6 @@
 use crate::k8s::store::{K8sStore, STORE_KEY_OPAMP_DATA_CONFIG};
 use crate::super_agent::config::{AgentID, SuperAgentConfigError, SuperAgentDynamicConfig};
-use crate::super_agent::config_storer::storer::{
+use crate::super_agent::config_storer::loader_storer::{
     SuperAgentDynamicConfigDeleter, SuperAgentDynamicConfigLoader, SuperAgentDynamicConfigStorer,
 };
 use std::sync::Arc;

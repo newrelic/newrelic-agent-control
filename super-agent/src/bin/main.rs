@@ -7,8 +7,8 @@ use newrelic_super_agent::opamp::http::builder::UreqHttpClientBuilder;
 use newrelic_super_agent::opamp::instance_id::Identifiers;
 use newrelic_super_agent::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use newrelic_super_agent::sub_agent::event_processor_builder::EventProcessorBuilder;
-use newrelic_super_agent::super_agent::config_storer::storer::SuperAgentConfigLoader;
-use newrelic_super_agent::super_agent::config_storer::SuperAgentConfigStoreFile;
+use newrelic_super_agent::super_agent::config_storer::loader_storer::SuperAgentConfigLoader;
+use newrelic_super_agent::super_agent::config_storer::store::SuperAgentConfigStore;
 #[cfg(debug_assertions)]
 use newrelic_super_agent::super_agent::defaults;
 use newrelic_super_agent::super_agent::defaults::{
@@ -56,7 +56,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     }
 
-    let sa_local_config_storer = SuperAgentConfigStoreFile::new(&cli.get_config_path());
+    let sa_local_config_storer = SuperAgentConfigStore::new(&cli.get_config_path());
 
     let super_agent_config = sa_local_config_storer.load().inspect_err(|err| {
         println!(
@@ -143,7 +143,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 #[cfg(feature = "onhost")]
 fn run_super_agent<C: HttpClientBuilder>(
     _runtime: Arc<Runtime>,
-    sa_config_storer: SuperAgentConfigStoreFile,
+    sa_config_storer: SuperAgentConfigStore,
     application_events_consumer: EventConsumer<ApplicationEvent>,
     opamp_client_builder: Option<DefaultOpAMPClientBuilder<C>>,
     super_agent_publisher: EventPublisher<SuperAgentEvent>,
@@ -237,7 +237,7 @@ fn run_super_agent<C: HttpClientBuilder>(
 #[cfg(feature = "k8s")]
 fn run_super_agent<C: HttpClientBuilder>(
     runtime: Arc<Runtime>,
-    sa_local_config_storer: SuperAgentConfigStoreFile,
+    sa_local_config_storer: SuperAgentConfigStore,
     application_event_consumer: EventConsumer<ApplicationEvent>,
     opamp_client_builder: Option<DefaultOpAMPClientBuilder<C>>,
     super_agent_publisher: EventPublisher<SuperAgentEvent>,

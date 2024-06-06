@@ -13,8 +13,8 @@ use fs::LocalFile;
 use newrelic_super_agent::agent_type::agent_type_registry::AgentRegistry;
 use newrelic_super_agent::agent_type::embedded_registry::EmbeddedRegistry;
 use newrelic_super_agent::super_agent::config::SuperAgentConfigError;
-use newrelic_super_agent::super_agent::config_storer::storer::SuperAgentDynamicConfigLoader;
-use newrelic_super_agent::super_agent::config_storer::SuperAgentConfigStoreFile;
+use newrelic_super_agent::super_agent::config_storer::loader_storer::SuperAgentDynamicConfigLoader;
+use newrelic_super_agent::super_agent::config_storer::store::SuperAgentConfigStore;
 use thiserror::Error;
 use tracing::{debug, error, info};
 
@@ -47,10 +47,10 @@ pub struct ConfigMigrator<
     values_persister: ValuesPersisterFile<C>,
 }
 
-impl ConfigMigrator<EmbeddedRegistry, SuperAgentConfigStoreFile, DirectoryManagerFs, LocalFile> {
+impl ConfigMigrator<EmbeddedRegistry, SuperAgentConfigStore, DirectoryManagerFs, LocalFile> {
     pub fn new(
         config_converter: ConfigConverter<EmbeddedRegistry, LocalFile>,
-        agent_config_getter: AgentConfigGetter<SuperAgentConfigStoreFile>,
+        agent_config_getter: AgentConfigGetter<SuperAgentConfigStore>,
         values_persister: ValuesPersisterFile<DirectoryManagerFs>,
     ) -> Self {
         ConfigMigrator {

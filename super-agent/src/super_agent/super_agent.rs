@@ -1,5 +1,5 @@
 use super::config::{AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsMap, SuperAgentDynamicConfig};
-use super::config_storer::storer::{
+use super::config_storer::loader_storer::{
     SuperAgentDynamicConfigDeleter, SuperAgentDynamicConfigLoader, SuperAgentDynamicConfigStorer,
 };
 use crate::event::{
@@ -463,8 +463,8 @@ mod tests {
     use crate::super_agent::config::{
         AgentID, AgentTypeFQN, SubAgentConfig, SuperAgentDynamicConfig,
     };
-    use crate::super_agent::config_storer::storer::tests::MockSuperAgentDynamicConfigStore;
-    use crate::super_agent::config_storer::storer::{
+    use crate::super_agent::config_storer::loader_storer::tests::MockSuperAgentDynamicConfigStore;
+    use crate::super_agent::config_storer::loader_storer::{
         SuperAgentDynamicConfigDeleter, SuperAgentDynamicConfigLoader,
         SuperAgentDynamicConfigStorer,
     };

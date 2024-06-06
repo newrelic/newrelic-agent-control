@@ -25,7 +25,7 @@ use newrelic_super_agent::{
     k8s::labels::Labels,
     super_agent::{
         config::{SuperAgentConfig, SuperAgentConfigError, SuperAgentDynamicConfig},
-        config_storer::storer::{SuperAgentConfigLoader, SuperAgentDynamicConfigLoader},
+        config_storer::loader_storer::{SuperAgentConfigLoader, SuperAgentDynamicConfigLoader},
     },
 };
 use std::{collections::HashMap, sync::Arc};

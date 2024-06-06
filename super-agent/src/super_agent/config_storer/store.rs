@@ -1,7 +1,7 @@
 use crate::super_agent::config::{
     SuperAgentConfig, SuperAgentConfigError, SuperAgentDynamicConfig,
 };
-use crate::super_agent::config_storer::storer::{
+use crate::super_agent::config_storer::loader_storer::{
     SuperAgentConfigLoader, SuperAgentDynamicConfigDeleter, SuperAgentDynamicConfigLoader,
     SuperAgentDynamicConfigStorer,
 };
@@ -23,26 +23,26 @@ pub enum ConfigStoreError {
     ConfigError(#[from] config::ConfigError),
 }
 
-pub struct SuperAgentConfigStoreFile {
+pub struct SuperAgentConfigStore {
     local_path: PathBuf,
     remote_path: Option<PathBuf>,
     config_builder: ConfigBuilder<DefaultState>,
     rw_lock: RwLock<()>,
 }
 
-impl SuperAgentConfigLoader for SuperAgentConfigStoreFile {
+impl SuperAgentConfigLoader for SuperAgentConfigStore {
     fn load(&self) -> Result<SuperAgentConfig, SuperAgentConfigError> {
         Ok(self._load_config()?) //wrapper to encapsulate error
     }
 }
 
-impl SuperAgentDynamicConfigLoader for SuperAgentConfigStoreFile {
+impl SuperAgentDynamicConfigLoader for SuperAgentConfigStore {
     fn load(&self) -> Result<SuperAgentDynamicConfig, SuperAgentConfigError> {
         Ok(self._load_config()?.dynamic)
     }
 }
 
-impl SuperAgentDynamicConfigDeleter for SuperAgentConfigStoreFile {
+impl SuperAgentDynamicConfigDeleter for SuperAgentConfigStore {
     //TODO this code is not unit tested
     fn delete(&self) -> Result<(), SuperAgentConfigError> {
         let Some(remote_path_file) = &self.remote_path else {
@@ -56,7 +56,7 @@ impl SuperAgentDynamicConfigDeleter for SuperAgentConfigStoreFile {
     }
 }
 
-impl SuperAgentDynamicConfigStorer for SuperAgentConfigStoreFile {
+impl SuperAgentDynamicConfigStorer for SuperAgentConfigStore {
     fn store(&self, sub_agents: &SuperAgentDynamicConfig) -> Result<(), SuperAgentConfigError> {
         //TODO we should inject DirectoryManager and ensure the directory exists
         let _write_guard = self.rw_lock.write().unwrap();
@@ -70,14 +70,14 @@ impl SuperAgentDynamicConfigStorer for SuperAgentConfigStoreFile {
     }
 }
 
-impl SuperAgentConfigStoreFile {
+impl SuperAgentConfigStore {
     pub fn new(file_path: &Path) -> Self {
         let config_builder = Config::builder()
             // Pass default config file location and optionally, so we could pass all config through
             // env vars and no file!
             .add_source(File::new(&file_path.to_string_lossy(), FileFormat::Yaml).required(false))
-            // Add in settings from the environment (with a prefix of `NR` and separator double underscore, `__`)
-            // Eg.. `NR__DEBUG=1 ./target/app` would set the `debug` key
+            // Add in settings from the environment (with a prefix of `NR_` and separator double underscore, `__`)
+            // Eg.. `NR_LOG__USE_DEBUG=1 ./target/app` would set the `log.use_debug` key
             // We use double underscore because we already use snake_case for the config keys. TODO to change?
             .add_source(
                 Environment::with_prefix("NR")
@@ -170,7 +170,7 @@ agents:
 "#;
         write!(remote_file, "{}", remote_config).unwrap();
 
-        let mut store = SuperAgentConfigStoreFile::new(local_file.path());
+        let mut store = SuperAgentConfigStore::new(local_file.path());
 
         store.remote_path = Some(remote_file.path().to_path_buf());
 
@@ -218,7 +218,7 @@ opamp:
             "namespace/com.newrelic.infrastructure_agent:0.0.2",
         );
 
-        let store = SuperAgentConfigStoreFile::new(local_file.path());
+        let store = SuperAgentConfigStore::new(local_file.path());
         let actual = SuperAgentConfigLoader::load(&store);
 
         let expected = SuperAgentConfig {
@@ -269,7 +269,7 @@ agents:
             "namespace/com.newrelic.infrastructure_agent:0.0.2",
         );
 
-        let store = SuperAgentConfigStoreFile::new(local_file.path());
+        let store = SuperAgentConfigStore::new(local_file.path());
         let actual = SuperAgentConfigLoader::load(&store);
 
         let expected = SuperAgentConfig {
