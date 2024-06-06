@@ -10,7 +10,8 @@ use k8s_openapi::{
 };
 use std::{any::Any, sync::Arc};
 
-/// Executes the provided health-check function over the items provided.
+/// Executes the provided health-check function over the items provided. It expects a list
+/// of `Arc<K>` because k8s reflectors provide shared references.
 /// It returns:
 /// * A healthy result if the result of execution is healthy for all the items.
 /// * The first encountered error or unhealthy result, otherwise.
@@ -69,7 +70,7 @@ mod test {
 
     #[test]
     fn test_items_health_check_healthy() {
-        let items = vec![Arc::new("a"), Arc::new("b"), Arc::new("c"), Arc::new("d")];
+        let items = vec!["a", "b", "c", "d"].into_iter().map(Arc::new);
         let result = check_health_for_items(items.into_iter(), |_| Ok(Healthy::default().into()))
             .unwrap_or_else(|err| panic!("unexpected error {err} when all items are healthy"));
         assert_eq!(
@@ -91,7 +92,7 @@ mod test {
 
     #[test]
     fn test_items_health_check_unhealthy() {
-        let items = vec![Arc::new("a"), Arc::new("b"), Arc::new("c"), Arc::new("d")];
+        let items = vec!["a", "b", "c", "d"].into_iter().map(Arc::new);
         let result = check_health_for_items(items.into_iter(), |s| match s {
             &"a" | &"b" => Ok(Healthy::default().into()),
             _ => Ok(Health::unhealthy_with_last_error(s.to_string())),
@@ -109,7 +110,7 @@ mod test {
 
     #[test]
     fn test_items_health_check_err() {
-        let items = vec![Arc::new("a"), Arc::new("b"), Arc::new("c"), Arc::new("d")];
+        let items = vec!["a", "b", "c", "d"].into_iter().map(Arc::new);
         let result = check_health_for_items(items.into_iter(), |s| match s {
             &"a" | &"b" => Ok(Healthy::default().into()),
             _ => Err(HealthCheckerError::Generic(s.to_string())),
