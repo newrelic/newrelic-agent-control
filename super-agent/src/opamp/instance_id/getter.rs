@@ -10,7 +10,9 @@ use uuid::Uuid;
 pub struct InstanceIDGetter(Uuid);
 
 impl InstanceIDGetter {
-    pub fn new(uuid: Uuid) -> InstanceIDGetter {
+    /// Return an InstanceIdGetter with a given Uuid.
+    #[cfg(test)]
+    pub(crate) fn new(uuid: Uuid) -> InstanceIDGetter {
         InstanceIDGetter(uuid)
     }
 }
@@ -110,11 +112,11 @@ pub mod test {
     }
 
     impl MockInstanceIDGetterMock {
-        pub fn should_get(&mut self, agent_id: &AgentID, intance_id: Uuid) {
+        pub fn should_get(&mut self, agent_id: &AgentID, intance_id: InstanceIDGetter) {
             self.expect_get()
                 .once()
                 .with(predicate::eq(agent_id.clone()))
-                .returning(move |_| Ok(InstanceIDGetter(intance_id)));
+                .return_once(move |_| Ok(intance_id));
         }
     }
 

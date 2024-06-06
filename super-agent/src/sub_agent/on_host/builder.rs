@@ -219,6 +219,7 @@ mod test {
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
     use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
+    use crate::opamp::instance_id::getter::InstanceIDGetter;
     use crate::opamp::instance_id::test::{MockCloudDetectorMock, MockSystemDetectorMock};
     use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
@@ -272,8 +273,14 @@ mod test {
         );
 
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
-        instance_id_getter.should_get(&sub_agent_id, INFRA_AGENT_INSTANCE_ID);
-        instance_id_getter.should_get(&super_agent_id, SUPER_AGENT_INSTANCE_ID);
+        instance_id_getter.should_get(
+            &sub_agent_id,
+            InstanceIDGetter::new(INFRA_AGENT_INSTANCE_ID),
+        );
+        instance_id_getter.should_get(
+            &super_agent_id,
+            InstanceIDGetter::new(SUPER_AGENT_INSTANCE_ID),
+        );
 
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         hash_repository_mock.expect_get().times(1).returning(|_| {
@@ -339,8 +346,14 @@ mod test {
 
         // Expectations
         // Infra Agent OpAMP no final stop nor health, just after stopping on reload
-        instance_id_getter.should_get(&sub_agent_id, INFRA_AGENT_INSTANCE_ID);
-        instance_id_getter.should_get(&super_agent_id, SUPER_AGENT_INSTANCE_ID);
+        instance_id_getter.should_get(
+            &sub_agent_id,
+            InstanceIDGetter::new(INFRA_AGENT_INSTANCE_ID),
+        );
+        instance_id_getter.should_get(
+            &super_agent_id,
+            InstanceIDGetter::new(SUPER_AGENT_INSTANCE_ID),
+        );
 
         let mut started_client = MockStartedOpAMPClientMock::new();
         // failed conf should be reported

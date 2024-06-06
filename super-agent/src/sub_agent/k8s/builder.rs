@@ -395,8 +395,11 @@ pub mod test {
 
         // instance id getter mock
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
-        instance_id_getter.should_get(&agent_id, instance_id);
-        instance_id_getter.should_get(&AgentID::new_super_agent_id(), instance_id);
+        instance_id_getter.should_get(&agent_id, InstanceIDGetter::new(instance_id));
+        instance_id_getter.should_get(
+            &AgentID::new_super_agent_id(),
+            InstanceIDGetter::new(instance_id),
+        );
 
         // hash_repository_mock
         let mut hash_repository_mock = MockHashRepositoryMock::new();
