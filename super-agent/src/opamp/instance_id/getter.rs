@@ -10,9 +10,11 @@ use uuid::Uuid;
 pub struct InstanceIDGetter(Uuid);
 
 impl InstanceIDGetter {
+    /// This functions for testing purposes so It has a determinitic Uuid. This should not be used
+    /// out of any testing/integration environment.
     /// Return an InstanceIdGetter with a given Uuid.
-    #[cfg(test)]
-    pub(crate) fn new(uuid: Uuid) -> InstanceIDGetter {
+    #[allow(dead_code)]
+    pub fn new(uuid: Uuid) -> InstanceIDGetter {
         InstanceIDGetter(uuid)
     }
 }
