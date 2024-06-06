@@ -1,30 +1,50 @@
-
 # -*- mode: Python -*-
-
 # This Tiltfile is used by the integration tests to setup the environment.
-# Running `tilt ci` in this path will install all resources and waits for Pods to be Ready 
-# Currently:
-#  - Installs latest Flux version in our super-agent chart.
-
-load('ext://helm_resource', 'helm_repo','helm_resource')
-helm_repo(
-  'newrelic',
-  'https://helm-charts.newrelic.com',
-  resource_name='newrelic-helm-repo',
-)
 
 update_settings ( k8s_upsert_timeout_secs = 150)
 
+######## Feature Branch Workaround ########
+# Use the branch source to get the chart form a feature branch in the NR helm-charts repo.
+chart_source = 'helm-repo' # local|branch|helm-repo
+feature_branch = ''
+local_chart_repo = ''
+
+#### Set-up charts
+load('ext://helm_resource', 'helm_repo','helm_resource')
+load('ext://git_resource', 'git_checkout')
+update_dependencies = False
+deps=[]
+chart = ''
+
+if chart_source == 'local':
+  chart = local_chart_repo
+  update_dependencies = True
+  deps=[chart+'super-agent-deployment/templates']
+elif chart_source == 'branch':
+  git_checkout('https://github.com/newrelic/helm-charts#'+feature_branch, checkout_dir='local/helm-charts', unsafe_mode=False)
+  chart = 'local/helm-charts/charts/'
+  update_dependencies = True
+  deps=[chart+'super-agent-deployment/templates']
+elif chart_source == 'helm-repo':
+  chart = 'newrelic/'
+  helm_repo(
+    'newrelic',
+    'https://helm-charts.newrelic.com',
+    resource_name='newrelic-helm-repo',
+    )
+
 helm_resource(
   'flux',
-  'newrelic/super-agent',
+  chart+'super-agent',
+  deps=deps, # re-deploy chart if modified locally
   namespace='default',
   release_name='flux',
+  update_dependencies=update_dependencies,
   flags=[
     '--create-namespace',
     '--version=>=0.0.0-beta',
     '--set=flux2.watchAllNamespaces=true',
-    '--set=helm.create=false',
+    '--set=super-agent-deployment.enabled=false',
     ],
   resource_deps=['newrelic-helm-repo']
 )

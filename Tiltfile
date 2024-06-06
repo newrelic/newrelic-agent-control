@@ -1,42 +1,22 @@
 # -*- mode: Python -*-
+# This Tiltfile is used by the e2e tests to setup the environment and for local development.
+
 #### Config
-
-# All default configs are set for local execution of Tilt and e2e test run.
-
+# This env var is automatically added by the e2e action.
+scenario_tag = os.getenv('SCENARIO_TAG')
+otel_endpoint = os.getenv('OTEL_ENDPOINT','https://staging-otlp.nr-data.net:4317')
+license_key = os.getenv('LICENSE_KEY')
 namespace = os.getenv('NAMESPACE','default')
-
-# Options:
-# local: Use a local copy of the chart defined in 'local_chart_repo'.
-# branch: Git clones and uses the newrelic/helm-charts repo on a specific branch 'feature_branch'.
-# helm-repo: Use latest released chart from newrelic helm repo.
-chart_source = os.getenv('CHART_SOURCE','helm-repo')
-
 sa_chart_values_file = os.getenv('SA_CHART_VALUES_FILE','local/super-agent-deployment.yml')
 
-local_chart_repo = os.getenv('LOCAL_CHART_REPO','../helm-charts/charts/')
-
-# Options:
+# build_with options:
 # cargo: No crosscompilation, faster than docker
 # docker: Supports crosscompilaton
 build_with = os.getenv('BUILD_WITH','docker')
-
 arch = os.getenv('ARCH','arm64')
 
-# This env var is automatically added by the e2e action.
-scenario_tag = os.getenv('SCENARIO_TAG')
-
-otel_endpoint = os.getenv('OTEL_ENDPOINT','https://staging-otlp.nr-data.net:4317')
-
-license_key = os.getenv('LICENSE_KEY')
-
-######## Feature Branch Workaround ########
-
-# Use the branch source to get the chart form a feature branch in the NR helm-charts repo.
-# chart_source = 'branch'
-feature_branch = '<feature-branch>'
-
-
 #### Build SA binary
+
 if build_with == 'cargo':
   local_resource(
       'build-binary',
@@ -75,12 +55,15 @@ k8s_yaml(secret_from_dict(
 }))
 k8s_resource(new_name='e2e test secret',objects=['test-env:secret'])
 
+######## Feature Branch Workaround ########
+# Use the branch source to get the chart form a feature branch in the NR helm-charts repo.
+chart_source = 'helm-repo' # local|branch|helm-repo
+feature_branch = ''
+local_chart_repo = ''
 
 #### Set-up charts
-
 load('ext://helm_resource', 'helm_repo','helm_resource')
 load('ext://git_resource', 'git_checkout')
-
 update_dependencies = False
 deps=[]
 chart = ''
@@ -106,36 +89,17 @@ elif chart_source == 'helm-repo':
 helm_resource(
   'flux',
   chart+'super-agent',
-  namespace=namespace,
-  release_name='flux',
-  update_dependencies=update_dependencies,
-  flags=[
-    '--create-namespace',
-    '--version=>=0.0.0-beta',
-    
-    '--set=helm.create=false',
-    ],
-  resource_deps=['newrelic-helm-repo']
-)
-helm_resource(
-  'sa-deployment',
-  chart+'super-agent-deployment',
   deps=deps, # re-deploy chart if modified locally
   namespace=namespace,
-  release_name='sa-deployment',
+  release_name='sa',
   update_dependencies=update_dependencies,
   flags=[
     '--create-namespace',
     '--version=>=0.0.0-beta',
-    
-    '--set=image.registry=tilt.local',
-    '--set=image.repository=super-agent-dev',
-    '--set=image.imagePullPolicy=Always',
-
+    '--set=super-agent-deployment.image.imagePullPolicy=Always',
     '--values=' + sa_chart_values_file,
     ],
-  # Required to force build the image
   image_deps=['tilt.local/super-agent-dev'],
-  image_keys=[('image.registry', 'image.repository', 'image.tag')],
-  resource_deps=['flux','build-binary'],
+  image_keys=[('super-agent-deployment.image.registry', 'super-agent-deployment.image.repository', 'super-agent-deployment.image.tag')],
+  resource_deps=['newrelic-helm-repo','build-binary']
 )
