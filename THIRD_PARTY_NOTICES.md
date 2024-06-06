@@ -281,13 +281,6 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
-## bitflags https://crates.io/crates/bitflags
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
 ## block-buffer https://crates.io/crates/block-buffer
 
 Distributed under the following license(s):

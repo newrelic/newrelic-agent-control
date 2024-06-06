@@ -70,6 +70,7 @@ serde_json = { workspace = true }
 assert_matches = { workspace = true }
 mockall_double = { workspace = true }
 tracing-test = { workspace = true }
+jsonwebtoken = { workspace = true }
 fs = { path = "../fs", features = ["mocks"] }
 tokio = { version = "1.37.0", features = ["rt-multi-thread", "macros"] }
 wiremock = "0.6.0"
