@@ -1,6 +1,11 @@
 use std::collections::BTreeMap;
 
-use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
+use k8s_openapi::{
+    apimachinery::pkg::util::intstr::IntOrString, Metadata, NamespaceResourceScope, Resource,
+};
+use kube::api::ObjectMeta;
+
+use super::Error;
 
 /// This is a helper to have the number of pods or percentages for update strategies.
 ///
@@ -127,9 +132,23 @@ pub fn contains_label_with_value(
         .map_or(false, |v| v.as_str() == value)
 }
 
+/// Return the value of `.metadata.name` of the object that is passed.
+pub fn get_metadata_name<K>(obj: &K) -> Result<String, Error>
+where
+    K: Resource<Scope = NamespaceResourceScope> + Metadata<Ty = ObjectMeta>,
+{
+    let metadata = obj.metadata();
+
+    metadata
+        .name
+        .clone()
+        .ok_or_else(|| Error::MissingName(K::KIND.to_string()))
+}
+
 #[cfg(test)]
 pub mod test {
     use super::*;
+    use k8s_openapi::api::apps::v1::{DaemonSet, Deployment};
 
     #[test]
     fn int_or_percentage_parse() {
@@ -311,5 +330,33 @@ pub mod test {
         ];
 
         test_cases.into_iter().for_each(|tc| tc.run());
+    }
+
+    #[test]
+    fn test_metadata_name() {
+        // As it is a generic, I want to test with at least two different types.
+        // Let's start with a Deployment
+        let mut deployment = Deployment {
+            ..Default::default()
+        };
+        let deployment_error = get_metadata_name(&deployment).unwrap_err();
+        deployment.metadata.name = Some("name".into());
+        let deployment_name = get_metadata_name(&deployment).unwrap();
+        assert_eq!(
+            deployment_error.to_string(),
+            Error::MissingName("Deployment".to_string()).to_string()
+        );
+        assert_eq!(deployment_name, "name".to_string());
+
+        // Now a DaemonSet
+        let mut daemon_set = DaemonSet::default();
+        let daemon_set_error = get_metadata_name(&daemon_set).unwrap_err();
+        daemon_set.metadata.name = Some("name".into());
+        let daemon_set_name = get_metadata_name(&daemon_set).unwrap();
+        assert_eq!(
+            daemon_set_error.to_string(),
+            Error::MissingName("DaemonSet".to_string()).to_string()
+        );
+        assert_eq!(daemon_set_name, "name".to_string());
     }
 }

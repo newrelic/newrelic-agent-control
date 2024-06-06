@@ -2,26 +2,29 @@
 //!
 use super::health_checker::LABEL_RELEASE_FLUX;
 use crate::{
-    k8s::utils::contains_label_with_value,
+    k8s::utils as client_utils,
     sub_agent::health::health_checker::{Health, HealthCheckerError, Healthy},
 };
-use k8s_openapi::Metadata;
-use kube::api::ObjectMeta;
+use k8s_openapi::{
+    apimachinery::pkg::apis::meta::v1::ObjectMeta, Metadata, NamespaceResourceScope, Resource,
+};
 use std::{any::Any, sync::Arc};
 
-/// Executes the provided health-check function over the items provided.
+/// Executes the provided health-check function over the items provided. It expects a list
+/// of `Arc<K>` because k8s reflectors provide shared references.
 /// It returns:
 /// * A healthy result if the result of execution is healthy for all the items.
 /// * The first encountered error or unhealthy result, otherwise.
 pub fn check_health_for_items<K, F>(
-    items: impl Iterator<Item = K>,
+    items: impl Iterator<Item = Arc<K>>,
     health_check_fn: F,
 ) -> Result<Health, HealthCheckerError>
 where
-    K: Any,
-    F: Fn(K) -> Result<Health, HealthCheckerError>,
+    K: Any + Clone,
+    F: Fn(&K) -> Result<Health, HealthCheckerError>,
 {
-    for obj in items {
+    for arc_obj in items {
+        let obj: &K = &arc_obj; // Dereference so the function see the object and not the Arc.
         let obj_health = health_check_fn(obj)?;
         if !obj_health.is_healthy() {
             return Ok(obj_health);
@@ -38,11 +41,23 @@ where
 {
     // TODO: when https://github.com/kube-rs/kube/pull/1482, is ready, a label-selector could be used instead.
     move |obj| {
-        contains_label_with_value(
+        client_utils::contains_label_with_value(
             &obj.metadata().labels,
             LABEL_RELEASE_FLUX,
             release_name.as_str(),
         )
+    }
+}
+
+/// Helper to return an error when an expected field in the StatefulSet object is missing.
+pub fn missing_field_error<K>(_: &K, name: &str, field: &str) -> HealthCheckerError
+where
+    K: Resource<Scope = NamespaceResourceScope>,
+{
+    HealthCheckerError::MissingK8sObjectField {
+        kind: K::KIND.to_string(),
+        name: name.to_string(),
+        field: field.to_string(),
     }
 }
 
@@ -55,17 +70,16 @@ mod test {
 
     #[test]
     fn test_items_health_check_healthy() {
-        let result = check_health_for_items(vec!["a", "b", "c", "d"].into_iter(), |_| {
-            Ok(Healthy::default().into())
-        })
-        .unwrap_or_else(|err| panic!("unexpected error {err} when all items are healthy"));
+        let items = vec!["a", "b", "c", "d"].into_iter().map(Arc::new);
+        let result = check_health_for_items(items.into_iter(), |_| Ok(Healthy::default().into()))
+            .unwrap_or_else(|err| panic!("unexpected error {err} when all items are healthy"));
         assert_eq!(
             result,
             Health::Healthy(Healthy::default()),
             "Expected healthy when all items are healthy"
         );
 
-        let result = check_health_for_items(Vec::new().into_iter(), |_: &str| {
+        let result = check_health_for_items(Vec::<Arc<i32>>::new().into_iter(), |_: &i32| {
             Err(HealthCheckerError::Generic("fail!".to_string()))
         })
         .unwrap_or_else(|err| panic!("unexpected error {err} when there are no items"));
@@ -78,8 +92,9 @@ mod test {
 
     #[test]
     fn test_items_health_check_unhealthy() {
-        let result = check_health_for_items(vec!["a", "b", "c", "d"].into_iter(), |s| match s {
-            "a" | "b" => Ok(Healthy::default().into()),
+        let items = vec!["a", "b", "c", "d"].into_iter().map(Arc::new);
+        let result = check_health_for_items(items.into_iter(), |s| match s {
+            &"a" | &"b" => Ok(Healthy::default().into()),
             _ => Ok(Health::unhealthy_with_last_error(s.to_string())),
         })
         .unwrap_or_else(|err| panic!("unexpected error {err} when unhealthy is expected"));
@@ -95,8 +110,9 @@ mod test {
 
     #[test]
     fn test_items_health_check_err() {
-        let result = check_health_for_items(vec!["a", "b", "c", "d"].into_iter(), |s| match s {
-            "a" | "b" => Ok(Healthy::default().into()),
+        let items = vec!["a", "b", "c", "d"].into_iter().map(Arc::new);
+        let result = check_health_for_items(items.into_iter(), |s| match s {
+            &"a" | &"b" => Ok(Healthy::default().into()),
             _ => Err(HealthCheckerError::Generic(s.to_string())),
         })
         .unwrap_err();
