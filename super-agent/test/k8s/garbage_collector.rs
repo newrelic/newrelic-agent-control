@@ -15,7 +15,7 @@ use newrelic_super_agent::{
         client::SyncK8sClient, garbage_collector::NotStartedK8sGarbageCollector, store::K8sStore,
     },
     opamp::instance_id::{
-        getter::{IDGetter, InstanceIDGetter},
+        getter::{IDGetter, InstanceIDGetterInMemory},
         Identifiers,
     },
     sub_agent::k8s::CRSupervisor,
@@ -98,8 +98,10 @@ metadata:
 
     let k8s_store = Arc::new(K8sStore::new(k8s_client.clone()));
 
-    let instance_id_getter =
-        InstanceIDGetter::new_k8s_instance_id_getter(k8s_store.clone(), Identifiers::default());
+    let instance_id_getter = InstanceIDGetterInMemory::new_k8s_instance_id_getter(
+        k8s_store.clone(),
+        Identifiers::default(),
+    );
 
     // Creates Instance ID CM correctly tagged.
     let agent_instance_id = instance_id_getter.get(agent_id).unwrap();
@@ -228,8 +230,10 @@ fn k8s_garbage_collector_does_not_remove_super_agent() {
     );
     let k8s_store = Arc::new(K8sStore::new(k8s_client.clone()));
 
-    let instance_id_getter =
-        InstanceIDGetter::new_k8s_instance_id_getter(k8s_store.clone(), Identifiers::default());
+    let instance_id_getter = InstanceIDGetterInMemory::new_k8s_instance_id_getter(
+        k8s_store.clone(),
+        Identifiers::default(),
+    );
 
     let sa_instance_id = instance_id_getter.get(sa_id).unwrap();
 

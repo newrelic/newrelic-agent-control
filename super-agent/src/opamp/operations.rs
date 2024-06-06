@@ -18,7 +18,7 @@ use opamp_client::{
 };
 use tracing::info;
 
-use super::instance_id::InstanceID;
+use super::instance_id::InstanceIDGetter;
 use super::{
     client_builder::{OpAMPClientBuilder, OpAMPClientBuilderError},
     instance_id::getter::IDGetter,
@@ -103,7 +103,7 @@ where
 
 /// Builds the OpAMP StartSettings corresponding to the provided arguments for any sub agent.
 pub fn start_settings(
-    instance_id: InstanceID,
+    instance_id: InstanceIDGetter,
     agent_fqn: &AgentTypeFQN,
     non_identifying_attributes: HashMap<String, DescriptionValueType>,
 ) -> StartSettings {

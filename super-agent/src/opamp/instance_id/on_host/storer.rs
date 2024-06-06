@@ -129,7 +129,7 @@ mod test {
     use crate::opamp::instance_id::getter::DataStored;
     use crate::opamp::instance_id::on_host::storer::get_instance_id_path;
     use crate::opamp::instance_id::storer::InstanceIDStorer;
-    use crate::opamp::instance_id::{Identifiers, InstanceID, Storer};
+    use crate::opamp::instance_id::{Identifiers, InstanceIDGetter, Storer};
     use crate::super_agent::config::AgentID;
     use crate::super_agent::defaults::{REMOTE_AGENT_DATA_DIR, SUPER_AGENT_IDENTIFIERS_PATH};
     use fs::directory_manager::mock::MockDirectoryManagerMock;
@@ -162,7 +162,7 @@ mod test {
         let mut file_rw = MockLocalFile::default();
         let mut dir_manager = MockDirectoryManagerMock::default();
         let ds = DataStored {
-            instance_id: InstanceID::new(UUID),
+            instance_id: InstanceIDGetter::new(UUID),
             identifiers: test_identifiers(),
         };
 
@@ -190,7 +190,7 @@ mod test {
         let mut file_rw = MockLocalFile::default();
         let mut dir_manager = MockDirectoryManagerMock::default();
         let ds = DataStored {
-            instance_id: InstanceID::new(UUID),
+            instance_id: InstanceIDGetter::new(UUID),
             identifiers: test_identifiers(),
         };
 
@@ -218,7 +218,7 @@ mod test {
         let mut file_rw = MockLocalFile::default();
         let dir_manager = MockDirectoryManagerMock::default();
         let ds = DataStored {
-            instance_id: InstanceID::new(UUID),
+            instance_id: InstanceIDGetter::new(UUID),
             identifiers: test_identifiers(),
         };
         let expected = Some(ds.clone());

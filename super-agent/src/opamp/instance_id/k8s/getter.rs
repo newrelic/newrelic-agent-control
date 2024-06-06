@@ -1,6 +1,6 @@
 use crate::k8s;
 use crate::k8s::store::K8sStore;
-use crate::opamp::instance_id::getter::InstanceIDGetter;
+use crate::opamp::instance_id::getter::InstanceIDGetterInMemory;
 use crate::opamp::instance_id::k8s::storer::{Storer, StorerError};
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
@@ -38,7 +38,7 @@ pub enum GetterError {
     K8sClientInitialization(#[from] k8s::Error),
 }
 
-impl InstanceIDGetter<Storer> {
+impl InstanceIDGetterInMemory<Storer> {
     pub fn new_k8s_instance_id_getter(k8s_store: Arc<K8sStore>, identifiers: Identifiers) -> Self {
         Self::new(Storer::new(k8s_store), identifiers)
     }

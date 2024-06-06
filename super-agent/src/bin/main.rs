@@ -150,7 +150,7 @@ fn run_super_agent<C: HttpClientBuilder>(
 ) -> Result<(), AgentError> {
     use newrelic_super_agent::agent_type::renderer::TemplateRenderer;
     use newrelic_super_agent::opamp::hash_repository::HashRepositoryFile;
-    use newrelic_super_agent::opamp::instance_id::getter::InstanceIDGetter;
+    use newrelic_super_agent::opamp::instance_id::getter::InstanceIDGetterInMemory;
     use newrelic_super_agent::opamp::instance_id::IdentifiersProvider;
     use newrelic_super_agent::opamp::operations::build_opamp_with_channel;
     use newrelic_super_agent::sub_agent::on_host::builder::OnHostSubAgentBuilder;
@@ -181,7 +181,7 @@ fn run_super_agent<C: HttpClientBuilder>(
 
     let non_identifying_attributes = super_agent_opamp_non_identifying_attributes(&identifiers);
 
-    let instance_id_getter = InstanceIDGetter::default().with_identifiers(identifiers);
+    let instance_id_getter = InstanceIDGetterInMemory::default().with_identifiers(identifiers);
 
     let mut vr = ValuesRepositoryFile::default();
     if opamp_client_builder.is_some() {
@@ -246,7 +246,7 @@ fn run_super_agent<C: HttpClientBuilder>(
     use newrelic_super_agent::k8s::store::K8sStore;
     use newrelic_super_agent::opamp::hash_repository::HashRepositoryConfigMap;
     use newrelic_super_agent::opamp::instance_id;
-    use newrelic_super_agent::opamp::instance_id::getter::InstanceIDGetter;
+    use newrelic_super_agent::opamp::instance_id::getter::InstanceIDGetterInMemory;
     use newrelic_super_agent::opamp::operations::build_opamp_with_channel;
     use newrelic_super_agent::sub_agent::values::ValuesRepositoryConfigMap;
     use newrelic_super_agent::super_agent::config::AgentID;
@@ -277,7 +277,7 @@ fn run_super_agent<C: HttpClientBuilder>(
     );
 
     let instance_id_getter =
-        InstanceIDGetter::new_k8s_instance_id_getter(k8s_store.clone(), identifiers);
+        InstanceIDGetterInMemory::new_k8s_instance_id_getter(k8s_store.clone(), identifiers);
 
     let mut vr = ValuesRepositoryConfigMap::new(k8s_store.clone());
     if opamp_client_builder.is_some() {
