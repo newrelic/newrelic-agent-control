@@ -132,7 +132,7 @@ pub fn create_local_super_agent_config(
     PathBuf::from(file_path)
 }
 
-/// This function checks that the cm containing the uuid of the superAgent has been created.
+/// This function checks that the cm containing the instance id of the superAgent has been created.
 /// If it is present we assume that the SuperAgent was started and was able to connect to the cluster.
 pub fn wait_until_super_agent_with_opamp_is_started(k8s_client: Client, namespace: &str) {
     // check that the expected cm exist, meaning that the SA started

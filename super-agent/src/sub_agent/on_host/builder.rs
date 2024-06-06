@@ -9,7 +9,7 @@ use crate::agent_type::environment::Environment;
 use crate::event::channel::{pub_sub, EventPublisher};
 use crate::event::SubAgentEvent;
 use crate::opamp::hash_repository::HashRepository;
-use crate::opamp::instance_id::getter::InstanceIDGetter;
+use crate::opamp::instance_id::getter::IDGetter;
 use crate::opamp::instance_id::IdentifiersProvider;
 use crate::opamp::operations::build_sub_agent_opamp;
 use crate::sub_agent::build_supervisor_or_default;
@@ -38,7 +38,7 @@ use std::sync::Arc;
 pub struct OnHostSubAgentBuilder<'a, O, I, HR, A, E>
 where
     O: OpAMPClientBuilder<SubAgentCallbacks>,
-    I: InstanceIDGetter,
+    I: IDGetter,
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
     E: SubAgentEventProcessorBuilder<O::Client>,
@@ -54,7 +54,7 @@ where
 impl<'a, O, I, HR, A, E> OnHostSubAgentBuilder<'a, O, I, HR, A, E>
 where
     O: OpAMPClientBuilder<SubAgentCallbacks>,
-    I: InstanceIDGetter,
+    I: IDGetter,
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
     E: SubAgentEventProcessorBuilder<O::Client>,
@@ -81,7 +81,7 @@ where
 impl<'a, O, I, HR, A, E> SubAgentBuilder for OnHostSubAgentBuilder<'a, O, I, HR, A, E>
 where
     O: OpAMPClientBuilder<SubAgentCallbacks>,
-    I: InstanceIDGetter,
+    I: IDGetter,
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
     E: SubAgentEventProcessorBuilder<O::Client>,
@@ -219,6 +219,7 @@ mod test {
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
     use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
+    use crate::opamp::instance_id::getter::InstanceIDGetter;
     use crate::opamp::instance_id::test::{MockCloudDetectorMock, MockSystemDetectorMock};
     use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
@@ -230,14 +231,17 @@ mod test {
     use nix::unistd::gethostname;
     use opamp_client::opamp::proto::RemoteConfigStatus;
     use opamp_client::opamp::proto::RemoteConfigStatuses::Failed;
-    use opamp_client::operation::{
-        capabilities::Capabilities,
-        settings::{AgentDescription, DescriptionValueType, StartSettings},
+    use opamp_client::operation::settings::{
+        AgentDescription, DescriptionValueType, StartSettings,
     };
     use resource_detection::cloud::cloud_id::detector::CloudIdDetectorError;
     use resource_detection::system::detector::SystemDetectorError;
     use resource_detection::{DetectError, Resource};
     use std::collections::HashMap;
+    use uuid::{uuid, Uuid};
+
+    const INFRA_AGENT_INSTANCE_ID: Uuid = uuid!("018fc93b-b114-7004-b727-6bcb27630124");
+    const SUPER_AGENT_INSTANCE_ID: Uuid = uuid!("018fc93f-6a06-7d50-a992-843f7abf02f1");
 
     #[test]
     fn build_start_stop() {
@@ -250,7 +254,7 @@ mod test {
         };
         let start_settings_infra = infra_agent_default_start_settings(
             &hostname,
-            "super_agent_instance_id",
+            SUPER_AGENT_INSTANCE_ID,
             &sub_agent_config,
         );
 
@@ -269,8 +273,14 @@ mod test {
         );
 
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
-        instance_id_getter.should_get(&sub_agent_id, "infra_agent_instance_id".to_string());
-        instance_id_getter.should_get(&super_agent_id, "super_agent_instance_id".to_string());
+        instance_id_getter.should_get(
+            &sub_agent_id,
+            InstanceIDGetter::new(INFRA_AGENT_INSTANCE_ID),
+        );
+        instance_id_getter.should_get(
+            &super_agent_id,
+            InstanceIDGetter::new(SUPER_AGENT_INSTANCE_ID),
+        );
 
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         hash_repository_mock.expect_get().times(1).returning(|_| {
@@ -327,7 +337,7 @@ mod test {
         };
         let start_settings_infra = infra_agent_default_start_settings(
             &hostname,
-            "super_agent_instance_id",
+            SUPER_AGENT_INSTANCE_ID,
             &sub_agent_config,
         );
         let super_agent_id = AgentID::new_super_agent_id();
@@ -336,8 +346,14 @@ mod test {
 
         // Expectations
         // Infra Agent OpAMP no final stop nor health, just after stopping on reload
-        instance_id_getter.should_get(&sub_agent_id, "infra_agent_instance_id".to_string());
-        instance_id_getter.should_get(&super_agent_id, "super_agent_instance_id".to_string());
+        instance_id_getter.should_get(
+            &sub_agent_id,
+            InstanceIDGetter::new(INFRA_AGENT_INSTANCE_ID),
+        );
+        instance_id_getter.should_get(
+            &super_agent_id,
+            InstanceIDGetter::new(SUPER_AGENT_INSTANCE_ID),
+        );
 
         let mut started_client = MockStartedOpAMPClientMock::new();
         // failed conf should be reported
@@ -404,37 +420,26 @@ mod test {
 
     fn infra_agent_default_start_settings(
         hostname: &str,
-        parent_id: &str,
+        parent_id: Uuid,
         agent_config: &SubAgentConfig,
     ) -> StartSettings {
-        start_settings(
-            "infra_agent_instance_id".to_string(),
-            default_capabilities(),
-            agent_config.agent_type.name(),
-            agent_config.agent_type.version(),
-            agent_config.agent_type.namespace(),
-            hostname,
-            parent_id,
-        )
-    }
-
-    fn start_settings(
-        instance_id: String,
-        capabilities: Capabilities,
-        agent_type: String,
-        agent_version: String,
-        agent_namespace: String,
-        hostname: &str,
-        parent_id: &str,
-    ) -> StartSettings {
         StartSettings {
-            instance_id,
-            capabilities,
+            instance_id: INFRA_AGENT_INSTANCE_ID.into(),
+            capabilities: default_capabilities(),
             agent_description: AgentDescription {
                 identifying_attributes: HashMap::<String, DescriptionValueType>::from([
-                    ("service.name".to_string(), agent_type.into()),
-                    ("service.namespace".to_string(), agent_namespace.into()),
-                    ("service.version".to_string(), agent_version.into()),
+                    (
+                        "service.name".to_string(),
+                        agent_config.agent_type.name().into(),
+                    ),
+                    (
+                        "service.namespace".to_string(),
+                        agent_config.agent_type.namespace().into(),
+                    ),
+                    (
+                        "service.version".to_string(),
+                        agent_config.agent_type.version().into(),
+                    ),
                 ]),
                 non_identifying_attributes: HashMap::from([
                     (

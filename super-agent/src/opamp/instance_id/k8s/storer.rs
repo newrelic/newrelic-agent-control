@@ -21,7 +21,7 @@ pub enum StorerError {
 
 impl InstanceIDStorer for Storer {
     fn set(&self, agent_id: &AgentID, ds: &DataStored) -> Result<(), StorerError> {
-        debug!("storer: setting ULID of agent_id:{}", agent_id);
+        debug!("storer: setting Instance ID of agent_id: {}", agent_id);
 
         self.k8s_store
             .set_opamp_data(agent_id, STORE_KEY_INSTANCE_ID, ds)?;
@@ -30,7 +30,7 @@ impl InstanceIDStorer for Storer {
     }
 
     fn get(&self, agent_id: &AgentID) -> Result<Option<DataStored>, StorerError> {
-        debug!("storer: getting ULID of agent_id: {}", agent_id);
+        debug!("storer: getting Instance ID of agent_id: {}", agent_id);
 
         if let Some(data) = self
             .k8s_store

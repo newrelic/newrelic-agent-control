@@ -1,7 +1,7 @@
 pub mod getter;
 pub mod storer;
 
-pub use getter::InstanceID;
+pub use getter::InstanceIDGetter;
 
 #[cfg(feature = "k8s")]
 mod k8s;

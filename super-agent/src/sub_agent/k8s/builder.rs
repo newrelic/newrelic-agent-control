@@ -6,7 +6,7 @@ use crate::event::SubAgentEvent;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::opamp::hash_repository::HashRepository;
-use crate::opamp::instance_id::getter::InstanceIDGetter;
+use crate::opamp::instance_id::getter::IDGetter;
 use crate::opamp::operations::build_sub_agent_opamp;
 use crate::sub_agent::build_supervisor_or_default;
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
@@ -28,7 +28,7 @@ use tracing::debug;
 pub struct K8sSubAgentBuilder<'a, O, I, HR, A, E>
 where
     O: OpAMPClientBuilder<SubAgentCallbacks>,
-    I: InstanceIDGetter,
+    I: IDGetter,
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
     E: SubAgentEventProcessorBuilder<O::Client>,
@@ -45,7 +45,7 @@ where
 impl<'a, O, I, HR, A, E> K8sSubAgentBuilder<'a, O, I, HR, A, E>
 where
     O: OpAMPClientBuilder<SubAgentCallbacks>,
-    I: InstanceIDGetter,
+    I: IDGetter,
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
     E: SubAgentEventProcessorBuilder<O::Client>,
@@ -74,7 +74,7 @@ where
 impl<'a, O, I, HR, A, E> SubAgentBuilder for K8sSubAgentBuilder<'a, O, I, HR, A, E>
 where
     O: OpAMPClientBuilder<SubAgentCallbacks>,
-    I: InstanceIDGetter,
+    I: IDGetter,
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
     E: SubAgentEventProcessorBuilder<O::Client>,
@@ -214,6 +214,7 @@ pub mod test {
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
     use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
+    use crate::opamp::instance_id::InstanceIDGetter;
     use crate::opamp::operations::start_settings;
     use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
@@ -229,6 +230,7 @@ pub mod test {
     use assert_matches::assert_matches;
     use opamp_client::operation::settings::DescriptionValueType;
     use std::collections::HashMap;
+    use uuid::{uuid, Uuid};
 
     const TEST_CLUSTER_NAME: &str = "cluster_name";
     const TEST_NAMESPACE: &str = "test-namespace";
@@ -369,14 +371,14 @@ pub mod test {
         MockInstanceIDGetterMock,
         MockHashRepositoryMock,
     ) {
-        let instance_id = "fake-ulid";
+        let instance_id: Uuid = uuid!("018fca06-70a8-7968-9d04-fabdde189b8c");
 
         // opamp builder mock
         let mut started_client = MockStartedOpAMPClientMock::new();
         started_client.should_set_any_remote_config_status(1);
         let mut opamp_builder = MockOpAMPClientBuilderMock::new();
         let start_settings = start_settings(
-            instance_id.to_string(),
+            InstanceIDGetter::new(instance_id),
             &sub_agent_config.agent_type,
             HashMap::from([
                 (
@@ -385,7 +387,7 @@ pub mod test {
                 ),
                 (
                     PARENT_AGENT_ID_ATTRIBUTE_KEY().to_string(),
-                    DescriptionValueType::String("super_agent_instance_id".to_string()),
+                    DescriptionValueType::String(instance_id.into()),
                 ),
             ]),
         );
@@ -393,10 +395,10 @@ pub mod test {
 
         // instance id getter mock
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
-        instance_id_getter.should_get(&agent_id, instance_id.to_string());
+        instance_id_getter.should_get(&agent_id, InstanceIDGetter::new(instance_id));
         instance_id_getter.should_get(
             &AgentID::new_super_agent_id(),
-            "super_agent_instance_id".to_string(),
+            InstanceIDGetter::new(instance_id),
         );
 
         // hash_repository_mock

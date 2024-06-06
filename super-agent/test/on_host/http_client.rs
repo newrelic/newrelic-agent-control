@@ -7,13 +7,10 @@ use http::HeaderMap;
 use httpmock::Method::POST;
 use httpmock::MockServer;
 use opamp_client::http::http_client::HttpClient;
-use serde::de;
 use url::Url;
 
 use newrelic_super_agent::opamp::http::builder::{HttpClientBuilder, UreqHttpClientBuilder};
-use newrelic_super_agent::super_agent::config::{
-    AuthConfig, LocalConfig, OpAMPClientConfig, ProviderConfig,
-};
+use newrelic_super_agent::super_agent::config::OpAMPClientConfig;
 use nr_auth::token::{AccessToken, Token, TokenType};
 use nr_auth::token_retriever::TokenRetrieverDefault;
 use nr_auth::{TokenRetriever, TokenRetrieverError};
