@@ -1,10 +1,10 @@
 use super::effective_agents_assembler::EffectiveAgentsAssemblerError;
+use super::values::values_repository::ValuesRepositoryError;
 use crate::agent_type::agent_values::AgentValuesError;
 use crate::event::channel::EventPublisherError;
 use crate::opamp::client_builder::OpAMPClientBuilderError;
-use crate::opamp::hash_repository::HashRepositoryError;
+use crate::opamp::hash_repository::repository::HashRepositoryError;
 use crate::opamp::remote_config::RemoteConfigError;
-use crate::sub_agent::values::ValuesRepositoryError;
 use crate::super_agent::config::SuperAgentConfigError;
 use opamp_client::StartedClientError;
 use opamp_client::{ClientError, NotStartedClientError};

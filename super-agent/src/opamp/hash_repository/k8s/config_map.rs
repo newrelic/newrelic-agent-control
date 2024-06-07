@@ -1,6 +1,7 @@
 use crate::k8s;
 use crate::k8s::store::K8sStore;
 use crate::k8s::store::STORE_KEY_OPAMP_DATA_CONFIG_HASH;
+use crate::opamp::hash_repository::repository::HashRepositoryError;
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::remote_config_hash::Hash;
 use crate::super_agent::config::AgentID;
@@ -9,12 +10,9 @@ use thiserror::Error;
 use tracing::debug;
 
 #[derive(Error, Debug)]
-pub enum HashRepositoryError {
-    #[error("failed to persist on Config Map {0}")]
-    FailedToPersistK8s(#[from] k8s::Error),
-    #[cfg(test)]
-    #[error("common variant for k8s and on-host implementations")]
-    Generic,
+pub enum K8sHashRepositoryError {
+    #[error("k8s request failed on Config Map {0}")]
+    K8sError(#[from] k8s::Error),
 }
 
 pub struct HashRepositoryConfigMap {
@@ -29,6 +27,18 @@ impl HashRepositoryConfigMap {
 
 impl HashRepository for HashRepositoryConfigMap {
     fn save(&self, agent_id: &AgentID, hash: &Hash) -> Result<(), HashRepositoryError> {
+        self._save(agent_id, hash)
+            .map_err(|err| HashRepositoryError::LoadError(err.to_string()))
+    }
+
+    fn get(&self, agent_id: &AgentID) -> Result<Option<Hash>, HashRepositoryError> {
+        self._get(agent_id)
+            .map_err(|err| HashRepositoryError::PersistError(err.to_string()))
+    }
+}
+
+impl HashRepositoryConfigMap {
+    fn _save(&self, agent_id: &AgentID, hash: &Hash) -> Result<(), K8sHashRepositoryError> {
         debug!("saving remote config hash of agent_id: {}", agent_id);
 
         self.k8s_store
@@ -36,7 +46,7 @@ impl HashRepository for HashRepositoryConfigMap {
         Ok(())
     }
 
-    fn get(&self, agent_id: &AgentID) -> Result<Option<Hash>, HashRepositoryError> {
+    fn _get(&self, agent_id: &AgentID) -> Result<Option<Hash>, K8sHashRepositoryError> {
         debug!("getting remote config hash of agent_id: {}", agent_id);
 
         match self
