@@ -37,7 +37,7 @@ variables:
       description: "Newrelic otel collector chart version"
       type: string
       required: true
-      default: "0.1.2"
+      default: "0.3.2"
 deployment:
   on_host:
     executables:
