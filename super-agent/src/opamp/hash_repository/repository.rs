@@ -1,6 +1,13 @@
-use super::HashRepositoryError;
 use crate::opamp::remote_config_hash::Hash;
 use crate::super_agent::config::AgentID;
+
+#[derive(thiserror::Error, Debug)]
+pub enum HashRepositoryError {
+    #[error("error persisting hash: `{0}`")]
+    PersistError(String),
+    #[error("error loading hash: `{0}`")]
+    LoadError(String),
+}
 
 pub trait HashRepository {
     fn save(&self, agent_id: &AgentID, hash: &Hash) -> Result<(), HashRepositoryError>;

@@ -1,5 +1,4 @@
-use super::values::values_repository::ValuesRepository;
-use super::values::ValuesRepositoryError;
+use super::values::values_repository::{ValuesRepository, ValuesRepositoryError};
 use crate::agent_type::agent_attributes::AgentAttributes;
 use crate::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError};
 use crate::agent_type::definition::{AgentType, AgentTypeDefinition};

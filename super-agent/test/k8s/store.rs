@@ -5,9 +5,6 @@ use crate::tools::{
 };
 use k8s_openapi::api::core::v1::ConfigMap;
 use kube::Api;
-use newrelic_super_agent::agent_type::agent_metadata::AgentMetadata;
-use newrelic_super_agent::agent_type::agent_values::AgentValues;
-use newrelic_super_agent::agent_type::definition::{AgentType, VariableTree};
 use newrelic_super_agent::agent_type::runtime_config::Runtime;
 use newrelic_super_agent::k8s::client::SyncK8sClient;
 use newrelic_super_agent::k8s::labels::Labels;
@@ -15,19 +12,28 @@ use newrelic_super_agent::k8s::store::{
     K8sStore, StoreKey, CM_NAME_OPAMP_DATA_PREFIX, STORE_KEY_INSTANCE_ID,
     STORE_KEY_OPAMP_DATA_CONFIG_HASH,
 };
-use newrelic_super_agent::opamp::hash_repository::{HashRepository, HashRepositoryConfigMap};
+use newrelic_super_agent::opamp::hash_repository::k8s::config_map::HashRepositoryConfigMap;
 use newrelic_super_agent::opamp::instance_id::{
     getter::{IDGetter, InstanceIDGetterInMemory},
     Identifiers,
 };
 use newrelic_super_agent::opamp::remote_config_hash::Hash;
-use newrelic_super_agent::sub_agent::values::values_repository::ValuesRepository;
-use newrelic_super_agent::sub_agent::values::ValuesRepositoryConfigMap;
 use newrelic_super_agent::super_agent::config::{AgentID, SuperAgentDynamicConfig};
 use newrelic_super_agent::super_agent::config_storer::storer::{
     SuperAgentDynamicConfigDeleter, SuperAgentDynamicConfigLoader, SuperAgentDynamicConfigStorer,
 };
 use newrelic_super_agent::super_agent::config_storer::SubAgentsConfigStoreConfigMap;
+use newrelic_super_agent::{
+    agent_type::agent_metadata::AgentMetadata, opamp::hash_repository::HashRepository,
+};
+use newrelic_super_agent::{
+    agent_type::agent_values::AgentValues,
+    sub_agent::values::k8s::config_map::ValuesRepositoryConfigMap,
+};
+use newrelic_super_agent::{
+    agent_type::definition::{AgentType, VariableTree},
+    sub_agent::values::values_repository::ValuesRepository,
+};
 use semver::Version;
 use serde_yaml::from_str;
 use std::sync::Arc;

@@ -103,11 +103,11 @@ mod tests {
     use crate::event::channel::EventConsumer;
     use crate::event::SubAgentEvent::{self, ConfigUpdated};
     use crate::opamp::callbacks::AgentCallbacks;
-    use crate::opamp::hash_repository::HashRepositoryError;
+    use crate::opamp::hash_repository::repository::HashRepositoryError;
     use crate::opamp::remote_config::RemoteConfigError;
     use crate::sub_agent::error::SubAgentError;
     use crate::sub_agent::event_processor::EventProcessor;
-    use crate::sub_agent::values::ValuesRepositoryError;
+    use crate::sub_agent::values::values_repository::ValuesRepositoryError;
     use crate::super_agent::config::AgentID;
     use crate::{
         event::channel::pub_sub,
@@ -320,7 +320,8 @@ mod tests {
         let hash = Hash::new(String::from("some-hash"));
         let remote_config = RemoteConfig::new(agent_id.clone(), hash.clone(), None);
 
-        let expected_error = SubAgentError::from(HashRepositoryError::Generic);
+        let expected_error =
+            SubAgentError::from(HashRepositoryError::LoadError("test".to_string()));
 
         let (event_processor, _) = setup_testing_event_processor(&agent_id, |mocks| {
             mocks
@@ -328,7 +329,7 @@ mod tests {
                 .expect_save()
                 .with(predicate::eq(agent_id.clone()), predicate::eq(hash.clone()))
                 .once()
-                .returning(move |_, _| Err(HashRepositoryError::Generic));
+                .returning(move |_, _| Err(HashRepositoryError::LoadError("test".to_string())));
 
             // Applying config status should be reported
             mocks
@@ -359,7 +360,8 @@ mod tests {
             "some_item: some_value".to_string(),
         )]));
 
-        let expected_error = SubAgentError::from(ValuesRepositoryError::Generic);
+        let expected_error =
+            SubAgentError::from(ValuesRepositoryError::StoreError("store".to_string()));
 
         let (event_processor, _) = setup_testing_event_processor(&agent_id, |mocks| {
             mocks.hash_repository.should_save_hash(&agent_id, &hash);
@@ -374,7 +376,7 @@ mod tests {
                         "some_value".into(),
                     )]))),
                 )
-                .returning(|_, _| Err(ValuesRepositoryError::Generic));
+                .returning(|_, _| Err(ValuesRepositoryError::StoreError("store".to_string())));
 
             // Applying status should be reported
             mocks
@@ -403,7 +405,8 @@ mod tests {
         let hash = Hash::new(String::from("some-hash"));
         let config_map = ConfigMap::new(HashMap::from([("".to_string(), "".to_string())]));
 
-        let expected_error = SubAgentError::from(ValuesRepositoryError::Generic);
+        let expected_error =
+            SubAgentError::from(ValuesRepositoryError::DeleteError("delete".to_string()));
 
         let (event_processor, _) = setup_testing_event_processor(&agent_id, |mocks| {
             mocks.hash_repository.should_save_hash(&agent_id, &hash);
@@ -414,7 +417,7 @@ mod tests {
                 .expect_delete_remote()
                 .once()
                 .with(predicate::eq(agent_id.clone()))
-                .returning(|_| Err(ValuesRepositoryError::Generic));
+                .returning(|_| Err(ValuesRepositoryError::DeleteError("delete".to_string())));
 
             // Applying status should be reported
             mocks
