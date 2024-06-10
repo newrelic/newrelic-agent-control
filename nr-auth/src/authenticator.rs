@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use thiserror::Error;
+use url::Url;
 
 use crate::{token::AccessToken, ClientID};
 
@@ -8,7 +9,7 @@ use crate::{token::AccessToken, ClientID};
 pub enum AuthenticateError {
     #[error("unable to deserialize token: `{0}`")]
     DeserializeError(String),
-    #[error("identity server error: Status code: `{0}`, response `{1}`")]
+    #[error("identity server error: Status code: `{0}`, Reason: `{1}`")]
     HttpResponseError(u16, String),
     #[error("http transport error: `{0}`")]
     HttpTransportError(String),
@@ -18,29 +19,34 @@ impl From<ureq::Error> for AuthenticateError {
     fn from(value: ureq::Error) -> Self {
         match value {
             ureq::Error::Status(code, resp) => {
-                AuthenticateError::HttpResponseError(code, resp.into_string().unwrap_or_default())
+                AuthenticateError::HttpResponseError(code, resp.status_text().to_string())
             }
             ureq::Error::Transport(e) => AuthenticateError::HttpTransportError(e.to_string()),
         }
     }
 }
 
+#[cfg_attr(test, mockall::automock)]
+pub trait Authenticator {
+    fn authenticate(&self, req: Request) -> Result<Response, AuthenticateError>;
+}
+
 /// The Authenticator is responsible for obtaining a valid JWT token from System Identity Service.
-pub struct Authenticator {
+pub struct HttpAuthenticator {
     http_client: ureq::Agent,
-    url: String,
+    url: Url,
 }
 
 /// Authenticator configuration
 pub struct AuthenticatorConfig {
     /// System Identity Service URL
-    pub url: String,
+    pub url: Url,
     /// HTTP client connection and request timeout
     pub timeout: Duration,
 }
 
-impl Authenticator {
-    pub fn new(config: AuthenticatorConfig) -> Self {
+impl From<AuthenticatorConfig> for HttpAuthenticator {
+    fn from(config: AuthenticatorConfig) -> Self {
         Self {
             http_client: ureq::AgentBuilder::new()
                 .timeout_connect(config.timeout)
@@ -49,10 +55,13 @@ impl Authenticator {
             url: config.url,
         }
     }
+}
 
+#[cfg_attr(test, mockall::automock)]
+impl Authenticator for HttpAuthenticator {
     /// Executes a POST request to Authentication Server with the `Request` as a body and returns a `Response`.
-    pub fn authenticate(&self, req: Request) -> Result<Response, AuthenticateError> {
-        let encoded_response = self.http_client.post(&self.url).send_json(req)?;
+    fn authenticate(&self, req: Request) -> Result<Response, AuthenticateError> {
+        let encoded_response = self.http_client.post(self.url.as_str()).send_json(req)?;
 
         let response: Response = encoded_response
             .into_json()
@@ -62,13 +71,13 @@ impl Authenticator {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum GrantType {
     ClientCredentials,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ClientAssertionType {
     #[serde(rename(serialize = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"))]
     JwtBearer,
@@ -76,7 +85,7 @@ pub enum ClientAssertionType {
 
 type ClientAssertion = String;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Request {
     pub client_id: ClientID,
     pub grant_type: GrantType,
@@ -84,9 +93,10 @@ pub struct Request {
     pub client_assertion: ClientAssertion,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct Response {
     pub access_token: AccessToken,
+    /// The lifetime in seconds of the access token.
     pub expires_in: u32,
     pub token_type: String,
 }
@@ -95,13 +105,15 @@ pub struct Response {
 mod test {
     use assert_matches::assert_matches;
     use std::time::Duration;
+    use url::Url;
 
     use httpmock::{Method::POST, MockServer};
 
-    use crate::authenticator::AuthenticateError;
+    use crate::authenticator::{AuthenticateError, Authenticator};
 
     use super::{
-        Authenticator, ClientAssertion, ClientAssertionType, ClientID, GrantType, Request, Response,
+        ClientAssertion, ClientAssertionType, ClientID, GrantType, HttpAuthenticator, Request,
+        Response,
     };
 
     #[test]
@@ -118,8 +130,8 @@ mod test {
                 .json_body(serde_json::to_value(expected_response.clone()).unwrap());
         });
 
-        let authenticator = Authenticator::new(super::AuthenticatorConfig {
-            url: identity_server.url(identity_server_path),
+        let authenticator = HttpAuthenticator::from(super::AuthenticatorConfig {
+            url: Url::parse(&identity_server.url(identity_server_path)).unwrap(),
             timeout: Duration::from_millis(100),
         });
 
@@ -142,8 +154,8 @@ mod test {
                 .delay(timeout.saturating_add(Duration::from_millis(1)));
         });
 
-        let authenticator = Authenticator::new(super::AuthenticatorConfig {
-            url: identity_server.url(identity_server_path),
+        let authenticator = HttpAuthenticator::from(super::AuthenticatorConfig {
+            url: Url::parse(&identity_server.url(identity_server_path)).unwrap(),
             timeout,
         });
 
@@ -166,8 +178,8 @@ mod test {
                 .body("this body should fail to be deserialized as Response");
         });
 
-        let authenticator = Authenticator::new(super::AuthenticatorConfig {
-            url: identity_server.url(identity_server_path),
+        let authenticator = HttpAuthenticator::from(super::AuthenticatorConfig {
+            url: Url::parse(&identity_server.url(identity_server_path)).unwrap(),
             timeout: Duration::from_millis(100),
         });
 
@@ -188,8 +200,8 @@ mod test {
             then.status(401);
         });
 
-        let authenticator = Authenticator::new(super::AuthenticatorConfig {
-            url: identity_server.url(identity_server_path),
+        let authenticator = HttpAuthenticator::from(super::AuthenticatorConfig {
+            url: Url::parse(&identity_server.url(identity_server_path)).unwrap(),
             timeout: Duration::from_millis(100),
         });
 

@@ -2,7 +2,8 @@
 use std::io::Cursor;
 use std::sync::Arc;
 
-use http::{HeaderMap, HeaderName, Response};
+use http::header::AUTHORIZATION;
+use http::{HeaderMap, Response};
 use opamp_client::http::http_client::HttpClient;
 use opamp_client::http::HttpClientError;
 use opamp_client::http::HttpClientError::TransportError;
@@ -59,11 +60,11 @@ where
         // Insert auth token header
         if !token.access_token().is_empty() {
             headers.insert(
-                HeaderName::from_static("authorization"),
+                AUTHORIZATION,
                 format!("Bearer {}", token.access_token()).parse().unwrap(),
             );
         }
-        //TODO warn else case :point-up: once TokenRetriever is implemented
+        //TODO warn else case :point-up: once Token authentication is required.
         //warn!("received empty authorization token");
 
         Ok(headers)
@@ -264,7 +265,8 @@ pub mod test {
         )]);
 
         let mut token_retriever = MockTokenRetrieverMock::default();
-        token_retriever.should_return_error(TokenRetrieverError::NotDefinedYetError);
+        token_retriever
+            .should_return_error(TokenRetrieverError::TokenRetrieverError("error".into()));
 
         let client = HttpClientUreq::new(ureq_client, url, headers, Arc::new(token_retriever));
 
@@ -282,13 +284,14 @@ pub mod test {
         )]);
 
         let mut token_retriever = MockTokenRetrieverMock::default();
-        token_retriever.should_return_error(TokenRetrieverError::NotDefinedYetError);
+        token_retriever
+            .should_return_error(TokenRetrieverError::TokenRetrieverError("error".into()));
 
         let client = HttpClientUreq::new(ureq_client, url, headers, Arc::new(token_retriever));
 
         let res = client.post("test".into()).unwrap_err();
         assert_eq!(
-            "`errors happened creating headers: `cannot retrieve auth header: not defined yet``",
+            "`errors happened creating headers: `cannot retrieve auth header: retrieving token: `error```",
             res.to_string()
         )
     }

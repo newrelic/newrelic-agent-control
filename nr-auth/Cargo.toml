@@ -20,3 +20,4 @@ uuid = { version = "1.8.0", features = ["serde", "v7"] }
 assert_matches = { workspace = true }
 httpmock = "0.7.0"
 mockall = { workspace = true }
+mockall_double= { workspace = true }

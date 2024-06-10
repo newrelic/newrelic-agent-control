@@ -3,7 +3,7 @@ use url::Url;
 use uuid::Uuid;
 
 /// JWT Claims supported by the service.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Claims {
     /// Issuer. Client ID will be used here.
     pub(crate) iss: String,

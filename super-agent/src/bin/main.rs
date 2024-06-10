@@ -1,6 +1,7 @@
 use newrelic_super_agent::cli::Cli;
 use newrelic_super_agent::event::channel::{pub_sub, EventConsumer, EventPublisher};
 use newrelic_super_agent::event::{ApplicationEvent, SuperAgentEvent};
+use newrelic_super_agent::opamp::auth::token_retriever::TokenRetrieverImpl;
 use newrelic_super_agent::opamp::client_builder::DefaultOpAMPClientBuilder;
 use newrelic_super_agent::opamp::http::builder::HttpClientBuilder;
 use newrelic_super_agent::opamp::http::builder::UreqHttpClientBuilder;
@@ -18,7 +19,6 @@ use newrelic_super_agent::super_agent::error::AgentError;
 use newrelic_super_agent::super_agent::http_server::runner::Runner;
 use newrelic_super_agent::super_agent::{super_agent_fqn, SuperAgent};
 use newrelic_super_agent::utils::binary_metadata::binary_metadata;
-use nr_auth::token_retriever::TokenRetrieverDefault;
 use opamp_client::operation::settings::DescriptionValueType;
 use std::collections::HashMap;
 use std::error::Error;
@@ -95,12 +95,21 @@ fn main() -> Result<(), Box<dyn Error>> {
     debug!("Creating the signal handler");
     create_shutdown_signal_handler(application_event_publisher)?;
 
-    let opamp_client_builder: Option<DefaultOpAMPClientBuilder<_>> =
-        super_agent_config.opamp.as_ref().map(|opamp_config| {
-            let token_retriever = Arc::new(TokenRetrieverDefault::default());
+    let opamp_client_builder = match super_agent_config.opamp.as_ref() {
+        Some(opamp_config) => {
+            let token_retriever = Arc::new(
+                TokenRetrieverImpl::try_from(opamp_config.clone())
+                    .inspect_err(|err| error!(error_mgs=%err,"Building token retriever"))?,
+            );
+
             let http_builder = UreqHttpClientBuilder::new(opamp_config.clone(), token_retriever);
-            DefaultOpAMPClientBuilder::new(opamp_config.clone(), http_builder)
-        });
+            Some(DefaultOpAMPClientBuilder::new(
+                opamp_config.clone(),
+                http_builder,
+            ))
+        }
+        None => None,
+    };
 
     // create Super Agent events channel
     let (super_agent_publisher, super_agent_consumer) = pub_sub::<SuperAgentEvent>();

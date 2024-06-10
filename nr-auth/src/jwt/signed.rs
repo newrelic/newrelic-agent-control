@@ -1,3 +1,4 @@
+#[derive(Debug, Clone, PartialEq)]
 pub struct SignedJwt {
     /// Encoded value
     pub(crate) value: String,

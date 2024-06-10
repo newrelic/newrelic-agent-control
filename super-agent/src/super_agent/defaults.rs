@@ -48,7 +48,7 @@ generate_const_getter!(SUPER_AGENT_NAMESPACE, "newrelic");
 generate_const_getter!(SUPER_AGENT_VERSION, env!("CARGO_PKG_VERSION"));
 
 // Auth
-generate_const_getter!(AUTH_PUB_KEY_FILE_NAME, "auth_key.pub");
+generate_const_getter!(AUTH_PRIVATE_KEY_FILE_NAME, "auth_key");
 
 // Keys non-identifying attributes
 generate_const_getter!(PARENT_AGENT_ID_ATTRIBUTE_KEY, "parent.agent.id");
