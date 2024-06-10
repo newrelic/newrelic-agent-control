@@ -1,6 +1,6 @@
 use crate::agent_type::agent_values::AgentValues;
 use crate::agent_type::definition::AgentType;
-use crate::sub_agent::values::values_repository::ValuesRepository;
+use crate::sub_agent::values::values_repository::{ValuesRepository, ValuesRepositoryError};
 use crate::super_agent::config::AgentID;
 use crate::super_agent::defaults::{
     LOCAL_AGENT_DATA_DIR, REMOTE_AGENT_DATA_DIR, VALUES_DIR, VALUES_FILE,
@@ -22,7 +22,7 @@ pub const FILE_PERMISSIONS: u32 = 0o600;
 const DIRECTORY_PERMISSIONS: u32 = 0o700;
 
 #[derive(Error, Debug)]
-pub enum ValuesRepositoryError {
+pub enum OnHostValuesRepositoryError {
     #[error("serialize error on store: `{0}`")]
     StoreSerializeError(#[from] serde_yaml::Error),
     #[error("incorrect path")]
@@ -35,6 +35,9 @@ pub enum ValuesRepositoryError {
     WriteError(#[from] WriteError),
     #[error("file read error: `{0}`")]
     ReadError(#[from] FileReaderError),
+    #[cfg(test)]
+    #[error("common variant for k8s and on-host implementations")]
+    Generic,
 }
 
 pub struct ValuesRepositoryFile<F, S>
@@ -106,7 +109,10 @@ where
 
     // Load a file contents only if the file is present.
     // If the file is not present there is no error nor file
-    fn load_file_if_present(&self, path: PathBuf) -> Result<Option<String>, ValuesRepositoryError> {
+    fn load_file_if_present(
+        &self,
+        path: PathBuf,
+    ) -> Result<Option<String>, OnHostValuesRepositoryError> {
         let values_result = self.file_rw.read(path.as_path());
         match values_result {
             Err(FileReaderError::FileNotFound(_)) => {
@@ -121,20 +127,14 @@ where
             }
         }
     }
-}
 
-impl<F, S> ValuesRepository for ValuesRepositoryFile<F, S>
-where
-    S: DirectoryManager,
-    F: FileWriter + FileReader,
-{
-    // load(...) looks for remote configs first, if unavailable checks the local ones.
+    // _load(...) looks for remote configs first, if unavailable checks the local ones.
     // If none is found, it fallbacks to the default values.
-    fn load(
+    fn _load(
         &self,
         agent_id: &AgentID,
         agent_type: &AgentType,
-    ) -> Result<AgentValues, ValuesRepositoryError> {
+    ) -> Result<AgentValues, OnHostValuesRepositoryError> {
         let mut values_result: Option<String> = None;
 
         if self.remote_enabled && agent_type.has_remote_management() {
@@ -154,11 +154,11 @@ where
         }
     }
 
-    fn store_remote(
+    fn _store_remote(
         &self,
         agent_id: &AgentID,
         agent_values: &AgentValues,
-    ) -> Result<(), ValuesRepositoryError> {
+    ) -> Result<(), OnHostValuesRepositoryError> {
         // OpAMP protocol states that when only one config is present the key will be empty
         // https://github.com/open-telemetry/opamp-spec/blob/main/specification.md#configuration-files
 
@@ -183,7 +183,7 @@ where
         )?)
     }
 
-    fn delete_remote(&self, agent_id: &AgentID) -> Result<(), ValuesRepositoryError> {
+    fn _delete_remote(&self, agent_id: &AgentID) -> Result<(), OnHostValuesRepositoryError> {
         let values_file_path = self.get_remote_values_file_path(agent_id);
         //ensure directory exists
         let mut values_dir_path = values_file_path.clone();
@@ -191,7 +191,36 @@ where
         let values_dir = values_dir_path.to_str().unwrap().to_string();
         self.directory_manager
             .delete(values_dir_path.as_path())
-            .map_err(|e| ValuesRepositoryError::DeleteError(values_dir, e.to_string()))
+            .map_err(|e| OnHostValuesRepositoryError::DeleteError(values_dir, e.to_string()))
+    }
+}
+
+impl<F, S> ValuesRepository for ValuesRepositoryFile<F, S>
+where
+    S: DirectoryManager,
+    F: FileWriter + FileReader,
+{
+    fn load(
+        &self,
+        agent_id: &AgentID,
+        agent_type: &AgentType,
+    ) -> Result<AgentValues, ValuesRepositoryError> {
+        self._load(agent_id, agent_type)
+            .map_err(|err| ValuesRepositoryError::LoadError(err.to_string()))
+    }
+
+    fn store_remote(
+        &self,
+        agent_id: &AgentID,
+        agent_values: &AgentValues,
+    ) -> Result<(), ValuesRepositoryError> {
+        self._store_remote(agent_id, agent_values)
+            .map_err(|err| ValuesRepositoryError::StoreError(err.to_string()))
+    }
+
+    fn delete_remote(&self, agent_id: &AgentID) -> Result<(), ValuesRepositoryError> {
+        self._delete_remote(agent_id)
+            .map_err(|err| ValuesRepositoryError::DeleteError(err.to_string()))
     }
 }
 
@@ -200,8 +229,9 @@ pub mod test {
     use super::ValuesRepositoryFile;
     use crate::agent_type::agent_values::AgentValues;
     use crate::agent_type::definition::AgentType;
-    use crate::sub_agent::values::values_repository::ValuesRepository;
+    use crate::sub_agent::values::values_repository::{ValuesRepository, ValuesRepositoryError};
     use crate::super_agent::config::AgentID;
+    use assert_matches::assert_matches;
     use fs::directory_manager::mock::MockDirectoryManagerMock;
     use fs::directory_manager::DirectoryManagementError::{
         ErrorCreatingDirectory, ErrorDeletingDirectory,
@@ -438,12 +468,10 @@ deployment:
         );
 
         let result = repo.load(&agent_id, &final_agent);
-
-        assert!(result.is_err());
-        assert_eq!(
-            "file read error: `error reading contents: `permission denied``".to_string(),
-            result.unwrap_err().to_string()
-        );
+        let err = result.unwrap_err();
+        assert_matches!(err, ValuesRepositoryError::LoadError(s) => {
+            assert!(s.contains("file read error"));
+        });
     }
 
     #[test]
@@ -472,12 +500,10 @@ deployment:
         );
 
         let result = repo.load(&agent_id, &final_agent);
-
-        assert!(result.is_err());
-        assert_eq!(
-            "file read error: `error reading contents: `permission denied``".to_string(),
-            result.unwrap_err().to_string()
-        );
+        let err = result.unwrap_err();
+        assert_matches!(err, ValuesRepositoryError::LoadError(s) => {
+            assert!(s.contains("error reading contents"));
+        });
     }
 
     #[test]
@@ -543,11 +569,10 @@ deployment:
         );
 
         let result = repo.store_remote(&agent_id, &agent_values);
-        assert!(result.is_err());
-        assert_eq!(
-            "directory manager error: `cannot delete directory: `oh now...``".to_string(),
-            result.unwrap_err().to_string()
-        );
+        let err = result.unwrap_err();
+        assert_matches!(err, ValuesRepositoryError::StoreError(s) => {
+            assert!(s.contains("cannot delete directory"));
+        });
     }
 
     #[test]
@@ -579,12 +604,10 @@ deployment:
         );
 
         let result = repo.store_remote(&agent_id, &agent_values);
-        assert!(result.is_err());
-        assert_eq!(
-            "directory manager error: `cannot create directory `dir name` : `oh now...``"
-                .to_string(),
-            result.unwrap_err().to_string()
-        );
+        let err = result.unwrap_err();
+        assert_matches!(err, ValuesRepositoryError::StoreError(s) => {
+            assert!(s.contains("cannot create directory"));
+        });
     }
 
     #[test]
@@ -623,10 +646,10 @@ deployment:
         let result = repo.store_remote(&agent_id, &agent_values);
 
         assert!(result.is_err());
-        assert_eq!(
-            "file write error: `error creating file: `permission denied``".to_string(),
-            result.unwrap_err().to_string()
-        );
+        let err = result.unwrap_err();
+        assert_matches!(err, ValuesRepositoryError::StoreError(s) => {
+            assert!(s.contains("error creating file"));
+        });
     }
 
     #[test]

@@ -1,4 +1,4 @@
-use crate::opamp::hash_repository::HashRepository;
+use crate::opamp::hash_repository::repository::{HashRepository, HashRepositoryError};
 use crate::opamp::remote_config_hash::Hash;
 use crate::super_agent::config::AgentID;
 use crate::super_agent::defaults::{REMOTE_AGENT_DATA_DIR, SUPER_AGENT_DATA_DIR};
@@ -21,7 +21,7 @@ const DIRECTORY_PERMISSIONS: u32 = 0o700;
 const HASH_FILE_NAME: &str = "hash.yaml";
 
 #[derive(Error, Debug)]
-pub enum HashRepositoryError {
+pub enum OnHostHashRepositoryError {
     #[error("file error: `{0}`")]
     SaveError(#[from] WriteError),
 
@@ -72,6 +72,22 @@ where
     F: FileWriter + FileReader,
 {
     fn save(&self, agent_id: &AgentID, hash: &Hash) -> Result<(), HashRepositoryError> {
+        self._save(agent_id, hash)
+            .map_err(|err| HashRepositoryError::LoadError(err.to_string()))
+    }
+
+    fn get(&self, agent_id: &AgentID) -> Result<Option<Hash>, HashRepositoryError> {
+        self._get(agent_id)
+            .map_err(|err| HashRepositoryError::PersistError(err.to_string()))
+    }
+}
+
+impl<F, D> HashRepositoryFile<F, D>
+where
+    D: DirectoryManager,
+    F: FileWriter + FileReader,
+{
+    fn _save(&self, agent_id: &AgentID, hash: &Hash) -> Result<(), OnHostHashRepositoryError> {
         let mut conf_path = self.conf_path.clone();
         let hash_path = self.hash_file_path(agent_id, &mut conf_path);
         // Ensure the directory exists
@@ -86,7 +102,7 @@ where
         Ok(writing_result?)
     }
 
-    fn get(&self, agent_id: &AgentID) -> Result<Option<Hash>, HashRepositoryError> {
+    fn _get(&self, agent_id: &AgentID) -> Result<Option<Hash>, OnHostHashRepositoryError> {
         let mut conf_path = self.conf_path.clone();
         let hash_path = self.hash_file_path(agent_id, &mut conf_path);
         debug!("reading hash file at {}", hash_path.to_string_lossy());
@@ -131,7 +147,7 @@ where
     // Wrapper for linux with unix specific permissions
     #[cfg(target_family = "unix")]
     fn write(&self, path: &Path, content: String) -> Result<(), WriteError> {
-        use crate::sub_agent::values::FILE_PERMISSIONS;
+        use crate::sub_agent::values::on_host::file::FILE_PERMISSIONS;
 
         self.file_rw
             .write(path, content, Permissions::from_mode(FILE_PERMISSIONS))
@@ -144,7 +160,8 @@ where
 #[cfg(test)]
 pub mod test {
     use super::{Hash, HashRepository, HashRepositoryFile, DIRECTORY_PERMISSIONS, HASH_FILE_NAME};
-    use crate::{sub_agent::values::FILE_PERMISSIONS, super_agent::config::AgentID};
+    use crate::sub_agent::values::on_host::file::FILE_PERMISSIONS;
+    use crate::super_agent::config::AgentID;
     use fs::directory_manager::mock::MockDirectoryManagerMock;
     use fs::directory_manager::DirectoryManager;
     use fs::file_reader::FileReader;

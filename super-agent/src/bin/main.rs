@@ -158,13 +158,13 @@ fn run_super_agent<C: HttpClientBuilder>(
     super_agent_publisher: EventPublisher<SuperAgentEvent>,
 ) -> Result<(), AgentError> {
     use newrelic_super_agent::agent_type::renderer::TemplateRenderer;
-    use newrelic_super_agent::opamp::hash_repository::HashRepositoryFile;
+    use newrelic_super_agent::opamp::hash_repository::on_host::file::HashRepositoryFile;
     use newrelic_super_agent::opamp::instance_id::getter::InstanceIDGetterInMemory;
     use newrelic_super_agent::opamp::instance_id::IdentifiersProvider;
     use newrelic_super_agent::opamp::operations::build_opamp_with_channel;
     use newrelic_super_agent::sub_agent::on_host::builder::OnHostSubAgentBuilder;
     use newrelic_super_agent::sub_agent::persister::config_persister_file::ConfigurationPersisterFile;
-    use newrelic_super_agent::sub_agent::values::ValuesRepositoryFile;
+    use newrelic_super_agent::sub_agent::values::on_host::file::ValuesRepositoryFile;
     use newrelic_super_agent::super_agent::config::AgentID;
 
     // enable remote config store
@@ -253,11 +253,11 @@ fn run_super_agent<C: HttpClientBuilder>(
 ) -> Result<(), AgentError> {
     use newrelic_super_agent::k8s::garbage_collector::NotStartedK8sGarbageCollector;
     use newrelic_super_agent::k8s::store::K8sStore;
-    use newrelic_super_agent::opamp::hash_repository::HashRepositoryConfigMap;
+    use newrelic_super_agent::opamp::hash_repository::k8s::config_map::HashRepositoryConfigMap;
     use newrelic_super_agent::opamp::instance_id;
     use newrelic_super_agent::opamp::instance_id::getter::InstanceIDGetterInMemory;
     use newrelic_super_agent::opamp::operations::build_opamp_with_channel;
-    use newrelic_super_agent::sub_agent::values::ValuesRepositoryConfigMap;
+    use newrelic_super_agent::sub_agent::values::k8s::config_map::ValuesRepositoryConfigMap;
     use newrelic_super_agent::super_agent::config::AgentID;
     use newrelic_super_agent::super_agent::config_storer::SubAgentsConfigStoreConfigMap;
 

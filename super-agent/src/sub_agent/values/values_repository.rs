@@ -1,7 +1,16 @@
-use super::ValuesRepositoryError;
 use crate::agent_type::agent_values::AgentValues;
 use crate::agent_type::definition::AgentType;
 use crate::super_agent::config::AgentID;
+
+#[derive(thiserror::Error, Debug)]
+pub enum ValuesRepositoryError {
+    #[error("error loading values: `{0}`")]
+    LoadError(String),
+    #[error("error storing values: `{0}`")]
+    StoreError(String),
+    #[error("error deleting values: `{0}`")]
+    DeleteError(String),
+}
 
 pub trait ValuesRepository {
     fn load(
@@ -70,9 +79,7 @@ pub mod test {
                     predicate::eq(final_agent.clone()),
                 )
                 .returning(move |_, _| {
-                    Err(ValuesRepositoryError::StoreSerializeError(
-                        serde_yaml::from_str::<AgentID>("%---wrong )_$#").unwrap_err(),
-                    ))
+                    Err(ValuesRepositoryError::LoadError("load error".to_string()))
                 });
         }
 
