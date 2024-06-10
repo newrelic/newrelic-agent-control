@@ -1,11 +1,11 @@
 use super::tools::{
+    instance_id,
     k8s_api::{check_deployments_exist, check_helmrelease_spec_values},
     k8s_env::K8sEnv,
     opamp::{ConfigResponse, FakeServer},
     retry,
     runtime::block_on,
     super_agent::start_super_agent_with_testdata_config,
-    uuid,
 };
 use crate::tools::super_agent::wait_until_super_agent_with_opamp_is_started;
 use newrelic_super_agent::super_agent::config::AgentID;
@@ -74,7 +74,7 @@ fn k8s_opamp_subagent_configuration_change() {
 
     // Update the agent configuration via OpAMP
     server.set_config_response(
-        uuid::get_instance_id(
+        instance_id::get_instance_id(
             &namespace,
             &AgentID::new("open-telemetry-agent-id").unwrap(),
         ),
@@ -108,7 +108,7 @@ config:
 
     // Update the agent configuration via OpAMP
     server.set_config_response(
-        uuid::get_instance_id(
+        instance_id::get_instance_id(
             &namespace,
             &AgentID::new("open-telemetry-agent-id").unwrap(),
         ),
@@ -177,7 +177,7 @@ fn k8s_opamp_add_subagent() {
     // configuration cannot yet be modified. This chart is introduced from agent type
     // version 0.2.0, so we leverage the latest agent type using the community chart.
     server.set_config_response(
-        uuid::get_instance_id(&namespace, &AgentID::new_super_agent_id()),
+        instance_id::get_instance_id(&namespace, &AgentID::new_super_agent_id()),
         ConfigResponse::from(
             r#"
 agents:

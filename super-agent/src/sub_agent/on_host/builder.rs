@@ -9,7 +9,7 @@ use crate::agent_type::environment::Environment;
 use crate::event::channel::{pub_sub, EventPublisher};
 use crate::event::SubAgentEvent;
 use crate::opamp::hash_repository::HashRepository;
-use crate::opamp::instance_id::getter::IDGetter;
+use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::instance_id::IdentifiersProvider;
 use crate::opamp::operations::build_sub_agent_opamp;
 use crate::sub_agent::build_supervisor_or_default;
@@ -38,7 +38,7 @@ use std::sync::Arc;
 pub struct OnHostSubAgentBuilder<'a, O, I, HR, A, E>
 where
     O: OpAMPClientBuilder<SubAgentCallbacks>,
-    I: IDGetter,
+    I: InstanceIDGetter,
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
     E: SubAgentEventProcessorBuilder<O::Client>,
@@ -54,7 +54,7 @@ where
 impl<'a, O, I, HR, A, E> OnHostSubAgentBuilder<'a, O, I, HR, A, E>
 where
     O: OpAMPClientBuilder<SubAgentCallbacks>,
-    I: IDGetter,
+    I: InstanceIDGetter,
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
     E: SubAgentEventProcessorBuilder<O::Client>,
@@ -81,7 +81,7 @@ where
 impl<'a, O, I, HR, A, E> SubAgentBuilder for OnHostSubAgentBuilder<'a, O, I, HR, A, E>
 where
     O: OpAMPClientBuilder<SubAgentCallbacks>,
-    I: IDGetter,
+    I: InstanceIDGetter,
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
     E: SubAgentEventProcessorBuilder<O::Client>,
@@ -219,7 +219,7 @@ mod test {
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
     use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
-    use crate::opamp::instance_id::getter::InstanceIDGetter;
+    use crate::opamp::instance_id::getter::InstanceID;
     use crate::opamp::instance_id::test::{MockCloudDetectorMock, MockSystemDetectorMock};
     use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
@@ -238,10 +238,6 @@ mod test {
     use resource_detection::system::detector::SystemDetectorError;
     use resource_detection::{DetectError, Resource};
     use std::collections::HashMap;
-    use uuid::{uuid, Uuid};
-
-    const INFRA_AGENT_INSTANCE_ID: Uuid = uuid!("018fc93b-b114-7004-b727-6bcb27630124");
-    const SUPER_AGENT_INSTANCE_ID: Uuid = uuid!("018fc93f-6a06-7d50-a992-843f7abf02f1");
 
     #[test]
     fn build_start_stop() {
@@ -252,9 +248,14 @@ mod test {
             agent_type: AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure_agent:0.0.2")
                 .unwrap(),
         };
+
+        let sub_agent_instance_id = InstanceID::default();
+        let super_agent_instance_id = InstanceID::default();
+
         let start_settings_infra = infra_agent_default_start_settings(
             &hostname,
-            SUPER_AGENT_INSTANCE_ID,
+            super_agent_instance_id.clone(),
+            sub_agent_instance_id.clone(),
             &sub_agent_config,
         );
 
@@ -273,14 +274,8 @@ mod test {
         );
 
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
-        instance_id_getter.should_get(
-            &sub_agent_id,
-            InstanceIDGetter::new(INFRA_AGENT_INSTANCE_ID),
-        );
-        instance_id_getter.should_get(
-            &super_agent_id,
-            InstanceIDGetter::new(SUPER_AGENT_INSTANCE_ID),
-        );
+        instance_id_getter.should_get(&sub_agent_id, sub_agent_instance_id.clone());
+        instance_id_getter.should_get(&super_agent_id, super_agent_instance_id.clone());
 
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         hash_repository_mock.expect_get().times(1).returning(|_| {
@@ -335,25 +330,23 @@ mod test {
             agent_type: AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure_agent:0.0.2")
                 .unwrap(),
         };
+        let sub_agent_instance_id = InstanceID::default();
+        let super_agent_instance_id = InstanceID::default();
+
         let start_settings_infra = infra_agent_default_start_settings(
             &hostname,
-            SUPER_AGENT_INSTANCE_ID,
+            super_agent_instance_id.clone(),
+            sub_agent_instance_id.clone(),
             &sub_agent_config,
         );
+
         let super_agent_id = AgentID::new_super_agent_id();
         let sub_agent_id = AgentID::new("infra-agent").unwrap();
         let final_agent = on_host_final_agent(sub_agent_id.clone());
-
         // Expectations
         // Infra Agent OpAMP no final stop nor health, just after stopping on reload
-        instance_id_getter.should_get(
-            &sub_agent_id,
-            InstanceIDGetter::new(INFRA_AGENT_INSTANCE_ID),
-        );
-        instance_id_getter.should_get(
-            &super_agent_id,
-            InstanceIDGetter::new(SUPER_AGENT_INSTANCE_ID),
-        );
+        instance_id_getter.should_get(&sub_agent_id, sub_agent_instance_id.clone());
+        instance_id_getter.should_get(&super_agent_id, super_agent_instance_id.clone());
 
         let mut started_client = MockStartedOpAMPClientMock::new();
         // failed conf should be reported
@@ -420,11 +413,12 @@ mod test {
 
     fn infra_agent_default_start_settings(
         hostname: &str,
-        parent_id: Uuid,
+        super_agent_instance_id: InstanceID,
+        sub_agent_instance_id: InstanceID,
         agent_config: &SubAgentConfig,
     ) -> StartSettings {
         StartSettings {
-            instance_id: INFRA_AGENT_INSTANCE_ID.into(),
+            instance_id: sub_agent_instance_id.into(),
             capabilities: default_capabilities(),
             agent_description: AgentDescription {
                 identifying_attributes: HashMap::<String, DescriptionValueType>::from([
@@ -448,7 +442,7 @@ mod test {
                     ),
                     (
                         PARENT_AGENT_ID_ATTRIBUTE_KEY().to_string(),
-                        DescriptionValueType::String(parent_id.to_string()),
+                        DescriptionValueType::String(super_agent_instance_id.to_string()),
                     ),
                 ]),
             },

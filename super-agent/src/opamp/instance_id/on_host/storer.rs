@@ -129,7 +129,7 @@ mod test {
     use crate::opamp::instance_id::getter::DataStored;
     use crate::opamp::instance_id::on_host::storer::get_instance_id_path;
     use crate::opamp::instance_id::storer::InstanceIDStorer;
-    use crate::opamp::instance_id::{Identifiers, InstanceIDGetter, Storer};
+    use crate::opamp::instance_id::{Identifiers, InstanceID, Storer};
     use crate::super_agent::config::AgentID;
     use crate::super_agent::defaults::{REMOTE_AGENT_DATA_DIR, SUPER_AGENT_IDENTIFIERS_PATH};
     use fs::directory_manager::mock::MockDirectoryManagerMock;
@@ -139,7 +139,6 @@ mod test {
     use std::io::{self, ErrorKind};
     use std::os::unix::fs::PermissionsExt;
     use std::path::PathBuf;
-    use uuid::{uuid, Uuid};
 
     #[test]
     fn basic_get_uild_path() {
@@ -161,8 +160,9 @@ mod test {
         let agent_id = AgentID::new("test").unwrap();
         let mut file_rw = MockLocalFile::default();
         let mut dir_manager = MockDirectoryManagerMock::default();
+        let instance_id = InstanceID::default();
         let ds = DataStored {
-            instance_id: InstanceIDGetter::new(UUID),
+            instance_id: instance_id.clone(),
             identifiers: test_identifiers(),
         };
 
@@ -175,7 +175,7 @@ mod test {
         );
         file_rw.should_write(
             &instance_id_path,
-            expected_file(),
+            expected_file(instance_id),
             Permissions::from_mode(0o600),
         );
 
@@ -189,8 +189,9 @@ mod test {
         let agent_id = AgentID::new("test").unwrap();
         let mut file_rw = MockLocalFile::default();
         let mut dir_manager = MockDirectoryManagerMock::default();
+        let instance_id = InstanceID::default();
         let ds = DataStored {
-            instance_id: InstanceIDGetter::new(UUID),
+            instance_id: instance_id.clone(),
             identifiers: test_identifiers(),
         };
 
@@ -199,7 +200,7 @@ mod test {
         // Expectations
         file_rw.should_not_write(
             &instance_id_path,
-            expected_file(),
+            expected_file(instance_id),
             Permissions::from_mode(0o600),
         );
         dir_manager.should_create(
@@ -217,8 +218,9 @@ mod test {
         let agent_id = AgentID::new("test").unwrap();
         let mut file_rw = MockLocalFile::default();
         let dir_manager = MockDirectoryManagerMock::default();
+        let instance_id = InstanceID::default();
         let ds = DataStored {
-            instance_id: InstanceIDGetter::new(UUID),
+            instance_id: instance_id.clone(),
             identifiers: test_identifiers(),
         };
         let expected = Some(ds.clone());
@@ -231,7 +233,7 @@ mod test {
                 p == instance_id_path.as_path()
             }))
             .once()
-            .return_once(|_| Ok(expected_file()));
+            .return_once(|_| Ok(expected_file(instance_id)));
 
         let storer = Storer::new(file_rw, dir_manager);
         let actual = storer.get(&agent_id);
@@ -264,16 +266,15 @@ mod test {
 
     /// HELPERS
 
-    const UUID: Uuid = uuid!("018fc9f0-bbb5-7403-a1de-cf02c6433623");
     const HOSTNAME: &str = "test-hostname";
     const MICHINE_ID: &str = "test-machine-id";
     const CLOUD_INSTANCE_ID: &str = "test-instance-id";
     const HOST_ID: &str = "test-host-id";
     const FLEET_ID: &str = "test-fleet-id";
 
-    fn expected_file() -> String {
+    fn expected_file(instance_id: InstanceID) -> String {
         format!("instance_id: {}\nidentifiers:\n  hostname: {}\n  machine_id: {}\n  cloud_instance_id: {}\n  host_id: {}\n  fleet_id: {}\n",
-            UUID,
+                instance_id,
             HOSTNAME,
             MICHINE_ID,
             CLOUD_INSTANCE_ID,

@@ -18,10 +18,10 @@ use opamp_client::{
 };
 use tracing::info;
 
-use super::instance_id::InstanceIDGetter;
+use super::instance_id::InstanceID;
 use super::{
     client_builder::{OpAMPClientBuilder, OpAMPClientBuilderError},
-    instance_id::getter::IDGetter,
+    instance_id::getter::InstanceIDGetter,
 };
 
 pub fn build_sub_agent_opamp<CB, OB, IG>(
@@ -34,7 +34,7 @@ pub fn build_sub_agent_opamp<CB, OB, IG>(
 where
     CB: Callbacks,
     OB: OpAMPClientBuilder<CB>,
-    IG: IDGetter,
+    IG: InstanceIDGetter,
 {
     let super_agent_id = AgentID::new_super_agent_id();
     let parent_instance_id = instance_id_getter.get(&super_agent_id)?.to_string();
@@ -63,7 +63,7 @@ pub fn build_opamp_with_channel<CB, OB, IG>(
 where
     CB: Callbacks,
     OB: OpAMPClientBuilder<CB>,
-    IG: IDGetter,
+    IG: InstanceIDGetter,
 {
     let (tx, rx) = pub_sub();
     let client = build_opamp_and_start_client(
@@ -88,7 +88,7 @@ pub fn build_opamp_and_start_client<CB, OB, IG>(
 where
     CB: Callbacks,
     OB: OpAMPClientBuilder<CB>,
-    IG: IDGetter,
+    IG: InstanceIDGetter,
 {
     let start_settings = start_settings(
         instance_id_getter.get(&agent_id)?,
@@ -103,7 +103,7 @@ where
 
 /// Builds the OpAMP StartSettings corresponding to the provided arguments for any sub agent.
 pub fn start_settings(
-    instance_id: InstanceIDGetter,
+    instance_id: InstanceID,
     agent_fqn: &AgentTypeFQN,
     non_identifying_attributes: HashMap<String, DescriptionValueType>,
 ) -> StartSettings {
