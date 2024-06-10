@@ -1,10 +1,11 @@
 use super::{GetterError, Identifiers};
 use crate::{opamp::instance_id::storer::InstanceIDStorer, super_agent::config::AgentID};
+use opamp_client::operation::settings::StartSettings;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 use thiserror::Error;
 use tracing::debug;
-use uuid::Uuid;
+use uuid::{Bytes, Uuid};
 
 #[derive(Error, Debug)]
 pub enum InstanceIDError {
@@ -30,6 +31,22 @@ impl TryFrom<String> for InstanceID {
     }
 }
 
+impl TryFrom<Vec<u8>> for InstanceID {
+    type Error = InstanceIDError;
+
+    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+        // TODO : how can we map error properly?
+        let id_as_bytes: Bytes = value.try_into().map_err(|_| {
+            InstanceIDError::InvalidFormat(String::from("cannot convert from Vec<u8> to Bytes"))
+        })?;
+
+        let id_from_bytes = Uuid::from_slice(&id_as_bytes)
+            .map_err(|e| InstanceIDError::InvalidFormat(e.to_string()))?;
+
+        Ok(Self(id_from_bytes))
+    }
+}
+
 impl TryFrom<&str> for InstanceID {
     type Error = InstanceIDError;
 
@@ -40,11 +57,6 @@ impl TryFrom<&str> for InstanceID {
     }
 }
 
-impl From<InstanceID> for String {
-    fn from(val: InstanceID) -> Self {
-        val.0.into()
-    }
-}
 impl From<InstanceID> for Vec<u8> {
     fn from(val: InstanceID) -> Self {
         val.0.into()
@@ -131,7 +143,6 @@ pub mod test {
     use crate::opamp::instance_id::StorerError;
     use mockall::{mock, predicate};
     use opamp_client::operation::settings::StartSettings;
-    use uuid::Bytes;
 
     mock! {
         pub InstanceIDGetterMock {}
@@ -259,16 +270,15 @@ pub mod test {
     #[test]
     fn test_uuid() {
         let uuid_as_str = "018ff38d-01b3-7796-b2c8-1c8069bc6adf";
-        // Crete InstanceID/Uuid from string
-        let id = InstanceID(Uuid::parse_str(uuid_as_str).unwrap());
+        // Crete InstanceID from string
+        let id = InstanceID::try_from(uuid_as_str).unwrap();
         // Convert instanceID to OpAMP Proto bytes
         let start_settings = StartSettings {
             instance_id: id.clone().into(),
             ..Default::default()
         };
-        // Create another Uuid from the proto bytes
-        let id_as_bytes: Bytes = start_settings.instance_id.try_into().unwrap();
-        let id_from_bytes = InstanceID(Uuid::from_slice(&id_as_bytes).unwrap());
+        let id_from_bytes: InstanceID = start_settings.instance_id.clone().try_into().unwrap();
+
         assert_eq!(id, id_from_bytes);
         assert_eq!(uuid_as_str, format!("{}", id_from_bytes));
     }

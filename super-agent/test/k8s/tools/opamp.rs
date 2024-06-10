@@ -7,6 +7,7 @@ use std::sync::Mutex;
 use std::time::Duration;
 use std::{collections::HashMap, net, sync::Arc};
 use tokio::task::JoinHandle;
+use uuid::{Bytes, Uuid};
 
 const FAKE_SERVER_PATH: &str = "/opamp-fake-server";
 
@@ -124,8 +125,7 @@ async fn config_handler(
 ) -> HttpResponse {
     tokio::time::sleep(Duration::from_secs(1)).await;
     let message = opamp::proto::AgentToServer::decode(req).unwrap();
-    let instance_id =
-        InstanceID::try_from(std::str::from_utf8(&message.clone().instance_uid).unwrap()).unwrap();
+    let instance_id = InstanceID::try_from(message.clone().instance_uid).unwrap();
 
     let mut config_responses = state.lock().unwrap();
 
