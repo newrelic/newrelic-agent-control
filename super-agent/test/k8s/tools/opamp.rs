@@ -7,7 +7,6 @@ use std::sync::Mutex;
 use std::time::Duration;
 use std::{collections::HashMap, net, sync::Arc};
 use tokio::task::JoinHandle;
-use uuid::{Bytes, Uuid};
 
 const FAKE_SERVER_PATH: &str = "/opamp-fake-server";
 

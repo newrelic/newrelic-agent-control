@@ -386,7 +386,7 @@ pub mod test {
                 ),
                 (
                     PARENT_AGENT_ID_ATTRIBUTE_KEY().to_string(),
-                    DescriptionValueType::String(instance_id.clone().into()),
+                    DescriptionValueType::String(instance_id.clone().to_string()),
                 ),
             ]),
         );
