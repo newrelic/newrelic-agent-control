@@ -4,7 +4,7 @@ use crate::opamp::hash_repository::HashRepository;
 use crate::sub_agent::collection::StartedSubAgents;
 use crate::sub_agent::{NotStartedSubAgent, SubAgentBuilder};
 use crate::super_agent::config::{AgentID, SuperAgentConfigError};
-use crate::super_agent::config_storer::storer::{
+use crate::super_agent::config_storer::loader_storer::{
     SuperAgentDynamicConfigDeleter, SuperAgentDynamicConfigLoader, SuperAgentDynamicConfigStorer,
 };
 use crate::super_agent::error::AgentError;

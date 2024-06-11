@@ -291,3 +291,51 @@ agents:
 
     Ok(())
 }
+
+#[cfg(all(unix, feature = "onhost"))]
+#[test]
+fn runs_with_no_config_as_root() -> Result<(), Box<dyn std::error::Error>> {
+    use std::{env, time::Duration};
+
+    use crate::logging::level::TIME_FORMAT;
+
+    let mut cmd = Command::cargo_bin("newrelic-super-agent")?;
+    cmd.arg("--config").arg("non-existent-file.yaml");
+
+    // We set the environment variable with the `__` separator which will create the nested
+    // configs appropriately.
+    let env_var_name = "NR_AGENTS__ROLLDICE__AGENT_TYPE";
+    env::set_var(
+        env_var_name,
+        "namespace/com.newrelic.infrastructure_agent:0.0.2",
+    );
+
+    // cmd_assert is not made for long running programs, so we kill it anyway after 1 second
+    cmd.timeout(Duration::from_secs(1));
+    // But in any case we make sure that it actually attempted to create the supervisor group,
+    // so it works when the program is run as root
+    // The following regular expressions are used to ensure the logging format: 2024-02-16T07:49:44  INFO Creating the global context
+    //   - (\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}) matches the timestamp format.
+    // Any character match ".*" is used as the raw logging output contains the raw colors unicode
+    // values: \u{1b}[2m2024\u{1b}[0m \u{1b}[32m INFO\u{1b}[0m \u{1b}[2mnewrelic_super_agent\u{1b}[0m\u{1b}[2m:\u{1b}[0m Creating the global context
+    cmd.assert()
+        .failure()
+        .stdout(
+            predicate::str::is_match(
+                TIME_FORMAT.to_owned() + "INFO.*New Relic Super Agent Version: .*, Rust Version: .*, GitCommit: .*, BuildDate: .*",
+            )
+                .unwrap(),
+        )
+        .stdout(
+            predicate::str::is_match(
+                TIME_FORMAT.to_owned() + "INFO.*Starting NewRelic Super Agent",
+            )
+                .unwrap(),
+        );
+
+    // Env cleanup
+    env::remove_var(env_var_name);
+
+    // No supervisor group so we don't check for it.
+    Ok(())
+}

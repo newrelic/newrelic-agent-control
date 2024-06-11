@@ -3,7 +3,7 @@ use tracing::{error, info};
 
 use crate::event::SubAgentEvent;
 use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
-use crate::super_agent::config_storer::storer::{
+use crate::super_agent::config_storer::loader_storer::{
     SuperAgentDynamicConfigDeleter, SuperAgentDynamicConfigLoader, SuperAgentDynamicConfigStorer,
 };
 use crate::{
@@ -97,7 +97,7 @@ mod tests {
         },
         super_agent::{
             config::{AgentID, SubAgentConfig, SuperAgentDynamicConfig},
-            config_storer::storer::tests::MockSuperAgentDynamicConfigStore,
+            config_storer::loader_storer::tests::MockSuperAgentDynamicConfigStore,
             super_agent::SuperAgent,
         },
     };

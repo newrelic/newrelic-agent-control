@@ -19,7 +19,7 @@ use newrelic_super_agent::opamp::instance_id::{
 };
 use newrelic_super_agent::opamp::remote_config_hash::Hash;
 use newrelic_super_agent::super_agent::config::{AgentID, SuperAgentDynamicConfig};
-use newrelic_super_agent::super_agent::config_storer::storer::{
+use newrelic_super_agent::super_agent::config_storer::loader_storer::{
     SuperAgentDynamicConfigDeleter, SuperAgentDynamicConfigLoader, SuperAgentDynamicConfigStorer,
 };
 use newrelic_super_agent::super_agent::config_storer::SubAgentsConfigStoreConfigMap;
