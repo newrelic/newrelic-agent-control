@@ -113,6 +113,11 @@ impl SuperAgentConfigStore {
         self.remote_path.as_ref().unwrap_or(&self.local_path)
     }
 
+    /// Load configs from local and remote sources.
+    /// The local sources are the local file defined when this structure was created and the
+    /// environment variables. It is loaded from the `config_builder` structure.
+    /// The remote source is an optional file that is only concerned with the `dynamic` field of the
+    /// `SuperAgentConfig`.
     fn _load_config(&self) -> Result<SuperAgentConfig, ConfigStoreError> {
         let _read_guard = self.rw_lock.read().unwrap();
 
@@ -250,8 +255,6 @@ opamp:
     #[test]
     fn load_config_env_vars_override() {
         let mut local_file = NamedTempFile::new().unwrap();
-        // Note the file contains no `agents` key, which would fail if this config was the only
-        // source checked when loading the local config.
         let local_config = r#"
 opamp:
   endpoint: http://127.0.0.1/v1/opamp
