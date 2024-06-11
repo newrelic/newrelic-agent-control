@@ -2704,6 +2704,7 @@ dependencies = [
  "chrono",
  "httpmock",
  "jsonwebtoken",
+ "log",
  "mockall",
  "mockall_double",
  "serde",

@@ -15,6 +15,7 @@ serde_json = { workspace = true }
 jsonwebtoken = { workspace = true }
 url = { version = "2.5.0", features = ["serde"] }
 uuid = { version = "1.8.0", features = ["serde", "v7"] }
+log = "0.4.21"
 
 [dev-dependencies]
 assert_matches = { workspace = true }
