@@ -44,7 +44,6 @@ impl Default for ProviderConfig {
 
 /// Uses a local private key to sign the access token request.
 #[derive(Debug, Deserialize, PartialEq, Clone)]
-#[serde(default, deny_unknown_fields)]
 pub struct LocalConfig {
     /// Private key absolute path.
     pub private_key_path: PathBuf,

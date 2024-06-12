@@ -140,7 +140,6 @@ impl TryFrom<&str> for SuperAgentDynamicConfig {
 
 /// SuperAgentConfig represents the configuration for the super agent.
 #[derive(Debug, Deserialize, Default, PartialEq, Clone)]
-#[serde(deny_unknown_fields)]
 pub struct SuperAgentConfig {
     #[serde(default)]
     pub log: LoggingConfig,
@@ -226,13 +225,11 @@ impl TryFrom<&str> for AgentTypeFQN {
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
-#[serde(deny_unknown_fields)]
 pub struct SubAgentConfig {
     pub agent_type: AgentTypeFQN, // FQN of the agent type, ex: newrelic/nrdot:0.1.0
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
-#[serde(deny_unknown_fields)]
 pub struct OpAMPClientConfig {
     pub endpoint: Url,
     #[serde(default, with = "http_serde::header_map")]
@@ -241,9 +238,8 @@ pub struct OpAMPClientConfig {
     pub auth_config: Option<AuthConfig>,
 }
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
-#[serde(deny_unknown_fields)]
 /// K8sConfig represents the SuperAgent configuration for K8s environments
+#[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct K8sConfig {
     /// cluster_name is an attribute used to identify all monitored data in a particular kubernetes cluster.
     pub cluster_name: String,
@@ -368,31 +364,6 @@ k8s:
   cluster_name: some-cluster
 "#;
 
-    const SUPERAGENT_CONFIG_UNKNOWN_FIELDS: &str = r#"
-# opamp:
-# agents:
-random_field: random_value
-"#;
-
-    const SUPERAGENT_CONFIG_UNKNOWN_OPAMP_FIELDS: &str = r#"
-opamp:
-  endpoint: http://localhost:8080/some/path
-  some-key: some-value
-agents:
-  agent-1:
-    agent_type: namespace/agent_type:0.0.1
-"#;
-
-    const SUPERAGENT_CONFIG_UNKNOWN_AGENT_FIELDS: &str = r#"
-opamp:
-  endpoint: http://localhost:8080/some/path
-  some-key: some-value
-agents:
-  agent-1:
-    agent_type: namespace/agent_type:0.0.1
-    agent_random: true
-"#;
-
     const SUPERAGENT_CONFIG_WRONG_AGENT_ID: &str = r#"
 agents:
   agent/1:
@@ -494,18 +465,6 @@ agents: {}
             serde_yaml::from_str::<SuperAgentConfig>(EXAMPLE_SUPERAGENT_CONFIG_NO_AGENTS).is_err()
         );
         assert!(serde_yaml::from_str::<SuperAgentDynamicConfig>(EXAMPLE_SUBAGENTS_CONFIG).is_ok());
-    }
-
-    #[test]
-    fn parse_with_unknown_fields() {
-        let actual = serde_yaml::from_str::<SuperAgentConfig>(SUPERAGENT_CONFIG_UNKNOWN_FIELDS);
-        assert!(actual.is_err());
-        let actual =
-            serde_yaml::from_str::<SuperAgentConfig>(SUPERAGENT_CONFIG_UNKNOWN_OPAMP_FIELDS);
-        assert!(actual.is_err());
-        let actual =
-            serde_yaml::from_str::<SuperAgentConfig>(SUPERAGENT_CONFIG_UNKNOWN_AGENT_FIELDS);
-        assert!(actual.is_err());
     }
 
     #[test]
