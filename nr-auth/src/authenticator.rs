@@ -78,6 +78,7 @@ pub enum GrantType {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
 pub enum ClientAssertionType {
     #[serde(rename(serialize = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"))]
     JwtBearer,

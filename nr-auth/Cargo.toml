@@ -12,7 +12,7 @@ thiserror = { workspace = true }
 ureq = { workspace = true, features = ["json"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-jsonwebtoken = "9.3.0"
+jsonwebtoken = { workspace = true }
 url = { version = "2.5.0", features = ["serde"] }
 uuid = { version = "1.8.0", features = ["serde", "v7"] }
 
