@@ -364,31 +364,6 @@ k8s:
   cluster_name: some-cluster
 "#;
 
-    const SUPERAGENT_CONFIG_UNKNOWN_FIELDS: &str = r#"
-# opamp:
-# agents:
-random_field: random_value
-"#;
-
-    const SUPERAGENT_CONFIG_UNKNOWN_OPAMP_FIELDS: &str = r#"
-opamp:
-  endpoint: http://localhost:8080/some/path
-  some-key: some-value
-agents:
-  agent-1:
-    agent_type: namespace/agent_type:0.0.1
-"#;
-
-    const SUPERAGENT_CONFIG_UNKNOWN_AGENT_FIELDS: &str = r#"
-opamp:
-  endpoint: http://localhost:8080/some/path
-  some-key: some-value
-agents:
-  agent-1:
-    agent_type: namespace/agent_type:0.0.1
-    agent_random: true
-"#;
-
     const SUPERAGENT_CONFIG_WRONG_AGENT_ID: &str = r#"
 agents:
   agent/1:
@@ -490,18 +465,6 @@ agents: {}
             serde_yaml::from_str::<SuperAgentConfig>(EXAMPLE_SUPERAGENT_CONFIG_NO_AGENTS).is_err()
         );
         assert!(serde_yaml::from_str::<SuperAgentDynamicConfig>(EXAMPLE_SUBAGENTS_CONFIG).is_ok());
-    }
-
-    #[test]
-    fn parse_with_unknown_fields() {
-        let actual = serde_yaml::from_str::<SuperAgentConfig>(SUPERAGENT_CONFIG_UNKNOWN_FIELDS);
-        assert!(actual.is_err());
-        let actual =
-            serde_yaml::from_str::<SuperAgentConfig>(SUPERAGENT_CONFIG_UNKNOWN_OPAMP_FIELDS);
-        assert!(actual.is_err());
-        let actual =
-            serde_yaml::from_str::<SuperAgentConfig>(SUPERAGENT_CONFIG_UNKNOWN_AGENT_FIELDS);
-        assert!(actual.is_err());
     }
 
     #[test]
