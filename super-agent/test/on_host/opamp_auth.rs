@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 use crate::cli::create_temp_file;
 use assert_cmd::Command;
@@ -55,11 +56,7 @@ agents: {{}}
     )
     .unwrap();
 
-    let mut cmd = Command::cargo_bin("newrelic-super-agent").unwrap();
-    cmd.arg("--config")
-        .arg(config_path)
-        .arg("--debug")
-        .arg(dir.path());
+    let mut cmd = cmd_super_agent(config_path);
     // cmd_assert is not made for long running programs, so we kill it.
     // Enough time for the SA to start and send at least 1 AgentToServer OpAMP message.
     cmd.timeout(Duration::from_secs(1));
@@ -112,11 +109,7 @@ agents: {{}}
     )
     .unwrap();
 
-    let mut cmd = Command::cargo_bin("newrelic-super-agent").unwrap();
-    cmd.arg("--config")
-        .arg(config_path)
-        .arg("--debug")
-        .arg(dir.path());
+    let mut cmd = cmd_super_agent(config_path);
     // Enough time for the SA to start and send at least 1 AgentToServer OpAMP message.
     cmd.timeout(Duration::from_secs(1));
 
@@ -168,13 +161,11 @@ agents: {{}}
     )
     .unwrap();
 
-    let mut cmd = Command::cargo_bin("newrelic-super-agent").unwrap();
-    cmd.arg("--config")
-        .arg(config_path)
-        .arg("--debug")
-        .arg(dir.path());
-
-    cmd.timeout(Duration::from_secs(1));
+    let mut cmd = cmd_super_agent(config_path);
+    // This timeout has been added so we can discriminate if the super-agent has crashed or not.
+    // if timed out means that the super-agent haven't crashed and that's not expected.
+    // This is checked on the assert.
+    cmd.timeout(Duration::from_secs(30));
 
     let assert = cmd.assert();
 
@@ -185,6 +176,15 @@ agents: {{}}
         .assert()
         .failure()
         .stdout(predicate::str::is_match(r".*ERROR.*errors happened creating headers.*").unwrap());
+}
+
+fn cmd_super_agent(config_path: PathBuf) -> Command {
+    let mut cmd = Command::cargo_bin("newrelic-super-agent").unwrap();
+    cmd.arg("--config")
+        .arg(&config_path)
+        .arg("--debug")
+        .arg(config_path.parent().unwrap());
+    cmd
 }
 
 fn auth_server(token: String) -> MockServer {
