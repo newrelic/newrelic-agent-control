@@ -249,8 +249,8 @@ mod test {
                 .unwrap(),
         };
 
-        let sub_agent_instance_id = InstanceID::default();
-        let super_agent_instance_id = InstanceID::default();
+        let sub_agent_instance_id = InstanceID::new();
+        let super_agent_instance_id = InstanceID::new();
 
         let start_settings_infra = infra_agent_default_start_settings(
             &hostname,
@@ -330,8 +330,8 @@ mod test {
             agent_type: AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure_agent:0.0.2")
                 .unwrap(),
         };
-        let sub_agent_instance_id = InstanceID::default();
-        let super_agent_instance_id = InstanceID::default();
+        let sub_agent_instance_id = InstanceID::new();
+        let super_agent_instance_id = InstanceID::new();
 
         let start_settings_infra = infra_agent_default_start_settings(
             &hostname,

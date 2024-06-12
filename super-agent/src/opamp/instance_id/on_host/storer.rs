@@ -160,7 +160,7 @@ mod test {
         let agent_id = AgentID::new("test").unwrap();
         let mut file_rw = MockLocalFile::default();
         let mut dir_manager = MockDirectoryManagerMock::default();
-        let instance_id = InstanceID::default();
+        let instance_id = InstanceID::new();
         let ds = DataStored {
             instance_id: instance_id.clone(),
             identifiers: test_identifiers(),
@@ -189,7 +189,7 @@ mod test {
         let agent_id = AgentID::new("test").unwrap();
         let mut file_rw = MockLocalFile::default();
         let mut dir_manager = MockDirectoryManagerMock::default();
-        let instance_id = InstanceID::default();
+        let instance_id = InstanceID::new();
         let ds = DataStored {
             instance_id: instance_id.clone(),
             identifiers: test_identifiers(),
@@ -218,7 +218,7 @@ mod test {
         let agent_id = AgentID::new("test").unwrap();
         let mut file_rw = MockLocalFile::default();
         let dir_manager = MockDirectoryManagerMock::default();
-        let instance_id = InstanceID::default();
+        let instance_id = InstanceID::new();
         let ds = DataStored {
             instance_id: instance_id.clone(),
             identifiers: test_identifiers(),

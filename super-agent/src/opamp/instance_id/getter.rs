@@ -16,8 +16,10 @@ pub enum InstanceIDError {
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Eq, Hash)]
 pub struct InstanceID(Uuid);
 
-impl Default for InstanceID {
-    fn default() -> Self {
+impl InstanceID {
+    // Creates a new instanceID with a random value. Use try_from methods
+    // to build this struct with a static value.
+    pub fn new() -> Self {
         Self(Uuid::now_v7())
     }
 }
@@ -113,7 +115,7 @@ where
         }
 
         let new_data = DataStored {
-            instance_id: InstanceID::default(),
+            instance_id: InstanceID::new(),
             identifiers: self.identifiers.clone(),
         };
 
@@ -215,7 +217,7 @@ pub mod test {
     #[test]
     fn test_instance_id_already_present() {
         let mut mock = MockInstanceIDStorerMock::new();
-        let instance_id = InstanceID::default();
+        let instance_id = InstanceID::new();
         let agent_id = AgentID::new(AGENT_NAME).unwrap();
 
         let instance_id_clone = instance_id.clone();
@@ -238,7 +240,7 @@ pub mod test {
     #[test]
     fn test_instance_id_present_but_different_identifiers() {
         let mut mock = MockInstanceIDStorerMock::new();
-        let instance_id = InstanceID::default();
+        let instance_id = InstanceID::new();
         let agent_id = AgentID::new(AGENT_NAME).unwrap();
 
         let instance_id_clone = instance_id.clone();
