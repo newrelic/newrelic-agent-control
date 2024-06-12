@@ -38,23 +38,19 @@ impl TokenRetriever for TokenRetrieverWithCache {
             let mut attempt = 0;
             loop {
                 match self.refresh_token() {
-                    // Early exit if refreshed correctly.
                     Ok(token) => {
                         *cached_token = Some(token);
                         break;
                     }
-                    // On error, log and retry if possible.
                     Err(e) => {
-                        let retries_left = self.retries - attempt;
-                        debug!("error refreshing token: {e}. Retries left {retries_left}");
+                        debug!("error refreshing token: {e}");
 
                         attempt += 1;
                         if self.should_retry_refresh(attempt, &e) {
                             debug!("retrying to refresh token");
                             continue;
                         } else {
-                            // If exhausted retries, return the err.
-                            debug!("exhausted retries. Erroring out.");
+                            debug!("exhausted retries");
                             return Err(e);
                         }
                     }
@@ -93,7 +89,7 @@ impl TokenRetrieverWithCache {
 
     pub fn should_retry_refresh(&self, attempt: u8, _err: &TokenRetrieverError) -> bool {
         attempt < self.retries + 1
-        // We could decide act on the specific error encountered as well.
+        // We could decide to act on the specific error encountered as well.
         //   && matches!(err, TokenRetrieverError::TokenRetrieverError(_))
     }
 
