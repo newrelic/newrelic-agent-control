@@ -8,8 +8,8 @@ use crate::jwt::signer::JwtSignerImpl;
 use crate::token::{Token, TokenType};
 use crate::{ClientID, TokenRetriever, TokenRetrieverError};
 use chrono::{TimeDelta, Utc};
-use log::debug;
 use std::sync::Mutex;
+use tracing::debug;
 use url::Url;
 
 /// A signed JWT should live enough for the System Identity Service to consume it.
