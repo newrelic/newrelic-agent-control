@@ -217,7 +217,7 @@ opamp:
 
         // We set the environment variable with the `__` separator which will create the nested
         // configs appropriately.
-        let env_var_name = "NR_AGENTS__ROLLDICE__AGENT_TYPE";
+        let env_var_name = "NR_SA_AGENTS__ROLLDICE__AGENT_TYPE";
         env::set_var(
             env_var_name,
             "namespace/com.newrelic.infrastructure_agent:0.0.2",
@@ -266,7 +266,7 @@ agents:
 
         // We set the environment variable with the `__` separator which will create the nested
         // configs appropriately.
-        let env_var_name = "NR_AGENTS__ROLLDICE__AGENT_TYPE";
+        let env_var_name = "NR_SA_AGENTS__ROLLDICE__AGENT_TYPE";
         env::set_var(
             env_var_name,
             "namespace/com.newrelic.infrastructure_agent:0.0.2",
