@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 use thiserror::Error;
 use tracing::debug;
-use uuid::{Bytes, Uuid};
+use uuid::Uuid;
 
 #[derive(Error, Debug)]
 pub enum InstanceIDError {
@@ -34,15 +34,11 @@ impl TryFrom<Vec<u8>> for InstanceID {
     type Error = InstanceIDError;
 
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
-        // TODO : how can we map error properly?
-        let id_as_bytes: Bytes = value.try_into().map_err(|_| {
-            InstanceIDError::InvalidFormat(String::from("cannot convert from Vec<u8> to Bytes"))
-        })?;
+        let uuid: Uuid = value
+            .try_into()
+            .map_err(|e: uuid::Error| InstanceIDError::InvalidFormat(e.to_string()))?;
 
-        let id_from_bytes = Uuid::from_slice(&id_as_bytes)
-            .map_err(|e| InstanceIDError::InvalidFormat(e.to_string()))?;
-
-        Ok(Self(id_from_bytes))
+        Ok(Self(uuid))
     }
 }
 
