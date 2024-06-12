@@ -152,6 +152,7 @@ pub(crate) mod tests {
     use crate::super_agent::config::{
         AgentID, AgentTypeFQN, OpAMPClientConfig, SubAgentConfig, SuperAgentConfig,
     };
+    use serial_test::serial;
     use std::{collections::HashMap, env, io::Write};
     use tempfile::NamedTempFile;
     use url::Url;
@@ -205,6 +206,7 @@ agents:
     }
 
     #[test]
+    #[serial]
     fn load_config_env_vars() {
         let mut local_file = NamedTempFile::new().unwrap();
         // Note the file contains no `agents` key, which would fail if this config was the only
@@ -217,7 +219,7 @@ opamp:
 
         // We set the environment variable with the `__` separator which will create the nested
         // configs appropriately.
-        let env_var_name = "NR_SA_AGENTS__ROLLDICE__AGENT_TYPE";
+        let env_var_name = "NR_SA_AGENTS__ROLLDICE1__AGENT_TYPE";
         env::set_var(
             env_var_name,
             "namespace/com.newrelic.infrastructure_agent:0.0.2",
@@ -228,7 +230,7 @@ opamp:
 
         let expected = SuperAgentConfig {
             dynamic: HashMap::from([(
-                AgentID::new("rolldice").unwrap(),
+                AgentID::new("rolldice1").unwrap(),
                 SubAgentConfig {
                     agent_type: AgentTypeFQN::try_from(
                         "namespace/com.newrelic.infrastructure_agent:0.0.2",
@@ -253,20 +255,21 @@ opamp:
     }
 
     #[test]
+    #[serial]
     fn load_config_env_vars_override() {
         let mut local_file = NamedTempFile::new().unwrap();
         let local_config = r#"
 opamp:
   endpoint: http://127.0.0.1/v1/opamp
 agents:
-  rolldice:
+  rolldice2:
     agent_type: "namespace/will.be.overridden:0.0.1"
 "#;
         write!(local_file, "{}", local_config).unwrap();
 
         // We set the environment variable with the `__` separator which will create the nested
         // configs appropriately.
-        let env_var_name = "NR_SA_AGENTS__ROLLDICE__AGENT_TYPE";
+        let env_var_name = "NR_SA_AGENTS__ROLLDICE2__AGENT_TYPE";
         env::set_var(
             env_var_name,
             "namespace/com.newrelic.infrastructure_agent:0.0.2",
@@ -277,7 +280,7 @@ agents:
 
         let expected = SuperAgentConfig {
             dynamic: HashMap::from([(
-                AgentID::new("rolldice").unwrap(),
+                AgentID::new("rolldice2").unwrap(),
                 SubAgentConfig {
                     agent_type: AgentTypeFQN::try_from(
                         "namespace/com.newrelic.infrastructure_agent:0.0.2",
