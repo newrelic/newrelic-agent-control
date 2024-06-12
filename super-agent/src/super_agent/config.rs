@@ -140,7 +140,6 @@ impl TryFrom<&str> for SuperAgentDynamicConfig {
 
 /// SuperAgentConfig represents the configuration for the super agent.
 #[derive(Debug, Deserialize, Default, PartialEq, Clone)]
-#[serde(deny_unknown_fields)]
 pub struct SuperAgentConfig {
     #[serde(default)]
     pub log: LoggingConfig,
@@ -226,13 +225,11 @@ impl TryFrom<&str> for AgentTypeFQN {
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
-#[serde(deny_unknown_fields)]
 pub struct SubAgentConfig {
     pub agent_type: AgentTypeFQN, // FQN of the agent type, ex: newrelic/nrdot:0.1.0
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
-#[serde(deny_unknown_fields)]
 pub struct OpAMPClientConfig {
     pub endpoint: Url,
     #[serde(default, with = "http_serde::header_map")]
@@ -241,9 +238,8 @@ pub struct OpAMPClientConfig {
     pub auth_config: Option<AuthConfig>,
 }
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
-#[serde(deny_unknown_fields)]
 /// K8sConfig represents the SuperAgent configuration for K8s environments
+#[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct K8sConfig {
     /// cluster_name is an attribute used to identify all monitored data in a particular kubernetes cluster.
     pub cluster_name: String,

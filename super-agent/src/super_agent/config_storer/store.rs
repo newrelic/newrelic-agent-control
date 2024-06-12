@@ -80,7 +80,7 @@ impl SuperAgentConfigStore {
             // Eg.. `NR_LOG__USE_DEBUG=1 ./target/app` would set the `log.use_debug` key
             // We use double underscore because we already use snake_case for the config keys. TODO to change?
             .add_source(
-                Environment::with_prefix("NR")
+                Environment::with_prefix("NR_SA")
                     .prefix_separator("_")
                     .separator("__"),
             );
