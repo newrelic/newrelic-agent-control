@@ -1,6 +1,6 @@
 use super::runtime::tokio_runtime;
 use actix_web::{web, App, HttpResponse, HttpServer};
-use newrelic_super_agent::opamp::instance_id::InstanceIDGetter;
+use newrelic_super_agent::opamp::instance_id::InstanceID;
 use opamp_client::opamp;
 use prost::Message;
 use std::sync::Mutex;
@@ -10,7 +10,7 @@ use tokio::task::JoinHandle;
 
 const FAKE_SERVER_PATH: &str = "/opamp-fake-server";
 
-pub type ConfigResponses = HashMap<InstanceIDGetter, ConfigResponse>;
+pub type ConfigResponses = HashMap<InstanceID, ConfigResponse>;
 
 #[derive(Clone, Debug, Default)]
 /// Configuration response to be returned by the server until the agent informs it is applied.
@@ -102,7 +102,7 @@ impl FakeServer {
     /// It will be returned by the server until the agent informs that the remote configuration has been applied,
     /// then the server will return a `None` (no-changes) configuration in following requests.
     /// The identifier should be a valid UUID.
-    pub fn set_config_response(&mut self, identifier: InstanceIDGetter, response: ConfigResponse) {
+    pub fn set_config_response(&mut self, identifier: InstanceID, response: ConfigResponse) {
         let mut responses = self.responses.lock().unwrap();
         responses.insert(identifier, response);
     }
@@ -124,12 +124,12 @@ async fn config_handler(
 ) -> HttpResponse {
     tokio::time::sleep(Duration::from_secs(1)).await;
     let message = opamp::proto::AgentToServer::decode(req).unwrap();
-    let uuid = uuid::Uuid::try_from(message.clone().instance_uid).unwrap();
+    let instance_id = InstanceID::try_from(message.clone().instance_uid).unwrap();
 
     let mut config_responses = state.lock().unwrap();
 
     let config_response = config_responses
-        .get_mut(&InstanceIDGetter::new(uuid))
+        .get_mut(&instance_id)
         .map(|config_response| {
             if remote_config_is_applied(&message) {
                 config_response.raw_body = None;
