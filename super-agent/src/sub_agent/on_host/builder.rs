@@ -219,8 +219,8 @@ mod test {
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
     use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
-    use crate::opamp::instance_id::getter::InstanceID;
     use crate::opamp::instance_id::test::{MockCloudDetectorMock, MockSystemDetectorMock};
+    use crate::opamp::instance_id::InstanceID;
     use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
     use crate::sub_agent::event_processor::test::MockEventProcessorMock;
