@@ -59,7 +59,7 @@ where
         }
 
         let new_data = DataStored {
-            instance_id: InstanceID::new(),
+            instance_id: InstanceID::create(),
             identifiers: self.identifiers.clone(),
         };
 
@@ -161,7 +161,7 @@ pub mod test {
     #[test]
     fn test_instance_id_already_present() {
         let mut mock = MockInstanceIDStorerMock::new();
-        let instance_id = InstanceID::new();
+        let instance_id = InstanceID::create();
         let agent_id = AgentID::new(AGENT_NAME).unwrap();
 
         let instance_id_clone = instance_id.clone();
@@ -184,7 +184,7 @@ pub mod test {
     #[test]
     fn test_instance_id_present_but_different_identifiers() {
         let mut mock = MockInstanceIDStorerMock::new();
-        let instance_id = InstanceID::new();
+        let instance_id = InstanceID::create();
         let agent_id = AgentID::new(AGENT_NAME).unwrap();
 
         let instance_id_clone = instance_id.clone();

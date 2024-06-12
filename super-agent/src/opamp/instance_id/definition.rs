@@ -9,9 +9,9 @@ use uuid::Uuid;
 pub struct InstanceID(Uuid);
 
 impl InstanceID {
-    // Creates a new instanceID with a random value. Use try_from methods
+    // Creates a new instanceID with a random valid value. Use try_from methods
     // to build this struct with a static value.
-    pub fn new() -> Self {
+    pub fn create() -> Self {
         Self(Uuid::now_v7())
     }
 }

@@ -1,8 +1,8 @@
+pub mod definition;
 pub mod getter;
-pub mod instance_id;
 pub mod storer;
 
-pub use instance_id::InstanceID;
+pub use definition::InstanceID;
 
 #[cfg(feature = "k8s")]
 mod k8s;
