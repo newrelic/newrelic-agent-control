@@ -35,7 +35,8 @@ impl TokenRetriever for TokenRetrieverWithCache {
             // Attempt to refresh the token. Retry if failed.
             // This retry will block everyone trying to retrieve the token,
             // so we should enforce low retry numbers and error early.
-            for i in 0..self.retries + 1 {
+            let mut attempt = 0;
+            loop {
                 match self.refresh_token() {
                     // Early exit if refreshed correctly.
                     Ok(token) => {
@@ -44,10 +45,13 @@ impl TokenRetriever for TokenRetrieverWithCache {
                     }
                     // On error, log and retry if possible.
                     Err(e) => {
-                        let retries_left = self.retries - i;
+                        let retries_left = self.retries - attempt;
                         debug!("error refreshing token: {e}. Retries left {retries_left}");
-                        if i < self.retries {
+
+                        attempt += 1;
+                        if self.should_retry_refresh(attempt, &e) {
                             debug!("retrying to refresh token");
+                            continue;
                         } else {
                             // If exhausted retries, return the err.
                             debug!("exhausted retries. Erroring out.");
@@ -85,6 +89,12 @@ impl TokenRetrieverWithCache {
 
     pub fn with_retries(self, retries: u8) -> Self {
         Self { retries, ..self }
+    }
+
+    pub fn should_retry_refresh(&self, attempt: u8, _err: &TokenRetrieverError) -> bool {
+        attempt < self.retries + 1
+        // We could decide act on the specific error encountered as well.
+        //   && matches!(err, TokenRetrieverError::TokenRetrieverError(_))
     }
 
     fn refresh_token(&self) -> Result<Token, TokenRetrieverError> {
@@ -265,13 +275,53 @@ mod test {
     }
 
     #[test]
+    fn no_retries_and_fail_calls_retrieve_once() {
+        let client_id = "client_id";
+
+        let mut jwt_signer = JwtSignerImpl::new();
+        // This actually tests TokenRetrieverWithCache's `refresh_token`.
+        // Calling `retrieve` makes calls to both first `sign` and then to `authenticate`.
+        // We instruct the `authenticate` call to fail every time and check that `sign` is called only the number of times we expect.
+        jwt_signer.expect_sign().once().returning(move |_| {
+            Ok(SignedJwt {
+                value: "client_assertion".into(),
+            })
+        });
+
+        let mut authenticator = HttpAuthenticator::new();
+        authenticator
+            .expect_authenticate()
+            .once()
+            .returning(move |_| {
+                Err(AuthenticateError::DeserializeError(
+                    "some_serde_error".to_owned(),
+                ))
+            });
+
+        let token_retriever = TokenRetrieverWithCache::new(
+            client_id.into(),
+            Url::parse("https://fake.com/").unwrap(),
+            jwt_signer,
+            authenticator,
+        )
+        .with_retries(0);
+
+        // Retries expired, error returned
+        let cache_miss_token = token_retriever.retrieve();
+
+        assert!(cache_miss_token.is_err());
+    }
+
+    #[test]
     fn retries_success() {
         let client_id = "client_id";
         let fake_token = "fake";
         let token_expires_in = 5;
 
         let mut jwt_signer = JwtSignerImpl::new();
-        // This actually tests TokenRetrieverWithCache's `refresh_token`. Calling `retrieve` makes calls to both first `sign` and then to `authenticate`. We instruct the `authenticate` call to fail every time and check that `sign` is called only the number of times we expect.
+        // This actually tests TokenRetrieverWithCache's `refresh_token`.
+        // Calling `retrieve` makes calls to both first `sign` and then to `authenticate`.
+        // We instruct the `authenticate` call to fail every time and check that `sign` is called only the number of times we expect.
         jwt_signer.expect_sign().times(2).returning(move |_| {
             Ok(SignedJwt {
                 value: "client_assertion".into(),
