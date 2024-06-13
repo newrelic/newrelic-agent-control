@@ -125,7 +125,7 @@ jobs:
       - name: Install stable
         uses: dtolnay/rust-toolchain@1.78.0
       - name: Run k8s integration tests
-        run: make -C super-agent/test/k8s
+        run: make -C super-agent/tests/k8s
 
   # These tests are using (by default) the released charts
   # In case a breaking change is introduced by the PR, a feature branch can be used as explained

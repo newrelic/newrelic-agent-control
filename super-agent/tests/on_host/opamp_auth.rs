@@ -1,7 +1,3 @@
-use std::collections::HashMap;
-use std::path::PathBuf;
-
-use crate::cli::create_temp_file;
 use assert_cmd::Command;
 use http::header::AUTHORIZATION;
 use httpmock::Method::POST;
@@ -10,12 +6,16 @@ use jsonwebtoken::{Algorithm, DecodingKey, Validation};
 use nr_auth::authenticator::{Request, Response};
 use nr_auth::jwt::claims::Claims;
 use predicates::prelude::predicate;
+use std::collections::HashMap;
+use std::path::PathBuf;
 use std::time::Duration;
 use tempfile::TempDir;
 
-#[cfg(all(unix, feature = "onhost"))]
+#[cfg(unix)]
 #[test]
 fn test_auth_local_provider_as_root() {
+    use crate::on_host::cli::create_temp_file;
+
     let token = "fakeToken";
 
     let dir = TempDir::new().unwrap();
@@ -75,9 +75,11 @@ agents: {{}}
 
 // This test verifies that empty Auth config doesn't inject any token.
 // This is a temporal behavior until auth config is mandatory.
-#[cfg(all(unix, feature = "onhost"))]
+#[cfg(unix)]
 #[test]
 fn test_empty_auth_config_as_root() {
+    use crate::on_host::cli::create_temp_file;
+
     let dir = TempDir::new().unwrap();
 
     let opamp_server = MockServer::start();
@@ -125,9 +127,11 @@ agents: {{}}
     assert!(opamp_server_mock.hits() >= 1)
 }
 
-#[cfg(all(unix, feature = "onhost"))]
+#[cfg(unix)]
 #[test]
 fn test_unauthorized_token_retrieve_as_root() {
+    use super::cli::create_temp_file;
+
     let dir = TempDir::new().unwrap();
     let private_key_path = create_temp_file(&dir, "priv_key", RS256_PRIVATE_KEY).unwrap();
 

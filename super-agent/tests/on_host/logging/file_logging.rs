@@ -3,7 +3,7 @@ use predicates::prelude::predicate;
 use std::{fs::read_dir, path::Path, time::Duration};
 use tempfile::TempDir;
 
-use crate::logging::level::TIME_FORMAT;
+use super::level::TIME_FORMAT;
 
 #[cfg(test)]
 fn build_logging_config(config_path: &Path, log_path: &Path) {

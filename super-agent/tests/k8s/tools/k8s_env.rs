@@ -1,4 +1,6 @@
-use super::{foo_crd::create_foo_crd, runtime::tokio_runtime};
+use crate::common::runtime::tokio_runtime;
+
+use super::foo_crd::create_foo_crd;
 use k8s_openapi::api::core::v1::Namespace;
 use kube::{
     api::{DeleteParams, PostParams},
@@ -6,7 +8,7 @@ use kube::{
 };
 use std::env;
 
-const KUBECONFIG_PATH: &str = "test/k8s/.kubeconfig-dev";
+const KUBECONFIG_PATH: &str = "tests/k8s/.kubeconfig-dev";
 
 /// This struct represents a running k8s cluster and it provides utilities to handle multiple namespaces, and
 /// resources are cleaned-up when the object is dropped.

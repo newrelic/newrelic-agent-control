@@ -1,13 +1,17 @@
+use crate::common::{
+    opamp::{ConfigResponse, FakeServer},
+    runtime::block_on,
+};
+
 use super::tools::{
     instance_id,
     k8s_api::{check_deployments_exist, check_helmrelease_spec_values},
     k8s_env::K8sEnv,
-    opamp::{ConfigResponse, FakeServer},
     retry,
-    runtime::block_on,
-    super_agent::start_super_agent_with_testdata_config,
+    super_agent::{
+        start_super_agent_with_testdata_config, wait_until_super_agent_with_opamp_is_started,
+    },
 };
-use crate::tools::super_agent::wait_until_super_agent_with_opamp_is_started;
 use newrelic_super_agent::super_agent::config::AgentID;
 use std::time::Duration;
 

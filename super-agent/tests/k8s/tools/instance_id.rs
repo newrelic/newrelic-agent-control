@@ -1,5 +1,5 @@
-use crate::tools::runtime::tokio_runtime;
-use crate::tools::super_agent::TEST_CLUSTER_NAME;
+use super::super_agent::TEST_CLUSTER_NAME;
+use crate::common::runtime::tokio_runtime;
 use newrelic_super_agent::k8s::client::SyncK8sClient;
 use newrelic_super_agent::k8s::store::K8sStore;
 use newrelic_super_agent::opamp::instance_id;

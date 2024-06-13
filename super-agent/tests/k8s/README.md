@@ -7,7 +7,7 @@ Requirements:
 On the repo root directory Run:
 ```sh
 minikube start
-make super-agent/test/k8s
+make super-agent/tests/k8s
 ```
 
 Notes:

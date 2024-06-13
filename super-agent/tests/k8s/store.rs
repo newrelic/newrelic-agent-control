@@ -1,8 +1,6 @@
-use crate::tools::{
-    k8s_env::K8sEnv,
-    runtime::{block_on, tokio_runtime},
-    super_agent::create_local_config_map,
-};
+use crate::common::runtime::{block_on, tokio_runtime};
+use crate::k8s::tools::k8s_env::K8sEnv;
+use crate::k8s::tools::super_agent::create_local_config_map;
 use k8s_openapi::api::core::v1::ConfigMap;
 use kube::Api;
 use newrelic_super_agent::agent_type::runtime_config::Runtime;
