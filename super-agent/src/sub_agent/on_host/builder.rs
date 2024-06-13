@@ -442,7 +442,7 @@ mod test {
                     ),
                     (
                         PARENT_AGENT_ID_ATTRIBUTE_KEY().to_string(),
-                        DescriptionValueType::String(super_agent_instance_id.to_string()),
+                        DescriptionValueType::Bytes(super_agent_instance_id.into()),
                     ),
                 ]),
             },
