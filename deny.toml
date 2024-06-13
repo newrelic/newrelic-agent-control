@@ -24,28 +24,29 @@ yanked = "warn"
 # See https://spdx.org/licenses/ for list of possible licenses
 # [possible values: any SPDX 3.11 short identifier (+ optional exception)].
 allow = [
-    "Apache-2.0",
-    "MIT",
-    "ISC",
-    "BSD-2-Clause-FreeBSD",
-    "BSD-2-Clause-NetBSD",
-    "BSD-2-Clause",
-    "BSD-3-Clause-Attribution",
-    "BSD-3-Clause-Clear",
-    "BSD-3-Clause-LBNL",
-    "BSD-3-Clause",
-    "BSD-4-Clause-UC",
-    "BSD-4-Clause",
-    "BSD-Protection",
-    "MS-PL",
-    "Ruby",
-    "ISC",
-    "CC0-1.0",
-    "Zlib",
-    "Unicode-DFS-2016", #BSD-3
-    "OpenSSL",                        # https://www.openssl.org/source/license.html - used on Linux
+  "Apache-2.0",
+  "MIT",
+  "ISC",
+  "BSD-2-Clause-FreeBSD",
+  "BSD-2-Clause-NetBSD",
+  "BSD-2-Clause",
+  "BSD-3-Clause-Attribution",
+  "BSD-3-Clause-Clear",
+  "BSD-3-Clause-LBNL",
+  "BSD-3-Clause",
+  "BSD-4-Clause-UC",
+  "BSD-4-Clause",
+  "BSD-Protection",
+  "MS-PL",
+  "Ruby",
+  "ISC",
+  "CC0-1.0",
+  "Zlib",
+  "Unicode-DFS-2016", #BSD-3
+  "Unicode-3.0",
+  "OpenSSL", # https://www.openssl.org/source/license.html - used on Linux
 
-    #"Apache-2.0 WITH LLVM-exception",
+  #"Apache-2.0 WITH LLVM-exception",
 ]
 # [possible values: any between 0.0 and 1.0].
 confidence-threshold = 0.8
