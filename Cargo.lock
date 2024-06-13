@@ -2933,8 +2933,8 @@ checksum = "3fdb12b2476b595f9358c5161aa467c2438859caa136dec86c26fdd2efe17b92"
 
 [[package]]
 name = "opamp-client"
-version = "0.0.18"
-source = "git+ssh://git@github.com/newrelic/opamp-rs.git?branch=NR-280712_support_bytes_in__attributes#0d5a8c528fcd838bc581fde5b370edc24092a09b"
+version = "0.0.19"
+source = "git+ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.19#0a76298dcc9bb0e6923f4c85b558069998a99dda"
 dependencies = [
  "async-trait",
  "crossbeam",
