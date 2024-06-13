@@ -2710,6 +2710,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
+ "tracing",
  "ureq",
  "url",
  "uuid",

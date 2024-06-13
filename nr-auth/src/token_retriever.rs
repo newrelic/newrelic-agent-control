@@ -9,6 +9,7 @@ use crate::token::{Token, TokenType};
 use crate::{ClientID, TokenRetriever, TokenRetrieverError};
 use chrono::{TimeDelta, Utc};
 use std::sync::Mutex;
+use tracing::debug;
 use url::Url;
 
 /// A signed JWT should live enough for the System Identity Service to consume it.
@@ -20,6 +21,7 @@ pub struct TokenRetrieverWithCache {
     tokens: Mutex<Option<Token>>,
     jwt_signer: JwtSignerImpl,
     authenticator: HttpAuthenticator,
+    retries: u8,
 }
 
 impl TokenRetriever for TokenRetrieverWithCache {
@@ -30,9 +32,30 @@ impl TokenRetriever for TokenRetrieverWithCache {
             .map_err(|_| TokenRetrieverError::PoisonError)?;
 
         if cached_token.is_none() || cached_token.as_ref().is_some_and(|t| t.is_expired()) {
-            let token = self.refresh_token()?;
+            // Attempt to refresh the token. Retry if failed.
+            // This retry will block everyone trying to retrieve the token,
+            // so we should enforce low retry numbers and error early.
+            let mut attempt = 0;
+            loop {
+                match self.refresh_token() {
+                    Ok(token) => {
+                        *cached_token = Some(token);
+                        break;
+                    }
+                    Err(e) => {
+                        debug!("error refreshing token: {e}");
 
-            *cached_token = Some(token);
+                        attempt += 1;
+                        if self.should_retry_refresh(attempt, &e) {
+                            debug!("retrying to refresh token");
+                            continue;
+                        } else {
+                            debug!("exhausted retries");
+                            return Err(e);
+                        }
+                    }
+                }
+            }
         }
 
         cached_token
@@ -56,7 +79,18 @@ impl TokenRetrieverWithCache {
             tokens: Mutex::new(None),
             jwt_signer,
             authenticator,
+            retries: 0,
         }
+    }
+
+    pub fn with_retries(self, retries: u8) -> Self {
+        Self { retries, ..self }
+    }
+
+    pub fn should_retry_refresh(&self, attempt: u8, _err: &TokenRetrieverError) -> bool {
+        attempt < self.retries + 1
+        // We could decide to act on the specific error encountered as well.
+        //   && matches!(err, TokenRetrieverError::TokenRetrieverError(_))
     }
 
     fn refresh_token(&self) -> Result<Token, TokenRetrieverError> {
@@ -96,14 +130,14 @@ mod test {
     use std::{thread, time};
 
     use chrono::{TimeDelta, Utc};
-    use mockall::predicate::eq;
+    use mockall::{predicate::eq, Sequence};
     use url::Url;
 
     #[cfg_attr(test, mockall_double::double)]
     use crate::authenticator::HttpAuthenticator;
 
     use crate::{
-        authenticator::{ClientAssertionType, GrantType, Request, Response},
+        authenticator::{AuthenticateError, ClientAssertionType, GrantType, Request, Response},
         jwt::signed::SignedJwt,
         token::{Token, TokenType},
         token_retriever::DEFAULT_JWT_CLAIM_EXP,
@@ -234,5 +268,139 @@ mod test {
             cache_expired_token.access_token(),
             cache_miss_token.access_token()
         )
+    }
+
+    #[test]
+    fn no_retries_and_fail_calls_retrieve_once() {
+        let client_id = "client_id";
+
+        let mut jwt_signer = JwtSignerImpl::new();
+        // This actually tests TokenRetrieverWithCache's `refresh_token`.
+        // Calling `retrieve` makes calls to both first `sign` and then to `authenticate`.
+        // We instruct the `authenticate` call to fail every time and check that `sign` is called only the number of times we expect.
+        jwt_signer.expect_sign().once().returning(move |_| {
+            Ok(SignedJwt {
+                value: "client_assertion".into(),
+            })
+        });
+
+        let mut authenticator = HttpAuthenticator::new();
+        authenticator
+            .expect_authenticate()
+            .once()
+            .returning(move |_| {
+                Err(AuthenticateError::DeserializeError(
+                    "some_serde_error".to_owned(),
+                ))
+            });
+
+        let token_retriever = TokenRetrieverWithCache::new(
+            client_id.into(),
+            Url::parse("https://fake.com/").unwrap(),
+            jwt_signer,
+            authenticator,
+        )
+        .with_retries(0);
+
+        // Retries expired, error returned
+        let cache_miss_token = token_retriever.retrieve();
+
+        assert!(cache_miss_token.is_err());
+    }
+
+    #[test]
+    fn retries_success() {
+        let client_id = "client_id";
+        let fake_token = "fake";
+        let token_expires_in = 5;
+
+        let mut jwt_signer = JwtSignerImpl::new();
+        // This actually tests TokenRetrieverWithCache's `refresh_token`.
+        // Calling `retrieve` makes calls to both first `sign` and then to `authenticate`.
+        // We instruct the `authenticate` call to fail every time and check that `sign` is called only the number of times we expect.
+        jwt_signer.expect_sign().times(2).returning(move |_| {
+            Ok(SignedJwt {
+                value: "client_assertion".into(),
+            })
+        });
+
+        let mut auth_sequence = Sequence::new();
+        let mut authenticator = HttpAuthenticator::new();
+        authenticator
+            .expect_authenticate()
+            .once()
+            .in_sequence(&mut auth_sequence)
+            .returning(move |_| {
+                Err(AuthenticateError::DeserializeError(
+                    "some_serde_error".to_owned(),
+                ))
+            });
+
+        authenticator
+            .expect_authenticate()
+            .once()
+            .returning(move |_| {
+                Ok(Response {
+                    // generates a different token each time.
+                    access_token: fake_token.into(),
+                    expires_in: token_expires_in,
+                    token_type: "bearer".into(),
+                })
+            });
+
+        let token_retriever = TokenRetrieverWithCache::new(
+            client_id.into(),
+            Url::parse("https://fake.com/").unwrap(),
+            jwt_signer,
+            authenticator,
+        )
+        .with_retries(2);
+
+        let expected_token = Token::new(
+            fake_token.into(),
+            TokenType::Bearer,
+            Utc::now() + TimeDelta::seconds(token_expires_in.into()),
+        );
+
+        // Retries expired, error returned
+        let cache_miss_token = token_retriever.retrieve().unwrap();
+
+        assert_eq!(
+            cache_miss_token.access_token(),
+            expected_token.access_token()
+        );
+    }
+
+    #[test]
+    fn retries_fail() {
+        let client_id = "client_id";
+
+        let mut jwt_signer = JwtSignerImpl::new();
+        // This actually tests TokenRetrieverWithCache's `refresh_token`. Calling `retrieve` makes calls to both first `sign` and then to `authenticate`. We instruct the `authenticate` call to fail every time and check that `sign` is called only the number of times we expect.
+        jwt_signer.expect_sign().times(3).returning(move |_| {
+            Ok(SignedJwt {
+                value: "client_assertion".into(),
+            })
+        });
+
+        let mut authenticator = HttpAuthenticator::new();
+        authenticator.expect_authenticate().returning(move |_| {
+            Err(AuthenticateError::DeserializeError(
+                "some_serde_error".to_owned(),
+            ))
+        });
+
+        let token_retriever = TokenRetrieverWithCache::new(
+            client_id.into(),
+            Url::parse("https://fake.com/").unwrap(),
+            jwt_signer,
+            authenticator,
+        )
+        .with_retries(2);
+
+        // Retries expired, error returned
+        let cache_miss_token = token_retriever.retrieve();
+
+        assert!(cache_miss_token.is_err());
     }
 }
