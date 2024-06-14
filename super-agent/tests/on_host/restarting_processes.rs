@@ -1,4 +1,3 @@
-use crate::cli::create_temp_file;
 use assert_cmd::Command;
 use nix::{
     sys::signal::{self, Signal},
@@ -8,9 +7,11 @@ use std::thread;
 use std::time::Duration;
 use tempfile::TempDir;
 
-#[cfg(all(unix, feature = "onhost"))]
+#[cfg(unix)]
 #[test]
 fn killing_subprocess_with_signal_restarts_as_root() -> Result<(), Box<dyn std::error::Error>> {
+    use crate::on_host::cli::create_temp_file;
+
     let dir = TempDir::new()?;
 
     let _agent_type_def = create_temp_file(

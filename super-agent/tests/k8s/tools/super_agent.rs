@@ -1,6 +1,3 @@
-use super::runtime::block_on;
-use crate::tools::k8s_api::check_config_map_exist;
-use crate::tools::retry;
 use k8s_openapi::api::core::v1::ConfigMap;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use kube::{
@@ -14,6 +11,10 @@ use std::process::{Command, Stdio};
 use std::time::Duration;
 use std::{collections::BTreeMap, path::PathBuf};
 use std::{fs::File, io::Write};
+
+use crate::common::runtime::block_on;
+
+use super::{k8s_api::check_config_map_exist, retry};
 
 pub const TEST_CLUSTER_NAME: &str = "minikube";
 
@@ -76,7 +77,7 @@ pub fn start_super_agent(file_path: &Path) -> std::process::Child {
 pub async fn create_local_config_map(client: Client, ns: &str, folder_name: &str, name: &str) {
     let cm_client: Api<ConfigMap> = Api::<ConfigMap>::namespaced(client, ns);
     let mut content = String::new();
-    File::open(format!("test/k8s/data/{}/{}.yaml", folder_name, name))
+    File::open(format!("tests/k8s/data/{}/{}.yaml", folder_name, name))
         .unwrap()
         .read_to_string(&mut content)
         .unwrap();
@@ -111,14 +112,14 @@ pub fn create_local_super_agent_config(
 ) -> std::path::PathBuf {
     let mut content = String::new();
     File::open(format!(
-        "test/k8s/data/{}/local-data-super-agent.template",
+        "tests/k8s/data/{}/local-data-super-agent.template",
         folder_name
     ))
     .unwrap()
     .read_to_string(&mut content)
     .unwrap();
 
-    let file_path = format!("test/k8s/data/{}/local-sa.k8s_tmp", folder_name);
+    let file_path = format!("tests/k8s/data/{}/local-sa.k8s_tmp", folder_name);
     let mut content = content
         .replace("<ns>", test_ns)
         .replace("<cluster-name>", TEST_CLUSTER_NAME);

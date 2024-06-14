@@ -28,7 +28,7 @@ fn print_debug_info() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-#[cfg(all(unix, feature = "onhost"))]
+#[cfg(unix)]
 #[test]
 fn does_not_run_if_no_root() -> Result<(), Box<dyn std::error::Error>> {
     let dir = TempDir::new()?;
@@ -41,12 +41,12 @@ fn does_not_run_if_no_root() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-#[cfg(all(unix, feature = "onhost"))]
+#[cfg(unix)]
 #[test]
 fn runs_as_root() -> Result<(), Box<dyn std::error::Error>> {
     use std::time::Duration;
 
-    use crate::logging::level::TIME_FORMAT;
+    use crate::on_host::logging::level::TIME_FORMAT;
 
     let dir = TempDir::new()?;
     let file_path = create_temp_file(&dir, "static.yml", r"agents: {}")?;
@@ -79,7 +79,7 @@ fn runs_as_root() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-#[cfg(all(unix, feature = "onhost"))]
+#[cfg(unix)]
 #[test]
 fn custom_logging_format_as_root() -> Result<(), Box<dyn std::error::Error>> {
     use std::time::Duration;
@@ -126,7 +126,7 @@ log:
     Ok(())
 }
 
-#[cfg(all(unix, feature = "onhost"))]
+#[cfg(unix)]
 #[test]
 fn custom_directory_as_root() -> Result<(), Box<dyn std::error::Error>> {
     use std::time::Duration;
@@ -207,7 +207,7 @@ agents:
     Ok(())
 }
 
-#[cfg(all(unix, feature = "onhost"))]
+#[cfg(unix)]
 #[test]
 fn custom_directory_overrides_as_root() -> Result<(), Box<dyn std::error::Error>> {
     use std::time::Duration;
@@ -292,12 +292,12 @@ agents:
     Ok(())
 }
 
-#[cfg(all(unix, feature = "onhost"))]
+#[cfg(unix)]
 #[test]
 fn runs_with_no_config_as_root() -> Result<(), Box<dyn std::error::Error>> {
     use std::{env, time::Duration};
 
-    use crate::logging::level::TIME_FORMAT;
+    use crate::on_host::logging::level::TIME_FORMAT;
 
     let mut cmd = Command::cargo_bin("newrelic-super-agent")?;
     cmd.arg("--config").arg("non-existent-file.yaml");
