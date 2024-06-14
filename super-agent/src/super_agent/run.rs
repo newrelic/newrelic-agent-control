@@ -134,11 +134,10 @@ pub fn run_super_agent<C: HttpClientBuilder>(
     opamp_client_builder: Option<DefaultOpAMPClientBuilder<C>>,
     super_agent_publisher: EventPublisher<SuperAgentEvent>,
 ) -> Result<(), AgentError> {
+    #[cfg_attr(test, mockall_double::double)]
+    use crate::k8s::client::SyncK8sClient;
     use crate::{
-        k8s::{
-            client::SyncK8sClient, garbage_collector::NotStartedK8sGarbageCollector,
-            store::K8sStore,
-        },
+        k8s::{garbage_collector::NotStartedK8sGarbageCollector, store::K8sStore},
         opamp::{hash_repository::k8s::config_map::HashRepositoryConfigMap, instance_id},
         sub_agent::{
             k8s::builder::K8sSubAgentBuilder, values::k8s::config_map::ValuesRepositoryConfigMap,
