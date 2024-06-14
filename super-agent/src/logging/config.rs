@@ -37,6 +37,8 @@ pub struct LoggingConfig {
     pub(crate) file: FileLoggingConfig,
 }
 
+pub type FileLoggerGuard = Option<WorkerGuard>;
+
 impl LoggingConfig {
     /// Attempts to initialize the logging subscriber with the inner configuration.
     pub fn try_init(self) -> Result<Option<WorkerGuard>, LoggingError> {

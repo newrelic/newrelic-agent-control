@@ -296,3 +296,21 @@ pub fn super_agent_opamp_non_identifying_attributes(
         ),
     ])
 }
+
+#[cfg(debug_assertions)]
+pub fn set_debug_dirs(cli: &crate::cli::Cli) {
+    use crate::super_agent::defaults;
+
+    if let Some(ref local_path) = cli.local_dir {
+        defaults::set_local_dir(local_path);
+    }
+    if let Some(ref remote_path) = cli.remote_dir {
+        defaults::set_remote_dir(remote_path);
+    }
+    if let Some(ref log_path) = cli.logs_dir {
+        defaults::set_log_dir(log_path);
+    }
+    if let Some(ref debug_path) = cli.debug {
+        defaults::set_debug_mode_dirs(debug_path);
+    }
+}

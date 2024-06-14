@@ -128,7 +128,7 @@ generate_const_getter!(STDOUT_LOG_PREFIX, "stdout.log");
 generate_const_getter!(STDERR_LOG_PREFIX, "stderr.log");
 
 #[cfg(debug_assertions)]
-pub fn set_local_dir(path: &Path) {
+pub(super) fn set_local_dir(path: &Path) {
     // The Err variant in `set` just contains the value we attempted to set,
     // so we can just ignore the Result
     _ = SUPER_AGENT_LOCAL_DATA_DIR_STATIC
@@ -139,7 +139,7 @@ pub fn set_local_dir(path: &Path) {
 }
 
 #[cfg(debug_assertions)]
-pub fn set_remote_dir(path: &Path) {
+pub(super) fn set_remote_dir(path: &Path) {
     _ = SUPER_AGENT_DATA_DIR_STATIC
         .set(path.to_string_lossy().to_string())
         .inspect_err(|_| {
@@ -148,14 +148,14 @@ pub fn set_remote_dir(path: &Path) {
 }
 
 #[cfg(debug_assertions)]
-pub fn set_log_dir(path: &Path) {
+pub(super) fn set_log_dir(path: &Path) {
     _ = SUPER_AGENT_LOG_DIR_STATIC
         .set(path.to_string_lossy().to_string())
         .inspect_err(|_| debug!("attempted to initialize SUPER_AGENT_LOG_DIR but was already set"));
 }
 
 #[cfg(debug_assertions)]
-pub fn set_debug_mode_dirs(path: &Path) {
+pub(super) fn set_debug_mode_dirs(path: &Path) {
     debug!("setting data directories to the working directory");
 
     let local_path = path.join("nrsa_local");
