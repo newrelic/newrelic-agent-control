@@ -37,11 +37,11 @@ where
     IG: InstanceIDGetter,
 {
     let super_agent_id = AgentID::new_super_agent_id();
-    let parent_instance_id = instance_id_getter.get(&super_agent_id)?.to_string();
+    let parent_instance_id = instance_id_getter.get(&super_agent_id)?;
 
     non_identifying_attributes.insert(
         PARENT_AGENT_ID_ATTRIBUTE_KEY().to_string(),
-        DescriptionValueType::String(parent_instance_id),
+        DescriptionValueType::Bytes(parent_instance_id.into()),
     );
 
     build_opamp_with_channel(

@@ -19,9 +19,7 @@ tracing = { workspace = true }
 ctrlc = { version = "3.4.4", features = ["termination"] }
 serde_yaml = { workspace = true }
 regex = { workspace = true }
-opamp-client = { git = "ssh://git@github.com/newrelic/opamp-rs.git", tag = "0.0.18", features = [
-  "sync-http",
-], default-features = false }
+opamp-client = { git = "ssh://git@github.com/newrelic/opamp-rs.git", tag = "0.0.19", features = ["sync-http"], default-features = false }
 futures = { version = "0.3.30", optional = true }
 async-trait = { version = "0.1.80", optional = true }
 tokio = { version = "1.37.0", features = ["rt-multi-thread", "macros", "sync"] }
