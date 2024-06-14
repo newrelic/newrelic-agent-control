@@ -28,6 +28,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Acquire the file logger guard (if any) for the whole duration of the program
     let _guard: FileLoggerGuard = super_agent_config.file_logger_guard;
 
+    #[cfg(unix)]
+    if !nix::unistd::Uid::effective().is_root() {
+        error!("Program must run as root");
+        std::process::exit(1);
+    }
+
     debug!("Creating the global context");
     let (application_event_publisher, application_event_consumer) = pub_sub();
 

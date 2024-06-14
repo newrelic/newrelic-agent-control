@@ -56,12 +56,6 @@ pub fn run_super_agent<C: HttpClientBuilder>(
         Arc::new(sa_config_storer)
     };
 
-    #[cfg(unix)]
-    if !nix::unistd::Uid::effective().is_root() {
-        error!("Program must run as root");
-        std::process::exit(1);
-    }
-
     let config = config_storer.load()?;
 
     let identifiers_provider = IdentifiersProvider::default()
