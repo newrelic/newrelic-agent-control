@@ -45,7 +45,7 @@ where
 impl SubAgentHealthChecker<K8sHealthChecker> {
     pub fn try_new(
         k8s_client: Arc<SyncK8sClient>,
-        resources: Vec<DynamicObject>,
+        resources: Arc<Vec<DynamicObject>>,
     ) -> Result<Self, HealthCheckerError> {
         let mut health_checkers = vec![];
         for resource in resources.iter() {
@@ -117,7 +117,7 @@ pub mod test {
     fn no_resource_set() {
         let mock_client = MockSyncK8sClient::default();
         assert!(
-            SubAgentHealthChecker::try_new(Arc::new(mock_client), vec![])
+            SubAgentHealthChecker::try_new(Arc::new(mock_client), Arc::new(vec![]))
                 .unwrap()
                 .check_health()
                 .unwrap()
@@ -131,12 +131,12 @@ pub mod test {
         assert_matches!(
             SubAgentHealthChecker::try_new(
                 Arc::new(mock_client),
-                vec![DynamicObject {
+                Arc::new(vec![DynamicObject {
                     // having no type causes an error
                     types: None,
                     metadata: Default::default(),
                     data: Default::default(),
-                }]
+                }])
             )
             .err()
             .unwrap(),
@@ -153,12 +153,12 @@ pub mod test {
         assert_matches!(
             SubAgentHealthChecker::try_new(
                 Arc::new(mock_client),
-                vec![DynamicObject {
+                Arc::new(vec![DynamicObject {
                     types: Some(helm_release_type_meta()),
                     // having no name causes an error
                     metadata: Default::default(),
                     data: Default::default(),
-                }]
+                }])
             )
             .err()
             .unwrap(),

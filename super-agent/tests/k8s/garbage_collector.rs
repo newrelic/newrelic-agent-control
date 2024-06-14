@@ -19,7 +19,7 @@ use newrelic_super_agent::{
         getter::{InstanceIDGetter, InstanceIDWithIdentifiersGetter},
         Identifiers,
     },
-    sub_agent::k8s::CRSupervisor,
+    sub_agent::k8s::NotStartedSupervisor,
     super_agent::{config::AgentID, defaults::SUPER_AGENT_ID},
 };
 use newrelic_super_agent::{
@@ -65,7 +65,7 @@ fn k8s_garbage_collector_cleans_removed_agent() {
 
     let resource_name = "test-different-from-agent-id";
 
-    let s = CRSupervisor::new(
+    let s = NotStartedSupervisor::new(
         agent_id.clone(),
         agent_fqn.clone(),
         k8s_client.clone(),
@@ -95,7 +95,7 @@ metadata:
     );
 
     // Creates the Foo CR correctly tagged.
-    s.apply().unwrap();
+    s.build_and_apply().unwrap();
 
     let k8s_store = Arc::new(K8sStore::new(k8s_client.clone()));
 

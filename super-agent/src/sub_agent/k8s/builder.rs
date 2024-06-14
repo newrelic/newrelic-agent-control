@@ -16,7 +16,7 @@ use crate::super_agent::config::{AgentID, AgentTypeFQN, K8sConfig, SubAgentConfi
 use crate::super_agent::defaults::CLUSTER_NAME_ATTRIBUTE_KEY;
 use crate::{
     opamp::client_builder::OpAMPClientBuilder,
-    sub_agent::k8s::supervisor::CRSupervisor,
+    sub_agent::k8s::supervisor::NotStartedSupervisor,
     sub_agent::{error::SubAgentBuilderError, SubAgentBuilder},
 };
 use kube::core::TypeMeta;
@@ -79,7 +79,8 @@ where
     A: EffectiveAgentsAssembler,
     E: SubAgentEventProcessorBuilder<O::Client>,
 {
-    type NotStartedSubAgent = SubAgentK8s<NotStarted<E::SubAgentEventProcessor>>;
+    type NotStartedSubAgent =
+        SubAgentK8s<NotStarted<E::SubAgentEventProcessor>, NotStartedSupervisor>;
 
     fn build(
         &self,
@@ -160,7 +161,7 @@ fn build_cr_supervisors(
     k8s_client: Arc<SyncK8sClient>,
     k8s_config: &K8sConfig,
     agent_type_fqn: AgentTypeFQN,
-) -> Result<CRSupervisor, SubAgentBuilderError> {
+) -> Result<NotStartedSupervisor, SubAgentBuilderError> {
     debug!("Building CR supervisors {}", agent_id);
 
     let k8s_objects = effective_agent
@@ -176,7 +177,7 @@ fn build_cr_supervisors(
     validate_k8s_objects(&k8s_objects.objects.clone(), &k8s_config.cr_type_meta)?;
 
     // Clone the k8s_client on each build.
-    Ok(CRSupervisor::new(
+    Ok(NotStartedSupervisor::new(
         agent_id.clone(),
         agent_type_fqn,
         k8s_client,
