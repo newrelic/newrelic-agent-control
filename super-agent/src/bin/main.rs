@@ -21,7 +21,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let super_agent_config = match Cli::init()? {
         // Super Agent command call instructs normal operation. Continue with required data.
         CliCommand::InitSuperAgent(cli) => cli,
-        // Super Agent command call was an "one-shot" operation. Exit sucessfully.
+        // Super Agent command call was an "one-shot" operation. Exit successfully.
         CliCommand::Quit => return Ok(()),
     };
 
