@@ -19,11 +19,13 @@ compile_error!("Either feature \"onhost\" or feature \"k8s\" must be enabled");
 
 fn main() -> Result<(), Box<dyn Error>> {
     let super_agent_config = match Cli::init()? {
+        // Super Agent command call instructs normal operation. Continue with required data.
         CliCommand::InitSuperAgent(cli) => cli,
+        // Super Agent command call was an "one-shot" operation. Exit sucessfully.
         CliCommand::Quit => return Ok(()),
     };
 
-    // Acquire the file logger guard (if any)
+    // Acquire the file logger guard (if any) for the whole duration of the program
     let _guard: FileLoggerGuard = super_agent_config.file_logger_guard;
 
     debug!("Creating the global context");
