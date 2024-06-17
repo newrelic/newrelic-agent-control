@@ -6,7 +6,7 @@ use crate::sub_agent::{error::SubAgentError, NotStartedSubAgent, StartedSubAgent
 use crate::sub_agent::{NotStarted, Started};
 use crate::super_agent::config::{AgentID, AgentTypeFQN};
 
-use super::supervisor::log_and_report_unhealhty;
+use super::supervisor::log_and_report_unhealthy;
 use super::supervisor::StartedSupervisor;
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -56,7 +56,7 @@ where
             .map(|s| s.start(self.sub_agent_internal_publisher.clone()))
             .transpose()
             .inspect_err(|err| {
-                log_and_report_unhealhty(
+                log_and_report_unhealthy(
                     &self.sub_agent_internal_publisher,
                     err,
                     "starting the k8s resources supervisor failed",

@@ -12,7 +12,6 @@ use crate::sub_agent::health::health_checker::{
 };
 use crate::sub_agent::health::k8s::health_checker::SubAgentHealthChecker;
 use crate::super_agent::config::{AgentID, AgentTypeFQN};
-use core::time;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use k8s_openapi::serde_json;
 use kube::{api::DynamicObject, core::TypeMeta};
@@ -34,9 +33,6 @@ pub enum SupervisorError {
 
     #[error("building health checkers: `{0}`")]
     HealthError(#[from] HealthCheckerError),
-
-    #[error("Error publishing event: `{0}`")]
-    EventPublisherError(#[from] EventPublisherError),
 }
 
 pub struct NotStartedSupervisor {
@@ -59,7 +55,7 @@ impl NotStartedSupervisor {
             k8s_client,
             k8s_config,
             agent_fqn,
-            interval: Duration::from_secs(OBJECTS_SUPERVISOR_INTERVAL_SECONDS), // TODO: make it configurable?
+            interval: Duration::from_secs(OBJECTS_SUPERVISOR_INTERVAL_SECONDS),
         }
     }
 
@@ -70,7 +66,7 @@ impl NotStartedSupervisor {
         self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     ) -> Result<StartedSupervisor, SupervisorError> {
-        let resources = Arc::new(self.build_and_apply()?);
+        let resources = Arc::new(self.build_dynamic_objects()?);
 
         let (stop_objects_supervisor, objects_supervisor_handle) = self
             .start_k8s_objects_supervisor(sub_agent_internal_publisher.clone(), resources.clone());
@@ -83,16 +79,7 @@ impl NotStartedSupervisor {
         })
     }
 
-    // It is public because of integration-tests
-    /// Builds the k8s resources from the configuration and applies them to the cluster
-    pub fn build_and_apply(&self) -> Result<Vec<DynamicObject>, SupervisorError> {
-        let resources = self.build_dynamic_objects()?;
-        apply_resources(&self.agent_id, resources.iter(), self.k8s_client.clone())?;
-        info!(%self.agent_id, "k8s objects applied");
-        Ok(resources)
-    }
-
-    fn build_dynamic_objects(&self) -> Result<Vec<DynamicObject>, SupervisorError> {
+    pub fn build_dynamic_objects(&self) -> Result<Vec<DynamicObject>, SupervisorError> {
         self.k8s_config
             .objects
             .clone()
@@ -137,13 +124,26 @@ impl NotStartedSupervisor {
         health_publisher: EventPublisher<SubAgentInternalEvent>,
         resources: Arc<Vec<DynamicObject>>,
     ) -> (EventPublisher<()>, JoinHandle<()>) {
-        start_k8s_objects_supervisor(
-            self.interval,
-            self.agent_id.clone(),
-            resources,
-            self.k8s_client.clone(),
-            health_publisher,
-        )
+        let (stop_publisher, stop_consumer) = pub_sub();
+        let interval = self.interval;
+        let agent_id = self.agent_id.clone();
+        let k8s_client = self.k8s_client.clone();
+
+        let join_handle = thread::spawn(move || loop {
+            // Check cancellation signal
+            if stop_consumer.as_ref().try_recv().is_ok() {
+                info!(%agent_id, "k8s objects supervisor stopped");
+                break;
+            }
+            // apply k8s resources
+            if let Err(err) = Self::apply_resources(&agent_id, resources.iter(), k8s_client.clone())
+            {
+                log_and_report_unhealthy(&health_publisher, &err, "k8s resources apply failed");
+            }
+            thread::sleep(interval);
+        });
+
+        (stop_publisher, join_handle)
     }
 
     pub fn start_health_check(
@@ -169,6 +169,21 @@ impl NotStartedSupervisor {
         debug!(%self.agent_id, "health checks are disabled for this agent");
         Ok(None)
     }
+
+    /// It applies each of the provided k8s resources to the cluster if it has changed.
+    fn apply_resources<'a>(
+        agent_id: &AgentID,
+        resources: impl Iterator<Item = &'a DynamicObject>,
+        k8s_client: Arc<SyncK8sClient>,
+    ) -> Result<(), SupervisorError> {
+        debug!(%agent_id, "applying k8s objects if changed");
+        for res in resources {
+            trace!("K8s object: {:?}", res);
+            k8s_client.apply_dynamic_object_if_changed(res)?;
+        }
+        debug!(%agent_id, "K8s objects applied");
+        Ok(())
+    }
 }
 
 pub struct StartedSupervisor {
@@ -187,52 +202,8 @@ impl StartedSupervisor {
     }
 }
 
-/// It applies each of the provided k8s resources to the cluster if it has changed.
-fn apply_resources<'a>(
-    agent_id: &AgentID,
-    resources: impl Iterator<Item = &'a DynamicObject>,
-    k8s_client: Arc<SyncK8sClient>,
-) -> Result<(), SupervisorError> {
-    debug!(%agent_id, "applying k8s objects if changed");
-    for res in resources {
-        trace!("K8s object: {:?}", res);
-        k8s_client.apply_dynamic_object_if_changed(res)?;
-    }
-    debug!(%agent_id, "K8s objects applied");
-    Ok(())
-}
-
-/// Starts a thread that will check and apply the provided k8s resources periodically.
-fn start_k8s_objects_supervisor(
-    interval: time::Duration,
-    agent_id: AgentID,
-    resources: Arc<Vec<DynamicObject>>,
-    k8s_client: Arc<SyncK8sClient>,
-    sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
-) -> (EventPublisher<()>, JoinHandle<()>) {
-    let (stop_publisher, stop_consumer) = pub_sub();
-    let join_handle = thread::spawn(move || loop {
-        thread::sleep(interval);
-        // Check cancellation signal
-        if stop_consumer.as_ref().try_recv().is_ok() {
-            info!(%agent_id, "k8s objects supervisor stopped");
-            break;
-        }
-        // apply k8s resources
-        let _ =
-            apply_resources(&agent_id, resources.iter(), k8s_client.clone()).inspect_err(|err| {
-                log_and_report_unhealhty(
-                    &sub_agent_internal_publisher,
-                    err,
-                    "k8s resources apply failed",
-                );
-            });
-    });
-    (stop_publisher, join_handle)
-}
-
 /// Logs the provided error and publishes the corresponding unhealthy event.
-pub fn log_and_report_unhealhty(
+pub fn log_and_report_unhealthy(
     sub_agent_internal_publisher: &EventPublisher<SubAgentInternalEvent>,
     err: &SupervisorError,
     msg: &str,
@@ -270,14 +241,16 @@ pub mod test {
 
     const TEST_AGENT_ID: &str = "k8s-test";
     const TEST_GENT_FQN: &str = "ns/test:0.1.2";
-    const TEST_K8S_ISSUE: &str = "random issue";
 
     #[test]
-    fn test_supervisor_build_and_apply() {
-        let mut mock_k8s_client = MockSyncK8sClient::default();
-
+    fn test_build_dynamic_objects() {
         let agent_id = AgentID::new("test").unwrap();
         let agent_fqn = AgentTypeFQN::try_from("ns/test:0.1.2").unwrap();
+
+        let mut mock_k8s_client = MockSyncK8sClient::default();
+        mock_k8s_client
+            .expect_default_namespace()
+            .return_const(TEST_NAMESPACE.to_string());
 
         let mut labels = Labels::new(&agent_id);
         labels.append_extra_labels(&k8s_object().metadata.labels);
@@ -297,15 +270,6 @@ pub mod test {
             },
             data: json!({}),
         };
-        mock_k8s_client
-            .expect_default_namespace()
-            .return_const(TEST_NAMESPACE.to_string());
-
-        mock_k8s_client
-            .expect_apply_dynamic_object_if_changed()
-            .times(2)
-            .withf(move |dyn_object| expected.eq(dyn_object))
-            .returning(|_| Ok(()));
 
         let supervisor = NotStartedSupervisor::new(
             agent_id,
@@ -320,7 +284,8 @@ pub mod test {
             },
         );
 
-        supervisor.build_and_apply().unwrap();
+        let resources = supervisor.build_dynamic_objects().unwrap();
+        assert_eq!(resources, vec![expected.clone(), expected]);
     }
 
     #[test]
@@ -328,6 +293,7 @@ pub mod test {
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let interval = Duration::from_millis(250);
         let agent_id = AgentID::new("test").unwrap();
+        let agent_fqn = AgentTypeFQN::try_from("ns/test:0.1.2").unwrap();
         let apply_issue = "some issue";
 
         // The first apply call is OK, the second fails
@@ -344,14 +310,19 @@ pub mod test {
             .returning(|_| Err(K8sError::GetDynamic(apply_issue.to_string())))
             .in_sequence(&mut seq);
 
-        let (stop_ch, join_handle) = start_k8s_objects_supervisor(
+        let supervisor = NotStartedSupervisor {
             interval,
             agent_id,
-            Arc::new(vec![dynamic_object()]),
-            Arc::new(mock_client),
+            agent_fqn,
+            k8s_client: Arc::new(mock_client),
+            k8s_config: Default::default(),
+        };
+
+        let (stop_ch, join_handle) = supervisor.start_k8s_objects_supervisor(
             sub_agent_internal_publisher,
+            Arc::new(vec![dynamic_object()]),
         );
-        thread::sleep(Duration::from_millis(600)); // Sleep a bit more than two intervals
+        thread::sleep(Duration::from_millis(300)); // Sleep a bit more than one interval
         stop_ch.publish(()).unwrap();
         join_handle.join().unwrap();
 
@@ -375,7 +346,7 @@ pub mod test {
             }),
         };
 
-        let supervisor = not_started_supervisor(config, false, None);
+        let supervisor = not_started_supervisor(config, None);
         let err = supervisor
             .start_health_check(
                 sub_agent_internal_publisher,
@@ -396,12 +367,10 @@ pub mod test {
 
         let config = runtime_config::K8s {
             objects: HashMap::from([("obj".to_string(), k8s_object())]),
-            health: Some(K8sHealthConfig {
-                ..Default::default()
-            }),
+            health: Some(Default::default()),
         };
 
-        let not_started = not_started_supervisor(config, false, None);
+        let not_started = not_started_supervisor(config, None);
         let started = not_started
             .start(sub_agent_internal_publisher)
             .expect("supervisor started");
@@ -421,32 +390,11 @@ pub mod test {
             health: None,
         };
 
-        let not_started = not_started_supervisor(config, false, None);
+        let not_started = not_started_supervisor(config, None);
         let started = not_started
             .start(sub_agent_internal_publisher)
             .expect("supervisor started");
         assert!(started.maybe_stop_health.is_none());
-    }
-
-    #[test]
-    fn test_supervisor_start_fails() {
-        let (sub_agent_internal_publisher, _) = pub_sub();
-
-        let config = runtime_config::K8s {
-            objects: HashMap::from([("obj".to_string(), k8s_object())]),
-            health: Some(K8sHealthConfig {
-                ..Default::default()
-            }),
-        };
-
-        let not_started = not_started_supervisor(config, true, None);
-        let err = not_started
-            .start(sub_agent_internal_publisher)
-            .err()
-            .unwrap(); // cannot use unwrap_err because the  underlying EventPublisher doesn't implement Debug
-        assert_matches!(err, SupervisorError::Generic(s) => {
-            assert!(s.to_string().contains(TEST_K8S_ISSUE))
-        });
     }
 
     fn k8s_object() -> K8sObject {
@@ -484,7 +432,6 @@ pub mod test {
 
     fn not_started_supervisor(
         config: runtime_config::K8s,
-        apply_fails: bool,
         additional_expectations_fn: Option<fn(&mut MockSyncK8sClient)>,
     ) -> NotStartedSupervisor {
         let agent_id = AgentID::new(TEST_AGENT_ID).unwrap();
@@ -492,14 +439,8 @@ pub mod test {
 
         let mut mock_client = MockSyncK8sClient::default();
         mock_client
-            .expect_apply_dynamic_object_if_changed()
-            .returning(move |_| match apply_fails {
-                true => Err(K8sError::GetDynamic(TEST_K8S_ISSUE.to_string())),
-                false => Ok(()),
-            });
-        mock_client
             .expect_default_namespace()
-            .return_const("default".to_string());
+            .return_const(TEST_NAMESPACE.to_string());
         if let Some(f) = additional_expectations_fn {
             f(&mut mock_client)
         }
