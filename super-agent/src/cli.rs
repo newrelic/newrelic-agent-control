@@ -1,4 +1,7 @@
+mod one_shot_operation;
+
 use clap::Parser;
+use one_shot_operation::OneShotOperation;
 use std::path::PathBuf;
 use thiserror::Error;
 use tracing::info;
@@ -36,7 +39,7 @@ pub enum CliCommand {
     InitSuperAgent(SuperAgentCliConfig),
     /// Do an "one-shot" operation and exit successfully.
     /// In the future, many different operations could be added here.
-    Quit,
+    Quit(OneShotOperation),
 }
 
 #[derive(Parser, Debug)]
@@ -91,8 +94,7 @@ impl Cli {
 
         // If the version flag is set, print the version and exit
         if cli.print_version() {
-            println!("{}", binary_metadata());
-            return Ok(CliCommand::Quit);
+            return Ok(CliCommand::Quit(OneShotOperation::PrintVersion));
         }
 
         let config_storer = SuperAgentConfigStore::new(&cli.get_config_path());
@@ -106,15 +108,7 @@ impl Cli {
         })?;
 
         if cli.print_debug_info() {
-            println!("Printing debug info");
-            println!("CLI: {:#?}", cli);
-
-            #[cfg(feature = "onhost")]
-            println!("Feature: onhost");
-            #[cfg(feature = "k8s")]
-            println!("Feature: k8s");
-
-            return Ok(CliCommand::Quit);
+            return Ok(CliCommand::Quit(OneShotOperation::PrintDebugInfo(cli)));
         }
 
         let file_logger_guard = super_agent_config.log.try_init()?;

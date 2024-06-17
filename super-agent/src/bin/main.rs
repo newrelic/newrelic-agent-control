@@ -22,7 +22,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         // Super Agent command call instructs normal operation. Continue with required data.
         CliCommand::InitSuperAgent(cli) => cli,
         // Super Agent command call was an "one-shot" operation. Exit successfully.
-        CliCommand::Quit => return Ok(()),
+        CliCommand::Quit(op) => return Ok(op.run_one_shot()?),
     };
 
     // Acquire the file logger guard (if any) for the whole duration of the program
