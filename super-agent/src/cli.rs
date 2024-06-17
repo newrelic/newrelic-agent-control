@@ -19,10 +19,14 @@ use crate::{
 
 /// Represents all the data structures that can be created from the CLI
 pub struct SuperAgentCliConfig {
+    pub run_config: SuperAgentRunConfig,
+    pub file_logger_guard: FileLoggerGuard,
+}
+
+pub struct SuperAgentRunConfig {
     pub config_storer: SuperAgentConfigStore,
     pub opamp: Option<OpAMPClientConfig>,
     pub http_server: ServerConfig,
-    pub file_logger_guard: FileLoggerGuard,
 }
 
 #[derive(Debug, Error)]
@@ -119,12 +123,16 @@ impl Cli {
         );
 
         let opamp = super_agent_config.opamp;
-        let http_server_config = super_agent_config.server;
+        let http_server = super_agent_config.server;
 
-        let cli_config = SuperAgentCliConfig {
+        let run_config = SuperAgentRunConfig {
             config_storer,
             opamp,
-            http_server: http_server_config,
+            http_server,
+        };
+
+        let cli_config = SuperAgentCliConfig {
+            run_config,
             file_logger_guard,
         };
 

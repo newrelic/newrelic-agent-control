@@ -1,7 +1,11 @@
 use super::config_storer::store::SuperAgentConfigStore;
 use super::error::AgentError;
-use crate::opamp::http::builder::HttpClientBuilder;
+use crate::cli::SuperAgentRunConfig;
+use crate::event::channel::pub_sub;
+use crate::opamp::auth::token_retriever::TokenRetrieverImpl;
+use crate::opamp::http::builder::{HttpClientBuilder, UreqHttpClientBuilder};
 use crate::super_agent::config_storer::loader_storer::SuperAgentConfigLoader;
+use crate::super_agent::http_server::runner::Runner;
 use crate::{
     event::{
         channel::{EventConsumer, EventPublisher},
@@ -25,9 +29,59 @@ use crate::{
 };
 use opamp_client::operation::settings::DescriptionValueType;
 use std::collections::HashMap;
+use std::error::Error;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
-use tracing::{error, info};
+use tracing::{debug, error, info};
+
+/// Create run time structures for the Super Agent and launch it
+pub fn bootstrap_and_run(super_agent_config: SuperAgentRunConfig) -> Result<(), Box<dyn Error>> {
+    debug!("Creating the global context");
+    let (application_event_publisher, application_event_consumer) = pub_sub();
+    debug!("Creating the signal handler");
+    create_shutdown_signal_handler(application_event_publisher)?;
+    let opamp_client_builder = match super_agent_config.opamp.as_ref() {
+        Some(opamp_config) => {
+            let token_retriever = Arc::new(
+                TokenRetrieverImpl::try_from(opamp_config.clone())
+                    .inspect_err(|err| error!(error_mgs=%err,"Building token retriever"))?,
+            );
+
+            let http_builder = UreqHttpClientBuilder::new(opamp_config.clone(), token_retriever);
+            Some(DefaultOpAMPClientBuilder::new(
+                opamp_config.clone(),
+                http_builder,
+            ))
+        }
+        None => None,
+    };
+    let (super_agent_publisher, super_agent_consumer) = pub_sub::<SuperAgentEvent>();
+    let runtime = Arc::new(
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()?,
+    );
+    let _started_http_server_runner = Runner::start(
+        super_agent_config.http_server,
+        runtime.clone(),
+        super_agent_consumer,
+        super_agent_config.opamp.clone(),
+    );
+    run_super_agent(
+        runtime.clone(),
+        super_agent_config.config_storer,
+        application_event_consumer,
+        opamp_client_builder,
+        super_agent_publisher,
+    )
+    .inspect_err(|err| {
+        error!(
+            "The super agent main process exited with an error: {}",
+            err.to_string()
+        )
+    })?;
+    Ok(())
+}
 
 #[cfg(feature = "onhost")]
 pub fn run_super_agent<C: HttpClientBuilder>(
