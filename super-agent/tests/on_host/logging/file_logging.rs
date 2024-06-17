@@ -43,14 +43,10 @@ fn default_log_level_no_root() {
 
     // Expecting to fail as non_root
     // Asserting content is logged to stdout as well
-    cmd.assert()
-        .failure()
-        .stdout(
-            predicate::str::is_match(
-                TIME_FORMAT.to_owned() + "ERROR.*Program must run as root",
-            )
-                .unwrap(),
-        );
+    cmd.assert().failure().stdout(
+        predicate::str::is_match(TIME_FORMAT.to_owned() + "ERROR.*Program must run as root")
+            .unwrap(),
+    );
 
     // The behavior of the appender functionality is already unit tested as part of the sub-agent
     // logging feature. Here we just assert that the files are created.
