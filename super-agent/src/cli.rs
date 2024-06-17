@@ -9,10 +9,9 @@ use tracing::info;
 use crate::{
     logging::config::{FileLoggerGuard, LoggingError},
     super_agent::{
-        config::{OpAMPClientConfig, SuperAgentConfigError},
+        config::SuperAgentConfigError,
         config_storer::{loader_storer::SuperAgentConfigLoader, store::SuperAgentConfigStore},
-        http_server::config::ServerConfig,
-        run::set_debug_dirs,
+        run::{set_debug_dirs, SuperAgentRunConfig},
     },
     utils::binary_metadata::binary_metadata,
 };
@@ -21,12 +20,6 @@ use crate::{
 pub struct SuperAgentCliConfig {
     pub run_config: SuperAgentRunConfig,
     pub file_logger_guard: FileLoggerGuard,
-}
-
-pub struct SuperAgentRunConfig {
-    pub config_storer: SuperAgentConfigStore,
-    pub opamp: Option<OpAMPClientConfig>,
-    pub http_server: ServerConfig,
 }
 
 #[derive(Debug, Error)]

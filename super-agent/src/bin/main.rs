@@ -1,6 +1,5 @@
 use newrelic_super_agent::cli::{Cli, CliCommand};
 use newrelic_super_agent::logging::config::FileLoggerGuard;
-use newrelic_super_agent::super_agent::run::bootstrap_and_run;
 use std::error::Error;
 use tracing::{error, info};
 
@@ -20,6 +19,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
 
     // Acquire the file logger guard (if any) for the whole duration of the program
+    // Needed for remaining usages of `tracing` macros in `main`.
     let _guard: FileLoggerGuard = super_agent_config.file_logger_guard;
 
     #[cfg(all(unix, feature = "onhost"))]
@@ -29,7 +29,16 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     // Pass the rest of required configs to the actual super agent runner
-    bootstrap_and_run(super_agent_config.run_config)?;
+    super_agent_config
+        .run_config
+        .init()?
+        .run()
+        .inspect_err(|err| {
+            error!(
+                "The super agent main process exited with an error: {}",
+                err.to_string()
+            )
+        })?;
 
     info!("exiting gracefully");
     Ok(())

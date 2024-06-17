@@ -1,6 +1,7 @@
+use super::config::OpAMPClientConfig;
 use super::config_storer::store::SuperAgentConfigStore;
 use super::error::AgentError;
-use crate::cli::SuperAgentRunConfig;
+use super::http_server::config::ServerConfig;
 use crate::event::channel::pub_sub;
 use crate::opamp::auth::token_retriever::TokenRetrieverImpl;
 use crate::opamp::http::builder::{HttpClientBuilder, UreqHttpClientBuilder};
@@ -32,55 +33,93 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, trace};
 
-/// Create run time structures for the Super Agent and launch it
-pub fn bootstrap_and_run(super_agent_config: SuperAgentRunConfig) -> Result<(), Box<dyn Error>> {
-    debug!("Creating the global context");
-    let (application_event_publisher, application_event_consumer) = pub_sub();
-    debug!("Creating the signal handler");
-    create_shutdown_signal_handler(application_event_publisher)?;
-    let opamp_client_builder = match super_agent_config.opamp.as_ref() {
-        Some(opamp_config) => {
-            let token_retriever = Arc::new(
-                TokenRetrieverImpl::try_from(opamp_config.clone())
-                    .inspect_err(|err| error!(error_mgs=%err,"Building token retriever"))?,
-            );
+/// Structures for running the super-agent provided by CLI inputs
+pub struct SuperAgentRunConfig {
+    pub config_storer: SuperAgentConfigStore,
+    pub opamp: Option<OpAMPClientConfig>,
+    pub http_server: ServerConfig,
+}
 
-            let http_builder = UreqHttpClientBuilder::new(opamp_config.clone(), token_retriever);
-            Some(DefaultOpAMPClientBuilder::new(
-                opamp_config.clone(),
-                http_builder,
-            ))
-        }
-        None => None,
-    };
-    let (super_agent_publisher, super_agent_consumer) = pub_sub::<SuperAgentEvent>();
-    let runtime = Arc::new(
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()?,
-    );
-    let _started_http_server_runner = Runner::start(
-        super_agent_config.http_server,
-        runtime.clone(),
-        super_agent_consumer,
-        super_agent_config.opamp.clone(),
-    );
-    run_super_agent(
-        runtime.clone(),
-        super_agent_config.config_storer,
-        application_event_consumer,
-        opamp_client_builder,
-        super_agent_publisher,
-    )
-    .inspect_err(|err| {
-        error!(
-            "The super agent main process exited with an error: {}",
-            err.to_string()
-        )
-    })?;
-    Ok(())
+impl SuperAgentRunConfig {
+    /// Create run time structures for the Super Agent and launch it.
+    pub fn init(self) -> Result<SuperAgentRunData, Box<dyn Error>> {
+        debug!("initializing and starting the super agent");
+
+        trace!("Creating the global context");
+        let (application_event_publisher, application_event_consumer) = pub_sub();
+
+        trace!("Creating the signal handler");
+        create_shutdown_signal_handler(application_event_publisher)?;
+
+        let opamp_client_builder = match self.opamp.as_ref() {
+            Some(opamp_config) => {
+                let token_retriever = Arc::new(
+                    TokenRetrieverImpl::try_from(opamp_config.clone())
+                        .inspect_err(|err| error!(error_mgs=%err,"Building token retriever"))?,
+                );
+
+                let http_builder =
+                    UreqHttpClientBuilder::new(opamp_config.clone(), token_retriever);
+                Some(DefaultOpAMPClientBuilder::new(
+                    opamp_config.clone(),
+                    http_builder,
+                ))
+            }
+            None => None,
+        };
+        let (super_agent_publisher, super_agent_consumer) = pub_sub::<SuperAgentEvent>();
+        let runtime = Arc::new(
+            tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()?,
+        );
+        let _started_http_server_runner = Runner::start(
+            self.http_server,
+            runtime.clone(),
+            super_agent_consumer,
+            self.opamp.clone(),
+        );
+
+        let run_data = SuperAgentRunData {
+            _http_server_runner: _started_http_server_runner,
+            runtime,
+            config_storer: self.config_storer,
+            application_event_consumer,
+            opamp_client_builder,
+            super_agent_publisher,
+        };
+
+        Ok(run_data)
+    }
+}
+
+/// Structure with all the data required to run the super agent
+// TODO: Generalize over injected dependencies like UreqHttpClientBuilder and TokenRetrieverImpl?
+pub struct SuperAgentRunData {
+    _http_server_runner: Runner,
+    runtime: Arc<Runtime>,
+    config_storer: SuperAgentConfigStore,
+    application_event_consumer: EventConsumer<ApplicationEvent>,
+    opamp_client_builder:
+        Option<DefaultOpAMPClientBuilder<UreqHttpClientBuilder<TokenRetrieverImpl>>>,
+    super_agent_publisher: EventPublisher<SuperAgentEvent>,
+}
+
+/// Run the super agent with the provided data
+impl SuperAgentRunData {
+    pub fn run(self) -> Result<(), Box<dyn Error>> {
+        run_super_agent(
+            self.runtime.clone(),
+            self.config_storer,
+            self.application_event_consumer,
+            self.opamp_client_builder,
+            self.super_agent_publisher,
+        )?;
+
+        Ok(())
+    }
 }
 
 #[cfg(feature = "onhost")]
