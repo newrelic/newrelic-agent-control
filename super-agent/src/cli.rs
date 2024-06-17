@@ -105,7 +105,6 @@ impl Cli {
             )
         })?;
 
-        info!("{}", binary_metadata());
         if cli.print_debug_info() {
             println!("Printing debug info");
             println!("CLI: {:#?}", cli);
@@ -119,6 +118,7 @@ impl Cli {
         }
 
         let file_logger_guard = super_agent_config.log.try_init()?;
+        info!("{}", binary_metadata());
         info!(
             "Starting NewRelic Super Agent with config '{}'",
             config_storer.config_path().to_string_lossy()

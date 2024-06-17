@@ -47,12 +47,6 @@ fn default_log_level_no_root() {
         .failure()
         .stdout(
             predicate::str::is_match(
-                TIME_FORMAT.to_owned() + "INFO.*New Relic Super Agent Version: .*, Rust Version: .*, GitCommit: .*, BuildDate: .*",
-            )
-                .unwrap(),
-        )
-        .stdout(
-            predicate::str::is_match(
                 TIME_FORMAT.to_owned() + "ERROR.*Program must run as root",
             )
                 .unwrap(),
