@@ -5,7 +5,6 @@ use tempfile::TempDir;
 
 use super::level::TIME_FORMAT;
 
-#[cfg(test)]
 fn build_logging_config(config_path: &Path, log_path: &Path) {
     let config = format!(
         r#"
@@ -20,7 +19,6 @@ fn build_logging_config(config_path: &Path, log_path: &Path) {
     std::fs::write(config_path, config).unwrap();
 }
 
-#[cfg(test)]
 fn cmd_with_config_file(file_path: &Path) -> Command {
     let mut cmd = Command::cargo_bin("newrelic-super-agent").unwrap();
     cmd.arg("--config").arg(file_path);

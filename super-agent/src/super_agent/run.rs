@@ -47,14 +47,15 @@ impl SuperAgentRunConfig {
     pub fn init(self) -> Result<SuperAgentRunData, Box<dyn Error>> {
         debug!("initializing and starting the super agent");
 
-        trace!("Creating the global context");
+        trace!("creating the global context");
         let (application_event_publisher, application_event_consumer) = pub_sub();
 
-        trace!("Creating the signal handler");
+        trace!("creating the signal handler");
         create_shutdown_signal_handler(application_event_publisher)?;
 
         let opamp_client_builder = match self.opamp.as_ref() {
             Some(opamp_config) => {
+                debug!("OpAMP configuration found, creating an OpAMP client builder");
                 let token_retriever = Arc::new(
                     TokenRetrieverImpl::try_from(opamp_config.clone())
                         .inspect_err(|err| error!(error_mgs=%err,"Building token retriever"))?,

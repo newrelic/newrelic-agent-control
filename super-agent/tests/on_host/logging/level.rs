@@ -3,14 +3,14 @@ use predicates::prelude::predicate;
 use std::{path::Path, time::Duration};
 use tempfile::TempDir;
 
-#[cfg(test)]
 const EMPTY_CONFIG: &str = "# Empty config\nagents: {}";
-#[cfg(test)]
+
 const DEBUG_LEVEL_CONFIG: &str = "agents: {}\nlog:\n  level: debug";
-#[cfg(test)]
+
+const TRACE_LEVEL_CONFIG: &str = "agents: {}\nlog:\n  level: trace";
+
 pub(crate) const TIME_FORMAT: &str = r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*";
 
-#[cfg(test)]
 fn cmd_with_config_file(file_path: &Path) -> Command {
     let mut cmd = Command::cargo_bin("newrelic-super-agent").unwrap();
     cmd.arg("--config").arg(file_path);
@@ -97,10 +97,10 @@ fn debug_log_level_no_root() {
 }
 
 #[test]
-fn debug_log_level_as_root() {
+fn trace_log_level_as_root() {
     let dir = TempDir::new().unwrap();
     let config_path = dir.path().join("super_agent.yaml");
-    std::fs::write(&config_path, DEBUG_LEVEL_CONFIG).unwrap();
+    std::fs::write(&config_path, TRACE_LEVEL_CONFIG).unwrap();
 
     let mut cmd = cmd_with_config_file(&config_path);
 
@@ -114,11 +114,11 @@ fn debug_log_level_as_root() {
             .unwrap(),
         )
         .stdout(
-            predicate::str::is_match(TIME_FORMAT.to_owned() + "DEBUG.*Creating the signal handler")
+            predicate::str::is_match(TIME_FORMAT.to_owned() + "TRACE.*Creating the signal handler")
                 .unwrap(),
         )
         .stdout(
-            predicate::str::is_match(TIME_FORMAT.to_owned() + "DEBUG.*Creating the global context")
+            predicate::str::is_match(TIME_FORMAT.to_owned() + "TRACE.*Creating the global context")
                 .unwrap(),
         )
         .stdout(
@@ -128,11 +128,11 @@ fn debug_log_level_as_root() {
             .unwrap(),
         )
         .stdout(
-            predicate::str::is_match(TIME_FORMAT.to_owned() + "DEBUG.*Creating the signal handler")
+            predicate::str::is_match(TIME_FORMAT.to_owned() + "TRACE.*Creating the signal handler")
                 .unwrap(),
         )
         .stdout(
-            predicate::str::is_match(TIME_FORMAT.to_owned() + "DEBUG.*Creating the global context")
+            predicate::str::is_match(TIME_FORMAT.to_owned() + "TRACE.*Creating the global context")
                 .unwrap(),
         )
         .stdout(
