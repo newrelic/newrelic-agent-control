@@ -16,6 +16,9 @@ pub struct AuthConfig {
     /// Method to sign the client secret used to retrieve the access token.
     #[serde(flatten, deserialize_with = "deserialize_default_provider")]
     pub provider: ProviderConfig,
+    /// Number of retries for token retrieval. Default 0.
+    #[serde(default)]
+    pub retries: u8,
 }
 
 // This is a workaround for a bug on serde not being able to use default on flattened fields.
@@ -95,6 +98,7 @@ private_key_path: "path/to/key"
                     provider: ProviderConfig::Local(LocalConfig {
                         private_key_path: PathBuf::from("path/to/key"),
                     }),
+                    retries: 0u8,
                 },
             },
             Test {
@@ -108,6 +112,22 @@ client_id: "fake"
                     client_id: "fake".into(),
                     token_url: Url::from_str("http://fake.com/oauth2/v1/token").unwrap(),
                     provider: ProviderConfig::default(),
+                    retries: 0u8,
+                },
+            },
+            Test {
+                content: String::from(
+                    r#"
+token_url: "http://fake.com/oauth2/v1/token"
+client_id: "fake"
+retries: 3
+                "#,
+                ),
+                expected: AuthConfig {
+                    client_id: "fake".into(),
+                    token_url: Url::from_str("http://fake.com/oauth2/v1/token").unwrap(),
+                    provider: ProviderConfig::default(),
+                    retries: 3u8,
                 },
             },
         ];
