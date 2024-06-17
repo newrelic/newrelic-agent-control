@@ -1,7 +1,7 @@
-use assert_cmd::Command;
 use predicates::prelude::predicate;
-use std::{path::Path, time::Duration};
 use tempfile::TempDir;
+
+use crate::on_host::cli::cmd_with_config_file;
 
 const EMPTY_CONFIG: &str = "# Empty config\nagents: {}";
 
@@ -10,14 +10,6 @@ const DEBUG_LEVEL_CONFIG: &str = "agents: {}\nlog:\n  level: debug";
 const TRACE_LEVEL_CONFIG: &str = "agents: {}\nlog:\n  level: trace";
 
 pub(crate) const TIME_FORMAT: &str = r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*";
-
-fn cmd_with_config_file(file_path: &Path) -> Command {
-    let mut cmd = Command::cargo_bin("newrelic-super-agent").unwrap();
-    cmd.arg("--config").arg(file_path);
-    // cmd_assert is not made for long running programs, so we kill it anyway after 1 second
-    cmd.timeout(Duration::from_secs(2));
-    cmd
-}
 
 #[test]
 fn default_log_level_no_root() {
@@ -114,25 +106,17 @@ fn trace_log_level_as_root() {
             .unwrap(),
         )
         .stdout(
-            predicate::str::is_match(TIME_FORMAT.to_owned() + "TRACE.*Creating the signal handler")
-                .unwrap(),
-        )
-        .stdout(
-            predicate::str::is_match(TIME_FORMAT.to_owned() + "TRACE.*Creating the global context")
-                .unwrap(),
-        )
-        .stdout(
             predicate::str::is_match(
                 TIME_FORMAT.to_owned() + "INFO.*Starting NewRelic Super Agent",
             )
             .unwrap(),
         )
         .stdout(
-            predicate::str::is_match(TIME_FORMAT.to_owned() + "TRACE.*Creating the signal handler")
+            predicate::str::is_match(TIME_FORMAT.to_owned() + "TRACE.*creating the signal handler")
                 .unwrap(),
         )
         .stdout(
-            predicate::str::is_match(TIME_FORMAT.to_owned() + "TRACE.*Creating the global context")
+            predicate::str::is_match(TIME_FORMAT.to_owned() + "TRACE.*creating the global context")
                 .unwrap(),
         )
         .stdout(
