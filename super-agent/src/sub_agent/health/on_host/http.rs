@@ -135,7 +135,11 @@ impl<C: HttpClient> HealthChecker for HttpHealthChecker<C> {
         if (self.healthy_status_codes.is_empty() && status_code.is_success())
             || self.healthy_status_codes.contains(&status_code.as_u16())
         {
-            return Ok(Healthy { status }.into());
+            return Ok(Healthy {
+                status,
+                ..Default::default()
+            }
+            .into());
         }
 
         let last_error = format!(
@@ -143,7 +147,12 @@ impl<C: HttpClient> HealthChecker for HttpHealthChecker<C> {
             status_code
         );
 
-        Ok(Unhealthy { status, last_error }.into())
+        Ok(Unhealthy {
+            status,
+            last_error,
+            ..Default::default()
+        }
+        .into())
     }
 }
 

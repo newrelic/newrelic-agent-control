@@ -380,8 +380,9 @@ pub mod test {
                         ..Default::default()
                     }),
                 },
-                expected: Healthy{
-                    status: "".into()
+                expected: Healthy {
+                    status: "".into(),
+                    ..Default::default()
                 }.into(),
             },
             TestCase {
@@ -403,7 +404,8 @@ pub mod test {
                 },
                 expected: Unhealthy{
                     status: String::from(""),
-                    last_error: String::from("DaemonSet `test` is so new that it has no `updated_number_scheduled` status yet")
+                    last_error: String::from("DaemonSet `test` is so new that it has no `updated_number_scheduled` status yet"),
+                    ..Default::default()
                 }.into(),
             },
             TestCase {
@@ -430,6 +432,7 @@ pub mod test {
                     last_error: String::from(
                         "DaemonSet `test` Not all the pods of the were able to schedule",
                     ),
+                    ..Default::default()
                 }.into(),
             },
             TestCase {
@@ -453,7 +456,8 @@ pub mod test {
                     }),
                 },
                 expected: Healthy {
-                    status: "".into()
+                    status: "".into(),
+                    ..Default::default()
                 }.into(),
             },
             TestCase {
@@ -482,6 +486,7 @@ pub mod test {
                     last_error: String::from(
                         "Daemonset 'test': The number of pods ready is less that the desired: 2 < 3",
                     ),
+                    ..Default::default()
                 }.into(),
             },
             TestCase {
@@ -510,6 +515,7 @@ pub mod test {
                     last_error: String::from(
                         "Daemonset 'test': The number of pods ready is less that the desired: 2 < 3",
                     ),
+                    ..Default::default()
                 }.into(),
             },
             TestCase {
@@ -535,6 +541,7 @@ pub mod test {
                 },
                 expected: Healthy {
                     status: "".into(),
+                    ..Default::default()
                 }.into()
             },
             TestCase {
@@ -560,6 +567,7 @@ pub mod test {
                 },
                 expected: Healthy {
                     status: "".into(),
+                    ..Default::default()
                 }.into()
             },
         ];
