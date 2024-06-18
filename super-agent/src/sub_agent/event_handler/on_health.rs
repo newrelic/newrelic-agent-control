@@ -18,7 +18,7 @@ where
         if let Some(client) = self.maybe_opamp_client.as_ref() {
             let health = opamp_client::opamp::proto::ComponentHealth {
                 healthy: health.is_healthy(),
-                start_time_unix_nano: get_sys_time_nano()?,
+                status_time_unix_nano: get_sys_time_nano()?,
                 last_error: health.last_error().unwrap_or("").to_string(),
                 status: health.status().to_string(),
                 ..Default::default()
