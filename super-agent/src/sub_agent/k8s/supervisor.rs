@@ -12,6 +12,7 @@ use crate::sub_agent::health::health_checker::{
 };
 use crate::sub_agent::health::k8s::health_checker::SubAgentHealthChecker;
 use crate::super_agent::config::{AgentID, AgentTypeFQN};
+use crossbeam::select;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use k8s_openapi::serde_json;
 use kube::{api::DynamicObject, core::TypeMeta};
@@ -130,17 +131,19 @@ impl NotStartedSupervisor {
         let k8s_client = self.k8s_client.clone();
 
         let join_handle = thread::spawn(move || loop {
-            // Check cancellation signal
-            if stop_consumer.as_ref().try_recv().is_ok() {
-                info!(%agent_id, "k8s objects supervisor stopped");
-                break;
-            }
-            // apply k8s resources
+            // Check and apply k8s objects
             if let Err(err) = Self::apply_resources(&agent_id, resources.iter(), k8s_client.clone())
             {
                 log_and_report_unhealthy(&health_publisher, &err, "k8s resources apply failed");
             }
-            thread::sleep(interval);
+            // Check for stop signal while waiting for next interval
+            select! {
+                recv(stop_consumer.as_ref()) -> _ => {
+                    info!(%agent_id, "k8s objects supervisor stopped");
+                    break;
+                },
+                default(interval) => {},
+            }
         });
 
         (stop_publisher, join_handle)

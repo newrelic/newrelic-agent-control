@@ -82,13 +82,13 @@ where
             self.interval.as_secs()
         );
         let (stop_tx, stop_rx) = unbounded();
-        let ticker = tick(self.interval);
+        let interval = self.interval;
 
         let handle = thread::spawn(move || {
             loop {
                 select! {
                     recv(stop_rx)-> _ => break,
-                    recv(ticker)-> _ => {
+                    default(interval) => {
                         let _ = self.collect().inspect_err(|err| warn!("executing garbage collection: {err}"));
                     },
                 }
