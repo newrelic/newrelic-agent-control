@@ -1,5 +1,6 @@
 use newrelic_super_agent::cli::{Cli, CliCommand};
 use newrelic_super_agent::logging::config::FileLoggerGuard;
+use newrelic_super_agent::super_agent::run::SuperAgentRunner;
 use std::error::Error;
 use tracing::{error, info};
 
@@ -15,7 +16,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         // Super Agent command call instructs normal operation. Continue with required data.
         CliCommand::InitSuperAgent(cli) => cli,
         // Super Agent command call was an "one-shot" operation. Exit successfully after performing.
-        CliCommand::Quit(op) => return Ok(op.run_one_shot()?),
+        CliCommand::OneShot(op) => {
+            op.run_one_shot();
+            return Ok(());
+        }
     };
 
     // Acquire the file logger guard (if any) for the whole duration of the program
@@ -29,9 +33,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     // Pass the rest of required configs to the actual super agent runner
-    super_agent_config
-        .run_config
-        .init()?
+    SuperAgentRunner::try_from(super_agent_config.run_config)?
         .run()
         .inspect_err(|err| {
             error!(

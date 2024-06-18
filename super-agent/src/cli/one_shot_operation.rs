@@ -1,21 +1,20 @@
 use crate::utils::binary_metadata::binary_metadata;
 
-use super::{Cli, CliError};
+use super::Cli;
 
-pub enum OneShotOperation {
+pub enum OneShotCommand {
     PrintVersion,
     PrintDebugInfo(Cli),
 }
 
-impl OneShotOperation {
+impl OneShotCommand {
     /// Runs the one-shot operation
-    pub fn run_one_shot(&self) -> Result<(), CliError> {
+    pub fn run_one_shot(&self) {
         match self {
-            OneShotOperation::PrintVersion => {
+            OneShotCommand::PrintVersion => {
                 println!("{}", binary_metadata());
-                Ok(())
             }
-            OneShotOperation::PrintDebugInfo(cli) => {
+            OneShotCommand::PrintDebugInfo(cli) => {
                 println!("Printing debug info");
                 println!("CLI: {:#?}", cli);
 
@@ -23,7 +22,6 @@ impl OneShotOperation {
                 println!("Feature: onhost");
                 #[cfg(feature = "k8s")]
                 println!("Feature: k8s");
-                Ok(())
             }
         }
     }
