@@ -471,12 +471,7 @@ pub mod sleep_supervisor_tests {
             .expect_check_health()
             .once()
             .in_sequence(&mut seq)
-            .returning(|| {
-                Ok(Healthy {
-                    status: String::default(),
-                }
-                .into())
-            });
+            .returning(|| Ok(Healthy::default().into()));
         health_checker
             .expect_check_health()
             .once()

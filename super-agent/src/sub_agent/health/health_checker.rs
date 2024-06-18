@@ -3,6 +3,7 @@ use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::SubAgentInternalEvent;
 use crate::super_agent::config::AgentID;
 use std::thread;
+use std::time::{SystemTime, SystemTimeError, UNIX_EPOCH};
 use tracing::{debug, error};
 
 #[cfg(feature = "k8s")]
@@ -18,6 +19,8 @@ pub enum Health {
 pub enum HealthCheckerError {
     #[error("{0}")]
     Generic(String),
+    #[error("system time error `{0}`")]
+    SystemTime(#[from] SystemTimeError),
     #[cfg(feature = "k8s")]
     #[error("{kind}/{name} misses field `{field}`")]
     MissingK8sObjectField {
@@ -60,7 +63,7 @@ impl From<HealthCheckerError> for Unhealthy {
     fn from(err: HealthCheckerError) -> Self {
         Unhealthy {
             last_error: format!("Health check error: {}", err),
-            status: Default::default(),
+            ..Default::default()
         }
     }
 }
@@ -70,12 +73,36 @@ impl From<HealthCheckerError> for Unhealthy {
 /// for more details.
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct Healthy {
+    pub start_time_unix_nano: u64,
+    pub status_time_unix_nano: u64,
     pub status: String,
 }
 
 impl Healthy {
     pub fn status(&self) -> &str {
         &self.status
+    }
+
+    pub fn with_start_time_unix_nano(self, start_time_unix_nano: u64) -> Self {
+        Self {
+            start_time_unix_nano,
+            ..self
+        }
+    }
+
+    pub fn start_time_unix_nano(&self) -> u64 {
+        self.start_time_unix_nano
+    }
+
+    pub fn with_status_time_unix_nano(self, status_time_unix_nano: u64) -> Self {
+        Self {
+            status_time_unix_nano,
+            ..self
+        }
+    }
+
+    pub fn status_time_unix_nano(&self) -> u64 {
+        self.status_time_unix_nano
     }
 }
 
@@ -84,6 +111,8 @@ impl Healthy {
 /// for more details.
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct Unhealthy {
+    pub start_time_unix_nano: u64,
+    pub status_time_unix_nano: u64,
     pub status: String,
     pub last_error: String,
 }
@@ -95,6 +124,28 @@ impl Unhealthy {
 
     pub fn last_error(&self) -> &str {
         &self.last_error
+    }
+
+    pub fn with_start_time_unix_nano(self, start_time_unix_nano: u64) -> Self {
+        Self {
+            start_time_unix_nano,
+            ..self
+        }
+    }
+
+    pub fn start_time_unix_nano(&self) -> u64 {
+        self.start_time_unix_nano
+    }
+
+    pub fn with_status_time_unix_nano(self, status_time_unix_nano: u64) -> Self {
+        Self {
+            status_time_unix_nano,
+            ..self
+        }
+    }
+
+    pub fn status_time_unix_nano(&self) -> u64 {
+        self.status_time_unix_nano
     }
 }
 
@@ -112,13 +163,6 @@ impl Health {
         })
     }
 
-    pub fn status(&self) -> &str {
-        match self {
-            Health::Healthy(healthy) => healthy.status(),
-            Health::Unhealthy(unhealthy) => unhealthy.status(),
-        }
-    }
-
     pub fn is_healthy(&self) -> bool {
         matches!(self, Health::Healthy { .. })
     }
@@ -128,6 +172,49 @@ impl Health {
             Some(unhealthy.last_error())
         } else {
             None
+        }
+    }
+
+    pub fn status(&self) -> &str {
+        match self {
+            Health::Healthy(healthy) => healthy.status(),
+            Health::Unhealthy(unhealthy) => unhealthy.status(),
+        }
+    }
+
+    pub fn with_start_time_unix_nano(self, start_time_unix_nano: u64) -> Self {
+        match self {
+            Health::Healthy(healthy) => {
+                Health::Healthy(healthy.with_status_time_unix_nano(start_time_unix_nano))
+            }
+            Health::Unhealthy(unhealthy) => {
+                Health::Unhealthy(unhealthy.with_status_time_unix_nano(start_time_unix_nano))
+            }
+        }
+    }
+
+    pub fn start_time_unix_nano(&self) -> u64 {
+        match self {
+            Health::Healthy(healthy) => healthy.status_time_unix_nano(),
+            Health::Unhealthy(unhealthy) => unhealthy.status_time_unix_nano(),
+        }
+    }
+
+    pub fn with_status_time_unix_nano(self, status_time_unix_nano: u64) -> Self {
+        match self {
+            Health::Healthy(healthy) => {
+                Health::Healthy(healthy.with_status_time_unix_nano(status_time_unix_nano))
+            }
+            Health::Unhealthy(unhealthy) => {
+                Health::Unhealthy(unhealthy.with_status_time_unix_nano(status_time_unix_nano))
+            }
+        }
+    }
+
+    pub fn status_time_unix_nano(&self) -> u64 {
+        match self {
+            Health::Healthy(healthy) => healthy.status_time_unix_nano(),
+            Health::Unhealthy(unhealthy) => unhealthy.status_time_unix_nano(),
         }
     }
 }
@@ -149,6 +236,12 @@ pub(crate) fn spawn_health_checker<H>(
 ) where
     H: HealthChecker + Send + 'static,
 {
+    let start_time_unix_nano = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .inspect_err(|e| error!("error getting agent start time: {}. Setting to 0", e))
+        .unwrap_or_default()
+        .as_nanos() as u64;
+
     thread::spawn(move || loop {
         thread::sleep(interval.into());
 
@@ -161,13 +254,27 @@ pub(crate) fn spawn_health_checker<H>(
         }
 
         debug!(%agent_id, "starting to check health with the configured checker");
-        match health_checker.check_health() {
-            Ok(health) => publish_health_event(&health_publisher, health.into()),
+        let health = match health_checker.check_health() {
+            Ok(health) => health,
             Err(err) => {
                 debug!(%agent_id, last_error = %err, "the configured health check failed");
-                publish_health_event(&health_publisher, Unhealthy::from(err).into())
+                Unhealthy::from(err).into()
             }
-        }
+        };
+
+        let status_time_unix_nano = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .inspect_err(|e| error!("error getting agent status time: {}. Setting to 0.", e))
+            .unwrap_or_default()
+            .as_nanos() as u64;
+
+        publish_health_event(
+            &health_publisher,
+            health
+                .with_start_time_unix_nano(start_time_unix_nano)
+                .with_status_time_unix_nano(status_time_unix_nano)
+                .into(),
+        );
     });
 }
 
