@@ -17,7 +17,7 @@ use k8s_openapi::serde_json;
 use kube::{api::DynamicObject, core::TypeMeta};
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 use tracing::{debug, error, info, trace};
 
@@ -156,12 +156,19 @@ impl NotStartedSupervisor {
             let k8s_health_checker =
                 SubAgentHealthChecker::try_new(self.k8s_client.clone(), resources)?;
 
+            let start_time_unix_nano = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .inspect_err(|e| error!("error getting agent status time: {}. Setting to 0.", e))
+                .unwrap_or_default()
+                .as_nanos() as u64;
+
             spawn_health_checker(
                 self.agent_id.clone(),
                 k8s_health_checker,
                 stop_health_consumer,
                 health_publisher,
                 health_config.interval,
+                start_time_unix_nano,
             );
             return Ok(Some(stop_health_publisher));
         }

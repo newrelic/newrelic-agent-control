@@ -1,6 +1,7 @@
 use crate::agent_type::health_config::HealthCheckInterval;
 use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::SubAgentInternalEvent;
+use crate::sub_agent::health::with_times::HealthWithTimes;
 use crate::super_agent::config::AgentID;
 use std::thread;
 use std::time::{SystemTime, SystemTimeError, UNIX_EPOCH};
@@ -73,8 +74,6 @@ impl From<HealthCheckerError> for Unhealthy {
 /// for more details.
 #[derive(Debug, Default, Clone)]
 pub struct Healthy {
-    pub start_time_unix_nano: u64,
-    pub status_time_unix_nano: u64,
     pub status: String,
 }
 
@@ -89,28 +88,6 @@ impl Healthy {
     pub fn status(&self) -> &str {
         &self.status
     }
-
-    pub fn with_start_time_unix_nano(self, start_time_unix_nano: u64) -> Self {
-        Self {
-            start_time_unix_nano,
-            ..self
-        }
-    }
-
-    pub fn start_time_unix_nano(&self) -> u64 {
-        self.start_time_unix_nano
-    }
-
-    pub fn with_status_time_unix_nano(self, status_time_unix_nano: u64) -> Self {
-        Self {
-            status_time_unix_nano,
-            ..self
-        }
-    }
-
-    pub fn status_time_unix_nano(&self) -> u64 {
-        self.status_time_unix_nano
-    }
 }
 
 /// Represents the unhealthy state of the agent and its associated data.
@@ -118,8 +95,6 @@ impl Healthy {
 /// for more details.
 #[derive(Debug, Default, Clone)]
 pub struct Unhealthy {
-    pub start_time_unix_nano: u64,
-    pub status_time_unix_nano: u64,
     pub status: String,
     pub last_error: String,
 }
@@ -140,28 +115,6 @@ impl Unhealthy {
 
     pub fn last_error(&self) -> &str {
         &self.last_error
-    }
-
-    pub fn with_start_time_unix_nano(self, start_time_unix_nano: u64) -> Self {
-        Self {
-            start_time_unix_nano,
-            ..self
-        }
-    }
-
-    pub fn start_time_unix_nano(&self) -> u64 {
-        self.start_time_unix_nano
-    }
-
-    pub fn with_status_time_unix_nano(self, status_time_unix_nano: u64) -> Self {
-        Self {
-            status_time_unix_nano,
-            ..self
-        }
-    }
-
-    pub fn status_time_unix_nano(&self) -> u64 {
-        self.status_time_unix_nano
     }
 }
 
@@ -197,42 +150,6 @@ impl Health {
             Health::Unhealthy(unhealthy) => unhealthy.status(),
         }
     }
-
-    pub fn with_start_time_unix_nano(self, start_time_unix_nano: u64) -> Self {
-        match self {
-            Health::Healthy(healthy) => {
-                Health::Healthy(healthy.with_status_time_unix_nano(start_time_unix_nano))
-            }
-            Health::Unhealthy(unhealthy) => {
-                Health::Unhealthy(unhealthy.with_status_time_unix_nano(start_time_unix_nano))
-            }
-        }
-    }
-
-    pub fn start_time_unix_nano(&self) -> u64 {
-        match self {
-            Health::Healthy(healthy) => healthy.status_time_unix_nano(),
-            Health::Unhealthy(unhealthy) => unhealthy.status_time_unix_nano(),
-        }
-    }
-
-    pub fn with_status_time_unix_nano(self, status_time_unix_nano: u64) -> Self {
-        match self {
-            Health::Healthy(healthy) => {
-                Health::Healthy(healthy.with_status_time_unix_nano(status_time_unix_nano))
-            }
-            Health::Unhealthy(unhealthy) => {
-                Health::Unhealthy(unhealthy.with_status_time_unix_nano(status_time_unix_nano))
-            }
-        }
-    }
-
-    pub fn status_time_unix_nano(&self) -> u64 {
-        match self {
-            Health::Healthy(healthy) => healthy.status_time_unix_nano(),
-            Health::Unhealthy(unhealthy) => unhealthy.status_time_unix_nano(),
-        }
-    }
 }
 
 /// A type that implements a health checking mechanism.
@@ -249,15 +166,10 @@ pub(crate) fn spawn_health_checker<H>(
     cancel_signal: EventConsumer<()>,
     health_publisher: EventPublisher<SubAgentInternalEvent>,
     interval: HealthCheckInterval,
+    start_time_unix_nano: u64,
 ) where
     H: HealthChecker + Send + 'static,
 {
-    let start_time_unix_nano = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .inspect_err(|e| error!("error getting agent start time: {}. Setting to 0", e))
-        .unwrap_or_default()
-        .as_nanos() as u64;
-
     thread::spawn(move || loop {
         thread::sleep(interval.into());
 
@@ -286,7 +198,7 @@ pub(crate) fn spawn_health_checker<H>(
 
         publish_health_event(
             &health_publisher,
-            health
+            HealthWithTimes::from(health)
                 .with_start_time_unix_nano(start_time_unix_nano)
                 .with_status_time_unix_nano(status_time_unix_nano)
                 .into(),

@@ -18,6 +18,7 @@ pub(super) async fn status_handler(status: Data<Arc<RwLock<Status>>>) -> impl Re
 #[cfg(test)]
 mod test {
     use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
+    use crate::sub_agent::health::with_times::{HealthyWithTimes, UnhealthyWithTimes};
     use crate::super_agent::config::{AgentID, AgentTypeFQN};
     use crate::super_agent::http_server::status::{Status, SubAgentStatus};
     use crate::super_agent::http_server::status_handler::status_handler;
@@ -37,7 +38,7 @@ mod test {
         let agent_type = AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap();
         let mut sub_agent_status =
             SubAgentStatus::with_id_and_type(agent_id.clone(), agent_type.clone());
-        sub_agent_status.healthy(Healthy::default());
+        sub_agent_status.healthy(HealthyWithTimes::default());
 
         let sub_agents = HashMap::from([(agent_id.clone(), sub_agent_status)]);
 
@@ -75,7 +76,7 @@ mod test {
         let agent_type = AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap();
         let mut sub_agent_status =
             SubAgentStatus::with_id_and_type(agent_id.clone(), agent_type.clone());
-        sub_agent_status.unhealthy(Unhealthy {
+        sub_agent_status.unhealthy(UnhealthyWithTimes {
             last_error: String::from("a sub agent error"),
             ..Default::default()
         });
