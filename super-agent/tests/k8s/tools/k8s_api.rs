@@ -42,7 +42,7 @@ pub async fn check_helmrelease_spec_values(
     expected_valus_as_yaml: &str,
 ) -> Result<(), Box<dyn Error>> {
     let expected_as_json: serde_json::Value = serde_yaml::from_str(expected_valus_as_yaml).unwrap();
-    let gvk = &GroupVersion::from_str("helm.toolkit.fluxcd.io/v2beta2")
+    let gvk = &GroupVersion::from_str("helm.toolkit.fluxcd.io/v2")
         .unwrap()
         .with_kind("HelmRelease");
     let (api_resource, _) = kube::discovery::pinned_kind(&k8s_client, gvk).await?;
