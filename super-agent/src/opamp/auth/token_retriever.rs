@@ -84,7 +84,8 @@ impl TryFrom<AuthConfig> for TokenRetrieverWithCache {
             config.token_url,
             jwt_signer,
             authenticator_config.into(),
-        ))
+        )
+        .with_retries(config.retries))
     }
 }
 
