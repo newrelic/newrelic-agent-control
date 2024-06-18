@@ -71,11 +71,18 @@ impl From<HealthCheckerError> for Unhealthy {
 /// Represents the healthy state of the agent and its associated data.
 /// See OpAMP's [spec](https://github.com/open-telemetry/opamp-spec/blob/main/specification.md#componenthealthstatus)
 /// for more details.
-#[derive(Debug, Default, Clone, PartialEq)]
+#[derive(Debug, Default, Clone)]
 pub struct Healthy {
     pub start_time_unix_nano: u64,
     pub status_time_unix_nano: u64,
     pub status: String,
+}
+
+impl PartialEq for Healthy {
+    fn eq(&self, other: &Self) -> bool {
+        // We cannot expect any two status_time_unix_nano to be equal
+        self.start_time_unix_nano == other.start_time_unix_nano && self.status == other.status
+    }
 }
 
 impl Healthy {
@@ -109,12 +116,21 @@ impl Healthy {
 /// Represents the unhealthy state of the agent and its associated data.
 /// See OpAMP's [spec](https://github.com/open-telemetry/opamp-spec/blob/main/specification.md#componenthealthstatus)
 /// for more details.
-#[derive(Debug, Default, Clone, PartialEq)]
+#[derive(Debug, Default, Clone)]
 pub struct Unhealthy {
     pub start_time_unix_nano: u64,
     pub status_time_unix_nano: u64,
     pub status: String,
     pub last_error: String,
+}
+
+impl PartialEq for Unhealthy {
+    fn eq(&self, other: &Self) -> bool {
+        // We cannot expect any two status_time_unix_nano to be equal
+        self.start_time_unix_nano == other.start_time_unix_nano
+            && self.status == other.status
+            && self.last_error == other.last_error
+    }
 }
 
 impl Unhealthy {
