@@ -1,5 +1,43 @@
+mod one_shot_operation;
+
 use clap::Parser;
+use one_shot_operation::OneShotCommand;
 use std::path::PathBuf;
+use thiserror::Error;
+use tracing::info;
+
+use crate::{
+    logging::config::{FileLoggerGuard, LoggingError},
+    super_agent::{
+        config::SuperAgentConfigError,
+        config_storer::{loader_storer::SuperAgentConfigLoader, store::SuperAgentConfigStore},
+        run::{set_debug_dirs, SuperAgentRunConfig},
+    },
+    utils::binary_metadata::binary_metadata,
+};
+
+/// Represents all the data structures that can be created from the CLI
+pub struct SuperAgentCliConfig {
+    pub run_config: SuperAgentRunConfig,
+    pub file_logger_guard: FileLoggerGuard,
+}
+
+#[derive(Debug, Error)]
+pub enum CliError {
+    #[error("Could not read Super Agent config: `{0}`")]
+    ConfigRead(#[from] SuperAgentConfigError),
+    #[error("Could not initialize logging: `{0}`")]
+    LoggingInit(#[from] LoggingError),
+}
+
+/// What action was requested from the CLI?
+pub enum CliCommand {
+    /// Normal operation requested. Get the required config and continue.
+    InitSuperAgent(SuperAgentCliConfig),
+    /// Do an "one-shot" operation and exit successfully.
+    /// In the future, many different operations could be added here.
+    OneShot(OneShotCommand),
+}
 
 #[derive(Parser, Debug)]
 #[command(author, about, long_about = None)] // Read from `Cargo.toml`
@@ -42,21 +80,66 @@ pub struct Cli {
 }
 
 impl Cli {
-    /// Parses command line arguments
-    pub fn init_super_agent_cli() -> Self {
+    /// Parses command line arguments and decides how the application runs
+    pub fn init() -> Result<CliCommand, CliError> {
         // Get command line args
-        Self::parse()
+        let cli = Self::parse();
+
+        // Initialize debug directories (if set)
+        #[cfg(debug_assertions)]
+        set_debug_dirs(&cli);
+
+        // If the version flag is set, print the version and exit
+        if cli.print_version() {
+            return Ok(CliCommand::OneShot(OneShotCommand::PrintVersion));
+        }
+        if cli.print_debug_info() {
+            return Ok(CliCommand::OneShot(OneShotCommand::PrintDebugInfo(cli)));
+        }
+
+        let config_storer = SuperAgentConfigStore::new(&cli.get_config_path());
+
+        let super_agent_config = config_storer.load().inspect_err(|err| {
+            println!(
+                "Could not read Super Agent config from {}: {}",
+                config_storer.config_path().to_string_lossy(),
+                err
+            )
+        })?;
+
+        let file_logger_guard = super_agent_config.log.try_init()?;
+        info!("{}", binary_metadata());
+        info!(
+            "Starting NewRelic Super Agent with config '{}'",
+            config_storer.config_path().to_string_lossy()
+        );
+
+        let opamp = super_agent_config.opamp;
+        let http_server = super_agent_config.server;
+
+        let run_config = SuperAgentRunConfig {
+            config_storer,
+            opamp,
+            http_server,
+        };
+
+        let cli_config = SuperAgentCliConfig {
+            run_config,
+            file_logger_guard,
+        };
+
+        Ok(CliCommand::InitSuperAgent(cli_config))
     }
 
-    pub fn get_config_path(&self) -> PathBuf {
+    fn get_config_path(&self) -> PathBuf {
         PathBuf::from(&self.config)
     }
 
-    pub fn print_version(&self) -> bool {
+    fn print_version(&self) -> bool {
         self.version
     }
 
-    pub fn print_debug_info(&self) -> bool {
+    fn print_debug_info(&self) -> bool {
         self.print_debug_info
     }
 }

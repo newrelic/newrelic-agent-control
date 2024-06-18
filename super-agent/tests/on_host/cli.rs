@@ -1,4 +1,9 @@
-use std::{fs::File, io::Write, path::PathBuf};
+use std::{
+    fs::File,
+    io::Write,
+    path::{Path, PathBuf},
+    time::Duration,
+};
 
 use assert_cmd::Command;
 use predicates::prelude::predicate;
@@ -16,6 +21,14 @@ pub fn create_temp_file(
     let mut file = File::create(&file_path)?;
     writeln!(file, "{data}")?;
     Ok(file_path)
+}
+
+pub fn cmd_with_config_file(file_path: &Path) -> Command {
+    let mut cmd = Command::cargo_bin("newrelic-super-agent").unwrap();
+    cmd.arg("--config").arg(file_path);
+    // cmd_assert is not made for long running programs, so we kill it anyway after 1 second
+    cmd.timeout(Duration::from_secs(3));
+    cmd
 }
 
 #[test]

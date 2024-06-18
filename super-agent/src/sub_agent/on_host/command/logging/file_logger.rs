@@ -75,7 +75,7 @@ pub struct FileLogger {
     _guard: WorkerGuard,
 }
 
-pub struct LoggerGuard {
+pub struct SubAgentLoggerGuard {
     _default_guard: DefaultGuard,
     _worker_guard: WorkerGuard,
 }
@@ -83,9 +83,9 @@ pub struct LoggerGuard {
 impl FileLogger {
     /// Enables file logging for the current thread. This disables the global logger defined previously.
     /// To restore the previous global logger, the returned guard must be dropped.
-    pub fn set_file_logging(self) -> LoggerGuard {
+    pub fn set_file_logging(self) -> SubAgentLoggerGuard {
         let default_guard = tracing::subscriber::set_default(self.file_subscriber);
-        LoggerGuard {
+        SubAgentLoggerGuard {
             _default_guard: default_guard,
             _worker_guard: self._guard,
         }
