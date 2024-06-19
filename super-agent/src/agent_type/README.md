@@ -102,7 +102,7 @@ Note that `file` and `map[string]file` variable types can be used just for `on_h
 
 ## Deployment
 
-The deployment section indicates how the agent should be executed or checked for health.
+The deployment section indicates how the agent should be executed and its health should be checked.
 
 Note you can reference the variables defined in the `variables` section using `${nr-var:variable_name}`. And this is valid for nested variables as well: following the example above, you would be able to use `${nr-var:log.info}`.
 
