@@ -1,3 +1,5 @@
+use tracing::debug;
+
 use super::health_checker::{Health, Healthy, Unhealthy};
 
 #[derive(Debug, PartialEq)]
@@ -95,12 +97,25 @@ impl HealthWithTimes {
             HealthWithTimes::Unhealthy(unhealthy) => unhealthy.status_time_unix_nano(),
         }
     }
+
+    pub fn is_same_without_times(&self, other: &Self) -> bool {
+        match (self, other) {
+            (HealthWithTimes::Healthy(healthy), HealthWithTimes::Healthy(other_healthy)) => {
+                healthy.is_same_without_times(other_healthy)
+            }
+            (
+                HealthWithTimes::Unhealthy(unhealthy),
+                HealthWithTimes::Unhealthy(other_unhealthy),
+            ) => unhealthy.is_same_without_times(other_unhealthy),
+            _ => false,
+        }
+    }
 }
 
 /// Represents the healthy state of the agent and its associated data.
 /// See OpAMP's [spec](https://github.com/open-telemetry/opamp-spec/blob/main/specification.md#componenthealthstatus)
 /// for more details.
-#[derive(Debug, Default, Clone, PartialEq)]
+#[derive(Debug, Default, Clone)]
 pub struct HealthyWithTimes {
     pub start_time_unix_nano: u64,
     pub status_time_unix_nano: u64,
@@ -111,8 +126,19 @@ impl From<Healthy> for HealthyWithTimes {
     fn from(healthy: Healthy) -> Self {
         Self {
             status: healthy.status,
+            status_time_unix_nano: healthy.status_time_unix_nano.unwrap_or_else(|| {
+                debug!("Healthy status without status_time_unix_nano. Setting to 0");
+                Default::default()
+            }),
             ..Default::default()
         }
+    }
+}
+
+impl PartialEq for HealthyWithTimes {
+    fn eq(&self, other: &Self) -> bool {
+        // We cannot expect the `status_time_unix_nano` to be the same across different instances.
+        self.status == other.status && self.start_time_unix_nano == other.start_time_unix_nano
     }
 }
 
@@ -142,12 +168,16 @@ impl HealthyWithTimes {
     pub fn status_time_unix_nano(&self) -> u64 {
         self.status_time_unix_nano
     }
+
+    pub fn is_same_without_times(&self, other: &Self) -> bool {
+        self.status == other.status
+    }
 }
 
 /// Represents the unhealthy state of the agent and its associated data.
 /// See OpAMP's [spec](https://github.com/open-telemetry/opamp-spec/blob/main/specification.md#componenthealthstatus)
 /// for more details.
-#[derive(Debug, Default, Clone, PartialEq)]
+#[derive(Debug, Default, Clone)]
 pub struct UnhealthyWithTimes {
     pub start_time_unix_nano: u64,
     pub status_time_unix_nano: u64,
@@ -159,8 +189,22 @@ impl From<Unhealthy> for UnhealthyWithTimes {
     fn from(unhealthy: Unhealthy) -> Self {
         Self {
             last_error: unhealthy.last_error,
+            status: unhealthy.status,
+            status_time_unix_nano: unhealthy.status_time_unix_nano.unwrap_or_else(|| {
+                debug!("Unhealthy status without status_time_unix_nano. Setting to 0");
+                Default::default()
+            }),
             ..Default::default()
         }
+    }
+}
+
+impl PartialEq for UnhealthyWithTimes {
+    fn eq(&self, other: &Self) -> bool {
+        // We cannot expect the `status_time_unix_nano` to be the same across different instances.
+        self.last_error == other.last_error
+            && self.status == other.status
+            && self.start_time_unix_nano == other.start_time_unix_nano
     }
 }
 
@@ -193,5 +237,9 @@ impl UnhealthyWithTimes {
 
     pub fn status_time_unix_nano(&self) -> u64 {
         self.status_time_unix_nano
+    }
+
+    pub fn is_same_without_times(&self, other: &Self) -> bool {
+        self.last_error == other.last_error && self.status == other.status
     }
 }

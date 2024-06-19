@@ -1,10 +1,10 @@
 use crate::context::Context;
 use crate::event::channel::{pub_sub, EventPublisher};
 use crate::event::SubAgentInternalEvent;
+use crate::sub_agent::health::health_checker::Unhealthy;
 use crate::sub_agent::health::health_checker::{publish_health_event, spawn_health_checker};
-use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
 use crate::sub_agent::health::on_host::http::HealthCheckerType;
-use crate::sub_agent::health::with_times::{HealthyWithTimes, UnhealthyWithTimes};
+use crate::sub_agent::health::with_start_time::{HealthyWithTimes, UnhealthyWithTimes};
 use crate::sub_agent::on_host::command::command::{
     CommandError, CommandTerminator, NotStartedCommand, StartedCommand,
 };
@@ -190,23 +190,26 @@ impl SupervisorOnHost<NotStarted> {
                     if restart_policy.backoff != BackoffStrategy::None {
                         warn!("supervisor for {id} won't restart anymore due to having exceeded its restart policy");
 
-                        let status_time_unix_nano = SystemTime::now()
-                            .duration_since(UNIX_EPOCH)
-                            .inspect_err(|e| {
-                                error!("error getting agent status time: {}. Setting to 0.", e)
-                            })
-                            .unwrap_or_default()
-                            .as_nanos() as u64;
+                        let status_time_unix_nano = Some(
+                            SystemTime::now()
+                                .duration_since(UNIX_EPOCH)
+                                .inspect_err(|e| {
+                                    error!("error getting agent status time: {}. Setting to 0.", e)
+                                })
+                                .unwrap_or_default()
+                                .as_nanos() as u64,
+                        );
 
                         publish_health_event(
                             &internal_event_publisher,
                             UnhealthyWithTimes::from(Unhealthy {
+                                status: "supervisor exceeded its defined restart policy"
+                                    .to_string(),
                                 last_error: "supervisor exceeded its defined restart policy"
                                     .to_string(),
-                                ..Default::default()
+                                status_time_unix_nano,
                             })
                             .with_start_time_unix_nano(start_time_unix_nano)
-                            .with_status_time_unix_nano(status_time_unix_nano)
                             .into(),
                         );
                     }
@@ -471,17 +474,30 @@ pub mod sleep_supervisor_tests {
             thread::sleep(Duration::from_millis(15));
         }
 
+        // Fix the start times to allow comparison
+        let start_time_unix_nano = 123u64;
+
         // It starts once and restarts 3 times, hence 4 healthy events and a final unhealthy one
         let expected_ordered_events: Vec<SubAgentInternalEvent> = {
             vec![
-                HealthyWithTimes::from(Healthy::default()).into(),
-                HealthyWithTimes::from(Healthy::default()).into(),
-                HealthyWithTimes::from(Healthy::default()).into(),
-                HealthyWithTimes::from(Healthy::default()).into(),
+                HealthyWithTimes::from(Healthy::default())
+                    .with_start_time_unix_nano(start_time_unix_nano)
+                    .into(),
+                HealthyWithTimes::from(Healthy::default())
+                    .with_start_time_unix_nano(start_time_unix_nano)
+                    .into(),
+                HealthyWithTimes::from(Healthy::default())
+                    .with_start_time_unix_nano(start_time_unix_nano)
+                    .into(),
+                HealthyWithTimes::from(Healthy::default())
+                    .with_start_time_unix_nano(start_time_unix_nano)
+                    .into(),
                 UnhealthyWithTimes::from(Unhealthy {
                     last_error: "supervisor exceeded its defined restart policy".to_string(),
+                    status: "supervisor exceeded its defined restart policy".to_string(),
                     ..Default::default()
                 })
+                .with_start_time_unix_nano(start_time_unix_nano)
                 .into(),
             ]
         };
@@ -489,9 +505,18 @@ pub mod sleep_supervisor_tests {
         let actual_ordered_events = sub_agent_internal_consumer
             .as_ref()
             .iter()
+            .map(|event| match event {
+                SubAgentInternalEvent::AgentBecameHealthy(healthy) => healthy
+                    .with_start_time_unix_nano(start_time_unix_nano)
+                    .into(),
+                SubAgentInternalEvent::AgentBecameUnhealthy(unhealthy) => unhealthy
+                    .with_start_time_unix_nano(start_time_unix_nano)
+                    .into(),
+                e => e,
+            })
             .collect::<Vec<_>>();
 
-        assert_eq!(expected_ordered_events, actual_ordered_events);
+        assert_eq!(actual_ordered_events, expected_ordered_events);
     }
 
     #[test]

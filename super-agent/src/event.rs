@@ -3,7 +3,7 @@ pub mod channel;
 /// EVENTS
 use crate::opamp::{LastErrorCode, LastErrorMessage};
 use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
-use crate::sub_agent::health::with_times::{HealthWithTimes, HealthyWithTimes, UnhealthyWithTimes};
+use crate::sub_agent::health::with_start_time::{HealthWithTimes, HealthyWithTimes, UnhealthyWithTimes};
 use crate::super_agent::config::AgentTypeFQN;
 use crate::{opamp::remote_config::RemoteConfig, super_agent::config::AgentID};
 

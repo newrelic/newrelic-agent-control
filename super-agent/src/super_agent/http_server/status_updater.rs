@@ -130,6 +130,7 @@ mod test {
                 _name: "Unhealthy Super Agent becomes healthy",
                 super_agent_event: SuperAgentBecameHealthy(Healthy {
                     status: "some status".to_string(),
+                    ..Default::default()
                 }),
                 current_status: Arc::new(RwLock::new(Status {
                     super_agent: SuperAgentStatus::new_unhealthy(
@@ -150,6 +151,7 @@ mod test {
                 super_agent_event: SuperAgentBecameUnhealthy(Unhealthy {
                     last_error: "some error message for super agent unhealthy".to_string(),
                     status: "some status".to_string(),
+                    ..Default::default()
                 }),
                 current_status: Arc::new(RwLock::new(Status {
                     super_agent: SuperAgentStatus::new_healthy(String::from("some status")),

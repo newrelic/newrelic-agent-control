@@ -1,7 +1,7 @@
 use crate::agent_type::health_config::HealthCheckInterval;
 use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::SubAgentInternalEvent;
-use crate::sub_agent::health::with_times::HealthWithTimes;
+use crate::sub_agent::health::with_start_time::HealthWithTimes;
 use crate::super_agent::config::AgentID;
 use std::thread;
 use std::time::{SystemTime, SystemTimeError, UNIX_EPOCH};
@@ -41,6 +41,47 @@ pub enum HealthCheckerError {
     K8sError(#[from] k8s::Error),
 }
 
+impl Health {
+    pub fn unhealthy_with_last_error(last_error: String) -> Self {
+        Self::Unhealthy(Unhealthy {
+            last_error,
+            ..Default::default()
+        })
+    }
+
+    pub fn healthy() -> Self {
+        Self::Healthy(Healthy {
+            ..Default::default()
+        })
+    }
+
+    pub fn is_healthy(&self) -> bool {
+        matches!(self, Health::Healthy { .. })
+    }
+
+    pub fn last_error(&self) -> Option<&str> {
+        if let Health::Unhealthy(unhealthy) = self {
+            Some(unhealthy.last_error())
+        } else {
+            None
+        }
+    }
+
+    pub fn status(&self) -> &str {
+        match self {
+            Health::Healthy(healthy) => healthy.status(),
+            Health::Unhealthy(unhealthy) => unhealthy.status(),
+        }
+    }
+
+    pub fn status_time_unix_nano(&self) -> Option<u64> {
+        match self {
+            Health::Healthy(healthy) => healthy.status_time_unix_nano(),
+            Health::Unhealthy(unhealthy) => unhealthy.status_time_unix_nano(),
+        }
+    }
+}
+
 impl From<Healthy> for Health {
     fn from(healthy: Healthy) -> Self {
         Health::Healthy(healthy)
@@ -74,6 +115,7 @@ impl From<HealthCheckerError> for Unhealthy {
 /// for more details.
 #[derive(Debug, Default, Clone)]
 pub struct Healthy {
+    pub status_time_unix_nano: Option<u64>,
     pub status: String,
 }
 
@@ -88,6 +130,10 @@ impl Healthy {
     pub fn status(&self) -> &str {
         &self.status
     }
+
+    pub fn status_time_unix_nano(&self) -> Option<u64> {
+        self.status_time_unix_nano
+    }
 }
 
 /// Represents the unhealthy state of the agent and its associated data.
@@ -95,6 +141,7 @@ impl Healthy {
 /// for more details.
 #[derive(Debug, Default, Clone)]
 pub struct Unhealthy {
+    pub status_time_unix_nano: Option<u64>,
     pub status: String,
     pub last_error: String,
 }
@@ -116,39 +163,9 @@ impl Unhealthy {
     pub fn last_error(&self) -> &str {
         &self.last_error
     }
-}
 
-impl Health {
-    pub fn unhealthy_with_last_error(last_error: String) -> Self {
-        Self::Unhealthy(Unhealthy {
-            last_error,
-            ..Default::default()
-        })
-    }
-
-    pub fn healthy() -> Self {
-        Self::Healthy(Healthy {
-            ..Default::default()
-        })
-    }
-
-    pub fn is_healthy(&self) -> bool {
-        matches!(self, Health::Healthy { .. })
-    }
-
-    pub fn last_error(&self) -> Option<&str> {
-        if let Health::Unhealthy(unhealthy) = self {
-            Some(unhealthy.last_error())
-        } else {
-            None
-        }
-    }
-
-    pub fn status(&self) -> &str {
-        match self {
-            Health::Healthy(healthy) => healthy.status(),
-            Health::Unhealthy(unhealthy) => unhealthy.status(),
-        }
+    pub fn status_time_unix_nano(&self) -> Option<u64> {
+        self.status_time_unix_nano
     }
 }
 
@@ -190,11 +207,15 @@ pub(crate) fn spawn_health_checker<H>(
             }
         };
 
-        let status_time_unix_nano = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .inspect_err(|e| error!("error getting agent status time: {}. Setting to 0.", e))
-            .unwrap_or_default()
-            .as_nanos() as u64;
+        // If the health check implementation did not provide a status_time_unix_nano,
+        // we attempt to set the time now.
+        let status_time_unix_nano = health.status_time_unix_nano().unwrap_or_else(|| {
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .inspect_err(|e| error!("error getting agent status time: {}. Setting to 0.", e))
+                .unwrap_or_default()
+                .as_nanos() as u64
+        });
 
         publish_health_event(
             &health_publisher,

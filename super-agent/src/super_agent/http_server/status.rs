@@ -1,6 +1,6 @@
 use crate::opamp::{LastErrorCode, LastErrorMessage};
 use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
-use crate::sub_agent::health::with_times::{HealthyWithTimes, UnhealthyWithTimes};
+use crate::sub_agent::health::with_start_time::{HealthyWithTimes, UnhealthyWithTimes};
 use crate::super_agent::config::{AgentID, AgentTypeFQN};
 use serde::Serialize;
 use std::collections::hash_map::Entry;
