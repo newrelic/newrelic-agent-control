@@ -12,7 +12,6 @@ use crate::sub_agent::health::health_checker::{
 };
 use crate::sub_agent::health::k8s::health_checker::SubAgentHealthChecker;
 use crate::super_agent::config::{AgentID, AgentTypeFQN};
-use crossbeam::select;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use k8s_openapi::serde_json;
 use kube::{api::DynamicObject, core::TypeMeta};
@@ -136,13 +135,10 @@ impl NotStartedSupervisor {
             {
                 log_and_report_unhealthy(&health_publisher, &err, "k8s resources apply failed");
             }
-            // Check for stop signal while waiting for next interval
-            select! {
-                recv(stop_consumer.as_ref()) -> _ => {
-                    info!(%agent_id, "k8s objects supervisor stopped");
-                    break;
-                },
-                default(interval) => {},
+            // Check the cancellation signal
+            if stop_consumer.is_cancelled(interval) {
+                info!(%agent_id, "k8s objects supervisor stopped");
+                break;
             }
         });
 

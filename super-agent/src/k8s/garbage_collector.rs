@@ -1,4 +1,6 @@
 use super::labels::{Labels, AGENT_ID_LABEL_KEY};
+use crate::event::cancellation::CancellationMessage;
+use crate::event::channel::{pub_sub, EventPublisher};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::error::GarbageCollectorK8sError;
@@ -10,10 +12,6 @@ use crate::k8s::{annotations, labels};
 use crate::super_agent::config::{AgentID, AgentTypeFQN, SubAgentsMap};
 use crate::super_agent::config_storer::loader_storer::SuperAgentDynamicConfigLoader;
 use crate::super_agent::defaults::SUPER_AGENT_ID;
-use crossbeam::{
-    channel::{tick, unbounded, Sender},
-    select,
-};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use std::{sync::Arc, thread, time::Duration};
 use tracing::{debug, info, trace, warn};
@@ -34,7 +32,7 @@ where
 }
 
 pub struct K8sGarbageCollectorStarted {
-    stop_tx: Sender<()>,
+    stop_tx: EventPublisher<CancellationMessage>,
     handle: thread::JoinHandle<()>,
 }
 
@@ -43,7 +41,7 @@ impl K8sGarbageCollectorStarted {
         self.handle.is_finished()
     }
     fn stop(&self) {
-        let _ = self.stop_tx.send(());
+        let _ = self.stop_tx.publish(());
         while !self.handle.is_finished() {
             thread::sleep(Duration::from_millis(GRACEFUL_STOP_RETRY_INTERVAL_MS))
         }
@@ -81,17 +79,17 @@ where
             "k8s garbage collector started, executed each {} seconds",
             self.interval.as_secs()
         );
-        let (stop_tx, stop_rx) = unbounded();
+        let (stop_tx, stop_rx) = pub_sub();
         let interval = self.interval;
 
         let handle = thread::spawn(move || {
             loop {
-                select! {
-                    recv(stop_rx)-> _ => break,
-                    default(interval) => {
-                        let _ = self.collect().inspect_err(|err| warn!("executing garbage collection: {err}"));
-                    },
+                if stop_rx.is_cancelled(interval) {
+                    break;
                 }
+                let _ = self
+                    .collect()
+                    .inspect_err(|err| warn!("executing garbage collection: {err}"));
             }
             info!("k8s garbage collector stopped");
         });

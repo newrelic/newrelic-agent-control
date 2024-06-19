@@ -1,8 +1,8 @@
 use crate::agent_type::health_config::HealthCheckInterval;
+use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::SubAgentInternalEvent;
 use crate::super_agent::config::AgentID;
-use crossbeam::select;
 use std::thread;
 use tracing::{debug, error};
 
@@ -144,19 +144,15 @@ pub trait HealthChecker {
 pub(crate) fn spawn_health_checker<H>(
     agent_id: AgentID,
     health_checker: H,
-    cancel_signal: EventConsumer<()>,
+    cancel_signal: EventConsumer<CancellationMessage>,
     health_publisher: EventPublisher<SubAgentInternalEvent>,
     interval: HealthCheckInterval,
 ) where
     H: HealthChecker + Send + 'static,
 {
     thread::spawn(move || loop {
-        // Check cancellation signal until the interval times-out.
-        // As we don't need any data to be sent, the `publish` call of the sender only sends `()`
-        // and we don't check for data here.
-        select! {
-            recv(cancel_signal.as_ref()) -> _ => break,
-            default(interval.into()) => {},
+        if cancel_signal.is_cancelled(interval.into()) {
+            break;
         }
         debug!(%agent_id, "starting to check health with the configured checker");
         match health_checker.check_health() {
