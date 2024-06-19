@@ -102,7 +102,7 @@ deployment:
 
 Note that the actual Infra Agent configuration `config_agent` is a variable whose yaml content is saved in a specific file defined by the Agent Type creator through a variable attribute `file_path`.
 
-Current Agent Types can be found [here](../../agent-type-registry/README.md).
+Current Agent Types can be found [here](../super-agent/agent-type-registry).
 
 ℹ️ Refer to the [agent type](../super-agent/src/agent_type/README.md) implementation for the full definition of `variables` and `deployment` as well as a development guideline.
 
