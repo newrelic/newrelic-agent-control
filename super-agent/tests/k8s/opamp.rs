@@ -1,5 +1,6 @@
 use crate::common::{
     opamp::{ConfigResponse, FakeServer},
+    retry::retry,
     runtime::block_on,
 };
 
@@ -7,7 +8,6 @@ use super::tools::{
     instance_id,
     k8s_api::{check_deployments_exist, check_helmrelease_spec_values},
     k8s_env::K8sEnv,
-    retry,
     super_agent::{
         start_super_agent_with_testdata_config, wait_until_super_agent_with_opamp_is_started,
     },

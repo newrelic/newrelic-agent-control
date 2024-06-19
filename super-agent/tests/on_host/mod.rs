@@ -5,6 +5,8 @@ mod consts;
 mod id;
 mod logging;
 mod opamp_auth;
+mod remote_config;
 mod restarting_processes;
 mod supervisor;
+mod tools;
 mod values_repository;
