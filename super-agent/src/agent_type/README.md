@@ -23,7 +23,7 @@ The metadata fields can't be empty:
 
 ## Variables
 
-The variables section allows developers to define variables that end users canm set. These variables can adjust the agent's or system's configuration.
+The variables section allows developers to define variables that end users can set. These variables can adjust the agent's or system's configuration.
 
 ```yaml
 variables:
@@ -57,8 +57,7 @@ variables:
 ```
 
 Variables can be classified based on their applicable environments:
-* `on_host`: Refers to variables utilized in on host
-* environments.
+* `on_host`: Refers to variables utilized in on host environments.
 * `k8s`: Applies to variables used within Kubernetes clusters.
 * `common`: For variables that are environment-agnostic.
 
@@ -90,7 +89,7 @@ Moreover, file type variables possess an additional attribute:
 
 In terms of variable types, we currently support the following types listed [here](variable/kind.rs#L14):
 
-* `string`: A string value, such "Hello, world!"
+* `string`: A string value, such as "Hello, world!"
 * `number`: An numeric value, such as 42 or 0.25
 * `boolean`: A boolean value, which can be either *true* or *false*
 * `file`: It represents a file in the filesystem.

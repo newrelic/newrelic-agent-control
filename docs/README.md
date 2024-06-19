@@ -131,7 +131,7 @@ agents:
     agent_type: "newrelic/infra-agent:0.1.0"
 ```
 
-- `opamp` defines the required attributes to establish the connection with backend.
+- `opamp` defines the required attributes to establish the connection with the backend.
 - `agents` defines which agents should be running on the target environment. A built-in or custom agent type and version definition is expected. 
 
 ### Agent Values File
@@ -195,7 +195,7 @@ The Super Agent parses both its own configuration and agents values files to rep
 * Files under `/etc/newrelic-super-agent`  are used for local configuration. These are provisioned by the customer using Ansible like tools.
 * Files under `/var/lib/newrelic-super-agent/fleet`  are used for remote configuration. These are centrally managed through New Relic fleet control, offering streamlined control for large-scale deployments.
 
-The Super Agent generates actual agent configuration files and place these under `/var/lib/newrelic-super-agent/auto-generated` after processing Agent Type + Agent Values. 
+The Super Agent generates actual agent configuration files and places these under `/var/lib/newrelic-super-agent/auto-generated` after processing Agent Type + Agent Values. 
 
 ### OpAMP Capabilities
 
@@ -205,14 +205,14 @@ Users can disable remote management just by commenting the `opamp` section in th
 
 ### Agents Health Reporting
 
-Following OpAMP specs, each Supervisor sends a AgentToServer message to Fleet Management after any health change. 
+Following OpAMP specs, each Supervisor sends an AgentToServer message to Fleet Management after any health change. 
 
 The message includes a detailed ComponentHealth structure containing information such as the agent's health status, start time, last error, etc. 
 
 On an unhealthy check, the Super Agent:
 * Logs an error.
 * Creates an internal data structure for health that follows the Opamp specs including:
-  * A boolean set to `true` if agent is up and healthy.
+  * A boolean is set to `true` if the agent is up and healthy.
   * `last_error` seen, which corresponds with the previously logged message.
   * A human readable `status` that takes the full response of the defined interface.
   * A timestamp.
@@ -234,7 +234,7 @@ The Super Agent currently only supports a HTTP interface (just because this is h
 
 If the Agent Type does not declare its health interface, the Supervisor uses its restart policy violations as a fallback. In this case, an unhealthy message is sent when the maximum number of retries has been reached. 
 
-In **Kubernetes**, we are leveraging health check to its ecosystem because K8s already offers many built-in mechanisms to check the health of k8s objects. Therefore, the health information is got from the k8s objects related to each agent. Currently, only the interval can be configured in the Agent Type, but we could offer the customer the possibility of selecting what information should be retrieved in the future.
+In **Kubernetes**, we are leveraging health checks to its ecosystem because K8s already offers many built-in mechanisms to check the health of k8s objects. Therefore, the health information is obtained from the k8s objects related to each agent. Currently, only the interval can be configured in the Agent Type, but we could offer the customer the possibility of selecting what information should be retrieved in the future.
 
 ℹ️ Again, refer to the [agent type](../super-agent/src/agent_type/README.md) development guide to know more. 
 
