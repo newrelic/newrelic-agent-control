@@ -1,5 +1,6 @@
 use crate::opamp::{LastErrorCode, LastErrorMessage};
 use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
+use crate::sub_agent::health::with_start_time::{HealthyWithTimes, UnhealthyWithTimes};
 use crate::super_agent::config::{AgentID, AgentTypeFQN};
 use serde::Serialize;
 use std::collections::hash_map::Entry;
@@ -109,6 +110,8 @@ pub(super) struct SubAgentStatus {
     last_error: Option<String>,
     #[serde(skip_serializing_if = "String::is_empty")]
     status: String,
+    start_time_unix_nano: u64,
+    status_time_unix_nano: u64,
 }
 
 impl SubAgentStatus {
@@ -119,23 +122,29 @@ impl SubAgentStatus {
             healthy: false,
             last_error: None,
             status: String::default(),
+            start_time_unix_nano: 0,
+            status_time_unix_nano: 0,
         }
     }
 
     // This struct only has context inside the Sub Agents struct, so it makes it easier to interact
     // if we make it mutable
-    pub fn healthy(&mut self, healthy: Healthy) {
+    pub fn healthy(&mut self, healthy: HealthyWithTimes) {
         self.healthy = true;
         self.last_error = None;
         self.status = healthy.status;
+        self.start_time_unix_nano = healthy.start_time_unix_nano;
+        self.status_time_unix_nano = healthy.status_time_unix_nano;
     }
 
     // This struct only has context inside the Sub Agents struct, so it makes it easier to interact
     // if we make it mutable
-    pub fn unhealthy(&mut self, unhealthy: Unhealthy) {
+    pub fn unhealthy(&mut self, unhealthy: UnhealthyWithTimes) {
         self.healthy = false;
         self.last_error = unhealthy.last_error.into();
         self.status = unhealthy.status;
+        self.start_time_unix_nano = unhealthy.start_time_unix_nano;
+        self.status_time_unix_nano = unhealthy.status_time_unix_nano;
     }
 }
 
@@ -244,6 +253,8 @@ pub mod test {
             status: String,
             healthy: bool,
             last_error: Option<String>,
+            start_time_unix_nano: u64,
+            status_time_unix_nano: u64,
         ) -> Self {
             SubAgentStatus {
                 agent_id,
@@ -251,6 +262,8 @@ pub mod test {
                 status,
                 healthy,
                 last_error,
+                start_time_unix_nano,
+                status_time_unix_nano,
             }
         }
 

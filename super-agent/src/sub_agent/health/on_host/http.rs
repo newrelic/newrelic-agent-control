@@ -5,6 +5,7 @@ use crate::sub_agent::health::health_checker::{
     Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
 use std::collections::HashMap;
+use std::time::{SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 use tracing::error;
 use url::Url;
@@ -132,12 +133,18 @@ impl<C: HttpClient> HealthChecker for HttpHealthChecker<C> {
 
         let status = String::from_utf8_lossy(response.body()).into();
 
+        // If cannot get time, set to `None` and continue
+        let status_time_unix_nano = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .ok()
+            .map(|t| t.as_nanos() as u64);
+
         if (self.healthy_status_codes.is_empty() && status_code.is_success())
             || self.healthy_status_codes.contains(&status_code.as_u16())
         {
             return Ok(Healthy {
                 status,
-                ..Default::default()
+                status_time_unix_nano,
             }
             .into());
         }
@@ -150,7 +157,7 @@ impl<C: HttpClient> HealthChecker for HttpHealthChecker<C> {
         Ok(Unhealthy {
             status,
             last_error,
-            ..Default::default()
+            status_time_unix_nano,
         }
         .into())
     }

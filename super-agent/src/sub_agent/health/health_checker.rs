@@ -2,6 +2,7 @@ use crate::agent_type::health_config::HealthCheckInterval;
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::SubAgentInternalEvent;
+use crate::sub_agent::health::with_start_time::HealthWithTimes;
 use crate::super_agent::config::AgentID;
 use std::thread;
 use std::time::{SystemTime, SystemTimeError, UNIX_EPOCH};
@@ -41,131 +42,6 @@ pub enum HealthCheckerError {
     K8sError(#[from] k8s::Error),
 }
 
-impl From<Healthy> for Health {
-    fn from(healthy: Healthy) -> Self {
-        Health::Healthy(healthy)
-    }
-}
-
-impl From<Unhealthy> for Health {
-    fn from(unhealthy: Unhealthy) -> Self {
-        Health::Unhealthy(unhealthy)
-    }
-}
-
-/// A HealthCheckerError also means the agent is unhealthy.
-impl From<HealthCheckerError> for Health {
-    fn from(err: HealthCheckerError) -> Self {
-        Health::Unhealthy(err.into())
-    }
-}
-
-impl From<HealthCheckerError> for Unhealthy {
-    fn from(err: HealthCheckerError) -> Self {
-        Unhealthy {
-            last_error: format!("Health check error: {}", err),
-            ..Default::default()
-        }
-    }
-}
-
-/// Represents the healthy state of the agent and its associated data.
-/// See OpAMP's [spec](https://github.com/open-telemetry/opamp-spec/blob/main/specification.md#componenthealthstatus)
-/// for more details.
-#[derive(Debug, Default, Clone)]
-pub struct Healthy {
-    pub start_time_unix_nano: u64,
-    pub status_time_unix_nano: u64,
-    pub status: String,
-}
-
-impl PartialEq for Healthy {
-    fn eq(&self, other: &Self) -> bool {
-        // We cannot expect any two status_time_unix_nano to be equal
-        self.start_time_unix_nano == other.start_time_unix_nano && self.status == other.status
-    }
-}
-
-impl Healthy {
-    pub fn status(&self) -> &str {
-        &self.status
-    }
-
-    pub fn with_start_time_unix_nano(self, start_time_unix_nano: u64) -> Self {
-        Self {
-            start_time_unix_nano,
-            ..self
-        }
-    }
-
-    pub fn start_time_unix_nano(&self) -> u64 {
-        self.start_time_unix_nano
-    }
-
-    pub fn with_status_time_unix_nano(self, status_time_unix_nano: u64) -> Self {
-        Self {
-            status_time_unix_nano,
-            ..self
-        }
-    }
-
-    pub fn status_time_unix_nano(&self) -> u64 {
-        self.status_time_unix_nano
-    }
-}
-
-/// Represents the unhealthy state of the agent and its associated data.
-/// See OpAMP's [spec](https://github.com/open-telemetry/opamp-spec/blob/main/specification.md#componenthealthstatus)
-/// for more details.
-#[derive(Debug, Default, Clone)]
-pub struct Unhealthy {
-    pub start_time_unix_nano: u64,
-    pub status_time_unix_nano: u64,
-    pub status: String,
-    pub last_error: String,
-}
-
-impl PartialEq for Unhealthy {
-    fn eq(&self, other: &Self) -> bool {
-        // We cannot expect any two status_time_unix_nano to be equal
-        self.start_time_unix_nano == other.start_time_unix_nano
-            && self.status == other.status
-            && self.last_error == other.last_error
-    }
-}
-
-impl Unhealthy {
-    pub fn status(&self) -> &str {
-        &self.status
-    }
-
-    pub fn last_error(&self) -> &str {
-        &self.last_error
-    }
-
-    pub fn with_start_time_unix_nano(self, start_time_unix_nano: u64) -> Self {
-        Self {
-            start_time_unix_nano,
-            ..self
-        }
-    }
-
-    pub fn start_time_unix_nano(&self) -> u64 {
-        self.start_time_unix_nano
-    }
-
-    pub fn with_status_time_unix_nano(self, status_time_unix_nano: u64) -> Self {
-        Self {
-            status_time_unix_nano,
-            ..self
-        }
-    }
-
-    pub fn status_time_unix_nano(&self) -> u64 {
-        self.status_time_unix_nano
-    }
-}
-
 impl Health {
     pub fn unhealthy_with_last_error(last_error: String) -> Self {
         Self::Unhealthy(Unhealthy {
@@ -199,40 +75,96 @@ impl Health {
         }
     }
 
-    pub fn with_start_time_unix_nano(self, start_time_unix_nano: u64) -> Self {
-        match self {
-            Health::Healthy(healthy) => {
-                Health::Healthy(healthy.with_status_time_unix_nano(start_time_unix_nano))
-            }
-            Health::Unhealthy(unhealthy) => {
-                Health::Unhealthy(unhealthy.with_status_time_unix_nano(start_time_unix_nano))
-            }
-        }
-    }
-
-    pub fn start_time_unix_nano(&self) -> u64 {
+    pub fn status_time_unix_nano(&self) -> Option<u64> {
         match self {
             Health::Healthy(healthy) => healthy.status_time_unix_nano(),
             Health::Unhealthy(unhealthy) => unhealthy.status_time_unix_nano(),
         }
     }
+}
 
-    pub fn with_status_time_unix_nano(self, status_time_unix_nano: u64) -> Self {
-        match self {
-            Health::Healthy(healthy) => {
-                Health::Healthy(healthy.with_status_time_unix_nano(status_time_unix_nano))
-            }
-            Health::Unhealthy(unhealthy) => {
-                Health::Unhealthy(unhealthy.with_status_time_unix_nano(status_time_unix_nano))
-            }
+impl From<Healthy> for Health {
+    fn from(healthy: Healthy) -> Self {
+        Health::Healthy(healthy)
+    }
+}
+
+impl From<Unhealthy> for Health {
+    fn from(unhealthy: Unhealthy) -> Self {
+        Health::Unhealthy(unhealthy)
+    }
+}
+
+/// A HealthCheckerError also means the agent is unhealthy.
+impl From<HealthCheckerError> for Health {
+    fn from(err: HealthCheckerError) -> Self {
+        Health::Unhealthy(err.into())
+    }
+}
+
+impl From<HealthCheckerError> for Unhealthy {
+    fn from(err: HealthCheckerError) -> Self {
+        Unhealthy {
+            last_error: format!("Health check error: {}", err),
+            ..Default::default()
         }
     }
+}
 
-    pub fn status_time_unix_nano(&self) -> u64 {
-        match self {
-            Health::Healthy(healthy) => healthy.status_time_unix_nano(),
-            Health::Unhealthy(unhealthy) => unhealthy.status_time_unix_nano(),
-        }
+/// Represents the healthy state of the agent and its associated data.
+/// See OpAMP's [spec](https://github.com/open-telemetry/opamp-spec/blob/main/specification.md#componenthealthstatus)
+/// for more details.
+#[derive(Debug, Default, Clone)]
+pub struct Healthy {
+    pub status_time_unix_nano: Option<u64>,
+    pub status: String,
+}
+
+impl PartialEq for Healthy {
+    fn eq(&self, other: &Self) -> bool {
+        // We cannot expect any two status_time_unix_nano to be equal
+        self.status == other.status
+    }
+}
+
+impl Healthy {
+    pub fn status(&self) -> &str {
+        &self.status
+    }
+
+    pub fn status_time_unix_nano(&self) -> Option<u64> {
+        self.status_time_unix_nano
+    }
+}
+
+/// Represents the unhealthy state of the agent and its associated data.
+/// See OpAMP's [spec](https://github.com/open-telemetry/opamp-spec/blob/main/specification.md#componenthealthstatus)
+/// for more details.
+#[derive(Debug, Default, Clone)]
+pub struct Unhealthy {
+    pub status_time_unix_nano: Option<u64>,
+    pub status: String,
+    pub last_error: String,
+}
+
+impl PartialEq for Unhealthy {
+    fn eq(&self, other: &Self) -> bool {
+        // We cannot expect any two status_time_unix_nano to be equal
+        self.status == other.status && self.last_error == other.last_error
+    }
+}
+
+impl Unhealthy {
+    pub fn status(&self) -> &str {
+        &self.status
+    }
+
+    pub fn last_error(&self) -> &str {
+        &self.last_error
+    }
+
+    pub fn status_time_unix_nano(&self) -> Option<u64> {
+        self.status_time_unix_nano
     }
 }
 
@@ -250,15 +182,10 @@ pub(crate) fn spawn_health_checker<H>(
     cancel_signal: EventConsumer<CancellationMessage>,
     health_publisher: EventPublisher<SubAgentInternalEvent>,
     interval: HealthCheckInterval,
+    start_time_unix_nano: u64,
 ) where
     H: HealthChecker + Send + 'static,
 {
-    let start_time_unix_nano = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .inspect_err(|e| error!("error getting agent start time: {}. Setting to 0", e))
-        .unwrap_or_default()
-        .as_nanos() as u64;
-
     thread::spawn(move || loop {
         if cancel_signal.is_cancelled(interval.into()) {
             break;
@@ -272,15 +199,19 @@ pub(crate) fn spawn_health_checker<H>(
             }
         };
 
-        let status_time_unix_nano = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .inspect_err(|e| error!("error getting agent status time: {}. Setting to 0.", e))
-            .unwrap_or_default()
-            .as_nanos() as u64;
+        // If the health check implementation did not provide a status_time_unix_nano,
+        // we attempt to set the time now.
+        let status_time_unix_nano = health.status_time_unix_nano().unwrap_or_else(|| {
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .inspect_err(|e| error!("error getting agent status time: {}. Setting to 0.", e))
+                .unwrap_or_default()
+                .as_nanos() as u64
+        });
 
         publish_health_event(
             &health_publisher,
-            health
+            HealthWithTimes::from(health)
                 .with_start_time_unix_nano(start_time_unix_nano)
                 .with_status_time_unix_nano(status_time_unix_nano)
                 .into(),

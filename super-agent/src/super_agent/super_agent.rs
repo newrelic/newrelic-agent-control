@@ -1350,7 +1350,7 @@ agents:
         sub_agent_publisher
             .publish(SubAgentEvent::SubAgentBecameHealthy(
                 agent_id.clone(),
-                Healthy::default(),
+                Healthy::default().into(),
             ))
             .unwrap();
 
@@ -1366,7 +1366,7 @@ agents:
         assert_eq!(expected, ev);
 
         let expected =
-            SuperAgentEvent::SubAgentBecameHealthy(agent_id, agent_type, Healthy::default());
+            SuperAgentEvent::SubAgentBecameHealthy(agent_id, agent_type, Healthy::default().into());
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
     }
@@ -1431,7 +1431,8 @@ agents:
                 Unhealthy {
                     last_error: last_error_message.clone(),
                     ..Default::default()
-                },
+                }
+                .into(),
             ))
             .unwrap();
 
@@ -1452,7 +1453,8 @@ agents:
             Unhealthy {
                 last_error: last_error_message,
                 ..Default::default()
-            },
+            }
+            .into(),
         );
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);

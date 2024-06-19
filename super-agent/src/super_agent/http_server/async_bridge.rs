@@ -68,7 +68,7 @@ mod test {
                     .publish(SubAgentBecameHealthy(
                         AgentID::new("some-agent-id").unwrap(),
                         AgentTypeFQN::try_from("namespace/whatever:0.0.1").unwrap(),
-                        Healthy::default(),
+                        Healthy::default().into(),
                     ))
                     .unwrap();
             }
