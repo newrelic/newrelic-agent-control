@@ -122,7 +122,7 @@ pub struct Healthy {
 impl PartialEq for Healthy {
     fn eq(&self, other: &Self) -> bool {
         // We cannot expect any two status_time_unix_nano to be equal
-        self.start_time_unix_nano == other.start_time_unix_nano && self.status == other.status
+        self.status == other.status
     }
 }
 
@@ -149,9 +149,7 @@ pub struct Unhealthy {
 impl PartialEq for Unhealthy {
     fn eq(&self, other: &Self) -> bool {
         // We cannot expect any two status_time_unix_nano to be equal
-        self.start_time_unix_nano == other.start_time_unix_nano
-            && self.status == other.status
-            && self.last_error == other.last_error
+        self.status == other.status && self.last_error == other.last_error
     }
 }
 

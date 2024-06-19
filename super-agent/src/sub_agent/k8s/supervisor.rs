@@ -217,10 +217,13 @@ pub fn log_and_report_unhealthy(
 ) {
     let last_error = format!("{msg}: {err}");
 
-    let event = SubAgentInternalEvent::AgentBecameUnhealthy(Unhealthy {
-        last_error,
-        ..Default::default()
-    });
+    let event = SubAgentInternalEvent::AgentBecameUnhealthy(
+        Unhealthy {
+            last_error,
+            ..Default::default()
+        }
+        .into(),
+    );
 
     error!(%err, msg);
     publish_health_event(sub_agent_internal_publisher, event);
