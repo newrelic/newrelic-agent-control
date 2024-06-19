@@ -234,7 +234,7 @@ The Super Agent currently only supports a HTTP interface (just because this is h
 
 If the Agent Type does not declare its health, we are using its restart policy violations as a fallback.
 
-In **Kubernetes**, we are leveraging its ecosystem because K8s already offers many built-in mechanisms to check the health of a certain deployment. So, we are delegating the responsibility of determining the health to Kubernetes itself, although we could offer the customer the possibility of selecting what information to retrieve from the K8s API in the future.
+In **Kubernetes**, we are leveraging health check to its ecosystem because K8s already offers many built-in mechanisms to check the health of k8s objects. Therefore, the health information is got from the k8s objects related to each agent. Currently, only the interval can be configured in the Agent Type, but we could offer the customer the possibility of selecting what information should be retrieved in the future.
 
 ℹ️ Again, refer to the [agent type](../super-agent/src/agent_type/README.md) development guide to know more. 
 
