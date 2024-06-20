@@ -215,7 +215,7 @@ impl AsyncK8sClient {
                 K8sError::UnableToSetupClient(format!("failed to get the default namespace: {}", e))
             })?;
 
-        debug!("client creation succeeded");
+        debug!("k8s client creation succeeded");
         let reflector_builder = ReflectorBuilder::new(client.clone());
         Ok(Self {
             client: client.clone(),

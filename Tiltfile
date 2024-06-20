@@ -7,7 +7,7 @@ scenario_tag = os.getenv('SCENARIO_TAG')
 otel_endpoint = os.getenv('OTEL_ENDPOINT','https://staging-otlp.nr-data.net:4317')
 license_key = os.getenv('LICENSE_KEY')
 namespace = os.getenv('NAMESPACE','default')
-sa_chart_values_file = os.getenv('SA_CHART_VALUES_FILE','local/super-agent-deployment.yml')
+sa_chart_values_file = os.getenv('SA_CHART_VALUES_FILE','local/super-agent-tilt.yml')
 
 # build_with options:
 # cargo: No crosscompilation, faster than docker
