@@ -51,7 +51,9 @@ pub fn run_super_agent<C: HttpClientBuilder>(
     let identifiers_provider = IdentifiersProvider::default()
         .with_host_id(config.host_id)
         .with_fleet_id(config.fleet_id);
-    let identifiers = identifiers_provider.provide().unwrap_or_default();
+    let identifiers = identifiers_provider
+        .provide()
+        .map_err(|e| AgentError::IdentifiersError(e.to_string()))?;
     info!("Instance Identifiers: {}", identifiers);
 
     let non_identifying_attributes = super_agent_opamp_non_identifying_attributes(&identifiers);

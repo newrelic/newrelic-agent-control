@@ -500,7 +500,6 @@ mod test {
 
     #[test]
     fn build_additional_env_with_empty_but_valid_detection() {
-        // The detectors might return an Ok(_) result but with empty resources. What happens?
         let mut system_detector = MockSystemDetectorMock::default();
         let mut cloud_detector = MockCloudDetectorMock::default();
         let system_resource = Resource::new([]);
@@ -509,8 +508,7 @@ mod test {
         system_detector.should_detect(system_resource);
         cloud_detector.should_detect(cloud_resource);
 
-        // Ok(_) results will "unset" the host ID. Do we want this?
-        let expected = HashMap::from([("NR_HOST_ID".to_string(), "".to_string())]);
+        let expected = HashMap::new();
 
         let identifiers_provider = IdentifiersProvider::new(system_detector, cloud_detector);
         let actual = get_additional_env(&identifiers_provider)
@@ -551,7 +549,7 @@ mod test {
         system_detector.should_detect(system_resource);
         cloud_detector.should_fail_detection(cloud_detection_err);
 
-        let expected = HashMap::from([("NR_HOST_ID".to_string(), "".to_string())]);
+        let expected = HashMap::new();
 
         let identifiers_provider = IdentifiersProvider::new(system_detector, cloud_detector);
         let actual = get_additional_env(&identifiers_provider)

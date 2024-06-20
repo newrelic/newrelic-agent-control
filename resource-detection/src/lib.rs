@@ -27,7 +27,7 @@ pub use common::{Key, Value};
 ///
 /// # Fields:
 /// - `attributes`: A HashMap of Key/Values
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Resource {
     attributes: HashMap<Key, Value>,
 }

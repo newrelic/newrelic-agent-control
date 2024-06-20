@@ -1,7 +1,7 @@
 //! Common structures for the crate.
 
 /// Key represents the attribute name.
-#[derive(Eq, Hash, PartialEq, Debug)]
+#[derive(Clone, Eq, Hash, PartialEq, Debug)]
 pub struct Key(String);
 
 /// Value represents the attribute value.
