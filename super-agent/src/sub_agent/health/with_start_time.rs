@@ -1,20 +1,9 @@
-use tracing::debug;
-
-use super::health_checker::{Health, Healthy, Unhealthy};
+use std::time::SystemTime;
 
 #[derive(Debug, PartialEq)]
 pub enum HealthWithTimes {
     Healthy(HealthyWithTimes),
     Unhealthy(UnhealthyWithTimes),
-}
-
-impl From<Health> for HealthWithTimes {
-    fn from(health: Health) -> Self {
-        match health {
-            Health::Healthy(healthy) => Self::Healthy(healthy.into()),
-            Health::Unhealthy(unhealthy) => Self::Unhealthy(unhealthy.into()),
-        }
-    }
 }
 
 impl From<HealthyWithTimes> for HealthWithTimes {
@@ -30,16 +19,24 @@ impl From<UnhealthyWithTimes> for HealthWithTimes {
 }
 
 impl HealthWithTimes {
-    pub fn unhealthy_with_last_error(last_error: String) -> Self {
+    pub fn unhealthy_with_last_error(
+        last_error: String,
+        status: String,
+        start_time: SystemTime,
+    ) -> Self {
         Self::Unhealthy(UnhealthyWithTimes {
             last_error,
-            ..Default::default()
+            status,
+            start_time,
+            status_time: SystemTime::now(),
         })
     }
 
-    pub fn healthy() -> Self {
+    pub fn healthy(status: String, start_time: SystemTime) -> Self {
         Self::Healthy(HealthyWithTimes {
-            ..Default::default()
+            status,
+            start_time,
+            status_time: SystemTime::now(),
         })
     }
 
@@ -62,39 +59,39 @@ impl HealthWithTimes {
         }
     }
 
-    pub fn with_start_time_unix_nano(self, start_time_unix_nano: u64) -> Self {
+    pub fn with_start_time(self, start_time: SystemTime) -> Self {
         match self {
             HealthWithTimes::Healthy(healthy) => {
-                HealthWithTimes::Healthy(healthy.with_status_time_unix_nano(start_time_unix_nano))
+                HealthWithTimes::Healthy(healthy.with_status_time(start_time))
             }
-            HealthWithTimes::Unhealthy(unhealthy) => HealthWithTimes::Unhealthy(
-                unhealthy.with_status_time_unix_nano(start_time_unix_nano),
-            ),
+            HealthWithTimes::Unhealthy(unhealthy) => {
+                HealthWithTimes::Unhealthy(unhealthy.with_status_time(start_time))
+            }
         }
     }
 
-    pub fn start_time_unix_nano(&self) -> u64 {
+    pub fn start_time(&self) -> SystemTime {
         match self {
-            HealthWithTimes::Healthy(healthy) => healthy.status_time_unix_nano(),
-            HealthWithTimes::Unhealthy(unhealthy) => unhealthy.status_time_unix_nano(),
+            HealthWithTimes::Healthy(healthy) => healthy.status_time(),
+            HealthWithTimes::Unhealthy(unhealthy) => unhealthy.status_time(),
         }
     }
 
-    pub fn with_status_time_unix_nano(self, status_time_unix_nano: u64) -> Self {
+    pub fn with_status_time(self, status_time: SystemTime) -> Self {
         match self {
             HealthWithTimes::Healthy(healthy) => {
-                HealthWithTimes::Healthy(healthy.with_status_time_unix_nano(status_time_unix_nano))
+                HealthWithTimes::Healthy(healthy.with_status_time(status_time))
             }
-            HealthWithTimes::Unhealthy(unhealthy) => HealthWithTimes::Unhealthy(
-                unhealthy.with_status_time_unix_nano(status_time_unix_nano),
-            ),
+            HealthWithTimes::Unhealthy(unhealthy) => {
+                HealthWithTimes::Unhealthy(unhealthy.with_status_time(status_time))
+            }
         }
     }
 
-    pub fn status_time_unix_nano(&self) -> u64 {
+    pub fn status_time(&self) -> SystemTime {
         match self {
-            HealthWithTimes::Healthy(healthy) => healthy.status_time_unix_nano(),
-            HealthWithTimes::Unhealthy(unhealthy) => unhealthy.status_time_unix_nano(),
+            HealthWithTimes::Healthy(healthy) => healthy.status_time(),
+            HealthWithTimes::Unhealthy(unhealthy) => unhealthy.status_time(),
         }
     }
 
@@ -115,30 +112,17 @@ impl HealthWithTimes {
 /// Represents the healthy state of the agent and its associated data.
 /// See OpAMP's [spec](https://github.com/open-telemetry/opamp-spec/blob/main/specification.md#componenthealthstatus)
 /// for more details.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct HealthyWithTimes {
-    pub start_time_unix_nano: u64,
-    pub status_time_unix_nano: u64,
+    pub start_time: SystemTime,
+    pub status_time: SystemTime,
     pub status: String,
-}
-
-impl From<Healthy> for HealthyWithTimes {
-    fn from(healthy: Healthy) -> Self {
-        Self {
-            status: healthy.status,
-            status_time_unix_nano: healthy.status_time_unix_nano.unwrap_or_else(|| {
-                debug!("Healthy status without status_time_unix_nano. Setting to 0");
-                Default::default()
-            }),
-            ..Default::default()
-        }
-    }
 }
 
 impl PartialEq for HealthyWithTimes {
     fn eq(&self, other: &Self) -> bool {
         // We cannot expect the `status_time_unix_nano` to be the same across different instances.
-        self.status == other.status && self.start_time_unix_nano == other.start_time_unix_nano
+        self.status == other.status && self.start_time == other.start_time
     }
 }
 
@@ -147,26 +131,23 @@ impl HealthyWithTimes {
         &self.status
     }
 
-    pub fn with_start_time_unix_nano(self, start_time_unix_nano: u64) -> Self {
+    pub fn with_start_time(self, start_time: SystemTime) -> Self {
+        Self { start_time, ..self }
+    }
+
+    pub fn start_time(&self) -> SystemTime {
+        self.start_time
+    }
+
+    pub fn with_status_time(self, status_time: SystemTime) -> Self {
         Self {
-            start_time_unix_nano,
+            status_time,
             ..self
         }
     }
 
-    pub fn start_time_unix_nano(&self) -> u64 {
-        self.start_time_unix_nano
-    }
-
-    pub fn with_status_time_unix_nano(self, status_time_unix_nano: u64) -> Self {
-        Self {
-            status_time_unix_nano,
-            ..self
-        }
-    }
-
-    pub fn status_time_unix_nano(&self) -> u64 {
-        self.status_time_unix_nano
+    pub fn status_time(&self) -> SystemTime {
+        self.status_time
     }
 
     pub fn is_same_without_times(&self, other: &Self) -> bool {
@@ -177,26 +158,12 @@ impl HealthyWithTimes {
 /// Represents the unhealthy state of the agent and its associated data.
 /// See OpAMP's [spec](https://github.com/open-telemetry/opamp-spec/blob/main/specification.md#componenthealthstatus)
 /// for more details.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct UnhealthyWithTimes {
-    pub start_time_unix_nano: u64,
-    pub status_time_unix_nano: u64,
+    pub start_time: SystemTime,
+    pub status_time: SystemTime,
     pub status: String,
     pub last_error: String,
-}
-
-impl From<Unhealthy> for UnhealthyWithTimes {
-    fn from(unhealthy: Unhealthy) -> Self {
-        Self {
-            last_error: unhealthy.last_error,
-            status: unhealthy.status,
-            status_time_unix_nano: unhealthy.status_time_unix_nano.unwrap_or_else(|| {
-                debug!("Unhealthy status without status_time_unix_nano. Setting to 0");
-                Default::default()
-            }),
-            ..Default::default()
-        }
-    }
 }
 
 impl PartialEq for UnhealthyWithTimes {
@@ -204,7 +171,7 @@ impl PartialEq for UnhealthyWithTimes {
         // We cannot expect the `status_time_unix_nano` to be the same across different instances.
         self.last_error == other.last_error
             && self.status == other.status
-            && self.start_time_unix_nano == other.start_time_unix_nano
+            && self.start_time == other.start_time
     }
 }
 
@@ -217,26 +184,23 @@ impl UnhealthyWithTimes {
         &self.last_error
     }
 
-    pub fn with_start_time_unix_nano(self, start_time_unix_nano: u64) -> Self {
+    pub fn with_start_time(self, start_time: SystemTime) -> Self {
+        Self { start_time, ..self }
+    }
+
+    pub fn start_time(&self) -> SystemTime {
+        self.start_time
+    }
+
+    pub fn with_status_time(self, status_time: SystemTime) -> Self {
         Self {
-            start_time_unix_nano,
+            status_time,
             ..self
         }
     }
 
-    pub fn start_time_unix_nano(&self) -> u64 {
-        self.start_time_unix_nano
-    }
-
-    pub fn with_status_time_unix_nano(self, status_time_unix_nano: u64) -> Self {
-        Self {
-            status_time_unix_nano,
-            ..self
-        }
-    }
-
-    pub fn status_time_unix_nano(&self) -> u64 {
-        self.status_time_unix_nano
+    pub fn status_time(&self) -> SystemTime {
+        self.status_time
     }
 
     pub fn is_same_without_times(&self, other: &Self) -> bool {

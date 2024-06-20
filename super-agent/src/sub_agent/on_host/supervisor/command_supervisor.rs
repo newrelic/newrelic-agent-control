@@ -117,8 +117,8 @@ impl SupervisorOnHost<NotStarted> {
                 publish_health_event(
                     &internal_event_publisher,
                     HealthyWithTimes::default()
-                        .with_start_time_unix_nano(start_time_unix_nano)
-                        .with_status_time_unix_nano(status_time_unix_nano)
+                        .with_start_time(start_time_unix_nano)
+                        .with_status_time(status_time_unix_nano)
                         .into(),
                 );
 
@@ -207,9 +207,9 @@ impl SupervisorOnHost<NotStarted> {
                                     .to_string(),
                                 last_error: "supervisor exceeded its defined restart policy"
                                     .to_string(),
-                                status_time_unix_nano,
+                                status_time: status_time_unix_nano,
                             })
-                            .with_start_time_unix_nano(start_time_unix_nano)
+                            .with_start_time(start_time_unix_nano)
                             .into(),
                         );
                     }
@@ -481,23 +481,23 @@ pub mod sleep_supervisor_tests {
         let expected_ordered_events: Vec<SubAgentInternalEvent> = {
             vec![
                 HealthyWithTimes::from(Healthy::default())
-                    .with_start_time_unix_nano(start_time_unix_nano)
+                    .with_start_time(start_time_unix_nano)
                     .into(),
                 HealthyWithTimes::from(Healthy::default())
-                    .with_start_time_unix_nano(start_time_unix_nano)
+                    .with_start_time(start_time_unix_nano)
                     .into(),
                 HealthyWithTimes::from(Healthy::default())
-                    .with_start_time_unix_nano(start_time_unix_nano)
+                    .with_start_time(start_time_unix_nano)
                     .into(),
                 HealthyWithTimes::from(Healthy::default())
-                    .with_start_time_unix_nano(start_time_unix_nano)
+                    .with_start_time(start_time_unix_nano)
                     .into(),
                 UnhealthyWithTimes::from(Unhealthy {
                     last_error: "supervisor exceeded its defined restart policy".to_string(),
                     status: "supervisor exceeded its defined restart policy".to_string(),
                     ..Default::default()
                 })
-                .with_start_time_unix_nano(start_time_unix_nano)
+                .with_start_time(start_time_unix_nano)
                 .into(),
             ]
         };
@@ -506,12 +506,12 @@ pub mod sleep_supervisor_tests {
             .as_ref()
             .iter()
             .map(|event| match event {
-                SubAgentInternalEvent::AgentBecameHealthy(healthy) => healthy
-                    .with_start_time_unix_nano(start_time_unix_nano)
-                    .into(),
-                SubAgentInternalEvent::AgentBecameUnhealthy(unhealthy) => unhealthy
-                    .with_start_time_unix_nano(start_time_unix_nano)
-                    .into(),
+                SubAgentInternalEvent::AgentBecameHealthy(healthy) => {
+                    healthy.with_start_time(start_time_unix_nano).into()
+                }
+                SubAgentInternalEvent::AgentBecameUnhealthy(unhealthy) => {
+                    unhealthy.with_start_time(start_time_unix_nano).into()
+                }
                 e => e,
             })
             .collect::<Vec<_>>();

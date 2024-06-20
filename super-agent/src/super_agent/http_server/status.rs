@@ -133,8 +133,8 @@ impl SubAgentStatus {
         self.healthy = true;
         self.last_error = None;
         self.status = healthy.status;
-        self.start_time_unix_nano = healthy.start_time_unix_nano;
-        self.status_time_unix_nano = healthy.status_time_unix_nano;
+        self.start_time_unix_nano = healthy.start_time;
+        self.status_time_unix_nano = healthy.status_time;
     }
 
     // This struct only has context inside the Sub Agents struct, so it makes it easier to interact
@@ -143,8 +143,8 @@ impl SubAgentStatus {
         self.healthy = false;
         self.last_error = unhealthy.last_error.into();
         self.status = unhealthy.status;
-        self.start_time_unix_nano = unhealthy.start_time_unix_nano;
-        self.status_time_unix_nano = unhealthy.status_time_unix_nano;
+        self.start_time_unix_nano = unhealthy.start_time;
+        self.status_time_unix_nano = unhealthy.status_time;
     }
 }
 

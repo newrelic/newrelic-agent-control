@@ -134,17 +134,14 @@ impl<C: HttpClient> HealthChecker for HttpHealthChecker<C> {
         let status = String::from_utf8_lossy(response.body()).into();
 
         // If cannot get time, set to `None` and continue
-        let status_time_unix_nano = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .ok()
-            .map(|t| t.as_nanos() as u64);
+        let status_time = Some(SystemTime::now());
 
         if (self.healthy_status_codes.is_empty() && status_code.is_success())
             || self.healthy_status_codes.contains(&status_code.as_u16())
         {
             return Ok(Healthy {
                 status,
-                status_time_unix_nano,
+                status_time,
             }
             .into());
         }
@@ -157,7 +154,7 @@ impl<C: HttpClient> HealthChecker for HttpHealthChecker<C> {
         Ok(Unhealthy {
             status,
             last_error,
-            status_time_unix_nano,
+            status_time,
         }
         .into())
     }
