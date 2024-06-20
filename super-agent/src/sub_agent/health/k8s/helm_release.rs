@@ -4,6 +4,7 @@ use crate::sub_agent::health::health_checker::{
     Health, HealthChecker, HealthCheckerError, Healthy,
 };
 use k8s_openapi::serde_json::{Map, Value};
+use kube::api::DynamicObject;
 use std::sync::Arc;
 
 const CONDITION_READY: &str = "Ready";
@@ -33,11 +34,16 @@ impl From<&str> for ConditionStatus {
 pub struct K8sHealthFluxHelmRelease {
     k8s_client: Arc<SyncK8sClient>,
     name: String,
+    k8s_object: DynamicObject,
 }
 
 impl K8sHealthFluxHelmRelease {
-    pub fn new(k8s_client: Arc<SyncK8sClient>, name: String) -> Self {
-        Self { k8s_client, name }
+    pub fn new(k8s_client: Arc<SyncK8sClient>, name: String, k8s_object: DynamicObject) -> Self {
+        Self {
+            k8s_client,
+            name,
+            k8s_object,
+        }
     }
 
     /// Fetches and validates the 'status' field from the HelmRelease data.
@@ -138,6 +144,17 @@ impl HealthChecker for K8sHealthFluxHelmRelease {
             HealthCheckerError::Generic("HelmRelease data is not an object".to_string())
         })?;
 
+        // Check if the HelmRelease is properly updated: it should reflect the agent's configuration
+        if self
+            .k8s_client
+            .has_dynamic_object_changed(&self.k8s_object)?
+        {
+            return Ok(Health::unhealthy_with_last_error(format!(
+                "HelmRelease '{}' does not match the latest agent configuration",
+                &self.name,
+            )));
+        }
+
         let status = self.get_status(helm_release_data)?;
         let conditions = self.get_status_conditions(&status)?;
 
@@ -167,6 +184,15 @@ pub mod test {
             fn(&mut MockSyncK8sClient),
         );
         let test_cases : Vec<TestCase> = vec![
+            (
+                "Helm release unhealthy when the helm-release object should change",
+                Ok(Health::unhealthy_with_last_error("HelmRelease 'example-release' does not match the latest agent configuration".to_string())),
+                |mock: &mut MockSyncK8sClient| {
+                    mock.expect_get_helm_release()
+                        .returning(|_| Ok(Some(Arc::new(dynamic_object()))));
+                    mock.expect_has_dynamic_object_changed().times(1).returning(|_| Ok(true));
+                },
+            ),
             (
                 "Helm release healthy when ready and status true",
                 Ok(Healthy::default().into()),
@@ -239,8 +265,11 @@ pub mod test {
         for (name, expected, setup_mock) in test_cases {
             let mut mock_client = MockSyncK8sClient::new();
             setup_mock(&mut mock_client);
-            let checker =
-                K8sHealthFluxHelmRelease::new(Arc::new(mock_client), "example-release".to_string());
+            let checker = K8sHealthFluxHelmRelease::new(
+                Arc::new(mock_client),
+                "example-release".to_string(),
+                dynamic_object(),
+            );
             let result = checker.check_health();
             match expected {
                 Ok(expected_health) => {
@@ -256,7 +285,15 @@ pub mod test {
         }
     }
 
-    pub fn setup_mock_client_with_conditions(
+    fn dynamic_object() -> DynamicObject {
+        DynamicObject {
+            types: Some(helm_release_type_meta()),
+            metadata: ObjectMeta::default(),
+            data: json!({}),
+        }
+    }
+
+    fn setup_mock_client_with_conditions(
         mock: &mut MockSyncK8sClient,
         status_conditions: serde_json::Value,
     ) {
@@ -272,5 +309,7 @@ pub mod test {
                     }),
                 })))
             });
+        mock.expect_has_dynamic_object_changed()
+            .returning(|_| Ok(false));
     }
 }
