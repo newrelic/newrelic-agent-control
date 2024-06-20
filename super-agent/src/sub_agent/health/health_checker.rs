@@ -9,7 +9,7 @@ use tracing::{debug, error};
 #[cfg(feature = "k8s")]
 use crate::k8s;
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Health {
     Healthy(Healthy),
     Unhealthy(Unhealthy),

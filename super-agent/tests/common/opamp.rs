@@ -12,6 +12,17 @@ const FAKE_SERVER_PATH: &str = "/opamp-fake-server";
 
 pub type ConfigResponses = HashMap<InstanceID, ConfigResponse>;
 
+/// It stores the latest received health status in the format of `ComponentHealth` for each
+/// instance id.
+pub type HealthStatuses = HashMap<InstanceID, opamp::proto::ComponentHealth>;
+
+/// Represents the state of the FakeServer.
+#[derive(Default)]
+struct State {
+    health_statuses: HealthStatuses,
+    config_responses: ConfigResponses,
+}
+
 #[derive(Clone, Debug, Default)]
 /// Configuration response to be returned by the server until the agent informs it is applied.
 pub struct ConfigResponse {
@@ -45,7 +56,7 @@ impl ConfigResponse {
                 }),
             });
         opamp::proto::ServerToAgent {
-            instance_uid: "test".into(), // fake uid for the shake of simplicity
+            instance_uid: "test".into(), // fake uid for the sake of simplicity
             remote_config,
             ..Default::default()
         }
@@ -57,7 +68,9 @@ impl ConfigResponse {
 /// The underlying http server will be aborted when the object is dropped.
 pub struct FakeServer {
     handle: JoinHandle<()>,
-    responses: Arc<Mutex<ConfigResponses>>,
+    // responses: Arc<Mutex<ConfigResponses>>,
+    // health_statuses: Arc<Mutex<HealthStatuses>>,
+    state: Arc<Mutex<State>>,
     port: u16,
     path: String,
 }
@@ -70,7 +83,7 @@ impl FakeServer {
 
     /// Starts and returns new FakeServer in a random port.
     pub fn start_new() -> Self {
-        let state = Arc::new(Mutex::new(ConfigResponses::default()));
+        let state = Arc::new(Mutex::new(State::default()));
         // While binding to port 0, the kernel gives you a free ephemeral port.
         let listener = net::TcpListener::bind("0.0.0.0:0").unwrap();
         let port = listener.local_addr().unwrap().port();
@@ -79,17 +92,17 @@ impl FakeServer {
 
         Self {
             handle,
-            responses: state,
+            state,
             port,
             path: FAKE_SERVER_PATH.to_string(),
         }
     }
 
-    async fn run_http_server(listener: net::TcpListener, state: Arc<Mutex<ConfigResponses>>) {
+    async fn run_http_server(listener: net::TcpListener, state: Arc<Mutex<State>>) {
         HttpServer::new(move || {
             App::new()
                 .app_data(web::Data::new(state.clone()))
-                .service(web::resource(FAKE_SERVER_PATH).to(config_handler))
+                .service(web::resource(FAKE_SERVER_PATH).to(opamp_handler))
         })
         .listen(listener)
         .unwrap_or_else(|err| panic!("Could not bind the HTTP server to the listener: {err}"))
@@ -103,8 +116,16 @@ impl FakeServer {
     /// then the server will return a `None` (no-changes) configuration in following requests.
     /// The identifier should be a valid UUID.
     pub fn set_config_response(&mut self, identifier: InstanceID, response: ConfigResponse) {
-        let mut responses = self.responses.lock().unwrap();
-        responses.insert(identifier, response);
+        let mut state = self.state.lock().unwrap();
+        state.config_responses.insert(identifier, response);
+    }
+
+    pub fn get_health_status(
+        &self,
+        identifier: InstanceID,
+    ) -> Option<opamp::proto::ComponentHealth> {
+        let state = self.state.lock().unwrap();
+        state.health_statuses.get(&identifier).cloned()
     }
 
     fn stop(&self) {
@@ -118,17 +139,21 @@ impl Drop for FakeServer {
     }
 }
 
-async fn config_handler(
-    state: web::Data<Arc<Mutex<ConfigResponses>>>,
-    req: web::Bytes,
-) -> HttpResponse {
+async fn opamp_handler(state: web::Data<Arc<Mutex<State>>>, req: web::Bytes) -> HttpResponse {
     tokio::time::sleep(Duration::from_secs(1)).await;
     let message = opamp::proto::AgentToServer::decode(req).unwrap();
     let instance_id = InstanceID::try_from(message.clone().instance_uid).unwrap();
 
-    let mut config_responses = state.lock().unwrap();
+    // Store the health status
+    if let Some(health) = message.clone().health {
+        let mut state = state.lock().unwrap();
+        state.health_statuses.insert(instance_id.clone(), health);
+    }
 
-    let config_response = config_responses
+    let mut state = state.lock().unwrap();
+
+    let config_response = state
+        .config_responses
         .get_mut(&instance_id)
         .map(|config_response| {
             if remote_config_is_applied(&message) {

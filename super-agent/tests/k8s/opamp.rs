@@ -1,4 +1,5 @@
 use crate::common::{
+    health::check_latest_health_status_was_healthy,
     opamp::{ConfigResponse, FakeServer},
     runtime::block_on,
 };
@@ -42,13 +43,17 @@ cluster: minikube
 licenseKey: test
     "#;
 
+    let instance_id = instance_id::get_instance_id(&namespace, &AgentID::new_super_agent_id());
+
     retry(30, Duration::from_secs(5), || {
         block_on(check_helmrelease_spec_values(
             k8s.client.clone(),
             namespace.as_str(),
             "open-telemetry-agent-id",
             expected_spec_values,
-        ))
+        ))?;
+
+        check_latest_health_status_was_healthy(&server, &instance_id.clone())
     });
 }
 
@@ -76,12 +81,14 @@ fn k8s_opamp_subagent_configuration_change() {
     );
     wait_until_super_agent_with_opamp_is_started(k8s.client.clone(), namespace.as_str());
 
+    let instance_id = instance_id::get_instance_id(
+        &namespace,
+        &AgentID::new("open-telemetry-agent-id").unwrap(),
+    );
+
     // Update the agent configuration via OpAMP
     server.set_config_response(
-        instance_id::get_instance_id(
-            &namespace,
-            &AgentID::new("open-telemetry-agent-id").unwrap(),
-        ),
+        instance_id.clone(),
         ConfigResponse::from(
             r#"
     chart_values:
@@ -107,15 +114,14 @@ config:
             namespace.as_str(),
             "open-telemetry-agent-id",
             expected_spec_values,
-        ))
+        ))?;
+
+        check_latest_health_status_was_healthy(&server, &instance_id.clone())
     });
 
     // Update the agent configuration via OpAMP
     server.set_config_response(
-        instance_id::get_instance_id(
-            &namespace,
-            &AgentID::new("open-telemetry-agent-id").unwrap(),
-        ),
+        instance_id.clone(),
         ConfigResponse::from(
             r#"
 chart_values:
@@ -145,7 +151,9 @@ image:
             namespace.as_str(),
             "open-telemetry-agent-id",
             expected_spec_values,
-        ))
+        ))?;
+
+        check_latest_health_status_was_healthy(&server, &instance_id.clone())
     });
 }
 
@@ -180,8 +188,10 @@ fn k8s_opamp_add_subagent() {
     // Note: This test won't work with the NewRelic k8s collector chart since the collector
     // configuration cannot yet be modified. This chart is introduced from agent type
     // version 0.2.0, so we leverage the latest agent type using the community chart.
+    let instance_id = instance_id::get_instance_id(&namespace, &AgentID::new_super_agent_id());
+
     server.set_config_response(
-        instance_id::get_instance_id(&namespace, &AgentID::new_super_agent_id()),
+        instance_id.clone(),
         ConfigResponse::from(
             r#"
 agents:
@@ -202,6 +212,8 @@ agents:
                 "open-telemetry-2-opentelemetry-collector",
             ],
             namespace.as_str(),
-        ))
+        ))?;
+
+        check_latest_health_status_was_healthy(&server, &instance_id.clone())
     });
 }
