@@ -1,0 +1,16 @@
+[package]
+name = "richenv"
+description = "Manage environment variables"
+version = "0.0.1"
+edition = "2021"
+authors = ["The New Relic Super Agent Team"]
+publish = false
+
+[dependencies]
+thiserror = { workspace = true }
+regex = { workspace = true }
+serde_yaml = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+
+[dev-dependencies]
+assert_matches = { workspace = true }

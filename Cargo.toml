@@ -8,6 +8,7 @@ members = [
   "fs",
   "license",
   "nr-auth",
+  "richenv",
 ]
 
 [workspace.dependencies]

@@ -48,7 +48,7 @@ jobs:
       fail-fast: false
       matrix:
         toolchain: [ stable, beta ]
-        package: [ config-migrate, fs, license, nr-auth, resource-detection ]
+        package: [ config-migrate, fs, license, nr-auth, resource-detection, richenv ]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -152,7 +152,7 @@ jobs:
     strategy:
       matrix:
         msrv: [ 1.78.0 ]
-        package: [ config-migrate, fs, license, nr-auth, resource-detection ]
+        package: [ config-migrate, fs, license, nr-auth, resource-detection, richenv ]
 
     name: ubuntu / ${{ matrix.msrv }}
     steps:

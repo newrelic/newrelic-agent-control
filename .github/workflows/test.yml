@@ -47,6 +47,9 @@ jobs:
       - name: Run tests nr-auth
         run: cargo test --locked --package nr-auth --all-targets
 
+      - name: Run tests richenv
+        run: cargo test --locked --package richenv --all-targets
+
       - name: Run tests resource-detection
         run: cargo test --locked --package resource-detection --all-targets
 
@@ -77,7 +80,7 @@ jobs:
         uses: webfactory/ssh-agent@v0.8.0
         with:
           ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
-          
+
       - name: Install ${{ matrix.toolchain }}
         uses: dtolnay/rust-toolchain@1.78.0
         with:

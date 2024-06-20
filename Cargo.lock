@@ -3401,6 +3401,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "richenv"
+version = "0.0.1"
+dependencies = [
+ "assert_matches",
+ "regex",
+ "serde",
+ "serde_yaml",
+ "thiserror",
+]
+
+[[package]]
 name = "ring"
 version = "0.17.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
