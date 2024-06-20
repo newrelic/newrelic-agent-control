@@ -184,7 +184,8 @@ pub mod test {
         let supervisor =
             NotStartedSupervisor::new(agent_id.clone(), agent_fqn, Arc::new(mock_client), k8s_obj);
 
-        SubAgentK8s::new(
+        // If the started subagent is dropped, then the underlying supervisor is also dropped (and the underlying tasks are stopped)
+        let _started_subagent = SubAgentK8s::new(
             agent_id.clone(),
             AgentTypeFQN::try_from(TEST_GENT_FQN).unwrap(),
             processor,

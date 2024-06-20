@@ -130,17 +130,16 @@ impl NotStartedSupervisor {
         let k8s_client = self.k8s_client.clone();
 
         let join_handle = thread::spawn(move || loop {
-            // Check cancellation signal
-            if stop_consumer.as_ref().try_recv().is_ok() {
-                info!(%agent_id, "k8s objects supervisor stopped");
-                break;
-            }
-            // apply k8s resources
+            // Check and apply k8s objects
             if let Err(err) = Self::apply_resources(&agent_id, resources.iter(), k8s_client.clone())
             {
                 log_and_report_unhealthy(&health_publisher, &err, "k8s resources apply failed");
             }
-            thread::sleep(interval);
+            // Check the cancellation signal
+            if stop_consumer.is_cancelled(interval) {
+                info!(%agent_id, "k8s objects supervisor stopped");
+                break;
+            }
         });
 
         (stop_publisher, join_handle)
