@@ -6,12 +6,14 @@ use std::path::PathBuf;
 use thiserror::Error;
 use tracing::info;
 
+#[cfg(debug_assertions)]
+use crate::super_agent::run::set_debug_dirs;
 use crate::{
     logging::config::{FileLoggerGuard, LoggingError},
     super_agent::{
         config::SuperAgentConfigError,
         config_storer::{loader_storer::SuperAgentConfigLoader, store::SuperAgentConfigStore},
-        run::{set_debug_dirs, SuperAgentRunConfig},
+        run::SuperAgentRunConfig,
     },
     utils::binary_metadata::binary_metadata,
 };
