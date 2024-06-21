@@ -104,7 +104,7 @@ enum EnvDefRule {
     Prefixed(PrefixableFrom, PrefixableTo),
 }
 
-/// DefinitionKeyVal contains the value of a definition key or value
+/// DefinitionKeyOrFrom contains the value of a definition key or value
 /// which follow the same format rules
 /// Both can be a valid env var key type or a valid env var key type + wildcard
 /// We will only allow constructing it through try_from to ensure we always have a
