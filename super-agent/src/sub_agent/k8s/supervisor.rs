@@ -68,8 +68,8 @@ impl NotStartedSupervisor {
     ) -> Result<StartedSupervisor, SupervisorError> {
         let resources = Arc::new(self.build_dynamic_objects()?);
 
-        let (stop_objects_supervisor, objects_supervisor_handle) = self
-            .start_k8s_objects_supervisor(sub_agent_internal_publisher.clone(), resources.clone());
+        let (stop_objects_supervisor, objects_supervisor_handle) =
+            self.start_k8s_objects_supervisor(resources.clone());
         let maybe_stop_health = self.start_health_check(sub_agent_internal_publisher, resources)?;
 
         Ok(StartedSupervisor {
@@ -121,7 +121,6 @@ impl NotStartedSupervisor {
 
     fn start_k8s_objects_supervisor(
         &self,
-        health_publisher: EventPublisher<SubAgentInternalEvent>,
         resources: Arc<Vec<DynamicObject>>,
     ) -> (EventPublisher<()>, JoinHandle<()>) {
         let (stop_publisher, stop_consumer) = pub_sub();
@@ -133,7 +132,7 @@ impl NotStartedSupervisor {
             // Check and apply k8s objects
             if let Err(err) = Self::apply_resources(&agent_id, resources.iter(), k8s_client.clone())
             {
-                log_and_report_unhealthy(&health_publisher, &err, "k8s resources apply failed");
+                error!(%err, "k8s resources apply failed");
             }
             // Check the cancellation signal
             if stop_consumer.is_cancelled(interval) {
@@ -289,7 +288,6 @@ pub mod test {
 
     #[test]
     fn test_k8s_objects_supervisor() {
-        let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let interval = Duration::from_millis(250);
         let agent_id = AgentID::new("test").unwrap();
         let agent_fqn = AgentTypeFQN::try_from("ns/test:0.1.2").unwrap();
@@ -317,22 +315,11 @@ pub mod test {
             k8s_config: Default::default(),
         };
 
-        let (stop_ch, join_handle) = supervisor.start_k8s_objects_supervisor(
-            sub_agent_internal_publisher,
-            Arc::new(vec![dynamic_object()]),
-        );
-        thread::sleep(Duration::from_millis(300)); // Sleep a bit more than one interval
+        let (stop_ch, join_handle) =
+            supervisor.start_k8s_objects_supervisor(Arc::new(vec![dynamic_object()]));
+        thread::sleep(Duration::from_millis(300)); // Sleep a bit more than one interval, two apply calls should be executed.
         stop_ch.publish(()).unwrap();
         join_handle.join().unwrap();
-
-        let timeout = Duration::from_secs(1);
-        let event_received = sub_agent_internal_consumer
-            .as_ref()
-            .recv_timeout(timeout)
-            .unwrap();
-        assert_matches!(event_received, SubAgentInternalEvent::AgentBecameUnhealthy(health) => {
-            assert!(health.last_error().contains(apply_issue));
-        });
     }
 
     #[test]
