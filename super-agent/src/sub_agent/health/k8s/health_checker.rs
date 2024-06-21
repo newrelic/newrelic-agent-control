@@ -66,7 +66,7 @@ impl SubAgentHealthChecker<K8sHealthChecker> {
             health_checkers.push(K8sHealthChecker::Flux(K8sHealthFluxHelmRelease::new(
                 k8s_client.clone(),
                 name.clone(),
-                resource.clone(), // TODO: do we need to clone here?
+                resource.clone(),
             )));
 
             health_checkers.push(K8sHealthChecker::StatefulSet(K8sHealthStatefulSet::new(
