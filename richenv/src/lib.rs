@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use crate::definition::EnvVarsDefinition;
+use crate::definition::Definition;
 use crate::envvar::EnvVars;
 
 mod definition;
@@ -14,5 +14,5 @@ pub enum RichEnvError {
 
 #[allow(dead_code)]
 trait RichEnv {
-    fn populate(self, env_vars: EnvVarsDefinition) -> Result<EnvVars, RichEnvError>;
+    fn populate(self, env_vars: Definition) -> Result<EnvVars, RichEnvError>;
 }
