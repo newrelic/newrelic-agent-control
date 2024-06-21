@@ -266,7 +266,7 @@ impl Default for K8sConfig {
 #[cfg(feature = "k8s")]
 pub fn helm_repository_type_meta() -> TypeMeta {
     TypeMeta {
-        api_version: "source.toolkit.fluxcd.io/v1beta2".to_string(),
+        api_version: "source.toolkit.fluxcd.io/v1".to_string(),
         kind: "HelmRepository".to_string(),
     }
 }
@@ -274,7 +274,7 @@ pub fn helm_repository_type_meta() -> TypeMeta {
 #[cfg(feature = "k8s")]
 pub fn helm_release_type_meta() -> TypeMeta {
     TypeMeta {
-        api_version: "helm.toolkit.fluxcd.io/v2beta2".to_string(),
+        api_version: "helm.toolkit.fluxcd.io/v2".to_string(),
         kind: "HelmRelease".to_string(),
     }
 }

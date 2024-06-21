@@ -57,8 +57,8 @@ k8s_resource(new_name='e2e test secret',objects=['test-env:secret'])
 
 ######## Feature Branch Workaround ########
 # Use the branch source to get the chart form a feature branch in the NR helm-charts repo.
-chart_source = 'helm-repo' # local|branch|helm-repo
-feature_branch = ''
+chart_source = 'branch' # local|branch|helm-repo
+feature_branch = 'bump-flux'
 local_chart_repo = ''
 
 #### Set-up charts
@@ -67,6 +67,7 @@ load('ext://git_resource', 'git_checkout')
 update_dependencies = False
 deps=[]
 chart = ''
+extra_resource_deps=[]
 
 if chart_source == 'local':
   chart = local_chart_repo
@@ -84,6 +85,7 @@ elif chart_source == 'helm-repo':
     'https://helm-charts.newrelic.com',
     resource_name='newrelic-helm-repo',
     )
+  extra_resource_deps=['newrelic-helm-repo']
 
 #### Installs charts
 helm_resource(
@@ -101,5 +103,5 @@ helm_resource(
     ],
   image_deps=['tilt.local/super-agent-dev'],
   image_keys=[('super-agent-deployment.image.registry', 'super-agent-deployment.image.repository', 'super-agent-deployment.image.tag')],
-  resource_deps=['newrelic-helm-repo','build-binary']
+  resource_deps=['build-binary']+extra_resource_deps
 )

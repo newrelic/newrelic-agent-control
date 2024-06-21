@@ -59,7 +59,7 @@ deployment:
       interval: 30s
     objects:
       repository:
-        apiVersion: source.toolkit.fluxcd.io/v1beta2
+        apiVersion: source.toolkit.fluxcd.io/v1
         kind: HelmRepository
         metadata:
           name: ${nr-sub:agent_id}
@@ -72,7 +72,7 @@ deployment:
           provider: generic
           url: https://helm-charts.newrelic.com
       release:
-        apiVersion: helm.toolkit.fluxcd.io/v2beta2
+        apiVersion: helm.toolkit.fluxcd.io/v2
         kind: HelmRelease
         metadata:
           name: ${nr-sub:agent_id}

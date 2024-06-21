@@ -5,8 +5,8 @@ update_settings ( k8s_upsert_timeout_secs = 150)
 
 ######## Feature Branch Workaround ########
 # Use the branch source to get the chart form a feature branch in the NR helm-charts repo.
-chart_source = 'helm-repo' # local|branch|helm-repo
-feature_branch = ''
+chart_source = 'branch' # local|branch|helm-repo
+feature_branch = 'bump-flux'
 local_chart_repo = ''
 
 #### Set-up charts
@@ -15,6 +15,7 @@ load('ext://git_resource', 'git_checkout')
 update_dependencies = False
 deps=[]
 chart = ''
+extra_resource_deps=[]
 
 if chart_source == 'local':
   chart = local_chart_repo
@@ -32,6 +33,7 @@ elif chart_source == 'helm-repo':
     'https://helm-charts.newrelic.com',
     resource_name='newrelic-helm-repo',
     )
+  extra_resource_deps=['newrelic-helm-repo']
 
 helm_resource(
   'flux',
@@ -46,5 +48,5 @@ helm_resource(
     '--set=flux2.watchAllNamespaces=true',
     '--set=super-agent-deployment.enabled=false',
     ],
-  resource_deps=['newrelic-helm-repo']
+  resource_deps=extra_resource_deps
 )

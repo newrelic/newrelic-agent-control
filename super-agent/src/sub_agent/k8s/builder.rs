@@ -350,7 +350,7 @@ pub mod test {
         };
 
         let k8s_object = K8sObject {
-            api_version: "helm.toolkit.fluxcd.io/v2beta2".to_string(),
+            api_version: "helm.toolkit.fluxcd.io/v2".to_string(),
             kind,
             ..Default::default()
         };
