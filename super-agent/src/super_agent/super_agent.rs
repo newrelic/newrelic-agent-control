@@ -218,9 +218,11 @@ where
             <<S as SubAgentBuilder>::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
     ) -> Result<(), AgentError> {
-        let _ = self.report_healthy(Healthy::default()).inspect_err(
-            |err| error!(error_msg = %err,"Error reporting health on Super Agent start"),
-        );
+        let _ = self
+            .report_healthy(Healthy::new(String::default()))
+            .inspect_err(
+                |err| error!(error_msg = %err,"Error reporting health on Super Agent start"),
+            );
 
         debug!("Listening for events from agents");
         let never_receive = EventConsumer::from(never());
@@ -459,6 +461,7 @@ mod tests {
     use crate::opamp::remote_config::{ConfigMap, RemoteConfig};
     use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
+    use crate::sub_agent::health::with_start_time::{HealthyWithStartTime, UnhealthyWithStartTime};
     use crate::sub_agent::{test::MockSubAgentBuilderMock, SubAgentBuilder};
     use crate::super_agent::config::{
         AgentID, AgentTypeFQN, SubAgentConfig, SuperAgentDynamicConfig,
@@ -478,7 +481,7 @@ mod tests {
     use std::collections::HashMap;
     use std::sync::Arc;
     use std::thread::{sleep, spawn};
-    use std::time::Duration;
+    use std::time::{Duration, SystemTime};
 
     use super::SuperAgentCallbacks;
 
@@ -738,7 +741,7 @@ agents:
         opamp_publisher.publish(OpAMPEvent::Connected).unwrap();
 
         // process_events always starts with SuperAgentHealthy
-        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::default());
+        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::new(String::default()));
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
 
@@ -798,7 +801,7 @@ agents:
             .unwrap();
 
         // process_events always starts with SuperAgentHealthy
-        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::default());
+        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::new(String::default()));
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
 
@@ -1144,11 +1147,11 @@ agents:
         assert!(event_processor.join().is_ok());
 
         // process_events always starts with SuperAgentHealthy
-        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::default());
+        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::new(String::default()));
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
 
-        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::default());
+        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::new(String::default()));
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
     }
@@ -1222,13 +1225,13 @@ agents:
         assert!(event_processor.join().is_ok());
 
         // process_events always starts with SuperAgentHealthy
-        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::default());
+        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::new(String::default()));
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
 
-        let expected = SuperAgentEvent::SuperAgentBecameUnhealthy(Unhealthy{last_error: String::from(
+        let expected = SuperAgentEvent::SuperAgentBecameUnhealthy(Unhealthy::new(String::default(),  String::from(
             "Error applying Super Agent remote config: remote config error: `config hash: `a-hash` config error: `some error message``",
-        ),..Default::default()});
+        )));
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
     }
@@ -1347,10 +1350,12 @@ agents:
 
         sleep(Duration::from_millis(10));
 
+        let start_time = SystemTime::now();
+
         sub_agent_publisher
             .publish(SubAgentEvent::SubAgentBecameHealthy(
                 agent_id.clone(),
-                Healthy::default().into(),
+                HealthyWithStartTime::new(Healthy::new(String::default()), start_time),
             ))
             .unwrap();
 
@@ -1361,12 +1366,15 @@ agents:
         assert!(event_processor.join().is_ok());
 
         // process_events always starts with SuperAgentHealthy
-        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::default());
+        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::new(String::default()));
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
 
-        let expected =
-            SuperAgentEvent::SubAgentBecameHealthy(agent_id, agent_type, Healthy::default().into());
+        let expected = SuperAgentEvent::SubAgentBecameHealthy(
+            agent_id,
+            agent_type,
+            HealthyWithStartTime::new(Healthy::new(String::default()), start_time),
+        );
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
     }
@@ -1428,11 +1436,10 @@ agents:
         sub_agent_publisher
             .publish(SubAgentEvent::SubAgentBecameUnhealthy(
                 agent_id.clone(),
-                Unhealthy {
-                    last_error: last_error_message.clone(),
-                    ..Default::default()
-                }
-                .into(),
+                UnhealthyWithStartTime::new(
+                    Unhealthy::new(String::default(), last_error_message.clone()),
+                    SystemTime::UNIX_EPOCH,
+                ),
             ))
             .unwrap();
 
@@ -1443,18 +1450,17 @@ agents:
         assert!(event_processor.join().is_ok());
 
         // process_events always starts with SuperAgentHealthy
-        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::default());
+        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::new(String::default()));
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
 
         let expected = SuperAgentEvent::SubAgentBecameUnhealthy(
             agent_id,
             agent_type,
-            Unhealthy {
-                last_error: last_error_message,
-                ..Default::default()
-            }
-            .into(),
+            UnhealthyWithStartTime::new(
+                Unhealthy::new(String::default(), last_error_message.clone()),
+                SystemTime::UNIX_EPOCH,
+            ),
         );
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
@@ -1556,7 +1562,7 @@ agents:
         assert!(event_processor.join().is_ok());
 
         // process_events always starts with SuperAgentHealthy
-        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::default());
+        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::new(String::default()));
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
 
@@ -1564,7 +1570,7 @@ agents:
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
 
-        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::default());
+        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::new(String::default()));
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
     }

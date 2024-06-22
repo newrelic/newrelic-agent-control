@@ -30,7 +30,7 @@ where
             return Ok(obj_health);
         }
     }
-    Ok(Healthy::default().into())
+    Ok(Healthy::new(String::default()).into())
 }
 
 /// Returns a closure which can be used as filter predicate. It will filter objects labeled with the key
@@ -95,7 +95,7 @@ mod test {
         let items = vec!["a", "b", "c", "d"].into_iter().map(Arc::new);
         let result = check_health_for_items(items.into_iter(), |s| match s {
             &"a" | &"b" => Ok(Healthy::default().into()),
-            _ => Ok(Health::unhealthy_with_last_error(s.to_string())),
+            _ => Ok(Unhealthy::new(String::default(), s.to_string()).into()),
         })
         .unwrap_or_else(|err| panic!("unexpected error {err} when unhealthy is expected"));
         assert_eq!(

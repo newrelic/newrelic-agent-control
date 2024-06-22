@@ -1,10 +1,11 @@
 use crate::opamp::{LastErrorCode, LastErrorMessage};
 use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
-use crate::sub_agent::health::with_start_time::{HealthyWithTimes, UnhealthyWithTimes};
+use crate::sub_agent::health::with_start_time::{HealthyWithStartTime, UnhealthyWithStartTime};
 use crate::super_agent::config::{AgentID, AgentTypeFQN};
 use serde::Serialize;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::time::SystemTime;
 use url::Url;
 
 // SuperAgentStatus will contain the information about Super Agent health.
@@ -30,13 +31,13 @@ impl SuperAgentStatus {
     pub fn healthy(&mut self, healthy: Healthy) {
         self.healthy = true;
         self.last_error = None;
-        self.status = healthy.status;
+        self.status = healthy.status().to_string();
     }
 
     pub fn unhealthy(&mut self, unhealthy: Unhealthy) {
         self.healthy = false;
-        self.last_error = unhealthy.last_error.into();
-        self.status = unhealthy.status;
+        self.last_error = unhealthy.last_error().to_string().into();
+        self.status = unhealthy.status().to_string();
     }
 }
 
@@ -129,22 +130,38 @@ impl SubAgentStatus {
 
     // This struct only has context inside the Sub Agents struct, so it makes it easier to interact
     // if we make it mutable
-    pub fn healthy(&mut self, healthy: HealthyWithTimes) {
+    pub fn healthy(&mut self, healthy: HealthyWithStartTime) {
         self.healthy = true;
         self.last_error = None;
-        self.status = healthy.status;
-        self.start_time_unix_nano = healthy.start_time;
-        self.status_time_unix_nano = healthy.status_time;
+        self.status = healthy.status().to_string();
+        self.start_time_unix_nano = healthy
+            .start_time()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64;
+        self.status_time_unix_nano = healthy
+            .status_time()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64;
     }
 
     // This struct only has context inside the Sub Agents struct, so it makes it easier to interact
     // if we make it mutable
-    pub fn unhealthy(&mut self, unhealthy: UnhealthyWithTimes) {
+    pub fn unhealthy(&mut self, unhealthy: UnhealthyWithStartTime) {
         self.healthy = false;
-        self.last_error = unhealthy.last_error.into();
-        self.status = unhealthy.status;
-        self.start_time_unix_nano = unhealthy.start_time;
-        self.status_time_unix_nano = unhealthy.status_time;
+        self.last_error = unhealthy.last_error().to_string().into();
+        self.status = unhealthy.status().to_string();
+        self.start_time_unix_nano = unhealthy
+            .start_time()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64;
+        self.status_time_unix_nano = unhealthy
+            .status_time()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64;
     }
 }
 

@@ -1,10 +1,10 @@
 use crate::context::Context;
 use crate::event::channel::{pub_sub, EventPublisher};
 use crate::event::SubAgentInternalEvent;
-use crate::sub_agent::health::health_checker::Unhealthy;
 use crate::sub_agent::health::health_checker::{publish_health_event, spawn_health_checker};
+use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
 use crate::sub_agent::health::on_host::http::HealthCheckerType;
-use crate::sub_agent::health::with_start_time::{HealthyWithTimes, UnhealthyWithTimes};
+use crate::sub_agent::health::with_start_time::{HealthyWithStartTime, UnhealthyWithStartTime};
 use crate::sub_agent::on_host::command::command::{
     CommandError, CommandTerminator, NotStartedCommand, StartedCommand,
 };
@@ -18,7 +18,7 @@ use crate::sub_agent::on_host::supervisor::restart_policy::BackoffStrategy;
 use crate::super_agent::config::AgentID;
 use std::os::unix::process::ExitStatusExt;
 use std::process::ExitStatus;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::SystemTime;
 use std::{
     ops::Deref,
     sync::{Arc, Mutex},
@@ -100,26 +100,13 @@ impl SupervisorOnHost<NotStarted> {
                 let bin = self.bin();
                 let id = self.id();
 
-                let start_time_unix_nano = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .inspect_err(|e| error!("error getting agent start time: {}. Setting to 0", e))
-                    .unwrap_or_default()
-                    .as_nanos() as u64;
+                let start_time = SystemTime::now();
 
-                let status_time_unix_nano = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .inspect_err(|e| {
-                        error!("error getting agent status time: {}. Setting to 0.", e)
-                    })
-                    .unwrap_or_default()
-                    .as_nanos() as u64;
+                let init_health = Healthy::new(String::default());
 
                 publish_health_event(
                     &internal_event_publisher,
-                    HealthyWithTimes::default()
-                        .with_start_time(start_time_unix_nano)
-                        .with_status_time(status_time_unix_nano)
-                        .into(),
+                    HealthyWithStartTime::new(init_health, start_time).into(),
                 );
 
                 // Spawn the health checker thread
@@ -137,7 +124,7 @@ impl SupervisorOnHost<NotStarted> {
                             health_check_cancel_consumer,
                             internal_event_publisher.clone(),
                             interval,
-                            start_time_unix_nano,
+                            start_time,
                         ),
                         Err(e) => {
                             error!(
@@ -165,6 +152,7 @@ impl SupervisorOnHost<NotStarted> {
                             &internal_event_publisher,
                             &id,
                             bin.to_string(),
+                            start_time,
                         )
                     });
 
@@ -190,27 +178,14 @@ impl SupervisorOnHost<NotStarted> {
                     if restart_policy.backoff != BackoffStrategy::None {
                         warn!("supervisor for {id} won't restart anymore due to having exceeded its restart policy");
 
-                        let status_time_unix_nano = Some(
-                            SystemTime::now()
-                                .duration_since(UNIX_EPOCH)
-                                .inspect_err(|e| {
-                                    error!("error getting agent status time: {}. Setting to 0.", e)
-                                })
-                                .unwrap_or_default()
-                                .as_nanos() as u64,
+                        let unhealthy = Unhealthy::new(
+                            String::default(),
+                            "supervisor exceeded its defined restart policy".to_string(),
                         );
 
                         publish_health_event(
                             &internal_event_publisher,
-                            UnhealthyWithTimes::from(Unhealthy {
-                                status: "supervisor exceeded its defined restart policy"
-                                    .to_string(),
-                                last_error: "supervisor exceeded its defined restart policy"
-                                    .to_string(),
-                                status_time: status_time_unix_nano,
-                            })
-                            .with_start_time(start_time_unix_nano)
-                            .into(),
+                            UnhealthyWithStartTime::new(unhealthy, start_time).into(),
                         );
                     }
                     break;
@@ -264,18 +239,19 @@ fn handle_termination(
     internal_event_publisher: &EventPublisher<SubAgentInternalEvent>,
     agent_id: &AgentID,
     bin: String,
+    start_time: SystemTime,
 ) -> i32 {
     if !exit_status.success() {
+        let unhealthy: Unhealthy = Unhealthy::new(
+            format!(
+                "process exited with code: {:?}",
+                exit_status.code().unwrap_or_default()
+            ),
+            exit_status.to_string(),
+        );
         publish_health_event(
             internal_event_publisher,
-            UnhealthyWithTimes::from(Unhealthy {
-                last_error: format!(
-                    "process exited with code: {:?}",
-                    exit_status.code().unwrap_or_default()
-                ),
-                ..Default::default()
-            })
-            .into(),
+            UnhealthyWithStartTime::new(unhealthy, start_time).into(),
         );
         error!(
             %agent_id,
@@ -334,7 +310,7 @@ fn wait_for_termination(
 }
 
 #[cfg(test)]
-pub mod sleep_supervisor_tests {
+pub mod tests {
     use super::*;
     use crate::context::Context;
     use crate::event::channel::pub_sub;
@@ -475,29 +451,22 @@ pub mod sleep_supervisor_tests {
         }
 
         // Fix the start times to allow comparison
-        let start_time_unix_nano = 123u64;
+        let start_time = SystemTime::now();
 
         // It starts once and restarts 3 times, hence 4 healthy events and a final unhealthy one
         let expected_ordered_events: Vec<SubAgentInternalEvent> = {
             vec![
-                HealthyWithTimes::from(Healthy::default())
-                    .with_start_time(start_time_unix_nano)
-                    .into(),
-                HealthyWithTimes::from(Healthy::default())
-                    .with_start_time(start_time_unix_nano)
-                    .into(),
-                HealthyWithTimes::from(Healthy::default())
-                    .with_start_time(start_time_unix_nano)
-                    .into(),
-                HealthyWithTimes::from(Healthy::default())
-                    .with_start_time(start_time_unix_nano)
-                    .into(),
-                UnhealthyWithTimes::from(Unhealthy {
-                    last_error: "supervisor exceeded its defined restart policy".to_string(),
-                    status: "supervisor exceeded its defined restart policy".to_string(),
-                    ..Default::default()
-                })
-                .with_start_time(start_time_unix_nano)
+                HealthyWithStartTime::new(Healthy::new(String::default()), start_time).into(),
+                HealthyWithStartTime::new(Healthy::new(String::default()), start_time).into(),
+                HealthyWithStartTime::new(Healthy::new(String::default()), start_time).into(),
+                HealthyWithStartTime::new(Healthy::new(String::default()), start_time).into(),
+                UnhealthyWithStartTime::new(
+                    Unhealthy::new(
+                        String::default(),
+                        "supervisor exceeded its defined restart policy".to_string(),
+                    ),
+                    start_time,
+                )
                 .into(),
             ]
         };
@@ -507,10 +476,10 @@ pub mod sleep_supervisor_tests {
             .iter()
             .map(|event| match event {
                 SubAgentInternalEvent::AgentBecameHealthy(healthy) => {
-                    healthy.with_start_time(start_time_unix_nano).into()
+                    healthy.with_start_time(start_time).into()
                 }
                 SubAgentInternalEvent::AgentBecameUnhealthy(unhealthy) => {
-                    unhealthy.with_start_time(start_time_unix_nano).into()
+                    unhealthy.with_start_time(start_time).into()
                 }
                 e => e,
             })
@@ -530,7 +499,7 @@ pub mod sleep_supervisor_tests {
             .expect_check_health()
             .once()
             .in_sequence(&mut seq)
-            .returning(|| Ok(Healthy::default().into()));
+            .returning(|| Ok(Healthy::new("status: 0".to_string()).into()));
         health_checker
             .expect_check_health()
             .once()
@@ -543,6 +512,8 @@ pub mod sleep_supervisor_tests {
                 ))
             });
 
+        let start_time = SystemTime::now();
+
         let agent_id = AgentID::new("test-agent").unwrap();
         spawn_health_checker(
             agent_id,
@@ -550,17 +521,20 @@ pub mod sleep_supervisor_tests {
             cancel_signal,
             health_publisher,
             Duration::default().into(),
-            0,
+            start_time,
         );
 
         // Check that the health checker was called at least once
         let expected_health_events: Vec<SubAgentInternalEvent> = {
             vec![
-                HealthyWithTimes::from(Healthy::default()).into(),
-                UnhealthyWithTimes::from(Unhealthy {
-                    last_error: "Health check error: mocked health check error!".to_string(),
-                    ..Default::default()
-                })
+                HealthyWithStartTime::new(Healthy::new("status: 0".to_string()), start_time).into(),
+                UnhealthyWithStartTime::new(
+                    Unhealthy::new(
+                        "Health check error".to_string(),
+                        "mocked health check error!".to_string(),
+                    ),
+                    start_time,
+                )
                 .into(),
             ]
         };
@@ -580,7 +554,7 @@ pub mod sleep_supervisor_tests {
             .expect_check_health()
             .once()
             .in_sequence(&mut seq)
-            .returning(|| Ok(Healthy::default().into()));
+            .returning(|| Ok(Healthy::new("status: 0".to_string()).into()));
         health_checker
             .expect_check_health()
             .once()
@@ -588,23 +562,26 @@ pub mod sleep_supervisor_tests {
             .returning(move || {
                 // Ensure the health checker will quit after the second loop
                 cancel_publisher.publish(()).unwrap();
-                Ok(Healthy::default().into())
+                Ok(Healthy::new("status: 1".to_string()).into())
             });
 
         let agent_id = AgentID::new("test-agent").unwrap();
+
+        let start_time = SystemTime::now();
+
         spawn_health_checker(
             agent_id,
             health_checker,
             cancel_signal,
             health_publisher,
             Duration::default().into(),
-            0,
+            start_time,
         );
 
         // Check that the health checker was called at least once
         let expected_health_events: Vec<SubAgentInternalEvent> = vec![
-            HealthyWithTimes::from(Healthy::default()).into(),
-            HealthyWithTimes::from(Healthy::default()).into(),
+            HealthyWithStartTime::new(Healthy::new("status: 0".to_string()), start_time).into(),
+            HealthyWithStartTime::new(Healthy::new("status: 1".to_string()), start_time).into(),
         ];
         let actual_health_events = health_consumer.as_ref().iter().collect::<Vec<_>>();
 
@@ -639,6 +616,8 @@ pub mod sleep_supervisor_tests {
                 ))
             });
 
+        let start_time = SystemTime::now();
+
         let agent_id = AgentID::new("test-agent").unwrap();
         spawn_health_checker(
             agent_id,
@@ -646,21 +625,27 @@ pub mod sleep_supervisor_tests {
             cancel_signal,
             health_publisher,
             Duration::default().into(),
-            0,
+            start_time,
         );
 
         // Check that the health checker was called at least once
         let expected_health_events: Vec<SubAgentInternalEvent> = {
             vec![
-                UnhealthyWithTimes::from(Unhealthy {
-                    last_error: "Health check error: mocked health check error!".to_string(),
-                    ..Default::default()
-                })
+                UnhealthyWithStartTime::new(
+                    Unhealthy::new(
+                        "Health check error".to_string(),
+                        "mocked health check error!".to_string(),
+                    ),
+                    start_time,
+                )
                 .into(),
-                UnhealthyWithTimes::from(Unhealthy {
-                    last_error: "Health check error: mocked health check error!".to_string(),
-                    ..Default::default()
-                })
+                UnhealthyWithStartTime::new(
+                    Unhealthy::new(
+                        "Health check error".to_string(),
+                        "mocked health check error!".to_string(),
+                    ),
+                    start_time,
+                )
                 .into(),
             ]
         };

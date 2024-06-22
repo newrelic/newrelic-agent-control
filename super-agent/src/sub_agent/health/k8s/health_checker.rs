@@ -99,14 +99,14 @@ where
                 return Ok(health);
             }
         }
-        Ok(Healthy::default().into())
+        Ok(Healthy::new(String::default()).into())
     }
 }
 
 #[cfg(test)]
 pub mod test {
     use crate::k8s::client::MockSyncK8sClient;
-    use crate::sub_agent::health::health_checker::test::MockHealthCheckMock;
+    use crate::sub_agent::health::health_checker::tests::MockHealthCheckMock;
     use crate::sub_agent::health::health_checker::{HealthChecker, HealthCheckerError};
     use crate::sub_agent::health::k8s::health_checker::SubAgentHealthChecker;
     use crate::super_agent::config::helm_release_type_meta;

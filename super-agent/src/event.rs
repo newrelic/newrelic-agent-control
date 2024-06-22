@@ -5,7 +5,7 @@ pub mod channel;
 use crate::opamp::{LastErrorCode, LastErrorMessage};
 use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
 use crate::sub_agent::health::with_start_time::{
-    HealthWithTimes, HealthyWithTimes, UnhealthyWithTimes,
+    HealthWithStartTime, HealthyWithStartTime, UnhealthyWithStartTime,
 };
 use crate::super_agent::config::AgentTypeFQN;
 use crate::{opamp::remote_config::RemoteConfig, super_agent::config::AgentID};
@@ -26,8 +26,8 @@ pub enum ApplicationEvent {
 pub enum SuperAgentEvent {
     SuperAgentBecameUnhealthy(Unhealthy),
     SuperAgentBecameHealthy(Healthy),
-    SubAgentBecameUnhealthy(AgentID, AgentTypeFQN, UnhealthyWithTimes),
-    SubAgentBecameHealthy(AgentID, AgentTypeFQN, HealthyWithTimes),
+    SubAgentBecameUnhealthy(AgentID, AgentTypeFQN, UnhealthyWithStartTime),
+    SubAgentBecameHealthy(AgentID, AgentTypeFQN, HealthyWithStartTime),
     SubAgentRemoved(AgentID),
     SuperAgentStopped,
     OpAMPConnected,
@@ -37,15 +37,17 @@ pub enum SuperAgentEvent {
 #[derive(Clone, Debug, PartialEq)]
 pub enum SubAgentEvent {
     ConfigUpdated(AgentID),
-    SubAgentBecameHealthy(AgentID, HealthyWithTimes),
-    SubAgentBecameUnhealthy(AgentID, UnhealthyWithTimes),
+    SubAgentBecameHealthy(AgentID, HealthyWithStartTime),
+    SubAgentBecameUnhealthy(AgentID, UnhealthyWithStartTime),
 }
 
 impl SubAgentEvent {
-    pub fn from_health_with_times(health: HealthWithTimes, id: AgentID) -> Self {
+    pub fn from_health_with_times(health: HealthWithStartTime, id: AgentID) -> Self {
         match health {
-            HealthWithTimes::Healthy(healthy) => SubAgentEvent::SubAgentBecameHealthy(id, healthy),
-            HealthWithTimes::Unhealthy(unhealthy) => {
+            HealthWithStartTime::Healthy(healthy) => {
+                SubAgentEvent::SubAgentBecameHealthy(id, healthy)
+            }
+            HealthWithStartTime::Unhealthy(unhealthy) => {
                 SubAgentEvent::SubAgentBecameUnhealthy(id, unhealthy)
             }
         }
@@ -55,27 +57,27 @@ impl SubAgentEvent {
 #[derive(Clone, Debug, PartialEq)]
 pub enum SubAgentInternalEvent {
     StopRequested,
-    AgentBecameUnhealthy(UnhealthyWithTimes),
-    AgentBecameHealthy(HealthyWithTimes),
+    AgentBecameUnhealthy(UnhealthyWithStartTime),
+    AgentBecameHealthy(HealthyWithStartTime),
 }
 
-impl From<UnhealthyWithTimes> for SubAgentInternalEvent {
-    fn from(unhealthy: UnhealthyWithTimes) -> Self {
+impl From<UnhealthyWithStartTime> for SubAgentInternalEvent {
+    fn from(unhealthy: UnhealthyWithStartTime) -> Self {
         SubAgentInternalEvent::AgentBecameUnhealthy(unhealthy)
     }
 }
 
-impl From<HealthyWithTimes> for SubAgentInternalEvent {
-    fn from(healthy: HealthyWithTimes) -> Self {
+impl From<HealthyWithStartTime> for SubAgentInternalEvent {
+    fn from(healthy: HealthyWithStartTime) -> Self {
         SubAgentInternalEvent::AgentBecameHealthy(healthy)
     }
 }
 
-impl From<HealthWithTimes> for SubAgentInternalEvent {
-    fn from(health: HealthWithTimes) -> Self {
+impl From<HealthWithStartTime> for SubAgentInternalEvent {
+    fn from(health: HealthWithStartTime) -> Self {
         match health {
-            HealthWithTimes::Healthy(healthy) => healthy.into(),
-            HealthWithTimes::Unhealthy(unhealthy) => unhealthy.into(),
+            HealthWithStartTime::Healthy(healthy) => healthy.into(),
+            HealthWithStartTime::Unhealthy(unhealthy) => unhealthy.into(),
         }
     }
 }

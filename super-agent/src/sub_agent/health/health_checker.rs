@@ -2,7 +2,7 @@ use crate::agent_type::health_config::HealthCheckInterval;
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::SubAgentInternalEvent;
-use crate::sub_agent::health::with_start_time::HealthWithTimes;
+use crate::sub_agent::health::with_start_time::HealthWithStartTime;
 use crate::super_agent::config::AgentID;
 use std::thread;
 use std::time::{SystemTime, SystemTimeError};
@@ -43,21 +43,6 @@ pub enum HealthCheckerError {
 }
 
 impl Health {
-    pub fn unhealthy_with_last_error(last_error: String) -> Self {
-        Self::Unhealthy(Unhealthy {
-            last_error,
-
-            // We are not using the `status` field for now
-            ..Default::default()
-        })
-    }
-
-    pub fn healthy() -> Self {
-        Self::Healthy(Healthy {
-            ..Default::default()
-        })
-    }
-
     pub fn is_healthy(&self) -> bool {
         matches!(self, Health::Healthy { .. })
     }
@@ -77,7 +62,7 @@ impl Health {
         }
     }
 
-    pub fn status_time(&self) -> Option<SystemTime> {
+    pub fn status_time(&self) -> SystemTime {
         match self {
             Health::Healthy(healthy) => healthy.status_time(),
             Health::Unhealthy(unhealthy) => unhealthy.status_time(),
@@ -106,20 +91,17 @@ impl From<HealthCheckerError> for Health {
 
 impl From<HealthCheckerError> for Unhealthy {
     fn from(err: HealthCheckerError) -> Self {
-        Unhealthy {
-            last_error: format!("Health check error: {}", err),
-            ..Default::default()
-        }
+        Unhealthy::new("Health check error".to_string(), err.to_string())
     }
 }
 
 /// Represents the healthy state of the agent and its associated data.
 /// See OpAMP's [spec](https://github.com/open-telemetry/opamp-spec/blob/main/specification.md#componenthealthstatus)
 /// for more details.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct Healthy {
-    pub status_time: Option<SystemTime>,
-    pub status: String,
+    pub(super) status_time: SystemTime,
+    pub(super) status: String,
 }
 
 impl PartialEq for Healthy {
@@ -130,11 +112,17 @@ impl PartialEq for Healthy {
 }
 
 impl Healthy {
+    pub fn new(status: String) -> Self {
+        Self {
+            status,
+            status_time: SystemTime::now(),
+        }
+    }
     pub fn status(&self) -> &str {
         &self.status
     }
 
-    pub fn status_time(&self) -> Option<SystemTime> {
+    pub fn status_time(&self) -> SystemTime {
         self.status_time
     }
 }
@@ -142,11 +130,11 @@ impl Healthy {
 /// Represents the unhealthy state of the agent and its associated data.
 /// See OpAMP's [spec](https://github.com/open-telemetry/opamp-spec/blob/main/specification.md#componenthealthstatus)
 /// for more details.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct Unhealthy {
-    status_time: Option<SystemTime>,
-    status: String,
-    last_error: String,
+    pub(super) status_time: SystemTime,
+    pub(super) status: String,
+    pub(super) last_error: String,
 }
 
 impl PartialEq for Unhealthy {
@@ -157,6 +145,14 @@ impl PartialEq for Unhealthy {
 }
 
 impl Unhealthy {
+    pub fn new(status: String, last_error: String) -> Self {
+        Self {
+            status,
+            last_error,
+            status_time: SystemTime::now(),
+        }
+    }
+
     pub fn status(&self) -> &str {
         &self.status
     }
@@ -165,7 +161,7 @@ impl Unhealthy {
         &self.last_error
     }
 
-    pub fn status_time(&self) -> Option<SystemTime> {
+    pub fn status_time(&self) -> SystemTime {
         self.status_time
     }
 }
@@ -201,16 +197,9 @@ pub(crate) fn spawn_health_checker<H>(
             }
         };
 
-        // If the health check implementation did not provide a status_time,
-        // we attempt to set the time now.
-        let status_time = health.status_time().unwrap_or_else(|| SystemTime::now());
-
         publish_health_event(
             &health_publisher,
-            HealthWithTimes::from(health)
-                .with_start_time(start_time)
-                .with_status_time(status_time)
-                .into(),
+            HealthWithStartTime::from_health(health, start_time).into(),
         );
     });
 }
@@ -230,9 +219,34 @@ pub(crate) fn publish_health_event(
 }
 
 #[cfg(test)]
-pub mod test {
+pub mod tests {
     use super::*;
     use mockall::mock;
+
+    impl Default for Healthy {
+        fn default() -> Self {
+            Self {
+                status_time: SystemTime::UNIX_EPOCH,
+                status: String::default(),
+            }
+        }
+    }
+
+    impl Default for Unhealthy {
+        fn default() -> Self {
+            Self {
+                status_time: SystemTime::UNIX_EPOCH,
+                status: String::default(),
+                last_error: String::default(),
+            }
+        }
+    }
+
+    impl Unhealthy {
+        pub fn with_last_error(self, last_error: String) -> Self {
+            Self { last_error, ..self }
+        }
+    }
 
     mock! {
         pub HealthCheckMock{}
@@ -246,7 +260,7 @@ pub mod test {
             let mut healthy = MockHealthCheckMock::new();
             healthy
                 .expect_check_health()
-                .returning(|| Ok(Healthy::default().into()));
+                .returning(|| Ok(Healthy::new(String::default()).into()));
             healthy
         }
 
@@ -254,7 +268,7 @@ pub mod test {
             let mut unhealthy = MockHealthCheckMock::new();
             unhealthy
                 .expect_check_health()
-                .returning(|| Ok(Unhealthy::default().into()));
+                .returning(|| Ok(Unhealthy::new(String::default(), String::default()).into()));
             unhealthy
         }
 
