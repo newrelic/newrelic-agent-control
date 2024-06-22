@@ -321,8 +321,8 @@ pub mod test {
             k8s_config: Default::default(),
         };
 
-        let (stop_ch, join_handle) = supervisor
-            .start_k8s_objects_supervisor(Arc::new(vec![dynamic_object()]), SystemTime::UNIX_EPOCH);
+        let (stop_ch, join_handle) =
+            supervisor.start_k8s_objects_supervisor(Arc::new(vec![dynamic_object()]));
         thread::sleep(Duration::from_millis(300)); // Sleep a bit more than one interval, two apply calls should be executed.
         stop_ch.publish(()).unwrap();
         join_handle.join().unwrap();

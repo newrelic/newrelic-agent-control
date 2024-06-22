@@ -149,10 +149,14 @@ impl HealthChecker for K8sHealthFluxHelmRelease {
             .k8s_client
             .has_dynamic_object_changed(&self.k8s_object)?
         {
-            return Ok(Health::unhealthy_with_last_error(format!(
-                "HelmRelease '{}' does not match the latest agent configuration",
-                &self.name,
-            )));
+            return Ok(Unhealthy::new(
+                String::default(),
+                format!(
+                    "HelmRelease '{}' does not match the latest agent configuration",
+                    &self.name,
+                ),
+            )
+            .into());
         }
 
         let status = self.get_status(helm_release_data)?;
@@ -186,7 +190,7 @@ pub mod test {
         let test_cases : Vec<TestCase> = vec![
             (
                 "Helm release unhealthy when the helm-release object should change",
-                Ok(Health::unhealthy_with_last_error("HelmRelease 'example-release' does not match the latest agent configuration".to_string())),
+                Ok(Unhealthy::new(String::default(),"HelmRelease 'example-release' does not match the latest agent configuration".to_string()).into()),
                 |mock: &mut MockSyncK8sClient| {
                     mock.expect_get_helm_release()
                         .returning(|_| Ok(Some(Arc::new(dynamic_object()))));
@@ -195,7 +199,7 @@ pub mod test {
             ),
             (
                 "Helm release healthy when ready and status true",
-                Ok(Healthy::default().into()),
+                Ok(Healthy::new(String::default()).into()),
                 |mock: &mut MockSyncK8sClient| {
                     let status_conditions = json!({
                         "conditions": [
