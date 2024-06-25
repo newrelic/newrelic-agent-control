@@ -18,6 +18,7 @@ pub(super) async fn status_handler(status: Data<Arc<RwLock<Status>>>) -> impl Re
 #[cfg(test)]
 mod test {
     use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
+    use crate::sub_agent::health::with_start_time::HealthWithStartTime;
     use crate::super_agent::config::{AgentID, AgentTypeFQN};
     use crate::super_agent::http_server::status::{Status, SubAgentStatus};
     use crate::super_agent::http_server::status_handler::status_handler;
@@ -27,6 +28,7 @@ mod test {
     use actix_web::Responder;
     use std::collections::HashMap;
     use std::sync::Arc;
+    use std::time::SystemTime;
     use tokio::sync::RwLock;
     use url::Url;
 
@@ -37,7 +39,13 @@ mod test {
         let agent_type = AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap();
         let mut sub_agent_status =
             SubAgentStatus::with_id_and_type(agent_id.clone(), agent_type.clone());
-        sub_agent_status.healthy(Healthy::default());
+
+        let start_time = SystemTime::UNIX_EPOCH;
+
+        sub_agent_status.update_health(HealthWithStartTime::new(
+            Healthy::default().into(),
+            start_time,
+        ));
 
         let sub_agents = HashMap::from([(agent_id.clone(), sub_agent_status)]);
 
@@ -56,7 +64,7 @@ mod test {
         let request = TestRequest::default().to_http_request();
         let response = responder.respond_to(&request);
 
-        let expected_body = r#"{"super_agent":{"healthy":true},"opamp":{"enabled":true,"endpoint":"http://127.0.0.1/","reachable":true},"sub_agents":{"some-agent-id":{"agent_id":"some-agent-id","agent_type":"namespace/some-agent-type:0.0.1","healthy":true}}}"#;
+        let expected_body = r#"{"super_agent":{"healthy":true},"opamp":{"enabled":true,"endpoint":"http://127.0.0.1/","reachable":true},"sub_agents":{"some-agent-id":{"agent_id":"some-agent-id","agent_type":"namespace/some-agent-type:0.0.1","healthy":true,"start_time_unix_nano":0,"status_time_unix_nano":0}}}"#;
 
         assert_eq!(
             expected_body,
@@ -75,10 +83,12 @@ mod test {
         let agent_type = AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap();
         let mut sub_agent_status =
             SubAgentStatus::with_id_and_type(agent_id.clone(), agent_type.clone());
-        sub_agent_status.unhealthy(Unhealthy {
-            last_error: String::from("a sub agent error"),
-            ..Default::default()
-        });
+        sub_agent_status.update_health(HealthWithStartTime::new(
+            Unhealthy::default()
+                .with_last_error("some error".to_string())
+                .into(),
+            SystemTime::UNIX_EPOCH,
+        ));
 
         let sub_agents = HashMap::from([(agent_id.clone(), sub_agent_status)]);
 
@@ -86,10 +96,8 @@ mod test {
             .with_sub_agents(sub_agents.into())
             .with_opamp(Url::try_from("http://127.0.0.1").unwrap());
 
-        st.super_agent.unhealthy(Unhealthy {
-            last_error: String::from("this is an error"),
-            ..Default::default()
-        });
+        st.super_agent
+            .unhealthy(Unhealthy::default().with_last_error("super agent error".to_string()));
         st.opamp.reachable();
 
         let status = Arc::new(RwLock::new(st));
@@ -100,7 +108,7 @@ mod test {
         let request = TestRequest::default().to_http_request();
         let response = responder.respond_to(&request);
 
-        let expected_body = r#"{"super_agent":{"healthy":false,"last_error":"this is an error"},"opamp":{"enabled":true,"endpoint":"http://127.0.0.1/","reachable":true},"sub_agents":{"some-agent-id":{"agent_id":"some-agent-id","agent_type":"namespace/some-agent-type:0.0.1","healthy":false,"last_error":"a sub agent error"}}}"#;
+        let expected_body = r#"{"super_agent":{"healthy":false,"last_error":"super agent error"},"opamp":{"enabled":true,"endpoint":"http://127.0.0.1/","reachable":true},"sub_agents":{"some-agent-id":{"agent_id":"some-agent-id","agent_type":"namespace/some-agent-type:0.0.1","healthy":false,"last_error":"some error","start_time_unix_nano":0,"status_time_unix_nano":0}}}"#;
 
         assert_eq!(
             expected_body,

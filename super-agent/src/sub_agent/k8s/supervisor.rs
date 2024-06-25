@@ -17,7 +17,7 @@ use k8s_openapi::serde_json;
 use kube::{api::DynamicObject, core::TypeMeta};
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 use thiserror::Error;
 use tracing::{debug, error, info, trace};
 
@@ -65,12 +65,14 @@ impl NotStartedSupervisor {
     pub fn start(
         self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
+        start_time: SystemTime,
     ) -> Result<StartedSupervisor, SupervisorError> {
         let resources = Arc::new(self.build_dynamic_objects()?);
 
         let (stop_objects_supervisor, objects_supervisor_handle) =
             self.start_k8s_objects_supervisor(resources.clone());
-        let maybe_stop_health = self.start_health_check(sub_agent_internal_publisher, resources)?;
+        let maybe_stop_health =
+            self.start_health_check(sub_agent_internal_publisher, resources, start_time)?;
 
         Ok(StartedSupervisor {
             maybe_stop_health,
@@ -148,6 +150,7 @@ impl NotStartedSupervisor {
         &self,
         health_publisher: EventPublisher<SubAgentInternalEvent>,
         resources: Arc<Vec<DynamicObject>>,
+        start_time: SystemTime,
     ) -> Result<Option<EventPublisher<()>>, SupervisorError> {
         if let Some(health_config) = self.k8s_config.health.clone() {
             let (stop_health_publisher, stop_health_consumer) = pub_sub();
@@ -160,6 +163,7 @@ impl NotStartedSupervisor {
                 stop_health_consumer,
                 health_publisher,
                 health_config.interval,
+                start_time,
             );
             return Ok(Some(stop_health_publisher));
         }
@@ -205,13 +209,14 @@ pub fn log_and_report_unhealthy(
     sub_agent_internal_publisher: &EventPublisher<SubAgentInternalEvent>,
     err: &SupervisorError,
     msg: &str,
+    start_time: SystemTime,
 ) {
     let last_error = format!("{msg}: {err}");
 
-    let event = SubAgentInternalEvent::AgentBecameUnhealthy(Unhealthy {
-        last_error,
-        ..Default::default()
-    });
+    let event = SubAgentInternalEvent::AgentBecameUnhealthy(
+        Unhealthy::new(String::default(), last_error),
+        start_time,
+    );
 
     error!(%err, msg);
     publish_health_event(sub_agent_internal_publisher, event);
@@ -341,6 +346,7 @@ pub mod test {
                     metadata: Default::default(), // missing name
                     data: Default::default(),
                 }]),
+                SystemTime::UNIX_EPOCH,
             )
             .err()
             .unwrap(); // cannot use unwrap_err because the  underlying EventPublisher doesn't implement Debug
@@ -358,7 +364,7 @@ pub mod test {
 
         let not_started = not_started_supervisor(config, None);
         let started = not_started
-            .start(sub_agent_internal_publisher)
+            .start(sub_agent_internal_publisher, SystemTime::UNIX_EPOCH)
             .expect("supervisor started");
         let _ = started
             .stop()
@@ -378,7 +384,7 @@ pub mod test {
 
         let not_started = not_started_supervisor(config, None);
         let started = not_started
-            .start(sub_agent_internal_publisher)
+            .start(sub_agent_internal_publisher, SystemTime::UNIX_EPOCH)
             .expect("supervisor started");
         assert!(started.maybe_stop_health.is_none());
     }

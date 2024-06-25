@@ -5,6 +5,7 @@ use tokio::sync::RwLock;
 use tracing::debug;
 
 use crate::event::SuperAgentEvent;
+use crate::sub_agent::health::with_start_time::HealthWithStartTime;
 use crate::super_agent::http_server::status::{Status, SubAgentStatus};
 
 pub(super) async fn on_super_agent_event_update_status(
@@ -34,21 +35,21 @@ async fn update_status(super_agent_event: SuperAgentEvent, status: Arc<RwLock<St
             );
             status.super_agent.unhealthy(unhealthy);
         }
-        SuperAgentEvent::SubAgentBecameUnhealthy(agent_id, agent_type, unhealthy) => {
+        SuperAgentEvent::SubAgentBecameUnhealthy(agent_id, agent_type, unhealthy, start_time) => {
             debug!(error_msg = unhealthy.last_error(), %agent_id, %agent_type, "status_http_server event_processor sub_agent_became_unhealthy");
             status
                 .sub_agents
                 .entry(agent_id.clone())
                 .or_insert_with(|| SubAgentStatus::with_id_and_type(agent_id, agent_type))
-                .unhealthy(unhealthy);
+                .update_health(HealthWithStartTime::new(unhealthy.into(), start_time));
         }
-        SuperAgentEvent::SubAgentBecameHealthy(agent_id, agent_type, healthy) => {
+        SuperAgentEvent::SubAgentBecameHealthy(agent_id, agent_type, healthy, start_time) => {
             debug!(%agent_id, %agent_type, "status_http_server event_processor sub_agent_became_healthy");
             status
                 .sub_agents
                 .entry(agent_id.clone())
                 .or_insert_with(|| SubAgentStatus::with_id_and_type(agent_id, agent_type))
-                .healthy(healthy);
+                .update_health(HealthWithStartTime::new(healthy.into(), start_time));
         }
         SuperAgentEvent::SubAgentRemoved(agent_id) => {
             status.sub_agents.remove(&agent_id);
@@ -75,7 +76,7 @@ async fn update_status(super_agent_event: SuperAgentEvent, status: Arc<RwLock<St
 mod test {
     use std::collections::HashMap;
     use std::sync::Arc;
-    use std::time::Duration;
+    use std::time::{Duration, SystemTime};
 
     use fake::faker::boolean::en;
     use fake::faker::filesystem::en::Semver;
@@ -128,9 +129,7 @@ mod test {
         let tests = vec![
             Test {
                 _name: "Unhealthy Super Agent becomes healthy",
-                super_agent_event: SuperAgentBecameHealthy(Healthy {
-                    status: "some status".to_string(),
-                }),
+                super_agent_event: SuperAgentBecameHealthy(Healthy::new("some status".to_string())),
                 current_status: Arc::new(RwLock::new(Status {
                     super_agent: SuperAgentStatus::new_unhealthy(
                         String::from("some status"),
@@ -147,10 +146,10 @@ mod test {
             },
             Test {
                 _name: "Healthy Super Agent becomes unhealthy",
-                super_agent_event: SuperAgentBecameUnhealthy(Unhealthy {
-                    last_error: "some error message for super agent unhealthy".to_string(),
-                    status: "some status".to_string(),
-                }),
+                super_agent_event: SuperAgentBecameUnhealthy(Unhealthy::new(
+                    "some status".to_string(),
+                    "some error message for super agent unhealthy".to_string(),
+                )),
                 current_status: Arc::new(RwLock::new(Status {
                     super_agent: SuperAgentStatus::new_healthy(String::from("some status")),
                     opamp: opamp_status_random.clone(),
@@ -171,6 +170,7 @@ mod test {
                     AgentID::new("some-agent-id").unwrap(),
                     AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
                     Healthy::default(),
+                    SystemTime::UNIX_EPOCH,
                 ),
                 current_status: Arc::new(RwLock::new(Status {
                     super_agent: super_agent_status_random.clone(),
@@ -188,6 +188,8 @@ mod test {
                             String::default(),
                             true,
                             None,
+                            0,
+                            0,
                         ),
                     )])),
                 },
@@ -197,10 +199,8 @@ mod test {
                 super_agent_event: SubAgentBecameUnhealthy(
                     AgentID::new("some-agent-id").unwrap(),
                     AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-                    Unhealthy {
-                        last_error: String::from("this is an error message"),
-                        ..Default::default()
-                    },
+                    Unhealthy::default().with_last_error("this is an error message".to_string()),
+                    SystemTime::UNIX_EPOCH,
                 ),
                 current_status: Arc::new(RwLock::new(Status {
                     super_agent: super_agent_status_random.clone(),
@@ -218,6 +218,8 @@ mod test {
                             String::default(),
                             false,
                             Some(String::from("this is an error message")),
+                            0,
+                            0,
                         ),
                     )])),
                 },
@@ -227,10 +229,8 @@ mod test {
                 super_agent_event: SubAgentBecameUnhealthy(
                     AgentID::new("some-agent-id").unwrap(),
                     AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-                    Unhealthy {
-                        last_error: String::from("this is an error message"),
-                        ..Default::default()
-                    },
+                    Unhealthy::default().with_last_error("this is an error message".to_string()),
+                    SystemTime::UNIX_EPOCH,
                 ),
                 current_status: Arc::new(RwLock::new(Status {
                     super_agent: super_agent_status_random.clone(),
@@ -244,6 +244,8 @@ mod test {
                                 String::default(),
                                 true,
                                 Some(String::default()),
+                                0,
+                                0,
                             ),
                         ),
                         (
@@ -254,6 +256,8 @@ mod test {
                                 String::default(),
                                 true,
                                 Some(String::default()),
+                                0,
+                                0,
                             ),
                         ),
                     ])),
@@ -270,6 +274,8 @@ mod test {
                                 String::default(),
                                 false,
                                 Some(String::from("this is an error message")),
+                                0,
+                                0,
                             ),
                         ),
                         (
@@ -280,6 +286,8 @@ mod test {
                                 String::default(),
                                 true,
                                 Some(String::default()),
+                                0,
+                                0,
                             ),
                         ),
                     ])),
@@ -300,6 +308,8 @@ mod test {
                                 String::default(),
                                 true,
                                 Some(String::default()),
+                                0,
+                                0,
                             ),
                         ),
                         (
@@ -310,6 +320,8 @@ mod test {
                                 String::default(),
                                 true,
                                 Some(String::default()),
+                                0,
+                                0,
                             ),
                         ),
                     ])),
@@ -325,6 +337,8 @@ mod test {
                             String::default(),
                             true,
                             Some(String::default()),
+                            0,
+                            0,
                         ),
                     )])),
                 },
@@ -405,7 +419,7 @@ mod test {
         //random status
         let status = Word().fake::<String>();
 
-        SubAgentStatus::new(agent_id, agent_type, status, healthy, last_error)
+        SubAgentStatus::new(agent_id, agent_type, status, healthy, last_error, 0, 0)
     }
 
     // create N (0..5) random Sub Agent status

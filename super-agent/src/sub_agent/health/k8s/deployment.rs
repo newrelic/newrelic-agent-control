@@ -2,7 +2,9 @@
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::utils as client_utils;
 use crate::k8s::utils::IntOrPercentage;
-use crate::sub_agent::health::health_checker::{Health, HealthChecker, HealthCheckerError};
+use crate::sub_agent::health::health_checker::{
+    Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
+};
 use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec, ReplicaSet};
 use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
 use k8s_openapi::Resource as _; // Needed to access resource's KIND. e.g.: Deployment::KIND
@@ -31,9 +33,11 @@ impl HealthChecker for K8sHealthDeployment {
             self.latest_replica_set_for_deployment(name.as_str())
                 .map(|replica_set| Self::check_deployment_health(deployment, &replica_set))
                 .unwrap_or_else(|| {
-                    Ok(Health::unhealthy_with_last_error(format!(
-                        "ReplicaSet not found for Deployment {name}"
-                    )))
+                    Ok(Unhealthy::new(
+                        String::default(),
+                        format!("ReplicaSet not found for Deployment {name}"),
+                    )
+                    .into())
                 })
         };
 
@@ -68,10 +72,11 @@ impl K8sHealthDeployment {
 
         // If the deployment is paused, consider it unhealthy
         if let Some(true) = spec.paused {
-            return Ok(Health::unhealthy_with_last_error(format!(
-                "Deployment '{}' is paused",
-                name,
-            )));
+            return Ok(Unhealthy::new(
+                String::default(),
+                format!("Deployment '{}' is paused", name,),
+            )
+            .into());
         }
 
         let replicas = status
@@ -97,13 +102,17 @@ impl K8sHealthDeployment {
             .ok_or_else(|| utils::missing_field_error(deployment, &name, "ready replicas"))?;
 
         if ready_replicas < expected_ready {
-            return Ok(Health::unhealthy_with_last_error(format!(
-                "Deployment '{}' is not ready. {} out of {} expected pods are ready",
-                name, ready_replicas, expected_ready
-            )));
+            return Ok(Unhealthy::new(
+                String::default(),
+                format!(
+                    "Deployment '{}' is not ready. {} out of {} expected pods are ready",
+                    name, ready_replicas, expected_ready
+                ),
+            )
+            .into());
         }
 
-        Ok(Health::healthy())
+        Ok(Healthy::new(String::default()).into())
     }
 
     /// Calculates the maximum number of unavailable pods during a rolling update.
@@ -276,14 +285,18 @@ mod test {
                         })
                         .unwrap()
                 } else {
-                    Health::unhealthy_with_last_error(format!(
-                        "ReplicaSet not found for Deployment '{}'",
-                        self.deployment
-                            .metadata
-                            .name
-                            .as_deref()
-                            .unwrap_or("unknown"),
-                    ))
+                    Unhealthy::new(
+                        String::default(),
+                        format!(
+                            "ReplicaSet not found for Deployment '{}'",
+                            self.deployment
+                                .metadata
+                                .name
+                                .as_deref()
+                                .unwrap_or("unknown"),
+                        ),
+                    )
+                    .into()
                 };
 
                 assert_eq!(result, self.expected, "{}", self.name);
@@ -317,10 +330,12 @@ mod test {
                     status: Some(test_util_create_replica_set_status(6)),
                     ..Default::default()
                 }),
-                expected: Health::unhealthy_with_last_error(
+                expected: Unhealthy::new(
+                    String::default(),
                     "Deployment 'test-deployment' is not ready. 6 out of 8 expected pods are ready"
                         .into(),
-                ),
+                )
+                .into(),
             },
             TestCase {
                 name: "Deployment paused",
@@ -337,9 +352,11 @@ mod test {
                     status: Some(test_util_create_replica_set_status(8)),
                     ..Default::default()
                 }),
-                expected: Health::unhealthy_with_last_error(
+                expected: Unhealthy::new(
+                    String::default(),
                     "Deployment 'test-deployment' is paused".into(),
-                ),
+                )
+                .into(),
             },
             TestCase {
                 name: "No ReplicaSet found",
@@ -349,9 +366,11 @@ mod test {
                     status: Some(test_util_create_deployment_status(10)),
                 },
                 rs: None,
-                expected: Health::unhealthy_with_last_error(
+                expected: Unhealthy::new(
+                    String::default(),
                     "ReplicaSet not found for Deployment 'test-deployment'".into(),
-                ),
+                )
+                .into(),
             },
         ];
 
@@ -799,9 +818,11 @@ mod test {
         let result = health_checker.check_health().unwrap();
         assert_eq!(
             result,
-            Health::unhealthy_with_last_error(
+            Unhealthy::new(
+                String::default(),
                 "ReplicaSet not found for Deployment test-deployment-2".to_string()
             )
+            .into()
         );
     }
 

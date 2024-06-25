@@ -60,15 +60,12 @@ where
                     &remote_config.hash,
                     error_message.clone(),
                 )?;
-                Ok(self.report_unhealthy(Unhealthy {
-                    last_error: error_message,
-                    ..Default::default()
-                })?)
+                Ok(self.report_unhealthy(Unhealthy::new(String::default(), error_message))?)
             }
             Ok(()) => {
                 self.set_config_hash_as_applied(&mut remote_config.hash)?;
                 report_remote_config_status_applied(opamp_client, &remote_config.hash)?;
-                Ok(self.report_healthy(Healthy::default())?)
+                Ok(self.report_healthy(Healthy::new(String::default()))?)
             }
         }
     }

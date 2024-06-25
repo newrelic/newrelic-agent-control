@@ -3,7 +3,9 @@ use super::utils;
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::utils as client_utils;
 use crate::k8s::utils::IntOrPercentage;
-use crate::sub_agent::health::health_checker::{Health, HealthChecker, HealthCheckerError};
+use crate::sub_agent::health::health_checker::{
+    Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
+};
 use k8s_openapi::api::apps::v1::{DaemonSet, DaemonSetStatus, DaemonSetUpdateStrategy};
 use k8s_openapi::Resource as _; // Needed to access resource's KIND. e.g.: Deployment::KIND
 use std::sync::Arc;
@@ -85,7 +87,7 @@ impl K8sHealthDaemonSet {
         let rolling_update = match update_strategy_type {
             // If the update strategy is not a rolling update, there will be nothing to wait for
             UpdateStrategyType::OnDelete => {
-                return Ok(Health::healthy());
+                return Ok(Healthy::new(String::default()).into());
             }
             UpdateStrategyType::RollingUpdate => {
                 update_strategy.rolling_update.ok_or_else(|| {
@@ -99,19 +101,27 @@ impl K8sHealthDaemonSet {
         };
 
         if status.updated_number_scheduled.is_none() {
-            return Ok(Health::unhealthy_with_last_error(format!(
-                "DaemonSet `{}` is so new that it has no `updated_number_scheduled` status yet",
-                name
-            )));
+            return Ok(Unhealthy::new(
+                String::default(),
+                format!(
+                    "DaemonSet `{}` is so new that it has no `updated_number_scheduled` status yet",
+                    name
+                ),
+            )
+            .into());
         }
 
         // Make sure all the updated pods have been scheduled
         if let Some(updated_number_scheduled) = status.updated_number_scheduled {
             if updated_number_scheduled != status.desired_number_scheduled {
-                return Ok(Health::unhealthy_with_last_error(format!(
-                    "DaemonSet `{}` Not all the pods of the were able to schedule",
-                    name
-                )));
+                return Ok(Unhealthy::new(
+                    String::default(),
+                    format!(
+                        "DaemonSet `{}` Not all the pods of the were able to schedule",
+                        name
+                    ),
+                )
+                .into());
             }
         }
 
@@ -119,7 +129,7 @@ impl K8sHealthDaemonSet {
             // If max unavailable is not set, the daemon set does not expect to have healthy pods.
             // Returning Healthiness as soon as possible.
             None => {
-                return Ok(Health::healthy())
+                return Ok(Healthy::new(String::default()).into())
             }
             Some(value) => IntOrPercentage::try_from(value)
                 .map_err(|err| {
@@ -134,13 +144,17 @@ impl K8sHealthDaemonSet {
 
         let expected_ready = status.desired_number_scheduled - max_unavailable;
         if status.number_ready < expected_ready {
-            return Ok(Health::unhealthy_with_last_error(format!(
-                "Daemonset '{}': The number of pods ready is less that the desired: {} < {}",
-                name, status.number_ready, expected_ready
-            )));
+            return Ok(Unhealthy::new(
+                String::default(),
+                format!(
+                    "Daemonset '{}': The number of pods ready is less that the desired: {} < {}",
+                    name, status.number_ready, expected_ready
+                ),
+            )
+            .into());
         }
 
-        Ok(Health::healthy())
+        Ok(Healthy::new(String::default()).into())
     }
 
     fn get_daemon_set_status(
@@ -380,9 +394,7 @@ pub mod test {
                         ..Default::default()
                     }),
                 },
-                expected: Healthy{
-                    status: "".into()
-                }.into(),
+                expected: Healthy::default().into(),
             },
             TestCase {
                 name: "ds without updated_number_scheduled",
@@ -402,8 +414,8 @@ pub mod test {
                     }),
                 },
                 expected: Unhealthy{
-                    status: String::from(""),
-                    last_error: String::from("DaemonSet `test` is so new that it has no `updated_number_scheduled` status yet")
+                    last_error: String::from("DaemonSet `test` is so new that it has no `updated_number_scheduled` status yet"),
+                    ..Default::default()
                 }.into(),
             },
             TestCase {
@@ -426,10 +438,10 @@ pub mod test {
                     }),
                 },
                 expected: Unhealthy {
-                    status: String::from(""),
                     last_error: String::from(
                         "DaemonSet `test` Not all the pods of the were able to schedule",
                     ),
+                    ..Default::default()
                 }.into(),
             },
             TestCase {
@@ -452,9 +464,7 @@ pub mod test {
                         ..Default::default()
                     }),
                 },
-                expected: Healthy {
-                    status: "".into()
-                }.into(),
+                expected: Healthy::default().into(),
             },
             TestCase {
                 name: "unhealthy ds with int max_unavailable",
@@ -478,10 +488,10 @@ pub mod test {
                     }),
                 },
                 expected: Unhealthy {
-                    status: String::from(""),
                     last_error: String::from(
                         "Daemonset 'test': The number of pods ready is less that the desired: 2 < 3",
                     ),
+                    ..Default::default()
                 }.into(),
             },
             TestCase {
@@ -506,10 +516,10 @@ pub mod test {
                     }),
                 },
                 expected: Unhealthy {
-                    status: String::from(""),
                     last_error: String::from(
                         "Daemonset 'test': The number of pods ready is less that the desired: 2 < 3",
                     ),
+                    ..Default::default()
                 }.into(),
             },
             TestCase {
@@ -533,9 +543,7 @@ pub mod test {
                         ..Default::default()
                     }),
                 },
-                expected: Healthy {
-                    status: "".into(),
-                }.into()
+                expected: Healthy::default().into()
             },
             TestCase {
                 name: "healthy ds with percent max_unavailable",
@@ -558,9 +566,7 @@ pub mod test {
                         ..Default::default()
                     }),
                 },
-                expected: Healthy {
-                    status: "".into(),
-                }.into()
+                expected: Healthy::default().into()
             },
         ];
 

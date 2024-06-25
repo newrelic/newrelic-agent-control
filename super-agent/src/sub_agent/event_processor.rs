@@ -3,6 +3,7 @@ use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::operations::stop_opamp_client;
 use crate::sub_agent::error::SubAgentError;
+use crate::sub_agent::health::with_start_time::HealthWithStartTime;
 use crate::sub_agent::values::values_repository::ValuesRepository;
 use crate::sub_agent::SubAgentCallbacks;
 use crate::super_agent::config::AgentID;
@@ -130,13 +131,13 @@ where
                                 debug!("sub_agent_internal_consumer :: StopRequested");
                                 break;
                             },
-                            Ok(SubAgentInternalEvent::AgentBecameUnhealthy(unhealthy))=>{
+                            Ok(SubAgentInternalEvent::AgentBecameUnhealthy(unhealthy, start_time))=>{
                                 debug!("sub_agent_internal_consumer :: UnhealthyAgent");
-                                let _ = self.on_health(unhealthy.into()).inspect_err(|e| error!("error processing unhealthy status: {}",e));
+                                let _ = self.on_health(HealthWithStartTime::new(unhealthy.into(), start_time)).inspect_err(|e| error!("error processing unhealthy status: {}",e));
                             }
-                            Ok(SubAgentInternalEvent::AgentBecameHealthy(healthy))=>{
+                            Ok(SubAgentInternalEvent::AgentBecameHealthy(healthy, start_time))=>{
                                 debug!("sub_agent_internal_consumer :: HealthyAgent");
-                                let _ = self.on_health(healthy.into()).inspect_err(|e| error!("error processing healthy status: {}",e));
+                                let _ = self.on_health(HealthWithStartTime::new(healthy.into(), start_time)).inspect_err(|e| error!("error processing healthy status: {}",e));
                             }
                          }
                     }

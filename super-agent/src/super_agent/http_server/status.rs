@@ -1,9 +1,11 @@
 use crate::opamp::{LastErrorCode, LastErrorMessage};
 use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
+use crate::sub_agent::health::with_start_time::HealthWithStartTime;
 use crate::super_agent::config::{AgentID, AgentTypeFQN};
 use serde::Serialize;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::time::SystemTime;
 use url::Url;
 
 // SuperAgentStatus will contain the information about Super Agent health.
@@ -29,13 +31,13 @@ impl SuperAgentStatus {
     pub fn healthy(&mut self, healthy: Healthy) {
         self.healthy = true;
         self.last_error = None;
-        self.status = healthy.status;
+        self.status = healthy.status().to_string();
     }
 
     pub fn unhealthy(&mut self, unhealthy: Unhealthy) {
         self.healthy = false;
-        self.last_error = unhealthy.last_error.into();
-        self.status = unhealthy.status;
+        self.last_error = unhealthy.last_error().to_string().into();
+        self.status = unhealthy.status().to_string();
     }
 }
 
@@ -109,6 +111,8 @@ pub(super) struct SubAgentStatus {
     last_error: Option<String>,
     #[serde(skip_serializing_if = "String::is_empty")]
     status: String,
+    start_time_unix_nano: u64,
+    status_time_unix_nano: u64,
 }
 
 impl SubAgentStatus {
@@ -119,23 +123,27 @@ impl SubAgentStatus {
             healthy: false,
             last_error: None,
             status: String::default(),
+            start_time_unix_nano: 0,
+            status_time_unix_nano: 0,
         }
     }
 
     // This struct only has context inside the Sub Agents struct, so it makes it easier to interact
     // if we make it mutable
-    pub fn healthy(&mut self, healthy: Healthy) {
-        self.healthy = true;
-        self.last_error = None;
-        self.status = healthy.status;
-    }
-
-    // This struct only has context inside the Sub Agents struct, so it makes it easier to interact
-    // if we make it mutable
-    pub fn unhealthy(&mut self, unhealthy: Unhealthy) {
-        self.healthy = false;
-        self.last_error = unhealthy.last_error.into();
-        self.status = unhealthy.status;
+    pub fn update_health(&mut self, health: HealthWithStartTime) {
+        self.healthy = health.is_healthy();
+        self.last_error = health.last_error().map(String::from);
+        self.status = health.status().to_string();
+        self.start_time_unix_nano = health
+            .start_time()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64;
+        self.status_time_unix_nano = health
+            .status_time()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64;
     }
 }
 
@@ -244,6 +252,8 @@ pub mod test {
             status: String,
             healthy: bool,
             last_error: Option<String>,
+            start_time_unix_nano: u64,
+            status_time_unix_nano: u64,
         ) -> Self {
             SubAgentStatus {
                 agent_id,
@@ -251,6 +261,8 @@ pub mod test {
                 status,
                 healthy,
                 last_error,
+                start_time_unix_nano,
+                status_time_unix_nano,
             }
         }
 

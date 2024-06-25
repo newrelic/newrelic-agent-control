@@ -1,3 +1,5 @@
+use std::time::SystemTime;
+
 use crate::event::channel::EventPublisher;
 use crate::event::SubAgentInternalEvent;
 use crate::sub_agent::event_processor::SubAgentEventProcessor;
@@ -51,15 +53,17 @@ where
     // - it starts the supervisors if any
     // - it starts processing events (internal and opamp ones)
     fn run(self) -> Self::StartedSubAgent {
+        let start_time = SystemTime::now();
         let maybe_started_supervisor = self
             .supervisor
-            .map(|s| s.start(self.sub_agent_internal_publisher.clone()))
+            .map(|s| s.start(self.sub_agent_internal_publisher.clone(), start_time))
             .transpose()
             .inspect_err(|err| {
                 log_and_report_unhealthy(
                     &self.sub_agent_internal_publisher,
                     err,
                     "starting the k8s resources supervisor failed",
+                    start_time,
                 )
             })
             .unwrap_or(None);
@@ -201,7 +205,7 @@ pub mod test {
             .recv_timeout(timeout)
             .unwrap()
         {
-            SubAgentInternalEvent::AgentBecameUnhealthy(_) => {}
+            SubAgentInternalEvent::AgentBecameUnhealthy(_, _) => {}
             _ => {
                 panic!("AgentBecameUnhealthy event expected")
             }
