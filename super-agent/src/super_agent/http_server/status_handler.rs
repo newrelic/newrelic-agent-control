@@ -18,7 +18,7 @@ pub(super) async fn status_handler(status: Data<Arc<RwLock<Status>>>) -> impl Re
 #[cfg(test)]
 mod test {
     use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
-    use crate::sub_agent::health::with_start_time::{HealthyWithStartTime, UnhealthyWithStartTime};
+    use crate::sub_agent::health::with_start_time::HealthWithStartTime;
     use crate::super_agent::config::{AgentID, AgentTypeFQN};
     use crate::super_agent::http_server::status::{Status, SubAgentStatus};
     use crate::super_agent::http_server::status_handler::status_handler;
@@ -42,7 +42,10 @@ mod test {
 
         let start_time = SystemTime::UNIX_EPOCH;
 
-        sub_agent_status.healthy(HealthyWithStartTime::new(Healthy::default(), start_time));
+        sub_agent_status.update_health(HealthWithStartTime::new(
+            Healthy::default().into(),
+            start_time,
+        ));
 
         let sub_agents = HashMap::from([(agent_id.clone(), sub_agent_status)]);
 
@@ -80,8 +83,10 @@ mod test {
         let agent_type = AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap();
         let mut sub_agent_status =
             SubAgentStatus::with_id_and_type(agent_id.clone(), agent_type.clone());
-        sub_agent_status.unhealthy(UnhealthyWithStartTime::new(
-            Unhealthy::default().with_last_error("some error".to_string()),
+        sub_agent_status.update_health(HealthWithStartTime::new(
+            Unhealthy::default()
+                .with_last_error("some error".to_string())
+                .into(),
             SystemTime::UNIX_EPOCH,
         ));
 

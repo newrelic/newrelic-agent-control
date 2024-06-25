@@ -1,15 +1,17 @@
+use super::with_start_time::StartTime;
 use crate::agent_type::health_config::HealthCheckInterval;
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::SubAgentInternalEvent;
+#[cfg(feature = "k8s")]
+use crate::k8s;
 use crate::sub_agent::health::with_start_time::HealthWithStartTime;
 use crate::super_agent::config::AgentID;
 use std::thread;
 use std::time::{SystemTime, SystemTimeError};
 use tracing::{debug, error};
 
-#[cfg(feature = "k8s")]
-use crate::k8s;
+pub type StatusTime = SystemTime;
 
 #[derive(Debug, PartialEq)]
 pub enum Health {
@@ -62,7 +64,7 @@ impl Health {
         }
     }
 
-    pub fn status_time(&self) -> SystemTime {
+    pub fn status_time(&self) -> StatusTime {
         match self {
             Health::Healthy(healthy) => healthy.status_time(),
             Health::Unhealthy(unhealthy) => unhealthy.status_time(),
@@ -100,7 +102,7 @@ impl From<HealthCheckerError> for Unhealthy {
 /// for more details.
 #[derive(Debug, Clone)]
 pub struct Healthy {
-    pub(super) status_time: SystemTime,
+    pub(super) status_time: StatusTime,
     pub(super) status: String,
 }
 
@@ -115,14 +117,14 @@ impl Healthy {
     pub fn new(status: String) -> Self {
         Self {
             status,
-            status_time: SystemTime::now(),
+            status_time: StatusTime::now(),
         }
     }
     pub fn status(&self) -> &str {
         &self.status
     }
 
-    pub fn status_time(&self) -> SystemTime {
+    pub fn status_time(&self) -> StatusTime {
         self.status_time
     }
 }
@@ -132,7 +134,7 @@ impl Healthy {
 /// for more details.
 #[derive(Debug, Clone)]
 pub struct Unhealthy {
-    pub(super) status_time: SystemTime,
+    pub(super) status_time: StatusTime,
     pub(super) status: String,
     pub(super) last_error: String,
 }
@@ -149,7 +151,7 @@ impl Unhealthy {
         Self {
             status,
             last_error,
-            status_time: SystemTime::now(),
+            status_time: StatusTime::now(),
         }
     }
 
@@ -161,7 +163,7 @@ impl Unhealthy {
         &self.last_error
     }
 
-    pub fn status_time(&self) -> SystemTime {
+    pub fn status_time(&self) -> StatusTime {
         self.status_time
     }
 }
@@ -180,7 +182,7 @@ pub(crate) fn spawn_health_checker<H>(
     cancel_signal: EventConsumer<CancellationMessage>,
     health_publisher: EventPublisher<SubAgentInternalEvent>,
     interval: HealthCheckInterval,
-    start_time: SystemTime,
+    start_time: StartTime,
 ) where
     H: HealthChecker + Send + 'static,
 {
@@ -199,7 +201,7 @@ pub(crate) fn spawn_health_checker<H>(
 
         publish_health_event(
             &health_publisher,
-            HealthWithStartTime::from_health(health, start_time).into(),
+            HealthWithStartTime::new(health, start_time).into(),
         );
     });
 }
@@ -226,7 +228,7 @@ pub mod tests {
     impl Default for Healthy {
         fn default() -> Self {
             Self {
-                status_time: SystemTime::UNIX_EPOCH,
+                status_time: StatusTime::UNIX_EPOCH,
                 status: String::default(),
             }
         }
@@ -235,7 +237,7 @@ pub mod tests {
     impl Default for Unhealthy {
         fn default() -> Self {
             Self {
-                status_time: SystemTime::UNIX_EPOCH,
+                status_time: StatusTime::UNIX_EPOCH,
                 status: String::default(),
                 last_error: String::default(),
             }

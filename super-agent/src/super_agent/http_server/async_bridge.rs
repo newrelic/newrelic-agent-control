@@ -38,7 +38,6 @@ mod test {
     use crate::event::SuperAgentEvent;
     use crate::event::SuperAgentEvent::{SubAgentBecameHealthy, SuperAgentBecameHealthy};
     use crate::sub_agent::health::health_checker::Healthy;
-    use crate::sub_agent::health::with_start_time::HealthyWithStartTime;
     use crate::super_agent::config::{AgentID, AgentTypeFQN};
     use crate::super_agent::http_server::async_bridge::run_async_sync_bridge;
     use std::thread;
@@ -72,10 +71,8 @@ mod test {
                     .publish(SubAgentBecameHealthy(
                         AgentID::new("some-agent-id").unwrap(),
                         AgentTypeFQN::try_from("namespace/whatever:0.0.1").unwrap(),
-                        HealthyWithStartTime::new(
-                            Healthy::new("sub-agent status: 0".to_string()),
-                            SystemTime::now(),
-                        ),
+                        Healthy::new("sub-agent status: 0".to_string()),
+                        SystemTime::now(),
                     ))
                     .unwrap();
             }

@@ -271,7 +271,7 @@ where
                                 SubAgentEvent::ConfigUpdated(agent_id) => {
                                     self.sub_agent_config_updated(agent_id,sub_agent_publisher.clone(),&mut sub_agents)?
                                 },
-                                SubAgentEvent::SubAgentBecameHealthy(agent_id, healthy) => {
+                                SubAgentEvent::SubAgentBecameHealthy(agent_id, healthy, start_time) => {
                                     debug!(agent_id = agent_id.to_string() ,"sub agent is healthy");
                                     let Some(sub_agent) = sub_agents.get(&agent_id) else {
                                         error!(agent_id = agent_id.to_string(),"cannot find sub agent on super_agent_event.sub_agent_became_healthy event");
@@ -279,10 +279,10 @@ where
                                     };
 
                                     let _ = self.super_agent_publisher
-                                    .publish(SuperAgentEvent::SubAgentBecameHealthy(agent_id,sub_agent.agent_type(), healthy))
+                                    .publish(SuperAgentEvent::SubAgentBecameHealthy(agent_id,sub_agent.agent_type(), healthy, start_time))
                                     .inspect_err(|err| error!(error_msg = %err,"cannot publish super_agent_event.sub_agent_became_healthy"));
                                 },
-                                SubAgentEvent::SubAgentBecameUnhealthy(agent_id, unhealthy) => {
+                                SubAgentEvent::SubAgentBecameUnhealthy(agent_id, unhealthy, start_time) => {
                                     debug!(agent_id = agent_id.to_string(), error_message = unhealthy.last_error() ,"sub agent is unhealthy");
                                     let Some(sub_agent) = sub_agents.get(&agent_id) else{
                                         error!(agent_id = agent_id.to_string(),"cannot find sub agent on super_agent_event.sub_agent_became_unhealthy event");
@@ -290,7 +290,7 @@ where
                                     };
 
                                     let _ = self.super_agent_publisher
-                                    .publish(SuperAgentEvent::SubAgentBecameUnhealthy(agent_id,sub_agent.agent_type(), unhealthy))
+                                    .publish(SuperAgentEvent::SubAgentBecameUnhealthy(agent_id,sub_agent.agent_type(), unhealthy, start_time))
                                     .inspect_err(|err| error!(error_msg = %err,"cannot publish super_agent_event.sub_agent_became_unhealthy"));
                                 },
                             }
@@ -461,7 +461,6 @@ mod tests {
     use crate::opamp::remote_config::{ConfigMap, RemoteConfig};
     use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
-    use crate::sub_agent::health::with_start_time::{HealthyWithStartTime, UnhealthyWithStartTime};
     use crate::sub_agent::{test::MockSubAgentBuilderMock, SubAgentBuilder};
     use crate::super_agent::config::{
         AgentID, AgentTypeFQN, SubAgentConfig, SuperAgentDynamicConfig,
@@ -1355,7 +1354,8 @@ agents:
         sub_agent_publisher
             .publish(SubAgentEvent::SubAgentBecameHealthy(
                 agent_id.clone(),
-                HealthyWithStartTime::new(Healthy::default(), start_time),
+                Healthy::default(),
+                start_time,
             ))
             .unwrap();
 
@@ -1373,7 +1373,8 @@ agents:
         let expected = SuperAgentEvent::SubAgentBecameHealthy(
             agent_id,
             agent_type,
-            HealthyWithStartTime::new(Healthy::default(), start_time),
+            Healthy::default(),
+            start_time,
         );
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
@@ -1436,10 +1437,8 @@ agents:
         sub_agent_publisher
             .publish(SubAgentEvent::SubAgentBecameUnhealthy(
                 agent_id.clone(),
-                UnhealthyWithStartTime::new(
-                    Unhealthy::new(String::default(), last_error_message.clone()),
-                    SystemTime::UNIX_EPOCH,
-                ),
+                Unhealthy::new(String::default(), last_error_message.clone()),
+                SystemTime::UNIX_EPOCH,
             ))
             .unwrap();
 
@@ -1457,10 +1456,8 @@ agents:
         let expected = SuperAgentEvent::SubAgentBecameUnhealthy(
             agent_id,
             agent_type,
-            UnhealthyWithStartTime::new(
-                Unhealthy::new(String::default(), last_error_message.clone()),
-                SystemTime::UNIX_EPOCH,
-            ),
+            Unhealthy::new(String::default(), last_error_message.clone()),
+            SystemTime::UNIX_EPOCH,
         );
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);

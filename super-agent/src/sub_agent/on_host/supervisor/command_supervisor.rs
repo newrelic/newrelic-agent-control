@@ -4,7 +4,7 @@ use crate::event::SubAgentInternalEvent;
 use crate::sub_agent::health::health_checker::{publish_health_event, spawn_health_checker};
 use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
 use crate::sub_agent::health::on_host::http::HealthCheckerType;
-use crate::sub_agent::health::with_start_time::{HealthyWithStartTime, UnhealthyWithStartTime};
+use crate::sub_agent::health::with_start_time::HealthWithStartTime;
 use crate::sub_agent::on_host::command::command::{
     CommandError, CommandTerminator, NotStartedCommand, StartedCommand,
 };
@@ -106,7 +106,7 @@ impl SupervisorOnHost<NotStarted> {
 
                 publish_health_event(
                     &internal_event_publisher,
-                    HealthyWithStartTime::new(init_health, start_time).into(),
+                    HealthWithStartTime::new(init_health.into(), start_time).into(),
                 );
 
                 // Spawn the health checker thread
@@ -185,7 +185,7 @@ impl SupervisorOnHost<NotStarted> {
 
                         publish_health_event(
                             &internal_event_publisher,
-                            UnhealthyWithStartTime::new(unhealthy, start_time).into(),
+                            HealthWithStartTime::new(unhealthy.into(), start_time).into(),
                         );
                     }
                     break;
@@ -251,7 +251,7 @@ fn handle_termination(
         );
         publish_health_event(
             internal_event_publisher,
-            UnhealthyWithStartTime::new(unhealthy, start_time).into(),
+            HealthWithStartTime::new(unhealthy.into(), start_time).into(),
         );
         error!(
             %agent_id,
@@ -456,15 +456,16 @@ pub mod tests {
         // It starts once and restarts 3 times, hence 4 healthy events and a final unhealthy one
         let expected_ordered_events: Vec<SubAgentInternalEvent> = {
             vec![
-                HealthyWithStartTime::new(Healthy::new(String::default()), start_time).into(),
-                HealthyWithStartTime::new(Healthy::new(String::default()), start_time).into(),
-                HealthyWithStartTime::new(Healthy::new(String::default()), start_time).into(),
-                HealthyWithStartTime::new(Healthy::new(String::default()), start_time).into(),
-                UnhealthyWithStartTime::new(
+                HealthWithStartTime::new(Healthy::default().into(), start_time).into(),
+                HealthWithStartTime::new(Healthy::default().into(), start_time).into(),
+                HealthWithStartTime::new(Healthy::default().into(), start_time).into(),
+                HealthWithStartTime::new(Healthy::default().into(), start_time).into(),
+                HealthWithStartTime::new(
                     Unhealthy::new(
                         String::default(),
                         "supervisor exceeded its defined restart policy".to_string(),
-                    ),
+                    )
+                    .into(),
                     start_time,
                 )
                 .into(),
@@ -475,11 +476,11 @@ pub mod tests {
             .as_ref()
             .iter()
             .map(|event| match event {
-                SubAgentInternalEvent::AgentBecameHealthy(healthy) => {
-                    healthy.with_start_time(start_time).into()
+                SubAgentInternalEvent::AgentBecameHealthy(healthy, _) => {
+                    HealthWithStartTime::new(healthy.into(), start_time).into()
                 }
-                SubAgentInternalEvent::AgentBecameUnhealthy(unhealthy) => {
-                    unhealthy.with_start_time(start_time).into()
+                SubAgentInternalEvent::AgentBecameUnhealthy(unhealthy, _) => {
+                    HealthWithStartTime::new(unhealthy.into(), start_time).into()
                 }
                 e => e,
             })
@@ -527,12 +528,14 @@ pub mod tests {
         // Check that the health checker was called at least once
         let expected_health_events: Vec<SubAgentInternalEvent> = {
             vec![
-                HealthyWithStartTime::new(Healthy::new("status: 0".to_string()), start_time).into(),
-                UnhealthyWithStartTime::new(
+                HealthWithStartTime::new(Healthy::new("status: 0".to_string()).into(), start_time)
+                    .into(),
+                HealthWithStartTime::new(
                     Unhealthy::new(
                         "Health check error".to_string(),
                         "mocked health check error!".to_string(),
-                    ),
+                    )
+                    .into(),
                     start_time,
                 )
                 .into(),
@@ -580,8 +583,10 @@ pub mod tests {
 
         // Check that the health checker was called at least once
         let expected_health_events: Vec<SubAgentInternalEvent> = vec![
-            HealthyWithStartTime::new(Healthy::new("status: 0".to_string()), start_time).into(),
-            HealthyWithStartTime::new(Healthy::new("status: 1".to_string()), start_time).into(),
+            HealthWithStartTime::new(Healthy::new("status: 0".to_string()).into(), start_time)
+                .into(),
+            HealthWithStartTime::new(Healthy::new("status: 1".to_string()).into(), start_time)
+                .into(),
         ];
         let actual_health_events = health_consumer.as_ref().iter().collect::<Vec<_>>();
 
@@ -631,19 +636,21 @@ pub mod tests {
         // Check that the health checker was called at least once
         let expected_health_events: Vec<SubAgentInternalEvent> = {
             vec![
-                UnhealthyWithStartTime::new(
+                HealthWithStartTime::new(
                     Unhealthy::new(
                         "Health check error".to_string(),
                         "mocked health check error!".to_string(),
-                    ),
+                    )
+                    .into(),
                     start_time,
                 )
                 .into(),
-                UnhealthyWithStartTime::new(
+                HealthWithStartTime::new(
                     Unhealthy::new(
                         "Health check error".to_string(),
                         "mocked health check error!".to_string(),
-                    ),
+                    )
+                    .into(),
                     start_time,
                 )
                 .into(),

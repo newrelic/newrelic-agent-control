@@ -5,6 +5,7 @@ use tokio::sync::RwLock;
 use tracing::debug;
 
 use crate::event::SuperAgentEvent;
+use crate::sub_agent::health::with_start_time::HealthWithStartTime;
 use crate::super_agent::http_server::status::{Status, SubAgentStatus};
 
 pub(super) async fn on_super_agent_event_update_status(
@@ -34,21 +35,21 @@ async fn update_status(super_agent_event: SuperAgentEvent, status: Arc<RwLock<St
             );
             status.super_agent.unhealthy(unhealthy);
         }
-        SuperAgentEvent::SubAgentBecameUnhealthy(agent_id, agent_type, unhealthy) => {
+        SuperAgentEvent::SubAgentBecameUnhealthy(agent_id, agent_type, unhealthy, start_time) => {
             debug!(error_msg = unhealthy.last_error(), %agent_id, %agent_type, "status_http_server event_processor sub_agent_became_unhealthy");
             status
                 .sub_agents
                 .entry(agent_id.clone())
                 .or_insert_with(|| SubAgentStatus::with_id_and_type(agent_id, agent_type))
-                .unhealthy(unhealthy);
+                .update_health(HealthWithStartTime::new(unhealthy.into(), start_time));
         }
-        SuperAgentEvent::SubAgentBecameHealthy(agent_id, agent_type, healthy) => {
+        SuperAgentEvent::SubAgentBecameHealthy(agent_id, agent_type, healthy, start_time) => {
             debug!(%agent_id, %agent_type, "status_http_server event_processor sub_agent_became_healthy");
             status
                 .sub_agents
                 .entry(agent_id.clone())
                 .or_insert_with(|| SubAgentStatus::with_id_and_type(agent_id, agent_type))
-                .healthy(healthy);
+                .update_health(HealthWithStartTime::new(healthy.into(), start_time));
         }
         SuperAgentEvent::SubAgentRemoved(agent_id) => {
             status.sub_agents.remove(&agent_id);
@@ -95,7 +96,6 @@ mod test {
         SuperAgentStopped,
     };
     use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
-    use crate::sub_agent::health::with_start_time::{HealthyWithStartTime, UnhealthyWithStartTime};
     use crate::super_agent::config::{AgentID, AgentTypeFQN};
     use crate::super_agent::http_server::status::{
         OpAMPStatus, Status, SubAgentStatus, SubAgentsStatus, SuperAgentStatus,
@@ -169,7 +169,8 @@ mod test {
                 super_agent_event: SubAgentBecameHealthy(
                     AgentID::new("some-agent-id").unwrap(),
                     AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-                    HealthyWithStartTime::new(Healthy::default(), SystemTime::UNIX_EPOCH),
+                    Healthy::default(),
+                    SystemTime::UNIX_EPOCH,
                 ),
                 current_status: Arc::new(RwLock::new(Status {
                     super_agent: super_agent_status_random.clone(),
@@ -198,11 +199,8 @@ mod test {
                 super_agent_event: SubAgentBecameUnhealthy(
                     AgentID::new("some-agent-id").unwrap(),
                     AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-                    UnhealthyWithStartTime::new(
-                        Unhealthy::default()
-                            .with_last_error("this is an error message".to_string()),
-                        SystemTime::UNIX_EPOCH,
-                    ),
+                    Unhealthy::default().with_last_error("this is an error message".to_string()),
+                    SystemTime::UNIX_EPOCH,
                 ),
                 current_status: Arc::new(RwLock::new(Status {
                     super_agent: super_agent_status_random.clone(),
@@ -231,11 +229,8 @@ mod test {
                 super_agent_event: SubAgentBecameUnhealthy(
                     AgentID::new("some-agent-id").unwrap(),
                     AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-                    UnhealthyWithStartTime::new(
-                        Unhealthy::default()
-                            .with_last_error("this is an error message".to_string()),
-                        SystemTime::UNIX_EPOCH,
-                    ),
+                    Unhealthy::default().with_last_error("this is an error message".to_string()),
+                    SystemTime::UNIX_EPOCH,
                 ),
                 current_status: Arc::new(RwLock::new(Status {
                     super_agent: super_agent_status_random.clone(),

@@ -34,7 +34,7 @@ where
                 healthy: health.is_healthy(),
                 start_time_unix_nano,
                 status_time_unix_nano,
-                last_error: health.last_error().unwrap_or("").to_string(),
+                last_error: health.last_error().unwrap_or_default(),
                 status: health.status().to_string(),
                 ..Default::default()
             };
@@ -42,9 +42,6 @@ where
         }
         Ok(self
             .sub_agent_publisher
-            .publish(SubAgentEvent::from_health_with_times(
-                health,
-                self.agent_id(),
-            ))?)
+            .publish(SubAgentEvent::new(health, self.agent_id()))?)
     }
 }

@@ -205,7 +205,7 @@ pub mod test {
             .recv_timeout(timeout)
             .unwrap()
         {
-            SubAgentInternalEvent::AgentBecameUnhealthy(_) => {}
+            SubAgentInternalEvent::AgentBecameUnhealthy(_, _) => {}
             _ => {
                 panic!("AgentBecameUnhealthy event expected")
             }
