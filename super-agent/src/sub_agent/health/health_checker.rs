@@ -260,7 +260,7 @@ pub mod tests {
             let mut healthy = MockHealthCheckMock::new();
             healthy
                 .expect_check_health()
-                .returning(|| Ok(Healthy::new(String::default()).into()));
+                .returning(|| Ok(Healthy::default().into()));
             healthy
         }
 

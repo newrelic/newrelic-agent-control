@@ -741,7 +741,7 @@ agents:
         opamp_publisher.publish(OpAMPEvent::Connected).unwrap();
 
         // process_events always starts with SuperAgentHealthy
-        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::new(String::default()));
+        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::default());
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
 
@@ -801,7 +801,7 @@ agents:
             .unwrap();
 
         // process_events always starts with SuperAgentHealthy
-        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::new(String::default()));
+        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::default());
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
 
@@ -1147,11 +1147,11 @@ agents:
         assert!(event_processor.join().is_ok());
 
         // process_events always starts with SuperAgentHealthy
-        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::new(String::default()));
+        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::default());
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
 
-        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::new(String::default()));
+        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::default());
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
     }
@@ -1225,7 +1225,7 @@ agents:
         assert!(event_processor.join().is_ok());
 
         // process_events always starts with SuperAgentHealthy
-        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::new(String::default()));
+        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::default());
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
 
@@ -1355,7 +1355,7 @@ agents:
         sub_agent_publisher
             .publish(SubAgentEvent::SubAgentBecameHealthy(
                 agent_id.clone(),
-                HealthyWithStartTime::new(Healthy::new(String::default()), start_time),
+                HealthyWithStartTime::new(Healthy::default(), start_time),
             ))
             .unwrap();
 
@@ -1366,14 +1366,14 @@ agents:
         assert!(event_processor.join().is_ok());
 
         // process_events always starts with SuperAgentHealthy
-        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::new(String::default()));
+        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::default());
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
 
         let expected = SuperAgentEvent::SubAgentBecameHealthy(
             agent_id,
             agent_type,
-            HealthyWithStartTime::new(Healthy::new(String::default()), start_time),
+            HealthyWithStartTime::new(Healthy::default(), start_time),
         );
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
@@ -1450,7 +1450,7 @@ agents:
         assert!(event_processor.join().is_ok());
 
         // process_events always starts with SuperAgentHealthy
-        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::new(String::default()));
+        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::default());
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
 
@@ -1562,7 +1562,7 @@ agents:
         assert!(event_processor.join().is_ok());
 
         // process_events always starts with SuperAgentHealthy
-        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::new(String::default()));
+        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::default());
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
 
@@ -1570,7 +1570,7 @@ agents:
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
 
-        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::new(String::default()));
+        let expected = SuperAgentEvent::SuperAgentBecameHealthy(Healthy::default());
         let ev = super_agent_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
     }

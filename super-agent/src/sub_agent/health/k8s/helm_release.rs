@@ -199,7 +199,7 @@ pub mod test {
             ),
             (
                 "Helm release healthy when ready and status true",
-                Ok(Healthy::new(String::default()).into()),
+                Ok(Healthy::default().into()),
                 |mock: &mut MockSyncK8sClient| {
                     let status_conditions = json!({
                         "conditions": [
