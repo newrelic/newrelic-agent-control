@@ -48,6 +48,7 @@ impl LocalFile {
         let mut file = fs::OpenOptions::new()
             .create(true)
             .write(true)
+            .truncate(true)
             .mode(permissions.mode())
             .open(path)?;
 
@@ -204,6 +205,32 @@ pub mod test {
             Permissions::from_mode(0o645),
         );
         assert!(write_result.is_ok());
+    }
+
+    #[cfg(target_family = "unix")]
+    #[test]
+    fn test_file_writer_truncate_exiting_file() {
+        // Prepare temp path and content for the file
+        let file_name = "some_file";
+        let new_content = "new content";
+        // tempdir gets automatically removed on drop
+        let tempdir = tempfile::tempdir().unwrap();
+        let mut path = PathBuf::from(&tempdir.path());
+        path.push(file_name);
+
+        fs::write(path.as_path(), "older content with greater len than new").unwrap();
+
+        // Create writer and write to path
+        let writer = LocalFile;
+        writer
+            .write(
+                path.as_path(),
+                new_content.to_string(),
+                Permissions::from_mode(0o645),
+            )
+            .expect("write failed");
+
+        assert_eq!(fs::read_to_string(path.clone()).unwrap(), new_content);
     }
 
     #[cfg(target_family = "unix")]
