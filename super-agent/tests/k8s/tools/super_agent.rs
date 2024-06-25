@@ -12,9 +12,9 @@ use std::time::Duration;
 use std::{collections::BTreeMap, path::PathBuf};
 use std::{fs::File, io::Write};
 
-use crate::common::runtime::block_on;
+use crate::common::{retry::retry, runtime::block_on};
 
-use super::{k8s_api::check_config_map_exist, retry};
+use super::k8s_api::check_config_map_exist;
 
 pub const TEST_CLUSTER_NAME: &str = "minikube";
 
