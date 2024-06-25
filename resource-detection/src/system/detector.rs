@@ -45,24 +45,20 @@ impl Detector for SystemDetector {
     fn detect(&self) -> Result<Resource, DetectError> {
         let mut collected_resources: Vec<(Key, Value)> = vec![];
 
-        let _ = self
-            .hostname_getter
-            .get()
-            .map(|hostname| {
-                collected_resources.push((
-                    Key::from(HOSTNAME_KEY),
-                    Value::from(hostname.into_string().unwrap_or_default()),
-                ))
-            })
-            .inspect_err(|err| error!(err_msg = %err, "getting hostname"));
+        match self.hostname_getter.get() {
+            Ok(hostname) => collected_resources.push((
+                Key::from(HOSTNAME_KEY),
+                Value::from(hostname.into_string().unwrap_or_default()),
+            )),
+            Err(err) => error!(err_msg = %err, "getting hostname"),
+        }
 
-        let _ = self
-            .machine_id_provider
-            .provide()
-            .map(|machine_id| {
+        match self.machine_id_provider.provide() {
+            Ok(machine_id) => {
                 collected_resources.push((Key::from(MACHINE_ID_KEY), Value::from(machine_id)))
-            })
-            .inspect_err(|err| error!(err_msg = %err, "getting machine_id"));
+            }
+            Err(err) => error!(err_msg = %err, "getting machine_id"),
+        }
 
         Ok(Resource::new(collected_resources))
     }
