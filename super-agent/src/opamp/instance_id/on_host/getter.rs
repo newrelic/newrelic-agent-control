@@ -33,6 +33,14 @@ impl Display for Identifiers {
     }
 }
 
+#[derive(Error, Debug)]
+pub enum IdentifiersProviderError {
+    #[error("generating host identification: adding a `host_id` in the super-agent config is required for this case`")]
+    MissingHostIDError,
+    #[error("detecting resources: `{0}`")]
+    DetectError(#[from] DetectError),
+}
+
 pub struct IdentifiersProvider<
     D = SystemDetector,
     D2 = CloudIdDetector<
@@ -83,26 +91,23 @@ where
         }
     }
 
-    pub fn provide(&self) -> Result<Identifiers, DetectError> {
+    pub fn provide(&self) -> Result<Identifiers, IdentifiersProviderError> {
         let system_identifiers = self.system_detector.detect()?;
+
         let hostname: String = system_identifiers
             .get(HOSTNAME_KEY.into())
             .map(|val| val.into())
-            .unwrap_or_else(|| {
-                error!("cannot get hostname identifier");
-                "".to_string()
-            });
+            .unwrap_or_default();
         let machine_id: String = system_identifiers
             .get(MACHINE_ID_KEY.into())
             .map(|val| val.into())
-            .unwrap_or_else(|| {
-                error!("cannot get machine_id identifier");
-                "".to_string()
-            });
+            .unwrap_or_default();
         let cloud_instance_id = self.cloud_instance_id();
 
-        // It's possible that the Host ID was set up early (via config).
-        // If this is the case, we don't want to overwrite it.
+        // host_id is an aggregated identifier required by newrelic fleet management
+        // to identify the host entity.
+        // It is populated by the following precedence order:
+        //   config defined host_id -> cloud instance id -> machine id
         let host_id = if self.host_id.is_empty() {
             if cloud_instance_id.is_empty() {
                 machine_id.clone()
@@ -112,6 +117,10 @@ where
         } else {
             self.host_id.clone()
         };
+
+        if host_id.is_empty() {
+            return Err(IdentifiersProviderError::MissingHostIDError);
+        }
 
         Ok(Identifiers {
             // https://opentelemetry.io/docs/specs/semconv/resource/host/#collecting-hostid-from-non-containerized-systems
@@ -158,12 +167,13 @@ impl Default for InstanceIDWithIdentifiersGetter<Storer> {
 
 #[cfg(test)]
 pub mod test {
-    use crate::opamp::instance_id::on_host::getter::IdentifiersProvider;
     use crate::opamp::instance_id::Identifiers;
+    use crate::opamp::instance_id::{
+        on_host::getter::IdentifiersProvider, IdentifiersProviderError,
+    };
+    use assert_matches::assert_matches;
     use mockall::mock;
     use resource_detection::{DetectError, Detector, Key, Resource, Value};
-    use tracing_test::internal::logs_with_scope_contain;
-    use tracing_test::traced_test;
 
     mock! {
         pub SystemDetectorMock {}
@@ -203,186 +213,179 @@ pub mod test {
         }
     }
 
-    #[traced_test]
-    #[test]
-    fn test_hostname_error_will_return_empty_hostname() {
-        let mut system_detector_mock = MockSystemDetectorMock::new();
-        let mut cloud_id_detector_mock = MockCloudDetectorMock::new();
-        system_detector_mock.expect_detect().once().returning(|| {
-            Ok(Resource::new([(
-                "machine_id".to_string().into(),
-                Value::from("some machine id".to_string()),
-            )]))
-        });
-        cloud_id_detector_mock.should_detect(Resource::new([(
-            "cloud_instance_id".to_string().into(),
-            Value::from("abc".to_string()),
-        )]));
+    const CLOUD_ID: &str = "cloud_id";
+    const HOSTNAME: &str = "hostname";
+    const MACHINE_ID: &str = "machine_id";
 
-        let identifiers_provider = IdentifiersProvider {
-            system_detector: system_detector_mock,
-            cloud_id_detector: cloud_id_detector_mock,
-            host_id: String::new(),
-            fleet_id: String::new(),
-        };
-        let identifiers = identifiers_provider.provide().unwrap();
-
-        let expected_identifiers = Identifiers {
-            hostname: String::from(""),
-            machine_id: String::from("some machine id"),
-            cloud_instance_id: String::from("abc"),
-            host_id: String::from("abc"),
-            fleet_id: String::new(),
-        };
-        assert_eq!(expected_identifiers, identifiers);
-        assert!(logs_with_scope_contain(
-            "test_hostname_error_will_return_empty_hostname",
-            "cannot get hostname identifier",
-        ));
+    fn cloud_id() -> Resource {
+        Resource::new([(
+            Key::from("cloud_instance_id".to_string()),
+            Value::from(CLOUD_ID.to_string()),
+        )])
     }
-
-    #[traced_test]
-    #[test]
-    fn test_machine_id_error_will_return_empty_machine_id() {
-        let mut system_detector_mock = MockSystemDetectorMock::new();
-        let mut cloud_id_detector_mock = MockCloudDetectorMock::new();
-        cloud_id_detector_mock.should_detect(Resource::new([(
-            "cloud_instance_id".to_string().into(),
-            Value::from("abc".to_string()),
-        )]));
-        system_detector_mock.expect_detect().once().returning(|| {
-            Ok(Resource::new([(
+    fn system_id() -> Resource {
+        Resource::new([
+            (
                 Key::from("hostname".to_string()),
-                Value::from("some.example.org".to_string()),
-            )]))
-        });
-
-        let identifiers_provider = IdentifiersProvider {
-            system_detector: system_detector_mock,
-            cloud_id_detector: cloud_id_detector_mock,
-            host_id: String::new(),
-            fleet_id: String::new(),
-        };
-        let identifiers = identifiers_provider.provide().unwrap();
-
-        let expected_identifiers = Identifiers {
-            hostname: String::from("some.example.org"),
-            machine_id: String::from(""),
-            cloud_instance_id: String::from("abc"),
-            host_id: String::from("abc"),
-            fleet_id: String::new(),
-        };
-        assert_eq!(expected_identifiers, identifiers);
-        assert!(logs_with_scope_contain(
-            "test_machine_id_error_will_return_empty_machine_id",
-            "cannot get machine_id identifier",
-        ));
-    }
-
-    #[traced_test]
-    #[test]
-    fn test_host_id_fallback() {
-        let mut system_detector_mock = MockSystemDetectorMock::new();
-        let mut cloud_id_detector_mock = MockCloudDetectorMock::new();
-        // empty cloud_id
-        cloud_id_detector_mock.should_detect(Resource::new([(
-            "cloud_instance_id".to_string().into(),
-            Value::from("".to_string()),
-        )]));
-        system_detector_mock.expect_detect().once().returning(|| {
-            Ok(Resource::new([(
-                "machine_id".to_string().into(),
-                Value::from("some machine id".to_string()),
-            )]))
-        });
-
-        let identifiers_provider = IdentifiersProvider {
-            system_detector: system_detector_mock,
-            cloud_id_detector: cloud_id_detector_mock,
-            host_id: String::new(),
-            fleet_id: String::new(),
-        };
-        let identifiers = identifiers_provider.provide().unwrap();
-
-        let expected_identifiers = Identifiers {
-            hostname: String::from(""),
-            machine_id: String::from("some machine id"),
-            cloud_instance_id: String::from(""),
-            host_id: String::from("some machine id"),
-            fleet_id: String::new(),
-        };
-        assert_eq!(expected_identifiers, identifiers);
-    }
-
-    #[traced_test]
-    #[test]
-    fn test_all_providers_should_be_returned() {
-        let mut system_detector_mock = MockSystemDetectorMock::new();
-        let mut cloud_id_detector_mock = MockCloudDetectorMock::new();
-        cloud_id_detector_mock.should_detect(Resource::new([(
-            "cloud_instance_id".to_string().into(),
-            Value::from("abc".to_string()),
-        )]));
-        system_detector_mock.expect_detect().once().returning(|| {
-            Ok(Resource::new([
-                (
-                    Key::from("hostname".to_string()),
-                    Value::from("some.example.org".to_string()),
-                ),
-                (
-                    "machine_id".to_string().into(),
-                    Value::from("some machine-id".to_string()),
-                ),
-            ]))
-        });
-        let identifiers_provider = IdentifiersProvider {
-            system_detector: system_detector_mock,
-            cloud_id_detector: cloud_id_detector_mock,
-            host_id: String::new(),
-            fleet_id: String::new(),
-        };
-        let identifiers = identifiers_provider.provide().unwrap();
-
-        let expected_identifiers = Identifiers {
-            hostname: String::from("some.example.org"),
-            machine_id: String::from("some machine-id"),
-            cloud_instance_id: String::from("abc"),
-            host_id: String::from("abc"),
-            fleet_id: String::new(),
-        };
-        assert_eq!(expected_identifiers, identifiers);
+                Value::from(HOSTNAME.to_string()),
+            ),
+            (
+                Key::from("machine_id".to_string()),
+                Value::from(MACHINE_ID.to_string()),
+            ),
+        ])
     }
 
     #[test]
-    fn test_predefined_host_id_overrides() {
+    fn test_provide_cases() {
+        let host_id = "host_id".to_string();
+
+        struct TestCase {
+            name: &'static str,
+            system_detector_mock: MockSystemDetectorMock,
+            cloud_id_detector_mock: MockCloudDetectorMock,
+            expected_identifiers: Identifiers,
+            host_id: String,
+        }
+        impl TestCase {
+            fn run(self) {
+                let identifiers_provider = IdentifiersProvider {
+                    system_detector: self.system_detector_mock,
+                    cloud_id_detector: self.cloud_id_detector_mock,
+                    host_id: self.host_id,
+                    fleet_id: String::new(),
+                };
+                let identifiers = identifiers_provider.provide().expect(self.name);
+
+                assert_eq!(
+                    self.expected_identifiers, identifiers,
+                    "test case: {}",
+                    self.name
+                );
+            }
+        }
+        let test_cases = vec![
+            TestCase {
+                name: "configured host_id takes precedence over cloud id",
+                host_id: host_id.clone(),
+                system_detector_mock: {
+                    let mut system_detector_mock = MockSystemDetectorMock::new();
+                    system_detector_mock
+                        .expect_detect()
+                        .once()
+                        .returning(|| Ok(system_id()));
+                    system_detector_mock
+                },
+                cloud_id_detector_mock: {
+                    let mut cloud_id_detector_mock = MockCloudDetectorMock::new();
+                    cloud_id_detector_mock.should_detect(cloud_id());
+                    cloud_id_detector_mock
+                },
+                expected_identifiers: Identifiers {
+                    host_id: host_id.clone(),
+                    hostname: HOSTNAME.to_string(),
+                    machine_id: MACHINE_ID.to_string(),
+                    cloud_instance_id: CLOUD_ID.to_string(),
+                    ..Default::default()
+                },
+            },
+            TestCase {
+                name: "cloud id takes precedence over machine id",
+                host_id: "".to_string(),
+                system_detector_mock: {
+                    let mut system_detector_mock = MockSystemDetectorMock::new();
+                    system_detector_mock
+                        .expect_detect()
+                        .once()
+                        .returning(|| Ok(system_id()));
+                    system_detector_mock
+                },
+                cloud_id_detector_mock: {
+                    let mut cloud_id_detector_mock = MockCloudDetectorMock::new();
+                    cloud_id_detector_mock.should_detect(cloud_id());
+                    cloud_id_detector_mock
+                },
+                expected_identifiers: Identifiers {
+                    host_id: CLOUD_ID.to_string(),
+                    hostname: HOSTNAME.to_string(),
+                    machine_id: MACHINE_ID.to_string(),
+                    cloud_instance_id: CLOUD_ID.to_string(),
+                    ..Default::default()
+                },
+            },
+            TestCase {
+                name: "machine id as host_id",
+                host_id: "".to_string(),
+                system_detector_mock: {
+                    let mut system_detector_mock = MockSystemDetectorMock::new();
+                    system_detector_mock.expect_detect().once().returning(|| {
+                        Ok(Resource::new([(
+                            Key::from("machine_id".to_string()),
+                            Value::from(MACHINE_ID.to_string()),
+                        )]))
+                    });
+                    system_detector_mock
+                },
+                cloud_id_detector_mock: {
+                    let mut cloud_id_detector_mock = MockCloudDetectorMock::new();
+                    cloud_id_detector_mock.should_detect(Resource::new([]));
+                    cloud_id_detector_mock
+                },
+                expected_identifiers: Identifiers {
+                    host_id: MACHINE_ID.to_string(),
+                    machine_id: MACHINE_ID.to_string(),
+                    ..Default::default()
+                },
+            },
+            TestCase {
+                name: "configured host_id is the only required resource",
+                host_id: host_id.clone(),
+                system_detector_mock: {
+                    let mut system_detector_mock = MockSystemDetectorMock::new();
+                    system_detector_mock
+                        .expect_detect()
+                        .once()
+                        .returning(|| Ok(Resource::new([])));
+                    system_detector_mock
+                },
+                cloud_id_detector_mock: {
+                    let mut cloud_id_detector_mock = MockCloudDetectorMock::new();
+                    cloud_id_detector_mock.should_detect(Resource::new([]));
+                    cloud_id_detector_mock
+                },
+                expected_identifiers: Identifiers {
+                    host_id: host_id.clone(),
+                    ..Default::default()
+                },
+            },
+        ];
+
+        for test_case in test_cases {
+            test_case.run();
+        }
+    }
+
+    #[test]
+    fn test_empty_host_id_will_error() {
         let mut system_detector_mock = MockSystemDetectorMock::new();
         let mut cloud_id_detector_mock = MockCloudDetectorMock::new();
-        cloud_id_detector_mock.should_detect(Resource::new([(
-            "cloud_instance_id".to_string().into(),
-            Value::from("abc".to_string()),
-        )]));
-        system_detector_mock.expect_detect().once().returning(|| {
-            Ok(Resource::new([
-                (
-                    Key::from("hostname".to_string()),
-                    Value::from("some.example.org".to_string()),
-                ),
-                (
-                    "machine_id".to_string().into(),
-                    Value::from("some machine-id".to_string()),
-                ),
-            ]))
-        });
+        cloud_id_detector_mock.should_detect(Resource::new([]));
+        system_detector_mock
+            .expect_detect()
+            .once()
+            .returning(|| Ok(Resource::new([])));
+
         let identifiers_provider = IdentifiersProvider {
             system_detector: system_detector_mock,
             cloud_id_detector: cloud_id_detector_mock,
             host_id: String::new(),
             fleet_id: String::new(),
         };
-        // Add a host_id
-        let identifiers_provider = identifiers_provider.with_host_id("some-host-id".to_string());
 
-        let identifiers = identifiers_provider.provide().unwrap();
-        assert_eq!(identifiers.host_id, "some-host-id");
+        let err = identifiers_provider
+            .provide()
+            .expect_err("empty host_id should fail");
+
+        assert_matches!(err, IdentifiersProviderError::MissingHostIDError);
     }
 }

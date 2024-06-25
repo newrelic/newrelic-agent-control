@@ -1,5 +1,6 @@
 //! System resource detector implementation
 use fs::LocalFile;
+use tracing::error;
 
 use crate::{DetectError, Detector, Key, Resource, Value};
 
@@ -42,19 +43,23 @@ impl Default for SystemDetector {
 /// Implementing the `Detect` trait for the `SystemDetector` struct.
 impl Detector for SystemDetector {
     fn detect(&self) -> Result<Resource, DetectError> {
-        Ok(Resource::new([
-            (
+        let mut collected_resources: Vec<(Key, Value)> = vec![];
+
+        match self.hostname_getter.get() {
+            Ok(hostname) => collected_resources.push((
                 Key::from(HOSTNAME_KEY),
-                Value::from(
-                    self.hostname_getter
-                        .get()
-                        .map(|val| val.into_string().unwrap_or_default())?,
-                ),
-            ),
-            (
-                Key::from(MACHINE_ID_KEY),
-                Value::from(self.machine_id_provider.provide()?),
-            ),
-        ]))
+                Value::from(hostname.into_string().unwrap_or_default()),
+            )),
+            Err(err) => error!(err_msg = %err, "getting hostname"),
+        }
+
+        match self.machine_id_provider.provide() {
+            Ok(machine_id) => {
+                collected_resources.push((Key::from(MACHINE_ID_KEY), Value::from(machine_id)))
+            }
+            Err(err) => error!(err_msg = %err, "getting machine_id"),
+        }
+
+        Ok(Resource::new(collected_resources))
     }
 }

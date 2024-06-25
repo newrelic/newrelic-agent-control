@@ -13,7 +13,6 @@ use crate::sub_agent::persister::config_persister::PersistError;
 use crate::sub_agent::values::values_repository::ValuesRepositoryError;
 use fs::file_reader::FileReaderError;
 use opamp_client::{ClientError, NotStartedClientError, StartedClientError};
-use resource_detection::DetectError;
 use std::fmt::Debug;
 use std::time::SystemTimeError;
 use thiserror::Error;
@@ -92,8 +91,8 @@ pub enum AgentError {
     #[error("k8s config missing while running on k8s ")]
     K8sConfig(),
 
-    #[error("resource detection error: `{0}`")]
-    ResourceDetetctionError(#[from] DetectError),
+    #[error("required identifiers error: `{0}`")]
+    IdentifiersError(String),
 
     #[error("invalid argument: `{0}`")]
     InvalidArgumentError(String),
