@@ -21,10 +21,11 @@ use std::sync::Arc;
 use tokio::runtime::Runtime;
 use tracing::{debug, error, info, trace};
 
+// k8s and on_host need to be public to allow integration tests to access the fn run_super_agent.
 #[cfg(feature = "k8s")]
-mod k8s;
+pub mod k8s;
 #[cfg(feature = "onhost")]
-mod on_host;
+pub mod on_host;
 
 /// Structures for running the super-agent provided by CLI inputs
 pub struct SuperAgentRunConfig {

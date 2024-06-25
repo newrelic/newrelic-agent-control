@@ -1,7 +1,7 @@
-use crate::common::runtime::block_on;
+use crate::common::{retry::retry, runtime::block_on};
 
 use super::tools::{
-    k8s_api::check_deployments_exist, k8s_env::K8sEnv, retry,
+    k8s_api::check_deployments_exist, k8s_env::K8sEnv,
     super_agent::start_super_agent_with_testdata_config,
 };
 use std::time::Duration;
