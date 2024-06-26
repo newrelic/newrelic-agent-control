@@ -107,7 +107,7 @@ jobs:
 
   notify-failure:
     if: ${{ always() && failure() }}
-    # needs: [ onhost-e2e ]
+    needs: [ onhost-e2e ]
     runs-on: ubuntu-latest
     steps:
       - name: Notify failure via Slack
