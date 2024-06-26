@@ -57,8 +57,8 @@ k8s_resource(new_name='e2e test secret',objects=['test-env:secret'])
 
 ######## Feature Branch Workaround ########
 # Use the branch source to get the chart form a feature branch in the NR helm-charts repo.
-chart_source = 'branch' # local|branch|helm-repo
-feature_branch = 'bump-flux'
+chart_source = 'helm-repo' # local|branch|helm-repo
+feature_branch = ''
 local_chart_repo = ''
 
 #### Set-up charts
