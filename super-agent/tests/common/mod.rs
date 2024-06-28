@@ -1,7 +1,7 @@
 /// Includes a OpAMP mock server to test scenarios involving OpAMP.
 pub(super) mod health;
 pub(super) mod opamp;
+pub(super) mod retry;
 /// Includes helpers to handle the _async_ code execution in non-tokio-tests.
 pub(super) mod runtime;
-
-pub(super) mod retry;
+pub(super) mod super_agent;

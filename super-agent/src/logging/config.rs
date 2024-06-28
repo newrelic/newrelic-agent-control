@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use std::str::FromStr;
 use thiserror::Error;
 use tracing::debug;
+use tracing::dispatcher::has_been_set;
 use tracing::Level;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::fmt::format::PrettyFields;
@@ -80,18 +81,23 @@ impl LoggingConfig {
                     .from_env_lossy(),
             );
 
-        // a `Layer` wrapped in an `Option` such as the above defined `file_layer` also implements
-        // the `Layer` trait. This allows individual layers to be enabled or disabled at runtime
-        // while always producing a `Subscriber` of the same type.
-        tracing_subscriber::Registry::default()
-            .with(console_layer)
-            .with(file_layer)
-            .try_init()
-            .map_err(|_| {
-                LoggingError::TryInitError(
-                    "unable to set agent global logging subscriber".to_string(),
-                )
-            })?;
+        // Checks if a global default subscriber has already been set. This is useful to avoid setting it
+        // multiple times when running integration tests.
+        if !has_been_set() {
+            // a `Layer` wrapped in an `Option` such as the above defined `file_layer` also implements
+            // the `Layer` trait. This allows individual layers to be enabled or disabled at runtime
+            // while always producing a `Subscriber` of the same type.
+            tracing_subscriber::Registry::default()
+                .with(console_layer)
+                .with(file_layer)
+                .try_init()
+                .map_err(|err| {
+                    LoggingError::TryInitError(format!(
+                        "unable to set agent global logging subscriber: {}",
+                        err
+                    ))
+                })?;
+        }
 
         debug!("Logging initialized successfully");
         Ok(guard)

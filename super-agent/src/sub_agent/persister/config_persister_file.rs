@@ -47,7 +47,7 @@ impl ConfigurationPersisterFile<LocalFile, DirectoryManagerFs> {
 impl Default for ConfigurationPersisterFile<LocalFile, DirectoryManagerFs> {
     // default uses the default SUPER_AGENT_DATA_DIR to persist the corresponding files
     fn default() -> Self {
-        ConfigurationPersisterFile::new(Path::new(SUPER_AGENT_DATA_DIR()))
+        ConfigurationPersisterFile::new(Path::new(&SUPER_AGENT_DATA_DIR()))
     }
 }
 

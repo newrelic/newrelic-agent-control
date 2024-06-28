@@ -1,6 +1,7 @@
 use newrelic_super_agent::cli::{Cli, CliCommand};
 use newrelic_super_agent::logging::config::FileLoggerGuard;
 use newrelic_super_agent::super_agent::run::SuperAgentRunner;
+use std::env;
 use std::error::Error;
 use tracing::{error, info};
 
@@ -12,7 +13,7 @@ compile_error!("Either feature \"onhost\" or feature \"k8s\" must be enabled");
 
 fn main() -> Result<(), Box<dyn Error>> {
     // Get the action requested from the command call
-    let super_agent_config = match Cli::init()? {
+    let super_agent_config = match Cli::init_from(env::args_os())? {
         // Super Agent command call instructs normal operation. Continue with required data.
         CliCommand::InitSuperAgent(cli) => cli,
         // Super Agent command call was an "one-shot" operation. Exit successfully after performing.

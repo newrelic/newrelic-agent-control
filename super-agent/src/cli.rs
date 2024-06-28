@@ -2,7 +2,7 @@ mod one_shot_operation;
 
 use clap::Parser;
 use one_shot_operation::OneShotCommand;
-use std::path::PathBuf;
+use std::{ffi::OsString, path::PathBuf};
 use thiserror::Error;
 use tracing::info;
 
@@ -83,9 +83,14 @@ pub struct Cli {
 
 impl Cli {
     /// Parses command line arguments and decides how the application runs
-    pub fn init() -> Result<CliCommand, CliError> {
+
+    pub fn init_from<I, T>(args: I) -> Result<CliCommand, CliError>
+    where
+        I: IntoIterator<Item = T>,
+        T: Into<OsString> + Clone,
+    {
         // Get command line args
-        let cli = Self::parse();
+        let cli = Self::parse_from(args);
 
         // Initialize debug directories (if set)
         #[cfg(debug_assertions)]

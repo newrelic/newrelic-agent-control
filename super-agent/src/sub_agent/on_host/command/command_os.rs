@@ -77,8 +77,8 @@ impl NotStartedCommand for CommandOS<NotStarted> {
         let agent_id = self.agent_id;
         let loggers = self.state.logs_to_file.then(|| {
             FileSystemLoggers::new(
-                file_logger(&agent_id, STDOUT_LOG_PREFIX()),
-                file_logger(&agent_id, STDERR_LOG_PREFIX()),
+                file_logger(&agent_id, &STDOUT_LOG_PREFIX()),
+                file_logger(&agent_id, &STDERR_LOG_PREFIX()),
             )
         });
         Ok(CommandOS {

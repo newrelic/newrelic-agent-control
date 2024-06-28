@@ -1,3 +1,6 @@
+use crate::common::retry::retry;
+use crate::common::super_agent::{init_sa, run_sa};
+use crate::on_host::cli::create_temp_file;
 use assert_cmd::Command;
 use http::header::AUTHORIZATION;
 use httpmock::Method::POST;
@@ -7,15 +10,16 @@ use nr_auth::authenticator::{Request, Response};
 use nr_auth::jwt::claims::Claims;
 use predicates::prelude::predicate;
 use std::collections::HashMap;
+use std::error::Error;
 use std::path::PathBuf;
+use std::thread;
 use std::time::Duration;
 use tempfile::TempDir;
 
 #[cfg(unix)]
+#[serial_test::serial]
 #[test]
 fn test_auth_local_provider_as_root() {
-    use crate::on_host::cli::create_temp_file;
-
     let token = "fakeToken";
 
     let dir = TempDir::new().unwrap();
@@ -32,43 +36,38 @@ fn test_auth_local_provider_as_root() {
         then.status(200);
     });
 
-    let config_path = create_temp_file(
-        &dir,
-        "config.yml",
-        format!(
-            r#"
+    let sa_config = format!(
+        r#"
 opamp:
-  endpoint: "{}"
+  endpoint: "{}" 
   auth_config:
     token_url: "{}"
     client_id: "fake"
     provider: "local"
     private_key_path: "{}"
 log:
-  level: debug
+  level: info
 agents: {{}}
 "#,
-            opamp_server.url("/"),
-            auth_server.url(TOKEN_PATH),
-            private_key_path.to_str().unwrap()
-        )
-        .as_str(),
-    )
-    .unwrap();
+        opamp_server.url("/"),
+        auth_server.url(TOKEN_PATH),
+        private_key_path.to_str().unwrap()
+    );
 
-    let mut cmd = cmd_super_agent(config_path);
-    // cmd_assert is not made for long running programs, so we kill it.
-    // Enough time for the SA to start and send at least 1 AgentToServer OpAMP message.
-    cmd.timeout(Duration::from_secs(1));
+    let (sa_run_cfg, _guard) = init_sa(dir.path(), &sa_config);
 
-    let output = cmd
-        .assert()
-        .try_interrupted()
-        .expect("shouldn't have crashed")
-        .get_output()
-        .to_owned();
+    let _super_agent_join = thread::spawn(move || {
+        run_sa(sa_run_cfg);
+    });
 
-    println!("stdout:\n {}", String::from_utf8(output.stdout).unwrap(),);
+    retry(10, Duration::from_secs(1), || {
+        || -> Result<(), Box<dyn Error>> {
+            if opamp_server_mock.hits() == 0 {
+                return Err("opamp server was not hit".into());
+            }
+            Ok(())
+        }()
+    });
 
     assert!(opamp_server_mock.hits() >= 1)
 }
@@ -76,10 +75,9 @@ agents: {{}}
 // This test verifies that empty Auth config doesn't inject any token.
 // This is a temporal behavior until auth config is mandatory.
 #[cfg(unix)]
+#[serial_test::serial]
 #[test]
 fn test_empty_auth_config_as_root() {
-    use crate::on_host::cli::create_temp_file;
-
     let dir = TempDir::new().unwrap();
 
     let opamp_server = MockServer::start();
@@ -92,37 +90,33 @@ fn test_empty_auth_config_as_root() {
         then.status(200);
     });
 
-    let config_path = create_temp_file(
-        &dir,
-        "config.yml",
-        format!(
-            r#"
+    let sa_config = format!(
+        r#"
 opamp:
   endpoint: "{}"
   headers:
     api-key: "fakeKey"
 log:
-  level: debug
+  level: info
 agents: {{}}
 "#,
-            opamp_server.url("/"),
-        )
-        .as_str(),
-    )
-    .unwrap();
+        opamp_server.url("/"),
+    );
 
-    let mut cmd = cmd_super_agent(config_path);
-    // Enough time for the SA to start and send at least 1 AgentToServer OpAMP message.
-    cmd.timeout(Duration::from_secs(1));
+    let (sa_run_cfg, _guard) = init_sa(dir.path(), &sa_config);
 
-    let output = cmd
-        .assert()
-        .try_interrupted()
-        .expect("shouldn't have crashed")
-        .get_output()
-        .to_owned();
+    let _super_agent_join = thread::spawn(move || {
+        run_sa(sa_run_cfg);
+    });
 
-    println!("stdout:\n {}", String::from_utf8(output.stdout).unwrap(),);
+    retry(10, Duration::from_secs(1), || {
+        || -> Result<(), Box<dyn Error>> {
+            if opamp_server_mock.hits() == 0 {
+                return Err("opamp server was not hit".into());
+            }
+            Ok(())
+        }()
+    });
 
     assert!(opamp_server_mock.hits() >= 1)
 }
@@ -155,7 +149,7 @@ opamp:
     provider: "local"
     private_key_path: "{}"
 log:
-  level: debug
+  level: info
 agents: {{}}
 "#,
             auth_server.url(TOKEN_PATH),

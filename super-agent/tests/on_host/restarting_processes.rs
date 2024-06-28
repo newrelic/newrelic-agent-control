@@ -1,17 +1,22 @@
+use crate::common::retry::retry;
+use crate::{
+    common::super_agent::{init_sa, run_sa},
+    on_host::cli::create_temp_file,
+};
 use assert_cmd::Command;
 use nix::{
     sys::signal::{self, Signal},
     unistd::Pid,
 };
+use std::error::Error;
 use std::thread;
 use std::time::Duration;
 use tempfile::TempDir;
 
 #[cfg(unix)]
+#[serial_test::serial]
 #[test]
 fn killing_subprocess_with_signal_restarts_as_root() -> Result<(), Box<dyn std::error::Error>> {
-    use crate::on_host::cli::create_temp_file;
-
     let dir = TempDir::new()?;
 
     let _agent_type_def = create_temp_file(
@@ -56,72 +61,73 @@ file_logging: true
 "#,
     );
 
-    let config_path = create_temp_file(
-        &dir,
-        "config.yml",
+    let (sa_cfg, _guard) = init_sa(
+        dir.path(),
         r#"
 log:
-  level: debug
+  level: info
   file:
     enable: true
 agents:
   test-agent:
     agent_type: newrelic/com.newrelic.test-agent:0.0.1
+host_id: test
 "#,
-    )?;
+    );
 
-    let tmpdir_path = dir.path().to_path_buf();
+    let _ = thread::spawn(move || run_sa(sa_cfg));
 
-    let super_agent_join = thread::spawn(move || {
-        let mut cmd = Command::cargo_bin("newrelic-super-agent").unwrap();
-        cmd.arg("--config")
-            .arg(config_path)
-            .arg("--debug")
-            .arg(tmpdir_path);
-        // cmd_assert is not made for long running programs, so we kill it anyway after 3 seconds
-        cmd.timeout(Duration::from_secs(10));
-        // But in any case we make sure that it actually attempted to create the supervisor group,
-        // so it works when the program is run as root
-        cmd.output().expect("failed to execute process");
+    let mut yes_pid_old = String::new();
+    retry(10, Duration::from_secs(1), || {
+        || -> Result<(), Box<dyn Error>> {
+            // Use `pgrep` to find the process id of the yes command
+            // It is expected that only one such process is found!
+            let yes_pid = Command::new("pgrep")
+                .arg("-f")
+                .arg("/usr/bin/yes test yes")
+                .output()
+                .expect("failed to execute process")
+                .stdout;
+
+            yes_pid_old = String::from_utf8(yes_pid)?;
+
+            if yes_pid_old.is_empty() {
+                return Err("command not found".into());
+            }
+
+            Ok(())
+        }()
     });
-
-    thread::sleep(Duration::from_secs(2));
-
-    // Use `pgrep` to find the process id of the yes command
-    // It is expected that only one such process is found!
-    let yes_pid = Command::new("pgrep")
-        .arg("-f")
-        .arg("/usr/bin/yes test yes")
-        .output()
-        .expect("failed to execute process")
-        .stdout;
-
-    let yes_pid = String::from_utf8(yes_pid).unwrap();
 
     // Send a SIGKILL to the yes command
     signal::kill(
-        Pid::from_raw(yes_pid.trim().parse::<i32>().unwrap()),
+        Pid::from_raw(yes_pid_old.to_owned().trim().parse::<i32>().unwrap()),
         Signal::SIGKILL,
-    )
-    .unwrap();
+    )?;
 
-    // Wait for the super-agent to restart the process
-    thread::sleep(Duration::from_secs(2));
+    let mut yes_pid_new = String::new();
+    retry(10, Duration::from_secs(1), || {
+        || -> Result<(), Box<dyn Error>> {
+            // Get the pid for the new yes command
+            let new_yes_pid = Command::new("pgrep")
+                .arg("-f")
+                .arg("/usr/bin/yes test yes")
+                .output()
+                .expect("failed to execute process")
+                .stdout;
 
-    // Get the pid for the new yes command
-    let new_yes_pid = Command::new("pgrep")
-        .arg("-f")
-        .arg("/usr/bin/yes test yes")
-        .output()
-        .expect("failed to execute process")
-        .stdout;
+            yes_pid_new = String::from_utf8(new_yes_pid)?;
 
-    let new_yes_pid = String::from_utf8(new_yes_pid).unwrap();
+            if yes_pid_new.is_empty() {
+                return Err("command not found".into());
+            }
 
-    super_agent_join.join().unwrap();
+            Ok(())
+        }()
+    });
 
     // Assert the PID is different
-    assert_ne!(yes_pid, new_yes_pid);
+    assert_ne!(yes_pid_old, yes_pid_new);
 
     Ok(())
 }

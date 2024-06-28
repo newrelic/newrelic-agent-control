@@ -17,9 +17,13 @@ use k8s::run_super_agent;
 #[cfg(feature = "onhost")]
 use on_host::run_super_agent;
 use std::error::Error;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering::Relaxed;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
-use tracing::{debug, error, info, trace};
+use tracing::{debug, error, info, trace, warn};
+
+static CTRLC_GLOBAL_HANDLER_SET: AtomicBool = AtomicBool::new(false);
 
 // k8s and on_host need to be public to allow integration tests to access the fn run_super_agent.
 #[cfg(feature = "k8s")]
@@ -117,6 +121,12 @@ impl SuperAgentRunner {
 pub fn create_shutdown_signal_handler(
     publisher: EventPublisher<ApplicationEvent>,
 ) -> Result<(), ctrlc::Error> {
+    // Prevents setting the signal handler multiple times. Useful for integration tests.
+    if CTRLC_GLOBAL_HANDLER_SET.load(Relaxed) {
+        warn!("Signal handler already set");
+        return Ok(());
+    }
+
     ctrlc::set_handler(move || {
         info!("Received SIGINT (Ctrl-C). Stopping super agent");
         let _ = publisher
@@ -127,6 +137,8 @@ pub fn create_shutdown_signal_handler(
         error!("Could not set signal handler: {}", e);
         e
     })?;
+
+    CTRLC_GLOBAL_HANDLER_SET.store(true, Relaxed);
 
     Ok(())
 }

@@ -8,6 +8,8 @@ use std::sync::OnceLock;
 #[cfg(debug_assertions)]
 use tracing::debug;
 
+use std::sync::Mutex;
+
 // What does this do?
 // This macro generates a static variable and a function that returns a reference to that variable.
 // This allows to set this variables on initialization, like what is done when using the super-agent
@@ -31,12 +33,12 @@ use tracing::debug;
 macro_rules! generate_const_getter {
     ($name:ident, $value:expr) => {
         paste! {
-            static [<$name:upper _STATIC>]: OnceLock<String> = OnceLock::new();
+            static [<$name:upper _STATIC>]: OnceLock<Mutex<String>> = OnceLock::new();
 
             // I want this function usage to be analogous to referencing a constant, hence uppercase
             #[allow(non_snake_case)]
-            pub fn [<$name:upper>]() -> &'static str {
-                [<$name:upper _STATIC>].get_or_init(|| $value.to_string())
+            pub fn [<$name:upper>]() -> String {
+                [<$name:upper _STATIC>].get_or_init(|| Mutex::new($value.to_string())).lock().unwrap().clone()
             }
         }
     };
@@ -129,10 +131,14 @@ generate_const_getter!(STDERR_LOG_PREFIX, "stderr.log");
 
 #[cfg(debug_assertions)]
 pub fn set_local_dir(path: &Path) {
+    // allows the tests to override the default values
+    SUPER_AGENT_LOCAL_DATA_DIR_STATIC
+        .get()
+        .map(|m| *m.lock().unwrap() = path.to_string_lossy().to_string());
     // The Err variant in `set` just contains the value we attempted to set,
     // so we can just ignore the Result
     _ = SUPER_AGENT_LOCAL_DATA_DIR_STATIC
-        .set(path.to_string_lossy().to_string())
+        .set(Mutex::new(path.to_string_lossy().to_string()))
         .inspect_err(|_| {
             debug!("attempted to initialize SUPER_AGENT_LOCAL_DATA_DIR but was already set")
         });
@@ -140,8 +146,13 @@ pub fn set_local_dir(path: &Path) {
 
 #[cfg(debug_assertions)]
 pub fn set_remote_dir(path: &Path) {
+    // allows the tests to override the default values
+    SUPER_AGENT_DATA_DIR_STATIC
+        .get()
+        .map(|m| *m.lock().unwrap() = path.to_string_lossy().to_string());
+
     _ = SUPER_AGENT_DATA_DIR_STATIC
-        .set(path.to_string_lossy().to_string())
+        .set(Mutex::new(path.to_string_lossy().to_string()))
         .inspect_err(|_| {
             debug!("attempted to initialize SUPER_AGENT_DATA_DIR but was already set")
         });
@@ -149,13 +160,18 @@ pub fn set_remote_dir(path: &Path) {
 
 #[cfg(debug_assertions)]
 pub(super) fn set_log_dir(path: &Path) {
+    // allows the tests to override the default values
+    SUPER_AGENT_LOG_DIR_STATIC
+        .get()
+        .map(|m| *m.lock().unwrap() = path.to_string_lossy().to_string());
+
     _ = SUPER_AGENT_LOG_DIR_STATIC
-        .set(path.to_string_lossy().to_string())
+        .set(Mutex::new(path.to_string_lossy().to_string()))
         .inspect_err(|_| debug!("attempted to initialize SUPER_AGENT_LOG_DIR but was already set"));
 }
 
 #[cfg(debug_assertions)]
-pub(super) fn set_debug_mode_dirs(path: &Path) {
+pub fn set_debug_mode_dirs(path: &Path) {
     debug!("setting data directories to the working directory");
 
     let local_path = path.join("nrsa_local");
