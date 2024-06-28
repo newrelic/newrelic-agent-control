@@ -122,6 +122,7 @@ opamp:
     api-key: YOUR_INGEST_KEY
 
 # define agents to be supervised based on their agent types
+# your-agent-id must contain 32 alpanumeric (or dashes) characters at most, and start and end with alphanumeric. 
 # agents:
 #   your-agent-id:
 #     agent_type: "namespace/agent_type:version"
