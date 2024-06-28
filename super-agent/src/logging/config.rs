@@ -83,15 +83,16 @@ impl LoggingConfig {
         // a `Layer` wrapped in an `Option` such as the above defined `file_layer` also implements
         // the `Layer` trait. This allows individual layers to be enabled or disabled at runtime
         // while always producing a `Subscriber` of the same type.
-        tracing_subscriber::Registry::default()
+        let subscriber = tracing_subscriber::Registry::default()
             .with(console_layer)
-            .with(file_layer)
-            .try_init()
-            .map_err(|_| {
-                LoggingError::TryInitError(
-                    "unable to set agent global logging subscriber".to_string(),
-                )
-            })?;
+            .with(file_layer);
+
+        #[cfg(feature = "tokio-console")]
+        let subscriber = subscriber.with(console_subscriber::spawn());
+
+        subscriber.try_init().map_err(|_| {
+            LoggingError::TryInitError("unable to set agent global logging subscriber".to_string())
+        })?;
 
         debug!("Logging initialized successfully");
         Ok(guard)
