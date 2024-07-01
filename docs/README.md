@@ -1,46 +1,120 @@
 # Agent overview
 
-New Relic super agent is a generic supervisor that can be configured to orchestrate  observability agents. It integrates with New Relic fleet manager to help customers deploy, monitor and manage agents at scale. 
+New Relic super agent is a generic supervisor that can be configured to orchestrate  observability agents. It integrates with New Relic fleet control to help customers deploy, monitor and manage agents at scale. 
 
 ## Table of contents
 - [Agent overview](#agent-overview)
   - [Table of contents](#table-of-contents)
   - [High-level architecture](#high-level-architecture)
+    - [OpAMP](#opamp)
+    - [Agent Types](#agent-types)
+  - [Configuration](#configuration)
+    - [Super Agent Configuration](#super-agent-configuration)
+    - [Agent Values File](#agent-values-file)
+    - [Configuration Persistence](#configuration-persistence)
+    - [OpAMP Capabilities](#opamp-capabilities)
+  - [Health](#health)
+    - [Agents Health Reporting](#agents-health-reporting)
+    - [Super Agent Health](#super-agent-health)
+  - [Packages Download and Upgrade](#packages-download-and-upgrade)
   - [Running the agent](#running-the-agent)
     - [Running on-host](#running-on-host)
     - [Running in Kubernetes](#running-in-kubernetes)
       - [Prerequisites](#prerequisites)
       - [Steps](#steps)
-  - [Local and Remote configuration](#local-and-remote-configuration)
-  - [Agent type development](#agent-type-development)
   - [Troubleshooting](#troubleshooting)
   - [Testing](#testing)
 
 ## High-level architecture
-```mermaid
-flowchart LR
-    SA[Super Agent] -->|loads| AgentTypes[Agent Types]
-    SA -->|loads| SAConfig[Super Agent Config]
-    SA -->|supervises| Agent1["Agent (ex: NRDOT)"]
-    SA -->|supervises| Agent2["Agent (ex: Infra Agent)"]
-    SA <-->|OpAMP| Fleet[Fleet Manager]
-    Agent1 <-->|OpAMP| Fleet
-    Agent2 <-->|OpAMP| Fleet
+![Super Agent Diagram](super-agent-diagram.png)
 
-    Agent1 --> NRMelt1[NR OTLP Endpoint]
-    Agent2 --> NRMelt2[NR MELT Endpoint]
-    classDef default fill:#f9f,stroke:#333,stroke-width:4px;
-    classDef agent-side fill:#ddf,stroke:#333,stroke-width:2px;
-    classDef server-side fill:#efe,stroke:#393,stroke-width:2px;
+The Super Agent (SA) itself does not currently collect system or application telemetry itself. A combination of managed agents can be used to monitor your target entities and collect system and/or services telemetry. 
 
-    class SA,AgentTypes,Agent1,Agent2,SAConfig agent-side;
-    class Fleet,NRMelt1,NRMelt2 server-side;
-```
+The SA has a modular architecture:
+- The SA orchestrates observability **Agents** that need to be explicitly configured. We will see that agents are configured using an agent ID, **Agent Type** and agent type version. 
+-  For each configured agent, the SA creates a **Supervisor** in charge of (1) orchestrating the agent based on provided configuration and (2) establishing the communication with the backend. 
 
-The super agent itself does not currently collect system or application telemetry itself. A combination of managed agents can be used to monitor your target entities and collect system and/or services telemetry. Agents must be defined in the super agent configuration. The following example shows how to integrate the OTel collector:
+
+### OpAMP
+
+The **Open Agent Management Protocol** is "_...a network protocol for remote management of large fleets of data collection agents_" (from the [public specs](https://github.com/open-telemetry/opamp-spec/blob/main/specification.md)). 
+
+In a nutshell, OpAMP is the protocol handling the communication with the Fleet Management backend:
+  - Super Agent registers itself as an agent.
+  - Supervisors register agents.
+  - Both receive remote configurations.
+  - Both report health and status (metadata, effective configuration, …).
+  - Both will receive package availability messages (not implemented).
+
+Agents (including the super agent itself) support either `local` or `remote` configuration. Local configuration is expected to be deployed together with the SA. Remote configuration is centrally defined and managed via Fleet Management. 
+
+### Agent Types
+
+An Agent Type is a yaml based definition that determines how the Supervisor should manage a given agent. 
+
+Agent Types are versioned to ensure compatibility with a given configuration values (no breaking changes). Agent Types define how agents get orchestrated using a set of `variables` and `deployment` settings for on-host and kubernetes scenarios.
+
+This is a simplified version of the Infra Agent Type:
 
 ```yaml
-# integrate with fleet manager by defining the opamp backend settings
+# Agent Type Metadata (name + version)
+namespace: newrelic
+name: infra-agent
+version: 1.0.0
+
+# Variables configurable by the customers
+variables:
+  backoff_delay:
+    description: "seconds until next retry if agent fails to start"
+    type: string
+    required: false
+    default: 20s
+  config_agent:
+    description: "YAML config for the agent"
+    type: file
+    required: true
+    file_path: "newrelic-infra.yml"
+  config_integrations:
+      description: "map of YAML configs for the OHIs"
+      type: map[string]file
+      required: false
+      default: {}
+      file_path: "integrations.d"
+
+# How the agent should be supervised
+deployment:
+  on_host:
+    executables:
+      - path: /opt/newrelic-super-agent/bin/newrelic-infra
+        args: "--config=${nr-var:config_agent}"
+        env: "NRIA_PLUGIN_DIR=${nr-var:config_integrations} NRIA_STATUS_SERVER_ENABLED=true"
+        restart_policy:
+          backoff_strategy:
+            type: fixed
+            backoff_delay: ${nr-var:backoff_delay}
+        health:
+          interval: 5s
+          timeout: 5s
+          http:
+            path: "/v1/status"
+            port: 8003
+```
+
+Note that the actual Infra Agent configuration `config_agent` is a variable whose yaml content is saved in a specific file defined by the Agent Type creator through a variable attribute `file_path`.
+
+Current Agent Types can be found [here](../super-agent/agent-type-registry).
+
+ℹ️ Refer to the [agent type](../super-agent/src/agent_type/README.md) implementation for the full definition of `variables` and `deployment` as well as a development guideline.
+
+## Configuration
+
+### Super Agent Configuration
+Super Agent configuration defines which Agents need to be supervised.
+
+The following Super Agent configuration example shows how to integrate the Infra Agent:
+
+```yaml
+# integrate with fleet control by defining the opamp backend settings
 # remove to run the agent standalone (disconnected from fleet)
 opamp:
   endpoint: https://opamp.service.newrelic.com/v1/opamp
@@ -48,34 +122,168 @@ opamp:
     api-key: YOUR_INGEST_KEY
 
 # define agents to be supervised based on their agent types
+# your-agent-id must contain 32 alpanumeric (or dashes) characters at most, and start and end with alphanumeric. 
 # agents:
 #   your-agent-id:
 #     agent_type: "namespace/agent_type:version"
 # 
-# example: configuring the OTel collector
 agents:
-  nr-otel-collector:
-    agent_type: "newrelic/io.opentelemetry.collector:0.1.0"
+  newrelic-infra:
+    agent_type: "newrelic/infra-agent:0.1.0"
 ```
 
-- `opamp` defines the required attributes to establish the connection with fleet manager.
+- `opamp` defines the required attributes to establish the connection with the backend.
 - `agents` defines which agents should be running on the target environment. A built-in or custom agent type and version definition is expected. 
 
-Agent types define how agents get orchestrated using a set of `variables` and `deployment` settings for on-host and kubernetes scenarios. Variables can be defined or customized using values file. For example, a valid values file for the OTel collector is:
+### Agent Values File
+
+An agent supervised by the SA can be customized by defining or overriding those settings in a `values.yaml` (file or ConfigMap) provided when installed on a particular environment. 
+
+The following values file shows how to configure the Infra Agent given the Agent Type we defined above:
+
 ```yaml
 backoff_delay: 30s
-config: |
-    # the OTel collector config here
+config_agent: |
+  license_key: 123456789
+  log:
+    level: debug
+config_integrations: 
+  nri-redis-example.yml: |
+    integrations:
+      - name: nri-redis
+        env:
+          hostname: localhost
+          port: 6380
+          keys: '{"0":["<KEY_1>"],"1":["<KEY_2>"]}'
+          remote_monitoring: true    
 ```
 
-Agents (including the super agent itself) support either `local` or `remote` configuration. Local configuration is expected to be deployed together with the super agent. Remote configuration is centrally defined and managed via fleet manager. 
+- `backoff_delay` is a Supervisor setting that customers can tweak.
+- `config_agent` and `config_integrations` are the actual agent configuration YAML files that the Super Agent stores for the Infra Agent to read.
 
-Key concepts (in alphabetical order):
-- **Agent type**: a yaml based definition that determines how the super agent should manage a given agent. 
-- **Agent type version**: types are versioned to ensure compatibility with a given configuration values (no breaking changes). 
-- **OpAMP** (Open Agent Management Protocol): from the [public specs](https://github.com/open-telemetry/opamp-spec/blob/main/specification.md) - "...a network protocol for remote management of large fleets of data collection agents". This is the protocol used to register agents, report health and metadata, report and receive configurations and report and receive package updates. 
-- **Supervisor**: the super agent orchestrates other observability agents that need to be explicitly configured. Agents are configured using an agent ID, agent type and agent type version. In the OpAMP spec, the client-side orchestrator is referenced as the `supervisor`.  
-- **Values file**: each agent type has a set of optional and mandatory settings defined in the type itself. Agents can be customized by defining or overriding those settings in a `values.yaml` (file or ConfigMap) provided when installed on a particular environment.
+### Configuration Persistence
+
+This is the file structure:
+
+```
+├── etc
+│   └── newrelic-super-agent
+│       ├── agents.d
+│       │   └── newrelic_infra
+│       │       └── values
+│       │           └── values.yaml
+│       └── config.yaml
+└── var
+    └── lib
+        └── newrelic-super-agent
+           │── fleet
+           │   ├── agents.d
+           │   │   └── newrelic_infra
+           │   │       └── values
+           │   │           └── values.yaml
+           │   └── config.yaml
+           └── auto-generated
+                └── agents.d
+                    └── newrelic_infra
+                        └── conf
+                            ├── integrations.d
+                            │   └── nri-redis.yaml
+                            └── newrelic-infra.yaml
+```
+
+The Super Agent parses both its own configuration and agents values files to replace placeholders, and then SA then persists all these auto-generated files.
+
+* Files under `/etc/newrelic-super-agent`  are used for local configuration. These are provisioned by the customer using Ansible like tools.
+* Files under `/var/lib/newrelic-super-agent/fleet`  are used for remote configuration. These are centrally managed through New Relic fleet control, offering streamlined control for large-scale deployments.
+
+The Super Agent generates actual agent configuration files and places these under `/var/lib/newrelic-super-agent/auto-generated` after processing Agent Type + Agent Values. 
+
+### OpAMP Capabilities
+
+Users can disable remote management just by commenting the `opamp` section in the  [Super Agent Configuration](#super-agent-configuration) file.
+
+## Health
+
+### Agents Health Reporting
+
+Following OpAMP specs, each Supervisor sends an AgentToServer message to Fleet Management after any health change. 
+
+The message includes a detailed ComponentHealth structure containing information such as the agent's health status, start time, last error, etc. 
+
+On an unhealthy check, the Super Agent:
+* Logs an error.
+* Creates an internal data structure for health that follows the Opamp specs including:
+  * A boolean is set to `true` if the agent is up and healthy.
+  * `last_error` seen, which corresponds with the previously logged message.
+  * A human readable `status` that takes the full response of the defined interface.
+  * A timestamp.
+* Compares this health data structure with the one from the last check. If it’s different in any way, sends an event to the Fleet Manager.
+
+Agent Type creators can declare how the agent health exposes by using the health field in the definition. See the Infra Agent Type definition above as an example:
+
+```yaml
+#...
+health:
+  interval: 5s
+  timeout: 5s
+  http:
+    path: "/v1/status"
+    port: 8003
+```
+
+The Super Agent currently only supports a HTTP interface (just because this is how the Infra Agent and the OpenTelemetry Collector expose their status). More interfaces will be added as new agents with newer needs are integrated.
+
+If the Agent Type does not declare its health interface, the Supervisor uses its restart policy violations as a fallback. In this case, an unhealthy message is sent when the maximum number of retries has been reached. 
+
+In **Kubernetes**, we are leveraging health checks to its ecosystem because K8s already offers many built-in mechanisms to check the health of k8s objects. Therefore, the health information is obtained from the k8s objects related to each agent. Currently, only the interval can be configured in the Agent Type, but we could offer the customer the possibility of selecting what information should be retrieved in the future.
+
+ℹ️ Again, refer to the [agent type](../super-agent/src/agent_type/README.md) development guide to know more. 
+
+### Super Agent Health
+
+There is a service that ultimately exposes the /status endpoint for the Super Agent itself. This service performs a series of checks to determine the output (both in HTTP status code and message):
+* Reachability of OpAMP endpoint (if OpAMP is enabled at all).
+* Active agents and health of each one, in the same form as used by the OpAMP protocol, mentioned in the section above.
+
+```json
+{
+  "super_agent": {
+    "healthy": true
+  },
+  "opamp": {
+    "enabled": true,
+    "endpoint": "https://opamp.service.newrelic.com/v1/opamp",
+    "reachable": true
+  },
+  "sub_agents": {
+    "nr-otel-collector": {
+      "agent_id": "nr-otel-collector",
+      "agent_type": "newrelic/io.opentelemetry.collector:0.1.0",
+      "healthy": true
+    },
+    "nr-infra-agent": {
+      "agent_id": "nr-infra-agent",
+      "agent_type": "newrelic/com.newrelic.infrastructure_agent:0.1.1",
+      "healthy": false,
+      "last_error": "process exited with code: exit status: 1"
+    }
+  }
+}
+```
+
+Users need to enable the local server by adding the following setting in the  [Super Agent Configuration](#super-agent-configuration) file:
+
+```yaml
+server:
+    enabled: true
+    # default values (change if needed)
+    #host: "127.0.0.1"
+    #port: 51200
+```
+
+## Packages Download and Upgrade
+
+TBD
 
 ## Running the agent
 The agent can be executed on-host (on-prem server, cloud compute instance, virtual machine, ...) or in a Kubernetes cluster.
@@ -93,7 +301,6 @@ opamp:
   endpoint: https://opamp.service.newrelic.com/v1/opamp
   headers:
     api-key: YOUR_INGEST_KEY
-
 agents:
   nr-otel-collector:
     agent_type: "newrelic/io.opentelemetry.collector:0.1.0"
@@ -127,80 +334,6 @@ ctlptl create cluster minikube --registry=ctlptl-registry
 make tilt-up
 ```
 
-## Local and Remote configuration
-Learn how agents support [local and remote configuration](https://docs-preview.newrelic.com/docs/new-relic-super-agent#local-vs-remote).
-
-## Agent type development
-
-This guideline shows how to build a custom agent type and integrate it with the super agent on-host. The [telegraf agent](https://www.influxdata.com/time-series-platform/telegraf/) is used as a reference.
-
-1. Create a `dynamic-agent-type.yaml` file with the agent type definition
-
-```yaml
-# namespace: newrelic, external, other
-namespace: external
-# name: reverse FQDN that uniquely identifies the agent type
-name: com.influxdata.telegraf
-# version: semver scheme
-version: 0.0.1
-
-# variables:
-#   common | on_host | kubernetes:
-#     my_var_1:
-#       description: "Variable description here"
-#       type: file | string
-#       required: true | false
-#       default: "default value"
-#       file_path: "persistence path"
-
-variables:
-  on_host:
-    config_file:
-      description: "Telegraf config file path"
-      type: string
-      required: false
-      default: "/path/to/telegraf.conf"
-    backoff_delay:
-      description: "seconds until next retry if agent fails to start"
-      type: string
-      required: false
-      default: 20s
-    
-deployment:
-  on_host:
-    executables:
-      - path: /usr/bin/telegraf
-        args: "--config ${nr-var:config_file}"
-        env: ""
-        restart_policy:
-          backoff_strategy:
-            type: fixed
-            backoff_delay: ${nr-var:backoff_delay}
-```
-  ℹ️ Refer to the [agent type](../super-agent/src/agent_type/README.md) implementation for the full definition of `variables` and `deployment`.
-
-2. Copy the agent type definition to `/etc/newrelic-super-agent/dynamic-agent-type.yaml`
-
-    ⚠︎ This is a temporal path, expect a configurable path to load custom agent types in the future.
-
-3. Use the new type in the `agents` config for the super agent:
-```yaml
-#opamp:
-# ...
-
-agents:
-  my-telegraf-collector:
-    agent_type: "external/com.influxdata.telegraf:0.0.1"
-```
-
-4. If any `required` variable has been defined in the type or any default value for variables needs to be customized, then define a `values.yaml` in `/etc/newrelic-super-agent/fleet/agents.d/my-telegraf/values.yaml`:
-```yaml
-config_file: /custom/path/to/file
-backoff_delay: 30s
-```
-
-5. Restart the super agent.
-
 ## Troubleshooting
 
 See [diagnose issues with super agent logging](https://docs-preview.newrelic.com/docs/new-relic-super-agent#debug).
@@ -225,3 +358,5 @@ cargo test --features "k8s"
 ```
 
 Passing the flag --features "onhost, k8s" will throw a compilation error, there is a special feature "ci", that needs to be enabled to allow those 2 features at the same time (since we only want them together in specific CI scenarios).
+
+[def]: #agent-overview
