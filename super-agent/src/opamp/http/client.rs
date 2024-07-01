@@ -3,7 +3,7 @@ use std::io::Cursor;
 use std::sync::Arc;
 
 use http::header::AUTHORIZATION;
-use http::{HeaderMap, Response};
+use http::{HeaderMap, HeaderValue, Response};
 use opamp_client::http::http_client::HttpClient;
 use opamp_client::http::HttpClientError;
 use opamp_client::http::HttpClientError::TransportError;
@@ -48,7 +48,7 @@ where
     }
 
     /// headers will return the "static" headers that are added to the client in
-    /// creation time + the authorization header retrieved byt the TokenRetriever
+    /// creation time + the authorization header retrieved by the TokenRetriever
     fn headers(&self) -> Result<HeaderMap, HttpClientUreqError> {
         let mut headers = self.headers.clone();
 
@@ -59,10 +59,18 @@ where
 
         // Insert auth token header
         if !token.access_token().is_empty() {
-            headers.insert(
-                AUTHORIZATION,
-                format!("Bearer {}", token.access_token()).parse().unwrap(),
-            );
+            let auth_header_string =
+                format!("Bearer {}", token.access_token().parse::<String>().unwrap());
+            let mut auth_header_value = HeaderValue::from_str(auth_header_string.as_str())
+                .map_err(|e| {
+                    AuthorizationHeadersError(format!(
+                        "error converting '{}' to a header string: {}",
+                        auth_header_string, e
+                    ))
+                })?;
+            auth_header_value.set_sensitive(true);
+
+            headers.insert(AUTHORIZATION, auth_header_value);
         }
         //TODO warn else case :point-up: once Token authentication is required.
         //warn!("received empty authorization token");

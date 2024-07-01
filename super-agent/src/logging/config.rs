@@ -3,8 +3,10 @@ use std::fmt::Debug;
 use std::str::FromStr;
 use thiserror::Error;
 use tracing::debug;
+use tracing::level_filters::LevelFilter;
 use tracing::Level;
 use tracing_appender::non_blocking::WorkerGuard;
+use tracing_subscriber::filter::Directive;
 use tracing_subscriber::fmt::format::PrettyFields;
 use tracing_subscriber::fmt::time::ChronoLocal;
 use tracing_subscriber::layer::SubscriberExt;
@@ -45,14 +47,14 @@ impl LoggingConfig {
     /// Attempts to initialize the logging subscriber with the inner configuration.
     pub fn try_init(self) -> Result<Option<WorkerGuard>, LoggingError> {
         let target = self.format.target;
-        let timestamp_fmt = self.format.timestamp.0;
-        let level = self.level.as_level();
+        let timestamp_fmt = self.format.timestamp.0.clone();
 
         // Construct the file logging layer and its worker guard, only if file logging is enabled.
         // Note we can actually specify different settings for each layer (log level, format, etc),
         // hence we repeat the logic here.
         let (file_layer, guard) =
             self.file
+                .clone()
                 .setup()?
                 .map_or(Default::default(), |(file_writer, guard)| {
                     let file_layer = tracing_subscriber::fmt::layer()
@@ -61,12 +63,7 @@ impl LoggingConfig {
                         .with_target(target)
                         .with_timer(ChronoLocal::new(timestamp_fmt.clone()))
                         .fmt_fields(PrettyFields::new())
-                        .with_filter(
-                            EnvFilter::builder()
-                                .with_default_directive(level.into())
-                                .with_env_var("LOG_LEVEL")
-                                .from_env_lossy(),
-                        );
+                        .with_filter(self.logging_filter());
                     (Some(file_layer), Some(guard))
                 });
 
@@ -75,12 +72,7 @@ impl LoggingConfig {
             .with_target(target)
             .with_timer(ChronoLocal::new(timestamp_fmt))
             .fmt_fields(PrettyFields::new())
-            .with_filter(
-                EnvFilter::builder()
-                    .with_default_directive(level.into())
-                    .with_env_var("LOG_LEVEL")
-                    .from_env_lossy(),
-            );
+            .with_filter(self.logging_filter());
 
         // a `Layer` wrapped in an `Option` such as the above defined `file_layer` also implements
         // the `Layer` trait. This allows individual layers to be enabled or disabled at runtime
@@ -98,6 +90,33 @@ impl LoggingConfig {
 
         debug!("Logging initialized successfully");
         Ok(guard)
+    }
+
+    fn logging_filter(&self) -> EnvFilter {
+        let level = self.level.as_level().to_string().to_lowercase();
+
+        let env_filter = EnvFilter::builder()
+            // Disable all logging from all crates
+            .with_default_directive(LevelFilter::INFO.into())
+            // Allow to remove even the default above by using a env var
+            .with_env_var("LOG_LEVEL")
+            // But not fail if the env var is invalid
+            .from_env_lossy();
+
+        // if a valid logging level is set by envvar, honor it.
+        if env_filter.to_string() != "info" {
+            return env_filter;
+        }
+
+        // Add the logging level from config only for newrelic_super_agent crate.
+        env_filter.add_directive(
+            format!("newrelic_super_agent={}", level)
+                .parse::<Directive>()
+                // level is correctly parsed by serde at config level.
+                // level is always correct at this stage. If not, we have a bigger problem than this function.
+                .unwrap_or_else(|_| panic!("`logging_filter` does return a unparsable directive. Panicking for level: {}",
+                        level)),
+        )
     }
 }
 

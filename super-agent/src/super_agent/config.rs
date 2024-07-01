@@ -7,7 +7,7 @@ use http::HeaderMap;
 #[cfg(feature = "k8s")]
 use kube::api::TypeMeta;
 use opamp_client::operation::capabilities::Capabilities;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::ops::Deref;
 use std::path::Path;
 use std::{collections::HashMap, fmt::Display};
@@ -229,13 +229,48 @@ pub struct SubAgentConfig {
     pub agent_type: AgentTypeFQN, // FQN of the agent type, ex: newrelic/nrdot:0.1.0
 }
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct OpAMPClientConfig {
     pub endpoint: Url,
-    #[serde(default, with = "http_serde::header_map")]
     pub headers: HeaderMap,
-
     pub auth_config: Option<AuthConfig>,
+}
+
+impl<'de> Deserialize<'de> for OpAMPClientConfig {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        // intermediate serialization type to validate `default` and `required` fields
+        #[derive(Debug, Deserialize)]
+        struct IntermediateOpAMPClientConfig {
+            pub endpoint: Url,
+            #[serde(default, with = "http_serde::header_map")]
+            pub headers: HeaderMap,
+            pub auth_config: Option<AuthConfig>,
+        }
+
+        let mut intermediate_spec = IntermediateOpAMPClientConfig::deserialize(deserializer)?;
+
+        let censored_headers = intermediate_spec
+            .headers
+            .iter_mut()
+            .map(|(header_name, header_value)| {
+                let _name = header_name.to_string();
+                // TODO: Find a way to properly censor these values.
+                if header_name == "api-key" {
+                    header_value.set_sensitive(true);
+                }
+                (header_name.to_owned(), header_value.to_owned())
+            })
+            .collect::<HeaderMap>();
+
+        Ok(OpAMPClientConfig {
+            endpoint: intermediate_spec.endpoint,
+            headers: censored_headers,
+            auth_config: intermediate_spec.auth_config,
+        })
+    }
 }
 
 /// K8sConfig represents the SuperAgent configuration for K8s environments
