@@ -156,7 +156,7 @@ pub mod test {
     use crate::event::SubAgentEvent::ConfigUpdated;
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
-    use crate::opamp::remote_config::{ConfigMap, RemoteConfig};
+    use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
     use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::error::SubAgentError;
     use crate::sub_agent::event_processor::{EventProcessor, SubAgentEventProcessor};
@@ -237,7 +237,7 @@ pub mod test {
         // Event's config
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let hash = Hash::new(String::from("some-hash"));
-        let config_map = ConfigMap::new(HashMap::from([(
+        let config_map = ConfigurationMap::new(HashMap::from([(
             "".to_string(),
             "some_item: some_value".to_string(),
         )]));

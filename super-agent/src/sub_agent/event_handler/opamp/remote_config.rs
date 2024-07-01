@@ -114,7 +114,7 @@ mod tests {
         opamp::{
             client_builder::test::MockStartedOpAMPClientMock,
             hash_repository::repository::test::MockHashRepositoryMock,
-            remote_config::{ConfigMap, RemoteConfig},
+            remote_config::{ConfigurationMap, RemoteConfig},
             remote_config_hash::Hash,
         },
         sub_agent::values::values_repository::test::MockRemoteValuesRepositoryMock,
@@ -131,7 +131,7 @@ mod tests {
     fn test_config_success() {
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let hash = Hash::new(String::from("some-hash"));
-        let config_map = ConfigMap::new(HashMap::from([(
+        let config_map = ConfigurationMap::new(HashMap::from([(
             "".to_string(),
             "some_item: some_value".to_string(),
         )]));
@@ -162,7 +162,7 @@ mod tests {
     fn test_config_empty() {
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let hash = Hash::new(String::from("some-hash"));
-        let config_map = ConfigMap::new(HashMap::from([("".to_string(), "".to_string())]));
+        let config_map = ConfigurationMap::new(HashMap::from([("".to_string(), "".to_string())]));
 
         let (event_processor, sub_agent_consumer) =
             setup_testing_event_processor(&agent_id, |mocks| {
@@ -193,7 +193,7 @@ mod tests {
     #[test]
     fn test_config_invalid_agent_values() {
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let config_map = ConfigMap::new(HashMap::from([(
+        let config_map = ConfigurationMap::new(HashMap::from([(
             "".to_string(),
             "this is not valid yaml".to_string(),
         )]));
@@ -240,7 +240,7 @@ mod tests {
     fn test_config_missing_config() {
         // Event's config
         let agent_id = AgentID::new("some-agent-id").unwrap();
-        let config_map = ConfigMap::new(HashMap::new());
+        let config_map = ConfigurationMap::new(HashMap::new());
 
         let hash = Hash::new(String::from("some-hash"));
 
@@ -355,7 +355,7 @@ mod tests {
         // Event's config
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let hash = Hash::new(String::from("some-hash"));
-        let config_map = ConfigMap::new(HashMap::from([(
+        let config_map = ConfigurationMap::new(HashMap::from([(
             "".to_string(),
             "some_item: some_value".to_string(),
         )]));
@@ -403,7 +403,7 @@ mod tests {
     fn test_config_error_on_delete() {
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let hash = Hash::new(String::from("some-hash"));
-        let config_map = ConfigMap::new(HashMap::from([("".to_string(), "".to_string())]));
+        let config_map = ConfigurationMap::new(HashMap::from([("".to_string(), "".to_string())]));
 
         let expected_error =
             SubAgentError::from(ValuesRepositoryError::DeleteError("delete".to_string()));
