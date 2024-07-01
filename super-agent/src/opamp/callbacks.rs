@@ -21,6 +21,8 @@ use thiserror::Error;
 use tracing::{error, trace};
 use HttpClientError::UnsuccessfulResponse;
 
+use super::effective_config::loader::EffectiveConfigLoader;
+
 #[derive(Debug, Error)]
 pub enum AgentCallbacksError {
     #[error("deserialization error: `{0}`")]
@@ -34,16 +36,28 @@ pub enum AgentCallbacksError {
 }
 
 /// This component implements the OpAMP client callbacks process the messages and publish events on `crate::event::OpAMPEvent`.
-pub struct AgentCallbacks {
+pub struct AgentCallbacks<C>
+where
+    C: EffectiveConfigLoader + Send + Sync,
+{
     agent_id: AgentID,
     publisher: EventPublisher<OpAMPEvent>,
+    effective_config_loader: C,
 }
 
-impl AgentCallbacks {
-    pub fn new(agent_id: AgentID, publisher: EventPublisher<OpAMPEvent>) -> Self {
+impl<C> AgentCallbacks<C>
+where
+    C: EffectiveConfigLoader + Send + Sync,
+{
+    pub fn new(
+        agent_id: AgentID,
+        publisher: EventPublisher<OpAMPEvent>,
+        effective_config_loader: C,
+    ) -> Self {
         Self {
             agent_id,
             publisher,
+            effective_config_loader,
         }
     }
 
@@ -125,7 +139,10 @@ impl AgentCallbacks {
     }
 }
 
-impl Callbacks for AgentCallbacks {
+impl<C> Callbacks for AgentCallbacks<C>
+where
+    C: EffectiveConfigLoader + Send + Sync,
+{
     type Error = AgentCallbacksError;
 
     fn on_connect(&self) {
@@ -179,7 +196,8 @@ impl Callbacks for AgentCallbacks {
     }
 
     fn get_effective_config(&self) -> Result<EffectiveConfig, Self::Error> {
-        Ok(EffectiveConfig::default())
+        let effective_config = self.effective_config_loader.load()?;
+        Ok(effective_config.into())
     }
 }
 
@@ -210,6 +228,7 @@ pub(crate) mod tests {
     use super::*;
     use crate::event::channel::pub_sub;
     use crate::event::OpAMPEvent;
+    use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoader;
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
     use crate::opamp::remote_config_hash::Hash;
     use opamp_client::opamp::proto::{AgentConfigFile, AgentConfigMap, AgentRemoteConfig};
@@ -219,8 +238,13 @@ pub(crate) mod tests {
     #[test]
     fn test_connect() {
         let (event_publisher, event_consumer) = pub_sub();
+        let effective_config_loader = MockEffectiveConfigLoader::new();
 
-        let callbacks = AgentCallbacks::new(AgentID::new("agent").unwrap(), event_publisher);
+        let callbacks = AgentCallbacks::new(
+            AgentID::new("agent").unwrap(),
+            event_publisher,
+            effective_config_loader,
+        );
 
         callbacks.on_connect();
 
@@ -236,8 +260,13 @@ pub(crate) mod tests {
     #[test]
     fn test_connect_fail() {
         let (event_publisher, event_consumer) = pub_sub();
+        let effective_config_loader = MockEffectiveConfigLoader::new();
 
-        let callbacks = AgentCallbacks::new(AgentID::new("agent").unwrap(), event_publisher);
+        let callbacks = AgentCallbacks::new(
+            AgentID::new("agent").unwrap(),
+            event_publisher,
+            effective_config_loader,
+        );
 
         // When a UnsuccessfulResponse error is received
         let (status, reason) = (401, "Unauthorized");
@@ -284,8 +313,10 @@ pub(crate) mod tests {
                 let agent_id = AgentID::new("an-agent-id").unwrap();
 
                 let (event_publisher, event_consumer) = pub_sub();
+                let effective_config_loader = MockEffectiveConfigLoader::new();
 
-                let callbacks = AgentCallbacks::new(agent_id.clone(), event_publisher);
+                let callbacks =
+                    AgentCallbacks::new(agent_id.clone(), event_publisher, effective_config_loader);
 
                 callbacks.on_message(self.opamp_msg.take().unwrap());
 

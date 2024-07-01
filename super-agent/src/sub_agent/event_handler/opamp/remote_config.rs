@@ -1,5 +1,6 @@
 use crate::agent_type::agent_values::AgentValues;
 use crate::event::SubAgentEvent;
+use crate::opamp::effective_config::loader::EffectiveConfigLoader;
 use crate::opamp::remote_config::RemoteConfigError;
 use crate::opamp::remote_config_report::report_remote_config_status_applying;
 use crate::sub_agent::error::SubAgentError;
@@ -16,9 +17,10 @@ use opamp_client::StartedClient;
 
 const ERROR_REMOTE_CONFIG: &str = "Error applying Sub Agent remote config";
 
-impl<C, S, R> EventProcessor<C, S, R>
+impl<C, S, R, G> EventProcessor<C, S, R, G>
 where
-    C: StartedClient<SubAgentCallbacks> + 'static,
+    G: EffectiveConfigLoader + Send + Sync,
+    C: StartedClient<SubAgentCallbacks<G>> + 'static,
     S: HashRepository,
     R: ValuesRepository,
 {
@@ -103,6 +105,7 @@ mod tests {
     use crate::event::channel::EventConsumer;
     use crate::event::SubAgentEvent::{self, ConfigUpdated};
     use crate::opamp::callbacks::AgentCallbacks;
+    use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoader;
     use crate::opamp::hash_repository::repository::HashRepositoryError;
     use crate::opamp::remote_config::RemoteConfigError;
     use crate::sub_agent::error::SubAgentError;
@@ -444,13 +447,14 @@ mod tests {
     struct TestMocks {
         hash_repository: MockHashRepositoryMock,
         values_repository: MockRemoteValuesRepositoryMock,
-        opamp_client: MockStartedOpAMPClientMock<AgentCallbacks>,
+        opamp_client: MockStartedOpAMPClientMock<AgentCallbacks<MockEffectiveConfigLoader>>,
     }
 
     type TestingEventProcessor = EventProcessor<
-        MockStartedOpAMPClientMock<AgentCallbacks>,
+        MockStartedOpAMPClientMock<AgentCallbacks<MockEffectiveConfigLoader>>,
         MockHashRepositoryMock,
         MockRemoteValuesRepositoryMock,
+        MockEffectiveConfigLoader,
     >;
 
     /// Setups and event_processor for testing `remote_config`, given the provided agent_type and mock expectations.

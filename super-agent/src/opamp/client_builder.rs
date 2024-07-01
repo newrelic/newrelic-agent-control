@@ -14,6 +14,7 @@ use crate::opamp::instance_id;
 use crate::super_agent::config::{AgentID, OpAMPClientConfig};
 
 use super::callbacks::AgentCallbacks;
+use super::effective_config::loader::{EffectiveConfigLoaderBuilder, NoOpEffectiveConfigLoader};
 use super::http::builder::{HttpClientBuilder, HttpClientBuilderError};
 
 #[derive(Error, Debug)]
@@ -51,6 +52,7 @@ where
 
 pub struct DefaultOpAMPClientBuilder<C> {
     config: OpAMPClientConfig,
+    effective_config_loader_builder: EffectiveConfigLoaderBuilder,
     http_client_builder: C,
 }
 
@@ -61,6 +63,7 @@ where
     pub fn new(config: OpAMPClientConfig, http_client_builder: C) -> Self {
         Self {
             config,
+            effective_config_loader_builder: EffectiveConfigLoaderBuilder,
             http_client_builder,
         }
     }
@@ -70,11 +73,12 @@ where
     }
 }
 
-impl<C> OpAMPClientBuilder<AgentCallbacks> for DefaultOpAMPClientBuilder<C>
+impl<C> OpAMPClientBuilder<AgentCallbacks<NoOpEffectiveConfigLoader>>
+    for DefaultOpAMPClientBuilder<C>
 where
     C: HttpClientBuilder,
 {
-    type Client = StartedHttpClient<AgentCallbacks, C::Client>;
+    type Client = StartedHttpClient<AgentCallbacks<NoOpEffectiveConfigLoader>, C::Client>;
     fn build_and_start(
         &self,
         opamp_publisher: EventPublisher<OpAMPEvent>,
@@ -82,7 +86,8 @@ where
         start_settings: StartSettings,
     ) -> Result<Self::Client, OpAMPClientBuilderError> {
         let http_client = self.http_client_builder.build()?;
-        let callbacks = AgentCallbacks::new(agent_id, opamp_publisher);
+        let effective_config_loader = self.effective_config_loader_builder.build()?;
+        let callbacks = AgentCallbacks::new(agent_id, opamp_publisher, effective_config_loader);
         let not_started_client = NotStartedHttpClient::new(http_client);
         let started_client = not_started_client.start(callbacks, start_settings)?;
         info!("Super Agent OpAMP client started");

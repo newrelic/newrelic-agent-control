@@ -2,6 +2,7 @@ use opamp_client::StartedClient;
 use tracing::{error, info};
 
 use crate::event::SubAgentEvent;
+use crate::opamp::effective_config::loader::EffectiveConfigLoader;
 use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
 use crate::super_agent::config_storer::loader_storer::{
     SuperAgentDynamicConfigDeleter, SuperAgentDynamicConfigLoader, SuperAgentDynamicConfigStorer,
@@ -23,9 +24,10 @@ use crate::{
     },
 };
 
-impl<S, O, HR, SL> SuperAgent<S, O, HR, SL>
+impl<S, O, HR, SL, G> SuperAgent<S, O, HR, SL, G>
 where
-    O: StartedClient<SuperAgentCallbacks>,
+    G: EffectiveConfigLoader + Send + Sync,
+    O: StartedClient<SuperAgentCallbacks<G>>,
     HR: HashRepository,
     S: SubAgentBuilder,
     SL: SuperAgentDynamicConfigStorer
