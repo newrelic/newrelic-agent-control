@@ -1,6 +1,6 @@
 use futures::StreamExt;
-use std::fmt::Debug;
 use std::future;
+use std::{fmt::Debug, time::Duration};
 
 use kube::{
     core::DynamicObject,
@@ -14,9 +14,11 @@ use kube::{
 
 use serde::de::DeserializeOwned;
 use tokio::task::{AbortHandle, JoinHandle};
-use tracing::warn;
+use tracing::{error, trace, warn};
 
 use super::{super::error::K8sError, resources::ResourceWithReflector};
+
+const REFLECTOR_START_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Reflector builder holds the arguments to build a reflector.
 /// Its implementation allows creating a reflector for supported types.
@@ -50,6 +52,7 @@ impl ReflectorBuilder {
         &self,
         api_resource: &ApiResource,
     ) -> Result<Reflector<DynamicObject>, K8sError> {
+        trace!("Building k8s reflector for {:?}", api_resource);
         // The api consumes the client, so it needs to be owned to allow sharing the builder.
         let api: Api<DynamicObject> =
             Api::default_namespaced_with(self.client.to_owned(), api_resource);
@@ -57,7 +60,9 @@ impl ReflectorBuilder {
         // Initialize the writer for the dynamic type.
         let writer: Writer<DynamicObject> = Writer::new(api_resource.to_owned());
 
-        Reflector::try_new(api, writer, self.watcher_config()).await
+        Reflector::try_new(api, writer, self.watcher_config())
+            .await
+            .inspect_err(|err| error!(%err, "Failure building reflector for {:?}", api_resource))
     }
 
     /// Builds a reflector using the builder.
@@ -71,13 +76,15 @@ impl ReflectorBuilder {
     where
         K: ResourceWithReflector,
     {
+        trace!("Building k8s reflector for kind {}", K::KIND);
         // Create an API instance for the resource type.
         let api: Api<K> = Api::default_namespaced(self.client.clone());
 
         // Initialize the writer for the resource type.
         let writer: Writer<K> = reflector::store::Writer::default();
-
-        Reflector::try_new(api, writer, self.watcher_config()).await
+        Reflector::try_new(api, writer, self.watcher_config())
+            .await
+            .inspect_err(|err| error!(%err, "Failure building reflector for kind {}", K::KIND))
     }
 
     /// Returns the watcher_config to use in reflectors
@@ -121,7 +128,11 @@ where
         let reader = writer.as_reader();
         let writer_close_handle = Self::start_reflector(api, wc, writer).abort_handle();
 
-        reader.wait_until_ready().await?; // TODO: should we implement a timeout?
+        tokio::time::timeout(REFLECTOR_START_TIMEOUT, reader.wait_until_ready())
+            .await
+            .map_err(|_| {
+                K8sError::ReflectorTimeout(format!("timed-out after {:?}", REFLECTOR_START_TIMEOUT))
+            })??;
 
         Ok(Reflector {
             reader,
