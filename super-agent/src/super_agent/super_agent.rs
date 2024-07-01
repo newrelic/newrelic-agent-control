@@ -458,7 +458,7 @@ mod tests {
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
     use crate::opamp::hash_repository::HashRepository;
-    use crate::opamp::remote_config::{ConfigMap, RemoteConfig};
+    use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
     use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
     use crate::sub_agent::{test::MockSubAgentBuilderMock, SubAgentBuilder};
@@ -678,7 +678,7 @@ mod tests {
         let remote_config = RemoteConfig::new(
             AgentID::new_super_agent_id(),
             Hash::new("a-hash".to_string()),
-            Some(ConfigMap::new(HashMap::from([(
+            Some(ConfigurationMap::new(HashMap::from([(
                 "".to_string(),
                 r#"
 agents:
@@ -888,7 +888,7 @@ agents:
         let remote_config = RemoteConfig::new(
             AgentID::new_super_agent_id(),
             Hash::new("a-hash".to_string()),
-            Some(ConfigMap::new(HashMap::from([(
+            Some(ConfigurationMap::new(HashMap::from([(
                 "".to_string(),
                 r#"
 agents:
@@ -915,7 +915,7 @@ agents:
         let remote_config = RemoteConfig::new(
             AgentID::new_super_agent_id(),
             Hash::new("b-hash".to_string()),
-            Some(ConfigMap::new(HashMap::from([(
+            Some(ConfigurationMap::new(HashMap::from([(
                 "".to_string(),
                 r#"
 agents:
@@ -1085,7 +1085,7 @@ agents:
         let remote_config = RemoteConfig::new(
             AgentID::new_super_agent_id(),
             remote_config_hash.clone(),
-            Some(ConfigMap::new(HashMap::from([(
+            Some(ConfigurationMap::new(HashMap::from([(
                 String::default(),
                 String::from("agents: {}"),
             )]))),
@@ -1501,7 +1501,7 @@ agents:
         let remote_config = RemoteConfig::new(
             AgentID::new_super_agent_id(),
             remote_config_hash.clone(),
-            Some(ConfigMap::new(HashMap::from([(
+            Some(ConfigurationMap::new(HashMap::from([(
                 String::default(),
                 String::from("agents: {}"),
             )]))),

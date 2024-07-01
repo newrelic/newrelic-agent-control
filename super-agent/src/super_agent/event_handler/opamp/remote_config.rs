@@ -85,7 +85,7 @@ mod tests {
         opamp::{
             client_builder::test::MockStartedOpAMPClientMock,
             hash_repository::repository::test::MockHashRepositoryMock,
-            remote_config::{ConfigMap, RemoteConfig},
+            remote_config::{ConfigurationMap, RemoteConfig},
             remote_config_hash::Hash,
         },
         sub_agent::{
@@ -118,7 +118,7 @@ mod tests {
         let remote_config = RemoteConfig::new(
             agent_id,
             Hash::new("this-is-a-hash".to_string()),
-            Some(ConfigMap::new(HashMap::from([(
+            Some(ConfigurationMap::new(HashMap::from([(
                 "".to_string(),
                 "invalid_yaml_content:{}".to_string(),
             )]))),
@@ -191,7 +191,7 @@ mod tests {
         let remote_config = RemoteConfig::new(
             agent_id,
             Hash::new("this-is-a-hash".to_string()),
-            Some(ConfigMap::new(HashMap::from([(
+            Some(ConfigurationMap::new(HashMap::from([(
                 "".to_string(),
                 "agents: {}".to_string(),
             )]))),

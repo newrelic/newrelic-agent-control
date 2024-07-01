@@ -9,7 +9,7 @@ use thiserror::Error;
 pub struct RemoteConfig {
     pub agent_id: AgentID,
     pub hash: Hash,
-    config_map: Option<ConfigMap>,
+    config_map: Option<ConfigurationMap>,
 }
 
 #[derive(Error, Debug, Clone, PartialEq)]
@@ -22,10 +22,10 @@ pub enum RemoteConfigError {
 }
 
 #[derive(Debug, Default, PartialEq, Clone)]
-pub struct ConfigMap(HashMap<String, String>);
+pub struct ConfigurationMap(HashMap<String, String>);
 
 impl RemoteConfig {
-    pub fn new(agent_id: AgentID, hash: Hash, config_map: Option<ConfigMap>) -> Self {
+    pub fn new(agent_id: AgentID, hash: Hash, config_map: Option<ConfigurationMap>) -> Self {
         Self {
             agent_id,
             hash,
@@ -60,19 +60,19 @@ impl RemoteConfig {
     }
 }
 
-impl ConfigMap {
+impl ConfigurationMap {
     pub fn new(config_map: HashMap<String, String>) -> Self {
         Self(config_map)
     }
 }
 
-impl TryFrom<&AgentConfigMap> for ConfigMap {
+impl TryFrom<&AgentConfigMap> for ConfigurationMap {
     type Error = RemoteConfigError;
 
     fn try_from(agent_config_map: &AgentConfigMap) -> Result<Self, Self::Error> {
         agent_config_map.config_map.iter().try_fold(
-            ConfigMap::default(),
-            |mut result: ConfigMap, (key, value)| {
+            ConfigurationMap::default(),
+            |mut result: ConfigurationMap, (key, value)| {
                 let body = std::str::from_utf8(&value.body)?;
                 let _ = result.0.insert(key.clone(), body.to_string());
                 Ok(result)

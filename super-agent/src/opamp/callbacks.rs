@@ -2,7 +2,7 @@ use crate::event::{
     channel::{EventPublisher, EventPublisherError},
     OpAMPEvent,
 };
-use crate::opamp::remote_config::{ConfigMap, RemoteConfig};
+use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
 use crate::opamp::remote_config_hash::Hash;
 use crate::{opamp::remote_config::RemoteConfigError, super_agent::config::AgentID};
 use opamp_client::{
@@ -67,7 +67,7 @@ impl AgentCallbacks {
             }
         };
 
-        let config_map: Option<ConfigMap> = match &msg_remote_config.config {
+        let config_map: Option<ConfigurationMap> = match &msg_remote_config.config {
             Some(msg_config_map) => msg_config_map
                 .try_into()
                 .inspect_err(|err: &RemoteConfigError| {
@@ -210,7 +210,7 @@ pub(crate) mod tests {
     use super::*;
     use crate::event::channel::pub_sub;
     use crate::event::OpAMPEvent;
-    use crate::opamp::remote_config::{ConfigMap, RemoteConfig};
+    use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
     use crate::opamp::remote_config_hash::Hash;
     use opamp_client::opamp::proto::{AgentConfigFile, AgentConfigMap, AgentRemoteConfig};
     use std::collections::HashMap;
@@ -277,7 +277,7 @@ pub(crate) mod tests {
             name: &'static str,
             opamp_msg: Option<MessageData>, // using option here to allow taking the ownership of the MessageData which cannot be cloned.
             expected_remote_config_hash: Hash,
-            expected_remote_config_config_map: Option<ConfigMap>,
+            expected_remote_config_config_map: Option<ConfigurationMap>,
         }
         impl TestCase {
             fn run(mut self) {
@@ -323,7 +323,7 @@ pub(crate) mod tests {
                     }),
                     ..Default::default()
                 }),
-                expected_remote_config_config_map: Some(ConfigMap::new(HashMap::from([(
+                expected_remote_config_config_map: Some(ConfigurationMap::new(HashMap::from([(
                     "my-config".to_string(),
                     "enable_proces_metrics: true".to_string(),
                 )]))),
@@ -404,7 +404,7 @@ pub(crate) mod tests {
                     }),
                     ..Default::default()
                 }),
-                expected_remote_config_config_map: Some(ConfigMap::new(HashMap::from([(
+                expected_remote_config_config_map: Some(ConfigurationMap::new(HashMap::from([(
                     "my-config".to_string(),
                     "enable_proces_metrics: true".to_string(),
                 )]))),
