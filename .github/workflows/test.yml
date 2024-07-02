@@ -77,7 +77,7 @@ jobs:
         uses: webfactory/ssh-agent@v0.8.0
         with:
           ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
-          
+
       - name: Install ${{ matrix.toolchain }}
         uses: dtolnay/rust-toolchain@1.78.0
         with:
@@ -156,7 +156,6 @@ jobs:
         uses: newrelic/newrelic-integration-e2e-action@v1
         env:
           # Tilt configs
-          OTEL_ENDPOINT: "https://otlp.nr-data.net:4317"
           ARCH: amd64
           BUILD_WITH: cargo
         with:

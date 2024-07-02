@@ -3,11 +3,10 @@
 
 #### Config
 # This env var is automatically added by the e2e action.
-scenario_tag = os.getenv('SCENARIO_TAG')
-otel_endpoint = os.getenv('OTEL_ENDPOINT','https://staging-otlp.nr-data.net:4317')
 license_key = os.getenv('LICENSE_KEY')
 namespace = os.getenv('NAMESPACE','default')
 sa_chart_values_file = os.getenv('SA_CHART_VALUES_FILE','local/super-agent-tilt.yml')
+cluster = os.getenv('CLUSTER', "")
 
 # build_with options:
 # cargo: No crosscompilation, faster than docker
@@ -49,8 +48,6 @@ k8s_yaml(secret_from_dict(
   name='test-env',
   namespace=namespace,
   inputs = {
-    'E2E_TEST_ID' : scenario_tag,
-    'OTEL_ENDPOINT' : otel_endpoint,
     'LICENSE_KEY' : license_key,
 }))
 k8s_resource(new_name='e2e test secret',objects=['test-env:secret'])
@@ -87,6 +84,12 @@ elif chart_source == 'helm-repo':
     )
   extra_resource_deps=['newrelic-helm-repo']
 
+flags_helm = ['--create-namespace','--version=>=0.0.0-beta','--set=super-agent-deployment.image.imagePullPolicy=Always','--values=' + sa_chart_values_file]
+
+if cluster != '':
+  flags_helm.append('--set=global.cluster='+cluster)
+  flags_helm.append('--set=super-agent-deployment.config.subAgents.open-telemetry.content.chart_values.cluster='+cluster)
+
 #### Installs charts
 helm_resource(
   'flux',
@@ -95,12 +98,7 @@ helm_resource(
   namespace=namespace,
   release_name='sa',
   update_dependencies=update_dependencies,
-  flags=[
-    '--create-namespace',
-    '--version=>=0.0.0-beta',
-    '--set=super-agent-deployment.image.imagePullPolicy=Always',
-    '--values=' + sa_chart_values_file,
-    ],
+  flags=flags_helm,
   image_deps=['tilt.local/super-agent-dev'],
   image_keys=[('super-agent-deployment.image.registry', 'super-agent-deployment.image.repository', 'super-agent-deployment.image.tag')],
   resource_deps=['build-binary']+extra_resource_deps
