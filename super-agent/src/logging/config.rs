@@ -96,7 +96,7 @@ impl LoggingConfig {
 
 fn logging_filter(level: &str) -> EnvFilter {
     let env_filter = EnvFilter::builder()
-        // Disable all logging from all crates
+        // Set all logging levels to "info"
         .with_default_directive(LevelFilter::INFO.into())
         // Allow to remove even the default above by using a env var
         .with_env_var("LOG_LEVEL")
