@@ -1,3 +1,4 @@
+use super::effective_config::{error::EffectiveConfigError, loader::EffectiveConfigLoader};
 use crate::event::{
     channel::{EventPublisher, EventPublisherError},
     OpAMPEvent,
@@ -21,8 +22,6 @@ use thiserror::Error;
 use tracing::{error, trace};
 use HttpClientError::UnsuccessfulResponse;
 
-use super::effective_config::loader::EffectiveConfigLoader;
-
 #[derive(Debug, Error)]
 pub enum AgentCallbacksError {
     #[error("deserialization error: `{0}`")]
@@ -33,6 +32,9 @@ pub enum AgentCallbacksError {
 
     #[error("unable to publish OpAMP event")]
     PublishEventError(#[from] EventPublisherError),
+
+    #[error("error getting effective config: `{0}`")]
+    EffectiveConfigError(#[from] EffectiveConfigError),
 }
 
 /// This component implements the OpAMP client callbacks process the messages and publish events on `crate::event::OpAMPEvent`.
@@ -196,7 +198,10 @@ where
     }
 
     fn get_effective_config(&self) -> Result<EffectiveConfig, Self::Error> {
-        let effective_config = self.effective_config_loader.load()?;
+        let effective_config = self
+            .effective_config_loader
+            .load()
+            .map_err(EffectiveConfigError::Loader)?;
         Ok(effective_config.into())
     }
 }

@@ -5,6 +5,7 @@ use crate::event::channel::{pub_sub, EventPublisher};
 use crate::event::SubAgentEvent;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
+use crate::opamp::effective_config::loader::EffectiveConfigLoader;
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_sub_agent_opamp;
@@ -22,16 +23,18 @@ use crate::{
 use kube::core::TypeMeta;
 use opamp_client::operation::settings::DescriptionValueType;
 use std::collections::{HashMap, HashSet};
+use std::marker::PhantomData;
 use std::sync::Arc;
 use tracing::debug;
 
-pub struct K8sSubAgentBuilder<'a, O, I, HR, A, E>
+pub struct K8sSubAgentBuilder<'a, O, I, HR, A, E, G>
 where
-    O: OpAMPClientBuilder<SubAgentCallbacks>,
+    G: EffectiveConfigLoader + Send + Sync,
+    O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
     I: InstanceIDGetter,
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
-    E: SubAgentEventProcessorBuilder<O::Client>,
+    E: SubAgentEventProcessorBuilder<O::Client, G>,
 {
     opamp_builder: Option<&'a O>,
     instance_id_getter: &'a I,
@@ -40,15 +43,18 @@ where
     effective_agent_assembler: &'a A,
     event_processor_builder: &'a E,
     k8s_config: K8sConfig,
+
+    _effective_config_loader: PhantomData<G>,
 }
 
-impl<'a, O, I, HR, A, E> K8sSubAgentBuilder<'a, O, I, HR, A, E>
+impl<'a, O, I, HR, A, E, G> K8sSubAgentBuilder<'a, O, I, HR, A, E, G>
 where
-    O: OpAMPClientBuilder<SubAgentCallbacks>,
+    G: EffectiveConfigLoader + Send + Sync,
+    O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
     I: InstanceIDGetter,
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
-    E: SubAgentEventProcessorBuilder<O::Client>,
+    E: SubAgentEventProcessorBuilder<O::Client, G>,
 {
     pub fn new(
         opamp_builder: Option<&'a O>,
@@ -67,17 +73,20 @@ where
             effective_agent_assembler,
             event_processor_builder,
             k8s_config,
+
+            _effective_config_loader: PhantomData,
         }
     }
 }
 
-impl<'a, O, I, HR, A, E> SubAgentBuilder for K8sSubAgentBuilder<'a, O, I, HR, A, E>
+impl<'a, O, I, HR, A, E, G> SubAgentBuilder for K8sSubAgentBuilder<'a, O, I, HR, A, E, G>
 where
-    O: OpAMPClientBuilder<SubAgentCallbacks>,
+    G: EffectiveConfigLoader + Send + Sync,
+    O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
     I: InstanceIDGetter,
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
-    E: SubAgentEventProcessorBuilder<O::Client>,
+    E: SubAgentEventProcessorBuilder<O::Client, G>,
 {
     type NotStartedSubAgent =
         SubAgentK8s<NotStarted<E::SubAgentEventProcessor>, NotStartedSupervisor>;
@@ -119,7 +128,7 @@ where
 
         // A sub-agent can be started without supervisor, when running with opamp activated, in order to
         // be able to receive messages.
-        let supervisor = build_supervisor_or_default::<HR, O, _, _>(
+        let supervisor = build_supervisor_or_default::<HR, O, _, _, _>(
             &agent_id,
             &self.hash_repository,
             &maybe_opamp_client,
@@ -213,6 +222,7 @@ pub mod test {
     use crate::agent_type::runtime_config::{Deployment, Runtime};
     use crate::event::channel::pub_sub;
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
+    use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoader;
     use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
     use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
     use crate::opamp::instance_id::InstanceID;
@@ -367,7 +377,7 @@ pub mod test {
         sub_agent_config: SubAgentConfig,
         agent_id: AgentID,
     ) -> (
-        MockOpAMPClientBuilderMock<SubAgentCallbacks>,
+        MockOpAMPClientBuilderMock<SubAgentCallbacks<MockEffectiveConfigLoader>>,
         MockInstanceIDGetterMock,
         MockHashRepositoryMock,
     ) {

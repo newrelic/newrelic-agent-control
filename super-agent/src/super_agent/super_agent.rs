@@ -33,7 +33,7 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 use tracing::{debug, error, info, trace, warn};
 
-pub(super) type SuperAgentCallbacks<C: EffectiveConfigLoader> = AgentCallbacks<C>;
+pub(super) type SuperAgentCallbacks<C> = AgentCallbacks<C>;
 
 pub struct SuperAgent<S, O, HR, SL, C>
 where

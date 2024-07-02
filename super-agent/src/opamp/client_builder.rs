@@ -14,6 +14,7 @@ use crate::opamp::instance_id;
 use crate::super_agent::config::{AgentID, OpAMPClientConfig};
 
 use super::callbacks::AgentCallbacks;
+use super::effective_config::error::EffectiveConfigError;
 use super::effective_config::loader::{EffectiveConfigLoaderBuilder, NoOpEffectiveConfigLoader};
 use super::http::builder::{HttpClientBuilder, HttpClientBuilderError};
 
@@ -35,6 +36,8 @@ pub enum OpAMPClientBuilderError {
     GetInstanceIDError(#[from] instance_id::GetterError),
     #[error("error building http client: `{0}`")]
     HttpClientBuilderError(#[from] HttpClientBuilderError),
+    #[error(transparent)]
+    EffectiveConfigError(#[from] EffectiveConfigError),
 }
 
 pub trait OpAMPClientBuilder<CB>
@@ -86,7 +89,7 @@ where
         start_settings: StartSettings,
     ) -> Result<Self::Client, OpAMPClientBuilderError> {
         let http_client = self.http_client_builder.build()?;
-        let effective_config_loader = self.effective_config_loader_builder.build()?;
+        let effective_config_loader = self.effective_config_loader_builder.build();
         let callbacks = AgentCallbacks::new(agent_id, opamp_publisher, effective_config_loader);
         let not_started_client = NotStartedHttpClient::new(http_client);
         let started_client = not_started_client.start(callbacks, start_settings)?;

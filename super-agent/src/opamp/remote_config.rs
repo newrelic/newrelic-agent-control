@@ -1,6 +1,6 @@
 use crate::opamp::remote_config_hash::Hash;
 use crate::super_agent::config::AgentID;
-use opamp_client::opamp::proto::AgentConfigMap;
+use opamp_client::opamp::proto::{AgentConfigFile, AgentConfigMap, EffectiveConfig};
 use std::collections::HashMap;
 use std::str::Utf8Error;
 use thiserror::Error;
@@ -78,5 +78,25 @@ impl TryFrom<&AgentConfigMap> for ConfigurationMap {
                 Ok(result)
             },
         )
+    }
+}
+
+impl From<ConfigurationMap> for EffectiveConfig {
+    fn from(value: ConfigurationMap) -> Self {
+        let config_map = value
+            .0
+            .into_iter()
+            .map(|(k, v)| {
+                let agent_config_file = AgentConfigFile {
+                    body: v.as_bytes().to_vec(),
+                    content_type: "text/yaml".to_string(),
+                };
+                (k, agent_config_file)
+            })
+            .collect();
+
+        let config_map = AgentConfigMap { config_map }.into();
+
+        Self { config_map }
     }
 }

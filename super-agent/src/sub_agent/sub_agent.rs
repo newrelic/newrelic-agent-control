@@ -17,7 +17,7 @@ use std::sync::Arc;
 use std::thread::JoinHandle;
 use tracing::{debug, error, warn};
 
-pub(crate) type SubAgentCallbacks<C: EffectiveConfigLoader> = AgentCallbacks<C>;
+pub(crate) type SubAgentCallbacks<C> = AgentCallbacks<C>;
 
 /// NotStartedSubAgent exposes a run method that starts processing events and, if present, the supervisors.
 pub trait NotStartedSubAgent {

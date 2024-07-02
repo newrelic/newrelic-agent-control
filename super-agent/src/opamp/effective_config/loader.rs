@@ -6,7 +6,7 @@ use crate::opamp::remote_config::ConfigurationMap;
 /// This is implementation-dependent so it only encapsulates a string.
 #[derive(Debug, Error)]
 #[error("error loading effective configuration: `{0}`")]
-pub(super) struct LoaderError(String);
+pub struct LoaderError(String);
 
 /// Trait for effective configuration loaders.
 pub trait EffectiveConfigLoader {
@@ -19,7 +19,7 @@ pub struct EffectiveConfigLoaderBuilder;
 
 impl EffectiveConfigLoaderBuilder {
     /// Build a new effective configuration loader.
-    pub fn build(self) -> impl EffectiveConfigLoader {
+    pub fn build(&self) -> NoOpEffectiveConfigLoader {
         NoOpEffectiveConfigLoader
     }
 }
