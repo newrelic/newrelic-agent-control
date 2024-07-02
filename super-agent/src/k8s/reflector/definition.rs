@@ -1,4 +1,5 @@
 use futures::StreamExt;
+use kube::runtime::reflector::Store;
 use std::future;
 use std::{fmt::Debug, time::Duration};
 
@@ -128,11 +129,7 @@ where
         let reader = writer.as_reader();
         let writer_close_handle = Self::start_reflector(api, wc, writer).abort_handle();
 
-        tokio::time::timeout(REFLECTOR_START_TIMEOUT, reader.wait_until_ready())
-            .await
-            .map_err(|_| {
-                K8sError::ReflectorTimeout(format!("timed-out after {:?}", REFLECTOR_START_TIMEOUT))
-            })??;
+        Self::wait_until_reader_is_ready(&reader, REFLECTOR_START_TIMEOUT).await?;
 
         Ok(Reflector {
             reader,
@@ -165,6 +162,17 @@ where
                 .await // The watcher runs indefinitely.
         })
     }
+
+    async fn wait_until_reader_is_ready(
+        reader: &Store<K>,
+        timeout: Duration,
+    ) -> Result<(), K8sError> {
+        Ok(tokio::time::timeout(timeout, reader.wait_until_ready())
+            .await
+            .map_err(|_| {
+                K8sError::ReflectorTimeout(format!("reader not ready after {:?}", timeout))
+            })??)
+    }
 }
 
 impl<K> Drop for Reflector<K>
@@ -181,13 +189,26 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
+    use assert_matches::assert_matches;
     use k8s_openapi::api::apps::v1::Deployment;
+    use kube::api::ObjectMeta;
     use tokio::sync::oneshot::{channel, Sender};
 
     async fn mocked_writer_task(_send: Sender<()>) {
         // _send will be dropped when the task is finished
         loop {
             tokio::time::sleep(tokio::time::Duration::from_micros(10)).await;
+        }
+    }
+
+    fn deployment() -> Deployment {
+        Deployment {
+            metadata: ObjectMeta {
+                name: Some("obj".to_string()),
+                namespace: Some("ns".to_string()),
+                ..ObjectMeta::default()
+            },
+            ..Default::default()
         }
     }
 
@@ -209,5 +230,36 @@ mod test {
         drop(reflector);
 
         assert!(recv.await.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_reflector_wait_for_reader_reflector_error() {
+        let (_store, writer) = reflector::store::store::<Deployment>();
+        let reader = writer.as_reader();
+        drop(writer); // dropping the writer will make the reader fail
+        let timeout = Duration::from_millis(50);
+        let result = Reflector::wait_until_reader_is_ready(&reader, timeout).await;
+        assert_matches!(result.unwrap_err(), K8sError::ReflectorWriterDropped(_));
+    }
+
+    #[tokio::test]
+    async fn test_reflector_wait_for_reader_timeout() {
+        let (_store, writer) = reflector::store::store::<Deployment>();
+        let reader = writer.as_reader();
+        let timeout = Duration::from_millis(50);
+        let result = Reflector::wait_until_reader_is_ready(&reader, timeout).await;
+        assert_matches!(result.unwrap_err(), K8sError::ReflectorTimeout(s) => {
+            s.contains(format!("{:?}", timeout).as_str());
+        });
+    }
+
+    #[tokio::test]
+    async fn test_reflector_wait_for_reader_ok() {
+        let (_store, mut writer) = reflector::store::store::<Deployment>();
+        let reader = writer.as_reader();
+        writer.apply_watcher_event(&watcher::Event::Applied(deployment())); // Apply some event to initialize
+        let timeout = Duration::from_millis(50);
+        let result = Reflector::wait_until_reader_is_ready(&reader, timeout).await;
+        assert!(result.is_ok());
     }
 }
