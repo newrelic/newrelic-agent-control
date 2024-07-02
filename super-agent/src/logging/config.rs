@@ -47,7 +47,8 @@ impl LoggingConfig {
     /// Attempts to initialize the logging subscriber with the inner configuration.
     pub fn try_init(self) -> Result<Option<WorkerGuard>, LoggingError> {
         let target = self.format.target;
-        let timestamp_fmt = self.format.timestamp.0.clone();
+        let timestamp_fmt = self.format.timestamp.0;
+        let level = self.level.as_level().to_string().to_lowercase();
 
         // Construct the file logging layer and its worker guard, only if file logging is enabled.
         // Note we can actually specify different settings for each layer (log level, format, etc),
@@ -63,7 +64,7 @@ impl LoggingConfig {
                         .with_target(target)
                         .with_timer(ChronoLocal::new(timestamp_fmt.clone()))
                         .fmt_fields(PrettyFields::new())
-                        .with_filter(self.logging_filter());
+                        .with_filter(logging_filter(level.as_str()));
                     (Some(file_layer), Some(guard))
                 });
 
@@ -72,7 +73,7 @@ impl LoggingConfig {
             .with_target(target)
             .with_timer(ChronoLocal::new(timestamp_fmt))
             .fmt_fields(PrettyFields::new())
-            .with_filter(self.logging_filter());
+            .with_filter(logging_filter(level.as_str()));
 
         // a `Layer` wrapped in an `Option` such as the above defined `file_layer` also implements
         // the `Layer` trait. This allows individual layers to be enabled or disabled at runtime
@@ -91,33 +92,35 @@ impl LoggingConfig {
         debug!("Logging initialized successfully");
         Ok(guard)
     }
+}
 
-    fn logging_filter(&self) -> EnvFilter {
-        let level = self.level.as_level().to_string().to_lowercase();
+fn logging_filter(level: &str) -> EnvFilter {
+    let env_filter = EnvFilter::builder()
+        // Disable all logging from all crates
+        .with_default_directive(LevelFilter::INFO.into())
+        // Allow to remove even the default above by using a env var
+        .with_env_var("LOG_LEVEL")
+        // But not fail if the env var is invalid
+        .from_env_lossy();
 
-        let env_filter = EnvFilter::builder()
-            // Disable all logging from all crates
-            .with_default_directive(LevelFilter::INFO.into())
-            // Allow to remove even the default above by using a env var
-            .with_env_var("LOG_LEVEL")
-            // But not fail if the env var is invalid
-            .from_env_lossy();
-
-        // if a valid logging level is set by envvar, honor it.
-        if env_filter.to_string() != "info" {
-            return env_filter;
-        }
-
-        // Add the logging level from config only for newrelic_super_agent crate.
-        env_filter.add_directive(
-            format!("newrelic_super_agent={}", level)
-                .parse::<Directive>()
-                // level is correctly parsed by serde at config level.
-                // level is always correct at this stage. If not, we have a bigger problem than this function.
-                .unwrap_or_else(|_| panic!("`logging_filter` does return a unparsable directive. Panicking for level: {}",
-                        level)),
-        )
+    // if a valid logging level is set by envvar, honor it.
+    if env_filter.to_string() != "info" {
+        return env_filter;
     }
+
+    // Add the logging level from config only for newrelic_super_agent crate.
+    env_filter.add_directive(
+        format!("newrelic_super_agent={}", level)
+            .parse::<Directive>()
+            // level is correctly parsed by serde at config level.
+            // level is always correct at this stage. If not, we have a bigger problem than this function.
+            .unwrap_or_else(|_| {
+                panic!(
+                    "`logging_filter` does return a unparsable directive. Panicking for level: {}",
+                    level
+                )
+            }),
+    )
 }
 
 #[derive(Debug, PartialEq, Clone)]
