@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 use std::fmt::Debug;
 use std::str::FromStr;
 use thiserror::Error;
@@ -31,14 +31,60 @@ pub enum LoggingError {
 ///
 /// # Fields:
 /// - `format`: Specifies the `LoggingFormat` the application will use for logging.
-#[derive(Debug, Deserialize, PartialEq, Clone, Default)]
+#[derive(Debug, PartialEq, Clone, Default)]
 pub struct LoggingConfig {
-    #[serde(default)]
     pub(crate) format: LoggingFormat,
-    #[serde(default)]
     pub(crate) level: LogLevel,
-    #[serde(default)]
     pub(crate) file: FileLoggingConfig,
+}
+
+impl<'de> Deserialize<'de> for LoggingConfig {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        // intermediate serialization type to validate `default` and `required` fields
+        #[derive(Debug, Deserialize)]
+        pub struct IntermediateLoggingConfig {
+            #[serde(default)]
+            format: LoggingFormat,
+            #[serde(default)]
+            level: LogLevel,
+            #[serde(default)]
+            file: FileLoggingConfig,
+        }
+
+        let intermediate_spec = IntermediateLoggingConfig::deserialize(deserializer)?;
+
+        let level_from_env = match std::env::var("LOG_LEVEL") {
+            Ok(string) => Some(LogLevel(Level::from_str(&string).map_err(|e| {
+                serde::de::Error::custom(format!("error parse 'LOG_LEVEL' as a LogLevel: {}", e))
+            })?)),
+            Err(e) => match e {
+                std::env::VarError::NotPresent => None,
+                std::env::VarError::NotUnicode(e) => {
+                    return Err(serde::de::Error::custom(format!(
+                        "error reading 'LOG_LEVEL' environment variable: {:?}",
+                        e.as_encoded_bytes(),
+                    )));
+                }
+            },
+        };
+
+        if let Some(level) = level_from_env {
+            return Ok(LoggingConfig {
+                format: intermediate_spec.format,
+                level,
+                file: intermediate_spec.file,
+            });
+        }
+
+        Ok(LoggingConfig {
+            format: intermediate_spec.format,
+            level: intermediate_spec.level,
+            file: intermediate_spec.file,
+        })
+    }
 }
 
 pub type FileLoggerGuard = Option<WorkerGuard>;
@@ -96,15 +142,16 @@ impl LoggingConfig {
 
 fn logging_filter(level: &str) -> EnvFilter {
     let env_filter = EnvFilter::builder()
-        // Set all logging levels to "info"
-        .with_default_directive(LevelFilter::INFO.into())
+        // Set all logging levels to "error". This is the highest level I can set it up.
+        // Only "error" from crates will be logged.
+        .with_default_directive(LevelFilter::ERROR.into())
         // Allow to remove even the default above by using a env var
-        .with_env_var("LOG_LEVEL")
+        .with_env_var("LOG_LEVEL_FINE_GRAINED")
         // But not fail if the env var is invalid
         .from_env_lossy();
 
-    // if a valid logging level is set by envvar, honor it.
-    if env_filter.to_string() != "info" {
+    // If a fine grained filter is set, all config and env vars will be ignored.
+    if env_filter.to_string() != LevelFilter::ERROR.to_string() {
         return env_filter;
     }
 
