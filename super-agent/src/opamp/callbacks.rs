@@ -477,6 +477,7 @@ pub(crate) mod tests {
 
         effective_config_loader
             .expect_load()
+            .once()
             .returning(|| Ok(ConfigurationMap::default()));
 
         let callbacks = AgentCallbacks::new(
@@ -501,6 +502,7 @@ pub(crate) mod tests {
 
         effective_config_loader
             .expect_load()
+            .once()
             .returning(|| Err("loader error".to_string().into()));
 
         let callbacks = AgentCallbacks::new(
