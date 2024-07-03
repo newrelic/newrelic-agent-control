@@ -19,7 +19,7 @@ use opamp_client::{
 use std::str;
 use std::str::Utf8Error;
 use thiserror::Error;
-use tracing::{error, trace};
+use tracing::{debug, error, trace};
 use HttpClientError::UnsuccessfulResponse;
 
 #[derive(Debug, Error)]
@@ -198,10 +198,21 @@ where
     }
 
     fn get_effective_config(&self) -> Result<EffectiveConfig, Self::Error> {
+        debug!(
+            agent_id = %self.agent_id,
+            "OpAMP get effective config");
+
         let effective_config = self
             .effective_config_loader
             .load()
             .map_err(EffectiveConfigError::Loader)?;
+
+        // Not printing the effective config in case it contains senstive info
+        debug!(
+            agent_id = %self.agent_id,
+            "OpAMP effective config loaded"
+        );
+
         Ok(effective_config.into())
     }
 }
@@ -233,7 +244,7 @@ pub(crate) mod tests {
     use super::*;
     use crate::event::channel::pub_sub;
     use crate::event::OpAMPEvent;
-    use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoader;
+    use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
     use crate::opamp::remote_config_hash::Hash;
     use opamp_client::opamp::proto::{AgentConfigFile, AgentConfigMap, AgentRemoteConfig};
@@ -243,7 +254,7 @@ pub(crate) mod tests {
     #[test]
     fn test_connect() {
         let (event_publisher, event_consumer) = pub_sub();
-        let effective_config_loader = MockEffectiveConfigLoader::new();
+        let effective_config_loader = MockEffectiveConfigLoaderMock::new();
 
         let callbacks = AgentCallbacks::new(
             AgentID::new("agent").unwrap(),
@@ -265,7 +276,7 @@ pub(crate) mod tests {
     #[test]
     fn test_connect_fail() {
         let (event_publisher, event_consumer) = pub_sub();
-        let effective_config_loader = MockEffectiveConfigLoader::new();
+        let effective_config_loader = MockEffectiveConfigLoaderMock::new();
 
         let callbacks = AgentCallbacks::new(
             AgentID::new("agent").unwrap(),
@@ -318,7 +329,7 @@ pub(crate) mod tests {
                 let agent_id = AgentID::new("an-agent-id").unwrap();
 
                 let (event_publisher, event_consumer) = pub_sub();
-                let effective_config_loader = MockEffectiveConfigLoader::new();
+                let effective_config_loader = MockEffectiveConfigLoaderMock::new();
 
                 let callbacks =
                     AgentCallbacks::new(agent_id.clone(), event_publisher, effective_config_loader);
@@ -457,5 +468,52 @@ pub(crate) mod tests {
         for test_case in test_cases {
             test_case.run();
         }
+    }
+
+    #[test]
+    fn test_get_effective_config() {
+        let (event_publisher, _event_consumer) = pub_sub();
+        let mut effective_config_loader = MockEffectiveConfigLoaderMock::new();
+
+        effective_config_loader
+            .expect_load()
+            .returning(|| Ok(ConfigurationMap::default()));
+
+        let callbacks = AgentCallbacks::new(
+            AgentID::new("agent").unwrap(),
+            event_publisher,
+            effective_config_loader,
+        );
+
+        let actual = callbacks.get_effective_config().unwrap();
+
+        let expected = EffectiveConfig {
+            config_map: Some(AgentConfigMap::default()),
+        };
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_get_effective_config_err() {
+        let (event_publisher, _event_consumer) = pub_sub();
+        let mut effective_config_loader = MockEffectiveConfigLoaderMock::new();
+
+        effective_config_loader
+            .expect_load()
+            .returning(|| Err("loader error".to_string().into()));
+
+        let callbacks = AgentCallbacks::new(
+            AgentID::new("agent").unwrap(),
+            event_publisher,
+            effective_config_loader,
+        );
+
+        let actual = callbacks.get_effective_config().unwrap_err();
+
+        assert!(matches!(
+            actual,
+            AgentCallbacksError::EffectiveConfigError(EffectiveConfigError::Loader(_))
+        ));
     }
 }
