@@ -42,6 +42,9 @@ pub enum K8sError {
 
     #[error("reflectors not initialized")]
     ReflectorsNotInitialized,
+
+    #[error("reflector timeout: {0}")]
+    ReflectorTimeout(String),
 }
 
 #[derive(thiserror::Error, Debug)]

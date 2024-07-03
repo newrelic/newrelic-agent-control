@@ -207,7 +207,7 @@ impl AsyncK8sClient {
         config.default_namespace = namespace;
         let client = Client::try_from(config)?;
 
-        debug!("verifying default namespace existence");
+        debug!("verifying default k8s namespace existence");
         Api::<Namespace>::all(client.clone())
             .get(client.default_namespace())
             .await
@@ -215,17 +215,15 @@ impl AsyncK8sClient {
                 K8sError::UnableToSetupClient(format!("failed to get the default namespace: {}", e))
             })?;
 
-        debug!("k8s client creation succeeded");
         let reflector_builder = ReflectorBuilder::new(client.clone());
+        let reflectors = Reflectors::try_new(&reflector_builder).await?;
+        let dynamic_object_managers =
+            DynamicObjectManagers::try_new(type_meta, &client, &reflector_builder).await?;
+        debug!("k8s client initialization succeeded");
         Ok(Self {
             client: client.clone(),
-            reflectors: Reflectors::try_new(&reflector_builder).await?,
-            dynamic_object_managers: DynamicObjectManagers::try_new(
-                type_meta,
-                &client,
-                &reflector_builder,
-            )
-            .await?,
+            reflectors,
+            dynamic_object_managers,
         })
     }
 
