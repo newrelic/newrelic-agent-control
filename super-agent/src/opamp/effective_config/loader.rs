@@ -1,12 +1,5 @@
-use thiserror::Error;
-
+use super::error::LoaderError;
 use crate::opamp::remote_config::ConfigurationMap;
-
-/// Error type for the effective configuration loader.
-/// This is implementation-dependent so it only encapsulates a string.
-#[derive(Debug, Error)]
-#[error("error loading effective configuration: `{0}`")]
-pub struct LoaderError(String);
 
 /// Trait for effective configuration loaders.
 pub trait EffectiveConfigLoader: Send + Sync + 'static {
@@ -48,16 +41,26 @@ pub mod tests {
     use super::*;
 
     mock!(
-        pub EffectiveConfigLoader {}
+        pub EffectiveConfigLoaderMock {}
 
-        impl EffectiveConfigLoader for EffectiveConfigLoader {
+        impl EffectiveConfigLoader for EffectiveConfigLoaderMock {
             fn load(&self) -> Result<ConfigurationMap, LoaderError>;
         }
     );
 
+    mock! {
+        pub EffectiveConfigLoaderBuilderMock {}
+
+        impl EffectiveConfigLoaderBuilder for EffectiveConfigLoaderBuilderMock {
+            type Loader = MockEffectiveConfigLoaderMock;
+
+            fn build(&self) -> MockEffectiveConfigLoaderMock;
+        }
+    }
+
     #[test]
     fn no_op_loader() {
-        let loader = EffectiveConfigLoaderBuilder.build();
+        let loader = DefaultEffectiveConfigLoaderBuilder.build();
         let config = loader.load().unwrap();
         assert_eq!(config, ConfigurationMap::default());
     }
