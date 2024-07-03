@@ -165,7 +165,7 @@ pub mod test {
     use crate::event::SubAgentEvent::ConfigUpdated;
     use crate::opamp::callbacks::AgentCallbacks;
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
-    use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoader;
+    use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
     use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
     use crate::opamp::remote_config_hash::Hash;
@@ -204,7 +204,7 @@ pub mod test {
     #[test]
     fn test_event_loop_is_closed() {
         let mut opamp_client: MockStartedOpAMPClientMock<
-            AgentCallbacks<MockEffectiveConfigLoader>,
+            AgentCallbacks<MockEffectiveConfigLoaderMock>,
         > = MockStartedOpAMPClientMock::new();
         let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
         let (sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
@@ -241,7 +241,7 @@ pub mod test {
     #[test]
     fn test_remote_config() {
         let mut opamp_client: MockStartedOpAMPClientMock<
-            AgentCallbacks<MockEffectiveConfigLoader>,
+            AgentCallbacks<MockEffectiveConfigLoaderMock>,
         > = MockStartedOpAMPClientMock::new();
         let (sub_agent_publisher, sub_agent_consumer) = pub_sub();
         let (sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();

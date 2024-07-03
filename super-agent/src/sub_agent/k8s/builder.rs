@@ -222,7 +222,7 @@ pub mod test {
     use crate::agent_type::runtime_config::{Deployment, Runtime};
     use crate::event::channel::pub_sub;
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
-    use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoader;
+    use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
     use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
     use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
     use crate::opamp::instance_id::InstanceID;
@@ -377,7 +377,7 @@ pub mod test {
         sub_agent_config: SubAgentConfig,
         agent_id: AgentID,
     ) -> (
-        MockOpAMPClientBuilderMock<SubAgentCallbacks<MockEffectiveConfigLoader>>,
+        MockOpAMPClientBuilderMock<SubAgentCallbacks<MockEffectiveConfigLoaderMock>>,
         MockInstanceIDGetterMock,
         MockHashRepositoryMock,
     ) {

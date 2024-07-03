@@ -90,7 +90,12 @@ pub(crate) mod test {
 
     use crate::{
         event::channel::pub_sub,
-        opamp::client_builder::{DefaultOpAMPClientBuilder, OpAMPClientBuilder},
+        opamp::{
+            client_builder::{DefaultOpAMPClientBuilder, OpAMPClientBuilder},
+            effective_config::loader::tests::{
+                MockEffectiveConfigLoaderBuilderMock, MockEffectiveConfigLoaderMock,
+            },
+        },
         super_agent::config::AgentID,
     };
 
@@ -122,6 +127,12 @@ pub(crate) mod test {
         let agent_id = AgentID::new_super_agent_id();
         let start_settings = StartSettings::default();
 
+        let mut effective_config_loader_builder = MockEffectiveConfigLoaderBuilderMock::new();
+        effective_config_loader_builder
+            .expect_build()
+            .times(1)
+            .return_once(MockEffectiveConfigLoaderMock::default);
+
         http_client // Define http client behavior for this test
             .expect_post()
             .times(1)
@@ -132,7 +143,11 @@ pub(crate) mod test {
             .times(1)
             .return_once(|| Ok(http_client));
 
-        let builder = DefaultOpAMPClientBuilder::new(opamp_config, http_builder);
+        let builder = DefaultOpAMPClientBuilder::new(
+            opamp_config,
+            http_builder,
+            effective_config_loader_builder,
+        );
         let actual_client = builder.build_and_start(tx, agent_id, start_settings);
 
         assert!(actual_client.is_ok());
@@ -146,6 +161,9 @@ pub(crate) mod test {
         let agent_id = AgentID::new_super_agent_id();
         let start_settings = StartSettings::default();
 
+        let mut effective_config_loader_builder = MockEffectiveConfigLoaderBuilderMock::new();
+        effective_config_loader_builder.expect_build().never();
+
         // Define http builder behavior for this test
         http_builder.expect_build().times(1).return_once(|| {
             Err(HttpClientBuilderError::BuildingError(String::from(
@@ -153,7 +171,11 @@ pub(crate) mod test {
             )))
         });
 
-        let builder = DefaultOpAMPClientBuilder::new(opamp_config, http_builder);
+        let builder = DefaultOpAMPClientBuilder::new(
+            opamp_config,
+            http_builder,
+            effective_config_loader_builder,
+        );
         let actual_client = builder.build_and_start(tx, agent_id, start_settings);
 
         assert!(actual_client.is_err());

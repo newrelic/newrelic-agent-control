@@ -129,7 +129,7 @@ pub mod test {
         agent_type::runtime_config::Runtime,
         opamp::{
             client_builder::test::{MockOpAMPClientBuilderMock, MockStartedOpAMPClientMock},
-            effective_config::loader::tests::MockEffectiveConfigLoader,
+            effective_config::loader::tests::MockEffectiveConfigLoaderMock,
             hash_repository::repository::test::MockHashRepositoryMock,
             remote_config_hash::Hash,
         },
@@ -281,7 +281,7 @@ pub mod test {
         // Actual test
         let actual = build_supervisor_or_default::<
             MockHashRepositoryMock,
-            MockOpAMPClientBuilderMock<SubAgentCallbacks<MockEffectiveConfigLoader>>,
+            MockOpAMPClientBuilderMock<SubAgentCallbacks<MockEffectiveConfigLoaderMock>>,
             _,
             _,
             _,
@@ -340,7 +340,7 @@ pub mod test {
         // Actual test
         let actual = build_supervisor_or_default::<
             MockHashRepositoryMock,
-            MockOpAMPClientBuilderMock<SubAgentCallbacks<MockEffectiveConfigLoader>>,
+            MockOpAMPClientBuilderMock<SubAgentCallbacks<MockEffectiveConfigLoaderMock>>,
             _,
             _,
             _,
@@ -377,7 +377,7 @@ pub mod test {
         // Actual test
         let actual = build_supervisor_or_default::<
             MockHashRepositoryMock,
-            MockOpAMPClientBuilderMock<SubAgentCallbacks<MockEffectiveConfigLoader>>,
+            MockOpAMPClientBuilderMock<SubAgentCallbacks<MockEffectiveConfigLoaderMock>>,
             _,
             _,
             _,
@@ -420,7 +420,7 @@ pub mod test {
         // Actual test
         let actual = build_supervisor_or_default::<
             MockHashRepositoryMock,
-            MockOpAMPClientBuilderMock<SubAgentCallbacks<MockEffectiveConfigLoader>>,
+            MockOpAMPClientBuilderMock<SubAgentCallbacks<MockEffectiveConfigLoaderMock>>,
             _,
             _,
             _,
@@ -451,7 +451,7 @@ pub mod test {
         // Actual test
         let actual = build_supervisor_or_default::<
             MockHashRepositoryMock,
-            MockOpAMPClientBuilderMock<SubAgentCallbacks<MockEffectiveConfigLoader>>,
+            MockOpAMPClientBuilderMock<SubAgentCallbacks<MockEffectiveConfigLoaderMock>>,
             _,
             _,
             _,
@@ -488,7 +488,7 @@ pub mod test {
         // Actual test
         let actual = build_supervisor_or_default::<
             MockHashRepositoryMock,
-            MockOpAMPClientBuilderMock<SubAgentCallbacks<MockEffectiveConfigLoader>>,
+            MockOpAMPClientBuilderMock<SubAgentCallbacks<MockEffectiveConfigLoaderMock>>,
             _,
             _,
             _,

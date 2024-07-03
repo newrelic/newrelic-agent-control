@@ -3,6 +3,7 @@ use super::config_storer::store::SuperAgentConfigStore;
 use super::http_server::config::ServerConfig;
 use crate::event::channel::pub_sub;
 use crate::opamp::auth::token_retriever::TokenRetrieverImpl;
+use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::http::builder::UreqHttpClientBuilder;
 use crate::super_agent::http_server::runner::Runner;
 use crate::{
@@ -56,9 +57,13 @@ impl TryFrom<SuperAgentRunConfig> for SuperAgentRunner {
 
                 let http_builder =
                     UreqHttpClientBuilder::new(opamp_config.clone(), token_retriever);
+
+                let effective_config_loader_builder = DefaultEffectiveConfigLoaderBuilder;
+
                 Some(DefaultOpAMPClientBuilder::new(
                     opamp_config.clone(),
                     http_builder,
+                    effective_config_loader_builder,
                 ))
             }
             None => None,
@@ -96,8 +101,12 @@ pub struct SuperAgentRunner {
     runtime: Arc<Runtime>,
     config_storer: SuperAgentConfigStore,
     application_event_consumer: EventConsumer<ApplicationEvent>,
-    opamp_client_builder:
-        Option<DefaultOpAMPClientBuilder<UreqHttpClientBuilder<TokenRetrieverImpl>>>,
+    opamp_client_builder: Option<
+        DefaultOpAMPClientBuilder<
+            UreqHttpClientBuilder<TokenRetrieverImpl>,
+            DefaultEffectiveConfigLoaderBuilder,
+        >,
+    >,
     super_agent_publisher: EventPublisher<SuperAgentEvent>,
 }
 

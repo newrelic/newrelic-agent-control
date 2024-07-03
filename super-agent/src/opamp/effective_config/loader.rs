@@ -9,17 +9,24 @@ use crate::opamp::remote_config::ConfigurationMap;
 pub struct LoaderError(String);
 
 /// Trait for effective configuration loaders.
-pub trait EffectiveConfigLoader {
+pub trait EffectiveConfigLoader: Send + Sync + 'static {
     /// Load the effective configuration.
     fn load(&self) -> Result<ConfigurationMap, LoaderError>;
 }
 
-/// Builder for effective configuration loaders. Currently only supports the no-op loader.
-pub struct EffectiveConfigLoaderBuilder;
+pub trait EffectiveConfigLoaderBuilder {
+    type Loader: EffectiveConfigLoader;
 
-impl EffectiveConfigLoaderBuilder {
-    /// Build a new effective configuration loader.
-    pub fn build(&self) -> NoOpEffectiveConfigLoader {
+    fn build(&self) -> Self::Loader;
+}
+
+/// Builder for effective configuration loaders. Currently only supports the no-op loader.
+pub struct DefaultEffectiveConfigLoaderBuilder;
+
+impl EffectiveConfigLoaderBuilder for DefaultEffectiveConfigLoaderBuilder {
+    type Loader = NoOpEffectiveConfigLoader;
+
+    fn build(&self) -> Self::Loader {
         NoOpEffectiveConfigLoader
     }
 }

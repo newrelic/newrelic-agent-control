@@ -85,7 +85,7 @@ where
 pub mod test {
     use crate::event::channel::{EventConsumer, EventPublisher};
     use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
-    use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoader;
+    use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
     use crate::sub_agent::event_processor::test::MockEventProcessorMock;
     use crate::sub_agent::event_processor_builder::SubAgentEventProcessorBuilder;
     use crate::sub_agent::SubAgentCallbacks;
@@ -98,12 +98,12 @@ pub mod test {
 
         pub SubAgentEventProcessorBuilderMock<C>
         where
-            C: StartedClient<SubAgentCallbacks<MockEffectiveConfigLoader>> + 'static
+            C: StartedClient<SubAgentCallbacks<MockEffectiveConfigLoaderMock>> + 'static
         {}
 
-        impl<C> SubAgentEventProcessorBuilder<C, MockEffectiveConfigLoader> for SubAgentEventProcessorBuilderMock<C>
+        impl<C> SubAgentEventProcessorBuilder<C, MockEffectiveConfigLoaderMock> for SubAgentEventProcessorBuilderMock<C>
          where
-            C: StartedClient<SubAgentCallbacks<MockEffectiveConfigLoader>> + 'static
+            C: StartedClient<SubAgentCallbacks<MockEffectiveConfigLoaderMock>> + 'static
         {
             type SubAgentEventProcessor = MockEventProcessorMock;
 
@@ -114,14 +114,14 @@ pub mod test {
                 sub_agent_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
                 sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
                 maybe_opamp_client: Option<C>,
-            ) -><Self as SubAgentEventProcessorBuilder<C, MockEffectiveConfigLoader>>::SubAgentEventProcessor;
+            ) -><Self as SubAgentEventProcessorBuilder<C, MockEffectiveConfigLoaderMock>>::SubAgentEventProcessor;
 
         }
     }
 
     impl<C> MockSubAgentEventProcessorBuilderMock<C>
     where
-        C: StartedClient<SubAgentCallbacks<MockEffectiveConfigLoader>> + Send + Sync + 'static,
+        C: StartedClient<SubAgentCallbacks<MockEffectiveConfigLoaderMock>> + Send + Sync + 'static,
     {
         pub fn should_build(&mut self, processor: MockEventProcessorMock) {
             self.expect_build()

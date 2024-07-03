@@ -464,7 +464,7 @@ mod tests {
     use crate::event::channel::{pub_sub, EventPublisher};
     use crate::event::{ApplicationEvent, OpAMPEvent, SubAgentEvent, SuperAgentEvent};
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
-    use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoader;
+    use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
     use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
     use crate::opamp::hash_repository::HashRepository;
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
@@ -497,9 +497,9 @@ mod tests {
     ////////////////////////////////////////////////////////////////////////////////////
     // Custom Agent constructor for tests
     ////////////////////////////////////////////////////////////////////////////////////
-    impl<S, O, HR, SL> SuperAgent<S, O, HR, SL, MockEffectiveConfigLoader>
+    impl<S, O, HR, SL> SuperAgent<S, O, HR, SL, MockEffectiveConfigLoaderMock>
     where
-        O: StartedClient<SuperAgentCallbacks<MockEffectiveConfigLoader>>,
+        O: StartedClient<SuperAgentCallbacks<MockEffectiveConfigLoaderMock>>,
         HR: HashRepository,
         S: SubAgentBuilder,
         SL: SuperAgentDynamicConfigStorer
@@ -882,7 +882,7 @@ agents:
 
         // Create the Super Agent and rub Sub Agents
         let super_agent = SuperAgent::new_custom(
-            None::<MockStartedOpAMPClientMock<SuperAgentCallbacks<MockEffectiveConfigLoader>>>,
+            None::<MockStartedOpAMPClientMock<SuperAgentCallbacks<MockEffectiveConfigLoaderMock>>>,
             Arc::new(hash_repository_mock),
             sub_agent_builder,
             sub_agents_config_store,

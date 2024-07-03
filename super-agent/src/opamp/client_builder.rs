@@ -15,7 +15,7 @@ use crate::super_agent::config::{AgentID, OpAMPClientConfig};
 
 use super::callbacks::AgentCallbacks;
 use super::effective_config::error::EffectiveConfigError;
-use super::effective_config::loader::{EffectiveConfigLoaderBuilder, NoOpEffectiveConfigLoader};
+use super::effective_config::loader::EffectiveConfigLoaderBuilder;
 use super::http::builder::{HttpClientBuilder, HttpClientBuilderError};
 
 #[derive(Error, Debug)]
@@ -53,20 +53,29 @@ where
     ) -> Result<Self::Client, OpAMPClientBuilderError>;
 }
 
-pub struct DefaultOpAMPClientBuilder<C> {
+pub struct DefaultOpAMPClientBuilder<C, B>
+where
+    B: EffectiveConfigLoaderBuilder,
+    C: HttpClientBuilder,
+{
     config: OpAMPClientConfig,
-    effective_config_loader_builder: EffectiveConfigLoaderBuilder,
+    effective_config_loader_builder: B,
     http_client_builder: C,
 }
 
-impl<C> DefaultOpAMPClientBuilder<C>
+impl<C, B> DefaultOpAMPClientBuilder<C, B>
 where
+    B: EffectiveConfigLoaderBuilder,
     C: HttpClientBuilder,
 {
-    pub fn new(config: OpAMPClientConfig, http_client_builder: C) -> Self {
+    pub fn new(
+        config: OpAMPClientConfig,
+        http_client_builder: C,
+        effective_config_loader_builder: B,
+    ) -> Self {
         Self {
             config,
-            effective_config_loader_builder: EffectiveConfigLoaderBuilder,
+            effective_config_loader_builder,
             http_client_builder,
         }
     }
@@ -76,12 +85,12 @@ where
     }
 }
 
-impl<C> OpAMPClientBuilder<AgentCallbacks<NoOpEffectiveConfigLoader>>
-    for DefaultOpAMPClientBuilder<C>
+impl<C, B> OpAMPClientBuilder<AgentCallbacks<B::Loader>> for DefaultOpAMPClientBuilder<C, B>
 where
+    B: EffectiveConfigLoaderBuilder,
     C: HttpClientBuilder,
 {
-    type Client = StartedHttpClient<AgentCallbacks<NoOpEffectiveConfigLoader>, C::Client>;
+    type Client = StartedHttpClient<AgentCallbacks<B::Loader>, C::Client>;
     fn build_and_start(
         &self,
         opamp_publisher: EventPublisher<OpAMPEvent>,
