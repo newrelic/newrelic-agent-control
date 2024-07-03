@@ -84,6 +84,10 @@ where
 
         // Add all headers to the request, omitting invalid values
         headers.iter().fold(req, |r, (key, val)| {
+            // TODO: Here we are transforming HeaderValue to string and we lose control if the header
+            // is sensitive or not. We are limited by `ureq` that (as of today) it only censors the
+            // headers "Cookie" and "Authorization". We should change the http client to use reqwest
+            // that honors the `is_sensitive` property while logging.
             let Ok(value) = val.to_str() else {
                 tracing::error!("invalid header value string: {:?}, skipping", val);
                 return r;
