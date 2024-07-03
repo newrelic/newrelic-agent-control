@@ -207,7 +207,7 @@ where
             .load()
             .map_err(EffectiveConfigError::Loader)?;
 
-        // Not printing the effective config in case it contains senstive info
+        // Not printing the effective config in case it contains sensitive info
         debug!(
             agent_id = %self.agent_id,
             "OpAMP effective config loaded"
