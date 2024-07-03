@@ -1,5 +1,8 @@
-use crate::common::opamp::{ConfigResponse, FakeServer};
-use crate::common::retry::retry;
+use crate::common::{
+    health::check_latest_health_status_was_healthy,
+    opamp::{ConfigResponse, FakeServer},
+    retry::retry,
+};
 use crate::on_host::tools::instance_id::get_instance_id;
 use crate::on_host::tools::super_agent::start_super_agent_with_custom_config;
 use newrelic_super_agent::super_agent::config::{AgentID, SuperAgentDynamicConfig};
@@ -47,7 +50,7 @@ agents: {}
 
     // When a new config with two agents is received from OpAMP
     server.set_config_response(
-        super_agent_instance_id,
+        super_agent_instance_id.clone(),
         ConfigResponse::from(
             r#"
 agents:
@@ -83,7 +86,8 @@ agents:
                 )
                 .into());
             }
-            Ok(())
+
+            check_latest_health_status_was_healthy(&server, &super_agent_instance_id)
         }()
     });
 
