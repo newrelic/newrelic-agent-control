@@ -19,8 +19,6 @@
           NEW_RELIC_ACCOUNT_ID: "{{ nr_account_id | int }}"
           NEW_RELIC_REGION: "STAGING"
           NEW_RELIC_DOWNLOAD_URL: "https://nr-downloads-ohai-staging.s3.amazonaws.com/"
-          NR_CLI_FLEET_ENABLED: true
-          NR_CLI_HOST_MONITORING_SOURCE: newrelic
 
     - name: Install super agent and run migration
       include_tasks: ./tasks/install_recipe.yaml
