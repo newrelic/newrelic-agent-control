@@ -33,7 +33,7 @@ pub enum AgentCallbacksError {
     #[error("unable to publish OpAMP event")]
     PublishEventError(#[from] EventPublisherError),
 
-    #[error("error getting effective config: `{0}`")]
+    #[error("unable to get effective config: `{0}`")]
     EffectiveConfigError(#[from] EffectiveConfigError),
 }
 
