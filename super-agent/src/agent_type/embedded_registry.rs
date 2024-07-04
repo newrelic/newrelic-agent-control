@@ -34,19 +34,13 @@ impl Default for EmbeddedRegistry {
         // Log failure but not fail the whole registry creation
         let dynamic_agent_type = fs::read(DYNAMIC_AGENT_TYPE())
             .inspect_err(|e| {
-                debug!(
-                    "Dynamic agent type: Could not load Dynamic Agent Type: {}",
-                    e
-                )
+                debug!(error = ?e, "Dynamic agent type: Failed reading file");
             })
             .ok()
             .and_then(|content| {
                 serde_yaml::from_slice::<AgentTypeDefinition>(content.as_slice())
                     .inspect_err(|e| {
-                        debug!(
-                            "Dynamic agent type: Could not parse dynamic agent type: {}",
-                            e
-                        )
+                        debug!(error = ?e, "Dynamic agent type: Could not parse agent type");
                     })
                     .ok()
             });
