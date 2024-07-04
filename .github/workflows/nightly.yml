@@ -99,7 +99,7 @@ jobs:
     with:
       TAG: "${{ needs.build-nightly.outputs.tag }}"
       UNIQUE_NAME: "nightly:e2e"
-      EC2_FILTERS: '[\"al-2023\"]'
+      EC2_FILTERS: '[\"ubuntu22.04\"]'
       REPOSITORY_ENDPOINT: "http://nr-downloads-ohai-testing.s3-website-us-east-1.amazonaws.com/super-agent-nightlies"
     secrets:
       AWS_ROLE_ARN: ${{ secrets.TMP_AWS_ROLE_ARN }}

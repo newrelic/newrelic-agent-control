@@ -8,14 +8,23 @@
     - name: Cleanup
       include_tasks: ./tasks/clean_all.yaml
 
-    - name: Install infra-agent then super-agent recipe
+    - name: Install infra-agent and logs
       include_tasks: ./tasks/install_recipe.yaml
       vars:
         targets:
           - infrastructure
           - logs
+        env_vars:
+          NEW_RELIC_API_KEY: "{{ nr_api_key }}"
+          NEW_RELIC_ACCOUNT_ID: "{{ nr_account_id | int }}"
+          NEW_RELIC_REGION: "STAGING"
+          NEW_RELIC_DOWNLOAD_URL: "https://nr-downloads-ohai-staging.s3.amazonaws.com/"
+
+    - name: Install super agent and run migration
+      include_tasks: ./tasks/install_recipe.yaml
+      vars:
+        targets:
           - super-agent
-          # - logs-super-agent
         env_vars:
           NEW_RELIC_API_KEY: "{{ nr_api_key }}"
           NEW_RELIC_ACCOUNT_ID: "{{ nr_account_id | int }}"
@@ -30,9 +39,6 @@
         name: super-agent-config
       vars:
         infra_agent_type_version: "0.1.2"
-
-    - name: Run migration script
-      shell: /usr/bin/newrelic-config-migrate
 
     - name: Check infra-agent values file exists
       stat:
@@ -62,6 +68,10 @@
       vars:
         generated_file_path: "/var/lib/newrelic-super-agent/auto-generated/nr-infra-agent/logging.d/logging.yml"
         migrated_file_path: "/etc/newrelic-infra/logging.d.bck/logging.yml"
+
+    - name: give it some time to restart
+      ansible.builtin.pause:
+        seconds: 20
 
     - name: Assert Super Agent and Agents are running
       include_role:
