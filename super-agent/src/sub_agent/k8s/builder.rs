@@ -29,7 +29,7 @@ use tracing::debug;
 
 pub struct K8sSubAgentBuilder<'a, O, I, HR, A, E, G>
 where
-    G: EffectiveConfigLoader + Send + Sync,
+    G: EffectiveConfigLoader,
     O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
     I: InstanceIDGetter,
     HR: HashRepository,
@@ -49,7 +49,7 @@ where
 
 impl<'a, O, I, HR, A, E, G> K8sSubAgentBuilder<'a, O, I, HR, A, E, G>
 where
-    G: EffectiveConfigLoader + Send + Sync,
+    G: EffectiveConfigLoader,
     O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
     I: InstanceIDGetter,
     HR: HashRepository,
@@ -81,7 +81,7 @@ where
 
 impl<'a, O, I, HR, A, E, G> SubAgentBuilder for K8sSubAgentBuilder<'a, O, I, HR, A, E, G>
 where
-    G: EffectiveConfigLoader + Send + Sync,
+    G: EffectiveConfigLoader,
     O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
     I: InstanceIDGetter,
     HR: HashRepository,

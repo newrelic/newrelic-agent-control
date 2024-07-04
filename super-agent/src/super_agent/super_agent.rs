@@ -37,7 +37,7 @@ pub(super) type SuperAgentCallbacks<C> = AgentCallbacks<C>;
 
 pub struct SuperAgent<S, O, HR, SL, C>
 where
-    C: EffectiveConfigLoader + Send + Sync,
+    C: EffectiveConfigLoader,
     O: StartedClient<SuperAgentCallbacks<C>>,
     HR: HashRepository,
     SL: SuperAgentDynamicConfigStorer
@@ -57,7 +57,7 @@ where
 
 impl<S, O, HR, SL, C> SuperAgent<S, O, HR, SL, C>
 where
-    C: EffectiveConfigLoader + Send + Sync,
+    C: EffectiveConfigLoader,
     O: StartedClient<SuperAgentCallbacks<C>>,
     HR: HashRepository,
     S: SubAgentBuilder,

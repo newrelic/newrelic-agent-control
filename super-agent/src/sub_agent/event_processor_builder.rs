@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 pub trait SubAgentEventProcessorBuilder<C, G>
 where
-    G: EffectiveConfigLoader + Send + Sync,
+    G: EffectiveConfigLoader,
     C: StartedClient<SubAgentCallbacks<G>> + 'static,
 {
     type SubAgentEventProcessor: SubAgentEventProcessor;
@@ -50,7 +50,7 @@ where
 
 impl<C, H, R, G> SubAgentEventProcessorBuilder<C, G> for EventProcessorBuilder<H, R>
 where
-    G: EffectiveConfigLoader + Send + Sync + 'static,
+    G: EffectiveConfigLoader,
     C: StartedClient<SubAgentCallbacks<G>> + 'static,
     H: HashRepository + Send + Sync + 'static,
     R: ValuesRepository + Send + Sync + 'static,

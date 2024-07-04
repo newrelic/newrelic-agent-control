@@ -11,7 +11,7 @@ use tracing::error;
 
 impl<C, H, R, G> EventProcessor<C, H, R, G>
 where
-    G: EffectiveConfigLoader + Send + Sync,
+    G: EffectiveConfigLoader,
     C: StartedClient<SubAgentCallbacks<G>> + 'static,
     H: HashRepository,
     R: ValuesRepository,

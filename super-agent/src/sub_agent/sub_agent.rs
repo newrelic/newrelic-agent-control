@@ -58,7 +58,7 @@ pub(crate) fn build_supervisor_or_default<HR, O, T, F, C>(
 ) -> Result<T, SubAgentBuilderError>
 where
     HR: HashRepository,
-    C: EffectiveConfigLoader + Send + Sync,
+    C: EffectiveConfigLoader,
     O: OpAMPClientBuilder<SubAgentCallbacks<C>>,
     T: Default,
     F: FnOnce(EffectiveAgent) -> Result<T, SubAgentBuilderError>,

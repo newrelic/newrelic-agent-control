@@ -19,7 +19,7 @@ const ERROR_REMOTE_CONFIG: &str = "Error applying Sub Agent remote config";
 
 impl<C, S, R, G> EventProcessor<C, S, R, G>
 where
-    G: EffectiveConfigLoader + Send + Sync,
+    G: EffectiveConfigLoader,
     C: StartedClient<SubAgentCallbacks<G>> + 'static,
     S: HashRepository,
     R: ValuesRepository,

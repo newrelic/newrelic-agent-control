@@ -14,7 +14,7 @@ use opamp_client::StartedClient;
 
 impl<S, O, HR, SL, G> SuperAgent<S, O, HR, SL, G>
 where
-    G: EffectiveConfigLoader + Send + Sync,
+    G: EffectiveConfigLoader,
     O: StartedClient<SuperAgentCallbacks<G>>,
     HR: HashRepository,
     S: SubAgentBuilder,

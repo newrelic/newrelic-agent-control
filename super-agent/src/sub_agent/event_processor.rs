@@ -25,7 +25,7 @@ pub trait SubAgentEventProcessor {
 
 pub struct EventProcessor<C, H, R, G>
 where
-    G: EffectiveConfigLoader + Send + Sync,
+    G: EffectiveConfigLoader,
     C: StartedClient<SubAgentCallbacks<G>> + 'static,
     H: HashRepository,
     R: ValuesRepository,
@@ -43,7 +43,7 @@ where
 
 impl<C, H, R, G> EventProcessor<C, H, R, G>
 where
-    G: EffectiveConfigLoader + Send + Sync,
+    G: EffectiveConfigLoader,
     C: StartedClient<SubAgentCallbacks<G>> + 'static,
     H: HashRepository,
     R: ValuesRepository,
@@ -77,7 +77,7 @@ where
 
 impl<C, H, R, G> SubAgentEventProcessor for EventProcessor<C, H, R, G>
 where
-    G: EffectiveConfigLoader + Send + Sync + 'static,
+    G: EffectiveConfigLoader,
     C: StartedClient<SubAgentCallbacks<G>> + 'static,
     H: HashRepository + Send + Sync + 'static,
     R: ValuesRepository + Send + Sync + 'static,

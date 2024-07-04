@@ -40,7 +40,7 @@ pub enum AgentCallbacksError {
 /// This component implements the OpAMP client callbacks process the messages and publish events on `crate::event::OpAMPEvent`.
 pub struct AgentCallbacks<C>
 where
-    C: EffectiveConfigLoader + Send + Sync,
+    C: EffectiveConfigLoader,
 {
     agent_id: AgentID,
     publisher: EventPublisher<OpAMPEvent>,
@@ -49,7 +49,7 @@ where
 
 impl<C> AgentCallbacks<C>
 where
-    C: EffectiveConfigLoader + Send + Sync,
+    C: EffectiveConfigLoader,
 {
     pub fn new(
         agent_id: AgentID,
@@ -143,7 +143,7 @@ where
 
 impl<C> Callbacks for AgentCallbacks<C>
 where
-    C: EffectiveConfigLoader + Send + Sync,
+    C: EffectiveConfigLoader,
 {
     type Error = AgentCallbacksError;
 
