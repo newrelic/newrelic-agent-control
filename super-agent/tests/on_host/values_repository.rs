@@ -1,6 +1,6 @@
 use ::fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
 use newrelic_super_agent::agent_type::agent_values::AgentValues;
-use newrelic_super_agent::sub_agent::values::on_host::file::ValuesRepositoryFile;
+use newrelic_super_agent::sub_agent::values::on_host::ValuesRepositoryFile;
 use newrelic_super_agent::sub_agent::values::values_repository::ValuesRepository;
 use newrelic_super_agent::super_agent::config::AgentID;
 use std::fs;
