@@ -1,2 +1,2 @@
-mod error;
-mod loader;
+pub mod error;
+pub mod loader;

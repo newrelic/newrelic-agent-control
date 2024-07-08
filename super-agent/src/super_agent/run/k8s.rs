@@ -1,5 +1,6 @@
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
+use crate::opamp::effective_config::loader::EffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::Identifiers;
 use crate::opamp::operations::build_opamp_with_channel;
@@ -35,11 +36,11 @@ use std::sync::Arc;
 use tokio::runtime::Runtime;
 use tracing::{error, info};
 
-pub fn run_super_agent<C: HttpClientBuilder>(
+pub fn run_super_agent<C: HttpClientBuilder, B: EffectiveConfigLoaderBuilder>(
     runtime: Arc<Runtime>,
     sa_local_config_storer: SuperAgentConfigStore,
     application_event_consumer: EventConsumer<ApplicationEvent>,
-    opamp_client_builder: Option<DefaultOpAMPClientBuilder<C>>,
+    opamp_client_builder: Option<DefaultOpAMPClientBuilder<C, B>>,
     super_agent_publisher: EventPublisher<SuperAgentEvent>,
 ) -> Result<(), AgentError> {
     info!("Starting the k8s client");

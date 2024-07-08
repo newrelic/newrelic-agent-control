@@ -6,6 +6,7 @@ use crate::event::{
     channel::{pub_sub, EventConsumer, EventPublisher},
     ApplicationEvent, OpAMPEvent, SubAgentEvent, SuperAgentEvent,
 };
+use crate::opamp::effective_config::loader::EffectiveConfigLoader;
 use crate::opamp::{
     callbacks::AgentCallbacks,
     hash_repository::HashRepository,
@@ -28,14 +29,16 @@ use crossbeam::channel::never;
 use crossbeam::select;
 use opamp_client::{opamp::proto::ComponentHealth, StartedClient};
 use std::collections::HashMap;
+use std::marker::PhantomData;
 use std::sync::Arc;
 use tracing::{debug, error, info, trace, warn};
 
-pub(super) type SuperAgentCallbacks = AgentCallbacks;
+pub(super) type SuperAgentCallbacks<C> = AgentCallbacks<C>;
 
-pub struct SuperAgent<S, O, HR, SL>
+pub struct SuperAgent<S, O, HR, SL, C>
 where
-    O: StartedClient<SuperAgentCallbacks>,
+    C: EffectiveConfigLoader,
+    O: StartedClient<SuperAgentCallbacks<C>>,
     HR: HashRepository,
     SL: SuperAgentDynamicConfigStorer
         + SuperAgentDynamicConfigLoader
@@ -48,11 +51,16 @@ where
     agent_id: AgentID,
     pub(super) sa_dynamic_config_store: Arc<SL>,
     pub(super) super_agent_publisher: EventPublisher<SuperAgentEvent>,
+
+    // This is needed to ensure the generic type parameter C is used in the struct.
+    // Else Rust will reject this, complaining that the type parameter is not used.
+    _effective_config_loader: PhantomData<C>,
 }
 
-impl<S, O, HR, SL> SuperAgent<S, O, HR, SL>
+impl<S, O, HR, SL, C> SuperAgent<S, O, HR, SL, C>
 where
-    O: StartedClient<SuperAgentCallbacks>,
+    C: EffectiveConfigLoader,
+    O: StartedClient<SuperAgentCallbacks<C>>,
     HR: HashRepository,
     S: SubAgentBuilder,
     SL: SuperAgentDynamicConfigStorer
@@ -74,6 +82,8 @@ where
             agent_id: AgentID::new_super_agent_id(),
             sa_dynamic_config_store: sub_agents_config_store,
             super_agent_publisher,
+
+            _effective_config_loader: PhantomData,
         }
     }
 
@@ -456,6 +466,7 @@ mod tests {
     use crate::event::channel::{pub_sub, EventPublisher};
     use crate::event::{ApplicationEvent, OpAMPEvent, SubAgentEvent, SuperAgentEvent};
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
+    use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
     use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
     use crate::opamp::hash_repository::HashRepository;
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
@@ -478,6 +489,7 @@ mod tests {
     use crate::sub_agent::test::{MockNotStartedSubAgent, MockStartedSubAgent};
     use opamp_client::StartedClient;
     use std::collections::HashMap;
+    use std::marker::PhantomData;
     use std::sync::Arc;
     use std::thread::{sleep, spawn};
     use std::time::{Duration, SystemTime};
@@ -487,9 +499,9 @@ mod tests {
     ////////////////////////////////////////////////////////////////////////////////////
     // Custom Agent constructor for tests
     ////////////////////////////////////////////////////////////////////////////////////
-    impl<S, O, HR, SL> SuperAgent<S, O, HR, SL>
+    impl<S, O, HR, SL> SuperAgent<S, O, HR, SL, MockEffectiveConfigLoaderMock>
     where
-        O: StartedClient<SuperAgentCallbacks>,
+        O: StartedClient<SuperAgentCallbacks<MockEffectiveConfigLoaderMock>>,
         HR: HashRepository,
         S: SubAgentBuilder,
         SL: SuperAgentDynamicConfigStorer
@@ -510,6 +522,7 @@ mod tests {
                 agent_id: AgentID::new_super_agent_id(),
                 sa_dynamic_config_store: Arc::new(sub_agents_config_store),
                 super_agent_publisher,
+                _effective_config_loader: PhantomData,
             }
         }
     }
@@ -871,7 +884,7 @@ agents:
 
         // Create the Super Agent and rub Sub Agents
         let super_agent = SuperAgent::new_custom(
-            None::<MockStartedOpAMPClientMock<SuperAgentCallbacks>>,
+            None::<MockStartedOpAMPClientMock<SuperAgentCallbacks<MockEffectiveConfigLoaderMock>>>,
             Arc::new(hash_repository_mock),
             sub_agent_builder,
             sub_agents_config_store,

@@ -8,6 +8,7 @@ use super::{
 use crate::agent_type::environment::Environment;
 use crate::event::channel::{pub_sub, EventPublisher};
 use crate::event::SubAgentEvent;
+use crate::opamp::effective_config::loader::EffectiveConfigLoader;
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::instance_id::IdentifiersProvider;
@@ -33,15 +34,17 @@ use crate::{
 use nix::unistd::gethostname;
 use resource_detection::Detector;
 use std::collections::HashMap;
+use std::marker::PhantomData;
 use std::sync::Arc;
 
-pub struct OnHostSubAgentBuilder<'a, O, I, HR, A, E>
+pub struct OnHostSubAgentBuilder<'a, O, I, HR, A, E, G>
 where
-    O: OpAMPClientBuilder<SubAgentCallbacks>,
+    G: EffectiveConfigLoader,
+    O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
     I: InstanceIDGetter,
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
-    E: SubAgentEventProcessorBuilder<O::Client>,
+    E: SubAgentEventProcessorBuilder<O::Client, G>,
 {
     opamp_builder: Option<&'a O>,
     instance_id_getter: &'a I,
@@ -49,15 +52,20 @@ where
     effective_agent_assembler: &'a A,
     event_processor_builder: &'a E,
     identifiers_provider: IdentifiersProvider,
+
+    // This is needed to ensure the generic type parameter G is used in the struct.
+    // Else Rust will reject this, complaining that the type parameter is not used.
+    _effective_config_loader: PhantomData<G>,
 }
 
-impl<'a, O, I, HR, A, E> OnHostSubAgentBuilder<'a, O, I, HR, A, E>
+impl<'a, O, I, HR, A, E, G> OnHostSubAgentBuilder<'a, O, I, HR, A, E, G>
 where
-    O: OpAMPClientBuilder<SubAgentCallbacks>,
+    G: EffectiveConfigLoader,
+    O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
     I: InstanceIDGetter,
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
-    E: SubAgentEventProcessorBuilder<O::Client>,
+    E: SubAgentEventProcessorBuilder<O::Client, G>,
 {
     pub fn new(
         opamp_builder: Option<&'a O>,
@@ -74,17 +82,20 @@ where
             effective_agent_assembler,
             event_processor_builder,
             identifiers_provider,
+
+            _effective_config_loader: PhantomData,
         }
     }
 }
 
-impl<'a, O, I, HR, A, E> SubAgentBuilder for OnHostSubAgentBuilder<'a, O, I, HR, A, E>
+impl<'a, O, I, HR, A, E, G> SubAgentBuilder for OnHostSubAgentBuilder<'a, O, I, HR, A, E, G>
 where
-    O: OpAMPClientBuilder<SubAgentCallbacks>,
+    G: EffectiveConfigLoader,
+    O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
     I: InstanceIDGetter,
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
-    E: SubAgentEventProcessorBuilder<O::Client>,
+    E: SubAgentEventProcessorBuilder<O::Client, G>,
 {
     type NotStartedSubAgent =
         SubAgentOnHost<NotStarted<E::SubAgentEventProcessor>, command_supervisor::NotStarted>;
@@ -120,7 +131,7 @@ where
             &Environment::OnHost,
         );
 
-        let supervisors = build_supervisor_or_default::<HR, O, _, _>(
+        let supervisors = build_supervisor_or_default::<HR, O, _, _, _>(
             &agent_id,
             &self.hash_repository,
             &maybe_opamp_client,
