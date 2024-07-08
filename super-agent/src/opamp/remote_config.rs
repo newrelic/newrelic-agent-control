@@ -5,6 +5,8 @@ use std::collections::HashMap;
 use std::str::Utf8Error;
 use thiserror::Error;
 
+/// This structure represents the remote configuration that we would retrieve from a server via OpAMP.
+/// Contains identifying metadata and the actual configuration values
 #[derive(Debug, PartialEq, Clone)]
 pub struct RemoteConfig {
     pub agent_id: AgentID,
@@ -21,6 +23,7 @@ pub enum RemoteConfigError {
     InvalidConfig(String, String),
 }
 
+/// This structure represents the actual configuration values that are stored in the remote config.
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct ConfigurationMap(HashMap<String, String>);
 
