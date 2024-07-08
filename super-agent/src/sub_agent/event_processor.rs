@@ -116,8 +116,8 @@ where
                 select! {
                     recv(opamp_receiver.as_ref()) -> opamp_event_res => {
                         match opamp_event_res {
-                            Err(_) => {
-                                debug!("sub_agent_opamp_consumer :: channel closed");
+                            Err(e) => {
+                                debug!(error = ?e, select_arm = "sub_agent_opamp_consumer", "channel closed");
                                 break;
                             }
                             // TODO: the OpAMP flow when a remote configuration is received should be the same
@@ -130,32 +130,36 @@ where
                             // the current sub-agent supervisor and start a new one which will be in charge of notifying
                             // the APPLIED message.
                             Ok(OpAMPEvent::RemoteConfigReceived(remote_config)) => {
-                                debug!("remote config received for: {}", self.agent_id);
+                                debug!(agent_id = self.agent_id.to_string(),
+                                select_arm = "sub_agent_opamp_consumer",
+                "remote config received");
                                 if let Err(e) = self.remote_config(remote_config){
-                                     error!("error processing remote config: {}",e.to_string())
+                                     error!(error = ?e, select_arm = "sub_agent_opamp_consumer", "error processing remote config")
                                 }
                             }
                             _ => {}}
                     },
                     recv(&self.sub_agent_internal_consumer.as_ref()) -> sub_agent_internal_event_res => {
-                         match sub_agent_internal_event_res {
-                            Err(_) => {
-                                debug!("sub_agent_internal_consumer :: channel closed");
+                        match sub_agent_internal_event_res {
+                            Err(e) => {
+                                debug!(error = ?e, select_arm = "sub_agent_internal_consumer", "channel closed");
                                 break;
                             }
                             Ok(SubAgentInternalEvent::StopRequested) => {
-                                debug!("sub_agent_internal_consumer :: StopRequested");
+                                debug!(select_arm = "sub_agent_internal_consumer", "StopRequested");
                                 break;
                             },
                             Ok(SubAgentInternalEvent::AgentBecameUnhealthy(unhealthy, start_time))=>{
-                                debug!("sub_agent_internal_consumer :: UnhealthyAgent");
-                                let _ = self.on_health(HealthWithStartTime::new(unhealthy.into(), start_time)).inspect_err(|e| error!("error processing unhealthy status: {}",e));
+                                debug!(select_arm = "sub_agent_internal_consumer", "UnhealthyAgent");
+                                let _ = self.on_health(HealthWithStartTime::new(unhealthy.into(), start_time))
+                                    .inspect_err(|e| error!(error = ?e, select_arm = "sub_agent_internal_consumer", "processing unhealthy status"));
                             }
                             Ok(SubAgentInternalEvent::AgentBecameHealthy(healthy, start_time))=>{
-                                debug!("sub_agent_internal_consumer :: HealthyAgent");
-                                let _ = self.on_health(HealthWithStartTime::new(healthy.into(), start_time)).inspect_err(|e| error!("error processing healthy status: {}",e));
+                                debug!(select_arm = "sub_agent_internal_consumer", "HealthyAgent");
+                                let _ = self.on_health(HealthWithStartTime::new(healthy.into(), start_time))
+                                    .inspect_err(|e| error!(error = ?e, select_arm = "sub_agent_internal_consumer", "processing healthy status"));
                             }
-                         }
+                        }
                     }
                 }
             }
