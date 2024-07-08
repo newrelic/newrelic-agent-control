@@ -1,6 +1,7 @@
 use crate::agent_type::agent_values::AgentValues;
 use crate::agent_type::definition::AgentType;
 use crate::super_agent::config::AgentID;
+use tracing::debug;
 
 #[derive(thiserror::Error, Debug)]
 pub enum ValuesRepositoryError {
@@ -13,11 +14,40 @@ pub enum ValuesRepositoryError {
 }
 
 pub trait ValuesRepository {
+    /// load(...) looks for remote configs first, if unavailable checks the local ones.
+    /// If none is found, it fallbacks to the default values.
     fn load(
         &self,
         agent_id: &AgentID,
-        final_agent: &AgentType,
-    ) -> Result<AgentValues, ValuesRepositoryError>;
+        agent_type: &AgentType,
+    ) -> Result<AgentValues, ValuesRepositoryError> {
+        debug!(agent_id = agent_id.to_string(), "loading config");
+
+        if let Some(values_result) = self.load_remote(agent_id, agent_type)? {
+            return Ok(values_result);
+        }
+        debug!(
+            agent_id = agent_id.to_string(),
+            "remote config not found, loading local"
+        );
+
+        if let Some(values_result) = self.load_local(agent_id)? {
+            return Ok(values_result);
+        }
+        debug!(
+            agent_id = agent_id.to_string(),
+            "local config not found, falling back to defaults"
+        );
+        Ok(AgentValues::default())
+    }
+
+    fn load_local(&self, agent_id: &AgentID) -> Result<Option<AgentValues>, ValuesRepositoryError>;
+
+    fn load_remote(
+        &self,
+        agent_id: &AgentID,
+        agent_type: &AgentType,
+    ) -> Result<Option<AgentValues>, ValuesRepositoryError>;
 
     fn store_remote(
         &self,
@@ -44,13 +74,26 @@ pub mod test {
                 &self,
                 agent_id: &AgentID,
                 agent_values: &AgentValues,
-            ) -> Result<(), ValuesRepositoryError> ;
-             fn load(
+            ) -> Result<(), ValuesRepositoryError>;
+
+            fn delete_remote(&self, agent_id: &AgentID) -> Result<(), ValuesRepositoryError>;
+
+            fn load(
                 &self,
                 agent_id: &AgentID,
-                final_agent: &AgentType,
+                agent_type: &AgentType,
             ) -> Result<AgentValues, ValuesRepositoryError>;
-            fn delete_remote(&self, agent_id: &AgentID) -> Result<(), ValuesRepositoryError>;
+
+            fn load_local(
+                &self,
+                agent_id: &AgentID,
+            ) -> Result<Option<AgentValues>, ValuesRepositoryError>;
+
+            fn load_remote(
+                &self,
+                agent_id: &AgentID,
+                agent_type: &AgentType,
+            ) -> Result<Option<AgentValues>, ValuesRepositoryError>;
         }
     }
 
