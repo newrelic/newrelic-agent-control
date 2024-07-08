@@ -1,5 +1,4 @@
 use crate::event::SubAgentEvent;
-use crate::opamp::effective_config::loader::EffectiveConfigLoader;
 use crate::opamp::hash_repository::HashRepository;
 use crate::sub_agent::error::SubAgentError;
 use crate::sub_agent::event_processor::EventProcessor;
@@ -9,10 +8,9 @@ use crate::sub_agent::SubAgentCallbacks;
 use opamp_client::StartedClient;
 use tracing::error;
 
-impl<C, H, R, G> EventProcessor<C, H, R, G>
+impl<C, H, R> EventProcessor<C, H, R>
 where
-    G: EffectiveConfigLoader,
-    C: StartedClient<SubAgentCallbacks<G>> + 'static,
+    C: StartedClient<SubAgentCallbacks<R>> + 'static,
     H: HashRepository,
     R: ValuesRepository,
 {

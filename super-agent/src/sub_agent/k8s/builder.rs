@@ -5,13 +5,13 @@ use crate::event::channel::{pub_sub, EventPublisher};
 use crate::event::SubAgentEvent;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use crate::opamp::effective_config::loader::EffectiveConfigLoader;
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_sub_agent_opamp;
 use crate::sub_agent::build_supervisor_or_default;
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
 use crate::sub_agent::event_processor_builder::SubAgentEventProcessorBuilder;
+use crate::sub_agent::values::values_repository::ValuesRepository;
 use crate::sub_agent::{NotStarted, SubAgentCallbacks};
 use crate::super_agent::config::{AgentID, AgentTypeFQN, K8sConfig, SubAgentConfig};
 use crate::super_agent::defaults::CLUSTER_NAME_ATTRIBUTE_KEY;
@@ -27,14 +27,14 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 use tracing::debug;
 
-pub struct K8sSubAgentBuilder<'a, O, I, HR, A, E, G>
+pub struct K8sSubAgentBuilder<'a, O, I, HR, A, E, R>
 where
-    G: EffectiveConfigLoader,
-    O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
+    R: ValuesRepository,
+    O: OpAMPClientBuilder<SubAgentCallbacks<R>>,
     I: InstanceIDGetter,
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
-    E: SubAgentEventProcessorBuilder<O::Client, G>,
+    E: SubAgentEventProcessorBuilder<O::Client, R>,
 {
     opamp_builder: Option<&'a O>,
     instance_id_getter: &'a I,
@@ -44,19 +44,17 @@ where
     event_processor_builder: &'a E,
     k8s_config: K8sConfig,
 
-    // This is needed to ensure the generic type parameter G is used in the struct.
-    // Else Rust will reject this, complaining that the type parameter is not used.
-    _effective_config_loader: PhantomData<G>,
+    _phantom_r: PhantomData<R>,
 }
 
-impl<'a, O, I, HR, A, E, G> K8sSubAgentBuilder<'a, O, I, HR, A, E, G>
+impl<'a, O, I, HR, A, E, R> K8sSubAgentBuilder<'a, O, I, HR, A, E, R>
 where
-    G: EffectiveConfigLoader,
-    O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
+    R: ValuesRepository,
+    O: OpAMPClientBuilder<SubAgentCallbacks<R>>,
     I: InstanceIDGetter,
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
-    E: SubAgentEventProcessorBuilder<O::Client, G>,
+    E: SubAgentEventProcessorBuilder<O::Client, R>,
 {
     pub fn new(
         opamp_builder: Option<&'a O>,
@@ -76,19 +74,19 @@ where
             event_processor_builder,
             k8s_config,
 
-            _effective_config_loader: PhantomData,
+            _phantom_r: PhantomData,
         }
     }
 }
 
-impl<'a, O, I, HR, A, E, G> SubAgentBuilder for K8sSubAgentBuilder<'a, O, I, HR, A, E, G>
+impl<'a, O, I, HR, A, E, R> SubAgentBuilder for K8sSubAgentBuilder<'a, O, I, HR, A, E, R>
 where
-    G: EffectiveConfigLoader,
-    O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
+    R: ValuesRepository,
+    O: OpAMPClientBuilder<SubAgentCallbacks<R>>,
     I: InstanceIDGetter,
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
-    E: SubAgentEventProcessorBuilder<O::Client, G>,
+    E: SubAgentEventProcessorBuilder<O::Client, R>,
 {
     type NotStartedSubAgent =
         SubAgentK8s<NotStarted<E::SubAgentEventProcessor>, NotStartedSupervisor>;
@@ -224,7 +222,6 @@ pub mod test {
     use crate::agent_type::runtime_config::{Deployment, Runtime};
     use crate::event::channel::pub_sub;
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
-    use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
     use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
     use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
     use crate::opamp::instance_id::InstanceID;
@@ -235,6 +232,7 @@ pub mod test {
     use crate::sub_agent::event_processor::test::MockEventProcessorMock;
     use crate::sub_agent::event_processor_builder::test::MockSubAgentEventProcessorBuilderMock;
     use crate::sub_agent::k8s::sub_agent::test::TEST_AGENT_ID;
+    use crate::sub_agent::values::values_repository::test::MockRemoteValuesRepositoryMock;
     use crate::super_agent::config::AgentTypeFQN;
     use crate::super_agent::defaults::PARENT_AGENT_ID_ATTRIBUTE_KEY;
     use crate::{
@@ -379,7 +377,7 @@ pub mod test {
         sub_agent_config: SubAgentConfig,
         agent_id: AgentID,
     ) -> (
-        MockOpAMPClientBuilderMock<SubAgentCallbacks<MockEffectiveConfigLoaderMock>>,
+        MockOpAMPClientBuilderMock<SubAgentCallbacks<MockRemoteValuesRepositoryMock>>,
         MockInstanceIDGetterMock,
         MockHashRepositoryMock,
     ) {

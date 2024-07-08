@@ -109,6 +109,14 @@ impl TryFrom<String> for AgentValues {
     }
 }
 
+impl TryInto<String> for AgentValues {
+    type Error = AgentValuesError;
+
+    fn try_into(self) -> Result<String, Self::Error> {
+        Ok(serde_yaml::to_string(&self)?)
+    }
+}
+
 #[cfg(test)]
 mod tests {
 

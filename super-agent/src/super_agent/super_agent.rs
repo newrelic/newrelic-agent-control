@@ -6,7 +6,6 @@ use crate::event::{
     channel::{pub_sub, EventConsumer, EventPublisher},
     ApplicationEvent, OpAMPEvent, SubAgentEvent, SuperAgentEvent,
 };
-use crate::opamp::effective_config::loader::EffectiveConfigLoader;
 use crate::opamp::{
     callbacks::AgentCallbacks,
     hash_repository::HashRepository,
@@ -15,6 +14,7 @@ use crate::opamp::{
     remote_config_report::report_remote_config_status_applied,
 };
 use crate::sub_agent::health::health_checker::{Health, Healthy, Unhealthy};
+use crate::sub_agent::values::values_repository::ValuesRepository;
 use crate::sub_agent::{
     collection::{NotStartedSubAgents, StartedSubAgents},
     error::SubAgentBuilderError,
@@ -33,12 +33,12 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 use tracing::{debug, error, info, trace, warn};
 
-pub(super) type SuperAgentCallbacks<C> = AgentCallbacks<C>;
+pub(super) type SuperAgentCallbacks<R> = AgentCallbacks<R>;
 
-pub struct SuperAgent<S, O, HR, SL, C>
+pub struct SuperAgent<S, O, HR, SL, R>
 where
-    C: EffectiveConfigLoader,
-    O: StartedClient<SuperAgentCallbacks<C>>,
+    R: ValuesRepository,
+    O: StartedClient<SuperAgentCallbacks<R>>,
     HR: HashRepository,
     SL: SuperAgentDynamicConfigStorer
         + SuperAgentDynamicConfigLoader
@@ -52,15 +52,13 @@ where
     pub(super) sa_dynamic_config_store: Arc<SL>,
     pub(super) super_agent_publisher: EventPublisher<SuperAgentEvent>,
 
-    // This is needed to ensure the generic type parameter C is used in the struct.
-    // Else Rust will reject this, complaining that the type parameter is not used.
-    _effective_config_loader: PhantomData<C>,
+    _phantom_r: PhantomData<R>,
 }
 
-impl<S, O, HR, SL, C> SuperAgent<S, O, HR, SL, C>
+impl<S, O, HR, SL, R> SuperAgent<S, O, HR, SL, R>
 where
-    C: EffectiveConfigLoader,
-    O: StartedClient<SuperAgentCallbacks<C>>,
+    R: ValuesRepository,
+    O: StartedClient<SuperAgentCallbacks<R>>,
     HR: HashRepository,
     S: SubAgentBuilder,
     SL: SuperAgentDynamicConfigStorer
@@ -83,7 +81,7 @@ where
             sa_dynamic_config_store: sub_agents_config_store,
             super_agent_publisher,
 
-            _effective_config_loader: PhantomData,
+            _phantom_r: PhantomData,
         }
     }
 
@@ -465,13 +463,15 @@ pub fn super_agent_fqn() -> AgentTypeFQN {
 mod tests {
     use crate::event::channel::{pub_sub, EventPublisher};
     use crate::event::{ApplicationEvent, OpAMPEvent, SubAgentEvent, SuperAgentEvent};
+    use crate::opamp::callbacks::AgentCallbacks;
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
-    use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
     use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
     use crate::opamp::hash_repository::HashRepository;
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
     use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
+    use crate::sub_agent::values::values_repository::test::MockRemoteValuesRepositoryMock;
+    use crate::sub_agent::values::values_repository::ValuesRepository;
     use crate::sub_agent::{test::MockSubAgentBuilderMock, SubAgentBuilder};
     use crate::super_agent::config::{
         AgentID, AgentTypeFQN, SubAgentConfig, SuperAgentDynamicConfig,
@@ -499,9 +499,10 @@ mod tests {
     ////////////////////////////////////////////////////////////////////////////////////
     // Custom Agent constructor for tests
     ////////////////////////////////////////////////////////////////////////////////////
-    impl<S, O, HR, SL> SuperAgent<S, O, HR, SL, MockEffectiveConfigLoaderMock>
+    impl<S, O, HR, SL, R> SuperAgent<S, O, HR, SL, R>
     where
-        O: StartedClient<SuperAgentCallbacks<MockEffectiveConfigLoaderMock>>,
+        R: ValuesRepository,
+        O: StartedClient<SuperAgentCallbacks<R>>,
         HR: HashRepository,
         S: SubAgentBuilder,
         SL: SuperAgentDynamicConfigStorer
@@ -522,7 +523,8 @@ mod tests {
                 agent_id: AgentID::new_super_agent_id(),
                 sa_dynamic_config_store: Arc::new(sub_agents_config_store),
                 super_agent_publisher,
-                _effective_config_loader: PhantomData,
+
+                _phantom_r: PhantomData,
             }
         }
     }
@@ -531,7 +533,9 @@ mod tests {
     fn run_and_stop_supervisors_no_agents() {
         let mut sub_agents_config_store = MockSuperAgentDynamicConfigStore::new();
         let mut hash_repository_mock = MockHashRepositoryMock::new();
-        let mut started_client = MockStartedOpAMPClientMock::new();
+        let mut started_client: MockStartedOpAMPClientMock<
+            AgentCallbacks<MockRemoteValuesRepositoryMock>,
+        > = MockStartedOpAMPClientMock::new();
         started_client.should_set_healthy();
         started_client.should_stop(1);
 
@@ -576,7 +580,9 @@ mod tests {
         let sub_agents_config = sub_agents_default_config();
 
         // Super Agent OpAMP
-        let mut started_client = MockStartedOpAMPClientMock::new();
+        let mut started_client: MockStartedOpAMPClientMock<
+            AgentCallbacks<MockRemoteValuesRepositoryMock>,
+        > = MockStartedOpAMPClientMock::new();
         started_client.should_set_healthy();
         started_client.should_stop(1);
 
@@ -620,7 +626,9 @@ mod tests {
         let mut sub_agent_builder = MockSubAgentBuilderMock::new();
 
         // Super Agent OpAMP
-        let mut started_client = MockStartedOpAMPClientMock::new();
+        let mut started_client: MockStartedOpAMPClientMock<
+            AgentCallbacks<MockRemoteValuesRepositoryMock>,
+        > = MockStartedOpAMPClientMock::new();
         started_client.should_set_health(2);
         // applying and applied
         started_client
@@ -719,7 +727,9 @@ agents:
         let sub_agent_builder = MockSubAgentBuilderMock::new();
 
         // Super Agent OpAMP
-        let mut started_client = MockStartedOpAMPClientMock::new();
+        let mut started_client: MockStartedOpAMPClientMock<
+            AgentCallbacks<MockRemoteValuesRepositoryMock>,
+        > = MockStartedOpAMPClientMock::new();
         started_client.should_set_health(1);
 
         let sub_agents_config_store = MockSuperAgentDynamicConfigStore::new();
@@ -774,7 +784,9 @@ agents:
         let sub_agent_builder = MockSubAgentBuilderMock::new();
 
         // Super Agent OpAMP
-        let mut started_client = MockStartedOpAMPClientMock::new();
+        let mut started_client: MockStartedOpAMPClientMock<
+            AgentCallbacks<MockRemoteValuesRepositoryMock>,
+        > = MockStartedOpAMPClientMock::new();
         started_client.should_set_health(1);
 
         let sub_agents_config_store = MockSuperAgentDynamicConfigStore::new();
@@ -884,7 +896,7 @@ agents:
 
         // Create the Super Agent and rub Sub Agents
         let super_agent = SuperAgent::new_custom(
-            None::<MockStartedOpAMPClientMock<SuperAgentCallbacks<MockEffectiveConfigLoaderMock>>>,
+            None::<MockStartedOpAMPClientMock<SuperAgentCallbacks<MockRemoteValuesRepositoryMock>>>,
             Arc::new(hash_repository_mock),
             sub_agent_builder,
             sub_agents_config_store,
@@ -1024,7 +1036,9 @@ agents:
         let (_super_agent_opamp_publisher, super_agent_opamp_consumer) = pub_sub();
 
         //OpAMP client should report healthy
-        let mut opamp_client_mock = MockStartedOpAMPClientMock::new();
+        let mut opamp_client_mock: MockStartedOpAMPClientMock<
+            AgentCallbacks<MockRemoteValuesRepositoryMock>,
+        > = MockStartedOpAMPClientMock::new();
         opamp_client_mock.should_set_healthy();
 
         let (super_agent_publisher, _super_agent_consumer) = pub_sub();
@@ -1077,7 +1091,9 @@ agents:
         let sub_agent_builder = MockSubAgentBuilderMock::new();
 
         // Super Agent OpAMP
-        let mut started_client = MockStartedOpAMPClientMock::new();
+        let mut started_client: MockStartedOpAMPClientMock<
+            AgentCallbacks<MockRemoteValuesRepositoryMock>,
+        > = MockStartedOpAMPClientMock::new();
         started_client.should_set_health(2);
         // applying and applied
         started_client
@@ -1175,7 +1191,9 @@ agents:
         let sub_agent_builder = MockSubAgentBuilderMock::new();
 
         // Super Agent OpAMP
-        let mut started_client = MockStartedOpAMPClientMock::new();
+        let mut started_client: MockStartedOpAMPClientMock<
+            AgentCallbacks<MockRemoteValuesRepositoryMock>,
+        > = MockStartedOpAMPClientMock::new();
         // set healthy on start processing events
         started_client.should_set_healthy();
         // set unhealthy on invalid config
@@ -1255,7 +1273,9 @@ agents:
         let sub_agent_builder = MockSubAgentBuilderMock::new();
 
         // Super Agent OpAMP
-        let mut started_client = MockStartedOpAMPClientMock::new();
+        let mut started_client: MockStartedOpAMPClientMock<
+            AgentCallbacks<MockRemoteValuesRepositoryMock>,
+        > = MockStartedOpAMPClientMock::new();
         // set healthy on start processing events
         started_client.should_set_healthy();
 
@@ -1316,7 +1336,9 @@ agents:
         let sub_agent_builder = MockSubAgentBuilderMock::new();
 
         // Super Agent OpAMP
-        let mut started_client = MockStartedOpAMPClientMock::new();
+        let mut started_client: MockStartedOpAMPClientMock<
+            AgentCallbacks<MockRemoteValuesRepositoryMock>,
+        > = MockStartedOpAMPClientMock::new();
         // set healthy on start processing events
         started_client.should_set_healthy();
 
@@ -1400,7 +1422,9 @@ agents:
         let sub_agent_builder = MockSubAgentBuilderMock::new();
 
         // Super Agent OpAMP
-        let mut started_client = MockStartedOpAMPClientMock::new();
+        let mut started_client: MockStartedOpAMPClientMock<
+            AgentCallbacks<MockRemoteValuesRepositoryMock>,
+        > = MockStartedOpAMPClientMock::new();
         // set healthy on start processing events
         started_client.should_set_healthy();
 
@@ -1485,7 +1509,9 @@ agents:
         let sub_agent_builder = MockSubAgentBuilderMock::new();
 
         // Super Agent OpAMP
-        let mut started_client = MockStartedOpAMPClientMock::new();
+        let mut started_client: MockStartedOpAMPClientMock<
+            AgentCallbacks<MockRemoteValuesRepositoryMock>,
+        > = MockStartedOpAMPClientMock::new();
         started_client.should_set_health(2);
         // applying and applied
         started_client

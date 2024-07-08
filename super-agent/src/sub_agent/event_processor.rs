@@ -1,6 +1,5 @@
 use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
-use crate::opamp::effective_config::loader::EffectiveConfigLoader;
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::operations::stop_opamp_client;
 use crate::sub_agent::error::SubAgentError;
@@ -11,7 +10,6 @@ use crate::super_agent::config::AgentID;
 use crossbeam::channel::never;
 use crossbeam::select;
 use opamp_client::StartedClient;
-use std::marker::PhantomData;
 use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
@@ -23,10 +21,9 @@ pub trait SubAgentEventProcessor {
     fn process(self) -> JoinHandle<Result<(), SubAgentError>>;
 }
 
-pub struct EventProcessor<C, H, R, G>
+pub struct EventProcessor<C, H, R>
 where
-    G: EffectiveConfigLoader,
-    C: StartedClient<SubAgentCallbacks<G>> + 'static,
+    C: StartedClient<SubAgentCallbacks<R>> + 'static,
     H: HashRepository,
     R: ValuesRepository,
 {
@@ -37,16 +34,11 @@ where
     pub(crate) maybe_opamp_client: Option<C>,
     pub(crate) sub_agent_remote_config_hash_repository: Arc<H>,
     pub(crate) remote_values_repo: Arc<R>,
-
-    // This is needed to ensure the generic type parameter G is used in the struct.
-    // Else Rust will reject this, complaining that the type parameter is not used.
-    _effective_config_loader: PhantomData<G>,
 }
 
-impl<C, H, R, G> EventProcessor<C, H, R, G>
+impl<C, H, R> EventProcessor<C, H, R>
 where
-    G: EffectiveConfigLoader,
-    C: StartedClient<SubAgentCallbacks<G>> + 'static,
+    C: StartedClient<SubAgentCallbacks<R>> + 'static,
     H: HashRepository,
     R: ValuesRepository,
 {
@@ -67,9 +59,6 @@ where
             maybe_opamp_client,
             sub_agent_remote_config_hash_repository,
             remote_values_repo,
-
-            // This was needed to ensure the generic type parameter G is used in the struct
-            _effective_config_loader: PhantomData,
         }
     }
 
@@ -78,10 +67,9 @@ where
     }
 }
 
-impl<C, H, R, G> SubAgentEventProcessor for EventProcessor<C, H, R, G>
+impl<C, H, R> SubAgentEventProcessor for EventProcessor<C, H, R>
 where
-    G: EffectiveConfigLoader,
-    C: StartedClient<SubAgentCallbacks<G>> + 'static,
+    C: StartedClient<SubAgentCallbacks<R>> + 'static,
     H: HashRepository + Send + Sync + 'static,
     R: ValuesRepository + Send + Sync + 'static,
 {
@@ -168,7 +156,6 @@ pub mod test {
     use crate::event::SubAgentEvent::ConfigUpdated;
     use crate::opamp::callbacks::AgentCallbacks;
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
-    use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
     use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
     use crate::opamp::remote_config_hash::Hash;
@@ -206,9 +193,8 @@ pub mod test {
     #[traced_test]
     #[test]
     fn test_event_loop_is_closed() {
-        let mut opamp_client: MockStartedOpAMPClientMock<
-            AgentCallbacks<MockEffectiveConfigLoaderMock>,
-        > = MockStartedOpAMPClientMock::new();
+        let mut opamp_client: MockStartedOpAMPClientMock<AgentCallbacks<_>> =
+            MockStartedOpAMPClientMock::new();
         let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
         let (sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
         let (_sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
@@ -243,9 +229,8 @@ pub mod test {
     #[traced_test]
     #[test]
     fn test_remote_config() {
-        let mut opamp_client: MockStartedOpAMPClientMock<
-            AgentCallbacks<MockEffectiveConfigLoaderMock>,
-        > = MockStartedOpAMPClientMock::new();
+        let mut opamp_client: MockStartedOpAMPClientMock<AgentCallbacks<_>> =
+            MockStartedOpAMPClientMock::new();
         let (sub_agent_publisher, sub_agent_consumer) = pub_sub();
         let (sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
         let (_sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();

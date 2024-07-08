@@ -2,8 +2,8 @@ use opamp_client::StartedClient;
 use tracing::{error, info};
 
 use crate::event::SubAgentEvent;
-use crate::opamp::effective_config::loader::EffectiveConfigLoader;
 use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
+use crate::sub_agent::values::values_repository::ValuesRepository;
 use crate::super_agent::config_storer::loader_storer::{
     SuperAgentDynamicConfigDeleter, SuperAgentDynamicConfigLoader, SuperAgentDynamicConfigStorer,
 };
@@ -24,10 +24,10 @@ use crate::{
     },
 };
 
-impl<S, O, HR, SL, G> SuperAgent<S, O, HR, SL, G>
+impl<S, O, HR, SL, R> SuperAgent<S, O, HR, SL, R>
 where
-    G: EffectiveConfigLoader,
-    O: StartedClient<SuperAgentCallbacks<G>>,
+    R: ValuesRepository,
+    O: StartedClient<SuperAgentCallbacks<R>>,
     HR: HashRepository,
     S: SubAgentBuilder,
     SL: SuperAgentDynamicConfigStorer
@@ -85,6 +85,7 @@ mod tests {
     use crate::{
         event::channel::pub_sub,
         opamp::{
+            callbacks::AgentCallbacks,
             client_builder::test::MockStartedOpAMPClientMock,
             hash_repository::repository::test::MockHashRepositoryMock,
             remote_config::{ConfigurationMap, RemoteConfig},
@@ -93,6 +94,7 @@ mod tests {
         sub_agent::{
             collection::StartedSubAgents,
             test::{MockStartedSubAgent, MockSubAgentBuilderMock},
+            values::values_repository::test::MockRemoteValuesRepositoryMock,
         },
         super_agent::{
             config::{AgentID, SubAgentConfig, SuperAgentDynamicConfig},
@@ -111,7 +113,9 @@ mod tests {
         let sub_agent_builder = MockSubAgentBuilderMock::new();
         let mut sub_agents_config_store = MockSuperAgentDynamicConfigStore::new();
         let hash_repository_mock = Arc::new(MockHashRepositoryMock::new());
-        let mut started_client = MockStartedOpAMPClientMock::new();
+        let mut started_client: MockStartedOpAMPClientMock<
+            AgentCallbacks<MockRemoteValuesRepositoryMock>,
+        > = MockStartedOpAMPClientMock::new();
 
         // Structs
         let mut running_sub_agents = StartedSubAgents::default();
@@ -172,7 +176,9 @@ mod tests {
         let sub_agent_builder = MockSubAgentBuilderMock::new();
         let mut sub_agents_config_store = MockSuperAgentDynamicConfigStore::new();
         let mut hash_repository_mock = MockHashRepositoryMock::new();
-        let mut started_client = MockStartedOpAMPClientMock::new();
+        let mut started_client: MockStartedOpAMPClientMock<
+            AgentCallbacks<MockRemoteValuesRepositoryMock>,
+        > = MockStartedOpAMPClientMock::new();
 
         // Structs
         let mut started_sub_agent = MockStartedSubAgent::new();

@@ -13,7 +13,7 @@ pub enum ValuesRepositoryError {
     DeleteError(String),
 }
 
-pub trait ValuesRepository {
+pub trait ValuesRepository: Send + Sync + 'static {
     /// load(...) looks for remote configs first, if unavailable checks the local ones.
     /// If none is found, it fallbacks to the default values.
     fn load(

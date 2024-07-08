@@ -1,8 +1,8 @@
 use crate::event::channel::EventPublisher;
 use crate::event::SubAgentEvent;
-use crate::opamp::effective_config::loader::EffectiveConfigLoader;
 use crate::opamp::hash_repository::HashRepository;
 use crate::sub_agent::collection::StartedSubAgents;
+use crate::sub_agent::values::values_repository::ValuesRepository;
 use crate::sub_agent::{NotStartedSubAgent, SubAgentBuilder};
 use crate::super_agent::config::{AgentID, SuperAgentConfigError};
 use crate::super_agent::config_storer::loader_storer::{
@@ -12,10 +12,10 @@ use crate::super_agent::error::AgentError;
 use crate::super_agent::{SuperAgent, SuperAgentCallbacks};
 use opamp_client::StartedClient;
 
-impl<S, O, HR, SL, G> SuperAgent<S, O, HR, SL, G>
+impl<S, O, HR, SL, R> SuperAgent<S, O, HR, SL, R>
 where
-    G: EffectiveConfigLoader,
-    O: StartedClient<SuperAgentCallbacks<G>>,
+    R: ValuesRepository,
+    O: StartedClient<SuperAgentCallbacks<R>>,
     HR: HashRepository,
     S: SubAgentBuilder,
     SL: SuperAgentDynamicConfigStorer

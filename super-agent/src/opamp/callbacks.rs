@@ -1,10 +1,16 @@
-use super::effective_config::{error::EffectiveConfigError, loader::EffectiveConfigLoader};
-use crate::event::{
-    channel::{EventPublisher, EventPublisherError},
-    OpAMPEvent,
+use super::effective_config::{
+    error::EffectiveConfigError,
+    loader::{EffectiveConfigLoader, EffectiveConfigLoaderImpl},
 };
 use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
 use crate::opamp::remote_config_hash::Hash;
+use crate::{
+    event::{
+        channel::{EventPublisher, EventPublisherError},
+        OpAMPEvent,
+    },
+    sub_agent::values::values_repository::ValuesRepository,
+};
 use crate::{opamp::remote_config::RemoteConfigError, super_agent::config::AgentID};
 use opamp_client::{
     error::ConnectionError,
@@ -38,23 +44,23 @@ pub enum AgentCallbacksError {
 }
 
 /// This component implements the OpAMP client callbacks process the messages and publish events on `crate::event::OpAMPEvent`.
-pub struct AgentCallbacks<C>
+pub struct AgentCallbacks<R>
 where
-    C: EffectiveConfigLoader,
+    R: ValuesRepository,
 {
     agent_id: AgentID,
     publisher: EventPublisher<OpAMPEvent>,
-    effective_config_loader: C,
+    effective_config_loader: EffectiveConfigLoaderImpl<R>,
 }
 
-impl<C> AgentCallbacks<C>
+impl<R> AgentCallbacks<R>
 where
-    C: EffectiveConfigLoader,
+    R: ValuesRepository,
 {
     pub fn new(
         agent_id: AgentID,
         publisher: EventPublisher<OpAMPEvent>,
-        effective_config_loader: C,
+        effective_config_loader: EffectiveConfigLoaderImpl<R>,
     ) -> Self {
         Self {
             agent_id,
@@ -141,9 +147,9 @@ where
     }
 }
 
-impl<C> Callbacks for AgentCallbacks<C>
+impl<R> Callbacks for AgentCallbacks<R>
 where
-    C: EffectiveConfigLoader,
+    R: ValuesRepository,
 {
     type Error = AgentCallbacksError;
 
@@ -244,9 +250,10 @@ pub(crate) mod tests {
     use super::*;
     use crate::event::channel::pub_sub;
     use crate::event::OpAMPEvent;
-    use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
+    use crate::opamp::effective_config::loader::MockEffectiveConfigLoader;
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
     use crate::opamp::remote_config_hash::Hash;
+    use crate::sub_agent::values::values_repository::test::MockRemoteValuesRepositoryMock;
     use opamp_client::opamp::proto::{AgentConfigFile, AgentConfigMap, AgentRemoteConfig};
     use std::collections::HashMap;
     use std::time::Duration;
@@ -254,7 +261,8 @@ pub(crate) mod tests {
     #[test]
     fn test_connect() {
         let (event_publisher, event_consumer) = pub_sub();
-        let effective_config_loader = MockEffectiveConfigLoaderMock::new();
+        let effective_config_loader: EffectiveConfigLoaderImpl<MockRemoteValuesRepositoryMock> =
+            EffectiveConfigLoaderImpl::Mock(MockEffectiveConfigLoader::default());
 
         let callbacks = AgentCallbacks::new(
             AgentID::new("agent").unwrap(),
@@ -276,7 +284,8 @@ pub(crate) mod tests {
     #[test]
     fn test_connect_fail() {
         let (event_publisher, event_consumer) = pub_sub();
-        let effective_config_loader = MockEffectiveConfigLoaderMock::new();
+        let effective_config_loader: EffectiveConfigLoaderImpl<MockRemoteValuesRepositoryMock> =
+            EffectiveConfigLoaderImpl::Mock(MockEffectiveConfigLoader::default());
 
         let callbacks = AgentCallbacks::new(
             AgentID::new("agent").unwrap(),
@@ -329,7 +338,9 @@ pub(crate) mod tests {
                 let agent_id = AgentID::new("an-agent-id").unwrap();
 
                 let (event_publisher, event_consumer) = pub_sub();
-                let effective_config_loader = MockEffectiveConfigLoaderMock::new();
+                let effective_config_loader: EffectiveConfigLoaderImpl<
+                    MockRemoteValuesRepositoryMock,
+                > = EffectiveConfigLoaderImpl::Mock(MockEffectiveConfigLoader::default());
 
                 let callbacks =
                     AgentCallbacks::new(agent_id.clone(), event_publisher, effective_config_loader);
@@ -473,12 +484,15 @@ pub(crate) mod tests {
     #[test]
     fn test_get_effective_config() {
         let (event_publisher, _event_consumer) = pub_sub();
-        let mut effective_config_loader = MockEffectiveConfigLoaderMock::new();
 
-        effective_config_loader
+        let mut loader = MockEffectiveConfigLoader::new();
+        loader
             .expect_load()
             .once()
             .returning(|| Ok(ConfigurationMap::default()));
+
+        let effective_config_loader: EffectiveConfigLoaderImpl<MockRemoteValuesRepositoryMock> =
+            EffectiveConfigLoaderImpl::Mock(loader);
 
         let callbacks = AgentCallbacks::new(
             AgentID::new("agent").unwrap(),
@@ -498,12 +512,15 @@ pub(crate) mod tests {
     #[test]
     fn test_get_effective_config_err() {
         let (event_publisher, _event_consumer) = pub_sub();
-        let mut effective_config_loader = MockEffectiveConfigLoaderMock::new();
 
-        effective_config_loader
+        let mut loader = MockEffectiveConfigLoader::new();
+        loader
             .expect_load()
             .once()
             .returning(|| Err("loader error".to_string().into()));
+
+        let effective_config_loader: EffectiveConfigLoaderImpl<MockRemoteValuesRepositoryMock> =
+            EffectiveConfigLoaderImpl::Mock(loader);
 
         let callbacks = AgentCallbacks::new(
             AgentID::new("agent").unwrap(),

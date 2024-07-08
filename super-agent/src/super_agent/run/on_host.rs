@@ -1,4 +1,4 @@
-use crate::opamp::effective_config::loader::EffectiveConfigLoaderBuilder;
+use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::Identifiers;
 use crate::opamp::operations::build_opamp_with_channel;
@@ -33,18 +33,37 @@ use std::sync::Arc;
 use tokio::runtime::Runtime;
 use tracing::info;
 
-pub fn run_super_agent<C: HttpClientBuilder, B: EffectiveConfigLoaderBuilder>(
+pub fn run_super_agent<C: HttpClientBuilder>(
     _runtime: Arc<Runtime>,
     sa_config_storer: SuperAgentConfigStore,
     application_events_consumer: EventConsumer<ApplicationEvent>,
-    opamp_client_builder: Option<DefaultOpAMPClientBuilder<C, B>>,
+    opamp_http_builder: Option<C>,
     super_agent_publisher: EventPublisher<SuperAgentEvent>,
 ) -> Result<(), AgentError> {
     // enable remote config store
-    let config_storer = if opamp_client_builder.is_some() {
+    let config_storer = if opamp_http_builder.is_some() {
         Arc::new(sa_config_storer.with_remote())
     } else {
         Arc::new(sa_config_storer)
+    };
+
+    let mut vr = ValuesRepositoryFile::default();
+    if opamp_http_builder.is_some() {
+        vr = vr.with_remote();
+    }
+    let values_repository = Arc::new(vr);
+
+    let opamp_client_builder = match opamp_http_builder {
+        Some(http_builder) => {
+            let effective_config_loader_builder =
+                DefaultEffectiveConfigLoaderBuilder::new(values_repository.clone());
+
+            Some(DefaultOpAMPClientBuilder::new(
+                http_builder,
+                effective_config_loader_builder,
+            ))
+        }
+        None => None,
     };
 
     let config = config_storer.load()?;
@@ -61,12 +80,6 @@ pub fn run_super_agent<C: HttpClientBuilder, B: EffectiveConfigLoaderBuilder>(
 
     let instance_id_getter =
         InstanceIDWithIdentifiersGetter::default().with_identifiers(identifiers);
-
-    let mut vr = ValuesRepositoryFile::default();
-    if opamp_client_builder.is_some() {
-        vr = vr.with_remote();
-    }
-    let values_repository = Arc::new(vr);
 
     let hash_repository = Arc::new(HashRepositoryFile::default());
     let agents_assembler = LocalEffectiveAgentsAssembler::new(values_repository.clone())

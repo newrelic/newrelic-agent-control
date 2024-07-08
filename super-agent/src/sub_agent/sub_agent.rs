@@ -1,9 +1,9 @@
 use super::error::SubAgentBuilderError;
+use super::values::values_repository::ValuesRepository;
 use crate::event::channel::EventPublisher;
 use crate::event::SubAgentEvent;
 use crate::opamp::callbacks::AgentCallbacks;
 use crate::opamp::client_builder::OpAMPClientBuilder;
-use crate::opamp::effective_config::loader::EffectiveConfigLoader;
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::remote_config_report::report_remote_config_status_applied;
 use crate::opamp::remote_config_report::report_remote_config_status_error;
@@ -17,7 +17,7 @@ use std::sync::Arc;
 use std::thread::JoinHandle;
 use tracing::{debug, error, warn};
 
-pub(crate) type SubAgentCallbacks<C> = AgentCallbacks<C>;
+pub(crate) type SubAgentCallbacks<R> = AgentCallbacks<R>;
 
 /// NotStartedSubAgent exposes a run method that starts processing events and, if present, the supervisors.
 pub trait NotStartedSubAgent {
@@ -49,7 +49,7 @@ pub trait SubAgentBuilder {
     ) -> Result<Self::NotStartedSubAgent, error::SubAgentBuilderError>;
 }
 
-pub(crate) fn build_supervisor_or_default<HR, O, T, F, C>(
+pub(crate) fn build_supervisor_or_default<HR, O, T, F, R>(
     agent_id: &AgentID,
     hash_repository: &Arc<HR>,
     maybe_opamp_client: &Option<O::Client>,
@@ -58,8 +58,8 @@ pub(crate) fn build_supervisor_or_default<HR, O, T, F, C>(
 ) -> Result<T, SubAgentBuilderError>
 where
     HR: HashRepository,
-    C: EffectiveConfigLoader,
-    O: OpAMPClientBuilder<SubAgentCallbacks<C>>,
+    R: ValuesRepository,
+    O: OpAMPClientBuilder<SubAgentCallbacks<R>>,
     T: Default,
     F: FnOnce(EffectiveAgent) -> Result<T, SubAgentBuilderError>,
 {
@@ -129,10 +129,10 @@ pub mod test {
         agent_type::runtime_config::Runtime,
         opamp::{
             client_builder::test::{MockOpAMPClientBuilderMock, MockStartedOpAMPClientMock},
-            effective_config::loader::tests::MockEffectiveConfigLoaderMock,
             hash_repository::repository::test::MockHashRepositoryMock,
             remote_config_hash::Hash,
         },
+        sub_agent::values::values_repository::test::MockRemoteValuesRepositoryMock,
     };
     use mockall::{mock, predicate, Sequence};
     use opamp_client::opamp::proto::{RemoteConfigStatus, RemoteConfigStatuses};
@@ -267,7 +267,9 @@ pub mod test {
             .returning(|_, _| Ok(()));
 
         // Expected calls on the opamp client
-        let mut started_opamp_client = MockStartedOpAMPClientMock::new();
+        let mut started_opamp_client: MockStartedOpAMPClientMock<
+            AgentCallbacks<MockRemoteValuesRepositoryMock>,
+        > = MockStartedOpAMPClientMock::new();
         started_opamp_client
             .expect_set_remote_config_status()
             .once()
@@ -281,7 +283,7 @@ pub mod test {
         // Actual test
         let actual = build_supervisor_or_default::<
             MockHashRepositoryMock,
-            MockOpAMPClientBuilderMock<SubAgentCallbacks<MockEffectiveConfigLoaderMock>>,
+            MockOpAMPClientBuilderMock<SubAgentCallbacks<_>>,
             _,
             _,
             _,
@@ -340,7 +342,7 @@ pub mod test {
         // Actual test
         let actual = build_supervisor_or_default::<
             MockHashRepositoryMock,
-            MockOpAMPClientBuilderMock<SubAgentCallbacks<MockEffectiveConfigLoaderMock>>,
+            MockOpAMPClientBuilderMock<SubAgentCallbacks<MockRemoteValuesRepositoryMock>>,
             _,
             _,
             _,
@@ -377,7 +379,7 @@ pub mod test {
         // Actual test
         let actual = build_supervisor_or_default::<
             MockHashRepositoryMock,
-            MockOpAMPClientBuilderMock<SubAgentCallbacks<MockEffectiveConfigLoaderMock>>,
+            MockOpAMPClientBuilderMock<SubAgentCallbacks<MockRemoteValuesRepositoryMock>>,
             _,
             _,
             _,
@@ -420,7 +422,7 @@ pub mod test {
         // Actual test
         let actual = build_supervisor_or_default::<
             MockHashRepositoryMock,
-            MockOpAMPClientBuilderMock<SubAgentCallbacks<MockEffectiveConfigLoaderMock>>,
+            MockOpAMPClientBuilderMock<SubAgentCallbacks<MockRemoteValuesRepositoryMock>>,
             _,
             _,
             _,
@@ -451,7 +453,7 @@ pub mod test {
         // Actual test
         let actual = build_supervisor_or_default::<
             MockHashRepositoryMock,
-            MockOpAMPClientBuilderMock<SubAgentCallbacks<MockEffectiveConfigLoaderMock>>,
+            MockOpAMPClientBuilderMock<SubAgentCallbacks<MockRemoteValuesRepositoryMock>>,
             _,
             _,
             _,
@@ -488,7 +490,7 @@ pub mod test {
         // Actual test
         let actual = build_supervisor_or_default::<
             MockHashRepositoryMock,
-            MockOpAMPClientBuilderMock<SubAgentCallbacks<MockEffectiveConfigLoaderMock>>,
+            MockOpAMPClientBuilderMock<SubAgentCallbacks<MockRemoteValuesRepositoryMock>>,
             _,
             _,
             _,

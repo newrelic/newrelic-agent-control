@@ -8,7 +8,6 @@ use super::{
 use crate::agent_type::environment::Environment;
 use crate::event::channel::{pub_sub, EventPublisher};
 use crate::event::SubAgentEvent;
-use crate::opamp::effective_config::loader::EffectiveConfigLoader;
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::instance_id::IdentifiersProvider;
@@ -18,6 +17,7 @@ use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgen
 use crate::sub_agent::event_processor_builder::SubAgentEventProcessorBuilder;
 use crate::sub_agent::on_host::supervisor::command_supervisor;
 use crate::sub_agent::on_host::supervisor::restart_policy::RestartPolicy;
+use crate::sub_agent::values::values_repository::ValuesRepository;
 use crate::sub_agent::NotStarted;
 use crate::sub_agent::SubAgentCallbacks;
 use crate::super_agent::config::{AgentID, SubAgentConfig};
@@ -37,14 +37,14 @@ use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-pub struct OnHostSubAgentBuilder<'a, O, I, HR, A, E, G>
+pub struct OnHostSubAgentBuilder<'a, O, I, HR, A, E, R>
 where
-    G: EffectiveConfigLoader,
-    O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
+    R: ValuesRepository,
+    O: OpAMPClientBuilder<SubAgentCallbacks<R>>,
     I: InstanceIDGetter,
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
-    E: SubAgentEventProcessorBuilder<O::Client, G>,
+    E: SubAgentEventProcessorBuilder<O::Client, R>,
 {
     opamp_builder: Option<&'a O>,
     instance_id_getter: &'a I,
@@ -53,19 +53,17 @@ where
     event_processor_builder: &'a E,
     identifiers_provider: IdentifiersProvider,
 
-    // This is needed to ensure the generic type parameter G is used in the struct.
-    // Else Rust will reject this, complaining that the type parameter is not used.
-    _effective_config_loader: PhantomData<G>,
+    _phantom_r: PhantomData<R>,
 }
 
-impl<'a, O, I, HR, A, E, G> OnHostSubAgentBuilder<'a, O, I, HR, A, E, G>
+impl<'a, O, I, HR, A, E, R> OnHostSubAgentBuilder<'a, O, I, HR, A, E, R>
 where
-    G: EffectiveConfigLoader,
-    O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
+    R: ValuesRepository,
+    O: OpAMPClientBuilder<SubAgentCallbacks<R>>,
     I: InstanceIDGetter,
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
-    E: SubAgentEventProcessorBuilder<O::Client, G>,
+    E: SubAgentEventProcessorBuilder<O::Client, R>,
 {
     pub fn new(
         opamp_builder: Option<&'a O>,
@@ -83,19 +81,19 @@ where
             event_processor_builder,
             identifiers_provider,
 
-            _effective_config_loader: PhantomData,
+            _phantom_r: PhantomData,
         }
     }
 }
 
-impl<'a, O, I, HR, A, E, G> SubAgentBuilder for OnHostSubAgentBuilder<'a, O, I, HR, A, E, G>
+impl<'a, O, I, HR, A, E, R> SubAgentBuilder for OnHostSubAgentBuilder<'a, O, I, HR, A, E, R>
 where
-    G: EffectiveConfigLoader,
-    O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
+    R: ValuesRepository,
+    O: OpAMPClientBuilder<SubAgentCallbacks<R>>,
     I: InstanceIDGetter,
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
-    E: SubAgentEventProcessorBuilder<O::Client, G>,
+    E: SubAgentEventProcessorBuilder<O::Client, R>,
 {
     type NotStartedSubAgent =
         SubAgentOnHost<NotStarted<E::SubAgentEventProcessor>, command_supervisor::NotStarted>;
@@ -226,6 +224,7 @@ mod test {
     use super::*;
     use crate::agent_type::runtime_config::{Deployment, OnHost, Runtime};
     use crate::event::channel::pub_sub;
+    use crate::opamp::callbacks::AgentCallbacks;
     use crate::opamp::client_builder::test::MockOpAMPClientBuilderMock;
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
@@ -236,6 +235,7 @@ mod test {
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
     use crate::sub_agent::event_processor::test::MockEventProcessorMock;
     use crate::sub_agent::event_processor_builder::test::MockSubAgentEventProcessorBuilderMock;
+    use crate::sub_agent::values::values_repository::test::MockRemoteValuesRepositoryMock;
     use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
     use crate::super_agent::config::AgentTypeFQN;
     use crate::super_agent::defaults::{default_capabilities, PARENT_AGENT_ID_ATTRIBUTE_KEY};
@@ -253,7 +253,9 @@ mod test {
     #[test]
     fn build_start_stop() {
         let (opamp_publisher, _opamp_consumer) = pub_sub();
-        let mut opamp_builder = MockOpAMPClientBuilderMock::new();
+        let mut opamp_builder: MockOpAMPClientBuilderMock<
+            AgentCallbacks<MockRemoteValuesRepositoryMock>,
+        > = MockOpAMPClientBuilderMock::new();
         let hostname = gethostname().unwrap_or_default().into_string().unwrap();
         let sub_agent_config = SubAgentConfig {
             agent_type: AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure_agent:0.0.2")
@@ -274,7 +276,7 @@ mod test {
         let sub_agent_id = AgentID::new("infra-agent").unwrap();
         let final_agent = on_host_final_agent(sub_agent_id.clone());
 
-        let mut started_client = MockStartedOpAMPClientMock::new();
+        let mut started_client: MockStartedOpAMPClientMock<_> = MockStartedOpAMPClientMock::new();
         started_client.should_set_any_remote_config_status(1);
 
         // Infra Agent OpAMP no final stop nor health, just after stopping on reload
@@ -330,7 +332,9 @@ mod test {
     fn test_builder_should_report_failed_config() {
         let (opamp_publisher, _opamp_consumer) = pub_sub();
         // Mocks
-        let mut opamp_builder = MockOpAMPClientBuilderMock::new();
+        let mut opamp_builder: MockOpAMPClientBuilderMock<
+            AgentCallbacks<MockRemoteValuesRepositoryMock>,
+        > = MockOpAMPClientBuilderMock::new();
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
         let mut effective_agent_assembler = MockEffectiveAgentAssemblerMock::new();
@@ -359,7 +363,8 @@ mod test {
         instance_id_getter.should_get(&sub_agent_id, sub_agent_instance_id.clone());
         instance_id_getter.should_get(&super_agent_id, super_agent_instance_id.clone());
 
-        let mut started_client = MockStartedOpAMPClientMock::new();
+        let mut started_client: MockStartedOpAMPClientMock<AgentCallbacks<_>> =
+            MockStartedOpAMPClientMock::new();
         // failed conf should be reported
         started_client.should_set_remote_config_status(RemoteConfigStatus {
             error_message: "this is an error message".to_string(),

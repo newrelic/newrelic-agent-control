@@ -1,3 +1,4 @@
+use std::marker::PhantomData;
 use std::time::SystemTimeError;
 
 use opamp_client::http::config::HttpConfigError;
@@ -11,7 +12,8 @@ use tracing::{error, info};
 use crate::event::channel::EventPublisher;
 use crate::event::OpAMPEvent;
 use crate::opamp::instance_id;
-use crate::super_agent::config::{AgentID, OpAMPClientConfig};
+use crate::sub_agent::values::values_repository::ValuesRepository;
+use crate::super_agent::config::AgentID;
 
 use super::callbacks::AgentCallbacks;
 use super::effective_config::loader::EffectiveConfigLoaderBuilder;
@@ -50,44 +52,41 @@ where
     ) -> Result<Self::Client, OpAMPClientBuilderError>;
 }
 
-pub struct DefaultOpAMPClientBuilder<C, B>
+pub struct DefaultOpAMPClientBuilder<C, B, R>
 where
-    B: EffectiveConfigLoaderBuilder,
+    R: ValuesRepository,
+    B: EffectiveConfigLoaderBuilder<R>,
     C: HttpClientBuilder,
 {
-    config: OpAMPClientConfig,
     effective_config_loader_builder: B,
     http_client_builder: C,
+
+    _phantom_r: PhantomData<R>,
 }
 
-impl<C, B> DefaultOpAMPClientBuilder<C, B>
+impl<C, B, R> DefaultOpAMPClientBuilder<C, B, R>
 where
-    B: EffectiveConfigLoaderBuilder,
+    R: ValuesRepository,
+    B: EffectiveConfigLoaderBuilder<R>,
     C: HttpClientBuilder,
 {
-    pub fn new(
-        config: OpAMPClientConfig,
-        http_client_builder: C,
-        effective_config_loader_builder: B,
-    ) -> Self {
+    pub fn new(http_client_builder: C, effective_config_loader_builder: B) -> Self {
         Self {
-            config,
             effective_config_loader_builder,
             http_client_builder,
-        }
-    }
 
-    pub fn config(&self) -> &OpAMPClientConfig {
-        &self.config
+            _phantom_r: PhantomData,
+        }
     }
 }
 
-impl<C, B> OpAMPClientBuilder<AgentCallbacks<B::Loader>> for DefaultOpAMPClientBuilder<C, B>
+impl<C, B, R> OpAMPClientBuilder<AgentCallbacks<R>> for DefaultOpAMPClientBuilder<C, B, R>
 where
-    B: EffectiveConfigLoaderBuilder,
+    R: ValuesRepository,
+    B: EffectiveConfigLoaderBuilder<R>,
     C: HttpClientBuilder,
 {
-    type Client = StartedHttpClient<AgentCallbacks<B::Loader>, C::Client>;
+    type Client = StartedHttpClient<AgentCallbacks<R>, C::Client>;
     fn build_and_start(
         &self,
         opamp_publisher: EventPublisher<OpAMPEvent>,
@@ -95,7 +94,7 @@ where
         start_settings: StartSettings,
     ) -> Result<Self::Client, OpAMPClientBuilderError> {
         let http_client = self.http_client_builder.build()?;
-        let effective_config_loader = self.effective_config_loader_builder.build();
+        let effective_config_loader = self.effective_config_loader_builder.build(agent_id.clone());
         let callbacks = AgentCallbacks::new(agent_id, opamp_publisher, effective_config_loader);
         let not_started_client = NotStartedHttpClient::new(http_client);
         let started_client = not_started_client.start(callbacks, start_settings)?;

@@ -38,8 +38,8 @@ pub enum OnHostValuesRepositoryError {
 
 pub struct ValuesRepositoryFile<F, S>
 where
-    S: DirectoryManager,
-    F: FileWriter + FileReader,
+    S: DirectoryManager + Send + Sync + 'static,
+    F: FileWriter + FileReader + Send + Sync + 'static,
 {
     directory_manager: S,
     file_rw: F,
@@ -75,8 +75,8 @@ impl ValuesRepositoryFile<LocalFile, DirectoryManagerFs> {
 
 impl<F, S> ValuesRepositoryFile<F, S>
 where
-    S: DirectoryManager,
-    F: FileWriter + FileReader,
+    S: DirectoryManager + Send + Sync + 'static,
+    F: FileWriter + FileReader + Send + Sync + 'static,
 {
     pub fn get_values_file_path(&self, agent_id: &AgentID) -> PathBuf {
         PathBuf::from(format!(
@@ -142,8 +142,8 @@ where
 
 impl<F, S> ValuesRepository for ValuesRepositoryFile<F, S>
 where
-    S: DirectoryManager,
-    F: FileWriter + FileReader,
+    S: DirectoryManager + Send + Sync + 'static,
+    F: FileWriter + FileReader + Send + Sync + 'static,
 {
     fn load_local(&self, agent_id: &AgentID) -> Result<Option<AgentValues>, ValuesRepositoryError> {
         let local_values_path = self.get_values_file_path(agent_id);
@@ -234,8 +234,8 @@ pub mod test {
 
     impl<F, S> ValuesRepositoryFile<F, S>
     where
-        S: DirectoryManager,
-        F: FileWriter + FileReader,
+        S: DirectoryManager + Send + Sync + 'static,
+        F: FileWriter + FileReader + Send + Sync + 'static,
     {
         pub fn with_mocks(
             file_rw: F,

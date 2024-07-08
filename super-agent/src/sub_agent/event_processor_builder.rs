@@ -1,6 +1,5 @@
 use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
-use crate::opamp::effective_config::loader::EffectiveConfigLoader;
 use crate::opamp::hash_repository::HashRepository;
 use crate::sub_agent::event_processor::{EventProcessor, SubAgentEventProcessor};
 use crate::sub_agent::values::values_repository::ValuesRepository;
@@ -9,10 +8,10 @@ use crate::super_agent::config::AgentID;
 use opamp_client::StartedClient;
 use std::sync::Arc;
 
-pub trait SubAgentEventProcessorBuilder<C, G>
+pub trait SubAgentEventProcessorBuilder<C, R>
 where
-    G: EffectiveConfigLoader,
-    C: StartedClient<SubAgentCallbacks<G>> + 'static,
+    R: ValuesRepository,
+    C: StartedClient<SubAgentCallbacks<R>> + 'static,
 {
     type SubAgentEventProcessor: SubAgentEventProcessor;
 
@@ -48,14 +47,13 @@ where
     }
 }
 
-impl<C, H, R, G> SubAgentEventProcessorBuilder<C, G> for EventProcessorBuilder<H, R>
+impl<C, H, R> SubAgentEventProcessorBuilder<C, R> for EventProcessorBuilder<H, R>
 where
-    G: EffectiveConfigLoader,
-    C: StartedClient<SubAgentCallbacks<G>> + 'static,
+    C: StartedClient<SubAgentCallbacks<R>> + 'static,
     H: HashRepository + Send + Sync + 'static,
     R: ValuesRepository + Send + Sync + 'static,
 {
-    type SubAgentEventProcessor = EventProcessor<C, H, R, G>;
+    type SubAgentEventProcessor = EventProcessor<C, H, R>;
 
     fn build(
         &self,
@@ -64,10 +62,9 @@ where
         sub_agent_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
         sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
         maybe_opamp_client: Option<C>,
-    ) -> EventProcessor<C, H, R, G>
+    ) -> EventProcessor<C, H, R>
     where
-        G: EffectiveConfigLoader,
-        C: StartedClient<SubAgentCallbacks<G>> + 'static,
+        C: StartedClient<SubAgentCallbacks<R>> + 'static,
     {
         EventProcessor::new(
             agent_id,
@@ -85,9 +82,9 @@ where
 pub mod test {
     use crate::event::channel::{EventConsumer, EventPublisher};
     use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
-    use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
     use crate::sub_agent::event_processor::test::MockEventProcessorMock;
     use crate::sub_agent::event_processor_builder::SubAgentEventProcessorBuilder;
+    use crate::sub_agent::values::values_repository::ValuesRepository;
     use crate::sub_agent::SubAgentCallbacks;
     use crate::super_agent::config::AgentID;
     use mockall::mock;
@@ -96,14 +93,16 @@ pub mod test {
 
     mock! {
 
-        pub SubAgentEventProcessorBuilderMock<C>
+        pub SubAgentEventProcessorBuilderMock<C,R>
         where
-            C: StartedClient<SubAgentCallbacks<MockEffectiveConfigLoaderMock>> + 'static
+            R: ValuesRepository,
+            C: StartedClient<SubAgentCallbacks<R>> + 'static
         {}
 
-        impl<C> SubAgentEventProcessorBuilder<C, MockEffectiveConfigLoaderMock> for SubAgentEventProcessorBuilderMock<C>
+        impl<C,R> SubAgentEventProcessorBuilder<C,R> for SubAgentEventProcessorBuilderMock<C,R>
          where
-            C: StartedClient<SubAgentCallbacks<MockEffectiveConfigLoaderMock>> + 'static
+            R: ValuesRepository,
+            C: StartedClient<SubAgentCallbacks<R>> + 'static
         {
             type SubAgentEventProcessor = MockEventProcessorMock;
 
@@ -114,14 +113,15 @@ pub mod test {
                 sub_agent_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
                 sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
                 maybe_opamp_client: Option<C>,
-            ) -><Self as SubAgentEventProcessorBuilder<C, MockEffectiveConfigLoaderMock>>::SubAgentEventProcessor;
+            ) -><Self as SubAgentEventProcessorBuilder<C,R>>::SubAgentEventProcessor;
 
         }
     }
 
-    impl<C> MockSubAgentEventProcessorBuilderMock<C>
+    impl<C, R> MockSubAgentEventProcessorBuilderMock<C, R>
     where
-        C: StartedClient<SubAgentCallbacks<MockEffectiveConfigLoaderMock>> + Send + Sync + 'static,
+        R: ValuesRepository,
+        C: StartedClient<SubAgentCallbacks<R>> + Send + Sync + 'static,
     {
         pub fn should_build(&mut self, processor: MockEventProcessorMock) {
             self.expect_build()

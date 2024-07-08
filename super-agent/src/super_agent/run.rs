@@ -2,17 +2,13 @@ use super::config::OpAMPClientConfig;
 use super::config_storer::store::SuperAgentConfigStore;
 use super::http_server::config::ServerConfig;
 use crate::event::channel::pub_sub;
+use crate::event::{
+    channel::{EventConsumer, EventPublisher},
+    ApplicationEvent, SuperAgentEvent,
+};
 use crate::opamp::auth::token_retriever::TokenRetrieverImpl;
-use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::http::builder::UreqHttpClientBuilder;
 use crate::super_agent::http_server::runner::Runner;
-use crate::{
-    event::{
-        channel::{EventConsumer, EventPublisher},
-        ApplicationEvent, SuperAgentEvent,
-    },
-    opamp::client_builder::DefaultOpAMPClientBuilder,
-};
 #[cfg(feature = "k8s")]
 use k8s::run_super_agent;
 #[cfg(feature = "onhost")]
@@ -47,7 +43,7 @@ impl TryFrom<SuperAgentRunConfig> for SuperAgentRunner {
         trace!("creating the signal handler");
         create_shutdown_signal_handler(application_event_publisher)?;
 
-        let opamp_client_builder = match value.opamp.as_ref() {
+        let opamp_http_builder = match value.opamp.as_ref() {
             Some(opamp_config) => {
                 debug!("OpAMP configuration found, creating an OpAMP client builder");
                 let token_retriever = Arc::new(
@@ -58,13 +54,7 @@ impl TryFrom<SuperAgentRunConfig> for SuperAgentRunner {
                 let http_builder =
                     UreqHttpClientBuilder::new(opamp_config.clone(), token_retriever);
 
-                let effective_config_loader_builder = DefaultEffectiveConfigLoaderBuilder;
-
-                Some(DefaultOpAMPClientBuilder::new(
-                    opamp_config.clone(),
-                    http_builder,
-                    effective_config_loader_builder,
-                ))
+                Some(http_builder)
             }
             None => None,
         };
@@ -86,7 +76,7 @@ impl TryFrom<SuperAgentRunConfig> for SuperAgentRunner {
             runtime,
             config_storer: value.config_storer,
             application_event_consumer,
-            opamp_client_builder,
+            opamp_http_builder,
             super_agent_publisher,
         };
 
@@ -101,12 +91,7 @@ pub struct SuperAgentRunner {
     runtime: Arc<Runtime>,
     config_storer: SuperAgentConfigStore,
     application_event_consumer: EventConsumer<ApplicationEvent>,
-    opamp_client_builder: Option<
-        DefaultOpAMPClientBuilder<
-            UreqHttpClientBuilder<TokenRetrieverImpl>,
-            DefaultEffectiveConfigLoaderBuilder,
-        >,
-    >,
+    opamp_http_builder: Option<UreqHttpClientBuilder<TokenRetrieverImpl>>,
     super_agent_publisher: EventPublisher<SuperAgentEvent>,
 }
 
@@ -117,7 +102,7 @@ impl SuperAgentRunner {
             self.runtime.clone(),
             self.config_storer,
             self.application_event_consumer,
-            self.opamp_client_builder,
+            self.opamp_http_builder,
             self.super_agent_publisher,
         )?)
     }

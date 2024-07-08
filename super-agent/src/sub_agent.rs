@@ -1,5 +1,6 @@
 pub mod collection;
 pub mod effective_agents_assembler;
+pub mod effective_config;
 pub mod error;
 mod event_handler;
 pub mod event_processor;
