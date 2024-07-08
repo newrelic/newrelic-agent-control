@@ -52,6 +52,8 @@ where
     pub(super) sa_dynamic_config_store: Arc<SL>,
     pub(super) super_agent_publisher: EventPublisher<SuperAgentEvent>,
 
+    // This is needed to ensure the generic type parameter C is used in the struct.
+    // Else Rust will reject this, complaining that the type parameter is not used.
     _effective_config_loader: PhantomData<C>,
 }
 

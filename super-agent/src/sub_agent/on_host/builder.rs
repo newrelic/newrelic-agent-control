@@ -34,6 +34,7 @@ use crate::{
 use nix::unistd::gethostname;
 use resource_detection::Detector;
 use std::collections::HashMap;
+use std::marker::PhantomData;
 use std::sync::Arc;
 
 pub struct OnHostSubAgentBuilder<'a, O, I, HR, A, E, G>
@@ -52,7 +53,9 @@ where
     event_processor_builder: &'a E,
     identifiers_provider: IdentifiersProvider,
 
-    _effective_config_loader: std::marker::PhantomData<G>,
+    // This is needed to ensure the generic type parameter G is used in the struct.
+    // Else Rust will reject this, complaining that the type parameter is not used.
+    _effective_config_loader: PhantomData<G>,
 }
 
 impl<'a, O, I, HR, A, E, G> OnHostSubAgentBuilder<'a, O, I, HR, A, E, G>
@@ -80,7 +83,7 @@ where
             event_processor_builder,
             identifiers_provider,
 
-            _effective_config_loader: std::marker::PhantomData,
+            _effective_config_loader: PhantomData,
         }
     }
 }

@@ -38,6 +38,8 @@ where
     pub(crate) sub_agent_remote_config_hash_repository: Arc<H>,
     pub(crate) remote_values_repo: Arc<R>,
 
+    // This is needed to ensure the generic type parameter G is used in the struct.
+    // Else Rust will reject this, complaining that the type parameter is not used.
     _effective_config_loader: PhantomData<G>,
 }
 
@@ -66,6 +68,7 @@ where
             sub_agent_remote_config_hash_repository,
             remote_values_repo,
 
+            // This was needed to ensure the generic type parameter G is used in the struct
             _effective_config_loader: PhantomData,
         }
     }

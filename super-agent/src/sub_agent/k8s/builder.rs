@@ -44,6 +44,8 @@ where
     event_processor_builder: &'a E,
     k8s_config: K8sConfig,
 
+    // This is needed to ensure the generic type parameter G is used in the struct.
+    // Else Rust will reject this, complaining that the type parameter is not used.
     _effective_config_loader: PhantomData<G>,
 }
 
