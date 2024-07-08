@@ -19,7 +19,7 @@ use tracing::{error, trace, warn};
 
 use super::{super::error::K8sError, resources::ResourceWithReflector};
 
-const REFLECTOR_START_TIMEOUT: Duration = Duration::from_secs(10);
+const REFLECTOR_START_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Reflector builder holds the arguments to build a reflector.
 /// Its implementation allows creating a reflector for supported types.
