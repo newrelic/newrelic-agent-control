@@ -15,17 +15,14 @@ use crate::{
         ApplicationEvent, SuperAgentEvent,
     },
     opamp::{
-        client_builder::DefaultOpAMPClientBuilder,
-        hash_repository::k8s::config_map::HashRepositoryConfigMap,
+        client_builder::DefaultOpAMPClientBuilder, hash_repository::k8s::HashRepositoryConfigMap,
         http::builder::HttpClientBuilder, instance_id,
     },
     super_agent::{config_storer::store::SuperAgentConfigStore, error::AgentError},
 };
 use crate::{
     k8s::{garbage_collector::NotStartedK8sGarbageCollector, store::K8sStore},
-    sub_agent::{
-        k8s::builder::K8sSubAgentBuilder, values::k8s::config_map::ValuesRepositoryConfigMap,
-    },
+    sub_agent::{k8s::builder::K8sSubAgentBuilder, values::k8s::ValuesRepositoryConfigMap},
     super_agent::config_storer::SubAgentsConfigStoreConfigMap,
 };
 use opamp_client::operation::settings::DescriptionValueType;

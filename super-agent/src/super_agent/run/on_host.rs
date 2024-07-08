@@ -11,11 +11,11 @@ use crate::super_agent::defaults::{
 use crate::super_agent::{super_agent_fqn, SuperAgent};
 use crate::{
     agent_type::renderer::TemplateRenderer,
-    opamp::{hash_repository::on_host::file::HashRepositoryFile, instance_id::IdentifiersProvider},
+    opamp::{hash_repository::on_host::HashRepositoryFile, instance_id::IdentifiersProvider},
     sub_agent::{
         on_host::builder::OnHostSubAgentBuilder,
         persister::config_persister_file::ConfigurationPersisterFile,
-        values::on_host::file::ValuesRepositoryFile,
+        values::on_host::ValuesRepositoryFile,
     },
 };
 use crate::{
