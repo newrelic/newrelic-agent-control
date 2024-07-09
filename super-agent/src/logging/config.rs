@@ -1,4 +1,4 @@
-use serde::{Deserialize, Deserializer};
+use serde::Deserialize;
 use std::fmt::Debug;
 use std::str::FromStr;
 use thiserror::Error;
@@ -31,70 +31,25 @@ pub enum LoggingError {
 ///
 /// # Fields:
 /// - `format`: Specifies the `LoggingFormat` the application will use for logging.
-#[derive(Debug, PartialEq, Clone, Default)]
+#[derive(Debug, Deserialize, PartialEq, Clone, Default)]
 pub struct LoggingConfig {
-    pub(crate) format: LoggingFormat,
-    pub(crate) level: LogLevel,
-    pub(crate) file: FileLoggingConfig,
-}
-
-impl<'de> Deserialize<'de> for LoggingConfig {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        // intermediate serialization type to validate `default` and `required` fields
-        #[derive(Debug, Deserialize)]
-        pub struct IntermediateLoggingConfig {
-            #[serde(default)]
-            format: LoggingFormat,
-            #[serde(default)]
-            level: LogLevel,
-            #[serde(default)]
-            file: FileLoggingConfig,
-        }
-
-        let intermediate_spec = IntermediateLoggingConfig::deserialize(deserializer)?;
-
-        let level_from_env = match std::env::var("LOG_LEVEL") {
-            Ok(string) => Some(LogLevel(Level::from_str(&string).map_err(|e| {
-                serde::de::Error::custom(format!("error parse 'LOG_LEVEL' as a LogLevel: {}", e))
-            })?)),
-            Err(e) => match e {
-                std::env::VarError::NotPresent => None,
-                std::env::VarError::NotUnicode(e) => {
-                    return Err(serde::de::Error::custom(format!(
-                        "error reading 'LOG_LEVEL' environment variable: {:?}",
-                        e.as_encoded_bytes(),
-                    )));
-                }
-            },
-        };
-
-        if let Some(level) = level_from_env {
-            return Ok(LoggingConfig {
-                format: intermediate_spec.format,
-                level,
-                file: intermediate_spec.file,
-            });
-        }
-
-        Ok(LoggingConfig {
-            format: intermediate_spec.format,
-            level: intermediate_spec.level,
-            file: intermediate_spec.file,
-        })
-    }
+    #[serde(default)]
+    format: LoggingFormat,
+    #[serde(default)]
+    level: LogLevel,
+    #[serde(default)]
+    insecure_fine_grained_level: Option<String>,
+    #[serde(default)]
+    file: FileLoggingConfig,
 }
 
 pub type FileLoggerGuard = Option<WorkerGuard>;
 
 impl LoggingConfig {
     /// Attempts to initialize the logging subscriber with the inner configuration.
-    pub fn try_init(self) -> Result<Option<WorkerGuard>, LoggingError> {
+    pub fn try_init(&self) -> Result<Option<WorkerGuard>, LoggingError> {
         let target = self.format.target;
-        let timestamp_fmt = self.format.timestamp.0;
-        let level = self.level.as_level().to_string().to_lowercase();
+        let timestamp_fmt = self.format.timestamp.0.clone();
 
         // Construct the file logging layer and its worker guard, only if file logging is enabled.
         // Note we can actually specify different settings for each layer (log level, format, etc),
@@ -110,7 +65,7 @@ impl LoggingConfig {
                         .with_target(target)
                         .with_timer(ChronoLocal::new(timestamp_fmt.clone()))
                         .fmt_fields(PrettyFields::new())
-                        .with_filter(logging_filter(level.as_str()));
+                        .with_filter(self.logging_filter());
                     (Some(file_layer), Some(guard))
                 });
 
@@ -119,7 +74,7 @@ impl LoggingConfig {
             .with_target(target)
             .with_timer(ChronoLocal::new(timestamp_fmt))
             .fmt_fields(PrettyFields::new())
-            .with_filter(logging_filter(level.as_str()));
+            .with_filter(self.logging_filter());
 
         // a `Layer` wrapped in an `Option` such as the above defined `file_layer` also implements
         // the `Layer` trait. This allows individual layers to be enabled or disabled at runtime
@@ -138,36 +93,66 @@ impl LoggingConfig {
         debug!("Logging initialized successfully");
         Ok(guard)
     }
-}
 
-fn logging_filter(level: &str) -> EnvFilter {
-    let env_filter = EnvFilter::builder()
-        // Set all logging levels to "error". This is the highest level I can set it up.
-        // Only "error" from crates will be logged.
-        .with_default_directive(LevelFilter::ERROR.into())
-        // Allow to remove even the default above by using a env var
-        .with_env_var("LOG_LEVEL_FINE_GRAINED")
-        // But not fail if the env var is invalid
-        .from_env_lossy();
+    fn insecure_logging_filter(&self) -> Option<EnvFilter> {
+        let mut env_filter = EnvFilter::builder()
+            // Set all logging levels to "error". This is the highest level we can set it up.
+            // Only "error" from crates will be logged.
+            .with_default_directive(LevelFilter::ERROR.into())
+            // Allow to remove even the default above by using a env var
+            .with_env_var("INSECURE_FINE_GRAINED_LEVEL")
+            // But not fail if the env var is invalid
+            .from_env()
+            .unwrap_or_else(|err| {
+                panic!(
+                    "Unparsable logging directive for environment variable `INSECURE_FINE_GRAINED_LEVEL`: {}",
+                    err
+                )
+            });
 
-    // If a fine grained filter is set, all config and env vars will be ignored.
-    if env_filter.to_string() != LevelFilter::ERROR.to_string() {
-        return env_filter;
+        if let Some(s) = self.insecure_fine_grained_level.clone() {
+            env_filter = env_filter.add_directive(s
+                .parse::<Directive>()
+                .unwrap_or_else(|err| {
+                    panic!(
+                        "Unparsable logging directive for config `log.insecure_fine_grained_level={}`: {}",
+                        s, err
+                    )
+                }));
+        }
+
+        let env_filter_str = env_filter.to_string();
+        let level_str = LevelFilter::ERROR.to_string();
+        if env_filter_str != level_str {
+            Some(env_filter)
+        } else {
+            None
+        }
     }
 
-    // Add the logging level from config only for newrelic_super_agent crate.
-    env_filter.add_directive(
-        format!("newrelic_super_agent={}", level)
+    fn logging_filter(&self) -> EnvFilter {
+        if let Some(insecure_logging_filter) = self.insecure_logging_filter() {
+            return insecure_logging_filter;
+        }
+
+        let level = self.level.as_level().to_string().to_lowercase();
+
+        let crate_directive = format!("newrelic_super_agent={}", level)
             .parse::<Directive>()
-            // level is correctly parsed by serde at config level.
-            // level is always correct at this stage. If not, we have a bigger problem than this function.
+            // level is correctly parsed by serde at config level. If this panics, we have an issue
+            // at deserialization time.
             .unwrap_or_else(|_| {
                 panic!(
                     "`logging_filter` does return a unparsable directive. Panicking for level: {}",
                     level
                 )
-            }),
-    )
+            });
+
+        EnvFilter::builder()
+            .with_default_directive(crate_directive)
+            .with_env_var("LOG_LEVEL")
+            .from_env_lossy()
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
