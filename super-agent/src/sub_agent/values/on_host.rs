@@ -23,12 +23,8 @@ const DIRECTORY_PERMISSIONS: u32 = 0o700;
 
 #[derive(Error, Debug)]
 pub enum OnHostValuesRepositoryError {
-    #[error("serialize error on store: `{0}`")]
+    #[error("serialize error loading SubAgentConfig: `{0}`")]
     StoreSerializeError(#[from] serde_yaml::Error),
-    #[error("incorrect path")]
-    IncorrectPath,
-    #[error("cannot delete path `{0}`: `{1}`")]
-    DeleteError(String, String),
     #[error("directory manager error: `{0}`")]
     DirectoryManagementError(#[from] DirectoryManagementError),
     #[error("file write error: `{0}`")]
@@ -70,8 +66,7 @@ impl ValuesRepositoryFile<LocalFile, DirectoryManagerFs> {
         self
     }
 
-    // Change remote conf path for integration tests
-    // TODO : move this under a feature
+    /// TODO This is used only in tests. We should refactor the test
     pub fn with_remote_conf_path(mut self, path: String) -> Self {
         self.remote_conf_path = path;
         self
@@ -94,7 +89,7 @@ where
     }
 
     pub fn get_remote_values_file_path(&self, agent_id: &AgentID) -> PathBuf {
-        // This file (soon files) will be removed often, but its parent directory contains files
+        // This file (soon files) will often be removed, but its parent directory contains files
         // that should persist across these deletions. As opposed to its non-remote counterpart in
         // `get_values_file_path`, we put the values file inside its own directory, which will
         // be recreated each time a remote config is received, leaving the other files untouched.
@@ -112,14 +107,14 @@ where
     fn load_file_if_present(
         &self,
         path: PathBuf,
-    ) -> Result<Option<String>, OnHostValuesRepositoryError> {
+    ) -> Result<Option<AgentValues>, OnHostValuesRepositoryError> {
         let values_result = self.file_rw.read(path.as_path());
         match values_result {
             Err(FileReaderError::FileNotFound(_)) => {
                 //actively fallback to load local file
                 Ok(None)
             }
-            Ok(res) => Ok(Some(res)),
+            Ok(res) => Ok(Some(serde_yaml::from_str(&res)?)),
             Err(err) => {
                 // we log any unexpected error for now but maybe we should propagate it
                 error!("error loading remote file {}", path.display());
@@ -128,43 +123,11 @@ where
         }
     }
 
-    // _load(...) looks for remote configs first, if unavailable checks the local ones.
-    // If none is found, it fallbacks to the default values.
-    fn _load(
+    /// ensures directory exist and its empty
+    fn ensure_directory_existence(
         &self,
-        agent_id: &AgentID,
-        agent_type: &AgentType,
-    ) -> Result<AgentValues, OnHostValuesRepositoryError> {
-        let mut values_result: Option<String> = None;
-
-        if self.remote_enabled && agent_type.has_remote_management() {
-            let remote_values_path = self.get_remote_values_file_path(agent_id);
-            values_result = self.load_file_if_present(remote_values_path)?;
-        }
-
-        if values_result.is_none() {
-            let local_values_path = self.get_values_file_path(agent_id);
-            values_result = self.load_file_if_present(local_values_path)?;
-        }
-
-        if let Some(contents) = values_result {
-            Ok(serde_yaml::from_str(&contents)?)
-        } else {
-            Ok(AgentValues::default())
-        }
-    }
-
-    fn _store_remote(
-        &self,
-        agent_id: &AgentID,
-        agent_values: &AgentValues,
+        values_file_path: &PathBuf,
     ) -> Result<(), OnHostValuesRepositoryError> {
-        // OpAMP protocol states that when only one config is present the key will be empty
-        // https://github.com/open-telemetry/opamp-spec/blob/main/specification.md#configuration-files
-
-        let values_file_path = self.get_remote_values_file_path(agent_id);
-
-        //ensure directory exists and it's empty
         let mut values_dir_path = PathBuf::from(&values_file_path);
         values_dir_path.pop();
 
@@ -173,25 +136,7 @@ where
             values_dir_path.as_path(),
             Permissions::from_mode(DIRECTORY_PERMISSIONS),
         )?;
-
-        let content = serde_yaml::to_string(agent_values)?;
-
-        Ok(self.file_rw.write(
-            values_file_path.clone().as_path(),
-            content,
-            Permissions::from_mode(FILE_PERMISSIONS),
-        )?)
-    }
-
-    fn _delete_remote(&self, agent_id: &AgentID) -> Result<(), OnHostValuesRepositoryError> {
-        let values_file_path = self.get_remote_values_file_path(agent_id);
-        //ensure directory exists
-        let mut values_dir_path = values_file_path.clone();
-        values_dir_path.pop();
-        let values_dir = values_dir_path.to_str().unwrap().to_string();
-        self.directory_manager
-            .delete(values_dir_path.as_path())
-            .map_err(|e| OnHostValuesRepositoryError::DeleteError(values_dir, e.to_string()))
+        Ok(())
     }
 }
 
@@ -200,12 +145,23 @@ where
     S: DirectoryManager,
     F: FileWriter + FileReader,
 {
-    fn load(
+    fn load_local(&self, agent_id: &AgentID) -> Result<Option<AgentValues>, ValuesRepositoryError> {
+        let local_values_path = self.get_values_file_path(agent_id);
+        self.load_file_if_present(local_values_path)
+            .map_err(|err| ValuesRepositoryError::LoadError(err.to_string()))
+    }
+
+    fn load_remote(
         &self,
         agent_id: &AgentID,
         agent_type: &AgentType,
-    ) -> Result<AgentValues, ValuesRepositoryError> {
-        self._load(agent_id, agent_type)
+    ) -> Result<Option<AgentValues>, ValuesRepositoryError> {
+        if !self.remote_enabled || !agent_type.has_remote_management() {
+            return Ok(None);
+        }
+
+        let remote_values_path = self.get_remote_values_file_path(agent_id);
+        self.load_file_if_present(remote_values_path)
             .map_err(|err| ValuesRepositoryError::LoadError(err.to_string()))
     }
 
@@ -214,13 +170,39 @@ where
         agent_id: &AgentID,
         agent_values: &AgentValues,
     ) -> Result<(), ValuesRepositoryError> {
-        self._store_remote(agent_id, agent_values)
-            .map_err(|err| ValuesRepositoryError::StoreError(err.to_string()))
+        let values_file_path = self.get_remote_values_file_path(agent_id);
+
+        self.ensure_directory_existence(&values_file_path)
+            .map_err(|err| ValuesRepositoryError::StoreError(err.to_string()))?;
+
+        let content = serde_yaml::to_string(agent_values)
+            .map_err(|err| ValuesRepositoryError::StoreError(err.to_string()))?;
+
+        self.file_rw
+            .write(
+                values_file_path.clone().as_path(),
+                content,
+                Permissions::from_mode(FILE_PERMISSIONS),
+            )
+            .map_err(|err| ValuesRepositoryError::StoreError(err.to_string()))?;
+
+        Ok(())
     }
 
     fn delete_remote(&self, agent_id: &AgentID) -> Result<(), ValuesRepositoryError> {
-        self._delete_remote(agent_id)
-            .map_err(|err| ValuesRepositoryError::DeleteError(err.to_string()))
+        let values_file_path = self.get_remote_values_file_path(agent_id);
+        //ensure directory exists
+        let mut values_dir_path = values_file_path.clone();
+        values_dir_path.pop();
+        let values_dir = values_dir_path.to_str().unwrap().to_string();
+        self.directory_manager
+            .delete(values_dir_path.as_path())
+            .map_err(|err| {
+                ValuesRepositoryError::DeleteError(format!(
+                    "cannot delete path `{}`: `{}`",
+                    values_dir, err
+                ))
+            })
     }
 }
 
