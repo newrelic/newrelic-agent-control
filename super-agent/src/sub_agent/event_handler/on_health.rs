@@ -4,7 +4,7 @@ use crate::opamp::hash_repository::HashRepository;
 use crate::sub_agent::error::SubAgentError;
 use crate::sub_agent::event_processor::EventProcessor;
 use crate::sub_agent::health::with_start_time::HealthWithStartTime;
-use crate::sub_agent::values::values_repository::ValuesRepository;
+use crate::values::values_repository::ValuesRepository;
 use crate::sub_agent::SubAgentCallbacks;
 use opamp_client::StartedClient;
 use tracing::error;

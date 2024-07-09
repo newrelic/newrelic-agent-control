@@ -12,7 +12,7 @@ use crate::{
     logging::config::{FileLoggerGuard, LoggingError},
     super_agent::{
         config::SuperAgentConfigError,
-        config_storer::{loader_storer::SuperAgentConfigLoader, store::SuperAgentConfigStore},
+        config_storer::{file::SuperAgentConfigStoreFile, loader_storer::SuperAgentConfigLoader},
         run::SuperAgentRunConfig,
     },
     utils::binary_metadata::binary_metadata,
@@ -99,7 +99,7 @@ impl Cli {
             return Ok(CliCommand::OneShot(OneShotCommand::PrintDebugInfo(cli)));
         }
 
-        let config_storer = SuperAgentConfigStore::new(&cli.get_config_path());
+        let config_storer = SuperAgentConfigStoreFile::new(&cli.get_config_path());
 
         let super_agent_config = config_storer.load().inspect_err(|err| {
             println!(

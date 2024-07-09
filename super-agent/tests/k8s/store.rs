@@ -22,14 +22,14 @@ use newrelic_super_agent::super_agent::config_storer::loader_storer::{
 };
 use newrelic_super_agent::super_agent::config_storer::SubAgentsConfigStoreConfigMap;
 use newrelic_super_agent::{
-    agent_type::agent_metadata::AgentMetadata, opamp::hash_repository::HashRepository,
+    ::values::k8s::ValuesRepositoryConfigMap, agent_type::agent_values::AgentValues,
 };
 use newrelic_super_agent::{
-    agent_type::agent_values::AgentValues, sub_agent::values::k8s::ValuesRepositoryConfigMap,
-};
-use newrelic_super_agent::{
+    ::values::values_repository::ValuesRepository,
     agent_type::definition::{AgentType, VariableTree},
-    sub_agent::values::values_repository::ValuesRepository,
+};
+use newrelic_super_agent::{
+    agent_type::agent_metadata::AgentMetadata, opamp::hash_repository::HashRepository,
 };
 use semver::Version;
 use serde_yaml::from_str;

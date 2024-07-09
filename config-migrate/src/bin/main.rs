@@ -7,7 +7,7 @@ use config_migrate::migration::migrator::{ConfigMigrator, MigratorError};
 use config_migrate::migration::persister::legacy_config_renamer::LegacyConfigRenamer;
 use config_migrate::migration::persister::values_persister_file::ValuesPersisterFile;
 use newrelic_super_agent::logging::config::LoggingConfig;
-use newrelic_super_agent::super_agent::config_storer::store::SuperAgentConfigStore;
+use newrelic_super_agent::super_agent::config_storer::file::SuperAgentConfigStoreFile;
 use std::error::Error;
 use tracing::{debug, info};
 
@@ -21,7 +21,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let cli = Cli::init_config_migrate_cli();
     let local_config_path = cli.get_config_path();
-    let sa_local_config_loader = SuperAgentConfigStore::new(&local_config_path);
+    let sa_local_config_loader = SuperAgentConfigStoreFile::new(&local_config_path);
     let config_migrator = ConfigMigrator::new(
         ConfigConverter::default(),
         AgentConfigGetter::new(sa_local_config_loader),

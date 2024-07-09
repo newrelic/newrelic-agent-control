@@ -199,7 +199,7 @@ pub(crate) mod tests {
     use crate::agent_type::definition::AgentTypeDefinition;
     use crate::agent_type::renderer::tests::MockRendererMock;
     use crate::agent_type::runtime_config;
-    use crate::sub_agent::values::values_repository::test::MockRemoteValuesRepositoryMock;
+    use crate::values::values_repository::test::MockRemoteValuesRepositoryMock;
     use assert_matches::assert_matches;
     use mockall::{mock, predicate};
     use semver::Version;

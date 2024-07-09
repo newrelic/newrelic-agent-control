@@ -1,6 +1,6 @@
 use crate::agent_type::agent_values::AgentValues;
 use crate::agent_type::definition::AgentType;
-use crate::sub_agent::values::values_repository::{ValuesRepository, ValuesRepositoryError};
+use crate::values::values_repository::{ValuesRepository, ValuesRepositoryError};
 use crate::super_agent::config::AgentID;
 use crate::super_agent::defaults::{
     LOCAL_AGENT_DATA_DIR, REMOTE_AGENT_DATA_DIR, VALUES_DIR, VALUES_FILE,
@@ -211,7 +211,7 @@ pub mod test {
     use super::ValuesRepositoryFile;
     use crate::agent_type::agent_values::AgentValues;
     use crate::agent_type::definition::AgentType;
-    use crate::sub_agent::values::values_repository::{ValuesRepository, ValuesRepositoryError};
+    use crate::values::values_repository::{ValuesRepository, ValuesRepositoryError};
     use crate::super_agent::config::AgentID;
     use assert_matches::assert_matches;
     use fs::directory_manager::mock::MockDirectoryManagerMock;

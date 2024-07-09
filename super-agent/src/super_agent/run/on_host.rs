@@ -25,7 +25,7 @@ use crate::{
         ApplicationEvent, SuperAgentEvent,
     },
     opamp::{client_builder::DefaultOpAMPClientBuilder, http::builder::HttpClientBuilder},
-    super_agent::{config_storer::store::SuperAgentConfigStore, error::AgentError},
+    super_agent::{config_storer::file::SuperAgentConfigStoreFile, error::AgentError},
 };
 use opamp_client::operation::settings::DescriptionValueType;
 use std::collections::HashMap;
@@ -35,7 +35,7 @@ use tracing::info;
 
 pub fn run_super_agent<C: HttpClientBuilder, B: EffectiveConfigLoaderBuilder>(
     _runtime: Arc<Runtime>,
-    sa_config_storer: SuperAgentConfigStore,
+    sa_config_storer: SuperAgentConfigStoreFile,
     application_events_consumer: EventConsumer<ApplicationEvent>,
     opamp_client_builder: Option<DefaultOpAMPClientBuilder<C, B>>,
     super_agent_publisher: EventPublisher<SuperAgentEvent>,

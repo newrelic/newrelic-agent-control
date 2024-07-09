@@ -62,7 +62,7 @@ pub trait ValuesRepository {
 pub mod test {
     use crate::agent_type::agent_values::AgentValues;
     use crate::agent_type::definition::AgentType;
-    use crate::sub_agent::values::values_repository::{ValuesRepository, ValuesRepositoryError};
+    use crate::values::values_repository::{ValuesRepository, ValuesRepositoryError};
     use crate::super_agent::config::AgentID;
     use mockall::{mock, predicate};
 

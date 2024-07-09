@@ -334,7 +334,7 @@ where
         let super_agent_dynamic_config = if remote_config_value.is_empty() {
             // Use the local configuration if the content of the remote config is empty.
             // Do not confuse with an empty list of 'agents', which is a valid remote configuration.
-            self.sa_dynamic_config_store.delete()?;
+            self.sa_dynamic_config_store.delete_remote()?;
             self.sa_dynamic_config_store.load()?
         } else {
             SuperAgentDynamicConfig::try_from(remote_config_value)?
@@ -401,7 +401,7 @@ where
 
         if !remote_config_value.is_empty() {
             self.sa_dynamic_config_store
-                .store(&super_agent_dynamic_config)?;
+                .store_remote(&super_agent_dynamic_config)?;
         }
 
         Ok(self

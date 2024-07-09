@@ -1,5 +1,5 @@
 use super::config::OpAMPClientConfig;
-use super::config_storer::store::SuperAgentConfigStore;
+use super::config_storer::file::SuperAgentConfigStoreFile;
 use super::http_server::config::ServerConfig;
 use crate::event::channel::pub_sub;
 use crate::opamp::auth::token_retriever::TokenRetrieverImpl;
@@ -30,7 +30,7 @@ pub mod on_host;
 
 /// Structures for running the super-agent provided by CLI inputs
 pub struct SuperAgentRunConfig {
-    pub config_storer: SuperAgentConfigStore,
+    pub config_storer: SuperAgentConfigStoreFile,
     pub opamp: Option<OpAMPClientConfig>,
     pub http_server: ServerConfig,
 }
@@ -99,7 +99,7 @@ impl TryFrom<SuperAgentRunConfig> for SuperAgentRunner {
 pub struct SuperAgentRunner {
     _http_server_runner: Runner,
     runtime: Arc<Runtime>,
-    config_storer: SuperAgentConfigStore,
+    config_storer: SuperAgentConfigStoreFile,
     application_event_consumer: EventConsumer<ApplicationEvent>,
     opamp_client_builder: Option<
         DefaultOpAMPClientBuilder<

@@ -36,7 +36,7 @@ impl SuperAgentDynamicConfigLoader for SubAgentsConfigStoreConfigMap {
 }
 
 impl SuperAgentDynamicConfigDeleter for SubAgentsConfigStoreConfigMap {
-    fn delete(&self) -> Result<(), SuperAgentConfigError> {
+    fn delete_remote(&self) -> Result<(), SuperAgentConfigError> {
         debug!("deleting remote SuperAgentDynamicConfig");
 
         self.k8s_store
@@ -46,7 +46,10 @@ impl SuperAgentDynamicConfigDeleter for SubAgentsConfigStoreConfigMap {
 }
 
 impl SuperAgentDynamicConfigStorer for SubAgentsConfigStoreConfigMap {
-    fn store(&self, sub_agents: &SuperAgentDynamicConfig) -> Result<(), SuperAgentConfigError> {
+    fn store_remote(
+        &self,
+        sub_agents: &SuperAgentDynamicConfig,
+    ) -> Result<(), SuperAgentConfigError> {
         debug!("saving remote SuperAgentDynamicConfig");
 
         self.k8s_store.set_opamp_data(

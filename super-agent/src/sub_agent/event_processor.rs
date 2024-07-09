@@ -5,7 +5,7 @@ use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::operations::stop_opamp_client;
 use crate::sub_agent::error::SubAgentError;
 use crate::sub_agent::health::with_start_time::HealthWithStartTime;
-use crate::sub_agent::values::values_repository::ValuesRepository;
+use crate::values::values_repository::ValuesRepository;
 use crate::sub_agent::SubAgentCallbacks;
 use crate::super_agent::config::AgentID;
 use crossbeam::channel::never;
@@ -174,7 +174,7 @@ pub mod test {
     use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::error::SubAgentError;
     use crate::sub_agent::event_processor::{EventProcessor, SubAgentEventProcessor};
-    use crate::sub_agent::values::values_repository::test::MockRemoteValuesRepositoryMock;
+    use crate::values::values_repository::test::MockRemoteValuesRepositoryMock;
     use crate::super_agent::config::AgentID;
     use mockall::mock;
     use opamp_client::opamp::proto::RemoteConfigStatus;

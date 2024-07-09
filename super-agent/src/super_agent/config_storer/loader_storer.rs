@@ -10,7 +10,7 @@ pub trait SuperAgentConfigLoader {
 
 /// SuperAgentDynamicConfigStorer stores the dynamic part of the SuperAgentConfig
 pub trait SuperAgentDynamicConfigStorer {
-    fn store(&self, config: &SuperAgentDynamicConfig) -> Result<(), SuperAgentConfigError>;
+    fn store_remote(&self, config: &SuperAgentDynamicConfig) -> Result<(), SuperAgentConfigError>;
 }
 
 /// SuperAgentDynamicConfigLoader loads the dynamic part of the SuperAgentConfig
@@ -21,7 +21,7 @@ pub trait SuperAgentDynamicConfigLoader {
 
 /// SuperAgentDynamicConfigDeleter deletes the dynamic part of the SuperAgentConfig
 pub trait SuperAgentDynamicConfigDeleter {
-    fn delete(&self) -> Result<(), SuperAgentConfigError>;
+    fn delete_remote(&self) -> Result<(), SuperAgentConfigError>;
 }
 
 #[cfg(test)]
@@ -38,13 +38,13 @@ pub(crate) mod tests {
         pub SuperAgentDynamicConfigStore {}
 
         impl SuperAgentDynamicConfigStorer for SuperAgentDynamicConfigStore {
-            fn store(&self, config: &SuperAgentDynamicConfig) -> Result<(), SuperAgentConfigError>;
+            fn store_remote(&self, config: &SuperAgentDynamicConfig) -> Result<(), SuperAgentConfigError>;
         }
         impl SuperAgentDynamicConfigLoader for SuperAgentDynamicConfigStore {
             fn load(&self) -> Result<SuperAgentDynamicConfig, SuperAgentConfigError>;
         }
         impl SuperAgentDynamicConfigDeleter for SuperAgentDynamicConfigStore {
-            fn delete(&self) -> Result<(), SuperAgentConfigError>;
+            fn delete_remote(&self) -> Result<(), SuperAgentConfigError>;
         }
     }
 
