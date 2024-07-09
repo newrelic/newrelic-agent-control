@@ -2,8 +2,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use thiserror::Error;
 
-use crate::agent_type::trivial_value::TrivialValue;
-
 /// User-provided config.
 ///
 /// User-provided configuration (normally via a YAML file) that must follow the tree-like structure of [`Agent`]'s [`variables`] and will be used to populate the [`Agent`]'s [ `runtime_config`] field to totally define a deployable Sub Agent.
@@ -85,9 +83,6 @@ use crate::agent_type::trivial_value::TrivialValue;
 /// [agent_type]: crate::config::agent_type
 #[derive(Debug, PartialEq, Deserialize, Serialize, Default, Clone)]
 pub struct AgentValues(HashMap<String, serde_yaml::Value>);
-
-#[derive(Debug, PartialEq, Deserialize, Serialize, Default, Clone)]
-pub struct NormalizedValues(HashMap<String, TrivialValue>);
 
 #[derive(Error, Debug)]
 pub enum AgentValuesError {
