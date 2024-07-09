@@ -108,12 +108,11 @@ impl TryFrom<String> for AgentValues {
         Ok(serde_yaml::from_str::<AgentValues>(value.as_str())?)
     }
 }
-
-impl TryInto<String> for AgentValues {
+impl TryFrom<AgentValues> for String {
     type Error = AgentValuesError;
 
-    fn try_into(self) -> Result<String, Self::Error> {
-        Ok(serde_yaml::to_string(&self)?)
+    fn try_from(value: AgentValues) -> Result<Self, Self::Error> {
+        Ok(serde_yaml::to_string(&value)?)
     }
 }
 

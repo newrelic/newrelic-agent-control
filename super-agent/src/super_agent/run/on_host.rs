@@ -53,18 +53,12 @@ pub fn run_super_agent<C: HttpClientBuilder>(
     }
     let values_repository = Arc::new(vr);
 
-    let opamp_client_builder = match opamp_http_builder {
-        Some(http_builder) => {
-            let effective_config_loader_builder =
-                DefaultEffectiveConfigLoaderBuilder::new(values_repository.clone());
-
-            Some(DefaultOpAMPClientBuilder::new(
-                http_builder,
-                effective_config_loader_builder,
-            ))
-        }
-        None => None,
-    };
+    let opamp_client_builder = opamp_http_builder.map(|http_builder| {
+        DefaultOpAMPClientBuilder::new(
+            http_builder,
+            DefaultEffectiveConfigLoaderBuilder::new(values_repository.clone()),
+        )
+    });
 
     let config = config_storer.load()?;
 
