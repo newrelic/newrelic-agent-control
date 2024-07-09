@@ -1,4 +1,3 @@
-use super::values::values_repository::{ValuesRepository, ValuesRepositoryError};
 use crate::agent_type::agent_attributes::AgentAttributes;
 use crate::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError};
 use crate::agent_type::definition::{AgentType, AgentTypeDefinition};
@@ -9,6 +8,7 @@ use crate::agent_type::renderer::{Renderer, TemplateRenderer};
 use crate::agent_type::runtime_config::{Deployment, Runtime};
 use crate::sub_agent::persister::config_persister_file::ConfigurationPersisterFile;
 use crate::super_agent::config::{AgentID, SubAgentConfig};
+use crate::values::values_repository::{ValuesRepository, ValuesRepositoryError};
 use fs::file_reader::FileReaderError;
 use std::fmt::Display;
 use std::sync::Arc;
@@ -131,7 +131,7 @@ where
         let agent_type = build_agent_type(agent_type_definition, environment)?;
 
         // Load the values
-        let values = self.values_repository.load(agent_id, &agent_type)?;
+        let values = self.values_repository.load(agent_id)?;
 
         // Build the agent attributes
         let attributes = AgentAttributes {
@@ -299,7 +299,7 @@ pub(crate) mod tests {
         //Expectations
         registry.should_get("ns/some_fqn:0.0.1".to_string(), &agent_type_definition);
 
-        sub_agent_values_repo.should_load(&agent_id, &agent_type, &values);
+        sub_agent_values_repo.should_load(&agent_id, &values);
         renderer.should_render(
             &agent_id,
             &agent_type,
@@ -368,14 +368,13 @@ pub(crate) mod tests {
             version: Version::parse("0.0.1").unwrap(),
             namespace: "ns".into(),
         });
-        let agent_type = build_agent_type(agent_type_definition.clone(), &environment).unwrap();
         let sub_agent_config = SubAgentConfig {
             agent_type: "ns/some_fqn:0.0.1".try_into().unwrap(),
         };
 
         //Expectations
         registry.should_get("ns/some_fqn:0.0.1".to_string(), &agent_type_definition);
-        sub_agent_values_repo.should_not_load(&agent_id, &agent_type);
+        sub_agent_values_repo.should_not_load(&agent_id);
 
         let assembler = LocalEffectiveAgentsAssembler::new_for_testing(
             registry,

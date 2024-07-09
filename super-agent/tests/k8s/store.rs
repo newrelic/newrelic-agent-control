@@ -3,7 +3,6 @@ use crate::k8s::tools::k8s_env::K8sEnv;
 use crate::k8s::tools::super_agent::create_local_config_map;
 use k8s_openapi::api::core::v1::ConfigMap;
 use kube::Api;
-use newrelic_super_agent::agent_type::runtime_config::Runtime;
 use newrelic_super_agent::k8s::client::SyncK8sClient;
 use newrelic_super_agent::k8s::labels::Labels;
 use newrelic_super_agent::k8s::store::{
@@ -22,16 +21,9 @@ use newrelic_super_agent::super_agent::config_storer::loader_storer::{
 };
 use newrelic_super_agent::super_agent::config_storer::SubAgentsConfigStoreConfigMap;
 use newrelic_super_agent::{
-    ::values::k8s::ValuesRepositoryConfigMap, agent_type::agent_values::AgentValues,
+    agent_type::agent_values::AgentValues, opamp::hash_repository::HashRepository,
+    values::k8s::ValuesRepositoryConfigMap, values::values_repository::ValuesRepository,
 };
-use newrelic_super_agent::{
-    ::values::values_repository::ValuesRepository,
-    agent_type::definition::{AgentType, VariableTree},
-};
-use newrelic_super_agent::{
-    agent_type::agent_metadata::AgentMetadata, opamp::hash_repository::HashRepository,
-};
-use semver::Version;
 use serde_yaml::from_str;
 use std::sync::Arc;
 
@@ -128,21 +120,11 @@ fn k8s_value_repository_config_map() {
     let agent_id_1 = AgentID::new(AGENT_ID_1).unwrap();
     let agent_id_2 = AgentID::new(AGENT_ID_2).unwrap();
 
-    let agent_type = AgentType::new(
-        AgentMetadata {
-            name: "agent".into(),
-            version: Version::parse("0.0.0").unwrap(),
-            namespace: "ns".into(),
-        },
-        VariableTree::default(),
-        Runtime::default(),
-    );
-
     let mut value_repository = ValuesRepositoryConfigMap::new(k8s_store);
     let default_values = AgentValues::default();
 
     // without values the default is expected
-    let res = value_repository.load(&agent_id_1, &agent_type);
+    let res = value_repository.load(&agent_id_1);
     assert_eq!(res.unwrap(), default_values);
 
     // with local values we expect some data
@@ -153,7 +135,7 @@ fn k8s_value_repository_config_map() {
         format!("local-data-{}", AGENT_ID_1).as_str(),
     ));
     let local_values = AgentValues::try_from("test: 1".to_string()).unwrap();
-    let res = value_repository.load(&agent_id_1, &agent_type);
+    let res = value_repository.load(&agent_id_1);
 
     assert_eq!(res.unwrap(), local_values);
 
@@ -162,17 +144,17 @@ fn k8s_value_repository_config_map() {
     value_repository
         .store_remote(&agent_id_1, &remote_values)
         .unwrap();
-    let res = value_repository.load(&agent_id_1, &agent_type);
+    let res = value_repository.load(&agent_id_1);
     assert_eq!(res.unwrap(), local_values);
 
     // Once we have remote enabled we get remote data
     value_repository = value_repository.with_remote();
-    let res = value_repository.load(&agent_id_1, &agent_type);
+    let res = value_repository.load(&agent_id_1);
     assert_eq!(res.unwrap(), remote_values);
 
     // After deleting remote we expect to get still local data
     value_repository.delete_remote(&agent_id_1).unwrap();
-    let res = value_repository.load(&agent_id_1, &agent_type);
+    let res = value_repository.load(&agent_id_1);
     assert_eq!(res.unwrap(), local_values);
 
     // After saving data for a second agent should not affect the previous one
@@ -181,8 +163,8 @@ fn k8s_value_repository_config_map() {
     value_repository
         .store_remote(&agent_id_2, &remote_values_agent_2)
         .unwrap();
-    let res = value_repository.load(&agent_id_1, &agent_type);
-    let res_agent_2 = value_repository.load(&agent_id_2, &agent_type);
+    let res = value_repository.load(&agent_id_1);
+    let res_agent_2 = value_repository.load(&agent_id_2);
     assert_eq!(res.unwrap(), local_values);
     assert_eq!(res_agent_2.unwrap(), remote_values_agent_2);
 }
@@ -226,7 +208,7 @@ agents:
     agent_type: "io.opentelemetry.collector:0.2.0"
 "#;
     assert!(store_sa
-        .store(&from_str::<SuperAgentDynamicConfig>(agents_cfg).unwrap())
+        .store_remote(&from_str::<SuperAgentDynamicConfig>(agents_cfg).unwrap())
         .is_ok());
     assert_eq!(store_sa.load().unwrap().agents.len(), 4);
 
@@ -235,7 +217,7 @@ agents:
     assert_eq!(store_sa.load().unwrap().agents.len(), 3);
 
     // After deleting the remote config the local one is loaded
-    assert!(store_sa.delete().is_ok());
+    assert!(store_sa.delete_remote().is_ok());
     assert_eq!(store_sa.load().unwrap().agents.len(), 4);
 }
 

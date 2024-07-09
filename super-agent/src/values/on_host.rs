@@ -1,10 +1,9 @@
 use crate::agent_type::agent_values::AgentValues;
-use crate::agent_type::definition::AgentType;
-use crate::values::values_repository::{ValuesRepository, ValuesRepositoryError};
 use crate::super_agent::config::AgentID;
 use crate::super_agent::defaults::{
     LOCAL_AGENT_DATA_DIR, REMOTE_AGENT_DATA_DIR, VALUES_DIR, VALUES_FILE,
 };
+use crate::values::values_repository::{ValuesRepository, ValuesRepositoryError};
 use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
 use fs::file_reader::{FileReader, FileReaderError};
 use fs::writer_file::{FileWriter, WriteError};
@@ -154,9 +153,8 @@ where
     fn load_remote(
         &self,
         agent_id: &AgentID,
-        agent_type: &AgentType,
     ) -> Result<Option<AgentValues>, ValuesRepositoryError> {
-        if !self.remote_enabled || !agent_type.has_remote_management() {
+        if !self.remote_enabled {
             return Ok(None);
         }
 
@@ -211,8 +209,8 @@ pub mod test {
     use super::ValuesRepositoryFile;
     use crate::agent_type::agent_values::AgentValues;
     use crate::agent_type::definition::AgentType;
-    use crate::values::values_repository::{ValuesRepository, ValuesRepositoryError};
     use crate::super_agent::config::AgentID;
+    use crate::values::values_repository::{ValuesRepository, ValuesRepositoryError};
     use assert_matches::assert_matches;
     use fs::directory_manager::mock::MockDirectoryManagerMock;
     use fs::directory_manager::DirectoryManagementError::{
@@ -305,7 +303,7 @@ deployment:
             remote_enabled,
         );
 
-        let agent_values = repo.load(&agent_id, &final_agent).unwrap();
+        let agent_values = repo.load(&agent_id).unwrap();
 
         assert_eq!(agent_values.get("some_config").unwrap(), &Value::Bool(true));
         assert_eq!(
@@ -342,7 +340,7 @@ deployment:
             remote_enabled,
         );
 
-        let agent_values = repo.load(&agent_id, &final_agent).unwrap();
+        let agent_values = repo.load(&agent_id).unwrap();
 
         assert_eq!(agent_values.get("some_config").unwrap(), &Value::Bool(true));
         assert_eq!(
@@ -384,7 +382,7 @@ deployment:
             remote_enabled,
         );
 
-        let agent_values = repo.load(&agent_id, &final_agent).unwrap();
+        let agent_values = repo.load(&agent_id).unwrap();
 
         assert_eq!(agent_values.get("some_config").unwrap(), &Value::Bool(true));
         assert_eq!(
@@ -419,7 +417,7 @@ deployment:
             remote_enabled,
         );
 
-        let agent_values = repo.load(&agent_id, &final_agent).unwrap();
+        let agent_values = repo.load(&agent_id).unwrap();
 
         assert_eq!(agent_values, AgentValues::default());
     }
@@ -449,7 +447,7 @@ deployment:
             remote_enabled,
         );
 
-        let result = repo.load(&agent_id, &final_agent);
+        let result = repo.load(&agent_id);
         let err = result.unwrap_err();
         assert_matches!(err, ValuesRepositoryError::LoadError(s) => {
             assert!(s.contains("file read error"));
@@ -481,7 +479,7 @@ deployment:
             remote_enabled,
         );
 
-        let result = repo.load(&agent_id, &final_agent);
+        let result = repo.load(&agent_id);
         let err = result.unwrap_err();
         assert_matches!(err, ValuesRepositoryError::LoadError(s) => {
             assert!(s.contains("error reading contents"));

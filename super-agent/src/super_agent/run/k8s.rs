@@ -23,8 +23,9 @@ use crate::{
 };
 use crate::{
     k8s::{garbage_collector::NotStartedK8sGarbageCollector, store::K8sStore},
-    sub_agent::{k8s::builder::K8sSubAgentBuilder, values::k8s::ValuesRepositoryConfigMap},
+    sub_agent::k8s::builder::K8sSubAgentBuilder,
     super_agent::config_storer::SubAgentsConfigStoreConfigMap,
+    values::k8s::ValuesRepositoryConfigMap,
 };
 use opamp_client::operation::settings::DescriptionValueType;
 use resource_detection::system::hostname::HostnameGetter;

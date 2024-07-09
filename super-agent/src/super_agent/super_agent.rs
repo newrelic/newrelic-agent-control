@@ -635,7 +635,7 @@ mod tests {
             .returning(|| Ok(sub_agents_default_config()));
         // updated agent
         sub_agents_config_store
-            .expect_store()
+            .expect_store_remote()
             .once()
             .returning(|_| Ok(()));
 
@@ -861,12 +861,12 @@ agents:
             });
 
         sub_agents_config_store
-            .expect_store()
+            .expect_store_remote()
             .times(1)
             .returning(|_| Ok(()));
 
         sub_agents_config_store
-            .expect_store()
+            .expect_store_remote()
             .times(1)
             .returning(|_| Ok(()));
 

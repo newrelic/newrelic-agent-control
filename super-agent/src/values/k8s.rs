@@ -1,9 +1,8 @@
 use crate::agent_type::agent_values::AgentValues;
-use crate::agent_type::definition::AgentType;
 use crate::k8s;
 use crate::k8s::store::{K8sStore, STORE_KEY_LOCAL_DATA_CONFIG, STORE_KEY_OPAMP_DATA_CONFIG};
-use crate::values::values_repository::{ValuesRepository, ValuesRepositoryError};
 use crate::super_agent::config::AgentID;
+use crate::values::values_repository::{ValuesRepository, ValuesRepositoryError};
 use std::sync::Arc;
 use thiserror::Error;
 use tracing::debug;
@@ -46,9 +45,8 @@ impl ValuesRepository for ValuesRepositoryConfigMap {
     fn load_remote(
         &self,
         agent_id: &AgentID,
-        agent_type: &AgentType,
     ) -> Result<Option<AgentValues>, ValuesRepositoryError> {
-        if !self.remote_enabled || !agent_type.has_remote_management() {
+        if !self.remote_enabled {
             return Ok(None);
         }
 

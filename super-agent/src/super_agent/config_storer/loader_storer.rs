@@ -58,7 +58,7 @@ pub(crate) mod tests {
 
         pub fn should_store(&mut self, sub_agents_config: &SuperAgentDynamicConfig) {
             let sub_agents_config = sub_agents_config.clone();
-            self.expect_store()
+            self.expect_store_remote()
                 .once()
                 .with(predicate::eq(sub_agents_config))
                 .returning(move |_| Ok(()));

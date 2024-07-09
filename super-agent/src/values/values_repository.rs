@@ -1,5 +1,4 @@
 use crate::agent_type::agent_values::AgentValues;
-use crate::agent_type::definition::AgentType;
 use crate::super_agent::config::AgentID;
 use tracing::debug;
 
@@ -16,14 +15,10 @@ pub enum ValuesRepositoryError {
 pub trait ValuesRepository {
     /// load(...) looks for remote configs first, if unavailable checks the local ones.
     /// If none is found, it fallbacks to the default values.
-    fn load(
-        &self,
-        agent_id: &AgentID,
-        agent_type: &AgentType,
-    ) -> Result<AgentValues, ValuesRepositoryError> {
+    fn load(&self, agent_id: &AgentID) -> Result<AgentValues, ValuesRepositoryError> {
         debug!(agent_id = agent_id.to_string(), "loading config");
 
-        if let Some(values_result) = self.load_remote(agent_id, agent_type)? {
+        if let Some(values_result) = self.load_remote(agent_id)? {
             return Ok(values_result);
         }
         debug!(
@@ -43,11 +38,8 @@ pub trait ValuesRepository {
 
     fn load_local(&self, agent_id: &AgentID) -> Result<Option<AgentValues>, ValuesRepositoryError>;
 
-    fn load_remote(
-        &self,
-        agent_id: &AgentID,
-        agent_type: &AgentType,
-    ) -> Result<Option<AgentValues>, ValuesRepositoryError>;
+    fn load_remote(&self, agent_id: &AgentID)
+        -> Result<Option<AgentValues>, ValuesRepositoryError>;
 
     fn store_remote(
         &self,
@@ -61,9 +53,8 @@ pub trait ValuesRepository {
 #[cfg(test)]
 pub mod test {
     use crate::agent_type::agent_values::AgentValues;
-    use crate::agent_type::definition::AgentType;
-    use crate::values::values_repository::{ValuesRepository, ValuesRepositoryError};
     use crate::super_agent::config::AgentID;
+    use crate::values::values_repository::{ValuesRepository, ValuesRepositoryError};
     use mockall::{mock, predicate};
 
     mock! {
@@ -81,7 +72,6 @@ pub mod test {
             fn load(
                 &self,
                 agent_id: &AgentID,
-                agent_type: &AgentType,
             ) -> Result<AgentValues, ValuesRepositoryError>;
 
             fn load_local(
@@ -92,36 +82,24 @@ pub mod test {
             fn load_remote(
                 &self,
                 agent_id: &AgentID,
-                agent_type: &AgentType,
             ) -> Result<Option<AgentValues>, ValuesRepositoryError>;
         }
     }
 
     impl MockRemoteValuesRepositoryMock {
-        pub fn should_load(
-            &mut self,
-            agent_id: &AgentID,
-            final_agent: &AgentType,
-            agent_values: &AgentValues,
-        ) {
+        pub fn should_load(&mut self, agent_id: &AgentID, agent_values: &AgentValues) {
             let agent_values = agent_values.clone();
             self.expect_load()
                 .once()
-                .with(
-                    predicate::eq(agent_id.clone()),
-                    predicate::eq(final_agent.clone()),
-                )
-                .returning(move |_, _| Ok(agent_values.clone()));
+                .with(predicate::eq(agent_id.clone()))
+                .returning(move |_| Ok(agent_values.clone()));
         }
 
-        pub fn should_not_load(&mut self, agent_id: &AgentID, final_agent: &AgentType) {
+        pub fn should_not_load(&mut self, agent_id: &AgentID) {
             self.expect_load()
                 .once()
-                .with(
-                    predicate::eq(agent_id.clone()),
-                    predicate::eq(final_agent.clone()),
-                )
-                .returning(move |_, _| {
+                .with(predicate::eq(agent_id.clone()))
+                .returning(move |_| {
                     Err(ValuesRepositoryError::LoadError("load error".to_string()))
                 });
         }
