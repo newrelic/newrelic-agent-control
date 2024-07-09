@@ -170,8 +170,6 @@ where
         agent_id: &AgentID,
         agent_values: &AgentValues,
     ) -> Result<(), ValuesRepositoryError> {
-        // OpAMP protocol states that when only one config is present the key will be empty
-        // https://github.com/open-telemetry/opamp-spec/blob/main/specification.md#configuration-files
         let values_file_path = self.get_remote_values_file_path(agent_id);
 
         self.ensure_directory_existence(&values_file_path)
