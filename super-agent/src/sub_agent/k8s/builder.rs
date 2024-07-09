@@ -383,7 +383,7 @@ pub mod test {
         MockInstanceIDGetterMock,
         MockHashRepositoryMock,
     ) {
-        let instance_id = InstanceID::try_from("018fca06-70a8-7968-9d04-fabdde189b8c").unwrap();
+        let instance_id = InstanceID::try_from("018FCA0670A879689D04fABDDE189B8C").unwrap();
 
         // opamp builder mock
         let mut started_client = MockStartedOpAMPClientMock::new();

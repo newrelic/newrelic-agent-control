@@ -67,12 +67,12 @@
         command_line: "/usr/bin/newrelic-infra --config.*"
         process_pid_fact: process_pid
 
-    - name: Get Infra Agent ULID
+    - name: Get Infra Agent InstanceID
       include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
       vars:
         agent_identifier_path: "{{ sub_agent_identifiers_file_tpl | replace('AGENT_ID','nr-infra-agent') }}"
-        identifier_field: "ulid"
-        identifier_field_fact: "infra_agent_ulid"
+        identifier_field: "instance_id"
+        identifier_field_fact: "infra_agent_instance_id"
 
     - name: authorize Infra Agent
       include_role:
@@ -80,7 +80,7 @@
       vars:
         authorize_agent:
           account_id: "{{ nr_account_id | int }}"
-          agent_ulid: "{{ infra_agent_ulid }}"
+          agent_instance_id: "{{ infra_agent_instance_id }}"
 
     - name: Wait for a few seconds for the config to be retrieved
       ansible.builtin.pause:

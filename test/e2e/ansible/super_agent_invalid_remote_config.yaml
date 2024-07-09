@@ -73,12 +73,12 @@
           config_id: "{{ created_config_id | int }}"
           config_revision: "{{ created_config_revision | int }}"
 
-    - name: Get NR Super Agent ULID
+    - name: Get NR Super Agent InstanceID
       include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
       vars:
         agent_identifier_path: "{{ super_agent_identifiers_file }}"
-        identifier_field: "ulid"
-        identifier_field_fact: "super_agent_ulid"
+        identifier_field: "instance_id"
+        identifier_field_fact: "super_agent_instance_id"
 
     - name: authorize Super Agent
       include_role:
@@ -86,7 +86,7 @@
       vars:
         authorize_agent:
           account_id: "{{ nr_account_id | int }}"
-          agent_ulid: "{{ super_agent_ulid }}"
+          agent_instance_id: "{{ super_agent_instance_id }}"
 
     - name: Wait for a few seconds for the config to be retrieved
       ansible.builtin.pause:

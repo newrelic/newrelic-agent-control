@@ -21,7 +21,7 @@
         name: newrelic-super-agent
         state: restarted
 
-    - name: Wait for a few seconds to ensure ULID recreation process skipped
+    - name: Wait for a few seconds to ensure InstanceID recreation process skipped
       ansible.builtin.pause:
         seconds: 30
 
@@ -34,16 +34,16 @@
           - "^/usr/bin/newrelic-infra"
           - "^/usr/bin/nr-otel-collector"
 
-    - name: Get Infra agent ULID
+    - name: Get Infra agent InstanceID
       include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
       vars:
         agent_identifier_path: "{{ sub_agent_identifiers_file_tpl | replace('AGENT_ID','nr-infra-agent') }}"
-        identifier_field: "ulid"
-        identifier_field_fact: "infra_agent_ulid_restart"
+        identifier_field: "instance_id"
+        identifier_field_fact: "infra_agent_instance_id_restart"
 
-    - name: assert the persisted Infra agent ULID is the same
+    - name: assert the persisted Infra agent InstanceID is the same
       assert:
-        that: "{{ infra_agent_ulid_restart == infra_agent_ulid }}"
+        that: "{{ infra_agent_instance_id_restart == infra_agent_instance_id }}"
 
     - name: set remote config name
       set_fact:
@@ -102,7 +102,7 @@
       vars:
         authorize_agent:
           account_id: "{{ nr_account_id | int }}"
-          agent_ulid: "{{ infra_agent_ulid_restart }}"
+          agent_instance_id: "{{ infra_agent_instance_id_restart }}"
 
     - name: Wait for a few seconds for the config to be present
       stat:
@@ -145,13 +145,13 @@
       assert:
         that: "{{ new_process_pid != process_pid }}"
 
-    - name: Get Infra agent ULID
+    - name: Get Infra agent InstanceID
       include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
       vars:
         agent_identifier_path: "{{ sub_agent_identifiers_file_tpl | replace('AGENT_ID','nr-infra-agent') }}"
-        identifier_field: "ulid"
-        identifier_field_fact: "infra_agent_ulid_new_config"
+        identifier_field: "instance_id"
+        identifier_field_fact: "infra_agent_instance_id_new_config"
 
-    - name: assert the persisted Infra agent ULID is the same
+    - name: assert the persisted Infra agent InstanceID is the same
       assert:
-        that: "{{ infra_agent_ulid_restart == infra_agent_ulid_new_config }}"
+        that: "{{ infra_agent_instance_id_restart == infra_agent_instance_id_new_config }}"
