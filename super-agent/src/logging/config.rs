@@ -94,6 +94,13 @@ impl LoggingConfig {
         Ok(guard)
     }
 
+    fn logging_filter(&self) -> EnvFilter {
+        match self.insecure_logging_filter() {
+            Some(insecure_logging_filter) => insecure_logging_filter,
+            None => self.crate_logging_filter(),
+        }
+    }
+
     fn insecure_logging_filter(&self) -> Option<EnvFilter> {
         let mut env_filter = EnvFilter::builder()
             // Set all logging levels to "error". This is the highest level we can set it up.
@@ -130,11 +137,7 @@ impl LoggingConfig {
         }
     }
 
-    fn logging_filter(&self) -> EnvFilter {
-        if let Some(insecure_logging_filter) = self.insecure_logging_filter() {
-            return insecure_logging_filter;
-        }
-
+    fn crate_logging_filter(&self) -> EnvFilter {
         let level = self.level.as_level().to_string().to_lowercase();
 
         let crate_directive = format!("newrelic_super_agent={}", level)
