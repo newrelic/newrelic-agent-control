@@ -102,13 +102,25 @@ impl LoggingConfig {
     }
 
     fn insecure_logging_filter(&self) -> Option<EnvFilter> {
-        let mut env_filter = EnvFilter::builder()
+        let default_directive = match self.insecure_fine_grained_level.clone() {
             // Set all logging levels to "error". This is the highest level we can set it up.
             // Only "error" from crates will be logged.
-            .with_default_directive(LevelFilter::ERROR.into())
-            // Allow to remove even the default above by using a env var
+            None => LevelFilter::ERROR.into(),
+            // The user set something in the config so we take it as the default.
+            // Default can be overridden by the environment variable.
+            Some(s) => s
+                .parse::<Directive>()
+                .unwrap_or_else(|err| {
+                    panic!(
+                        "Unparsable logging directive for config `log.insecure_fine_grained_level={}`: {}",
+                        s, err
+                    )
+                }),
+        };
+
+        let mut env_filter = EnvFilter::builder()
+            .with_default_directive(default_directive)
             .with_env_var("INSECURE_FINE_GRAINED_LEVEL")
-            // But not fail if the env var is invalid
             .from_env()
             .unwrap_or_else(|err| {
                 panic!(
@@ -117,24 +129,12 @@ impl LoggingConfig {
                 )
             });
 
-        if let Some(s) = self.insecure_fine_grained_level.clone() {
-            env_filter = env_filter.add_directive(s
-                .parse::<Directive>()
-                .unwrap_or_else(|err| {
-                    panic!(
-                        "Unparsable logging directive for config `log.insecure_fine_grained_level={}`: {}",
-                        s, err
-                    )
-                }));
+        // Return None if everything is the default
+        if env_filter.to_string() == LevelFilter::ERROR.to_string() {
+            return None;
         }
 
-        let env_filter_str = env_filter.to_string();
-        let level_str = LevelFilter::ERROR.to_string();
-        if env_filter_str != level_str {
-            Some(env_filter)
-        } else {
-            None
-        }
+        Some(env_filter)
     }
 
     fn crate_logging_filter(&self) -> EnvFilter {
