@@ -142,8 +142,8 @@ where
 
 impl<F, S> ValuesRepository for ValuesRepositoryFile<F, S>
 where
-    S: DirectoryManager,
-    F: FileWriter + FileReader,
+    S: DirectoryManager + Send + Sync + 'static,
+    F: FileWriter + FileReader + Send + Sync + 'static,
 {
     fn load_local(&self, agent_id: &AgentID) -> Result<Option<AgentValues>, ValuesRepositoryError> {
         let local_values_path = self.get_values_file_path(agent_id);

@@ -95,6 +95,10 @@ where
                 "event processor started"
             );
 
+            self.maybe_opamp_client
+                .as_ref()
+                .map(|client| client.update_effective_config());
+
             // The below two lines are used to create a channel that never receives any message
             // if the sub_agent_opamp_consumer is None. Thus, we avoid erroring if there is no
             // publisher for OpAMP events and we attempt to receive them, as erroring while reading
@@ -215,6 +219,11 @@ pub mod test {
         let hash_repository = MockHashRepositoryMock::default();
         let values_repository = MockRemoteValuesRepositoryMock::default();
 
+        opamp_client
+            .expect_update_effective_config()
+            .once()
+            .returning(|| Ok(()));
+
         //opamp client expects to be stopped
         opamp_client.should_stop(1);
 
@@ -274,6 +283,12 @@ pub mod test {
             last_remote_config_hash: hash.get().into_bytes(),
             error_message: Default::default(),
         });
+
+        opamp_client
+            .expect_update_effective_config()
+            .once()
+            .returning(|| Ok(()));
+
         //opamp client expects to be stopped
         opamp_client.should_stop(1);
 

@@ -1,6 +1,6 @@
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use crate::opamp::effective_config::loader::EffectiveConfigLoaderBuilder;
+use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::Identifiers;
 use crate::opamp::operations::build_opamp_with_channel;
@@ -33,11 +33,11 @@ use std::sync::Arc;
 use tokio::runtime::Runtime;
 use tracing::{error, info};
 
-pub fn run_super_agent<C: HttpClientBuilder, B: EffectiveConfigLoaderBuilder>(
+pub fn run_super_agent<C: HttpClientBuilder>(
     runtime: Arc<Runtime>,
     sa_local_config_storer: SuperAgentConfigStore,
     application_event_consumer: EventConsumer<ApplicationEvent>,
-    opamp_client_builder: Option<DefaultOpAMPClientBuilder<C, B>>,
+    opamp_http_builder: Option<C>,
     super_agent_publisher: EventPublisher<SuperAgentEvent>,
 ) -> Result<(), AgentError> {
     info!("Starting the k8s client");
@@ -68,10 +68,26 @@ pub fn run_super_agent<C: HttpClientBuilder, B: EffectiveConfigLoaderBuilder>(
         InstanceIDWithIdentifiersGetter::new_k8s_instance_id_getter(k8s_store.clone(), identifiers);
 
     let mut vr = ValuesRepositoryConfigMap::new(k8s_store.clone());
-    if opamp_client_builder.is_some() {
+    if opamp_http_builder.is_some() {
         vr = vr.with_remote();
     }
     let values_repository = Arc::new(vr);
+
+    let sub_agents_config_storer =
+        SubAgentsConfigStoreConfigMap::new(k8s_store.clone(), config.dynamic);
+    // enable remote config store
+    let config_storer = if opamp_http_builder.is_some() {
+        Arc::new(sub_agents_config_storer.with_remote())
+    } else {
+        Arc::new(sub_agents_config_storer)
+    };
+
+    let opamp_client_builder = opamp_http_builder.map(|http_builder| {
+        DefaultOpAMPClientBuilder::new(
+            http_builder,
+            DefaultEffectiveConfigLoaderBuilder::new(values_repository.clone()),
+        )
+    });
 
     let agents_assembler = LocalEffectiveAgentsAssembler::new(values_repository.clone());
     let hash_repository = Arc::new(HashRepositoryConfigMap::new(k8s_store.clone()));
@@ -104,15 +120,6 @@ pub fn run_super_agent<C: HttpClientBuilder, B: EffectiveConfigLoaderBuilder>(
         .transpose()?
         .map(|(client, consumer)| (Some(client), Some(consumer)))
         .unwrap_or_default();
-
-    let sub_agents_config_storer =
-        SubAgentsConfigStoreConfigMap::new(k8s_store.clone(), config.dynamic);
-    // enable remote config store
-    let config_storer = if opamp_client_builder.is_some() {
-        Arc::new(sub_agents_config_storer.with_remote())
-    } else {
-        Arc::new(sub_agents_config_storer)
-    };
 
     let gcc = NotStartedK8sGarbageCollector::new(config_storer.clone(), k8s_client);
     let _started_gcc = gcc.start();
