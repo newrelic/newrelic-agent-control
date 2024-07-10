@@ -118,7 +118,7 @@ impl LoggingConfig {
                 }),
         };
 
-        let mut env_filter = EnvFilter::builder()
+        let env_filter = EnvFilter::builder()
             .with_default_directive(default_directive)
             .with_env_var("INSECURE_FINE_GRAINED_LEVEL")
             .from_env()
