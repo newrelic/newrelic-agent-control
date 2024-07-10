@@ -206,11 +206,130 @@ health:
 
 ### Kubernetes Deployment
 
-TBD
+The Super Agent leverages [Flux](https://fluxcd.io/) to act as an operator running Helm commands (install, upgrade, delete) as needed based on the provided configurations.
+
+Then, for a Kubernetes deployment, we use the following format:
+
+```yaml
+deployment:
+  k8s:
+    health:
+      interval: 30s
+    objects:
+      repository:
+        apiVersion: source.toolkit.fluxcd.io/v1
+        kind: HelmRepository
+        metadata:
+          name: ${nr-sub:agent_id}
+        spec:
+          interval: 30m
+          provider: generic
+          url: https://helm-charts.newrelic.com
+      release:
+        apiVersion: helm.toolkit.fluxcd.io/v2
+        kind: HelmRelease
+        metadata:
+          name: ${nr-sub:agent_id}
+        spec:
+          interval: 3m
+          chart:
+            spec:
+              chart: nr-k8s-otel-collector
+              version: ${nr-var:chart_version}
+              reconcileStrategy: ChartVersion
+              sourceRef:
+                kind: HelmRepository
+                name: ${nr-sub:agent_id}
+              interval: 3m
+          install:
+            # Wait are disabled to avoid blocking the modifications/deletions of this CR while in reconciling state.
+            disableWait: true
+            disableWaitForJobs: true
+            remediation:
+              retries: 3
+            replace: true
+          upgrade:
+            disableWait: true
+            disableWaitForJobs: true
+            cleanupOnFail: true
+            force: true
+            remediation:
+              retries: 3
+              strategy: rollback
+          rollback:
+            disableWait: true
+            disableWaitForJobs: true
+          values:
+            ${nr-var:chart_values}
+```
+
+#### Kubernetes Objects
+
+##### Repository
+
+This is the K8s object whose kind is *HelmRepository*. It contains all the info to retrieve Helm charts.
+
+```yaml
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: open-telemetry
+  namespace: default
+spec:
+  interval: 1m
+  url: https://open-telemetry.github.io/opentelemetry-helm-charts
+```
+
+Visit [Flux API reference for v1](https://fluxcd.io/flux/components/source/api/v1/#source.toolkit.fluxcd.io/v1.HelmRepository) for detail spec information.
+
+##### Release
+
+This is the K8s object whose kind is *HelmRelease*. It has all the data to deploy a chart (version, values, tests, post-install actions).
+
+```yaml
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: otel-collector
+  namespace: default
+spec:
+  interval: 1h0m0s
+  chart:
+    spec:
+      chart: opentelemetry-collector
+      version: '>=0.60.0 <1.0.0'
+      sourceRef:
+        kind: HelmRepository
+        name: open-telemetry
+        namespace: default
+  releaseName: otel-collector
+  targetNamespace: default
+  values:
+    mode: deployment
+```
+
+Visit [Flux API reference for v2](https://fluxcd.io/flux/components/helm/api/v2/#helm.toolkit.fluxcd.io/v2.HelmRelease) for detail spec information.
 
 #### Kubernetes Health
 
-TBD
+Kubernetes already implements [Pod lifecycle](https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase), and [Liveness](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/), [Readiness and Startup Probes](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/) mechanism which is a standard for all containers running on the cluster and can be used as a generic interface to understand the health of a sub agent.
+
+Any agent deployed in Kubernetes can be composed of several components and those components deployed under different Pods and Replication Controllers. For instance, nri-kubernetes contains 1 DaemonSet and 2 Deployments.
+
+That's why the Super Agent leverages the Kubernetes Rust SDK to retrieve the health of standard replication controllers (Deployment, DaemonSet, StatefulSet) of the Agent at a configurable interval.
+
+That's why the health section for a Kubernetes deployment is as simple as this:
+
+```yaml
+deployment:
+  k8s:
+    health:
+      interval: 30s
+    objects:
+      ...
+```
+
+Users can currently only configure the interval of those periodic health check, within the Agent Type. However, in the future, we could offer the end users the possibility of selecting what information should be retrieved.
 
 ## Development
 
