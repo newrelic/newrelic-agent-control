@@ -34,13 +34,13 @@ pub enum LoggingError {
 #[derive(Debug, Deserialize, PartialEq, Clone, Default)]
 pub struct LoggingConfig {
     #[serde(default)]
-    format: LoggingFormat,
+    pub(crate) format: LoggingFormat,
     #[serde(default)]
-    level: LogLevel,
+    pub(crate) level: LogLevel,
     #[serde(default)]
-    insecure_fine_grained_level: Option<String>,
+    pub(crate) insecure_fine_grained_level: Option<String>,
     #[serde(default)]
-    file: FileLoggingConfig,
+    pub(crate) file: FileLoggingConfig,
 }
 
 pub type FileLoggerGuard = Option<WorkerGuard>;
