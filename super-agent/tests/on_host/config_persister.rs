@@ -5,9 +5,9 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 
 use ::fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
-use newrelic_super_agent::agent_type::agent_values::AgentValues;
 use newrelic_super_agent::agent_type::definition::AgentTypeDefinition;
 use newrelic_super_agent::agent_type::environment::Environment;
+use newrelic_super_agent::agent_type::valid_yaml_config::ValidYAMLConfig;
 use newrelic_super_agent::sub_agent::effective_agents_assembler::build_agent_type;
 use newrelic_super_agent::sub_agent::persister::config_persister::ConfigurationPersister;
 use newrelic_super_agent::sub_agent::persister::config_persister_file::ConfigurationPersisterFile;
@@ -30,7 +30,7 @@ fn test_configuration_persister_single_file() {
     let agent_type_definition: AgentTypeDefinition =
         serde_yaml::from_reader(AGENT_TYPE_SINGLE_FILE.as_bytes()).unwrap();
     let agent_type = build_agent_type(agent_type_definition, &Environment::OnHost).unwrap();
-    let agent_values: AgentValues =
+    let agent_values: ValidYAMLConfig =
         serde_yaml::from_reader(AGENT_VALUES_SINGLE_FILE.as_bytes()).unwrap();
     let filled_variables = agent_type
         .variables

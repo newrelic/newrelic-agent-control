@@ -1,5 +1,5 @@
-use crate::agent_type::agent_values::AgentValues;
 use crate::super_agent::config::AgentID;
+use crate::values::yaml_config::YAMLConfig;
 use tracing::debug;
 
 #[derive(thiserror::Error, Debug)]
@@ -15,7 +15,7 @@ pub enum ValuesRepositoryError {
 pub trait ValuesRepository {
     /// load(...) looks for remote configs first, if unavailable checks the local ones.
     /// If none is found, it fallbacks to the default values.
-    fn load(&self, agent_id: &AgentID) -> Result<AgentValues, ValuesRepositoryError> {
+    fn load(&self, agent_id: &AgentID) -> Result<YAMLConfig, ValuesRepositoryError> {
         debug!(agent_id = agent_id.to_string(), "loading config");
 
         if let Some(values_result) = self.load_remote(agent_id)? {
@@ -33,18 +33,17 @@ pub trait ValuesRepository {
             agent_id = agent_id.to_string(),
             "local config not found, falling back to defaults"
         );
-        Ok(AgentValues::default())
+        Ok(YAMLConfig::default())
     }
 
-    fn load_local(&self, agent_id: &AgentID) -> Result<Option<AgentValues>, ValuesRepositoryError>;
+    fn load_local(&self, agent_id: &AgentID) -> Result<Option<YAMLConfig>, ValuesRepositoryError>;
 
-    fn load_remote(&self, agent_id: &AgentID)
-        -> Result<Option<AgentValues>, ValuesRepositoryError>;
+    fn load_remote(&self, agent_id: &AgentID) -> Result<Option<YAMLConfig>, ValuesRepositoryError>;
 
     fn store_remote(
         &self,
         agent_id: &AgentID,
-        agent_values: &AgentValues,
+        agent_values: &YAMLConfig,
     ) -> Result<(), ValuesRepositoryError>;
 
     fn delete_remote(&self, agent_id: &AgentID) -> Result<(), ValuesRepositoryError>;
@@ -52,9 +51,9 @@ pub trait ValuesRepository {
 
 #[cfg(test)]
 pub mod test {
-    use crate::agent_type::agent_values::AgentValues;
     use crate::super_agent::config::AgentID;
     use crate::values::values_repository::{ValuesRepository, ValuesRepositoryError};
+    use crate::values::yaml_config::YAMLConfig;
     use mockall::{mock, predicate};
 
     mock! {
@@ -64,7 +63,7 @@ pub mod test {
             fn store_remote(
                 &self,
                 agent_id: &AgentID,
-                agent_values: &AgentValues,
+                agent_values: &YAMLConfig,
             ) -> Result<(), ValuesRepositoryError>;
 
             fn delete_remote(&self, agent_id: &AgentID) -> Result<(), ValuesRepositoryError>;
@@ -72,22 +71,22 @@ pub mod test {
             fn load(
                 &self,
                 agent_id: &AgentID,
-            ) -> Result<AgentValues, ValuesRepositoryError>;
+            ) -> Result<YAMLConfig, ValuesRepositoryError>;
 
             fn load_local(
                 &self,
                 agent_id: &AgentID,
-            ) -> Result<Option<AgentValues>, ValuesRepositoryError>;
+            ) -> Result<Option<YAMLConfig>, ValuesRepositoryError>;
 
             fn load_remote(
                 &self,
                 agent_id: &AgentID,
-            ) -> Result<Option<AgentValues>, ValuesRepositoryError>;
+            ) -> Result<Option<YAMLConfig>, ValuesRepositoryError>;
         }
     }
 
     impl MockRemoteValuesRepositoryMock {
-        pub fn should_load(&mut self, agent_id: &AgentID, agent_values: &AgentValues) {
+        pub fn should_load(&mut self, agent_id: &AgentID, agent_values: &YAMLConfig) {
             let agent_values = agent_values.clone();
             self.expect_load()
                 .once()
@@ -104,7 +103,7 @@ pub mod test {
                 });
         }
 
-        pub fn should_store_remote(&mut self, agent_id: &AgentID, agent_values: &AgentValues) {
+        pub fn should_store_remote(&mut self, agent_id: &AgentID, agent_values: &YAMLConfig) {
             self.expect_store_remote()
                 .once()
                 .with(

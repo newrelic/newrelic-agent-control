@@ -1,22 +1,23 @@
 mod one_shot_operation;
-
-use clap::Parser;
-use one_shot_operation::OneShotCommand;
-use std::path::PathBuf;
-use thiserror::Error;
-use tracing::info;
-
+use crate::super_agent::defaults::REMOTE_AGENT_DATA_DIR;
 #[cfg(debug_assertions)]
 use crate::super_agent::run::set_debug_dirs;
+use crate::values::on_host::ValuesRepositoryFile;
 use crate::{
     logging::config::{FileLoggerGuard, LoggingError},
     super_agent::{
         config::SuperAgentConfigError,
-        config_storer::{file::SuperAgentConfigStoreFile, loader_storer::SuperAgentConfigLoader},
+        config_storer::{file::SuperAgentConfigStore, loader_storer::SuperAgentConfigLoader},
         run::SuperAgentRunConfig,
     },
     utils::binary_metadata::binary_metadata,
 };
+use clap::Parser;
+use one_shot_operation::OneShotCommand;
+use std::path::PathBuf;
+use std::sync::Arc;
+use thiserror::Error;
+use tracing::info;
 
 /// Represents all the data structures that can be created from the CLI
 pub struct SuperAgentCliConfig {
@@ -99,13 +100,18 @@ impl Cli {
             return Ok(CliCommand::OneShot(OneShotCommand::PrintDebugInfo(cli)));
         }
 
-        let config_storer = SuperAgentConfigStoreFile::new(&cli.get_config_path());
+        let local_config = cli.config;
+        let remote_config = REMOTE_AGENT_DATA_DIR().to_string();
+        let vr = Arc::new(ValuesRepositoryFile::new(
+            local_config.clone(),
+            remote_config,
+        ));
+        let config_storer = SuperAgentConfigStore::new(vr);
 
         let super_agent_config = config_storer.load().inspect_err(|err| {
             println!(
                 "Could not read Super Agent config from {}: {}",
-                config_storer.config_path().to_string_lossy(),
-                err
+                local_config, err
             )
         })?;
 
@@ -113,16 +119,16 @@ impl Cli {
         info!("{}", binary_metadata());
         info!(
             "Starting NewRelic Super Agent with config '{}'",
-            config_storer.config_path().to_string_lossy()
+            local_config
         );
 
         let opamp = super_agent_config.opamp;
         let http_server = super_agent_config.server;
 
         let run_config = SuperAgentRunConfig {
-            config_storer,
             opamp,
             http_server,
+            local_super_agent_config_path: "".to_string(),
         };
 
         let cli_config = SuperAgentCliConfig {
@@ -131,10 +137,6 @@ impl Cli {
         };
 
         Ok(CliCommand::InitSuperAgent(cli_config))
-    }
-
-    fn get_config_path(&self) -> PathBuf {
-        PathBuf::from(&self.config)
     }
 
     fn print_version(&self) -> bool {

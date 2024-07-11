@@ -1,6 +1,5 @@
 use super::config::SuperAgentConfigError;
 use crate::agent_type::agent_type_registry::AgentRepositoryError;
-use crate::agent_type::agent_values::AgentValuesError;
 use crate::agent_type::error::AgentTypeError;
 use crate::event::channel::EventPublisherError;
 use crate::opamp::client_builder::OpAMPClientBuilderError;
@@ -11,6 +10,7 @@ use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssemblerError;
 use crate::sub_agent::error::{SubAgentBuilderError, SubAgentCollectionError, SubAgentError};
 use crate::sub_agent::persister::config_persister::PersistError;
 use crate::values::values_repository::ValuesRepositoryError;
+use crate::values::yaml_config::ValidYAMLConfigError;
 use fs::file_reader::FileReaderError;
 use opamp_client::{ClientError, NotStartedClientError, StartedClientError};
 use std::fmt::Debug;
@@ -83,7 +83,7 @@ pub enum AgentError {
     SubAgentRemoteConfigError(#[from] ValuesRepositoryError),
 
     #[error("sub agent values error: `{0}`")]
-    SubAgentValuesError(#[from] AgentValuesError),
+    SubValidYAMLConfigError(#[from] ValidYAMLConfigError),
 
     #[error("External module error: `{0}`")]
     ExternalError(String),

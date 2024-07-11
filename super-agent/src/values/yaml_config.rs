@@ -1,4 +1,3 @@
-use crate::super_agent::config::{SuperAgentConfig, SuperAgentDynamicConfig};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use thiserror::Error;
@@ -173,8 +172,7 @@ deployment:
 
     #[test]
     fn test_update_specs() {
-        let input_structure =
-            serde_yaml::from_str::<YAMLConfig>(EXAMPLE_CONFIG_REPLACE).unwrap();
+        let input_structure = serde_yaml::from_str::<YAMLConfig>(EXAMPLE_CONFIG_REPLACE).unwrap();
         let agent_type =
             AgentType::build_for_testing(EXAMPLE_AGENT_YAML_REPLACE, &Environment::OnHost);
 

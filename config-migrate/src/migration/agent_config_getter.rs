@@ -1,7 +1,7 @@
 use newrelic_super_agent::super_agent::config::{
     AgentTypeFQN, SuperAgentConfigError, SuperAgentDynamicConfig,
 };
-use newrelic_super_agent::super_agent::config_storer::file::SuperAgentConfigStoreFile;
+use newrelic_super_agent::super_agent::config_storer::file::SuperAgentConfigStore;
 use newrelic_super_agent::super_agent::config_storer::loader_storer::SuperAgentDynamicConfigLoader;
 use semver::{Version, VersionReq};
 use thiserror::Error;
@@ -16,7 +16,7 @@ pub enum ConversionError {
     NoAgentsFound,
 }
 
-pub struct AgentConfigGetter<SL = SuperAgentConfigStoreFile>
+pub struct AgentConfigGetter<SL = SuperAgentConfigStore>
 where
     SL: SuperAgentDynamicConfigLoader,
 {

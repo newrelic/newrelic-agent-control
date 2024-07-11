@@ -1,84 +1,94 @@
 use crate::super_agent::config::{
-    SuperAgentConfig, SuperAgentConfigError, SuperAgentDynamicConfig,
+    AgentID, SuperAgentConfig, SuperAgentConfigError, SuperAgentDynamicConfig,
 };
 use crate::super_agent::config_storer::loader_storer::{
     SuperAgentConfigLoader, SuperAgentDynamicConfigDeleter, SuperAgentDynamicConfigLoader,
     SuperAgentDynamicConfigStorer,
 };
+use crate::values::values_repository::ValuesRepository;
+use crate::values::yaml_config::YAMLConfig;
 use config::builder::DefaultState;
-use config::{Config, ConfigBuilder, Environment, File, FileFormat};
-use std::path::{Path, PathBuf};
-use std::sync::RwLock;
-use tracing::warn;
+use config::{Config, ConfigBuilder, Environment};
+use std::sync::Arc;
 
 #[derive(thiserror::Error, Debug)]
 pub enum ConfigStoreError {
-    #[error("error loading config: `{0}`")]
+    #[error("loading config: `{0}`")]
     IOError(#[from] std::io::Error),
-
-    #[error("error loading config: `{0}`")]
+    #[error("loading config: `{0}`")]
     SerdeYamlError(#[from] serde_yaml::Error),
-
-    #[error("error retrieving config: `{0}`")]
+    #[error("retrieving config: `{0}`")]
     ConfigError(#[from] config::ConfigError),
+    #[error("deleting remote config: `{0}`")]
+    Delete(String),
+    #[error("loading config: `{0}`")]
+    Load(String),
+    #[error("storing config: `{0}`")]
+    Store(String),
 }
 
-pub struct SuperAgentConfigStoreFile {
-    local_path: PathBuf,
-    remote_path: Option<PathBuf>,
+pub struct SuperAgentConfigStore<V>
+where
+    V: ValuesRepository,
+{
     config_builder: ConfigBuilder<DefaultState>,
-    rw_lock: RwLock<()>,
+    values_repository: Arc<V>,
 }
 
-impl SuperAgentConfigLoader for SuperAgentConfigStoreFile {
+impl<V> SuperAgentConfigLoader for SuperAgentConfigStore<V>
+where
+    V: ValuesRepository,
+{
     fn load(&self) -> Result<SuperAgentConfig, SuperAgentConfigError> {
         Ok(self._load_config()?) //wrapper to encapsulate error
     }
 }
 
-impl SuperAgentDynamicConfigLoader for SuperAgentConfigStoreFile {
+impl<V> SuperAgentDynamicConfigLoader for SuperAgentConfigStore<V>
+where
+    V: ValuesRepository,
+{
     fn load(&self) -> Result<SuperAgentDynamicConfig, SuperAgentConfigError> {
         Ok(self._load_config()?.dynamic)
     }
 }
 
-impl SuperAgentDynamicConfigDeleter for SuperAgentConfigStoreFile {
-    //TODO this code is not unit tested
+impl<V> SuperAgentDynamicConfigDeleter for SuperAgentConfigStore<V>
+where
+    V: ValuesRepository,
+{
     fn delete_remote(&self) -> Result<(), SuperAgentConfigError> {
-        let Some(remote_path_file) = &self.remote_path else {
-            unreachable!("we should not write into local paths");
-        };
-        let _write_guard = self.rw_lock.write().unwrap();
-        if remote_path_file.exists() {
-            std::fs::remove_file(remote_path_file)?;
-        }
+        self.values_repository
+            .delete_remote(&AgentID::new_super_agent_id())
+            .map_err(|e| ConfigStoreError::Delete(e.to_string()))?;
         Ok(())
     }
 }
 
-impl SuperAgentDynamicConfigStorer for SuperAgentConfigStoreFile {
+impl<V> SuperAgentDynamicConfigStorer for SuperAgentConfigStore<V>
+where
+    V: ValuesRepository,
+{
     fn store_remote(
         &self,
         sub_agents: &SuperAgentDynamicConfig,
     ) -> Result<(), SuperAgentConfigError> {
-        //TODO we should inject DirectoryManager and ensure the directory exists
-        let _write_guard = self.rw_lock.write().unwrap();
-        let Some(remote_path_file) = &self.remote_path else {
-            unreachable!("we should not write into local paths");
-        };
-        Ok(serde_yaml::to_writer(
-            std::fs::File::create(remote_path_file)?,
-            sub_agents,
-        )?)
+        self.values_repository
+            .store_remote(
+                &AgentID::new_super_agent_id(),
+                &YAMLConfig::try_from(sub_agents)?,
+            )
+            .map_err(|e| ConfigStoreError::Store(e.to_string()))?;
+        Ok(())
     }
 }
 
-impl SuperAgentConfigStoreFile {
-    pub fn new(file_path: &Path) -> Self {
+impl<V> SuperAgentConfigStore<V>
+where
+    V: ValuesRepository,
+{
+    pub fn new(values_repository: Arc<V>) -> Self {
         let config_builder = Config::builder()
-            // Pass default config file location and optionally, so we could pass all config through
-            // env vars and no file!
-            .add_source(File::new(&file_path.to_string_lossy(), FileFormat::Yaml).required(false))
             // Add in settings from the environment (with a prefix of `NR_` and separator double underscore, `__`)
             // Eg.. `NR_LOG__USE_DEBUG=1 ./target/app` would set the `log.use_debug` key
             // We use double underscore because we already use snake_case for the config keys. TODO to change?
@@ -89,61 +99,28 @@ impl SuperAgentConfigStoreFile {
             );
 
         Self {
-            local_path: file_path.to_path_buf(),
-            remote_path: None,
+            values_repository,
             config_builder,
-            rw_lock: RwLock::new(()),
         }
     }
 
-    // with_remote is supported for onhost implementation only and to make sure it is not used
-    // we avoid to compile it for k8s
-    #[cfg(feature = "onhost")]
-    pub fn with_remote(self) -> Self {
-        let remote_path = format!(
-            "{}/{}",
-            crate::super_agent::defaults::SUPER_AGENT_DATA_DIR(),
-            "config.yaml"
-        );
-
-        Self {
-            remote_path: Some(Path::new(&remote_path).to_path_buf()),
-            ..self
-        }
-    }
-
-    pub fn config_path(&self) -> &Path {
-        self.remote_path.as_ref().unwrap_or(&self.local_path)
-    }
-
-    /// Load configs from local and remote sources.
-    /// The local sources are the local file defined when this structure was created and the
-    /// environment variables. It is loaded from the `config_builder` structure.
-    /// The remote source is an optional file that is only concerned with the `dynamic` field of the
-    /// `SuperAgentConfig`.
+    /// Load leverages the value_repository to retrieve the YAML config and the config_builder to inject the
+    /// environment variables.
     fn _load_config(&self) -> Result<SuperAgentConfig, ConfigStoreError> {
-        let _read_guard = self.rw_lock.read().unwrap();
+        let yaml_config = self
+            .values_repository
+            .load(&AgentID::new_super_agent_id())
+            .map_err(|e| ConfigStoreError::Load(e.to_string()))?;
 
-        let mut local_config = self
+        let local_config = self
             .config_builder
-            // `build_cloned` performs all the I/O operations from a reference to the builder
-            .build_cloned()?
+            .clone() // Pass default config file location and optionally, so we could pass all config through
+            .add_source(Config::try_from(&SuperAgentConfig::try_from(
+                &yaml_config,
+            )?)?)
+            .build()?
             // From the retrieved config, attempt to generate the `SuperAgentConfig`
             .try_deserialize::<SuperAgentConfig>()?;
-
-        if let Some(remote_config_file) = &self.remote_path {
-            if remote_config_file.as_path().exists() {
-                let remote_config_file = std::fs::File::open(remote_config_file)?;
-                let remote_config = serde_yaml::from_reader(remote_config_file)
-                    .map_err(|err| warn!("Unable to parse remote config: {}", err))
-                    .ok();
-
-                if let Some(remote_config) = remote_config {
-                    // replace local agents with remote ones
-                    local_config.dynamic = remote_config;
-                }
-            }
-        }
 
         Ok(local_config)
     }
@@ -179,7 +156,7 @@ agents:
 "#;
         write!(remote_file, "{}", remote_config).unwrap();
 
-        let mut store = SuperAgentConfigStoreFile::new(local_file.path());
+        let mut store = SuperAgentConfigStore::new(local_file.path());
 
         store.remote_path = Some(remote_file.path().to_path_buf());
 
@@ -228,7 +205,7 @@ opamp:
             "namespace/com.newrelic.infrastructure_agent:0.0.2",
         );
 
-        let store = SuperAgentConfigStoreFile::new(local_file.path());
+        let store = SuperAgentConfigStore::new(local_file.path());
         let actual = SuperAgentConfigLoader::load(&store);
 
         let expected = SuperAgentConfig {
@@ -278,7 +255,7 @@ agents:
             "namespace/com.newrelic.infrastructure_agent:0.0.2",
         );
 
-        let store = SuperAgentConfigStoreFile::new(local_file.path());
+        let store = SuperAgentConfigStore::new(local_file.path());
         let actual = SuperAgentConfigLoader::load(&store);
 
         let expected = SuperAgentConfig {

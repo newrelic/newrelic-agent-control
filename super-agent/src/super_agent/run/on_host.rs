@@ -7,7 +7,8 @@ use crate::sub_agent::event_processor_builder::EventProcessorBuilder;
 use crate::super_agent::config::AgentID;
 use crate::super_agent::config_storer::loader_storer::SuperAgentConfigLoader;
 use crate::super_agent::defaults::{
-    FLEET_ID_ATTRIBUTE_KEY, HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
+    FLEET_ID_ATTRIBUTE_KEY, HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY, LOCAL_AGENT_DATA_DIR,
+    REMOTE_AGENT_DATA_DIR, SUPER_AGENT_DATA_DIR,
 };
 use crate::super_agent::{super_agent_fqn, SuperAgent};
 use crate::{
@@ -25,7 +26,7 @@ use crate::{
         ApplicationEvent, SuperAgentEvent,
     },
     opamp::{client_builder::DefaultOpAMPClientBuilder, http::builder::HttpClientBuilder},
-    super_agent::{config_storer::file::SuperAgentConfigStoreFile, error::AgentError},
+    super_agent::{config_storer::file::SuperAgentConfigStore, error::AgentError},
 };
 use opamp_client::operation::settings::DescriptionValueType;
 use std::collections::HashMap;
@@ -35,17 +36,28 @@ use tracing::info;
 
 pub fn run_super_agent<C: HttpClientBuilder, B: EffectiveConfigLoaderBuilder>(
     _runtime: Arc<Runtime>,
-    sa_config_storer: SuperAgentConfigStoreFile,
+    local_super_agent_config_path: String,
     application_events_consumer: EventConsumer<ApplicationEvent>,
     opamp_client_builder: Option<DefaultOpAMPClientBuilder<C, B>>,
     super_agent_publisher: EventPublisher<SuperAgentEvent>,
 ) -> Result<(), AgentError> {
+    let mut vr_super_agent = ValuesRepositoryFile::new(
+        LOCAL_AGENT_DATA_DIR().to_string(),
+        REMOTE_AGENT_DATA_DIR().to_string(),
+    );
+    let mut vr_sub_agent = ValuesRepositoryFile::new(
+        local_super_agent_config_path,
+        SUPER_AGENT_DATA_DIR().to_string(),
+    );
+    if opamp_client_builder.is_some() {
+        vr_super_agent = vr_super_agent.with_remote();
+        vr_sub_agent = vr_sub_agent.with_remote();
+    }
+    let vr_sub_agent = Arc::new(vr_sub_agent);
+    let vr_super_agent = Arc::new(vr_super_agent);
+
     // enable remote config store
-    let config_storer = if opamp_client_builder.is_some() {
-        Arc::new(sa_config_storer.with_remote())
-    } else {
-        Arc::new(sa_config_storer)
-    };
+    let config_storer = Arc::new(SuperAgentConfigStore::new(vr_super_agent));
 
     let config = config_storer.load()?;
 
@@ -62,21 +74,13 @@ pub fn run_super_agent<C: HttpClientBuilder, B: EffectiveConfigLoaderBuilder>(
     let instance_id_getter =
         InstanceIDWithIdentifiersGetter::default().with_identifiers(identifiers);
 
-    let mut vr = ValuesRepositoryFile::default();
-    if opamp_client_builder.is_some() {
-        vr = vr.with_remote();
-    }
-    let values_repository = Arc::new(vr);
-
     let hash_repository = Arc::new(HashRepositoryFile::default());
-    let agents_assembler = LocalEffectiveAgentsAssembler::new(values_repository.clone())
-        .with_renderer(
-            TemplateRenderer::default()
-                .with_config_persister(ConfigurationPersisterFile::default()),
-        );
+    let agents_assembler = LocalEffectiveAgentsAssembler::new(vr_sub_agent.clone()).with_renderer(
+        TemplateRenderer::default().with_config_persister(ConfigurationPersisterFile::default()),
+    );
     let sub_agent_hash_repository = Arc::new(HashRepositoryFile::new_sub_agent_repository());
     let sub_agent_event_processor_builder =
-        EventProcessorBuilder::new(sub_agent_hash_repository.clone(), values_repository.clone());
+        EventProcessorBuilder::new(sub_agent_hash_repository.clone(), vr_sub_agent.clone());
 
     let sub_agent_builder = OnHostSubAgentBuilder::new(
         opamp_client_builder.as_ref(),

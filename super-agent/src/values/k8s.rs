@@ -1,8 +1,8 @@
-use crate::agent_type::agent_values::AgentValues;
 use crate::k8s;
 use crate::k8s::store::{K8sStore, STORE_KEY_LOCAL_DATA_CONFIG, STORE_KEY_OPAMP_DATA_CONFIG};
 use crate::super_agent::config::AgentID;
 use crate::values::values_repository::{ValuesRepository, ValuesRepositoryError};
+use crate::values::yaml_config::YAMLConfig;
 use std::sync::Arc;
 use thiserror::Error;
 use tracing::debug;
@@ -36,29 +36,26 @@ impl ValuesRepositoryConfigMap {
 }
 
 impl ValuesRepository for ValuesRepositoryConfigMap {
-    fn load_local(&self, agent_id: &AgentID) -> Result<Option<AgentValues>, ValuesRepositoryError> {
+    fn load_local(&self, agent_id: &AgentID) -> Result<Option<YAMLConfig>, ValuesRepositoryError> {
         self.k8s_store
-            .get_local_data::<AgentValues>(agent_id, STORE_KEY_LOCAL_DATA_CONFIG)
+            .get_local_data::<YAMLConfig>(agent_id, STORE_KEY_LOCAL_DATA_CONFIG)
             .map_err(|err| ValuesRepositoryError::LoadError(err.to_string()))
     }
 
-    fn load_remote(
-        &self,
-        agent_id: &AgentID,
-    ) -> Result<Option<AgentValues>, ValuesRepositoryError> {
+    fn load_remote(&self, agent_id: &AgentID) -> Result<Option<YAMLConfig>, ValuesRepositoryError> {
         if !self.remote_enabled {
             return Ok(None);
         }
 
         self.k8s_store
-            .get_opamp_data::<AgentValues>(agent_id, STORE_KEY_OPAMP_DATA_CONFIG)
+            .get_opamp_data::<YAMLConfig>(agent_id, STORE_KEY_OPAMP_DATA_CONFIG)
             .map_err(|err| ValuesRepositoryError::LoadError(err.to_string()))
     }
 
     fn store_remote(
         &self,
         agent_id: &AgentID,
-        agent_values: &AgentValues,
+        agent_values: &YAMLConfig,
     ) -> Result<(), ValuesRepositoryError> {
         debug!(agent_id = agent_id.to_string(), "saving remote config");
 

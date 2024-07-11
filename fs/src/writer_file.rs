@@ -1,17 +1,15 @@
+use super::directory_manager::DirectoryManagementError;
+use super::utils::{validate_path, FsError};
+use super::LocalFile;
 use std::fs::Permissions;
 use std::io::Write;
-use std::path::Path;
-use std::{fs, io};
-
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::fs::PermissionsExt;
-
-use super::directory_manager::DirectoryManagementError;
-use super::utils::{validate_path, FsError};
+use std::path::Path;
+use std::{fs, io};
 use thiserror::Error;
-
-use super::LocalFile;
+use tracing::debug;
 
 #[derive(Error, Debug)]
 pub enum WriteError {
@@ -43,6 +41,7 @@ impl LocalFile {
         content: String,
         permissions: Permissions,
     ) -> Result<(), WriteError> {
+        debug!("writing file to {:?}", path);
         validate_path(path)?;
 
         let mut file = fs::OpenOptions::new()

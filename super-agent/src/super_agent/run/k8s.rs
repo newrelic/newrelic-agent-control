@@ -19,7 +19,7 @@ use crate::{
         client_builder::DefaultOpAMPClientBuilder, hash_repository::k8s::HashRepositoryConfigMap,
         http::builder::HttpClientBuilder, instance_id,
     },
-    super_agent::{config_storer::file::SuperAgentConfigStoreFile, error::AgentError},
+    super_agent::{config_storer::file::SuperAgentConfigStore, error::AgentError},
 };
 use crate::{
     k8s::{garbage_collector::NotStartedK8sGarbageCollector, store::K8sStore},
@@ -36,7 +36,7 @@ use tracing::{error, info};
 
 pub fn run_super_agent<C: HttpClientBuilder, B: EffectiveConfigLoaderBuilder>(
     runtime: Arc<Runtime>,
-    sa_local_config_storer: SuperAgentConfigStoreFile,
+    sa_local_config_storer: SuperAgentConfigStore,
     application_event_consumer: EventConsumer<ApplicationEvent>,
     opamp_client_builder: Option<DefaultOpAMPClientBuilder<C, B>>,
     super_agent_publisher: EventPublisher<SuperAgentEvent>,

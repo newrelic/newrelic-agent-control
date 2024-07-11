@@ -1,5 +1,4 @@
 use super::config::OpAMPClientConfig;
-use super::config_storer::file::SuperAgentConfigStoreFile;
 use super::http_server::config::ServerConfig;
 use crate::event::channel::pub_sub;
 use crate::opamp::auth::token_retriever::TokenRetrieverImpl;
@@ -30,9 +29,9 @@ pub mod on_host;
 
 /// Structures for running the super-agent provided by CLI inputs
 pub struct SuperAgentRunConfig {
-    pub config_storer: SuperAgentConfigStoreFile,
     pub opamp: Option<OpAMPClientConfig>,
     pub http_server: ServerConfig,
+    pub local_super_agent_config_path: String,
 }
 
 impl TryFrom<SuperAgentRunConfig> for SuperAgentRunner {
@@ -83,8 +82,8 @@ impl TryFrom<SuperAgentRunConfig> for SuperAgentRunner {
 
         let run_data = SuperAgentRunner {
             _http_server_runner: _started_http_server_runner,
+            local_super_agent_config_path: value.local_super_agent_config_path,
             runtime,
-            config_storer: value.config_storer,
             application_event_consumer,
             opamp_client_builder,
             super_agent_publisher,
@@ -99,7 +98,7 @@ impl TryFrom<SuperAgentRunConfig> for SuperAgentRunner {
 pub struct SuperAgentRunner {
     _http_server_runner: Runner,
     runtime: Arc<Runtime>,
-    config_storer: SuperAgentConfigStoreFile,
+    local_super_agent_config_path: String,
     application_event_consumer: EventConsumer<ApplicationEvent>,
     opamp_client_builder: Option<
         DefaultOpAMPClientBuilder<
@@ -115,7 +114,7 @@ impl SuperAgentRunner {
     pub fn run(self) -> Result<(), Box<dyn Error>> {
         Ok(run_super_agent(
             self.runtime.clone(),
-            self.config_storer,
+            self.local_super_agent_config_path,
             self.application_event_consumer,
             self.opamp_client_builder,
             self.super_agent_publisher,

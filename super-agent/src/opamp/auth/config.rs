@@ -1,13 +1,13 @@
 use std::path::PathBuf;
 
 use nr_auth::ClientID;
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize};
 use url::Url;
 
 use crate::super_agent::defaults::{AUTH_PRIVATE_KEY_FILE_NAME, SUPER_AGENT_LOCAL_DATA_DIR};
 
 /// Authorization configuration used by the OpAmp connection to NewRelic.
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct AuthConfig {
     /// Endpoint to obtain the access token presenting the client id and secret.
     pub token_url: Url,
@@ -32,7 +32,7 @@ where
 }
 
 /// Supported access token request signers methods
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 #[serde(tag = "provider")]
 pub enum ProviderConfig {
     #[serde(rename = "local")]
@@ -46,7 +46,7 @@ impl Default for ProviderConfig {
 }
 
 /// Uses a local private key to sign the access token request.
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct LocalConfig {
     /// Private key absolute path.
     pub private_key_path: PathBuf,

@@ -1,9 +1,7 @@
-use crate::agent_type::agent_values::AgentValues;
 use crate::super_agent::config::AgentID;
-use crate::super_agent::defaults::{
-    LOCAL_AGENT_DATA_DIR, REMOTE_AGENT_DATA_DIR, VALUES_DIR, VALUES_FILE,
-};
+use crate::super_agent::defaults::{VALUES_DIR, VALUES_FILE};
 use crate::values::values_repository::{ValuesRepository, ValuesRepositoryError};
+use crate::values::yaml_config::YAMLConfig;
 use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
 use fs::file_reader::{FileReader, FileReaderError};
 use fs::writer_file::{FileWriter, WriteError};
@@ -12,8 +10,9 @@ use std::fs::Permissions;
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
+use std::sync::RwLock;
 use thiserror::Error;
-use tracing::error;
+use tracing::{debug, error};
 
 #[cfg(target_family = "unix")]
 pub const FILE_PERMISSIONS: u32 = 0o600;
@@ -45,21 +44,20 @@ where
     remote_conf_path: String,
     local_conf_path: String,
     remote_enabled: bool,
-}
-
-impl Default for ValuesRepositoryFile<LocalFile, DirectoryManagerFs> {
-    fn default() -> Self {
-        ValuesRepositoryFile {
-            directory_manager: DirectoryManagerFs {},
-            file_rw: LocalFile,
-            remote_conf_path: REMOTE_AGENT_DATA_DIR().to_string(),
-            local_conf_path: LOCAL_AGENT_DATA_DIR().to_string(),
-            remote_enabled: false,
-        }
-    }
+    rw_lock: RwLock<()>,
 }
 
 impl ValuesRepositoryFile<LocalFile, DirectoryManagerFs> {
+    pub fn new(local_conf_path: String, remote_conf_path: String) -> Self {
+        ValuesRepositoryFile {
+            directory_manager: DirectoryManagerFs {},
+            file_rw: LocalFile,
+            local_conf_path: local_conf_path.clone(),
+            remote_conf_path,
+            remote_enabled: false,
+            rw_lock: RwLock::new(()),
+        }
+    }
     pub fn with_remote(mut self) -> Self {
         self.remote_enabled = true;
         self
@@ -106,7 +104,7 @@ where
     fn load_file_if_present(
         &self,
         path: PathBuf,
-    ) -> Result<Option<AgentValues>, OnHostValuesRepositoryError> {
+    ) -> Result<Option<YAMLConfig>, OnHostValuesRepositoryError> {
         let values_result = self.file_rw.read(path.as_path());
         match values_result {
             Err(FileReaderError::FileNotFound(_)) => {
@@ -122,7 +120,7 @@ where
         }
     }
 
-    /// ensures directory exist and its empty
+    /// ensures directory exists
     fn ensure_directory_existence(
         &self,
         values_file_path: &PathBuf,
@@ -130,11 +128,12 @@ where
         let mut values_dir_path = PathBuf::from(&values_file_path);
         values_dir_path.pop();
 
-        self.directory_manager.delete(values_dir_path.as_path())?;
-        self.directory_manager.create(
-            values_dir_path.as_path(),
-            Permissions::from_mode(DIRECTORY_PERMISSIONS),
-        )?;
+        if !values_dir_path.exists() {
+            self.directory_manager.create(
+                values_dir_path.as_path(),
+                Permissions::from_mode(DIRECTORY_PERMISSIONS),
+            )?;
+        }
         Ok(())
     }
 }
@@ -144,16 +143,17 @@ where
     S: DirectoryManager,
     F: FileWriter + FileReader,
 {
-    fn load_local(&self, agent_id: &AgentID) -> Result<Option<AgentValues>, ValuesRepositoryError> {
+    fn load_local(&self, agent_id: &AgentID) -> Result<Option<YAMLConfig>, ValuesRepositoryError> {
+        let _read_guard = self.rw_lock.read().unwrap();
+
         let local_values_path = self.get_values_file_path(agent_id);
         self.load_file_if_present(local_values_path)
             .map_err(|err| ValuesRepositoryError::LoadError(err.to_string()))
     }
 
-    fn load_remote(
-        &self,
-        agent_id: &AgentID,
-    ) -> Result<Option<AgentValues>, ValuesRepositoryError> {
+    fn load_remote(&self, agent_id: &AgentID) -> Result<Option<YAMLConfig>, ValuesRepositoryError> {
+        let _read_guard = self.rw_lock.read().unwrap();
+
         if !self.remote_enabled {
             return Ok(None);
         }
@@ -166,16 +166,15 @@ where
     fn store_remote(
         &self,
         agent_id: &AgentID,
-        agent_values: &AgentValues,
+        agent_values: &YAMLConfig,
     ) -> Result<(), ValuesRepositoryError> {
-        let values_file_path = self.get_remote_values_file_path(agent_id);
+        let _write_guard = self.rw_lock.write().unwrap();
 
+        let values_file_path = self.get_remote_values_file_path(agent_id);
         self.ensure_directory_existence(&values_file_path)
             .map_err(|err| ValuesRepositoryError::StoreError(err.to_string()))?;
-
         let content = serde_yaml::to_string(agent_values)
             .map_err(|err| ValuesRepositoryError::StoreError(err.to_string()))?;
-
         self.file_rw
             .write(
                 values_file_path.clone().as_path(),
@@ -188,29 +187,27 @@ where
     }
 
     fn delete_remote(&self, agent_id: &AgentID) -> Result<(), ValuesRepositoryError> {
-        let values_file_path = self.get_remote_values_file_path(agent_id);
-        //ensure directory exists
-        let mut values_dir_path = values_file_path.clone();
-        values_dir_path.pop();
-        let values_dir = values_dir_path.to_str().unwrap().to_string();
-        self.directory_manager
-            .delete(values_dir_path.as_path())
-            .map_err(|err| {
-                ValuesRepositoryError::DeleteError(format!(
-                    "cannot delete path `{}`: `{}`",
-                    values_dir, err
-                ))
-            })
+        let _write_guard = self.rw_lock.write().unwrap();
+
+        let remote_path_file = self.get_remote_values_file_path(agent_id);
+        // todo why we were deleting the whole folder?
+        if remote_path_file.exists() {
+            debug!("deleting remote config: {:?}", remote_path_file);
+            std::fs::remove_file(remote_path_file)
+                .map_err(|e| ValuesRepositoryError::DeleteError(e.to_string()))?;
+        }
+
+        Ok(())
     }
 }
 
 #[cfg(test)]
 pub mod test {
     use super::ValuesRepositoryFile;
-    use crate::agent_type::agent_values::AgentValues;
     use crate::agent_type::definition::AgentType;
     use crate::super_agent::config::AgentID;
     use crate::values::values_repository::{ValuesRepository, ValuesRepositoryError};
+    use crate::values::yaml_config::YAMLConfig;
     use assert_matches::assert_matches;
     use fs::directory_manager::mock::MockDirectoryManagerMock;
     use fs::directory_manager::DirectoryManagementError::{
@@ -419,7 +416,7 @@ deployment:
 
         let agent_values = repo.load(&agent_id).unwrap();
 
-        assert_eq!(agent_values, AgentValues::default());
+        assert_eq!(agent_values, YAMLConfig::default());
     }
 
     #[test]
@@ -497,7 +494,7 @@ deployment:
 
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let agent_values =
-            AgentValues::new(HashMap::from([("one_item".into(), "one value".into())]));
+            YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]));
 
         dir_manager.should_delete(Path::new("some/remote/path/some-agent-id/values"));
         dir_manager.should_create(
@@ -533,7 +530,7 @@ deployment:
 
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let agent_values =
-            AgentValues::new(HashMap::from([("one_item".into(), "one value".into())]));
+            YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]));
 
         dir_manager.should_not_delete(
             Path::new("some/remote/path/some-agent-id/values"),
@@ -566,7 +563,7 @@ deployment:
 
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let agent_values =
-            AgentValues::new(HashMap::from([("one_item".into(), "one value".into())]));
+            YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]));
 
         dir_manager.should_delete(Path::new("some/remote/path/some-agent-id/values"));
         dir_manager.should_not_create(
@@ -601,7 +598,7 @@ deployment:
 
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let agent_values =
-            AgentValues::new(HashMap::from([("one_item".into(), "one value".into())]));
+            YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]));
 
         dir_manager.should_delete(Path::new("some/remote/path/some-agent-id/values"));
         dir_manager.should_create(

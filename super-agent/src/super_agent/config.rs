@@ -3,6 +3,7 @@ use crate::opamp::auth::config::AuthConfig;
 use crate::opamp::remote_config::RemoteConfigError;
 use crate::super_agent::config_storer::file::ConfigStoreError;
 use crate::super_agent::defaults::{default_capabilities, SUPER_AGENT_ID};
+use crate::values::yaml_config::YAMLConfig;
 use http::HeaderMap;
 #[cfg(feature = "k8s")]
 use kube::api::TypeMeta;
@@ -42,6 +43,7 @@ pub enum SuperAgentConfigError {
     #[error("error from k8s storer loading SAConfig: {0}")]
     FailedToPersistK8s(#[from] crate::k8s::Error),
 
+    // TODO we are not always laoding a config when there is this error
     #[error("error loading the super agent config: `{0}`")]
     LoadConfigError(#[from] ConfigStoreError),
 
@@ -139,7 +141,7 @@ impl TryFrom<&str> for SuperAgentDynamicConfig {
 }
 
 /// SuperAgentConfig represents the configuration for the super agent.
-#[derive(Debug, Deserialize, Default, PartialEq, Clone)]
+#[derive(Debug, Deserialize, Serialize, Default, PartialEq, Clone)]
 pub struct SuperAgentConfig {
     #[serde(default)]
     pub log: LoggingConfig,
@@ -166,6 +168,30 @@ pub struct SuperAgentConfig {
 
     #[serde(default)]
     pub server: ServerConfig,
+}
+
+impl TryFrom<&YAMLConfig> for SuperAgentConfig {
+    type Error = serde_yaml::Error;
+
+    fn try_from(value: &YAMLConfig) -> Result<Self, Self::Error> {
+        Ok(serde_yaml::from_value(serde_yaml::to_value(value)?)?)
+    }
+}
+
+impl TryFrom<&SuperAgentDynamicConfig> for YAMLConfig {
+    type Error = serde_yaml::Error;
+
+    fn try_from(value: &SuperAgentDynamicConfig) -> Result<Self, Self::Error> {
+        Ok(serde_yaml::from_value(serde_yaml::to_value(value)?)?)
+    }
+}
+
+impl TryFrom<&YAMLConfig> for SuperAgentDynamicConfig {
+    type Error = serde_yaml::Error;
+
+    fn try_from(value: &YAMLConfig) -> Result<Self, Self::Error> {
+        Ok(serde_yaml::from_value(serde_yaml::to_value(value)?)?)
+    }
 }
 
 #[derive(Debug, PartialEq, Deserialize, Serialize, Clone)]
@@ -229,7 +255,7 @@ pub struct SubAgentConfig {
     pub agent_type: AgentTypeFQN, // FQN of the agent type, ex: newrelic/nrdot:0.1.0
 }
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct OpAMPClientConfig {
     pub endpoint: Url,
     #[serde(default, with = "http_serde::header_map")]
@@ -239,7 +265,7 @@ pub struct OpAMPClientConfig {
 }
 
 /// K8sConfig represents the SuperAgent configuration for K8s environments
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct K8sConfig {
     /// cluster_name is an attribute used to identify all monitored data in a particular kubernetes cluster.
     pub cluster_name: String,

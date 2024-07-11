@@ -10,6 +10,7 @@ publish = false
 mockall = { workspace = true, optional = true}
 regex = { workspace = true }
 thiserror = { workspace = true }
+tracing = "0.1.40"
 
 [dev-dependencies]
 tempfile = { workspace = true }

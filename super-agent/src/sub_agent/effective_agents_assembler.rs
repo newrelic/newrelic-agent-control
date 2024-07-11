@@ -195,11 +195,11 @@ pub(crate) mod tests {
     use super::*;
     use crate::agent_type::agent_metadata::AgentMetadata;
     use crate::agent_type::agent_type_registry::tests::MockAgentRegistryMock;
-    use crate::agent_type::agent_values::AgentValues;
     use crate::agent_type::definition::AgentTypeDefinition;
     use crate::agent_type::renderer::tests::MockRendererMock;
     use crate::agent_type::runtime_config;
     use crate::values::values_repository::test::MockRemoteValuesRepositoryMock;
+    use crate::values::yaml_config::YAMLConfig;
     use assert_matches::assert_matches;
     use mockall::{mock, predicate};
     use semver::Version;
@@ -289,7 +289,7 @@ pub(crate) mod tests {
             namespace: "ns".into(),
         });
         let agent_type = build_agent_type(agent_type_definition.clone(), &environment).unwrap();
-        let values = AgentValues::default();
+        let values = YAMLConfig::default();
         let sub_agent_config = SubAgentConfig {
             agent_type: "ns/some_fqn:0.0.1".try_into().unwrap(),
         };

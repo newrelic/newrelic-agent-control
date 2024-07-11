@@ -5,9 +5,9 @@ use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::operations::stop_opamp_client;
 use crate::sub_agent::error::SubAgentError;
 use crate::sub_agent::health::with_start_time::HealthWithStartTime;
-use crate::values::values_repository::ValuesRepository;
 use crate::sub_agent::SubAgentCallbacks;
 use crate::super_agent::config::AgentID;
+use crate::values::values_repository::ValuesRepository;
 use crossbeam::channel::never;
 use crossbeam::select;
 use opamp_client::StartedClient;
@@ -162,7 +162,6 @@ where
 
 #[cfg(test)]
 pub mod test {
-    use crate::agent_type::agent_values::AgentValues;
     use crate::event::channel::pub_sub;
     use crate::event::OpAMPEvent;
     use crate::event::SubAgentEvent::ConfigUpdated;
@@ -174,8 +173,9 @@ pub mod test {
     use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::error::SubAgentError;
     use crate::sub_agent::event_processor::{EventProcessor, SubAgentEventProcessor};
-    use crate::values::values_repository::test::MockRemoteValuesRepositoryMock;
     use crate::super_agent::config::AgentID;
+    use crate::values::values_repository::test::MockRemoteValuesRepositoryMock;
+    use crate::values::yaml_config::YAMLConfig;
     use mockall::mock;
     use opamp_client::opamp::proto::RemoteConfigStatus;
     use opamp_client::opamp::proto::RemoteConfigStatuses::Applying;
@@ -263,7 +263,7 @@ pub mod test {
         hash_repository.should_save_hash(&agent_id, &hash);
         values_repository.should_store_remote(
             &agent_id,
-            &AgentValues::new(HashMap::from([("some_item".into(), "some_value".into())])),
+            &YAMLConfig::new(HashMap::from([("some_item".into(), "some_value".into())])),
         );
 
         let remote_config = RemoteConfig::new(agent_id.clone(), hash.clone(), Some(config_map));

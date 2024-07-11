@@ -1,8 +1,8 @@
 use ::fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
-use newrelic_super_agent::agent_type::agent_values::AgentValues;
+use newrelic_super_agent::agent_type::valid_yaml_config::ValidYAMLConfig;
+use newrelic_super_agent::super_agent::config::AgentID;
 use newrelic_super_agent::values::on_host::ValuesRepositoryFile;
 use newrelic_super_agent::values::values_repository::ValuesRepository;
-use newrelic_super_agent::super_agent::config::AgentID;
 use std::fs;
 use std::fs::Permissions;
 #[cfg(target_family = "unix")]
@@ -31,7 +31,7 @@ fn test_store_remote_no_mocks() {
 
     let agent_id = AgentID::new("some-agent-id").unwrap();
 
-    let agent_values: AgentValues =
+    let agent_values: ValidYAMLConfig =
         serde_yaml::from_reader(AGENT_VALUES_SINGLE_FILE.as_bytes()).unwrap();
 
     values_repo
