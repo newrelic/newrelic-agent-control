@@ -1,5 +1,4 @@
-use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
-use crate::opamp::instance_id::on_host::storer::{Storer, StorerError};
+use crate::opamp::instance_id::on_host::storer::StorerError;
 use resource_detection::cloud::aws::detector::AWSDetector;
 use resource_detection::cloud::azure::detector::AzureDetector;
 use resource_detection::cloud::cloud_id::detector::CloudIdDetector;
@@ -157,12 +156,6 @@ where
 pub enum GetterError {
     #[error("failed to persist Data: `{0}`")]
     Persisting(#[from] StorerError),
-}
-
-impl Default for InstanceIDWithIdentifiersGetter<Storer> {
-    fn default() -> Self {
-        Self::new(Storer::default(), Identifiers::default())
-    }
 }
 
 #[cfg(test)]

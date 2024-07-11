@@ -1,6 +1,6 @@
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
-use crate::opamp::instance_id::Identifiers;
+use crate::opamp::instance_id::{Identifiers, Storer};
 use crate::opamp::operations::build_opamp_with_channel;
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::sub_agent::event_processor_builder::EventProcessorBuilder;
@@ -27,8 +27,11 @@ use crate::{
     opamp::{client_builder::DefaultOpAMPClientBuilder, http::builder::HttpClientBuilder},
     super_agent::{config_storer::store::SuperAgentConfigStore, error::AgentError},
 };
+use fs::directory_manager::DirectoryManagerFs;
+use fs::LocalFile;
 use opamp_client::operation::settings::DescriptionValueType;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 use tracing::info;
@@ -72,16 +75,30 @@ pub fn run_super_agent<C: HttpClientBuilder>(
 
     let non_identifying_attributes = super_agent_opamp_non_identifying_attributes(&identifiers);
 
-    let instance_id_getter =
-        InstanceIDWithIdentifiersGetter::default().with_identifiers(identifiers);
+    let instance_id_storer = Storer::new(
+        LocalFile,
+        DirectoryManagerFs::default(),
+        // TODO move these dirs one layer up
+        PathBuf::from(crate::super_agent::defaults::SUPER_AGENT_DATA_DIR().to_string()),
+        PathBuf::from(crate::super_agent::defaults::REMOTE_AGENT_DATA_DIR().to_string()),
+    );
 
-    let hash_repository = Arc::new(HashRepositoryFile::default());
+    let instance_id_getter = InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers);
+
     let agents_assembler = LocalEffectiveAgentsAssembler::new(values_repository.clone())
         .with_renderer(
             TemplateRenderer::default()
                 .with_config_persister(ConfigurationPersisterFile::default()),
         );
-    let sub_agent_hash_repository = Arc::new(HashRepositoryFile::new_sub_agent_repository());
+
+    // TODO move these dirs one layer up
+    let super_agent_hash_repository = Arc::new(HashRepositoryFile::new(
+        crate::super_agent::defaults::SUPER_AGENT_DATA_DIR().to_string(),
+    ));
+    let sub_agent_hash_repository = Arc::new(HashRepositoryFile::new(
+        crate::super_agent::defaults::REMOTE_AGENT_DATA_DIR().to_string(),
+    ));
+
     let sub_agent_event_processor_builder =
         EventProcessorBuilder::new(sub_agent_hash_repository.clone(), values_repository.clone());
 
@@ -112,7 +129,7 @@ pub fn run_super_agent<C: HttpClientBuilder>(
 
     SuperAgent::new(
         maybe_client,
-        hash_repository,
+        super_agent_hash_repository,
         sub_agent_builder,
         config_storer,
         super_agent_publisher,
