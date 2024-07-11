@@ -100,7 +100,9 @@ mod tests {
             .spawn();
 
         let pid = trap_cmd.as_mut().unwrap().id();
-        let one_second = Duration::from_millis(100);
+
+        // Warm-up time for the trap sub-process to start and be able to catch the signal
+        let one_second = Duration::from_secs(1);
         sleep(one_second);
 
         let terminator = ProcessTerminator::new(pid);
