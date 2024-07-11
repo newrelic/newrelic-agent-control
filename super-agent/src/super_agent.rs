@@ -4,6 +4,7 @@ pub mod defaults;
 pub mod error;
 pub(super) mod event_handler;
 pub use super_agent::*;
+pub mod folders;
 pub mod http_server;
 pub mod run;
 #[allow(clippy::module_inception)]

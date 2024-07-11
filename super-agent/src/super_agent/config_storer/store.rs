@@ -1,3 +1,4 @@
+use crate::opamp::auth::config::{LocalConfig, ProviderConfig};
 use crate::super_agent::config::{
     SuperAgentConfig, SuperAgentConfigError, SuperAgentDynamicConfig,
 };
@@ -5,6 +6,7 @@ use crate::super_agent::config_storer::loader_storer::{
     SuperAgentConfigLoader, SuperAgentDynamicConfigDeleter, SuperAgentDynamicConfigLoader,
     SuperAgentDynamicConfigStorer,
 };
+use crate::super_agent::folders::SuperAgentPaths;
 use config::builder::DefaultState;
 use config::{Config, ConfigBuilder, Environment, File, FileFormat};
 use std::path::{Path, PathBuf};
@@ -27,6 +29,7 @@ pub struct SuperAgentConfigStore {
     local_path: PathBuf,
     remote_path: Option<PathBuf>,
     config_builder: ConfigBuilder<DefaultState>,
+    super_agent_paths: SuperAgentPaths, // TODO: do we need the whole struct?
     rw_lock: RwLock<()>,
 }
 
@@ -71,7 +74,7 @@ impl SuperAgentDynamicConfigStorer for SuperAgentConfigStore {
 }
 
 impl SuperAgentConfigStore {
-    pub fn new(file_path: &Path) -> Self {
+    pub fn new(file_path: &Path, super_agent_paths: SuperAgentPaths) -> Self {
         let config_builder = Config::builder()
             // Pass default config file location and optionally, so we could pass all config through
             // env vars and no file!
@@ -89,6 +92,7 @@ impl SuperAgentConfigStore {
             local_path: file_path.to_path_buf(),
             remote_path: None,
             config_builder,
+            super_agent_paths,
             rw_lock: RwLock::new(()),
         }
     }
@@ -97,11 +101,7 @@ impl SuperAgentConfigStore {
     // we avoid to compile it for k8s
     #[cfg(feature = "onhost")]
     pub fn with_remote(self) -> Self {
-        let remote_path = format!(
-            "{}/{}",
-            crate::super_agent::defaults::SUPER_AGENT_DATA_DIR(),
-            "config.yaml"
-        );
+        let remote_path = format!("{}/{}", self.super_agent_paths.data_dir(), "config.yaml");
 
         Self {
             remote_path: Some(Path::new(&remote_path).to_path_buf()),
@@ -142,6 +142,20 @@ impl SuperAgentConfigStore {
             }
         }
 
+        // Currently we have only one use-case where configuration needs to be _patched_ after
+        // deserialization, if we encounter more use-cases we should define a service to do so, and
+        // probably use different types.
+        // TODO: should we extract this to its own function at least?
+        if let Some(opamp_config) = &mut local_config.opamp {
+            if let Some(auth_config) = &mut opamp_config.auth_config {
+                if auth_config.provider.is_none() {
+                    auth_config.provider = Some(ProviderConfig::Local(LocalConfig::new(
+                        self.super_agent_paths.local_data_dir(),
+                    )));
+                }
+            }
+        }
+
         Ok(local_config)
     }
 }
@@ -176,7 +190,8 @@ agents:
 "#;
         write!(remote_file, "{}", remote_config).unwrap();
 
-        let mut store = SuperAgentConfigStore::new(local_file.path());
+        let sa_paths = SuperAgentPaths::default();
+        let mut store = SuperAgentConfigStore::new(local_file.path(), sa_paths);
 
         store.remote_path = Some(remote_file.path().to_path_buf());
 
@@ -225,7 +240,8 @@ opamp:
             "namespace/com.newrelic.infrastructure_agent:0.0.2",
         );
 
-        let store = SuperAgentConfigStore::new(local_file.path());
+        let sa_paths = SuperAgentPaths::default();
+        let store = SuperAgentConfigStore::new(local_file.path(), sa_paths);
         let actual = SuperAgentConfigLoader::load(&store);
 
         let expected = SuperAgentConfig {
@@ -275,7 +291,8 @@ agents:
             "namespace/com.newrelic.infrastructure_agent:0.0.2",
         );
 
-        let store = SuperAgentConfigStore::new(local_file.path());
+        let sa_paths = SuperAgentPaths::default();
+        let store = SuperAgentConfigStore::new(local_file.path(), sa_paths);
         let actual = SuperAgentConfigLoader::load(&store);
 
         let expected = SuperAgentConfig {

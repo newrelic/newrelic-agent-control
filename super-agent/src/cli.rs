@@ -13,6 +13,7 @@ use crate::{
     super_agent::{
         config::SuperAgentConfigError,
         config_storer::{loader_storer::SuperAgentConfigLoader, store::SuperAgentConfigStore},
+        folders::SuperAgentPaths,
         run::SuperAgentRunConfig,
     },
     utils::binary_metadata::binary_metadata,
@@ -99,7 +100,9 @@ impl Cli {
             return Ok(CliCommand::OneShot(OneShotCommand::PrintDebugInfo(cli)));
         }
 
-        let config_storer = SuperAgentConfigStore::new(&cli.get_config_path());
+        // TODO: check if we need some sort of shared reference for SuperAgentPaths
+        let config_storer =
+            SuperAgentConfigStore::new(&cli.get_config_path(), SuperAgentPaths::default());
 
         let super_agent_config = config_storer.load().inspect_err(|err| {
             println!(

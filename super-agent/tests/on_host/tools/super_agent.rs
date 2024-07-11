@@ -5,6 +5,7 @@ use newrelic_super_agent::opamp::auth::token_retriever::{TokenRetrieverImpl, Tok
 use newrelic_super_agent::opamp::http::builder::UreqHttpClientBuilder;
 use newrelic_super_agent::super_agent::config::OpAMPClientConfig;
 use newrelic_super_agent::super_agent::config_storer::store::SuperAgentConfigStore;
+use newrelic_super_agent::super_agent::folders::SuperAgentPaths;
 use newrelic_super_agent::super_agent::run::on_host::run_super_agent;
 use std::path::Path;
 use std::sync::Arc;
@@ -34,7 +35,7 @@ pub fn start_super_agent_with_custom_config(config_path: &Path, opamp_endpoint: 
     let (_application_event_publisher, application_event_consumer) = pub_sub();
     let (super_agent_publisher, _super_agent_consumer) = pub_sub::<SuperAgentEvent>();
 
-    let config_storer = SuperAgentConfigStore::new(config_path);
+    let config_storer = SuperAgentConfigStore::new(config_path, SuperAgentPaths::default());
 
     _ = run_super_agent(
         runtime.clone(),

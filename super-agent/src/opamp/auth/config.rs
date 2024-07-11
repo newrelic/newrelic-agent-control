@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 
 use nr_auth::ClientID;
-use serde::{Deserialize, Deserializer};
+use serde::Deserialize;
 use url::Url;
 
-use crate::super_agent::defaults::{AUTH_PRIVATE_KEY_FILE_NAME, SUPER_AGENT_LOCAL_DATA_DIR};
+use crate::super_agent::{defaults::AUTH_PRIVATE_KEY_FILE_NAME, folders::SuperAgentPaths};
 
 /// Authorization configuration used by the OpAmp connection to NewRelic.
 #[derive(Debug, Deserialize, PartialEq, Clone)]
@@ -14,21 +14,14 @@ pub struct AuthConfig {
     /// Auth client id associated with the provided key.
     pub client_id: ClientID,
     /// Method to sign the client secret used to retrieve the access token.
-    #[serde(flatten, deserialize_with = "deserialize_default_provider")]
-    pub provider: ProviderConfig,
+    // TODO: this is Optional but a default value is set right after deserializing (we cannot implement Default because
+    // it needs a value which needs to be injected). We may want to refactor this and use different types: one for
+    // deserializing (with optional provider) and one built after setting up the default (with no-option).
+    #[serde(flatten)]
+    pub provider: Option<ProviderConfig>,
     /// Number of retries for token retrieval. Default 0.
     #[serde(default)]
     pub retries: u8,
-}
-
-// This is a workaround for a bug on serde not being able to use default on flattened fields.
-// https://github.com/serde-rs/serde/issues/1879
-fn deserialize_default_provider<'de, D>(deserializer: D) -> Result<ProviderConfig, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let provider_config = Option::<ProviderConfig>::deserialize(deserializer)?;
-    Ok(provider_config.unwrap_or(ProviderConfig::default()))
 }
 
 /// Supported access token request signers methods
@@ -39,12 +32,6 @@ pub enum ProviderConfig {
     Local(LocalConfig),
 }
 
-impl Default for ProviderConfig {
-    fn default() -> Self {
-        Self::Local(LocalConfig::default())
-    }
-}
-
 /// Uses a local private key to sign the access token request.
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct LocalConfig {
@@ -52,10 +39,18 @@ pub struct LocalConfig {
     pub private_key_path: PathBuf,
 }
 
-impl Default for LocalConfig {
-    fn default() -> Self {
+impl LocalConfig {
+    pub fn new(local_data_dir: &str) -> Self {
         Self {
-            private_key_path: PathBuf::from(SUPER_AGENT_LOCAL_DATA_DIR())
+            private_key_path: PathBuf::from(local_data_dir).join(AUTH_PRIVATE_KEY_FILE_NAME()),
+        }
+    }
+}
+
+impl From<&'static SuperAgentPaths> for LocalConfig {
+    fn from(paths: &'static SuperAgentPaths) -> Self {
+        Self {
+            private_key_path: PathBuf::from(paths.local_data_dir())
                 .join(AUTH_PRIVATE_KEY_FILE_NAME()),
         }
     }
@@ -95,9 +90,9 @@ private_key_path: "path/to/key"
                 expected: AuthConfig {
                     client_id: "fake".into(),
                     token_url: Url::from_str("http://fake.com/oauth2/v1/token").unwrap(),
-                    provider: ProviderConfig::Local(LocalConfig {
+                    provider: Some(ProviderConfig::Local(LocalConfig {
                         private_key_path: PathBuf::from("path/to/key"),
-                    }),
+                    })),
                     retries: 0u8,
                 },
             },
@@ -111,7 +106,7 @@ client_id: "fake"
                 expected: AuthConfig {
                     client_id: "fake".into(),
                     token_url: Url::from_str("http://fake.com/oauth2/v1/token").unwrap(),
-                    provider: ProviderConfig::default(),
+                    provider: None,
                     retries: 0u8,
                 },
             },
@@ -126,7 +121,7 @@ retries: 3
                 expected: AuthConfig {
                     client_id: "fake".into(),
                     token_url: Url::from_str("http://fake.com/oauth2/v1/token").unwrap(),
-                    provider: ProviderConfig::default(),
+                    provider: None,
                     retries: 3u8,
                 },
             },
