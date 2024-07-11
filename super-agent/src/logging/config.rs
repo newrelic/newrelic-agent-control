@@ -138,23 +138,46 @@ impl LoggingConfig {
     }
 
     fn crate_logging_filter(&self) -> EnvFilter {
-        let level = self.level.as_level().to_string().to_lowercase();
+        let level_config = self.level.as_level().to_string().to_lowercase();
+        let level_from_env = match std::env::var("LOG_LEVEL") {
+            Err(_) => None,
+            Ok(s) => match Level::from_str(&s) {
+                Ok(level) => Some(level),
+                Err(_) => None,
+            },
+        };
 
-        let crate_directive = format!("newrelic_super_agent={}", level)
+        let crate_directive_from_config = format!("newrelic_super_agent={}", level_config)
             .parse::<Directive>()
             // level is correctly parsed by serde at config level. If this panics, we have an issue
             // at deserialization time.
             .unwrap_or_else(|_| {
                 panic!(
-                    "`logging_filter` does return a unparsable directive. Panicking for level: {}",
-                    level
+                    "`logging_filter` from config does return a unparsable directive. Panicking for level: {}",
+                    level_config
                 )
             });
 
-        EnvFilter::builder()
-            .with_default_directive(crate_directive)
-            .with_env_var("LOG_LEVEL")
-            .from_env_lossy()
+        let mut envvar_filter = EnvFilter::builder()
+            .with_default_directive(crate_directive_from_config)
+            .from_env_lossy();
+
+        if let Some(level_unwraped) = level_from_env {
+            let crate_directive_from_envvar = format!("newrelic_super_agent={}", level_unwraped)
+                .parse::<Directive>()
+                // level is correctly parsed by serde at config level. If this panics, we have an issue
+                // at deserialization time.
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "`level_from_env` does return a unparsable directive. Panicking for level: {}",
+                        level_config
+                    )
+                });
+
+            envvar_filter = envvar_filter.add_directive(crate_directive_from_envvar);
+        }
+
+        envvar_filter
     }
 }
 
