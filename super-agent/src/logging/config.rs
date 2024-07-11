@@ -3,7 +3,6 @@ use std::fmt::Debug;
 use std::str::FromStr;
 use thiserror::Error;
 use tracing::debug;
-use tracing::level_filters::LevelFilter;
 use tracing::Level;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::filter::Directive;
@@ -95,89 +94,44 @@ impl LoggingConfig {
     }
 
     fn logging_filter(&self) -> EnvFilter {
-        match self.insecure_logging_filter() {
-            Some(insecure_logging_filter) => insecure_logging_filter,
-            None => self.crate_logging_filter(),
-        }
+        EnvFilter::builder()
+            .with_default_directive(
+                self.insecure_logging_filter()
+                    .unwrap_or_else(|| self.crate_logging_filter()),
+            )
+            .parse_lossy("")
     }
 
-    fn insecure_logging_filter(&self) -> Option<EnvFilter> {
-        let default_directive = match self.insecure_fine_grained_level.clone() {
-            // Set all logging levels to "error". This is the highest level we can set it up.
-            // Only "error" from crates will be logged.
-            None => LevelFilter::ERROR.into(),
-            // The user set something in the config so we take it as the default.
-            // Default can be overridden by the environment variable.
-            Some(s) => s
-                .parse::<Directive>()
-                .unwrap_or_else(|err| {
-                    panic!(
-                        "Unparsable logging directive for config `log.insecure_fine_grained_level={}`: {}",
-                        s, err
-                    )
-                }),
-        };
+    fn insecure_logging_filter(&self) -> Option<Directive> {
+        self.insecure_fine_grained_level.clone().map(|s| {
+            let directive = s.parse::<Directive>();
 
-        let env_filter = EnvFilter::builder()
-            .with_default_directive(default_directive)
-            .with_env_var("INSECURE_FINE_GRAINED_LEVEL")
-            .from_env()
-            .unwrap_or_else(|err| {
-                panic!(
-                    "Unparsable logging directive for environment variable `INSECURE_FINE_GRAINED_LEVEL`: {}",
-                    err
-                )
-            });
+            // This is an insecure configuration. We want to be picky with this and fail until we have
+            // a valid configuration.
+            assert!(
+                directive.is_ok(),
+                "Unparsable logging directive for config `log.insecure_fine_grained_level={}`",
+                s,
+            );
 
-        // Return None if everything is the default
-        if env_filter.to_string() == LevelFilter::ERROR.to_string() {
-            return None;
-        }
-
-        Some(env_filter)
+            directive.unwrap()
+        })
     }
 
-    fn crate_logging_filter(&self) -> EnvFilter {
+    fn crate_logging_filter(&self) -> Directive {
         let level_config = self.level.as_level().to_string().to_lowercase();
-        let level_from_env = match std::env::var("LOG_LEVEL") {
-            Err(_) => None,
-            Ok(s) => match Level::from_str(&s) {
-                Ok(level) => Some(level),
-                Err(_) => None,
-            },
-        };
 
-        let crate_directive_from_config = format!("newrelic_super_agent={}", level_config)
-            .parse::<Directive>()
-            // level is correctly parsed by serde at config level. If this panics, we have an issue
-            // at deserialization time.
-            .unwrap_or_else(|_| {
-                panic!(
-                    "`logging_filter` from config does return a unparsable directive. Panicking for level: {}",
-                    level_config
-                )
-            });
+        let directive = format!("newrelic_super_agent={}", level_config).parse::<Directive>();
 
-        let mut envvar_filter = EnvFilter::builder()
-            .with_default_directive(crate_directive_from_config)
-            .from_env_lossy();
+        // level is correctly parsed by serde at config level. If this panics, we have an issue
+        // at deserialization time.
+        assert!(
+            directive.is_ok(),
+            "Unparsable logging directive for config `log.level={}`",
+            level_config,
+        );
 
-        if let Some(level_unwraped) = level_from_env {
-            let crate_directive_from_envvar = format!("newrelic_super_agent={}", level_unwraped)
-                .parse::<Directive>()
-                // level is correctly parsed by serde at config level. If this panics, we have an issue
-                // at deserialization time.
-                .unwrap_or_else(|_| {
-                    panic!(
-                        "`level_from_env` does return a unparsable directive. Panicking for level: {}",
-                        level_config
-                    )
-                });
-
-            envvar_filter = envvar_filter.add_directive(crate_directive_from_envvar);
-        }
-
-        envvar_filter
+        directive.unwrap()
     }
 }
 
