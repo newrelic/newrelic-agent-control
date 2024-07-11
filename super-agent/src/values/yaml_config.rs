@@ -1,106 +1,28 @@
+use crate::super_agent::config::{SuperAgentConfig, SuperAgentDynamicConfig};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use thiserror::Error;
 
-/// User-provided config.
-///
-/// User-provided configuration (normally via a YAML file) that must follow the tree-like structure of [`Agent`]'s [`variables`] and will be used to populate the [`Agent`]'s [ `runtime_config`] field to totally define a deployable Sub Agent.
-///
-/// The below example in YAML format:
-///
-/// ```yaml
-/// system:
-///  logging:
-///    level: debug
-///
-///
-/// custom_envs:
-///   file: /tmp/aux.txt
-/// ```
-///
-/// Coupled with a specification of an agent type like this one:
-///
-/// ```yaml
-/// name: nrdot
-/// namespace: newrelic
-/// version: 0.1.0
-///
-/// variables:
-///  common:
-///   system:
-///    logging:
-///      level:
-///       description: "Logging level"
-///       type: string
-///       required: true
-///   custom_envs:
-///      description: "Custom envs"
-///      type: map[string]string
-///      required: true
-///
-/// deployment:
-///   on_host:
-///     executables:
-///       - path: "/etc/otelcol"
-///         args: "--log-level debug"
-///         env: "{custom_envs}"
-///     # the health of nrdot is determined by whether the agent process
-///     # is up and alive
-///     health:
-///       strategy: process
-/// ```
-///
-/// Will produce the following end result:
-///
-/// ```yaml
-/// name: nrdot
-/// namespace: newrelic
-/// version: 0.1.0
-///
-/// variables:
-///   system:
-///     logging:
-///       level:
-///         description: "Logging level"
-///         type: string
-///         required: true
-///         default:
-///         final_value: debug
-///
-/// deployment:
-///   on_host:
-///     executables:
-///       - path: "/etc/otelcol"
-///         args: "--log-level debug"
-///     # the health of nrdot is determined by whether the agent process
-///     # is up and alive
-///     health:
-///       strategy: process
-/// ```
-///
-/// Please see the tests in the sources for more examples.
-///
-/// [agent_type]: crate::config::agent_type
 #[derive(Debug, PartialEq, Deserialize, Serialize, Default, Clone)]
-pub struct AgentValues(HashMap<String, serde_yaml::Value>);
+pub struct YAMLConfig(HashMap<String, serde_yaml::Value>);
 
 #[derive(Error, Debug)]
-pub enum AgentValuesError {
+pub enum ValidYAMLConfigError {
     #[error("invalid agent values format: `{0}`")]
     FormatError(#[from] serde_yaml::Error),
 }
 
-impl From<AgentValues> for HashMap<String, serde_yaml::Value> {
-    fn from(values: AgentValues) -> Self {
+impl From<YAMLConfig> for HashMap<String, serde_yaml::Value> {
+    fn from(values: YAMLConfig) -> Self {
         values.0
     }
 }
 
-impl TryFrom<String> for AgentValues {
-    type Error = AgentValuesError;
+impl TryFrom<String> for YAMLConfig {
+    type Error = ValidYAMLConfigError;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        Ok(serde_yaml::from_str::<AgentValues>(value.as_str())?)
+        Ok(serde_yaml::from_str::<YAMLConfig>(value.as_str())?)
     }
 }
 
@@ -118,7 +40,7 @@ mod tests {
 
     use super::*;
 
-    impl AgentValues {
+    impl YAMLConfig {
         pub(crate) fn new(values: HashMap<String, Value>) -> Self {
             Self(values)
         }
@@ -149,14 +71,14 @@ verbose: true
 
     #[test]
     fn example_config() {
-        let actual = serde_yaml::from_str::<AgentValues>(EXAMPLE_CONFIG);
+        let actual = serde_yaml::from_str::<YAMLConfig>(EXAMPLE_CONFIG);
 
         assert!(actual.is_ok());
     }
 
     #[test]
     fn test_agent_values() {
-        let actual = serde_yaml::from_str::<AgentValues>(EXAMPLE_CONFIG).unwrap();
+        let actual = serde_yaml::from_str::<YAMLConfig>(EXAMPLE_CONFIG).unwrap();
         let expected = Value::Mapping(Mapping::from_iter([
             (
                 Value::String("description".to_string()),
@@ -251,7 +173,8 @@ deployment:
 
     #[test]
     fn test_update_specs() {
-        let input_structure = serde_yaml::from_str::<AgentValues>(EXAMPLE_CONFIG_REPLACE).unwrap();
+        let input_structure =
+            serde_yaml::from_str::<YAMLConfig>(EXAMPLE_CONFIG_REPLACE).unwrap();
         let agent_type =
             AgentType::build_for_testing(EXAMPLE_AGENT_YAML_REPLACE, &Environment::OnHost);
 
@@ -334,7 +257,7 @@ deployment:
     #[test]
     fn test_validate_with_agent_type_wrong_value_type() {
         let input_structure =
-            serde_yaml::from_str::<AgentValues>(EXAMPLE_CONFIG_REPLACE_WRONG_TYPE).unwrap();
+            serde_yaml::from_str::<YAMLConfig>(EXAMPLE_CONFIG_REPLACE_WRONG_TYPE).unwrap();
         let agent_type =
             AgentType::build_for_testing(EXAMPLE_AGENT_YAML_REPLACE, &Environment::OnHost);
 
