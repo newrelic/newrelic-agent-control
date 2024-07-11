@@ -21,47 +21,47 @@
           - "^/usr/bin/newrelic-infra"
           - "^/usr/bin/nr-otel-collector"
 
-    - name: Restart New Relic Super Agent to check ULIDs keep the same
+    - name: Restart New Relic Super Agent to check InstanceIDs keep the same
       ansible.builtin.service:
         name: newrelic-super-agent
         state: restarted
 
-    - name: Wait for a few seconds to ensure ULID recreation process skipped
+    - name: Wait for a few seconds to ensure InstanceID recreation process skipped
       ansible.builtin.pause:
         seconds: 30
 
-    - name: Get NR Super Agent ULID
+    - name: Get NR Super Agent InstanceID
       include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
       vars:
         agent_identifier_path: "{{ super_agent_identifiers_file }}"
-        identifier_field: "ulid"
-        identifier_field_fact: "super_agent_ulid_restart"
+        identifier_field: "instance_id"
+        identifier_field_fact: "super_agent_instance_id_restart"
 
-    - name: Get Infra agent ULID
+    - name: Get Infra agent InstanceID
       include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
       vars:
         agent_identifier_path: "{{ sub_agent_identifiers_file_tpl | replace('AGENT_ID','nr-infra-agent') }}"
-        identifier_field: "ulid"
-        identifier_field_fact: "infra_agent_ulid_restart"
+        identifier_field: "instance_id"
+        identifier_field_fact: "infra_agent_instance_id_restart"
 
-    - name: Get NR Otel Collector ULID
+    - name: Get NR Otel Collector InstanceID
       include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
       vars:
         agent_identifier_path: "{{ sub_agent_identifiers_file_tpl | replace('AGENT_ID','nr-otel-collector') }}"
-        identifier_field: "ulid"
-        identifier_field_fact: "otel_agent_ulid_restart"
+        identifier_field: "instance_id"
+        identifier_field_fact: "otel_agent_instance_id_restart"
 
-    - name: assert the persisted Super Agent ULID is the same
+    - name: assert the persisted Super Agent InstanceID is the same
       assert:
-        that: "{{ super_agent_ulid_restart == super_agent_ulid }}"
+        that: "{{ super_agent_instance_id_restart == super_agent_instance_id }}"
 
-    - name: assert the persisted Infra agent ULID is the same
+    - name: assert the persisted Infra agent InstanceID is the same
       assert:
-        that: "{{ infra_agent_ulid_restart == infra_agent_ulid }}"
+        that: "{{ infra_agent_instance_id_restart == infra_agent_instance_id }}"
 
-    - name: assert the persisted NR Otel Collector ULID is the same
+    - name: assert the persisted NR Otel Collector InstanceID is the same
       assert:
-        that: "{{ otel_agent_ulid_restart == otel_agent_ulid }}"
+        that: "{{ otel_agent_instance_id_restart == otel_agent_instance_id }}"
 
     - name: set remote config name
       set_fact:
@@ -103,12 +103,12 @@
           config_id: "{{ created_config_id | int }}"
           config_revision: "{{ created_config_revision | int }}"
 
-    - name: Get NR Super Agent ULID
+    - name: Get NR Super Agent InstanceID
       include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
       vars:
         agent_identifier_path: "{{ super_agent_identifiers_file }}"
-        identifier_field: "ulid"
-        identifier_field_fact: "super_agent_ulid"
+        identifier_field: "instance_id"
+        identifier_field_fact: "super_agent_instance_id"
 
     - name: authorize Super Agent
       include_role:
@@ -116,7 +116,7 @@
       vars:
         authorize_agent:
           account_id: "{{ nr_account_id | int }}"
-          agent_ulid: "{{ super_agent_ulid }}"
+          agent_instance_id: "{{ super_agent_instance_id }}"
 
     - name: Wait for a few seconds for the config to be present
       stat:
@@ -152,7 +152,7 @@
     - name: Get Super Agent remote hash
       include_tasks: ./tasks/get_agent_remote_hash.yaml
       vars:
-        agent_ulid: "{{ super_agent_ulid }}"
+        agent_instance_id: "{{ super_agent_instance_id }}"
         agent_hash_fact: "super_agent_remote_hash"
 
     - name: assert that Super Agent config hash is correct

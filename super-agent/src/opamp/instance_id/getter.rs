@@ -1,14 +1,7 @@
 use super::{GetterError, Identifiers, InstanceID};
 use crate::{opamp::instance_id::storer::InstanceIDStorer, super_agent::config::AgentID};
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 use tracing::debug;
-
-#[derive(Error, Debug)]
-pub enum InstanceIDError {
-    #[error("invalid InstanceID format: `{0}`")]
-    InvalidFormat(String),
-}
 
 // IDGetter returns an InstanceID for a specific agentID.
 pub trait InstanceIDGetter {
@@ -210,7 +203,7 @@ pub mod test {
 
     #[test]
     fn test_uuid() {
-        let uuid_as_str = "018ff38d-01b3-7796-b2c8-1c8069bc6adf";
+        let uuid_as_str = "018FF38D01B37796B2C81C8069BC6ADF";
         // Crete InstanceID from string
         let id = InstanceID::try_from(uuid_as_str).unwrap();
         // Convert instanceID to OpAMP Proto bytes
