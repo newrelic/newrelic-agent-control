@@ -25,6 +25,7 @@ pub enum ConfigStoreError {
 
 pub struct SuperAgentConfigStore {
     local_path: PathBuf,
+    #[allow(dead_code)]
     remote_dir: PathBuf,
     remote_path: Option<PathBuf>,
     config_builder: ConfigBuilder<DefaultState>,

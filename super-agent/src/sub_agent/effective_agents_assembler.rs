@@ -1,4 +1,3 @@
-use super::values::values_repository::{ValuesRepository, ValuesRepositoryError};
 use crate::agent_type::agent_attributes::AgentAttributes;
 use crate::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError};
 use crate::agent_type::definition::{AgentType, AgentTypeDefinition};
@@ -9,6 +8,7 @@ use crate::agent_type::renderer::{Renderer, TemplateRenderer};
 use crate::agent_type::runtime_config::{Deployment, Runtime};
 use crate::sub_agent::persister::config_persister_file::ConfigurationPersisterFile;
 use crate::super_agent::config::{AgentID, SubAgentConfig};
+use crate::values::values_repository::{ValuesRepository, ValuesRepositoryError};
 use fs::file_reader::FileReaderError;
 use std::fmt::Display;
 use std::sync::Arc;
@@ -199,7 +199,7 @@ pub(crate) mod tests {
     use crate::agent_type::definition::AgentTypeDefinition;
     use crate::agent_type::renderer::tests::MockRendererMock;
     use crate::agent_type::runtime_config;
-    use crate::sub_agent::values::values_repository::test::MockRemoteValuesRepositoryMock;
+    use crate::values::values_repository::test::MockRemoteValuesRepositoryMock;
     use assert_matches::assert_matches;
     use mockall::{mock, predicate};
     use semver::Version;

@@ -1,5 +1,4 @@
 use http::HeaderMap;
-use newrelic_super_agent::agent_type::agent_type_registry;
 use newrelic_super_agent::agent_type::embedded_registry::EmbeddedRegistry;
 use newrelic_super_agent::event::channel::pub_sub;
 use newrelic_super_agent::event::SuperAgentEvent;

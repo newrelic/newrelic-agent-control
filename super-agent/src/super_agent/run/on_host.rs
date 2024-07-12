@@ -17,8 +17,8 @@ use crate::{
     sub_agent::{
         on_host::builder::OnHostSubAgentBuilder,
         persister::config_persister_file::ConfigurationPersisterFile,
-        values::on_host::ValuesRepositoryFile,
     },
+    values::on_host::ValuesRepositoryFile,
 };
 use crate::{
     event::{

@@ -1,10 +1,10 @@
 use crate::agent_type::agent_values::AgentValues;
 use crate::agent_type::definition::AgentType;
-use crate::sub_agent::values::values_repository::{ValuesRepository, ValuesRepositoryError};
 use crate::super_agent::config::AgentID;
 use crate::super_agent::defaults::{
     LOCAL_AGENT_DATA_DIR, REMOTE_AGENT_DATA_DIR, VALUES_DIR, VALUES_FILE,
 };
+use crate::values::values_repository::{ValuesRepository, ValuesRepositoryError};
 use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
 use fs::file_reader::{FileReader, FileReaderError};
 use fs::writer_file::{FileWriter, WriteError};
@@ -211,8 +211,8 @@ pub mod test {
     use super::ValuesRepositoryFile;
     use crate::agent_type::agent_values::AgentValues;
     use crate::agent_type::definition::AgentType;
-    use crate::sub_agent::values::values_repository::{ValuesRepository, ValuesRepositoryError};
     use crate::super_agent::config::AgentID;
+    use crate::values::values_repository::{ValuesRepository, ValuesRepositoryError};
     use assert_matches::assert_matches;
     use fs::directory_manager::mock::MockDirectoryManagerMock;
     use fs::directory_manager::DirectoryManagementError::{

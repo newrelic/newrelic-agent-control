@@ -6,8 +6,8 @@ use crate::agent_type::agent_metadata::AgentMetadata;
 use crate::agent_type::definition::{AgentType, VariableTree};
 use crate::agent_type::runtime_config::Runtime;
 use crate::opamp::remote_config::ConfigurationMap;
-use crate::sub_agent::values::values_repository::ValuesRepository;
 use crate::super_agent::config::AgentID;
+use crate::values::values_repository::ValuesRepository;
 
 use super::error::LoaderError;
 use super::loader::EffectiveConfigLoader;
@@ -80,8 +80,8 @@ mod test {
     use crate::opamp::effective_config::loader::EffectiveConfigLoader;
     use crate::opamp::effective_config::sub_agent::SubAgentEffectiveConfigLoader;
     use crate::opamp::remote_config::ConfigurationMap;
-    use crate::sub_agent::values::values_repository::test::MockRemoteValuesRepositoryMock;
     use crate::super_agent::config::AgentID;
+    use crate::values::values_repository::test::MockRemoteValuesRepositoryMock;
     use semver::Version;
     use std::collections::HashMap;
     use std::sync::Arc;
