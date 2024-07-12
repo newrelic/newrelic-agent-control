@@ -31,6 +31,8 @@ pub enum CliError {
     ConfigRead(#[from] SuperAgentConfigError),
     #[error("Could not initialize logging: `{0}`")]
     LoggingInit(#[from] LoggingError),
+    #[error("k8s config missing while running on k8s ")]
+    K8sConfig(),
 }
 
 /// What action was requested from the CLI?
@@ -128,7 +130,9 @@ impl Cli {
         let run_config = SuperAgentRunConfig {
             opamp,
             http_server,
-            local_super_agent_config_path: "".to_string(),
+            #[cfg(feature = "k8s")]
+            k8s_config: super_agent_config.k8s.ok_or(CliError::K8sConfig())?,
+            local_super_agent_config_path: local_config.to_string(),
         };
 
         let cli_config = SuperAgentCliConfig {

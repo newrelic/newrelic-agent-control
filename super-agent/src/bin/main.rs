@@ -12,7 +12,7 @@ compile_error!("Either feature \"onhost\" or feature \"k8s\" must be enabled");
 
 fn main() -> Result<(), Box<dyn Error>> {
     // Get the action requested from the command call
-    let super_agent_config = match Cli::init()? {
+    let super_agent_cli_config = match Cli::init()? {
         // Super Agent command call instructs normal operation. Continue with required data.
         CliCommand::InitSuperAgent(cli) => cli,
         // Super Agent command call was an "one-shot" operation. Exit successfully after performing.
@@ -24,7 +24,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Acquire the file logger guard (if any) for the whole duration of the program
     // Needed for remaining usages of `tracing` macros in `main`.
-    let _guard: FileLoggerGuard = super_agent_config.file_logger_guard;
+    let _guard: FileLoggerGuard = super_agent_cli_config.file_logger_guard;
 
     #[cfg(all(unix, feature = "onhost"))]
     if !nix::unistd::Uid::effective().is_root() {
@@ -33,7 +33,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     // Pass the rest of required configs to the actual super agent runner
-    SuperAgentRunner::try_from(super_agent_config.run_config)?
+    SuperAgentRunner::try_from(super_agent_cli_config.run_config)?
         .run()
         .inspect_err(|err| {
             error!(

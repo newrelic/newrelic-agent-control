@@ -16,13 +16,13 @@ use newrelic_super_agent::opamp::instance_id::{
 };
 use newrelic_super_agent::opamp::remote_config_hash::Hash;
 use newrelic_super_agent::super_agent::config::{AgentID, SuperAgentDynamicConfig};
+use newrelic_super_agent::super_agent::config_storer::file::SuperAgentConfigStore;
 use newrelic_super_agent::super_agent::config_storer::loader_storer::{
     SuperAgentDynamicConfigDeleter, SuperAgentDynamicConfigLoader, SuperAgentDynamicConfigStorer,
 };
-use newrelic_super_agent::super_agent::config_storer::SubAgentsConfigStoreConfigMap;
 use newrelic_super_agent::{
-    agent_type::valid_yaml_config::ValidYAMLConfig, opamp::hash_repository::HashRepository,
-    values::k8s::ValuesRepositoryConfigMap, values::values_repository::ValuesRepository,
+    opamp::hash_repository::HashRepository, values::k8s::ValuesRepositoryConfigMap,
+    values::values_repository::ValuesRepository, values::yaml_config::YAMLConfig,
 };
 use serde_yaml::from_str;
 use std::sync::Arc;
@@ -121,7 +121,7 @@ fn k8s_value_repository_config_map() {
     let agent_id_2 = AgentID::new(AGENT_ID_2).unwrap();
 
     let mut value_repository = ValuesRepositoryConfigMap::new(k8s_store);
-    let default_values = ValidYAMLConfig::default();
+    let default_values = YAMLConfig::default();
 
     // without values the default is expected
     let res = value_repository.load(&agent_id_1);
@@ -134,13 +134,13 @@ fn k8s_value_repository_config_map() {
         "k8s_value_repository_config_map",
         format!("local-data-{}", AGENT_ID_1).as_str(),
     ));
-    let local_values = ValidYAMLConfig::try_from("test: 1".to_string()).unwrap();
+    let local_values = YAMLConfig::try_from("test: 1".to_string()).unwrap();
     let res = value_repository.load(&agent_id_1);
 
     assert_eq!(res.unwrap(), local_values);
 
     // with remote data we expect we get local without remote
-    let remote_values = ValidYAMLConfig::try_from("test: 3".to_string()).unwrap();
+    let remote_values = YAMLConfig::try_from("test: 3".to_string()).unwrap();
     value_repository
         .store_remote(&agent_id_1, &remote_values)
         .unwrap();
@@ -159,7 +159,7 @@ fn k8s_value_repository_config_map() {
 
     // After saving data for a second agent should not affect the previous one
     // with remote data we expect to ignore local one
-    let remote_values_agent_2 = ValidYAMLConfig::try_from("test: 100".to_string()).unwrap();
+    let remote_values_agent_2 = YAMLConfig::try_from("test: 100".to_string()).unwrap();
     value_repository
         .store_remote(&agent_id_2, &remote_values_agent_2)
         .unwrap();
@@ -193,8 +193,11 @@ agents:
   infra-agent-d:
     agent_type: "com.newrelic.infrastructure_agent:0.0.2"
 "#;
+    // TODO
     let agents_local = from_str::<SuperAgentDynamicConfig>(agents_cfg_local).unwrap();
-    let store_sa = SubAgentsConfigStoreConfigMap::new(k8s_store, agents_local);
+
+    let vr = Arc::new(ValuesRepositoryConfigMap::new(k8s_store.clone()));
+    let store_sa = SuperAgentConfigStore::new(vr);
     assert_eq!(store_sa.load().unwrap().agents.len(), 4);
 
     // after removing an agent and storing it, we expect not to see it without remote enabled
@@ -213,7 +216,8 @@ agents:
     assert_eq!(store_sa.load().unwrap().agents.len(), 4);
 
     // After enabling remote we can load the "remote" config
-    let store_sa = store_sa.with_remote();
+    let vr = Arc::new(ValuesRepositoryConfigMap::new(k8s_store).with_remote());
+    let store_sa = SuperAgentConfigStore::new(vr);
     assert_eq!(store_sa.load().unwrap().agents.len(), 3);
 
     // After deleting the remote config the local one is loaded

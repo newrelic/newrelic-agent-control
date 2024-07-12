@@ -6,15 +6,15 @@ use newrelic_super_agent::opamp::client_builder::DefaultOpAMPClientBuilder;
 use newrelic_super_agent::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use newrelic_super_agent::opamp::http::builder::UreqHttpClientBuilder;
 use newrelic_super_agent::super_agent::config::OpAMPClientConfig;
-use newrelic_super_agent::super_agent::config_storer::file::SuperAgentConfigStore;
-use newrelic_super_agent::super_agent::run::on_host::run_super_agent;
-use std::path::Path;
+use newrelic_super_agent::super_agent::http_server::runner::Runner;
+use newrelic_super_agent::super_agent::run::SuperAgentRunner;
+use std::path::PathBuf;
 use std::sync::Arc;
 use url::Url;
 
 /// Starts the super-agent through [start_super_agent] after setting up the corresponding configuration file
 /// and config map according to the provided `folder_name` and the provided `file_names`.
-pub fn start_super_agent_with_custom_config(config_path: &Path, opamp_endpoint: Url) {
+pub fn start_super_agent_with_custom_config(config_path: &PathBuf, opamp_endpoint: Url) {
     // Create the Tokio runtime
     let runtime = Arc::new(
         tokio::runtime::Builder::new_multi_thread()
@@ -43,13 +43,13 @@ pub fn start_super_agent_with_custom_config(config_path: &Path, opamp_endpoint: 
     let (_application_event_publisher, application_event_consumer) = pub_sub();
     let (super_agent_publisher, _super_agent_consumer) = pub_sub::<SuperAgentEvent>();
 
-    let config_storer = SuperAgentConfigStore::new(config_path);
-
-    _ = run_super_agent(
-        runtime.clone(),
-        config_storer,
+    _ = SuperAgentRunner {
+        _http_server_runner: Runner { join_handle: None },
+        runtime,
+        local_super_agent_config_path: config_path.to_str().unwrap().to_string(),
         application_event_consumer,
-        builder,
+        opamp_client_builder: builder,
         super_agent_publisher,
-    );
+    }
+    .run_super_agent();
 }

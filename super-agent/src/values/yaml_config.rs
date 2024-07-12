@@ -6,7 +6,7 @@ use thiserror::Error;
 pub struct YAMLConfig(HashMap<String, serde_yaml::Value>);
 
 #[derive(Error, Debug)]
-pub enum ValidYAMLConfigError {
+pub enum YAMLConfigError {
     #[error("invalid agent values format: `{0}`")]
     FormatError(#[from] serde_yaml::Error),
 }
@@ -18,7 +18,7 @@ impl From<YAMLConfig> for HashMap<String, serde_yaml::Value> {
 }
 
 impl TryFrom<String> for YAMLConfig {
-    type Error = ValidYAMLConfigError;
+    type Error = YAMLConfigError;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         Ok(serde_yaml::from_str::<YAMLConfig>(value.as_str())?)

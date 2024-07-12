@@ -5,7 +5,7 @@ use crate::opamp::hash_repository::repository::HashRepositoryError;
 use crate::opamp::remote_config::RemoteConfigError;
 use crate::super_agent::config::SuperAgentConfigError;
 use crate::values::values_repository::ValuesRepositoryError;
-use crate::values::yaml_config::ValidYAMLConfigError;
+use crate::values::yaml_config::YAMLConfigError;
 use opamp_client::StartedClientError;
 use opamp_client::{ClientError, NotStartedClientError};
 use std::time::SystemTimeError;
@@ -38,7 +38,7 @@ pub enum SubAgentError {
     #[error("sub agent values error: `{0}`")]
     ValuesError(#[from] ValuesRepositoryError),
     #[error("sub agent values error: `{0}`")]
-    ValuesUnserializeError(#[from] ValidYAMLConfigError),
+    ValuesUnserializeError(#[from] YAMLConfigError),
     #[error("remote config error: `{0}`")]
     RemoteConfigError(#[from] RemoteConfigError),
     #[error("Error publishing event: `{0}`")]

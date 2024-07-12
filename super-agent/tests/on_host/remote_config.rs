@@ -43,7 +43,7 @@ agents: {}
     // We won't join and wait for the thread to finish because we want the super_agent to exit
     // if our assertions were not ok.
     let _super_agent_join = thread::spawn(move || {
-        start_super_agent_with_custom_config(config_file_path.as_path(), server_endpoint)
+        start_super_agent_with_custom_config(&config_file_path, server_endpoint)
     });
 
     let super_agent_instance_id = get_instance_id(&AgentID::new_super_agent_id());

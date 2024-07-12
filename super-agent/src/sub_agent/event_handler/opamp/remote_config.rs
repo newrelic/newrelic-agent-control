@@ -109,7 +109,7 @@ mod tests {
     use crate::sub_agent::event_processor::EventProcessor;
     use crate::super_agent::config::AgentID;
     use crate::values::values_repository::ValuesRepositoryError;
-    use crate::values::yaml_config::{ValidYAMLConfigError, YAMLConfig};
+    use crate::values::yaml_config::{YAMLConfig, YAMLConfigError};
     use crate::{
         event::channel::pub_sub,
         opamp::{
@@ -203,11 +203,11 @@ mod tests {
 
         let remote_config = RemoteConfig::new(agent_id.clone(), hash.clone(), Some(config_map));
 
-        let expected_error = SubAgentError::ValuesUnserializeError(
-            ValidYAMLConfigError::FormatError(serde_yaml::Error::custom(
+        let expected_error = SubAgentError::ValuesUnserializeError(YAMLConfigError::FormatError(
+            serde_yaml::Error::custom(
                 "invalid type: string \"this is not valid yaml\", expected a map",
-            )),
-        );
+            ),
+        ));
 
         let (event_processor, _) = setup_testing_event_processor(&agent_id, |mocks| {
             // hash should be stored even before finding out it will fail.

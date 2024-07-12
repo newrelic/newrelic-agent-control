@@ -13,7 +13,7 @@ use tracing::{debug, error, info};
 /// Runner will be responsible for spawning the OS Thread for the HTTP Server
 /// and owning the JoinHandle. It controls the server stop implementing drop
 pub struct Runner {
-    join_handle: Option<JoinHandle<()>>,
+    pub join_handle: Option<JoinHandle<()>>,
 }
 
 impl Runner {

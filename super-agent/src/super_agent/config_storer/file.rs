@@ -132,6 +132,7 @@ pub(crate) mod tests {
     use crate::super_agent::config::{
         AgentID, AgentTypeFQN, OpAMPClientConfig, SubAgentConfig, SuperAgentConfig,
     };
+    use crate::values::on_host::ValuesRepositoryFile;
     use serial_test::serial;
     use std::{collections::HashMap, env, io::Write};
     use tempfile::NamedTempFile;
@@ -156,9 +157,10 @@ agents:
 "#;
         write!(remote_file, "{}", remote_config).unwrap();
 
-        let mut store = SuperAgentConfigStore::new(local_file.path());
-
-        store.remote_path = Some(remote_file.path().to_path_buf());
+        let store = SuperAgentConfigStore::new(Arc::new(ValuesRepositoryFile::new(
+            local_file.path().to_string_lossy().to_string(),
+            remote_file.path().to_string_lossy().to_string(),
+        )));
 
         let actual = SuperAgentConfigLoader::load(&store);
 
@@ -205,7 +207,10 @@ opamp:
             "namespace/com.newrelic.infrastructure_agent:0.0.2",
         );
 
-        let store = SuperAgentConfigStore::new(local_file.path());
+        let store = SuperAgentConfigStore::new(Arc::new(ValuesRepositoryFile::new(
+            local_file.path().to_string_lossy().to_string(),
+            "".to_string(),
+        )));
         let actual = SuperAgentConfigLoader::load(&store);
 
         let expected = SuperAgentConfig {
@@ -255,7 +260,10 @@ agents:
             "namespace/com.newrelic.infrastructure_agent:0.0.2",
         );
 
-        let store = SuperAgentConfigStore::new(local_file.path());
+        let store = SuperAgentConfigStore::new(Arc::new(ValuesRepositoryFile::new(
+            local_file.path().to_string_lossy().to_string(),
+            "".to_string(),
+        )));
         let actual = SuperAgentConfigLoader::load(&store);
 
         let expected = SuperAgentConfig {

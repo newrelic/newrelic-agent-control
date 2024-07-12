@@ -52,7 +52,7 @@ impl ValuesRepositoryFile<LocalFile, DirectoryManagerFs> {
         ValuesRepositoryFile {
             directory_manager: DirectoryManagerFs {},
             file_rw: LocalFile,
-            local_conf_path: local_conf_path.clone(),
+            local_conf_path,
             remote_conf_path,
             remote_enabled: false,
             rw_lock: RwLock::new(()),
@@ -60,12 +60,6 @@ impl ValuesRepositoryFile<LocalFile, DirectoryManagerFs> {
     }
     pub fn with_remote(mut self) -> Self {
         self.remote_enabled = true;
-        self
-    }
-
-    /// TODO This is used only in tests. We should refactor the test
-    pub fn with_remote_conf_path(mut self, path: String) -> Self {
-        self.remote_conf_path = path;
         self
     }
 }
@@ -205,7 +199,9 @@ where
 pub mod test {
     use super::ValuesRepositoryFile;
     use crate::agent_type::definition::AgentType;
+    use crate::agent_type::environment::Environment;
     use crate::super_agent::config::AgentID;
+    use crate::super_agent::defaults::default_capabilities;
     use crate::values::values_repository::{ValuesRepository, ValuesRepositoryError};
     use crate::values::yaml_config::YAMLConfig;
     use assert_matches::assert_matches;
@@ -220,12 +216,10 @@ pub mod test {
     use serde_yaml::Value;
     use std::collections::HashMap;
     use std::fs::Permissions;
-    use std::path::Path;
-
-    use crate::agent_type::environment::Environment;
-    use crate::super_agent::defaults::default_capabilities;
     #[cfg(target_family = "unix")]
     use std::os::unix::fs::PermissionsExt;
+    use std::path::Path;
+    use std::sync::RwLock;
 
     impl<F, S> ValuesRepositoryFile<F, S>
     where
@@ -245,6 +239,7 @@ pub mod test {
                 remote_conf_path: remote_conf_path.to_str().unwrap().to_string(),
                 local_conf_path: local_conf_path.to_str().unwrap().to_string(),
                 remote_enabled,
+                rw_lock: RwLock::new(()),
             }
         }
     }
@@ -565,7 +560,6 @@ deployment:
         let agent_values =
             YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]));
 
-        dir_manager.should_delete(Path::new("some/remote/path/some-agent-id/values"));
         dir_manager.should_not_create(
             Path::new("some/remote/path/some-agent-id/values"),
             Permissions::from_mode(0o700),
@@ -600,7 +594,6 @@ deployment:
         let agent_values =
             YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]));
 
-        dir_manager.should_delete(Path::new("some/remote/path/some-agent-id/values"));
         dir_manager.should_create(
             Path::new("some/remote/path/some-agent-id/values"),
             Permissions::from_mode(0o700),
@@ -633,14 +626,12 @@ deployment:
     fn test_delete_remote() {
         //Mocks
         let file_rw = MockLocalFile::default();
-        let mut dir_manager = MockDirectoryManagerMock::new();
+        let dir_manager = MockDirectoryManagerMock::new();
         let remote_conf_path = Path::new("some/remote/path");
         let local_conf_path = Path::new("some/local/path");
         let remote_enabled = false;
 
         let agent_id = AgentID::new("some-agent-id").unwrap();
-
-        dir_manager.should_delete(Path::new("some/remote/path/some-agent-id/values"));
 
         let repo = ValuesRepositoryFile::with_mocks(
             file_rw,

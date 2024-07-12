@@ -1,3 +1,5 @@
+#[cfg(feature = "k8s")]
+use super::config::K8sConfig;
 use super::config::OpAMPClientConfig;
 use super::http_server::config::ServerConfig;
 use crate::event::channel::pub_sub;
@@ -12,10 +14,6 @@ use crate::{
     },
     opamp::client_builder::DefaultOpAMPClientBuilder,
 };
-#[cfg(feature = "k8s")]
-use k8s::run_super_agent;
-#[cfg(feature = "onhost")]
-use on_host::run_super_agent;
 use std::error::Error;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
@@ -32,6 +30,8 @@ pub struct SuperAgentRunConfig {
     pub opamp: Option<OpAMPClientConfig>,
     pub http_server: ServerConfig,
     pub local_super_agent_config_path: String,
+    #[cfg(feature = "k8s")]
+    pub k8s_config: K8sConfig,
 }
 
 impl TryFrom<SuperAgentRunConfig> for SuperAgentRunner {
@@ -83,6 +83,8 @@ impl TryFrom<SuperAgentRunConfig> for SuperAgentRunner {
         let run_data = SuperAgentRunner {
             _http_server_runner: _started_http_server_runner,
             local_super_agent_config_path: value.local_super_agent_config_path,
+            #[cfg(feature = "k8s")]
+            k8s_config: value.k8s_config,
             runtime,
             application_event_consumer,
             opamp_client_builder,
@@ -96,29 +98,27 @@ impl TryFrom<SuperAgentRunConfig> for SuperAgentRunner {
 /// Structure with all the data required to run the super agent
 // TODO: Generalize over injected dependencies like UreqHttpClientBuilder and TokenRetrieverImpl?
 pub struct SuperAgentRunner {
-    _http_server_runner: Runner,
-    runtime: Arc<Runtime>,
-    local_super_agent_config_path: String,
-    application_event_consumer: EventConsumer<ApplicationEvent>,
-    opamp_client_builder: Option<
+    pub _http_server_runner: Runner,
+    #[allow(dead_code)]
+    pub runtime: Arc<Runtime>,
+    #[allow(dead_code)]
+    pub local_super_agent_config_path: String,
+    #[cfg(feature = "k8s")]
+    k8s_config: K8sConfig,
+    pub application_event_consumer: EventConsumer<ApplicationEvent>,
+    pub opamp_client_builder: Option<
         DefaultOpAMPClientBuilder<
             UreqHttpClientBuilder<TokenRetrieverImpl>,
             DefaultEffectiveConfigLoaderBuilder,
         >,
     >,
-    super_agent_publisher: EventPublisher<SuperAgentEvent>,
+    pub super_agent_publisher: EventPublisher<SuperAgentEvent>,
 }
 
 /// Run the super agent with the provided data
 impl SuperAgentRunner {
     pub fn run(self) -> Result<(), Box<dyn Error>> {
-        Ok(run_super_agent(
-            self.runtime.clone(),
-            self.local_super_agent_config_path,
-            self.application_event_consumer,
-            self.opamp_client_builder,
-            self.super_agent_publisher,
-        )?)
+        Ok(self.run_super_agent()?)
     }
 }
 
