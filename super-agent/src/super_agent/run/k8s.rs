@@ -1,3 +1,4 @@
+use crate::agent_type::embedded_registry::EmbeddedRegistry;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
@@ -39,6 +40,7 @@ pub fn run_super_agent<C: HttpClientBuilder>(
     application_event_consumer: EventConsumer<ApplicationEvent>,
     opamp_http_builder: Option<C>,
     super_agent_publisher: EventPublisher<SuperAgentEvent>,
+    agent_type_registry: EmbeddedRegistry,
 ) -> Result<(), AgentError> {
     info!("Starting the k8s client");
     let config = sa_local_config_storer.load()?;
@@ -89,7 +91,8 @@ pub fn run_super_agent<C: HttpClientBuilder>(
         )
     });
 
-    let agents_assembler = LocalEffectiveAgentsAssembler::new(values_repository.clone());
+    let agents_assembler =
+        LocalEffectiveAgentsAssembler::new(values_repository.clone(), agent_type_registry);
     let hash_repository = Arc::new(HashRepositoryConfigMap::new(k8s_store.clone()));
     let sub_agent_event_processor_builder =
         EventProcessorBuilder::new(hash_repository.clone(), values_repository.clone());

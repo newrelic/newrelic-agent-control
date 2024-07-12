@@ -92,9 +92,9 @@ impl<D>
 where
     D: ValuesRepository,
 {
-    pub fn new(values_repository: Arc<D>) -> Self {
+    pub fn new(values_repository: Arc<D>, registry: EmbeddedRegistry) -> Self {
         LocalEffectiveAgentsAssembler {
-            registry: EmbeddedRegistry::default(),
+            registry,
             values_repository,
             renderer: TemplateRenderer::default(),
         }

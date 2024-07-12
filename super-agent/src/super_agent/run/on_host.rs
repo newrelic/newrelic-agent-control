@@ -1,3 +1,4 @@
+use crate::agent_type::embedded_registry::EmbeddedRegistry;
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::{Identifiers, Storer};
@@ -42,6 +43,7 @@ pub fn run_super_agent<C: HttpClientBuilder>(
     application_events_consumer: EventConsumer<ApplicationEvent>,
     opamp_http_builder: Option<C>,
     super_agent_publisher: EventPublisher<SuperAgentEvent>,
+    agent_type_registry: EmbeddedRegistry,
 ) -> Result<(), AgentError> {
     // enable remote config store
     let config_storer = if opamp_http_builder.is_some() {
@@ -85,11 +87,12 @@ pub fn run_super_agent<C: HttpClientBuilder>(
 
     let instance_id_getter = InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers);
 
-    let agents_assembler = LocalEffectiveAgentsAssembler::new(values_repository.clone())
-        .with_renderer(
-            TemplateRenderer::default()
-                .with_config_persister(ConfigurationPersisterFile::default()),
-        );
+    let agents_assembler =
+        LocalEffectiveAgentsAssembler::new(values_repository.clone(), agent_type_registry)
+            .with_renderer(
+                TemplateRenderer::default()
+                    .with_config_persister(ConfigurationPersisterFile::default()),
+            );
 
     // TODO move these dirs one layer up
     let super_agent_hash_repository = Arc::new(HashRepositoryFile::new(
