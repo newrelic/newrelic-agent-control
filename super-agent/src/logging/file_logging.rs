@@ -1,5 +1,4 @@
 use super::config::LoggingError;
-use crate::super_agent::defaults::{SUPER_AGENT_LOG_DIR, SUPER_AGENT_LOG_FILENAME};
 use serde::Deserialize;
 use std::path::PathBuf;
 use tracing_appender::non_blocking::{NonBlocking, WorkerGuard};
@@ -7,17 +6,19 @@ use tracing_appender::non_blocking::{NonBlocking, WorkerGuard};
 #[derive(Debug, Deserialize, Default, PartialEq, Clone)]
 pub(crate) struct FileLoggingConfig {
     pub(crate) enable: bool,
-    #[serde(default)]
-    pub(crate) path: LogFilePath,
+    // Default value is being set by `ConfigPatcher` right after deserialization.
+    pub(crate) path: Option<LogFilePath>,
 }
 
 impl FileLoggingConfig {
-    pub(super) fn setup(self) -> Option<(NonBlocking, WorkerGuard)> {
-        self.enable.then(|| {
-            let file_appender =
-                tracing_appender::rolling::hourly(self.path.parent, self.path.file_name);
-            tracing_appender::non_blocking(file_appender)
-        })
+    pub(super) fn setup(self) -> Result<Option<(NonBlocking, WorkerGuard)>, LoggingError> {
+        if !self.enable {
+            return Ok(None);
+        }
+
+        let path = self.path.ok_or(LoggingError::LogFilePathNotDefined)?;
+        let file_appender = tracing_appender::rolling::hourly(path.parent, path.file_name);
+        Ok(Some(tracing_appender::non_blocking(file_appender)))
     }
 }
 
@@ -28,12 +29,9 @@ pub(crate) struct LogFilePath {
     file_name: PathBuf,
 }
 
-impl Default for LogFilePath {
-    fn default() -> Self {
-        Self {
-            parent: PathBuf::from(SUPER_AGENT_LOG_DIR()),
-            file_name: PathBuf::from(SUPER_AGENT_LOG_FILENAME()),
-        }
+impl LogFilePath {
+    pub fn new(parent: PathBuf, file_name: PathBuf) -> Self {
+        Self { parent, file_name }
     }
 }
 
