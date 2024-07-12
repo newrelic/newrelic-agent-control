@@ -1,4 +1,6 @@
 use http::HeaderMap;
+use newrelic_super_agent::agent_type::agent_type_registry;
+use newrelic_super_agent::agent_type::embedded_registry::EmbeddedRegistry;
 use newrelic_super_agent::event::channel::pub_sub;
 use newrelic_super_agent::event::SuperAgentEvent;
 use newrelic_super_agent::opamp::auth::token_retriever::{TokenRetrieverImpl, TokenRetrieverNoop};
@@ -6,7 +8,7 @@ use newrelic_super_agent::opamp::http::builder::UreqHttpClientBuilder;
 use newrelic_super_agent::super_agent::config::OpAMPClientConfig;
 use newrelic_super_agent::super_agent::config_storer::store::SuperAgentConfigStore;
 use newrelic_super_agent::super_agent::run::on_host::run_super_agent;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use url::Url;
 
@@ -36,11 +38,15 @@ pub fn start_super_agent_with_custom_config(config_path: &Path, opamp_endpoint: 
 
     let config_storer = SuperAgentConfigStore::new(config_path);
 
+    // TODO: do we need to load dynamic-agent-type?
+    let agent_type_registry = EmbeddedRegistry::default();
+
     _ = run_super_agent(
         runtime.clone(),
         config_storer,
         application_event_consumer,
         Some(http_builder),
         super_agent_publisher,
+        agent_type_registry,
     );
 }

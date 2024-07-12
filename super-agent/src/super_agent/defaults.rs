@@ -87,14 +87,6 @@ generate_const_getter!(
     )
 );
 generate_const_getter!(
-    DYNAMIC_AGENT_TYPE,
-    format!(
-        "{}/{}",
-        SUPER_AGENT_LOCAL_DATA_DIR(),
-        DYNAMIC_AGENT_TYPE_FILENAME()
-    )
-);
-generate_const_getter!(
     SUPER_AGENT_IDENTIFIERS_PATH,
     format!("{}/{}", SUPER_AGENT_DATA_DIR(), IDENTIFIERS_FILENAME()).as_str()
 );

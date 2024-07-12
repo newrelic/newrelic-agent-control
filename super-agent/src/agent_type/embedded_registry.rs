@@ -1,6 +1,5 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, path::PathBuf};
 
-use crate::super_agent::defaults::DYNAMIC_AGENT_TYPE;
 use std::fs;
 use tracing::debug;
 
@@ -24,29 +23,14 @@ pub struct EmbeddedRegistry(HashMap<String, AgentTypeDefinition>);
 
 impl Default for EmbeddedRegistry {
     fn default() -> Self {
-        let definitions = AGENT_TYPE_REGISTRY_FILES.iter().map(|file_content_ref| {
-            // Definitions in files are expected to be valid
-            serde_yaml::from_reader::<_, AgentTypeDefinition>(file_content_ref.to_owned())
-                .expect("Invalid yaml in default agent types")
-        });
+        Self::try_new(Self::definitions()).expect("Conflicting agent type definitions")
+    }
+}
 
-        // Read the dynamic agent type and merge with the static ones.
-        // Log failure but not fail the whole registry creation
-        let dynamic_agent_type = fs::read(DYNAMIC_AGENT_TYPE())
-            .inspect_err(|e| {
-                debug!(error = %e, "Dynamic agent type: Failed reading file");
-            })
-            .ok()
-            .and_then(|content| {
-                serde_yaml::from_slice::<AgentTypeDefinition>(content.as_slice())
-                    .inspect_err(|e| {
-                        debug!(error = %e, "Dynamic agent type: Could not parse agent type");
-                    })
-                    .ok()
-            });
-
-        let definitions = definitions.chain(dynamic_agent_type);
-
+impl EmbeddedRegistry {
+    pub fn new(dynamic_agent_type_path: PathBuf) -> Self {
+        let dynamic_agent_type = Self::dynamic_agent_type(dynamic_agent_type_path);
+        let definitions = Self::definitions().chain(dynamic_agent_type);
         Self::try_new(definitions).expect("Conflicting agent type definitions")
     }
 }
@@ -79,6 +63,32 @@ impl EmbeddedRegistry {
         self.0.insert(metadata, definition);
         Ok(())
     }
+
+    /// Iters the embedded agent-type definitions.
+    fn definitions() -> impl Iterator<Item = AgentTypeDefinition> {
+        AGENT_TYPE_REGISTRY_FILES.iter().map(|file_content_ref| {
+            // Definitions in files are expected to be valid
+            serde_yaml::from_reader::<_, AgentTypeDefinition>(file_content_ref.to_owned())
+                .expect("Invalid yaml in default agent types")
+        })
+    }
+
+    /// Read and return the dynamic agent type, if there is an error reading or deserializing it, logs the error and
+    /// returns None.
+    fn dynamic_agent_type(path: PathBuf) -> Option<AgentTypeDefinition> {
+        fs::read(path)
+            .inspect_err(|e| {
+                debug!(error = %e, "Dynamic agent type: Failed reading file");
+            })
+            .ok()
+            .and_then(|content| {
+                serde_yaml::from_slice::<AgentTypeDefinition>(content.as_slice())
+                    .inspect_err(|e| {
+                        debug!(error = %e, "Dynamic agent type: Could not parse agent type");
+                    })
+                    .ok()
+            })
+    }
 }
 
 #[cfg(test)]
@@ -104,6 +114,13 @@ pub mod tests {
         for (key, definition) in registry.0.iter() {
             assert_eq!(key.to_string(), definition.metadata.to_string())
         }
+
+        let registry_nonexistent_dynamic =
+            EmbeddedRegistry::new(PathBuf::from("/nonexistent/path"));
+        assert_eq!(
+            registry.0, registry_nonexistent_dynamic.0,
+            "Registry with nonexistent dynamic should match default"
+        )
     }
 
     #[test]

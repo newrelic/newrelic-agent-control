@@ -1,6 +1,8 @@
 use super::config::OpAMPClientConfig;
 use super::config_storer::store::SuperAgentConfigStore;
+use super::defaults::{DYNAMIC_AGENT_TYPE_FILENAME, SUPER_AGENT_LOCAL_DATA_DIR};
 use super::http_server::config::ServerConfig;
+use crate::agent_type::embedded_registry::EmbeddedRegistry;
 use crate::event::channel::pub_sub;
 use crate::event::{
     channel::{EventConsumer, EventPublisher},
@@ -14,6 +16,7 @@ use k8s::run_super_agent;
 #[cfg(feature = "onhost")]
 use on_host::run_super_agent;
 use std::error::Error;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 use tracing::{debug, error, info, trace};
@@ -98,12 +101,16 @@ pub struct SuperAgentRunner {
 /// Run the super agent with the provided data
 impl SuperAgentRunner {
     pub fn run(self) -> Result<(), Box<dyn Error>> {
+        let agent_type_registry = EmbeddedRegistry::new(
+            PathBuf::from(SUPER_AGENT_LOCAL_DATA_DIR()).join(DYNAMIC_AGENT_TYPE_FILENAME()),
+        );
         Ok(run_super_agent(
             self.runtime.clone(),
             self.config_storer,
             self.application_event_consumer,
             self.opamp_http_builder,
             self.super_agent_publisher,
+            agent_type_registry,
         )?)
     }
 }
