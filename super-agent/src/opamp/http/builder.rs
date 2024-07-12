@@ -122,7 +122,6 @@ pub(crate) mod test {
     fn test_default_http_client_builder() {
         let mut http_client = MockHttpClientMock::default();
         let mut http_builder = MockHttpClientBuilderMock::new();
-        let opamp_config = OpAMPClientConfig::default();
         let (tx, _rx) = pub_sub();
         let agent_id = AgentID::new_super_agent_id();
         let start_settings = StartSettings::default();
@@ -131,7 +130,7 @@ pub(crate) mod test {
         effective_config_loader_builder
             .expect_build()
             .times(1)
-            .return_once(MockEffectiveConfigLoaderMock::default);
+            .return_once(|_| MockEffectiveConfigLoaderMock::default());
 
         http_client // Define http client behavior for this test
             .expect_post()
@@ -143,11 +142,7 @@ pub(crate) mod test {
             .times(1)
             .return_once(|| Ok(http_client));
 
-        let builder = DefaultOpAMPClientBuilder::new(
-            opamp_config,
-            http_builder,
-            effective_config_loader_builder,
-        );
+        let builder = DefaultOpAMPClientBuilder::new(http_builder, effective_config_loader_builder);
         let actual_client = builder.build_and_start(tx, agent_id, start_settings);
 
         assert!(actual_client.is_ok());
@@ -156,7 +151,6 @@ pub(crate) mod test {
     #[test]
     fn test_default_http_client_builder_error() {
         let mut http_builder = MockHttpClientBuilderMock::new();
-        let opamp_config = OpAMPClientConfig::default();
         let (tx, _rx) = pub_sub();
         let agent_id = AgentID::new_super_agent_id();
         let start_settings = StartSettings::default();
@@ -171,11 +165,7 @@ pub(crate) mod test {
             )))
         });
 
-        let builder = DefaultOpAMPClientBuilder::new(
-            opamp_config,
-            http_builder,
-            effective_config_loader_builder,
-        );
+        let builder = DefaultOpAMPClientBuilder::new(http_builder, effective_config_loader_builder);
         let actual_client = builder.build_and_start(tx, agent_id, start_settings);
 
         assert!(actual_client.is_err());
