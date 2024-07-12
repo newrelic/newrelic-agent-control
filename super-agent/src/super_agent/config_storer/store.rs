@@ -25,6 +25,7 @@ pub enum ConfigStoreError {
 
 pub struct SuperAgentConfigStore {
     local_path: PathBuf,
+    remote_dir: PathBuf,
     remote_path: Option<PathBuf>,
     config_builder: ConfigBuilder<DefaultState>,
     rw_lock: RwLock<()>,
@@ -71,7 +72,7 @@ impl SuperAgentDynamicConfigStorer for SuperAgentConfigStore {
 }
 
 impl SuperAgentConfigStore {
-    pub fn new(file_path: &Path) -> Self {
+    pub fn new(file_path: &Path, remote_dir: PathBuf) -> Self {
         let config_builder = Config::builder()
             // Pass default config file location and optionally, so we could pass all config through
             // env vars and no file!
@@ -89,6 +90,7 @@ impl SuperAgentConfigStore {
             local_path: file_path.to_path_buf(),
             remote_path: None,
             config_builder,
+            remote_dir,
             rw_lock: RwLock::new(()),
         }
     }
@@ -97,14 +99,8 @@ impl SuperAgentConfigStore {
     // we avoid to compile it for k8s
     #[cfg(feature = "onhost")]
     pub fn with_remote(self) -> Self {
-        let remote_path = format!(
-            "{}/{}",
-            crate::super_agent::defaults::SUPER_AGENT_DATA_DIR(),
-            "config.yaml"
-        );
-
         Self {
-            remote_path: Some(Path::new(&remote_path).to_path_buf()),
+            remote_path: Some(self.remote_dir.join("config.yaml")),
             ..self
         }
     }
@@ -149,8 +145,9 @@ impl SuperAgentConfigStore {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::super_agent::config::{
-        AgentID, AgentTypeFQN, OpAMPClientConfig, SubAgentConfig, SuperAgentConfig,
+    use crate::super_agent::{
+        config::{AgentID, AgentTypeFQN, OpAMPClientConfig, SubAgentConfig, SuperAgentConfig},
+        defaults::SUPER_AGENT_DATA_DIR,
     };
     use serial_test::serial;
     use std::{collections::HashMap, env, io::Write};
@@ -176,7 +173,8 @@ agents:
 "#;
         write!(remote_file, "{}", remote_config).unwrap();
 
-        let mut store = SuperAgentConfigStore::new(local_file.path());
+        let remote_dir = PathBuf::from(SUPER_AGENT_DATA_DIR());
+        let mut store = SuperAgentConfigStore::new(local_file.path(), remote_dir);
 
         store.remote_path = Some(remote_file.path().to_path_buf());
 
@@ -225,7 +223,8 @@ opamp:
             "namespace/com.newrelic.infrastructure_agent:0.0.2",
         );
 
-        let store = SuperAgentConfigStore::new(local_file.path());
+        let remote_dir = PathBuf::from(SUPER_AGENT_DATA_DIR());
+        let store = SuperAgentConfigStore::new(local_file.path(), remote_dir);
         let actual = SuperAgentConfigLoader::load(&store);
 
         let expected = SuperAgentConfig {
@@ -275,7 +274,8 @@ agents:
             "namespace/com.newrelic.infrastructure_agent:0.0.2",
         );
 
-        let store = SuperAgentConfigStore::new(local_file.path());
+        let remote_dir = PathBuf::from(SUPER_AGENT_DATA_DIR());
+        let store = SuperAgentConfigStore::new(local_file.path(), remote_dir);
         let actual = SuperAgentConfigLoader::load(&store);
 
         let expected = SuperAgentConfig {

@@ -17,6 +17,8 @@ const DEFAULT_AUTHENTICATOR_TIMEOUT: Duration = Duration::from_secs(5);
 pub enum TokenRetrieverImplError {
     #[error("building JWT signer")]
     JwtSignerBuildError(#[from] JwtSignerImplError),
+    #[error("provider not defined")]
+    ProviderNotDefined,
 }
 
 /// Enumerates all implementations for `TokenRetriever` for static dispatching reasons.
@@ -72,7 +74,11 @@ impl TryFrom<AuthConfig> for TokenRetrieverWithCache {
     type Error = TokenRetrieverImplError;
 
     fn try_from(config: AuthConfig) -> Result<Self, Self::Error> {
-        let jwt_signer = JwtSignerImpl::try_from(config.provider)?;
+        let provider = config
+            .provider
+            .ok_or(TokenRetrieverImplError::ProviderNotDefined)?;
+
+        let jwt_signer = JwtSignerImpl::try_from(provider)?;
 
         let authenticator_config = AuthenticatorConfig {
             timeout: DEFAULT_AUTHENTICATOR_TIMEOUT,

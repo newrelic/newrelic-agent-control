@@ -12,7 +12,9 @@ use crate::{
     logging::config::{FileLoggerGuard, LoggingError},
     super_agent::{
         config::SuperAgentConfigError,
+        config_patcher::ConfigPatcher,
         config_storer::{loader_storer::SuperAgentConfigLoader, store::SuperAgentConfigStore},
+        defaults::{SUPER_AGENT_DATA_DIR, SUPER_AGENT_LOCAL_DATA_DIR},
         run::SuperAgentRunConfig,
     },
     utils::binary_metadata::binary_metadata,
@@ -99,15 +101,19 @@ impl Cli {
             return Ok(CliCommand::OneShot(OneShotCommand::PrintDebugInfo(cli)));
         }
 
-        let config_storer = SuperAgentConfigStore::new(&cli.get_config_path());
+        let remote_dir = PathBuf::from(SUPER_AGENT_DATA_DIR());
+        let config_storer = SuperAgentConfigStore::new(&cli.get_config_path(), remote_dir);
 
-        let super_agent_config = config_storer.load().inspect_err(|err| {
+        let mut super_agent_config = config_storer.load().inspect_err(|err| {
             println!(
                 "Could not read Super Agent config from {}: {}",
                 config_storer.config_path().to_string_lossy(),
                 err
             )
         })?;
+
+        let config_patcher = ConfigPatcher::new(SUPER_AGENT_LOCAL_DATA_DIR());
+        config_patcher.patch(&mut super_agent_config);
 
         let file_logger_guard = super_agent_config.log.try_init()?;
         info!("{}", binary_metadata());
