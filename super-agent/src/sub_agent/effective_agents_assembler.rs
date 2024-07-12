@@ -92,23 +92,16 @@ impl<D>
 where
     D: ValuesRepository,
 {
-    pub fn new(values_repository: Arc<D>, registry: EmbeddedRegistry) -> Self {
+    pub fn new(
+        values_repository: Arc<D>,
+        registry: EmbeddedRegistry,
+        renderer: TemplateRenderer<ConfigurationPersisterFile>,
+    ) -> Self {
         LocalEffectiveAgentsAssembler {
             registry,
             values_repository,
-            renderer: TemplateRenderer::default(),
+            renderer,
         }
-    }
-}
-
-impl<R, D, N> LocalEffectiveAgentsAssembler<R, D, N>
-where
-    R: AgentRegistry,
-    D: ValuesRepository,
-    N: Renderer,
-{
-    pub fn with_renderer(self, renderer: N) -> Self {
-        Self { renderer, ..self }
     }
 }
 

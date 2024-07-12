@@ -1,4 +1,5 @@
 use crate::agent_type::embedded_registry::EmbeddedRegistry;
+use crate::agent_type::renderer::TemplateRenderer;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
@@ -30,6 +31,7 @@ use crate::{
 use opamp_client::operation::settings::DescriptionValueType;
 use resource_detection::system::hostname::HostnameGetter;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 use tracing::{error, info};
@@ -91,8 +93,16 @@ pub fn run_super_agent<C: HttpClientBuilder>(
         )
     });
 
-    let agents_assembler =
-        LocalEffectiveAgentsAssembler::new(values_repository.clone(), agent_type_registry);
+    let template_renderer = TemplateRenderer::new(PathBuf::from(
+        crate::super_agent::defaults::SUPER_AGENT_DATA_DIR().to_string(),
+    ));
+
+    let agents_assembler = LocalEffectiveAgentsAssembler::new(
+        values_repository.clone(),
+        agent_type_registry,
+        template_renderer,
+    );
+
     let hash_repository = Arc::new(HashRepositoryConfigMap::new(k8s_store.clone()));
     let sub_agent_event_processor_builder =
         EventProcessorBuilder::new(hash_repository.clone(), values_repository.clone());

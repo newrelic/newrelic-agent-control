@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use crate::agent_type::variable::definition::VariableDefinition;
 use crate::agent_type::variable::kind::Kind;
 use crate::super_agent::config::AgentID;
-use crate::super_agent::defaults::{GENERATED_FOLDER_NAME, SUPER_AGENT_DATA_DIR};
+use crate::super_agent::defaults::GENERATED_FOLDER_NAME;
 use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
 use fs::writer_file::{FileWriter, WriteError};
 use fs::LocalFile;
@@ -41,13 +41,6 @@ impl ConfigurationPersisterFile<LocalFile, DirectoryManagerFs> {
             directory_manager: DirectoryManagerFs::default(),
             generated_conf_path: generated_conf_dir,
         }
-    }
-}
-
-impl Default for ConfigurationPersisterFile<LocalFile, DirectoryManagerFs> {
-    // default uses the default SUPER_AGENT_DATA_DIR to persist the corresponding files
-    fn default() -> Self {
-        ConfigurationPersisterFile::new(Path::new(SUPER_AGENT_DATA_DIR()))
     }
 }
 

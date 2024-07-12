@@ -87,12 +87,18 @@ pub fn run_super_agent<C: HttpClientBuilder>(
 
     let instance_id_getter = InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers);
 
-    let agents_assembler =
-        LocalEffectiveAgentsAssembler::new(values_repository.clone(), agent_type_registry)
-            .with_renderer(
-                TemplateRenderer::default()
-                    .with_config_persister(ConfigurationPersisterFile::default()),
-            );
+    let template_renderer = TemplateRenderer::new(PathBuf::from(
+        crate::super_agent::defaults::SUPER_AGENT_DATA_DIR().to_string(),
+    ))
+    .with_config_persister(ConfigurationPersisterFile::new(&PathBuf::from(
+        crate::super_agent::defaults::SUPER_AGENT_DATA_DIR().to_string(),
+    )));
+
+    let agents_assembler = LocalEffectiveAgentsAssembler::new(
+        values_repository.clone(),
+        agent_type_registry,
+        template_renderer,
+    );
 
     // TODO move these dirs one layer up
     let super_agent_hash_repository = Arc::new(HashRepositoryFile::new(
