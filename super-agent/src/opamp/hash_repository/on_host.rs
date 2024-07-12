@@ -1,7 +1,6 @@
 use crate::opamp::hash_repository::repository::{HashRepository, HashRepositoryError};
 use crate::opamp::remote_config_hash::Hash;
 use crate::super_agent::config::AgentID;
-use crate::super_agent::defaults::{REMOTE_AGENT_DATA_DIR, SUPER_AGENT_DATA_DIR};
 use fs::directory_manager::DirectoryManagementError;
 use fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
 use fs::file_reader::FileReader;
@@ -51,18 +50,12 @@ where
 impl HashRepositoryFile<LocalFile, DirectoryManagerFs> {
     // HashGetterPersisterFile with default writer and reader
     // and config path
-    fn new(data_dir: String) -> Self {
+    pub fn new(data_dir: String) -> Self {
         HashRepositoryFile {
             file_rw: LocalFile,
             conf_path: PathBuf::from(data_dir),
             directory_manager: DirectoryManagerFs::default(),
         }
-    }
-}
-
-impl Default for HashRepositoryFile {
-    fn default() -> Self {
-        HashRepositoryFile::new(SUPER_AGENT_DATA_DIR().to_string())
     }
 }
 
@@ -120,12 +113,6 @@ where
         // We attempt to parse the `Hash` from the String if we got it, failing if we cannot parse.
         let result = contents.map(|s| serde_yaml::from_str(&s)).transpose();
         Ok(result?)
-    }
-}
-
-impl HashRepositoryFile {
-    pub fn new_sub_agent_repository() -> Self {
-        HashRepositoryFile::new(REMOTE_AGENT_DATA_DIR().to_string())
     }
 }
 
