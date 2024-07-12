@@ -101,7 +101,6 @@ impl Cli {
             return Ok(CliCommand::OneShot(OneShotCommand::PrintDebugInfo(cli)));
         }
 
-        // TODO: check if we need some sort of shared reference for SuperAgentPaths
         let remote_dir = PathBuf::from(SUPER_AGENT_DATA_DIR());
         let config_storer = SuperAgentConfigStore::new(&cli.get_config_path(), remote_dir);
 
