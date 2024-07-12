@@ -1,8 +1,11 @@
+use fs::directory_manager::DirectoryManagerFs;
+use fs::LocalFile;
 use newrelic_super_agent::super_agent::config::{
     AgentTypeFQN, SuperAgentConfigError, SuperAgentDynamicConfig,
 };
 use newrelic_super_agent::super_agent::config_storer::file::SuperAgentConfigStore;
 use newrelic_super_agent::super_agent::config_storer::loader_storer::SuperAgentDynamicConfigLoader;
+use newrelic_super_agent::values::on_host::ValuesRepositoryFile;
 use semver::{Version, VersionReq};
 use thiserror::Error;
 
@@ -16,8 +19,9 @@ pub enum ConversionError {
     NoAgentsFound,
 }
 
-pub struct AgentConfigGetter<SL = SuperAgentConfigStore>
-where
+pub struct AgentConfigGetter<
+    SL = SuperAgentConfigStore<ValuesRepositoryFile<LocalFile, DirectoryManagerFs>>,
+> where
     SL: SuperAgentDynamicConfigLoader,
 {
     pub(super) sub_agents_config_loader: SL,

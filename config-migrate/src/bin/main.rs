@@ -8,7 +8,10 @@ use config_migrate::migration::persister::legacy_config_renamer::LegacyConfigRen
 use config_migrate::migration::persister::values_persister_file::ValuesPersisterFile;
 use newrelic_super_agent::logging::config::LoggingConfig;
 use newrelic_super_agent::super_agent::config_storer::file::SuperAgentConfigStore;
+use newrelic_super_agent::super_agent::defaults::REMOTE_AGENT_DATA_DIR;
+use newrelic_super_agent::values::on_host::ValuesRepositoryFile;
 use std::error::Error;
+use std::sync::Arc;
 use tracing::{debug, info};
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -20,8 +23,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     let config: MigrationConfig = MigrationConfig::parse(NEWRELIC_INFRA_AGENT_TYPE_CONFIG_MAPPING)?;
 
     let cli = Cli::init_config_migrate_cli();
-    let local_config_path = cli.get_config_path();
-    let sa_local_config_loader = SuperAgentConfigStore::new(&local_config_path);
+    let local_config_path = cli.get_config();
+
+    let vr = Arc::new(ValuesRepositoryFile::new(
+        local_config_path,
+        REMOTE_AGENT_DATA_DIR().to_string(),
+    ));
+    let sa_local_config_loader = SuperAgentConfigStore::new(vr);
     let config_migrator = ConfigMigrator::new(
         ConfigConverter::default(),
         AgentConfigGetter::new(sa_local_config_loader),

@@ -1,5 +1,4 @@
 use clap::Parser;
-use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)] // Read from `Cargo.toml`
@@ -15,7 +14,7 @@ impl Cli {
         Self::parse()
     }
 
-    pub fn get_config_path(&self) -> PathBuf {
-        PathBuf::from(&self.config)
+    pub fn get_config(&self) -> String {
+        self.config.clone()
     }
 }

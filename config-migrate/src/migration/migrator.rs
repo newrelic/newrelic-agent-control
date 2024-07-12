@@ -15,6 +15,7 @@ use newrelic_super_agent::agent_type::embedded_registry::EmbeddedRegistry;
 use newrelic_super_agent::super_agent::config::SuperAgentConfigError;
 use newrelic_super_agent::super_agent::config_storer::file::SuperAgentConfigStore;
 use newrelic_super_agent::super_agent::config_storer::loader_storer::SuperAgentDynamicConfigLoader;
+use newrelic_super_agent::values::on_host::ValuesRepositoryFile;
 use thiserror::Error;
 use tracing::{debug, error, info};
 
@@ -47,10 +48,19 @@ pub struct ConfigMigrator<
     values_persister: ValuesPersisterFile<C>,
 }
 
-impl ConfigMigrator<EmbeddedRegistry, SuperAgentConfigStore, DirectoryManagerFs, LocalFile> {
+impl
+    ConfigMigrator<
+        EmbeddedRegistry,
+        SuperAgentConfigStore<ValuesRepositoryFile<LocalFile, DirectoryManagerFs>>,
+        DirectoryManagerFs,
+        LocalFile,
+    >
+{
     pub fn new(
         config_converter: ConfigConverter<EmbeddedRegistry, LocalFile>,
-        agent_config_getter: AgentConfigGetter<SuperAgentConfigStore>,
+        agent_config_getter: AgentConfigGetter<
+            SuperAgentConfigStore<ValuesRepositoryFile<LocalFile, DirectoryManagerFs>>,
+        >,
         values_persister: ValuesPersisterFile<DirectoryManagerFs>,
     ) -> Self {
         ConfigMigrator {
@@ -90,7 +100,7 @@ impl ConfigMigrator<EmbeddedRegistry, SuperAgentConfigStore, DirectoryManagerFs,
 #[cfg(test)]
 mod test {
     use crate::migration::agent_config_getter::MockAgentConfigGetter;
-    use crate::migration::agent_value_spec::ValidYAMLConfigpec::ValidYAMLConfigpecEnd;
+    use crate::migration::agent_value_spec::YAMLConfigSpec::YAMLConfigSpecEnd;
     use crate::migration::config::MigrationAgentConfig;
     use crate::migration::converter::MockConfigConverter;
     use crate::migration::migrator::ConfigMigrator;
@@ -136,10 +146,8 @@ mod test {
                 })
             });
 
-        let agent_variables = HashMap::from([(
-            "cfg".to_string(),
-            ValidYAMLConfigpecEnd("value".to_string()),
-        )]);
+        let agent_variables =
+            HashMap::from([("cfg".to_string(), YAMLConfigSpecEnd("value".to_string()))]);
 
         let mut config_converter = MockConfigConverter::default();
         config_converter

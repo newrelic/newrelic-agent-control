@@ -1,6 +1,6 @@
-use crate::migration::agent_value_spec::ValidYAMLConfigpec::ValidYAMLConfigpecEnd;
+use crate::migration::agent_value_spec::YAMLConfigSpec::YAMLConfigSpecEnd;
 use crate::migration::agent_value_spec::{
-    from_fqn_and_value, merge_agent_values, AgentValueError, ValidYAMLConfigpec,
+    from_fqn_and_value, merge_agent_values, AgentValueError, YAMLConfigSpec,
 };
 use crate::migration::config::{AgentTypeFieldFQN, DirInfo, FilePath, MigrationAgentConfig};
 use crate::migration::config::{FILE_SEPARATOR, FILE_SEPARATOR_REPLACE};
@@ -51,13 +51,13 @@ impl<R: AgentRegistry, F: FileReader> ConfigConverter<R, F> {
     pub fn convert(
         &self,
         migration_agent_config: &MigrationAgentConfig,
-    ) -> Result<HashMap<String, ValidYAMLConfigpec>, ConversionError> {
+    ) -> Result<HashMap<String, YAMLConfigSpec>, ConversionError> {
         let agent_type_definition = self
             .agent_registry
             .get(&migration_agent_config.get_agent_type_fqn())?;
 
         let agent_type = build_agent_type(agent_type_definition, &Environment::OnHost)?;
-        let mut agent_values_specs: Vec<HashMap<String, ValidYAMLConfigpec>> = Vec::new();
+        let mut agent_values_specs: Vec<HashMap<String, YAMLConfigSpec>> = Vec::new();
         for (normalized_fqn, spec) in agent_type.variables.flatten().iter() {
             let agent_type_fqn: AgentTypeFieldFQN = normalized_fqn.into();
             match spec.kind() {
@@ -92,11 +92,11 @@ impl<R: AgentRegistry, F: FileReader> ConfigConverter<R, F> {
         &self,
         agent_type_field_fqn: AgentTypeFieldFQN,
         file_path: FilePath,
-    ) -> Result<HashMap<String, ValidYAMLConfigpec>, ConversionError> {
+    ) -> Result<HashMap<String, YAMLConfigSpec>, ConversionError> {
         let contents = self.file_reader.read(file_path.as_path())?;
         Ok(from_fqn_and_value(
             agent_type_field_fqn.clone(),
-            ValidYAMLConfigpecEnd(contents),
+            YAMLConfigSpecEnd(contents),
         ))
     }
 
@@ -104,9 +104,9 @@ impl<R: AgentRegistry, F: FileReader> ConfigConverter<R, F> {
         &self,
         agent_type_field_fqn: AgentTypeFieldFQN,
         dir_info: DirInfo,
-    ) -> Result<HashMap<String, ValidYAMLConfigpec>, ConversionError> {
+    ) -> Result<HashMap<String, YAMLConfigSpec>, ConversionError> {
         let files_paths = self.file_reader.dir_entries(dir_info.path.as_path())?;
-        let mut res: Vec<HashMap<String, ValidYAMLConfigpec>> = Vec::new();
+        let mut res: Vec<HashMap<String, YAMLConfigSpec>> = Vec::new();
         // refactor file_path to path
         for path in files_paths {
             let filename = path.file_name().unwrap().to_str().unwrap().to_string();
