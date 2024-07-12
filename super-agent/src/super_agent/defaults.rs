@@ -64,6 +64,7 @@ generate_const_getter!(
 generate_const_getter!(FLEET_ID_ATTRIBUTE_KEY, "fleet.guid");
 
 // Paths
+// TODO: should we rename SUPER_AGENT_DATA_DIR to SUPER_AGENT_REMOTE_DATA_DIR?
 cfg_if::cfg_if! {
     if #[cfg(target_os = "macos")] {
         generate_const_getter!(SUPER_AGENT_LOCAL_DATA_DIR, "/opt/homebrew/etc/newrelic-super-agent");

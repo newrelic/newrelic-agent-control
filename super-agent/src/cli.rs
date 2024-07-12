@@ -14,7 +14,7 @@ use crate::{
         config::SuperAgentConfigError,
         config_patcher::ConfigPatcher,
         config_storer::{loader_storer::SuperAgentConfigLoader, store::SuperAgentConfigStore},
-        folders::SuperAgentPaths,
+        defaults::{SUPER_AGENT_DATA_DIR, SUPER_AGENT_LOCAL_DATA_DIR},
         run::SuperAgentRunConfig,
     },
     utils::binary_metadata::binary_metadata,
@@ -102,8 +102,7 @@ impl Cli {
         }
 
         // TODO: check if we need some sort of shared reference for SuperAgentPaths
-        let super_agent_paths = SuperAgentPaths::default();
-        let remote_dir = PathBuf::from(super_agent_paths.data_dir());
+        let remote_dir = PathBuf::from(SUPER_AGENT_DATA_DIR());
         let config_storer = SuperAgentConfigStore::new(&cli.get_config_path(), remote_dir);
 
         let mut super_agent_config = config_storer.load().inspect_err(|err| {
@@ -114,7 +113,7 @@ impl Cli {
             )
         })?;
 
-        let config_patcher = ConfigPatcher::new(super_agent_paths.local_data_dir());
+        let config_patcher = ConfigPatcher::new(SUPER_AGENT_LOCAL_DATA_DIR());
         config_patcher.patch(&mut super_agent_config);
 
         let file_logger_guard = super_agent_config.log.try_init()?;

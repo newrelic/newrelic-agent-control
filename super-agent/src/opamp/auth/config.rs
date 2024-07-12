@@ -4,7 +4,7 @@ use nr_auth::ClientID;
 use serde::Deserialize;
 use url::Url;
 
-use crate::super_agent::{defaults::AUTH_PRIVATE_KEY_FILE_NAME, folders::SuperAgentPaths};
+use crate::super_agent::defaults::AUTH_PRIVATE_KEY_FILE_NAME;
 
 /// Authorization configuration used by the OpAmp connection to NewRelic.
 #[derive(Debug, Deserialize, PartialEq, Clone)]
@@ -43,15 +43,6 @@ impl LocalConfig {
     pub fn new(local_data_dir: &str) -> Self {
         Self {
             private_key_path: PathBuf::from(local_data_dir).join(AUTH_PRIVATE_KEY_FILE_NAME()),
-        }
-    }
-}
-
-impl From<&'static SuperAgentPaths> for LocalConfig {
-    fn from(paths: &'static SuperAgentPaths) -> Self {
-        Self {
-            private_key_path: PathBuf::from(paths.local_data_dir())
-                .join(AUTH_PRIVATE_KEY_FILE_NAME()),
         }
     }
 }
