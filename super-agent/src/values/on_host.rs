@@ -1,8 +1,6 @@
 use crate::agent_type::definition::AgentType;
 use crate::super_agent::config::AgentID;
-use crate::super_agent::defaults::{
-    LOCAL_AGENT_DATA_DIR, REMOTE_AGENT_DATA_DIR, VALUES_DIR, VALUES_FILE,
-};
+use crate::super_agent::defaults::{VALUES_DIR, VALUES_FILE};
 use crate::values::yaml_config::YAMLConfig;
 use crate::values::yaml_config_repository::{YAMLConfigRepository, YAMLConfigRepositoryError};
 use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
@@ -43,32 +41,24 @@ where
 {
     directory_manager: S,
     file_rw: F,
-    remote_conf_path: String,
-    local_conf_path: String,
+    remote_conf_path: PathBuf,
+    local_conf_path: PathBuf,
     remote_enabled: bool,
 }
 
-impl Default for YAMLConfigRepositoryFile<LocalFile, DirectoryManagerFs> {
-    fn default() -> Self {
+impl YAMLConfigRepositoryFile<LocalFile, DirectoryManagerFs> {
+    pub fn new(remote_conf_path: PathBuf, local_conf_path: PathBuf) -> Self {
         YAMLConfigRepositoryFile {
             directory_manager: DirectoryManagerFs {},
             file_rw: LocalFile,
-            remote_conf_path: REMOTE_AGENT_DATA_DIR().to_string(),
-            local_conf_path: LOCAL_AGENT_DATA_DIR().to_string(),
+            remote_conf_path,
+            local_conf_path,
             remote_enabled: false,
         }
     }
-}
 
-impl YAMLConfigRepositoryFile<LocalFile, DirectoryManagerFs> {
     pub fn with_remote(mut self) -> Self {
         self.remote_enabled = true;
-        self
-    }
-
-    /// TODO This is used only in tests. We should refactor the test
-    pub fn with_remote_conf_path(mut self, path: String) -> Self {
-        self.remote_conf_path = path;
         self
     }
 }
@@ -79,13 +69,10 @@ where
     F: FileWriter + FileReader,
 {
     pub fn get_values_file_path(&self, agent_id: &AgentID) -> PathBuf {
-        PathBuf::from(format!(
-            "{}/{}/{}/{}",
-            self.local_conf_path,
-            agent_id,
-            VALUES_DIR(),
-            VALUES_FILE()
-        ))
+        self.local_conf_path
+            .join(agent_id)
+            .join(VALUES_DIR())
+            .join(VALUES_FILE())
     }
 
     pub fn get_remote_values_file_path(&self, agent_id: &AgentID) -> PathBuf {
@@ -93,13 +80,10 @@ where
         // that should persist across these deletions. As opposed to its non-remote counterpart in
         // `get_values_file_path`, we put the values file inside its own directory, which will
         // be recreated each time a remote config is received, leaving the other files untouched.
-        PathBuf::from(format!(
-            "{}/{}/{}/{}",
-            self.remote_conf_path,
-            agent_id,
-            VALUES_DIR(),
-            VALUES_FILE()
-        ))
+        self.remote_conf_path
+            .join(agent_id)
+            .join(VALUES_DIR())
+            .join(VALUES_FILE())
     }
 
     // Load a file contents only if the file is present.
@@ -250,8 +234,8 @@ pub mod test {
             YAMLConfigRepositoryFile {
                 file_rw,
                 directory_manager,
-                remote_conf_path: remote_conf_path.to_str().unwrap().to_string(),
-                local_conf_path: local_conf_path.to_str().unwrap().to_string(),
+                remote_conf_path: remote_conf_path.to_path_buf(),
+                local_conf_path: local_conf_path.to_path_buf(),
                 remote_enabled,
             }
         }

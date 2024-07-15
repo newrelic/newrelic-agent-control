@@ -78,36 +78,11 @@ cfg_if::cfg_if! {
     }
 }
 
-generate_const_getter!(
-    LOCAL_AGENT_DATA_DIR,
-    format!(
-        "{}/{}/{}",
-        SUPER_AGENT_LOCAL_DATA_DIR(),
-        FLEET_DIR(),
-        SUB_AGENT_DIRECTORY()
-    )
-);
-generate_const_getter!(
-    SUPER_AGENT_IDENTIFIERS_PATH,
-    format!("{}/{}", SUPER_AGENT_DATA_DIR(), IDENTIFIERS_FILENAME()).as_str()
-);
-generate_const_getter!(
-    REMOTE_AGENT_DATA_DIR,
-    format!(
-        "{}/{}/{}",
-        SUPER_AGENT_DATA_DIR(),
-        FLEET_DIR(),
-        SUB_AGENT_DIRECTORY()
-    )
-);
-generate_const_getter!(
-    SUB_AGENT_LOG_DIR,
-    format!("{}/{}", FLEET_DIR(), SUB_AGENT_DIRECTORY())
-);
+generate_const_getter!(FLEET_DIR, "fleet");
+generate_const_getter!(SUB_AGENT_DIR, format!("{}/{}", FLEET_DIR(), "agents.d"));
+
 generate_const_getter!(DYNAMIC_AGENT_TYPE_FILENAME, "dynamic-agent-type.yaml");
 generate_const_getter!(IDENTIFIERS_FILENAME, "identifiers.yaml");
-generate_const_getter!(FLEET_DIR, "fleet");
-generate_const_getter!(SUB_AGENT_DIRECTORY, "agents.d");
 generate_const_getter!(VALUES_DIR, "values");
 generate_const_getter!(VALUES_FILE, "values.yaml");
 generate_const_getter!(GENERATED_FOLDER_NAME, "auto-generated");

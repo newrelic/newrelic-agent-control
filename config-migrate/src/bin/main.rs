@@ -8,7 +8,9 @@ use config_migrate::migration::persister::legacy_config_renamer::LegacyConfigRen
 use config_migrate::migration::persister::values_persister_file::ValuesPersisterFile;
 use newrelic_super_agent::logging::config::LoggingConfig;
 use newrelic_super_agent::super_agent::config_storer::store::SuperAgentConfigStore;
-use newrelic_super_agent::super_agent::defaults::SUPER_AGENT_DATA_DIR;
+use newrelic_super_agent::super_agent::defaults::{
+    SUB_AGENT_DIR, SUPER_AGENT_DATA_DIR, SUPER_AGENT_LOCAL_DATA_DIR,
+};
 use std::error::Error;
 use std::path::PathBuf;
 use tracing::{debug, info};
@@ -28,7 +30,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let config_migrator = ConfigMigrator::new(
         ConfigConverter::default(),
         AgentConfigGetter::new(sa_local_config_loader),
-        ValuesPersisterFile::default(),
+        ValuesPersisterFile::new(PathBuf::from(SUPER_AGENT_LOCAL_DATA_DIR()).join(SUB_AGENT_DIR())),
     );
 
     let legacy_config_renamer = LegacyConfigRenamer::default();

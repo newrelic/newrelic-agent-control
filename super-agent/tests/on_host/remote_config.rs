@@ -72,7 +72,7 @@ agents:
     let expected_config_parsed =
         serde_yaml::from_str::<SuperAgentDynamicConfig>(expected_config).unwrap();
 
-    retry(20, Duration::from_secs(5), || {
+    retry(60, Duration::from_secs(1), || {
         || -> Result<(), Box<dyn Error>> {
             let remote_file = remote_dir.path().join("config.yaml");
             let content =
