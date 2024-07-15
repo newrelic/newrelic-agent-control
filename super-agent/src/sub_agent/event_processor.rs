@@ -7,7 +7,7 @@ use crate::sub_agent::error::SubAgentError;
 use crate::sub_agent::health::with_start_time::HealthWithStartTime;
 use crate::sub_agent::SubAgentCallbacks;
 use crate::super_agent::config::AgentID;
-use crate::values::values_repository::ValuesRepository;
+use crate::values::yaml_config_repository::YAMLConfigRepository;
 use crossbeam::channel::never;
 use crossbeam::select;
 use opamp_client::StartedClient;
@@ -28,7 +28,7 @@ where
     G: EffectiveConfigLoader,
     C: StartedClient<SubAgentCallbacks<G>> + 'static,
     H: HashRepository,
-    R: ValuesRepository,
+    R: YAMLConfigRepository,
 {
     agent_id: AgentID,
     pub(crate) sub_agent_publisher: EventPublisher<SubAgentEvent>,
@@ -48,7 +48,7 @@ where
     G: EffectiveConfigLoader,
     C: StartedClient<SubAgentCallbacks<G>> + 'static,
     H: HashRepository,
-    R: ValuesRepository,
+    R: YAMLConfigRepository,
 {
     pub fn new(
         agent_id: AgentID,
@@ -83,7 +83,7 @@ where
     G: EffectiveConfigLoader,
     C: StartedClient<SubAgentCallbacks<G>> + 'static,
     H: HashRepository + Send + Sync + 'static,
-    R: ValuesRepository + Send + Sync + 'static,
+    R: YAMLConfigRepository + Send + Sync + 'static,
 {
     // process will process the Sub Agent OpAMP events and will return the OpAMP client
     // when processing ends.
@@ -178,8 +178,8 @@ pub mod test {
     use crate::sub_agent::error::SubAgentError;
     use crate::sub_agent::event_processor::{EventProcessor, SubAgentEventProcessor};
     use crate::super_agent::config::AgentID;
-    use crate::values::values_repository::test::MockRemoteValuesRepositoryMock;
     use crate::values::yaml_config::YAMLConfig;
+    use crate::values::yaml_config_repository::test::MockYAMLConfigRepositoryMock;
     use mockall::mock;
     use opamp_client::opamp::proto::RemoteConfigStatus;
     use opamp_client::opamp::proto::RemoteConfigStatuses::Applying;
@@ -217,7 +217,7 @@ pub mod test {
         let (sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
         let (_sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let hash_repository = MockHashRepositoryMock::default();
-        let values_repository = MockRemoteValuesRepositoryMock::default();
+        let yaml_config_repository = MockYAMLConfigRepositoryMock::default();
 
         opamp_client
             .expect_update_effective_config()
@@ -234,7 +234,7 @@ pub mod test {
             sub_agent_internal_consumer,
             Some(opamp_client),
             Arc::new(hash_repository),
-            Arc::new(values_repository),
+            Arc::new(yaml_config_repository),
         );
         let handle = event_processor.process();
 
@@ -259,7 +259,7 @@ pub mod test {
         let (sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
         let (_sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let mut hash_repository = MockHashRepositoryMock::default();
-        let mut values_repository = MockRemoteValuesRepositoryMock::default();
+        let mut yaml_config_repository = MockYAMLConfigRepositoryMock::default();
 
         // Event's config
         let agent_id = AgentID::new("some-agent-id").unwrap();
@@ -270,7 +270,7 @@ pub mod test {
         )]));
 
         hash_repository.should_save_hash(&agent_id, &hash);
-        values_repository.should_store_remote(
+        yaml_config_repository.should_store_remote(
             &agent_id,
             &YAMLConfig::new(HashMap::from([("some_item".into(), "some_value".into())])),
         );
@@ -299,7 +299,7 @@ pub mod test {
             sub_agent_internal_consumer,
             Some(opamp_client),
             Arc::new(hash_repository),
-            Arc::new(values_repository),
+            Arc::new(yaml_config_repository),
         );
         let handle = event_processor.process();
 

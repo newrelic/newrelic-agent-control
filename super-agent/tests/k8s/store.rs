@@ -26,10 +26,10 @@ use newrelic_super_agent::{
 };
 use newrelic_super_agent::{
     agent_type::definition::{AgentType, VariableTree},
-    values::values_repository::ValuesRepository,
+    values::yaml_config_repository::YAMLConfigRepository,
 };
 use newrelic_super_agent::{
-    values::k8s::ValuesRepositoryConfigMap, values::yaml_config::YAMLConfig,
+    values::k8s::YAMLConfigRepositoryConfigMap, values::yaml_config::YAMLConfig,
 };
 use semver::Version;
 use serde_yaml::from_str;
@@ -117,7 +117,7 @@ fn k8s_hash_repository_config_map() {
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_value_repository_config_map() {
-    // This test covers the happy path of ValuesRepositoryConfigMap on K8s.
+    // This test covers the happy path of YAMLConfigRepositoryConfigMap on K8s.
 
     let mut test = block_on(K8sEnv::new());
     let test_ns = block_on(test.test_namespace());
@@ -138,7 +138,7 @@ fn k8s_value_repository_config_map() {
         Runtime::default(),
     );
 
-    let mut value_repository = ValuesRepositoryConfigMap::new(k8s_store);
+    let mut value_repository = YAMLConfigRepositoryConfigMap::new(k8s_store);
     let default_values = YAMLConfig::default();
 
     // without values the default is expected

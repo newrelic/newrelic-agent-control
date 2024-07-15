@@ -4,7 +4,7 @@ use crate::values::yaml_config::YAMLConfig;
 use tracing::debug;
 
 #[derive(thiserror::Error, Debug)]
-pub enum ValuesRepositoryError {
+pub enum YAMLConfigRepositoryError {
     #[error("error loading values: `{0}`")]
     LoadError(String),
     #[error("error storing values: `{0}`")]
@@ -13,14 +13,14 @@ pub enum ValuesRepositoryError {
     DeleteError(String),
 }
 
-pub trait ValuesRepository: Send + Sync + 'static {
+pub trait YAMLConfigRepository: Send + Sync + 'static {
     /// load(...) looks for remote configs first, if unavailable checks the local ones.
     /// If none is found, it fallbacks to the default values.
     fn load(
         &self,
         agent_id: &AgentID,
         agent_type: &AgentType,
-    ) -> Result<YAMLConfig, ValuesRepositoryError> {
+    ) -> Result<YAMLConfig, YAMLConfigRepositoryError> {
         debug!(agent_id = agent_id.to_string(), "loading config");
 
         if let Some(values_result) = self.load_remote(agent_id, agent_type)? {
@@ -41,63 +41,66 @@ pub trait ValuesRepository: Send + Sync + 'static {
         Ok(YAMLConfig::default())
     }
 
-    fn load_local(&self, agent_id: &AgentID) -> Result<Option<YAMLConfig>, ValuesRepositoryError>;
+    fn load_local(
+        &self,
+        agent_id: &AgentID,
+    ) -> Result<Option<YAMLConfig>, YAMLConfigRepositoryError>;
 
     fn load_remote(
         &self,
         agent_id: &AgentID,
         agent_type: &AgentType,
-    ) -> Result<Option<YAMLConfig>, ValuesRepositoryError>;
+    ) -> Result<Option<YAMLConfig>, YAMLConfigRepositoryError>;
 
     fn store_remote(
         &self,
         agent_id: &AgentID,
         yaml_config: &YAMLConfig,
-    ) -> Result<(), ValuesRepositoryError>;
+    ) -> Result<(), YAMLConfigRepositoryError>;
 
-    fn delete_remote(&self, agent_id: &AgentID) -> Result<(), ValuesRepositoryError>;
+    fn delete_remote(&self, agent_id: &AgentID) -> Result<(), YAMLConfigRepositoryError>;
 }
 
 #[cfg(test)]
 pub mod test {
     use crate::agent_type::definition::AgentType;
     use crate::super_agent::config::AgentID;
-    use crate::values::values_repository::{ValuesRepository, ValuesRepositoryError};
     use crate::values::yaml_config::YAMLConfig;
+    use crate::values::yaml_config_repository::{YAMLConfigRepository, YAMLConfigRepositoryError};
     use mockall::{mock, predicate};
 
     mock! {
-        pub(crate) RemoteValuesRepositoryMock {}
+        pub(crate) YAMLConfigRepositoryMock {}
 
-        impl ValuesRepository for RemoteValuesRepositoryMock {
+        impl YAMLConfigRepository for YAMLConfigRepositoryMock {
             fn store_remote(
                 &self,
                 agent_id: &AgentID,
                 yaml_config: &YAMLConfig,
-            ) -> Result<(), ValuesRepositoryError>;
+            ) -> Result<(), YAMLConfigRepositoryError>;
 
-            fn delete_remote(&self, agent_id: &AgentID) -> Result<(), ValuesRepositoryError>;
+            fn delete_remote(&self, agent_id: &AgentID) -> Result<(), YAMLConfigRepositoryError>;
 
             fn load(
                 &self,
                 agent_id: &AgentID,
                 agent_type: &AgentType,
-            ) -> Result<YAMLConfig, ValuesRepositoryError>;
+            ) -> Result<YAMLConfig, YAMLConfigRepositoryError>;
 
             fn load_local(
                 &self,
                 agent_id: &AgentID,
-            ) -> Result<Option<YAMLConfig>, ValuesRepositoryError>;
+            ) -> Result<Option<YAMLConfig>, YAMLConfigRepositoryError>;
 
             fn load_remote(
                 &self,
                 agent_id: &AgentID,
                 agent_type: &AgentType,
-            ) -> Result<Option<YAMLConfig>, ValuesRepositoryError>;
+            ) -> Result<Option<YAMLConfig>, YAMLConfigRepositoryError>;
         }
     }
 
-    impl MockRemoteValuesRepositoryMock {
+    impl MockYAMLConfigRepositoryMock {
         pub fn should_load(
             &mut self,
             agent_id: &AgentID,
@@ -122,7 +125,9 @@ pub mod test {
                     predicate::eq(final_agent.clone()),
                 )
                 .returning(move |_, _| {
-                    Err(ValuesRepositoryError::LoadError("load error".to_string()))
+                    Err(YAMLConfigRepositoryError::LoadError(
+                        "load error".to_string(),
+                    ))
                 });
         }
 

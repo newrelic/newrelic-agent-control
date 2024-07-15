@@ -1,5 +1,5 @@
-pub mod values_repository;
 pub mod yaml_config;
+pub mod yaml_config_repository;
 
 #[cfg(feature = "k8s")]
 pub mod k8s;

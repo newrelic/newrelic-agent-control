@@ -5,7 +5,7 @@ use crate::sub_agent::error::SubAgentError;
 use crate::sub_agent::event_processor::EventProcessor;
 use crate::sub_agent::health::with_start_time::HealthWithStartTime;
 use crate::sub_agent::SubAgentCallbacks;
-use crate::values::values_repository::ValuesRepository;
+use crate::values::yaml_config_repository::YAMLConfigRepository;
 use opamp_client::StartedClient;
 use tracing::error;
 
@@ -14,7 +14,7 @@ where
     G: EffectiveConfigLoader,
     C: StartedClient<SubAgentCallbacks<G>> + 'static,
     H: HashRepository,
-    R: ValuesRepository,
+    R: YAMLConfigRepository,
 {
     pub(crate) fn on_health(&self, health: HealthWithStartTime) -> Result<(), SubAgentError> {
         if let Some(client) = self.maybe_opamp_client.as_ref() {

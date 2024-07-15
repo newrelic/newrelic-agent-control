@@ -9,4 +9,4 @@ mod remote_config;
 mod restarting_processes;
 mod supervisor;
 mod tools;
-mod values_repository;
+mod yaml_config_repository;

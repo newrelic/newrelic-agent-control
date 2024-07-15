@@ -8,7 +8,7 @@ use crate::agent_type::renderer::{Renderer, TemplateRenderer};
 use crate::agent_type::runtime_config::{Deployment, Runtime};
 use crate::sub_agent::persister::config_persister_file::ConfigurationPersisterFile;
 use crate::super_agent::config::{AgentID, SubAgentConfig};
-use crate::values::values_repository::{ValuesRepository, ValuesRepositoryError};
+use crate::values::yaml_config_repository::{YAMLConfigRepository, YAMLConfigRepositoryError};
 use fs::file_reader::FileReaderError;
 use std::fmt::Display;
 use std::sync::Arc;
@@ -28,7 +28,7 @@ pub enum EffectiveAgentsAssemblerError {
     #[error("error assembling agents: `{0}`")]
     AgentTypeDefinitionError(#[from] AgentTypeDefinitionError),
     #[error("values error: `{0}`")]
-    ValuesRepositoryError(#[from] ValuesRepositoryError),
+    YAMLConfigRepositoryError(#[from] YAMLConfigRepositoryError),
 }
 
 #[derive(Error, Debug)]
@@ -79,27 +79,27 @@ pub trait EffectiveAgentsAssembler {
 pub struct LocalEffectiveAgentsAssembler<R, D, N>
 where
     R: AgentRegistry,
-    D: ValuesRepository,
+    D: YAMLConfigRepository,
     N: Renderer,
 {
     registry: R,
-    values_repository: Arc<D>,
+    yaml_config_repository: Arc<D>,
     renderer: N,
 }
 
 impl<D>
     LocalEffectiveAgentsAssembler<EmbeddedRegistry, D, TemplateRenderer<ConfigurationPersisterFile>>
 where
-    D: ValuesRepository,
+    D: YAMLConfigRepository,
 {
     pub fn new(
-        values_repository: Arc<D>,
+        yaml_config_repository: Arc<D>,
         registry: EmbeddedRegistry,
         renderer: TemplateRenderer<ConfigurationPersisterFile>,
     ) -> Self {
         LocalEffectiveAgentsAssembler {
             registry,
-            values_repository,
+            yaml_config_repository,
             renderer,
         }
     }
@@ -108,7 +108,7 @@ where
 impl<R, D, N> EffectiveAgentsAssembler for LocalEffectiveAgentsAssembler<R, D, N>
 where
     R: AgentRegistry,
-    D: ValuesRepository,
+    D: YAMLConfigRepository,
     N: Renderer,
 {
     /// Load an agent type from the registry and populate it with values
@@ -124,7 +124,7 @@ where
         let agent_type = build_agent_type(agent_type_definition, environment)?;
 
         // Load the values
-        let values = self.values_repository.load(agent_id, &agent_type)?;
+        let values = self.yaml_config_repository.load(agent_id, &agent_type)?;
 
         // Build the agent attributes
         let attributes = AgentAttributes {
@@ -191,8 +191,8 @@ pub(crate) mod tests {
     use crate::agent_type::definition::AgentTypeDefinition;
     use crate::agent_type::renderer::tests::MockRendererMock;
     use crate::agent_type::runtime_config;
-    use crate::values::values_repository::test::MockRemoteValuesRepositoryMock;
     use crate::values::yaml_config::YAMLConfig;
+    use crate::values::yaml_config_repository::test::MockYAMLConfigRepositoryMock;
     use assert_matches::assert_matches;
     use mockall::{mock, predicate};
     use semver::Version;
@@ -232,13 +232,13 @@ pub(crate) mod tests {
     impl<R, D, N> LocalEffectiveAgentsAssembler<R, D, N>
     where
         R: AgentRegistry,
-        D: ValuesRepository,
+        D: YAMLConfigRepository,
         N: Renderer,
     {
         pub fn new_for_testing(registry: R, remote_values_repo: D, renderer: N) -> Self {
             Self {
                 registry,
-                values_repository: Arc::new(remote_values_repo),
+                yaml_config_repository: Arc::new(remote_values_repo),
                 renderer,
             }
         }
@@ -270,7 +270,7 @@ pub(crate) mod tests {
     fn test_assemble_agents() {
         //Mocks
         let mut registry = MockAgentRegistryMock::new();
-        let mut sub_agent_values_repo = MockRemoteValuesRepositoryMock::new();
+        let mut sub_agent_values_repo = MockYAMLConfigRepositoryMock::new();
         let mut renderer = MockRendererMock::new();
 
         // Objects
@@ -319,7 +319,7 @@ pub(crate) mod tests {
     fn test_assemble_agents_error_on_registry() {
         //Mocks
         let mut registry = MockAgentRegistryMock::new();
-        let sub_agent_values_repo = MockRemoteValuesRepositoryMock::new();
+        let sub_agent_values_repo = MockYAMLConfigRepositoryMock::new();
         let renderer = MockRendererMock::new();
 
         // Objects
@@ -350,7 +350,7 @@ pub(crate) mod tests {
     fn test_assemble_agents_error_loading_values() {
         //Mocks
         let mut registry = MockAgentRegistryMock::new();
-        let mut sub_agent_values_repo = MockRemoteValuesRepositoryMock::new();
+        let mut sub_agent_values_repo = MockYAMLConfigRepositoryMock::new();
         let renderer = MockRendererMock::new();
 
         // Objects

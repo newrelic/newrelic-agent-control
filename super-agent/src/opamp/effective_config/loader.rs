@@ -2,7 +2,7 @@ use super::error::LoaderError;
 use super::sub_agent::SubAgentEffectiveConfigLoader;
 use crate::opamp::remote_config::ConfigurationMap;
 use crate::super_agent::config::AgentID;
-use crate::values::values_repository::ValuesRepository;
+use crate::values::yaml_config_repository::YAMLConfigRepository;
 use std::sync::Arc;
 
 /// Trait for effective configuration loaders.
@@ -20,25 +20,25 @@ pub trait EffectiveConfigLoaderBuilder {
 /// Builder for effective configuration loaders.
 pub struct DefaultEffectiveConfigLoaderBuilder<R>
 where
-    R: ValuesRepository,
+    R: YAMLConfigRepository,
 {
-    sub_agent_values_repository: Arc<R>,
+    yaml_config_repository: Arc<R>,
 }
 
 impl<R> DefaultEffectiveConfigLoaderBuilder<R>
 where
-    R: ValuesRepository,
+    R: YAMLConfigRepository,
 {
-    pub fn new(sub_agent_values_repository: Arc<R>) -> Self {
+    pub fn new(yaml_config_repository: Arc<R>) -> Self {
         Self {
-            sub_agent_values_repository,
+            yaml_config_repository,
         }
     }
 }
 
 impl<R> EffectiveConfigLoaderBuilder for DefaultEffectiveConfigLoaderBuilder<R>
 where
-    R: ValuesRepository,
+    R: YAMLConfigRepository,
 {
     type Loader = EffectiveConfigLoaderImpl<R>;
 
@@ -48,7 +48,7 @@ where
         }
 
         let loader =
-            SubAgentEffectiveConfigLoader::new(agent_id, self.sub_agent_values_repository.clone());
+            SubAgentEffectiveConfigLoader::new(agent_id, self.yaml_config_repository.clone());
 
         EffectiveConfigLoaderImpl::SubAgent(loader)
     }
@@ -57,7 +57,7 @@ where
 /// Enumerates all implementations for `EffectiveConfigLoader` for static dispatching reasons.
 pub enum EffectiveConfigLoaderImpl<R>
 where
-    R: ValuesRepository,
+    R: YAMLConfigRepository,
 {
     // TODO this will be replaced with the actual super agent effective config loader.
     SuperAgent(NoOpEffectiveConfigLoader),
@@ -66,7 +66,7 @@ where
 
 impl<R> EffectiveConfigLoader for EffectiveConfigLoaderImpl<R>
 where
-    R: ValuesRepository,
+    R: YAMLConfigRepository,
 {
     fn load(&self) -> Result<ConfigurationMap, LoaderError> {
         match self {
@@ -90,7 +90,7 @@ impl EffectiveConfigLoader for NoOpEffectiveConfigLoader {
 pub mod tests {
     use mockall::mock;
 
-    use crate::values::values_repository::test::MockRemoteValuesRepositoryMock;
+    use crate::values::yaml_config_repository::test::MockYAMLConfigRepositoryMock;
 
     use super::*;
 
@@ -114,7 +114,7 @@ pub mod tests {
     #[test]
     fn builder() {
         let builder = DefaultEffectiveConfigLoaderBuilder::new(Arc::new(
-            MockRemoteValuesRepositoryMock::default(),
+            MockYAMLConfigRepositoryMock::default(),
         ));
 
         match builder.build(AgentID::new_super_agent_id()) {
@@ -131,7 +131,7 @@ pub mod tests {
     #[test]
     fn no_op_loader() {
         let loader_builder = DefaultEffectiveConfigLoaderBuilder {
-            sub_agent_values_repository: Arc::new(MockRemoteValuesRepositoryMock::default()),
+            yaml_config_repository: Arc::new(MockYAMLConfigRepositoryMock::default()),
         };
 
         let loader = loader_builder.build(AgentID::new_super_agent_id());

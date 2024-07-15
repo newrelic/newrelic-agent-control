@@ -18,7 +18,7 @@ use crate::{
         on_host::builder::OnHostSubAgentBuilder,
         persister::config_persister_file::ConfigurationPersisterFile,
     },
-    values::on_host::ValuesRepositoryFile,
+    values::on_host::YAMLConfigRepositoryFile,
 };
 use crate::{
     event::{
@@ -52,16 +52,16 @@ pub fn run_super_agent<C: HttpClientBuilder>(
         Arc::new(sa_config_storer)
     };
 
-    let mut vr = ValuesRepositoryFile::default();
+    let mut vr = YAMLConfigRepositoryFile::default();
     if opamp_http_builder.is_some() {
         vr = vr.with_remote();
     }
-    let values_repository = Arc::new(vr);
+    let yaml_config_repository = Arc::new(vr);
 
     let opamp_client_builder = opamp_http_builder.map(|http_builder| {
         DefaultOpAMPClientBuilder::new(
             http_builder,
-            DefaultEffectiveConfigLoaderBuilder::new(values_repository.clone()),
+            DefaultEffectiveConfigLoaderBuilder::new(yaml_config_repository.clone()),
         )
     });
 
@@ -95,7 +95,7 @@ pub fn run_super_agent<C: HttpClientBuilder>(
     )));
 
     let agents_assembler = LocalEffectiveAgentsAssembler::new(
-        values_repository.clone(),
+        yaml_config_repository.clone(),
         agent_type_registry,
         template_renderer,
     );
@@ -108,8 +108,10 @@ pub fn run_super_agent<C: HttpClientBuilder>(
         crate::super_agent::defaults::REMOTE_AGENT_DATA_DIR().to_string(),
     ));
 
-    let sub_agent_event_processor_builder =
-        EventProcessorBuilder::new(sub_agent_hash_repository.clone(), values_repository.clone());
+    let sub_agent_event_processor_builder = EventProcessorBuilder::new(
+        sub_agent_hash_repository.clone(),
+        yaml_config_repository.clone(),
+    );
 
     let sub_agent_builder = OnHostSubAgentBuilder::new(
         opamp_client_builder.as_ref(),
