@@ -15,7 +15,7 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 
 // This trait is meant for testing, there are no multiple implementations expected
 // It cannot be doubled as the implementation has a lifetime constraint
@@ -91,7 +91,7 @@ where
     fn process(self) -> JoinHandle<Result<(), SubAgentError>> {
         thread::spawn(move || {
             debug!(
-                agent_id = self.agent_id.to_string(),
+                agent_id = %self.agent_id,
                 "event processor started"
             );
 
@@ -117,7 +117,7 @@ where
                     recv(opamp_receiver.as_ref()) -> opamp_event_res => {
                         match opamp_event_res {
                             Err(e) => {
-                                debug!(error = ?e, select_arm = "sub_agent_opamp_consumer", "channel closed");
+                                debug!(error = %e, select_arm = "sub_agent_opamp_consumer", "channel closed");
                                 break;
                             }
                             // TODO: the OpAMP flow when a remote configuration is received should be the same
@@ -134,7 +134,7 @@ where
                                 select_arm = "sub_agent_opamp_consumer",
                 "remote config received");
                                 if let Err(e) = self.remote_config(remote_config){
-                                     error!(error = ?e, select_arm = "sub_agent_opamp_consumer", "error processing remote config")
+                                     error!(error = %e, select_arm = "sub_agent_opamp_consumer", "error processing remote config")
                                 }
                             }
                             _ => {}}
@@ -142,7 +142,7 @@ where
                     recv(&self.sub_agent_internal_consumer.as_ref()) -> sub_agent_internal_event_res => {
                         match sub_agent_internal_event_res {
                             Err(e) => {
-                                debug!(error = ?e, select_arm = "sub_agent_internal_consumer", "channel closed");
+                                debug!(error = %e, select_arm = "sub_agent_internal_consumer", "channel closed");
                                 break;
                             }
                             Ok(SubAgentInternalEvent::StopRequested) => {
@@ -151,13 +151,14 @@ where
                             },
                             Ok(SubAgentInternalEvent::AgentBecameUnhealthy(unhealthy, start_time))=>{
                                 debug!(select_arm = "sub_agent_internal_consumer", "UnhealthyAgent");
+                                warn!(agent_id = %self.agent_id, "sub agent became unhealthy!");
                                 let _ = self.on_health(HealthWithStartTime::new(unhealthy.into(), start_time))
-                                    .inspect_err(|e| error!(error = ?e, select_arm = "sub_agent_internal_consumer", "processing unhealthy status"));
+                                    .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing unhealthy status"));
                             }
                             Ok(SubAgentInternalEvent::AgentBecameHealthy(healthy, start_time))=>{
                                 debug!(select_arm = "sub_agent_internal_consumer", "HealthyAgent");
                                 let _ = self.on_health(HealthWithStartTime::new(healthy.into(), start_time))
-                                    .inspect_err(|e| error!(error = ?e, select_arm = "sub_agent_internal_consumer", "processing healthy status"));
+                                    .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing healthy status"));
                             }
                         }
                     }
