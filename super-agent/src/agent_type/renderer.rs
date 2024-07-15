@@ -2,10 +2,7 @@ use std::{collections::HashMap, path::PathBuf};
 
 use crate::{
     sub_agent::persister::config_persister::ConfigurationPersister,
-    super_agent::{
-        config::AgentID,
-        defaults::{GENERATED_FOLDER_NAME, SUPER_AGENT_DATA_DIR},
-    },
+    super_agent::{config::AgentID, defaults::GENERATED_FOLDER_NAME},
 };
 
 use super::{
@@ -32,7 +29,7 @@ pub trait Renderer {
 
 pub struct TemplateRenderer<C: ConfigurationPersister> {
     persister: Option<C>,
-    config_base_dir: String,
+    config_base_dir: PathBuf,
 }
 
 impl<C: ConfigurationPersister> Renderer for TemplateRenderer<C> {
@@ -71,16 +68,14 @@ impl<C: ConfigurationPersister> Renderer for TemplateRenderer<C> {
     }
 }
 
-impl<C: ConfigurationPersister> Default for TemplateRenderer<C> {
-    fn default() -> Self {
+impl<C: ConfigurationPersister> TemplateRenderer<C> {
+    pub fn new(config_base_dir: PathBuf) -> Self {
         Self {
             persister: None,
-            config_base_dir: SUPER_AGENT_DATA_DIR().to_string(),
+            config_base_dir,
         }
     }
-}
 
-impl<C: ConfigurationPersister> TemplateRenderer<C> {
     pub fn with_config_persister(self, c: C) -> Self {
         Self {
             persister: Some(c),
@@ -90,12 +85,9 @@ impl<C: ConfigurationPersister> TemplateRenderer<C> {
 
     // Returns the config path for a sub-agent.
     fn subagent_config_path(&self, agent_id: &AgentID) -> PathBuf {
-        PathBuf::from(format!(
-            "{}/{}/{}",
-            self.config_base_dir,
-            GENERATED_FOLDER_NAME(),
-            agent_id
-        ))
+        self.config_base_dir
+            .join(GENERATED_FOLDER_NAME())
+            .join(agent_id)
     }
 
     // Extends the path of all variables with the sub-agent generated config path.
@@ -163,6 +155,20 @@ pub(crate) mod tests {
     };
 
     use super::*;
+
+    fn test_data_dir() -> PathBuf {
+        PathBuf::from("/some/path")
+    }
+
+    impl<C: ConfigurationPersister> Default for TemplateRenderer<C> {
+        fn default() -> Self {
+            Self {
+                persister: None,
+                // TODO replace this
+                config_base_dir: test_data_dir(),
+            }
+        }
+    }
 
     mock! {
          pub(crate) RendererMock {}
@@ -271,12 +277,9 @@ pub(crate) mod tests {
         let values = testing_values(AGENT_VALUES_WITH_FILES);
         let attributes = testing_agent_attributes(&agent_id);
         // The persister should receive filled variables with the path expanded.
-        let path_as_string = format!(
-            "{}/{}/some-agent-id",
-            SUPER_AGENT_DATA_DIR(),
-            GENERATED_FOLDER_NAME()
-        );
-        let subagent_config_path = path_as_string.as_str();
+        let path_as_string = test_data_dir()
+            .join(GENERATED_FOLDER_NAME())
+            .join(&agent_id);
         let filled_variables = agent_type
             .variables
             .clone()
@@ -285,7 +288,7 @@ pub(crate) mod tests {
             .flatten();
         let expanded_path_filled_variables =
             TemplateRenderer::<MockConfigurationPersisterMock>::extend_variables_file_path(
-                PathBuf::from(subagent_config_path),
+                path_as_string.clone(),
                 filled_variables.clone(),
             );
 
@@ -299,7 +302,11 @@ pub(crate) mod tests {
             .render(&agent_id, agent_type, values, attributes)
             .unwrap();
         assert_eq!(
-            Args(format!("--config1 {subagent_config_path}/config1.yml --config2 {subagent_config_path}/config2.d")),
+            Args(format!(
+                "--config1 {}/config1.yml --config2 {}/config2.d",
+                &path_as_string.to_string_lossy(),
+                &path_as_string.to_string_lossy()
+            )),
             runtime_config
                 .deployment
                 .on_host

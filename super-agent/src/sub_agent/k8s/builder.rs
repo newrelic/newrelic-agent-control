@@ -22,7 +22,6 @@ use crate::{
 };
 use kube::core::TypeMeta;
 use opamp_client::operation::settings::DescriptionValueType;
-use opamp_client::Client;
 use std::collections::{HashMap, HashSet};
 use std::marker::PhantomData;
 use std::sync::Arc;
