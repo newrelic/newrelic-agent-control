@@ -74,7 +74,6 @@ where
 #[cfg(test)]
 mod test {
     use crate::agent_type::agent_metadata::AgentMetadata;
-    use crate::agent_type::agent_values::AgentValues;
     use crate::agent_type::definition::{AgentType, VariableTree};
     use crate::agent_type::runtime_config::Runtime;
     use crate::opamp::effective_config::loader::EffectiveConfigLoader;
@@ -82,6 +81,7 @@ mod test {
     use crate::opamp::remote_config::ConfigurationMap;
     use crate::super_agent::config::AgentID;
     use crate::values::values_repository::test::MockRemoteValuesRepositoryMock;
+    use crate::values::yaml_config::YAMLConfig;
     use semver::Version;
     use std::collections::HashMap;
     use std::sync::Arc;
@@ -104,7 +104,7 @@ mod test {
         values_repository.should_load(
             &agent_id,
             &agent_type,
-            &AgentValues::try_from(String::from("fake_config: value")).unwrap(),
+            &YAMLConfig::try_from(String::from("fake_config: value")).unwrap(),
         );
 
         let loader = SubAgentEffectiveConfigLoader {

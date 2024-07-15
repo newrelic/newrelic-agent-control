@@ -1,6 +1,5 @@
 use super::config::SuperAgentConfigError;
 use crate::agent_type::agent_type_registry::AgentRepositoryError;
-use crate::agent_type::agent_values::AgentValuesError;
 use crate::agent_type::error::AgentTypeError;
 use crate::event::channel::EventPublisherError;
 use crate::opamp::client_builder::OpAMPClientBuilderError;
@@ -81,9 +80,6 @@ pub enum AgentError {
 
     #[error("sub agent remote config error: `{0}`")]
     SubAgentRemoteConfigError(#[from] ValuesRepositoryError),
-
-    #[error("sub agent values error: `{0}`")]
-    SubAgentValuesError(#[from] AgentValuesError),
 
     #[error("External module error: `{0}`")]
     ExternalError(String),
