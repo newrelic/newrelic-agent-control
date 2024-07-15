@@ -102,12 +102,7 @@ generate_const_getter!(
 );
 generate_const_getter!(
     SUB_AGENT_LOG_DIR,
-    format!(
-        "{}/{}/{}",
-        SUPER_AGENT_LOG_DIR(),
-        FLEET_DIR(),
-        SUB_AGENT_DIRECTORY()
-    )
+    format!("{}/{}", FLEET_DIR(), SUB_AGENT_DIRECTORY())
 );
 generate_const_getter!(DYNAMIC_AGENT_TYPE_FILENAME, "dynamic-agent-type.yaml");
 generate_const_getter!(IDENTIFIERS_FILENAME, "identifiers.yaml");

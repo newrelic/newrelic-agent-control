@@ -17,6 +17,7 @@ use crate::sub_agent::on_host::supervisor::command_supervisor_config::Supervisor
 use crate::sub_agent::on_host::supervisor::restart_policy::BackoffStrategy;
 use crate::super_agent::config::AgentID;
 use std::os::unix::process::ExitStatusExt;
+use std::path::PathBuf;
 use std::process::ExitStatus;
 use std::time::SystemTime;
 use std::{
@@ -59,6 +60,9 @@ impl SupervisorOnHost<NotStarted> {
 
     pub fn logs_to_file(&self) -> bool {
         self.state.config.log_to_file
+    }
+    pub fn logging_path(&self) -> PathBuf {
+        self.state.config.logging_path.clone()
     }
 
     pub fn run(
@@ -209,6 +213,7 @@ impl SupervisorOnHost<NotStarted> {
             &self.state.config.args,
             &self.state.config.env,
             self.logs_to_file(),
+            self.logging_path(),
         )
     }
 }
