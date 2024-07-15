@@ -146,9 +146,8 @@ impl SuperAgentConfigStore {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::super_agent::{
-        config::{AgentID, AgentTypeFQN, OpAMPClientConfig, SubAgentConfig, SuperAgentConfig},
-        defaults::SUPER_AGENT_DATA_DIR,
+    use crate::super_agent::config::{
+        AgentID, AgentTypeFQN, OpAMPClientConfig, SubAgentConfig, SuperAgentConfig,
     };
     use serial_test::serial;
     use std::{collections::HashMap, env, io::Write};
@@ -174,7 +173,7 @@ agents:
 "#;
         write!(remote_file, "{}", remote_config).unwrap();
 
-        let remote_dir = PathBuf::from(SUPER_AGENT_DATA_DIR());
+        let remote_dir = remote_file.path().parent().unwrap().to_path_buf();
         let mut store = SuperAgentConfigStore::new(local_file.path(), remote_dir);
 
         store.remote_path = Some(remote_file.path().to_path_buf());
@@ -224,7 +223,8 @@ opamp:
             "namespace/com.newrelic.infrastructure_agent:0.0.2",
         );
 
-        let remote_dir = PathBuf::from(SUPER_AGENT_DATA_DIR());
+        let temp_dir = tempfile::tempdir().unwrap();
+        let remote_dir = temp_dir.into_path();
         let store = SuperAgentConfigStore::new(local_file.path(), remote_dir);
         let actual = SuperAgentConfigLoader::load(&store);
 
@@ -275,7 +275,8 @@ agents:
             "namespace/com.newrelic.infrastructure_agent:0.0.2",
         );
 
-        let remote_dir = PathBuf::from(SUPER_AGENT_DATA_DIR());
+        let temp_dir = tempfile::tempdir().unwrap();
+        let remote_dir = temp_dir.into_path();
         let store = SuperAgentConfigStore::new(local_file.path(), remote_dir);
         let actual = SuperAgentConfigLoader::load(&store);
 

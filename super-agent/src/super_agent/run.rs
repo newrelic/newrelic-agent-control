@@ -1,6 +1,9 @@
 use super::config::OpAMPClientConfig;
 use super::config_storer::store::SuperAgentConfigStore;
-use super::defaults::{DYNAMIC_AGENT_TYPE_FILENAME, SUPER_AGENT_LOCAL_DATA_DIR};
+use super::defaults::{
+    DYNAMIC_AGENT_TYPE_FILENAME, SUPER_AGENT_DATA_DIR, SUPER_AGENT_LOCAL_DATA_DIR,
+    SUPER_AGENT_LOG_DIR,
+};
 use super::http_server::config::ServerConfig;
 use crate::agent_type::embedded_registry::EmbeddedRegistry;
 use crate::event::channel::pub_sub;
@@ -27,11 +30,30 @@ pub mod k8s;
 #[cfg(feature = "onhost")]
 pub mod on_host;
 
+/// Structure with all base paths required to run the super agent
+#[derive(Clone)]
+pub struct BasePaths {
+    pub local_dir: PathBuf,
+    pub remote_dir: PathBuf,
+    pub log_dir: PathBuf,
+}
+
+impl Default for BasePaths {
+    fn default() -> Self {
+        Self {
+            local_dir: PathBuf::from(SUPER_AGENT_LOCAL_DATA_DIR()),
+            remote_dir: PathBuf::from(SUPER_AGENT_DATA_DIR()),
+            log_dir: PathBuf::from(SUPER_AGENT_LOG_DIR()),
+        }
+    }
+}
+
 /// Structures for running the super-agent provided by CLI inputs
 pub struct SuperAgentRunConfig {
     pub config_storer: SuperAgentConfigStore,
     pub opamp: Option<OpAMPClientConfig>,
     pub http_server: ServerConfig,
+    pub base_paths: BasePaths,
 }
 
 impl TryFrom<SuperAgentRunConfig> for SuperAgentRunner {
@@ -81,6 +103,7 @@ impl TryFrom<SuperAgentRunConfig> for SuperAgentRunner {
             application_event_consumer,
             opamp_http_builder,
             super_agent_publisher,
+            base_paths: value.base_paths,
         };
 
         Ok(run_data)
@@ -96,13 +119,16 @@ pub struct SuperAgentRunner {
     application_event_consumer: EventConsumer<ApplicationEvent>,
     opamp_http_builder: Option<UreqHttpClientBuilder<TokenRetrieverImpl>>,
     super_agent_publisher: EventPublisher<SuperAgentEvent>,
+    base_paths: BasePaths,
 }
 
 /// Run the super agent with the provided data
 impl SuperAgentRunner {
     pub fn run(self) -> Result<(), Box<dyn Error>> {
         let agent_type_registry = EmbeddedRegistry::new(
-            PathBuf::from(SUPER_AGENT_LOCAL_DATA_DIR()).join(DYNAMIC_AGENT_TYPE_FILENAME()),
+            self.base_paths
+                .local_dir
+                .join(DYNAMIC_AGENT_TYPE_FILENAME()),
         );
         Ok(run_super_agent(
             self.runtime.clone(),
@@ -111,6 +137,7 @@ impl SuperAgentRunner {
             self.opamp_http_builder,
             self.super_agent_publisher,
             agent_type_registry,
+            self.base_paths,
         )?)
     }
 }
@@ -133,19 +160,27 @@ pub fn create_shutdown_signal_handler(
 }
 
 #[cfg(debug_assertions)]
-pub fn set_debug_dirs(cli: &crate::cli::Cli) {
-    use crate::super_agent::defaults;
+/// Set the debug directories if the debug, or any of path override flags are set.
+/// Precedence is given to the individual local_dir, remote_dir, and logs_dir flags
+/// then the debug flag.
+pub fn set_debug_dirs(base_paths: BasePaths, cli: &crate::cli::Cli) -> BasePaths {
+    let mut base_paths = base_paths;
+
+    if let Some(ref debug_path) = cli.debug {
+        base_paths.local_dir = debug_path.join("nrsa_local");
+        base_paths.remote_dir = debug_path.join("nrsa_remote");
+        base_paths.log_dir = debug_path.join("nrsa_logs");
+    }
 
     if let Some(ref local_path) = cli.local_dir {
-        defaults::set_local_dir(local_path);
+        base_paths.local_dir = local_path.to_path_buf();
     }
     if let Some(ref remote_path) = cli.remote_dir {
-        defaults::set_remote_dir(remote_path);
+        base_paths.remote_dir = remote_path.to_path_buf();
     }
     if let Some(ref log_path) = cli.logs_dir {
-        defaults::set_log_dir(log_path);
+        base_paths.log_dir = log_path.to_path_buf();
     }
-    if let Some(ref debug_path) = cli.debug {
-        defaults::set_debug_mode_dirs(debug_path);
-    }
+
+    base_paths
 }

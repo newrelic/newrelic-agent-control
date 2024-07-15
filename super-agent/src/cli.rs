@@ -14,8 +14,7 @@ use crate::{
         config::SuperAgentConfigError,
         config_patcher::ConfigPatcher,
         config_storer::{loader_storer::SuperAgentConfigLoader, store::SuperAgentConfigStore},
-        defaults::{SUPER_AGENT_DATA_DIR, SUPER_AGENT_LOCAL_DATA_DIR, SUPER_AGENT_LOG_DIR},
-        run::SuperAgentRunConfig,
+        run::{BasePaths, SuperAgentRunConfig},
     },
     utils::binary_metadata::binary_metadata,
 };
@@ -89,9 +88,11 @@ impl Cli {
         // Get command line args
         let cli = Self::parse();
 
+        let base_paths = BasePaths::default();
+
         // Initialize debug directories (if set)
         #[cfg(debug_assertions)]
-        set_debug_dirs(&cli);
+        let base_paths = set_debug_dirs(base_paths, &cli);
 
         // If the version flag is set, print the version and exit
         if cli.print_version() {
@@ -101,8 +102,8 @@ impl Cli {
             return Ok(CliCommand::OneShot(OneShotCommand::PrintDebugInfo(cli)));
         }
 
-        let remote_dir = PathBuf::from(SUPER_AGENT_DATA_DIR());
-        let config_storer = SuperAgentConfigStore::new(&cli.get_config_path(), remote_dir);
+        let config_storer =
+            SuperAgentConfigStore::new(&cli.get_config_path(), base_paths.remote_dir.clone());
 
         let mut super_agent_config = config_storer.load().inspect_err(|err| {
             println!(
@@ -113,7 +114,7 @@ impl Cli {
         })?;
 
         let config_patcher =
-            ConfigPatcher::new(SUPER_AGENT_LOCAL_DATA_DIR(), SUPER_AGENT_LOG_DIR());
+            ConfigPatcher::new(base_paths.local_dir.clone(), base_paths.log_dir.clone());
         config_patcher.patch(&mut super_agent_config);
 
         let file_logger_guard = super_agent_config.log.try_init()?;
@@ -130,6 +131,7 @@ impl Cli {
             config_storer,
             opamp,
             http_server,
+            base_paths,
         };
 
         let cli_config = SuperAgentCliConfig {

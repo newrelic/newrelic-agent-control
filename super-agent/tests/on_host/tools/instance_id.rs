@@ -1,27 +1,32 @@
+use crate::common::retry::retry;
 use fs::directory_manager::DirectoryManagerFs;
 use fs::LocalFile;
-use newrelic_super_agent::opamp::instance_id::getter::{
-    InstanceIDGetter, InstanceIDWithIdentifiersGetter,
-};
-use newrelic_super_agent::opamp::instance_id::{IdentifiersProvider, InstanceID, Storer};
+use newrelic_super_agent::opamp::instance_id::storer::InstanceIDStorer;
+use newrelic_super_agent::opamp::instance_id::{InstanceID, Storer};
 use newrelic_super_agent::super_agent::config::AgentID;
-use newrelic_super_agent::super_agent::defaults::{SUB_AGENT_DIR, SUPER_AGENT_DATA_DIR};
-use std::path::PathBuf;
+use newrelic_super_agent::super_agent::defaults::SUB_AGENT_DIR;
+use newrelic_super_agent::super_agent::run::BasePaths;
+use std::error::Error;
+use std::time::Duration;
 
-pub fn get_instance_id(agent_id: &AgentID) -> InstanceID {
-    let identifiers_provider = IdentifiersProvider::default()
-        .with_host_id("integration-test".to_string())
-        .with_fleet_id("integration".to_string());
-    let identifiers = identifiers_provider.provide().unwrap_or_default();
-
+pub fn get_instance_id(agent_id: &AgentID, base_paths: BasePaths) -> InstanceID {
     let instance_id_storer = Storer::new(
         LocalFile,
         DirectoryManagerFs::default(),
-        PathBuf::from(SUPER_AGENT_DATA_DIR()),
-        PathBuf::from(SUPER_AGENT_DATA_DIR()).join(SUB_AGENT_DIR()),
+        base_paths.remote_dir.clone(),
+        base_paths.remote_dir.join(SUB_AGENT_DIR()),
     );
 
-    let instance_id_getter = InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers);
+    let mut super_agent_instance_id: InstanceID = InstanceID::create();
+    retry(30, Duration::from_secs(1), || {
+        || -> Result<(), Box<dyn Error>> {
+            super_agent_instance_id = instance_id_storer
+                .get(agent_id)?
+                .ok_or("SA instance id missing")?
+                .instance_id;
+            Ok(())
+        }()
+    });
 
-    instance_id_getter.get(agent_id).unwrap()
+    super_agent_instance_id
 }

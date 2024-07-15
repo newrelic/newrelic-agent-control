@@ -6,15 +6,19 @@ use newrelic_super_agent::opamp::auth::token_retriever::{TokenRetrieverImpl, Tok
 use newrelic_super_agent::opamp::http::builder::UreqHttpClientBuilder;
 use newrelic_super_agent::super_agent::config::OpAMPClientConfig;
 use newrelic_super_agent::super_agent::config_storer::store::SuperAgentConfigStore;
-use newrelic_super_agent::super_agent::defaults::SUPER_AGENT_DATA_DIR;
 use newrelic_super_agent::super_agent::run::on_host::run_super_agent;
-use std::path::{Path, PathBuf};
+use newrelic_super_agent::super_agent::run::BasePaths;
+use std::path::Path;
 use std::sync::Arc;
 use url::Url;
 
 /// Starts the super-agent through [start_super_agent] after setting up the corresponding configuration file
 /// and config map according to the provided `folder_name` and the provided `file_names`.
-pub fn start_super_agent_with_custom_config(config_path: &Path, opamp_endpoint: Url) {
+pub fn start_super_agent_with_custom_config(
+    config_path: &Path,
+    opamp_endpoint: Url,
+    base_paths: BasePaths,
+) {
     // Create the Tokio runtime
     let runtime = Arc::new(
         tokio::runtime::Builder::new_multi_thread()
@@ -36,8 +40,7 @@ pub fn start_super_agent_with_custom_config(config_path: &Path, opamp_endpoint: 
     let (_application_event_publisher, application_event_consumer) = pub_sub();
     let (super_agent_publisher, _super_agent_consumer) = pub_sub::<SuperAgentEvent>();
 
-    let remote_dir = PathBuf::from(SUPER_AGENT_DATA_DIR());
-    let config_storer = SuperAgentConfigStore::new(config_path, remote_dir);
+    let config_storer = SuperAgentConfigStore::new(config_path, base_paths.remote_dir.clone());
 
     // TODO: do we need to load dynamic-agent-type?
     let agent_type_registry = EmbeddedRegistry::default();
@@ -49,5 +52,6 @@ pub fn start_super_agent_with_custom_config(config_path: &Path, opamp_endpoint: 
         Some(http_builder),
         super_agent_publisher,
         agent_type_registry,
+        base_paths,
     );
 }

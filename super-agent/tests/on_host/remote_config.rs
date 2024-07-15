@@ -6,7 +6,7 @@ use crate::common::{
 use crate::on_host::tools::instance_id::get_instance_id;
 use crate::on_host::tools::super_agent::start_super_agent_with_custom_config;
 use newrelic_super_agent::super_agent::config::{AgentID, SuperAgentDynamicConfig};
-use newrelic_super_agent::super_agent::defaults::{set_local_dir, set_remote_dir};
+use newrelic_super_agent::super_agent::run::BasePaths;
 use std::error::Error;
 use std::fs::File;
 use std::io::Write;
@@ -25,28 +25,34 @@ fn onhost_opamp_superagent_configuration_change() {
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
 
-    set_local_dir(local_dir.path());
-    set_remote_dir(remote_dir.path());
-
     let config_file_path = local_dir.path().join("config.yaml");
     let mut local_file =
         File::create(config_file_path.clone()).expect("failed to create local config file");
     let local_config = r#"
 host_id: integration-test
-fleet_id: integration
 opamp:
   endpoint: http://127.0.0.1/v1/opamp
 agents: {}
 "#;
     write!(local_file, "{}", local_config).unwrap();
 
+    let base_paths = BasePaths {
+        local_dir: local_dir.path().to_path_buf(),
+        remote_dir: remote_dir.path().to_path_buf(),
+        log_dir: local_dir.path().to_path_buf(),
+    };
+    let base_paths_copy = base_paths.clone();
     // We won't join and wait for the thread to finish because we want the super_agent to exit
     // if our assertions were not ok.
     let _super_agent_join = thread::spawn(move || {
-        start_super_agent_with_custom_config(config_file_path.as_path(), server_endpoint)
+        start_super_agent_with_custom_config(
+            config_file_path.as_path(),
+            server_endpoint,
+            base_paths.clone(),
+        )
     });
 
-    let super_agent_instance_id = get_instance_id(&AgentID::new_super_agent_id());
+    let super_agent_instance_id = get_instance_id(&AgentID::new_super_agent_id(), base_paths_copy);
 
     // When a new config with two agents is received from OpAMP
     server.set_config_response(

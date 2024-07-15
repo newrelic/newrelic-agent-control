@@ -11,6 +11,7 @@ use crate::sub_agent::event_processor_builder::EventProcessorBuilder;
 use crate::super_agent::config::AgentID;
 use crate::super_agent::config_storer::loader_storer::SuperAgentConfigLoader;
 use crate::super_agent::defaults::{FLEET_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY};
+use crate::super_agent::run::BasePaths;
 use crate::super_agent::{super_agent_fqn, SuperAgent};
 use crate::{
     event::{
@@ -32,7 +33,6 @@ use crate::{
 use opamp_client::operation::settings::DescriptionValueType;
 use resource_detection::system::hostname::HostnameGetter;
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 use tracing::{error, info};
@@ -44,6 +44,7 @@ pub fn run_super_agent<C: HttpClientBuilder>(
     opamp_http_builder: Option<C>,
     super_agent_publisher: EventPublisher<SuperAgentEvent>,
     agent_type_registry: EmbeddedRegistry,
+    base_paths: BasePaths,
 ) -> Result<(), AgentError> {
     info!("Starting the k8s client");
     let config = sa_local_config_storer.load()?;
@@ -94,9 +95,7 @@ pub fn run_super_agent<C: HttpClientBuilder>(
         )
     });
 
-    let template_renderer = TemplateRenderer::new(PathBuf::from(
-        crate::super_agent::defaults::SUPER_AGENT_DATA_DIR().to_string(),
-    ));
+    let template_renderer = TemplateRenderer::new(base_paths.remote_dir);
 
     let agents_assembler = LocalEffectiveAgentsAssembler::new(
         yaml_config_repository.clone(),

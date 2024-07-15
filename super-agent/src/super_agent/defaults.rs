@@ -2,11 +2,7 @@ use opamp_client::capabilities;
 use opamp_client::opamp::proto::AgentCapabilities;
 use opamp_client::operation::capabilities::Capabilities;
 use paste::paste;
-#[cfg(debug_assertions)]
-use std::path::Path;
 use std::sync::OnceLock;
-#[cfg(debug_assertions)]
-use tracing::debug;
 
 // What does this do?
 // This macro generates a static variable and a function that returns a reference to that variable.
@@ -89,46 +85,6 @@ generate_const_getter!(GENERATED_FOLDER_NAME, "auto-generated");
 generate_const_getter!(SUPER_AGENT_LOG_FILENAME, "newrelic-super-agent.log");
 generate_const_getter!(STDOUT_LOG_PREFIX, "stdout.log");
 generate_const_getter!(STDERR_LOG_PREFIX, "stderr.log");
-
-#[cfg(debug_assertions)]
-pub fn set_local_dir(path: &Path) {
-    // The Err variant in `set` just contains the value we attempted to set,
-    // so we can just ignore the Result
-    _ = SUPER_AGENT_LOCAL_DATA_DIR_STATIC
-        .set(path.to_string_lossy().to_string())
-        .inspect_err(|_| {
-            debug!("attempted to initialize SUPER_AGENT_LOCAL_DATA_DIR but was already set")
-        });
-}
-
-#[cfg(debug_assertions)]
-pub fn set_remote_dir(path: &Path) {
-    _ = SUPER_AGENT_DATA_DIR_STATIC
-        .set(path.to_string_lossy().to_string())
-        .inspect_err(|_| {
-            debug!("attempted to initialize SUPER_AGENT_DATA_DIR but was already set")
-        });
-}
-
-#[cfg(debug_assertions)]
-pub(super) fn set_log_dir(path: &Path) {
-    _ = SUPER_AGENT_LOG_DIR_STATIC
-        .set(path.to_string_lossy().to_string())
-        .inspect_err(|_| debug!("attempted to initialize SUPER_AGENT_LOG_DIR but was already set"));
-}
-
-#[cfg(debug_assertions)]
-pub(super) fn set_debug_mode_dirs(path: &Path) {
-    debug!("setting data directories to the working directory");
-
-    let local_path = path.join("nrsa_local");
-    let remote_path = path.join("nrsa_remote");
-    let log_path = path.join("nrsa_logs");
-
-    set_local_dir(&local_path);
-    set_remote_dir(&remote_path);
-    set_log_dir(&log_path);
-}
 
 pub fn default_capabilities() -> Capabilities {
     capabilities!(

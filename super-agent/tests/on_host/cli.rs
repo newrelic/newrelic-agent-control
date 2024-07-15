@@ -1,12 +1,14 @@
+use crate::common::retry::retry;
+use assert_cmd::Command;
+use predicates::prelude::predicate;
+use std::error::Error;
+use std::process::Stdio;
+use std::time::Duration;
 use std::{
     fs::File,
     io::Write,
     path::{Path, PathBuf},
-    time::Duration,
 };
-
-use assert_cmd::Command;
-use predicates::prelude::predicate;
 use tempfile::TempDir;
 
 // when the TempDir is dropped, the temporal directory is removed, thus, the its
@@ -29,6 +31,13 @@ pub fn cmd_with_config_file(file_path: &Path) -> Command {
     // cmd_assert is not made for long running programs, so we kill it anyway after 1 second
     cmd.timeout(Duration::from_secs(3));
     cmd
+}
+
+struct AutoDropChild(std::process::Child);
+impl Drop for AutoDropChild {
+    fn drop(&mut self) {
+        self.0.kill().unwrap();
+    }
 }
 
 #[test]
@@ -142,8 +151,6 @@ log:
 #[cfg(unix)]
 #[test]
 fn custom_directory_as_root() -> Result<(), Box<dyn std::error::Error>> {
-    use std::time::Duration;
-
     let dir = TempDir::new()?;
     let _agent_type_def = create_temp_file(
         &dir,
@@ -189,7 +196,7 @@ file_logging: true
         "static.yml",
         r#"
 log:
-  level: debug
+  level: info
   file:
     enable: true
 agents:
@@ -199,23 +206,39 @@ agents:
     )?;
 
     let tmpdir_path = dir.path();
-    let mut cmd = Command::cargo_bin("newrelic-super-agent")?;
-    cmd.arg("--config")
+
+    let mut command = std::process::Command::new("cargo");
+    command
+        .args([
+            "run",
+            "--bin",
+            "newrelic-super-agent",
+            "--features",
+            "onhost",
+            "--",
+        ])
+        .arg("--config")
         .arg(config_path)
         .arg("--debug")
-        .arg(tmpdir_path);
-    // cmd_assert is not made for long running programs, so we kill it anyway after 3 seconds
-    cmd.timeout(Duration::from_secs(5));
-    // But in any case we make sure that it actually attempted to create the supervisor group,
-    // so it works when the program is run as root
-    cmd.assert().failure();
+        .arg(tmpdir_path)
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit());
+
+    let handle = command.spawn().expect("Failed to start super agent");
+    let _auto_drop_child = AutoDropChild(handle);
 
     // Assert the directory structure has been created
     let remote_path = tmpdir_path.join("nrsa_remote");
     let logs_path = tmpdir_path.join("nrsa_logs");
 
-    assert!(remote_path.exists());
-    assert!(logs_path.exists());
+    retry(60, Duration::from_secs(1), || {
+        || -> Result<(), Box<dyn Error>> {
+            if remote_path.exists() && logs_path.exists() {
+                return Ok(());
+            }
+            Err("Directories not created yet".into())
+        }()
+    });
 
     Ok(())
 }
@@ -223,84 +246,74 @@ agents:
 #[cfg(unix)]
 #[test]
 fn custom_directory_overrides_as_root() -> Result<(), Box<dyn std::error::Error>> {
-    use std::time::Duration;
+    use httpmock::Method::POST;
+    use httpmock::MockServer;
 
     let dir = TempDir::new()?;
     let another_dir = TempDir::new()?;
-    let _agent_type_def = create_temp_file(
-        &dir,
-        "nrsa_local/dynamic-agent-type.yaml",
-        r#"
-namespace: newrelic
-name: com.newrelic.test-agent
-version: 0.0.1
-variables:
-  on_host:
-    message:
-      description: "Message to repeatedly output"
-      type: string
-      required: false
-      default: "yes"
-    file_logging:
-      description: "Enable file logging"
-      type: bool
-      required: false
-      default: false
-deployment:
-  on_host:
-    enable_file_logging: "${nr-var:file_logging}"
-    executables:
-      - path: /usr/bin/yes
-        args: "${nr-var:message}"
-        restart_policy:
-          backoff_strategy:
-            type: fixed
-            backoff_delay: 20s
-"#,
-    );
-    let _values_file = create_temp_file(
-        &dir,
-        "nrsa_local/fleet/agents.d/test-agent/values/values.yaml",
-        r#"
-message: "test yes"
-file_logging: true
-"#,
-    );
+
+    // simple mock that returns 200 so the agent can start and create the directories.
+    let opamp_server = MockServer::start();
+    let _opamp_server_mock = opamp_server.mock(|when, then| {
+        when.method(POST).path("/");
+        then.status(200);
+    });
+
     let config_path = create_temp_file(
         &dir,
-        "static.yml",
-        r#"
+        "config.yml",
+        format!(
+            r#"
+opamp:
+  endpoint: "{}"
 log:
-  level: debug
+  level: info
   file:
     enable: true
-agents:
-  test-agent:
-    agent_type: newrelic/com.newrelic.test-agent:0.0.1
-"#,
-    )?;
+agents: {{}}
+    "#,
+            opamp_server.url("/"),
+        )
+        .as_str(),
+    )
+    .unwrap();
 
     let tmpdir_path = dir.path();
-    let override_logs_path = another_dir.path().join("logs");
 
-    let mut cmd = Command::cargo_bin("newrelic-super-agent")?;
-    cmd.arg("--config")
+    let override_logs_path = another_dir.path().join("logs");
+    let mut command = std::process::Command::new("cargo");
+    command
+        .args([
+            "run",
+            "--bin",
+            "newrelic-super-agent",
+            "--features",
+            "onhost",
+            "--",
+        ])
+        .arg("--config")
         .arg(config_path)
         .arg("--debug")
         .arg(tmpdir_path)
         .arg("--logs-dir")
-        .arg(&override_logs_path);
-    // cmd_assert is not made for long running programs, so we kill it anyway after 3 seconds
-    cmd.timeout(Duration::from_secs(5));
-    // But in any case we make sure that it actually attempted to create the supervisor group,
-    // so it works when the program is run as root
-    cmd.assert().failure();
+        .arg(&override_logs_path)
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit());
+
+    let handle = command.spawn().expect("Failed to start super agent");
+    let _auto_drop_child = AutoDropChild(handle);
 
     // Assert the directory structure has been created
     let remote_path = tmpdir_path.join("nrsa_remote");
 
-    assert!(remote_path.exists());
-    assert!(override_logs_path.exists());
+    retry(60, Duration::from_secs(1), || {
+        || -> Result<(), Box<dyn Error>> {
+            if remote_path.exists() && override_logs_path.exists() {
+                return Ok(());
+            }
+            Err("Directories not created yet".into())
+        }()
+    });
 
     Ok(())
 }
