@@ -11,7 +11,7 @@ use crate::{
         hash_repository::HashRepository, remote_config::RemoteConfig,
         remote_config_report::report_remote_config_status_error,
     },
-    values::values_repository::ValuesRepository,
+    values::yaml_config_repository::YAMLConfigRepository,
 };
 use opamp_client::StartedClient;
 
@@ -22,7 +22,7 @@ where
     G: EffectiveConfigLoader,
     C: StartedClient<SubAgentCallbacks<G>> + 'static,
     S: HashRepository,
-    R: ValuesRepository,
+    R: YAMLConfigRepository,
 {
     /// This method retrieves, stores the remote configuration (hash and values) and publish an event super-agent event
     /// in order that the super-agent handles it.
@@ -108,8 +108,8 @@ mod tests {
     use crate::sub_agent::error::SubAgentError;
     use crate::sub_agent::event_processor::EventProcessor;
     use crate::super_agent::config::AgentID;
-    use crate::values::values_repository::ValuesRepositoryError;
     use crate::values::yaml_config::{YAMLConfig, YAMLConfigError};
+    use crate::values::yaml_config_repository::YAMLConfigRepositoryError;
     use crate::{
         event::channel::pub_sub,
         opamp::{
@@ -118,7 +118,7 @@ mod tests {
             remote_config::{ConfigurationMap, RemoteConfig},
             remote_config_hash::Hash,
         },
-        values::values_repository::test::MockRemoteValuesRepositoryMock,
+        values::yaml_config_repository::test::MockYAMLConfigRepositoryMock,
     };
     use mockall::predicate;
     use opamp_client::opamp::proto::RemoteConfigStatus;
@@ -140,7 +140,7 @@ mod tests {
         let (event_processor, sub_agent_consumer) =
             setup_testing_event_processor(&agent_id, |mocks| {
                 mocks.hash_repository.should_save_hash(&agent_id, &hash);
-                mocks.values_repository.should_store_remote(
+                mocks.yaml_config_repository.should_store_remote(
                     &agent_id,
                     &YAMLConfig::new(HashMap::from([("some_item".into(), "some_value".into())])),
                 );
@@ -170,7 +170,7 @@ mod tests {
                 mocks.hash_repository.should_save_hash(&agent_id, &hash);
 
                 // Expect to remove current remote config when receiving an empty agents remote config.
-                mocks.values_repository.should_delete_remote(&agent_id);
+                mocks.yaml_config_repository.should_delete_remote(&agent_id);
                 // Applying status should be reported
                 mocks
                     .opamp_client
@@ -352,7 +352,7 @@ mod tests {
     }
 
     #[test]
-    fn test_config_values_repository_error_on_store() {
+    fn test_yaml_config_repository_error_on_store() {
         // Event's config
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let hash = Hash::new(String::from("some-hash"));
@@ -362,12 +362,12 @@ mod tests {
         )]));
 
         let expected_error =
-            SubAgentError::from(ValuesRepositoryError::StoreError("store".to_string()));
+            SubAgentError::from(YAMLConfigRepositoryError::StoreError("store".to_string()));
 
         let (event_processor, _) = setup_testing_event_processor(&agent_id, |mocks| {
             mocks.hash_repository.should_save_hash(&agent_id, &hash);
             mocks
-                .values_repository
+                .yaml_config_repository
                 .expect_store_remote()
                 .once()
                 .with(
@@ -377,7 +377,7 @@ mod tests {
                         "some_value".into(),
                     )]))),
                 )
-                .returning(|_, _| Err(ValuesRepositoryError::StoreError("store".to_string())));
+                .returning(|_, _| Err(YAMLConfigRepositoryError::StoreError("store".to_string())));
 
             // Applying status should be reported
             mocks
@@ -407,18 +407,18 @@ mod tests {
         let config_map = ConfigurationMap::new(HashMap::from([("".to_string(), "".to_string())]));
 
         let expected_error =
-            SubAgentError::from(ValuesRepositoryError::DeleteError("delete".to_string()));
+            SubAgentError::from(YAMLConfigRepositoryError::DeleteError("delete".to_string()));
 
         let (event_processor, _) = setup_testing_event_processor(&agent_id, |mocks| {
             mocks.hash_repository.should_save_hash(&agent_id, &hash);
 
             // Failure removing the values (removing since the configuration is empty)
             mocks
-                .values_repository
+                .yaml_config_repository
                 .expect_delete_remote()
                 .once()
                 .with(predicate::eq(agent_id.clone()))
-                .returning(|_| Err(ValuesRepositoryError::DeleteError("delete".to_string())));
+                .returning(|_| Err(YAMLConfigRepositoryError::DeleteError("delete".to_string())));
 
             // Applying status should be reported
             mocks
@@ -444,14 +444,14 @@ mod tests {
     /// Helper struct to group test mocks
     struct TestMocks {
         hash_repository: MockHashRepositoryMock,
-        values_repository: MockRemoteValuesRepositoryMock,
+        yaml_config_repository: MockYAMLConfigRepositoryMock,
         opamp_client: MockStartedOpAMPClientMock<AgentCallbacks<MockEffectiveConfigLoaderMock>>,
     }
 
     type TestingEventProcessor = EventProcessor<
         MockStartedOpAMPClientMock<AgentCallbacks<MockEffectiveConfigLoaderMock>>,
         MockHashRepositoryMock,
-        MockRemoteValuesRepositoryMock,
+        MockYAMLConfigRepositoryMock,
         MockEffectiveConfigLoaderMock,
     >;
 
@@ -469,11 +469,11 @@ mod tests {
         let (_sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
         let (_sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let hash_repository = MockHashRepositoryMock::default();
-        let values_repository = MockRemoteValuesRepositoryMock::default();
+        let yaml_config_repository = MockYAMLConfigRepositoryMock::default();
 
         let mut test_values = TestMocks {
             hash_repository,
-            values_repository,
+            yaml_config_repository,
             opamp_client,
         };
 
@@ -487,7 +487,7 @@ mod tests {
                 sub_agent_internal_consumer,
                 Some(test_values.opamp_client),
                 Arc::new(test_values.hash_repository),
-                Arc::new(test_values.values_repository),
+                Arc::new(test_values.yaml_config_repository),
             ),
             sub_agent_consumer,
         )

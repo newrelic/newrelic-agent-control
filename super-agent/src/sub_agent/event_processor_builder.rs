@@ -5,7 +5,7 @@ use crate::opamp::hash_repository::HashRepository;
 use crate::sub_agent::event_processor::{EventProcessor, SubAgentEventProcessor};
 use crate::sub_agent::SubAgentCallbacks;
 use crate::super_agent::config::AgentID;
-use crate::values::values_repository::ValuesRepository;
+use crate::values::yaml_config_repository::YAMLConfigRepository;
 use opamp_client::StartedClient;
 use std::sync::Arc;
 
@@ -29,20 +29,23 @@ where
 pub struct EventProcessorBuilder<H, R>
 where
     H: HashRepository,
-    R: ValuesRepository,
+    R: YAMLConfigRepository,
 {
     hash_repository: Arc<H>,
-    values_repository: Arc<R>,
+    yaml_config_repository: Arc<R>,
 }
 
 impl<H, R> EventProcessorBuilder<H, R>
 where
     H: HashRepository,
-    R: ValuesRepository,
+    R: YAMLConfigRepository,
 {
-    pub fn new(hash_repository: Arc<H>, values_repository: Arc<R>) -> EventProcessorBuilder<H, R> {
+    pub fn new(
+        hash_repository: Arc<H>,
+        yaml_config_repository: Arc<R>,
+    ) -> EventProcessorBuilder<H, R> {
         EventProcessorBuilder {
-            values_repository,
+            yaml_config_repository,
             hash_repository,
         }
     }
@@ -53,7 +56,7 @@ where
     G: EffectiveConfigLoader,
     C: StartedClient<SubAgentCallbacks<G>> + 'static,
     H: HashRepository + Send + Sync + 'static,
-    R: ValuesRepository + Send + Sync + 'static,
+    R: YAMLConfigRepository + Send + Sync + 'static,
 {
     type SubAgentEventProcessor = EventProcessor<C, H, R, G>;
 
@@ -76,7 +79,7 @@ where
             sub_agent_internal_consumer,
             maybe_opamp_client,
             self.hash_repository.clone(),
-            self.values_repository.clone(),
+            self.yaml_config_repository.clone(),
         )
     }
 }

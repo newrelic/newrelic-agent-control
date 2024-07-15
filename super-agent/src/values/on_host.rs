@@ -3,8 +3,8 @@ use crate::super_agent::config::AgentID;
 use crate::super_agent::defaults::{
     LOCAL_AGENT_DATA_DIR, REMOTE_AGENT_DATA_DIR, VALUES_DIR, VALUES_FILE,
 };
-use crate::values::values_repository::{ValuesRepository, ValuesRepositoryError};
 use crate::values::yaml_config::YAMLConfig;
+use crate::values::yaml_config_repository::{YAMLConfigRepository, YAMLConfigRepositoryError};
 use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
 use fs::file_reader::{FileReader, FileReaderError};
 use fs::writer_file::{FileWriter, WriteError};
@@ -22,7 +22,7 @@ pub const FILE_PERMISSIONS: u32 = 0o600;
 const DIRECTORY_PERMISSIONS: u32 = 0o700;
 
 #[derive(Error, Debug)]
-pub enum OnHostValuesRepositoryError {
+pub enum OnHostYAMLConfigRepositoryError {
     #[error("serialize error loading SubAgentConfig: `{0}`")]
     StoreSerializeError(#[from] serde_yaml::Error),
     #[error("directory manager error: `{0}`")]
@@ -36,7 +36,7 @@ pub enum OnHostValuesRepositoryError {
     Generic,
 }
 
-pub struct ValuesRepositoryFile<F, S>
+pub struct YAMLConfigRepositoryFile<F, S>
 where
     S: DirectoryManager,
     F: FileWriter + FileReader,
@@ -48,9 +48,9 @@ where
     remote_enabled: bool,
 }
 
-impl Default for ValuesRepositoryFile<LocalFile, DirectoryManagerFs> {
+impl Default for YAMLConfigRepositoryFile<LocalFile, DirectoryManagerFs> {
     fn default() -> Self {
-        ValuesRepositoryFile {
+        YAMLConfigRepositoryFile {
             directory_manager: DirectoryManagerFs {},
             file_rw: LocalFile,
             remote_conf_path: REMOTE_AGENT_DATA_DIR().to_string(),
@@ -60,7 +60,7 @@ impl Default for ValuesRepositoryFile<LocalFile, DirectoryManagerFs> {
     }
 }
 
-impl ValuesRepositoryFile<LocalFile, DirectoryManagerFs> {
+impl YAMLConfigRepositoryFile<LocalFile, DirectoryManagerFs> {
     pub fn with_remote(mut self) -> Self {
         self.remote_enabled = true;
         self
@@ -73,7 +73,7 @@ impl ValuesRepositoryFile<LocalFile, DirectoryManagerFs> {
     }
 }
 
-impl<F, S> ValuesRepositoryFile<F, S>
+impl<F, S> YAMLConfigRepositoryFile<F, S>
 where
     S: DirectoryManager,
     F: FileWriter + FileReader,
@@ -107,7 +107,7 @@ where
     fn load_file_if_present(
         &self,
         path: PathBuf,
-    ) -> Result<Option<YAMLConfig>, OnHostValuesRepositoryError> {
+    ) -> Result<Option<YAMLConfig>, OnHostYAMLConfigRepositoryError> {
         let values_result = self.file_rw.read(path.as_path());
         match values_result {
             Err(FileReaderError::FileNotFound(_)) => {
@@ -127,7 +127,7 @@ where
     fn ensure_directory_existence(
         &self,
         values_file_path: &PathBuf,
-    ) -> Result<(), OnHostValuesRepositoryError> {
+    ) -> Result<(), OnHostYAMLConfigRepositoryError> {
         let mut values_dir_path = PathBuf::from(&values_file_path);
         values_dir_path.pop();
 
@@ -140,43 +140,46 @@ where
     }
 }
 
-impl<F, S> ValuesRepository for ValuesRepositoryFile<F, S>
+impl<F, S> YAMLConfigRepository for YAMLConfigRepositoryFile<F, S>
 where
     S: DirectoryManager + Send + Sync + 'static,
     F: FileWriter + FileReader + Send + Sync + 'static,
 {
-    fn load_local(&self, agent_id: &AgentID) -> Result<Option<YAMLConfig>, ValuesRepositoryError> {
+    fn load_local(
+        &self,
+        agent_id: &AgentID,
+    ) -> Result<Option<YAMLConfig>, YAMLConfigRepositoryError> {
         let local_values_path = self.get_values_file_path(agent_id);
         self.load_file_if_present(local_values_path)
-            .map_err(|err| ValuesRepositoryError::LoadError(err.to_string()))
+            .map_err(|err| YAMLConfigRepositoryError::LoadError(err.to_string()))
     }
 
     fn load_remote(
         &self,
         agent_id: &AgentID,
         agent_type: &AgentType,
-    ) -> Result<Option<YAMLConfig>, ValuesRepositoryError> {
+    ) -> Result<Option<YAMLConfig>, YAMLConfigRepositoryError> {
         if !self.remote_enabled || !agent_type.has_remote_management() {
             return Ok(None);
         }
 
         let remote_values_path = self.get_remote_values_file_path(agent_id);
         self.load_file_if_present(remote_values_path)
-            .map_err(|err| ValuesRepositoryError::LoadError(err.to_string()))
+            .map_err(|err| YAMLConfigRepositoryError::LoadError(err.to_string()))
     }
 
     fn store_remote(
         &self,
         agent_id: &AgentID,
         yaml_config: &YAMLConfig,
-    ) -> Result<(), ValuesRepositoryError> {
+    ) -> Result<(), YAMLConfigRepositoryError> {
         let values_file_path = self.get_remote_values_file_path(agent_id);
 
         self.ensure_directory_existence(&values_file_path)
-            .map_err(|err| ValuesRepositoryError::StoreError(err.to_string()))?;
+            .map_err(|err| YAMLConfigRepositoryError::StoreError(err.to_string()))?;
 
         let content = serde_yaml::to_string(yaml_config)
-            .map_err(|err| ValuesRepositoryError::StoreError(err.to_string()))?;
+            .map_err(|err| YAMLConfigRepositoryError::StoreError(err.to_string()))?;
 
         self.file_rw
             .write(
@@ -184,12 +187,12 @@ where
                 content,
                 Permissions::from_mode(FILE_PERMISSIONS),
             )
-            .map_err(|err| ValuesRepositoryError::StoreError(err.to_string()))?;
+            .map_err(|err| YAMLConfigRepositoryError::StoreError(err.to_string()))?;
 
         Ok(())
     }
 
-    fn delete_remote(&self, agent_id: &AgentID) -> Result<(), ValuesRepositoryError> {
+    fn delete_remote(&self, agent_id: &AgentID) -> Result<(), YAMLConfigRepositoryError> {
         let values_file_path = self.get_remote_values_file_path(agent_id);
         //ensure directory exists
         let mut values_dir_path = values_file_path.clone();
@@ -198,7 +201,7 @@ where
         self.directory_manager
             .delete(values_dir_path.as_path())
             .map_err(|err| {
-                ValuesRepositoryError::DeleteError(format!(
+                YAMLConfigRepositoryError::DeleteError(format!(
                     "cannot delete path `{}`: `{}`",
                     values_dir, err
                 ))
@@ -208,11 +211,11 @@ where
 
 #[cfg(test)]
 pub mod test {
-    use super::ValuesRepositoryFile;
+    use super::YAMLConfigRepositoryFile;
     use crate::agent_type::definition::AgentType;
     use crate::super_agent::config::AgentID;
-    use crate::values::values_repository::{ValuesRepository, ValuesRepositoryError};
     use crate::values::yaml_config::YAMLConfig;
+    use crate::values::yaml_config_repository::{YAMLConfigRepository, YAMLConfigRepositoryError};
     use assert_matches::assert_matches;
     use fs::directory_manager::mock::MockDirectoryManagerMock;
     use fs::directory_manager::DirectoryManagementError::{
@@ -232,7 +235,7 @@ pub mod test {
     #[cfg(target_family = "unix")]
     use std::os::unix::fs::PermissionsExt;
 
-    impl<F, S> ValuesRepositoryFile<F, S>
+    impl<F, S> YAMLConfigRepositoryFile<F, S>
     where
         S: DirectoryManager,
         F: FileWriter + FileReader,
@@ -244,7 +247,7 @@ pub mod test {
             remote_conf_path: &Path,
             remote_enabled: bool,
         ) -> Self {
-            ValuesRepositoryFile {
+            YAMLConfigRepositoryFile {
                 file_rw,
                 directory_manager,
                 remote_conf_path: remote_conf_path.to_str().unwrap().to_string(),
@@ -297,7 +300,7 @@ deployment:
             yaml_config_content.to_string(),
         );
 
-        let repo = ValuesRepositoryFile::with_mocks(
+        let repo = YAMLConfigRepositoryFile::with_mocks(
             file_rw,
             dir_manager,
             local_conf_path,
@@ -334,7 +337,7 @@ deployment:
             yaml_config_content.to_string(),
         );
 
-        let repo = ValuesRepositoryFile::with_mocks(
+        let repo = YAMLConfigRepositoryFile::with_mocks(
             file_rw,
             dir_manager,
             local_conf_path,
@@ -376,7 +379,7 @@ deployment:
             yaml_config_content.to_string(),
         );
 
-        let repo = ValuesRepositoryFile::with_mocks(
+        let repo = YAMLConfigRepositoryFile::with_mocks(
             file_rw,
             dir_manager,
             local_conf_path,
@@ -411,7 +414,7 @@ deployment:
             "some message".to_string(),
         );
 
-        let repo = ValuesRepositoryFile::with_mocks(
+        let repo = YAMLConfigRepositoryFile::with_mocks(
             file_rw,
             dir_manager,
             local_conf_path,
@@ -441,7 +444,7 @@ deployment:
             "some/remote/path/some-agent-id/values/values.yaml",
         ));
 
-        let repo = ValuesRepositoryFile::with_mocks(
+        let repo = YAMLConfigRepositoryFile::with_mocks(
             file_rw,
             dir_manager,
             local_conf_path,
@@ -451,7 +454,7 @@ deployment:
 
         let result = repo.load(&agent_id, &final_agent);
         let err = result.unwrap_err();
-        assert_matches!(err, ValuesRepositoryError::LoadError(s) => {
+        assert_matches!(err, YAMLConfigRepositoryError::LoadError(s) => {
             assert!(s.contains("file read error"));
         });
     }
@@ -473,7 +476,7 @@ deployment:
             "some/local/path/some-agent-id/values/values.yaml",
         ));
 
-        let repo = ValuesRepositoryFile::with_mocks(
+        let repo = YAMLConfigRepositoryFile::with_mocks(
             file_rw,
             dir_manager,
             local_conf_path,
@@ -483,7 +486,7 @@ deployment:
 
         let result = repo.load(&agent_id, &final_agent);
         let err = result.unwrap_err();
-        assert_matches!(err, ValuesRepositoryError::LoadError(s) => {
+        assert_matches!(err, YAMLConfigRepositoryError::LoadError(s) => {
             assert!(s.contains("error reading contents"));
         });
     }
@@ -512,7 +515,7 @@ deployment:
             Permissions::from_mode(0o600),
         );
 
-        let repo = ValuesRepositoryFile::with_mocks(
+        let repo = YAMLConfigRepositoryFile::with_mocks(
             file_rw,
             dir_manager,
             local_conf_path,
@@ -540,7 +543,7 @@ deployment:
             ErrorDeletingDirectory("oh now...".to_string()),
         );
 
-        let repo = ValuesRepositoryFile::with_mocks(
+        let repo = YAMLConfigRepositoryFile::with_mocks(
             file_rw,
             dir_manager,
             local_conf_path,
@@ -550,7 +553,7 @@ deployment:
 
         let result = repo.store_remote(&agent_id, &yaml_config);
         let err = result.unwrap_err();
-        assert_matches!(err, ValuesRepositoryError::StoreError(s) => {
+        assert_matches!(err, YAMLConfigRepositoryError::StoreError(s) => {
             assert!(s.contains("cannot delete directory"));
         });
     }
@@ -574,7 +577,7 @@ deployment:
             ErrorCreatingDirectory("dir name".to_string(), "oh now...".to_string()),
         );
 
-        let repo = ValuesRepositoryFile::with_mocks(
+        let repo = YAMLConfigRepositoryFile::with_mocks(
             file_rw,
             dir_manager,
             local_conf_path,
@@ -584,7 +587,7 @@ deployment:
 
         let result = repo.store_remote(&agent_id, &yaml_config);
         let err = result.unwrap_err();
-        assert_matches!(err, ValuesRepositoryError::StoreError(s) => {
+        assert_matches!(err, YAMLConfigRepositoryError::StoreError(s) => {
             assert!(s.contains("cannot create directory"));
         });
     }
@@ -613,7 +616,7 @@ deployment:
             Permissions::from_mode(0o600),
         );
 
-        let repo = ValuesRepositoryFile::with_mocks(
+        let repo = YAMLConfigRepositoryFile::with_mocks(
             file_rw,
             dir_manager,
             local_conf_path,
@@ -625,7 +628,7 @@ deployment:
 
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert_matches!(err, ValuesRepositoryError::StoreError(s) => {
+        assert_matches!(err, YAMLConfigRepositoryError::StoreError(s) => {
             assert!(s.contains("error creating file"));
         });
     }
@@ -643,7 +646,7 @@ deployment:
 
         dir_manager.should_delete(Path::new("some/remote/path/some-agent-id/values"));
 
-        let repo = ValuesRepositoryFile::with_mocks(
+        let repo = YAMLConfigRepositoryFile::with_mocks(
             file_rw,
             dir_manager,
             local_conf_path,

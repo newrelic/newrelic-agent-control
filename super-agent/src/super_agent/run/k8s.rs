@@ -27,7 +27,7 @@ use crate::{
     k8s::{garbage_collector::NotStartedK8sGarbageCollector, store::K8sStore},
     sub_agent::k8s::builder::K8sSubAgentBuilder,
     super_agent::config_storer::SubAgentsConfigStoreConfigMap,
-    values::k8s::ValuesRepositoryConfigMap,
+    values::k8s::YAMLConfigRepositoryConfigMap,
 };
 use opamp_client::operation::settings::DescriptionValueType;
 use resource_detection::system::hostname::HostnameGetter;
@@ -72,11 +72,11 @@ pub fn run_super_agent<C: HttpClientBuilder>(
     let instance_id_getter =
         InstanceIDWithIdentifiersGetter::new_k8s_instance_id_getter(k8s_store.clone(), identifiers);
 
-    let mut vr = ValuesRepositoryConfigMap::new(k8s_store.clone());
+    let mut vr = YAMLConfigRepositoryConfigMap::new(k8s_store.clone());
     if opamp_http_builder.is_some() {
         vr = vr.with_remote();
     }
-    let values_repository = Arc::new(vr);
+    let yaml_config_repository = Arc::new(vr);
 
     let sub_agents_config_storer =
         SubAgentsConfigStoreConfigMap::new(k8s_store.clone(), config.dynamic);
@@ -90,7 +90,7 @@ pub fn run_super_agent<C: HttpClientBuilder>(
     let opamp_client_builder = opamp_http_builder.map(|http_builder| {
         DefaultOpAMPClientBuilder::new(
             http_builder,
-            DefaultEffectiveConfigLoaderBuilder::new(values_repository.clone()),
+            DefaultEffectiveConfigLoaderBuilder::new(yaml_config_repository.clone()),
         )
     });
 
@@ -99,14 +99,14 @@ pub fn run_super_agent<C: HttpClientBuilder>(
     ));
 
     let agents_assembler = LocalEffectiveAgentsAssembler::new(
-        values_repository.clone(),
+        yaml_config_repository.clone(),
         agent_type_registry,
         template_renderer,
     );
 
     let hash_repository = Arc::new(HashRepositoryConfigMap::new(k8s_store.clone()));
     let sub_agent_event_processor_builder =
-        EventProcessorBuilder::new(hash_repository.clone(), values_repository.clone());
+        EventProcessorBuilder::new(hash_repository.clone(), yaml_config_repository.clone());
 
     info!("Creating the k8s sub_agent builder");
     let sub_agent_builder = K8sSubAgentBuilder::new(
