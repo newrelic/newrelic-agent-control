@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use std::str::FromStr;
 use thiserror::Error;
 use tracing::debug;
+use tracing::level_filters::LevelFilter;
 use tracing::Level;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::filter::Directive;
@@ -94,15 +95,11 @@ impl LoggingConfig {
     }
 
     fn logging_filter(&self) -> EnvFilter {
-        EnvFilter::builder()
-            .with_default_directive(
-                self.insecure_logging_filter()
-                    .unwrap_or_else(|| self.crate_logging_filter()),
-            )
-            .parse_lossy("")
+        self.insecure_logging_filter()
+            .unwrap_or_else(|| self.crate_logging_filter())
     }
 
-    fn insecure_logging_filter(&self) -> Option<Directive> {
+    fn insecure_logging_filter(&self) -> Option<EnvFilter> {
         self.insecure_fine_grained_level.clone().map(|s| {
             let directive = s.parse::<Directive>();
 
@@ -114,11 +111,13 @@ impl LoggingConfig {
                 s,
             );
 
-            directive.unwrap()
+            EnvFilter::builder()
+                .with_default_directive(directive.unwrap())
+                .parse_lossy("")
         })
     }
 
-    fn crate_logging_filter(&self) -> Directive {
+    fn crate_logging_filter(&self) -> EnvFilter {
         let level_config = self.level.as_level().to_string().to_lowercase();
 
         let directive = format!("newrelic_super_agent={}", level_config).parse::<Directive>();
@@ -131,7 +130,10 @@ impl LoggingConfig {
             level_config,
         );
 
-        directive.unwrap()
+        EnvFilter::builder()
+            .with_default_directive(LevelFilter::OFF.into())
+            .parse_lossy("")
+            .add_directive(directive.unwrap())
     }
 }
 
@@ -159,5 +161,110 @@ impl<'de> Deserialize<'de> for LogLevel {
         Level::from_str(&value_str)
             .map(LogLevel)
             .map_err(serde::de::Error::custom)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn working_logging_configurations() {
+        struct TestCase {
+            name: &'static str,
+            config: LoggingConfig,
+            expected: &'static str,
+        }
+
+        impl TestCase {
+            fn run(self) {
+                let env_filter = self.config.logging_filter();
+                assert_eq!(
+                    env_filter.to_string(),
+                    self.expected.to_string(),
+                    "{}",
+                    self.name
+                );
+            }
+        }
+
+        let test_cases = vec![
+            TestCase {
+                name: "everything default",
+                config: Default::default(),
+                expected: "newrelic_super_agent=info,off",
+            },
+            TestCase {
+                name: "insecure fine grained overrides any logging",
+                config: LoggingConfig {
+                    insecure_fine_grained_level: Some("info".into()),
+                    level: LogLevel(Level::INFO),
+                    ..Default::default()
+                },
+                expected: "info",
+            },
+            TestCase {
+                name: "parses log level from int",
+                config: LoggingConfig {
+                    insecure_fine_grained_level: Some("newrelic_super_agent=1".into()),
+                    ..Default::default()
+                },
+                expected: "newrelic_super_agent=error",
+            },
+        ];
+
+        test_cases.into_iter().for_each(|tc| tc.run());
+    }
+
+    #[test]
+    fn panicking_logging_configurations() {
+        struct TestCase {
+            name: &'static str,
+            config: LoggingConfig,
+        }
+
+        impl TestCase {
+            fn run(self) {
+                // Remove the backtrace to panics to keep test logs cleaner.
+                std::panic::set_hook(Box::new(|_| {}));
+
+                // Run test
+                let _ =
+                    std::panic::catch_unwind(|| self.config.logging_filter()).inspect(|result| {
+                        // Test is failing. Restoring default panic hook to have a backtrace.
+                        let _ = std::panic::take_hook();
+                        panic!(
+                            "test {} should panic and if didn't. It returned {:?}",
+                            self.name, result
+                        )
+                    });
+            }
+        }
+
+        let test_cases = vec![
+            TestCase {
+                name: "empty insecure fine grained",
+                config: LoggingConfig {
+                    insecure_fine_grained_level: Some("".into()),
+                    ..Default::default()
+                },
+            },
+            TestCase {
+                name: "invalid insecure fine grained (level as string)",
+                config: LoggingConfig {
+                    insecure_fine_grained_level: Some("newrelic_super_agent=lolwut".into()),
+                    ..Default::default()
+                },
+            },
+            TestCase {
+                name: "invalid insecure fine grained (level as integer)",
+                config: LoggingConfig {
+                    insecure_fine_grained_level: Some("newrelic_super_agent=11".into()),
+                    ..Default::default()
+                },
+            },
+        ];
+
+        test_cases.into_iter().for_each(|tc| tc.run());
     }
 }
