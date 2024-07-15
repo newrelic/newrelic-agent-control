@@ -21,6 +21,8 @@ pub enum LoggingError {
     TryInitError(String),
     #[error("invalid logging file path: `{0}`")]
     InvalidFilePath(String),
+    #[error("logging file path not defined")]
+    LogFilePathNotDefined,
 }
 
 /// Defines the logging configuration for an application.
@@ -51,7 +53,7 @@ impl LoggingConfig {
         // hence we repeat the logic here.
         let (file_layer, guard) =
             self.file
-                .setup()
+                .setup()?
                 .map_or(Default::default(), |(file_writer, guard)| {
                     let file_layer = tracing_subscriber::fmt::layer()
                         .with_writer(file_writer)

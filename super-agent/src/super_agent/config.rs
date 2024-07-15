@@ -597,7 +597,7 @@ agents: {}
             config.unwrap().log.file,
             FileLoggingConfig {
                 enable: true,
-                path: LogFilePath::try_from(PathBuf::from("/some/path")).unwrap(),
+                path: Some(LogFilePath::try_from(PathBuf::from("/some/path")).unwrap()),
             }
         );
     }

@@ -14,7 +14,7 @@ use crate::{
         config::SuperAgentConfigError,
         config_patcher::ConfigPatcher,
         config_storer::{loader_storer::SuperAgentConfigLoader, store::SuperAgentConfigStore},
-        defaults::{SUPER_AGENT_DATA_DIR, SUPER_AGENT_LOCAL_DATA_DIR},
+        defaults::{SUPER_AGENT_DATA_DIR, SUPER_AGENT_LOCAL_DATA_DIR, SUPER_AGENT_LOG_DIR},
         run::SuperAgentRunConfig,
     },
     utils::binary_metadata::binary_metadata,
@@ -112,7 +112,8 @@ impl Cli {
             )
         })?;
 
-        let config_patcher = ConfigPatcher::new(SUPER_AGENT_LOCAL_DATA_DIR());
+        let config_patcher =
+            ConfigPatcher::new(SUPER_AGENT_LOCAL_DATA_DIR(), SUPER_AGENT_LOG_DIR());
         config_patcher.patch(&mut super_agent_config);
 
         let file_logger_guard = super_agent_config.log.try_init()?;
