@@ -3,9 +3,9 @@ use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
 use crate::opamp::effective_config::loader::EffectiveConfigLoader;
 use crate::opamp::hash_repository::HashRepository;
 use crate::sub_agent::event_processor::{EventProcessor, SubAgentEventProcessor};
-use crate::sub_agent::values::values_repository::ValuesRepository;
 use crate::sub_agent::SubAgentCallbacks;
 use crate::super_agent::config::AgentID;
+use crate::values::values_repository::ValuesRepository;
 use opamp_client::StartedClient;
 use std::sync::Arc;
 

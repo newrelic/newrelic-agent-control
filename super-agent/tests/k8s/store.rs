@@ -25,11 +25,11 @@ use newrelic_super_agent::{
     agent_type::agent_metadata::AgentMetadata, opamp::hash_repository::HashRepository,
 };
 use newrelic_super_agent::{
-    agent_type::agent_values::AgentValues, sub_agent::values::k8s::ValuesRepositoryConfigMap,
+    agent_type::agent_values::AgentValues, values::k8s::ValuesRepositoryConfigMap,
 };
 use newrelic_super_agent::{
     agent_type::definition::{AgentType, VariableTree},
-    sub_agent::values::values_repository::ValuesRepository,
+    values::values_repository::ValuesRepository,
 };
 use semver::Version;
 use serde_yaml::from_str;

@@ -10,7 +10,7 @@ use crate::opamp::remote_config::RemoteConfigError;
 use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssemblerError;
 use crate::sub_agent::error::{SubAgentBuilderError, SubAgentCollectionError, SubAgentError};
 use crate::sub_agent::persister::config_persister::PersistError;
-use crate::sub_agent::values::values_repository::ValuesRepositoryError;
+use crate::values::values_repository::ValuesRepositoryError;
 use fs::file_reader::FileReaderError;
 use opamp_client::{ClientError, NotStartedClientError, StartedClientError};
 use std::fmt::Debug;

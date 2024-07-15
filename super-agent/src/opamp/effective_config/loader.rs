@@ -1,8 +1,8 @@
 use super::error::LoaderError;
 use super::sub_agent::SubAgentEffectiveConfigLoader;
 use crate::opamp::remote_config::ConfigurationMap;
-use crate::sub_agent::values::values_repository::ValuesRepository;
 use crate::super_agent::config::AgentID;
+use crate::values::values_repository::ValuesRepository;
 use std::sync::Arc;
 
 /// Trait for effective configuration loaders.
@@ -90,7 +90,7 @@ impl EffectiveConfigLoader for NoOpEffectiveConfigLoader {
 pub mod tests {
     use mockall::mock;
 
-    use crate::sub_agent::values::values_repository::test::MockRemoteValuesRepositoryMock;
+    use crate::values::values_repository::test::MockRemoteValuesRepositoryMock;
 
     use super::*;
 
