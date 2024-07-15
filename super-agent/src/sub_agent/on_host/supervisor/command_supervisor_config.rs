@@ -3,6 +3,7 @@ use crate::context::Context;
 use crate::sub_agent::on_host::supervisor::restart_policy::RestartPolicy;
 use crate::super_agent::config::AgentID;
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
 pub struct SupervisorConfigOnHost {
@@ -13,6 +14,7 @@ pub struct SupervisorConfigOnHost {
     pub(super) env: HashMap<String, String>,
     pub(super) restart_policy: RestartPolicy,
     pub(super) log_to_file: bool,
+    pub(super) logging_path: PathBuf,
     pub(super) health: Option<OnHostHealthConfig>,
 }
 
@@ -32,13 +34,15 @@ impl SupervisorConfigOnHost {
             env,
             restart_policy,
             log_to_file: false,
+            logging_path: PathBuf::default(),
             health: None,
         }
     }
 
-    pub fn with_file_logging(self, log_to_file: bool) -> Self {
+    pub fn with_file_logging(self, log_to_file: bool, logging_path: PathBuf) -> Self {
         Self {
             log_to_file,
+            logging_path,
             ..self
         }
     }

@@ -5,6 +5,8 @@ use newrelic_super_agent::sub_agent::on_host::command::command::{
 };
 use newrelic_super_agent::sub_agent::on_host::command::command_os::{CommandOS, NotStarted};
 use newrelic_super_agent::sub_agent::on_host::command::shutdown::ProcessTerminator;
+use std::collections::HashMap;
+use std::path::PathBuf;
 
 // non blocking supervisor
 struct NonSupervisor<C = CommandOS<NotStarted>>
@@ -17,8 +19,6 @@ where
 #[cfg(unix)]
 #[test]
 fn non_blocking_runner() {
-    use std::collections::HashMap;
-
     let agent_id = "sleep-test".to_string().try_into().unwrap();
     let mut sleep_cmd = Command::new("sleep");
     sleep_cmd.arg("5");
@@ -30,6 +30,7 @@ fn non_blocking_runner() {
             ["5"],
             HashMap::from([("TEST", "TEST")]),
             false,
+            PathBuf::default(),
         ),
     };
 

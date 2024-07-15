@@ -35,6 +35,7 @@ use nix::unistd::gethostname;
 use resource_detection::Detector;
 use std::collections::HashMap;
 use std::marker::PhantomData;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 pub struct OnHostSubAgentBuilder<'a, O, I, HR, A, E, G>
@@ -52,6 +53,7 @@ where
     effective_agent_assembler: &'a A,
     event_processor_builder: &'a E,
     identifiers_provider: IdentifiersProvider,
+    logging_path: PathBuf,
 
     // This is needed to ensure the generic type parameter G is used in the struct.
     // Else Rust will reject this, complaining that the type parameter is not used.
@@ -74,6 +76,7 @@ where
         effective_agent_assembler: &'a A,
         event_processor_builder: &'a E,
         identifiers_provider: IdentifiersProvider,
+        logging_path: PathBuf,
     ) -> Self {
         Self {
             opamp_builder,
@@ -82,6 +85,7 @@ where
             effective_agent_assembler,
             event_processor_builder,
             identifiers_provider,
+            logging_path,
 
             _effective_config_loader: PhantomData,
         }
@@ -136,7 +140,13 @@ where
             &self.hash_repository,
             &maybe_opamp_client,
             effective_agent_res,
-            |effective_agent| build_supervisors(&self.identifiers_provider, effective_agent),
+            |effective_agent| {
+                build_supervisors(
+                    &self.identifiers_provider,
+                    effective_agent,
+                    &self.logging_path,
+                )
+            },
         )?;
 
         let event_processor = self.event_processor_builder.build(
@@ -160,6 +170,7 @@ where
 fn build_supervisors(
     identifiers_provider: &IdentifiersProvider,
     effective_agent: EffectiveAgent,
+    logging_path: &Path,
 ) -> Result<Vec<SupervisorOnHost<command_supervisor::NotStarted>>, SubAgentBuilderError> {
     let agent_id = effective_agent.get_agent_id();
     let on_host = effective_agent
@@ -188,7 +199,7 @@ fn build_supervisors(
             Context::new(),
             restart_policy,
         )
-        .with_file_logging(enable_file_logging);
+        .with_file_logging(enable_file_logging, logging_path.to_path_buf());
 
         if let Some(health) = exec.health {
             config = config.with_health_check(health);
@@ -316,6 +327,7 @@ mod test {
             &effective_agent_assembler,
             &sub_agent_event_processor_builder,
             IdentifiersProvider::default(),
+            PathBuf::default(),
         );
 
         assert!(on_host_builder
@@ -396,6 +408,7 @@ mod test {
             &effective_agent_assembler,
             &sub_agent_event_processor_builder,
             IdentifiersProvider::default(),
+            PathBuf::default(),
         );
 
         assert!(on_host_builder

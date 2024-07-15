@@ -1,5 +1,6 @@
 use std::{
     ffi::OsStr,
+    path::PathBuf,
     process::{Child, Command, ExitStatus, Stdio},
 };
 
@@ -23,6 +24,7 @@ use super::{
 pub struct NotStarted {
     cmd: Command,
     logs_to_file: bool,
+    logging_path: PathBuf,
 }
 pub struct Started {
     process: Child,
@@ -51,6 +53,7 @@ impl CommandOS<NotStarted> {
         args: I,
         envs: E,
         logs_to_file: bool,
+        logging_path: PathBuf,
     ) -> Self
     where
         I: IntoIterator<Item = S>,
@@ -66,7 +69,11 @@ impl CommandOS<NotStarted> {
 
         Self {
             agent_id,
-            state: NotStarted { cmd, logs_to_file },
+            state: NotStarted {
+                cmd,
+                logs_to_file,
+                logging_path,
+            },
         }
     }
 }
@@ -77,8 +84,12 @@ impl NotStartedCommand for CommandOS<NotStarted> {
         let agent_id = self.agent_id;
         let loggers = self.state.logs_to_file.then(|| {
             FileSystemLoggers::new(
-                file_logger(&agent_id, STDOUT_LOG_PREFIX()),
-                file_logger(&agent_id, STDERR_LOG_PREFIX()),
+                file_logger(
+                    &agent_id,
+                    self.state.logging_path.clone(),
+                    STDOUT_LOG_PREFIX(),
+                ),
+                file_logger(&agent_id, self.state.logging_path, STDERR_LOG_PREFIX()),
             )
         });
         Ok(CommandOS {
@@ -141,8 +152,8 @@ impl StartedCommand for CommandOS<Started> {
 }
 
 /// Creates a new file logger for this agent id and file prefix
-fn file_logger(agent_id: &AgentID, prefix: &str) -> FileLogger {
-    FileAppender::new(agent_id, prefix).into()
+fn file_logger(agent_id: &AgentID, path: PathBuf, prefix: &str) -> FileLogger {
+    FileAppender::new(agent_id, path, prefix).into()
 }
 
 ////////////////////////////////////////////////////////////////////////////////////

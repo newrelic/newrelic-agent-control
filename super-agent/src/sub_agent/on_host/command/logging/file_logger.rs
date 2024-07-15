@@ -1,4 +1,7 @@
-use std::{io::Write, path::Path};
+use std::{
+    io::Write,
+    path::{Path, PathBuf},
+};
 use tracing::{level_filters::LevelFilter, subscriber::DefaultGuard};
 use tracing_appender::{
     non_blocking::{NonBlocking, WorkerGuard},
@@ -9,7 +12,7 @@ use tracing_subscriber::{
     FmtSubscriber,
 };
 
-use crate::super_agent::{config::AgentID, defaults::SUB_AGENT_LOG_DIR};
+use crate::super_agent::config::AgentID;
 
 pub(crate) struct FileSystemLoggers {
     out: FileLogger,
@@ -31,19 +34,8 @@ where
     W: Write + Send + 'static;
 
 impl FileAppender<RollingFileAppender> {
-    pub fn new(agent_id: &AgentID, file_prefix: impl AsRef<Path>) -> Self {
-        let logging_path = Path::new(SUB_AGENT_LOG_DIR()).join(agent_id);
-        let file_appender = tracing_appender::rolling::hourly(logging_path, file_prefix);
-        Self(file_appender)
-    }
-
-    pub fn new_with_fixed_file(
-        agent_id: &AgentID,
-        dir_path: impl AsRef<Path>,
-        file_prefix: impl AsRef<Path>,
-    ) -> Self {
-        let logging_path = dir_path.as_ref().join(agent_id);
-        let file_appender = tracing_appender::rolling::never(logging_path, file_prefix);
+    pub fn new(agent_id: &AgentID, path: PathBuf, file_prefix: impl AsRef<Path>) -> Self {
+        let file_appender = tracing_appender::rolling::hourly(path.join(agent_id), file_prefix);
         Self(file_appender)
     }
 }
