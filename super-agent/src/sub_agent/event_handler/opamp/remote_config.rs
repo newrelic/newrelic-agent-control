@@ -1,4 +1,3 @@
-use crate::agent_type::agent_values::AgentValues;
 use crate::event::SubAgentEvent;
 use crate::opamp::effective_config::loader::EffectiveConfigLoader;
 use crate::opamp::remote_config::RemoteConfigError;
@@ -6,6 +5,7 @@ use crate::opamp::remote_config_report::report_remote_config_status_applying;
 use crate::sub_agent::error::SubAgentError;
 use crate::sub_agent::event_processor::EventProcessor;
 use crate::sub_agent::SubAgentCallbacks;
+use crate::values::yaml_config::YAMLConfig;
 use crate::{
     opamp::{
         hash_repository::HashRepository, remote_config::RemoteConfig,
@@ -82,16 +82,14 @@ where
 
     fn process_remote_config(
         remote_config: &RemoteConfig,
-    ) -> Result<Option<AgentValues>, SubAgentError> {
+    ) -> Result<Option<YAMLConfig>, SubAgentError> {
         let remote_config_value = remote_config.get_unique()?;
 
         if remote_config_value.is_empty() {
             return Ok(None);
         }
 
-        Ok(Some(AgentValues::try_from(
-            remote_config_value.to_string(),
-        )?))
+        Ok(Some(YAMLConfig::try_from(remote_config_value.to_string())?))
     }
 }
 
@@ -101,7 +99,6 @@ where
 #[cfg(test)]
 mod tests {
     use super::ERROR_REMOTE_CONFIG;
-    use crate::agent_type::agent_values::{AgentValues, AgentValuesError};
     use crate::event::channel::EventConsumer;
     use crate::event::SubAgentEvent::{self, ConfigUpdated};
     use crate::opamp::callbacks::AgentCallbacks;
@@ -112,6 +109,7 @@ mod tests {
     use crate::sub_agent::event_processor::EventProcessor;
     use crate::super_agent::config::AgentID;
     use crate::values::values_repository::ValuesRepositoryError;
+    use crate::values::yaml_config::{YAMLConfig, YAMLConfigError};
     use crate::{
         event::channel::pub_sub,
         opamp::{
@@ -144,7 +142,7 @@ mod tests {
                 mocks.hash_repository.should_save_hash(&agent_id, &hash);
                 mocks.values_repository.should_store_remote(
                     &agent_id,
-                    &AgentValues::new(HashMap::from([("some_item".into(), "some_value".into())])),
+                    &YAMLConfig::new(HashMap::from([("some_item".into(), "some_value".into())])),
                 );
 
                 // Applying status should be reported
@@ -205,7 +203,7 @@ mod tests {
 
         let remote_config = RemoteConfig::new(agent_id.clone(), hash.clone(), Some(config_map));
 
-        let expected_error = SubAgentError::ValuesUnserializeError(AgentValuesError::FormatError(
+        let expected_error = SubAgentError::ValuesUnserializeError(YAMLConfigError::FormatError(
             serde_yaml::Error::custom(
                 "invalid type: string \"this is not valid yaml\", expected a map",
             ),
@@ -374,7 +372,7 @@ mod tests {
                 .once()
                 .with(
                     predicate::eq(agent_id.clone()),
-                    predicate::eq(AgentValues::new(HashMap::from([(
+                    predicate::eq(YAMLConfig::new(HashMap::from([(
                         "some_item".into(),
                         "some_value".into(),
                     )]))),

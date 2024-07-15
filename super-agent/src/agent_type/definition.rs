@@ -3,10 +3,6 @@
 //!
 //! See [`Agent::template_with`] for a flowchart of the dataflow that ends in the final, enriched structure.
 
-use serde::{Deserialize, Deserializer};
-use std::{collections::HashMap, str::FromStr};
-
-use super::agent_values::AgentValues;
 use super::{
     agent_metadata::AgentMetadata,
     error::AgentTypeError,
@@ -17,8 +13,11 @@ use super::{
 };
 use crate::super_agent::config::AgentTypeFQN;
 use crate::super_agent::defaults::default_capabilities;
+use crate::values::yaml_config::YAMLConfig;
 use opamp_client::opamp::proto::AgentCapabilities;
 use opamp_client::operation::capabilities::Capabilities;
+use serde::{Deserialize, Deserializer};
+use std::{collections::HashMap, str::FromStr};
 
 /// AgentTypeDefinition represents the definition of an [AgentType]. It defines the variables and runtime for any supported
 /// environment.
@@ -241,7 +240,7 @@ impl AgentType {
     }
 }
 
-/// Flexible tree-like structure that contains variables definitions, that can later be changed by the end user via [`AgentValues`].
+/// Flexible tree-like structure that contains variables definitions, that can later be changed by the end user via [`YAMLConfig`].
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 pub struct VariableTree(pub(crate) HashMap<String, VariableDefinitionTree>);
 
@@ -254,7 +253,7 @@ impl VariableTree {
     }
 
     /// Returns a new [VariableTree] with the provided values assigned.
-    pub fn fill_with_values(self, values: AgentValues) -> Result<Self, AgentTypeError> {
+    pub fn fill_with_values(self, values: YAMLConfig) -> Result<Self, AgentTypeError> {
         let mut vars = self.0.clone();
         update_specs(values.into(), &mut vars)?;
         Ok(Self(vars))
@@ -427,7 +426,7 @@ pub mod tests {
         ///
         /// It will panic if the yaml values are not valid or there is any error filling the variables in.
         pub fn fill_variables(&self, yaml_values: &str) -> HashMap<String, VariableDefinition> {
-            let values = serde_yaml::from_str::<AgentValues>(yaml_values).unwrap();
+            let values = serde_yaml::from_str::<YAMLConfig>(yaml_values).unwrap();
             self.variables
                 .clone()
                 .fill_with_values(values)
@@ -1070,7 +1069,7 @@ restart_policy:
     fn test_variables_with_variants() {
         let agent_type =
             AgentType::build_for_testing(AGENT_TYPE_WITH_VARIANTS, &Environment::OnHost);
-        let values: AgentValues =
+        let values: YAMLConfig =
             serde_yaml::from_str(VALUES_VALID_VARIANT).expect("Failed to parse user config");
 
         // Valid variant
@@ -1088,7 +1087,7 @@ restart_policy:
         );
 
         // Invalid variant
-        let invalid_values: AgentValues =
+        let invalid_values: YAMLConfig =
             serde_yaml::from_str(VALUES_INVALID_VARIANT).expect("Failed to parse user config");
         let filled_variables_result = agent_type
             .variables
@@ -1104,7 +1103,7 @@ restart_policy:
         let filled_variables_default = agent_type
             .variables
             .clone()
-            .fill_with_values(AgentValues::default())
+            .fill_with_values(YAMLConfig::default())
             .unwrap()
             .flatten();
         let var = filled_variables_default.get("restart_policy.type").unwrap();

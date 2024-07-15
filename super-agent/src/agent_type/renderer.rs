@@ -1,19 +1,17 @@
-use std::{collections::HashMap, path::PathBuf};
-
-use crate::{
-    sub_agent::persister::config_persister::ConfigurationPersister,
-    super_agent::{config::AgentID, defaults::GENERATED_FOLDER_NAME},
-};
-
 use super::{
     agent_attributes::AgentAttributes,
-    agent_values::AgentValues,
     definition::AgentType,
     error::AgentTypeError,
     runtime_config::Runtime,
     runtime_config_templates::Templateable,
     variable::{definition::VariableDefinition, namespace::Namespace},
 };
+use crate::values::yaml_config::YAMLConfig;
+use crate::{
+    sub_agent::persister::config_persister::ConfigurationPersister,
+    super_agent::{config::AgentID, defaults::GENERATED_FOLDER_NAME},
+};
+use std::{collections::HashMap, path::PathBuf};
 
 /// Defines how to render an AgentType and obtain the runtime configuration needed to execute a sub agent.
 pub trait Renderer {
@@ -22,7 +20,7 @@ pub trait Renderer {
         &self,
         agent_id: &AgentID,
         agent_type: AgentType,
-        values: AgentValues,
+        values: YAMLConfig,
         attributes: AgentAttributes,
     ) -> Result<Runtime, AgentTypeError>;
 }
@@ -37,7 +35,7 @@ impl<C: ConfigurationPersister> Renderer for TemplateRenderer<C> {
         &self,
         agent_id: &AgentID,
         agent_type: AgentType,
-        values: AgentValues,
+        values: YAMLConfig,
         attributes: AgentAttributes,
     ) -> Result<Runtime, AgentTypeError> {
         // Get empty variables and runtime_config from the agent-type
@@ -178,7 +176,7 @@ pub(crate) mod tests {
                 &self,
                 agent_id: &AgentID,
                 agent_type: AgentType,
-                values: AgentValues,
+                values: YAMLConfig,
                 attributes: AgentAttributes,
             ) -> Result<Runtime, AgentTypeError>;
          }
@@ -189,7 +187,7 @@ pub(crate) mod tests {
             &mut self,
             agent_id: &AgentID,
             agent_type: &AgentType,
-            values: &AgentValues,
+            values: &YAMLConfig,
             attributes: &AgentAttributes,
             runtime: Runtime,
         ) {
@@ -206,7 +204,7 @@ pub(crate) mod tests {
         }
     }
 
-    fn testing_values(yaml_values: &str) -> AgentValues {
+    fn testing_values(yaml_values: &str) -> YAMLConfig {
         serde_yaml::from_str(yaml_values).unwrap()
     }
 
@@ -246,7 +244,7 @@ pub(crate) mod tests {
     fn test_render_with_empty_but_required_values() {
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let agent_type = AgentType::build_for_testing(SIMPLE_AGENT_TYPE, &Environment::OnHost);
-        let values = AgentValues::default();
+        let values = YAMLConfig::default();
         let attributes = testing_agent_attributes(&agent_id);
 
         let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default();
@@ -459,7 +457,7 @@ pub(crate) mod tests {
         ];
 
         for yaml in wrong_backoff_yamls.into_iter() {
-            let values = serde_yaml::from_str::<AgentValues>(yaml).unwrap();
+            let values = serde_yaml::from_str::<YAMLConfig>(yaml).unwrap();
             assert!(agent_type
                 .variables
                 .clone()

@@ -1,6 +1,6 @@
-use crate::agent_type::agent_values::AgentValues;
 use crate::agent_type::definition::AgentType;
 use crate::super_agent::config::AgentID;
+use crate::values::yaml_config::YAMLConfig;
 use tracing::debug;
 
 #[derive(thiserror::Error, Debug)]
@@ -20,7 +20,7 @@ pub trait ValuesRepository: Send + Sync + 'static {
         &self,
         agent_id: &AgentID,
         agent_type: &AgentType,
-    ) -> Result<AgentValues, ValuesRepositoryError> {
+    ) -> Result<YAMLConfig, ValuesRepositoryError> {
         debug!(agent_id = agent_id.to_string(), "loading config");
 
         if let Some(values_result) = self.load_remote(agent_id, agent_type)? {
@@ -38,21 +38,21 @@ pub trait ValuesRepository: Send + Sync + 'static {
             agent_id = agent_id.to_string(),
             "local config not found, falling back to defaults"
         );
-        Ok(AgentValues::default())
+        Ok(YAMLConfig::default())
     }
 
-    fn load_local(&self, agent_id: &AgentID) -> Result<Option<AgentValues>, ValuesRepositoryError>;
+    fn load_local(&self, agent_id: &AgentID) -> Result<Option<YAMLConfig>, ValuesRepositoryError>;
 
     fn load_remote(
         &self,
         agent_id: &AgentID,
         agent_type: &AgentType,
-    ) -> Result<Option<AgentValues>, ValuesRepositoryError>;
+    ) -> Result<Option<YAMLConfig>, ValuesRepositoryError>;
 
     fn store_remote(
         &self,
         agent_id: &AgentID,
-        agent_values: &AgentValues,
+        yaml_config: &YAMLConfig,
     ) -> Result<(), ValuesRepositoryError>;
 
     fn delete_remote(&self, agent_id: &AgentID) -> Result<(), ValuesRepositoryError>;
@@ -60,10 +60,10 @@ pub trait ValuesRepository: Send + Sync + 'static {
 
 #[cfg(test)]
 pub mod test {
-    use crate::agent_type::agent_values::AgentValues;
     use crate::agent_type::definition::AgentType;
     use crate::super_agent::config::AgentID;
     use crate::values::values_repository::{ValuesRepository, ValuesRepositoryError};
+    use crate::values::yaml_config::YAMLConfig;
     use mockall::{mock, predicate};
 
     mock! {
@@ -73,7 +73,7 @@ pub mod test {
             fn store_remote(
                 &self,
                 agent_id: &AgentID,
-                agent_values: &AgentValues,
+                yaml_config: &YAMLConfig,
             ) -> Result<(), ValuesRepositoryError>;
 
             fn delete_remote(&self, agent_id: &AgentID) -> Result<(), ValuesRepositoryError>;
@@ -82,18 +82,18 @@ pub mod test {
                 &self,
                 agent_id: &AgentID,
                 agent_type: &AgentType,
-            ) -> Result<AgentValues, ValuesRepositoryError>;
+            ) -> Result<YAMLConfig, ValuesRepositoryError>;
 
             fn load_local(
                 &self,
                 agent_id: &AgentID,
-            ) -> Result<Option<AgentValues>, ValuesRepositoryError>;
+            ) -> Result<Option<YAMLConfig>, ValuesRepositoryError>;
 
             fn load_remote(
                 &self,
                 agent_id: &AgentID,
                 agent_type: &AgentType,
-            ) -> Result<Option<AgentValues>, ValuesRepositoryError>;
+            ) -> Result<Option<YAMLConfig>, ValuesRepositoryError>;
         }
     }
 
@@ -102,16 +102,16 @@ pub mod test {
             &mut self,
             agent_id: &AgentID,
             final_agent: &AgentType,
-            agent_values: &AgentValues,
+            yaml_config: &YAMLConfig,
         ) {
-            let agent_values = agent_values.clone();
+            let yaml_config = yaml_config.clone();
             self.expect_load()
                 .once()
                 .with(
                     predicate::eq(agent_id.clone()),
                     predicate::eq(final_agent.clone()),
                 )
-                .returning(move |_, _| Ok(agent_values.clone()));
+                .returning(move |_, _| Ok(yaml_config.clone()));
         }
 
         pub fn should_not_load(&mut self, agent_id: &AgentID, final_agent: &AgentType) {
@@ -126,12 +126,12 @@ pub mod test {
                 });
         }
 
-        pub fn should_store_remote(&mut self, agent_id: &AgentID, agent_values: &AgentValues) {
+        pub fn should_store_remote(&mut self, agent_id: &AgentID, yaml_config: &YAMLConfig) {
             self.expect_store_remote()
                 .once()
                 .with(
                     predicate::eq(agent_id.clone()),
-                    predicate::eq(agent_values.clone()),
+                    predicate::eq(yaml_config.clone()),
                 )
                 .returning(|_, _| Ok(()));
         }

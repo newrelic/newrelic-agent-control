@@ -25,11 +25,11 @@ use newrelic_super_agent::{
     agent_type::agent_metadata::AgentMetadata, opamp::hash_repository::HashRepository,
 };
 use newrelic_super_agent::{
-    agent_type::agent_values::AgentValues, values::k8s::ValuesRepositoryConfigMap,
-};
-use newrelic_super_agent::{
     agent_type::definition::{AgentType, VariableTree},
     values::values_repository::ValuesRepository,
+};
+use newrelic_super_agent::{
+    values::k8s::ValuesRepositoryConfigMap, values::yaml_config::YAMLConfig,
 };
 use semver::Version;
 use serde_yaml::from_str;
@@ -139,7 +139,7 @@ fn k8s_value_repository_config_map() {
     );
 
     let mut value_repository = ValuesRepositoryConfigMap::new(k8s_store);
-    let default_values = AgentValues::default();
+    let default_values = YAMLConfig::default();
 
     // without values the default is expected
     let res = value_repository.load(&agent_id_1, &agent_type);
@@ -152,13 +152,13 @@ fn k8s_value_repository_config_map() {
         "k8s_value_repository_config_map",
         format!("local-data-{}", AGENT_ID_1).as_str(),
     ));
-    let local_values = AgentValues::try_from("test: 1".to_string()).unwrap();
+    let local_values = YAMLConfig::try_from("test: 1".to_string()).unwrap();
     let res = value_repository.load(&agent_id_1, &agent_type);
 
     assert_eq!(res.unwrap(), local_values);
 
     // with remote data we expect we get local without remote
-    let remote_values = AgentValues::try_from("test: 3".to_string()).unwrap();
+    let remote_values = YAMLConfig::try_from("test: 3".to_string()).unwrap();
     value_repository
         .store_remote(&agent_id_1, &remote_values)
         .unwrap();
@@ -177,7 +177,7 @@ fn k8s_value_repository_config_map() {
 
     // After saving data for a second agent should not affect the previous one
     // with remote data we expect to ignore local one
-    let remote_values_agent_2 = AgentValues::try_from("test: 100".to_string()).unwrap();
+    let remote_values_agent_2 = YAMLConfig::try_from("test: 100".to_string()).unwrap();
     value_repository
         .store_remote(&agent_id_2, &remote_values_agent_2)
         .unwrap();
