@@ -1,23 +1,13 @@
 use std::{thread, time::Duration};
 
+use crate::on_host::tools::global_logger::init_logger;
 use newrelic_super_agent::context::Context;
-use newrelic_super_agent::logging::config::LoggingConfig;
-
 use newrelic_super_agent::event::channel::pub_sub;
 use newrelic_super_agent::sub_agent::on_host::supervisor::command_supervisor::{
     NotStarted, SupervisorOnHost,
 };
 use newrelic_super_agent::sub_agent::on_host::supervisor::command_supervisor_config::SupervisorConfigOnHost;
 use newrelic_super_agent::sub_agent::on_host::supervisor::restart_policy::RestartPolicy;
-use std::sync::Once;
-
-static INIT_LOGGER: Once = Once::new();
-
-pub fn init_logger() {
-    INIT_LOGGER.call_once(|| {
-        LoggingConfig::default().try_init().unwrap();
-    });
-}
 
 // only unix: shutdown is not implemented for Windows
 #[cfg(target_family = "unix")]

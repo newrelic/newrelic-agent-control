@@ -13,14 +13,12 @@ use std::io::Write;
 use std::thread;
 use std::time::Duration;
 use tempfile::tempdir;
-use url::Url;
 
 #[cfg(unix)]
 #[test]
 fn onhost_opamp_superagent_configuration_change() {
     // Given a super-agent without agents and opamp configured.
-    let mut server = FakeServer::start_new();
-    let server_endpoint = Url::try_from(server.endpoint().as_str()).unwrap();
+    let mut opamp_server = FakeServer::start_new();
 
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
@@ -28,13 +26,17 @@ fn onhost_opamp_superagent_configuration_change() {
     let config_file_path = local_dir.path().join("config.yaml");
     let mut local_file =
         File::create(config_file_path.clone()).expect("failed to create local config file");
-    let local_config = r#"
+    let super_agent_config = format!(
+        r#"
 host_id: integration-test
 opamp:
-  endpoint: http://127.0.0.1/v1/opamp
-agents: {}
-"#;
-    write!(local_file, "{}", local_config).unwrap();
+  endpoint: {}
+agents: {{}}    
+"#,
+        opamp_server.endpoint()
+    );
+
+    write!(local_file, "{}", super_agent_config).unwrap();
 
     let base_paths = BasePaths {
         local_dir: local_dir.path().to_path_buf(),
@@ -45,17 +47,13 @@ agents: {}
     // We won't join and wait for the thread to finish because we want the super_agent to exit
     // if our assertions were not ok.
     let _super_agent_join = thread::spawn(move || {
-        start_super_agent_with_custom_config(
-            config_file_path.as_path(),
-            server_endpoint,
-            base_paths.clone(),
-        )
+        start_super_agent_with_custom_config(config_file_path.as_path(), base_paths.clone())
     });
 
     let super_agent_instance_id = get_instance_id(&AgentID::new_super_agent_id(), base_paths_copy);
 
     // When a new config with two agents is received from OpAMP
-    server.set_config_response(
+    opamp_server.set_config_response(
         super_agent_instance_id.clone(),
         ConfigResponse::from(
             r#"
@@ -93,7 +91,7 @@ agents:
                 .into());
             }
 
-            check_latest_health_status_was_healthy(&server, &super_agent_instance_id)
+            check_latest_health_status_was_healthy(&opamp_server, &super_agent_instance_id)
         }()
     });
 
