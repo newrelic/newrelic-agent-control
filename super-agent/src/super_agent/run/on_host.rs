@@ -1,4 +1,3 @@
-use crate::agent_type::embedded_registry::EmbeddedRegistry;
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::{Identifiers, Storer};
@@ -10,7 +9,7 @@ use crate::super_agent::config_storer::loader_storer::SuperAgentConfigLoader;
 use crate::super_agent::defaults::{
     FLEET_ID_ATTRIBUTE_KEY, HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY, SUB_AGENT_DIR,
 };
-use crate::super_agent::run::{BasePaths, SuperAgentRunner};
+use crate::super_agent::run::SuperAgentRunner;
 use crate::super_agent::{super_agent_fqn, SuperAgent};
 use crate::{
     agent_type::renderer::TemplateRenderer,
@@ -21,41 +20,33 @@ use crate::{
     },
     values::on_host::YAMLConfigRepositoryFile,
 };
-use crate::{
-    event::{
-        channel::{EventConsumer, EventPublisher},
-        ApplicationEvent, SuperAgentEvent,
-    },
-    opamp::{client_builder::DefaultOpAMPClientBuilder, http::builder::HttpClientBuilder},
-    super_agent::{config_storer::store::SuperAgentConfigStore, error::AgentError},
-};
+use crate::{opamp::client_builder::DefaultOpAMPClientBuilder, super_agent::error::AgentError};
 use fs::directory_manager::DirectoryManagerFs;
 use fs::LocalFile;
 use opamp_client::operation::settings::DescriptionValueType;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::runtime::Runtime;
 use tracing::info;
 
 impl SuperAgentRunner {
     pub fn run(self) -> Result<(), AgentError> {
         // enable remote config store
-        let config_storer = if opamp_http_builder.is_some() {
-            Arc::new(sa_config_storer.with_remote())
+        let config_storer = if self.opamp_http_builder.is_some() {
+            Arc::new(self.config_storer.with_remote())
         } else {
-            Arc::new(sa_config_storer)
+            Arc::new(self.config_storer)
         };
 
         let mut vr = YAMLConfigRepositoryFile::new(
-            base_paths.remote_dir.join(SUB_AGENT_DIR()),
-            base_paths.local_dir.join(SUB_AGENT_DIR()),
+            self.base_paths.remote_dir.join(SUB_AGENT_DIR()),
+            self.base_paths.local_dir.join(SUB_AGENT_DIR()),
         );
-        if opamp_http_builder.is_some() {
+        if self.opamp_http_builder.is_some() {
             vr = vr.with_remote();
         }
         let yaml_config_repository = Arc::new(vr);
 
-        let opamp_client_builder = opamp_http_builder.map(|http_builder| {
+        let opamp_client_builder = self.opamp_http_builder.map(|http_builder| {
             DefaultOpAMPClientBuilder::new(
                 http_builder,
                 DefaultEffectiveConfigLoaderBuilder::new(yaml_config_repository.clone()),
@@ -77,27 +68,27 @@ impl SuperAgentRunner {
         let instance_id_storer = Storer::new(
             LocalFile,
             DirectoryManagerFs::default(),
-            base_paths.remote_dir.clone(),
-            base_paths.remote_dir.join(SUB_AGENT_DIR()),
+            self.base_paths.remote_dir.clone(),
+            self.base_paths.remote_dir.join(SUB_AGENT_DIR()),
         );
 
         let instance_id_getter =
             InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers);
 
-        let template_renderer = TemplateRenderer::new(base_paths.remote_dir.clone())
-            .with_config_persister(ConfigurationPersisterFile::new(&base_paths.remote_dir));
+        let template_renderer = TemplateRenderer::new(self.base_paths.remote_dir.clone())
+            .with_config_persister(ConfigurationPersisterFile::new(&self.base_paths.remote_dir));
 
         let agents_assembler = LocalEffectiveAgentsAssembler::new(
             yaml_config_repository.clone(),
-            agent_type_registry,
+            self.agent_type_registry,
             template_renderer,
         );
 
         let super_agent_hash_repository =
-            Arc::new(HashRepositoryFile::new(base_paths.remote_dir.clone()));
+            Arc::new(HashRepositoryFile::new(self.base_paths.remote_dir.clone()));
 
         let sub_agent_hash_repository = Arc::new(HashRepositoryFile::new(
-            base_paths.remote_dir.join(SUB_AGENT_DIR()),
+            self.base_paths.remote_dir.join(SUB_AGENT_DIR()),
         ));
 
         let sub_agent_event_processor_builder = EventProcessorBuilder::new(
@@ -112,7 +103,7 @@ impl SuperAgentRunner {
             &agents_assembler,
             &sub_agent_event_processor_builder,
             identifiers_provider,
-            base_paths.log_dir.join(SUB_AGENT_DIR()),
+            self.base_paths.log_dir.join(SUB_AGENT_DIR()),
         );
 
         let (maybe_client, maybe_sa_opamp_consumer) = opamp_client_builder
@@ -136,9 +127,9 @@ impl SuperAgentRunner {
             super_agent_hash_repository,
             sub_agent_builder,
             config_storer,
-            super_agent_publisher,
+            self.super_agent_publisher,
         )
-        .run(application_events_consumer, maybe_sa_opamp_consumer)
+        .run(self.application_event_consumer, maybe_sa_opamp_consumer)
     }
 }
 
