@@ -8,8 +8,8 @@ use crate::sub_agent::event_processor_builder::EventProcessorBuilder;
 use crate::super_agent::config::AgentID;
 use crate::super_agent::config_storer::loader_storer::SuperAgentConfigLoader;
 use crate::super_agent::defaults::{
-    FLEET_ID_ATTRIBUTE_KEY, HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY, REMOTE_AGENT_DATA_DIR,
-    SUB_AGENT_LOG_DIR, SUPER_AGENT_DATA_DIR, SUPER_AGENT_LOG_DIR,
+    FLEET_ID_ATTRIBUTE_KEY, HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY, SUB_AGENT_DIR,
+    SUPER_AGENT_DATA_DIR, SUPER_AGENT_LOCAL_DATA_DIR, SUPER_AGENT_LOG_DIR,
 };
 use crate::super_agent::{super_agent_fqn, SuperAgent};
 use crate::{
@@ -53,7 +53,10 @@ pub fn run_super_agent<C: HttpClientBuilder>(
         Arc::new(sa_config_storer)
     };
 
-    let mut vr = YAMLConfigRepositoryFile::default();
+    let mut vr = YAMLConfigRepositoryFile::new(
+        PathBuf::from(SUPER_AGENT_DATA_DIR()).join(SUB_AGENT_DIR()),
+        PathBuf::from(SUPER_AGENT_LOCAL_DATA_DIR()).join(SUB_AGENT_DIR()),
+    );
     if opamp_http_builder.is_some() {
         vr = vr.with_remote();
     }
@@ -83,7 +86,7 @@ pub fn run_super_agent<C: HttpClientBuilder>(
         DirectoryManagerFs::default(),
         // TODO move these dirs one layer up
         PathBuf::from(SUPER_AGENT_DATA_DIR()),
-        PathBuf::from(REMOTE_AGENT_DATA_DIR()),
+        PathBuf::from(SUPER_AGENT_DATA_DIR()).join(SUB_AGENT_DIR()),
     );
 
     let instance_id_getter = InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers);
@@ -104,8 +107,11 @@ pub fn run_super_agent<C: HttpClientBuilder>(
     // TODO move these dirs one layer up
     let super_agent_hash_repository =
         Arc::new(HashRepositoryFile::new(SUPER_AGENT_DATA_DIR().to_string()));
-    let sub_agent_hash_repository =
-        Arc::new(HashRepositoryFile::new(REMOTE_AGENT_DATA_DIR().to_string()));
+    let sub_agent_hash_repository = Arc::new(HashRepositoryFile::new(format!(
+        "{}/{}",
+        SUPER_AGENT_DATA_DIR(),
+        SUB_AGENT_DIR()
+    )));
 
     let sub_agent_event_processor_builder = EventProcessorBuilder::new(
         sub_agent_hash_repository.clone(),
@@ -119,7 +125,7 @@ pub fn run_super_agent<C: HttpClientBuilder>(
         &agents_assembler,
         &sub_agent_event_processor_builder,
         identifiers_provider,
-        PathBuf::from(SUPER_AGENT_LOG_DIR()).join(SUB_AGENT_LOG_DIR()),
+        PathBuf::from(SUPER_AGENT_LOG_DIR()).join(SUB_AGENT_DIR()),
     );
 
     let (maybe_client, maybe_sa_opamp_consumer) = opamp_client_builder

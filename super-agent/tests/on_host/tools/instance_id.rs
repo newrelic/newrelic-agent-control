@@ -5,7 +5,7 @@ use newrelic_super_agent::opamp::instance_id::getter::{
 };
 use newrelic_super_agent::opamp::instance_id::{IdentifiersProvider, InstanceID, Storer};
 use newrelic_super_agent::super_agent::config::AgentID;
-use newrelic_super_agent::super_agent::defaults::{REMOTE_AGENT_DATA_DIR, SUPER_AGENT_DATA_DIR};
+use newrelic_super_agent::super_agent::defaults::{SUB_AGENT_DIR, SUPER_AGENT_DATA_DIR};
 use std::path::PathBuf;
 
 pub fn get_instance_id(agent_id: &AgentID) -> InstanceID {
@@ -17,8 +17,8 @@ pub fn get_instance_id(agent_id: &AgentID) -> InstanceID {
     let instance_id_storer = Storer::new(
         LocalFile,
         DirectoryManagerFs::default(),
-        PathBuf::from(SUPER_AGENT_DATA_DIR().to_string()),
-        PathBuf::from(REMOTE_AGENT_DATA_DIR().to_string()),
+        PathBuf::from(SUPER_AGENT_DATA_DIR()),
+        PathBuf::from(SUPER_AGENT_DATA_DIR()).join(SUB_AGENT_DIR()),
     );
 
     let instance_id_getter = InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers);

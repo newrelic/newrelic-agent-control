@@ -9,7 +9,7 @@ use tracing::debug;
 
 use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
 use fs::writer_file::{FileWriter, WriteError};
-use newrelic_super_agent::super_agent::defaults::{LOCAL_AGENT_DATA_DIR, VALUES_DIR, VALUES_FILE};
+use newrelic_super_agent::super_agent::defaults::{VALUES_DIR, VALUES_FILE};
 
 #[derive(Error, Debug)]
 pub enum PersistError {
@@ -36,18 +36,12 @@ where
 }
 
 impl ValuesPersisterFile<DirectoryManagerFs> {
-    pub fn new(data_dir: &Path) -> Self {
+    pub fn new(data_dir: PathBuf) -> Self {
         ValuesPersisterFile {
             file_writer: LocalFile,
             directory_manager: DirectoryManagerFs::default(),
-            local_agent_data_dir: PathBuf::from(data_dir),
+            local_agent_data_dir: data_dir,
         }
-    }
-}
-
-impl Default for ValuesPersisterFile<DirectoryManagerFs> {
-    fn default() -> Self {
-        ValuesPersisterFile::new(Path::new(LOCAL_AGENT_DATA_DIR()))
     }
 }
 
