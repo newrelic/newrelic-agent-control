@@ -7,7 +7,7 @@ use crate::agent_type::definition::{AgentType, VariableTree};
 use crate::agent_type::runtime_config::Runtime;
 use crate::opamp::remote_config::ConfigurationMap;
 use crate::super_agent::config::AgentID;
-use crate::values::yaml_config_repository::YAMLConfigRepository;
+use crate::values::yaml_config_repository::SubAgentYAMLConfigRepository;
 
 use super::error::LoaderError;
 use super::loader::EffectiveConfigLoader;
@@ -16,7 +16,7 @@ use super::loader::EffectiveConfigLoader;
 #[derive(Debug)]
 pub struct SubAgentEffectiveConfigLoader<VR>
 where
-    VR: YAMLConfigRepository,
+    VR: SubAgentYAMLConfigRepository,
 {
     agent_id: AgentID,
     yaml_config_repository: Arc<VR>,
@@ -24,7 +24,7 @@ where
 
 impl<VR> SubAgentEffectiveConfigLoader<VR>
 where
-    VR: YAMLConfigRepository,
+    VR: SubAgentYAMLConfigRepository,
 {
     pub fn new(agent_id: AgentID, yaml_config_repository: Arc<VR>) -> Self {
         Self {
@@ -36,7 +36,7 @@ where
 
 impl<VR> EffectiveConfigLoader for SubAgentEffectiveConfigLoader<VR>
 where
-    VR: YAMLConfigRepository,
+    VR: SubAgentYAMLConfigRepository,
 {
     fn load(&self) -> Result<ConfigurationMap, LoaderError> {
         // TODO this gets removed after refactor PR. Is only used for capabilities has_remote.
@@ -52,7 +52,7 @@ where
 
         let values = self
             .yaml_config_repository
-            .load(&self.agent_id, &fake_agent_type)
+            .load(&self.agent_id, &fake_agent_type.get_capabilities())
             .map_err(|err| {
                 LoaderError::from(format!("loading {} config values: {}", &self.agent_id, err))
             })?;
@@ -73,16 +73,13 @@ where
 
 #[cfg(test)]
 mod test {
-    use crate::agent_type::agent_metadata::AgentMetadata;
-    use crate::agent_type::definition::{AgentType, VariableTree};
-    use crate::agent_type::runtime_config::Runtime;
     use crate::opamp::effective_config::loader::EffectiveConfigLoader;
     use crate::opamp::effective_config::sub_agent::SubAgentEffectiveConfigLoader;
     use crate::opamp::remote_config::ConfigurationMap;
     use crate::super_agent::config::AgentID;
+    use crate::super_agent::defaults::default_capabilities;
     use crate::values::yaml_config::YAMLConfig;
     use crate::values::yaml_config_repository::test::MockYAMLConfigRepositoryMock;
-    use semver::Version;
     use std::collections::HashMap;
     use std::sync::Arc;
 
@@ -91,19 +88,9 @@ mod test {
         let agent_id = AgentID::new("test-agent").unwrap();
         let mut yaml_config_repository = MockYAMLConfigRepositoryMock::default();
 
-        // TODO remove after refactor of values repository
-        let agent_type = AgentType::new(
-            AgentMetadata {
-                name: "".into(),
-                namespace: "".into(),
-                version: Version::new(0, 0, 0),
-            },
-            VariableTree::default(),
-            Runtime::default(),
-        );
         yaml_config_repository.should_load(
             &agent_id,
-            &agent_type,
+            default_capabilities(),
             &YAMLConfig::try_from(String::from("fake_config: value")).unwrap(),
         );
 

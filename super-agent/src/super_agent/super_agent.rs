@@ -25,6 +25,7 @@ use crate::super_agent::{
     error::AgentError,
 };
 use crate::utils::time::get_sys_time_nano;
+use crate::values::yaml_config::YAMLConfig;
 use crossbeam::channel::never;
 use crossbeam::select;
 use opamp_client::{opamp::proto::ComponentHealth, StartedClient};
@@ -401,7 +402,7 @@ where
 
         if !remote_config_value.is_empty() {
             self.sa_dynamic_config_store
-                .store(&super_agent_dynamic_config)?;
+                .store(&YAMLConfig::try_from(remote_config_value.to_string())?)?;
         }
 
         Ok(self

@@ -103,7 +103,7 @@ impl K8sStore {
         self.k8s_client.delete_configmap_key(&configmap_name, key)
     }
 
-    fn build_cm_name(agent_id: &AgentID, prefix: &str) -> String {
+    pub fn build_cm_name(agent_id: &AgentID, prefix: &str) -> String {
         format!("{}{}", prefix, agent_id)
     }
 }

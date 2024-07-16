@@ -81,6 +81,7 @@ generate_const_getter!(DYNAMIC_AGENT_TYPE_FILENAME, "dynamic-agent-type.yaml");
 generate_const_getter!(IDENTIFIERS_FILENAME, "identifiers.yaml");
 generate_const_getter!(VALUES_DIR, "values");
 generate_const_getter!(VALUES_FILE, "values.yaml");
+generate_const_getter!(SUPER_AGENT_CONFIG_FILE, "config.yaml");
 generate_const_getter!(GENERATED_FOLDER_NAME, "auto-generated");
 generate_const_getter!(SUPER_AGENT_LOG_FILENAME, "newrelic-super-agent.log");
 generate_const_getter!(STDOUT_LOG_PREFIX, "stdout.log");

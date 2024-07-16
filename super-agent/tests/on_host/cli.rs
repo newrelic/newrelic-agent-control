@@ -322,8 +322,6 @@ agents: {{}}
 fn runs_with_no_config_as_root() -> Result<(), Box<dyn std::error::Error>> {
     use std::{env, time::Duration};
 
-    use crate::on_host::logging::level::TIME_FORMAT;
-
     let mut cmd = Command::cargo_bin("newrelic-super-agent")?;
     cmd.arg("--config").arg("non-existent-file.yaml");
 
@@ -343,20 +341,12 @@ fn runs_with_no_config_as_root() -> Result<(), Box<dyn std::error::Error>> {
     //   - (\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}) matches the timestamp format.
     // Any character match ".*" is used as the raw logging output contains the raw colors unicode
     // values: \u{1b}[2m2024\u{1b}[0m \u{1b}[32m INFO\u{1b}[0m \u{1b}[2mnewrelic_super_agent\u{1b}[0m\u{1b}[2m:\u{1b}[0m Creating the global context
-    cmd.assert()
-        .failure()
-        .stdout(
-            predicate::str::is_match(
-                TIME_FORMAT.to_owned() + "INFO.*New Relic Super Agent Version: .*, Rust Version: .*, GitCommit: .*, BuildDate: .*",
-            )
-                .unwrap(),
+    cmd.assert().failure().stdout(
+        predicate::str::is_match(
+            ".*Could not read Super Agent config from non-existent-file.yaml.*",
         )
-        .stdout(
-            predicate::str::is_match(
-                TIME_FORMAT.to_owned() + "INFO.*Starting NewRelic Super Agent",
-            )
-                .unwrap(),
-        );
+        .unwrap(),
+    );
 
     // Env cleanup
     env::remove_var(env_var_name);
