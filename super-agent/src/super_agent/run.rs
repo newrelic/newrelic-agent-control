@@ -14,10 +14,6 @@ use crate::event::{
 use crate::opamp::auth::token_retriever::TokenRetrieverImpl;
 use crate::opamp::http::builder::UreqHttpClientBuilder;
 use crate::super_agent::http_server::runner::Runner;
-#[cfg(feature = "k8s")]
-use k8s::run_super_agent;
-#[cfg(feature = "onhost")]
-use on_host::run_super_agent;
 use std::error::Error;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -89,57 +85,50 @@ impl TryFrom<SuperAgentRunConfig> for SuperAgentRunner {
                 .enable_all()
                 .build()?,
         );
-        let _started_http_server_runner = Runner::start(
+        let _http_server_runner = Runner::start(
             value.http_server,
             runtime.clone(),
             super_agent_consumer,
             value.opamp.clone(),
         );
 
-        let run_data = SuperAgentRunner {
-            _http_server_runner: _started_http_server_runner,
+        let agent_type_registry = EmbeddedRegistry::new(
+            value
+                .base_paths
+                .local_dir
+                .join(DYNAMIC_AGENT_TYPE_FILENAME()),
+        );
+
+        Ok(SuperAgentRunner {
+            _http_server_runner,
             runtime,
             config_storer: value.config_storer,
+            agent_type_registry,
             application_event_consumer,
             opamp_http_builder,
             super_agent_publisher,
             base_paths: value.base_paths,
-        };
-
-        Ok(run_data)
+        })
     }
 }
 
 /// Structure with all the data required to run the super agent
-// TODO: Generalize over injected dependencies like UreqHttpClientBuilder and TokenRetrieverImpl?
+/// Fields are public just for testing. The object is destroyed right after is deleted,
+/// Therefore, we should be worried of any tampering after its creation.
 pub struct SuperAgentRunner {
-    _http_server_runner: Runner,
-    runtime: Arc<Runtime>,
     config_storer: SuperAgentConfigStore,
+    agent_type_registry: EmbeddedRegistry,
     application_event_consumer: EventConsumer<ApplicationEvent>,
     opamp_http_builder: Option<UreqHttpClientBuilder<TokenRetrieverImpl>>,
     super_agent_publisher: EventPublisher<SuperAgentEvent>,
     base_paths: BasePaths,
-}
 
-/// Run the super agent with the provided data
-impl SuperAgentRunner {
-    pub fn run(self) -> Result<(), Box<dyn Error>> {
-        let agent_type_registry = EmbeddedRegistry::new(
-            self.base_paths
-                .local_dir
-                .join(DYNAMIC_AGENT_TYPE_FILENAME()),
-        );
-        Ok(run_super_agent(
-            self.runtime.clone(),
-            self.config_storer,
-            self.application_event_consumer,
-            self.opamp_http_builder,
-            self.super_agent_publisher,
-            agent_type_registry,
-            self.base_paths,
-        )?)
-    }
+    #[allow(dead_code)]
+    runtime: Arc<Runtime>,
+
+    // Since _http_server_runner drop depends on super_agent_publisher being drop before we need it
+    // to be the last field of the struct. TODO Refactor runner so that this is not a risk anymore.
+    _http_server_runner: Runner,
 }
 
 pub fn create_shutdown_signal_handler(
@@ -149,7 +138,7 @@ pub fn create_shutdown_signal_handler(
         info!("Received SIGINT (Ctrl-C). Stopping super agent");
         let _ = publisher
             .publish(ApplicationEvent::StopRequested)
-            .map_err(|_| error!("Could not send super agent stop request"));
+            .inspect_err(|e| error!("Could not send super agent stop request: {}", e));
     })
     .map_err(|e| {
         error!("Could not set signal handler: {}", e);
