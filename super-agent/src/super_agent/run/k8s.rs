@@ -1,4 +1,3 @@
-use crate::agent_type::embedded_registry::EmbeddedRegistry;
 use crate::agent_type::renderer::TemplateRenderer;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
@@ -11,140 +10,132 @@ use crate::sub_agent::event_processor_builder::EventProcessorBuilder;
 use crate::super_agent::config::AgentID;
 use crate::super_agent::config_storer::loader_storer::SuperAgentConfigLoader;
 use crate::super_agent::defaults::{FLEET_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY};
-use crate::super_agent::run::BasePaths;
+use crate::super_agent::run::SuperAgentRunner;
 use crate::super_agent::{super_agent_fqn, SuperAgent};
-use crate::{
-    event::{
-        channel::{EventConsumer, EventPublisher},
-        ApplicationEvent, SuperAgentEvent,
-    },
-    opamp::{
-        client_builder::DefaultOpAMPClientBuilder, hash_repository::k8s::HashRepositoryConfigMap,
-        http::builder::HttpClientBuilder, instance_id,
-    },
-    super_agent::{config_storer::store::SuperAgentConfigStore, error::AgentError},
-};
 use crate::{
     k8s::{garbage_collector::NotStartedK8sGarbageCollector, store::K8sStore},
     sub_agent::k8s::builder::K8sSubAgentBuilder,
     super_agent::config_storer::SubAgentsConfigStoreConfigMap,
     values::k8s::YAMLConfigRepositoryConfigMap,
 };
+use crate::{
+    opamp::{
+        client_builder::DefaultOpAMPClientBuilder, hash_repository::k8s::HashRepositoryConfigMap,
+        instance_id,
+    },
+    super_agent::error::AgentError,
+};
 use opamp_client::operation::settings::DescriptionValueType;
 use resource_detection::system::hostname::HostnameGetter;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::runtime::Runtime;
 use tracing::{error, info};
 
-pub fn run_super_agent<C: HttpClientBuilder>(
-    runtime: Arc<Runtime>,
-    sa_local_config_storer: SuperAgentConfigStore,
-    application_event_consumer: EventConsumer<ApplicationEvent>,
-    opamp_http_builder: Option<C>,
-    super_agent_publisher: EventPublisher<SuperAgentEvent>,
-    agent_type_registry: EmbeddedRegistry,
-    base_paths: BasePaths,
-) -> Result<(), AgentError> {
-    info!("Starting the k8s client");
-    let config = sa_local_config_storer.load()?;
-    let k8s_config = config.k8s.ok_or(AgentError::K8sConfig())?;
-    let k8s_client = Arc::new(
-        SyncK8sClient::try_new(
-            runtime,
-            k8s_config.namespace.clone(),
-            k8s_config.cr_type_meta.clone(),
-        )
-        .map_err(|e| AgentError::ExternalError(e.to_string()))?,
-    );
-
-    let k8s_store = Arc::new(K8sStore::new(k8s_client.clone()));
-
-    let identifiers =
-        instance_id::get_identifiers(k8s_config.cluster_name.clone(), config.fleet_id);
-    info!("Instance Identifiers: {}", identifiers);
-
-    let mut non_identifying_attributes = super_agent_opamp_non_identifying_attributes(&identifiers);
-    non_identifying_attributes.insert(
-        "cluster.name".to_string(),
-        k8s_config.cluster_name.clone().into(),
-    );
-
-    let instance_id_getter =
-        InstanceIDWithIdentifiersGetter::new_k8s_instance_id_getter(k8s_store.clone(), identifiers);
-
-    let mut vr = YAMLConfigRepositoryConfigMap::new(k8s_store.clone());
-    if opamp_http_builder.is_some() {
-        vr = vr.with_remote();
-    }
-    let yaml_config_repository = Arc::new(vr);
-
-    let sub_agents_config_storer =
-        SubAgentsConfigStoreConfigMap::new(k8s_store.clone(), config.dynamic);
-    // enable remote config store
-    let config_storer = if opamp_http_builder.is_some() {
-        Arc::new(sub_agents_config_storer.with_remote())
-    } else {
-        Arc::new(sub_agents_config_storer)
-    };
-
-    let opamp_client_builder = opamp_http_builder.map(|http_builder| {
-        DefaultOpAMPClientBuilder::new(
-            http_builder,
-            DefaultEffectiveConfigLoaderBuilder::new(yaml_config_repository.clone()),
-        )
-    });
-
-    let template_renderer = TemplateRenderer::new(base_paths.remote_dir);
-
-    let agents_assembler = LocalEffectiveAgentsAssembler::new(
-        yaml_config_repository.clone(),
-        agent_type_registry,
-        template_renderer,
-    );
-
-    let hash_repository = Arc::new(HashRepositoryConfigMap::new(k8s_store.clone()));
-    let sub_agent_event_processor_builder =
-        EventProcessorBuilder::new(hash_repository.clone(), yaml_config_repository.clone());
-
-    info!("Creating the k8s sub_agent builder");
-    let sub_agent_builder = K8sSubAgentBuilder::new(
-        opamp_client_builder.as_ref(),
-        &instance_id_getter,
-        k8s_client.clone(),
-        hash_repository.clone(),
-        &agents_assembler,
-        &sub_agent_event_processor_builder,
-        k8s_config.clone(),
-    );
-
-    let (maybe_client, opamp_consumer) = opamp_client_builder
-        .as_ref()
-        .map(|builder| {
-            build_opamp_with_channel(
-                builder,
-                &instance_id_getter,
-                AgentID::new_super_agent_id(),
-                &super_agent_fqn(),
-                non_identifying_attributes,
+impl SuperAgentRunner {
+    pub fn run(self) -> Result<(), AgentError> {
+        info!("Starting the k8s client");
+        let config = self.config_storer.load()?;
+        let k8s_config = config.k8s.ok_or(AgentError::K8sConfig())?;
+        let k8s_client = Arc::new(
+            SyncK8sClient::try_new(
+                self.runtime,
+                k8s_config.namespace.clone(),
+                k8s_config.cr_type_meta.clone(),
             )
-        })
-        // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
-        .transpose()?
-        .map(|(client, consumer)| (Some(client), Some(consumer)))
-        .unwrap_or_default();
+            .map_err(|e| AgentError::ExternalError(e.to_string()))?,
+        );
 
-    let gcc = NotStartedK8sGarbageCollector::new(config_storer.clone(), k8s_client);
-    let _started_gcc = gcc.start();
+        let k8s_store = Arc::new(K8sStore::new(k8s_client.clone()));
 
-    SuperAgent::new(
-        maybe_client,
-        hash_repository,
-        sub_agent_builder,
-        config_storer,
-        super_agent_publisher,
-    )
-    .run(application_event_consumer, opamp_consumer)
+        let identifiers =
+            instance_id::get_identifiers(k8s_config.cluster_name.clone(), config.fleet_id);
+        info!("Instance Identifiers: {}", identifiers);
+
+        let mut non_identifying_attributes =
+            super_agent_opamp_non_identifying_attributes(&identifiers);
+        non_identifying_attributes.insert(
+            "cluster.name".to_string(),
+            k8s_config.cluster_name.clone().into(),
+        );
+
+        let instance_id_getter = InstanceIDWithIdentifiersGetter::new_k8s_instance_id_getter(
+            k8s_store.clone(),
+            identifiers,
+        );
+
+        let mut vr = YAMLConfigRepositoryConfigMap::new(k8s_store.clone());
+        if self.opamp_http_builder.is_some() {
+            vr = vr.with_remote();
+        }
+        let yaml_config_repository = Arc::new(vr);
+
+        let sub_agents_config_storer =
+            SubAgentsConfigStoreConfigMap::new(k8s_store.clone(), config.dynamic);
+        // enable remote config store
+        let config_storer = if self.opamp_http_builder.is_some() {
+            Arc::new(sub_agents_config_storer.with_remote())
+        } else {
+            Arc::new(sub_agents_config_storer)
+        };
+
+        let opamp_client_builder = self.opamp_http_builder.map(|http_builder| {
+            DefaultOpAMPClientBuilder::new(
+                http_builder,
+                DefaultEffectiveConfigLoaderBuilder::new(yaml_config_repository.clone()),
+            )
+        });
+
+        let template_renderer = TemplateRenderer::new(self.base_paths.remote_dir);
+
+        let agents_assembler = LocalEffectiveAgentsAssembler::new(
+            yaml_config_repository.clone(),
+            self.agent_type_registry,
+            template_renderer,
+        );
+
+        let hash_repository = Arc::new(HashRepositoryConfigMap::new(k8s_store.clone()));
+        let sub_agent_event_processor_builder =
+            EventProcessorBuilder::new(hash_repository.clone(), yaml_config_repository.clone());
+
+        info!("Creating the k8s sub_agent builder");
+        let sub_agent_builder = K8sSubAgentBuilder::new(
+            opamp_client_builder.as_ref(),
+            &instance_id_getter,
+            k8s_client.clone(),
+            hash_repository.clone(),
+            &agents_assembler,
+            &sub_agent_event_processor_builder,
+            k8s_config.clone(),
+        );
+
+        let (maybe_client, opamp_consumer) = opamp_client_builder
+            .as_ref()
+            .map(|builder| {
+                build_opamp_with_channel(
+                    builder,
+                    &instance_id_getter,
+                    AgentID::new_super_agent_id(),
+                    &super_agent_fqn(),
+                    non_identifying_attributes,
+                )
+            })
+            // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
+            .transpose()?
+            .map(|(client, consumer)| (Some(client), Some(consumer)))
+            .unwrap_or_default();
+
+        let gcc = NotStartedK8sGarbageCollector::new(config_storer.clone(), k8s_client);
+        let _started_gcc = gcc.start();
+
+        SuperAgent::new(
+            maybe_client,
+            hash_repository,
+            sub_agent_builder,
+            config_storer,
+            self.super_agent_publisher,
+        )
+        .run(self.application_event_consumer, opamp_consumer)
+    }
 }
 
 pub fn super_agent_opamp_non_identifying_attributes(

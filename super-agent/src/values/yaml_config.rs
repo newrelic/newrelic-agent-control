@@ -54,6 +54,7 @@ mod tests {
             Self(values)
         }
 
+        #[allow(dead_code)]
         pub(crate) fn get(&self, key: &str) -> Option<&Value> {
             self.0.get(key)
         }
