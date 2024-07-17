@@ -3,9 +3,9 @@ use std::{error::Error, time::Duration};
 /// Retries the execution of `f` after the the `interval` has elapsed, until `max_attempts` is reached.
 /// # Panics
 /// When executing `f` keeps failing after reaching `max_attempts`.
-pub fn retry<F>(max_attempts: usize, interval: Duration, f: F)
+pub fn retry<F>(max_attempts: usize, interval: Duration, mut f: F)
 where
-    F: Fn() -> Result<(), Box<dyn Error>>,
+    F: FnMut() -> Result<(), Box<dyn Error>>,
 {
     let mut last_err = Ok(());
     for _ in 0..max_attempts {

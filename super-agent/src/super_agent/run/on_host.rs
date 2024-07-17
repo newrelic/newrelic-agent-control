@@ -9,8 +9,8 @@ use crate::super_agent::config::AgentID;
 use crate::super_agent::config_storer::loader_storer::SuperAgentConfigLoader;
 use crate::super_agent::defaults::{
     FLEET_ID_ATTRIBUTE_KEY, HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY, SUB_AGENT_DIR,
-    SUPER_AGENT_DATA_DIR, SUPER_AGENT_LOCAL_DATA_DIR, SUPER_AGENT_LOG_DIR,
 };
+use crate::super_agent::run::BasePaths;
 use crate::super_agent::{super_agent_fqn, SuperAgent};
 use crate::{
     agent_type::renderer::TemplateRenderer,
@@ -33,7 +33,6 @@ use fs::directory_manager::DirectoryManagerFs;
 use fs::LocalFile;
 use opamp_client::operation::settings::DescriptionValueType;
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 use tracing::info;
@@ -45,6 +44,7 @@ pub fn run_super_agent<C: HttpClientBuilder>(
     opamp_http_builder: Option<C>,
     super_agent_publisher: EventPublisher<SuperAgentEvent>,
     agent_type_registry: EmbeddedRegistry,
+    base_paths: BasePaths,
 ) -> Result<(), AgentError> {
     // enable remote config store
     let config_storer = if opamp_http_builder.is_some() {
@@ -54,8 +54,8 @@ pub fn run_super_agent<C: HttpClientBuilder>(
     };
 
     let mut vr = YAMLConfigRepositoryFile::new(
-        PathBuf::from(SUPER_AGENT_DATA_DIR()).join(SUB_AGENT_DIR()),
-        PathBuf::from(SUPER_AGENT_LOCAL_DATA_DIR()).join(SUB_AGENT_DIR()),
+        base_paths.remote_dir.join(SUB_AGENT_DIR()),
+        base_paths.local_dir.join(SUB_AGENT_DIR()),
     );
     if opamp_http_builder.is_some() {
         vr = vr.with_remote();
@@ -84,19 +84,14 @@ pub fn run_super_agent<C: HttpClientBuilder>(
     let instance_id_storer = Storer::new(
         LocalFile,
         DirectoryManagerFs::default(),
-        // TODO move these dirs one layer up
-        PathBuf::from(SUPER_AGENT_DATA_DIR()),
-        PathBuf::from(SUPER_AGENT_DATA_DIR()).join(SUB_AGENT_DIR()),
+        base_paths.remote_dir.clone(),
+        base_paths.remote_dir.join(SUB_AGENT_DIR()),
     );
 
     let instance_id_getter = InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers);
 
-    let template_renderer = TemplateRenderer::new(PathBuf::from(
-        crate::super_agent::defaults::SUPER_AGENT_DATA_DIR().to_string(),
-    ))
-    .with_config_persister(ConfigurationPersisterFile::new(&PathBuf::from(
-        crate::super_agent::defaults::SUPER_AGENT_DATA_DIR().to_string(),
-    )));
+    let template_renderer = TemplateRenderer::new(base_paths.remote_dir.clone())
+        .with_config_persister(ConfigurationPersisterFile::new(&base_paths.remote_dir));
 
     let agents_assembler = LocalEffectiveAgentsAssembler::new(
         yaml_config_repository.clone(),
@@ -104,14 +99,12 @@ pub fn run_super_agent<C: HttpClientBuilder>(
         template_renderer,
     );
 
-    // TODO move these dirs one layer up
     let super_agent_hash_repository =
-        Arc::new(HashRepositoryFile::new(SUPER_AGENT_DATA_DIR().to_string()));
-    let sub_agent_hash_repository = Arc::new(HashRepositoryFile::new(format!(
-        "{}/{}",
-        SUPER_AGENT_DATA_DIR(),
-        SUB_AGENT_DIR()
-    )));
+        Arc::new(HashRepositoryFile::new(base_paths.remote_dir.clone()));
+
+    let sub_agent_hash_repository = Arc::new(HashRepositoryFile::new(
+        base_paths.remote_dir.join(SUB_AGENT_DIR()),
+    ));
 
     let sub_agent_event_processor_builder = EventProcessorBuilder::new(
         sub_agent_hash_repository.clone(),
@@ -125,7 +118,7 @@ pub fn run_super_agent<C: HttpClientBuilder>(
         &agents_assembler,
         &sub_agent_event_processor_builder,
         identifiers_provider,
-        PathBuf::from(SUPER_AGENT_LOG_DIR()).join(SUB_AGENT_DIR()),
+        base_paths.log_dir.join(SUB_AGENT_DIR()),
     );
 
     let (maybe_client, maybe_sa_opamp_consumer) = opamp_client_builder

@@ -50,8 +50,11 @@ jobs:
       - name: Run tests resource-detection
         run: cargo test --locked --package resource-detection --all-targets
 
-      - name: Run tests super agent excluding root-required tests (on-host)
-        run: CARGO_ARGS="--locked --features=onhost --all-targets -- --skip as_root" make super-agent
+      - name: Run tests super agent lib excluding root-required tests (on-host)
+        run: CARGO_ARGS="--locked --features=onhost --lib -- --skip as_root" make super-agent
+      
+      - name: Run tests super agent integration_test excluding root-required tests (on-host)
+        run: CARGO_ARGS="--locked --features=onhost --test integration_tests -- --skip as_root --test-threads=1" make super-agent
 
       - name: Run tests super agent (k8s)
         run: cargo test --locked --package newrelic_super_agent --features=k8s --all-targets
@@ -83,8 +86,11 @@ jobs:
         with:
           toolchain: ${{ matrix.toolchain }}
 
-      - name: Run onHost root-required tests only
-        run: CARGO_ARGS="--locked --package newrelic_super_agent --features=onhost --all-targets -- --skip no_root" make super-agent
+      - name: Run onHost root-required lib tests only
+        run: CARGO_ARGS="--locked --package newrelic_super_agent --features=onhost --lib -- --skip no_root" make super-agent
+      
+      - name: Run onHost root-required integration-tests only
+        run: CARGO_ARGS="--locked --package newrelic_super_agent --features=onhost --test integration_tests -- --skip no_root --test-threads=1" make super-agent
 
   embedded:
     name: Unit test for embedded downloader

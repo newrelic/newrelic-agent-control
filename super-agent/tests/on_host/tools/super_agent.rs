@@ -1,53 +1,33 @@
-use http::HeaderMap;
-use newrelic_super_agent::agent_type::embedded_registry::EmbeddedRegistry;
-use newrelic_super_agent::event::channel::pub_sub;
-use newrelic_super_agent::event::SuperAgentEvent;
-use newrelic_super_agent::opamp::auth::token_retriever::{TokenRetrieverImpl, TokenRetrieverNoop};
-use newrelic_super_agent::opamp::http::builder::UreqHttpClientBuilder;
-use newrelic_super_agent::super_agent::config::OpAMPClientConfig;
+use crate::on_host::tools::global_logger::init_logger;
+use newrelic_super_agent::super_agent::config_patcher::ConfigPatcher;
+use newrelic_super_agent::super_agent::config_storer::loader_storer::SuperAgentConfigLoader;
 use newrelic_super_agent::super_agent::config_storer::store::SuperAgentConfigStore;
-use newrelic_super_agent::super_agent::defaults::SUPER_AGENT_DATA_DIR;
-use newrelic_super_agent::super_agent::run::on_host::run_super_agent;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use url::Url;
+use newrelic_super_agent::super_agent::run::{BasePaths, SuperAgentRunConfig, SuperAgentRunner};
+use std::path::Path;
 
-/// Starts the super-agent through [start_super_agent] after setting up the corresponding configuration file
-/// and config map according to the provided `folder_name` and the provided `file_names`.
-pub fn start_super_agent_with_custom_config(config_path: &Path, opamp_endpoint: Url) {
-    // Create the Tokio runtime
-    let runtime = Arc::new(
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .unwrap(),
-    );
+/// Starts the super-agent and blocks while executing.
+/// Take into account that some of the logic from main is not present here.
+pub fn start_super_agent_with_custom_config(config_path: &Path, base_paths: BasePaths) {
+    // logger is a global variable shared between all test threads
+    init_logger();
 
-    let token_retriever = Arc::new(TokenRetrieverImpl::Noop(TokenRetrieverNoop {}));
+    let config_storer = SuperAgentConfigStore::new(config_path, base_paths.remote_dir.clone());
 
-    let opamp_config = OpAMPClientConfig {
-        endpoint: opamp_endpoint,
-        headers: HeaderMap::default(),
-        auth_config: None,
+    let mut super_agent_config = config_storer.load().unwrap();
+
+    let config_patcher =
+        ConfigPatcher::new(base_paths.local_dir.clone(), base_paths.log_dir.clone());
+    config_patcher.patch(&mut super_agent_config);
+
+    let run_config = SuperAgentRunConfig {
+        config_storer,
+        opamp: super_agent_config.opamp,
+        http_server: super_agent_config.server,
+        base_paths,
     };
 
-    let http_builder = UreqHttpClientBuilder::new(opamp_config.clone(), token_retriever);
-
-    let (_application_event_publisher, application_event_consumer) = pub_sub();
-    let (super_agent_publisher, _super_agent_consumer) = pub_sub::<SuperAgentEvent>();
-
-    let remote_dir = PathBuf::from(SUPER_AGENT_DATA_DIR());
-    let config_storer = SuperAgentConfigStore::new(config_path, remote_dir);
-
-    // TODO: do we need to load dynamic-agent-type?
-    let agent_type_registry = EmbeddedRegistry::default();
-
-    _ = run_super_agent(
-        runtime.clone(),
-        config_storer,
-        application_event_consumer,
-        Some(http_builder),
-        super_agent_publisher,
-        agent_type_registry,
-    );
+    SuperAgentRunner::try_from(run_config)
+        .unwrap()
+        .run()
+        .unwrap();
 }

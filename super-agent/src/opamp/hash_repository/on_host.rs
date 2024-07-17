@@ -50,10 +50,10 @@ where
 impl HashRepositoryFile<LocalFile, DirectoryManagerFs> {
     // HashGetterPersisterFile with default writer and reader
     // and config path
-    pub fn new(data_dir: String) -> Self {
+    pub fn new(conf_path: PathBuf) -> Self {
         HashRepositoryFile {
             file_rw: LocalFile,
-            conf_path: PathBuf::from(data_dir),
+            conf_path,
             directory_manager: DirectoryManagerFs::default(),
         }
     }
