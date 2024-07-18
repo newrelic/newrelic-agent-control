@@ -2,5 +2,10 @@
 #   endpoint: https://opamp.service.newrelic.com/v1/opamp
 #   headers:
 #     api-key: API_KEY_HERE
+#   auth_config:
+#     token_url: PLACEHOLDER
+#     client_id: PLACEHOLDER
+#     provider: PLACEHOLDER
+#     private_key_path: PLACEHOLDER
 
 agents: {}
