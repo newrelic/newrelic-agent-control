@@ -21,6 +21,8 @@ use super::format::LoggingFormat;
 pub enum LoggingError {
     #[error("init logging error: `{0}`")]
     TryInitError(String),
+    #[error("directive `{1}` not valid `{0}`: {2}")]
+    InvalidDirective(String, String, String),
     #[error("invalid logging file path: `{0}`")]
     InvalidFilePath(String),
     #[error("logging file path not defined")]
@@ -54,6 +56,7 @@ impl LoggingConfig {
         // Construct the file logging layer and its worker guard, only if file logging is enabled.
         // Note we can actually specify different settings for each layer (log level, format, etc),
         // hence we repeat the logic here.
+        let logging_filter = self.logging_filter()?;
         let (file_layer, guard) =
             self.file
                 .clone()
@@ -65,7 +68,7 @@ impl LoggingConfig {
                         .with_target(target)
                         .with_timer(ChronoLocal::new(timestamp_fmt.clone()))
                         .fmt_fields(PrettyFields::new())
-                        .with_filter(self.logging_filter());
+                        .with_filter(logging_filter);
                     (Some(file_layer), Some(guard))
                 });
 
@@ -74,7 +77,7 @@ impl LoggingConfig {
             .with_target(target)
             .with_timer(ChronoLocal::new(timestamp_fmt))
             .fmt_fields(PrettyFields::new())
-            .with_filter(self.logging_filter());
+            .with_filter(self.logging_filter()?);
 
         // a `Layer` wrapped in an `Option` such as the above defined `file_layer` also implements
         // the `Layer` trait. This allows individual layers to be enabled or disabled at runtime
@@ -94,49 +97,44 @@ impl LoggingConfig {
         Ok(guard)
     }
 
-    fn logging_filter(&self) -> EnvFilter {
+    fn logging_filter(&self) -> Result<EnvFilter, LoggingError> {
         self.insecure_logging_filter()
             .unwrap_or_else(|| self.crate_logging_filter())
     }
 
-    fn insecure_logging_filter(&self) -> Option<EnvFilter> {
+    fn insecure_logging_filter(&self) -> Option<Result<EnvFilter, LoggingError>> {
         self.insecure_fine_grained_level.clone().map(|s| {
-            let directive = s.parse::<Directive>();
-
-            // This is an insecure configuration. We want to be picky with this and fail until we have
-            // a valid configuration.
-            assert!(
-                directive.is_ok(),
-                "Unparsable logging directive for config `log.insecure_fine_grained_level={}`",
-                s,
-            );
-
-            EnvFilter::builder()
-                .with_default_directive(directive.unwrap())
-                .parse_lossy("")
+            Ok(EnvFilter::builder()
+                .with_default_directive(s.parse::<Directive>().map_err(|err| {
+                    LoggingError::InvalidDirective(
+                        "log.insecure_fine_grained_level".to_string(),
+                        s,
+                        err.to_string(),
+                    )
+                })?)
+                .parse_lossy(""))
         })
     }
 
-    fn crate_logging_filter(&self) -> EnvFilter {
-        let level_config = self.level.as_level().to_string().to_lowercase();
+    fn crate_logging_filter(&self) -> Result<EnvFilter, LoggingError> {
+        let level = self.level.as_level().to_string().to_lowercase();
 
-        let directive = format!("newrelic_super_agent={}", level_config).parse::<Directive>();
-
-        // level is correctly parsed by serde at config level. If this panics, we have an issue
-        // at deserialization time.
-        assert!(
-            directive.is_ok(),
-            "Unparsable logging directive for config `log.level={}`",
-            level_config,
-        );
-
-        EnvFilter::builder()
+        Ok(EnvFilter::builder()
             .with_default_directive(LevelFilter::OFF.into())
             .parse_lossy("")
-            .add_directive(directive.unwrap())
+            .add_directive(
+                format!("newrelic_super_agent={}", level)
+                    .parse::<Directive>()
+                    .map_err(|err| {
+                        LoggingError::InvalidDirective(
+                            "unparsable log.level".to_string(),
+                            level,
+                            err.to_string(),
+                        )
+                    })?,
+            ))
     }
 }
-
 #[derive(Debug, PartialEq, Clone)]
 pub(crate) struct LogLevel(Level);
 
@@ -178,9 +176,9 @@ mod test {
 
         impl TestCase {
             fn run(self) {
-                let env_filter = self.config.logging_filter();
+                let env_filter: Result<EnvFilter, LoggingError> = self.config.logging_filter();
                 assert_eq!(
-                    env_filter.to_string(),
+                    env_filter.unwrap().to_string(),
                     self.expected.to_string(),
                     "{}",
                     self.name
@@ -217,27 +215,22 @@ mod test {
     }
 
     #[test]
-    fn panicking_logging_configurations() {
+    fn failing_logging_configurations() {
         struct TestCase {
             name: &'static str,
             config: LoggingConfig,
+            expected: &'static str,
         }
 
         impl TestCase {
             fn run(self) {
-                // Remove the backtrace to panics to keep test logs cleaner.
-                std::panic::set_hook(Box::new(|_| {}));
-
-                // Run test
-                let _ =
-                    std::panic::catch_unwind(|| self.config.logging_filter()).inspect(|result| {
-                        // Test is failing. Restoring default panic hook to have a backtrace.
-                        let _ = std::panic::take_hook();
-                        panic!(
-                            "test {} should panic and if didn't. It returned {:?}",
-                            self.name, result
-                        )
-                    });
+                let env_filter: Result<EnvFilter, LoggingError> = self.config.logging_filter();
+                assert_eq!(
+                    env_filter.unwrap_err().to_string(),
+                    self.expected.to_string(),
+                    "{}",
+                    self.name
+                );
             }
         }
 
@@ -248,6 +241,7 @@ mod test {
                     insecure_fine_grained_level: Some("".into()),
                     ..Default::default()
                 },
+                expected: "directive `` not valid `log.insecure_fine_grained_level`: invalid filter directive",
             },
             TestCase {
                 name: "invalid insecure fine grained (level as string)",
@@ -255,6 +249,7 @@ mod test {
                     insecure_fine_grained_level: Some("newrelic_super_agent=lolwut".into()),
                     ..Default::default()
                 },
+                expected: "directive `newrelic_super_agent=lolwut` not valid `log.insecure_fine_grained_level`: invalid filter directive",
             },
             TestCase {
                 name: "invalid insecure fine grained (level as integer)",
@@ -262,6 +257,7 @@ mod test {
                     insecure_fine_grained_level: Some("newrelic_super_agent=11".into()),
                     ..Default::default()
                 },
+                expected: "directive `newrelic_super_agent=11` not valid `log.insecure_fine_grained_level`: invalid filter directive",
             },
         ];
 
