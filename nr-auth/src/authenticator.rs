@@ -80,7 +80,7 @@ pub enum GrantType {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ClientAssertionType {
-    #[serde(rename(serialize = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"))]
+    #[serde(rename = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer")]
     JwtBearer,
 }
 
@@ -213,25 +213,17 @@ mod test {
     }
 
     #[test]
-    fn test_client_assertion_type_serialization() {
-        let assertion_type = ClientAssertionType::JwtBearer;
-        let expected = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer";
-        let serialized = serde_json::to_string(&assertion_type).unwrap();
-
-        assert_eq!(serialized, format!("\"{}\"", expected));
-    }
-
-    #[test]
-    fn test_request_serialization() {
+    fn test_request_serialization_and_deserialization() {
         let request = Request {
             client_assertion: ClientAssertion::from("fake_assertion"),
             client_assertion_type: ClientAssertionType::JwtBearer,
             client_id: ClientID::from("fake_id"),
             grant_type: GrantType::ClientCredentials,
         };
-        let expected = r#"{"client_id":"fake_id","grant_type":"client_credentials","client_assertion_type":"urn:ietf:params:oauth:client-assertion-type:jwt-bearer","client_assertion":"fake_assertion"}"#;
+        let serialized = r#"{"client_id":"fake_id","grant_type":"client_credentials","client_assertion_type":"urn:ietf:params:oauth:client-assertion-type:jwt-bearer","client_assertion":"fake_assertion"}"#;
 
-        assert_eq!(serde_json::to_string(&request).unwrap(), expected);
+        assert_eq!(serde_json::to_string(&request).unwrap(), serialized);
+        assert_eq!(request, serde_json::from_str(serialized).unwrap());
     }
 
     fn fake_request_response() -> (Request, Response) {
