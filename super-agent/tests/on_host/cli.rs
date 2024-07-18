@@ -152,6 +152,8 @@ log:
 #[test]
 fn custom_directory_as_root() -> Result<(), Box<dyn std::error::Error>> {
     let dir = TempDir::new()?;
+    // minimal agentType to verify that sub-agent values are being read from
+    // the debug directory
     let _agent_type_def = create_temp_file(
         &dir,
         "nrsa_local/dynamic-agent-type.yaml",
@@ -161,34 +163,28 @@ name: com.newrelic.test-agent
 version: 0.0.1
 variables:
   on_host:
-    message:
-      description: "Message to repeatedly output"
+    cmd:
+      description: ""
       type: string
-      required: false
-      default: "yes"
-    file_logging:
-      description: "Enable file logging"
-      type: bool
-      required: false
-      default: false
+      required: true
 deployment:
   on_host:
-    enable_file_logging: "${nr-var:file_logging}"
+    enable_file_logging: true
     executables:
-      - path: /usr/bin/yes
-        args: "${nr-var:message}"
+      - path: "${nr-var:cmd}"
+        args: ""
+        env: ""
         restart_policy:
           backoff_strategy:
             type: fixed
-            backoff_delay: 20s
+            backoff_delay: 1s
 "#,
     );
     let _values_file = create_temp_file(
         &dir,
         "nrsa_local/fleet/agents.d/test-agent/values/values.yaml",
         r#"
-message: "test yes"
-file_logging: true
+cmd: "date"
 "#,
     );
     let config_path = create_temp_file(
@@ -196,9 +192,7 @@ file_logging: true
         "static.yml",
         r#"
 log:
-  level: info
-  file:
-    enable: true
+  level: debug
 agents:
   test-agent:
     agent_type: newrelic/com.newrelic.test-agent:0.0.1
@@ -236,7 +230,12 @@ agents:
             if remote_path.exists() && logs_path.exists() {
                 return Ok(());
             }
-            Err("Directories not created yet".into())
+            Err(format!(
+                "Directories not created yet, remote: {} logs: {}",
+                remote_path.exists(),
+                logs_path.exists()
+            )
+            .into())
         }()
     });
 
