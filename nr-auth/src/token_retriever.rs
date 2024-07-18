@@ -39,6 +39,7 @@ impl TokenRetriever for TokenRetrieverWithCache {
             loop {
                 match self.refresh_token() {
                     Ok(token) => {
+                        debug!("authorization token refreshed");
                         *cached_token = Some(token);
                         break;
                     }

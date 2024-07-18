@@ -1,5 +1,6 @@
-use serde::{Deserialize, Serialize};
 use std::time::Duration;
+
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use url::Url;
 
@@ -78,7 +79,6 @@ pub enum GrantType {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
 pub enum ClientAssertionType {
     #[serde(rename(serialize = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"))]
     JwtBearer,
@@ -104,11 +104,11 @@ pub struct Response {
 
 #[cfg(test)]
 mod test {
-    use assert_matches::assert_matches;
     use std::time::Duration;
-    use url::Url;
 
+    use assert_matches::assert_matches;
     use httpmock::{Method::POST, MockServer};
+    use url::Url;
 
     use crate::authenticator::{AuthenticateError, Authenticator};
 
@@ -210,6 +210,28 @@ mod test {
 
         assert_matches!(error, AuthenticateError::HttpResponseError(401, _));
         mock.assert()
+    }
+
+    #[test]
+    fn test_client_assertion_type_serialization() {
+        let assertion_type = ClientAssertionType::JwtBearer;
+        let expected = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer";
+        let serialized = serde_json::to_string(&assertion_type).unwrap();
+
+        assert_eq!(serialized, format!("\"{}\"", expected));
+    }
+
+    #[test]
+    fn test_request_serialization() {
+        let request = Request {
+            client_assertion: ClientAssertion::from("fake_assertion"),
+            client_assertion_type: ClientAssertionType::JwtBearer,
+            client_id: ClientID::from("fake_id"),
+            grant_type: GrantType::ClientCredentials,
+        };
+        let expected = r#"{"client_id":"fake_id","grant_type":"client_credentials","client_assertion_type":"urn:ietf:params:oauth:client-assertion-type:jwt-bearer","client_assertion":"fake_assertion"}"#;
+
+        assert_eq!(serde_json::to_string(&request).unwrap(), expected);
     }
 
     fn fake_request_response() -> (Request, Response) {

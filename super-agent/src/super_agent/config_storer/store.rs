@@ -45,8 +45,11 @@ impl SuperAgentDynamicConfigLoader for SuperAgentConfigStore {
 }
 
 impl SuperAgentDynamicConfigDeleter for SuperAgentConfigStore {
-    //TODO this code is not unit tested
+    // The primary purpose of the write lock (self.rw_lock.write()) in this method is
+    // to ensure thread safety when writing to the file.
+    #[allow(clippy::readonly_write_lock)]
     fn delete(&self) -> Result<(), SuperAgentConfigError> {
+        //TODO this code is not unit tested
         let Some(remote_path_file) = &self.remote_path else {
             unreachable!("we should not write into local paths");
         };
@@ -59,6 +62,9 @@ impl SuperAgentDynamicConfigDeleter for SuperAgentConfigStore {
 }
 
 impl SuperAgentDynamicConfigStorer for SuperAgentConfigStore {
+    // The primary purpose of the write lock (self.rw_lock.write()) in this method is
+    // to ensure thread safety when writing to the file.
+    #[allow(clippy::readonly_write_lock)]
     fn store(&self, sub_agents: &SuperAgentDynamicConfig) -> Result<(), SuperAgentConfigError> {
         //TODO we should inject DirectoryManager and ensure the directory exists
         let _write_guard = self.rw_lock.write().unwrap();
