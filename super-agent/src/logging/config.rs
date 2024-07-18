@@ -3,8 +3,10 @@ use std::fmt::Debug;
 use std::str::FromStr;
 use thiserror::Error;
 use tracing::debug;
+use tracing::level_filters::LevelFilter;
 use tracing::Level;
 use tracing_appender::non_blocking::WorkerGuard;
+use tracing_subscriber::filter::Directive;
 use tracing_subscriber::fmt::format::PrettyFields;
 use tracing_subscriber::fmt::time::ChronoLocal;
 use tracing_subscriber::layer::SubscriberExt;
@@ -19,6 +21,8 @@ use super::format::LoggingFormat;
 pub enum LoggingError {
     #[error("init logging error: `{0}`")]
     TryInitError(String),
+    #[error("directive `{1}` not valid `{0}`: {2}")]
+    InvalidDirective(String, String, String),
     #[error("invalid logging file path: `{0}`")]
     InvalidFilePath(String),
     #[error("logging file path not defined")]
@@ -36,6 +40,8 @@ pub struct LoggingConfig {
     #[serde(default)]
     pub(crate) level: LogLevel,
     #[serde(default)]
+    pub(crate) insecure_fine_grained_level: Option<String>,
+    #[serde(default)]
     pub(crate) file: FileLoggingConfig,
 }
 
@@ -43,16 +49,17 @@ pub type FileLoggerGuard = Option<WorkerGuard>;
 
 impl LoggingConfig {
     /// Attempts to initialize the logging subscriber with the inner configuration.
-    pub fn try_init(self) -> Result<Option<WorkerGuard>, LoggingError> {
+    pub fn try_init(&self) -> Result<Option<WorkerGuard>, LoggingError> {
         let target = self.format.target;
-        let timestamp_fmt = self.format.timestamp.0;
-        let level = self.level.as_level();
+        let timestamp_fmt = self.format.timestamp.0.clone();
 
         // Construct the file logging layer and its worker guard, only if file logging is enabled.
         // Note we can actually specify different settings for each layer (log level, format, etc),
         // hence we repeat the logic here.
+        let logging_filter = self.logging_filter()?;
         let (file_layer, guard) =
             self.file
+                .clone()
                 .setup()?
                 .map_or(Default::default(), |(file_writer, guard)| {
                     let file_layer = tracing_subscriber::fmt::layer()
@@ -61,12 +68,7 @@ impl LoggingConfig {
                         .with_target(target)
                         .with_timer(ChronoLocal::new(timestamp_fmt.clone()))
                         .fmt_fields(PrettyFields::new())
-                        .with_filter(
-                            EnvFilter::builder()
-                                .with_default_directive(level.into())
-                                .with_env_var("LOG_LEVEL")
-                                .from_env_lossy(),
-                        );
+                        .with_filter(logging_filter);
                     (Some(file_layer), Some(guard))
                 });
 
@@ -75,12 +77,7 @@ impl LoggingConfig {
             .with_target(target)
             .with_timer(ChronoLocal::new(timestamp_fmt))
             .fmt_fields(PrettyFields::new())
-            .with_filter(
-                EnvFilter::builder()
-                    .with_default_directive(level.into())
-                    .with_env_var("LOG_LEVEL")
-                    .from_env_lossy(),
-            );
+            .with_filter(self.logging_filter()?);
 
         // a `Layer` wrapped in an `Option` such as the above defined `file_layer` also implements
         // the `Layer` trait. This allows individual layers to be enabled or disabled at runtime
@@ -99,8 +96,45 @@ impl LoggingConfig {
         debug!("Logging initialized successfully");
         Ok(guard)
     }
-}
 
+    fn logging_filter(&self) -> Result<EnvFilter, LoggingError> {
+        self.insecure_logging_filter()
+            .unwrap_or_else(|| self.crate_logging_filter())
+    }
+
+    fn insecure_logging_filter(&self) -> Option<Result<EnvFilter, LoggingError>> {
+        self.insecure_fine_grained_level.clone().map(|s| {
+            Ok(EnvFilter::builder()
+                .with_default_directive(s.parse::<Directive>().map_err(|err| {
+                    LoggingError::InvalidDirective(
+                        "log.insecure_fine_grained_level".to_string(),
+                        s,
+                        err.to_string(),
+                    )
+                })?)
+                .parse_lossy(""))
+        })
+    }
+
+    fn crate_logging_filter(&self) -> Result<EnvFilter, LoggingError> {
+        let level = self.level.as_level().to_string().to_lowercase();
+
+        Ok(EnvFilter::builder()
+            .with_default_directive(LevelFilter::OFF.into())
+            .parse_lossy("")
+            .add_directive(
+                format!("newrelic_super_agent={}", level)
+                    .parse::<Directive>()
+                    .map_err(|err| {
+                        LoggingError::InvalidDirective(
+                            "unparsable log.level".to_string(),
+                            level,
+                            err.to_string(),
+                        )
+                    })?,
+            ))
+    }
+}
 #[derive(Debug, PartialEq, Clone)]
 pub(crate) struct LogLevel(Level);
 
@@ -125,5 +159,108 @@ impl<'de> Deserialize<'de> for LogLevel {
         Level::from_str(&value_str)
             .map(LogLevel)
             .map_err(serde::de::Error::custom)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn working_logging_configurations() {
+        struct TestCase {
+            name: &'static str,
+            config: LoggingConfig,
+            expected: &'static str,
+        }
+
+        impl TestCase {
+            fn run(self) {
+                let env_filter: Result<EnvFilter, LoggingError> = self.config.logging_filter();
+                assert_eq!(
+                    env_filter.unwrap().to_string(),
+                    self.expected.to_string(),
+                    "{}",
+                    self.name
+                );
+            }
+        }
+
+        let test_cases = vec![
+            TestCase {
+                name: "everything default",
+                config: Default::default(),
+                expected: "newrelic_super_agent=info,off",
+            },
+            TestCase {
+                name: "insecure fine grained overrides any logging",
+                config: LoggingConfig {
+                    insecure_fine_grained_level: Some("info".into()),
+                    level: LogLevel(Level::INFO),
+                    ..Default::default()
+                },
+                expected: "info",
+            },
+            TestCase {
+                name: "parses log level from int",
+                config: LoggingConfig {
+                    insecure_fine_grained_level: Some("newrelic_super_agent=1".into()),
+                    ..Default::default()
+                },
+                expected: "newrelic_super_agent=error",
+            },
+        ];
+
+        test_cases.into_iter().for_each(|tc| tc.run());
+    }
+
+    #[test]
+    fn failing_logging_configurations() {
+        struct TestCase {
+            name: &'static str,
+            config: LoggingConfig,
+            expected: &'static str,
+        }
+
+        impl TestCase {
+            fn run(self) {
+                let env_filter: Result<EnvFilter, LoggingError> = self.config.logging_filter();
+                assert_eq!(
+                    env_filter.unwrap_err().to_string(),
+                    self.expected.to_string(),
+                    "{}",
+                    self.name
+                );
+            }
+        }
+
+        let test_cases = vec![
+            TestCase {
+                name: "empty insecure fine grained",
+                config: LoggingConfig {
+                    insecure_fine_grained_level: Some("".into()),
+                    ..Default::default()
+                },
+                expected: "directive `` not valid `log.insecure_fine_grained_level`: invalid filter directive",
+            },
+            TestCase {
+                name: "invalid insecure fine grained (level as string)",
+                config: LoggingConfig {
+                    insecure_fine_grained_level: Some("newrelic_super_agent=lolwut".into()),
+                    ..Default::default()
+                },
+                expected: "directive `newrelic_super_agent=lolwut` not valid `log.insecure_fine_grained_level`: invalid filter directive",
+            },
+            TestCase {
+                name: "invalid insecure fine grained (level as integer)",
+                config: LoggingConfig {
+                    insecure_fine_grained_level: Some("newrelic_super_agent=11".into()),
+                    ..Default::default()
+                },
+                expected: "directive `newrelic_super_agent=11` not valid `log.insecure_fine_grained_level`: invalid filter directive",
+            },
+        ];
+
+        test_cases.into_iter().for_each(|tc| tc.run());
     }
 }

@@ -1,3 +1,4 @@
+use http::header::CONTENT_TYPE;
 use http::{HeaderMap, HeaderValue};
 use std::sync::Arc;
 use std::time::Duration;
@@ -48,7 +49,7 @@ where
         let mut headers = self.config.headers.clone();
         // Add headers for protobuf wire format communication
         headers.insert(
-            "Content-Type",
+            CONTENT_TYPE,
             HeaderValue::from_static("application/x-protobuf"),
         );
         headers
