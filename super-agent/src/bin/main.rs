@@ -2,6 +2,7 @@ use newrelic_super_agent::cli::{Cli, CliCommand};
 use newrelic_super_agent::logging::config::FileLoggerGuard;
 use newrelic_super_agent::super_agent::run::SuperAgentRunner;
 use std::error::Error;
+use std::process::exit;
 use tracing::{error, info};
 
 #[cfg(all(feature = "onhost", feature = "k8s", not(feature = "ci")))]
@@ -11,6 +12,24 @@ compile_error!("Feature \"onhost\" and feature \"k8s\" cannot be enabled at the 
 compile_error!("Either feature \"onhost\" or feature \"k8s\" must be enabled");
 
 fn main() -> Result<(), Box<dyn Error>> {
+    if let Err(e) = _main() {
+        error!(
+            "The super agent main process exited with an error: {}",
+            e.to_string()
+        );
+        exit(1);
+    }
+    Ok(())
+}
+
+// This function is the actual main function, but it is separated from the main function to allow
+// propagating the errors and log them in a string format avoiding logging the error message twice.
+// If we propagate the error to the main function, the error is logged in string format and
+// in "Rust mode"
+// i.e.
+// Could not read Super Agent config from /invalid/path: error loading the super agent config: `error retrieving config: `missing field `agents```
+// Error: ConfigRead(LoadConfigError(ConfigError(missing field `agents`)))
+fn _main() -> Result<(), Box<dyn Error>> {
     // Get the action requested from the command call
     let super_agent_config = match Cli::init()? {
         // Super Agent command call instructs normal operation. Continue with required data.
@@ -33,14 +52,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     // Pass the rest of required configs to the actual super agent runner
-    SuperAgentRunner::try_from(super_agent_config.run_config)?
-        .run()
-        .inspect_err(|err| {
-            error!(
-                "The super agent main process exited with an error: {}",
-                err.to_string()
-            )
-        })?;
+    SuperAgentRunner::try_from(super_agent_config.run_config)?.run()?;
 
     info!("exiting gracefully");
     Ok(())
