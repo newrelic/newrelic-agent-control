@@ -23,12 +23,12 @@ pub trait SubAgentEventProcessor {
     fn process(self) -> JoinHandle<Result<(), SubAgentError>>;
 }
 
-pub struct EventProcessor<C, H, R, G>
+pub struct EventProcessor<C, H, Y, G>
 where
     G: EffectiveConfigLoader,
     C: StartedClient<SubAgentCallbacks<G>> + 'static,
     H: HashRepository,
-    R: YAMLConfigRepository,
+    Y: YAMLConfigRepository,
 {
     agent_id: AgentID,
     pub(crate) sub_agent_publisher: EventPublisher<SubAgentEvent>,
@@ -36,19 +36,19 @@ where
     pub(crate) sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
     pub(crate) maybe_opamp_client: Option<C>,
     pub(crate) sub_agent_remote_config_hash_repository: Arc<H>,
-    pub(crate) remote_values_repo: Arc<R>,
+    pub(crate) remote_values_repo: Arc<Y>,
 
     // This is needed to ensure the generic type parameter G is used in the struct.
     // Else Rust will reject this, complaining that the type parameter is not used.
     _effective_config_loader: PhantomData<G>,
 }
 
-impl<C, H, R, G> EventProcessor<C, H, R, G>
+impl<C, H, Y, G> EventProcessor<C, H, Y, G>
 where
     G: EffectiveConfigLoader,
     C: StartedClient<SubAgentCallbacks<G>> + 'static,
     H: HashRepository,
-    R: YAMLConfigRepository,
+    Y: YAMLConfigRepository,
 {
     pub fn new(
         agent_id: AgentID,
@@ -57,7 +57,7 @@ where
         sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
         maybe_opamp_client: Option<C>,
         sub_agent_remote_config_hash_repository: Arc<H>,
-        remote_values_repo: Arc<R>,
+        remote_values_repo: Arc<Y>,
     ) -> Self {
         EventProcessor {
             agent_id,
@@ -78,12 +78,12 @@ where
     }
 }
 
-impl<C, H, R, G> SubAgentEventProcessor for EventProcessor<C, H, R, G>
+impl<C, H, Y, G> SubAgentEventProcessor for EventProcessor<C, H, Y, G>
 where
     G: EffectiveConfigLoader,
     C: StartedClient<SubAgentCallbacks<G>> + 'static,
     H: HashRepository + Send + Sync + 'static,
-    R: YAMLConfigRepository + Send + Sync + 'static,
+    Y: YAMLConfigRepository + Send + Sync + 'static,
 {
     // process will process the Sub Agent OpAMP events and will return the OpAMP client
     // when processing ends.

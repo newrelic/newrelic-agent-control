@@ -9,12 +9,12 @@ use crate::values::yaml_config_repository::YAMLConfigRepository;
 use opamp_client::StartedClient;
 use tracing::error;
 
-impl<C, H, R, G> EventProcessor<C, H, R, G>
+impl<C, H, Y, G> EventProcessor<C, H, Y, G>
 where
     G: EffectiveConfigLoader,
     C: StartedClient<SubAgentCallbacks<G>> + 'static,
     H: HashRepository,
-    R: YAMLConfigRepository,
+    Y: YAMLConfigRepository,
 {
     pub(crate) fn on_health(&self, health: HealthWithStartTime) -> Result<(), SubAgentError> {
         if let Some(client) = self.maybe_opamp_client.as_ref() {

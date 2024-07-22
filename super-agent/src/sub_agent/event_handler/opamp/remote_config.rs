@@ -17,12 +17,12 @@ use opamp_client::StartedClient;
 
 const ERROR_REMOTE_CONFIG: &str = "Error applying Sub Agent remote config";
 
-impl<C, S, R, G> EventProcessor<C, S, R, G>
+impl<C, S, Y, G> EventProcessor<C, S, Y, G>
 where
     G: EffectiveConfigLoader,
     C: StartedClient<SubAgentCallbacks<G>> + 'static,
     S: HashRepository,
-    R: YAMLConfigRepository,
+    Y: YAMLConfigRepository,
 {
     /// This method retrieves, stores the remote configuration (hash and values) and publish an event super-agent event
     /// in order that the super-agent handles it.

@@ -2,7 +2,7 @@ use super::error::LoaderError;
 use super::sub_agent::SubAgentEffectiveConfigLoader;
 use crate::opamp::remote_config::ConfigurationMap;
 use crate::super_agent::config::AgentID;
-use crate::values::yaml_config_repository::SubAgentYAMLConfigRepository;
+use crate::values::yaml_config_repository::YAMLConfigRepository;
 use std::sync::Arc;
 
 /// Trait for effective configuration loaders.
@@ -18,29 +18,29 @@ pub trait EffectiveConfigLoaderBuilder {
 }
 
 /// Builder for effective configuration loaders.
-pub struct DefaultEffectiveConfigLoaderBuilder<R>
+pub struct DefaultEffectiveConfigLoaderBuilder<Y>
 where
-    R: SubAgentYAMLConfigRepository,
+    Y: YAMLConfigRepository,
 {
-    yaml_config_repository: Arc<R>,
+    yaml_config_repository: Arc<Y>,
 }
 
-impl<R> DefaultEffectiveConfigLoaderBuilder<R>
+impl<Y> DefaultEffectiveConfigLoaderBuilder<Y>
 where
-    R: SubAgentYAMLConfigRepository,
+    Y: YAMLConfigRepository,
 {
-    pub fn new(yaml_config_repository: Arc<R>) -> Self {
+    pub fn new(yaml_config_repository: Arc<Y>) -> Self {
         Self {
             yaml_config_repository,
         }
     }
 }
 
-impl<R> EffectiveConfigLoaderBuilder for DefaultEffectiveConfigLoaderBuilder<R>
+impl<Y> EffectiveConfigLoaderBuilder for DefaultEffectiveConfigLoaderBuilder<Y>
 where
-    R: SubAgentYAMLConfigRepository,
+    Y: YAMLConfigRepository,
 {
-    type Loader = EffectiveConfigLoaderImpl<R>;
+    type Loader = EffectiveConfigLoaderImpl<Y>;
 
     fn build(&self, agent_id: AgentID) -> Self::Loader {
         if agent_id.is_super_agent_id() {
@@ -55,18 +55,18 @@ where
 }
 
 /// Enumerates all implementations for `EffectiveConfigLoader` for static dispatching reasons.
-pub enum EffectiveConfigLoaderImpl<R>
+pub enum EffectiveConfigLoaderImpl<Y>
 where
-    R: SubAgentYAMLConfigRepository,
+    Y: YAMLConfigRepository,
 {
     // TODO this will be replaced with the actual super agent effective config loader.
     SuperAgent(NoOpEffectiveConfigLoader),
-    SubAgent(SubAgentEffectiveConfigLoader<R>),
+    SubAgent(SubAgentEffectiveConfigLoader<Y>),
 }
 
-impl<R> EffectiveConfigLoader for EffectiveConfigLoaderImpl<R>
+impl<Y> EffectiveConfigLoader for EffectiveConfigLoaderImpl<Y>
 where
-    R: SubAgentYAMLConfigRepository,
+    Y: YAMLConfigRepository,
 {
     fn load(&self) -> Result<ConfigurationMap, LoaderError> {
         match self {

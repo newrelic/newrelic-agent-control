@@ -1,7 +1,7 @@
 use super::config::OpAMPClientConfig;
 use super::defaults::{
-    DYNAMIC_AGENT_TYPE_FILENAME, SUPER_AGENT_CONFIG_FILE, SUPER_AGENT_DATA_DIR,
-    SUPER_AGENT_LOCAL_DATA_DIR, SUPER_AGENT_LOG_DIR,
+    DYNAMIC_AGENT_TYPE_FILENAME, SUPER_AGENT_DATA_DIR, SUPER_AGENT_LOCAL_DATA_DIR,
+    SUPER_AGENT_LOG_DIR,
 };
 use super::http_server::config::ServerConfig;
 use crate::agent_type::embedded_registry::EmbeddedRegistry;

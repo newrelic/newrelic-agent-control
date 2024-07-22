@@ -1,9 +1,7 @@
 use crate::super_agent::config::AgentID;
 use crate::super_agent::defaults::{VALUES_DIR, VALUES_FILE};
 use crate::values::yaml_config::{has_remote_management, YAMLConfig};
-use crate::values::yaml_config_repository::{
-    SubAgentYAMLConfigRepository, YAMLConfigRepository, YAMLConfigRepositoryError,
-};
+use crate::values::yaml_config_repository::{YAMLConfigRepository, YAMLConfigRepositoryError};
 use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
 use fs::file_reader::{FileReader, FileReaderError};
 use fs::writer_file::{FileWriter, WriteError};
@@ -135,13 +133,6 @@ where
     }
 }
 
-impl<F, S> SubAgentYAMLConfigRepository for YAMLConfigRepositoryFile<F, S>
-where
-    S: DirectoryManager + Send + Sync + 'static,
-    F: FileWriter + FileReader + Send + Sync + 'static,
-{
-}
-
 impl<F, S> YAMLConfigRepository for YAMLConfigRepositoryFile<F, S>
 where
     S: DirectoryManager + Send + Sync + 'static,
@@ -222,7 +213,7 @@ pub mod test {
     use crate::super_agent::defaults::default_capabilities;
     use crate::values::yaml_config::YAMLConfig;
     use crate::values::yaml_config_repository::{
-        SubAgentYAMLConfigRepository, YAMLConfigRepository, YAMLConfigRepositoryError,
+        load_remote_fallback_local, YAMLConfigRepository, YAMLConfigRepositoryError,
     };
     use assert_matches::assert_matches;
     use fs::directory_manager::mock::MockDirectoryManagerMock;
@@ -288,7 +279,8 @@ pub mod test {
             remote_enabled,
         );
 
-        let yaml_config = repo.load(&agent_id, &default_capabilities()).unwrap();
+        let yaml_config =
+            load_remote_fallback_local(&repo, &agent_id, &default_capabilities()).unwrap();
 
         assert_eq!(yaml_config.get("some_config").unwrap(), &Value::Bool(true));
         assert_eq!(
@@ -323,7 +315,8 @@ pub mod test {
             remote_enabled,
         );
 
-        let yaml_config = repo.load(&agent_id, &default_capabilities()).unwrap();
+        let yaml_config =
+            load_remote_fallback_local(&repo, &agent_id, &default_capabilities()).unwrap();
 
         assert_eq!(yaml_config.get("some_config").unwrap(), &Value::Bool(true));
         assert_eq!(
@@ -363,7 +356,8 @@ pub mod test {
             remote_enabled,
         );
 
-        let yaml_config = repo.load(&agent_id, &default_capabilities()).unwrap();
+        let yaml_config =
+            load_remote_fallback_local(&repo, &agent_id, &default_capabilities()).unwrap();
 
         assert_eq!(yaml_config.get("some_config").unwrap(), &Value::Bool(true));
         assert_eq!(
@@ -396,7 +390,8 @@ pub mod test {
             remote_enabled,
         );
 
-        let yaml_config = repo.load(&agent_id, &default_capabilities()).unwrap();
+        let yaml_config =
+            load_remote_fallback_local(&repo, &agent_id, &default_capabilities()).unwrap();
 
         assert_eq!(yaml_config, YAMLConfig::default());
     }
@@ -424,7 +419,7 @@ pub mod test {
             remote_enabled,
         );
 
-        let result = repo.load(&agent_id, &default_capabilities());
+        let result = load_remote_fallback_local(&repo, &agent_id, &default_capabilities());
         let err = result.unwrap_err();
         assert_matches!(err, YAMLConfigRepositoryError::LoadError(s) => {
             assert!(s.contains("file read error"));
@@ -454,7 +449,7 @@ pub mod test {
             remote_enabled,
         );
 
-        let result = repo.load(&agent_id, &default_capabilities());
+        let result = load_remote_fallback_local(&repo, &agent_id, &default_capabilities());
         let err = result.unwrap_err();
         assert_matches!(err, YAMLConfigRepositoryError::LoadError(s) => {
             assert!(s.contains("error reading contents"));
