@@ -36,6 +36,8 @@ pub enum CliError {
     LoggingInit(#[from] LoggingError),
     #[error("k8s config missing while running on k8s ")]
     K8sConfig(),
+    #[error("Could not read Super Agent config from `{0}`: `{0}`")]
+    LoaderError(String, String),
 }
 
 /// What action was requested from the CLI?
@@ -115,15 +117,18 @@ impl Cli {
         // In both K8s and onHost we read here the super-agent config that is used to bootstrap the SA from file
         // In the K8s such config is used create the k8s client to create the storer that reads configs from configMaps
         // The real configStores are created in the run fn, the onhost reads file, the k8s one reads configMaps
-        let mut super_agent_config = SuperAgentConfigStore::new(Arc::new(vr))
-            .load()
-            .inspect_err(|err| {
-                println!(
-                    "Could not read Super Agent config from {}: {}",
-                    base_paths.super_agent_local_config.to_string_lossy(),
-                    err
-                )
-            })?;
+        let mut super_agent_config =
+            SuperAgentConfigStore::new(Arc::new(vr))
+                .load()
+                .map_err(|err| {
+                    CliError::LoaderError(
+                        base_paths
+                            .super_agent_local_config
+                            .to_string_lossy()
+                            .to_string(),
+                        err.to_string(),
+                    )
+                })?;
 
         let config_patcher =
             ConfigPatcher::new(base_paths.local_dir.clone(), base_paths.log_dir.clone());
