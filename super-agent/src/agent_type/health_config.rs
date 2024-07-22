@@ -192,19 +192,6 @@ impl Templateable for HttpPath {
     }
 }
 
-/// Represents a health check based on an executed command.
-///
-/// For further details, refer to [Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/).
-#[derive(Debug, Deserialize, Clone, PartialEq)]
-pub(crate) struct ExecHealth {
-    /// The binary path to be executed for the health check.
-    pub(crate) path: String,
-    /// Arguments provided to the executed command.
-    pub(crate) args: Vec<String>,
-    // allowed healthy exit codes
-    pub(crate) healthy_exit_codes: Vec<i32>,
-}
-
 impl Templateable for OnHostHealthConfig {
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         Ok(Self {

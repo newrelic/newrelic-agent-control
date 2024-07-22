@@ -1,9 +1,11 @@
-use crate::agent_type::definition::AgentType;
 use crate::k8s;
 use crate::k8s::store::{K8sStore, STORE_KEY_LOCAL_DATA_CONFIG, STORE_KEY_OPAMP_DATA_CONFIG};
 use crate::super_agent::config::AgentID;
-use crate::values::yaml_config::YAMLConfig;
-use crate::values::yaml_config_repository::{YAMLConfigRepository, YAMLConfigRepositoryError};
+use crate::values::yaml_config::{has_remote_management, YAMLConfig};
+use crate::values::yaml_config_repository::{
+    SubAgentYAMLConfigRepository, YAMLConfigRepository, YAMLConfigRepositoryError,
+};
+use opamp_client::operation::capabilities::Capabilities;
 use std::sync::Arc;
 use thiserror::Error;
 use tracing::debug;
@@ -49,9 +51,9 @@ impl YAMLConfigRepository for YAMLConfigRepositoryConfigMap {
     fn load_remote(
         &self,
         agent_id: &AgentID,
-        agent_type: &AgentType,
+        capabilities: &Capabilities,
     ) -> Result<Option<YAMLConfig>, YAMLConfigRepositoryError> {
-        if !self.remote_enabled || !agent_type.has_remote_management() {
+        if !self.remote_enabled || !has_remote_management(capabilities) {
             return Ok(None);
         }
 
@@ -82,3 +84,5 @@ impl YAMLConfigRepository for YAMLConfigRepositoryConfigMap {
         Ok(())
     }
 }
+
+impl SubAgentYAMLConfigRepository for YAMLConfigRepositoryConfigMap {}

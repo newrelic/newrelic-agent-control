@@ -1,8 +1,7 @@
 use super::config::OpAMPClientConfig;
-use super::config_storer::store::SuperAgentConfigStore;
 use super::defaults::{
-    DYNAMIC_AGENT_TYPE_FILENAME, SUPER_AGENT_DATA_DIR, SUPER_AGENT_LOCAL_DATA_DIR,
-    SUPER_AGENT_LOG_DIR,
+    DYNAMIC_AGENT_TYPE_FILENAME, SUPER_AGENT_CONFIG_FILE, SUPER_AGENT_DATA_DIR,
+    SUPER_AGENT_LOCAL_DATA_DIR, SUPER_AGENT_LOG_DIR,
 };
 use super::http_server::config::ServerConfig;
 use crate::agent_type::embedded_registry::EmbeddedRegistry;
@@ -29,14 +28,16 @@ pub mod on_host;
 /// Structure with all base paths required to run the super agent
 #[derive(Clone)]
 pub struct BasePaths {
+    pub super_agent_local_config: PathBuf,
     pub local_dir: PathBuf,
     pub remote_dir: PathBuf,
     pub log_dir: PathBuf,
 }
 
-impl Default for BasePaths {
-    fn default() -> Self {
+impl BasePaths {
+    pub(crate) fn new(super_agent_local_config: String) -> Self {
         Self {
+            super_agent_local_config: PathBuf::from(super_agent_local_config),
             local_dir: PathBuf::from(SUPER_AGENT_LOCAL_DATA_DIR()),
             remote_dir: PathBuf::from(SUPER_AGENT_DATA_DIR()),
             log_dir: PathBuf::from(SUPER_AGENT_LOG_DIR()),
@@ -46,10 +47,11 @@ impl Default for BasePaths {
 
 /// Structures for running the super-agent provided by CLI inputs
 pub struct SuperAgentRunConfig {
-    pub config_storer: SuperAgentConfigStore,
     pub opamp: Option<OpAMPClientConfig>,
     pub http_server: ServerConfig,
     pub base_paths: BasePaths,
+    #[cfg(feature = "k8s")]
+    pub k8s_config: super::config::K8sConfig,
 }
 
 impl TryFrom<SuperAgentRunConfig> for SuperAgentRunner {
@@ -102,7 +104,8 @@ impl TryFrom<SuperAgentRunConfig> for SuperAgentRunner {
         Ok(SuperAgentRunner {
             _http_server_runner,
             runtime,
-            config_storer: value.config_storer,
+            #[cfg(feature = "k8s")]
+            k8s_config: value.k8s_config,
             agent_type_registry,
             application_event_consumer,
             opamp_http_builder,
@@ -116,12 +119,13 @@ impl TryFrom<SuperAgentRunConfig> for SuperAgentRunner {
 /// Fields are public just for testing. The object is destroyed right after is deleted,
 /// Therefore, we should be worried of any tampering after its creation.
 pub struct SuperAgentRunner {
-    config_storer: SuperAgentConfigStore,
     agent_type_registry: EmbeddedRegistry,
     application_event_consumer: EventConsumer<ApplicationEvent>,
     opamp_http_builder: Option<UreqHttpClientBuilder<TokenRetrieverImpl>>,
     super_agent_publisher: EventPublisher<SuperAgentEvent>,
     base_paths: BasePaths,
+    #[cfg(feature = "k8s")]
+    k8s_config: super::config::K8sConfig,
 
     #[allow(dead_code)]
     runtime: Arc<Runtime>,

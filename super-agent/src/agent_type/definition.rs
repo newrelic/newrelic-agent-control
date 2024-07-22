@@ -14,7 +14,6 @@ use super::{
 use crate::super_agent::config::AgentTypeFQN;
 use crate::super_agent::defaults::default_capabilities;
 use crate::values::yaml_config::YAMLConfig;
-use opamp_client::opamp::proto::AgentCapabilities;
 use opamp_client::operation::capabilities::Capabilities;
 use serde::{Deserialize, Deserializer};
 use std::{collections::HashMap, str::FromStr};
@@ -221,11 +220,6 @@ impl AgentType {
         }
     }
 
-    pub fn has_remote_management(&self) -> bool {
-        self.capabilities
-            .has_capability(AgentCapabilities::AcceptsRemoteConfig)
-    }
-
     // TODO: AgentTypeFQN should not exist and always use the metadata display.
     pub fn agent_type(&self) -> AgentTypeFQN {
         self.metadata
@@ -237,6 +231,10 @@ impl AgentType {
 
     pub fn get_variables(&self) -> Variables {
         self.variables.clone().flatten()
+    }
+
+    pub fn get_capabilities(&self) -> Capabilities {
+        self.capabilities
     }
 }
 

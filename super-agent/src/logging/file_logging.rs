@@ -1,9 +1,9 @@
 use super::config::LoggingError;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tracing_appender::non_blocking::{NonBlocking, WorkerGuard};
 
-#[derive(Debug, Deserialize, Default, PartialEq, Clone)]
+#[derive(Debug, Deserialize, Serialize, Default, PartialEq, Clone)]
 pub(crate) struct FileLoggingConfig {
     pub(crate) enable: bool,
     // Default value is being set by `ConfigPatcher` right after deserialization.
@@ -22,7 +22,7 @@ impl FileLoggingConfig {
     }
 }
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 #[serde(try_from = "PathBuf")]
 pub(crate) struct LogFilePath {
     parent: PathBuf,

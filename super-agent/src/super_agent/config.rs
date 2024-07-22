@@ -1,8 +1,9 @@
+use super::http_server::config::ServerConfig;
 use crate::logging::config::LoggingConfig;
 use crate::opamp::auth::config::AuthConfig;
 use crate::opamp::remote_config::RemoteConfigError;
-use crate::super_agent::config_storer::store::ConfigStoreError;
 use crate::super_agent::defaults::{default_capabilities, SUPER_AGENT_ID};
+use crate::values::yaml_config::YAMLConfig;
 use http::HeaderMap;
 #[cfg(feature = "k8s")]
 use kube::api::TypeMeta;
@@ -13,8 +14,6 @@ use std::path::Path;
 use std::{collections::HashMap, fmt::Display};
 use thiserror::Error;
 use url::Url;
-
-use super::http_server::config::ServerConfig;
 
 const AGENT_ID_MAX_LENGTH: usize = 32;
 
@@ -41,19 +40,20 @@ pub enum SuperAgentConfigError {
     #[cfg(feature = "k8s")]
     #[error("error from k8s storer loading SAConfig: {0}")]
     FailedToPersistK8s(#[from] crate::k8s::Error),
-
-    #[error("error loading the super agent config: `{0}`")]
-    LoadConfigError(#[from] ConfigStoreError),
-
+    #[error("deleting super agent config: `{0}`")]
+    Delete(String),
+    #[error("loading super agent config: `{0}`")]
+    Load(String),
+    #[error("storing super agent config: `{0}`")]
+    Store(String),
+    #[error("building source to parse environment variables: `{0}`")]
+    ConfigError(#[from] config::ConfigError),
     #[error("sub agent configuration `{0}` not found")]
     SubAgentNotFound(String),
-
     #[error("configuration is not valid YAML: `{0}`")]
     InvalidYamlConfiguration(#[from] serde_yaml::Error),
-
     #[error("remote config error: `{0}`")]
     RemoteConfigError(#[from] RemoteConfigError),
-
     #[error("remote config error: `{0}`")]
     IOError(#[from] std::io::Error),
 }
@@ -138,8 +138,32 @@ impl TryFrom<&str> for SuperAgentDynamicConfig {
     }
 }
 
+impl TryFrom<YAMLConfig> for SuperAgentConfig {
+    type Error = serde_yaml::Error;
+
+    fn try_from(value: YAMLConfig) -> Result<Self, Self::Error> {
+        serde_yaml::from_value(serde_yaml::to_value(value)?)
+    }
+}
+
+impl TryFrom<&SuperAgentDynamicConfig> for YAMLConfig {
+    type Error = serde_yaml::Error;
+
+    fn try_from(value: &SuperAgentDynamicConfig) -> Result<Self, Self::Error> {
+        serde_yaml::from_value(serde_yaml::to_value(value)?)
+    }
+}
+
+impl TryFrom<YAMLConfig> for SuperAgentDynamicConfig {
+    type Error = serde_yaml::Error;
+
+    fn try_from(value: YAMLConfig) -> Result<Self, Self::Error> {
+        serde_yaml::from_value(serde_yaml::to_value(value)?)
+    }
+}
+
 /// SuperAgentConfig represents the configuration for the super agent.
-#[derive(Debug, Deserialize, Default, PartialEq, Clone)]
+#[derive(Debug, Deserialize, Serialize, Default, PartialEq, Clone)]
 pub struct SuperAgentConfig {
     #[serde(default)]
     pub log: LoggingConfig,
@@ -229,9 +253,10 @@ pub struct SubAgentConfig {
     pub agent_type: AgentTypeFQN, // FQN of the agent type, ex: newrelic/nrdot:0.1.0
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Serialize, Clone)]
 pub struct OpAMPClientConfig {
     pub endpoint: Url,
+    #[serde(with = "http_serde::header_map")]
     pub headers: HeaderMap,
     pub auth_config: Option<AuthConfig>,
 }
@@ -274,7 +299,7 @@ impl<'de> Deserialize<'de> for OpAMPClientConfig {
 }
 
 /// K8sConfig represents the SuperAgent configuration for K8s environments
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct K8sConfig {
     /// cluster_name is an attribute used to identify all monitored data in a particular kubernetes cluster.
     pub cluster_name: String,

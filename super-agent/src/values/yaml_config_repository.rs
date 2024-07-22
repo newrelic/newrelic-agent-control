@@ -1,6 +1,6 @@
-use crate::agent_type::definition::AgentType;
 use crate::super_agent::config::AgentID;
 use crate::values::yaml_config::YAMLConfig;
+use opamp_client::operation::capabilities::Capabilities;
 use tracing::debug;
 
 #[derive(thiserror::Error, Debug)]
@@ -13,17 +13,17 @@ pub enum YAMLConfigRepositoryError {
     DeleteError(String),
 }
 
-pub trait YAMLConfigRepository: Send + Sync + 'static {
+pub trait SubAgentYAMLConfigRepository: YAMLConfigRepository {
     /// load(...) looks for remote configs first, if unavailable checks the local ones.
     /// If none is found, it fallbacks to the default values.
     fn load(
         &self,
         agent_id: &AgentID,
-        agent_type: &AgentType,
+        capabilities: &Capabilities,
     ) -> Result<YAMLConfig, YAMLConfigRepositoryError> {
         debug!(agent_id = agent_id.to_string(), "loading config");
 
-        if let Some(values_result) = self.load_remote(agent_id, agent_type)? {
+        if let Some(values_result) = self.load_remote(agent_id, capabilities)? {
             return Ok(values_result);
         }
         debug!(
@@ -40,7 +40,9 @@ pub trait YAMLConfigRepository: Send + Sync + 'static {
         );
         Ok(YAMLConfig::default())
     }
+}
 
+pub trait YAMLConfigRepository: Send + Sync + 'static {
     fn load_local(
         &self,
         agent_id: &AgentID,
@@ -49,7 +51,7 @@ pub trait YAMLConfigRepository: Send + Sync + 'static {
     fn load_remote(
         &self,
         agent_id: &AgentID,
-        agent_type: &AgentType,
+        capabilities: &Capabilities,
     ) -> Result<Option<YAMLConfig>, YAMLConfigRepositoryError>;
 
     fn store_remote(
@@ -63,11 +65,13 @@ pub trait YAMLConfigRepository: Send + Sync + 'static {
 
 #[cfg(test)]
 pub mod test {
-    use crate::agent_type::definition::AgentType;
     use crate::super_agent::config::AgentID;
     use crate::values::yaml_config::YAMLConfig;
-    use crate::values::yaml_config_repository::{YAMLConfigRepository, YAMLConfigRepositoryError};
+    use crate::values::yaml_config_repository::{
+        SubAgentYAMLConfigRepository, YAMLConfigRepository, YAMLConfigRepositoryError,
+    };
     use mockall::{mock, predicate};
+    use opamp_client::operation::capabilities::Capabilities;
 
     mock! {
         pub(crate) YAMLConfigRepositoryMock {}
@@ -81,12 +85,6 @@ pub mod test {
 
             fn delete_remote(&self, agent_id: &AgentID) -> Result<(), YAMLConfigRepositoryError>;
 
-            fn load(
-                &self,
-                agent_id: &AgentID,
-                agent_type: &AgentType,
-            ) -> Result<YAMLConfig, YAMLConfigRepositoryError>;
-
             fn load_local(
                 &self,
                 agent_id: &AgentID,
@@ -95,8 +93,15 @@ pub mod test {
             fn load_remote(
                 &self,
                 agent_id: &AgentID,
-                agent_type: &AgentType,
+                capabilities: &Capabilities,
             ) -> Result<Option<YAMLConfig>, YAMLConfigRepositoryError>;
+        }
+        impl SubAgentYAMLConfigRepository for YAMLConfigRepositoryMock {
+            fn load(
+                &self,
+                agent_id: &AgentID,
+                agent_type: &Capabilities,
+            ) -> Result<YAMLConfig, YAMLConfigRepositoryError>;
         }
     }
 
@@ -104,26 +109,20 @@ pub mod test {
         pub fn should_load(
             &mut self,
             agent_id: &AgentID,
-            final_agent: &AgentType,
+            capabilities: Capabilities,
             yaml_config: &YAMLConfig,
         ) {
             let yaml_config = yaml_config.clone();
             self.expect_load()
                 .once()
-                .with(
-                    predicate::eq(agent_id.clone()),
-                    predicate::eq(final_agent.clone()),
-                )
+                .with(predicate::eq(agent_id.clone()), predicate::eq(capabilities))
                 .returning(move |_, _| Ok(yaml_config.clone()));
         }
 
-        pub fn should_not_load(&mut self, agent_id: &AgentID, final_agent: &AgentType) {
+        pub fn should_not_load(&mut self, agent_id: &AgentID, capabilities: Capabilities) {
             self.expect_load()
                 .once()
-                .with(
-                    predicate::eq(agent_id.clone()),
-                    predicate::eq(final_agent.clone()),
-                )
+                .with(predicate::eq(agent_id.clone()), predicate::eq(capabilities))
                 .returning(move |_, _| {
                     Err(YAMLConfigRepositoryError::LoadError(
                         "load error".to_string(),

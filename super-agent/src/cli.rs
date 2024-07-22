@@ -3,11 +3,14 @@ mod one_shot_operation;
 use clap::Parser;
 use one_shot_operation::OneShotCommand;
 use std::path::PathBuf;
+use std::sync::Arc;
 use thiserror::Error;
 use tracing::info;
 
+use crate::super_agent::defaults::SUPER_AGENT_CONFIG_FILE;
 #[cfg(debug_assertions)]
 use crate::super_agent::run::set_debug_dirs;
+use crate::values::file::YAMLConfigRepositoryFile;
 use crate::{
     logging::config::{FileLoggerGuard, LoggingError},
     super_agent::{
@@ -31,6 +34,8 @@ pub enum CliError {
     ConfigRead(#[from] SuperAgentConfigError),
     #[error("Could not initialize logging: `{0}`")]
     LoggingInit(#[from] LoggingError),
+    #[error("k8s config missing while running on k8s ")]
+    K8sConfig(),
 }
 
 /// What action was requested from the CLI?
@@ -88,7 +93,7 @@ impl Cli {
         // Get command line args
         let cli = Self::parse();
 
-        let base_paths = BasePaths::default();
+        let base_paths = BasePaths::new(cli.config.clone());
 
         // Initialize debug directories (if set)
         #[cfg(debug_assertions)]
@@ -102,16 +107,23 @@ impl Cli {
             return Ok(CliCommand::OneShot(OneShotCommand::PrintDebugInfo(cli)));
         }
 
-        let config_storer =
-            SuperAgentConfigStore::new(&cli.get_config_path(), base_paths.remote_dir.clone());
+        let vr = YAMLConfigRepositoryFile::new(
+            base_paths.super_agent_local_config.clone(),
+            base_paths.remote_dir.join(SUPER_AGENT_CONFIG_FILE()),
+        );
 
-        let mut super_agent_config = config_storer.load().inspect_err(|err| {
-            println!(
-                "Could not read Super Agent config from {}: {}",
-                config_storer.config_path().to_string_lossy(),
-                err
-            )
-        })?;
+        // In both K8s and onHost we read here the super-agent config that is used to bootstrap the SA from file
+        // In the K8s such config is used create the k8s client to create the storer that reads configs from configMaps
+        // The real configStores are created in the run fn, the onhost reads file, the k8s one reads configMaps
+        let mut super_agent_config = SuperAgentConfigStore::new(Arc::new(vr))
+            .load()
+            .inspect_err(|err| {
+                println!(
+                    "Could not read Super Agent config from {}: {}",
+                    base_paths.super_agent_local_config.to_string_lossy(),
+                    err
+                )
+            })?;
 
         let config_patcher =
             ConfigPatcher::new(base_paths.local_dir.clone(), base_paths.log_dir.clone());
@@ -119,19 +131,17 @@ impl Cli {
 
         let file_logger_guard = super_agent_config.log.try_init()?;
         info!("{}", binary_metadata());
-        info!(
-            "Starting NewRelic Super Agent with config '{}'",
-            config_storer.config_path().to_string_lossy()
-        );
+        info!("Starting NewRelic Super Agent with config '{}'", cli.config);
 
         let opamp = super_agent_config.opamp;
         let http_server = super_agent_config.server;
 
         let run_config = SuperAgentRunConfig {
-            config_storer,
             opamp,
             http_server,
             base_paths,
+            #[cfg(feature = "k8s")]
+            k8s_config: super_agent_config.k8s.ok_or(CliError::K8sConfig())?,
         };
 
         let cli_config = SuperAgentCliConfig {
@@ -140,10 +150,6 @@ impl Cli {
         };
 
         Ok(CliCommand::InitSuperAgent(cli_config))
-    }
-
-    fn get_config_path(&self) -> PathBuf {
-        PathBuf::from(&self.config)
     }
 
     fn print_version(&self) -> bool {

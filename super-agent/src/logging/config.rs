@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize, Serializer};
 use std::fmt::Debug;
 use std::str::FromStr;
 use thiserror::Error;
@@ -33,7 +33,7 @@ pub enum LoggingError {
 ///
 /// # Fields:
 /// - `format`: Specifies the `LoggingFormat` the application will use for logging.
-#[derive(Debug, Deserialize, PartialEq, Clone, Default)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Default)]
 pub struct LoggingConfig {
     #[serde(default)]
     pub(crate) format: LoggingFormat,
@@ -162,9 +162,19 @@ impl<'de> Deserialize<'de> for LogLevel {
     }
 }
 
+impl Serialize for LogLevel {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.collect_str(&self.as_level().to_string())
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::logging::config::LogLevel;
 
     #[test]
     fn working_logging_configurations() {
@@ -262,5 +272,14 @@ mod test {
         ];
 
         test_cases.into_iter().for_each(|tc| tc.run());
+    }
+
+    #[test]
+    fn test_serialize_deserialize() {
+        let l = LogLevel::default();
+        assert_eq!(
+            l,
+            serde_yaml::from_value(serde_yaml::to_value(l.clone()).unwrap()).unwrap()
+        )
     }
 }

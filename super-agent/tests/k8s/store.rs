@@ -1,37 +1,33 @@
 use crate::common::runtime::{block_on, tokio_runtime};
 use crate::k8s::tools::k8s_env::K8sEnv;
-use crate::k8s::tools::super_agent::create_local_config_map;
+use crate::k8s::tools::super_agent::{create_config_map, create_local_config_map};
 use k8s_openapi::api::core::v1::ConfigMap;
 use kube::Api;
-use newrelic_super_agent::agent_type::runtime_config::Runtime;
 use newrelic_super_agent::k8s::client::SyncK8sClient;
 use newrelic_super_agent::k8s::labels::Labels;
 use newrelic_super_agent::k8s::store::{
-    K8sStore, StoreKey, CM_NAME_OPAMP_DATA_PREFIX, STORE_KEY_INSTANCE_ID,
-    STORE_KEY_OPAMP_DATA_CONFIG_HASH,
+    K8sStore, StoreKey, CM_NAME_LOCAL_DATA_PREFIX, CM_NAME_OPAMP_DATA_PREFIX,
+    STORE_KEY_INSTANCE_ID, STORE_KEY_OPAMP_DATA_CONFIG_HASH,
 };
 use newrelic_super_agent::opamp::hash_repository::k8s::HashRepositoryConfigMap;
+use newrelic_super_agent::opamp::hash_repository::HashRepository;
 use newrelic_super_agent::opamp::instance_id::{
     getter::{InstanceIDGetter, InstanceIDWithIdentifiersGetter},
     Identifiers,
 };
 use newrelic_super_agent::opamp::remote_config_hash::Hash;
-use newrelic_super_agent::super_agent::config::{AgentID, SuperAgentDynamicConfig};
+use newrelic_super_agent::super_agent::config::AgentID;
 use newrelic_super_agent::super_agent::config_storer::loader_storer::{
     SuperAgentDynamicConfigDeleter, SuperAgentDynamicConfigLoader, SuperAgentDynamicConfigStorer,
 };
-use newrelic_super_agent::super_agent::config_storer::SubAgentsConfigStoreConfigMap;
-use newrelic_super_agent::{
-    agent_type::agent_metadata::AgentMetadata, opamp::hash_repository::HashRepository,
-};
-use newrelic_super_agent::{
-    agent_type::definition::{AgentType, VariableTree},
-    values::yaml_config_repository::YAMLConfigRepository,
+use newrelic_super_agent::super_agent::config_storer::store::SuperAgentConfigStore;
+use newrelic_super_agent::super_agent::defaults::default_capabilities;
+use newrelic_super_agent::values::yaml_config_repository::{
+    SubAgentYAMLConfigRepository, YAMLConfigRepository,
 };
 use newrelic_super_agent::{
     values::k8s::YAMLConfigRepositoryConfigMap, values::yaml_config::YAMLConfig,
 };
-use semver::Version;
 use serde_yaml::from_str;
 use std::sync::Arc;
 
@@ -127,22 +123,11 @@ fn k8s_value_repository_config_map() {
     let k8s_store = Arc::new(K8sStore::new(k8s_client));
     let agent_id_1 = AgentID::new(AGENT_ID_1).unwrap();
     let agent_id_2 = AgentID::new(AGENT_ID_2).unwrap();
-
-    let agent_type = AgentType::new(
-        AgentMetadata {
-            name: "agent".into(),
-            version: Version::parse("0.0.0").unwrap(),
-            namespace: "ns".into(),
-        },
-        VariableTree::default(),
-        Runtime::default(),
-    );
-
     let mut value_repository = YAMLConfigRepositoryConfigMap::new(k8s_store);
     let default_values = YAMLConfig::default();
-
+    let capabilities = default_capabilities();
     // without values the default is expected
-    let res = value_repository.load(&agent_id_1, &agent_type);
+    let res = value_repository.load(&agent_id_1, &capabilities);
     assert_eq!(res.unwrap(), default_values);
 
     // with local values we expect some data
@@ -153,7 +138,7 @@ fn k8s_value_repository_config_map() {
         format!("local-data-{}", AGENT_ID_1).as_str(),
     ));
     let local_values = YAMLConfig::try_from("test: 1".to_string()).unwrap();
-    let res = value_repository.load(&agent_id_1, &agent_type);
+    let res = value_repository.load(&agent_id_1, &capabilities);
 
     assert_eq!(res.unwrap(), local_values);
 
@@ -162,17 +147,17 @@ fn k8s_value_repository_config_map() {
     value_repository
         .store_remote(&agent_id_1, &remote_values)
         .unwrap();
-    let res = value_repository.load(&agent_id_1, &agent_type);
+    let res = value_repository.load(&agent_id_1, &capabilities);
     assert_eq!(res.unwrap(), local_values);
 
     // Once we have remote enabled we get remote data
     value_repository = value_repository.with_remote();
-    let res = value_repository.load(&agent_id_1, &agent_type);
+    let res = value_repository.load(&agent_id_1, &capabilities);
     assert_eq!(res.unwrap(), remote_values);
 
     // After deleting remote we expect to get still local data
     value_repository.delete_remote(&agent_id_1).unwrap();
-    let res = value_repository.load(&agent_id_1, &agent_type);
+    let res = value_repository.load(&agent_id_1, &capabilities);
     assert_eq!(res.unwrap(), local_values);
 
     // After saving data for a second agent should not affect the previous one
@@ -181,8 +166,8 @@ fn k8s_value_repository_config_map() {
     value_repository
         .store_remote(&agent_id_2, &remote_values_agent_2)
         .unwrap();
-    let res = value_repository.load(&agent_id_1, &agent_type);
-    let res_agent_2 = value_repository.load(&agent_id_2, &agent_type);
+    let res = value_repository.load(&agent_id_1, &capabilities);
+    let res_agent_2 = value_repository.load(&agent_id_2, &capabilities);
     assert_eq!(res.unwrap(), local_values);
     assert_eq!(res_agent_2.unwrap(), remote_values_agent_2);
 }
@@ -196,8 +181,7 @@ fn k8s_sa_config_map() {
     let test_ns = block_on(test.test_namespace());
     let k8s_client =
         Arc::new(SyncK8sClient::try_new(tokio_runtime(), test_ns.clone(), Vec::new()).unwrap());
-
-    let k8s_store = Arc::new(K8sStore::new(k8s_client));
+    let k8s_store = Arc::new(K8sStore::new(k8s_client.clone()));
 
     // This is the cached local config
     let agents_cfg_local = r#"
@@ -210,9 +194,18 @@ agents:
     agent_type: "com.newrelic.infrastructure_agent:0.0.2"
   infra-agent-d:
     agent_type: "com.newrelic.infrastructure_agent:0.0.2"
-"#;
-    let agents_local = from_str::<SuperAgentDynamicConfig>(agents_cfg_local).unwrap();
-    let store_sa = SubAgentsConfigStoreConfigMap::new(k8s_store, agents_local);
+"#
+    .to_string();
+
+    block_on(create_config_map(
+        test.client.clone(),
+        test_ns.as_str(),
+        K8sStore::build_cm_name(&AgentID::new_super_agent_id(), CM_NAME_LOCAL_DATA_PREFIX).as_str(),
+        agents_cfg_local,
+    ));
+
+    let vr = YAMLConfigRepositoryConfigMap::new(k8s_store.clone());
+    let store_sa = SuperAgentConfigStore::new(Arc::new(vr));
     assert_eq!(store_sa.load().unwrap().agents.len(), 4);
 
     // after removing an agent and storing it, we expect not to see it without remote enabled
@@ -226,12 +219,13 @@ agents:
     agent_type: "io.opentelemetry.collector:0.2.0"
 "#;
     assert!(store_sa
-        .store(&from_str::<SuperAgentDynamicConfig>(agents_cfg).unwrap())
+        .store(&from_str::<YAMLConfig>(agents_cfg).unwrap())
         .is_ok());
     assert_eq!(store_sa.load().unwrap().agents.len(), 4);
 
     // After enabling remote we can load the "remote" config
-    let store_sa = store_sa.with_remote();
+    let vr = YAMLConfigRepositoryConfigMap::new(k8s_store).with_remote();
+    let store_sa = SuperAgentConfigStore::new(Arc::new(vr));
     assert_eq!(store_sa.load().unwrap().agents.len(), 3);
 
     // After deleting the remote config the local one is loaded

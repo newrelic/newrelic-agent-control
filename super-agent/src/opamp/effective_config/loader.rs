@@ -2,7 +2,7 @@ use super::error::LoaderError;
 use super::sub_agent::SubAgentEffectiveConfigLoader;
 use crate::opamp::remote_config::ConfigurationMap;
 use crate::super_agent::config::AgentID;
-use crate::values::yaml_config_repository::YAMLConfigRepository;
+use crate::values::yaml_config_repository::SubAgentYAMLConfigRepository;
 use std::sync::Arc;
 
 /// Trait for effective configuration loaders.
@@ -20,14 +20,14 @@ pub trait EffectiveConfigLoaderBuilder {
 /// Builder for effective configuration loaders.
 pub struct DefaultEffectiveConfigLoaderBuilder<R>
 where
-    R: YAMLConfigRepository,
+    R: SubAgentYAMLConfigRepository,
 {
     yaml_config_repository: Arc<R>,
 }
 
 impl<R> DefaultEffectiveConfigLoaderBuilder<R>
 where
-    R: YAMLConfigRepository,
+    R: SubAgentYAMLConfigRepository,
 {
     pub fn new(yaml_config_repository: Arc<R>) -> Self {
         Self {
@@ -38,7 +38,7 @@ where
 
 impl<R> EffectiveConfigLoaderBuilder for DefaultEffectiveConfigLoaderBuilder<R>
 where
-    R: YAMLConfigRepository,
+    R: SubAgentYAMLConfigRepository,
 {
     type Loader = EffectiveConfigLoaderImpl<R>;
 
@@ -57,7 +57,7 @@ where
 /// Enumerates all implementations for `EffectiveConfigLoader` for static dispatching reasons.
 pub enum EffectiveConfigLoaderImpl<R>
 where
-    R: YAMLConfigRepository,
+    R: SubAgentYAMLConfigRepository,
 {
     // TODO this will be replaced with the actual super agent effective config loader.
     SuperAgent(NoOpEffectiveConfigLoader),
@@ -66,7 +66,7 @@ where
 
 impl<R> EffectiveConfigLoader for EffectiveConfigLoaderImpl<R>
 where
-    R: YAMLConfigRepository,
+    R: SubAgentYAMLConfigRepository,
 {
     fn load(&self) -> Result<ConfigurationMap, LoaderError> {
         match self {

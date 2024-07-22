@@ -9,13 +9,13 @@ use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::sub_agent::event_processor_builder::EventProcessorBuilder;
 use crate::super_agent::config::AgentID;
 use crate::super_agent::config_storer::loader_storer::SuperAgentConfigLoader;
+use crate::super_agent::config_storer::store::SuperAgentConfigStore;
 use crate::super_agent::defaults::{FLEET_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY};
 use crate::super_agent::run::SuperAgentRunner;
 use crate::super_agent::{super_agent_fqn, SuperAgent};
 use crate::{
     k8s::{garbage_collector::NotStartedK8sGarbageCollector, store::K8sStore},
     sub_agent::k8s::builder::K8sSubAgentBuilder,
-    super_agent::config_storer::SubAgentsConfigStoreConfigMap,
     values::k8s::YAMLConfigRepositoryConfigMap,
 };
 use crate::{
@@ -29,54 +29,47 @@ use opamp_client::operation::settings::DescriptionValueType;
 use resource_detection::system::hostname::HostnameGetter;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 impl SuperAgentRunner {
     pub fn run(self) -> Result<(), AgentError> {
         info!("Starting the k8s client");
-        let config = self.config_storer.load()?;
-        let k8s_config = config.k8s.ok_or(AgentError::K8sConfig())?;
         let k8s_client = Arc::new(
             SyncK8sClient::try_new(
                 self.runtime,
-                k8s_config.namespace.clone(),
-                k8s_config.cr_type_meta.clone(),
+                self.k8s_config.namespace.clone(),
+                self.k8s_config.cr_type_meta.clone(),
             )
             .map_err(|e| AgentError::ExternalError(e.to_string()))?,
         );
-
         let k8s_store = Arc::new(K8sStore::new(k8s_client.clone()));
 
-        let identifiers =
-            instance_id::get_identifiers(k8s_config.cluster_name.clone(), config.fleet_id);
+        debug!("Initialising yaml_config_repository");
+        let yaml_config_repository = if self.opamp_http_builder.is_some() {
+            Arc::new(YAMLConfigRepositoryConfigMap::new(k8s_store.clone()).with_remote())
+        } else {
+            Arc::new(YAMLConfigRepositoryConfigMap::new(k8s_store.clone()))
+        };
+
+        let config_storer = Arc::new(SuperAgentConfigStore::new(yaml_config_repository.clone()));
+
+        let identifiers = instance_id::get_identifiers(
+            self.k8s_config.cluster_name.clone(),
+            config_storer.load()?.fleet_id,
+        );
         info!("Instance Identifiers: {}", identifiers);
 
         let mut non_identifying_attributes =
             super_agent_opamp_non_identifying_attributes(&identifiers);
         non_identifying_attributes.insert(
             "cluster.name".to_string(),
-            k8s_config.cluster_name.clone().into(),
+            self.k8s_config.cluster_name.clone().into(),
         );
 
         let instance_id_getter = InstanceIDWithIdentifiersGetter::new_k8s_instance_id_getter(
             k8s_store.clone(),
             identifiers,
         );
-
-        let mut vr = YAMLConfigRepositoryConfigMap::new(k8s_store.clone());
-        if self.opamp_http_builder.is_some() {
-            vr = vr.with_remote();
-        }
-        let yaml_config_repository = Arc::new(vr);
-
-        let sub_agents_config_storer =
-            SubAgentsConfigStoreConfigMap::new(k8s_store.clone(), config.dynamic);
-        // enable remote config store
-        let config_storer = if self.opamp_http_builder.is_some() {
-            Arc::new(sub_agents_config_storer.with_remote())
-        } else {
-            Arc::new(sub_agents_config_storer)
-        };
 
         let opamp_client_builder = self.opamp_http_builder.map(|http_builder| {
             DefaultOpAMPClientBuilder::new(
@@ -105,7 +98,7 @@ impl SuperAgentRunner {
             hash_repository.clone(),
             &agents_assembler,
             &sub_agent_event_processor_builder,
-            k8s_config.clone(),
+            self.k8s_config.clone(),
         );
 
         let (maybe_client, opamp_consumer) = opamp_client_builder

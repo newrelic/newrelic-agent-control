@@ -2,16 +2,22 @@ use crate::on_host::tools::global_logger::init_logger;
 use newrelic_super_agent::super_agent::config_patcher::ConfigPatcher;
 use newrelic_super_agent::super_agent::config_storer::loader_storer::SuperAgentConfigLoader;
 use newrelic_super_agent::super_agent::config_storer::store::SuperAgentConfigStore;
+use newrelic_super_agent::super_agent::defaults::SUPER_AGENT_CONFIG_FILE;
 use newrelic_super_agent::super_agent::run::{BasePaths, SuperAgentRunConfig, SuperAgentRunner};
-use std::path::Path;
+use newrelic_super_agent::values::file::YAMLConfigRepositoryFile;
+use std::sync::Arc;
 
 /// Starts the super-agent and blocks while executing.
 /// Take into account that some of the logic from main is not present here.
-pub fn start_super_agent_with_custom_config(config_path: &Path, base_paths: BasePaths) {
+pub fn start_super_agent_with_custom_config(base_paths: BasePaths) {
     // logger is a global variable shared between all test threads
     init_logger();
 
-    let config_storer = SuperAgentConfigStore::new(config_path, base_paths.remote_dir.clone());
+    let vr = YAMLConfigRepositoryFile::new(
+        base_paths.super_agent_local_config.clone(),
+        base_paths.remote_dir.join(SUPER_AGENT_CONFIG_FILE()),
+    );
+    let config_storer = SuperAgentConfigStore::new(Arc::new(vr));
 
     let mut super_agent_config = config_storer.load().unwrap();
 
@@ -20,7 +26,6 @@ pub fn start_super_agent_with_custom_config(config_path: &Path, base_paths: Base
     config_patcher.patch(&mut super_agent_config);
 
     let run_config = SuperAgentRunConfig {
-        config_storer,
         opamp: super_agent_config.opamp,
         http_server: super_agent_config.server,
         base_paths,

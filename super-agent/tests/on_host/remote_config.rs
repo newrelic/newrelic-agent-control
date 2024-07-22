@@ -39,6 +39,7 @@ agents: {{}}
     write!(local_file, "{}", super_agent_config).unwrap();
 
     let base_paths = BasePaths {
+        super_agent_local_config: config_file_path.as_path().to_path_buf(),
         local_dir: local_dir.path().to_path_buf(),
         remote_dir: remote_dir.path().to_path_buf(),
         log_dir: local_dir.path().to_path_buf(),
@@ -46,9 +47,7 @@ agents: {{}}
     let base_paths_copy = base_paths.clone();
     // We won't join and wait for the thread to finish because we want the super_agent to exit
     // if our assertions were not ok.
-    let _super_agent_join = thread::spawn(move || {
-        start_super_agent_with_custom_config(config_file_path.as_path(), base_paths.clone())
-    });
+    let _super_agent_join = thread::spawn(move || start_super_agent_with_custom_config(base_paths));
 
     let super_agent_instance_id = get_instance_id(&AgentID::new_super_agent_id(), base_paths_copy);
 

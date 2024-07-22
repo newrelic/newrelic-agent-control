@@ -1,6 +1,7 @@
 use crate::super_agent::config::{
     SuperAgentConfig, SuperAgentConfigError, SuperAgentDynamicConfig,
 };
+use crate::values::yaml_config::YAMLConfig;
 
 /// SuperAgentConfigLoader loads a whole SuperAgentConfig
 #[cfg_attr(test, mockall::automock)]
@@ -10,7 +11,7 @@ pub trait SuperAgentConfigLoader {
 
 /// SuperAgentDynamicConfigStorer stores the dynamic part of the SuperAgentConfig
 pub trait SuperAgentDynamicConfigStorer {
-    fn store(&self, config: &SuperAgentDynamicConfig) -> Result<(), SuperAgentConfigError>;
+    fn store(&self, config: &YAMLConfig) -> Result<(), SuperAgentConfigError>;
 }
 
 /// SuperAgentDynamicConfigLoader loads the dynamic part of the SuperAgentConfig
@@ -32,13 +33,14 @@ pub(crate) mod tests {
         SuperAgentDynamicConfigStorer,
     };
     use crate::super_agent::config::SuperAgentDynamicConfig;
+    use crate::values::yaml_config::YAMLConfig;
     use mockall::{mock, predicate};
 
     mock! {
         pub SuperAgentDynamicConfigStore {}
 
         impl SuperAgentDynamicConfigStorer for SuperAgentDynamicConfigStore {
-            fn store(&self, config: &SuperAgentDynamicConfig) -> Result<(), SuperAgentConfigError>;
+            fn store(&self, config: &YAMLConfig) -> Result<(), SuperAgentConfigError>;
         }
         impl SuperAgentDynamicConfigLoader for SuperAgentDynamicConfigStore {
             fn load(&self) -> Result<SuperAgentDynamicConfig, SuperAgentConfigError>;
@@ -57,7 +59,7 @@ pub(crate) mod tests {
         }
 
         pub fn should_store(&mut self, sub_agents_config: &SuperAgentDynamicConfig) {
-            let sub_agents_config = sub_agents_config.clone();
+            let sub_agents_config: YAMLConfig = sub_agents_config.try_into().unwrap();
             self.expect_store()
                 .once()
                 .with(predicate::eq(sub_agents_config))

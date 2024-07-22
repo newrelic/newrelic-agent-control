@@ -1,3 +1,5 @@
+use opamp_client::opamp::proto::AgentCapabilities;
+use opamp_client::operation::capabilities::Capabilities;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use thiserror::Error;
@@ -33,6 +35,10 @@ impl TryFrom<YAMLConfig> for String {
     fn try_from(value: YAMLConfig) -> Result<Self, Self::Error> {
         Ok(serde_yaml::to_string(&value)?)
     }
+}
+
+pub fn has_remote_management(capabilities: &Capabilities) -> bool {
+    capabilities.has_capability(AgentCapabilities::AcceptsRemoteConfig)
 }
 
 #[cfg(test)]
