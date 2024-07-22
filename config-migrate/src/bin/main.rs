@@ -10,6 +10,7 @@ use newrelic_super_agent::logging::config::LoggingConfig;
 use newrelic_super_agent::super_agent::config_storer::store::SuperAgentConfigStore;
 use newrelic_super_agent::super_agent::defaults::{
     SUB_AGENT_DIR, SUPER_AGENT_CONFIG_FILE, SUPER_AGENT_DATA_DIR, SUPER_AGENT_LOCAL_DATA_DIR,
+    SUPER_AGENT_LOG_DIR,
 };
 use newrelic_super_agent::values::file::YAMLConfigRepositoryFile;
 use std::error::Error;
@@ -19,7 +20,7 @@ use tracing::{debug, info, warn};
 
 fn main() -> Result<(), Box<dyn Error>> {
     // init logging singleton
-    LoggingConfig::default().try_init()?;
+    LoggingConfig::default().try_init(PathBuf::from(SUPER_AGENT_LOG_DIR))?;
 
     info!("Starting conversion tool...");
 

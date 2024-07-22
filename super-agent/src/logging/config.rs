@@ -1,5 +1,8 @@
+use super::file_logging::FileLoggingConfig;
+use super::format::LoggingFormat;
 use serde::{Deserialize, Serialize, Serializer};
 use std::fmt::Debug;
+use std::path::PathBuf;
 use std::str::FromStr;
 use thiserror::Error;
 use tracing::debug;
@@ -13,9 +16,6 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{EnvFilter, Layer};
 
-use super::file_logging::FileLoggingConfig;
-use super::format::LoggingFormat;
-
 /// An enum representing possible errors during the logging initialization.
 #[derive(Error, Debug)]
 pub enum LoggingError {
@@ -25,8 +25,6 @@ pub enum LoggingError {
     InvalidDirective(String, String, String),
     #[error("invalid logging file path: `{0}`")]
     InvalidFilePath(String),
-    #[error("logging file path not defined")]
-    LogFilePathNotDefined,
 }
 
 /// Defines the logging configuration for an application.
@@ -49,7 +47,7 @@ pub type FileLoggerGuard = Option<WorkerGuard>;
 
 impl LoggingConfig {
     /// Attempts to initialize the logging subscriber with the inner configuration.
-    pub fn try_init(&self) -> Result<Option<WorkerGuard>, LoggingError> {
+    pub fn try_init(&self, default_dir: PathBuf) -> Result<Option<WorkerGuard>, LoggingError> {
         let target = self.format.target;
         let timestamp_fmt = self.format.timestamp.0.clone();
 
@@ -57,20 +55,19 @@ impl LoggingConfig {
         // Note we can actually specify different settings for each layer (log level, format, etc),
         // hence we repeat the logic here.
         let logging_filter = self.logging_filter()?;
-        let (file_layer, guard) =
-            self.file
-                .clone()
-                .setup()?
-                .map_or(Default::default(), |(file_writer, guard)| {
-                    let file_layer = tracing_subscriber::fmt::layer()
-                        .with_writer(file_writer)
-                        .with_ansi(false) // Disable colors for file
-                        .with_target(target)
-                        .with_timer(ChronoLocal::new(timestamp_fmt.clone()))
-                        .fmt_fields(PrettyFields::new())
-                        .with_filter(logging_filter);
-                    (Some(file_layer), Some(guard))
-                });
+        let (file_layer, guard) = self.file.clone().setup(default_dir)?.map_or(
+            Default::default(),
+            |(file_writer, guard)| {
+                let file_layer = tracing_subscriber::fmt::layer()
+                    .with_writer(file_writer)
+                    .with_ansi(false) // Disable colors for file
+                    .with_target(target)
+                    .with_timer(ChronoLocal::new(timestamp_fmt.clone()))
+                    .fmt_fields(PrettyFields::new())
+                    .with_filter(logging_filter);
+                (Some(file_layer), Some(guard))
+            },
+        );
 
         let console_layer = tracing_subscriber::fmt::layer()
             .with_writer(std::io::stdout)

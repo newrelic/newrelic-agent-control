@@ -1,4 +1,5 @@
 use super::config::LoggingError;
+use crate::super_agent::defaults::SUPER_AGENT_LOG_FILENAME;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tracing_appender::non_blocking::{NonBlocking, WorkerGuard};
@@ -11,12 +12,19 @@ pub(crate) struct FileLoggingConfig {
 }
 
 impl FileLoggingConfig {
-    pub(super) fn setup(self) -> Result<Option<(NonBlocking, WorkerGuard)>, LoggingError> {
+    pub(super) fn setup(
+        self,
+        default_dir: PathBuf,
+    ) -> Result<Option<(NonBlocking, WorkerGuard)>, LoggingError> {
         if !self.enable {
             return Ok(None);
         }
 
-        let path = self.path.ok_or(LoggingError::LogFilePathNotDefined)?;
+        // if path is not specified into the config we fall back to a default path
+        let path = self.path.unwrap_or(LogFilePath::new(
+            default_dir.clone(),
+            PathBuf::from(SUPER_AGENT_LOG_FILENAME),
+        ));
         let file_appender = tracing_appender::rolling::hourly(path.parent, path.file_name);
         Ok(Some(tracing_appender::non_blocking(file_appender)))
     }

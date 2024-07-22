@@ -1,5 +1,5 @@
-use super::config::{AuthConfig, ProviderConfig};
-use crate::super_agent::config::OpAMPClientConfig;
+use super::config::{AuthConfig, LocalConfig, ProviderConfig};
+use crate::super_agent::run::BasePaths;
 use chrono::DateTime;
 use nr_auth::{
     authenticator::AuthenticatorConfig,
@@ -10,6 +10,7 @@ use nr_auth::{
 };
 use std::time::Duration;
 use thiserror::Error;
+use tracing::error;
 
 const DEFAULT_AUTHENTICATOR_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -17,8 +18,6 @@ const DEFAULT_AUTHENTICATOR_TIMEOUT: Duration = Duration::from_secs(5);
 pub enum TokenRetrieverImplError {
     #[error("building JWT signer")]
     JwtSignerBuildError(#[from] JwtSignerImplError),
-    #[error("provider not defined")]
-    ProviderNotDefined,
 }
 
 /// Enumerates all implementations for `TokenRetriever` for static dispatching reasons.
@@ -39,16 +38,18 @@ impl TokenRetriever for TokenRetrieverImpl {
     }
 }
 
-impl TryFrom<OpAMPClientConfig> for TokenRetrieverImpl {
-    type Error = TokenRetrieverImplError;
+impl TokenRetrieverImpl {
+    pub fn try_build(
+        auth_config: Option<AuthConfig>,
+        base_paths: BasePaths,
+    ) -> Result<Self, TokenRetrieverImplError> {
+        let Some(ac) = auth_config else {
+            return Ok(Self::Noop(TokenRetrieverNoop));
+        };
 
-    fn try_from(value: OpAMPClientConfig) -> Result<Self, Self::Error> {
-        match value.auth_config {
-            None => Ok(TokenRetrieverImpl::Noop(TokenRetrieverNoop)),
-            Some(auth_config) => Ok(TokenRetrieverImpl::HttpTR(
-                TokenRetrieverWithCache::try_from(auth_config)?,
-            )),
-        }
+        Ok(Self::HttpTR(
+            ac.try_into_token_retriever_with_cache(base_paths)?,
+        ))
     }
 }
 
@@ -70,28 +71,31 @@ impl TokenRetriever for TokenRetrieverNoop {
     }
 }
 
-impl TryFrom<AuthConfig> for TokenRetrieverWithCache {
-    type Error = TokenRetrieverImplError;
-
-    fn try_from(config: AuthConfig) -> Result<Self, Self::Error> {
-        let provider = config
+impl AuthConfig {
+    pub fn try_into_token_retriever_with_cache(
+        self,
+        paths: BasePaths,
+    ) -> Result<TokenRetrieverWithCache, TokenRetrieverImplError> {
+        let provider = self
             .provider
-            .ok_or(TokenRetrieverImplError::ProviderNotDefined)?;
+            .unwrap_or(ProviderConfig::Local(LocalConfig::new(
+                paths.local_dir.clone(),
+            )));
 
         let jwt_signer = JwtSignerImpl::try_from(provider)?;
 
         let authenticator_config = AuthenticatorConfig {
             timeout: DEFAULT_AUTHENTICATOR_TIMEOUT,
-            url: config.token_url.clone(),
+            url: self.token_url.clone(),
         };
 
         Ok(TokenRetrieverWithCache::new(
-            config.client_id,
-            config.token_url,
+            self.client_id,
+            self.token_url,
             jwt_signer,
             authenticator_config.into(),
         )
-        .with_retries(config.retries))
+        .with_retries(self.retries))
     }
 }
 
