@@ -49,7 +49,8 @@ where
 }
 
 impl YAMLConfigRepositoryFile<LocalFile, DirectoryManagerFs> {
-    /// Both remote_dir_path and local_dir_path are path to directories containing the yaml files
+    // TODO when initializing a SA paths represent the config file path, not the directory.
+    // while for subagents it represents a base directory. This is confusing and should be fixed.
     pub fn new(local_path: PathBuf, remote_path: PathBuf) -> Self {
         YAMLConfigRepositoryFile {
             directory_manager: DirectoryManagerFs {},

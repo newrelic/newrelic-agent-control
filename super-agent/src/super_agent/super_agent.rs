@@ -120,6 +120,11 @@ where
             self.load_sub_agents(&sub_agents_config, sub_agent_publisher.clone())?;
 
         info!("Agents supervisor runtime successfully started");
+
+        if let Some(handle) = &self.opamp_client {
+            handle.update_effective_config()?;
+        }
+
         // Run all the Sub Agents
         let running_sub_agents = not_started_sub_agents.run();
 
@@ -532,6 +537,7 @@ mod tests {
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         let mut started_client = MockStartedOpAMPClientMock::new();
         started_client.should_set_healthy();
+        started_client.should_update_effective_config(1);
         started_client.should_stop(1);
 
         sub_agents_config_store
@@ -577,6 +583,7 @@ mod tests {
         // Super Agent OpAMP
         let mut started_client = MockStartedOpAMPClientMock::new();
         started_client.should_set_healthy();
+        started_client.should_update_effective_config(1);
         started_client.should_stop(1);
 
         hash_repository_mock.expect_get().times(1).returning(|_| {
@@ -626,6 +633,7 @@ mod tests {
             .expect_set_remote_config_status()
             .times(2)
             .returning(|_| Ok(()));
+        started_client.should_update_effective_config(2);
         started_client.should_stop(1);
 
         let mut sub_agents_config_store = MockSuperAgentDynamicConfigStore::new();
@@ -1078,6 +1086,7 @@ agents:
         // Super Agent OpAMP
         let mut started_client = MockStartedOpAMPClientMock::new();
         started_client.should_set_health(2);
+        started_client.should_update_effective_config(1);
         // applying and applied
         started_client
             .expect_set_remote_config_status()
@@ -1486,6 +1495,7 @@ agents:
         // Super Agent OpAMP
         let mut started_client = MockStartedOpAMPClientMock::new();
         started_client.should_set_health(2);
+        started_client.should_update_effective_config(1);
         // applying and applied
         started_client
             .expect_set_remote_config_status()
