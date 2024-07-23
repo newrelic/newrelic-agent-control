@@ -6,6 +6,7 @@ use super::{
     runtime_config_templates::Templateable,
     variable::{definition::VariableDefinition, namespace::Namespace},
 };
+use crate::agent_type::environment_variable::retrieve_env_var_variables;
 use crate::values::yaml_config::YAMLConfig;
 use crate::{
     sub_agent::persister::config_persister::ConfigurationPersister,
@@ -123,20 +124,20 @@ impl<C: ConfigurationPersister> TemplateRenderer<C> {
             .map(|(name, var)| (Namespace::Variable.namespaced_name(&name), var));
         // Get the namespaced variables from sub-agent attributes
         let sub_agent_vars_iter = attributes.sub_agent_variables().into_iter();
+        let env_vars_variable = retrieve_env_var_variables();
+
         // Join all variables together
         vars_iter
             .chain(sub_agent_vars_iter)
+            .chain(env_vars_variable)
             .collect::<HashMap<String, VariableDefinition>>()
     }
 }
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use assert_matches::assert_matches;
-    use mockall::{mock, predicate};
-
-    use fs::directory_manager::DirectoryManagementError;
-
+    use super::*;
+    use crate::super_agent::defaults::SUPER_AGENT_ENV_VAR_PREFIX;
     use crate::{
         agent_type::{
             definition::AgentType,
@@ -151,8 +152,11 @@ pub(crate) mod tests {
             config_persister_file::ConfigurationPersisterFile,
         },
     };
-
-    use super::*;
+    use assert_matches::assert_matches;
+    use fs::directory_manager::DirectoryManagementError;
+    use mockall::{mock, predicate};
+    use serial_test::serial;
+    use std::env;
 
     fn test_data_dir() -> PathBuf {
         PathBuf::from("/some/path")
@@ -493,7 +497,7 @@ collision_avoided: ${config.values}-${env:agent_id}
             .render(&agent_id, agent_type, values, attributes)
             .unwrap();
 
-        let k8s = runtime_config.clone().deployment.k8s.unwrap();
+        let k8s = runtime_config.deployment.k8s.unwrap();
         let cr1 = k8s.objects.get("cr1").unwrap();
 
         assert_eq!("group/version".to_string(), cr1.api_version);
@@ -501,6 +505,78 @@ collision_avoided: ${config.values}-${env:agent_id}
 
         let spec = cr1.fields.get("spec").unwrap().clone();
         assert_eq!(expected_spec_value, spec);
+    }
+
+    #[test]
+    #[serial]
+    fn test_render_with_env_variables() {
+        let agent_id = AgentID::new("some-agent-id").unwrap();
+        let agent_type = AgentType::build_for_testing(
+            K8S_AGENT_TYPE_YAML_ENVIRONMENT_VARIABLES,
+            &Environment::K8s,
+        );
+        let values = testing_values(K8S_CONFIG_YAML_VALUES);
+        let attributes = testing_agent_attributes(&agent_id);
+
+        env::set_var(
+            format!("{}_MY_VARIABLE", SUPER_AGENT_ENV_VAR_PREFIX),
+            "my-value",
+        );
+        env::set_var(
+            format!("{}_MY_VARIABLE_2", SUPER_AGENT_ENV_VAR_PREFIX),
+            "my-value-2",
+        );
+
+        let expected_spec_yaml = r#"
+values:
+  key: value
+  another_key:
+    nested: nested_value
+    nested_list:
+      - item1
+      - item2
+      - item3_nested: value
+  empty_key:
+from_sub_agent: some-agent-id
+substituted: my-value
+collision_avoided: ${config.values}-${env:agent_id}
+substituted_2: my-value-2
+"#;
+
+        let expected_spec_value: serde_yaml::Value =
+            serde_yaml::from_str(expected_spec_yaml).unwrap();
+
+        let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default();
+        let runtime_config = renderer.render(&agent_id, agent_type, values, attributes);
+
+        env::remove_var(format!("{}_MY_VARIABLE", SUPER_AGENT_ENV_VAR_PREFIX));
+        env::remove_var(format!("{}_MY_VARIABLE_2", SUPER_AGENT_ENV_VAR_PREFIX));
+
+        let k8s = runtime_config.unwrap().deployment.k8s.unwrap();
+        let cr1 = k8s.objects.get("cr1").unwrap();
+
+        assert_eq!("group/version".to_string(), cr1.api_version);
+        assert_eq!("ObjectKind".to_string(), cr1.kind);
+
+        let spec = cr1.fields.get("spec").unwrap().clone();
+        assert_eq!(expected_spec_value, spec);
+    }
+
+    #[test]
+    #[serial]
+    fn test_render_with_env_variables_not_found() {
+        let agent_id = AgentID::new("some-agent-id").unwrap();
+        let agent_type = AgentType::build_for_testing(
+            K8S_AGENT_TYPE_YAML_ENVIRONMENT_VARIABLES,
+            &Environment::K8s,
+        );
+        let values = testing_values(K8S_CONFIG_YAML_VALUES);
+        let attributes = testing_agent_attributes(&agent_id);
+
+        let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default();
+        let runtime_config = renderer.render(&agent_id, agent_type, values, attributes);
+
+        assert!(runtime_config.is_err());
     }
 
     // Agent Type and Values definitions
@@ -681,6 +757,33 @@ deployment:
           values: ${nr-var:config.values}
           from_sub_agent: ${nr-sub:agent_id}
           collision_avoided: ${config.values}-${env:agent_id}
+"#;
+
+    const K8S_AGENT_TYPE_YAML_ENVIRONMENT_VARIABLES: &str = r#"
+name: k8s-agent-type
+namespace: newrelic
+version: 0.0.1
+variables:
+  k8s:
+    config:
+      values:
+        description: "yaml values"
+        type: yaml
+        required: true
+deployment:
+  k8s:
+    objects:
+      cr1:
+        apiVersion: group/version
+        kind: ObjectKind
+        metadata:
+          name: test
+        spec:
+          values: ${nr-var:config.values}
+          from_sub_agent: ${nr-sub:agent_id}
+          substituted: ${nr-env:my_variable}
+          collision_avoided: ${config.values}-${env:agent_id}
+          substituted_2: ${nr-env:my_variable_2}
 "#;
 
     const K8S_CONFIG_YAML_VALUES: &str = r#"

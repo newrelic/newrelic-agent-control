@@ -5,7 +5,7 @@ use crate::super_agent::config_storer::loader_storer::{
     SuperAgentConfigLoader, SuperAgentDynamicConfigDeleter, SuperAgentDynamicConfigLoader,
     SuperAgentDynamicConfigStorer,
 };
-use crate::super_agent::defaults::default_capabilities;
+use crate::super_agent::defaults::{default_capabilities, SUPER_AGENT_CONFIG_ENV_VAR_PREFIX};
 use crate::values::yaml_config::{YAMLConfig, YAMLConfigError};
 use crate::values::yaml_config_repository::{YAMLConfigRepository, YAMLConfigRepositoryError};
 use config::builder::DefaultState;
@@ -101,7 +101,7 @@ where
             // Eg.. `NR_LOG__USE_DEBUG=1 ./target/app` would set the `log.use_debug` key
             // We use double underscore because we already use snake_case for the config keys.
             .add_source(
-                Environment::with_prefix("NR_SA")
+                Environment::with_prefix(SUPER_AGENT_CONFIG_ENV_VAR_PREFIX)
                     .prefix_separator("_")
                     .separator("__"),
             )
@@ -208,7 +208,7 @@ opamp:
 
         // We set the environment variable with the `__` separator which will create the nested
         // configs appropriately.
-        let env_var_name = "NR_SA_AGENTS__ROLLDICE1__AGENT_TYPE";
+        let env_var_name = "NR_SA_CONFIG_AGENTS__ROLLDICE1__AGENT_TYPE";
         env::set_var(
             env_var_name,
             "namespace/com.newrelic.infrastructure_agent:0.0.2",
@@ -259,7 +259,7 @@ agents:
 
         // We set the environment variable with the `__` separator which will create the nested
         // configs appropriately.
-        let env_var_name = "NR_SA_AGENTS__ROLLDICE2__AGENT_TYPE";
+        let env_var_name = "NR_SA_CONFIG_AGENTS__ROLLDICE2__AGENT_TYPE";
         env::set_var(
             env_var_name,
             "namespace/com.newrelic.infrastructure_agent:0.0.2",
