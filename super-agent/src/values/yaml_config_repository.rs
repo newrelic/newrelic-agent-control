@@ -13,35 +13,6 @@ pub enum YAMLConfigRepositoryError {
     DeleteError(String),
 }
 
-pub trait SubAgentYAMLConfigRepository: YAMLConfigRepository {
-    /// load(...) looks for remote configs first, if unavailable checks the local ones.
-    /// If none is found, it fallbacks to the default values.
-    fn load(
-        &self,
-        agent_id: &AgentID,
-        capabilities: &Capabilities,
-    ) -> Result<YAMLConfig, YAMLConfigRepositoryError> {
-        debug!(agent_id = agent_id.to_string(), "loading config");
-
-        if let Some(values_result) = self.load_remote(agent_id, capabilities)? {
-            return Ok(values_result);
-        }
-        debug!(
-            agent_id = agent_id.to_string(),
-            "remote config not found, loading local"
-        );
-
-        if let Some(values_result) = self.load_local(agent_id)? {
-            return Ok(values_result);
-        }
-        debug!(
-            agent_id = agent_id.to_string(),
-            "local config not found, falling back to defaults"
-        );
-        Ok(YAMLConfig::default())
-    }
-}
-
 pub trait YAMLConfigRepository: Send + Sync + 'static {
     fn load_local(
         &self,
@@ -63,13 +34,37 @@ pub trait YAMLConfigRepository: Send + Sync + 'static {
     fn delete_remote(&self, agent_id: &AgentID) -> Result<(), YAMLConfigRepositoryError>;
 }
 
+/// Looks for store remote configs first, if unavailable checks the local ones.
+/// If none is found, it fallbacks to the empty default values.
+pub fn load_remote_fallback_local<R: YAMLConfigRepository>(
+    config_repository: &R,
+    agent_id: &AgentID,
+    capabilities: &Capabilities,
+) -> Result<YAMLConfig, YAMLConfigRepositoryError> {
+    debug!(agent_id = agent_id.to_string(), "loading config");
+
+    if let Some(values_result) = config_repository.load_remote(agent_id, capabilities)? {
+        return Ok(values_result);
+    }
+    debug!(
+        agent_id = agent_id.to_string(),
+        "remote config not found, loading local"
+    );
+
+    if let Some(values_result) = config_repository.load_local(agent_id)? {
+        return Ok(values_result);
+    }
+    debug!(
+        agent_id = agent_id.to_string(),
+        "local config not found, falling back to defaults"
+    );
+    Ok(YAMLConfig::default())
+}
 #[cfg(test)]
 pub mod test {
     use crate::super_agent::config::AgentID;
     use crate::values::yaml_config::YAMLConfig;
-    use crate::values::yaml_config_repository::{
-        SubAgentYAMLConfigRepository, YAMLConfigRepository, YAMLConfigRepositoryError,
-    };
+    use crate::values::yaml_config_repository::{YAMLConfigRepository, YAMLConfigRepositoryError};
     use mockall::{mock, predicate};
     use opamp_client::operation::capabilities::Capabilities;
 
@@ -96,31 +91,24 @@ pub mod test {
                 capabilities: &Capabilities,
             ) -> Result<Option<YAMLConfig>, YAMLConfigRepositoryError>;
         }
-        impl SubAgentYAMLConfigRepository for YAMLConfigRepositoryMock {
-            fn load(
-                &self,
-                agent_id: &AgentID,
-                agent_type: &Capabilities,
-            ) -> Result<YAMLConfig, YAMLConfigRepositoryError>;
-        }
     }
 
     impl MockYAMLConfigRepositoryMock {
-        pub fn should_load(
+        pub fn should_load_remote(
             &mut self,
             agent_id: &AgentID,
             capabilities: Capabilities,
             yaml_config: &YAMLConfig,
         ) {
             let yaml_config = yaml_config.clone();
-            self.expect_load()
+            self.expect_load_remote()
                 .once()
                 .with(predicate::eq(agent_id.clone()), predicate::eq(capabilities))
-                .returning(move |_, _| Ok(yaml_config.clone()));
+                .returning(move |_, _| Ok(Some(yaml_config.clone())));
         }
 
-        pub fn should_not_load(&mut self, agent_id: &AgentID, capabilities: Capabilities) {
-            self.expect_load()
+        pub fn should_not_load_remote(&mut self, agent_id: &AgentID, capabilities: Capabilities) {
+            self.expect_load_remote()
                 .once()
                 .with(predicate::eq(agent_id.clone()), predicate::eq(capabilities))
                 .returning(move |_, _| {

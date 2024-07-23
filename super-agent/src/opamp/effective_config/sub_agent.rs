@@ -7,26 +7,26 @@ use crate::agent_type::definition::{AgentType, VariableTree};
 use crate::agent_type::runtime_config::Runtime;
 use crate::opamp::remote_config::ConfigurationMap;
 use crate::super_agent::config::AgentID;
-use crate::values::yaml_config_repository::SubAgentYAMLConfigRepository;
+use crate::values::yaml_config_repository::{load_remote_fallback_local, YAMLConfigRepository};
 
 use super::error::LoaderError;
 use super::loader::EffectiveConfigLoader;
 
 /// Loader for effective configuration of a sub-agent.
 #[derive(Debug)]
-pub struct SubAgentEffectiveConfigLoader<VR>
+pub struct SubAgentEffectiveConfigLoader<Y>
 where
-    VR: SubAgentYAMLConfigRepository,
+    Y: YAMLConfigRepository,
 {
     agent_id: AgentID,
-    yaml_config_repository: Arc<VR>,
+    yaml_config_repository: Arc<Y>,
 }
 
-impl<VR> SubAgentEffectiveConfigLoader<VR>
+impl<Y> SubAgentEffectiveConfigLoader<Y>
 where
-    VR: SubAgentYAMLConfigRepository,
+    Y: YAMLConfigRepository,
 {
-    pub fn new(agent_id: AgentID, yaml_config_repository: Arc<VR>) -> Self {
+    pub fn new(agent_id: AgentID, yaml_config_repository: Arc<Y>) -> Self {
         Self {
             agent_id,
             yaml_config_repository,
@@ -34,9 +34,9 @@ where
     }
 }
 
-impl<VR> EffectiveConfigLoader for SubAgentEffectiveConfigLoader<VR>
+impl<Y> EffectiveConfigLoader for SubAgentEffectiveConfigLoader<Y>
 where
-    VR: SubAgentYAMLConfigRepository,
+    Y: YAMLConfigRepository,
 {
     fn load(&self) -> Result<ConfigurationMap, LoaderError> {
         // TODO this gets removed after refactor PR. Is only used for capabilities has_remote.
@@ -50,12 +50,14 @@ where
             Runtime::default(),
         );
 
-        let values = self
-            .yaml_config_repository
-            .load(&self.agent_id, &fake_agent_type.get_capabilities())
-            .map_err(|err| {
-                LoaderError::from(format!("loading {} config values: {}", &self.agent_id, err))
-            })?;
+        let values = load_remote_fallback_local(
+            self.yaml_config_repository.as_ref(),
+            &self.agent_id,
+            &fake_agent_type.get_capabilities(),
+        )
+        .map_err(|err| {
+            LoaderError::from(format!("loading {} config values: {}", &self.agent_id, err))
+        })?;
 
         let values_string: String = values.try_into().map_err(|err| {
             LoaderError::from(format!(
@@ -88,7 +90,7 @@ mod test {
         let agent_id = AgentID::new("test-agent").unwrap();
         let mut yaml_config_repository = MockYAMLConfigRepositoryMock::default();
 
-        yaml_config_repository.should_load(
+        yaml_config_repository.should_load_remote(
             &agent_id,
             default_capabilities(),
             &YAMLConfig::try_from(String::from("fake_config: value")).unwrap(),

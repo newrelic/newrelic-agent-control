@@ -26,24 +26,24 @@ where
     ) -> Self::SubAgentEventProcessor;
 }
 
-pub struct EventProcessorBuilder<H, R>
+pub struct EventProcessorBuilder<H, Y>
 where
     H: HashRepository,
-    R: YAMLConfigRepository,
+    Y: YAMLConfigRepository,
 {
     hash_repository: Arc<H>,
-    yaml_config_repository: Arc<R>,
+    yaml_config_repository: Arc<Y>,
 }
 
-impl<H, R> EventProcessorBuilder<H, R>
+impl<H, Y> EventProcessorBuilder<H, Y>
 where
     H: HashRepository,
-    R: YAMLConfigRepository,
+    Y: YAMLConfigRepository,
 {
     pub fn new(
         hash_repository: Arc<H>,
-        yaml_config_repository: Arc<R>,
-    ) -> EventProcessorBuilder<H, R> {
+        yaml_config_repository: Arc<Y>,
+    ) -> EventProcessorBuilder<H, Y> {
         EventProcessorBuilder {
             yaml_config_repository,
             hash_repository,
@@ -51,14 +51,14 @@ where
     }
 }
 
-impl<C, H, R, G> SubAgentEventProcessorBuilder<C, G> for EventProcessorBuilder<H, R>
+impl<C, H, Y, G> SubAgentEventProcessorBuilder<C, G> for EventProcessorBuilder<H, Y>
 where
     G: EffectiveConfigLoader,
     C: StartedClient<SubAgentCallbacks<G>> + 'static,
     H: HashRepository + Send + Sync + 'static,
-    R: YAMLConfigRepository + Send + Sync + 'static,
+    Y: YAMLConfigRepository + Send + Sync + 'static,
 {
-    type SubAgentEventProcessor = EventProcessor<C, H, R, G>;
+    type SubAgentEventProcessor = EventProcessor<C, H, Y, G>;
 
     fn build(
         &self,
@@ -67,7 +67,7 @@ where
         sub_agent_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
         sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
         maybe_opamp_client: Option<C>,
-    ) -> EventProcessor<C, H, R, G>
+    ) -> EventProcessor<C, H, Y, G>
     where
         G: EffectiveConfigLoader,
         C: StartedClient<SubAgentCallbacks<G>> + 'static,

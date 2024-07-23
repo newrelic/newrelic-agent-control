@@ -9,7 +9,7 @@ use crate::agent_type::runtime_config::{Deployment, Runtime};
 use crate::sub_agent::persister::config_persister_file::ConfigurationPersisterFile;
 use crate::super_agent::config::{AgentID, SubAgentConfig};
 use crate::values::yaml_config_repository::{
-    SubAgentYAMLConfigRepository, YAMLConfigRepositoryError,
+    load_remote_fallback_local, YAMLConfigRepository, YAMLConfigRepositoryError,
 };
 use fs::file_reader::FileReaderError;
 use std::fmt::Display;
@@ -78,24 +78,24 @@ pub trait EffectiveAgentsAssembler {
     ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError>;
 }
 
-pub struct LocalEffectiveAgentsAssembler<R, D, N>
+pub struct LocalEffectiveAgentsAssembler<R, D, Y>
 where
     R: AgentRegistry,
-    D: SubAgentYAMLConfigRepository,
-    N: Renderer,
+    D: YAMLConfigRepository,
+    Y: Renderer,
 {
     registry: R,
     yaml_config_repository: Arc<D>,
-    renderer: N,
+    renderer: Y,
 }
 
-impl<D>
-    LocalEffectiveAgentsAssembler<EmbeddedRegistry, D, TemplateRenderer<ConfigurationPersisterFile>>
+impl<Y>
+    LocalEffectiveAgentsAssembler<EmbeddedRegistry, Y, TemplateRenderer<ConfigurationPersisterFile>>
 where
-    D: SubAgentYAMLConfigRepository,
+    Y: YAMLConfigRepository,
 {
     pub fn new(
-        yaml_config_repository: Arc<D>,
+        yaml_config_repository: Arc<Y>,
         registry: EmbeddedRegistry,
         renderer: TemplateRenderer<ConfigurationPersisterFile>,
     ) -> Self {
@@ -110,7 +110,7 @@ where
 impl<R, D, N> EffectiveAgentsAssembler for LocalEffectiveAgentsAssembler<R, D, N>
 where
     R: AgentRegistry,
-    D: SubAgentYAMLConfigRepository,
+    D: YAMLConfigRepository,
     N: Renderer,
 {
     /// Load an agent type from the registry and populate it with values
@@ -126,9 +126,11 @@ where
         let agent_type = build_agent_type(agent_type_definition, environment)?;
 
         // Load the values
-        let values = self
-            .yaml_config_repository
-            .load(agent_id, &agent_type.get_capabilities())?;
+        let values = load_remote_fallback_local(
+            self.yaml_config_repository.as_ref(),
+            agent_id,
+            &agent_type.get_capabilities(),
+        )?;
 
         // Build the agent attributes
         let attributes = AgentAttributes {
@@ -237,7 +239,7 @@ pub(crate) mod tests {
     impl<R, D, N> LocalEffectiveAgentsAssembler<R, D, N>
     where
         R: AgentRegistry,
-        D: SubAgentYAMLConfigRepository,
+        D: YAMLConfigRepository,
         N: Renderer,
     {
         pub fn new_for_testing(registry: R, remote_values_repo: D, renderer: N) -> Self {
@@ -297,7 +299,7 @@ pub(crate) mod tests {
         //Expectations
         registry.should_get("ns/some_fqn:0.0.1".to_string(), &agent_type_definition);
 
-        sub_agent_values_repo.should_load(&agent_id, default_capabilities(), &values);
+        sub_agent_values_repo.should_load_remote(&agent_id, default_capabilities(), &values);
         renderer.should_render(
             &agent_id,
             &agent_type,
@@ -372,7 +374,7 @@ pub(crate) mod tests {
 
         //Expectations
         registry.should_get("ns/some_fqn:0.0.1".to_string(), &agent_type_definition);
-        sub_agent_values_repo.should_not_load(&agent_id, default_capabilities());
+        sub_agent_values_repo.should_not_load_remote(&agent_id, default_capabilities());
 
         let assembler = LocalEffectiveAgentsAssembler::new_for_testing(
             registry,
