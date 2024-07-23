@@ -1,7 +1,5 @@
-use newrelic_super_agent::agent_type::agent_type_registry::AgentRepositoryError;
 use newrelic_super_agent::cli::{Cli, CliCommand, SuperAgentCliConfig};
 use newrelic_super_agent::logging::config::FileLoggerGuard;
-use newrelic_super_agent::sub_agent::effective_agents_assembler::EffectiveAgentsAssemblerError;
 use newrelic_super_agent::super_agent::run::SuperAgentRunner;
 use std::error::Error;
 use std::process::exit;

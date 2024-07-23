@@ -67,6 +67,7 @@ where
             Ok(()) => {
                 self.set_config_hash_as_applied(&mut remote_config.hash)?;
                 report_remote_config_status_applied(opamp_client, &remote_config.hash)?;
+                opamp_client.update_effective_config()?;
                 Ok(self.report_healthy(Healthy::new(String::default()))?)
             }
         }
@@ -208,6 +209,7 @@ mod tests {
             error_message: "".to_string(),
         };
         started_client.should_set_remote_config_status(status);
+        started_client.should_update_effective_config(1);
 
         // load current sub agents config
         sub_agents_config_store.should_load(&old_sub_agents_config);

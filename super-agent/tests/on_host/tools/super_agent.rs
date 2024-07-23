@@ -13,11 +13,11 @@ pub fn start_super_agent_with_custom_config(base_paths: BasePaths) {
     // logger is a global variable shared between all test threads
     init_logger();
 
-    let vr = YAMLConfigRepositoryFile::new(
+    let super_agent_repository = YAMLConfigRepositoryFile::new(
         base_paths.super_agent_local_config.clone(),
         base_paths.remote_dir.join(SUPER_AGENT_CONFIG_FILE),
     );
-    let config_storer = SuperAgentConfigStore::new(Arc::new(vr));
+    let config_storer = SuperAgentConfigStore::new(Arc::new(super_agent_repository));
 
     let mut super_agent_config = config_storer.load().unwrap();
 

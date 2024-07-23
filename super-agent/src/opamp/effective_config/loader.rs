@@ -1,11 +1,19 @@
 use super::error::LoaderError;
 use super::sub_agent::SubAgentEffectiveConfigLoader;
+use super::super_agent::SuperAgentEffectiveConfigLoader;
 use crate::opamp::remote_config::ConfigurationMap;
 use crate::super_agent::config::AgentID;
 use crate::values::yaml_config_repository::YAMLConfigRepository;
 use std::sync::Arc;
 
 /// Trait for effective configuration loaders.
+/// IMPORTANT NOTE: Effective config must be restricted to:
+/// - Contain only values that can be modified through opamp remote configs.
+/// - Doesn’t contain the real values but the same config defined by users.
+///   Meaning no default values should be present.
+/// - Doesn’t contain configs that have been set by environment variables.
+/// - If a config has an environment variable placeholder, it should be reported as it is.
+///   It should never contain the resolved value.
 pub trait EffectiveConfigLoader: Send + Sync + 'static {
     /// Load the effective configuration.
     fn load(&self) -> Result<ConfigurationMap, LoaderError>;
@@ -22,16 +30,18 @@ pub struct DefaultEffectiveConfigLoaderBuilder<Y>
 where
     Y: YAMLConfigRepository,
 {
-    yaml_config_repository: Arc<Y>,
+    sub_agent_repository: Arc<Y>,
+    super_agent_repository: Arc<Y>,
 }
 
 impl<Y> DefaultEffectiveConfigLoaderBuilder<Y>
 where
     Y: YAMLConfigRepository,
 {
-    pub fn new(yaml_config_repository: Arc<Y>) -> Self {
+    pub fn new(sub_agent_repository: Arc<Y>, super_agent_repository: Arc<Y>) -> Self {
         Self {
-            yaml_config_repository,
+            sub_agent_repository,
+            super_agent_repository,
         }
     }
 }
@@ -44,13 +54,14 @@ where
 
     fn build(&self, agent_id: AgentID) -> Self::Loader {
         if agent_id.is_super_agent_id() {
-            return EffectiveConfigLoaderImpl::SuperAgent(NoOpEffectiveConfigLoader);
+            return EffectiveConfigLoaderImpl::SuperAgent(SuperAgentEffectiveConfigLoader::new(
+                self.super_agent_repository.clone(),
+            ));
         }
-
-        let loader =
-            SubAgentEffectiveConfigLoader::new(agent_id, self.yaml_config_repository.clone());
-
-        EffectiveConfigLoaderImpl::SubAgent(loader)
+        EffectiveConfigLoaderImpl::SubAgent(SubAgentEffectiveConfigLoader::new(
+            agent_id,
+            self.sub_agent_repository.clone(),
+        ))
     }
 }
 
@@ -59,8 +70,7 @@ pub enum EffectiveConfigLoaderImpl<Y>
 where
     Y: YAMLConfigRepository,
 {
-    // TODO this will be replaced with the actual super agent effective config loader.
-    SuperAgent(NoOpEffectiveConfigLoader),
+    SuperAgent(SuperAgentEffectiveConfigLoader<Y>),
     SubAgent(SubAgentEffectiveConfigLoader<Y>),
 }
 
@@ -73,16 +83,6 @@ where
             Self::SuperAgent(loader) => loader.load(),
             Self::SubAgent(loader) => loader.load(),
         }
-    }
-}
-
-/// A no-op effective configuration loader that always returns an empty configuration.
-pub struct NoOpEffectiveConfigLoader;
-
-/// Implementation of the `EffectiveConfigLoader` trait for the no-op loader. Returns an empty configuration.
-impl EffectiveConfigLoader for NoOpEffectiveConfigLoader {
-    fn load(&self) -> Result<ConfigurationMap, LoaderError> {
-        Ok(ConfigurationMap::default())
     }
 }
 
@@ -113,9 +113,10 @@ pub mod tests {
     }
     #[test]
     fn builder() {
-        let builder = DefaultEffectiveConfigLoaderBuilder::new(Arc::new(
-            MockYAMLConfigRepositoryMock::default(),
-        ));
+        let builder = DefaultEffectiveConfigLoaderBuilder::new(
+            Arc::new(MockYAMLConfigRepositoryMock::default()),
+            Arc::new(MockYAMLConfigRepositoryMock::default()),
+        );
 
         match builder.build(AgentID::new_super_agent_id()) {
             EffectiveConfigLoaderImpl::SuperAgent(_) => {}
@@ -126,16 +127,5 @@ pub mod tests {
             EffectiveConfigLoaderImpl::SubAgent(_) => {}
             _ => panic!("Expected SubAgent loader"),
         }
-    }
-
-    #[test]
-    fn no_op_loader() {
-        let loader_builder = DefaultEffectiveConfigLoaderBuilder {
-            yaml_config_repository: Arc::new(MockYAMLConfigRepositoryMock::default()),
-        };
-
-        let loader = loader_builder.build(AgentID::new_super_agent_id());
-        let config = loader.load().unwrap();
-        assert_eq!(config, ConfigurationMap::default());
     }
 }

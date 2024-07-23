@@ -74,7 +74,10 @@ impl SuperAgentRunner {
         let opamp_client_builder = self.opamp_http_builder.map(|http_builder| {
             DefaultOpAMPClientBuilder::new(
                 http_builder,
-                DefaultEffectiveConfigLoaderBuilder::new(yaml_config_repository.clone()),
+                DefaultEffectiveConfigLoaderBuilder::new(
+                    yaml_config_repository.clone(),
+                    yaml_config_repository.clone(),
+                ),
             )
         });
 

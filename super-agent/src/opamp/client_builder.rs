@@ -147,6 +147,11 @@ pub(crate) mod test {
     where
         C: Callbacks + Send + Sync + 'static,
     {
+        pub fn should_update_effective_config(&mut self, times: usize) {
+            self.expect_update_effective_config()
+                .times(times)
+                .returning(|| Ok(()));
+        }
         pub fn should_set_health(&mut self, times: usize) {
             self.expect_set_health().times(times).returning(|_| Ok(()));
         }

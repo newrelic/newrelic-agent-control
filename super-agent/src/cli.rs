@@ -109,7 +109,7 @@ impl Cli {
             return Ok(CliCommand::OneShot(OneShotCommand::PrintDebugInfo(cli)));
         }
 
-        let vr = YAMLConfigRepositoryFile::new(
+        let super_agent_repository = YAMLConfigRepositoryFile::new(
             base_paths.super_agent_local_config.clone(),
             base_paths.remote_dir.join(SUPER_AGENT_CONFIG_FILE),
         );
@@ -117,18 +117,17 @@ impl Cli {
         // In both K8s and onHost we read here the super-agent config that is used to bootstrap the SA from file
         // In the K8s such config is used create the k8s client to create the storer that reads configs from configMaps
         // The real configStores are created in the run fn, the onhost reads file, the k8s one reads configMaps
-        let mut super_agent_config =
-            SuperAgentConfigStore::new(Arc::new(vr))
-                .load()
-                .map_err(|err| {
-                    CliError::LoaderError(
-                        base_paths
-                            .super_agent_local_config
-                            .to_string_lossy()
-                            .to_string(),
-                        err.to_string(),
-                    )
-                })?;
+        let mut super_agent_config = SuperAgentConfigStore::new(Arc::new(super_agent_repository))
+            .load()
+            .map_err(|err| {
+                CliError::LoaderError(
+                    base_paths
+                        .super_agent_local_config
+                        .to_string_lossy()
+                        .to_string(),
+                    err.to_string(),
+                )
+            })?;
 
         let config_patcher =
             ConfigPatcher::new(base_paths.local_dir.clone(), base_paths.log_dir.clone());
