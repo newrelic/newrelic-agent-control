@@ -1,4 +1,8 @@
-use super::error::SubAgentBuilderError;
+use std::sync::Arc;
+use std::thread::JoinHandle;
+
+use tracing::{debug, error, warn};
+
 use crate::event::channel::EventPublisher;
 use crate::event::SubAgentEvent;
 use crate::opamp::callbacks::AgentCallbacks;
@@ -13,9 +17,8 @@ use crate::sub_agent::error;
 use crate::sub_agent::error::SubAgentError;
 use crate::sub_agent::event_processor::SubAgentEventProcessor;
 use crate::super_agent::config::{AgentID, AgentTypeFQN, SubAgentConfig};
-use std::sync::Arc;
-use std::thread::JoinHandle;
-use tracing::{debug, error, warn};
+
+use super::error::SubAgentBuilderError;
 
 pub(crate) type SubAgentCallbacks<C> = AgentCallbacks<C>;
 
@@ -67,7 +70,13 @@ where
     // client is available. This is useful when the agent is in a failed state and the OpAMP
     // client is the only way to fix the configuration via remote configs.
     if let Some(opamp_client) = maybe_opamp_client {
-        match (hash_repository.get(agent_id)?, effective_agent_res) {
+        // // Invalid/corrupted hash file should not crash the sub agent
+        let hash = hash_repository.get(agent_id).unwrap_or_else(|err| {
+            error!(%agent_id, %err, "failed to get hash from repository");
+            None
+        });
+
+        match (hash, effective_agent_res) {
             (Some(mut hash), Ok(effective_agent)) => {
                 if hash.is_applying() {
                     debug!(%agent_id, "applying remote config");
@@ -124,7 +133,11 @@ pub struct Started {
 
 #[cfg(test)]
 pub mod test {
-    use super::*;
+    use mockall::{mock, predicate, Sequence};
+    use opamp_client::opamp::proto::RemoteConfigStatuses::{Applied, Failed};
+    use opamp_client::opamp::proto::{RemoteConfigStatus, RemoteConfigStatuses};
+
+    use crate::opamp::hash_repository::repository::HashRepositoryError;
     use crate::{
         agent_type::runtime_config::Runtime,
         opamp::{
@@ -134,8 +147,8 @@ pub mod test {
             remote_config_hash::Hash,
         },
     };
-    use mockall::{mock, predicate, Sequence};
-    use opamp_client::opamp::proto::{RemoteConfigStatus, RemoteConfigStatuses};
+
+    use super::*;
 
     mock! {
         pub StartedSubAgent {}
@@ -501,5 +514,251 @@ pub mod test {
         );
 
         assert!(actual.is_err());
+    }
+
+    // Tests for fn build_supervisor_or_default
+    // They cannot be built as table tests as there are slight differences in
+    // the actions of the scenarios.
+    // Test cases:
+    // -----------------------------------------------------------
+    // Result(Hash) , Result(EffectiveAgent), Expected
+    // -----------------------------------------------------------
+    // Ok(Some)     , Ok                    , fn(effective agent)
+    // Ok(Some)     , Err                   , fn(default)
+    // Ok(None)     , Ok                    , fn(effective agent)
+    // Ok(None)     , Err                   , fn(default)
+    // Err          , Ok                    , fn(default)
+    // Err          , Err                   , fn(effective agent)
+
+    // Result(Hash) , Result(EffectiveAgent), Expected
+    // Ok(Some)     , Ok                    , fn(effective agent)
+    #[test]
+    fn test_build_supervisor_or_default_ok_some_ok() {
+        // Mocks
+        let mut started_opamp_client = MockStartedOpAMPClientMock::new();
+        let mut hash_repository = MockHashRepositoryMock::new();
+
+        // hash repository should get hash by agentID
+        let agent_id = AgentID::new("test-agent").unwrap();
+        let mut hash = Hash::new("some_hash".to_string());
+        hash_repository.should_get_hash(&agent_id, hash.clone());
+
+        // apply and save hash
+        hash.apply();
+        hash_repository.should_save_hash(&agent_id, &hash);
+        // report remote config status
+        started_opamp_client.should_set_remote_config_status(RemoteConfigStatus {
+            status: Applied as i32,
+            last_remote_config_hash: hash.get().into_bytes(),
+            error_message: Default::default(),
+        });
+
+        // test build_supervisor_or_default
+        let effective_agent_res = Ok(EffectiveAgent::new(agent_id.clone(), Runtime::default()));
+        let actual = build_supervisor_or_default::<
+            MockHashRepositoryMock,
+            MockOpAMPClientBuilderMock<SubAgentCallbacks<MockEffectiveConfigLoaderMock>>,
+            _,
+            _,
+            _,
+        >(
+            &agent_id,
+            &Arc::new(hash_repository),
+            &Some(started_opamp_client),
+            effective_agent_res,
+            |effective_agent| Ok(vec![effective_agent.get_agent_id().clone()]),
+        );
+
+        let expected: Vec<AgentID> = vec![agent_id];
+        assert!(actual.is_ok());
+        assert_eq!(expected, actual.unwrap());
+    }
+
+    // Result(Hash) , Result(EffectiveAgent), Expected
+    // Ok(Some)     , Err                   , fn(default)
+    #[test]
+    fn test_build_supervisor_or_default_ok_err() {
+        // Mocks
+        let mut started_opamp_client = MockStartedOpAMPClientMock::new();
+        let mut hash_repository = MockHashRepositoryMock::new();
+
+        // hash repository should get hash by agentID
+        let agent_id = AgentID::new("test-agent").unwrap();
+        let mut hash = Hash::new("some_hash".to_string());
+        hash_repository.should_get_hash(&agent_id, hash.clone());
+
+        // apply and save hash
+        hash.fail("error assembling agents: `some_error`".to_string());
+        hash_repository.should_save_hash(&agent_id, &hash);
+        // report remote config status
+        started_opamp_client.should_set_remote_config_status(RemoteConfigStatus {
+            status: Failed as i32,
+            last_remote_config_hash: hash.get().into_bytes(),
+            error_message: String::from("error assembling agents: `some_error`"),
+        });
+
+        // test build_supervisor_or_default
+        let effective_agent_res = Err(EffectiveAgentsAssemblerError::SerdeYamlError(
+            serde::de::Error::custom("some_error"),
+        ));
+        let actual = build_supervisor_or_default::<
+            MockHashRepositoryMock,
+            MockOpAMPClientBuilderMock<SubAgentCallbacks<MockEffectiveConfigLoaderMock>>,
+            _,
+            _,
+            _,
+        >(
+            &agent_id,
+            &Arc::new(hash_repository),
+            &Some(started_opamp_client),
+            effective_agent_res,
+            |effective_agent| Ok(vec![effective_agent.get_agent_id().clone()]),
+        );
+
+        let expected: Vec<AgentID> = Vec::default();
+        assert!(actual.is_ok());
+        assert_eq!(expected, actual.unwrap());
+    }
+
+    // Result(Hash) , Result(EffectiveAgent), Expected
+    // Ok(None)     , Err                    , fn(effective agent)
+    #[test]
+    fn test_build_supervisor_or_default_ok_none_ok() {
+        // Mocks
+        let started_opamp_client = MockStartedOpAMPClientMock::new();
+        let mut hash_repository = MockHashRepositoryMock::new();
+
+        // hash repository should get hash by agentID
+        let agent_id = AgentID::new("test-agent").unwrap();
+        hash_repository.should_not_get_hash(&agent_id);
+
+        // test build_supervisor_or_default
+        let effective_agent_res = Ok(EffectiveAgent::new(agent_id.clone(), Runtime::default()));
+        let actual = build_supervisor_or_default::<
+            MockHashRepositoryMock,
+            MockOpAMPClientBuilderMock<SubAgentCallbacks<MockEffectiveConfigLoaderMock>>,
+            _,
+            _,
+            _,
+        >(
+            &agent_id,
+            &Arc::new(hash_repository),
+            &Some(started_opamp_client),
+            effective_agent_res,
+            |effective_agent| Ok(vec![effective_agent.get_agent_id().clone()]),
+        );
+
+        let expected: Vec<AgentID> = vec![agent_id];
+        assert!(actual.is_ok());
+        assert_eq!(expected, actual.unwrap());
+    }
+
+    // Result(Hash) , Result(EffectiveAgent), Expected
+    // Ok(None)     , Err                    , fn(default)
+    #[test]
+    fn test_build_supervisor_or_default_ok_none_err() {
+        // Mocks
+        let started_opamp_client = MockStartedOpAMPClientMock::new();
+        let mut hash_repository = MockHashRepositoryMock::new();
+
+        // hash repository should get hash by agentID
+        let agent_id = AgentID::new("test-agent").unwrap();
+        hash_repository.should_not_get_hash(&agent_id);
+
+        // test build_supervisor_or_default
+        let effective_agent_res = Err(EffectiveAgentsAssemblerError::SerdeYamlError(
+            serde::de::Error::custom("some_error"),
+        ));
+        let actual = build_supervisor_or_default::<
+            MockHashRepositoryMock,
+            MockOpAMPClientBuilderMock<SubAgentCallbacks<MockEffectiveConfigLoaderMock>>,
+            _,
+            _,
+            _,
+        >(
+            &agent_id,
+            &Arc::new(hash_repository),
+            &Some(started_opamp_client),
+            effective_agent_res,
+            |effective_agent| Ok(vec![effective_agent.get_agent_id().clone()]),
+        );
+
+        let expected: Vec<AgentID> = Vec::default();
+        assert!(actual.is_ok());
+        assert_eq!(expected, actual.unwrap());
+    }
+
+    // Result(Hash) , Result(EffectiveAgent), Expected
+    // Err     , Ok                    , fn(effective agent)
+    #[test]
+    fn test_build_supervisor_or_default_err_ok() {
+        // Mocks
+        let started_opamp_client = MockStartedOpAMPClientMock::new();
+        let mut hash_repository = MockHashRepositoryMock::new();
+
+        // hash repository should get hash by agentID
+        let agent_id = AgentID::new("test-agent").unwrap();
+        hash_repository.should_return_error_on_get(
+            &agent_id,
+            HashRepositoryError::LoadError("some_error".to_string()),
+        );
+
+        // test build_supervisor_or_default
+        let effective_agent_res = Ok(EffectiveAgent::new(agent_id.clone(), Runtime::default()));
+        let actual = build_supervisor_or_default::<
+            MockHashRepositoryMock,
+            MockOpAMPClientBuilderMock<SubAgentCallbacks<MockEffectiveConfigLoaderMock>>,
+            _,
+            _,
+            _,
+        >(
+            &agent_id,
+            &Arc::new(hash_repository),
+            &Some(started_opamp_client),
+            effective_agent_res,
+            |effective_agent| Ok(vec![effective_agent.get_agent_id().clone()]),
+        );
+
+        let expected: Vec<AgentID> = vec![agent_id];
+        assert!(actual.is_ok());
+        assert_eq!(expected, actual.unwrap());
+    }
+
+    // Result(Hash) , Result(EffectiveAgent), Expected
+    // Err     , Err                    , fn(effective agent)
+    #[test]
+    fn test_build_supervisor_or_default_err_err() {
+        // Mocks
+        let started_opamp_client = MockStartedOpAMPClientMock::new();
+        let mut hash_repository = MockHashRepositoryMock::new();
+
+        // hash repository should get hash by agentID
+        let agent_id = AgentID::new("test-agent").unwrap();
+        hash_repository.should_return_error_on_get(
+            &agent_id,
+            HashRepositoryError::LoadError("some_error".to_string()),
+        );
+
+        // test build_supervisor_or_default
+        let effective_agent_res = Err(EffectiveAgentsAssemblerError::SerdeYamlError(
+            serde::de::Error::custom("some_error"),
+        ));
+        let actual = build_supervisor_or_default::<
+            MockHashRepositoryMock,
+            MockOpAMPClientBuilderMock<SubAgentCallbacks<MockEffectiveConfigLoaderMock>>,
+            _,
+            _,
+            _,
+        >(
+            &agent_id,
+            &Arc::new(hash_repository),
+            &Some(started_opamp_client),
+            effective_agent_res,
+            |effective_agent| Ok(vec![effective_agent.get_agent_id().clone()]),
+        );
+
+        let expected: Vec<AgentID> = Vec::default();
+        assert!(actual.is_ok());
+        assert_eq!(expected, actual.unwrap());
     }
 }

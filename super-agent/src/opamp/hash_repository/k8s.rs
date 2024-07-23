@@ -28,12 +28,12 @@ impl HashRepositoryConfigMap {
 impl HashRepository for HashRepositoryConfigMap {
     fn save(&self, agent_id: &AgentID, hash: &Hash) -> Result<(), HashRepositoryError> {
         self._save(agent_id, hash)
-            .map_err(|err| HashRepositoryError::LoadError(err.to_string()))
+            .map_err(|err| HashRepositoryError::PersistError(err.to_string()))
     }
 
     fn get(&self, agent_id: &AgentID) -> Result<Option<Hash>, HashRepositoryError> {
         self._get(agent_id)
-            .map_err(|err| HashRepositoryError::PersistError(err.to_string()))
+            .map_err(|err| HashRepositoryError::LoadError(err.to_string()))
     }
 }
 
