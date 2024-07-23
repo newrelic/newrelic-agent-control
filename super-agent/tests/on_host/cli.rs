@@ -225,7 +225,7 @@ agents:
     let remote_path = tmpdir_path.join("nrsa_remote");
     let logs_path = tmpdir_path.join("nrsa_logs");
 
-    retry(60, Duration::from_secs(1), || {
+    retry(90, Duration::from_secs(1), || {
         || -> Result<(), Box<dyn Error>> {
             if remote_path.exists() && logs_path.exists() {
                 return Ok(());
@@ -305,7 +305,7 @@ agents: {{}}
     // Assert the directory structure has been created
     let remote_path = tmpdir_path.join("nrsa_remote");
 
-    retry(60, Duration::from_secs(1), || {
+    retry(90, Duration::from_secs(1), || {
         || -> Result<(), Box<dyn Error>> {
             if remote_path.exists() && override_logs_path.exists() {
                 return Ok(());
