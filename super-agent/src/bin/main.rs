@@ -14,18 +14,19 @@ compile_error!("Feature \"onhost\" and feature \"k8s\" cannot be enabled at the 
 compile_error!("Either feature \"onhost\" or feature \"k8s\" must be enabled");
 
 fn main() {
-    // Get the action requested from the command call
-    let super_agent_config = match Cli::init() {
+    let cli_command = Cli::init().unwrap_or_else(|cli_error| {
+        println!("Error parsing CLI arguments: {}", cli_error.to_string());
+        exit(1);
+    });
+
+    let super_agent_config = match cli_command {
         // Super Agent command call instructs normal operation. Continue with required data.
-        Ok(CliCommand::InitSuperAgent(cli)) => cli,
-        // Super Agent command call was an "one-shot" operation. Exit successfully after performing.
-        Ok(CliCommand::OneShot(op)) => {
+        CliCommand::InitSuperAgent(cli) => cli,
+
+        // Super Agent command call was a "one-shot" operation. Exit successfully after performing.
+        CliCommand::OneShot(op) => {
             op.run_one_shot();
             exit(0);
-        }
-        Err(cli_error) => {
-            println!("Error parsing CLI arguments: {}", cli_error.to_string());
-            exit(1);
         }
     };
 
