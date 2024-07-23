@@ -147,7 +147,7 @@ pub(crate) mod tests {
     #[serial]
     fn load_agents_local_remote() {
         let local_dir = tempfile::tempdir().unwrap().into_path().to_path_buf();
-        let local_file = local_dir.join(SUPER_AGENT_CONFIG_FILE());
+        let local_file = local_dir.join(SUPER_AGENT_CONFIG_FILE);
         let local_config = r#"
 agents: {}
 opamp:
@@ -156,7 +156,7 @@ opamp:
         std::fs::write(local_file.as_path(), local_config).unwrap();
 
         let remote_dir = tempfile::tempdir().unwrap().into_path().to_path_buf();
-        let remote_file = remote_dir.join(SUPER_AGENT_CONFIG_FILE());
+        let remote_file = remote_dir.join(SUPER_AGENT_CONFIG_FILE);
 
         let remote_config = r#"
         agents:
@@ -195,7 +195,7 @@ opamp:
     #[serial]
     fn load_config_env_vars() {
         let local_dir = tempfile::tempdir().unwrap().into_path().to_path_buf();
-        let local_file = local_dir.join(SUPER_AGENT_CONFIG_FILE());
+        let local_file = local_dir.join(SUPER_AGENT_CONFIG_FILE);
 
         // Note the file contains no `agents` key, which would fail if this config was the only
         // source checked when loading the local config.
@@ -247,7 +247,7 @@ opamp:
     #[serial]
     fn load_config_env_vars_override() {
         let local_dir = tempfile::tempdir().unwrap().into_path().to_path_buf();
-        let local_file = local_dir.join(SUPER_AGENT_CONFIG_FILE());
+        let local_file = local_dir.join(SUPER_AGENT_CONFIG_FILE);
         let local_config = r#"
 opamp:
   endpoint: http://127.0.0.1/v1/opamp

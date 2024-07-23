@@ -84,7 +84,7 @@ impl<C: ConfigurationPersister> TemplateRenderer<C> {
     // Returns the config path for a sub-agent.
     fn subagent_config_path(&self, agent_id: &AgentID) -> PathBuf {
         self.config_base_dir
-            .join(GENERATED_FOLDER_NAME())
+            .join(GENERATED_FOLDER_NAME)
             .join(agent_id)
     }
 
@@ -275,9 +275,7 @@ pub(crate) mod tests {
         let values = testing_values(AGENT_VALUES_WITH_FILES);
         let attributes = testing_agent_attributes(&agent_id);
         // The persister should receive filled variables with the path expanded.
-        let path_as_string = test_data_dir()
-            .join(GENERATED_FOLDER_NAME())
-            .join(&agent_id);
+        let path_as_string = test_data_dir().join(GENERATED_FOLDER_NAME).join(&agent_id);
         let filled_variables = agent_type
             .variables
             .clone()

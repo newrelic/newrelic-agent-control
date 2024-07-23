@@ -120,7 +120,7 @@ where
                     self.instance_id_getter,
                     agent_id.clone(),
                     &sub_agent_config.agent_type,
-                    HashMap::from([(HOST_NAME_ATTRIBUTE_KEY().to_string(), get_hostname().into())]),
+                    HashMap::from([(HOST_NAME_ATTRIBUTE_KEY.to_string(), get_hostname().into())]),
                 )
             })
             // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
@@ -461,11 +461,11 @@ mod test {
                 ]),
                 non_identifying_attributes: HashMap::from([
                     (
-                        HOST_NAME_ATTRIBUTE_KEY().to_string(),
+                        HOST_NAME_ATTRIBUTE_KEY.to_string(),
                         DescriptionValueType::String(hostname.to_string()),
                     ),
                     (
-                        PARENT_AGENT_ID_ATTRIBUTE_KEY().to_string(),
+                        PARENT_AGENT_ID_ATTRIBUTE_KEY.to_string(),
                         DescriptionValueType::Bytes(super_agent_instance_id.into()),
                     ),
                 ]),

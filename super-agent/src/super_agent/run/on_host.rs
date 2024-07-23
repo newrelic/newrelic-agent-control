@@ -35,11 +35,11 @@ impl SuperAgentRunner {
         let (vr_super_agent, vr_sub_agent) = {
             let mut vr_super_agent = YAMLConfigRepositoryFile::new(
                 self.base_paths.super_agent_local_config.clone(),
-                self.base_paths.remote_dir.join(SUPER_AGENT_CONFIG_FILE()),
+                self.base_paths.remote_dir.join(SUPER_AGENT_CONFIG_FILE),
             );
             let mut vr_sub_agent = YAMLConfigRepositoryFile::new(
-                self.base_paths.local_dir.join(SUB_AGENT_DIR()),
-                self.base_paths.remote_dir.join(SUB_AGENT_DIR()),
+                self.base_paths.local_dir.join(SUB_AGENT_DIR),
+                self.base_paths.remote_dir.join(SUB_AGENT_DIR),
             );
             if self.opamp_http_builder.is_some() {
                 vr_super_agent = vr_super_agent.with_remote();
@@ -64,7 +64,7 @@ impl SuperAgentRunner {
             LocalFile,
             DirectoryManagerFs::default(),
             self.base_paths.remote_dir.clone(),
-            self.base_paths.remote_dir.join(SUB_AGENT_DIR()),
+            self.base_paths.remote_dir.join(SUB_AGENT_DIR),
         );
         let instance_id_getter =
             InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers);
@@ -72,7 +72,7 @@ impl SuperAgentRunner {
         let super_agent_hash_repository =
             Arc::new(HashRepositoryFile::new(self.base_paths.remote_dir.clone()));
         let sub_agent_hash_repository = Arc::new(HashRepositoryFile::new(
-            self.base_paths.remote_dir.join(SUB_AGENT_DIR()),
+            self.base_paths.remote_dir.join(SUB_AGENT_DIR),
         ));
 
         let opamp_client_builder = self.opamp_http_builder.map(|http_builder| {
@@ -101,7 +101,7 @@ impl SuperAgentRunner {
             &agents_assembler,
             &sub_agent_event_processor_builder,
             identifiers_provider,
-            self.base_paths.log_dir.join(SUB_AGENT_DIR()),
+            self.base_paths.log_dir.join(SUB_AGENT_DIR),
         );
 
         let (maybe_client, maybe_sa_opamp_consumer) = opamp_client_builder
@@ -136,15 +136,15 @@ pub fn super_agent_opamp_non_identifying_attributes(
 ) -> HashMap<String, DescriptionValueType> {
     HashMap::from([
         (
-            HOST_NAME_ATTRIBUTE_KEY().to_string(),
+            HOST_NAME_ATTRIBUTE_KEY.to_string(),
             DescriptionValueType::String(identifiers.hostname.clone()),
         ),
         (
-            HOST_ID_ATTRIBUTE_KEY().to_string(),
+            HOST_ID_ATTRIBUTE_KEY.to_string(),
             DescriptionValueType::String(identifiers.host_id.clone()),
         ),
         (
-            FLEET_ID_ATTRIBUTE_KEY().to_string(),
+            FLEET_ID_ATTRIBUTE_KEY.to_string(),
             DescriptionValueType::String(identifiers.fleet_id.clone()),
         ),
     ])

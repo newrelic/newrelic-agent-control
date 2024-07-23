@@ -166,7 +166,7 @@ where
         let agent_id = labels::get_agent_id(&labels).ok_or(MissingLabels())?;
 
         // we do not want to delete anything related to the superAgent by mistake
-        if SUPER_AGENT_ID() == agent_id {
+        if SUPER_AGENT_ID == agent_id {
             return Ok(false);
         }
 
@@ -204,7 +204,7 @@ where
         // We add SUPER_AGENT_ID to prevent removing any resource related to it.
         let id_list = active_config
             .keys()
-            .fold(SUPER_AGENT_ID().to_string(), |acc, id| {
+            .fold(SUPER_AGENT_ID.to_string(), |acc, id| {
                 format!("{},{}", acc, id)
             });
 
@@ -281,7 +281,7 @@ pub(crate) mod test {
             format!(
                 "{},{AGENT_ID_LABEL_KEY} notin ({},{agent_id})", //codespell:ignore
                 labels.selector(),
-                SUPER_AGENT_ID()
+                SUPER_AGENT_ID
             ),
 
             NotStartedK8sGarbageCollector::<MockSuperAgentDynamicConfigLoader>::garbage_label_selector_agent_id(
@@ -292,7 +292,7 @@ pub(crate) mod test {
             format!(
                 "{},{AGENT_ID_LABEL_KEY} notin ({})", //codespell:ignore
                 labels.selector(),
-                SUPER_AGENT_ID()
+                SUPER_AGENT_ID
             ),
             NotStartedK8sGarbageCollector::<MockSuperAgentDynamicConfigLoader>::garbage_label_selector_agent_id(
                 &SubAgentsMap::from([])

@@ -38,9 +38,9 @@ impl BasePaths {
     pub(crate) fn new(super_agent_local_config: String) -> Self {
         Self {
             super_agent_local_config: PathBuf::from(super_agent_local_config),
-            local_dir: PathBuf::from(SUPER_AGENT_LOCAL_DATA_DIR()),
-            remote_dir: PathBuf::from(SUPER_AGENT_DATA_DIR()),
-            log_dir: PathBuf::from(SUPER_AGENT_LOG_DIR()),
+            local_dir: PathBuf::from(SUPER_AGENT_LOCAL_DATA_DIR),
+            remote_dir: PathBuf::from(SUPER_AGENT_DATA_DIR),
+            log_dir: PathBuf::from(SUPER_AGENT_LOG_DIR),
         }
     }
 }
@@ -94,12 +94,8 @@ impl TryFrom<SuperAgentRunConfig> for SuperAgentRunner {
             value.opamp.clone(),
         );
 
-        let agent_type_registry = EmbeddedRegistry::new(
-            value
-                .base_paths
-                .local_dir
-                .join(DYNAMIC_AGENT_TYPE_FILENAME()),
-        );
+        let agent_type_registry =
+            EmbeddedRegistry::new(value.base_paths.local_dir.join(DYNAMIC_AGENT_TYPE_FILENAME));
 
         Ok(SuperAgentRunner {
             _http_server_runner,

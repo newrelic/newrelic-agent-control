@@ -42,7 +42,7 @@ pub struct LocalConfig {
 impl LocalConfig {
     pub fn new(local_data_dir: PathBuf) -> Self {
         Self {
-            private_key_path: local_data_dir.join(AUTH_PRIVATE_KEY_FILE_NAME()),
+            private_key_path: local_data_dir.join(AUTH_PRIVATE_KEY_FILE_NAME),
         }
     }
 }
