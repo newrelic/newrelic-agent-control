@@ -15,7 +15,7 @@ pub fn start_super_agent_with_custom_config(base_paths: BasePaths) {
 
     let vr = YAMLConfigRepositoryFile::new(
         base_paths.super_agent_local_config.clone(),
-        base_paths.remote_dir.join(SUPER_AGENT_CONFIG_FILE()),
+        base_paths.remote_dir.join(SUPER_AGENT_CONFIG_FILE),
     );
     let config_storer = SuperAgentConfigStore::new(Arc::new(vr));
 

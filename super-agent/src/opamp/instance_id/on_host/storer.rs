@@ -121,7 +121,7 @@ where
 
     fn get_instance_id_path(&self, agent_id: &AgentID) -> PathBuf {
         if agent_id.is_super_agent_id() {
-            self.super_agent_remote_dir.join(IDENTIFIERS_FILENAME())
+            self.super_agent_remote_dir.join(IDENTIFIERS_FILENAME)
         } else {
             self.agent_remote_dir
                 .join(agent_id)

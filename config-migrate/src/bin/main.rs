@@ -27,13 +27,13 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let cli = Cli::init_config_migrate_cli();
     let local_config_path = cli.get_config_path();
-    let remote_config_path = PathBuf::from(SUPER_AGENT_DATA_DIR()).join(SUPER_AGENT_CONFIG_FILE());
+    let remote_config_path = PathBuf::from(SUPER_AGENT_DATA_DIR).join(SUPER_AGENT_CONFIG_FILE);
     let vr = YAMLConfigRepositoryFile::new(local_config_path, remote_config_path);
     let sa_local_config_loader = SuperAgentConfigStore::new(Arc::new(vr));
     let config_migrator = ConfigMigrator::new(
         ConfigConverter::default(),
         AgentConfigGetter::new(sa_local_config_loader),
-        ValuesPersisterFile::new(PathBuf::from(SUPER_AGENT_LOCAL_DATA_DIR()).join(SUB_AGENT_DIR())),
+        ValuesPersisterFile::new(PathBuf::from(SUPER_AGENT_LOCAL_DATA_DIR).join(SUB_AGENT_DIR)),
     );
 
     let legacy_config_renamer = LegacyConfigRenamer::default();

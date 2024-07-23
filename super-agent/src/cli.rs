@@ -111,7 +111,7 @@ impl Cli {
 
         let vr = YAMLConfigRepositoryFile::new(
             base_paths.super_agent_local_config.clone(),
-            base_paths.remote_dir.join(SUPER_AGENT_CONFIG_FILE()),
+            base_paths.remote_dir.join(SUPER_AGENT_CONFIG_FILE),
         );
 
         // In both K8s and onHost we read here the super-agent config that is used to bootstrap the SA from file

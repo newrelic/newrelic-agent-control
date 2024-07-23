@@ -78,8 +78,8 @@ where
         }
         self.local_conf_path
             .join(agent_id)
-            .join(VALUES_DIR())
-            .join(VALUES_FILE())
+            .join(VALUES_DIR)
+            .join(VALUES_FILE)
     }
 
     pub fn get_remote_values_file_path(&self, agent_id: &AgentID) -> PathBuf {
@@ -90,8 +90,8 @@ where
         }
         self.remote_conf_path
             .join(agent_id)
-            .join(VALUES_DIR())
-            .join(VALUES_FILE())
+            .join(VALUES_DIR)
+            .join(VALUES_FILE)
     }
 
     // Load a file contents only if the file is present.

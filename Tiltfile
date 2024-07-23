@@ -103,3 +103,6 @@ helm_resource(
   image_keys=[('super-agent-deployment.image.registry', 'super-agent-deployment.image.repository', 'super-agent-deployment.image.tag')],
   resource_deps=['build-binary']+extra_resource_deps
 )
+
+# We had flaky e2e test faling due to timeout applying the chart on 30s
+update_settings(k8s_upsert_timeout_secs=60)

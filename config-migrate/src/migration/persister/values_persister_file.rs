@@ -60,11 +60,11 @@ where
         if !path.exists() {
             self.create_directory(&path)?;
         }
-        path.push(VALUES_DIR());
+        path.push(VALUES_DIR);
         if !path.exists() {
             self.create_directory(&path)?;
         }
-        path.push(VALUES_FILE());
+        path.push(VALUES_FILE);
 
         debug!("writing to file {:?}", path.as_path());
 

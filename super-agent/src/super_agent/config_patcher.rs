@@ -36,7 +36,7 @@ impl ConfigPatcher {
         if config.log.file.path.is_none() {
             config.log.file.path = Some(LogFilePath::new(
                 self.log_dir,
-                PathBuf::from(SUPER_AGENT_LOG_FILENAME()),
+                PathBuf::from(SUPER_AGENT_LOG_FILENAME),
             ));
         }
     }

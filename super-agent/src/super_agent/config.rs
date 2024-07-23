@@ -61,9 +61,9 @@ pub enum SuperAgentConfigError {
 impl TryFrom<String> for AgentID {
     type Error = AgentTypeError;
     fn try_from(str: String) -> Result<Self, Self::Error> {
-        if str.eq(SUPER_AGENT_ID()) {
+        if str.eq(SUPER_AGENT_ID) {
             return Err(AgentTypeError::InvalidAgentIDUsesReservedOne(
-                SUPER_AGENT_ID().to_string(),
+                SUPER_AGENT_ID.to_string(),
             ));
         }
 
@@ -81,13 +81,13 @@ impl AgentID {
     }
     // For super agent ID we need to skip validation
     pub fn new_super_agent_id() -> Self {
-        Self(SUPER_AGENT_ID().to_string())
+        Self(SUPER_AGENT_ID.to_string())
     }
     pub fn get(&self) -> String {
         String::from(&self.0)
     }
     pub fn is_super_agent_id(&self) -> bool {
-        self.0.eq(SUPER_AGENT_ID())
+        self.0.eq(SUPER_AGENT_ID)
     }
     /// Checks if a string reference has valid format to build an [AgentID].
     /// It follows [RFC 1035 Label names](https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#rfc-1035-label-names),

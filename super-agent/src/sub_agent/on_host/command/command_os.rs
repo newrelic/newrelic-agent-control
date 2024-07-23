@@ -87,9 +87,9 @@ impl NotStartedCommand for CommandOS<NotStarted> {
                 file_logger(
                     &agent_id,
                     self.state.logging_path.clone(),
-                    STDOUT_LOG_PREFIX(),
+                    STDOUT_LOG_PREFIX,
                 ),
-                file_logger(&agent_id, self.state.logging_path, STDERR_LOG_PREFIX()),
+                file_logger(&agent_id, self.state.logging_path, STDERR_LOG_PREFIX),
             )
         });
         Ok(CommandOS {

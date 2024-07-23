@@ -14,7 +14,7 @@ pub fn get_instance_id(agent_id: &AgentID, base_paths: BasePaths) -> InstanceID 
         LocalFile,
         DirectoryManagerFs::default(),
         base_paths.remote_dir.clone(),
-        base_paths.remote_dir.join(SUB_AGENT_DIR()),
+        base_paths.remote_dir.join(SUB_AGENT_DIR),
     );
 
     let mut super_agent_instance_id: InstanceID = InstanceID::create();
