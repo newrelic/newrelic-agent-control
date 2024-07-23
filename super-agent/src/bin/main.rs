@@ -15,7 +15,7 @@ compile_error!("Either feature \"onhost\" or feature \"k8s\" must be enabled");
 
 fn main() {
     let cli_command = Cli::init().unwrap_or_else(|cli_error| {
-        println!("Error parsing CLI arguments: {}", cli_error.to_string());
+        println!("Error parsing CLI arguments: {}", cli_error);
         exit(1);
     });
 
