@@ -343,7 +343,7 @@ fn runs_with_no_config_as_root() -> Result<(), Box<dyn std::error::Error>> {
     // values: \u{1b}[2m2024\u{1b}[0m \u{1b}[32m INFO\u{1b}[0m \u{1b}[2mnewrelic_super_agent\u{1b}[0m\u{1b}[2m:\u{1b}[0m Creating the global context
     cmd.assert().failure().stdout(
         predicate::str::is_match(
-            ".*Could not read Super Agent config from non-existent-file.yaml.*",
+            ".*Could not read Super Agent config from `non-existent-file.yaml`.*",
         )
         .unwrap(),
     );
