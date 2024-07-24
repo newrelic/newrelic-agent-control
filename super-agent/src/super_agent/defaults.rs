@@ -42,8 +42,7 @@ pub static GENERATED_FOLDER_NAME: &str = "auto-generated";
 pub static SUPER_AGENT_LOG_FILENAME: &str = "newrelic-super-agent.log";
 pub static STDOUT_LOG_PREFIX: &str = "stdout.log";
 pub static STDERR_LOG_PREFIX: &str = "stderr.log";
-pub static SUPER_AGENT_CONFIG_ENV_VAR_PREFIX: &str = "NR_SA_CONFIG";
-pub static SUPER_AGENT_ENV_VAR_PREFIX: &str = "NR_SA_AGENTS_VARS";
+pub static SUPER_AGENT_CONFIG_ENV_VAR_PREFIX: &str = "NR_SA";
 
 pub fn default_capabilities() -> Capabilities {
     capabilities!(

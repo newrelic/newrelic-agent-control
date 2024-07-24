@@ -137,7 +137,6 @@ impl<C: ConfigurationPersister> TemplateRenderer<C> {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::super_agent::defaults::SUPER_AGENT_ENV_VAR_PREFIX;
     use crate::{
         agent_type::{
             definition::AgentType,
@@ -518,14 +517,8 @@ collision_avoided: ${config.values}-${env:agent_id}
         let values = testing_values(K8S_CONFIG_YAML_VALUES);
         let attributes = testing_agent_attributes(&agent_id);
 
-        env::set_var(
-            format!("{}_MY_VARIABLE", SUPER_AGENT_ENV_VAR_PREFIX),
-            "my-value",
-        );
-        env::set_var(
-            format!("{}_MY_VARIABLE_2", SUPER_AGENT_ENV_VAR_PREFIX),
-            "my-value-2",
-        );
+        env::set_var("MY_VARIABLE", "my-value");
+        env::set_var("MY_VARIABLE_2", "my-value-2");
 
         let expected_spec_yaml = r#"
 values:
@@ -549,8 +542,8 @@ substituted_2: my-value-2
         let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default();
         let runtime_config = renderer.render(&agent_id, agent_type, values, attributes);
 
-        env::remove_var(format!("{}_MY_VARIABLE", SUPER_AGENT_ENV_VAR_PREFIX));
-        env::remove_var(format!("{}_MY_VARIABLE_2", SUPER_AGENT_ENV_VAR_PREFIX));
+        env::remove_var("MY_VARIABLE");
+        env::remove_var("MY_VARIABLE_2");
 
         let k8s = runtime_config.unwrap().deployment.k8s.unwrap();
         let cr1 = k8s.objects.get("cr1").unwrap();
