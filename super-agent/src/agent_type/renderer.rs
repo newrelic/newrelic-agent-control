@@ -41,10 +41,16 @@ impl<C: ConfigurationPersister> Renderer for TemplateRenderer<C> {
     ) -> Result<Runtime, AgentTypeError> {
         // Get empty variables and runtime_config from the agent-type
         let (variables, runtime_config) = (agent_type.variables, agent_type.runtime_config);
+
+        // Values are expanded substituting all ${nr-env...} with environment variables.
+        // Notice that only environment variables are taken into consideration (no other vars for example)
+        let environment_variables = retrieve_env_var_variables();
+        let values_expanded = values.template_with(&environment_variables)?;
+
         // Fill agent variables
         // `filled_variables` needs to be mutable, in case there are `File` or `MapStringFile` variables, whose path
         // needs to be expanded, checkout out the TODO below for details.
-        let mut filled_variables = variables.fill_with_values(values)?.flatten();
+        let mut filled_variables = variables.fill_with_values(values_expanded)?.flatten();
         Self::check_all_vars_are_populated(&filled_variables)?;
 
         // TODO: the persister performs specific actions for file and `File` and `MapStringFile` variables kind only.
@@ -59,7 +65,8 @@ impl<C: ConfigurationPersister> Renderer for TemplateRenderer<C> {
         }
 
         // Setup namespaced variables
-        let ns_variables = Self::build_namespaced_variables(filled_variables, &attributes);
+        let ns_variables =
+            Self::build_namespaced_variables(filled_variables, environment_variables, &attributes);
         // Render runtime config
         let rendered_runtime_config = runtime_config.template_with(&ns_variables)?;
 
@@ -116,6 +123,7 @@ impl<C: ConfigurationPersister> TemplateRenderer<C> {
 
     fn build_namespaced_variables(
         variables: HashMap<String, VariableDefinition>,
+        environment_variables: HashMap<String, VariableDefinition>,
         attributes: &AgentAttributes,
     ) -> HashMap<String, VariableDefinition> {
         // Set the namespaced name to variables
@@ -124,12 +132,11 @@ impl<C: ConfigurationPersister> TemplateRenderer<C> {
             .map(|(name, var)| (Namespace::Variable.namespaced_name(&name), var));
         // Get the namespaced variables from sub-agent attributes
         let sub_agent_vars_iter = attributes.sub_agent_variables().into_iter();
-        let env_vars_variable = retrieve_env_var_variables();
 
         // Join all variables together
         vars_iter
             .chain(sub_agent_vars_iter)
-            .chain(env_vars_variable)
+            .chain(environment_variables)
             .collect::<HashMap<String, VariableDefinition>>()
     }
 }
@@ -553,6 +560,47 @@ substituted_2: my-value-2
 
         let spec = cr1.fields.get("spec").unwrap().clone();
         assert_eq!(expected_spec_value, spec);
+    }
+
+    #[test]
+    #[serial]
+    fn test_render_double_expansion_with_env_variables() {
+        let agent_id = AgentID::new("some-agent-id").unwrap();
+        let agent_type =
+            AgentType::build_for_testing(K8S_AGENT_TYPE_YAML_VARIABLES, &Environment::K8s);
+        let values = testing_values(
+            r#"
+config:
+  values:
+    key: ${nr-env:double_expansion}
+    key-2: ${nr-env:double_expansion_2}
+"#,
+        );
+        let attributes = testing_agent_attributes(&agent_id);
+
+        env::set_var("DOUBLE_EXPANSION", "test");
+        env::set_var("DOUBLE_EXPANSION_2", "test-2");
+
+        let expected_spec_yaml = r#"
+values:
+  key: test
+  key-2: test-2
+from_sub_agent: some-agent-id
+collision_avoided: ${config.values}-${env:agent_id}
+"#;
+
+        let expected_spec_value: serde_yaml::Value =
+            serde_yaml::from_str(expected_spec_yaml).unwrap();
+
+        let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default();
+        let runtime_config = renderer.render(&agent_id, agent_type, values, attributes);
+
+        env::remove_var("DOUBLE_EXPANSION");
+        env::remove_var("DOUBLE_EXPANSION_2");
+
+        let k8s = runtime_config.unwrap().deployment.k8s.unwrap();
+        let values = k8s.objects.get("cr1").unwrap().fields.get("spec").unwrap();
+        assert_eq!(expected_spec_value, values.clone());
     }
 
     #[test]
