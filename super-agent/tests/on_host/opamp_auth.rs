@@ -38,6 +38,7 @@ fn test_auth_local_provider_as_root() {
         format!(
             r#"
 opamp:
+  enabled: true
   endpoint: "{}"
   auth_config:
     token_url: "{}"
@@ -98,6 +99,7 @@ fn test_empty_auth_config_as_root() {
         format!(
             r#"
 opamp:
+  enabled: true
   endpoint: "{}"
   headers:
     api-key: "fakeKey"
@@ -148,6 +150,7 @@ fn test_unauthorized_token_retrieve_as_root() {
         format!(
             r#"
 opamp:
+  enabled: true
   endpoint: "https://localhost"
   auth_config:
     token_url: "{}"

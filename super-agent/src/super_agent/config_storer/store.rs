@@ -151,6 +151,7 @@ pub(crate) mod tests {
         let local_config = r#"
 agents: {}
 opamp:
+  enabled: true
   endpoint: http://127.0.0.1/v1/opamp
 "#;
         std::fs::write(local_file.as_path(), local_config).unwrap();
@@ -180,10 +181,11 @@ opamp:
                 },
             )])
             .into(),
-            opamp: Some(OpAMPClientConfig {
+            opamp: OpAMPClientConfig {
+                enabled: true,
                 endpoint: Url::try_from("http://127.0.0.1/v1/opamp").unwrap(),
                 ..Default::default()
-            }),
+            },
             k8s: None,
             ..Default::default()
         };
@@ -202,6 +204,7 @@ opamp:
         let local_config = r#"
 agents: {}
 opamp:
+  enabled: true
   endpoint: http://127.0.0.1/v1/opamp
 "#;
         std::fs::write(local_file.as_path(), local_config).unwrap();
@@ -229,10 +232,11 @@ opamp:
                 },
             )])
             .into(),
-            opamp: Some(OpAMPClientConfig {
+            opamp: OpAMPClientConfig {
+                enabled: true,
                 endpoint: Url::try_from("http://127.0.0.1/v1/opamp").unwrap(),
                 ..Default::default()
-            }),
+            },
             k8s: None,
             ..Default::default()
         };
@@ -250,6 +254,7 @@ opamp:
         let local_file = local_dir.join(SUPER_AGENT_CONFIG_FILE);
         let local_config = r#"
 opamp:
+  enabled: true
   endpoint: http://127.0.0.1/v1/opamp
 agents:
   rolldice2:
@@ -280,10 +285,11 @@ agents:
                 },
             )])
             .into(),
-            opamp: Some(OpAMPClientConfig {
+            opamp: OpAMPClientConfig {
+                enabled: true,
                 endpoint: Url::try_from("http://127.0.0.1/v1/opamp").unwrap(),
                 ..Default::default()
-            }),
+            },
             k8s: None,
             ..Default::default()
         };

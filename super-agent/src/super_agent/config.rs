@@ -180,7 +180,8 @@ pub struct SuperAgentConfig {
     pub dynamic: SuperAgentDynamicConfig,
 
     /// opamp contains the OpAMP client configuration
-    pub opamp: Option<OpAMPClientConfig>,
+    #[serde(default)]
+    pub opamp: OpAMPClientConfig,
 
     // We could make this field available only when #[cfg(feature = "k8s")] but it would over-complicate
     // the struct definition and usage. Making it optional should work no matter what features are enabled.
@@ -255,10 +256,28 @@ pub struct SubAgentConfig {
 
 #[derive(Debug, PartialEq, Serialize, Clone)]
 pub struct OpAMPClientConfig {
+    pub enabled: bool,
     pub endpoint: Url,
     #[serde(with = "http_serde::header_map")]
     pub headers: HeaderMap,
     pub auth_config: Option<AuthConfig>,
+}
+
+impl OpAMPClientConfig {
+    pub fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+}
+
+impl Default for OpAMPClientConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            endpoint: Url::try_from("https://opamp.service.newrelic.com/v1/opamp").unwrap(),
+            headers: Default::default(),
+            auth_config: None,
+        }
+    }
 }
 
 impl<'de> Deserialize<'de> for OpAMPClientConfig {
@@ -269,6 +288,7 @@ impl<'de> Deserialize<'de> for OpAMPClientConfig {
         // intermediate serialization type to validate `default` and `required` fields
         #[derive(Debug, Deserialize)]
         struct IntermediateOpAMPClientConfig {
+            pub enabled: bool,
             pub endpoint: Url,
             #[serde(default, with = "http_serde::header_map")]
             pub headers: HeaderMap,
@@ -291,6 +311,7 @@ impl<'de> Deserialize<'de> for OpAMPClientConfig {
             .collect::<HeaderMap>();
 
         Ok(OpAMPClientConfig {
+            enabled: intermediate_spec.enabled,
             endpoint: intermediate_spec.endpoint,
             headers: censored_headers,
             auth_config: intermediate_spec.auth_config,
@@ -365,18 +386,9 @@ pub(crate) mod test {
 
     use super::*;
 
-    impl Default for OpAMPClientConfig {
-        fn default() -> Self {
-            OpAMPClientConfig {
-                endpoint: "http://localhost".try_into().unwrap(),
-                headers: HeaderMap::default(),
-                auth_config: None,
-            }
-        }
-    }
-
     const EXAMPLE_SUPERAGENT_CONFIG: &str = r#"
 opamp:
+  enabled: true
   endpoint: http://localhost:8080/some/path
   headers:
     some-key: some-value
@@ -396,6 +408,7 @@ agents:
 
     const EXAMPLE_SUPERAGENT_CONFIG_NO_AGENTS: &str = r#"
 opamp:
+  enabled: true
   endpoint: http://localhost:8080/some/path
   headers:
     some-key: some-value
@@ -403,6 +416,7 @@ opamp:
 
     const EXAMPLE_SUPERAGENT_CONFIG_EMPTY_AGENTS: &str = r#"
 opamp:
+  enabled: true
   endpoint: http://localhost:8080/some/path
   headers:
     some-key: some-value

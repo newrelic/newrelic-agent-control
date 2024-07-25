@@ -197,6 +197,7 @@ mod test {
                 name: "only effective config is present",
                 yaml_config: r#"
 opamp:
+  enabled: true
   endpoint: https://fake.com/v1/opamp
   headers:
     api-key: fake-key

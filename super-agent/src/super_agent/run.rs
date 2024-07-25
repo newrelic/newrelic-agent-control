@@ -47,7 +47,7 @@ impl BasePaths {
 
 /// Structures for running the super-agent provided by CLI inputs
 pub struct SuperAgentRunConfig {
-    pub opamp: Option<OpAMPClientConfig>,
+    pub opamp: OpAMPClientConfig,
     pub http_server: ServerConfig,
     pub base_paths: BasePaths,
     #[cfg(feature = "k8s")]
@@ -66,20 +66,19 @@ impl TryFrom<SuperAgentRunConfig> for SuperAgentRunner {
         trace!("creating the signal handler");
         create_shutdown_signal_handler(application_event_publisher)?;
 
-        let opamp_http_builder = match value.opamp.as_ref() {
-            Some(opamp_config) => {
+        let opamp_http_builder = match value.opamp.enabled {
+            true => {
                 debug!("OpAMP configuration found, creating an OpAMP client builder");
                 let token_retriever = Arc::new(
-                    TokenRetrieverImpl::try_from(opamp_config.clone())
+                    TokenRetrieverImpl::try_from(value.opamp.clone())
                         .inspect_err(|err| error!(error_mgs=%err,"Building token retriever"))?,
                 );
 
-                let http_builder =
-                    UreqHttpClientBuilder::new(opamp_config.clone(), token_retriever);
+                let http_builder = UreqHttpClientBuilder::new(value.opamp.clone(), token_retriever);
 
                 Some(http_builder)
             }
-            None => None,
+            false => None,
         };
         let (super_agent_publisher, super_agent_consumer) = pub_sub::<SuperAgentEvent>();
         let runtime = Arc::new(

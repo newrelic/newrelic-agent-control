@@ -23,12 +23,10 @@ impl ConfigPatcher {
 
     pub fn patch(self, config: &mut SuperAgentConfig) {
         // Set default value for OpAMP's auth provider using the super-agent local data directory path.
-        if let Some(opamp_config) = &mut config.opamp {
-            if let Some(auth_config) = &mut opamp_config.auth_config {
-                if auth_config.provider.is_none() {
-                    auth_config.provider =
-                        Some(ProviderConfig::Local(LocalConfig::new(self.local_data_dir)));
-                }
+        if let Some(auth_config) = &mut config.opamp.auth_config {
+            if auth_config.provider.is_none() {
+                auth_config.provider =
+                    Some(ProviderConfig::Local(LocalConfig::new(self.local_data_dir)));
             }
         }
 

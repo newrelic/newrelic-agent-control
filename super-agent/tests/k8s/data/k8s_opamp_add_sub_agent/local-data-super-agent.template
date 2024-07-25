@@ -1,4 +1,5 @@
 opamp:
+  enabled: true
   endpoint: <opamp-endpoint>
   headers:
     api-key: test-api-key

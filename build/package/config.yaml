@@ -1,4 +1,5 @@
 # opamp:
+#   enabled: true
 #   endpoint: https://opamp.service.newrelic.com/v1/opamp
 #   headers:
 #     api-key: API_KEY_HERE
@@ -8,4 +9,4 @@
 #     provider: PLACEHOLDER
 #     private_key_path: PLACEHOLDER
 
-agents: {}
+agents: { }

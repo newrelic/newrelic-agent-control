@@ -16,7 +16,7 @@ use tracing::{debug, error, info};
 pub async fn run_status_server(
     server_config: ServerConfig,
     sa_event_consumer: UnboundedReceiver<SuperAgentEvent>,
-    maybe_opamp_client_config: Option<OpAMPClientConfig>,
+    opamp_client_config: OpAMPClientConfig,
 ) -> Result<(), StatusServerError> {
     // channel to share the Server handle between "threads". This way we can
     // get the Server in the main "thread" and stop the Server once the
@@ -26,8 +26,8 @@ pub async fn run_status_server(
     // structure to contain the status of the Super Agent. It will be written
     // by the Event Processor on Super Agent Events, and read from the
     // HTTP Server
-    let status = if let Some(opamp_config) = maybe_opamp_client_config {
-        Status::default().with_opamp(opamp_config.endpoint)
+    let status = if opamp_client_config.is_enabled() {
+        Status::default().with_opamp(opamp_client_config.endpoint)
     } else {
         Status::default()
     };

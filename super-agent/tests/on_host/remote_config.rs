@@ -30,6 +30,7 @@ fn onhost_opamp_superagent_configuration_change() {
         r#"
 host_id: integration-test
 opamp:
+  enabled: true
   endpoint: {}
 agents: {{}}    
 "#,
