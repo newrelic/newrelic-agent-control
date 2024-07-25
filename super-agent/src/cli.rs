@@ -36,7 +36,7 @@ pub enum CliError {
     LoggingInit(#[from] LoggingError),
     #[error("k8s config missing while running on k8s ")]
     K8sConfig(),
-    #[error("Could not read Super Agent config from `{0}`: `{0}`")]
+    #[error("Could not read Super Agent config from `{0}`: `{1}`")]
     LoaderError(String, String),
 }
 

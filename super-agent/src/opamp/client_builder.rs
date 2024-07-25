@@ -86,10 +86,11 @@ where
     ) -> Result<Self::Client, OpAMPClientBuilderError> {
         let http_client = self.http_client_builder.build()?;
         let effective_config_loader = self.effective_config_loader_builder.build(agent_id.clone());
-        let callbacks = AgentCallbacks::new(agent_id, opamp_publisher, effective_config_loader);
+        let callbacks =
+            AgentCallbacks::new(agent_id.clone(), opamp_publisher, effective_config_loader);
         let not_started_client = NotStartedHttpClient::new(http_client);
         let started_client = not_started_client.start(callbacks, start_settings)?;
-        info!("Super Agent OpAMP client started");
+        info!(%agent_id,"OpAMP client started");
         Ok(started_client)
     }
 }
