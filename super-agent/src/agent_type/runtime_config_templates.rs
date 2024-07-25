@@ -843,7 +843,7 @@ objects:
             ),
             (
                 "nr-sub:agent_id".to_string(),
-                VariableDefinition::new_sub_agent_string_variable(test_agent_id.to_string()),
+                VariableDefinition::new_final_string_variable(test_agent_id.to_string()),
             ),
         ]);
 

@@ -16,7 +16,7 @@ impl AgentAttributes {
     pub fn sub_agent_variables(&self) -> HashMap<String, VariableDefinition> {
         HashMap::from([(
             Namespace::SubAgent.namespaced_name(Self::VARIABLE_SUB_AGENT_ID),
-            VariableDefinition::new_sub_agent_string_variable(self.agent_id.clone()),
+            VariableDefinition::new_final_string_variable(self.agent_id.clone()),
         )])
     }
 }

@@ -33,7 +33,6 @@ cfg_if::cfg_if! {
 }
 
 pub static SUB_AGENT_DIR: &str = "fleet/agents.d";
-
 pub static SUPER_AGENT_CONFIG_FILE: &str = "config.yaml";
 pub static DYNAMIC_AGENT_TYPE_FILENAME: &str = "dynamic-agent-type.yaml";
 pub static IDENTIFIERS_FILENAME: &str = "identifiers.yaml";
@@ -43,6 +42,7 @@ pub static GENERATED_FOLDER_NAME: &str = "auto-generated";
 pub static SUPER_AGENT_LOG_FILENAME: &str = "newrelic-super-agent.log";
 pub static STDOUT_LOG_PREFIX: &str = "stdout.log";
 pub static STDERR_LOG_PREFIX: &str = "stderr.log";
+pub static SUPER_AGENT_CONFIG_ENV_VAR_PREFIX: &str = "NR_SA";
 
 pub fn default_capabilities() -> Capabilities {
     capabilities!(

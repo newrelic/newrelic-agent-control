@@ -5,7 +5,7 @@ use crate::super_agent::config_storer::loader_storer::{
     SuperAgentConfigLoader, SuperAgentDynamicConfigDeleter, SuperAgentDynamicConfigLoader,
     SuperAgentDynamicConfigStorer,
 };
-use crate::super_agent::defaults::default_capabilities;
+use crate::super_agent::defaults::{default_capabilities, SUPER_AGENT_CONFIG_ENV_VAR_PREFIX};
 use crate::values::yaml_config::{YAMLConfig, YAMLConfigError};
 use crate::values::yaml_config_repository::{YAMLConfigRepository, YAMLConfigRepositoryError};
 use config::builder::DefaultState;
@@ -101,7 +101,7 @@ where
             // Eg.. `NR_LOG__USE_DEBUG=1 ./target/app` would set the `log.use_debug` key
             // We use double underscore because we already use snake_case for the config keys.
             .add_source(
-                Environment::with_prefix("NR_SA")
+                Environment::with_prefix(SUPER_AGENT_CONFIG_ENV_VAR_PREFIX)
                     .prefix_separator("_")
                     .separator("__"),
             )

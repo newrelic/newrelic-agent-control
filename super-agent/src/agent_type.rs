@@ -4,6 +4,7 @@ pub mod agent_type_registry;
 pub mod definition;
 pub mod embedded_registry;
 pub mod environment;
+pub mod environment_variable;
 pub mod error;
 pub mod health_config;
 pub mod renderer;
