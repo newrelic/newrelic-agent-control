@@ -7,7 +7,7 @@ pub fn retrieve_env_var_variables() -> HashMap<String, VariableDefinition> {
     let mut vars: HashMap<String, VariableDefinition> = HashMap::new();
     env::vars().for_each(|(k, v)| {
         vars.insert(
-            Namespace::EnvironmentVariable.namespaced_name(k.to_lowercase().as_str()),
+            Namespace::EnvironmentVariable.namespaced_name(k.as_str()),
             VariableDefinition::new_final_string_variable(v),
         );
     });
