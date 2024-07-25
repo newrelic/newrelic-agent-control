@@ -1,9 +1,11 @@
 use newrelic_super_agent::cli::{Cli, CliCommand, SuperAgentCliConfig};
+use newrelic_super_agent::event::channel::{pub_sub, EventPublisher};
+use newrelic_super_agent::event::ApplicationEvent;
 use newrelic_super_agent::logging::config::FileLoggerGuard;
 use newrelic_super_agent::super_agent::run::SuperAgentRunner;
 use std::error::Error;
 use std::process::exit;
-use tracing::{error, info};
+use tracing::{error, info, trace};
 
 #[cfg(all(feature = "onhost", feature = "k8s", not(feature = "ci")))]
 compile_error!("Feature \"onhost\" and feature \"k8s\" cannot be enabled at the same time");
@@ -52,12 +54,35 @@ fn _main(super_agent_config: SuperAgentCliConfig) -> Result<(), Box<dyn Error>> 
     #[cfg(all(unix, feature = "onhost"))]
     if !nix::unistd::Uid::effective().is_root() {
         error!("Program must run as root");
-        std::process::exit(1);
+        exit(1);
     }
 
-    // Pass the rest of required configs to the actual super agent runner
-    SuperAgentRunner::try_from(super_agent_config.run_config)?.run()?;
+    trace!("creating the global context");
+    let (application_event_publisher, application_event_consumer) = pub_sub();
+
+    trace!("creating the signal handler");
+    create_shutdown_signal_handler(application_event_publisher)?;
+
+    // Create the actual super agent runner with the rest of required configs and the application_event_consumer
+    SuperAgentRunner::new(super_agent_config.run_config, application_event_consumer)?.run()?;
 
     info!("exiting gracefully");
+    Ok(())
+}
+
+pub fn create_shutdown_signal_handler(
+    publisher: EventPublisher<ApplicationEvent>,
+) -> Result<(), ctrlc::Error> {
+    ctrlc::set_handler(move || {
+        info!("Received SIGINT (Ctrl-C). Stopping super agent");
+        let _ = publisher
+            .publish(ApplicationEvent::StopRequested)
+            .inspect_err(|e| error!("Could not send super agent stop request: {}", e));
+    })
+    .map_err(|e| {
+        error!("Could not set signal handler: {}", e);
+        e
+    })?;
+
     Ok(())
 }
