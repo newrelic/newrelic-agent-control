@@ -17,7 +17,7 @@ use std::error::Error;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
-use tracing::{debug, error, info, trace};
+use tracing::{debug, error};
 
 // k8s and on_host need to be public to allow integration tests to access the fn run_super_agent.
 #[cfg(feature = "k8s")]
@@ -54,17 +54,32 @@ pub struct SuperAgentRunConfig {
     pub k8s_config: super::config::K8sConfig,
 }
 
-impl TryFrom<SuperAgentRunConfig> for SuperAgentRunner {
-    type Error = Box<dyn Error>;
+/// Structure with all the data required to run the super agent
+/// Fields are public just for testing. The object is destroyed right after is deleted,
+/// Therefore, we should be worried of any tampering after its creation.
+pub struct SuperAgentRunner {
+    agent_type_registry: EmbeddedRegistry,
+    application_event_consumer: EventConsumer<ApplicationEvent>,
+    opamp_http_builder: Option<UreqHttpClientBuilder<TokenRetrieverImpl>>,
+    super_agent_publisher: EventPublisher<SuperAgentEvent>,
+    base_paths: BasePaths,
+    #[cfg(feature = "k8s")]
+    k8s_config: super::config::K8sConfig,
 
-    fn try_from(value: SuperAgentRunConfig) -> Result<Self, Self::Error> {
+    #[allow(dead_code)]
+    runtime: Arc<Runtime>,
+
+    // Since _http_server_runner drop depends on super_agent_publisher being drop before we need it
+    // to be the last field of the struct. TODO Refactor runner so that this is not a risk anymore.
+    _http_server_runner: Runner,
+}
+
+impl SuperAgentRunner {
+    pub fn new(
+        value: SuperAgentRunConfig,
+        application_event_consumer: EventConsumer<ApplicationEvent>,
+    ) -> Result<Self, Box<dyn Error>> {
         debug!("initializing and starting the super agent");
-
-        trace!("creating the global context");
-        let (application_event_publisher, application_event_consumer) = pub_sub();
-
-        trace!("creating the signal handler");
-        create_shutdown_signal_handler(application_event_publisher)?;
 
         let opamp_http_builder = match value.opamp.as_ref() {
             Some(opamp_config) => {
@@ -109,43 +124,6 @@ impl TryFrom<SuperAgentRunConfig> for SuperAgentRunner {
             base_paths: value.base_paths,
         })
     }
-}
-
-/// Structure with all the data required to run the super agent
-/// Fields are public just for testing. The object is destroyed right after is deleted,
-/// Therefore, we should be worried of any tampering after its creation.
-pub struct SuperAgentRunner {
-    agent_type_registry: EmbeddedRegistry,
-    application_event_consumer: EventConsumer<ApplicationEvent>,
-    opamp_http_builder: Option<UreqHttpClientBuilder<TokenRetrieverImpl>>,
-    super_agent_publisher: EventPublisher<SuperAgentEvent>,
-    base_paths: BasePaths,
-    #[cfg(feature = "k8s")]
-    k8s_config: super::config::K8sConfig,
-
-    #[allow(dead_code)]
-    runtime: Arc<Runtime>,
-
-    // Since _http_server_runner drop depends on super_agent_publisher being drop before we need it
-    // to be the last field of the struct. TODO Refactor runner so that this is not a risk anymore.
-    _http_server_runner: Runner,
-}
-
-pub fn create_shutdown_signal_handler(
-    publisher: EventPublisher<ApplicationEvent>,
-) -> Result<(), ctrlc::Error> {
-    ctrlc::set_handler(move || {
-        info!("Received SIGINT (Ctrl-C). Stopping super agent");
-        let _ = publisher
-            .publish(ApplicationEvent::StopRequested)
-            .inspect_err(|e| error!("Could not send super agent stop request: {}", e));
-    })
-    .map_err(|e| {
-        error!("Could not set signal handler: {}", e);
-        e
-    })?;
-
-    Ok(())
 }
 
 #[cfg(debug_assertions)]
