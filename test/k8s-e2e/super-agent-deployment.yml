@@ -1,5 +1,7 @@
-# Cluster info is set with "--set" in the e2e-spec file
-# cluster: ""
+# Cluster and License info is set with "--set" in the e2e-spec file
+# global:
+#   cluster: ""
+#   licenseKey: ""
 
 super-agent-deployment:
   config:
@@ -8,5 +10,3 @@ super-agent-deployment:
         content:
           chart_values:
             verboseLog: true
-            customSecretName: "test-env"
-            customSecretLicenseKey: "LICENSE_KEY"
