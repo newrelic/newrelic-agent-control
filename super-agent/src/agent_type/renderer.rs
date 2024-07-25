@@ -572,8 +572,8 @@ substituted_2: my-value-2
             r#"
 config:
   values:
-    key: ${nr-env:double_expansion}
-    key-2: ${nr-env:double_expansion_2}
+    key: ${nr-env:DOUBLE_EXPANSION}
+    key-2: ${nr-env:DOUBLE_EXPANSION_2}
 "#,
         );
         let attributes = testing_agent_attributes(&agent_id);
@@ -617,7 +617,53 @@ collision_avoided: ${config.values}-${env:agent_id}
         let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default();
         let runtime_config = renderer.render(&agent_id, agent_type, values, attributes);
 
-        assert!(runtime_config.is_err());
+        assert_matches!(
+            runtime_config.unwrap_err(),
+            AgentTypeError::MissingTemplateKey(_)
+        );
+    }
+
+    #[test]
+    #[serial]
+    fn test_render_with_env_variables_are_case_sensitive() {
+        let agent_id = AgentID::new("some-agent-id").unwrap();
+        let agent_type = AgentType::build_for_testing(
+            r#"
+name: k8s-agent-type
+namespace: newrelic
+version: 0.0.1
+variables:
+  k8s:
+    config:
+      values:
+        description: "yaml values"
+        type: yaml
+        required: true
+deployment:
+  k8s:
+    objects:
+      cr1:
+        apiVersion: group/version
+        kind: ObjectKind
+        metadata:
+          name: test
+        
+        substituted: ${nr-env:MY_VARIABLE}
+"#,
+            &Environment::K8s,
+        );
+        let values = testing_values(K8S_CONFIG_YAML_VALUES);
+        let attributes = testing_agent_attributes(&agent_id);
+        env::set_var("my_variable", "my-value");
+
+        let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default();
+        let runtime_config = renderer.render(&agent_id, agent_type, values, attributes);
+
+        env::remove_var("my_variable");
+        assert_matches!(
+            runtime_config.unwrap_err(),
+            AgentTypeError::MissingTemplateKey(_)
+        );
     }
 
     // Agent Type and Values definitions
@@ -822,9 +868,9 @@ deployment:
         spec:
           values: ${nr-var:config.values}
           from_sub_agent: ${nr-sub:agent_id}
-          substituted: ${nr-env:my_variable}
+          substituted: ${nr-env:MY_VARIABLE}
           collision_avoided: ${config.values}-${env:agent_id}
-          substituted_2: ${nr-env:my_variable_2}
+          substituted_2: ${nr-env:MY_VARIABLE_2}
 "#;
 
     const K8S_CONFIG_YAML_VALUES: &str = r#"
