@@ -15,4 +15,4 @@ scenarios:
       nrqls:
         # Checks that the metric exist for the test scenario, an extra where testKey=$SCENARIO_TAG is always added.
         - query: "SELECT * from Metric where metricName = 'kube_daemonset_created'"
-        - query: "SELECT * from Metric where metricName = 'k8s.pod.memory.major_page_faults'"
+        - query: "SELECT * from Metric where metricName = 'k8s.pod.memory.working_set'"
