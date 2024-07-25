@@ -1,3 +1,6 @@
+use crate::agent_type::definition::Variables;
+use crate::agent_type::error::AgentTypeError;
+use crate::agent_type::runtime_config_templates::Templateable;
 use opamp_client::opamp::proto::AgentCapabilities;
 use opamp_client::operation::capabilities::Capabilities;
 use serde::{Deserialize, Serialize};
@@ -13,6 +16,20 @@ pub struct YAMLConfig(HashMap<String, serde_yaml::Value>);
 pub enum YAMLConfigError {
     #[error("invalid agent values format: `{0}`")]
     FormatError(#[from] serde_yaml::Error),
+}
+
+impl Templateable for YAMLConfig {
+    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+        Ok(Self(self.0.template_with(variables)?))
+    }
+}
+
+impl Templateable for HashMap<String, serde_yaml::Value> {
+    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+        self.into_iter()
+            .map(|(key, v)| Ok((key, v.template_with(variables)?)))
+            .collect()
+    }
 }
 
 impl From<YAMLConfig> for HashMap<String, serde_yaml::Value> {
