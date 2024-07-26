@@ -11,7 +11,7 @@ staging_url: https://nr-downloads-ohai-staging.s3.amazonaws.com/infrastructure_a
 # Individual entries may override any of the values defined above.
 artifacts:
   - name: newrelic-infra
-    version: 1.53.0
+    version: 1.55.1
     url: https://github.com/newrelic/infrastructure-agent/releases/download/{{.Version | trimv}}/newrelic-infra_systemd_{{.Version | trimv}}_{{.Arch}}.deb
     files:
       # infra-agent
