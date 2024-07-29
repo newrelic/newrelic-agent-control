@@ -52,6 +52,7 @@ where
     H: HashRepository,
     Y: YAMLConfigRepository,
 {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         agent_id: AgentID,
         agent_fqn: AgentTypeFQN,
