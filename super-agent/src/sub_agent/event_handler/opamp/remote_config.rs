@@ -3,6 +3,7 @@ use crate::opamp::effective_config::loader::EffectiveConfigLoader;
 use crate::opamp::remote_config::RemoteConfigError;
 use crate::opamp::remote_config_report::report_remote_config_status_applying;
 use crate::sub_agent::error::SubAgentError;
+use crate::sub_agent::event_handler::opamp::config_validator_on_host::validate_config;
 use crate::sub_agent::event_processor::EventProcessor;
 use crate::sub_agent::SubAgentCallbacks;
 use crate::values::yaml_config::YAMLConfig;
@@ -32,6 +33,15 @@ where
         let Some(opamp_client) = &self.maybe_opamp_client else {
             unreachable!("got remote config without OpAMP being enabled")
         };
+
+        if let Err(err) = validate_config(&self.agent_fqn(), &remote_config) {
+            report_remote_config_status_error(
+                opamp_client,
+                &remote_config.hash,
+                format!("{}: {}", ERROR_REMOTE_CONFIG, &err),
+            )?;
+            return Err(err.into());
+        }
 
         report_remote_config_status_applying(opamp_client, &remote_config.hash)?;
 
