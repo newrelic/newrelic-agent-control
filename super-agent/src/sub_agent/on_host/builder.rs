@@ -128,6 +128,7 @@ where
             .map(|(client, consumer)| (Some(client), Some(consumer)))
             .unwrap_or_default();
 
+        let agent_fqn = sub_agent_config.agent_type.clone();
         // try to build effective agent
         let effective_agent_res = self.effective_agent_assembler.assemble_agent(
             &agent_id,
@@ -151,6 +152,7 @@ where
 
         let event_processor = self.event_processor_builder.build(
             agent_id.clone(),
+            agent_fqn,
             sub_agent_publisher,
             sub_agent_opamp_consumer,
             sub_agent_internal_consumer,
@@ -283,7 +285,8 @@ mod test {
 
         let super_agent_id = AgentID::new_super_agent_id();
         let sub_agent_id = AgentID::new("infra-agent").unwrap();
-        let final_agent = on_host_final_agent(sub_agent_id.clone());
+        let final_agent =
+            on_host_final_agent(sub_agent_id.clone(), sub_agent_config.agent_type.clone());
 
         let mut started_client = MockStartedOpAMPClientMock::new();
         started_client.should_set_any_remote_config_status(1);
@@ -365,7 +368,8 @@ mod test {
 
         let super_agent_id = AgentID::new_super_agent_id();
         let sub_agent_id = AgentID::new("infra-agent").unwrap();
-        let final_agent = on_host_final_agent(sub_agent_id.clone());
+        let final_agent =
+            on_host_final_agent(sub_agent_id.clone(), sub_agent_config.agent_type.clone());
         // Expectations
         // Infra Agent OpAMP no final stop nor health, just after stopping on reload
         instance_id_getter.should_get(&sub_agent_id, sub_agent_instance_id.clone());
@@ -418,11 +422,12 @@ mod test {
 
     // HELPERS
     #[cfg(test)]
-    fn on_host_final_agent(agent_id: AgentID) -> EffectiveAgent {
+    fn on_host_final_agent(agent_id: AgentID, agent_fqn: AgentTypeFQN) -> EffectiveAgent {
         use crate::agent_type::definition::TemplateableValue;
 
         EffectiveAgent::new(
             agent_id,
+            agent_fqn,
             Runtime {
                 deployment: Deployment {
                     on_host: Some(OnHost {

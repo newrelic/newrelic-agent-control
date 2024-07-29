@@ -107,7 +107,7 @@ mod tests {
     use crate::opamp::remote_config::RemoteConfigError;
     use crate::sub_agent::error::SubAgentError;
     use crate::sub_agent::event_processor::EventProcessor;
-    use crate::super_agent::config::AgentID;
+    use crate::super_agent::config::{AgentID, AgentTypeFQN};
     use crate::values::yaml_config::{YAMLConfig, YAMLConfigError};
     use crate::values::yaml_config_repository::YAMLConfigRepositoryError;
     use crate::{
@@ -482,6 +482,7 @@ mod tests {
         (
             EventProcessor::new(
                 agent_id.clone(),
+                AgentTypeFQN::try_from("namespace/test:0.0.1").unwrap(),
                 sub_agent_publisher,
                 sub_agent_opamp_consumer.into(),
                 sub_agent_internal_consumer,

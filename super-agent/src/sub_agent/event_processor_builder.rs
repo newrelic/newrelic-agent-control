@@ -4,7 +4,7 @@ use crate::opamp::effective_config::loader::EffectiveConfigLoader;
 use crate::opamp::hash_repository::HashRepository;
 use crate::sub_agent::event_processor::{EventProcessor, SubAgentEventProcessor};
 use crate::sub_agent::SubAgentCallbacks;
-use crate::super_agent::config::AgentID;
+use crate::super_agent::config::{AgentID, AgentTypeFQN};
 use crate::values::yaml_config_repository::YAMLConfigRepository;
 use opamp_client::StartedClient;
 use std::sync::Arc;
@@ -19,6 +19,7 @@ where
     fn build(
         &self,
         agent_id: AgentID,
+        agent_fqn: AgentTypeFQN,
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
         sub_agent_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
         sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
@@ -63,6 +64,7 @@ where
     fn build(
         &self,
         agent_id: AgentID,
+        agent_fqn: AgentTypeFQN,
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
         sub_agent_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
         sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
@@ -74,6 +76,7 @@ where
     {
         EventProcessor::new(
             agent_id,
+            agent_fqn,
             sub_agent_publisher,
             sub_agent_opamp_consumer,
             sub_agent_internal_consumer,
@@ -92,7 +95,7 @@ pub mod test {
     use crate::sub_agent::event_processor::test::MockEventProcessorMock;
     use crate::sub_agent::event_processor_builder::SubAgentEventProcessorBuilder;
     use crate::sub_agent::SubAgentCallbacks;
-    use crate::super_agent::config::AgentID;
+    use crate::super_agent::config::{AgentID, AgentTypeFQN};
     use mockall::mock;
     use opamp_client::StartedClient;
     use std::thread;
@@ -113,6 +116,7 @@ pub mod test {
             fn build(
                 &self,
                 agent_id: AgentID,
+                agent_fqn: AgentTypeFQN,
                 sub_agent_publisher: EventPublisher<SubAgentEvent>,
                 sub_agent_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
                 sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
@@ -129,7 +133,7 @@ pub mod test {
         pub fn should_build(&mut self, processor: MockEventProcessorMock) {
             self.expect_build()
                 .once()
-                .return_once(move |_, _, _, _, _| processor);
+                .return_once(move |_, _, _, _, _, _| processor);
         }
 
         pub fn should_return_event_processor_with_consumer(&mut self) {
@@ -138,7 +142,7 @@ pub mod test {
 
             self.expect_build()
                 .once()
-                .return_once(move |_, _, _, consumer, _| {
+                .return_once(move |_, _, _, _, consumer, _| {
                     thread::spawn(move || {
                         _ = consumer.as_ref().recv();
                     });
