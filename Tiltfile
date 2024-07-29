@@ -41,17 +41,6 @@ docker_build(
     only = ['./bin','./Dockerfile', './Tiltfile']
 )
 
-#### Adds the secret used by the e2e test to configure otel collector to send metrics.
-load('ext://secret', 'secret_from_dict')
-allow_k8s_contexts('minikube') # Use explicitly allowed kubeconfigs as a safety measure.
-k8s_yaml(secret_from_dict(
-  name='test-env',
-  namespace=namespace,
-  inputs = {
-    'LICENSE_KEY' : license_key,
-}))
-k8s_resource(new_name='e2e test secret',objects=['test-env:secret'])
-
 ######## Feature Branch Workaround ########
 # Use the branch source to get the chart form a feature branch in the NR helm-charts repo.
 chart_source = 'helm-repo' # local|branch|helm-repo
@@ -86,6 +75,9 @@ elif chart_source == 'helm-repo':
 
 flags_helm = ['--create-namespace','--version=>=0.0.0-beta','--set=super-agent-deployment.image.imagePullPolicy=Always','--values=' + sa_chart_values_file]
 
+if license_key != '':
+  flags_helm.append('--set=global.licenseKey='+license_key)
+  
 if cluster != '':
   flags_helm.append('--set=global.cluster='+cluster)
   flags_helm.append('--set=super-agent-deployment.config.subAgents.open-telemetry.content.chart_values.cluster='+cluster)
@@ -105,4 +97,4 @@ helm_resource(
 )
 
 # We had flaky e2e test faling due to timeout applying the chart on 30s
-update_settings(k8s_upsert_timeout_secs=60)
+update_settings(k8s_upsert_timeout_secs=150)
