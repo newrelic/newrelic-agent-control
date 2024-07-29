@@ -169,6 +169,7 @@ where
         agent_id: &AgentID,
         yaml_config: &YAMLConfig,
     ) -> Result<(), YAMLConfigRepositoryError> {
+        #[allow(clippy::readonly_write_lock)]
         let _write_guard = self.rw_lock.write().unwrap();
 
         let values_file_path = self.get_remote_values_file_path(agent_id);
@@ -194,6 +195,7 @@ where
     // Moreover, we are also loading one file only, therefore we should review this once support is added
     // Notice that in that case we will likely need to move SuperAgentConfig file to a folder
     fn delete_remote(&self, agent_id: &AgentID) -> Result<(), YAMLConfigRepositoryError> {
+        #[allow(clippy::readonly_write_lock)]
         let _write_guard = self.rw_lock.write().unwrap();
 
         let remote_path_file = self.get_remote_values_file_path(agent_id);

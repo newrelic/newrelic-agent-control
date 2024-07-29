@@ -7,7 +7,7 @@ use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::renderer::{Renderer, TemplateRenderer};
 use crate::agent_type::runtime_config::{Deployment, Runtime};
 use crate::sub_agent::persister::config_persister_file::ConfigurationPersisterFile;
-use crate::super_agent::config::{AgentID, SubAgentConfig};
+use crate::super_agent::config::{AgentID, AgentTypeFQN, SubAgentConfig};
 use crate::values::yaml_config_repository::{
     load_remote_fallback_local, YAMLConfigRepository, YAMLConfigRepositoryError,
 };
@@ -42,6 +42,7 @@ pub enum AgentTypeDefinitionError {
 #[derive(Clone, Debug, PartialEq)]
 pub struct EffectiveAgent {
     agent_id: AgentID,
+    agent_fqn: AgentTypeFQN,
     runtime_config: Runtime,
 }
 
@@ -52,9 +53,10 @@ impl Display for EffectiveAgent {
 }
 
 impl EffectiveAgent {
-    pub(crate) fn new(agent_id: AgentID, runtime_config: Runtime) -> Self {
+    pub(crate) fn new(agent_id: AgentID, agent_fqn: AgentTypeFQN, runtime_config: Runtime) -> Self {
         Self {
             agent_id,
+            agent_fqn,
             runtime_config,
         }
     }
@@ -120,6 +122,7 @@ where
         agent_cfg: &SubAgentConfig,
         environment: &Environment,
     ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError> {
+        let agent_fqn = agent_cfg.agent_type.clone();
         // Load the agent type definition
         let agent_type_definition = self.registry.get(&agent_cfg.agent_type)?;
         // Build the corresponding agent type
@@ -141,7 +144,11 @@ where
             .renderer
             .render(agent_id, agent_type, values, attributes)?;
 
-        Ok(EffectiveAgent::new(agent_id.clone(), runtime_config))
+        Ok(EffectiveAgent::new(
+            agent_id.clone(),
+            agent_fqn,
+            runtime_config,
+        ))
     }
 }
 
