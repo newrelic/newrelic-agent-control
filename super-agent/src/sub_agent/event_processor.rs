@@ -6,7 +6,7 @@ use crate::opamp::operations::stop_opamp_client;
 use crate::sub_agent::error::SubAgentError;
 use crate::sub_agent::health::with_start_time::HealthWithStartTime;
 use crate::sub_agent::SubAgentCallbacks;
-use crate::super_agent::config::AgentID;
+use crate::super_agent::config::{AgentID, AgentTypeFQN};
 use crate::values::yaml_config_repository::YAMLConfigRepository;
 use crossbeam::channel::never;
 use crossbeam::select;
@@ -31,6 +31,8 @@ where
     Y: YAMLConfigRepository,
 {
     agent_id: AgentID,
+    // Unused for now. Will be used to validate configs based on Agent Type
+    _agent_fqn: AgentTypeFQN,
     pub(crate) sub_agent_publisher: EventPublisher<SubAgentEvent>,
     pub(crate) sub_agent_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
     pub(crate) sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
@@ -52,6 +54,7 @@ where
 {
     pub fn new(
         agent_id: AgentID,
+        agent_fqn: AgentTypeFQN,
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
         sub_agent_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
         sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
@@ -61,6 +64,7 @@ where
     ) -> Self {
         EventProcessor {
             agent_id,
+            _agent_fqn: agent_fqn,
             sub_agent_publisher,
             sub_agent_opamp_consumer,
             sub_agent_internal_consumer,
@@ -182,7 +186,7 @@ pub mod test {
     use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::error::SubAgentError;
     use crate::sub_agent::event_processor::{EventProcessor, SubAgentEventProcessor};
-    use crate::super_agent::config::AgentID;
+    use crate::super_agent::config::{AgentID, AgentTypeFQN};
     use crate::values::yaml_config::YAMLConfig;
     use crate::values::yaml_config_repository::test::MockYAMLConfigRepositoryMock;
     use mockall::mock;
@@ -234,6 +238,7 @@ pub mod test {
 
         let event_processor = EventProcessor::new(
             AgentID::new("agent-id").unwrap(),
+            AgentTypeFQN::try_from("namespace/test:0.0.1").unwrap(),
             sub_agent_publisher,
             sub_agent_opamp_consumer.into(),
             sub_agent_internal_consumer,
@@ -299,6 +304,7 @@ pub mod test {
 
         let event_processor = EventProcessor::new(
             agent_id.clone(),
+            AgentTypeFQN::try_from("namespace/test:0.0.1").unwrap(),
             sub_agent_publisher,
             sub_agent_opamp_consumer.into(),
             sub_agent_internal_consumer,

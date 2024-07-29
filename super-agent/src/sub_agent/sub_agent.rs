@@ -263,7 +263,11 @@ pub mod test {
     #[test]
     fn test_build_supervisor_from_some_hash_ok_eff_agent() {
         let agent_id = AgentID::new("test-agent").unwrap();
-        let effective_agent = Ok(EffectiveAgent::new(agent_id.clone(), Runtime::default()));
+        let effective_agent = Ok(EffectiveAgent::new(
+            agent_id.clone(),
+            AgentTypeFQN::try_from("namespace/test:0.0.1").unwrap(),
+            Runtime::default(),
+        ));
 
         // Expected calls on the hash repository
         let mut hash_repository = MockHashRepositoryMock::new();
@@ -305,7 +309,11 @@ pub mod test {
             effective_agent,
             |effective_agent| {
                 Ok(assert_eq!(
-                    EffectiveAgent::new(agent_id.clone(), Runtime::default()),
+                    EffectiveAgent::new(
+                        agent_id.clone(),
+                        AgentTypeFQN::try_from("namespace/test:0.0.1").unwrap(),
+                        Runtime::default()
+                    ),
                     effective_agent
                 ))
             },
@@ -375,7 +383,11 @@ pub mod test {
     #[test]
     fn test_build_supervisor_from_none_hash_ok_eff_agent() {
         let agent_id = AgentID::new("test-agent").unwrap();
-        let effective_agent_res = Ok(EffectiveAgent::new(agent_id.clone(), Runtime::default()));
+        let effective_agent_res = Ok(EffectiveAgent::new(
+            agent_id.clone(),
+            AgentTypeFQN::try_from("namespace/test:0.0.1").unwrap(),
+            Runtime::default(),
+        ));
 
         // Expected calls on the hash repository
         let mut hash_repository = MockHashRepositoryMock::new();
@@ -401,7 +413,11 @@ pub mod test {
             effective_agent_res,
             |effective_agent| {
                 Ok(assert_eq!(
-                    EffectiveAgent::new(agent_id.clone(), Runtime::default()),
+                    EffectiveAgent::new(
+                        agent_id.clone(),
+                        AgentTypeFQN::try_from("namespace/test:0.0.1").unwrap(),
+                        Runtime::default()
+                    ),
                     effective_agent
                 ))
             },
@@ -455,7 +471,11 @@ pub mod test {
     #[test]
     fn test_build_supervisor_from_ok_eff_agent_no_opamp() {
         let agent_id = AgentID::new("test-agent").unwrap();
-        let effective_agent_res = Ok(EffectiveAgent::new(agent_id.clone(), Runtime::default()));
+        let effective_agent_res = Ok(EffectiveAgent::new(
+            agent_id.clone(),
+            AgentTypeFQN::try_from("namespace/test:0.0.1").unwrap(),
+            Runtime::default(),
+        ));
 
         // Expected calls on the hash repository
         let mut hash_repository = MockHashRepositoryMock::new();
@@ -475,7 +495,11 @@ pub mod test {
             effective_agent_res,
             |effective_agent| {
                 Ok(assert_eq!(
-                    EffectiveAgent::new(agent_id.clone(), Runtime::default()),
+                    EffectiveAgent::new(
+                        agent_id.clone(),
+                        AgentTypeFQN::try_from("namespace/test:0.0.1").unwrap(),
+                        Runtime::default()
+                    ),
                     effective_agent
                 ))
             },
@@ -554,7 +578,11 @@ pub mod test {
         });
 
         // test build_supervisor_or_default
-        let effective_agent_res = Ok(EffectiveAgent::new(agent_id.clone(), Runtime::default()));
+        let effective_agent_res = Ok(EffectiveAgent::new(
+            agent_id.clone(),
+            AgentTypeFQN::try_from("namespace/test:0.0.1").unwrap(),
+            Runtime::default(),
+        ));
         let actual = build_supervisor_or_default::<
             MockHashRepositoryMock,
             MockOpAMPClientBuilderMock<SubAgentCallbacks<MockEffectiveConfigLoaderMock>>,
@@ -633,7 +661,11 @@ pub mod test {
         hash_repository.should_not_get_hash(&agent_id);
 
         // test build_supervisor_or_default
-        let effective_agent_res = Ok(EffectiveAgent::new(agent_id.clone(), Runtime::default()));
+        let effective_agent_res = Ok(EffectiveAgent::new(
+            agent_id.clone(),
+            AgentTypeFQN::try_from("namespace/test:0.0.1").unwrap(),
+            Runtime::default(),
+        ));
         let actual = build_supervisor_or_default::<
             MockHashRepositoryMock,
             MockOpAMPClientBuilderMock<SubAgentCallbacks<MockEffectiveConfigLoaderMock>>,
@@ -704,7 +736,11 @@ pub mod test {
         );
 
         // test build_supervisor_or_default
-        let effective_agent_res = Ok(EffectiveAgent::new(agent_id.clone(), Runtime::default()));
+        let effective_agent_res = Ok(EffectiveAgent::new(
+            agent_id.clone(),
+            AgentTypeFQN::try_from("namespace/test:0.0.1").unwrap(),
+            Runtime::default(),
+        ));
         let actual = build_supervisor_or_default::<
             MockHashRepositoryMock,
             MockOpAMPClientBuilderMock<SubAgentCallbacks<MockEffectiveConfigLoaderMock>>,

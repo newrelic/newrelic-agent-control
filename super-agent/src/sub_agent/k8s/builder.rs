@@ -103,6 +103,8 @@ where
 
         debug!(agent_id = agent_id.to_string(), "building subAgent");
 
+        let agent_fqn = sub_agent_config.agent_type.clone();
+
         let effective_agent_res = self.effective_agent_assembler.assemble_agent(
             &agent_id,
             sub_agent_config,
@@ -150,6 +152,7 @@ where
 
         let event_processor = self.event_processor_builder.build(
             agent_id.clone(),
+            agent_fqn,
             sub_agent_publisher,
             sub_agent_opamp_consumer,
             sub_agent_internal_consumer,
@@ -273,7 +276,13 @@ pub mod test {
             cr_type_meta: K8sConfig::default().cr_type_meta,
         };
 
-        let assembler = get_agent_assembler_mock(sub_agent_config.clone(), agent_id.clone(), true);
+        let assembler = get_agent_assembler_mock(
+            sub_agent_config.clone(),
+            agent_id.clone(),
+            sub_agent_config.agent_type.clone(),
+            true,
+        );
+
         let builder = K8sSubAgentBuilder::new(
             Some(&opamp_builder),
             &instance_id_getter,
@@ -312,7 +321,12 @@ pub mod test {
         };
 
         // The test fails due to the invalid kind here
-        let assembler = get_agent_assembler_mock(sub_agent_config.clone(), agent_id.clone(), false);
+        let assembler = get_agent_assembler_mock(
+            sub_agent_config.clone(),
+            agent_id.clone(),
+            sub_agent_config.agent_type.clone(),
+            false,
+        );
         let builder = K8sSubAgentBuilder::new(
             Some(&opamp_builder),
             &instance_id_getter,
@@ -332,10 +346,12 @@ pub mod test {
     fn get_agent_assembler_mock(
         sub_agent_config: SubAgentConfig,
         agent_id: AgentID,
+        agent_type_fqn: AgentTypeFQN,
         valid_kind: bool,
     ) -> MockEffectiveAgentAssemblerMock {
         let effective_agent = EffectiveAgent::new(
             agent_id.clone(),
+            agent_type_fqn,
             Runtime {
                 deployment: Deployment {
                     on_host: None,
