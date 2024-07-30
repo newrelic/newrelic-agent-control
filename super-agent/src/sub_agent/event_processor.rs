@@ -3,6 +3,7 @@ use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
 use crate::opamp::effective_config::loader::EffectiveConfigLoader;
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::operations::stop_opamp_client;
+use crate::sub_agent::config_validator::ConfigValidator;
 use crate::sub_agent::error::SubAgentError;
 use crate::sub_agent::health::with_start_time::HealthWithStartTime;
 use crate::sub_agent::SubAgentCallbacks;
@@ -31,14 +32,14 @@ where
     Y: YAMLConfigRepository,
 {
     agent_id: AgentID,
-    // Unused for now. Will be used to validate configs based on Agent Type
-    _agent_fqn: AgentTypeFQN,
+    pub(crate) agent_fqn: AgentTypeFQN,
     pub(crate) sub_agent_publisher: EventPublisher<SubAgentEvent>,
     pub(crate) sub_agent_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
     pub(crate) sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
     pub(crate) maybe_opamp_client: Option<C>,
     pub(crate) sub_agent_remote_config_hash_repository: Arc<H>,
     pub(crate) remote_values_repo: Arc<Y>,
+    pub(crate) config_validator: Arc<ConfigValidator>,
 
     // This is needed to ensure the generic type parameter G is used in the struct.
     // Else Rust will reject this, complaining that the type parameter is not used.
@@ -62,16 +63,18 @@ where
         maybe_opamp_client: Option<C>,
         sub_agent_remote_config_hash_repository: Arc<H>,
         remote_values_repo: Arc<Y>,
+        config_validator: Arc<ConfigValidator>,
     ) -> Self {
         EventProcessor {
             agent_id,
-            _agent_fqn: agent_fqn,
+            agent_fqn,
             sub_agent_publisher,
             sub_agent_opamp_consumer,
             sub_agent_internal_consumer,
             maybe_opamp_client,
             sub_agent_remote_config_hash_repository,
             remote_values_repo,
+            config_validator,
 
             // This was needed to ensure the generic type parameter G is used in the struct
             _effective_config_loader: PhantomData,
@@ -185,6 +188,7 @@ pub mod test {
     use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
     use crate::opamp::remote_config_hash::Hash;
+    use crate::sub_agent::config_validator::ConfigValidator;
     use crate::sub_agent::error::SubAgentError;
     use crate::sub_agent::event_processor::{EventProcessor, SubAgentEventProcessor};
     use crate::super_agent::config::{AgentID, AgentTypeFQN};
@@ -246,6 +250,9 @@ pub mod test {
             Some(opamp_client),
             Arc::new(hash_repository),
             Arc::new(yaml_config_repository),
+            Arc::new(
+                ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
+            ),
         );
         let handle = event_processor.process();
 
@@ -312,6 +319,9 @@ pub mod test {
             Some(opamp_client),
             Arc::new(hash_repository),
             Arc::new(yaml_config_repository),
+            Arc::new(
+                ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
+            ),
         );
         let handle = event_processor.process();
 

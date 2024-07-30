@@ -13,5 +13,7 @@ pub mod k8s;
 pub mod on_host;
 
 pub use sub_agent::*;
+mod config_validator;
 #[allow(clippy::module_inception)]
 mod sub_agent;
+mod validation_regexes;
