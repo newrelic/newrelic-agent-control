@@ -2,6 +2,7 @@ use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
 use crate::opamp::effective_config::loader::EffectiveConfigLoader;
 use crate::opamp::hash_repository::HashRepository;
+use crate::sub_agent::config_validator::ConfigValidator;
 use crate::sub_agent::event_processor::{EventProcessor, SubAgentEventProcessor};
 use crate::sub_agent::SubAgentCallbacks;
 use crate::super_agent::config::{AgentID, AgentTypeFQN};
@@ -83,6 +84,9 @@ where
             maybe_opamp_client,
             self.hash_repository.clone(),
             self.yaml_config_repository.clone(),
+            Arc::new(
+                ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
+            ),
         )
     }
 }

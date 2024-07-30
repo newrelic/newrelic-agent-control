@@ -33,6 +33,19 @@ where
             unreachable!("got remote config without OpAMP being enabled")
         };
 
+        if let Err(err) = self
+            .config_validator
+            .validate(&self.agent_fqn, &remote_config)
+        {
+            let err = err.into();
+            report_remote_config_status_error(
+                opamp_client,
+                &remote_config.hash,
+                format!("{}: {}", ERROR_REMOTE_CONFIG, &err),
+            )?;
+            return Err(err);
+        }
+
         report_remote_config_status_applying(opamp_client, &remote_config.hash)?;
 
         let mut remote_config = remote_config;
@@ -105,6 +118,9 @@ mod tests {
     use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
     use crate::opamp::hash_repository::repository::HashRepositoryError;
     use crate::opamp::remote_config::RemoteConfigError;
+    use crate::sub_agent::config_validator::{
+        ConfigValidator, ValidatorError, FQN_NAME_INFRA_AGENT,
+    };
     use crate::sub_agent::error::SubAgentError;
     use crate::sub_agent::event_processor::EventProcessor;
     use crate::super_agent::config::{AgentID, AgentTypeFQN};
@@ -441,6 +457,35 @@ mod tests {
         )
     }
 
+    #[test]
+    fn test_config_validation_error() {
+        let agent_id = AgentID::new("some-agent-id").unwrap();
+        let hash = Hash::new(String::from("some-hash"));
+        let config_map = ConfigurationMap::new(HashMap::from([(
+            "".to_string(),
+            "exec: /bin/echo".to_string(),
+        )]));
+
+        let expected_error = SubAgentError::from(ValidatorError::InvalidConfig);
+
+        let (event_processor, _) = setup_testing_event_processor(&agent_id, |mocks| {
+            // Failed config status should be reported
+            mocks
+                .opamp_client
+                .should_set_remote_config_status(failing_status(&hash, &expected_error));
+        });
+
+        let remote_config = RemoteConfig::new(agent_id.clone(), hash, Some(config_map));
+
+        assert_eq!(
+            expected_error.to_string(),
+            event_processor
+                .remote_config(remote_config)
+                .unwrap_err()
+                .to_string()
+        )
+    }
+
     /// Helper struct to group test mocks
     struct TestMocks {
         hash_repository: MockHashRepositoryMock,
@@ -482,13 +527,20 @@ mod tests {
         (
             EventProcessor::new(
                 agent_id.clone(),
-                AgentTypeFQN::try_from("namespace/test:0.0.1").unwrap(),
+                AgentTypeFQN::try_from(
+                    format!("namespace/{}:0.0.1", FQN_NAME_INFRA_AGENT).as_str(),
+                )
+                .unwrap(),
                 sub_agent_publisher,
                 sub_agent_opamp_consumer.into(),
                 sub_agent_internal_consumer,
                 Some(test_values.opamp_client),
                 Arc::new(test_values.hash_repository),
                 Arc::new(test_values.yaml_config_repository),
+                Arc::new(
+                    ConfigValidator::try_new()
+                        .expect("Failed to compile config validation regexes"),
+                ),
             ),
             sub_agent_consumer,
         )

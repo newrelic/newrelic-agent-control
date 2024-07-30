@@ -3,6 +3,7 @@ use crate::event::channel::EventPublisherError;
 use crate::opamp::client_builder::OpAMPClientBuilderError;
 use crate::opamp::hash_repository::repository::HashRepositoryError;
 use crate::opamp::remote_config::RemoteConfigError;
+use crate::sub_agent::config_validator::ValidatorError;
 use crate::super_agent::config::SuperAgentConfigError;
 use crate::values::yaml_config::YAMLConfigError;
 use crate::values::yaml_config_repository::YAMLConfigRepositoryError;
@@ -45,6 +46,8 @@ pub enum SubAgentError {
     EventPublisherError(#[from] EventPublisherError),
     #[error("Error handling thread: `{0}`")]
     PoisonError(String),
+    #[error("Validator error: `{0}`")]
+    ValidatorError(#[from] ValidatorError),
 }
 
 #[derive(Error, Debug)]
