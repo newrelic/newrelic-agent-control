@@ -13,6 +13,7 @@ use super::tools::{
         start_super_agent_with_testdata_config, wait_until_super_agent_with_opamp_is_started,
     },
 };
+use crate::common::effective_config::check_latest_effective_config_is_expected;
 use newrelic_super_agent::super_agent::config::AgentID;
 use std::time::Duration;
 
@@ -116,6 +117,18 @@ config:
             expected_spec_values,
         ))?;
 
+        let expected_config = r#"chart_values:
+  mode: deployment
+  config:
+    exporters:
+      logging: {}
+"#;
+
+        check_latest_effective_config_is_expected(
+            &server,
+            &instance_id.clone(),
+            expected_config.to_string(),
+        )?;
         check_latest_health_status_was_healthy(&server, &instance_id.clone())
     });
 
@@ -153,6 +166,20 @@ image:
             expected_spec_values,
         ))?;
 
+        let expected_config = r#"chart_values:
+  mode: deployment
+  config:
+    exporters:
+      logging: {}
+  image:
+    tag: latest
+"#;
+
+        check_latest_effective_config_is_expected(
+            &server,
+            &instance_id.clone(),
+            expected_config.to_string(),
+        )?;
         check_latest_health_status_was_healthy(&server, &instance_id.clone())
     });
 }
