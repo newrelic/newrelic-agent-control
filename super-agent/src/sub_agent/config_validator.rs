@@ -1,9 +1,14 @@
-use crate::opamp::remote_config::RemoteConfig;
-use crate::sub_agent::validation_regexes::*;
-use crate::super_agent::config::AgentTypeFQN;
-use regex::Regex;
 use std::collections::HashMap;
+
+use regex::Regex;
 use thiserror::Error;
+
+use crate::opamp::remote_config::RemoteConfig;
+use crate::sub_agent::validation_regexes::{
+    REGEX_BINARY_PATH_FIELD, REGEX_COMMAND_FIELD, REGEX_EXEC_FIELD, REGEX_NRI_FLEX,
+    REGEX_OTEL_ENDPOINT, REGEX_VALID_OTEL_ENDPOINT,
+};
+use crate::super_agent::config::AgentTypeFQN;
 
 pub const FQN_NAME_INFRA_AGENT: &str = "com.newrelic.infrastructure_agent";
 pub const FQN_NAME_NRDOT: &str = "io.opentelemetry.collector";
@@ -18,7 +23,7 @@ pub enum ValidatorError {
 }
 
 #[derive(Debug, PartialEq, Hash, Eq)]
-struct AgentTypeFQNName(String);
+pub(super) struct AgentTypeFQNName(String);
 
 /// The Config validator is responsible for matching a series of regexes on the content
 /// of the retrieved remote config and returning an error if a match is found.
@@ -42,6 +47,8 @@ impl ConfigValidator {
                 vec![
                     Regex::new(REGEX_COMMAND_FIELD)?,
                     Regex::new(REGEX_EXEC_FIELD)?,
+                    Regex::new(REGEX_BINARY_PATH_FIELD)?,
+                    Regex::new(REGEX_NRI_FLEX)?,
                 ],
             )]),
             otel_endpoint: Regex::new(REGEX_OTEL_ENDPOINT)?,
@@ -107,12 +114,13 @@ impl ConfigValidator {
 }
 
 #[cfg(test)]
-mod test {
+pub(super) mod test {
+    use std::collections::HashMap;
+
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
     use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::config_validator::{ConfigValidator, FQN_NAME_INFRA_AGENT};
     use crate::super_agent::config::{AgentID, AgentTypeFQN};
-    use std::collections::HashMap;
 
     #[test]
     fn test_validate() {
@@ -296,17 +304,17 @@ exporters:
     }
 
     static VALID_REAL_CONFIG_1: &str = r#"
-config: |    
+config: |
 
   extensions:
     health_check:
-  
+
   receivers:
     otlp:
       protocols:
         grpc:
         http:
-  
+
     hostmetrics:
       collection_interval: 20s
       scrapers:
@@ -350,7 +358,7 @@ config: |
               enabled: true
             process.cpu.time:
               enabled: false
-  
+
     filelog:
       include:
         - /var/log/alternatives.log
@@ -361,7 +369,7 @@ config: |
         - /var/log/messages
         - /var/log/secure
         - /var/log/yum.log
-  
+
   processors:
     # group system.cpu metrics by cpu
     metricstransform:
@@ -429,7 +437,7 @@ config: |
       metrics:
         datapoint:
           - 'IsMatch(metric.name, "^system.network.*") == true and attributes["device"] == "lo"'
-  
+
     attributes/exclude_system_paging:
       include:
         match_type: strict
@@ -438,7 +446,7 @@ config: |
       actions:
         - key: type
           action: delete
-  
+
     transform:
       trace_statements:
         - context: span
@@ -450,20 +458,20 @@ config: |
           statements:
             - truncate_all(attributes, 4095)
             - truncate_all(resource.attributes, 4095)
-  
+
     # used to prevent out of memory situations on the collector
     memory_limiter:
       check_interval: 1s
       limit_mib: 100
-  
+
     batch:
-  
+
     resource:
       attributes:
         - key: host.display_name
           action: upsert
           value: {{ display_name }}
-  
+
     resourcedetection:
       detectors: ["env", "system"]
       system:
@@ -471,7 +479,7 @@ config: |
         resource_attributes:
           host.id:
             enabled: true
-  
+
     resourcedetection/cloud:
       detectors: ["gcp", "ec2", "azure"]
       timeout: 2s
@@ -479,14 +487,14 @@ config: |
         resource_attributes:
           host.name:
             enabled: false
-  
+
   exporters:
     logging:
     otlp:
       endpoint: staging-otlp.nr-data.net:4317
       headers:
         api-key: {{ nr_license_key_canaries }}
-  
+
   service:
 "#;
 }
