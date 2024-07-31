@@ -5,8 +5,8 @@ use thiserror::Error;
 
 use crate::opamp::remote_config::RemoteConfig;
 use crate::sub_agent::validation_regexes::{
-    REGEX_BINARY_PATH_FIELD, REGEX_COMMAND_FIELD, REGEX_EXEC_FIELD, REGEX_NRI_FLEX,
-    REGEX_OTEL_ENDPOINT, REGEX_VALID_OTEL_ENDPOINT,
+    REGEX_BINARY_PATH_FIELD, REGEX_COMMAND_FIELD, REGEX_EXEC_FIELD, REGEX_IMAGE_REPOSITORY,
+    REGEX_NRI_FLEX, REGEX_OTEL_ENDPOINT, REGEX_VALID_OTEL_ENDPOINT,
 };
 use crate::super_agent::config::AgentTypeFQN;
 
@@ -42,15 +42,21 @@ pub struct ConfigValidator {
 impl ConfigValidator {
     pub fn try_new() -> Result<Self, ValidatorError> {
         Ok(Self {
-            rules: HashMap::from([(
-                AgentTypeFQNName(FQN_NAME_INFRA_AGENT.to_string()),
-                vec![
-                    Regex::new(REGEX_COMMAND_FIELD)?,
-                    Regex::new(REGEX_EXEC_FIELD)?,
-                    Regex::new(REGEX_BINARY_PATH_FIELD)?,
-                    Regex::new(REGEX_NRI_FLEX)?,
-                ],
-            )]),
+            rules: HashMap::from([
+                (
+                    AgentTypeFQNName(FQN_NAME_INFRA_AGENT.to_string()),
+                    vec![
+                        Regex::new(REGEX_COMMAND_FIELD)?,
+                        Regex::new(REGEX_EXEC_FIELD)?,
+                        Regex::new(REGEX_BINARY_PATH_FIELD)?,
+                        Regex::new(REGEX_NRI_FLEX)?,
+                    ],
+                ),
+                (
+                    AgentTypeFQNName(FQN_NAME_NRDOT.to_string()),
+                    vec![Regex::new(REGEX_IMAGE_REPOSITORY)?],
+                ),
+            ]),
             otel_endpoint: Regex::new(REGEX_OTEL_ENDPOINT)?,
             valid_otel_endpoint: Regex::new(REGEX_VALID_OTEL_ENDPOINT)?,
         })
@@ -209,7 +215,7 @@ pub(super) mod test {
             // valid cases
             TestCase {
                 name: "valid real config",
-                config: VALID_REAL_CONFIG_1,
+                config: VALID_ONHOST_NRDOT_CONFIG,
                 valid: true,
             },
             TestCase {
@@ -303,7 +309,7 @@ exporters:
         }
     }
 
-    static VALID_REAL_CONFIG_1: &str = r#"
+    pub static VALID_ONHOST_NRDOT_CONFIG: &str = r#"
 config: |
 
   extensions:
