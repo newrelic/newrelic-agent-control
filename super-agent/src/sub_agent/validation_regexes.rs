@@ -53,12 +53,23 @@ pub static REGEX_BINARY_PATH_FIELD: &str = "(?i:BINARY_PATH)";
 // deny using nri-flex
 pub static REGEX_NRI_FLEX: &str = "nri-flex";
 
+// deny using custom images for nr-dot
+// https://github.com/newrelic/helm-charts/blob/nr-k8s-otel-collector-0.7.4/charts/nr-k8s-otel-collector/values.yaml#L16
+// Example:
+// chart_values:
+//   image:
+//     repository: newrelic/nr-otel-collector
+//     pullPolicy: IfNotPresent
+//     tag: "0.7.1"
+pub static REGEX_IMAGE_REPOSITORY: &str = "repository\\s*:";
+
 #[cfg(test)]
 mod test {
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
     use crate::opamp::remote_config_hash::Hash;
+    use crate::sub_agent::config_validator::test::VALID_ONHOST_NRDOT_CONFIG;
     use crate::sub_agent::config_validator::{
-        ConfigValidator, ValidatorError, FQN_NAME_INFRA_AGENT,
+        ConfigValidator, ValidatorError, FQN_NAME_INFRA_AGENT, FQN_NAME_NRDOT,
     };
     use crate::super_agent::config::{AgentID, AgentTypeFQN};
     use assert_matches::assert_matches;
@@ -67,8 +78,17 @@ mod test {
     #[test]
     fn test_valid_configs_are_allowed() {
         let config_validator = ConfigValidator::try_new().unwrap();
-        let remote_config = remote_config(GOOD_INFRA_AGENT_CONFIG);
-        let result = config_validator.validate(&infra_agent(), &remote_config);
+
+        let config = remote_config(GOOD_INFRA_AGENT_CONFIG);
+        let result = config_validator.validate(&infra_agent(), &config);
+        assert!(result.is_ok());
+
+        let config = remote_config(GOOD_K8S_NRDOT_CONFIG);
+        let result = config_validator.validate(&nrdot(), &config);
+        assert!(result.is_ok());
+
+        let config = remote_config(VALID_ONHOST_NRDOT_CONFIG);
+        let result = config_validator.validate(&nrdot(), &config);
         assert!(result.is_ok());
     }
 
@@ -76,6 +96,7 @@ mod test {
     fn test_invalid_configs_are_blocked() {
         struct TestCase {
             _name: &'static str,
+            agent_type: AgentTypeFQN,
             config: &'static str,
         }
         impl TestCase {
@@ -83,7 +104,7 @@ mod test {
                 let config_validator = ConfigValidator::try_new().unwrap();
                 let remote_config = remote_config(self.config);
                 let err = config_validator
-                    .validate(&infra_agent(), &remote_config)
+                    .validate(&self.agent_type, &remote_config)
                     .unwrap_err();
 
                 assert_matches!(err, ValidatorError::InvalidConfig);
@@ -91,24 +112,34 @@ mod test {
         }
         let test_cases = vec![
             TestCase {
-                _name: "config with nri-flex should be invalid",
+                _name: "infra-agent config with nri-flex should be invalid",
+                agent_type: infra_agent(),
                 config: CONFIG_WITH_NRI_FLEX,
             },
             TestCase {
-                _name: "config with command should be invalid",
+                _name: "infra-agent config with command should be invalid",
+                agent_type: infra_agent(),
                 config: CONFIG_WITH_COMMAND,
             },
             TestCase {
-                _name: "config with exec should be invalid",
+                _name: "infra-agent config with exec should be invalid",
+                agent_type: infra_agent(),
                 config: CONFIG_WITH_EXEC,
             },
             TestCase {
-                _name: "config with binary_path uppercase should be invalid",
+                _name: "infra-agent config with binary_path uppercase should be invalid",
+                agent_type: infra_agent(),
                 config: CONFIG_WITH_BINARY_PATH_UPPERCASE,
             },
             TestCase {
-                _name: "config with binary_path lowercase should be invalid",
+                _name: "infra-agent config with binary_path lowercase should be invalid",
+                agent_type: infra_agent(),
                 config: CONFIG_WITH_BINARY_PATH_LOWERCASE,
+            },
+            TestCase {
+                _name: "nrdot config with image repository  should be invalid",
+                agent_type: nrdot(),
+                config: CONFIG_WITH_IMAGE_REPOSITORY,
             },
         ];
 
@@ -123,6 +154,10 @@ mod test {
 
     fn infra_agent() -> AgentTypeFQN {
         AgentTypeFQN::try_from(format!("newrelic/{}:0.0.1", FQN_NAME_INFRA_AGENT).as_str()).unwrap()
+    }
+
+    fn nrdot() -> AgentTypeFQN {
+        AgentTypeFQN::try_from(format!("newrelic/{}:0.0.1", FQN_NAME_NRDOT).as_str()).unwrap()
     }
 
     fn remote_config(config: &str) -> RemoteConfig {
@@ -433,5 +468,166 @@ config_agent:
   win_process_priority_class: Normal
   win_removable_drives: true
   disable_zero_mem_process_filter: false
+"#;
+
+    const CONFIG_WITH_IMAGE_REPOSITORY: &str = r#"
+chart_values:
+  image:
+    repository: some/repository
+"#;
+
+    const GOOD_K8S_NRDOT_CONFIG: &str = r#"
+chart_version: "1.2.3"
+chart_values:
+  kube-state-metrics:
+    enabled: true
+    # -- Disable prometheus from auto-discovering KSM and potentially scraping duplicated data
+    prometheusScrape: false
+
+  # -------------------------------------------
+  # Image is included (we can setup the tag and pullPolicy but repository is not allowed)
+  # -------------------------------------------
+  image:
+    # -- The pull policy is defaulted to IfNotPresent, which skips pulling an image if it already exists. If pullPolicy is defined without a specific value, it is also set to Always.
+    pullPolicy: IfNotPresent
+    # --  Overrides the image tag whose default is the chart appVersion.
+    tag: "0.7.1"
+
+  # -- Name of the Kubernetes cluster monitored. Mandatory. Can be configured also with `global.cluster`
+  cluster: ""
+  # -- This set this license key to use. Can be configured also with `global.licenseKey`
+  licenseKey: "xxx"
+  # -- In case you don't want to have the license key in you values, this allows you to point to a user created secret to get the key from there. Can be configured also with `global.customSecretName`
+  customSecretName: ""
+  # -- In case you don't want to have the license key in you values, this allows you to point to which secret key is the license key located. Can be configured also with `global.customSecretLicenseKey`
+  customSecretLicenseKey: ""
+
+  # -- Additional labels for chart pods
+  podLabels: {}
+  # -- Additional labels for chart objects
+  labels: {}
+
+  # -- Sets pod's priorityClassName. Can be configured also with `global.priorityClassName`
+  priorityClassName: ""
+
+  # -- Sets pod's dnsConfig. Can be configured also with `global.dnsConfig`
+  dnsConfig: {}
+
+  # -- Run the integration with full access to the host filesystem and network.
+  # Running in this mode allows reporting fine-grained cpu, memory, process and network metrics for your nodes.
+  # @default -- `true`
+  privileged: true
+
+  daemonset:
+    # -- Sets daemonset pod node selector. Overrides `nodeSelector` and `global.nodeSelector`
+    nodeSelector: {}
+    # -- Sets daemonset pod tolerations. Overrides `tolerations` and `global.tolerations`
+    tolerations: []
+    # -- Sets daemonset pod affinities. Overrides `affinity` and `global.affinity`
+    affinity: {}
+    # -- Annotations to be added to the daemonset.
+    podAnnotations: {}
+    # -- Sets security context (at pod level) for the daemonset. Overrides `podSecurityContext` and `global.podSecurityContext`
+    podSecurityContext: {}
+    # -- Sets security context (at container level) for the daemonset. Overrides `containerSecurityContext` and `global.containerSecurityContext`
+    containerSecurityContext:
+      privileged: true
+    # -- Sets resources for the daemonset.
+    resources: {}
+    # -- Settings for daemonset configmap
+    # @default -- See `values.yaml`
+    configMap:
+      # -- OpenTelemetry config for the daemonset. If set, overrides default config and disables configuration parameters for the daemonset.
+      config: {}
+
+  deployment:
+    # -- Sets deployment pod node selector. Overrides `nodeSelector` and `global.nodeSelector`
+    nodeSelector: {}
+    # -- Sets deployment pod tolerations. Overrides `tolerations` and `global.tolerations`
+    tolerations: []
+    # -- Sets deployment pod affinities. Overrides `affinity` and `global.affinity`
+    affinity: {}
+    # -- Annotations to be added to the deployment.
+    podAnnotations: {}
+    # -- Sets security context (at pod level) for the deployment. Overrides `podSecurityContext` and `global.podSecurityContext`
+    podSecurityContext: {}
+    # -- Sets security context (at container level) for the deployment. Overrides `containerSecurityContext` and `global.containerSecurityContext`
+    containerSecurityContext: {}
+    # -- Sets resources for the deployment.
+    resources: {}
+    # -- Settings for deployment configmap
+    # @default -- See `values.yaml`
+    configMap:
+      # -- OpenTelemetry config for the deployment. If set, overrides default config and disables configuration parameters for the deployment.
+      config: {}
+
+  # -- Sets all pods' node selector. Can be configured also with `global.nodeSelector`
+  nodeSelector: {}
+  # -- Sets all pods' tolerations to node taints. Can be configured also with `global.tolerations`
+  tolerations: []
+  # -- Sets all pods' affinities. Can be configured also with `global.affinity`
+  affinity: {}
+  # -- Sets all security contexts (at pod level). Can be configured also with `global.securityContext.pod`
+  podSecurityContext: {}
+  # -- Sets all security context (at container level). Can be configured also with `global.securityContext.container`
+  containerSecurityContext: {}
+
+  rbac:
+    # -- Specifies whether RBAC resources should be created
+    create: true
+
+  # -- Settings controlling ServiceAccount creation
+  # @default -- See `values.yaml`
+  serviceAccount:
+    # serviceAccount.create -- (bool) Specifies whether a ServiceAccount should be created
+    # @default -- `true`
+    create:
+    # If not set and create is true, a name is generated using the fullname template
+    name: ""
+    # Specify any annotations to add to the ServiceAccount
+    annotations:
+
+  # -- (bool) Sets the debug logs to this integration or all integrations if it is set globally. Can be configured also with `global.verboseLog`
+  # @default -- `false`
+  verboseLog:
+
+  # -- (bool) Send the metrics to the staging backend. Requires a valid staging license key. Can be configured also with `global.nrStaging`
+  # @default -- `false`
+  nrStaging:
+
+  receivers:
+    prometheus:
+      # -- (bool) Specifies whether the `prometheus` receiver is enabled
+      # @default -- `true`
+      enabled: true
+      # -- Sets the scrape interval for the `prometheus` receiver
+      # @default -- `1m`
+      scrapeInterval: 1m
+    k8sEvents:
+      # -- (bool) Specifies whether the `k8s_events` receiver is enabled
+      # @default -- `true`
+      enabled: true
+    hostmetrics:
+      # -- (bool) Specifies whether the `hostmetrics` receiver is enabled
+      # @default -- `true`
+      enabled: true
+      # -- Sets the scrape interval for the `hostmetrics` receiver
+      # @default -- `1m`
+      scrapeInterval: 1m
+    kubeletstats:
+      # -- (bool) Specifies whether the `kubeletstats` receiver is enabled
+      # @default -- `true`
+      enabled: true
+      # -- Sets the scrape interval for the `kubeletstats` receiver
+      # @default -- `1m`
+      scrapeInterval: 1m
+    filelog:
+      # -- (bool) Specifies whether the `filelog` receiver is enabled
+      # @default -- `true`
+      enabled: true
+
+  # -- (bool) Send only the [metrics required](https://github.com/newrelic/helm-charts/tree/master/charts/nr-k8s-otel-collector/docs/metrics-lowDataMode.md) to light up the NR kubernetes UI, this agent defaults to setting lowDataMode true, but if this setting is unset, lowDataMode will be set to false
+  # @default -- `false`
+  lowDataMode: true
 "#;
 }
