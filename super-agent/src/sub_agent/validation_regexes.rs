@@ -136,6 +136,7 @@ mod test {
         )
     }
 
+    // config containing nri-flex integration to be denied
     const CONFIG_WITH_NRI_FLEX: &str = r#"
 ################################################
 # Values file for Infrastructure Agent 0.1.0
@@ -181,6 +182,7 @@ config_integrations:
         inventory_source: config/mysql
 "#;
 
+    // config with `command` field to be denied
     const CONFIG_WITH_COMMAND: &str = r#"
 ################################################
 # Values file for Infrastructure Agent 0.1.0
@@ -221,6 +223,7 @@ config_integrations:
         inventory_source: config/mysql
 "#;
 
+    // config with `exec` field to be denied
     const CONFIG_WITH_EXEC: &str = r#"
 ################################################
 # Values file for Infrastructure Agent 0.1.0
@@ -261,6 +264,7 @@ config_integrations:
         inventory_source: config/mysql
 "#;
 
+    // config with `binary_path` field to be denied
     const CONFIG_WITH_BINARY_PATH_UPPERCASE: &str = r#"
 ################################################
 # Values file for Infrastructure Agent 0.1.0
@@ -293,6 +297,7 @@ config_integrations:
       inventory_source: config/apache
 "#;
 
+    // config with `binary_path` field to be denied
     const CONFIG_WITH_BINARY_PATH_LOWERCASE: &str = r#"
 ################################################
 # Values file for Infrastructure Agent 0.1.0
@@ -325,8 +330,9 @@ config_integrations:
       inventory_source: config/apache
 "#;
 
+    // infra agent config to be allowed
     const GOOD_INFRA_AGENT_CONFIG: &str = r#"
-    config_agent:
+config_agent:
   license_key: your_license_key
   fedramp: true
   payload_compression_level: 7
