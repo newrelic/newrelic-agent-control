@@ -54,6 +54,17 @@ licenseKey: test
             expected_spec_values,
         ))?;
 
+        let expected_config = r#"agents:
+  open-telemetry-agent-id:
+    agent_type: newrelic/io.opentelemetry.collector:0.2.0
+"#;
+
+        check_latest_effective_config_is_expected(
+            &server,
+            &instance_id,
+            expected_config.to_string(),
+        )?;
+
         check_latest_health_status_was_healthy(&server, &instance_id.clone())
     });
 }
@@ -240,6 +251,19 @@ agents:
             ],
             namespace.as_str(),
         ))?;
+
+        let expected_config = r#"agents:
+  open-telemetry:
+    agent_type: newrelic/io.opentelemetry.collector:0.1.1
+  open-telemetry-2:
+    agent_type: newrelic/io.opentelemetry.collector:0.1.1
+"#;
+
+        check_latest_effective_config_is_expected(
+            &server,
+            &instance_id,
+            expected_config.to_string(),
+        )?;
 
         check_latest_health_status_was_healthy(&server, &instance_id.clone())
     });

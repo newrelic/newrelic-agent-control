@@ -1,4 +1,5 @@
 use crate::common::effective_config::check_latest_effective_config_is_expected;
+use crate::common::health::check_latest_health_status_was_healthy;
 use crate::common::opamp::ConfigResponse;
 use crate::common::remote_config_status::check_latest_remote_config_status_is_expected;
 use crate::common::{opamp::FakeServer, retry::retry};
@@ -7,13 +8,214 @@ use crate::on_host::tools::custom_agent_type::get_agent_type_custom;
 use crate::on_host::tools::instance_id::get_instance_id;
 use crate::on_host::tools::super_agent::start_super_agent_with_custom_config;
 use newrelic_super_agent::agent_type::variable::namespace::Namespace;
-use newrelic_super_agent::super_agent::config::AgentID;
-use newrelic_super_agent::super_agent::defaults::{SUB_AGENT_DIR, VALUES_DIR, VALUES_FILE};
+use newrelic_super_agent::super_agent::config::{AgentID, SuperAgentDynamicConfig};
+use newrelic_super_agent::super_agent::defaults::{
+    SUB_AGENT_DIR, SUPER_AGENT_CONFIG_FILE, VALUES_DIR, VALUES_FILE,
+};
 use newrelic_super_agent::super_agent::run::BasePaths;
 use opamp_client::opamp::proto::RemoteConfigStatuses;
 use std::time::Duration;
 use std::{env, thread};
 use tempfile::tempdir;
+
+#[cfg(unix)]
+#[test]
+fn onhost_opamp_super_agent_local_effective_config() {
+    // Given a super-agent without agents and opamp configured.
+    let opamp_server = FakeServer::start_new();
+
+    let local_dir = tempdir().expect("failed to create local temp dir");
+    let remote_dir = tempdir().expect("failed to create remote temp dir");
+
+    let agents = "{}";
+    let config_file_path = create_super_agent_config(
+        opamp_server.endpoint(),
+        agents.to_string(),
+        local_dir.path().to_path_buf(),
+    );
+
+    let base_paths = BasePaths {
+        super_agent_local_config: config_file_path.as_path().to_path_buf(),
+        local_dir: local_dir.path().to_path_buf(),
+        remote_dir: remote_dir.path().to_path_buf(),
+        log_dir: local_dir.path().to_path_buf(),
+    };
+    let base_paths_copy = base_paths.clone();
+    let _super_agent_join = thread::spawn(move || start_super_agent_with_custom_config(base_paths));
+
+    let super_agent_instance_id = get_instance_id(&AgentID::new_super_agent_id(), base_paths_copy);
+
+    retry(60, Duration::from_secs(1), || {
+        let expected_config = "agents: {}\n";
+
+        check_latest_effective_config_is_expected(
+            &opamp_server,
+            &super_agent_instance_id,
+            expected_config.to_string(),
+        )?;
+        check_latest_health_status_was_healthy(&opamp_server, &super_agent_instance_id)
+    });
+}
+
+#[cfg(unix)]
+#[test]
+fn onhost_opamp_super_agent_remote_effective_config() {
+    // Given a super-agent without agents and opamp configured.
+    let mut opamp_server = FakeServer::start_new();
+
+    let local_dir = tempdir().expect("failed to create local temp dir");
+    let remote_dir = tempdir().expect("failed to create remote temp dir");
+
+    let agents = "{}";
+    let config_file_path = create_super_agent_config(
+        opamp_server.endpoint(),
+        agents.to_string(),
+        local_dir.path().to_path_buf(),
+    );
+
+    let base_paths = BasePaths {
+        super_agent_local_config: config_file_path.as_path().to_path_buf(),
+        local_dir: local_dir.path().to_path_buf(),
+        remote_dir: remote_dir.path().to_path_buf(),
+        log_dir: local_dir.path().to_path_buf(),
+    };
+    let base_paths_copy = base_paths.clone();
+
+    // Add custom agent_type to registry
+    let sleep_agent_type = get_agent_type_custom(
+        local_dir.path().to_path_buf(),
+        "sh",
+        "tests/on_host/data/trap_term_sleep_60.sh",
+    );
+
+    let _super_agent_join = thread::spawn(move || start_super_agent_with_custom_config(base_paths));
+
+    let super_agent_instance_id = get_instance_id(&AgentID::new_super_agent_id(), base_paths_copy);
+
+    let agents = format!(
+        r#"
+agents:
+  nr-sleep-agent:
+    agent_type: "{}"
+"#,
+        sleep_agent_type
+    );
+
+    // When a new config with an agent is received from OpAMP
+    opamp_server.set_config_response(
+        super_agent_instance_id.clone(),
+        ConfigResponse::from(agents.as_str()),
+    );
+
+    // Then the config should be updated in the remote filesystem.
+    let expected_config = format!(
+        r#"agents:
+  nr-sleep-agent:
+    agent_type: "{}"
+"#,
+        sleep_agent_type
+    );
+
+    let expected_config_parsed =
+        serde_yaml::from_str::<SuperAgentDynamicConfig>(expected_config.as_str()).unwrap();
+
+    retry(60, Duration::from_secs(1), || {
+        let remote_file = remote_dir.path().join(SUPER_AGENT_CONFIG_FILE);
+        let remote_config =
+            std::fs::read_to_string(remote_file.as_path()).unwrap_or("agents:".to_string());
+        let content_parsed =
+            serde_yaml::from_str::<SuperAgentDynamicConfig>(remote_config.as_str()).unwrap();
+        if content_parsed != expected_config_parsed {
+            return Err(format!(
+                "Super agent config not as expected, Expected: {:?}, Found: {:?}",
+                expected_config, remote_config,
+            )
+            .into());
+        }
+
+        check_latest_effective_config_is_expected(
+            &opamp_server,
+            &super_agent_instance_id,
+            remote_config,
+        )?;
+        check_latest_health_status_was_healthy(&opamp_server, &super_agent_instance_id)
+    });
+}
+
+#[cfg(unix)]
+#[test]
+fn onhost_opamp_super_agent_wrong_remote_effective_config() {
+    // Given a super-agent without agents and opamp configured.
+    let mut opamp_server = FakeServer::start_new();
+
+    let local_dir = tempdir().expect("failed to create local temp dir");
+    let remote_dir = tempdir().expect("failed to create remote temp dir");
+
+    let agents = "{}";
+    let config_file_path = create_super_agent_config(
+        opamp_server.endpoint(),
+        agents.to_string(),
+        local_dir.path().to_path_buf(),
+    );
+
+    let base_paths = BasePaths {
+        super_agent_local_config: config_file_path.as_path().to_path_buf(),
+        local_dir: local_dir.path().to_path_buf(),
+        remote_dir: remote_dir.path().to_path_buf(),
+        log_dir: local_dir.path().to_path_buf(),
+    };
+    let base_paths_copy = base_paths.clone();
+
+    let _super_agent_join = thread::spawn(move || start_super_agent_with_custom_config(base_paths));
+
+    let super_agent_instance_id = get_instance_id(&AgentID::new_super_agent_id(), base_paths_copy);
+
+    // When a new config with an agent is received from OpAMP
+    opamp_server.set_config_response(
+        super_agent_instance_id.clone(),
+        ConfigResponse::from(
+            r#"
+agents: {}
+non-existing: {}
+"#,
+        ),
+    );
+
+    retry(60, Duration::from_secs(1), || {
+        {
+            // Then the config should be updated in the remote filesystem.
+            let expected_containing = "non-existing: {}";
+
+            let remote_file = remote_dir.path().join(SUPER_AGENT_CONFIG_FILE);
+            let remote_config =
+                std::fs::read_to_string(remote_file.as_path()).unwrap_or("agents:".to_string());
+            if !remote_config.contains(expected_containing) {
+                return Err(format!(
+                    "Super agent config not as expected, Expected containing: {:?}, Config Found: {:?}",
+                    expected_containing, remote_config,
+                )
+                .into());
+            }
+
+            // And effective_config should return the initial local one
+            let expected_config = "agents: {}\n";
+
+            // TODO: Study if we want to fail if extra fields are present, now, as long as there is
+            // a correct field `agents` is unmarshalled ignoring the rest and sets status as applied.
+            check_latest_remote_config_status_is_expected(
+                &opamp_server,
+                &super_agent_instance_id,
+                RemoteConfigStatuses::Applied as i32,
+            )?;
+
+            check_latest_effective_config_is_expected(
+                &opamp_server,
+                &super_agent_instance_id,
+                expected_config.to_string(),
+            )
+        }
+    });
+}
 
 #[cfg(unix)]
 #[test]
@@ -68,8 +270,6 @@ fn onhost_opamp_sub_agent_local_effective_config() {
         log_dir: local_dir.path().to_path_buf(),
     };
     let base_paths_copy = base_paths.clone();
-    // We won't join and wait for the thread to finish because we want the super_agent to exit
-    // if our assertions were not ok.
     let _super_agent_join = thread::spawn(move || start_super_agent_with_custom_config(base_paths));
 
     let sub_agent_instance_id = get_instance_id(&AgentID::new(agent_id).unwrap(), base_paths_copy);
@@ -146,8 +346,6 @@ fn onhost_opamp_sub_agent_remote_effective_config() {
         log_dir: local_dir.path().to_path_buf(),
     };
     let base_paths_copy = base_paths.clone();
-    // We won't join and wait for the thread to finish because we want the super_agent to exit
-    // if our assertions were not ok.
     let _super_agent_join = thread::spawn(move || start_super_agent_with_custom_config(base_paths));
 
     let sub_agent_instance_id = get_instance_id(&AgentID::new(agent_id).unwrap(), base_paths_copy);
@@ -205,8 +403,6 @@ fn onhost_opamp_sub_agent_empty_local_effective_config() {
         log_dir: local_dir.path().to_path_buf(),
     };
     let base_paths_copy = base_paths.clone();
-    // We won't join and wait for the thread to finish because we want the super_agent to exit
-    // if our assertions were not ok.
     let _super_agent_join = thread::spawn(move || start_super_agent_with_custom_config(base_paths));
 
     let sub_agent_instance_id = get_instance_id(&AgentID::new(agent_id).unwrap(), base_paths_copy);
@@ -269,8 +465,6 @@ fn onhost_opamp_sub_gent_wrong_remote_effective_config() {
         log_dir: local_dir.path().to_path_buf(),
     };
     let base_paths_copy = base_paths.clone();
-    // We won't join and wait for the thread to finish because we want the super_agent to exit
-    // if our assertions were not ok.
     let _super_agent_join = thread::spawn(move || start_super_agent_with_custom_config(base_paths));
 
     let sub_agent_instance_id = get_instance_id(&AgentID::new(agent_id).unwrap(), base_paths_copy);
