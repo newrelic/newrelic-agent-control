@@ -10,6 +10,9 @@
 
 # fleet_id: FLEET_ID_HERE
 
+server:
+  enabled: true
+
 agents:
   nr-infra-agent:
     agent_type: "newrelic/com.newrelic.infrastructure_agent:0.1.3"

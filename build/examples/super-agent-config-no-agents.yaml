@@ -10,4 +10,7 @@
 
 # fleet_id: FLEET_ID_HERE
 
+server:
+  enabled: true
+
 agents: {}
