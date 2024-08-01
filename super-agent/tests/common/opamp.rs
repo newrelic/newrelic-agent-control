@@ -16,11 +16,21 @@ pub type ConfigResponses = HashMap<InstanceID, ConfigResponse>;
 /// instance id.
 pub type HealthStatuses = HashMap<InstanceID, opamp::proto::ComponentHealth>;
 
+/// It stores the latest received effective configs in the format of `EffectiveConfig` for each
+/// instance id.
+pub type EffectiveConfigs = HashMap<InstanceID, opamp::proto::EffectiveConfig>;
+
+/// It stores the latest received effective configs status in the format of `RemoteConfigStatus` for each
+/// instance id.
+pub type RemoteConfigStatus = HashMap<InstanceID, opamp::proto::RemoteConfigStatus>;
+
 /// Represents the state of the FakeServer.
 #[derive(Default)]
 struct State {
     health_statuses: HealthStatuses,
     config_responses: ConfigResponses,
+    effective_configs: EffectiveConfigs,
+    config_status: RemoteConfigStatus,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -128,6 +138,22 @@ impl FakeServer {
         state.health_statuses.get(&identifier).cloned()
     }
 
+    pub fn get_effective_config(
+        &self,
+        identifier: InstanceID,
+    ) -> Option<opamp::proto::EffectiveConfig> {
+        let state = self.state.lock().unwrap();
+        state.effective_configs.get(&identifier).cloned()
+    }
+
+    pub fn get_remote_config_status(
+        &self,
+        identifier: InstanceID,
+    ) -> Option<opamp::proto::RemoteConfigStatus> {
+        let state = self.state.lock().unwrap();
+        state.config_status.get(&identifier).cloned()
+    }
+
     fn stop(&self) {
         self.handle.abort();
     }
@@ -148,6 +174,20 @@ async fn opamp_handler(state: web::Data<Arc<Mutex<State>>>, req: web::Bytes) -> 
     if let Some(health) = message.clone().health {
         let mut state = state.lock().unwrap();
         state.health_statuses.insert(instance_id.clone(), health);
+    }
+
+    // Store the effective config
+    if let Some(effective_cfg) = message.clone().effective_config {
+        let mut state = state.lock().unwrap();
+        state
+            .effective_configs
+            .insert(instance_id.clone(), effective_cfg);
+    }
+
+    // Store the remote config status
+    if let Some(cfg_status) = message.clone().remote_config_status {
+        let mut state = state.lock().unwrap();
+        state.config_status.insert(instance_id.clone(), cfg_status);
     }
 
     let mut state = state.lock().unwrap();
