@@ -50,6 +50,10 @@ impl TryFrom<YAMLConfig> for String {
     type Error = YAMLConfigError;
 
     fn try_from(value: YAMLConfig) -> Result<Self, Self::Error> {
+        //serde_yaml::to_string returns "{}\n" if value is empty
+        if value.0.is_empty() {
+            return Ok("".to_string());
+        }
         Ok(serde_yaml::to_string(&value)?)
     }
 }

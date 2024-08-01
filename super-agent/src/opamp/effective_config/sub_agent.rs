@@ -161,7 +161,7 @@ mod test {
             TestCase {
                 name: "empty config",
                 yaml_config: "",
-                expected_config: "{}\n",
+                expected_config: "",
             },
         ];
 

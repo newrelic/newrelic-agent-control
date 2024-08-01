@@ -2,6 +2,7 @@ mod cli;
 mod command;
 mod config_persister;
 mod consts;
+mod effective_config;
 mod id;
 mod logging;
 mod opamp_auth;

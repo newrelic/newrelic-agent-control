@@ -1,4 +1,5 @@
 use crate::on_host::tools::global_logger::init_logger;
+use newrelic_super_agent::event::channel::pub_sub;
 use newrelic_super_agent::super_agent::config_patcher::ConfigPatcher;
 use newrelic_super_agent::super_agent::config_storer::loader_storer::SuperAgentConfigLoader;
 use newrelic_super_agent::super_agent::config_storer::store::SuperAgentConfigStore;
@@ -31,7 +32,10 @@ pub fn start_super_agent_with_custom_config(base_paths: BasePaths) {
         base_paths,
     };
 
-    SuperAgentRunner::try_from(run_config)
+    let (_application_event_publisher, application_event_consumer) = pub_sub();
+
+    // Create the actual super agent runner with the rest of required configs and the application_event_consumer
+    SuperAgentRunner::new(run_config, application_event_consumer)
         .unwrap()
         .run()
         .unwrap();

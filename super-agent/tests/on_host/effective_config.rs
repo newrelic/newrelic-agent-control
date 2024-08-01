@@ -1,0 +1,313 @@
+use crate::common::effective_config::check_latest_effective_config_is_expected;
+use crate::common::opamp::ConfigResponse;
+use crate::common::remote_config_status::check_latest_remote_config_status_is_expected;
+use crate::common::{opamp::FakeServer, retry::retry};
+use crate::on_host::tools::config::{create_sub_agent_values, create_super_agent_config};
+use crate::on_host::tools::custom_agent_type::get_agent_type_custom;
+use crate::on_host::tools::instance_id::get_instance_id;
+use crate::on_host::tools::super_agent::start_super_agent_with_custom_config;
+use newrelic_super_agent::agent_type::variable::namespace::Namespace;
+use newrelic_super_agent::super_agent::config::AgentID;
+use newrelic_super_agent::super_agent::defaults::{SUB_AGENT_DIR, VALUES_DIR, VALUES_FILE};
+use newrelic_super_agent::super_agent::run::BasePaths;
+use opamp_client::opamp::proto::RemoteConfigStatuses;
+use std::time::Duration;
+use std::{env, thread};
+use tempfile::tempdir;
+
+#[cfg(unix)]
+#[test]
+fn onhost_opamp_sub_agent_local_effective_config() {
+    // Given a super-agent with a custom-agent running a sleep command with opamp configured.
+    let opamp_server = FakeServer::start_new();
+
+    let local_dir = tempdir().expect("failed to create local temp dir");
+    let remote_dir = tempdir().expect("failed to create remote temp dir");
+
+    let sleep_agent_type = get_agent_type_custom(
+        local_dir.path().to_path_buf(),
+        "sh",
+        "tests/on_host/data/trap_term_sleep_60.sh",
+    );
+
+    let agents = format!(
+        r#"
+  nr-sleep-agent:
+    agent_type: "{}"
+"#,
+        sleep_agent_type
+    );
+
+    let sa_config_file_path = create_super_agent_config(
+        opamp_server.endpoint(),
+        agents.to_string(),
+        local_dir.path().to_path_buf(),
+    );
+
+    // And the custom-agent has local config values
+    let agent_id = "nr-sleep-agent";
+
+    // Having an env_var placeholder and the corresponding env_var set in order to
+    // check that is not expanded on the effective config
+    env::set_var("my_env_var", "my-value");
+
+    let values_config = format!(
+        "backoff_delay: ${{{}}}",
+        Namespace::EnvironmentVariable.namespaced_name("my_env_var")
+    );
+    let _values_file_path = create_sub_agent_values(
+        agent_id.to_string(),
+        values_config.to_string(),
+        local_dir.path().to_path_buf(),
+    );
+
+    let base_paths = BasePaths {
+        super_agent_local_config: sa_config_file_path.as_path().to_path_buf(),
+        local_dir: local_dir.path().to_path_buf(),
+        remote_dir: remote_dir.path().to_path_buf(),
+        log_dir: local_dir.path().to_path_buf(),
+    };
+    let base_paths_copy = base_paths.clone();
+    // We won't join and wait for the thread to finish because we want the super_agent to exit
+    // if our assertions were not ok.
+    let _super_agent_join = thread::spawn(move || start_super_agent_with_custom_config(base_paths));
+
+    let sub_agent_instance_id = get_instance_id(&AgentID::new(agent_id).unwrap(), base_paths_copy);
+
+    retry(60, Duration::from_secs(1), || {
+        {
+            // Then the retrieved effective config should match the expected local cfg
+            let expected_config = format!(
+                "backoff_delay: ${{{}}}\n",
+                Namespace::EnvironmentVariable.namespaced_name("my_env_var")
+            );
+
+            check_latest_effective_config_is_expected(
+                &opamp_server,
+                &sub_agent_instance_id,
+                expected_config,
+            )
+        }
+    });
+
+    env::remove_var("my_env_var");
+}
+
+#[cfg(unix)]
+#[test]
+fn onhost_opamp_sub_agent_remote_effective_config() {
+    // Given a super-agent with a custom-agent running a sleep command with opamp configured.
+    let opamp_server = FakeServer::start_new();
+
+    let local_dir = tempdir().expect("failed to create local temp dir");
+    let remote_dir = tempdir().expect("failed to create remote temp dir");
+
+    let sleep_agent_type = get_agent_type_custom(
+        local_dir.path().to_path_buf(),
+        "sh",
+        "tests/on_host/data/trap_term_sleep_60.sh",
+    );
+
+    let agents = format!(
+        r#"
+  nr-sleep-agent:
+    agent_type: "{}"
+"#,
+        sleep_agent_type
+    );
+
+    let sa_config_file_path = create_super_agent_config(
+        opamp_server.endpoint(),
+        agents.to_string(),
+        local_dir.path().to_path_buf(),
+    );
+
+    // And the custom-agent has local config values
+    let agent_id = "nr-sleep-agent";
+    let local_values_config = "backoff_delay: 10s";
+    let _local_values_file_path = create_sub_agent_values(
+        agent_id.to_string(),
+        local_values_config.to_string(),
+        local_dir.path().to_path_buf(),
+    );
+
+    // And the custom-agent has also remote config values
+    let remote_values_config = "backoff_delay: 40s";
+    let _remote_values_file_path = create_sub_agent_values(
+        agent_id.to_string(),
+        remote_values_config.to_string(),
+        local_dir.path().to_path_buf(),
+    );
+
+    let base_paths = BasePaths {
+        super_agent_local_config: sa_config_file_path.as_path().to_path_buf(),
+        local_dir: local_dir.path().to_path_buf(),
+        remote_dir: remote_dir.path().to_path_buf(),
+        log_dir: local_dir.path().to_path_buf(),
+    };
+    let base_paths_copy = base_paths.clone();
+    // We won't join and wait for the thread to finish because we want the super_agent to exit
+    // if our assertions were not ok.
+    let _super_agent_join = thread::spawn(move || start_super_agent_with_custom_config(base_paths));
+
+    let sub_agent_instance_id = get_instance_id(&AgentID::new(agent_id).unwrap(), base_paths_copy);
+
+    retry(60, Duration::from_secs(1), || {
+        {
+            // Then the retrieved effective config should match the expected remote cfg
+            let expected_config = "backoff_delay: 40s\n";
+
+            check_latest_effective_config_is_expected(
+                &opamp_server,
+                &sub_agent_instance_id,
+                expected_config.to_string(),
+            )
+        }
+    });
+}
+
+#[cfg(unix)]
+#[test]
+fn onhost_opamp_sub_agent_empty_local_effective_config() {
+    // Given a super-agent with a custom-agent running a sleep command with opamp configured.
+    let opamp_server = FakeServer::start_new();
+
+    let local_dir = tempdir().expect("failed to create local temp dir");
+    let remote_dir = tempdir().expect("failed to create remote temp dir");
+
+    let sleep_agent_type = get_agent_type_custom(
+        local_dir.path().to_path_buf(),
+        "sh",
+        "tests/on_host/data/trap_term_sleep_60.sh",
+    );
+
+    let agents = format!(
+        r#"
+  nr-sleep-agent:
+    agent_type: "{}"
+"#,
+        sleep_agent_type
+    );
+
+    let sa_config_file_path = create_super_agent_config(
+        opamp_server.endpoint(),
+        agents.to_string(),
+        local_dir.path().to_path_buf(),
+    );
+
+    // And the custom-agent has no config values
+    let agent_id = "nr-sleep-agent";
+
+    let base_paths = BasePaths {
+        super_agent_local_config: sa_config_file_path.as_path().to_path_buf(),
+        local_dir: local_dir.path().to_path_buf(),
+        remote_dir: remote_dir.path().to_path_buf(),
+        log_dir: local_dir.path().to_path_buf(),
+    };
+    let base_paths_copy = base_paths.clone();
+    // We won't join and wait for the thread to finish because we want the super_agent to exit
+    // if our assertions were not ok.
+    let _super_agent_join = thread::spawn(move || start_super_agent_with_custom_config(base_paths));
+
+    let sub_agent_instance_id = get_instance_id(&AgentID::new(agent_id).unwrap(), base_paths_copy);
+
+    retry(60, Duration::from_secs(1), || {
+        {
+            // Then the retrieved effective config should be empty
+            let expected_config = "";
+
+            check_latest_effective_config_is_expected(
+                &opamp_server,
+                &sub_agent_instance_id,
+                expected_config.to_string(),
+            )
+        }
+    });
+}
+
+#[cfg(unix)]
+#[test]
+fn onhost_opamp_sub_gent_wrong_remote_effective_config() {
+    // Given a super-agent with a custom-agent running a sleep command with opamp configured.
+    let mut opamp_server = FakeServer::start_new();
+
+    let local_dir = tempdir().expect("failed to create local temp dir");
+    let remote_dir = tempdir().expect("failed to create remote temp dir");
+
+    let sleep_agent_type = get_agent_type_custom(
+        local_dir.path().to_path_buf(),
+        "sh",
+        "tests/on_host/data/trap_term_sleep_60.sh",
+    );
+    let agents = format!(
+        r#"
+  nr-sleep-agent:
+    agent_type: "{}"
+"#,
+        sleep_agent_type
+    );
+
+    let config_file_path = create_super_agent_config(
+        opamp_server.endpoint(),
+        agents.to_string(),
+        local_dir.path().to_path_buf(),
+    );
+
+    // And the custom-agent has local config values
+    let agent_id = "nr-sleep-agent";
+    let initial_values_config = "backoff_delay: 30s";
+    let _values_file_path = create_sub_agent_values(
+        agent_id.to_string(),
+        initial_values_config.to_string(),
+        local_dir.path().to_path_buf(),
+    );
+
+    let base_paths = BasePaths {
+        super_agent_local_config: config_file_path.as_path().to_path_buf(),
+        local_dir: local_dir.path().to_path_buf(),
+        remote_dir: remote_dir.path().to_path_buf(),
+        log_dir: local_dir.path().to_path_buf(),
+    };
+    let base_paths_copy = base_paths.clone();
+    // We won't join and wait for the thread to finish because we want the super_agent to exit
+    // if our assertions were not ok.
+    let _super_agent_join = thread::spawn(move || start_super_agent_with_custom_config(base_paths));
+
+    let sub_agent_instance_id = get_instance_id(&AgentID::new(agent_id).unwrap(), base_paths_copy);
+
+    // When a new incorrect config is received from OpAMP
+    opamp_server.set_config_response(
+        sub_agent_instance_id.clone(),
+        ConfigResponse::from("config_agent: aa"),
+    );
+
+    retry(60, Duration::from_secs(1), || {
+        {
+            // Then the remote config should be created in the remote filesystem.
+            let remote_file = remote_dir
+                .path()
+                .join(SUB_AGENT_DIR)
+                .join(agent_id)
+                .join(VALUES_DIR)
+                .join(VALUES_FILE);
+            if !remote_file.exists() {
+                return Err("Remote config file should be created".into());
+            }
+
+            // And effective_config should return the initial local one
+            let expected_config = format!("{}\n", initial_values_config);
+
+            check_latest_remote_config_status_is_expected(
+                &opamp_server,
+                &sub_agent_instance_id,
+                RemoteConfigStatuses::Failed as i32,
+            )?;
+
+            check_latest_effective_config_is_expected(
+                &opamp_server,
+                &sub_agent_instance_id,
+                expected_config.to_string(),
+            )
+        }
+    });
+}
