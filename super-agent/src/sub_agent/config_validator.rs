@@ -229,6 +229,16 @@ config: |
                 valid: true,
             },
             TestCase {
+                name: "valid single endpoint with trailing /",
+                config: r#"
+config: |
+  exporters:
+    otlp/nr:
+      endpoint: "https://otlp.nr-data.net:4317/"
+"#,
+                valid: true,
+            },
+            TestCase {
                 name: "valid single endpoint without quotes",
                 config: r#"
 config: |
