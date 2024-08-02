@@ -16,7 +16,7 @@ use opamp_client::{
     },
     StartedClient,
 };
-use tracing::info;
+use tracing::{error, info};
 
 use super::instance_id::InstanceID;
 use super::{
@@ -135,7 +135,11 @@ pub fn stop_opamp_client<CB: Callbacks, C: StartedClient<CB>>(
             agent_id
         );
         // TODO We should call disconnect here as this means a graceful shutdown
-        client.stop()?;
+        client.stop().map_err(|e| {
+            error!("Error stopping OpAMP client: {}", e);
+            e
+        })?;
+        info!("OpAMP Client stopped: {}", agent_id);
     }
     Ok(())
 }
