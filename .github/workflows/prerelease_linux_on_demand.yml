@@ -1,10 +1,10 @@
-name: . 🚀 🐧 🧾 Validate Prerelease Linux On Demand
+name: . 🚀 🐧 🧾 Validate Prerelease Linux On Demand - TEST
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - main
+      - NR-299209_log_opamp_exit
 
 jobs:
   build:
