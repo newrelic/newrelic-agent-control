@@ -15,6 +15,13 @@ db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
 # The lint level for crates that have been yanked from their source registry
 yanked = "warn"
+# Ignore specific advisories
+ignore = [
+  # <https://rustsec.org/advisories/RUSTSEC-2024-0320>
+  # yaml-rust2 is pulled by config-rs, the update to yaml-rust2 has been merged but not release yet see:
+  # <https://github.com/mehcode/config-rs/issues/563>
+  {"id" = "RUSTSEC-2024-0320", "reason" = "config-rs with updated dependency to yaml-rust2 hasn't been released yet"}
+]
 
 # This section is considered when running `cargo deny check licenses`
 # More documentation for the licenses section can be found here:
@@ -45,8 +52,8 @@ allow = [
   "Unicode-DFS-2016", #BSD-3
   "Unicode-3.0",
   "OpenSSL", # https://www.openssl.org/source/license.html - used on Linux
-
   #"Apache-2.0 WITH LLVM-exception",
+  "MPL-2.0", # Mozilla Public License 2.0
 ]
 # [possible values: any between 0.0 and 1.0].
 confidence-threshold = 0.8
