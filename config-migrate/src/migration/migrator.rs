@@ -17,7 +17,7 @@ use newrelic_super_agent::super_agent::config_storer::loader_storer::SuperAgentD
 use newrelic_super_agent::super_agent::config_storer::store::SuperAgentConfigStore;
 use newrelic_super_agent::values::file::YAMLConfigRepositoryFile;
 use thiserror::Error;
-use tracing::{debug, error, info};
+use tracing::{debug, info, warn};
 
 #[derive(Error, Debug)]
 pub enum MigratorError {
@@ -88,7 +88,7 @@ impl
                     info!("Config values files successfully created for {}", agent_id);
                 }
                 Err(e) => {
-                    error!("Conversion failed, old files or paths are renamed or not present");
+                    warn!("Old files or paths are renamed or not present");
                     return Err(MigratorError::ConversionError(e));
                 }
             };
