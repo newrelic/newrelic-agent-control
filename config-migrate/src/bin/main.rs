@@ -57,7 +57,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                 );
             }
             Err(e) => {
-                warn!("Could apply migration for {}: {}", cfg.agent_type_fqn, e);
+                warn!(
+                    "Could not apply migration for {}: {}",
+                    cfg.agent_type_fqn, e
+                );
             }
         }
     }
