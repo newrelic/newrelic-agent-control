@@ -15,7 +15,7 @@ use newrelic_super_agent::values::file::YAMLConfigRepositoryFile;
 use std::error::Error;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 fn main() -> Result<(), Box<dyn Error>> {
     // init logging singleton
@@ -57,7 +57,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                 );
             }
             Err(e) => {
-                return Err(Box::new(e));
+                warn!(
+                    "Could not apply migration for {}: {}",
+                    cfg.agent_type_fqn, e
+                );
             }
         }
     }
