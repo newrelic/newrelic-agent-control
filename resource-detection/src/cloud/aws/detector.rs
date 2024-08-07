@@ -1,28 +1,25 @@
 //! AWS EC2 instance id detector implementation
-use std::time::Duration;
-
+use super::metadata::AWSMetadata;
+use crate::cloud::http_client::{
+    HttpClient, HttpClientError, HttpClientUreq, DEFAULT_CLIENT_TIMEOUT,
+};
+use crate::{cloud::AWS_INSTANCE_ID, DetectError, Detector, Key, Resource, Value};
 use thiserror::Error;
 
-use crate::cloud::http_client::{HttpClient, HttpClientError, HttpClientUreq};
-use crate::{cloud::AWS_INSTANCE_ID, DetectError, Detector, Key, Resource, Value};
-
-use super::metadata::{AWSMetadata, IPV4_METADATA_ENDPOINT};
+/// The default AWS instance metadata endpoint.
+pub const AWS_IPV4_METADATA_ENDPOINT: &str =
+    "http://169.254.169.254/latest/dynamic/instance-identity/document";
 
 /// The `AWSDetector` struct encapsulates an HTTP client used to retrieve the instance metadata.
 pub struct AWSDetector<C: HttpClient> {
     http_client: C,
 }
 
-const DEFAULT_CLIENT_TIMEOUT: Duration = Duration::from_secs(5);
-
-impl Default for AWSDetector<HttpClientUreq> {
-    fn default() -> Self {
+impl AWSDetector<HttpClientUreq> {
+    /// Returns a new instance of AWSDetector
+    pub fn new(metadata_endpoint: String) -> Self {
         Self {
-            http_client: HttpClientUreq::new(
-                IPV4_METADATA_ENDPOINT.to_string(),
-                DEFAULT_CLIENT_TIMEOUT,
-                None,
-            ),
+            http_client: HttpClientUreq::new(metadata_endpoint, DEFAULT_CLIENT_TIMEOUT, None),
         }
     }
 }

@@ -3,6 +3,9 @@ use std::time::Duration;
 use thiserror::Error;
 use tracing::error;
 
+/// The default timeout for the HTTP client.
+pub const DEFAULT_CLIENT_TIMEOUT: Duration = Duration::from_secs(5);
+
 /// An enumeration of potential errors related to the HTTP client.
 #[derive(Error, Debug)]
 pub enum HttpClientError {

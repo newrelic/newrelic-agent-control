@@ -19,18 +19,23 @@ pub struct CloudIdDetector<AWS: Detector, AZURE: Detector, GCP: Detector> {
     gcp_detector: GCP,
 }
 
-impl Default
-    for CloudIdDetector<
+impl
+    CloudIdDetector<
         AWSDetector<HttpClientUreq>,
         AzureDetector<HttpClientUreq>,
         GCPDetector<HttpClientUreq>,
     >
 {
-    fn default() -> Self {
+    /// Returns a new instance of CloudIdDetector
+    pub fn new(
+        aws_metadata_endpoint: String,
+        azure_metadata_endpoint: String,
+        gcp_metadata_endpoint: String,
+    ) -> Self {
         Self {
-            aws_detector: AWSDetector::default(),
-            azure_detector: AzureDetector::default(),
-            gcp_detector: GCPDetector::default(),
+            aws_detector: AWSDetector::new(aws_metadata_endpoint),
+            azure_detector: AzureDetector::new(azure_metadata_endpoint),
+            gcp_detector: GCPDetector::new(gcp_metadata_endpoint),
         }
     }
 }

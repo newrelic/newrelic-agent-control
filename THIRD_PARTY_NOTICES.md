@@ -225,13 +225,6 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
-## atomic-waker https://crates.io/crates/atomic-waker
-
-Distributed under the following license(s):
-* Apache-2.0
-* MIT
-
-
 ## autocfg https://crates.io/crates/autocfg
 
 Distributed under the following license(s):
@@ -823,12 +816,6 @@ Distributed under the following license(s):
 
 
 ## globwalk https://crates.io/crates/globwalk
-
-Distributed under the following license(s):
-* MIT
-
-
-## h2 https://crates.io/crates/h2
 
 Distributed under the following license(s):
 * MIT
