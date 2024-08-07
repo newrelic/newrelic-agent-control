@@ -1,0 +1,52 @@
+namespace: newrelic
+name: com.newrelic.nri-mysql
+version: 0.1.3
+variables:
+  on_host:
+    config:
+      description: "ohi config"
+      type: file
+      required: false
+      default: ""
+      file_path: "${nr-dep:var:infra_agent:integrations_path}"
+    # IS THIS NECESSARY?
+    agent_id:
+      description: "Unique identifier for the agent"
+      type: dependency
+      required: true
+deployment:
+  on_host:
+    # FM will detect if the infra agent is not installed and:
+    # * if not present: will install it and provide the agent name to the OHI deployment config
+    # * if present: it provide the agent name to the OHI deployment config
+    dependencies:
+      infra_agent:
+        type: com.newrelic.infrastructure_agent
+        version: ">=1.4.*"
+        required: true
+
+    enable_file_logging: ${nr-var:enable_file_logging}
+    health:
+      command: ${nr-dep:infra_name:exec} --dry_run --config_path=${nr-var:config} --${nr-dep:other_name:exec}
+    executables: [ ]
+    download:
+      location: "https://download.newrelic.com/nri-apache/[arc_version_os_??_]"
+      # destination would be /[super-agent-root]/agent-name/version/tar/[tar-file-name]
+      package_version: ${nr-var:version} # WARNING <- this is a placeholder
+
+      # signature verification is an open question -> check whether it is a strong requiement with security
+
+      # if needed we can add in the future an auth section to describe
+      # how the SA has to authenticate against the S3 (for private agents)
+      # auth:
+      #   header:
+      installation:
+        type: tar # covering all ohis, Java, nrdot,
+        artifacts:
+          nri-apache:
+            source_path: "[inside-tar]/usr/bin/newrelic-infrastructure"
+            # destination_path: /[super-agent-root]/agent-name/[versions]/bin/nri-apache
+
+      # we should consider how to retry/rollback after a failes installataion
+      # rollback:
+

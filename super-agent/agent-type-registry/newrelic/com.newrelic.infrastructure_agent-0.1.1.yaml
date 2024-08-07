@@ -1,23 +1,20 @@
 namespace: newrelic
 name: com.newrelic.infrastructure_agent
-version: 0.1.1
+version: 0.1.3
 variables:
   on_host:
     config_agent:
       description: "Newrelic infra configuration"
-      type: file
+      type: config
       required: false
       default: ""
       file_path: "newrelic-infra.yml"
-    config_integrations:
-      description: "map of YAML configs for the OHIs"
-      type: map[string]file
-      required: false
-      default: {}
-      file_path: "integrations.d"
+    #config_logging/1
+    #config_logging/2
+    #config_logging/3
     config_logging:
       description: "map of YAML config for logging"
-      type: map[string]file
+      type: directory
       required: false
       default: {}
       file_path: "logging.d"
@@ -36,7 +33,7 @@ deployment:
     enable_file_logging: ${nr-var:enable_file_logging}
     executables:
       - path: /usr/bin/newrelic-infra
-        args: "--config=${nr-var:config_agent}"
+        args: "--config=${configs:config_agent} ${--configs %item}"
         env: "NRIA_PLUGIN_DIR=${nr-var:config_integrations} NRIA_LOGGING_CONFIGS_DIR=${nr-var:config_logging}"
         restart_policy:
           backoff_strategy:

@@ -1,0 +1,22 @@
+###############################################################################
+# Log forwarder configuration file example                                    #
+# Source: file                                                                #
+# Available customization parameters: attributes, max_line_kb, pattern        #
+###############################################################################
+logs:
+  # Basic tailing of a single file
+  - name: basic-file
+    file: /var/log/logFile.log
+
+  # File with spaces in its path. No need to use quotes.
+  - name: file-with-spaces-in-path
+    file: /var/log/folder with spaces/logFile.log
+
+  # Specify a list of custom attributes, as key-value pairs, to be included
+  # in each log record
+  - name: file-with-attributes
+    file: /var/log/logFile.log
+    attributes:
+      application: tomcat
+      department: sales
+      maintainer: example@mailprovider.com

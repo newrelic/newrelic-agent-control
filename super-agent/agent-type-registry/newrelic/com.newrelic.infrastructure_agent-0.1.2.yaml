@@ -9,12 +9,6 @@ variables:
       required: false
       default: ""
       file_path: "newrelic-infra.yml"
-    config_integrations:
-      description: "map of YAML configs for the OHIs"
-      type: map[string]file
-      required: false
-      default: {}
-      file_path: "integrations.d"
     config_logging:
       description: "map of YAML config for logging"
       type: map[string]file

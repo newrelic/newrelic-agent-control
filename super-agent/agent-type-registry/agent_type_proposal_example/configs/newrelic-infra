@@ -1,0 +1,8 @@
+license_key: asfdasdasd
+log:
+  level: info
+  file: /var/lib/newrelic-infra/newrelic-infra.log
+    format: json
+custom_attributes:
+  env: staging
+  region: us-west-2

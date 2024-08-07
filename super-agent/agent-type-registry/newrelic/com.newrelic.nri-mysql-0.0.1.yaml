@@ -1,0 +1,42 @@
+namespace: newrelic
+name: com.newrelic.nri-mysql
+version: 0.1.3
+variables:
+  on_host:
+    infra_agent:
+      type: dependency
+      agent_type: com.newrelic.infrastructure_agent
+      required: true
+    config:
+      description: "Newrelic infra configuration"
+      type: file
+      required: false
+      default: ""
+      file_path: "${nr-dep:var:infra_agent:logging_path}"
+deployment:
+  on_host:
+    enable_file_logging: ${nr-var:enable_file_logging}
+    health:
+      command: ${nr-dep:infra_name:exec} --dry_run --config_path=${nr-var:config} --${nr-dep:other_name:exec}
+    executables: [ ]
+  download:
+    location: "https://download.newrelic.com/nri-apache/[arc_version_os_??_]"
+    # destination would be /[super-agent-root]/agent-name/version/tar/[tar-file-name]
+    package_version: ${nr-var:version} # WARNING <- this is a placeholder
+
+    # signature verification is an open question -> check whether it is a strong requiement with security
+
+    # if needed we can add in the future an auth section to describe
+    # how the SA has to authenticate against the S3 (for private agents)
+    # auth:
+    #   header:
+    installation:
+      type: tar # covering all ohis, Java, nrdot,
+      artifacts:
+        nri-apache:
+          source_path: "[inside-tar]/usr/bin/newrelic-infrastructure"
+          # destination_path: /[super-agent-root]/agent-name/[versions]/bin/nri-apache
+
+    # we should consider how to retry/rollback after a failes installataion
+    # rollback:
+
