@@ -25,7 +25,7 @@ use std::{
     sync::{Arc, Mutex},
     thread::{self, JoinHandle},
 };
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 ////////////////////////////////////////////////////////////////////////////////////
 // States for Started/Not Started supervisor
@@ -83,16 +83,33 @@ impl SupervisorOnHost<NotStarted> {
         let mut restart_policy = self.restart_policy.clone();
         let current_pid: Arc<Mutex<Option<u32>>> = Arc::new(Mutex::new(None));
         let shutdown_ctx = Context::new();
-        _ = wait_for_termination(current_pid.clone(), self.ctx.clone(), shutdown_ctx.clone());
+        _ = wait_for_termination(
+            current_pid.clone(),
+            self.ctx.clone(),
+            shutdown_ctx.clone(),
+            self.id(),
+        );
         thread::spawn({
             move || loop {
-                // check if supervisor context is cancelled
+                // locks the current_pid to prevent `wait_for_termination` finishing before the process
+                // is started and the pid is set.
+                // In case starting the process fail the guard will be dropped and `wait_for_termination`
+                // will finish without needing to cancel any process (current_pid==None).
+                let pid_guard: std::sync::MutexGuard<Option<u32>> = current_pid.lock().unwrap();
+
+                // A context cancelled means that the supervisor has been gracefully stopped
+                // before the process was started.
                 if *Context::get_lock_cvar(&self.ctx).0.lock().unwrap() {
+                    debug!(
+                        agent_id = self.id().to_string(),
+                        supervisor = self.bin(),
+                        msg = "supervisor stopped before starting the process"
+                    );
                     break;
                 }
 
                 info!(
-                    id = self.id().to_string(),
+                    agent_id = self.id().to_string(),
                     supervisor = self.bin(),
                     msg = "starting supervisor process"
                 );
@@ -141,7 +158,7 @@ impl SupervisorOnHost<NotStarted> {
                     }
                 }
 
-                let exit_code = start_command(not_started_command, current_pid.clone())
+                let exit_code = start_command(not_started_command, pid_guard)
                     .inspect_err(|err| {
                         error!(
                             agent_id = id.to_string(),
@@ -168,6 +185,17 @@ impl SupervisorOnHost<NotStarted> {
                         "could not cancel health checker thread"
                     );
                 });
+
+                // A context cancelled means that the supervisor has been gracefully stopped and is the
+                // most probably reason why process has been exited.
+                if *Context::get_lock_cvar(&self.ctx).0.lock().unwrap() {
+                    info!(
+                        agent_id = self.id().to_string(),
+                        supervisor = self.bin(),
+                        msg = "supervisor has been stopped and process terminated"
+                    );
+                    break;
+                }
 
                 // canceling the shutdown ctx must be done before getting current_pid lock
                 // as it locked by the wait_for_termination function
@@ -277,11 +305,11 @@ fn handle_termination(
     exit_code.or(exit_signal).unwrap_or_default()
 }
 
-// launch_process starts a new process with a streamed channel and sets its current pid
-// into the provided variable. It waits until the process exits.
+/// launch_process starts a new process with a streamed channel and sets its current pid
+/// into the provided variable. It waits until the process exits.
 fn start_command<R>(
     not_started_command: R,
-    pid: Arc<Mutex<Option<u32>>>,
+    mut pid: std::sync::MutexGuard<Option<u32>>,
 ) -> Result<ExitStatus, CommandError>
 where
     R: NotStartedCommand,
@@ -292,7 +320,9 @@ where
     let streaming = started.stream()?;
 
     // set current running pid
-    *pid.lock().unwrap() = Some(streaming.get_pid());
+    *pid = Some(streaming.get_pid());
+    // free the lock so the wait_for_termination can lock it on graceful shutdown
+    drop(pid);
 
     streaming.wait()
 }
@@ -303,13 +333,26 @@ fn wait_for_termination(
     current_pid: Arc<Mutex<Option<u32>>>,
     ctx: Context<bool>,
     shutdown_ctx: Context<bool>,
+    agent_id: AgentID,
 ) -> JoinHandle<()> {
     thread::spawn(move || {
         let (lck, cvar) = Context::get_lock_cvar(&ctx);
         drop(cvar.wait_while(lck.lock().unwrap(), |finish| !*finish));
 
+        // context is unlocked here so locking it again in other thread that is blocking current_pid is safe.
+
         if let Some(pid) = *current_pid.lock().unwrap() {
+            info!(
+                agent_id = agent_id.to_string(),
+                pid = pid,
+                msg = "stopping supervisor process"
+            );
             _ = ProcessTerminator::new(pid).shutdown(|| wait_exit_timeout_default(shutdown_ctx));
+        } else {
+            info!(
+                agent_id = agent_id.to_string(),
+                msg = "stopped supervisor without process running"
+            );
         }
     })
 }
@@ -332,6 +375,101 @@ pub mod tests {
         pub HealthCheckerMock {}
         impl HealthChecker for HealthCheckerMock {
             fn check_health(&self) -> Result<Health, HealthCheckerError>;
+        }
+    }
+
+    #[test]
+    #[cfg(unix)]
+    #[traced_test]
+    fn test_supervisor_gracefully_shutdown() {
+        use tracing_test::internal::logs_with_scope_contain;
+
+        struct TestCase {
+            name: &'static str,
+            executable: ExecutableData,
+            run_warmup_time: Option<Duration>,
+            contain_logs: Vec<&'static str>,
+        }
+        impl TestCase {
+            fn run(self) {
+                let backoff = Backoff::new()
+                    .with_initial_delay(Duration::from_secs(5))
+                    .with_max_retries(1);
+
+                let any_exit_code = vec![];
+                let config = SupervisorConfigOnHost::new(
+                    "test".to_owned().try_into().unwrap(),
+                    self.executable,
+                    Context::new(),
+                    RestartPolicy::new(BackoffStrategy::Fixed(backoff), any_exit_code),
+                );
+                let supervisor = SupervisorOnHost::new(config);
+
+                let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
+
+                let started_supervisor = supervisor.run(sub_agent_internal_publisher);
+
+                if let Some(duration) = self.run_warmup_time {
+                    thread::sleep(duration)
+                }
+
+                // stopping the agent should be instantaneous since terminating sleep is fast.
+                // no restarts should occur.
+                let max_duration = Duration::from_millis(100);
+                let start = Instant::now();
+
+                started_supervisor.stop().join().unwrap();
+
+                let duration = start.elapsed();
+                assert!(
+                    duration < max_duration,
+                    "test case: {} \n stopping the supervisor took to much time: {:?}",
+                    self.name,
+                    duration
+                );
+
+                for log in self.contain_logs {
+                    assert!(logs_with_scope_contain(
+                        "newrelic_super_agent::sub_agent::on_host::supervisor::command_supervisor",
+                        log,
+                    ),"log: {} test case: {}", log, self.name);
+                }
+            }
+        }
+        let test_cases = vec![
+            TestCase {
+                name: "long running process shutdown after start",
+                executable: ExecutableData::new("sleep".to_owned())
+                    .with_args(vec!["10".to_owned()]),
+                run_warmup_time: Some(Duration::from_secs(1)),
+                contain_logs: vec![
+                    "stopping supervisor process",
+                    "supervisor has been stopped and process terminated",
+                ],
+            },
+            TestCase {
+                name: "fail process shutdown after start",
+                executable: ExecutableData::new("wrong-command".to_owned()),
+                run_warmup_time: Some(Duration::from_secs(1)),
+                contain_logs: vec!["stopped supervisor without process running"],
+            },
+            // I found this test to be flaky whenever was being executed as first on the list.
+            // Would be hard to test this case in a reliable way. If seen this test case failing
+            // we should consider removing it, or find a way to make it more reliable.
+            TestCase {
+                name: "long running process shutdown before start",
+                executable: ExecutableData::new("sleep".to_owned())
+                    .with_args(vec!["10".to_owned()]),
+                run_warmup_time: None,
+                contain_logs: vec![
+                    "supervisor stopped before starting the process",
+                    "stopped supervisor without process running",
+                ],
+            },
+        ];
+
+        for test_case in test_cases {
+            test_case.run();
         }
     }
 
@@ -391,6 +529,7 @@ pub mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     #[traced_test]
     fn test_supervisor_fixed_backoff_retry_3_times() {
         let backoff = Backoff::new()
@@ -430,6 +569,7 @@ pub mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn test_supervisor_health_events_on_breaking_backoff() {
         let backoff = Backoff::new()
             .with_initial_delay(Duration::new(0, 100))

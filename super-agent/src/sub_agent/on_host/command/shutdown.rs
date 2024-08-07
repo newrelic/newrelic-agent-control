@@ -78,7 +78,8 @@ pub fn wait_exit_timeout(context: Context<bool>, exit_timeout: Duration) -> bool
     }
 }
 
-/// wait_exit_timeout_default calls wait_exit_timeout with the DEFAULT_EXIT_TIMEOUT of 2 seconds.
+/// waits on a condvar for a change in a boolean exit variable
+/// with a default timeout of DEFAULT_EXIT_TIMEOUT seconds
 pub fn wait_exit_timeout_default(context: Context<bool>) -> bool {
     wait_exit_timeout(context, DEFAULT_EXIT_TIMEOUT)
 }
