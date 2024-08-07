@@ -38,3 +38,9 @@ ureq = "2.9.7"
 semver = "1.0.23"
 chrono = "0.4"
 jsonwebtoken = "9.3.0"
+
+[profile.release]
+# remove debug symbols from the release binary
+# After <https://github.com/rust-lang/cargo/pull/13257> this is the default
+# behavior for cargo, unless debuginfo is enabled for any compiled package
+strip = "debuginfo"
