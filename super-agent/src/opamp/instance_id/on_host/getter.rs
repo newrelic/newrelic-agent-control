@@ -1,5 +1,8 @@
 use crate::opamp::instance_id::on_host::storer::StorerError;
-use resource_detection::cloud::aws::detector::{AWSDetector, AWS_IPV4_METADATA_ENDPOINT};
+use resource_detection::cloud::aws::detector::{
+    AWSDetector, AWS_IPV4_METADATA_ENDPOINT, AWS_IPV4_METADATA_TOKEN_ENDPOINT,
+};
+use resource_detection::cloud::aws::http_client::AWSHttpClientUreq;
 use resource_detection::cloud::azure::detector::{AzureDetector, AZURE_IPV4_METADATA_ENDPOINT};
 use resource_detection::cloud::cloud_id::detector::CloudIdDetector;
 use resource_detection::cloud::gcp::detector::{GCPDetector, GCP_IPV4_METADATA_ENDPOINT};
@@ -43,7 +46,7 @@ pub enum IdentifiersProviderError {
 pub struct IdentifiersProvider<
     D = SystemDetector,
     D2 = CloudIdDetector<
-        AWSDetector<HttpClientUreq>,
+        AWSDetector<AWSHttpClientUreq>,
         AzureDetector<HttpClientUreq>,
         GCPDetector<HttpClientUreq>,
     >,
@@ -63,6 +66,7 @@ impl Default for IdentifiersProvider {
             system_detector: SystemDetector::default(),
             cloud_id_detector: CloudIdDetector::new(
                 AWS_IPV4_METADATA_ENDPOINT.to_string(),
+                AWS_IPV4_METADATA_TOKEN_ENDPOINT.to_string(),
                 AZURE_IPV4_METADATA_ENDPOINT.to_string(),
                 GCP_IPV4_METADATA_ENDPOINT.to_string(),
             ),

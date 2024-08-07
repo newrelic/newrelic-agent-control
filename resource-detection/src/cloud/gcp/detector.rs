@@ -91,6 +91,7 @@ where
 mod test {
     use super::*;
     use crate::cloud::http_client::test::MockHttpClientMock;
+    use assert_matches::assert_matches;
 
     #[test]
     fn detect_gcp_metadata() {
@@ -187,14 +188,12 @@ mod test {
 
         let result = detector.detect();
 
-        match result {
-            Err(e) => assert_eq!(
-                "error detecting gcp resources `Status code: `404` Canonical reason: `Not Found``"
-                    .to_string(),
-                e.to_string()
-            ),
-            _ => unreachable!(),
-        }
+        assert_matches!(
+            result,
+            Err(DetectError::GCPError(
+                GCPDetectorError::UnsuccessfulResponse(404, _)
+            ))
+        );
     }
 
     #[test]
@@ -213,13 +212,9 @@ mod test {
 
         let result = detector.detect();
 
-        match result {
-            Err(e) => assert_eq!(
-                "error detecting gcp resources ``key must be a string at line 1 column 3``"
-                    .to_string(),
-                e.to_string()
-            ),
-            _ => unreachable!(),
-        }
+        assert_matches!(
+            result,
+            Err(DetectError::GCPError(GCPDetectorError::JsonError(_)))
+        );
     }
 }

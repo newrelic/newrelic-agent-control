@@ -90,6 +90,7 @@ where
 mod test {
     use super::*;
     use crate::cloud::http_client::test::MockHttpClientMock;
+    use assert_matches::assert_matches;
 
     #[test]
     fn http_client_error() {
@@ -102,9 +103,11 @@ mod test {
         };
 
         let detect_error = detector.detect().unwrap_err();
-        assert_eq!(
-            "error detecting azure resources ``internal HTTP client error: `some error```",
-            detect_error.to_string()
+        assert_matches!(
+            detect_error,
+            DetectError::AzureError(AzureDetectorError::HttpError(
+                HttpClientError::TransportError(_)
+            ))
         );
     }
 
@@ -123,9 +126,10 @@ mod test {
         };
 
         let detect_error = detector.detect().unwrap_err();
-        assert_eq!(
-            "error detecting azure resources `Status code: `503` Canonical reason: `Service Unavailable``",
-            detect_error.to_string()
+
+        assert_matches!(
+            detect_error,
+            DetectError::AzureError(AzureDetectorError::UnsuccessfulResponse(503, _))
         );
     }
 
@@ -144,9 +148,10 @@ mod test {
         };
 
         let detect_error = detector.detect().unwrap_err();
-        assert_eq!(
-            "error detecting azure resources `error deserializing json: `expected value at line 1 column 1``",
-            detect_error.to_string()
+
+        assert_matches!(
+            detect_error,
+            DetectError::AzureError(AzureDetectorError::JsonError(_))
         );
     }
 
