@@ -1,26 +1,28 @@
 //! GCP instance id detector implementation
-use http::HeaderMap;
-use std::time::Duration;
-
-use thiserror::Error;
-
-use crate::cloud::http_client::{HttpClient, HttpClientError, HttpClientUreq};
+use super::metadata::GCPMetadata;
+use crate::cloud::http_client::{
+    HttpClient, HttpClientError, HttpClientUreq, DEFAULT_CLIENT_TIMEOUT,
+};
 use crate::cloud::GCP_INSTANCE_ID;
 use crate::{DetectError, Detector, Key, Resource, Value};
+use http::HeaderMap;
+use thiserror::Error;
 
-use super::metadata::{GCPMetadata, IPV4_METADATA_ENDPOINT};
+/// Default GCP instance metadata endpoint.
+pub const GCP_IPV4_METADATA_ENDPOINT: &str =
+    "http://metadata.google.internal/computeMetadata/v1/instance/?recursive=true";
 
 /// The `GCPDetector` struct encapsulates an HTTP client used to retrieve the instance metadata.
 pub struct GCPDetector<C: HttpClient> {
     http_client: C,
 }
 
-const DEFAULT_CLIENT_TIMEOUT: Duration = Duration::from_secs(5);
 const HEADER_KEY: &str = "Metadata-Flavor";
 const HEADER_VALUE: &str = "Google";
 
-impl Default for GCPDetector<HttpClientUreq> {
-    fn default() -> Self {
+impl GCPDetector<HttpClientUreq> {
+    /// Returns a new instance of GCPDetector
+    pub fn new(metadata_endpoint: String) -> Self {
         let mut headers = HeaderMap::new();
         headers.insert(
             HEADER_KEY,
@@ -29,7 +31,7 @@ impl Default for GCPDetector<HttpClientUreq> {
 
         Self {
             http_client: HttpClientUreq::new(
-                IPV4_METADATA_ENDPOINT.to_string(),
+                metadata_endpoint,
                 DEFAULT_CLIENT_TIMEOUT,
                 Some(headers),
             ),

@@ -1,52 +1,102 @@
-use std::net::TcpListener;
-
+use httpmock::Method::GET;
+use httpmock::MockServer;
 use newrelic_super_agent::opamp::instance_id::IdentifiersProvider;
-use wiremock::matchers::{method, path};
-use wiremock::{Mock, MockServer, ResponseTemplate};
+use resource_detection::cloud::cloud_id::detector::CloudIdDetector;
+use resource_detection::system::detector::SystemDetector;
 
-// test_cloud_id tests that the default IdentifiersProvider is able to retrieve the cloud instance
-// id for any cloud provider. It spawns a mock server and provides the mocked cloud metadata in the
-// endpoint specified by the TEST_IPV4_METADATA_ENDPOINT environment variable. Required format of
-// the TEST_IPV4_METADATA_ENDPOINT: "http://address/endpoint". For example: "http://127.0.0.1:4343/testing_metadata_endpoint"
-// Note that if the environment variable is not defined, the test will fail.
-// only unix: /etc/machine-id
+const UNRESPOSIVE_METADATA_ENDPOINT: &str = "http://localhost:9999";
+
+#[test]
 #[cfg(target_family = "unix")]
-#[tokio::test]
-async fn test_cloud_id() {
-    let (mut address, endpoint) =
-        konst::option::unwrap!(option_env!("TEST_IPV4_METADATA_ENDPOINT"))
-            .rsplit_once('/')
-            .expect("Not a valid endpoint, expected format: http://address/endpoint");
-    address = address
-        .strip_prefix("http://")
-        .expect("Not a valid endpoint, expected format: http://address/endpoint");
+fn test_aws_cloud_id() {
+    use crate::on_host::consts::AWS_VM_RESPONSE;
 
-    let mock_server = MockServer::builder()
-        .listener(TcpListener::bind(address).unwrap())
-        .start()
-        .await;
+    let metadata_path = "/latest/meta-data/instance-id";
+    let instance_id = "i-123456787d725bbe7";
 
-    let cloud_data = [
-        (super::consts::AWS_VM_RESPONSE, "i-123456787d725bbe7"),
-        (super::consts::GCP_VM_RESPONSE, "6331980990053453154"),
-        (
-            super::consts::AZURE_VM_RESPONSE,
-            "02aab8a4-74ef-476e-8182-f6d2ba4166a7",
+    let fake_metadata_server = MockServer::start();
+    let mock = fake_metadata_server.mock(|when, then| {
+        when.method(GET).path(metadata_path);
+        then.status(200)
+            .header("content-type", "application/json")
+            .body(AWS_VM_RESPONSE);
+    });
+
+    let id = IdentifiersProvider::new(
+        SystemDetector::default(),
+        CloudIdDetector::new(
+            fake_metadata_server.url(metadata_path),
+            UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
+            UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
         ),
-    ];
+    )
+    .provide()
+    .unwrap();
 
-    for (metadata_response, expected_cloud_id) in cloud_data {
-        // all responses are mapped to the same endpoint, thus all cloud detectors will be able to
-        // fetch some data. Note, that only the cloud detector able to parse the corresponding
-        // metadata, should succeed.
-        let endpoint_mock = Mock::given(method("GET")).and(path(endpoint)).respond_with(
-            ResponseTemplate::new(200).set_body_raw(metadata_response, "application/json"),
-        );
-        let mock_guard = mock_server.register_as_scoped(endpoint_mock).await;
+    assert_eq!(id.cloud_instance_id, instance_id);
 
-        let id = IdentifiersProvider::default().provide().unwrap();
+    mock.assert_hits(1);
+}
+#[test]
+#[cfg(target_family = "unix")]
+fn test_azure_cloud_id() {
+    use crate::on_host::consts::AZURE_VM_RESPONSE;
 
-        assert!(id.cloud_instance_id == expected_cloud_id);
-        drop(mock_guard);
-    }
+    let metadata_path = "/metadata/instance";
+    let instance_id = "02aab8a4-74ef-476e-8182-f6d2ba4166a7";
+
+    let fake_metadata_server = MockServer::start();
+    let mock = fake_metadata_server.mock(|when, then| {
+        when.method(GET).path(metadata_path);
+        then.status(200)
+            .header("content-type", "application/json")
+            .body(AZURE_VM_RESPONSE);
+    });
+
+    let id = IdentifiersProvider::new(
+        SystemDetector::default(),
+        CloudIdDetector::new(
+            UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
+            fake_metadata_server.url(metadata_path),
+            UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
+        ),
+    )
+    .provide()
+    .unwrap();
+
+    assert_eq!(id.cloud_instance_id, instance_id);
+
+    mock.assert_hits(1);
+}
+
+#[test]
+#[cfg(target_family = "unix")]
+fn test_gcp_cloud_id() {
+    use crate::on_host::consts::GCP_VM_RESPONSE;
+
+    let metadata_path = "/metadata/instance";
+    let instance_id = "6331980990053453154";
+
+    let fake_metadata_server = MockServer::start();
+    let mock = fake_metadata_server.mock(|when, then| {
+        when.method(GET).path(metadata_path);
+        then.status(200)
+            .header("content-type", "application/json")
+            .body(GCP_VM_RESPONSE);
+    });
+
+    let id = IdentifiersProvider::new(
+        SystemDetector::default(),
+        CloudIdDetector::new(
+            UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
+            UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
+            fake_metadata_server.url(metadata_path),
+        ),
+    )
+    .provide()
+    .unwrap();
+
+    assert_eq!(id.cloud_instance_id, instance_id);
+
+    mock.assert_hits(1);
 }

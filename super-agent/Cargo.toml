@@ -72,7 +72,6 @@ tracing-test = { workspace = true }
 jsonwebtoken = { workspace = true }
 fs = { path = "../fs", features = ["mocks"] }
 tokio = { version = "1.37.0", features = ["rt-multi-thread", "macros"] }
-wiremock = "0.6.0"
 fake = { version = "2.9.2", features = ["derive", "http"] }
 prost = "0.12.6"
 httpmock = "0.7.0"
