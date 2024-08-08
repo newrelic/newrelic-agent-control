@@ -53,7 +53,11 @@ variable "secret_name_api" {
 }
 
 variable "secret_name_nr_api_key" {
-  default = "caos/canaries/nr_api_key-xadBYJ"
+  default = "agent_control/canaries/nr_api_key-62y4Xp"
+}
+
+variable "secret_name_organization_id" {
+  default = "agent-control/canaries/organization_id-n8BPiG"
 }
 
 variable "secret_name_docker_username" {

@@ -58,6 +58,10 @@ module "super_agent_infra" {
           "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_nr_api_key}"
         },
         {
+          "name" : "NR_ORGANIZATION_ID",
+          "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_organization_id}"
+        },
+        {
           "name" : "DOCKER_USERNAME",
           "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_docker_username}"
         },

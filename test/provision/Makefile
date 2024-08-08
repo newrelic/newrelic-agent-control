@@ -26,4 +26,3 @@ clean: terraform/backend ansible/clean
 	terraform -chdir=$(TERRAFORM_DIR) init -reconfigure && \
     terraform -chdir=$(TERRAFORM_DIR) destroy -auto-approve && \
 	rm "$(TERRAFORM_DIR)/terraform.backend.tf" "$(TERRAFORM_DIR)/caos.auto.tfvars"
-	$(MAKE) ansible/clean ANSIBLE_FOLDER=$(ANSIBLE_FOLDER)
