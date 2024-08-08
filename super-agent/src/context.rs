@@ -34,3 +34,48 @@ where
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod test {
+    use crate::context::Context;
+    use std::sync::Arc;
+    use std::sync::Mutex;
+    use std::thread;
+    use std::time::Duration;
+
+    // Test that waiting on the condvar doesn't block the context from being read by another thread.
+    #[test]
+    fn test_context_can_be_cancelled_while_waiting() {
+        let after_cancel = Arc::new(Mutex::new(()));
+        let after_cancel_clone = after_cancel.clone();
+        let ctx: Context<bool> = Context::new();
+        let ctx_clone = ctx.clone();
+        let guard = after_cancel.lock().unwrap();
+        thread::spawn(move || {
+            // wait for the wait_while to be started.
+            thread::sleep(Duration::from_secs(1));
+
+            // read the context value while other thread is waiting for the condvar
+            assert!(!*Context::get_lock_cvar(&ctx_clone).0.lock().unwrap());
+
+            // cancel the context
+            ctx_clone.cancel_all(true).unwrap();
+
+            println!("lock the context from the thread,there was no deadlock");
+
+            let _guard = after_cancel_clone.lock().unwrap();
+
+            // context still usable and unlocked after cancel
+            assert!(*Context::get_lock_cvar(&ctx_clone).0.lock().unwrap());
+        });
+
+        let (lck, cvar) = Context::get_lock_cvar(&ctx);
+        drop(cvar.wait_while(lck.lock().unwrap(), |finish| !*finish));
+
+        drop(guard);
+
+        println!("there was no deadlock");
+
+        let _guard = after_cancel.lock().unwrap();
+    }
+}
