@@ -1,0 +1,51 @@
+namespace: newrelic
+name: com.newrelic.nri-mysql
+version: 0.1.3
+on_host:
+  configs:
+    "nri-mysql":
+      description: "nri-mysql configuration"
+      type: file
+      required: false
+      default: ""
+      content_type: yaml
+      destination_path: "${nr-dep:var:infra_agent:integrations_folder}"
+  deployment_config:
+    backoff_delay:
+      description: "seconds until next retry if agent fails to start"
+      type: string
+      required: false
+      default: 20s
+    enable_file_logging:
+      description: "enable logging the on host executables' logs to files"
+      type: bool
+      required: false
+      default: false
+    nri_mysql_version:
+      description: "version of the nri-mysql"
+      type: string
+      required: true
+  dependencies:
+    infra_agent:
+      type: com.newrelic.infrastructure_agent
+      version: ">=1.4.*"
+      required: true
+  download:
+    location: "https://download.newrelic.com/infra_agent/[arch/os/os_version]/nri-mysql.tar.gz"
+    package_version: ${nr-var:nri_mysql_version}
+  install:
+    type: tar
+    artifacts:
+      nri_mysql:
+        source_path: "[inside-tar]/usr/bin/nri-mysql"
+  bootstrap:
+    global_health:
+      health:
+        interval: 5s
+        timeout: 5s
+        command:
+          exec: "nri-mysql --dry_run --config_path=${nr-var:nri-mysql}"
+    executables: [ ]
+
+
+k8s: {}
