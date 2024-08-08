@@ -9,9 +9,15 @@ pub const DEFAULT_CLIENT_TIMEOUT: Duration = Duration::from_secs(5);
 /// An enumeration of potential errors related to the HTTP client.
 #[derive(Error, Debug)]
 pub enum HttpClientError {
-    /// Represents HTTP Transport error.
+    /// Represents an internal HTTP client error.
     #[error("internal HTTP client error: `{0}`")]
+    InternalError(String),
+    /// Represents HTTP Transport error.
+    #[error("transport HTTP client error: `{0}`")]
     TransportError(String),
+    /// Represents an error in the HTTP response.
+    #[error("status code: `{0}`, Reason: `{1}`")]
+    ResponseError(u16, String),
 }
 
 /// The `HttpClient` trait defines the HTTP get interface to be implemented
@@ -57,10 +63,18 @@ impl HttpClient for HttpClientUreq {
             }
         }
 
-        Ok(req
-            .call()
-            .map_err(|e| HttpClientError::TransportError(e.to_string()))?
-            .into())
+        Ok(req.call()?.into())
+    }
+}
+
+impl From<ureq::Error> for HttpClientError {
+    fn from(value: ureq::Error) -> Self {
+        match value {
+            ureq::Error::Status(code, resp) => {
+                HttpClientError::ResponseError(code, resp.status_text().to_string())
+            }
+            ureq::Error::Transport(e) => HttpClientError::TransportError(e.to_string()),
+        }
     }
 }
 

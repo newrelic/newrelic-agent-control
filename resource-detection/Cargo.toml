@@ -17,7 +17,10 @@ bytes = "1.6.0"
 ureq = { workspace = true, features = ["http-crate"] }
 fs = { path = "../fs" }
 konst = { workspace = true }
+url = { version = "2.5.0"}
 
 [dev-dependencies]
+assert_matches = { workspace = true }
 fs = { path = "../fs", features = ["mocks"] }
 mockall = { workspace = true }
+httpmock = "0.7.0"

@@ -1,25 +1,34 @@
 //! AWS EC2 instance id detector implementation
+use super::http_client::AWSHttpClientUreq;
 use super::metadata::AWSMetadata;
-use crate::cloud::http_client::{
-    HttpClient, HttpClientError, HttpClientUreq, DEFAULT_CLIENT_TIMEOUT,
-};
+use crate::cloud::http_client::{HttpClient, HttpClientError, DEFAULT_CLIENT_TIMEOUT};
 use crate::{cloud::AWS_INSTANCE_ID, DetectError, Detector, Key, Resource, Value};
+use std::time::Duration;
 use thiserror::Error;
 
 /// The default AWS instance metadata endpoint.
 pub const AWS_IPV4_METADATA_ENDPOINT: &str =
     "http://169.254.169.254/latest/dynamic/instance-identity/document";
+/// The default AWS instance metadata token endpoint.
+pub const AWS_IPV4_METADATA_TOKEN_ENDPOINT: &str = "http://169.254.169.254/latest/api/token";
+
+const TTL_TOKEN_DEFAULT: Duration = Duration::from_secs(10);
 
 /// The `AWSDetector` struct encapsulates an HTTP client used to retrieve the instance metadata.
 pub struct AWSDetector<C: HttpClient> {
     http_client: C,
 }
 
-impl AWSDetector<HttpClientUreq> {
+impl AWSDetector<AWSHttpClientUreq> {
     /// Returns a new instance of AWSDetector
-    pub fn new(metadata_endpoint: String) -> Self {
+    pub fn new(metadata_endpoint: String, token_endpoint: String) -> Self {
         Self {
-            http_client: HttpClientUreq::new(metadata_endpoint, DEFAULT_CLIENT_TIMEOUT, None),
+            http_client: AWSHttpClientUreq::new(
+                metadata_endpoint,
+                token_endpoint,
+                TTL_TOKEN_DEFAULT,
+                DEFAULT_CLIENT_TIMEOUT,
+            ),
         }
     }
 }
@@ -76,6 +85,7 @@ where
 mod test {
     use super::*;
     use crate::cloud::http_client::test::MockHttpClientMock;
+    use assert_matches::assert_matches;
 
     #[test]
     fn detect_aws_metadata() {
@@ -137,14 +147,12 @@ mod test {
 
         let result = detector.detect();
 
-        match result {
-            Err(e) => assert_eq!(
-                "error detecting aws resources `Status code: `404` Canonical reason: `Not Found``"
-                    .to_string(),
-                e.to_string()
-            ),
-            _ => unreachable!(),
-        }
+        assert_matches!(
+            result,
+            Err(DetectError::AWSError(
+                AWSDetectorError::UnsuccessfulResponse(404, _)
+            ))
+        );
     }
 
     #[test]
@@ -163,13 +171,9 @@ mod test {
 
         let result = detector.detect();
 
-        match result {
-            Err(e) => assert_eq!(
-                "error detecting aws resources ``key must be a string at line 1 column 3``"
-                    .to_string(),
-                e.to_string()
-            ),
-            _ => unreachable!(),
-        }
+        assert_matches!(
+            result,
+            Err(DetectError::AWSError(AWSDetectorError::JsonError(_)))
+        );
     }
 }

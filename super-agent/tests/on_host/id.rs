@@ -9,9 +9,13 @@ const UNRESPOSIVE_METADATA_ENDPOINT: &str = "http://localhost:9999";
 #[test]
 #[cfg(target_family = "unix")]
 fn test_aws_cloud_id() {
+    use httpmock::Method::PUT;
+
     use crate::on_host::consts::AWS_VM_RESPONSE;
 
     let metadata_path = "/latest/meta-data/instance-id";
+    let token_path = "/token";
+    let fake_token = "fake_token";
     let instance_id = "i-123456787d725bbe7";
 
     let fake_metadata_server = MockServer::start();
@@ -21,11 +25,16 @@ fn test_aws_cloud_id() {
             .header("content-type", "application/json")
             .body(AWS_VM_RESPONSE);
     });
+    let token_mock = fake_metadata_server.mock(|when, then| {
+        when.method(PUT).path(token_path);
+        then.status(200).body(fake_token);
+    });
 
     let id = IdentifiersProvider::new(
         SystemDetector::default(),
         CloudIdDetector::new(
             fake_metadata_server.url(metadata_path),
+            fake_metadata_server.url(token_path),
             UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
             UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
         ),
@@ -36,6 +45,7 @@ fn test_aws_cloud_id() {
     assert_eq!(id.cloud_instance_id, instance_id);
 
     mock.assert_hits(1);
+    token_mock.assert_hits(1);
 }
 #[test]
 #[cfg(target_family = "unix")]
@@ -56,6 +66,7 @@ fn test_azure_cloud_id() {
     let id = IdentifiersProvider::new(
         SystemDetector::default(),
         CloudIdDetector::new(
+            UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
             UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
             fake_metadata_server.url(metadata_path),
             UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
@@ -88,6 +99,7 @@ fn test_gcp_cloud_id() {
     let id = IdentifiersProvider::new(
         SystemDetector::default(),
         CloudIdDetector::new(
+            UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
             UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
             UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
             fake_metadata_server.url(metadata_path),

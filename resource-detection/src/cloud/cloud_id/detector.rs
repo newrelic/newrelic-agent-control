@@ -3,6 +3,7 @@ use thiserror::Error;
 use tracing::warn;
 
 use crate::cloud::aws::detector::AWSDetector;
+use crate::cloud::aws::http_client::AWSHttpClientUreq;
 use crate::cloud::azure::detector::AzureDetector;
 use crate::cloud::gcp::detector::GCPDetector;
 use crate::cloud::http_client::HttpClientUreq;
@@ -21,7 +22,7 @@ pub struct CloudIdDetector<AWS: Detector, AZURE: Detector, GCP: Detector> {
 
 impl
     CloudIdDetector<
-        AWSDetector<HttpClientUreq>,
+        AWSDetector<AWSHttpClientUreq>,
         AzureDetector<HttpClientUreq>,
         GCPDetector<HttpClientUreq>,
     >
@@ -29,11 +30,12 @@ impl
     /// Returns a new instance of CloudIdDetector
     pub fn new(
         aws_metadata_endpoint: String,
+        aws_token_endpoint: String,
         azure_metadata_endpoint: String,
         gcp_metadata_endpoint: String,
     ) -> Self {
         Self {
-            aws_detector: AWSDetector::new(aws_metadata_endpoint),
+            aws_detector: AWSDetector::new(aws_metadata_endpoint, aws_token_endpoint),
             azure_detector: AzureDetector::new(azure_metadata_endpoint),
             gcp_detector: GCPDetector::new(gcp_metadata_endpoint),
         }
