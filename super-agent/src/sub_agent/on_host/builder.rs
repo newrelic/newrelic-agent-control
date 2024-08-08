@@ -11,7 +11,6 @@ use crate::event::SubAgentEvent;
 use crate::opamp::effective_config::loader::EffectiveConfigLoader;
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
-use crate::opamp::instance_id::IdentifiersProvider;
 use crate::opamp::operations::build_sub_agent_opamp;
 use crate::sub_agent::build_supervisor_or_default;
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
@@ -32,7 +31,6 @@ use crate::{
 };
 #[cfg(unix)]
 use nix::unistd::gethostname;
-use resource_detection::Detector;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
@@ -52,7 +50,6 @@ where
     hash_repository: Arc<HR>,
     effective_agent_assembler: &'a A,
     event_processor_builder: &'a E,
-    identifiers_provider: IdentifiersProvider,
     logging_path: PathBuf,
 
     // This is needed to ensure the generic type parameter G is used in the struct.
@@ -75,7 +72,6 @@ where
         hash_repository: Arc<HR>,
         effective_agent_assembler: &'a A,
         event_processor_builder: &'a E,
-        identifiers_provider: IdentifiersProvider,
         logging_path: PathBuf,
     ) -> Self {
         Self {
@@ -84,7 +80,6 @@ where
             hash_repository,
             effective_agent_assembler,
             event_processor_builder,
-            identifiers_provider,
             logging_path,
 
             _effective_config_loader: PhantomData,
@@ -141,13 +136,7 @@ where
             &self.hash_repository,
             &maybe_opamp_client,
             effective_agent_res,
-            |effective_agent| {
-                build_supervisors(
-                    &self.identifiers_provider,
-                    effective_agent,
-                    &self.logging_path,
-                )
-            },
+            |effective_agent| build_supervisors(effective_agent, &self.logging_path),
         )?;
 
         let event_processor = self.event_processor_builder.build(
@@ -170,7 +159,6 @@ where
 }
 
 fn build_supervisors(
-    identifiers_provider: &IdentifiersProvider,
     effective_agent: EffectiveAgent,
     logging_path: &Path,
 ) -> Result<Vec<SupervisorOnHost<command_supervisor::NotStarted>>, SubAgentBuilderError> {
@@ -188,8 +176,7 @@ fn build_supervisors(
     let enable_file_logging = on_host.enable_file_logging.get();
     for exec in on_host.executables {
         let restart_policy: RestartPolicy = exec.restart_policy.into();
-        let mut env = exec.env.get();
-        env.extend(get_additional_env(identifiers_provider));
+        let env = exec.env.get();
 
         let exec_data = ExecutableData::new(exec.path.get())
             .with_args(exec.args.get().into_vector())
@@ -221,19 +208,6 @@ fn get_hostname() -> String {
     return unimplemented!();
 }
 
-fn get_additional_env<D1, D2>(
-    identifiers_provider: &IdentifiersProvider<D1, D2>,
-) -> impl IntoIterator<Item = (String, String)>
-where
-    D1: Detector,
-    D2: Detector,
-{
-    identifiers_provider
-        .provide()
-        .map(|ids| vec![("NR_HOST_ID".to_string(), ids.host_id)])
-        .unwrap_or_default()
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
@@ -243,7 +217,6 @@ mod test {
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
     use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
-    use crate::opamp::instance_id::test::{MockCloudDetectorMock, MockSystemDetectorMock};
     use crate::opamp::instance_id::InstanceID;
     use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
@@ -258,9 +231,6 @@ mod test {
     use opamp_client::operation::settings::{
         AgentDescription, DescriptionValueType, StartSettings,
     };
-    use resource_detection::cloud::cloud_id::detector::CloudIdDetectorError;
-    use resource_detection::system::detector::SystemDetectorError;
-    use resource_detection::{DetectError, Resource};
     use std::collections::HashMap;
 
     #[test]
@@ -329,7 +299,6 @@ mod test {
             Arc::new(hash_repository_mock),
             &effective_agent_assembler,
             &sub_agent_event_processor_builder,
-            IdentifiersProvider::default(),
             PathBuf::default(),
         );
 
@@ -411,7 +380,6 @@ mod test {
             Arc::new(hash_repository_mock),
             &effective_agent_assembler,
             &sub_agent_event_processor_builder,
-            IdentifiersProvider::default(),
             PathBuf::default(),
         );
 
@@ -476,115 +444,5 @@ mod test {
                 ]),
             },
         }
-    }
-
-    #[test]
-    fn build_additional_env_from_system_provider_empty_cloud() {
-        let mut system_detector = MockSystemDetectorMock::default();
-        let mut cloud_detector = MockCloudDetectorMock::default();
-        let system_resource = Resource::new([(
-            "machine_id".to_string().into(),
-            "some machine id".to_string().into(),
-        )]);
-        let cloud_resource = Resource::new([]);
-
-        system_detector.should_detect(system_resource);
-        cloud_detector.should_detect(cloud_resource);
-
-        let expected = HashMap::from([("NR_HOST_ID".to_string(), "some machine id".to_string())]);
-
-        let identifiers_provider = IdentifiersProvider::new(system_detector, cloud_detector);
-        let actual = get_additional_env(&identifiers_provider)
-            .into_iter()
-            .collect();
-
-        assert_eq!(expected, actual);
-    }
-
-    #[test]
-    fn build_additional_env_from_system_provider_with_cloud() {
-        let mut system_detector = MockSystemDetectorMock::default();
-        let mut cloud_detector = MockCloudDetectorMock::default();
-        let system_resource = Resource::new([(
-            "machine_id".to_string().into(),
-            "some machine id".to_string().into(),
-        )]);
-        let cloud_resource = Resource::new([(
-            "cloud_instance_id".to_string().into(),
-            "some cloud id".to_string().into(),
-        )]);
-
-        system_detector.should_detect(system_resource);
-        cloud_detector.should_detect(cloud_resource);
-
-        let expected = HashMap::from([("NR_HOST_ID".to_string(), "some cloud id".to_string())]);
-
-        let identifiers_provider = IdentifiersProvider::new(system_detector, cloud_detector);
-        let actual = get_additional_env(&identifiers_provider)
-            .into_iter()
-            .collect();
-
-        assert_eq!(expected, actual);
-    }
-
-    #[test]
-    fn build_additional_env_with_empty_but_valid_detection() {
-        let mut system_detector = MockSystemDetectorMock::default();
-        let mut cloud_detector = MockCloudDetectorMock::default();
-        let system_resource = Resource::new([]);
-        let cloud_resource = Resource::new([]);
-
-        system_detector.should_detect(system_resource);
-        cloud_detector.should_detect(cloud_resource);
-
-        let expected = HashMap::new();
-
-        let identifiers_provider = IdentifiersProvider::new(system_detector, cloud_detector);
-        let actual = get_additional_env(&identifiers_provider)
-            .into_iter()
-            .collect();
-
-        assert_eq!(expected, actual);
-    }
-
-    #[test]
-    fn build_additional_env_with_failing_system_detection_does_not_detect_cloud() {
-        let mut system_detector = MockSystemDetectorMock::default();
-        let mut cloud_detector = MockCloudDetectorMock::default();
-        let system_detection_err =
-            DetectError::SystemError(SystemDetectorError::HostnameError("random err".into()));
-
-        system_detector.should_fail_detection(system_detection_err);
-        cloud_detector.expect_detect().never();
-
-        let expected = HashMap::from([]);
-
-        let identifiers_provider = IdentifiersProvider::new(system_detector, cloud_detector);
-        let actual = get_additional_env(&identifiers_provider)
-            .into_iter()
-            .collect();
-
-        assert_eq!(expected, actual);
-    }
-
-    #[test]
-    fn build_additional_env_with_failing_cloud_detection() {
-        let mut system_detector = MockSystemDetectorMock::default();
-        let mut cloud_detector = MockCloudDetectorMock::default();
-        let system_resource = Resource::new([]);
-        let cloud_detection_err =
-            DetectError::CloudIdError(CloudIdDetectorError::UnsuccessfulCloudIdCheck());
-
-        system_detector.should_detect(system_resource);
-        cloud_detector.should_fail_detection(cloud_detection_err);
-
-        let expected = HashMap::new();
-
-        let identifiers_provider = IdentifiersProvider::new(system_detector, cloud_detector);
-        let actual = get_additional_env(&identifiers_provider)
-            .into_iter()
-            .collect();
-
-        assert_eq!(expected, actual);
     }
 }

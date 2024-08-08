@@ -14,8 +14,6 @@ pub fn create_super_agent_config(
 ) -> PathBuf {
     let config_file_path = local_dir.join(SUPER_AGENT_CONFIG_FILE);
 
-    let mut local_file =
-        File::create(config_file_path.clone()).expect("failed to create local config file");
     let super_agent_config = format!(
         r#"
 host_id: integration-test
@@ -25,9 +23,15 @@ agents: {}
 "#,
         opamp_server_endpoint, agents
     );
-    write!(local_file, "{}", super_agent_config).unwrap();
+
+    create_file(super_agent_config, config_file_path.clone());
 
     config_file_path
+}
+
+pub fn create_file(content: String, path: PathBuf) {
+    let mut local_file = File::create(path).expect("failed to create local config file");
+    write!(local_file, "{}", content).unwrap();
 }
 
 /// Creates a sub-agent values config for the agent_id provided on the base_dir
@@ -37,9 +41,7 @@ pub fn create_sub_agent_values(agent_id: String, config: String, base_dir: PathB
     create_dir_all(agent_values_dir_path.clone()).expect("failed to create values directory");
 
     let values_file_path = agent_values_dir_path.join(VALUES_FILE);
-    let mut local_values_file =
-        File::create(values_file_path.clone()).expect("failed to create local values file");
-    write!(local_values_file, "{}", config).unwrap();
 
+    create_file(config, values_file_path.clone());
     values_file_path
 }

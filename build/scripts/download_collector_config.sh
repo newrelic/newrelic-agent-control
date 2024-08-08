@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # This script will download the nr-otel-collector config and use it to create the values.yaml sample
-COLLECTOR_VERSION="0.5.0"
+COLLECTOR_VERSION="0.8.0"
 AGENT_TYPE_VERSION="0.1.0"
 BUILD_TMP_FOLDER=build-tmp
 URL="https://raw.githubusercontent.com/newrelic/opentelemetry-collector-releases/nr-otel-collector-${COLLECTOR_VERSION}/configs"
