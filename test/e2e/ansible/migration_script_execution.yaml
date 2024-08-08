@@ -21,35 +21,21 @@
           NEW_RELIC_DOWNLOAD_URL: "https://nr-downloads-ohai-staging.s3.amazonaws.com/"
 
     - name: Install super agent and run migration
-      include_tasks: ./tasks/install_recipe.yaml
-      vars:
-        targets:
-          - super-agent
-        env_vars:
-          NEW_RELIC_API_KEY: "{{ nr_api_key }}"
-          NEW_RELIC_ACCOUNT_ID: "{{ nr_account_id | int }}"
-          NEW_RELIC_REGION: "STAGING"
-          NEW_RELIC_DOWNLOAD_URL: "https://nr-downloads-ohai-staging.s3.amazonaws.com/"
-          NR_CLI_FLEET_ENABLED: true
-          NR_CLI_HOST_MONITORING_SOURCE: newrelic
-          NR_SA_MIGRATE_INFRA_CONFIG: true
-
-    - name: Modify infra-agent type to 0.1.2
-      include_role:
-        name: super-agent-config
-      vars:
-        infra_agent_type_version: "0.1.2"
+      shell: |
+        curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh | bash \
+        && NEW_RELIC_CLI_SKIP_CORE=1 \
+        NEW_RELIC_DOWNLOAD_URL="https://nr-downloads-ohai-staging.s3.amazonaws.com/" \
+        NEW_RELIC_API_KEY={{ nr_api_key }} \
+        NEW_RELIC_ACCOUNT_ID={{ nr_account_id | int }} \
+        NEW_RELIC_REGION=STAGING \ 
+        NEW_RELIC_ORGANIZATION={{ organization_id }} \
+        /usr/local/bin/newrelic install -n super-agent -y
 
     - name: Check infra-agent values file exists
       stat:
         path: "/etc/newrelic-super-agent/fleet/agents.d/nr-infra-agent/values/values.yaml"
       register: infra_agent_values
       failed_when: not infra_agent_values.stat.exists
-
-    - name: Restart New Relic Super Agent
-      ansible.builtin.service:
-        name: newrelic-super-agent
-        state: restarted
 
     - name: Assert nr-infra-agent auto-generated file is the same as migrated
       include_tasks: ./tasks/assert_generated_file_same_as_migrated.yaml
@@ -68,10 +54,6 @@
       vars:
         generated_file_path: "/var/lib/newrelic-super-agent/auto-generated/nr-infra-agent/logging.d/logging.yml"
         migrated_file_path: "/etc/newrelic-infra/logging.d.bck/logging.yml"
-
-    - name: give it some time to restart
-      ansible.builtin.pause:
-        seconds: 20
 
     - name: Assert Super Agent and Agents are running
       include_role:
