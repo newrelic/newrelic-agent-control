@@ -21,18 +21,17 @@
           NEW_RELIC_DOWNLOAD_URL: "https://nr-downloads-ohai-staging.s3.amazonaws.com/"
 
     - name: Install super agent and run migration
-      include_tasks: ./tasks/install_recipe.yaml
-      vars:
-        targets:
-          - super-agent
-        env_vars:
-          NEW_RELIC_API_KEY: "{{ nr_api_key }}"
-          NEW_RELIC_ACCOUNT_ID: "{{ nr_account_id | int }}"
-          NEW_RELIC_REGION: "STAGING"
-          NEW_RELIC_DOWNLOAD_URL: "https://nr-downloads-ohai-staging.s3.amazonaws.com/"
-          NR_CLI_FLEET_ENABLED: true
-          NR_CLI_HOST_MONITORING_SOURCE: newrelic
-          NR_SA_MIGRATE_INFRA_CONFIG: true
+      shell: |
+        curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh | bash \
+        && NEW_RELIC_CLI_SKIP_CORE=1 \
+        NEW_RELIC_DOWNLOAD_URL="https://nr-downloads-ohai-staging.s3.amazonaws.com/" \
+        NEW_RELIC_API_KEY={{ nr_api_key }} \
+        NEW_RELIC_ACCOUNT_ID={{ nr_account_id | int }} \
+        NEW_RELIC_REGION=STAGING \ 
+        NR_CLI_FLEET_ENABLED=true \
+        NR_SA_MIGRATE_INFRA_CONFIG=true \
+        NEW_RELIC_ORGANIZATION={{ organization_id }} \
+        /usr/local/bin/newrelic install -n super-agent -y
 
     - name: Modify infra-agent type to 0.1.2
       include_role:

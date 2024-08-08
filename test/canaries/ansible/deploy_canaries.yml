@@ -4,46 +4,17 @@
   hosts: testing_hosts_linux
   become: true
   gather_facts: yes
-  vars:
-    newrelic_super_agent_version: "{{ lookup('ansible.builtin.env', 'NEWRELIC_SUPER_AGENT_VERSION') }}"
-    process_user: "root"
-
-  pre_tasks:
-    - name: Update package repositories
-      include_role:
-        name: caos.ansible_roles.package_repo_update
 
   tasks:
-    - name: Install The Super Agent
-      vars:
-
-      block:
-
-        - name: Newrelic Super Agent
-          include_role:
-            name: newrelic-super-agent
-            apply:
-              environment:
-                NRDOT_MODE: "{{ 'ROOT' if (install_mode is defined and install_mode == 'ROOT') | default(omit) }}"
-          vars:
-            repo_endpoint: "http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview"
-            target_version: "{{ newrelic_super_agent_version }}"
-
-        - name: Setup Infra Agent config
-          include_role:
-            name: infra-agent-config
-
-        - name: Setup NR Otel Collector config
-          include_role:
-            name:  nr-otel-collector-config
-
-        - name: Setup NR Super Agent config
-          include_role:
-            name: super-agent-config
-
-        - name: Restart New Relic Super Agent
-          ansible.builtin.service:
-            name: newrelic-super-agent
-            state: restarted
+    - name: guided install
+      shell: |
+        curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh | bash \
+        && NEW_RELIC_CLI_SKIP_CORE=1 \
+        NEW_RELIC_DOWNLOAD_URL="https://nr-downloads-ohai-staging.s3.amazonaws.com/" \
+        NEW_RELIC_API_KEY={{ nr_api_key }} \
+        NEW_RELIC_ACCOUNT_ID={{ nr_account_id | int }} \
+        NEW_RELIC_REGION=STAGING \ 
+        NEW_RELIC_ORGANIZATION={{ organization_id }} \
+        /usr/local/bin/newrelic install -n super-agent -y
 
 ...

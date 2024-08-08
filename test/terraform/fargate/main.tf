@@ -104,6 +104,7 @@ module "super_agent_infra" {
                   "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_account}",
                   "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_api}",
                   "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_nr_api_key}",
+                  "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_organization_id}",
                   "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_docker_username}",
                   "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_docker_password}",
                   "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_crowdstrike_client_id}",
