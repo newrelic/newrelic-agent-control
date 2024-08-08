@@ -53,5 +53,6 @@ CMD [ "sh", "-c", "\
      CMD_STRING=\"$CMD_STRING --target $ARCH_NAME-unknown-linux-musl\"; \
      CMD_STRING=\"$CMD_STRING --bin $BUILD_BIN_ENV\"; \
      CMD_STRING=\"$CMD_STRING --target-dir target-$BUILD_BIN_ENV\"; \
+     echo $CMD_STRING; \
      $CMD_STRING \
 "]
