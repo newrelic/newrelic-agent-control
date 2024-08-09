@@ -1,4 +1,4 @@
-name: 🐳 Build container images
+name: 📞 Build container images
 
 # This workflow compiles the super agent binary in all supported architectures
 # build the multi-arch image and push it to the repo packages registry.  

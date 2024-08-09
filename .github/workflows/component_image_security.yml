@@ -1,4 +1,4 @@
-name: Security image scan
+name: 📞 Security image scan
 on:
   workflow_call:
     inputs:

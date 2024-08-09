@@ -1,4 +1,4 @@
-name: .. 🚧 🐈‍⬛ Audit
+name: 📞 Rust Audit
 
 on:
   workflow_call:
