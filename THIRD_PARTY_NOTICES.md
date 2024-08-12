@@ -1085,6 +1085,13 @@ Distributed under the following license(s):
 * MIT
 
 
+## jsonptr https://crates.io/crates/jsonptr
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
 ## jsonwebtoken https://crates.io/crates/jsonwebtoken
 
 Distributed under the following license(s):
