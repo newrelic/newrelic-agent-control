@@ -1,4 +1,4 @@
-name: 🚀 💾 Packaging tests on demand
+name: ⏯️🚀💾 Packaging tests on demand
 
 on:
   workflow_dispatch:

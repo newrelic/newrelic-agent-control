@@ -1,3 +1,5 @@
+name: ⏯️🚀Release on demand
+
 on:
   workflow_dispatch:
     inputs:
@@ -5,8 +7,6 @@ on:
         description: 'Tag to release'
         required: true
 
-# See https://docs.github.com/en/actions/using-jobs/using-concurrency
-name: Release on demand
 jobs:
   upload:
     runs-on: ubuntu-latest

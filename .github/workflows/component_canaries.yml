@@ -1,4 +1,4 @@
-name: 🚀 💾 Provision canaries
+name: 📞 Provision canaries
 
 on:
   workflow_call:

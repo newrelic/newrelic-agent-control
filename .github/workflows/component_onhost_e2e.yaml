@@ -1,4 +1,4 @@
-name: OnHost E2E tests
+name: 📞 OnHost E2E tests
 
 on:
   workflow_call:

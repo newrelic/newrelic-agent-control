@@ -1,4 +1,4 @@
-name: 🚀 🧬 Test staging package with molecule action
+name: ⏯️🚀🧬 Test staging package with molecule action
 on:
   workflow_dispatch:
     inputs:

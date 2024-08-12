@@ -1,4 +1,4 @@
-name: 💥 🐤 Prune Canaries on demand
+name: ⏯️💥🐤 Prune Canaries on demand
 
 on:
   workflow_dispatch:

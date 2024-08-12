@@ -1,4 +1,4 @@
-name: . 🚀 🐧 🧾 Validate Prerelease Linux On Demand
+name: ⏯️🚀🧾 Validate Prerelease Linux
 
 on:
   workflow_dispatch:

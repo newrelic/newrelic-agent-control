@@ -1,4 +1,4 @@
-name: 🚀 💾 Provision infra and run packaging tests
+name: 📞 Provision + Packaging tests
 
 on:
   workflow_call:
