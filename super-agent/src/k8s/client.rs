@@ -503,25 +503,16 @@ pub(crate) mod test {
             read: http::Request<kube::client::Body>,
             send: mock::SendResponse<http::Response<kube::client::Body>>,
         ) {
-            let data = if read.uri().to_string().eq("/apis/newrelic.com/v1") {
-                ApiServerVerifier::get_api_resource()
-            } else if read.uri().to_string().contains("/foos?&limit=500") {
-                ApiServerVerifier::get_watch_foo_data()
-            } else if read.uri().to_string().contains("watch=true") {
-                // Empty response mean no updates
-                serde_json::json!({})
-            } else if read.uri().to_string().contains("test_name_create") {
-                ApiServerVerifier::get_create_resource()
-            } else if read.uri().to_string().contains("/deployments") {
-                ApiServerVerifier::get_deployment_data()
-            } else if read.uri().to_string().contains("/daemonsets") {
-                ApiServerVerifier::get_daemonset_data()
-            } else if read.uri().to_string().contains("/replicasets") {
-                ApiServerVerifier::get_replicaset_data()
-            } else if read.uri().to_string().contains("/statefulsets") {
-                ApiServerVerifier::get_statefulset_data()
-            } else {
-                ApiServerVerifier::get_not_found()
+            let data = match read.uri().to_string().as_str() {
+                "/apis/newrelic.com/v1" => ApiServerVerifier::get_api_resource(),
+                s if s.contains("/foos?&limit=500") => ApiServerVerifier::get_watch_foo_data(),
+                s if s.contains("watch=true") => serde_json::json!({}), // Empty response means no updates
+                s if s.contains("test_name_create") => ApiServerVerifier::get_create_resource(),
+                s if s.contains("/deployments") => ApiServerVerifier::get_deployment_data(),
+                s if s.contains("/daemonsets") => ApiServerVerifier::get_daemonset_data(),
+                s if s.contains("/replicasets") => ApiServerVerifier::get_replicaset_data(),
+                s if s.contains("/statefulsets") => ApiServerVerifier::get_statefulset_data(),
+                _ => ApiServerVerifier::get_not_found(),
             };
 
             let response = serde_json::to_vec(&data).unwrap();
