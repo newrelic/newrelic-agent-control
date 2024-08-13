@@ -61,16 +61,12 @@ impl ReflectorBuilder {
         api_resource: &ApiResource,
     ) -> Result<Reflector<DynamicObject>, K8sError> {
         trace!("Building k8s reflector for {:?}", api_resource);
-        // The api consumes the client, so it needs to be owned to allow sharing the builder.
-        let api: Api<DynamicObject> =
-            Api::default_namespaced_with(self.client.to_owned(), api_resource);
-
-        Reflector::retry_on_timeout(REFLECTOR_START_MAX_RETRIES, &|| async {
+        Reflector::retry_on_timeout(REFLECTOR_START_MAX_RETRIES, || async {
             Reflector::try_new(
-                api.clone(),
-                self.watcher_config().clone(),
+                Api::default_namespaced_with(self.client.clone(), api_resource),
+                self.watcher_config(),
                 self.start_timeout,
-                || Writer::new(api_resource.to_owned()),
+                || Writer::new(api_resource.clone()),
             )
             .await
         })
@@ -90,13 +86,10 @@ impl ReflectorBuilder {
         K: ResourceWithReflector,
     {
         trace!("Building k8s reflector for kind {}", K::KIND);
-        // Create an API instance for the resource type.
-        let api: Api<K> = Api::default_namespaced(self.client.clone());
-
-        Reflector::retry_on_timeout(REFLECTOR_START_MAX_RETRIES, &|| async {
+        Reflector::retry_on_timeout(REFLECTOR_START_MAX_RETRIES, || async {
             Reflector::try_new(
-                api.clone(),
-                self.watcher_config().clone(),
+                Api::default_namespaced(self.client.clone()),
+                self.watcher_config(),
                 self.start_timeout,
                 reflector::store::Writer::default,
             )
@@ -160,12 +153,12 @@ where
     /// is reached.
     async fn retry_on_timeout<Fut>(
         max_attempts: u32,
-        build_fn: &impl Fn() -> Fut,
+        build_fn: impl Fn() -> Fut,
     ) -> Result<Self, K8sError>
     where
         Fut: Future<Output = Result<Self, K8sError>>,
     {
-        for attempt in 1..max_attempts + 1 {
+        for attempt in 1..=max_attempts {
             match build_fn().await {
                 Err(K8sError::ReflectorTimeout(err)) => {
                     debug!("Reflector build timed-out: {err} (Attempt {attempt}/{max_attempts})",);
@@ -210,7 +203,7 @@ where
         })
     }
 
-    /// Waits until the reflector's readier is ready with the provided timeout.
+    /// Waits until the reflector's reader is ready with the provided timeout.
     async fn wait_until_reader_is_ready(
         reader: &Store<K>,
         timeout: Duration,
@@ -236,11 +229,10 @@ where
 
 #[cfg(test)]
 mod test {
-    use std::sync::{Arc, Mutex};
-
     use super::*;
     use assert_matches::assert_matches;
     use k8s_openapi::api::apps::v1::Deployment;
+    use std::sync::Arc;
     use tokio::sync::{mpsc, oneshot};
 
     async fn mocked_writer_task(_send: oneshot::Sender<()>) {
@@ -309,7 +301,11 @@ mod test {
         });
         let timeout = Duration::from_millis(500);
         let result = Reflector::wait_until_reader_is_ready(&reader, timeout).await;
-        assert!(result.is_ok(), "Expected ok, got error {:?}", result);
+        assert!(
+            result.is_ok(),
+            "Expected ok, got error {:?}",
+            result.unwrap_err()
+        );
     }
 
     #[tokio::test]
@@ -326,7 +322,7 @@ mod test {
         }
 
         let max_attempts = 5;
-        let result = Reflector::<Deployment>::retry_on_timeout(max_attempts, &|| {
+        let result = Reflector::<Deployment>::retry_on_timeout(max_attempts, || {
             always_timeout_builder(sender.clone())
         })
         .await;
@@ -354,12 +350,16 @@ mod test {
         }
 
         let max_attempts = 5;
-        let result = Reflector::<Deployment>::retry_on_timeout(max_attempts, &|| {
+        let result = Reflector::<Deployment>::retry_on_timeout(max_attempts, || {
             always_success_builder(sender.clone())
         })
         .await;
 
-        assert!(result.is_ok(), "Expected ok, got error {:?}", result);
+        assert!(
+            result.is_ok(),
+            "Expected ok, got error {:?}",
+            result.unwrap_err()
+        );
         assert_eq!(
             receiver.len(),
             1,
@@ -380,7 +380,7 @@ mod test {
         }
 
         let max_attempts = 5;
-        let result = Reflector::<Deployment>::retry_on_timeout(max_attempts, &|| {
+        let result = Reflector::<Deployment>::retry_on_timeout(max_attempts, || {
             always_fail_builder(sender.clone())
         })
         .await;
@@ -396,22 +396,15 @@ mod test {
     #[tokio::test]
     async fn test_reflector_retry_on_timeout_failure_and_then_success() {
         let (sender, receiver) = mpsc::channel(10);
-        let sender = Arc::new(sender);
+        let (sender, receiver) = (Arc::new(sender), Arc::new(receiver));
 
-        // The builder will timeout the first time and then will return a reflector
-        let first_attempt = Arc::new(Mutex::new(true));
         async fn fail_and_then_success(
             sender: Arc<mpsc::Sender<()>>,
-            first_attempt: Arc<Mutex<bool>>,
+            receiver: Arc<mpsc::Receiver<()>>,
         ) -> Result<Reflector<Deployment>, K8sError> {
             let _ = sender.send(()).await;
-            // Check if it was the first attempt and set its value to `false`
-            let mut first_attempt_guard = first_attempt.lock().unwrap();
-            let should_timeout = *first_attempt_guard;
-            *first_attempt_guard = false;
-            drop(first_attempt_guard);
-
-            if should_timeout {
+            // The first attempt should time-out
+            if receiver.len() == 1 {
                 Err::<Reflector<Deployment>, K8sError>(K8sError::ReflectorTimeout(
                     "timeout".to_string(),
                 ))
@@ -421,12 +414,16 @@ mod test {
         }
 
         let max_attempts = 10;
-        let result = Reflector::<Deployment>::retry_on_timeout(max_attempts, &|| {
-            fail_and_then_success(sender.clone(), first_attempt.clone())
+        let result = Reflector::<Deployment>::retry_on_timeout(max_attempts, || {
+            fail_and_then_success(sender.clone(), receiver.clone())
         })
         .await;
 
-        assert!(result.is_ok(), "Expected ok, got error {:?}", result);
+        assert!(
+            result.is_ok(),
+            "Expected ok, got error {:?}",
+            result.unwrap_err()
+        );
         assert_eq!(
             receiver.len(),
             2,
