@@ -146,6 +146,7 @@ impl FakeServer {
         state.effective_configs.get(&identifier).cloned()
     }
 
+    #[allow(dead_code)] // used only for onhost
     pub fn get_remote_config_status(
         &self,
         identifier: InstanceID,
