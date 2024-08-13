@@ -23,7 +23,7 @@ use tracing::{debug, error, trace};
 use super::{super::error::K8sError, resources::ResourceWithReflector};
 
 const REFLECTOR_START_TIMEOUT: Duration = Duration::from_secs(10);
-const REFLECTOR_START_MAX_RETRIES: u32 = 3;
+const REFLECTOR_START_MAX_ATTEMPTS: u32 = 3;
 
 /// Reflector builder holds the arguments to build a reflector.
 /// Its implementation allows creating a reflector for supported types.
@@ -37,16 +37,12 @@ const REFLECTOR_START_MAX_RETRIES: u32 = 3;
 /// ```
 pub struct ReflectorBuilder {
     client: Client,
-    start_timeout: Duration,
 }
 
 impl ReflectorBuilder {
     /// Returns a reflector builder, consuming both the provided client and the namespace.
     pub fn new(client: Client) -> Self {
-        ReflectorBuilder {
-            client,
-            start_timeout: REFLECTOR_START_TIMEOUT,
-        }
+        ReflectorBuilder { client }
     }
 
     /// Builds the DynamicObject reflector using the builder.
@@ -61,11 +57,11 @@ impl ReflectorBuilder {
         api_resource: &ApiResource,
     ) -> Result<Reflector<DynamicObject>, K8sError> {
         trace!("Building k8s reflector for {:?}", api_resource);
-        Reflector::retry_on_timeout(REFLECTOR_START_MAX_RETRIES, || async {
+        Reflector::retry_build_on_timeout(REFLECTOR_START_MAX_ATTEMPTS, || async {
             Reflector::try_new(
                 Api::default_namespaced_with(self.client.clone(), api_resource),
                 self.watcher_config(),
-                self.start_timeout,
+                REFLECTOR_START_TIMEOUT,
                 || Writer::new(api_resource.clone()),
             )
             .await
@@ -86,11 +82,11 @@ impl ReflectorBuilder {
         K: ResourceWithReflector,
     {
         trace!("Building k8s reflector for kind {}", K::KIND);
-        Reflector::retry_on_timeout(REFLECTOR_START_MAX_RETRIES, || async {
+        Reflector::retry_build_on_timeout(REFLECTOR_START_MAX_ATTEMPTS, || async {
             Reflector::try_new(
                 Api::default_namespaced(self.client.clone()),
                 self.watcher_config(),
-                self.start_timeout,
+                REFLECTOR_START_TIMEOUT,
                 reflector::store::Writer::default,
             )
             .await
@@ -151,7 +147,7 @@ where
 
     /// Retries the provided `build_fn` if it fails with a timeout error until it stops timing out or `max_attempts`
     /// is reached.
-    async fn retry_on_timeout<Fut>(
+    async fn retry_build_on_timeout<Fut>(
         max_attempts: u32,
         build_fn: impl Fn() -> Fut,
     ) -> Result<Self, K8sError>
@@ -322,7 +318,7 @@ mod test {
         }
 
         let max_attempts = 5;
-        let result = Reflector::<Deployment>::retry_on_timeout(max_attempts, || {
+        let result = Reflector::<Deployment>::retry_build_on_timeout(max_attempts, || {
             always_timeout_builder(sender.clone())
         })
         .await;
@@ -350,7 +346,7 @@ mod test {
         }
 
         let max_attempts = 5;
-        let result = Reflector::<Deployment>::retry_on_timeout(max_attempts, || {
+        let result = Reflector::<Deployment>::retry_build_on_timeout(max_attempts, || {
             always_success_builder(sender.clone())
         })
         .await;
@@ -380,7 +376,7 @@ mod test {
         }
 
         let max_attempts = 5;
-        let result = Reflector::<Deployment>::retry_on_timeout(max_attempts, || {
+        let result = Reflector::<Deployment>::retry_build_on_timeout(max_attempts, || {
             always_fail_builder(sender.clone())
         })
         .await;
@@ -414,7 +410,7 @@ mod test {
         }
 
         let max_attempts = 10;
-        let result = Reflector::<Deployment>::retry_on_timeout(max_attempts, || {
+        let result = Reflector::<Deployment>::retry_build_on_timeout(max_attempts, || {
             fail_and_then_success(sender.clone(), receiver.clone())
         })
         .await;
