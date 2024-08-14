@@ -31,29 +31,27 @@ variable "task_command" {
     "test/automated-run"
   ]
 }
+# Account secrets
+variable "secret_name_license" {
+  default = "agent_control/canaries/license_key-33qwzE"
+}
+
+variable "secret_name_account_id" {
+  default = "agent_control/canaries/account_id-fCpTng"
+}
+
+variable "secret_name_api_key" {
+  default = "agent_control/canaries/nr_api_key-62y4Xp"
+}
+
+variable "secret_name_organization_id" {
+  default = "agent_control/canaries/organization_id-EPEqrL"
+}
+
+####
 
 variable "secret_name_ssh" {
   default = "caos/canaries/ssh_key-UBSKNA"
-}
-
-variable "secret_name_license" {
-  default = "caos/canaries/license-f9eYwe"
-}
-
-variable "secret_name_license_canaries" {
-  default = "caos/canaries/license_canaries-1DCE1L"
-}
-
-variable "secret_name_account" {
-  default = "caos/canaries/account-kKFMGP"
-}
-
-variable "secret_name_api" {
-  default = "caos/canaries/api-9q0NPb"
-}
-
-variable "secret_name_nr_api_key" {
-  default = "caos/canaries/nr_api_key-xadBYJ"
 }
 
 variable "secret_name_docker_username" {

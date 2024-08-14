@@ -25,6 +25,10 @@ ifndef NEW_RELIC_API_KEY
 	@echo "NEW_RELIC_API_KEY variable must be provided for test/e2e"
 	exit 1
 endif
+ifndef NR_ORGANIZATION_ID
+	@echo "NR_ORGANIZATION_ID variable must be provided for test/e2e"
+	exit 1
+endif
 
 # if you want to hide OK, add ANSIBLE_DISPLAY_OK_HOSTS=NO
 	$(MAKE) ansible/dependencies ANSIBLE_FOLDER=$(ANSIBLE_FOLDER)
@@ -35,6 +39,7 @@ endif
         -e nr_api_key=$(NEW_RELIC_API_KEY) \
         -e nr_account_id=$(NEW_RELIC_ACCOUNT_ID) \
         -e repo_endpoint=$(REPOSITORY_ENDPOINT) \
+        -e organization_id=$(NR_ORGANIZATION_ID) \
         -e nr_otel_collector_otlp_endpoint=$(NR_OTEL_COLLECTOR_OTLP_ENDPOINT) \
         -e opamp_endpoint=${OPAMP_ENDPOINT} \
  		$(ANSIBLE_FOLDER)/$(ANSIBLE_PLAYBOOK)

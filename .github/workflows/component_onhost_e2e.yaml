@@ -9,9 +9,6 @@ on:
         required: true
 
     inputs:
-      TAG:
-        required: true
-        type: string
       UNIQUE_NAME:
         required: true
         type: string
@@ -25,7 +22,6 @@ on:
         default: "https://download.newrelic.com/preview"
 
 env:
-  TAG: ${{ inputs.TAG }}
   UNIQUE_NAME: ${{ inputs.UNIQUE_NAME }}
   EC2_FILTERS: ${{ inputs.EC2_FILTERS }}
 

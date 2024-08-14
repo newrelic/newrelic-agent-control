@@ -33,29 +33,27 @@ module "super_agent_infra" {
     task_container_name = var.task_container_name
     task_name_prefix = var.task_name_prefix
     task_secrets = [
-        {
-          "name" : "SSH_KEY",
-          "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_ssh}"
-        },
+        # All canaries, e2e and packaging tests points to the same account.
         {
           "name" : "NR_LICENSE_KEY",
           "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_license}"
         },
         {
-          "name" : "NR_LICENSE_KEY_CANARIES",
-          "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_license_canaries}"
-        },
-        {
           "name" : "NEW_RELIC_ACCOUNT_ID",
-          "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_account}"
+          "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_account_id}"
         },
         {
           "name" : "NEW_RELIC_API_KEY",
-          "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_api}"
+          "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_api_key}"
         },
         {
-          "name" : "NR_API_KEY",
-          "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_nr_api_key}"
+          "name" : "NR_ORGANIZATION_ID",
+          "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_organization_id}"
+        },
+        ####
+        {
+          "name" : "SSH_KEY",
+          "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_ssh}"
         },
         {
           "name" : "DOCKER_USERNAME",
@@ -96,10 +94,9 @@ module "super_agent_infra" {
                 "Resource" : [
                   "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_ssh}",
                   "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_license}",
-                  "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_license_canaries}",
-                  "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_account}",
-                  "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_api}",
-                  "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_nr_api_key}",
+                  "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_account_id}",
+                  "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_api_key}",
+                  "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_organization_id}",
                   "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_docker_username}",
                   "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_docker_password}",
                   "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_crowdstrike_client_id}",
