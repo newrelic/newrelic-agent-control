@@ -374,9 +374,9 @@ pub fn get_type_meta(obj: &DynamicObject) -> Result<TypeMeta, K8sError> {
 
 #[cfg(test)]
 pub(crate) mod test {
-    use crate::k8s::reflector::resources::ResourceWithReflector;
-
     use super::*;
+
+    use crate::k8s::reflector::resources::ResourceWithReflector;
     use k8s_openapi::api::apps::v1::{DaemonSet, Deployment};
     use k8s_openapi::serde_json;
     use kube::runtime::reflector;
@@ -422,6 +422,20 @@ pub(crate) mod test {
         );
     }
 
+    // This test checks that an unexpected api-server error response when building reflectors doesn't
+    // make the k8s client creation fail.
+    // The reflector can recover itself from api-server recoverable errors, but when hasn't been
+    // initialized, the request is not retried until it times-out.
+    // The timeout is set to 290s since greater values can cause issues
+    // (check <https://github.com/kube-rs/kube/issues/146> for details), and
+    // lower values would make the reflectors poll the cluster too often. That is the reason why the [ReflectorBuilder]
+    // includes a lower timeout for initialization and a retry mechanism.
+    #[tokio::test]
+    async fn test_client_build_success_with_temporal_deployment_api_error() {
+        // It would panic if k8s client build failed.
+        let _client = get_mocked_client(Scenario::FirstDeploymentRequestError, vec![]).await;
+    }
+
     async fn get_mocked_client(scenario: Scenario, dynamic_types: Vec<TypeMeta>) -> AsyncK8sClient {
         let (mock_service, handle) =
             mock::pair::<http::Request<kube::client::Body>, http::Response<kube::client::Body>>();
@@ -449,6 +463,7 @@ pub(crate) mod test {
 
     pub(crate) enum Scenario {
         APIResource,
+        FirstDeploymentRequestError,
     }
 
     impl ApiServerVerifier {
@@ -457,38 +472,56 @@ pub(crate) mod test {
                 match scenario {
                     Scenario::APIResource => loop {
                         let (read, send) = self.0.next_request().await.expect("service not called");
-
-                        let data = if read.uri().to_string().eq("/apis/newrelic.com/v1") {
-                            ApiServerVerifier::get_api_resource()
-                        } else if read.uri().to_string().contains("/foos?&limit=500") {
-                            ApiServerVerifier::get_watch_foo_data()
-                        } else if read.uri().to_string().contains("watch=true") {
-                            // Empty response mean no updates
-                            serde_json::json!({})
-                        } else if read.uri().to_string().contains("test_name_create") {
-                            ApiServerVerifier::get_create_resource()
-                        } else if read.uri().to_string().contains("/deployments") {
-                            ApiServerVerifier::get_deployment_data()
-                        } else if read.uri().to_string().contains("/daemonsets") {
-                            ApiServerVerifier::get_daemonset_data()
-                        } else if read.uri().to_string().contains("/replicasets") {
-                            ApiServerVerifier::get_replicaset_data()
-                        } else if read.uri().to_string().contains("/statefulsets") {
-                            ApiServerVerifier::get_statefulset_data()
-                        } else {
-                            ApiServerVerifier::get_not_found()
-                        };
-
-                        let response = serde_json::to_vec(&data).unwrap();
-
-                        send.send_response(
-                            http::Response::builder()
-                                .body(kube::client::Body::from(response))
-                                .unwrap(),
-                        );
+                        Self::send_expected_response(read, send);
                     },
+                    Scenario::FirstDeploymentRequestError => {
+                        let mut first_deployments_request = true;
+                        loop {
+                            let (read, send) =
+                                self.0.next_request().await.expect("service not called");
+
+                            if first_deployments_request
+                                && read.uri().to_string().contains("/deployments")
+                            {
+                                first_deployments_request = false;
+                                send.send_response(
+                                    http::Response::builder()
+                                        .status(500)
+                                        .body(kube::client::Body::empty())
+                                        .unwrap(),
+                                );
+                                continue;
+                            }
+                            Self::send_expected_response(read, send)
+                        }
+                    }
                 }
             })
+        }
+
+        fn send_expected_response(
+            read: http::Request<kube::client::Body>,
+            send: mock::SendResponse<http::Response<kube::client::Body>>,
+        ) {
+            let data = match read.uri().to_string().as_str() {
+                "/apis/newrelic.com/v1" => ApiServerVerifier::get_api_resource(),
+                s if s.contains("/foos?&limit=500") => ApiServerVerifier::get_watch_foo_data(),
+                s if s.contains("watch=true") => serde_json::json!({}), // Empty response means no updates
+                s if s.contains("test_name_create") => ApiServerVerifier::get_create_resource(),
+                s if s.contains("/deployments") => ApiServerVerifier::get_deployment_data(),
+                s if s.contains("/daemonsets") => ApiServerVerifier::get_daemonset_data(),
+                s if s.contains("/replicasets") => ApiServerVerifier::get_replicaset_data(),
+                s if s.contains("/statefulsets") => ApiServerVerifier::get_statefulset_data(),
+                _ => ApiServerVerifier::get_not_found(),
+            };
+
+            let response = serde_json::to_vec(&data).unwrap();
+
+            send.send_response(
+                http::Response::builder()
+                    .body(kube::client::Body::from(response))
+                    .unwrap(),
+            );
         }
 
         fn get_watch_foo_data() -> serde_json::Value {
