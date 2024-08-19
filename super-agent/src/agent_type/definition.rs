@@ -7,7 +7,7 @@ use super::{
     agent_metadata::AgentMetadata,
     error::AgentTypeError,
     restart_policy::{BackoffDelay, BackoffLastRetryInterval, MaxRetries},
-    runtime_config::{Args, Env, Runtime},
+    runtime_config::{Args, Runtime},
     runtime_config_templates::{Templateable, TEMPLATE_KEY_SEPARATOR},
     variable::definition::{VariableDefinition, VariableDefinitionTree},
 };
@@ -132,16 +132,6 @@ where
         Ok(Self {
             template: self.template,
             value: Some(value),
-        })
-    }
-}
-
-impl Templateable for TemplateableValue<Env> {
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
-        let templated_string = self.template.clone().template_with(variables)?;
-        Ok(Self {
-            template: self.template,
-            value: Some(Env(templated_string)),
         })
     }
 }
@@ -366,7 +356,7 @@ pub mod tests {
         agent_type::{
             environment::Environment,
             restart_policy::{BackoffStrategyConfig, BackoffStrategyType, RestartPolicyConfig},
-            runtime_config::Executable,
+            runtime_config::{Env, Executable},
             trivial_value::{FilePathWithContent, TrivialValue},
         },
         sub_agent::effective_agents_assembler::build_agent_type,
@@ -456,7 +446,6 @@ deployment:
     executables:
       - path: ${nr-var:bin}/otelcol
         args: "-c ${nr-var:deployment.k8s.image}"
-        env: ""
         restart_policy:
           backoff_strategy:
             type: fixed
@@ -465,7 +454,6 @@ deployment:
             last_retry_interval: 30s
       - path: ${nr-var:bin}/otelcol-gw
         args: "-c ${nr-var:deployment.k8s.image}"
-        env: ""
         restart_policy:
           backoff_strategy:
             type: linear
@@ -486,7 +474,6 @@ deployment:
     executables:
       - path: ${nr-var:bin}/otelcol
         args: "-c ${nr-var:deployment.k8s.image}"
-        env: ""
 "#;
 
     pub const RESTART_POLICY_OMITTED_FIELDS_YAML: &str = r#"
@@ -599,7 +586,7 @@ restart_policy:
                 "--config ${nr-var:config} --plugin_dir ${nr-var:integrations} --verbose ${nr-var:deployment.on_host.verbose} --logs ${nr-var:deployment.on_host.log_level}"
                     .to_string(),
             ),
-            env: TemplateableValue::from_template("".to_string()),
+            env: Env::default(),
             restart_policy: RestartPolicyConfig {
                 backoff_strategy: BackoffStrategyConfig {
                     backoff_type: TemplateableValue::from_template("${nr-var:backoff.type}".to_string()),
@@ -609,7 +596,7 @@ restart_policy:
                         "${nr-var:backoff.interval}".to_string(),
                     ),
                 },
-                restart_exit_codes: vec![],
+                restart_exit_codes: Vec::default(),
             },
             health: None,
         };
@@ -726,10 +713,7 @@ restart_policy:
                     "--config ${nr-var:config} --plugin_dir ${nr-var:integrations} --verbose ${nr-var:deployment.on_host.verbose} --logs ${nr-var:deployment.on_host.log_level}"
                         .to_string(),
             },
-            env: TemplateableValue {
-                value: Some(Env("".to_string())),
-                template: "".to_string(),
-            },
+            env: Env::default(),
             restart_policy: RestartPolicyConfig {
                 backoff_strategy: BackoffStrategyConfig {
                     backoff_type: TemplateableValue {
@@ -762,7 +746,7 @@ restart_policy:
         let exec = Executable {
             path: TemplateableValue::from_template("${nr-var:bin}/otelcol".to_string()),
             args: TemplateableValue::from_template("--verbose ${nr-var:deployment.on_host.verbose} --verbose_again ${nr-var:deployment.on_host.verbose}".to_string()),
-            env: TemplateableValue::from_template("".to_string()),
+            env: Env::default(),
             restart_policy: RestartPolicyConfig {
                 backoff_strategy: BackoffStrategyConfig {
                     backoff_type: TemplateableValue::from_template(
@@ -844,7 +828,7 @@ restart_policy:
         let exec_expected = Executable {
             path: TemplateableValue { value: Some("/etc/otelcol".to_string()), template: "${nr-var:bin}/otelcol".to_string() },
             args: TemplateableValue { value: Some(Args("--verbose true --verbose_again true".to_string())), template: "--verbose ${nr-var:deployment.on_host.verbose} --verbose_again ${nr-var:deployment.on_host.verbose}".to_string() },
-            env: TemplateableValue { value: Some(Env("".to_string())), template: "".to_string() },
+            env: Env::default(),
             restart_policy: RestartPolicyConfig {
                 backoff_strategy: BackoffStrategyConfig {
                     backoff_type: TemplateableValue {
@@ -919,7 +903,6 @@ deployment:
     executables:
       - path: /usr/bin/newrelic-infra
         args: "--config ${nr-var:config} --config2 ${nr-var:config2}"
-        env: ""
 "#;
 
     const GIVEN_NEWRELIC_INFRA_USER_CONFIG_YAML: &str = r#"

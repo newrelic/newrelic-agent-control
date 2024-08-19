@@ -204,7 +204,6 @@ deployment:
     executables:
       - path: ${deployment.on_host.path}/otelcol
         args: "-c ${deployment.on_host.args}"
-        env: ""
 "#;
 
     #[test]

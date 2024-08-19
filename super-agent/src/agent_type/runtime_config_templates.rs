@@ -5,6 +5,7 @@ use regex::Regex;
 use tracing::warn;
 
 use super::definition::Variables;
+use super::runtime_config::Env;
 use super::variable::definition::VariableDefinition;
 use super::variable::kind::Kind;
 use super::{
@@ -122,6 +123,16 @@ impl Templateable for OnHost {
                 .collect::<Result<Vec<Executable>, AgentTypeError>>()?,
             enable_file_logging: self.enable_file_logging.template_with(variables)?,
         })
+    }
+}
+
+impl Templateable for Env {
+    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+        self.0
+            .into_iter()
+            .map(|(k, v)| Ok((k, v.template_with(variables)?)))
+            .collect::<Result<HashMap<_, _>, _>>()
+            .map(Env)
     }
 }
 
@@ -423,9 +434,10 @@ mod tests {
             args: TemplateableValue::from_template(
                 "${nr-var:args} ${nr-var:config} ${nr-var:integrations}".to_string(),
             ),
-            env: TemplateableValue::from_template(
-                "MYAPP_PORT=${nr-var:env.MYAPP_PORT}".to_string(),
-            ),
+            env: Env(HashMap::from([(
+                "MYAPP_PORT".to_string(),
+                TemplateableValue::from_template("${nr-var:env.MYAPP_PORT}".to_string()),
+            )])),
             restart_policy: RestartPolicyConfig {
                 backoff_strategy: BackoffStrategyConfig {
                     backoff_type: TemplateableValue::from_template(
@@ -452,8 +464,11 @@ mod tests {
                 "--config /etc/myapp.conf config_path integration_path".to_string(),
             ))
             .with_template("${nr-var:args} ${nr-var:config} ${nr-var:integrations}".to_string()),
-            env: TemplateableValue::new(Env("MYAPP_PORT=8080".to_string()))
-                .with_template("MYAPP_PORT=${nr-var:env.MYAPP_PORT}".to_string()),
+            env: Env(HashMap::from([(
+                "MYAPP_PORT".to_string(),
+                TemplateableValue::new("8080".to_string())
+                    .with_template("${nr-var:env.MYAPP_PORT}".to_string()),
+            )])),
             restart_policy: RestartPolicyConfig {
                 backoff_strategy: BackoffStrategyConfig {
                     backoff_type: TemplateableValue::new(BackoffStrategyType::Linear)

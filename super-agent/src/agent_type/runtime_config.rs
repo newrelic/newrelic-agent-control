@@ -45,7 +45,7 @@ pub struct Executable {
 
     /// Environmental variables passed to the process.
     #[serde(default)]
-    pub env: TemplateableValue<Env>, // make it templatable, it should be aware of the value type, if templated with array, should be expanded "STAGING=true ${variable_1}" variable_1 : VERBOSE=1
+    pub env: Env,
 
     /// Defines how the executable will be restarted in case of failure.
     #[serde(default)]
@@ -65,19 +65,11 @@ impl Args {
 }
 
 #[derive(Debug, Default, Deserialize, Clone, PartialEq)]
-pub struct Env(pub String);
+pub struct Env(pub(super) HashMap<String, TemplateableValue<String>>);
 
 impl Env {
-    pub fn into_map(self) -> HashMap<String, String> {
-        self.0
-            .split_whitespace()
-            .map(|s| {
-                // FIXME: Non-existing '=' on input??
-                s.split_once('=')
-                    .map(|(k, v)| (k.to_string(), v.to_string()))
-                    .unwrap()
-            })
-            .collect()
+    pub fn get(self) -> HashMap<String, String> {
+        self.0.into_iter().map(|(k, v)| (k, v.get())).collect()
     }
 }
 
