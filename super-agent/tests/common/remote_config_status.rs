@@ -2,6 +2,7 @@ use crate::common::opamp::FakeServer;
 use newrelic_super_agent::opamp::instance_id::InstanceID;
 use std::error::Error;
 
+#[allow(dead_code)] // used only for onhost
 pub fn check_latest_remote_config_status_is_expected(
     opamp_server: &FakeServer,
     instance_id: &InstanceID,

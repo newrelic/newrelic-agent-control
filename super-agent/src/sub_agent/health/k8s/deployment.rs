@@ -5,14 +5,18 @@ use crate::k8s::utils::IntOrPercentage;
 use crate::sub_agent::health::health_checker::{
     Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
+use crate::sub_agent::health::k8s::utils::{self, check_health_for_items, flux_release_filter};
 use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec, ReplicaSet};
+use k8s_openapi::api::core::v1::PodTemplateSpec;
 use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
 use k8s_openapi::Resource as _; // Needed to access resource's KIND. e.g.: Deployment::KIND
 use std::sync::Arc;
-
-use super::utils::{self, check_health_for_items, flux_release_filter};
+use tracing::warn;
 
 const ROLLING_UPDATE: &str = "RollingUpdate";
+
+// https://github.com/kubernetes/kubernetes/blob/release-1.31/pkg/apis/apps/types.go#L443
+const DEFAULT_HASH_LABEL: &str = "pod-template-hash";
 
 pub struct K8sHealthDeployment {
     k8s_client: Arc<SyncK8sClient>,
@@ -29,8 +33,12 @@ impl HealthChecker for K8sHealthDeployment {
 
         let health_function = |deployment: &Deployment| {
             let name = client_utils::get_metadata_name(deployment)?;
+            let deployment_pod_template_spec =
+                deployment.spec.clone().map(|s| s.template).ok_or_else(|| {
+                    utils::missing_field_error(deployment, name.as_str(), ".spec.template")
+                })?;
 
-            self.latest_replica_set_for_deployment(name.as_str())
+            self.active_replica_set(name.clone(), deployment_pod_template_spec)
                 .map(|replica_set| Self::check_deployment_health(deployment, &replica_set))
                 .unwrap_or_else(|| {
                     Ok(Unhealthy::new(
@@ -221,23 +229,21 @@ impl K8sHealthDeployment {
         }
     }
 
-    // Returns the latest replica_set owned by the deployment whose name has been provided as parameter.
-    /// In Kubernetes, it is possible to have multiple ReplicaSets for a single Deployment,
-    /// especially during rollouts and updates. This function retrieves all ReplicaSets
-    /// associated with the specified Deployment and returns the newest one based on the
-    /// creation timestamp.
-    fn latest_replica_set_for_deployment(&self, deployment_name: &str) -> Option<Arc<ReplicaSet>> {
+    /// This function retrieves all ReplicaSets associated with the specified Deployment and
+    /// returns the used one comparing ownership, timestamps and podTemplate.
+    /// Implementing https://github.com/kubernetes/kubernetes/blob/release-1.31/pkg/controller/deployment/util/deployment_util.go#L612
+    fn active_replica_set(
+        &self,
+        deployment_name: String,
+        deployment_pod_template: PodTemplateSpec,
+    ) -> Option<Arc<ReplicaSet>> {
         // Filter the list of ReplicaSets referencing to the deployment
         let mut replica_sets: Vec<Arc<ReplicaSet>> = self
             .k8s_client
             .list_replica_set()
             .into_iter()
-            .filter(|rs| match &rs.metadata.owner_references {
-                Some(owner_refereces) => owner_refereces
-                    .iter()
-                    .any(|owner| owner.kind == Deployment::KIND && owner.name == deployment_name),
-                None => false,
-            })
+            .filter(|rs| check_ownership(deployment_name.clone(), rs))
+            .filter(|rs| check_pod_template(deployment_pod_template.clone(), rs))
             .collect();
 
         // Sort ReplicaSets by creation timestamp in descending order and select the newest one.
@@ -251,8 +257,46 @@ impl K8sHealthDeployment {
     }
 }
 
+fn check_ownership(deployment_name: String, rs: &Arc<ReplicaSet>) -> bool {
+    if let Some(owner_references) = &rs.metadata.owner_references {
+        return owner_references
+            .iter()
+            .any(|owner| owner.kind == Deployment::KIND && owner.name == deployment_name);
+    }
+    false
+}
+
+fn check_pod_template(deployment_pod_template: PodTemplateSpec, rs: &Arc<ReplicaSet>) -> bool {
+    let deployment_pod_template = remove_hash_label_from_template(&deployment_pod_template);
+
+    if let Some(specs) = rs.spec.clone() {
+        if let Some(rs_template) = specs.clone().template {
+            return deployment_pod_template == remove_hash_label_from_template(&rs_template);
+        }
+    }
+
+    warn!(
+        "the ReplicaSet/{:?} is missing the spec.template field",
+        rs.metadata.name
+    );
+    false
+}
+
+// Implementing https://github.com/kubernetes/kubernetes/blob/release-1.31/pkg/controller/deployment/util/deployment_util.go#L603
+fn remove_hash_label_from_template(pod_template_spec: &PodTemplateSpec) -> PodTemplateSpec {
+    let mut tmp = pod_template_spec.clone();
+
+    if let Some(metadata) = tmp.metadata.as_mut() {
+        if let Some(labels) = metadata.labels.as_mut() {
+            labels.remove(DEFAULT_HASH_LABEL);
+        };
+    };
+    tmp
+}
+
 #[cfg(test)]
 mod test {
+    use std::collections::BTreeMap;
     use std::str::FromStr;
 
     use super::*;
@@ -262,9 +306,10 @@ mod test {
     };
     use chrono::{DateTime, Utc};
     use k8s_openapi::api::apps::v1::{
-        Deployment, DeploymentSpec, DeploymentStatus, DeploymentStrategy, ReplicaSetStatus,
-        RollingUpdateDeployment,
+        Deployment, DeploymentSpec, DeploymentStatus, DeploymentStrategy, ReplicaSetSpec,
+        ReplicaSetStatus, RollingUpdateDeployment,
     };
+    use k8s_openapi::api::core::v1::PodSpec;
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::{ObjectMeta, OwnerReference, Time};
 
     #[test]
@@ -519,12 +564,13 @@ mod test {
     }
 
     #[test]
-    fn test_latest_replica_for_deployment() {
+    fn test_latest_and_correct_replica_for_deployment() {
         const DEPLOYMENT_NAME: &str = "deployment-name";
 
         struct TestCase {
             name: &'static str,
             replica_sets: Vec<Arc<ReplicaSet>>,
+            deployment_pod_template_spec: PodTemplateSpec,
             expected_rs_name: Option<String>,
         }
 
@@ -543,7 +589,10 @@ mod test {
                     release_name: "release-name".to_string(),
                 };
 
-                let result = health_checker.latest_replica_set_for_deployment(DEPLOYMENT_NAME);
+                let result = health_checker.active_replica_set(
+                    DEPLOYMENT_NAME.to_string(),
+                    self.deployment_pod_template_spec,
+                );
                 assert_eq!(
                     result.map(|rs| rs.metadata.clone().name.unwrap()),
                     expected,
@@ -555,11 +604,17 @@ mod test {
         let test_cases = [
             TestCase {
                 name: "No replica-sets",
+                deployment_pod_template_spec: PodTemplateSpec {
+                    ..Default::default()
+                },
                 replica_sets: Vec::new(),
                 expected_rs_name: None,
             },
             TestCase {
-                name: "No matching replica-set",
+                name: "No owner matching replica-set",
+                deployment_pod_template_spec: PodTemplateSpec {
+                    ..Default::default()
+                },
                 replica_sets: vec![
                     Arc::new(test_util_create_replica_set(
                         "no-matching-kind",
@@ -578,7 +633,10 @@ mod test {
                 expected_rs_name: None,
             },
             TestCase {
-                name: "Only one matching",
+                name: "Only one rs matching",
+                deployment_pod_template_spec: PodTemplateSpec {
+                    ..Default::default()
+                },
                 replica_sets: vec![
                     Arc::new(test_util_create_replica_set(
                         "no-matching-name",
@@ -596,7 +654,21 @@ mod test {
                 expected_rs_name: Some("matching".to_string()),
             },
             TestCase {
-                name: "Matching latest",
+                name: "Matching correct template only",
+                deployment_pod_template_spec: PodTemplateSpec {
+                    spec: Some(PodSpec {
+                        active_deadline_seconds: Some(15),
+                        ..Default::default()
+                    }),
+                    metadata: Some(ObjectMeta {
+                        labels: Some(BTreeMap::from([
+                            ("key".to_string(), "value".to_string()),
+                            // This is ignored
+                            (DEFAULT_HASH_LABEL.to_string(), "changed".to_string()),
+                        ])),
+                        ..Default::default()
+                    }),
+                },
                 replica_sets: vec![
                     Arc::new(test_util_create_replica_set(
                         "matching-1",
@@ -612,16 +684,51 @@ mod test {
                         "no-matching-name",
                         None,
                     )),
-                    Arc::new(test_util_create_replica_set(
+                    // This is matching because the podTemplate is the same but the timestamp is newer
+                    Arc::new(test_util_create_replica_set_with_pod_template_specs(
                         "matching-2",
                         Deployment::KIND,
                         DEPLOYMENT_NAME,
                         Some(Time(
                             DateTime::<Utc>::from_str("2024-05-27 10:00:00 +00:00").unwrap(),
                         )),
+                        PodTemplateSpec {
+                            spec: Some(PodSpec {
+                                active_deadline_seconds: Some(15),
+                                ..Default::default()
+                            }),
+                            metadata: Some(ObjectMeta {
+                                labels: Some(BTreeMap::from([
+                                    ("key".to_string(), "value".to_string()),
+                                    // This is ignored
+                                    (
+                                        DEFAULT_HASH_LABEL.to_string(),
+                                        "different-value".to_string(),
+                                    ),
+                                ])),
+                                ..Default::default()
+                            }),
+                        },
                     )),
-                    Arc::new(test_util_create_replica_set(
+                    // This is not matching because the podTemplate is the same but the timestamp is older
+                    Arc::new(test_util_create_replica_set_with_pod_template_specs(
                         "matching-3",
+                        Deployment::KIND,
+                        DEPLOYMENT_NAME,
+                        Some(Time(
+                            DateTime::<Utc>::from_str("2024-05-27 9:45:00 +00:00").unwrap(),
+                        )),
+                        PodTemplateSpec {
+                            spec: Some(PodSpec {
+                                active_deadline_seconds: Some(15),
+                                ..Default::default()
+                            }),
+                            ..Default::default()
+                        },
+                    )),
+                    // This is not matching because the podTemplate is not the same
+                    Arc::new(test_util_create_replica_set(
+                        "matching-4",
                         Deployment::KIND,
                         DEPLOYMENT_NAME,
                         Some(Time(
@@ -871,6 +978,22 @@ mod test {
         owner_name: &str,
         creation_timestamp: Option<Time>,
     ) -> ReplicaSet {
+        test_util_create_replica_set_with_pod_template_specs(
+            name,
+            owner_kind,
+            owner_name,
+            creation_timestamp,
+            PodTemplateSpec::default(),
+        )
+    }
+
+    fn test_util_create_replica_set_with_pod_template_specs(
+        name: &str,
+        owner_kind: &str,
+        owner_name: &str,
+        creation_timestamp: Option<Time>,
+        pod_template_spec: PodTemplateSpec,
+    ) -> ReplicaSet {
         ReplicaSet {
             metadata: ObjectMeta {
                 name: Some(name.to_string()),
@@ -882,6 +1005,10 @@ mod test {
                 creation_timestamp,
                 ..Default::default()
             },
+            spec: Some(ReplicaSetSpec {
+                template: Some(pod_template_spec),
+                ..Default::default()
+            }),
             ..Default::default()
         }
     }
