@@ -32,7 +32,9 @@ deployment:
     executables:
       - path: /usr/bin/newrelic-infra
         args: "--config=${nr-var:config_agent}"
-        env: "NRIA_PLUGIN_DIR=${nr-var:config_ohis} NRIA_LOGGING_CONFIGS_DIR=${nr-var:logging}"
+        env:
+          NRIA_PLUGIN_DIR: "${nr-var:config_ohis}"
+          NRIA_LOGGING_CONFIGS_DIR: "${nr-var:logging}"
         restart_policy:
           backoff_strategy:
             type: fixed

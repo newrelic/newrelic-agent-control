@@ -43,7 +43,6 @@ deployment:
     executables:
       - path: /usr/bin/nr-otel-collector
         args: "--config=${nr-var:config} --feature-gates=-pkg.translator.prometheus.NormalizeName"
-        env: ""
         restart_policy:
           backoff_strategy:
             type: fixed
