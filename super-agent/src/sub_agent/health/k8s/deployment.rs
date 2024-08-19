@@ -257,11 +257,11 @@ impl K8sHealthDeployment {
     }
 }
 
-fn check_ownership(deployment_name: &String, rs: &Arc<ReplicaSet>) -> bool {
+fn check_ownership(deployment_name: &str, rs: &Arc<ReplicaSet>) -> bool {
     if let Some(owner_references) = &rs.metadata.owner_references {
         return owner_references
             .iter()
-            .any(|owner| owner.kind == Deployment::KIND && &owner.name == deployment_name);
+            .any(|owner| owner.kind == Deployment::KIND && owner.name == deployment_name);
     }
     false
 }
