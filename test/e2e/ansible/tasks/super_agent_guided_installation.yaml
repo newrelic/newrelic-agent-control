@@ -1,0 +1,22 @@
+---
+
+# TODO: replace "tasks/install.yaml" usages with "tasks/super_agent_guided_installation.yaml"
+# TODO: Check if install_recipe supports all needed variables and use it instead.
+# TODO: make NEWRELIC_DOWNLOAD_URL configurable if it is really needed
+- name: Execute super-agent guided install
+  shell: |
+    curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh | bash \
+    && NEW_RELIC_CLI_SKIP_CORE=1 \
+    NEW_RELIC_DOWNLOAD_URL="https://nr-downloads-ohai-staging.s3.amazonaws.com/" \
+    NEW_RELIC_API_KEY={{ nr_api_key }} \
+    NEW_RELIC_ACCOUNT_ID={{ nr_account_id | int }} \
+    NEW_RELIC_REGION=STAGING \
+    NEW_RELIC_ORGANIZATION={{ organization_id }} \
+    /usr/local/bin/newrelic install -n super-agent -y
+
+- name: Assert service status
+  include_role:
+    name: caos.ansible_roles.assert_service_status
+  vars:
+    services_running:
+      - "newrelic-super-agent.service"

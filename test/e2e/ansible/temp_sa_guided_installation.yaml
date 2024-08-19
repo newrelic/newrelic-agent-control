@@ -1,0 +1,15 @@
+---
+# TODO: Playbook to check that ./tasks/super_agent_guided_installation.yaml
+# works as expected. Can be removed when it replaces ./tasks/install.yaml
+- name: Testing super-agent guided installation
+  hosts: testing_hosts_linux
+  become: true
+  gather_facts: yes
+
+  tasks:
+
+    - name: Cleanup
+      include_tasks: ./tasks/clean_all.yaml
+
+    - name:
+      include_tasks: ./tasks/super_agent_guided_installation.yaml
