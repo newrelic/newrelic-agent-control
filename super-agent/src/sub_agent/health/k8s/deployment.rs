@@ -5,17 +5,17 @@ use crate::k8s::utils::IntOrPercentage;
 use crate::sub_agent::health::health_checker::{
     Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
+use crate::sub_agent::health::k8s::utils::{self, check_health_for_items, flux_release_filter};
 use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec, ReplicaSet};
 use k8s_openapi::api::core::v1::PodTemplateSpec;
 use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
 use k8s_openapi::Resource as _; // Needed to access resource's KIND. e.g.: Deployment::KIND
 use std::sync::Arc;
-
-use super::utils::{self, check_health_for_items, flux_release_filter};
+use tracing::warn;
 
 const ROLLING_UPDATE: &str = "RollingUpdate";
 
-// https://github.com/kubernetes/kubernetes/blob/v1.30.3/pkg/apis/apps/types.go#L443
+// https://github.com/kubernetes/kubernetes/blob/release-1.31/pkg/apis/apps/types.go#L443
 const DEFAULT_HASH_LABEL: &str = "pod-template-hash";
 
 pub struct K8sHealthDeployment {
@@ -38,7 +38,7 @@ impl HealthChecker for K8sHealthDeployment {
                     utils::missing_field_error(deployment, name.as_str(), ".spec.template")
                 })?;
 
-            self.replica_set_for_deployment(name.clone(), deployment_pod_template_spec)
+            self.active_replica_set(name.clone(), deployment_pod_template_spec)
                 .map(|replica_set| Self::check_deployment_health(deployment, &replica_set))
                 .unwrap_or_else(|| {
                     Ok(Unhealthy::new(
@@ -231,36 +231,19 @@ impl K8sHealthDeployment {
 
     /// This function retrieves all ReplicaSets associated with the specified Deployment and
     /// returns the used one comparing ownership, timestamps and podTemplate.
-    /// Implementing https://github.com/kubernetes/kubernetes/blob/60c4c2b2521fb454ce69dee737e3eb91a25e0535/pkg/controller/deployment/util/deployment_util.go#L613
-    fn replica_set_for_deployment(
+    /// Implementing https://github.com/kubernetes/kubernetes/blob/release-1.31/pkg/controller/deployment/util/deployment_util.go#L612
+    fn active_replica_set(
         &self,
         deployment_name: String,
-        deployment_pod_template_spec: PodTemplateSpec,
+        deployment_pod_template: PodTemplateSpec,
     ) -> Option<Arc<ReplicaSet>> {
         // Filter the list of ReplicaSets referencing to the deployment
         let mut replica_sets: Vec<Arc<ReplicaSet>> = self
             .k8s_client
             .list_replica_set()
             .into_iter()
-            .filter(|rs| match &rs.metadata.owner_references {
-                Some(owner_references) => owner_references
-                    .iter()
-                    .any(|owner| owner.kind == Deployment::KIND && owner.name == deployment_name),
-                None => false,
-            })
-            .filter(|rs| {
-                let rs_pod_template_spec = remove_hash_label_from_template(
-                    &rs.spec
-                        .clone()
-                        .unwrap_or_default()
-                        .template
-                        .unwrap_or_default(),
-                );
-                let deployment_pod_template_spec =
-                    remove_hash_label_from_template(&deployment_pod_template_spec);
-
-                deployment_pod_template_spec == rs_pod_template_spec
-            })
+            .filter(|rs| check_ownership(deployment_name.clone(), rs))
+            .filter(|rs| check_pod_template(deployment_pod_template.clone(), rs))
             .collect();
 
         // Sort ReplicaSets by creation timestamp in descending order and select the newest one.
@@ -274,7 +257,32 @@ impl K8sHealthDeployment {
     }
 }
 
-// Implementing https://github.com/kubernetes/kubernetes/blob/60c4c2b2521fb454ce69dee737e3eb91a25e0535/pkg/controller/deployment/util/deployment_util.go#L603
+fn check_ownership(deployment_name: String, rs: &Arc<ReplicaSet>) -> bool {
+    if let Some(owner_references) = &rs.metadata.owner_references {
+        return owner_references
+            .iter()
+            .any(|owner| owner.kind == Deployment::KIND && owner.name == deployment_name);
+    }
+    false
+}
+
+fn check_pod_template(deployment_pod_template: PodTemplateSpec, rs: &Arc<ReplicaSet>) -> bool {
+    let deployment_pod_template = remove_hash_label_from_template(&deployment_pod_template);
+
+    if let Some(specs) = rs.spec.clone() {
+        if let Some(rs_template) = specs.clone().template {
+            return deployment_pod_template == remove_hash_label_from_template(&rs_template);
+        }
+    }
+
+    warn!(
+        "the ReplicaSet/{:?} is missing the spec.template field",
+        rs.metadata.name
+    );
+    false
+}
+
+// Implementing https://github.com/kubernetes/kubernetes/blob/release-1.31/pkg/controller/deployment/util/deployment_util.go#L603
 fn remove_hash_label_from_template(pod_template_spec: &PodTemplateSpec) -> PodTemplateSpec {
     let mut tmp = pod_template_spec.clone();
 
@@ -581,7 +589,7 @@ mod test {
                     release_name: "release-name".to_string(),
                 };
 
-                let result = health_checker.replica_set_for_deployment(
+                let result = health_checker.active_replica_set(
                     DEPLOYMENT_NAME.to_string(),
                     self.deployment_pod_template_spec,
                 );
