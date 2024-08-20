@@ -2,8 +2,9 @@
 
 ## Requirements
 - Vagrant (+Parallels and [parallels plugin](https://kb.parallels.com/122843) for Mac M1/M2).
-- Ansible `brew install ansible`
-- The newrelic install role requires the following collections: `ansible-galaxy collection install ansible.windows ansible.utils`.
+- Ansible `brew install ansible`.
+- The ansible playbooks for testing use the [New Relic Ansible Role](https://github.com/newrelic/ansible-install) under the hood, make sure you
+  have the corresponding requirements installed: `ansible-galaxy collection install ansible.windows ansible.utils`.
 
 ## Set up local environment
 
@@ -20,6 +21,8 @@ Vagrant.configure("2") do |config|
   end
 end
 ```
+
+The Vagrant VM can be launched using `vagrant up` from the same folder where the `Vagrantfile` was placed. Check out [Vagrant's getting started](https://developer.hashicorp.com/vagrant/tutorials/getting-started) for details.
 
 Get the ssh-config to connect to the VM and store it a location of your choice (`/path/to/vagrant-ssh-config`):
 
@@ -60,10 +63,6 @@ You can check connectivity to the VM using:
 $ ansible all -i /path/to/your/inventory.yml -m ping
 ```
 
-## Requirements
-The newrelic.install role requires the following collections:
-`ansible-galaxy collection install ansible.windows ansible.utils`
-
 ## Execution
 ```sh
 make test/e2e \
@@ -76,4 +75,4 @@ make test/e2e \
   ANSIBLE_PLAYBOOK=test.yaml
 ```
 
-You can customize `ANSIBLE_PLAYBOOK` to to execute one of the testing playbooks only. E.g.: `migration_script_execution.yaml`.
+You can customize `ANSIBLE_PLAYBOOK` to execute one of the testing playbooks only. E.g.: `migration_script_execution.yaml`.
