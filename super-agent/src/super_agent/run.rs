@@ -35,7 +35,7 @@ pub struct BasePaths {
 }
 
 impl BasePaths {
-    pub(crate) fn new(super_agent_local_config: String) -> Self {
+    pub fn new(super_agent_local_config: String) -> Self {
         Self {
             super_agent_local_config: PathBuf::from(super_agent_local_config),
             local_dir: PathBuf::from(SUPER_AGENT_LOCAL_DATA_DIR),
@@ -84,9 +84,13 @@ impl SuperAgentRunner {
         let opamp_http_builder = match value.opamp.as_ref() {
             Some(opamp_config) => {
                 debug!("OpAMP configuration found, creating an OpAMP client builder");
+
                 let token_retriever = Arc::new(
-                    TokenRetrieverImpl::try_from(opamp_config.clone())
-                        .inspect_err(|err| error!(error_mgs=%err,"Building token retriever"))?,
+                    TokenRetrieverImpl::try_build(
+                        opamp_config.clone().auth_config,
+                        value.base_paths.clone(),
+                    )
+                    .inspect_err(|err| error!(error_mgs=%err,"Building token retriever"))?,
                 );
 
                 let http_builder =

@@ -1,6 +1,5 @@
 use crate::on_host::tools::global_logger::init_logger;
 use newrelic_super_agent::event::channel::pub_sub;
-use newrelic_super_agent::super_agent::config_patcher::ConfigPatcher;
 use newrelic_super_agent::super_agent::config_storer::loader_storer::SuperAgentConfigLoader;
 use newrelic_super_agent::super_agent::config_storer::store::SuperAgentConfigStore;
 use newrelic_super_agent::super_agent::defaults::SUPER_AGENT_CONFIG_FILE;
@@ -20,11 +19,7 @@ pub fn start_super_agent_with_custom_config(base_paths: BasePaths) {
     );
     let config_storer = SuperAgentConfigStore::new(Arc::new(super_agent_repository));
 
-    let mut super_agent_config = config_storer.load().unwrap();
-
-    let config_patcher =
-        ConfigPatcher::new(base_paths.local_dir.clone(), base_paths.log_dir.clone());
-    config_patcher.patch(&mut super_agent_config);
+    let super_agent_config = config_storer.load().unwrap();
 
     let run_config = SuperAgentRunConfig {
         opamp: super_agent_config.opamp,

@@ -15,7 +15,6 @@ use crate::{
     logging::config::{FileLoggerGuard, LoggingError},
     super_agent::{
         config::SuperAgentConfigError,
-        config_patcher::ConfigPatcher,
         config_storer::{loader_storer::SuperAgentConfigLoader, store::SuperAgentConfigStore},
         run::{BasePaths, SuperAgentRunConfig},
     },
@@ -117,7 +116,7 @@ impl Cli {
         // In both K8s and onHost we read here the super-agent config that is used to bootstrap the SA from file
         // In the K8s such config is used create the k8s client to create the storer that reads configs from configMaps
         // The real configStores are created in the run fn, the onhost reads file, the k8s one reads configMaps
-        let mut super_agent_config = SuperAgentConfigStore::new(Arc::new(super_agent_repository))
+        let super_agent_config = SuperAgentConfigStore::new(Arc::new(super_agent_repository))
             .load()
             .map_err(|err| {
                 CliError::LoaderError(
@@ -129,11 +128,9 @@ impl Cli {
                 )
             })?;
 
-        let config_patcher =
-            ConfigPatcher::new(base_paths.local_dir.clone(), base_paths.log_dir.clone());
-        config_patcher.patch(&mut super_agent_config);
-
-        let file_logger_guard = super_agent_config.log.try_init()?;
+        let file_logger_guard = super_agent_config
+            .log
+            .try_init(base_paths.log_dir.clone())?;
         info!("{}", binary_metadata());
         info!("Starting NewRelic Super Agent with config '{}'", cli.config);
 
