@@ -1,0 +1,22 @@
+---
+
+- name: Fleet API Delete a Fleet
+  include_role:
+    name: caos.ansible_roles.graphql_request
+    apply:
+      become: false
+  vars:
+    - graphql_query: |
+        mutation DeleteFleet {
+            deleteFleet(fleetGuid: "{{ delete_fleet.fleet_guid }}", accountId: {{ delete_fleet.account_id }}) 
+              fleetGuid
+          }
+        }
+
+
+- name: fail if errors are present
+  fail:
+    msg: "error creating configuration revision: {{ response | community.general.json_query('json.errors[*].message') | join(', ') }}"
+  when: '"errors" in response.json'
+
+...

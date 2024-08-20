@@ -1,0 +1,63 @@
+---
+- name: Test create deployment
+  hosts: testing_hosts_linux
+  become: true
+  gather_facts: yes
+  no_log: false
+
+  tasks:
+    - name: set e2e run name
+      ansible.builtin.set_fact: {"e2e_run_name": "sa-caos-e2e-{{ lookup('community.general.random_string', override_all=hex_chars, length=22) }}"}
+      vars:
+        # sets accepted tokens for generated string
+        hex_chars: '0123456789ABCDEF'
+
+    - name: create fleet
+      include_role:
+        name: fleet_api_request
+      vars:
+        create_fleet:
+          account_id: "{{ nr_account_id | int }}"
+          name: "{{ e2e_run_name }}"
+          entity_type: "HOST"
+          fleet_guid_fact: "fleet_guid"
+
+    # TODO: mocked entity GUID that should come from NROne
+    - name: set mocked entity guid
+      ansible.builtin.set_fact: {"entity_guid": "MTAxNTQyOXxOUjF8RkxFRVR8MjIx"}
+
+    # TODO: mocked configurations to attach to the deployment later should come from created/retrieved ones
+    - name: set mocked configurations
+      ansible.builtin.set_fact: {"configurations": [{"revision_number":1, "configuration_id":83}]}
+
+    - name: deploy fleet add entity and configurations
+      include_role:
+        name: fleet_api_request
+      vars:
+        deploy_fleet:
+          account_id: "{{ nr_account_id | int }}"
+          fleet_guid: "{{ fleet_guid }}"
+          name: "{{ e2e_run_name }}"
+          configurations: "{{ configurations }}"
+          add_entity_guid: "{{ entity_guid }}"
+
+    # We need to remove all entities from the fleet in order to be able to delete it.
+    - name: deploy fleet remove entity
+      include_role:
+        name: fleet_api_request
+      vars:
+        deploy_fleet:
+          account_id: "{{ nr_account_id | int }}"
+          fleet_guid: "{{ fleet_guid }}"
+          name: "{{ e2e_run_name }}"
+          remove_entity_guid: "{{ entity_guid }}"
+
+    - name: delete fleet
+      include_role:
+        name: fleet_api_request
+      vars:
+        deploy_fleet:
+          account_id: "{{ nr_account_id | int }}"
+          fleet_guid: "{{ fleet_guid }}"
+          name: "{{ e2e_run_name }}"
+          remove_entity_guid: "{{ entity_guid }}"
