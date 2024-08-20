@@ -242,8 +242,8 @@ impl K8sHealthDeployment {
             .k8s_client
             .list_replica_set()
             .into_iter()
-            .filter(|rs| check_ownership(deployment_name.clone(), rs))
-            .filter(|rs| check_pod_template(deployment_pod_template.clone(), rs))
+            .filter(|rs| check_ownership(&deployment_name, rs))
+            .filter(|rs| check_pod_template(&deployment_pod_template, rs))
             .collect();
 
         // Sort ReplicaSets by creation timestamp in descending order and select the newest one.
@@ -257,7 +257,7 @@ impl K8sHealthDeployment {
     }
 }
 
-fn check_ownership(deployment_name: String, rs: &Arc<ReplicaSet>) -> bool {
+fn check_ownership(deployment_name: &str, rs: &Arc<ReplicaSet>) -> bool {
     if let Some(owner_references) = &rs.metadata.owner_references {
         return owner_references
             .iter()
@@ -266,12 +266,12 @@ fn check_ownership(deployment_name: String, rs: &Arc<ReplicaSet>) -> bool {
     false
 }
 
-fn check_pod_template(deployment_pod_template: PodTemplateSpec, rs: &Arc<ReplicaSet>) -> bool {
-    let deployment_pod_template = remove_hash_label_from_template(&deployment_pod_template);
+fn check_pod_template(deployment_pod_template: &PodTemplateSpec, rs: &Arc<ReplicaSet>) -> bool {
+    let deployment_pod_template = remove_hash_label_from_template(deployment_pod_template);
 
-    if let Some(specs) = rs.spec.clone() {
-        if let Some(rs_template) = specs.clone().template {
-            return deployment_pod_template == remove_hash_label_from_template(&rs_template);
+    if let Some(specs) = &rs.spec {
+        if let Some(rs_template) = &specs.template {
+            return deployment_pod_template == remove_hash_label_from_template(rs_template);
         }
     }
 
