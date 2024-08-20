@@ -14,8 +14,22 @@
         NEW_RELIC_DOWNLOAD_URL="https://nr-downloads-ohai-staging.s3.amazonaws.com/" \
         NEW_RELIC_API_KEY={{ nr_api_key }} \
         NEW_RELIC_ACCOUNT_ID={{ nr_account_id | int }} \
-        NEW_RELIC_REGION=STAGING \ 
+        NEW_RELIC_REGION=STAGING \
         NEW_RELIC_ORGANIZATION={{ organization_id }} \
         /usr/local/bin/newrelic install -n super-agent -y
+
+    # ProcessSample ingests too much data. We'll disable it for now, until we have clear the amount of data we are ingesting
+    # and if it's ok with the account we are using.
+    - name: disable process_sampler in the Infra Agent
+      shell: |
+        sed -i 's/enable_process_metrics: true/enable_process_metrics: false/' /etc/newrelic-super-agent/fleet/agents.d/nr-infra-agent/values/values.yaml
+      ignore_errors: yes
+
+    - name: restart the Agent Control
+      include_role:
+        name: caos.ansible_roles.service_status
+      vars:
+        service_name: newrelic-super-agent
+        action: "restart"
 
 ...
