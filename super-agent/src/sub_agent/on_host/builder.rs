@@ -188,7 +188,7 @@ fn build_supervisors(
     let enable_file_logging = on_host.enable_file_logging.get();
     for exec in on_host.executables {
         let restart_policy: RestartPolicy = exec.restart_policy.into();
-        let mut env = exec.env.get().into_map();
+        let mut env = exec.env.get();
         env.extend(get_additional_env(identifiers_provider));
 
         let exec_data = ExecutableData::new(exec.path.get())

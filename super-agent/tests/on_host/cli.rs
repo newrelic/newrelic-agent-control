@@ -173,7 +173,6 @@ deployment:
     executables:
       - path: "${nr-var:cmd}"
         args: ""
-        env: ""
         restart_policy:
           backoff_strategy:
             type: fixed

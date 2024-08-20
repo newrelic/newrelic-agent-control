@@ -13,13 +13,13 @@ variables:
       description: "map of YAML configs for the OHIs"
       type: map[string]file
       required: false
-      default: { }
+      default: {}
       file_path: "integrations.d"
     config_logging:
       description: "map of YAML config for logging"
       type: map[string]file
       required: false
-      default: { }
+      default: {}
       file_path: "logging.d"
     backoff_delay:
       description: "seconds until next retry if agent fails to start"
@@ -42,7 +42,11 @@ deployment:
     executables:
       - path: /usr/bin/newrelic-infra
         args: "--config=${nr-var:config_agent}"
-        env: "NRIA_PLUGIN_DIR=${nr-var:config_integrations} NRIA_LOGGING_CONFIGS_DIR=${nr-var:config_logging} NRIA_STATUS_SERVER_ENABLED=true NRIA_STATUS_SERVER_PORT=${nr-var:health_port}"
+        env:
+          NRIA_PLUGIN_DIR: "${nr-var:config_integrations}"
+          NRIA_LOGGING_CONFIGS_DIR: "${nr-var:config_logging}"
+          NRIA_STATUS_SERVER_ENABLED: true
+          NRIA_STATUS_SERVER_PORT: "${nr-var:health_port}"
         restart_policy:
           backoff_strategy:
             type: fixed

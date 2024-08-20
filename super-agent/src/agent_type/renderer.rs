@@ -688,7 +688,6 @@ deployment:
     executables:
       - path: /opt/first
         args: "--config_path=${nr-var:config_path} --foo=${nr-var:config_argument}"
-        env: ""
 "#;
 
     const SIMPLE_AGENT_VALUES: &str = r#"
@@ -720,7 +719,6 @@ deployment:
     executables:
       - path: /usr/bin/newrelic-infra
         args: "--config1 ${nr-var:config1} --config2 ${nr-var:config2}"
-        env: ""
 "#;
 
     const AGENT_VALUES_WITH_FILES: &str = r#"
@@ -765,7 +763,6 @@ deployment:
     executables:
       - path: /bin/otelcol
         args: "-c some-arg"
-        env: ""
         restart_policy:
           backoff_strategy:
             type: ${nr-var:backoff.type}
