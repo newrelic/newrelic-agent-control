@@ -1,0 +1,32 @@
+---
+
+- name: Fleet API Create Fleet
+  include_role:
+    name: caos.ansible_roles.graphql_request
+    apply:
+      become: false
+  vars:
+    - graphql_query: |
+        mutation {
+          createFleet(
+            accountId: {{ create_fleet.account_id }}
+            name: "{{ create_fleet.name }}"
+            managedEntityType: {{ create_fleet.entity_type }}
+          ) {
+              fleetGuid
+          }
+        }
+
+- name: fail if errors are present
+  fail:
+    msg: "error creating fleet: {{ response | community.general.json_query('json.errors[*].message') | join(', ') }}"
+  when: '"errors" in response.json'
+
+
+# output facts
+- name: set fleet guid
+  ansible.builtin.set_fact: {"{{ create_fleet.fleet_guid_fact }}": "{{ response | community.general.json_query(query) }}"}
+  vars:
+    query: "json.data.createFleet.fleetGuid"
+
+...

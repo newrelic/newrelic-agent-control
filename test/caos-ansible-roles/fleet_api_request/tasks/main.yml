@@ -19,3 +19,12 @@
 
 - include_tasks: get_agent.yml
   when: get_agent.agent_ulid | length > 0
+
+- include_tasks: create_fleet.yml
+  when: create_fleet.account_id | string | length > 0
+
+- include_tasks: deploy_fleet.yml
+  when: deploy_fleet.account_id | string | length > 0
+
+- include_tasks: delete_fleet.yml
+  when: delete_fleet.account_id | string | length > 0

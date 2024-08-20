@@ -38,4 +38,21 @@ authorize_agent:
 get_agent:
   agent_ulid: ""
   agent_fact: ""
+
+deploy_fleet:
+  account_id: ""
+  fleet_guid: ""
+  name: ""
+  configurations: [] # [{'revisionNumber': '2', 'configurationId': '1'}]
+  add_entity_guid: ""
+  remove_entity_guid: ""
+
+create_fleet:
+  account_id: ""
+  name: ""
+  entity_type: "" # HOST
+
+delete_fleet:
+  account_id: ""
+  fleet_guid: ""
 ...
