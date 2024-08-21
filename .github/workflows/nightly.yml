@@ -97,7 +97,6 @@ jobs:
     uses: ./.github/workflows/component_onhost_e2e.yaml
     needs: [ build-nightly ]
     with:
-      TAG: "${{ needs.build-nightly.outputs.tag }}"
       UNIQUE_NAME: "nightly:e2e"
       EC2_FILTERS: '[\"ubuntu22.04\"]'
       REPOSITORY_ENDPOINT: "http://nr-downloads-ohai-testing.s3-website-us-east-1.amazonaws.com/super-agent-nightlies"
