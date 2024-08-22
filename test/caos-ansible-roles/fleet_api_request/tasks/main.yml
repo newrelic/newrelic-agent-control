@@ -1,6 +1,6 @@
 ---
 - include_tasks: assert_agents_health.yml
-  when: assert_agents_health.ulids | length > 0
+  when: assert_agents_health.instance_ids | length > 0
 
 - include_tasks: create_configuration.yml
   when: create_remote_configuration.account_id | string | length > 0

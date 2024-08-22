@@ -7,37 +7,6 @@
   tasks:
     - name: Fresh Super Agent installation with InfraAgent and NRDOT
       include_tasks: ./tasks/fresh_super_agent_installation_{{ ansible_system }}.yaml
-      vars:
-        infra_agent_type_version: "0.1.2"
-        otel_agent_type_version: "0.1.0"
-
-    - name: Get NR Super Agent InstanceID
-      include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
-      vars:
-        agent_identifier_path: "/var/lib/newrelic-super-agent/identifiers.yaml"
-        identifier_field: "instance_id"
-        identifier_field_fact: "super_agent_instance_id"
-
-    - name: Get Infra agent InstanceID
-      include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
-      vars:
-        agent_identifier_path: "/var/lib/newrelic-super-agent/fleet/agents.d/nr-infra-agent/identifiers.yaml"
-        identifier_field: "instance_id"
-        identifier_field_fact: "infra_agent_instance_id"
-
-    - name: Get NR Otel Collector InstanceID
-      include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
-      vars:
-        agent_identifier_path: "/var/lib/newrelic-super-agent/fleet/agents.d/nr-otel-collector/identifiers.yaml"
-        identifier_field: "instance_id"
-        identifier_field_fact: "otel_agent_instance_id"
-
-    - name: Get Hostname
-      include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
-      vars:
-        agent_identifier_path: "/var/lib/newrelic-super-agent/identifiers.yaml"
-        identifier_field: "hostname"
-        identifier_field_fact: "hostname"
 
     - name: Setup NR Super Agent config without any agent
       include_role:

@@ -2,25 +2,8 @@
 - name: Cleanup
   include_tasks: ./clean_all.yaml
 
-- name: Installation
-  include_tasks: ./install.yaml
-
-- name: Setup Infra Agent config
-  include_role:
-    name: infra-agent-config
-
-- name: Setup NR Otel Collector config
-  include_role:
-    name: nr-otel-collector-config
-
-- name: Setup NR Super Agent config
-  include_role:
-    name: super-agent-config
-
-- name: Restart New Relic Super Agent
-  ansible.builtin.service:
-    name: newrelic-super-agent
-    state: restarted
+- name: Install super-agent through guided install (which will run migration)
+  include_tasks: ./tasks/super_agent_guided_installation.yaml
 
 - name: Get Hostname
   include_tasks: ./get_identifier_field_{{ ansible_system }}.yaml

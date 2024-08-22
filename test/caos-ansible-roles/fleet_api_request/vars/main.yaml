@@ -1,6 +1,6 @@
 ---
 assert_agents_health:
-  ulids: []
+  instance_ids: []
   host: ""
   healthy: true
 

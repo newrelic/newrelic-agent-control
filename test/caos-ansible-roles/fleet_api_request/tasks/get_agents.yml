@@ -13,10 +13,6 @@
               results{
                 type
                 healthy
-                authorization{
-                  state
-                  lastUpdated
-                }
                 host{
                   name
                 }

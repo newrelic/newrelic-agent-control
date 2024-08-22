@@ -1,8 +1,9 @@
 ---
-# TODO <disabled until FM API gets stable>
-# - name: Agents registration/unregistration
-#   import_playbook: agents_registration_unregistration.yaml
 
+- name: Agents registration/unregistration
+  import_playbook: agents_registration_unregistration.yaml
+
+# TODO <disabled until FM API gets stable>
 #- name: Super Agent valid remote config
 #  import_playbook: super_agent_valid_remote_config.yaml
 #

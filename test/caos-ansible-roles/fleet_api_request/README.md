@@ -16,7 +16,7 @@ nr_api_key: "xxxxxxxxxxxxxxxx"
         name: caos.ansible_roles.fleet_api_request
       vars:
         assert_agents_health:
-          ulids: ["01HNN91DF9XE69BRYPK9DPHD34", "01HNN91C5XT16VQJ31J3TC7MYM"]
+          instance_ids: ["01HNN91DF9XE69BRYPK9DPHD34", "01HNN91C5XT16VQJ31J3TC7MYM"]
           host: "some-host.example.com"
           healthy: true
 
@@ -25,7 +25,7 @@ nr_api_key: "xxxxxxxxxxxxxxxx"
         name: caos.ansible_roles.fleet_api_request
       vars:
         assert_agents_health:
-          ulids: ["01HNN91CWC2D50AA4M8QXMH026", "01HNN6Y5J0WWAXSTK413Q27EFJ"]
+          instance_ids: ["01HNN91CWC2D50AA4M8QXMH026", "01HNN6Y5J0WWAXSTK413Q27EFJ"]
           host: "some-host.example.com"
           healthy: false
 

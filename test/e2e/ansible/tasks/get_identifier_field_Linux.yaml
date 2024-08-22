@@ -6,7 +6,7 @@
     timeout: 300
 
 - name: Get the identifier field provided
-  shell: "grep -Eo '^{{ identifier_field }}:\\s*([^[:space:]]+)' {{ agent_identifier_path }} | cut -d ' ' -f 2"
+  shell: "grep -Eo '^\\s*\\b{{ identifier_field }}:\\s*([^[:space:]]+)' {{ agent_identifier_path }} | cut -d ':' -f 2 | tr -d ' '"
   register: field_result
 
 # output facts
