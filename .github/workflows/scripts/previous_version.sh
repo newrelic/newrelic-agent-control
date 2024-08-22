@@ -12,10 +12,10 @@ git fetch --prune --unshallow 2> /dev/null || true
 
 TAG=$1
 if [ -z $TAG ];then
-  TAG=$( git tag | grep -E "^[0-9]+\.[0-9]+\.[0-9]$" | sort | tail -n 1 )
+  TAG=$( git tag | grep -E "^[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n 1 )
 fi
 
 # print previous tag
-PREVIOUS_TAG=$( git tag | grep -E "^[0-9]+\.[0-9]+\.[0-9]$" | sort | grep -B 1 $TAG | head -n 1 )
+PREVIOUS_TAG=$( git tag | grep -E "^[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | grep -B 1 $TAG | head -n 1 )
 
 echo "PREVIOUS_TAG=$PREVIOUS_TAG"
