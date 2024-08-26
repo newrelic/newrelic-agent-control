@@ -12,8 +12,7 @@
             accountId: {{ create_remote_configuration_revision.account_id }}
             configurationRevision: {
               configurationId: {{ create_remote_configuration_revision.config_id }}
-                content: "{{ create_remote_configuration_revision.content }}"
-                contentType: YAML
+              content: "{{ create_remote_configuration_revision.content }}"
             }
           ) {
               configurationId

@@ -10,7 +10,9 @@
         mutation createConfiguration {
           createConfiguration(
             accountId: {{ create_remote_configuration.account_id }}
-              configuration: { name: "{{ create_remote_configuration.config_name }}" }
+            configuration: { name: "{{ create_remote_configuration.config_name }}" }
+            agentType: "{{ create_remote_configuration.agent_type }}"
+            configType: "{{ create_remote_configuration.config_type }}"
           ) {
             id
           }

@@ -8,14 +8,8 @@
   tasks:
     - name: Fresh Super Agent installation
       include_tasks: ./tasks/fresh_super_agent_installation_{{ ansible_system }}.yaml
-      vars:
-        infra_agent_type_version: "0.1.2"
-        otel_agent_type_version: "0.1.0"
 
-    - name: Setup Infra Agent values
-      include_role:
-        name: infra-agent-config
-
+    # Ensure Restarting doesn't create new instance_ids
     - name: Restart New Relic Super Agent
       ansible.builtin.service:
         name: newrelic-super-agent
@@ -44,6 +38,18 @@
     - name: assert the persisted Infra agent InstanceID is the same
       assert:
         that: "{{ infra_agent_instance_id_restart == infra_agent_instance_id }}"
+    # End Ensure
+
+    # Create Fleet
+    - name: create fleet
+      include_role:
+        name: fleet_api_request
+      vars:
+        create_fleet:
+          account_id: "{{ nr_account_id | int }}"
+          name: "{{ e2e_run_name }}"
+          entity_type: "HOST"
+          fleet_guid_fact: "fleet_guid"
 
     - name: set remote config name
       set_fact:
@@ -53,17 +59,18 @@
       set_fact:
         generated_display_name: "caos-{{ ansible_date_time.iso8601_micro | to_uuid }}" # rename this in all playbooks
 
-
-    - name: create remote configuration
+    - name: create remote configuration for newrelic-infra
       include_role:
         name: fleet_api_request
       vars:
         create_remote_configuration:
           account_id: "{{ nr_account_id | int }}"
           config_name: "{{ remote_config_name }}"
+          agent_type: "NR_InfraAgent"
+          config_type: "NR_InfraAgentPrimary"
           config_id_fact: "created_config_id"
 
-    - name: create remote configuration for newrelic-infra
+    - name: create remote configuration revision for created configuration
       include_role:
         name: fleet_api_request
       vars:
@@ -74,35 +81,25 @@
           content: 'config_agent: |\n  staging: true\n  license_key: {{ nr_license_key }}\n  display_name: {{ generated_display_name }}'
           config_revision_fact: "created_config_revision"
 
-    - name: get fleet guid for Sub Agent
-      include_tasks: ./tasks/fleet_guid_by_agent_type.yaml
-      vars:
-        fleet_guid_fact: fleet_guid
-        agent_type: "NEWRELIC_INFRA"
+    - name: register array of configurations to deploy
+      ansible.builtin.set_fact: {"configurations": [{"revision_number":"{{ created_config_revision | int }}", "configuration_id":"{{ created_config_id | int }}" }]}
 
-    - name: deploy config to fleet
+    - name: deploy fleet add entity and configurations
       include_role:
         name: fleet_api_request
       vars:
-        deploy_config_to_fleet:
+        deploy_fleet:
           account_id: "{{ nr_account_id | int }}"
           fleet_guid: "{{ fleet_guid }}"
-          config_id: "{{ created_config_id | int }}"
-          config_revision: "{{ created_config_revision | int }}"
+          name: "{{ e2e_run_name }}"
+          configurations: "{{ configurations }}"
+          add_entity_guid: "{{ host_entity_guid }}"
 
     - name: get the infra agent pid
       include_tasks: ./tasks/process_pid_{{ ansible_system }}.yaml
       vars:
         command_line: "/usr/bin/newrelic-infra --config.*"
         process_pid_fact: process_pid
-
-    - name: authorize Infra Agent
-      include_role:
-        name: fleet_api_request
-      vars:
-        authorize_agent:
-          account_id: "{{ nr_account_id | int }}"
-          agent_instance_id: "{{ infra_agent_instance_id_restart }}"
 
     - name: Wait for a few seconds for the config to be present
       stat:
@@ -155,3 +152,23 @@
     - name: assert the persisted Infra agent InstanceID is the same
       assert:
         that: "{{ infra_agent_instance_id_restart == infra_agent_instance_id_new_config }}"
+
+    # Clean up the deployment
+    # We need to remove all entities from the fleet in order to be able to delete it.
+    - name: deploy fleet remove entity
+      include_role:
+        name: fleet_api_request
+      vars:
+        deploy_fleet:
+          account_id: "{{ nr_account_id | int }}"
+          fleet_guid: "{{ fleet_guid }}"
+          name: "{{ e2e_run_name }}"
+          remove_entity_guid: "{{ host_entity_guid }}"
+
+    - name: delete fleet
+      include_role:
+        name: fleet_api_request
+      vars:
+        delete_fleet:
+          account_id: "{{ nr_account_id | int }}"
+          fleet_guid: "{{ fleet_guid }}"

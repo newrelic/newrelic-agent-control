@@ -13,10 +13,3 @@
     NEW_RELIC_REGION=STAGING \
     NEW_RELIC_ORGANIZATION={{ organization_id }} \
     /usr/local/bin/newrelic install -n super-agent -y
-
-- name: Assert service status
-  include_role:
-    name: caos.ansible_roles.assert_service_status
-  vars:
-    services_running:
-      - "newrelic-super-agent.service"

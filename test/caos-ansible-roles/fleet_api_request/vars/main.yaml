@@ -7,6 +7,8 @@ assert_agents_health:
 create_remote_configuration:
   account_id: ""
   config_name: ""
+  agent_type: "" # NR_InfraAgent
+  config_type: "" # NR_InfraAgentPrimary
   #var names to store the created config_id and revision
   config_id_fact: ""
 
