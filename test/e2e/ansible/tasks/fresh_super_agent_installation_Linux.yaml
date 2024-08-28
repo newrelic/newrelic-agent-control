@@ -124,7 +124,7 @@
     that: "not super_agent_values.stat.exists and not otel_collector_values.stat.exists and not infra_agent_values.stat.exists"
 
 # TODO: When caos.ansible_roles task has "retries", "delay" and "until" use that one instead
-- name: nrql request
+- name: nrql request to get Entity GUID
   include_role:
     name: nrql_api_request
     apply:
@@ -132,7 +132,7 @@
   vars:
     nrql_query: >-
       SELECT entityGuid FROM SystemSample WHERE entityName = '{{ e2e_run_name }}' limit 1
-    retries: 20
+    retries: 45
     delay: 3
 
 - name: set Host EntityGUID

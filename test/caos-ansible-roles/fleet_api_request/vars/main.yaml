@@ -19,26 +19,11 @@ create_remote_configuration_revision:
   #var names to store the created config_id and revision
   config_revision_fact: ""
 
-deploy_configuration_to_fleet:
-  account_id: ""
-  config_id: ""
-  fleet_guid: ""
-
 list_fleets: false
 get_agents: false
 
-deploy_config_to_fleet:
-  account_id: ""
-  fleet_guid: ""
-  config_id: ""
-  config_revision: ""
-
-authorize_agent:
-  account_id: ""
-  agent_ulid: ""
-
 get_agent:
-  agent_ulid: ""
+  agent_instance_id: ""
   agent_fact: ""
 
 deploy_fleet:

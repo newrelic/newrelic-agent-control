@@ -9,7 +9,7 @@
     - graphql_query: |
         {
           account  {
-              agent(agentUid: "{{ get_agent.agent_ulid }}"){
+              agent(agentUid: "{{ get_agent.agent_instance_id }}"){
                   accountId
                   type
                   createdAt
