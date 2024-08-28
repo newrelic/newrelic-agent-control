@@ -14,22 +14,17 @@
                   type
                   createdAt
                   lastRemoteConfigHash
-                  fleet{
-                      fleetGuid
-                      agentType
-                      name
-                      remoteConfigurations{
-                        configurationId
-                        revisionNumber
-                        configurationName
-                        content
-                      }
-                  }
-                  remoteConfigurations{
+                  remoteConfigurations {
                       configurationId
-                      revisionNumber
                       configurationName
+                      revisionNumber
                       content
+                      agentType                      
+                  }
+                  effectiveConfigurations {
+                      name
+                      content
+                      contentType
                   }
                   lastSeen
                   lastError
