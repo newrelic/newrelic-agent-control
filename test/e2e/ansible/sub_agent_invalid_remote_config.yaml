@@ -9,30 +9,31 @@
 
     - name: Fresh Super Agent installation
       include_tasks: ./tasks/fresh_super_agent_installation_{{ ansible_system }}.yaml
-      vars:
-        infra_agent_type_version: "0.1.2"
-        otel_agent_type_version: "0.1.0"
 
-    - name: Assert Super Agent and Agents are running
+    # Create Fleet
+    - name: create fleet
       include_role:
-        name: caos.ansible_roles.assert_process_running
+        name: fleet_api_request
       vars:
-        processes_running:
-          - "^/usr/bin/newrelic-super-agent"
-          - "^/usr/bin/newrelic-infra"
-          - "^/usr/bin/nr-otel-collector"
+        create_fleet:
+          account_id: "{{ nr_account_id | int }}"
+          name: "{{ e2e_run_name }}"
+          entity_type: "HOST"
+          fleet_guid_fact: "fleet_guid"
 
     - name: set remote config name
       set_fact:
         remote_config_name: "caos-e2e-invalid-sub-agent-config-{{ ansible_date_time.iso8601_micro | to_uuid }}"
 
-    - name: create remote configuration
+    - name: create remote configuration for newrelic-infra
       include_role:
         name: fleet_api_request
       vars:
         create_remote_configuration:
           account_id: "{{ nr_account_id | int }}"
           config_name: "{{ remote_config_name }}"
+          agent_type: "NR_InfraAgent"
+          config_type: "NR_InfraAgentPrimary"
           config_id_fact: "created_config_id"
 
     - name: create invalid YAML config for the infra agent
@@ -45,21 +46,8 @@
           content: 'this:is_invalid_yaml'
           config_revision_fact: "created_config_revision"
 
-    - name: get fleet guid for Super Agent
-      include_tasks: ./tasks/fleet_guid_by_agent_type.yaml
-      vars:
-        fleet_guid_fact: fleet_guid
-        agent_type: "NEWRELIC_INFRA"
-
-    - name: deploy config to fleet
-      include_role:
-        name: fleet_api_request
-      vars:
-        deploy_config_to_fleet:
-          account_id: "{{ nr_account_id | int }}"
-          fleet_guid: "{{ fleet_guid }}"
-          config_id: "{{ created_config_id | int }}"
-          config_revision: "{{ created_config_revision | int }}"
+    - name: register array of configurations to deploy
+      ansible.builtin.set_fact: {"configurations": [{"revision_number":"{{ created_config_revision | int }}", "configuration_id":"{{ created_config_id | int }}" }]}
 
     - name: get the infra agent pid
       include_tasks: ./tasks/process_pid_{{ ansible_system }}.yaml
@@ -74,13 +62,16 @@
         identifier_field: "instance_id"
         identifier_field_fact: "infra_agent_instance_id"
 
-    - name: authorize Infra Agent
+    - name: deploy fleet add entity and configurations
       include_role:
         name: fleet_api_request
       vars:
-        authorize_agent:
+        deploy_fleet:
           account_id: "{{ nr_account_id | int }}"
-          agent_instance_id: "{{ infra_agent_instance_id }}"
+          fleet_guid: "{{ fleet_guid }}"
+          name: "{{ e2e_run_name }}"
+          configurations: "{{ configurations }}"
+          add_entity_guid: "{{ host_entity_guid }}"
 
     - name: Wait for a few seconds for the config to be retrieved
       ansible.builtin.pause:
@@ -119,5 +110,25 @@
     - name: assert the previous and current pid are the same
       assert:
         that: "{{ new_process_pid == process_pid }}"
+
+    # Clean up the deployment
+    # We need to remove all entities from the fleet in order to be able to delete it.
+    - name: deploy fleet remove entity
+      include_role:
+        name: fleet_api_request
+      vars:
+        deploy_fleet:
+          account_id: "{{ nr_account_id | int }}"
+          fleet_guid: "{{ fleet_guid }}"
+          name: "{{ e2e_run_name }}"
+          remove_entity_guid: "{{ host_entity_guid }}"
+
+    - name: delete fleet
+      include_role:
+        name: fleet_api_request
+      vars:
+        delete_fleet:
+          account_id: "{{ nr_account_id | int }}"
+          fleet_guid: "{{ fleet_guid }}"
 
 ...
