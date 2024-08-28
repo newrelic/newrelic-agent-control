@@ -10,9 +10,11 @@
 
     - name: Setup NR Super Agent config without any agent
       include_role:
-        name: super-agent-config
+        name: edit_yaml_config
       vars:
-        empty_agents: true
+        config_path: "/etc/newrelic-super-agent/config.yaml"
+        update_config:
+          agents: {}
 
     - name: Restart New Relic Super Agent
       ansible.builtin.service:

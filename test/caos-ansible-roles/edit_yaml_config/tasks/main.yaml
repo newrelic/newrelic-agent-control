@@ -1,0 +1,19 @@
+- name: Read the config yaml
+  slurp:
+    path: "{{ config_path }}"
+  register: config_file
+
+- name: extract the config data
+  set_fact:
+    config: "{{ config_file['content'] | b64decode | from_yaml }}"
+
+- name: Edit the config
+  set_fact:
+    config: "{{ config | from_yaml | combine(update_config) }}"
+  vars:
+    update_config: "{{ update_config }}"
+
+- name: Write the modified config
+  copy:
+    content: '{{ config | to_nice_yaml }}'
+    dest: "{{ config_path }}"
