@@ -3,13 +3,11 @@
 - name: Agents registration/unregistration
   import_playbook: agents_registration_unregistration.yaml
 
-# TODO <disabled until FM API gets stable>
-#- name: Super Agent valid remote config
-#  import_playbook: super_agent_valid_remote_config.yaml
-#
-#- name: Super Agent invalid remote config
-#  import_playbook: super_agent_invalid_remote_config.yaml
-# TODO </disabled until FM API gets stable>
+- name: Super Agent valid remote config
+  import_playbook: super_agent_valid_remote_config.yaml
+
+- name: Super Agent invalid remote config
+  import_playbook: super_agent_invalid_remote_config.yaml
 
 - name: Migration Script Execution
   import_playbook: migration_script_execution.yaml
