@@ -1,6 +1,6 @@
 ---
 
-- name: test invalid remote config for a sub agent
+- name: Super Agent Invalid Remote Config
   hosts: testing_hosts_linux
   become: true
   gather_facts: yes
@@ -81,7 +81,7 @@
 
     - name: Wait for a few seconds for the config to be retrieved
       ansible.builtin.pause:
-        seconds: 20
+        seconds: 40
 
     - name: Check for Super Agent remote config
       stat:
@@ -93,7 +93,7 @@
         that: not result.stat.exists
 
     - name: get latest logs from the Super Agent
-      shell: 'journalctl -u newrelic-super-agent --since "1min ago" | grep -E "Error applying Super Agent remote config: could not resolve config: .configuration is not valid YAML: .missing field .agents"'
+      shell: 'journalctl -u newrelic-super-agent --since "2min ago" | grep -E "Error applying Super Agent remote config: could not resolve config: .configuration is not valid YAML: .missing field .agents"'
       register: journalctl_log
 
     - name: Assert Super Agent and Agents are still running
@@ -160,7 +160,11 @@
         that: not result.stat.exists
 
     - name: get latest logs from the Super Agent
-      shell: 'journalctl -u newrelic-super-agent --since "1min ago" | grep -E "Error applying Super Agent remote config: .config assembler error: .error assembling agents: .agent not found..."'
+      # We were expecting this error:
+      # "Error applying Super Agent remote config: .config assembler error: .error assembling agents: .agent not found..."'
+      # But OpAMP call fails because now on the server they return a 500 when an agent_type doesn't exist,
+      # so the builder throws the opamp error instead:
+      shell: 'journalctl -u newrelic-super-agent --since "1min ago" | grep -E "Error applying Super Agent remote config: .OpAMP client error"'
       register: journalctl_log
 
     - name: Assert Super Agent and Agents are still running

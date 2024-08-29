@@ -36,7 +36,7 @@
             fleetGuid
         }
       }
-    retries: 32
+    retries: 42
     delay: 10
     until: response.json is defined and response.json.data.deployFleet.fleetGuid is defined
 
