@@ -11,8 +11,19 @@
 - name: Install super-agent through guided install (which will run migration)
   include_tasks: ./tasks/super_agent_guided_installation.yaml
 
-# Set infra-agent display_name as e2e_run_name for identification
-- name: Setup Infra Agent values
+# We are setting the value of super-agent's host.id and infra-agent's display_name to 'e2e_run_name' to ensure uniqueness,
+# the managed_entity relation between host entity and host.id (for super-agent) will be created on FM
+# allowing the addition of this host-entity to the deployment.
+# The infra-agent display_name will also allow to retrieve the Host Entity GUID by querying an entity with that name.
+- name: Setup NR Super Agent config add host id
+  include_role:
+    name: edit_yaml_config
+  vars:
+    config_path: "/etc/newrelic-super-agent/config.yaml"
+    update_config:
+      host_id: "{{ e2e_run_name }}"
+
+- name: Setup Infra Agent values add display_name
   include_role:
     name: infra-agent-config
   vars:
@@ -58,6 +69,10 @@
     identifier_field: "instance_id"
     identifier_field_fact: "otel_agent_instance_id"
 
+- name: Wait for 60 seconds so the agents are registered on the Fleet
+  pause:
+    seconds: 60
+
 - name: Assert Super Agent and Agents are running
   include_role:
     name: caos.ansible_roles.assert_process_running
@@ -66,10 +81,6 @@
       - "^/usr/bin/newrelic-super-agent"
       - "^/usr/bin/newrelic-infra"
       - "^/usr/bin/nr-otel-collector"
-
-- name: Wait for 60 seconds so the agents are registered on the Fleet
-  pause:
-    seconds: 60
 
 - name: Assert agents exist and are healthy
   include_role:
@@ -108,6 +119,8 @@
   vars:
     nrql_query: >-
       SELECT entityGuid FROM SystemSample WHERE entityName = '{{ e2e_run_name }}' limit 1
+    retries: 20
+    delay: 3
 
 - name: set Host EntityGUID
   set_fact:

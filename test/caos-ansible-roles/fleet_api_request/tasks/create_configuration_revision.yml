@@ -2,7 +2,7 @@
 
 - name: Fleet API Create configuration revision
   include_role:
-    name: caos.ansible_roles.graphql_request
+    name: graphql_request
     apply:
       become: false
   vars:

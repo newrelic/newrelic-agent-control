@@ -23,10 +23,14 @@
           }
         }
   register: response
-  retries: 20
-  delay: 3
+  retries: "{{ retries }}"
+  delay: "{{ delay }}"
   until: response.json is defined and response.json.data.actor.account.nrql.results != []
-  failed_when: "response.json.data.actor.account.nrql.results is undefined"
+
+- name: fail if errors are present
+  fail:
+    msg: "error executing NRQL: {{ response | community.general.json_query('json.errors[*].message') | join(', ') }}"
+  when: "response.json.data.actor.account.nrql.results is undefined"
 
 - set_fact:
     results: "{{ response.json.data.actor.account.nrql.results }}"

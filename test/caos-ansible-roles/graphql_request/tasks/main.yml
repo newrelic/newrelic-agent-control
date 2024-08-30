@@ -1,0 +1,22 @@
+---
+- name: Graphql Request
+  delegate_to: 127.0.0.1
+  uri:
+    headers:
+      Content-Type: "application/json"
+      API-Key: "{{ nr_api_key }}"
+    url: "{{ nr_api_host }}/graphql"
+    method: POST
+    body_format: json
+    body:
+      query: "{{ graphql_query }}"
+  register: response
+  retries: "{{ retries }}"
+  delay: "{{ delay }}"
+  until: "{{ until }}"
+  no_log: false
+
+- name: fail if errors are present
+  fail:
+    msg: "error executing Graphql: {{ response | community.general.json_query('json.errors[*].message') | join(', ') }}"
+  when: "response.json.data is undefined"
