@@ -37,9 +37,6 @@ pub enum AgentTypeError {
 
 #[derive(Error, Debug)]
 pub enum SuperAgentConfigError {
-    #[cfg(feature = "k8s")]
-    #[error("error from k8s storer loading SAConfig: {0}")]
-    FailedToPersistK8s(#[from] crate::k8s::Error),
     #[error("deleting super agent config: `{0}`")]
     Delete(String),
     #[error("loading super agent config: `{0}`")]
