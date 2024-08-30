@@ -49,5 +49,5 @@ deployment:
           interval: 5s
           timeout: 5s
           http:
-            path: "/v1/status"
+            path: "/v1/status/health"
             port: 8003
