@@ -19,32 +19,6 @@ pub enum HttpClientError {
     HttpClientError(String),
 }
 
-pub enum HealthCheckerType {
-    Http(HttpHealthChecker),
-}
-
-impl TryFrom<OnHostHealthConfig> for HealthCheckerType {
-    type Error = HealthCheckerError;
-
-    fn try_from(health_config: OnHostHealthConfig) -> Result<Self, Self::Error> {
-        let timeout = health_config.timeout;
-
-        match health_config.check {
-            OnHostHealthCheck::HttpHealth(http_config) => Ok(HealthCheckerType::Http(
-                HttpHealthChecker::new(timeout, http_config)?,
-            )),
-        }
-    }
-}
-
-impl HealthChecker for HealthCheckerType {
-    fn check_health(&self) -> Result<Health, HealthCheckerError> {
-        match self {
-            HealthCheckerType::Http(http_checker) => http_checker.check_health(),
-        }
-    }
-}
-
 /// The `HttpClient` trait defines the HTTP get interface to be implemented
 /// by HTTP clients.
 pub trait HttpClient {

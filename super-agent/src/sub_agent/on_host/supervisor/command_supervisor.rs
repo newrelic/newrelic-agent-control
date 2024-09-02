@@ -3,7 +3,7 @@ use crate::event::channel::{pub_sub, EventPublisher};
 use crate::event::SubAgentInternalEvent;
 use crate::sub_agent::health::health_checker::{publish_health_event, spawn_health_checker};
 use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
-use crate::sub_agent::health::on_host::http::HealthCheckerType;
+use crate::sub_agent::health::on_host::HealthCheckerType;
 use crate::sub_agent::health::with_start_time::HealthWithStartTime;
 use crate::sub_agent::on_host::command::command::{
     CommandError, CommandTerminator, NotStartedCommand, StartedCommand,
