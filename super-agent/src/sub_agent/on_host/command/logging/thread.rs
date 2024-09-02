@@ -80,6 +80,7 @@ impl LogBroadcaster {
 mod test {
     use super::*;
     use crate::sub_agent::on_host::command::logging::file_logger::FileLogger;
+    use crate::super_agent::config::AgentID;
     use mockall::predicate::*;
     use mockall::{mock, Sequence};
     use std::io::{Read, Write};
@@ -137,7 +138,7 @@ mod test {
             .in_sequence(&mut seq)
             .returning(|_| Ok(0));
 
-        let loggers = vec![Logger::Stdout];
+        let loggers = vec![Logger::Stdout(AgentID::new_super_agent_id())];
 
         let (sender_thd, logger_thds) = spawn_logger_inner(read_mock, loggers);
         sender_thd.join().unwrap();
@@ -147,11 +148,11 @@ mod test {
 
         assert!(logs_with_scope_contain(
             "DEBUG newrelic_super_agent::sub_agent::on_host::command::logging::logger",
-            "logging test 1",
+            "logging test 1 agent_id=super-agent",
         ));
         assert!(logs_with_scope_contain(
             "DEBUG newrelic_super_agent::sub_agent::on_host::command::logging::logger",
-            "logging test 2",
+            "logging test 2 agent_id=super-agent",
         ));
     }
 
@@ -178,7 +179,7 @@ mod test {
             .in_sequence(&mut seq)
             .returning(|_| Ok(0));
 
-        let loggers = vec![Logger::Stderr];
+        let loggers = vec![Logger::Stderr(AgentID::new_super_agent_id())];
 
         // I wait for the logging threads to finish and return to make assertions, otherwise
         // the test will assert before the threads are done and the logs are printed, failing.
@@ -190,11 +191,11 @@ mod test {
 
         assert!(logs_with_scope_contain(
             "DEBUG newrelic_super_agent::sub_agent::on_host::command::logging::logger",
-            "err logging test 1",
+            "err logging test 1 agent_id=super-agent",
         ));
         assert!(logs_with_scope_contain(
             "DEBUG newrelic_super_agent::sub_agent::on_host::command::logging::logger",
-            "err logging test 2",
+            "err logging test 2 agent_id=super-agent",
         ));
     }
 
@@ -206,6 +207,7 @@ mod test {
         let log_line_2 = b"logging test 2\n";
 
         let mut write_mock = MockWriteMock::new();
+        let agent_id = AgentID::new("test-agent").unwrap();
         // Writing in sequence
         let mut seq = Sequence::new();
         write_mock
@@ -221,7 +223,7 @@ mod test {
             .with(eq(*log_line_2))
             .returning(|_| Ok(log_line_2.len()));
         write_mock.expect_flush().returning(|| Ok(()));
-        let file_logger = Logger::File(FileLogger::from(write_mock));
+        let file_logger = Logger::File(FileLogger::from(write_mock), agent_id.clone());
 
         let mut read_mock = MockReadMock::new();
         // Reading in sequence
@@ -242,7 +244,7 @@ mod test {
             .in_sequence(&mut seq)
             .returning(|_| Ok(0));
 
-        let loggers = vec![Logger::Stdout, file_logger];
+        let loggers = vec![Logger::Stdout(agent_id), file_logger];
 
         let (sender_thd, logger_thds) = spawn_logger_inner(read_mock, loggers);
         sender_thd.join().unwrap();
@@ -252,11 +254,11 @@ mod test {
 
         assert!(logs_with_scope_contain(
             "DEBUG newrelic_super_agent::sub_agent::on_host::command::logging::logger",
-            "logging test 1",
+            "logging test 1 agent_id=test-agent",
         ));
         assert!(logs_with_scope_contain(
             "DEBUG newrelic_super_agent::sub_agent::on_host::command::logging::logger",
-            "logging test 2",
+            "logging test 2 agent_id=test-agent",
         ));
     }
 }

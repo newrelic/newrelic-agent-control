@@ -132,13 +132,13 @@ impl StartedCommand for CommandOS<Started> {
             .take()
             .ok_or(CommandError::StreamPipeError("stderr".to_string()))?;
 
-        let mut stdout_loggers = vec![Logger::Stdout];
-        let mut stderr_loggers = vec![Logger::Stderr];
+        let mut stdout_loggers = vec![Logger::Stdout(self.agent_id.clone())];
+        let mut stderr_loggers = vec![Logger::Stderr(self.agent_id.clone())];
 
         if let Some(l) = self.state.loggers.take() {
             let (out, err) = l.into_loggers();
-            stdout_loggers.push(out.into());
-            stderr_loggers.push(err.into());
+            stdout_loggers.push(Logger::File(out, self.agent_id.clone()));
+            stderr_loggers.push(Logger::File(err, self.agent_id.clone()));
         };
 
         // Read stdout and send to the channel

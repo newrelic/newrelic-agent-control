@@ -82,13 +82,6 @@ impl FileLogger {
             _worker_guard: self._guard,
         }
     }
-
-    /// Logs with the file logger only the events generated within the `log_scope` closure.
-    pub fn log_scope<T>(self, log_scope: impl FnOnce() -> T) -> T {
-        // Any trace events (e.g. `info!`) generated in the `log_scope` closure or by functions it calls will be collected by the subscriber stored in the FileLogger.
-        tracing::subscriber::with_default(self.file_subscriber, log_scope)
-        // Exiting `log_scope` will drop the FileLogger's `_guard` and any remaining logs for `file_subscriber` should get flushed
-    }
 }
 
 impl<W> From<W> for FileLogger
