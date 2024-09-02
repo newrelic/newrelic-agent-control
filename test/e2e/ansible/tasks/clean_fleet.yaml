@@ -1,0 +1,20 @@
+---
+# Clean up the deployment
+# We need to remove all entities from the fleet in order to be able to delete it.
+- name: deploy fleet remove entity
+  include_role:
+    name: fleet_api_request
+  vars:
+    deploy_fleet:
+      account_id: "{{ clean_account_id | int }}"
+      fleet_guid: "{{ clean_fleet_guid }}"
+      name: "{{ clean_name }}"
+      remove_entity_guid: "{{ clean_entity_guid }}"
+
+- name: delete fleet
+  include_role:
+    name: fleet_api_request
+  vars:
+    delete_fleet:
+      account_id: "{{ clean_account_id | int }}"
+      fleet_guid: "{{ clean_fleet_guid }}"

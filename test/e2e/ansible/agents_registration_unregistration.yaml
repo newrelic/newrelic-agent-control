@@ -5,8 +5,8 @@
   gather_facts: yes
 
   tasks:
-    - name: Fresh Super Agent installation with InfraAgent and NRDOT
-      include_tasks: ./tasks/fresh_super_agent_installation_{{ ansible_system }}.yaml
+    - name: Fresh Super Agent installation with InfraAgent and NRDOT and Host monitoring NR
+      include_tasks: ./tasks/fresh_sa_install_host_monitor_nr_{{ ansible_system }}.yaml
 
     - name: Setup NR Super Agent config without any agent
       include_role:

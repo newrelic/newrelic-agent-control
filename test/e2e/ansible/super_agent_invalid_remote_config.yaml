@@ -7,8 +7,8 @@
 
   tasks:
 
-    - name: Fresh Super Agent installation
-      include_tasks: ./tasks/fresh_super_agent_installation_{{ ansible_system }}.yaml
+    - name: Fresh Super Agent installation with InfraAgent and NRDOT and Host monitoring NR
+      include_tasks: ./tasks/fresh_sa_install_host_monitor_nr_{{ ansible_system }}.yaml
 
     - name: get the infra agent pid
       include_tasks: ./tasks/process_pid_{{ ansible_system }}.yaml
@@ -194,23 +194,11 @@
           - "{{ new_infra_agent_process_pid == infra_agent_process_pid }}"
           - "{{ new_otel_process_pid == otel_process_pid }}"
 
-    # Clean up the deployment
-    # We need to remove all entities from the fleet in order to be able to delete it.
-    - name: deploy fleet remove entity
-      include_role:
-        name: fleet_api_request
+    - name: delete the fleet
+      include_tasks: ./tasks/clean_fleet.yaml
       vars:
-        deploy_fleet:
-          account_id: "{{ nr_account_id | int }}"
-          fleet_guid: "{{ fleet_guid }}"
-          name: "{{ e2e_run_name }}"
-          remove_entity_guid: "{{ host_entity_guid }}"
-
-    - name: delete fleet
-      include_role:
-        name: fleet_api_request
-      vars:
-        delete_fleet:
-          account_id: "{{ nr_account_id | int }}"
-          fleet_guid: "{{ fleet_guid }}"
+        clean_account_id: "{{ nr_account_id | int }}"
+        clean_fleet_guid: "{{ fleet_guid }}"
+        clean_name: "{{ e2e_run_name }}"
+        clean_entity_guid: "{{ host_entity_guid }}"
 ...
