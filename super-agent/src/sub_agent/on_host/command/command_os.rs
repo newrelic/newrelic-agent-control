@@ -142,10 +142,10 @@ impl StartedCommand for CommandOS<Started> {
         };
 
         // Read stdout and send to the channel
-        logging::thread::spawn_logger(stdout, stdout_loggers);
+        logging::thread::spawn_logger(stdout, stdout_loggers, self.agent_id.clone());
 
         // Read stderr and send to the channel
-        logging::thread::spawn_logger(stderr, stderr_loggers);
+        logging::thread::spawn_logger(stderr, stderr_loggers, self.agent_id.clone());
 
         Ok(self)
     }

@@ -1,22 +1,27 @@
 use super::logger::Logger;
+use crate::super_agent::config::AgentID;
 use std::{
     io::{BufRead, BufReader, Read},
     sync::mpsc::{self, Receiver, Sender},
     thread::JoinHandle,
 };
 
-pub(crate) fn spawn_logger<R>(handle: R, loggers: Vec<Logger>)
+pub(crate) fn spawn_logger<R>(handle: R, loggers: Vec<Logger>, agent_id: AgentID)
 where
     R: Read + Send + 'static,
 {
     if !loggers.is_empty() {
         // Forward to an inner function that returns the thread handles,
         // for ease of testing log outputs (we wait on them)
-        spawn_logger_inner(handle, loggers);
+        spawn_logger_inner(handle, loggers, agent_id);
     }
 }
 
-fn spawn_logger_inner<R>(handle: R, loggers: Vec<Logger>) -> (JoinHandle<()>, Vec<JoinHandle<()>>)
+fn spawn_logger_inner<R>(
+    handle: R,
+    loggers: Vec<Logger>,
+    agent_id: AgentID,
+) -> (JoinHandle<()>, Vec<JoinHandle<()>>)
 where
     R: Read + Send + 'static,
 {
@@ -42,7 +47,7 @@ where
 
     let log_threads = loggers_rx
         .into_iter()
-        .map(|(logger, rx)| logger.log(rx))
+        .map(|(logger, rx)| logger.log(rx, agent_id.clone()))
         .collect();
 
     // Return the threads (for testing purposes)
@@ -111,7 +116,7 @@ mod test {
 
         let loggers = vec![];
 
-        spawn_logger(read_mock, loggers);
+        spawn_logger(read_mock, loggers, AgentID::new_super_agent_id());
     }
 
     #[traced_test]
@@ -139,7 +144,8 @@ mod test {
 
         let loggers = vec![Logger::Stdout];
 
-        let (sender_thd, logger_thds) = spawn_logger_inner(read_mock, loggers);
+        let (sender_thd, logger_thds) =
+            spawn_logger_inner(read_mock, loggers, AgentID::new_super_agent_id());
         sender_thd.join().unwrap();
         for thd in logger_thds {
             thd.join().unwrap();
@@ -147,11 +153,11 @@ mod test {
 
         assert!(logs_with_scope_contain(
             "DEBUG newrelic_super_agent::sub_agent::on_host::command::logging::logger",
-            "logging test 1",
+            "logging test 1 agent_id=super-agent",
         ));
         assert!(logs_with_scope_contain(
             "DEBUG newrelic_super_agent::sub_agent::on_host::command::logging::logger",
-            "logging test 2",
+            "logging test 2 agent_id=super-agent",
         ));
     }
 
@@ -182,7 +188,8 @@ mod test {
 
         // I wait for the logging threads to finish and return to make assertions, otherwise
         // the test will assert before the threads are done and the logs are printed, failing.
-        let (sender_thd, logger_thds) = spawn_logger_inner(read_mock, loggers);
+        let (sender_thd, logger_thds) =
+            spawn_logger_inner(read_mock, loggers, AgentID::new_super_agent_id());
         sender_thd.join().unwrap();
         for thd in logger_thds {
             thd.join().unwrap();
@@ -190,11 +197,11 @@ mod test {
 
         assert!(logs_with_scope_contain(
             "DEBUG newrelic_super_agent::sub_agent::on_host::command::logging::logger",
-            "err logging test 1",
+            "err logging test 1 agent_id=super-agent",
         ));
         assert!(logs_with_scope_contain(
             "DEBUG newrelic_super_agent::sub_agent::on_host::command::logging::logger",
-            "err logging test 2",
+            "err logging test 2 agent_id=super-agent",
         ));
     }
 
@@ -244,7 +251,9 @@ mod test {
 
         let loggers = vec![Logger::Stdout, file_logger];
 
-        let (sender_thd, logger_thds) = spawn_logger_inner(read_mock, loggers);
+        let agent_id = AgentID::new("test-agent").unwrap();
+
+        let (sender_thd, logger_thds) = spawn_logger_inner(read_mock, loggers, agent_id);
         sender_thd.join().unwrap();
         for thd in logger_thds {
             thd.join().unwrap();
@@ -252,11 +261,11 @@ mod test {
 
         assert!(logs_with_scope_contain(
             "DEBUG newrelic_super_agent::sub_agent::on_host::command::logging::logger",
-            "logging test 1",
+            "logging test 1 agent_id=test-agent",
         ));
         assert!(logs_with_scope_contain(
             "DEBUG newrelic_super_agent::sub_agent::on_host::command::logging::logger",
-            "logging test 2",
+            "logging test 2 agent_id=test-agent",
         ));
     }
 }
