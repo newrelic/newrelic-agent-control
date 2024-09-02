@@ -1,6 +1,5 @@
 mod client;
 mod garbage_collector;
-mod no_opamp;
-mod opamp;
+mod scenarios;
 mod store;
 mod tools;

@@ -1,12 +1,14 @@
 use crate::common::{retry::retry, runtime::block_on};
 
-use super::tools::{
+use crate::k8s::tools::{
     k8s_api::check_deployments_exist, k8s_env::K8sEnv,
     super_agent::start_super_agent_with_testdata_config,
 };
 use std::time::Duration;
 use tempfile::tempdir;
 
+/// This scenario checks that the super-agent is executed and creates the k8s resources corresponding to the
+/// local configuration when OpAMP is not enabled.
 #[test]
 #[ignore = "needs a k8s cluster"]
 fn k8s_sub_agent_started_with_no_opamp() {
@@ -36,6 +38,4 @@ fn k8s_sub_agent_started_with_no_opamp() {
             namespace.as_str(),
         ))
     });
-
-    // TODO Clean resources after finish when working with this test in the future.
 }
