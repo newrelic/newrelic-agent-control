@@ -1,27 +1,22 @@
 use super::logger::Logger;
-use crate::super_agent::config::AgentID;
 use std::{
     io::{BufRead, BufReader, Read},
     sync::mpsc::{self, Receiver, Sender},
     thread::JoinHandle,
 };
 
-pub(crate) fn spawn_logger<R>(handle: R, loggers: Vec<Logger>, agent_id: AgentID)
+pub(crate) fn spawn_logger<R>(handle: R, loggers: Vec<Logger>)
 where
     R: Read + Send + 'static,
 {
     if !loggers.is_empty() {
         // Forward to an inner function that returns the thread handles,
         // for ease of testing log outputs (we wait on them)
-        spawn_logger_inner(handle, loggers, agent_id);
+        spawn_logger_inner(handle, loggers);
     }
 }
 
-fn spawn_logger_inner<R>(
-    handle: R,
-    loggers: Vec<Logger>,
-    agent_id: AgentID,
-) -> (JoinHandle<()>, Vec<JoinHandle<()>>)
+fn spawn_logger_inner<R>(handle: R, loggers: Vec<Logger>) -> (JoinHandle<()>, Vec<JoinHandle<()>>)
 where
     R: Read + Send + 'static,
 {
@@ -47,7 +42,7 @@ where
 
     let log_threads = loggers_rx
         .into_iter()
-        .map(|(logger, rx)| logger.log(rx, agent_id.clone()))
+        .map(|(logger, rx)| logger.log(rx))
         .collect();
 
     // Return the threads (for testing purposes)
@@ -85,6 +80,7 @@ impl LogBroadcaster {
 mod test {
     use super::*;
     use crate::sub_agent::on_host::command::logging::file_logger::FileLogger;
+    use crate::super_agent::config::AgentID;
     use mockall::predicate::*;
     use mockall::{mock, Sequence};
     use std::io::{Read, Write};
@@ -116,7 +112,7 @@ mod test {
 
         let loggers = vec![];
 
-        spawn_logger(read_mock, loggers, AgentID::new_super_agent_id());
+        spawn_logger(read_mock, loggers);
     }
 
     #[traced_test]
@@ -142,10 +138,9 @@ mod test {
             .in_sequence(&mut seq)
             .returning(|_| Ok(0));
 
-        let loggers = vec![Logger::Stdout];
+        let loggers = vec![Logger::Stdout(AgentID::new_super_agent_id())];
 
-        let (sender_thd, logger_thds) =
-            spawn_logger_inner(read_mock, loggers, AgentID::new_super_agent_id());
+        let (sender_thd, logger_thds) = spawn_logger_inner(read_mock, loggers);
         sender_thd.join().unwrap();
         for thd in logger_thds {
             thd.join().unwrap();
@@ -184,12 +179,11 @@ mod test {
             .in_sequence(&mut seq)
             .returning(|_| Ok(0));
 
-        let loggers = vec![Logger::Stderr];
+        let loggers = vec![Logger::Stderr(AgentID::new_super_agent_id())];
 
         // I wait for the logging threads to finish and return to make assertions, otherwise
         // the test will assert before the threads are done and the logs are printed, failing.
-        let (sender_thd, logger_thds) =
-            spawn_logger_inner(read_mock, loggers, AgentID::new_super_agent_id());
+        let (sender_thd, logger_thds) = spawn_logger_inner(read_mock, loggers);
         sender_thd.join().unwrap();
         for thd in logger_thds {
             thd.join().unwrap();
@@ -213,6 +207,7 @@ mod test {
         let log_line_2 = b"logging test 2\n";
 
         let mut write_mock = MockWriteMock::new();
+        let agent_id = AgentID::new("test-agent").unwrap();
         // Writing in sequence
         let mut seq = Sequence::new();
         write_mock
@@ -228,7 +223,7 @@ mod test {
             .with(eq(*log_line_2))
             .returning(|_| Ok(log_line_2.len()));
         write_mock.expect_flush().returning(|| Ok(()));
-        let file_logger = Logger::File(FileLogger::from(write_mock));
+        let file_logger = Logger::File(FileLogger::from(write_mock), agent_id);
 
         let mut read_mock = MockReadMock::new();
         // Reading in sequence
@@ -249,11 +244,9 @@ mod test {
             .in_sequence(&mut seq)
             .returning(|_| Ok(0));
 
-        let loggers = vec![Logger::Stdout, file_logger];
+        let loggers = vec![Logger::Stdout(AgentID::new_super_agent_id()), file_logger];
 
-        let agent_id = AgentID::new("test-agent").unwrap();
-
-        let (sender_thd, logger_thds) = spawn_logger_inner(read_mock, loggers, agent_id);
+        let (sender_thd, logger_thds) = spawn_logger_inner(read_mock, loggers);
         sender_thd.join().unwrap();
         for thd in logger_thds {
             thd.join().unwrap();
