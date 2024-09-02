@@ -223,7 +223,7 @@ mod test {
             .with(eq(*log_line_2))
             .returning(|_| Ok(log_line_2.len()));
         write_mock.expect_flush().returning(|| Ok(()));
-        let file_logger = Logger::File(FileLogger::from(write_mock), agent_id);
+        let file_logger = Logger::File(FileLogger::from(write_mock), agent_id.clone());
 
         let mut read_mock = MockReadMock::new();
         // Reading in sequence
@@ -244,7 +244,7 @@ mod test {
             .in_sequence(&mut seq)
             .returning(|_| Ok(0));
 
-        let loggers = vec![Logger::Stdout(AgentID::new_super_agent_id()), file_logger];
+        let loggers = vec![Logger::Stdout(agent_id), file_logger];
 
         let (sender_thd, logger_thds) = spawn_logger_inner(read_mock, loggers);
         sender_thd.join().unwrap();
