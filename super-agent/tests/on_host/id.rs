@@ -1,8 +1,19 @@
+use super::tools::config::create_file;
+use crate::common::retry::retry;
+use crate::on_host::tools::super_agent::start_super_agent_with_custom_config;
+use assert_cmd::Command;
 use httpmock::Method::GET;
 use httpmock::MockServer;
 use newrelic_super_agent::opamp::instance_id::IdentifiersProvider;
+use newrelic_super_agent::super_agent::defaults::{
+    DYNAMIC_AGENT_TYPE_FILENAME, SUPER_AGENT_CONFIG_FILE,
+};
+use newrelic_super_agent::super_agent::run::BasePaths;
 use resource_detection::cloud::cloud_id::detector::CloudIdDetector;
 use resource_detection::system::detector::SystemDetector;
+use std::thread;
+use std::time::Duration;
+use tempfile::tempdir;
 
 const UNRESPOSIVE_METADATA_ENDPOINT: &str = "http://localhost:9999";
 
@@ -111,4 +122,61 @@ fn test_gcp_cloud_id() {
     assert_eq!(id.cloud_instance_id, instance_id);
 
     mock.assert_hits(1);
+}
+
+/// tests that nr-sa:host_id and nr-sub:agent_id are correctly replaced in the agent type.
+#[cfg(unix)]
+#[test]
+fn test_sub_sa_vars() {
+    let local_dir = tempdir().expect("failed to create local temp dir");
+    let remote_dir = tempdir().expect("failed to create remote temp dir");
+
+    create_file(
+        r#"
+namespace: test
+name: test
+version: 0.0.0
+variables: {}
+deployment:
+  on_host:
+    executables:
+      - path: "sh"
+        args: >-
+          tests/on_host/data/trap_term_sleep_60.sh
+          --host_id=${nr-sa:host_id}
+          --agent_id=${nr-sub:agent_id}
+    "#
+        .to_string(),
+        local_dir.path().join(DYNAMIC_AGENT_TYPE_FILENAME),
+    );
+    let sa_config_path = local_dir.path().join(SUPER_AGENT_CONFIG_FILE);
+    create_file(
+        r#"
+host_id: fixed-host-id
+agents:
+  test-agent:
+    agent_type: "test/test:0.0.0"
+        "#
+        .to_string(),
+        sa_config_path.clone(),
+    );
+
+    let base_paths = BasePaths {
+        super_agent_local_config: sa_config_path,
+        local_dir: local_dir.path().to_path_buf(),
+        remote_dir: remote_dir.path().to_path_buf(),
+        log_dir: local_dir.path().to_path_buf(),
+    };
+
+    let _super_agent_join = thread::spawn(move || start_super_agent_with_custom_config(base_paths));
+
+    retry(30, Duration::from_secs(1), || {
+        // Check that the process is running with this exact command
+        let _ = Command::new("pgrep")
+            .arg("-f")
+            .arg("sh tests/on_host/data/trap_term_sleep_60.sh --host_id=fixed-host-id --agent_id=test-agent")
+            .output()?;
+
+        Ok(())
+    });
 }

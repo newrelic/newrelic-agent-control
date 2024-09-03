@@ -12,7 +12,8 @@ deployment:
   on_host:
     executables:
       - path: /usr/bin/newrelic-infra
-        args: "--config=${nr-var:config_file}"
+        args: >-
+          --config=${nr-var:config_file}
         restart_policy:
           backoff_strategy:
             type: fixed

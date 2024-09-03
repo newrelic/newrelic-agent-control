@@ -1,3 +1,5 @@
+use crate::agent_type::variable::definition::VariableDefinition;
+use crate::agent_type::variable::namespace::Namespace;
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::{Identifiers, Storer};
@@ -63,6 +65,11 @@ impl SuperAgentRunner {
         let non_identifying_attributes = super_agent_opamp_non_identifying_attributes(&identifiers);
         info!("Instance Identifiers: {:?}", identifiers);
 
+        let super_agent_variables = HashMap::from([(
+            "host_id".to_string(),
+            VariableDefinition::new_final_string_variable(identifiers.host_id.clone()),
+        )]);
+
         let instance_id_storer = Storer::new(
             LocalFile,
             DirectoryManagerFs::default(),
@@ -89,7 +96,8 @@ impl SuperAgentRunner {
         });
 
         let template_renderer = TemplateRenderer::new(self.base_paths.remote_dir.clone())
-            .with_config_persister(ConfigurationPersisterFile::new(&self.base_paths.remote_dir));
+            .with_config_persister(ConfigurationPersisterFile::new(&self.base_paths.remote_dir))
+            .with_super_agent_variables(super_agent_variables.into_iter());
 
         let agents_assembler = LocalEffectiveAgentsAssembler::new(
             sub_agent_repository.clone(),
@@ -108,7 +116,6 @@ impl SuperAgentRunner {
             sub_agent_hash_repository,
             &agents_assembler,
             &sub_agent_event_processor_builder,
-            identifiers_provider,
             self.base_paths.log_dir.join(SUB_AGENT_DIR),
         );
 

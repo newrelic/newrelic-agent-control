@@ -4,7 +4,10 @@ use super::{
     error::AgentTypeError,
     runtime_config::Runtime,
     runtime_config_templates::Templateable,
-    variable::{definition::VariableDefinition, namespace::Namespace},
+    variable::{
+        definition::VariableDefinition,
+        namespace::{Namespace, NamespacedVariableName},
+    },
 };
 use crate::agent_type::environment_variable::retrieve_env_var_variables;
 use crate::values::yaml_config::YAMLConfig;
@@ -29,6 +32,7 @@ pub trait Renderer {
 pub struct TemplateRenderer<C: ConfigurationPersister> {
     persister: Option<C>,
     config_base_dir: PathBuf,
+    sa_variables: HashMap<NamespacedVariableName, VariableDefinition>,
 }
 
 impl<C: ConfigurationPersister> Renderer for TemplateRenderer<C> {
@@ -66,7 +70,7 @@ impl<C: ConfigurationPersister> Renderer for TemplateRenderer<C> {
 
         // Setup namespaced variables
         let ns_variables =
-            Self::build_namespaced_variables(filled_variables, environment_variables, &attributes);
+            self.build_namespaced_variables(filled_variables, environment_variables, &attributes);
         // Render runtime config
         let rendered_runtime_config = runtime_config.template_with(&ns_variables)?;
 
@@ -79,6 +83,20 @@ impl<C: ConfigurationPersister> TemplateRenderer<C> {
         Self {
             persister: None,
             config_base_dir,
+            sa_variables: HashMap::new(),
+        }
+    }
+
+    /// Adds variables to the renderer with the super-agent namespace.
+    pub fn with_super_agent_variables(
+        self,
+        variables: impl Iterator<Item = (String, VariableDefinition)>,
+    ) -> Self {
+        Self {
+            sa_variables: variables
+                .map(|(name, value)| (Namespace::SuperAgent.namespaced_name(name.as_str()), value))
+                .collect(),
+            ..self
         }
     }
 
@@ -122,10 +140,11 @@ impl<C: ConfigurationPersister> TemplateRenderer<C> {
     }
 
     fn build_namespaced_variables(
+        &self,
         variables: HashMap<String, VariableDefinition>,
         environment_variables: HashMap<String, VariableDefinition>,
         attributes: &AgentAttributes,
-    ) -> HashMap<String, VariableDefinition> {
+    ) -> HashMap<NamespacedVariableName, VariableDefinition> {
         // Set the namespaced name to variables
         let vars_iter = variables
             .into_iter()
@@ -137,7 +156,8 @@ impl<C: ConfigurationPersister> TemplateRenderer<C> {
         vars_iter
             .chain(sub_agent_vars_iter)
             .chain(environment_variables)
-            .collect::<HashMap<String, VariableDefinition>>()
+            .chain(self.sa_variables.clone())
+            .collect::<HashMap<NamespacedVariableName, VariableDefinition>>()
     }
 }
 
@@ -163,6 +183,7 @@ pub(crate) mod tests {
     use mockall::{mock, predicate};
     use serial_test::serial;
     use std::env;
+    use tempfile::TempDir;
 
     fn test_data_dir() -> PathBuf {
         PathBuf::from("/some/path")
@@ -174,6 +195,7 @@ pub(crate) mod tests {
                 persister: None,
                 // TODO replace this
                 config_base_dir: test_data_dir(),
+                sa_variables: HashMap::new(),
             }
         }
     }
@@ -663,6 +685,52 @@ deployment:
         assert_matches!(
             runtime_config.unwrap_err(),
             AgentTypeError::MissingTemplateKey(_)
+        );
+    }
+    #[test]
+    fn test_render_expand_super_agent_variables() {
+        let agent_id = AgentID::new("some-agent-id").unwrap();
+
+        let agent_type = AgentType::build_for_testing(
+            r#"
+namespace: newrelic
+name: first
+version: 0.1.0
+variables: {}
+deployment:
+  on_host:
+    executables:
+     - path: /opt/first
+       args: "${nr-sa:sa-fake-var}"
+"#,
+            &Environment::OnHost,
+        );
+        let values = testing_values("");
+        let attributes = testing_agent_attributes(&agent_id);
+
+        let super_agent_variables = HashMap::from([(
+            "sa-fake-var".to_string(),
+            VariableDefinition::new_final_string_variable("fake_value".to_string()),
+        )]);
+
+        let tmp_dir = TempDir::new().unwrap();
+        let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default()
+            .with_super_agent_variables(super_agent_variables.into_iter());
+        let runtime_config = renderer
+            .render(&agent_id, agent_type, values, attributes)
+            .unwrap();
+        assert_eq!(
+            Args("fake_value".into()),
+            runtime_config
+                .deployment
+                .on_host
+                .unwrap()
+                .executables
+                .first()
+                .unwrap()
+                .args
+                .clone()
+                .get()
         );
     }
 
