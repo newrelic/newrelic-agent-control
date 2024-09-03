@@ -132,8 +132,8 @@
   vars:
     nrql_query: >-
       SELECT entityGuid FROM SystemSample WHERE entityName = '{{ e2e_run_name }}' limit 1
-    retries: 45
-    delay: 3
+    retries: 60
+    delay: 5
 
 - name: set Host EntityGUID
   set_fact:
