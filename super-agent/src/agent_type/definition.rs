@@ -523,6 +523,34 @@ restart_policy:
     }
 
     #[test]
+    fn test_no_executables() {
+        const AGENT_TYPE_NO_EXECUTABLES: &str = r#"
+name: no-exec
+namespace: newrelic
+version: 0.0.1
+variables: {}
+deployment:
+  on_host: {}
+"#;
+
+        let agent: AgentTypeDefinition = serde_yaml::from_str(AGENT_TYPE_NO_EXECUTABLES).unwrap();
+
+        assert_eq!("no-exec", agent.metadata.name);
+        assert_eq!("newrelic", agent.metadata.namespace);
+        assert_eq!("0.0.1", agent.metadata.version.to_string());
+        assert_eq!(
+            0,
+            agent
+                .runtime_config
+                .deployment
+                .on_host
+                .unwrap()
+                .executables
+                .len()
+        );
+    }
+
+    #[test]
     fn test_agent_parsing_omitted_fields_use_defaults() {
         let backoff_strategy: BackoffStrategyConfig =
             serde_yaml::from_str(RESTART_POLICY_OMITTED_FIELDS_YAML).unwrap();
