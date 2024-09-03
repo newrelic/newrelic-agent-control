@@ -121,23 +121,24 @@ impl SupervisorOnHost<NotStarted> {
                 let bin = self.bin();
                 let id = self.id();
 
-                let start_time = SystemTime::now();
+                let supervisor_start_time = SystemTime::now();
 
                 let init_health = Healthy::new(String::default());
 
                 publish_health_event(
                     &internal_event_publisher,
-                    HealthWithStartTime::new(init_health.into(), start_time).into(),
+                    HealthWithStartTime::new(init_health.into(), supervisor_start_time).into(),
                 );
 
                 // Spawn the health checker thread
                 let (health_check_cancel_publisher, health_check_cancel_consumer) = pub_sub();
 
-                if let Some((health_checker, interval)) = self
-                    .health
-                    .as_ref()
-                    .map(|h| (HealthCheckerType::try_from(h.clone()), h.interval))
-                {
+                if let Some((health_checker, interval)) = self.health.as_ref().map(|h| {
+                    (
+                        HealthCheckerType::try_new(h.clone(), supervisor_start_time),
+                        h.interval,
+                    )
+                }) {
                     match health_checker {
                         Ok(health_checker) => spawn_health_checker(
                             id.clone(),
@@ -145,7 +146,7 @@ impl SupervisorOnHost<NotStarted> {
                             health_check_cancel_consumer,
                             internal_event_publisher.clone(),
                             interval,
-                            start_time,
+                            supervisor_start_time,
                         ),
                         Err(e) => {
                             error!(
@@ -173,7 +174,7 @@ impl SupervisorOnHost<NotStarted> {
                             &internal_event_publisher,
                             &id,
                             bin.to_string(),
-                            start_time,
+                            supervisor_start_time,
                         )
                     });
 
@@ -217,7 +218,8 @@ impl SupervisorOnHost<NotStarted> {
 
                         publish_health_event(
                             &internal_event_publisher,
-                            HealthWithStartTime::new(unhealthy.into(), start_time).into(),
+                            HealthWithStartTime::new(unhealthy.into(), supervisor_start_time)
+                                .into(),
                         );
                     }
                     break;
@@ -362,9 +364,7 @@ pub mod tests {
     use super::*;
     use crate::context::Context;
     use crate::event::channel::pub_sub;
-    use crate::sub_agent::health::health_checker::{
-        Health, HealthChecker, HealthCheckerError, Healthy,
-    };
+    use crate::sub_agent::health::health_checker::{HealthChecker, HealthCheckerError, Healthy};
     use crate::sub_agent::on_host::supervisor::command_supervisor_config::ExecutableData;
     use crate::sub_agent::on_host::supervisor::restart_policy::{Backoff, RestartPolicy};
     use mockall::{mock, Sequence};
@@ -374,7 +374,7 @@ pub mod tests {
     mock! {
         pub HealthCheckerMock {}
         impl HealthChecker for HealthCheckerMock {
-            fn check_health(&self) -> Result<Health, HealthCheckerError>;
+            fn check_health(&self) -> Result<HealthWithStartTime, HealthCheckerError>;
         }
     }
 
@@ -639,13 +639,20 @@ pub mod tests {
         let (cancel_publisher, cancel_signal) = pub_sub();
         let (health_publisher, health_consumer) = pub_sub();
 
+        let start_time = SystemTime::now();
+
         let mut health_checker = MockHealthCheckerMock::new();
         let mut seq = Sequence::new();
         health_checker
             .expect_check_health()
             .once()
             .in_sequence(&mut seq)
-            .returning(|| Ok(Healthy::new("status: 0".to_string()).into()));
+            .returning(move || {
+                Ok(HealthWithStartTime::from_healthy(
+                    Healthy::new("status: 0".to_string()),
+                    start_time,
+                ))
+            });
         health_checker
             .expect_check_health()
             .once()
@@ -657,8 +664,6 @@ pub mod tests {
                     "mocked health check error!".to_string(),
                 ))
             });
-
-        let start_time = SystemTime::now();
 
         let agent_id = AgentID::new("test-agent").unwrap();
         spawn_health_checker(
@@ -696,13 +701,20 @@ pub mod tests {
         let (cancel_publisher, cancel_signal) = pub_sub();
         let (health_publisher, health_consumer) = pub_sub();
 
+        let start_time = SystemTime::now();
+
         let mut health_checker = MockHealthCheckerMock::new();
         let mut seq = Sequence::new();
         health_checker
             .expect_check_health()
             .once()
             .in_sequence(&mut seq)
-            .returning(|| Ok(Healthy::new("status: 0".to_string()).into()));
+            .returning(move || {
+                Ok(HealthWithStartTime::from_healthy(
+                    Healthy::new("status: 0".to_string()),
+                    start_time,
+                ))
+            });
         health_checker
             .expect_check_health()
             .once()
@@ -710,12 +722,13 @@ pub mod tests {
             .returning(move || {
                 // Ensure the health checker will quit after the second loop
                 cancel_publisher.publish(()).unwrap();
-                Ok(Healthy::new("status: 1".to_string()).into())
+                Ok(HealthWithStartTime::from_healthy(
+                    Healthy::new("status: 1".to_string()),
+                    start_time,
+                ))
             });
 
         let agent_id = AgentID::new("test-agent").unwrap();
-
-        let start_time = SystemTime::now();
 
         spawn_health_checker(
             agent_id,
