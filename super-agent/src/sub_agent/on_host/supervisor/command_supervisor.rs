@@ -386,6 +386,7 @@ pub mod tests {
 
         struct TestCase {
             name: &'static str,
+            agent_id: &'static str,
             executable: ExecutableData,
             run_warmup_time: Option<Duration>,
             contain_logs: Vec<&'static str>,
@@ -398,7 +399,7 @@ pub mod tests {
 
                 let any_exit_code = vec![];
                 let config = SupervisorConfigOnHost::new(
-                    "test".to_owned().try_into().unwrap(),
+                    self.agent_id.to_owned().try_into().unwrap(),
                     self.executable,
                     Context::new(),
                     RestartPolicy::new(BackoffStrategy::Fixed(backoff), any_exit_code),
@@ -421,6 +422,10 @@ pub mod tests {
                 started_supervisor.stop().join().unwrap();
 
                 let duration = start.elapsed();
+
+                // gives the `wait_for_termination` thread time to finish.
+                thread::sleep(Duration::from_secs(1));
+
                 assert!(
                     duration < max_duration,
                     "test case: {} \n stopping the supervisor took to much time: {:?}",
@@ -439,6 +444,7 @@ pub mod tests {
         let test_cases = vec![
             TestCase {
                 name: "long running process shutdown after start",
+                agent_id: "long-running",
                 executable: ExecutableData::new("sleep".to_owned())
                     .with_args(vec!["10".to_owned()]),
                 run_warmup_time: Some(Duration::from_secs(1)),
@@ -449,6 +455,7 @@ pub mod tests {
             },
             TestCase {
                 name: "fail process shutdown after start",
+                agent_id: "wrong-command",
                 executable: ExecutableData::new("wrong-command".to_owned()),
                 run_warmup_time: Some(Duration::from_secs(1)),
                 contain_logs: vec!["stopped supervisor without process running"],
@@ -458,6 +465,7 @@ pub mod tests {
             // we should consider removing it, or find a way to make it more reliable.
             TestCase {
                 name: "long running process shutdown before start",
+                agent_id: "long-running-before-start",
                 executable: ExecutableData::new("sleep".to_owned())
                     .with_args(vec!["10".to_owned()]),
                 run_warmup_time: None,
