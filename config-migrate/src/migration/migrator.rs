@@ -79,13 +79,19 @@ impl
         };
 
         for (agent_id, _) in sub_agents_cfg.agents {
-            debug!("preparing to migrate agent_id: {}", agent_id);
+            debug!(
+                "preparing to migrate local config for agent_id: {}",
+                agent_id
+            );
             match self.config_converter.convert(cfg) {
                 Ok(agent_variables) => {
                     let values_content = serde_yaml::to_string(&agent_variables)?;
                     self.values_persister
                         .persist_values_file(&agent_id, values_content.as_str())?;
-                    info!("Config values files successfully created for {}", agent_id);
+                    info!(
+                        "Local config values files successfully created for {}",
+                        agent_id
+                    );
                 }
                 Err(e) => {
                     warn!("Old files or paths are renamed or not present");

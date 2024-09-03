@@ -22,7 +22,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // init logging singleton
     LoggingConfig::default().try_init(PathBuf::from(SUPER_AGENT_LOG_DIR))?;
 
-    info!("Starting conversion tool...");
+    info!("Starting config conversion tool...");
 
     let config: MigrationConfig = MigrationConfig::parse(NEWRELIC_INFRA_AGENT_TYPE_CONFIG_MAPPING)?;
 
@@ -49,7 +49,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 for (_, file_path) in cfg.files_map {
                     legacy_config_renamer.rename_path(file_path.as_path())?;
                 }
-                info!("Old config files and paths renamed");
+                debug!("Classic config files and paths renamed");
             }
             Err(MigratorError::AgentTypeNotFoundOnConfig) => {
                 debug!(
@@ -59,13 +59,13 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
             Err(e) => {
                 warn!(
-                    "Could not apply migration for {}: {}",
+                    "Could not apply local config migration for {}: {}",
                     cfg.agent_type_fqn, e
                 );
             }
         }
     }
-    info!("Config files successfully converted");
+    info!("Local config files successfully created");
 
     Ok(())
 }
