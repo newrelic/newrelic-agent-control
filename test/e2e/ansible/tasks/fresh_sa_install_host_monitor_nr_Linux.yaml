@@ -8,6 +8,10 @@
     # sets accepted tokens for generated string
     hex_chars: '0123456789ABCDEF'
 
+- name: Show the current run name
+  ansible.builtin.debug:
+    msg: "Current run name {{ e2e_run_name }}"
+
 - name: Install super-agent through guided install (which will run migration)
   include_tasks: ./tasks/super_agent_guided_installation.yaml
 
