@@ -1,12 +1,11 @@
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use crate::sub_agent::health::health_checker::{
-    Health, HealthChecker, HealthCheckerError, Healthy,
-};
+use crate::sub_agent::health::health_checker::{HealthChecker, HealthCheckerError, Healthy};
 use crate::sub_agent::health::k8s::daemon_set::K8sHealthDaemonSet;
 use crate::sub_agent::health::k8s::deployment::K8sHealthDeployment;
 use crate::sub_agent::health::k8s::helm_release::K8sHealthFluxHelmRelease;
 use crate::sub_agent::health::k8s::stateful_set::K8sHealthStatefulSet;
+use crate::sub_agent::health::with_start_time::{HealthWithStartTime, StartTime};
 use crate::super_agent::config::helm_release_type_meta;
 use kube::api::DynamicObject;
 use std::sync::Arc;
@@ -24,7 +23,7 @@ pub enum K8sHealthChecker {
 }
 
 impl HealthChecker for K8sHealthChecker {
-    fn check_health(&self) -> Result<Health, HealthCheckerError> {
+    fn check_health(&self) -> Result<HealthWithStartTime, HealthCheckerError> {
         match self {
             K8sHealthChecker::Flux(flux) => flux.check_health(),
             K8sHealthChecker::StatefulSet(stateful_set) => stateful_set.check_health(),
@@ -40,12 +39,14 @@ where
     HC: HealthChecker,
 {
     health_checkers: Vec<HC>,
+    start_time: StartTime,
 }
 
 impl SubAgentHealthChecker<K8sHealthChecker> {
     pub fn try_new(
         k8s_client: Arc<SyncK8sClient>,
         resources: Arc<Vec<DynamicObject>>,
+        start_time: StartTime,
     ) -> Result<Self, HealthCheckerError> {
         let mut health_checkers = vec![];
         for resource in resources.iter() {
@@ -67,24 +68,31 @@ impl SubAgentHealthChecker<K8sHealthChecker> {
                 k8s_client.clone(),
                 name.clone(),
                 resource.clone(),
+                start_time,
             )));
 
             health_checkers.push(K8sHealthChecker::StatefulSet(K8sHealthStatefulSet::new(
                 k8s_client.clone(),
                 name.clone(),
+                start_time,
             )));
 
             health_checkers.push(K8sHealthChecker::DaemonSet(K8sHealthDaemonSet::new(
                 k8s_client.clone(),
                 name.clone(),
+                start_time,
             )));
 
             health_checkers.push(K8sHealthChecker::Deployment(K8sHealthDeployment::new(
                 k8s_client.clone(),
                 name,
+                start_time,
             )));
         }
-        Ok(Self { health_checkers })
+        Ok(Self {
+            health_checkers,
+            start_time,
+        })
     }
 }
 
@@ -92,14 +100,17 @@ impl<HC> HealthChecker for SubAgentHealthChecker<HC>
 where
     HC: HealthChecker,
 {
-    fn check_health(&self) -> Result<Health, HealthCheckerError> {
+    fn check_health(&self) -> Result<HealthWithStartTime, HealthCheckerError> {
         for rhc in self.health_checkers.iter() {
             let health = rhc.check_health()?;
             if !health.is_healthy() {
                 return Ok(health);
             }
         }
-        Ok(Healthy::new(String::default()).into())
+        Ok(HealthWithStartTime::from_healthy(
+            Healthy::new(String::default()),
+            self.start_time,
+        ))
     }
 }
 
@@ -109,6 +120,7 @@ pub mod test {
     use crate::sub_agent::health::health_checker::tests::MockHealthCheckMock;
     use crate::sub_agent::health::health_checker::{HealthChecker, HealthCheckerError};
     use crate::sub_agent::health::k8s::health_checker::SubAgentHealthChecker;
+    use crate::sub_agent::health::with_start_time::StartTime;
     use crate::super_agent::config::helm_release_type_meta;
     use assert_matches::assert_matches;
     use kube::api::DynamicObject;
@@ -117,13 +129,15 @@ pub mod test {
     #[test]
     fn no_resource_set() {
         let mock_client = MockSyncK8sClient::default();
-        assert!(
-            SubAgentHealthChecker::try_new(Arc::new(mock_client), Arc::new(vec![]))
-                .unwrap()
-                .check_health()
-                .unwrap()
-                .is_healthy()
-        );
+        assert!(SubAgentHealthChecker::try_new(
+            Arc::new(mock_client),
+            Arc::new(vec![]),
+            StartTime::now()
+        )
+        .unwrap()
+        .check_health()
+        .unwrap()
+        .is_healthy());
     }
     #[test]
     fn failing_build_health_check_resource_with_no_type() {
@@ -137,7 +151,8 @@ pub mod test {
                     types: None,
                     metadata: Default::default(),
                     data: Default::default(),
-                }])
+                }]),
+                StartTime::now()
             )
             .err()
             .unwrap(),
@@ -159,7 +174,8 @@ pub mod test {
                     // having no name causes an error
                     metadata: Default::default(),
                     data: Default::default(),
-                }])
+                }]),
+                StartTime::now()
             )
             .err()
             .unwrap(),
@@ -171,11 +187,13 @@ pub mod test {
 
     #[test]
     fn logic_health_check() {
+        let start_time = StartTime::now();
         assert!(SubAgentHealthChecker {
             health_checkers: vec![
                 MockHealthCheckMock::new_healthy(),
                 MockHealthCheckMock::new_healthy()
             ],
+            start_time,
         }
         .check_health()
         .unwrap()
@@ -188,6 +206,7 @@ pub mod test {
                     MockHealthCheckMock::new_unhealthy(),
                     MockHealthCheckMock::new_healthy()
                 ],
+                start_time
             }
             .check_health()
             .unwrap()
@@ -200,6 +219,7 @@ pub mod test {
                 MockHealthCheckMock::new_with_error(),
                 MockHealthCheckMock::new_healthy()
             ],
+            start_time
         }
         .check_health()
         .is_err());

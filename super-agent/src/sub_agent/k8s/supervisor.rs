@@ -155,7 +155,7 @@ impl NotStartedSupervisor {
         if let Some(health_config) = self.k8s_config.health.clone() {
             let (stop_health_publisher, stop_health_consumer) = pub_sub();
             let k8s_health_checker =
-                SubAgentHealthChecker::try_new(self.k8s_client.clone(), resources)?;
+                SubAgentHealthChecker::try_new(self.k8s_client.clone(), resources, start_time)?;
 
             spawn_health_checker(
                 self.agent_id.clone(),

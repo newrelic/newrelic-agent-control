@@ -6,6 +6,7 @@ use crate::sub_agent::health::health_checker::{
     Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
 use crate::sub_agent::health::k8s::utils::{self, check_health_for_items, flux_release_filter};
+use crate::sub_agent::health::with_start_time::{HealthWithStartTime, StartTime};
 use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec, ReplicaSet};
 use k8s_openapi::api::core::v1::PodTemplateSpec;
 use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
@@ -21,10 +22,11 @@ const DEFAULT_HASH_LABEL: &str = "pod-template-hash";
 pub struct K8sHealthDeployment {
     k8s_client: Arc<SyncK8sClient>,
     release_name: String,
+    start_time: StartTime,
 }
 
 impl HealthChecker for K8sHealthDeployment {
-    fn check_health(&self) -> Result<Health, HealthCheckerError> {
+    fn check_health(&self) -> Result<HealthWithStartTime, HealthCheckerError> {
         let deployments = self.k8s_client.list_deployment();
 
         let target_deployments = deployments
@@ -49,15 +51,21 @@ impl HealthChecker for K8sHealthDeployment {
                 })
         };
 
-        check_health_for_items(target_deployments, health_function)
+        let health = check_health_for_items(target_deployments, health_function)?;
+        Ok(HealthWithStartTime::new(health, self.start_time))
     }
 }
 
 impl K8sHealthDeployment {
-    pub fn new(k8s_client: Arc<SyncK8sClient>, release_name: String) -> Self {
+    pub fn new(
+        k8s_client: Arc<SyncK8sClient>,
+        release_name: String,
+        start_time: StartTime,
+    ) -> Self {
         Self {
             k8s_client,
             release_name,
+            start_time,
         }
     }
 
@@ -587,6 +595,7 @@ mod test {
                 let health_checker = K8sHealthDeployment {
                     k8s_client: Arc::new(k8s_client),
                     release_name: "release-name".to_string(),
+                    start_time: StartTime::now(),
                 };
 
                 let result = health_checker.active_replica_set(
@@ -920,16 +929,19 @@ mod test {
             .times(2)
             .returning(move || replica_sets.clone());
 
+        let start_time = StartTime::now();
         let health_checker =
-            K8sHealthDeployment::new(Arc::new(k8s_client), release_name.to_string());
+            K8sHealthDeployment::new(Arc::new(k8s_client), release_name.to_string(), start_time);
         let result = health_checker.check_health().unwrap();
         assert_eq!(
             result,
-            Unhealthy::new(
-                String::default(),
-                "ReplicaSet not found for Deployment test-deployment-2".to_string()
+            HealthWithStartTime::from_unhealthy(
+                Unhealthy::new(
+                    String::default(),
+                    "ReplicaSet not found for Deployment test-deployment-2".to_string()
+                ),
+                start_time
             )
-            .into()
         );
     }
 
