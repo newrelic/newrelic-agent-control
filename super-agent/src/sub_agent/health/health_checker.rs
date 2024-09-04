@@ -193,7 +193,7 @@ pub trait HealthChecker {
     /// Check the health of the agent.
     /// See OpAMP's [spec](https://github.com/open-telemetry/opamp-spec/blob/main/specification.md#componenthealthstatus)
     /// for more details.
-    fn check_health(&self) -> Result<Health, HealthCheckerError>;
+    fn check_health(&self) -> Result<HealthWithStartTime, HealthCheckerError>;
 }
 
 pub(crate) fn spawn_health_checker<H>(
@@ -202,7 +202,7 @@ pub(crate) fn spawn_health_checker<H>(
     cancel_signal: EventConsumer<CancellationMessage>,
     health_publisher: EventPublisher<SubAgentInternalEvent>,
     interval: HealthCheckInterval,
-    start_time: StartTime,
+    sub_agent_start_time: StartTime,
 ) where
     H: HealthChecker + Send + 'static,
 {
@@ -214,13 +214,10 @@ pub(crate) fn spawn_health_checker<H>(
 
         let health = health_checker.check_health().unwrap_or_else(|err| {
             debug!(%agent_id, last_error = %err, "the configured health check failed");
-            Unhealthy::from(err).into()
+            HealthWithStartTime::from_unhealthy(Unhealthy::from(err), sub_agent_start_time)
         });
 
-        publish_health_event(
-            &health_publisher,
-            HealthWithStartTime::new(health, start_time).into(),
-        );
+        publish_health_event(&health_publisher, health.into());
     });
 }
 
@@ -240,6 +237,8 @@ pub(crate) fn publish_health_event(
 
 #[cfg(test)]
 pub mod tests {
+    use std::time::UNIX_EPOCH;
+
     use super::*;
     use mockall::mock;
 
@@ -271,24 +270,30 @@ pub mod tests {
     mock! {
         pub HealthCheckMock{}
         impl HealthChecker for HealthCheckMock{
-            fn check_health(&self) -> Result<Health, HealthCheckerError>;
+            fn check_health(&self) -> Result<HealthWithStartTime, HealthCheckerError>;
         }
     }
 
     impl MockHealthCheckMock {
         pub fn new_healthy() -> MockHealthCheckMock {
             let mut healthy = MockHealthCheckMock::new();
-            healthy
-                .expect_check_health()
-                .returning(|| Ok(Healthy::default().into()));
+            healthy.expect_check_health().returning(|| {
+                Ok(HealthWithStartTime::from_healthy(
+                    Healthy::default(),
+                    UNIX_EPOCH,
+                ))
+            });
             healthy
         }
 
         pub fn new_unhealthy() -> MockHealthCheckMock {
             let mut unhealthy = MockHealthCheckMock::new();
-            unhealthy
-                .expect_check_health()
-                .returning(|| Ok(Unhealthy::new(String::default(), String::default()).into()));
+            unhealthy.expect_check_health().returning(|| {
+                Ok(HealthWithStartTime::from_unhealthy(
+                    Unhealthy::new(String::default(), String::default()),
+                    UNIX_EPOCH,
+                ))
+            });
             unhealthy
         }
 

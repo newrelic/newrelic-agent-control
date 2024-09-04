@@ -1,8 +1,9 @@
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::sub_agent::health::health_checker::{
-    Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
+    HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
+use crate::sub_agent::health::with_start_time::{HealthWithStartTime, StartTime};
 use k8s_openapi::serde_json::{Map, Value};
 use kube::api::DynamicObject;
 use std::sync::Arc;
@@ -35,14 +36,21 @@ pub struct K8sHealthFluxHelmRelease {
     k8s_client: Arc<SyncK8sClient>,
     name: String,
     k8s_object: DynamicObject,
+    start_time: StartTime,
 }
 
 impl K8sHealthFluxHelmRelease {
-    pub fn new(k8s_client: Arc<SyncK8sClient>, name: String, k8s_object: DynamicObject) -> Self {
+    pub fn new(
+        k8s_client: Arc<SyncK8sClient>,
+        name: String,
+        k8s_object: DynamicObject,
+        start_time: StartTime,
+    ) -> Self {
         Self {
             k8s_client,
             name,
             k8s_object,
+            start_time,
         }
     }
 
@@ -125,7 +133,7 @@ impl K8sHealthFluxHelmRelease {
 }
 
 impl HealthChecker for K8sHealthFluxHelmRelease {
-    fn check_health(&self) -> Result<Health, HealthCheckerError> {
+    fn check_health(&self) -> Result<HealthWithStartTime, HealthCheckerError> {
         // Attempt to get the HelmRelease from Kubernetes
         let helm_release = self
             .k8s_client
@@ -149,14 +157,16 @@ impl HealthChecker for K8sHealthFluxHelmRelease {
             .k8s_client
             .has_dynamic_object_changed(&self.k8s_object)?
         {
-            return Ok(Unhealthy::new(
-                String::default(),
-                format!(
-                    "HelmRelease '{}' does not match the latest agent configuration",
-                    &self.name,
+            return Ok(HealthWithStartTime::from_unhealthy(
+                Unhealthy::new(
+                    String::default(),
+                    format!(
+                        "HelmRelease '{}' does not match the latest agent configuration",
+                        &self.name,
+                    ),
                 ),
-            )
-            .into());
+                self.start_time,
+            ));
         }
 
         let status = self.get_status(helm_release_data)?;
@@ -164,9 +174,15 @@ impl HealthChecker for K8sHealthFluxHelmRelease {
 
         let (is_healthy, message) = self.is_healthy_and_message(&conditions);
         if is_healthy {
-            Ok(Healthy::new(String::default()).into())
+            Ok(HealthWithStartTime::from_healthy(
+                Healthy::new(String::default()),
+                self.start_time,
+            ))
         } else {
-            Ok(Unhealthy::new(String::default(), message).into())
+            Ok(HealthWithStartTime::from_unhealthy(
+                Unhealthy::new(String::default(), message),
+                self.start_time,
+            ))
         }
     }
 }
@@ -175,6 +191,7 @@ impl HealthChecker for K8sHealthFluxHelmRelease {
 pub mod test {
     use super::*;
     use crate::k8s::{client::MockSyncK8sClient, Error};
+    use crate::sub_agent::health::health_checker::Health;
     use crate::super_agent::config::helm_release_type_meta;
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
     use kube::core::DynamicObject;
@@ -269,17 +286,22 @@ pub mod test {
         for (name, expected, setup_mock) in test_cases {
             let mut mock_client = MockSyncK8sClient::new();
             setup_mock(&mut mock_client);
+            let start_time = StartTime::now();
             let checker = K8sHealthFluxHelmRelease::new(
                 Arc::new(mock_client),
                 "example-release".to_string(),
                 dynamic_object(),
+                start_time,
             );
             let result = checker.check_health();
             match expected {
                 Ok(expected_health) => {
                     let result_health =
                         result.unwrap_or_else(|err| panic!("Unexpected {err} - {name}"));
-                    assert_eq!(result_health, expected_health);
+                    assert_eq!(
+                        result_health,
+                        HealthWithStartTime::new(expected_health, start_time)
+                    );
                 }
                 Err(expected_err) => {
                     let result_err = result.unwrap_err();

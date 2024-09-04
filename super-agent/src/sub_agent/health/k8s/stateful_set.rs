@@ -5,6 +5,7 @@ use crate::k8s::utils as client_utils;
 use crate::sub_agent::health::health_checker::{
     Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
+use crate::sub_agent::health::with_start_time::{HealthWithStartTime, StartTime};
 use k8s_openapi::api::apps::v1::{StatefulSet, StatefulSetSpec};
 use std::sync::Arc;
 
@@ -12,25 +13,34 @@ use std::sync::Arc;
 pub struct K8sHealthStatefulSet {
     k8s_client: Arc<SyncK8sClient>,
     release_name: String,
+    start_time: StartTime,
 }
 
 impl HealthChecker for K8sHealthStatefulSet {
-    fn check_health(&self) -> Result<Health, HealthCheckerError> {
+    fn check_health(&self) -> Result<HealthWithStartTime, HealthCheckerError> {
         let stateful_sets = self.k8s_client.list_stateful_set();
 
         let target_stateful_sets = stateful_sets
             .into_iter()
             .filter(utils::flux_release_filter(self.release_name.clone()));
 
-        utils::check_health_for_items(target_stateful_sets, Self::stateful_set_health)
+        let health =
+            utils::check_health_for_items(target_stateful_sets, Self::stateful_set_health)?;
+
+        Ok(HealthWithStartTime::new(health, self.start_time))
     }
 }
 
 impl K8sHealthStatefulSet {
-    pub fn new(k8s_client: Arc<SyncK8sClient>, release_name: String) -> Self {
+    pub fn new(
+        k8s_client: Arc<SyncK8sClient>,
+        release_name: String,
+        start_time: StartTime,
+    ) -> Self {
         Self {
             k8s_client,
             release_name,
+            start_time,
         }
     }
 
@@ -412,9 +422,14 @@ mod test {
                 ]
             });
 
+        let start_time = StartTime::now();
+
         let health_checker =
-            K8sHealthStatefulSet::new(Arc::new(k8s_client), release_name.to_string());
+            K8sHealthStatefulSet::new(Arc::new(k8s_client), release_name.to_string(), start_time);
         let result = health_checker.check_health().unwrap();
-        assert_eq!(result, Health::Healthy(Healthy::default()));
+        assert_eq!(
+            result,
+            HealthWithStartTime::from_healthy(Healthy::default(), start_time)
+        );
     }
 }

@@ -1,9 +1,8 @@
-use crate::agent_type::health_config::{
-    HealthCheckTimeout, HttpHealth, OnHostHealthCheck, OnHostHealthConfig,
-};
+use crate::agent_type::health_config::{HealthCheckTimeout, HttpHealth};
 use crate::sub_agent::health::health_checker::{
-    Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
+    HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
+use crate::sub_agent::health::with_start_time::{HealthWithStartTime, StartTime};
 use std::collections::HashMap;
 use thiserror::Error;
 use tracing::error;
@@ -17,32 +16,6 @@ pub enum HttpClientError {
     /// Represents Ureq crate error.
     #[error("internal HTTP client error: `{0}`")]
     HttpClientError(String),
-}
-
-pub enum HealthCheckerType {
-    Http(HttpHealthChecker),
-}
-
-impl TryFrom<OnHostHealthConfig> for HealthCheckerType {
-    type Error = HealthCheckerError;
-
-    fn try_from(health_config: OnHostHealthConfig) -> Result<Self, Self::Error> {
-        let timeout = health_config.timeout;
-
-        match health_config.check {
-            OnHostHealthCheck::HttpHealth(http_config) => Ok(HealthCheckerType::Http(
-                HttpHealthChecker::new(timeout, http_config)?,
-            )),
-        }
-    }
-}
-
-impl HealthChecker for HealthCheckerType {
-    fn check_health(&self) -> Result<Health, HealthCheckerError> {
-        match self {
-            HealthCheckerType::Http(http_checker) => http_checker.check_health(),
-        }
-    }
 }
 
 /// The `HttpClient` trait defines the HTTP get interface to be implemented
@@ -87,12 +60,14 @@ where
     url: Url,
     headers: HashMap<String, String>,
     healthy_status_codes: Vec<u16>,
+    start_time: StartTime,
 }
 
 impl HttpHealthChecker<ureq::Agent> {
     pub(crate) fn new(
         timeout: HealthCheckTimeout,
         http_config: HttpHealth,
+        start_time: StartTime,
     ) -> Result<Self, HealthCheckerError> {
         let host = format!(
             "{}{}",
@@ -118,12 +93,13 @@ impl HttpHealthChecker<ureq::Agent> {
             url,
             headers,
             healthy_status_codes,
+            start_time,
         })
     }
 }
 
 impl<C: HttpClient> HealthChecker for HttpHealthChecker<C> {
-    fn check_health(&self) -> Result<Health, HealthCheckerError> {
+    fn check_health(&self) -> Result<HealthWithStartTime, HealthCheckerError> {
         let response = self
             .client
             .get(self.url.as_str(), &self.headers)
@@ -135,7 +111,10 @@ impl<C: HttpClient> HealthChecker for HttpHealthChecker<C> {
         if (self.healthy_status_codes.is_empty() && status_code.is_success())
             || self.healthy_status_codes.contains(&status_code.as_u16())
         {
-            return Ok(Healthy::new(status).into());
+            return Ok(HealthWithStartTime::from_healthy(
+                Healthy::new(status),
+                self.start_time,
+            ));
         }
 
         let last_error = format!(
@@ -143,7 +122,10 @@ impl<C: HttpClient> HealthChecker for HttpHealthChecker<C> {
             status_code
         );
 
-        Ok(Unhealthy::new(status, last_error).into())
+        Ok(HealthWithStartTime::from_unhealthy(
+            Unhealthy::new(status, last_error),
+            self.start_time,
+        ))
     }
 }
 
@@ -183,6 +165,7 @@ pub(crate) mod test {
             url: Url::parse(url.as_str()).unwrap(),
             headers: Default::default(),
             healthy_status_codes: vec![],
+            start_time: StartTime::now(),
         };
 
         let health_response = checker.check_health();
@@ -210,6 +193,7 @@ pub(crate) mod test {
             url: Url::parse(url.as_str()).unwrap(),
             headers: Default::default(),
             healthy_status_codes: vec![],
+            start_time: StartTime::now(),
         };
 
         assert!(checker.check_health().is_ok());
@@ -231,6 +215,7 @@ pub(crate) mod test {
             url: Url::parse(url.as_str()).unwrap(),
             headers: Default::default(),
             healthy_status_codes: vec![],
+            start_time: StartTime::now(),
         };
 
         let health_response = checker.check_health();
@@ -258,6 +243,7 @@ pub(crate) mod test {
             url: Url::parse(url.as_str()).unwrap(),
             headers: Default::default(),
             healthy_status_codes: vec![200],
+            start_time: StartTime::now(),
         };
 
         let health_response = checker.check_health();
@@ -281,6 +267,7 @@ pub(crate) mod test {
             url: Url::parse(url.as_str()).unwrap(),
             headers: Default::default(),
             healthy_status_codes: vec![201],
+            start_time: StartTime::now(),
         };
 
         let health_response = checker.check_health();
@@ -300,6 +287,7 @@ pub(crate) mod test {
             url: Url::parse(url.as_str()).unwrap(),
             headers: Default::default(),
             healthy_status_codes: vec![501],
+            start_time: StartTime::now(),
         };
 
         let health_response = checker.check_health();

@@ -6,6 +6,7 @@ use crate::k8s::utils::IntOrPercentage;
 use crate::sub_agent::health::health_checker::{
     Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
+use crate::sub_agent::health::with_start_time::{HealthWithStartTime, StartTime};
 use k8s_openapi::api::apps::v1::{DaemonSet, DaemonSetStatus, DaemonSetUpdateStrategy};
 use k8s_openapi::Resource as _; // Needed to access resource's KIND. e.g.: Deployment::KIND
 use std::sync::Arc;
@@ -48,25 +49,35 @@ impl std::fmt::Display for UpdateStrategyType {
 pub struct K8sHealthDaemonSet {
     k8s_client: Arc<SyncK8sClient>,
     release_name: String,
+    start_time: StartTime,
 }
 
 impl HealthChecker for K8sHealthDaemonSet {
-    fn check_health(&self) -> Result<Health, HealthCheckerError> {
+    fn check_health(&self) -> Result<HealthWithStartTime, HealthCheckerError> {
         let daemon_sets = self.k8s_client.list_daemon_set();
 
         let target_daemon_sets = daemon_sets
             .into_iter()
             .filter(utils::flux_release_filter(self.release_name.clone()));
 
-        utils::check_health_for_items(target_daemon_sets, Self::check_health_single_daemon_set)
+        let health = utils::check_health_for_items(
+            target_daemon_sets,
+            Self::check_health_single_daemon_set,
+        )?;
+        Ok(HealthWithStartTime::new(health, self.start_time))
     }
 }
 
 impl K8sHealthDaemonSet {
-    pub fn new(k8s_client: Arc<SyncK8sClient>, release_name: String) -> Self {
+    pub fn new(
+        k8s_client: Arc<SyncK8sClient>,
+        release_name: String,
+        start_time: StartTime,
+    ) -> Self {
         Self {
             k8s_client,
             release_name,
+            start_time,
         }
     }
 
@@ -200,7 +211,6 @@ pub mod test {
             k8s::health_checker::LABEL_RELEASE_FLUX,
         },
     };
-    use assert_matches::assert_matches;
     use k8s_openapi::{
         api::apps::v1::{
             DaemonSetSpec, DaemonSetStatus, DaemonSetUpdateStrategy, RollingUpdateDaemonSet,
@@ -630,20 +640,18 @@ pub mod test {
                 ]
             });
 
-        let health_checker =
-            K8sHealthDaemonSet::new(Arc::new(k8s_client), release_name.to_string());
-        let result = health_checker.check_health().unwrap();
+        let start_time = StartTime::now();
 
-        let unhealthy = assert_matches!(
-            result,
-            Health::Unhealthy(unhealthy) => unhealthy,
-            "Expected Unhealthy, got: {:?}",
-            result
-        );
-        assert!(
-            unhealthy.last_error().contains("unhealthy-daemon-set"),
-            "The unhealthy message should point to the unhealthy daemon-set, got {:?}",
-            unhealthy
+        let health_checker =
+            K8sHealthDaemonSet::new(Arc::new(k8s_client), release_name.to_string(), start_time);
+        let health = health_checker.check_health().unwrap();
+
+        assert_eq!(
+            health,
+            HealthWithStartTime::from_unhealthy(
+                Unhealthy::new(String::default(), "Daemonset 'unhealthy-daemon-set': The number of pods ready is less that the desired: 2 < 3".into()),
+                start_time
+            )
         );
     }
 
