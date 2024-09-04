@@ -2,13 +2,16 @@
 
 - name: Fleet API Delete a Fleet
   include_role:
-    name: caos.ansible_roles.graphql_request
+    name: graphql_request
     apply:
       become: false
   vars:
     - graphql_query: |
         mutation DeleteFleet {
-            deleteFleet(fleetGuid: "{{ delete_fleet.fleet_guid }}", accountId: {{ delete_fleet.account_id }}) 
+          deleteFleet(
+            fleetGuid: "{{ delete_fleet.fleet_guid }}",
+            accountId: {{ delete_fleet.account_id }}
+          ) { 
               fleetGuid
           }
         }

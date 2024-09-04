@@ -2,8 +2,44 @@
 - name: Cleanup
   include_tasks: ./clean_all.yaml
 
+- name: set e2e run name
+  ansible.builtin.set_fact: {"e2e_run_name": "sa-caos-e2e-{{ lookup('community.general.random_string', override_all=hex_chars, length=22) }}"}
+  vars:
+    # sets accepted tokens for generated string
+    hex_chars: '0123456789ABCDEF'
+
 - name: Install super-agent through guided install (which will run migration)
   include_tasks: ./tasks/super_agent_guided_installation.yaml
+
+# We are setting the value of super-agent's host.id and infra-agent's display_name to 'e2e_run_name' to ensure uniqueness,
+# the managed_entity relation between host entity and host.id (for super-agent) will be created on FM
+# allowing the addition of this host-entity to the deployment.
+# The infra-agent display_name will also allow to retrieve the Host Entity GUID by querying an entity with that name.
+- name: Setup NR Super Agent config add host id
+  include_role:
+    name: edit_yaml_config
+  vars:
+    config_path: "/etc/newrelic-super-agent/config.yaml"
+    update_config:
+      host_id: "{{ e2e_run_name }}"
+
+- name: Setup Infra Agent values add display_name
+  include_role:
+    name: infra-agent-config
+  vars:
+    display_name: "{{ e2e_run_name }}"
+
+- name: Restart New Relic Super Agent
+  ansible.builtin.service:
+    name: newrelic-super-agent
+    state: restarted
+
+- name: Assert service status
+  include_role:
+    name: caos.ansible_roles.assert_service_status
+  vars:
+    services_running:
+      - "newrelic-super-agent.service"
 
 - name: Get Hostname
   include_tasks: ./get_identifier_field_{{ ansible_system }}.yaml
@@ -37,6 +73,15 @@
   pause:
     seconds: 60
 
+- name: Assert Super Agent and Agents are running
+  include_role:
+    name: caos.ansible_roles.assert_process_running
+  vars:
+    processes_running:
+      - "^/usr/bin/newrelic-super-agent"
+      - "^/usr/bin/newrelic-infra"
+      - "^/usr/bin/nr-otel-collector"
+
 - name: Assert agents exist and are healthy
   include_role:
     name: fleet_api_request
@@ -46,21 +91,47 @@
       host: "{{ hostname }}"
       healthy: true
 
-- name: Check infra-agent values file doesn't exist
+- name: Check remote infra-agent values file doesn't exist
   stat:
     path: "/var/lib/newrelic-super-agent/fleet/agents.d/nr-infra-agent/values/values.yaml"
   register: infra_agent_values
 
-- name: Check otel-collector values file doesn't exist
+- name: Check remote otel-collector values file doesn't exist
   stat:
     path: "/var/lib/newrelic-super-agent/fleet/agents.d/nr-otel-collector/values/values.yaml"
   register: otel_collector_values
 
-- name: Check super-agent values file doesn't exist
+- name: Check remote super-agent values file doesn't exist
   stat:
     path: "/var/lib/newrelic-super-agent/fleet/values/values.yaml"
   register: super_agent_values
 
-- name: ensure values files don't exist
+- name: ensure remote values files don't exist
   assert:
     that: "not super_agent_values.stat.exists and not otel_collector_values.stat.exists and not infra_agent_values.stat.exists"
+
+# TODO: When caos.ansible_roles task has "retries", "delay" and "until" use that one instead
+- name: nrql request
+  include_role:
+    name: nrql_api_request
+    apply:
+      become: false
+  vars:
+    nrql_query: >-
+      SELECT entityGuid FROM SystemSample WHERE entityName = '{{ e2e_run_name }}' limit 1
+    retries: 20
+    delay: 3
+
+- name: set Host EntityGUID
+  set_fact:
+    host_entity_guid: "{{ results[0].entityGuid }}"
+
+# This task registers the following variables to be accessed by a task including it:
+#
+# - e2e_run_name : the name of the current run to use it as identifier in the format (sa-caos-e2e-22HEX)
+# - host_entity_guid : the host entity guid
+# - hostname : the hostname as computed by the super-agent
+# - super_agent_instance_id : super_agent instance_id
+# - infra_agent_instance_id : infra_agent instance_id
+# - otel_agent_instance_id : otel_agent instance_id
+

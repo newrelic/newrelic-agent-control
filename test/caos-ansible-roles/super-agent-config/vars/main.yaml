@@ -1,9 +1,0 @@
----
-# config path
-super_agent_config_path_linux: "/etc/newrelic-super-agent/config.yaml"
-infra_agent_type_version: "0.1.2"
-otel_agent_type_version: "0.1.0"
-empty_agents: false
-opamp_endpoint: https://opamp.staging-service.newrelic.com/v1/opamp
-
-...
