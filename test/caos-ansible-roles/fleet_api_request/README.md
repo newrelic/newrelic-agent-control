@@ -31,16 +31,6 @@ nr_api_key: "xxxxxxxxxxxxxxxx"
 
 ```
 
-## Authorize Agent:
-```yaml
-  - name: authorize Super Agent
-    include_role:
-      name: caos.ansible_roles.fleet_api_request
-    vars:
-      authorize_agent:
-        account_id: "{{ nr_account_id | int }}"
-        agent_ulid: "{{ super_agent_ulid }}"
-```
 
 ## Create Configuration
 ```yaml
@@ -68,19 +58,6 @@ nr_api_key: "xxxxxxxxxxxxxxxx"
         config_revision_fact: "created_config_revision"
 ```
 
-## Deploy config to fleet:
-```yaml
-- name: deploy config to fleet
-  include_role:
-    name: caos.ansible_roles.fleet_api_request
-  vars:
-    deploy_config_to_fleet:
-      account_id: "{{ nr_account_id | int }}"
-      fleet_guid: "{{ fleet_guid }}"
-      config_id: "{{ created_config_id | int }}"
-      config_revision: "{{ created_config_revision | int }}"
-```
-
 ## Get Agent:
 ```yaml
 - name: get Agent
@@ -88,7 +65,7 @@ nr_api_key: "xxxxxxxxxxxxxxxx"
     name: caos.ansible_roles.fleet_api_request
   vars:
     get_agent:
-      agent_ulid: "{{ agent_ulid }}"
+      agent_instance_id: "{{ agent_instance_id }}"
       agent_fact: "agent_for_hash"
 ```
 

@@ -36,7 +36,8 @@
             fleetGuid
         }
       }
-    retries: 32
+    # We set 35 minutes grace period since we know the managed_entity can take that long to be linked
+    retries: 210
     delay: 10
     until: response.json is defined and response.json.data.deployFleet.fleetGuid is defined
 

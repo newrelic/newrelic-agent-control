@@ -11,14 +11,8 @@
 - include_tasks: list_fleets.yml
   when: list_fleets
 
-- include_tasks: deploy_config_to_fleet.yml
-  when: deploy_config_to_fleet.account_id | string | length > 0
-
-- include_tasks: authorize_agent.yml
-  when: authorize_agent.account_id | string | length > 0
-
 - include_tasks: get_agent.yml
-  when: get_agent.agent_ulid | length > 0
+  when: get_agent.agent_instance_id | length > 0
 
 - include_tasks: create_fleet.yml
   when: create_fleet.account_id | string | length > 0
