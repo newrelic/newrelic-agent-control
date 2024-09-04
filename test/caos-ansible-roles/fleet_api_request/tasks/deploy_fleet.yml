@@ -1,38 +1,5 @@
 ---
 
-- name: Executing Deploy GraphQL
-  ansible.builtin.debug:
-    msg: |
-      mutation {
-        deployFleet(
-          accountId: {{ deploy_fleet.account_id }}
-          fleetGuid: "{{ deploy_fleet.fleet_guid }}"
-          name: "{{ deploy_fleet.name }}"
-          {% if deploy_fleet.configurations is defined %}
-          configurationRevisions: [
-            {% for config in deploy_fleet.configurations %}
-            {
-              revisionNumber: {{ config["revision_number"] }},
-              configurationId: {{ config["configuration_id"] }},
-            },
-            {% endfor %}
-          ]
-          {% endif %}
-          {% if deploy_fleet.add_entity_guid is defined %} 
-          addEntities: [
-              "{{ deploy_fleet.add_entity_guid }}"
-          ]
-          {% endif %}
-          {% if deploy_fleet.remove_entity_guid is defined %}
-          removeEntities: [
-              "{{ deploy_fleet.remove_entity_guid }}"
-          ]
-          {% endif %}
-        ) {
-            fleetGuid
-        }
-      }
-
 - name: Fleet API Deploy configuration to Fleet
   include_role:
     name: graphql_request

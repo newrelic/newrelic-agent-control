@@ -1,5 +1,10 @@
 ---
-- name: Graphql Request
+
+- name: GraphQL body request
+  ansible.builtin.debug:
+    msg: "{{ graphql_query }}"
+
+- name: Execute Graphql Request
   delegate_to: 127.0.0.1
   uri:
     headers:
