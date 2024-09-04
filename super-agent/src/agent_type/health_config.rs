@@ -82,8 +82,20 @@ impl Default for HealthCheckTimeout {
 pub(crate) enum OnHostHealthCheck {
     #[serde(rename = "http")]
     HttpHealth(HttpHealth),
-    // #[serde(rename = "exec")]
-    // ExecHealth(ExecHealth),
+    #[serde(rename = "file")]
+    FileHealth(FileHealth),
+}
+
+#[derive(Debug, Deserialize, Clone, PartialEq)]
+pub(crate) struct FileHealth {
+    pub(crate) path: String,
+}
+
+impl Templateable for FileHealth {
+    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+        let rendered = self.path.template_with(variables)?;
+        Ok(Self { path: rendered })
+    }
 }
 
 /// Represents an HTTP-based port.
@@ -212,6 +224,12 @@ impl Templateable for OnHostHealthCheck {
                     ..conf
                 };
                 OnHostHealthCheck::HttpHealth(health_conf)
+            }
+            OnHostHealthCheck::FileHealth(conf) => {
+                let health_conf = FileHealth {
+                    path: conf.path.template_with(variables)?,
+                };
+                OnHostHealthCheck::FileHealth(health_conf)
             }
         })
     }

@@ -1,5 +1,4 @@
 use crate::agent_type::variable::definition::VariableDefinition;
-use crate::agent_type::variable::namespace::Namespace;
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::{Identifiers, Storer};

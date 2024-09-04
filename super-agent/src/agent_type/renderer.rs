@@ -183,7 +183,6 @@ pub(crate) mod tests {
     use mockall::{mock, predicate};
     use serial_test::serial;
     use std::env;
-    use tempfile::TempDir;
 
     fn test_data_dir() -> PathBuf {
         PathBuf::from("/some/path")
@@ -713,7 +712,6 @@ deployment:
             VariableDefinition::new_final_string_variable("fake_value".to_string()),
         )]);
 
-        let tmp_dir = TempDir::new().unwrap();
         let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default()
             .with_super_agent_variables(super_agent_variables.into_iter());
         let runtime_config = renderer
