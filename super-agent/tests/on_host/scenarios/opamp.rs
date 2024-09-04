@@ -106,8 +106,9 @@ fn onhost_opamp_super_agent_remote_effective_config() {
     );
 
     let (application_event_publisher, application_event_consumer) = pub_sub();
+    let sa_base_paths = base_paths.clone();
     let super_agent_join = thread::spawn(move || {
-        start_super_agent_with_custom_config(base_paths, application_event_consumer)
+        start_super_agent_with_custom_config(sa_base_paths, application_event_consumer)
     });
 
     let super_agent_instance_id =
