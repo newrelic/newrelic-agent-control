@@ -6,6 +6,7 @@ use super::{
     },
 };
 use crate::agent_type::environment::Environment;
+use crate::agent_type::runtime_config::Executable;
 use crate::event::channel::{pub_sub, EventPublisher};
 use crate::event::SubAgentEvent;
 use crate::opamp::effective_config::loader::EffectiveConfigLoader;
@@ -33,8 +34,9 @@ use crate::{
 use nix::unistd::gethostname;
 use std::collections::HashMap;
 use std::marker::PhantomData;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
+use std::vec;
 
 pub struct OnHostSubAgentBuilder<'a, O, I, HR, A, E, G>
 where
@@ -84,6 +86,58 @@ where
 
             _effective_config_loader: PhantomData,
         }
+    }
+
+    fn build_supervisors(
+        &self,
+        effective_agent: EffectiveAgent,
+    ) -> Result<Vec<SupervisorOnHost<command_supervisor::NotStarted>>, SubAgentBuilderError> {
+        let agent_id = effective_agent.get_agent_id();
+        let on_host = effective_agent
+            .get_runtime_config()
+            .deployment
+            .on_host
+            .clone()
+            .ok_or(SubAgentError::ErrorCreatingSubAgent(
+                effective_agent.to_string(),
+            ))?;
+
+        let enable_file_logging = on_host.enable_file_logging.get();
+        let supervisors = on_host
+            .executables
+            .into_iter()
+            .map(|e| self.create_executable_supervisor(agent_id, enable_file_logging, e))
+            .collect();
+
+        Ok(supervisors)
+    }
+
+    fn create_executable_supervisor(
+        &self,
+        agent_id: &AgentID,
+        enable_file_logging: bool,
+        executable: Executable,
+    ) -> SupervisorOnHost<command_supervisor::NotStarted> {
+        let restart_policy: RestartPolicy = executable.restart_policy.into();
+        let env = executable.env.get();
+
+        let exec_data = ExecutableData::new(executable.path.get())
+            .with_args(executable.args.get().into_vector())
+            .with_env(env);
+
+        let mut config = SupervisorConfigOnHost::new(
+            agent_id.clone(),
+            exec_data,
+            Context::new(),
+            restart_policy,
+        )
+        .with_file_logging(enable_file_logging, self.logging_path.to_path_buf());
+
+        if let Some(health) = executable.health {
+            config = config.with_health_check(health);
+        }
+
+        SupervisorOnHost::new(config)
     }
 }
 
@@ -136,7 +190,7 @@ where
             &self.hash_repository,
             &maybe_opamp_client,
             effective_agent_res,
-            |effective_agent| build_supervisors(effective_agent, &self.logging_path),
+            |effective_agent| self.build_supervisors(effective_agent),
         )?;
 
         let event_processor = self.event_processor_builder.build(
@@ -156,48 +210,6 @@ where
             sub_agent_internal_publisher,
         ))
     }
-}
-
-fn build_supervisors(
-    effective_agent: EffectiveAgent,
-    logging_path: &Path,
-) -> Result<Vec<SupervisorOnHost<command_supervisor::NotStarted>>, SubAgentBuilderError> {
-    let agent_id = effective_agent.get_agent_id();
-    let on_host = effective_agent
-        .get_runtime_config()
-        .deployment
-        .on_host
-        .clone()
-        .ok_or(SubAgentError::ErrorCreatingSubAgent(
-            effective_agent.to_string(),
-        ))?;
-
-    let mut supervisors = Vec::new();
-    let enable_file_logging = on_host.enable_file_logging.get();
-    for exec in on_host.executables {
-        let restart_policy: RestartPolicy = exec.restart_policy.into();
-        let env = exec.env.get();
-
-        let exec_data = ExecutableData::new(exec.path.get())
-            .with_args(exec.args.get().into_vector())
-            .with_env(env);
-
-        let mut config = SupervisorConfigOnHost::new(
-            agent_id.clone(),
-            exec_data,
-            Context::new(),
-            restart_policy,
-        )
-        .with_file_logging(enable_file_logging, logging_path.to_path_buf());
-
-        if let Some(health) = exec.health {
-            config = config.with_health_check(health);
-        }
-
-        let not_started_supervisor = SupervisorOnHost::new(config);
-        supervisors.push(not_started_supervisor);
-    }
-    Ok(supervisors)
 }
 
 fn get_hostname() -> String {
@@ -399,7 +411,7 @@ mod test {
             Runtime {
                 deployment: Deployment {
                     on_host: Some(OnHost {
-                        executables: Vec::new(),
+                        executables: vec![],
                         enable_file_logging: TemplateableValue::new(false),
                     }),
                     k8s: None,
