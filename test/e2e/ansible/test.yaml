@@ -17,9 +17,5 @@
 - name: Sub Agents valid remote config
   import_playbook: sub_agent_valid_remote_config.yaml
 
-# TODO <disabled until FM API gets stable>
-#- name: Sub Agents invalid remote config
-#  import_playbook: sub_agent_invalid_remote_config.yaml
-# TODO </disabled until FM API gets stable>
-
-
+- name: Sub Agents invalid remote config
+  import_playbook: sub_agent_invalid_remote_config.yaml

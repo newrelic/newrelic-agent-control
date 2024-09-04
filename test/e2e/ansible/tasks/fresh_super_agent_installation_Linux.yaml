@@ -82,6 +82,19 @@
       - "^/usr/bin/newrelic-infra"
       - "^/usr/bin/nr-otel-collector"
 
+- name: Wait for 60 seconds so the agents are registered on the Fleet
+  pause:
+    seconds: 60
+
+- name: Assert Super Agent and Agents are running
+  include_role:
+    name: caos.ansible_roles.assert_process_running
+  vars:
+    processes_running:
+      - "^/usr/bin/newrelic-super-agent"
+      - "^/usr/bin/newrelic-infra"
+      - "^/usr/bin/nr-otel-collector"
+
 - name: Assert agents exist and are healthy
   include_role:
     name: fleet_api_request
