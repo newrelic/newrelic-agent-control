@@ -40,6 +40,12 @@ variables:
       default: "0.7.2"
 deployment:
   on_host:
+    health:
+      interval: 5s
+      timeout: 5s
+      http:
+        path: "${nr-var:health_check.path}"
+        port: ${nr-var:health_check.port}
     executables:
       - path: /usr/bin/nr-otel-collector
         args: >-
@@ -52,12 +58,7 @@ deployment:
           backoff_strategy:
             type: fixed
             backoff_delay: ${nr-var:backoff_delay}
-        health:
-          interval: 5s
-          timeout: 5s
-          http:
-            path: "${nr-var:health_check.path}"
-            port: ${nr-var:health_check.port}
+        
   k8s:
     health:
       interval: 30s

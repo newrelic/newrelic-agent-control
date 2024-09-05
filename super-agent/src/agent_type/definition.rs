@@ -440,7 +440,7 @@ deployment:
     health:
       interval: 3s
       timeout: 10s
-      httpGet:
+      http:
         path: /healthz
         port: 8080
     executables:
@@ -626,7 +626,6 @@ deployment:
                 },
                 restart_exit_codes: Vec::default(),
             },
-            health: None,
         };
 
         let normalized_values = Map::from([
@@ -763,7 +762,6 @@ deployment:
                 },
                 restart_exit_codes: vec![],
             },
-            health: None,
         };
 
         assert_eq!(exec_actual, exec_expected);
@@ -796,7 +794,6 @@ deployment:
                 },
                 restart_exit_codes: vec![],
             },
-            health: None,
         };
 
         let normalized_values = Map::from([
@@ -878,7 +875,6 @@ deployment:
                 },
                 restart_exit_codes: vec![],
             },
-            health: None,
         };
 
         assert_eq!(exec_actual, exec_expected);
@@ -925,7 +921,7 @@ deployment:
     health:
       interval: 3s
       timeout: 10s
-      httpGet:
+      http:
         path: /v1/status
         port: "${nr-var:status_server_port}"
     executables:

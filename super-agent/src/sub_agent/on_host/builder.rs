@@ -1,3 +1,4 @@
+use super::health_checker::{HealthChecker, HealthCheckerNotStarted};
 use super::supervisor::command_supervisor_config::ExecutableData;
 use super::{
     sub_agent::SubAgentOnHost,
@@ -25,10 +26,7 @@ use crate::super_agent::defaults::HOST_NAME_ATTRIBUTE_KEY;
 use crate::{
     context::Context,
     opamp::client_builder::OpAMPClientBuilder,
-    sub_agent::{
-        error::{SubAgentBuilderError, SubAgentError},
-        SubAgentBuilder,
-    },
+    sub_agent::{error::SubAgentBuilderError, SubAgentBuilder},
 };
 #[cfg(unix)]
 use nix::unistd::gethostname;
@@ -36,6 +34,7 @@ use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::path::PathBuf;
 use std::sync::Arc;
+use tracing::error;
 
 pub struct OnHostSubAgentBuilder<'a, O, I, HR, A, E, G>
 where
@@ -92,20 +91,13 @@ where
         effective_agent: EffectiveAgent,
     ) -> Result<Vec<SupervisorOnHost<command_supervisor::NotStarted>>, SubAgentBuilderError> {
         let agent_id = effective_agent.get_agent_id();
-        let on_host = effective_agent
-            .get_runtime_config()
-            .deployment
-            .on_host
-            .clone()
-            .ok_or(SubAgentError::ErrorCreatingSubAgent(
-                effective_agent.to_string(),
-            ))?;
+        let on_host = effective_agent.get_onhost_config()?.clone();
 
         let enable_file_logging = on_host.enable_file_logging.get();
         let supervisors = on_host
             .executables
             .into_iter()
-            .map(|e| self.create_executable_supervisor(agent_id, enable_file_logging, e))
+            .map(|e| self.create_executable_supervisor(agent_id.clone(), enable_file_logging, e))
             .collect();
 
         Ok(supervisors)
@@ -113,7 +105,7 @@ where
 
     fn create_executable_supervisor(
         &self,
-        agent_id: &AgentID,
+        agent_id: AgentID,
         enable_file_logging: bool,
         executable: Executable,
     ) -> SupervisorOnHost<command_supervisor::NotStarted> {
@@ -124,17 +116,9 @@ where
             .with_args(executable.args.get().into_vector())
             .with_env(env);
 
-        let mut config = SupervisorConfigOnHost::new(
-            agent_id.clone(),
-            exec_data,
-            Context::new(),
-            restart_policy,
-        )
-        .with_file_logging(enable_file_logging, self.logging_path.to_path_buf());
-
-        if let Some(health) = executable.health {
-            config = config.with_health_check(health);
-        }
+        let config =
+            SupervisorConfigOnHost::new(agent_id, exec_data, Context::new(), restart_policy)
+                .with_file_logging(enable_file_logging, self.logging_path.to_path_buf());
 
         SupervisorOnHost::new(config)
     }
@@ -149,8 +133,11 @@ where
     A: EffectiveAgentsAssembler,
     E: SubAgentEventProcessorBuilder<O::Client, G>,
 {
-    type NotStartedSubAgent =
-        SubAgentOnHost<NotStarted<E::SubAgentEventProcessor>, command_supervisor::NotStarted>;
+    type NotStartedSubAgent = SubAgentOnHost<
+        NotStarted<E::SubAgentEventProcessor>,
+        command_supervisor::NotStarted,
+        HealthCheckerNotStarted,
+    >;
 
     fn build(
         &self,
@@ -184,6 +171,30 @@ where
             &Environment::OnHost,
         );
 
+        // try to build health checker
+        let health_checker = match &effective_agent_res {
+            Ok(effective_agent) => effective_agent
+                .get_onhost_config()?
+                .health
+                .as_ref()
+                .and_then(|health_config| {
+                    HealthChecker::try_new(
+                        agent_id.clone(),
+                        sub_agent_internal_publisher.clone(),
+                        health_config.clone(),
+                    )
+                    .map_err(|err| {
+                        error!(
+                            %agent_id,
+                            %err,
+                            "could not launch health checker, using default",
+                        )
+                    })
+                    .ok()
+                }),
+            _ => None,
+        };
+
         let supervisors = build_supervisor_or_default::<HR, O, _, _, _>(
             &agent_id,
             &self.hash_repository,
@@ -204,6 +215,7 @@ where
         Ok(SubAgentOnHost::new(
             agent_id,
             sub_agent_config.agent_type.clone(),
+            health_checker,
             supervisors,
             event_processor,
             sub_agent_internal_publisher,
@@ -412,6 +424,7 @@ mod test {
                     on_host: Some(OnHost {
                         executables: vec![],
                         enable_file_logging: TemplateableValue::new(false),
+                        health: None,
                     }),
                     k8s: None,
                 },

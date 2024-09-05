@@ -5,7 +5,7 @@ use crate::agent_type::embedded_registry::EmbeddedRegistry;
 use crate::agent_type::environment::Environment;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::renderer::{Renderer, TemplateRenderer};
-use crate::agent_type::runtime_config::{Deployment, Runtime};
+use crate::agent_type::runtime_config::{Deployment, K8s, OnHost, Runtime};
 use crate::sub_agent::persister::config_persister_file::ConfigurationPersisterFile;
 use crate::super_agent::config::{AgentID, AgentTypeFQN, SubAgentConfig};
 use crate::values::yaml_config_repository::{
@@ -19,6 +19,8 @@ use tracing::error;
 
 #[derive(Error, Debug)]
 pub enum EffectiveAgentsAssemblerError {
+    #[error("error assembling agents: `{0}`")]
+    EffectiveAgentsAssemblerError(String),
     #[error("error assembling agents: `{0}`")]
     RepositoryError(#[from] AgentRepositoryError),
     #[error("error assembling agents: `{0}`")]
@@ -60,9 +62,21 @@ impl EffectiveAgent {
             runtime_config,
         }
     }
-
-    pub(crate) fn get_runtime_config(&self) -> &Runtime {
-        &self.runtime_config
+    #[allow(dead_code)]
+    pub(crate) fn get_onhost_config(&self) -> Result<&OnHost, EffectiveAgentsAssemblerError> {
+        self.runtime_config.deployment.on_host.as_ref().ok_or(
+            EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(
+                "missing on_host deployment configuration".to_string(),
+            ),
+        )
+    }
+    #[allow(dead_code)]
+    pub(crate) fn get_k8s_config(&self) -> Result<&K8s, EffectiveAgentsAssemblerError> {
+        self.runtime_config.deployment.k8s.as_ref().ok_or(
+            EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(
+                "missing k8s deployment configuration".to_string(),
+            ),
+        )
     }
 
     #[allow(dead_code)]

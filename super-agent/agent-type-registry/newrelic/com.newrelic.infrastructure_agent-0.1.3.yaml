@@ -39,6 +39,12 @@ variables:
 deployment:
   on_host:
     enable_file_logging: ${nr-var:enable_file_logging}
+    health:
+      interval: 5s
+      timeout: 5s
+      http:
+        path: "/v1/status/health"
+        port: ${nr-var:health_port}
     executables:
       - path: /usr/bin/newrelic-infra
         args: >-
@@ -53,9 +59,3 @@ deployment:
           backoff_strategy:
             type: fixed
             backoff_delay: ${nr-var:backoff_delay}
-        health:
-          interval: 5s
-          timeout: 5s
-          http:
-            path: "/v1/status/health"
-            port: ${nr-var:health_port}
