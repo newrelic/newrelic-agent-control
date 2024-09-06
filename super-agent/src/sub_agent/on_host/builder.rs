@@ -36,7 +36,6 @@ use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::vec;
 
 pub struct OnHostSubAgentBuilder<'a, O, I, HR, A, E, G>
 where

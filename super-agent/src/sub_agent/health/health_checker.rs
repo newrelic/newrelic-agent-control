@@ -129,6 +129,12 @@ impl Healthy {
             status_time: StatusTime::now(),
         }
     }
+    pub fn with_status_time(self, status_time: StatusTime) -> Self {
+        Self {
+            status_time,
+            ..self
+        }
+    }
     pub fn status(&self) -> &str {
         &self.status
     }
@@ -172,6 +178,13 @@ impl Unhealthy {
             status,
             last_error,
             status_time: StatusTime::now(),
+        }
+    }
+
+    pub fn with_status_time(self, status_time: StatusTime) -> Self {
+        Self {
+            status_time,
+            ..self
         }
     }
 
