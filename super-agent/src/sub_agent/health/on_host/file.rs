@@ -37,20 +37,7 @@ impl HealthChecker for FileHealthChecker {
             ))
         })?;
 
-        let status_time = sys_time_from_unix_timestamp(health.status_time_unix_nano);
-        let start_time = sys_time_from_unix_timestamp(health.start_time_unix_nano);
-
-        if health.healthy {
-            Ok(HealthWithStartTime::from_healthy(
-                Healthy::new(health.status).with_status_time(status_time),
-                start_time,
-            ))
-        } else {
-            Ok(HealthWithStartTime::from_unhealthy(
-                Unhealthy::new(health.status, health.last_error).with_status_time(status_time),
-                start_time,
-            ))
-        }
+        Ok(health.into())
     }
 }
 
@@ -62,6 +49,25 @@ struct FileHealthContent {
     last_error: String,
     start_time_unix_nano: u64,
     status_time_unix_nano: u64,
+}
+
+impl From<FileHealthContent> for HealthWithStartTime {
+    fn from(content: FileHealthContent) -> Self {
+        let status_time = sys_time_from_unix_timestamp(content.status_time_unix_nano);
+        let start_time = sys_time_from_unix_timestamp(content.start_time_unix_nano);
+
+        if content.healthy {
+            HealthWithStartTime::from_healthy(
+                Healthy::new(content.status).with_status_time(status_time),
+                start_time,
+            )
+        } else {
+            HealthWithStartTime::from_unhealthy(
+                Unhealthy::new(content.status, content.last_error).with_status_time(status_time),
+                start_time,
+            )
+        }
+    }
 }
 
 #[cfg(test)]
