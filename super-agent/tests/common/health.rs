@@ -6,7 +6,7 @@ pub fn check_latest_health_status_was_healthy(
     server: &FakeServer,
     instance_id: &InstanceID,
 ) -> Result<(), Box<dyn Error>> {
-    let health_status = server.get_health_status(instance_id.clone());
+    let health_status = server.get_health_status(instance_id);
     match health_status {
         Some(status) if status.healthy => Ok(()),
         None => Err("Health status not available".into()),

@@ -3,6 +3,7 @@ mod command;
 mod config_persister;
 mod consts;
 mod effective_config;
+mod health_check;
 mod id;
 mod logging;
 mod opamp_auth;
