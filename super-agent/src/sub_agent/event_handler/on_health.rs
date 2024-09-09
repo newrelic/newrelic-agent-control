@@ -7,7 +7,6 @@ use crate::sub_agent::health::with_start_time::HealthWithStartTime;
 use crate::sub_agent::SubAgentCallbacks;
 use crate::values::yaml_config_repository::YAMLConfigRepository;
 use opamp_client::StartedClient;
-use tracing::error;
 
 impl<C, H, Y, G> EventProcessor<C, H, Y, G>
 where
@@ -18,29 +17,7 @@ where
 {
     pub(crate) fn on_health(&self, health: HealthWithStartTime) -> Result<(), SubAgentError> {
         if let Some(client) = self.maybe_opamp_client.as_ref() {
-            let start_time_unix_nano = health
-                .start_time()
-                .duration_since(std::time::UNIX_EPOCH)
-                .inspect_err(|e| {
-                    error!("could not convert start time to unix timestamp nanoseconds: {e}")
-                })?
-                .as_nanos() as u64;
-            let status_time_unix_nano = health
-                .status_time()
-                .duration_since(std::time::UNIX_EPOCH)
-                .inspect_err(|e| {
-                    error!("could not convert status time to unix timestamp nanoseconds: {e}")
-                })?
-                .as_nanos() as u64;
-            let health = opamp_client::opamp::proto::ComponentHealth {
-                healthy: health.is_healthy(),
-                start_time_unix_nano,
-                status_time_unix_nano,
-                last_error: health.last_error().unwrap_or_default(),
-                status: health.status().to_string(),
-                ..Default::default()
-            };
-            client.set_health(health)?;
+            client.set_health(health.clone().into())?;
         }
         Ok(self
             .sub_agent_publisher
