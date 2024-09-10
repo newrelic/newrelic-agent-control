@@ -16,6 +16,7 @@ use super::tools::{
 use crate::common::effective_config::check_latest_effective_config_is_expected;
 use newrelic_super_agent::super_agent::config::AgentID;
 use std::time::Duration;
+use tempfile::tempdir;
 
 #[test]
 #[ignore = "needs k8s cluster"]
@@ -27,6 +28,7 @@ fn k8s_opamp_enabled_with_no_remote_configuration() {
     // setup the k8s environment
     let mut k8s = block_on(K8sEnv::new());
     let namespace = block_on(k8s.test_namespace());
+    let tmp_dir = tempdir().expect("failed to create local temp dir");
 
     // start the super-agent
     let _sa = start_super_agent_with_testdata_config(
@@ -35,6 +37,7 @@ fn k8s_opamp_enabled_with_no_remote_configuration() {
         &namespace,
         Some(&server.endpoint()),
         vec!["local-data-open-telemetry-agent-id"],
+        tmp_dir.path(),
     );
     wait_until_super_agent_with_opamp_is_started(k8s.client.clone(), namespace.as_str());
 
@@ -82,6 +85,7 @@ fn k8s_opamp_subagent_configuration_change() {
     // setup the k8s environment
     let mut k8s = block_on(K8sEnv::new());
     let namespace = block_on(k8s.test_namespace());
+    let tmp_dir = tempdir().expect("failed to create local temp dir");
 
     // start the super-agent
     let _sa = start_super_agent_with_testdata_config(
@@ -90,6 +94,7 @@ fn k8s_opamp_subagent_configuration_change() {
         &namespace,
         Some(&server.endpoint()),
         vec!["local-data-open-telemetry-agent-id"],
+        tmp_dir.path(),
     );
     wait_until_super_agent_with_opamp_is_started(k8s.client.clone(), namespace.as_str());
 
@@ -208,6 +213,7 @@ fn k8s_opamp_add_subagent() {
     // setup the k8s environment
     let mut k8s = block_on(K8sEnv::new());
     let namespace = block_on(k8s.test_namespace());
+    let tmp_dir = tempdir().expect("failed to create local temp dir");
 
     // start the super-agent
     let _sa = start_super_agent_with_testdata_config(
@@ -216,6 +222,7 @@ fn k8s_opamp_add_subagent() {
         &namespace,
         Some(&server.endpoint()),
         vec!["local-data-open-telemetry", "local-data-open-telemetry-2"],
+        tmp_dir.path(),
     );
     wait_until_super_agent_with_opamp_is_started(k8s.client.clone(), namespace.as_str());
 

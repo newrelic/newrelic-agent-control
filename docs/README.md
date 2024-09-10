@@ -294,7 +294,7 @@ Compile and run locally:
 1. Install [RUST](https://www.rust-lang.org/tools/install)
 2. Run `cargo build --features onhost`
 3. `newrelic-super-agent` binary will be generated at `./target/debug/newrelic-super-agent`
-4. Prepare a `config.yaml` file in the current folder, example: 
+4. Prepare a `config.yaml` file in /etc/newrelic-super-agent/, example: 
 
 ```yaml
 opamp:
@@ -314,7 +314,7 @@ config: |
     # pipelines:
 ```
 6. Execute the binary with the config file:  
-    * `sudo ./target/debug/newrelic-super-agent --config ./config.yaml`
+    * `sudo ./target/debug/newrelic-super-agent`
 
 ### Running in Kubernetes
 

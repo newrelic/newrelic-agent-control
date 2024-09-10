@@ -4,6 +4,8 @@ use crate::on_host::tools::super_agent::start_super_agent_with_custom_config;
 use assert_cmd::Command;
 use httpmock::Method::GET;
 use httpmock::MockServer;
+use newrelic_super_agent::event::channel::pub_sub;
+use newrelic_super_agent::event::ApplicationEvent;
 use newrelic_super_agent::opamp::instance_id::IdentifiersProvider;
 use newrelic_super_agent::super_agent::defaults::{
     DYNAMIC_AGENT_TYPE_FILENAME, SUPER_AGENT_CONFIG_FILE,
@@ -162,13 +164,15 @@ agents:
     );
 
     let base_paths = BasePaths {
-        super_agent_local_config: sa_config_path,
         local_dir: local_dir.path().to_path_buf(),
         remote_dir: remote_dir.path().to_path_buf(),
         log_dir: local_dir.path().to_path_buf(),
     };
 
-    let _super_agent_join = thread::spawn(move || start_super_agent_with_custom_config(base_paths));
+    let (application_event_publisher, application_event_consumer) = pub_sub();
+    let super_agent_join = thread::spawn(move || {
+        start_super_agent_with_custom_config(base_paths, application_event_consumer)
+    });
 
     retry(30, Duration::from_secs(1), || {
         // Check that the process is running with this exact command
@@ -179,4 +183,8 @@ agents:
 
         Ok(())
     });
+    application_event_publisher
+        .publish(ApplicationEvent::StopRequested)
+        .unwrap();
+    super_agent_join.join().unwrap();
 }

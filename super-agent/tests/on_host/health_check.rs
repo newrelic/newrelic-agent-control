@@ -3,6 +3,8 @@ use crate::common::opamp::FakeServer;
 use crate::common::retry::retry;
 use crate::on_host::tools::config::{create_file, create_super_agent_config};
 use crate::on_host::tools::super_agent::start_super_agent_with_custom_config;
+use newrelic_super_agent::event::channel::pub_sub;
+use newrelic_super_agent::event::ApplicationEvent;
 use newrelic_super_agent::super_agent::config::AgentID;
 use newrelic_super_agent::super_agent::defaults::DYNAMIC_AGENT_TYPE_FILENAME;
 use newrelic_super_agent::super_agent::run::BasePaths;
@@ -47,22 +49,22 @@ deployment:
     agent_type: "test/test:0.0.0"
 "#;
 
-    let config_file_path = create_super_agent_config(
+    create_super_agent_config(
         opamp_server.endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
     );
 
     let base_paths = BasePaths {
-        super_agent_local_config: config_file_path,
         local_dir: local_dir.path().to_path_buf(),
         remote_dir: remote_dir.path().to_path_buf(),
         log_dir: local_dir.path().to_path_buf(),
     };
     let base_paths_copy = base_paths.clone();
-
-    let _super_agent_join =
-        thread::spawn(move || start_super_agent_with_custom_config(base_paths.clone()));
+    let (application_event_publisher, application_event_consumer) = pub_sub();
+    let super_agent_join = thread::spawn(move || {
+        start_super_agent_with_custom_config(base_paths.clone(), application_event_consumer)
+    });
 
     let super_agent_instance_id =
         get_instance_id(&AgentID::new("test-agent").unwrap(), base_paths_copy);
@@ -116,4 +118,9 @@ status_time_unix_nano: 1725444002
         }
         Err("Unhealthy status not found".into())
     });
+
+    application_event_publisher
+        .publish(ApplicationEvent::StopRequested)
+        .unwrap();
+    super_agent_join.join().unwrap();
 }

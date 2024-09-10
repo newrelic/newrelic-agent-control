@@ -1,7 +1,9 @@
-use predicates::prelude::predicate;
-use tempfile::TempDir;
-
 use crate::on_host::cli::cmd_with_config_file;
+use newrelic_super_agent::super_agent::defaults::SUPER_AGENT_CONFIG_FILE;
+use predicates::prelude::predicate;
+use std::thread;
+use std::time::Duration;
+use tempfile::TempDir;
 
 const EMPTY_CONFIG: &str = "# Empty config\nagents: {}";
 
@@ -14,10 +16,10 @@ pub(crate) const TIME_FORMAT: &str = r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*
 #[test]
 fn default_log_level_no_root() {
     let dir = TempDir::new().unwrap();
-    let config_path = dir.path().join("super_agent.yaml");
-    std::fs::write(&config_path, EMPTY_CONFIG).unwrap();
+    let config_path = dir.path().join(SUPER_AGENT_CONFIG_FILE);
+    std::fs::write(config_path, EMPTY_CONFIG).unwrap();
 
-    let mut cmd = cmd_with_config_file(&config_path);
+    let mut cmd = cmd_with_config_file(dir.path());
     // Expecting to fail as non_root
     cmd.assert()
         .failure()
@@ -38,11 +40,12 @@ fn default_log_level_no_root() {
 #[test]
 fn default_log_level_as_root() {
     let dir = TempDir::new().unwrap();
-    let config_path = dir.path().join("super_agent.yaml");
-    std::fs::write(&config_path, EMPTY_CONFIG).unwrap();
+    let config_path = dir.path().join(SUPER_AGENT_CONFIG_FILE);
+    std::fs::write(config_path, EMPTY_CONFIG).unwrap();
 
-    let mut cmd = cmd_with_config_file(&config_path);
-    // Expecting to fail as non_root
+    let mut cmd = cmd_with_config_file(dir.path());
+    thread::sleep(Duration::from_millis(2000));
+
     cmd.assert()
         .failure()
         .stdout(
@@ -68,11 +71,12 @@ fn default_log_level_as_root() {
 #[test]
 fn debug_log_level_no_root() {
     let dir = TempDir::new().unwrap();
-    let config_path = dir.path().join("super_agent.yaml");
-    std::fs::write(&config_path, DEBUG_LEVEL_CONFIG).unwrap();
+    let config_path = dir.path().join(SUPER_AGENT_CONFIG_FILE);
+    std::fs::write(config_path, DEBUG_LEVEL_CONFIG).unwrap();
 
-    let mut cmd = cmd_with_config_file(&config_path);
+    let mut cmd = cmd_with_config_file(dir.path());
 
+    thread::sleep(Duration::from_millis(2000));
     // Expecting to fail as non_root
     cmd.assert()
         .failure()
@@ -91,10 +95,11 @@ fn debug_log_level_no_root() {
 #[test]
 fn trace_log_level_as_root() {
     let dir = TempDir::new().unwrap();
-    let config_path = dir.path().join("super_agent.yaml");
-    std::fs::write(&config_path, TRACE_LEVEL_CONFIG).unwrap();
+    let config_path = dir.path().join(SUPER_AGENT_CONFIG_FILE);
+    std::fs::write(config_path, TRACE_LEVEL_CONFIG).unwrap();
 
-    let mut cmd = cmd_with_config_file(&config_path);
+    let mut cmd = cmd_with_config_file(dir.path());
+    thread::sleep(Duration::from_millis(2000));
 
     // Expecting to fail as non_root
     cmd.assert()

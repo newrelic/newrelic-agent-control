@@ -1,3 +1,4 @@
+use super::k8s_api::check_config_map_exist;
 use crate::common::{retry::retry, runtime::block_on};
 use k8s_openapi::api::core::v1::ConfigMap;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
@@ -9,14 +10,14 @@ use newrelic_super_agent::k8s::store::{
     K8sStore, CM_NAME_LOCAL_DATA_PREFIX, STORE_KEY_LOCAL_DATA_CONFIG,
 };
 use newrelic_super_agent::super_agent::config::AgentID;
+use newrelic_super_agent::super_agent::defaults::SUPER_AGENT_CONFIG_FILE;
+use std::collections::BTreeMap;
 use std::io::Read;
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::time::Duration;
-use std::{collections::BTreeMap, path::PathBuf};
 use std::{fs::File, io::Write};
-
-use super::k8s_api::check_config_map_exist;
+use tempfile::tempdir;
 
 pub const TEST_CLUSTER_NAME: &str = "minikube";
 
@@ -28,9 +29,10 @@ pub fn start_super_agent_with_testdata_config(
     ns: &str,
     opamp_endpoint: Option<&str>,
     subagent_file_names: Vec<&str>,
+    local_dir: &Path,
 ) -> AutoDroppingChild {
-    let config_local =
-        create_local_super_agent_config(client.clone(), ns, opamp_endpoint, folder_name);
+    create_local_super_agent_config(client.clone(), ns, opamp_endpoint, folder_name, local_dir);
+
     for file_name in subagent_file_names {
         block_on(create_local_config_map(
             client.clone(),
@@ -40,7 +42,7 @@ pub fn start_super_agent_with_testdata_config(
         ))
     }
     AutoDroppingChild {
-        child: start_super_agent(&config_local),
+        child: start_super_agent(local_dir),
     }
 }
 
@@ -58,6 +60,7 @@ impl Drop for AutoDroppingChild {
 /// Starts the super-agent compiled with the k8s feature and the provided configuration file.
 pub fn start_super_agent(file_path: &Path) -> std::process::Child {
     let mut command = Command::new("cargo");
+
     command
         .args([
             "run",
@@ -66,7 +69,7 @@ pub fn start_super_agent(file_path: &Path) -> std::process::Child {
             "--features",
             "k8s",
             "--",
-            "--config",
+            "--local-dir",
         ])
         .arg(file_path)
         .stdout(Stdio::inherit())
@@ -113,7 +116,8 @@ pub fn create_local_super_agent_config(
     test_ns: &str,
     opamp_endpoint: Option<&str>,
     folder_name: &str,
-) -> std::path::PathBuf {
+    tmp_dir: &Path,
+) {
     let mut content = String::new();
     File::open(format!(
         "tests/k8s/data/{}/local-data-super-agent.template",
@@ -123,7 +127,6 @@ pub fn create_local_super_agent_config(
     .read_to_string(&mut content)
     .unwrap();
 
-    let file_path = format!("tests/k8s/data/{}/local-sa.k8s_tmp", folder_name);
     let mut content = content
         .replace("<ns>", test_ns)
         .replace("<cluster-name>", TEST_CLUSTER_NAME);
@@ -137,11 +140,10 @@ pub fn create_local_super_agent_config(
         content.clone(),
     ));
 
-    File::create(file_path.as_str())
+    File::create(tmp_dir.join(SUPER_AGENT_CONFIG_FILE))
         .unwrap()
         .write_all(content.as_bytes())
         .unwrap();
-    PathBuf::from(file_path)
 }
 
 /// This function checks that the cm containing the instance id of the superAgent has been created.

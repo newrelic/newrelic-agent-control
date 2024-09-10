@@ -1,4 +1,5 @@
 use assert_cmd::Command;
+use newrelic_super_agent::super_agent::defaults::SUPER_AGENT_CONFIG_FILE;
 use nix::{
     sys::signal::{self, Signal},
     unistd::Pid,
@@ -16,29 +17,24 @@ fn killing_subprocess_with_signal_restarts_as_root() -> Result<(), Box<dyn std::
 
     let _agent_type_def = create_temp_file(
         &dir,
-        "nrsa_local/dynamic-agent-type.yaml",
+        "dynamic-agent-type.yaml",
         r#"
 namespace: newrelic
 name: com.newrelic.test-agent
 version: 0.0.1
 variables:
   on_host:
-    message:
-      description: "Message to repeatedly output"
+    duration:
+      description: "time to sleep"
       type: string
       required: false
       default: "yes"
-    file_logging:
-      description: "Enable file logging"
-      type: bool
-      required: false
-      default: false
 deployment:
   on_host:
-    enable_file_logging: "${nr-var:file_logging}"
+    enable_file_logging: false
     executables:
-      - path: /usr/bin/yes
-        args: "${nr-var:message}"
+      - path: sleep
+        args: "${nr-var:duration}"
         restart_policy:
           backoff_strategy:
             type: fixed
@@ -49,16 +45,15 @@ deployment:
 
     let _values_file = create_temp_file(
         &dir,
-        "nrsa_local/fleet/agents.d/test-agent/values/values.yaml",
+        "fleet/agents.d/test-agent/values/values.yaml",
         r#"
-message: "test yes"
-file_logging: true
+duration: "1000000"
 "#,
     );
 
-    let config_path = create_temp_file(
+    let _config_path = create_temp_file(
         &dir,
-        "config.yml",
+        SUPER_AGENT_CONFIG_FILE,
         r#"
 log:
   level: debug
@@ -68,35 +63,36 @@ agents:
   test-agent:
     agent_type: newrelic/com.newrelic.test-agent:0.0.1
 "#,
-    )?;
+    );
 
-    let tmpdir_path = dir.path().to_path_buf();
+    // we need to avoid dropping the variable, therefore we pass only the path
+    let path = dir.path().to_path_buf();
 
     let super_agent_join = thread::spawn(move || {
         let mut cmd = Command::cargo_bin("newrelic-super-agent").unwrap();
-        cmd.arg("--config")
-            .arg(config_path)
-            .arg("--debug")
-            .arg(tmpdir_path);
-        // cmd_assert is not made for long running programs, so we kill it anyway after 3 seconds
+        cmd.arg("--local-dir").arg(path);
+        // cmd_assert is not made for long running programs, so we kill it anyway after 10 seconds
         cmd.timeout(Duration::from_secs(10));
         // But in any case we make sure that it actually attempted to create the supervisor group,
         // so it works when the program is run as root
-        cmd.output().expect("failed to execute process");
+        let logs = cmd.output().expect("failed to execute process").stdout;
+        println!("{}", String::from_utf8(logs).unwrap());
     });
 
-    thread::sleep(Duration::from_secs(2));
+    thread::sleep(Duration::from_secs(5));
 
     // Use `pgrep` to find the process id of the yes command
     // It is expected that only one such process is found!
     let yes_pid = Command::new("pgrep")
         .arg("-f")
-        .arg("/usr/bin/yes test yes")
+        .arg("sleep 1000000")
         .output()
         .expect("failed to execute process")
         .stdout;
 
     let yes_pid = String::from_utf8(yes_pid).unwrap();
+
+    println!("PID {}", yes_pid);
 
     // Send a SIGKILL to the yes command
     signal::kill(
@@ -111,7 +107,7 @@ agents:
     // Get the pid for the new yes command
     let new_yes_pid = Command::new("pgrep")
         .arg("-f")
-        .arg("/usr/bin/yes test yes")
+        .arg("sleep 1000000")
         .output()
         .expect("failed to execute process")
         .stdout;

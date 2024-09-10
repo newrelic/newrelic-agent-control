@@ -28,16 +28,14 @@ pub mod on_host;
 /// Structure with all base paths required to run the super agent
 #[derive(Clone)]
 pub struct BasePaths {
-    pub super_agent_local_config: PathBuf,
     pub local_dir: PathBuf,
     pub remote_dir: PathBuf,
     pub log_dir: PathBuf,
 }
 
-impl BasePaths {
-    pub fn new(super_agent_local_config: String) -> Self {
+impl Default for BasePaths {
+    fn default() -> Self {
         Self {
-            super_agent_local_config: PathBuf::from(super_agent_local_config),
             local_dir: PathBuf::from(SUPER_AGENT_LOCAL_DATA_DIR),
             remote_dir: PathBuf::from(SUPER_AGENT_DATA_DIR),
             log_dir: PathBuf::from(SUPER_AGENT_LOG_DIR),
@@ -131,17 +129,9 @@ impl SuperAgentRunner {
 }
 
 #[cfg(debug_assertions)]
-/// Set the debug directories if the debug, or any of path override flags are set.
-/// Precedence is given to the individual local_dir, remote_dir, and logs_dir flags
-/// then the debug flag.
+/// Set path override if local_dir, remote_dir, and logs_dir flags are set
 pub fn set_debug_dirs(base_paths: BasePaths, cli: &crate::cli::Cli) -> BasePaths {
     let mut base_paths = base_paths;
-
-    if let Some(ref debug_path) = cli.debug {
-        base_paths.local_dir = debug_path.join("nrsa_local");
-        base_paths.remote_dir = debug_path.join("nrsa_remote");
-        base_paths.log_dir = debug_path.join("nrsa_logs");
-    }
 
     if let Some(ref local_path) = cli.local_dir {
         base_paths.local_dir = local_path.to_path_buf();

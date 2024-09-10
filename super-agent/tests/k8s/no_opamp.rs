@@ -5,6 +5,7 @@ use super::tools::{
     super_agent::start_super_agent_with_testdata_config,
 };
 use std::time::Duration;
+use tempfile::tempdir;
 
 #[test]
 #[ignore = "needs a k8s cluster"]
@@ -13,6 +14,7 @@ fn k8s_sub_agent_started_with_no_opamp() {
     // Setup k8s env
     let mut k8s = block_on(K8sEnv::new());
     let namespace = block_on(k8s.test_namespace());
+    let tmp_dir = tempdir().expect("failed to create local temp dir");
 
     let _child = start_super_agent_with_testdata_config(
         test_name,
@@ -20,6 +22,7 @@ fn k8s_sub_agent_started_with_no_opamp() {
         &namespace,
         None,
         vec!["local-data-my-agent-id", "local-data-my-agent-id-2"],
+        tmp_dir.path(),
     );
 
     let deployment_name = "my-agent-id-opentelemetry-collector";

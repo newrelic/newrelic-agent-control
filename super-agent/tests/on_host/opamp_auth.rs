@@ -3,6 +3,7 @@ use http::header::AUTHORIZATION;
 use httpmock::Method::POST;
 use httpmock::{MockServer, When};
 use jsonwebtoken::{Algorithm, DecodingKey, Validation};
+use newrelic_super_agent::super_agent::defaults::SUPER_AGENT_CONFIG_FILE;
 use nr_auth::authenticator::{Request, Response};
 use nr_auth::jwt::claims::Claims;
 use predicates::prelude::predicate;
@@ -34,7 +35,7 @@ fn test_auth_local_provider_as_root() {
 
     let config_path = create_temp_file(
         &dir,
-        "config.yml",
+        SUPER_AGENT_CONFIG_FILE,
         format!(
             r#"
 opamp:
@@ -94,7 +95,7 @@ fn test_empty_auth_config_as_root() {
 
     let config_path = create_temp_file(
         &dir,
-        "config.yml",
+        SUPER_AGENT_CONFIG_FILE,
         format!(
             r#"
 opamp:
@@ -144,7 +145,7 @@ fn test_unauthorized_token_retrieve_as_root() {
 
     let config_path = create_temp_file(
         &dir,
-        "config.yml",
+        SUPER_AGENT_CONFIG_FILE,
         format!(
             r#"
 opamp:
@@ -184,10 +185,7 @@ agents: {{}}
 
 fn cmd_super_agent(config_path: PathBuf) -> Command {
     let mut cmd = Command::cargo_bin("newrelic-super-agent").unwrap();
-    cmd.arg("--config")
-        .arg(&config_path)
-        .arg("--debug")
-        .arg(config_path.parent().unwrap());
+    cmd.arg("--local-dir").arg(config_path.parent().unwrap());
     cmd
 }
 

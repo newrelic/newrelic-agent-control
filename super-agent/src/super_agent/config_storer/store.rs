@@ -165,7 +165,7 @@ opamp:
         "#;
         std::fs::write(remote_file.as_path(), remote_config).unwrap();
 
-        let vr = YAMLConfigRepositoryFile::new(local_file, remote_file).with_remote();
+        let vr = YAMLConfigRepositoryFile::new(local_dir, remote_dir).with_remote();
         let store = SuperAgentConfigStore::new(Arc::new(vr));
         let actual = SuperAgentConfigLoader::load(&store).unwrap();
 
@@ -214,7 +214,7 @@ opamp:
             "namespace/com.newrelic.infrastructure_agent:0.0.2",
         );
 
-        let vr = YAMLConfigRepositoryFile::new(local_file, PathBuf::new()).with_remote();
+        let vr = YAMLConfigRepositoryFile::new(local_dir, PathBuf::new()).with_remote();
         let store = SuperAgentConfigStore::new(Arc::new(vr));
         let actual = SuperAgentConfigLoader::load(&store).unwrap();
 
@@ -265,7 +265,7 @@ agents:
             "namespace/com.newrelic.infrastructure_agent:0.0.2",
         );
 
-        let vr = YAMLConfigRepositoryFile::new(local_file, PathBuf::new()).with_remote();
+        let vr = YAMLConfigRepositoryFile::new(local_dir, PathBuf::new()).with_remote();
         let store = SuperAgentConfigStore::new(Arc::new(vr));
         let actual: SuperAgentConfig = SuperAgentConfigLoader::load(&store).unwrap();
 
