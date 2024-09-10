@@ -62,7 +62,7 @@ impl EffectiveAgent {
             runtime_config,
         }
     }
-    #[allow(dead_code)]
+    #[cfg(feature = "onhost")]
     pub(crate) fn get_onhost_config(&self) -> Result<&OnHost, EffectiveAgentsAssemblerError> {
         self.runtime_config.deployment.on_host.as_ref().ok_or(
             EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(
@@ -70,7 +70,7 @@ impl EffectiveAgent {
             ),
         )
     }
-    #[allow(dead_code)]
+    #[cfg(feature = "k8s")]
     pub(crate) fn get_k8s_config(&self) -> Result<&K8s, EffectiveAgentsAssemblerError> {
         self.runtime_config.deployment.k8s.as_ref().ok_or(
             EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(

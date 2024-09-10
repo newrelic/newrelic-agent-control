@@ -183,7 +183,7 @@ where
                         sub_agent_internal_publisher.clone(),
                         health_config.clone(),
                     )
-                    .map_err(|err| {
+                    .inspect_err(|err| {
                         error!(
                             %agent_id,
                             %err,
