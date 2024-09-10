@@ -178,14 +178,7 @@ fn build_cr_supervisors(
 ) -> Result<NotStartedSupervisor, SubAgentBuilderError> {
     debug!("Building CR supervisors {}", agent_id);
 
-    let k8s_objects = effective_agent
-        .get_runtime_config()
-        .deployment
-        .k8s
-        .as_ref()
-        .ok_or(SubAgentBuilderError::ConfigError(
-            "Missing k8s deployment configuration".into(),
-        ))?;
+    let k8s_objects = effective_agent.get_k8s_config()?;
 
     // Validate Kubernetes objects against the list of supported resources.
     validate_k8s_objects(&k8s_objects.objects.clone(), &k8s_config.cr_type_meta)?;

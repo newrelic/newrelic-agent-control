@@ -27,6 +27,8 @@ pub struct OnHost {
     pub executables: Vec<Executable>,
     #[serde(default)]
     pub enable_file_logging: TemplateableValue<bool>,
+    /// Enables and define health checks configuration.
+    pub health: Option<OnHostHealthConfig>,
 }
 
 /* FIXME: This is not TEMPLATEABLE for the moment, we need to think what would be the strategy here and clarify:
@@ -51,9 +53,6 @@ pub struct Executable {
     /// Defines how the executable will be restarted in case of failure.
     #[serde(default)]
     pub restart_policy: RestartPolicyConfig,
-
-    /// Enables and define health checks configuration.
-    pub health: Option<OnHostHealthConfig>,
 }
 
 #[derive(Debug, Default, Deserialize, Clone, PartialEq)]

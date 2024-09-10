@@ -1,13 +1,45 @@
-use std::time::SystemTime;
-
 use super::health_checker::{Health, Healthy, Unhealthy};
+use crate::utils::time::{sys_time_from_unix_timestamp, unix_timestamp_from_sys_time};
+use std::time::SystemTime;
 
 pub type StartTime = SystemTime;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct HealthWithStartTime {
     start_time: StartTime,
     health: Health,
+}
+
+impl From<HealthWithStartTime> for opamp_client::opamp::proto::ComponentHealth {
+    fn from(h: HealthWithStartTime) -> Self {
+        opamp_client::opamp::proto::ComponentHealth {
+            start_time_unix_nano: unix_timestamp_from_sys_time(h.start_time),
+            status_time_unix_nano: unix_timestamp_from_sys_time(h.status_time()),
+            healthy: h.is_healthy(),
+            status: h.status(),
+            last_error: h.last_error().unwrap_or_default(),
+            ..Default::default()
+        }
+    }
+}
+
+impl From<opamp_client::opamp::proto::ComponentHealth> for HealthWithStartTime {
+    fn from(component_health: opamp_client::opamp::proto::ComponentHealth) -> Self {
+        let start_time = sys_time_from_unix_timestamp(component_health.start_time_unix_nano);
+        let status_time = sys_time_from_unix_timestamp(component_health.status_time_unix_nano);
+
+        if component_health.healthy {
+            HealthWithStartTime::from_healthy(
+                Healthy::new(component_health.status).with_status_time(status_time),
+                start_time,
+            )
+        } else {
+            HealthWithStartTime::from_unhealthy(
+                Unhealthy::new(component_health.status, component_health.last_error),
+                start_time,
+            )
+        }
+    }
 }
 
 impl From<HealthWithStartTime> for Health {

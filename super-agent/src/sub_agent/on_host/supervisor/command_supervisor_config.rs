@@ -1,4 +1,3 @@
-use crate::agent_type::health_config::OnHostHealthConfig;
 use crate::context::Context;
 use crate::sub_agent::on_host::supervisor::restart_policy::RestartPolicy;
 use crate::super_agent::config::AgentID;
@@ -15,7 +14,6 @@ pub struct SupervisorConfigOnHost {
     pub(super) restart_policy: RestartPolicy,
     pub(super) log_to_file: bool,
     pub(super) logging_path: PathBuf,
-    pub(super) health: Option<OnHostHealthConfig>,
 }
 
 impl SupervisorConfigOnHost {
@@ -35,7 +33,6 @@ impl SupervisorConfigOnHost {
             restart_policy,
             log_to_file: false,
             logging_path: PathBuf::default(),
-            health: None,
         }
     }
 
@@ -43,13 +40,6 @@ impl SupervisorConfigOnHost {
         Self {
             log_to_file,
             logging_path,
-            ..self
-        }
-    }
-
-    pub fn with_health_check(self, health: OnHostHealthConfig) -> Self {
-        Self {
-            health: Some(health),
             ..self
         }
     }

@@ -15,6 +15,7 @@ use crate::opamp::{
     remote_config_report::report_remote_config_status_applied,
 };
 use crate::sub_agent::health::health_checker::{Health, Healthy, Unhealthy};
+use crate::sub_agent::health::with_start_time::HealthWithStartTime;
 use crate::sub_agent::{
     collection::{NotStartedSubAgents, StartedSubAgents},
     error::SubAgentBuilderError,
@@ -32,6 +33,7 @@ use opamp_client::{opamp::proto::ComponentHealth, StartedClient};
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::sync::Arc;
+use std::time::SystemTime;
 use tracing::{debug, error, info, trace, warn};
 
 pub(super) type SuperAgentCallbacks<C> = AgentCallbacks<C>;
@@ -50,6 +52,7 @@ where
     sub_agent_builder: S,
     remote_config_hash_repository: Arc<HR>,
     agent_id: AgentID,
+    start_time: SystemTime,
     pub(super) sa_dynamic_config_store: Arc<SL>,
     pub(super) super_agent_publisher: EventPublisher<SuperAgentEvent>,
 
@@ -81,6 +84,7 @@ where
             sub_agent_builder,
             // unwrap as we control content of the SUPER_AGENT_ID constant
             agent_id: AgentID::new_super_agent_id(),
+            start_time: SystemTime::now(),
             sa_dynamic_config_store: sub_agents_config_store,
             super_agent_publisher,
 
@@ -436,15 +440,7 @@ where
                 "Sending super-agent health"
             );
 
-            let health = ComponentHealth {
-                healthy: health.is_healthy(),
-                start_time_unix_nano: get_sys_time_nano()?,
-                status: health.status().to_string(),
-                last_error: health.last_error().unwrap_or_default().to_string(),
-                ..Default::default()
-            };
-
-            handle.set_health(health)?;
+            handle.set_health(HealthWithStartTime::new(health, self.start_time).into())?;
         }
         Ok(())
     }
@@ -524,6 +520,7 @@ mod tests {
                 remote_config_hash_repository,
                 sub_agent_builder,
                 agent_id: AgentID::new_super_agent_id(),
+                start_time: SystemTime::now(),
                 sa_dynamic_config_store: Arc::new(sub_agents_config_store),
                 super_agent_publisher,
                 _effective_config_loader: PhantomData,

@@ -1,3 +1,4 @@
+use super::health_checker::{HealthChecker, HealthCheckerNotStarted, HealthCheckerStarted};
 use super::supervisor::command_supervisor;
 use super::supervisor::command_supervisor::SupervisorOnHost;
 use crate::event::channel::EventPublisher;
@@ -13,42 +14,49 @@ use tracing::debug;
 ////////////////////////////////////////////////////////////////////////////////////
 // SubAgent On Host
 ////////////////////////////////////////////////////////////////////////////////////
-pub struct SubAgentOnHost<S, V> {
+pub struct SubAgentOnHost<S, V, H> {
     supervisors: Vec<SupervisorOnHost<V>>,
     agent_id: AgentID,
     agent_type: AgentTypeFQN,
+    // would make sense to move it to state and share implementation with k8s?
+    health_checker: Option<HealthChecker<H>>,
     sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     state: S,
 }
 
-impl<E> SubAgentOnHost<NotStarted<E>, command_supervisor::NotStarted>
+impl<E> SubAgentOnHost<NotStarted<E>, command_supervisor::NotStarted, HealthCheckerNotStarted>
 where
     E: SubAgentEventProcessor,
 {
     pub fn new(
         agent_id: AgentID,
         agent_type: AgentTypeFQN,
+        health: Option<HealthChecker<HealthCheckerNotStarted>>,
         supervisors: Vec<SupervisorOnHost<command_supervisor::NotStarted>>,
         event_processor: E,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
-    ) -> SubAgentOnHost<NotStarted<E>, command_supervisor::NotStarted> {
+    ) -> SubAgentOnHost<NotStarted<E>, command_supervisor::NotStarted, HealthCheckerNotStarted>
+    {
         SubAgentOnHost {
             supervisors,
             agent_id,
             agent_type,
+            health_checker: health,
             sub_agent_internal_publisher,
             state: NotStarted { event_processor },
         }
     }
 }
 
-impl<E> NotStartedSubAgent for SubAgentOnHost<NotStarted<E>, command_supervisor::NotStarted>
+impl<E> NotStartedSubAgent
+    for SubAgentOnHost<NotStarted<E>, command_supervisor::NotStarted, HealthCheckerNotStarted>
 where
     E: SubAgentEventProcessor,
 {
-    type StartedSubAgent = SubAgentOnHost<Started, command_supervisor::Started>;
+    type StartedSubAgent =
+        SubAgentOnHost<Started, command_supervisor::Started, HealthCheckerStarted>;
 
-    fn run(self) -> SubAgentOnHost<Started, command_supervisor::Started> {
+    fn run(self) -> SubAgentOnHost<Started, command_supervisor::Started, HealthCheckerStarted> {
         let started_supervisors = self
             .supervisors
             .into_iter()
@@ -60,17 +68,22 @@ where
 
         let event_loop_handle = self.state.event_processor.process();
 
+        let started_health_checker = self.health_checker.map(|h| h.start());
+
         SubAgentOnHost {
             supervisors: started_supervisors,
             agent_id: self.agent_id,
             agent_type: self.agent_type,
+            health_checker: started_health_checker,
             sub_agent_internal_publisher: self.sub_agent_internal_publisher,
             state: Started { event_loop_handle },
         }
     }
 }
 
-impl StartedSubAgent for SubAgentOnHost<Started, command_supervisor::Started> {
+impl StartedSubAgent
+    for SubAgentOnHost<Started, command_supervisor::Started, HealthCheckerStarted>
+{
     fn agent_id(&self) -> AgentID {
         self.agent_id.clone()
     }
@@ -80,6 +93,10 @@ impl StartedSubAgent for SubAgentOnHost<Started, command_supervisor::Started> {
     }
 
     fn stop(self) -> Result<Vec<JoinHandle<()>>, SubAgentError> {
+        if let Some(h) = self.health_checker {
+            h.stop()
+        }
+
         let stopped_supervisors = self.supervisors.into_iter().map(|s| s.stop()).collect();
         self.sub_agent_internal_publisher
             .publish(SubAgentInternalEvent::StopRequested)?;
@@ -115,6 +132,7 @@ mod test {
         let sub_agent = SubAgentOnHost::new(
             agent_id,
             agent_type,
+            None,
             supervisors,
             event_processor,
             sub_agent_internal_publisher,

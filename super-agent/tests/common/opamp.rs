@@ -78,8 +78,6 @@ impl ConfigResponse {
 /// The underlying http server will be aborted when the object is dropped.
 pub struct FakeServer {
     handle: JoinHandle<()>,
-    // responses: Arc<Mutex<ConfigResponses>>,
-    // health_statuses: Arc<Mutex<HealthStatuses>>,
     state: Arc<Mutex<State>>,
     port: u16,
     path: String,
@@ -132,10 +130,10 @@ impl FakeServer {
 
     pub fn get_health_status(
         &self,
-        identifier: InstanceID,
+        identifier: &InstanceID,
     ) -> Option<opamp::proto::ComponentHealth> {
         let state = self.state.lock().unwrap();
-        state.health_statuses.get(&identifier).cloned()
+        state.health_statuses.get(identifier).cloned()
     }
 
     pub fn get_effective_config(
