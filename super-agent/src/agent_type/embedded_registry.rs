@@ -1,7 +1,7 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use std::fs;
-use tracing::debug;
+use tracing::{debug, error, info};
 
 use super::{
     agent_type_registry::{AgentRegistry, AgentRepositoryError},
@@ -76,15 +76,17 @@ impl EmbeddedRegistry {
     /// Read and return the dynamic agent type, if there is an error reading or deserializing it, logs the error and
     /// returns None.
     fn dynamic_agent_type(path: PathBuf) -> Option<AgentTypeDefinition> {
+        let p = path.to_string_lossy().to_string();
         fs::read(path)
             .inspect_err(|e| {
                 debug!(error = %e, "Dynamic agent type: Failed reading file");
             })
             .ok()
             .and_then(|content| {
+                info!("Loading agentType : {:?}", p);
                 serde_yaml::from_slice::<AgentTypeDefinition>(content.as_slice())
                     .inspect_err(|e| {
-                        debug!(error = %e, "Dynamic agent type: Could not parse agent type");
+                        error!(error = %e, "Dynamic agent type: Could not parse agent type");
                     })
                     .ok()
             })

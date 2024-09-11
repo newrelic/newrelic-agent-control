@@ -18,6 +18,6 @@ Example:
 ```
 agent-type-registry/
 ├─ newrelic/
-│  ├─ com.newrelic.infrastructure_agent-0.0.1.yaml
-│  ├─ io-opentelemetry.collector-0.0.1.yaml
+│  ├─ com.newrelic.infrastructure_agent-0.1.3.yaml
+│  ├─ io-opentelemetry.collector-0.2.0.yaml
 ```

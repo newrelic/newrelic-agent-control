@@ -15,6 +15,7 @@ use crate::k8s::tools::{
     },
 };
 use newrelic_super_agent::super_agent::config::AgentID;
+use serial_test::serial;
 use std::time::Duration;
 use tempfile::tempdir;
 
@@ -25,6 +26,7 @@ use tempfile::tempdir;
 /// - Healthy status is reported
 #[test]
 #[ignore = "needs k8s cluster"]
+#[serial]
 fn k8s_opamp_enabled_with_no_remote_configuration() {
     let test_name = "k8s_opamp_enabled_with_no_remote_configuration";
     let server = FakeServer::start_new();
@@ -40,7 +42,7 @@ fn k8s_opamp_enabled_with_no_remote_configuration() {
         k8s.client.clone(),
         &namespace,
         Some(&server.endpoint()),
-        vec!["local-data-open-telemetry-agent-id"],
+        vec!["local-data-hello-world"],
         tmp_dir.path(),
     );
     wait_until_super_agent_with_opamp_is_started(k8s.client.clone(), namespace.as_str());
@@ -57,13 +59,13 @@ licenseKey: test
         block_on(check_helmrelease_spec_values(
             k8s.client.clone(),
             namespace.as_str(),
-            "open-telemetry-agent-id",
+            "hello-world",
             expected_spec_values,
         ))?;
 
         let expected_config = r#"agents:
-  open-telemetry-agent-id:
-    agent_type: newrelic/io.opentelemetry.collector:0.2.0
+  hello-world:
+    agent_type: newrelic/com.newrelic.custom_agent:0.0.1
 "#;
 
         check_latest_effective_config_is_expected(
@@ -81,6 +83,7 @@ licenseKey: test
 /// in the corresponding HelmRelease resource.
 #[test]
 #[ignore = "needs k8s cluster"]
+#[serial]
 fn k8s_opamp_subagent_configuration_change() {
     let test_name = "k8s_opamp_subagent_configuration_change";
 
@@ -97,15 +100,14 @@ fn k8s_opamp_subagent_configuration_change() {
         k8s.client.clone(),
         &namespace,
         Some(&server.endpoint()),
-        vec!["local-data-open-telemetry-agent-id"],
+        // This config is intended to be empty
+        vec!["local-data-hello-world"],
         tmp_dir.path(),
     );
     wait_until_super_agent_with_opamp_is_started(k8s.client.clone(), namespace.as_str());
 
-    let instance_id = instance_id::get_instance_id(
-        &namespace,
-        &AgentID::new("open-telemetry-agent-id").unwrap(),
-    );
+    let instance_id =
+        instance_id::get_instance_id(&namespace, &AgentID::new("hello-world").unwrap());
 
     // Update the agent configuration via OpAMP
     server.set_config_response(
@@ -113,35 +115,26 @@ fn k8s_opamp_subagent_configuration_change() {
         ConfigResponse::from(
             r#"
     chart_values:
-      mode: deployment
-      config:
-        exporters:
-          logging: { }
+      valid: true
            "#,
         ),
     );
 
     // Check the expected HelmRelease is created with the spec values
     let expected_spec_values = r#"
-mode: deployment
-config:
-  exporters:
-    logging: { }
+valid: true
     "#;
 
     retry(30, Duration::from_secs(5), || {
         block_on(check_helmrelease_spec_values(
             k8s.client.clone(),
             namespace.as_str(),
-            "open-telemetry-agent-id",
+            "hello-world",
             expected_spec_values,
         ))?;
 
         let expected_config = r#"chart_values:
-  mode: deployment
-  config:
-    exporters:
-      logging: {}
+  valid: true
 "#;
 
         check_latest_effective_config_is_expected(
@@ -158,41 +151,26 @@ config:
         ConfigResponse::from(
             r#"
 chart_values:
-  mode: deployment
-  config:
-    exporters:
-      logging: { }
-  image:
-    tag: "latest"
+  valid: super-true
             "#,
         ),
     );
 
     // Check the expected HelmRelease is updated with the new configuration
     let expected_spec_values = r#"
-mode: deployment
-config:
-  exporters:
-    logging: { }
-image:
-  tag: "latest"
+valid: super-true
     "#;
 
     retry(30, Duration::from_secs(5), || {
         block_on(check_helmrelease_spec_values(
             k8s.client.clone(),
             namespace.as_str(),
-            "open-telemetry-agent-id",
+            "hello-world",
             expected_spec_values,
         ))?;
 
         let expected_config = r#"chart_values:
-  mode: deployment
-  config:
-    exporters:
-      logging: {}
-  image:
-    tag: latest
+  valid: super-true
 "#;
 
         check_latest_effective_config_is_expected(
@@ -208,6 +186,7 @@ image:
 /// sub-agent.
 #[test]
 #[ignore = "needs k8s cluster"]
+#[serial]
 fn k8s_opamp_add_subagent() {
     let test_name = "k8s_opamp_add_sub_agent";
 
@@ -225,18 +204,11 @@ fn k8s_opamp_add_subagent() {
         k8s.client.clone(),
         &namespace,
         Some(&server.endpoint()),
-        vec!["local-data-open-telemetry", "local-data-open-telemetry-2"],
+        vec!["local-data-hello-world"],
         tmp_dir.path(),
     );
     wait_until_super_agent_with_opamp_is_started(k8s.client.clone(), namespace.as_str());
 
-    // Add new agent in the super-agent configuration.
-    // open-telemetry-2 will use the local config since the configuration from the server is empty
-    // for io.opentelemetry.collector
-    //
-    // Note: This test won't work with the NewRelic k8s collector chart since the collector
-    // configuration cannot yet be modified. This chart is introduced from agent type
-    // version 0.2.0, so we leverage the latest agent type using the community chart.
     let instance_id = instance_id::get_instance_id(&namespace, &AgentID::new_super_agent_id());
 
     server.set_config_response(
@@ -244,10 +216,8 @@ fn k8s_opamp_add_subagent() {
         ConfigResponse::from(
             r#"
 agents:
-  open-telemetry:
-    agent_type: "newrelic/io.opentelemetry.collector:0.1.1"
-  open-telemetry-2:
-    agent_type: "newrelic/io.opentelemetry.collector:0.1.1"
+  hello-world:
+    agent_type: "newrelic/com.newrelic.custom_agent:0.0.1"
             "#,
         ),
     );
@@ -256,18 +226,13 @@ agents:
     retry(30, Duration::from_secs(5), || {
         block_on(check_deployments_exist(
             k8s.client.clone(),
-            &[
-                "open-telemetry-opentelemetry-collector",
-                "open-telemetry-2-opentelemetry-collector",
-            ],
+            &["hello-world"],
             namespace.as_str(),
         ))?;
 
         let expected_config = r#"agents:
-  open-telemetry:
-    agent_type: newrelic/io.opentelemetry.collector:0.1.1
-  open-telemetry-2:
-    agent_type: newrelic/io.opentelemetry.collector:0.1.1
+  hello-world:
+    agent_type: newrelic/com.newrelic.custom_agent:0.0.1
 "#;
 
         check_latest_effective_config_is_expected(

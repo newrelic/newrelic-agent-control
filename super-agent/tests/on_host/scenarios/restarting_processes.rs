@@ -1,5 +1,7 @@
 use assert_cmd::Command;
-use newrelic_super_agent::super_agent::defaults::SUPER_AGENT_CONFIG_FILE;
+use newrelic_super_agent::super_agent::defaults::{
+    DYNAMIC_AGENT_TYPE_FILENAME, SUPER_AGENT_CONFIG_FILE,
+};
 use nix::{
     sys::signal::{self, Signal},
     unistd::Pid,
@@ -19,7 +21,7 @@ fn killing_subprocess_with_signal_restarts_as_root() -> Result<(), Box<dyn std::
 
     let _agent_type_def = create_temp_file(
         &dir,
-        "dynamic-agent-type.yaml",
+        DYNAMIC_AGENT_TYPE_FILENAME,
         r#"
 namespace: newrelic
 name: com.newrelic.test-agent

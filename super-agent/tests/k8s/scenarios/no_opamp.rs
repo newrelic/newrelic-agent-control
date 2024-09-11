@@ -1,9 +1,9 @@
 use crate::common::{retry::retry, runtime::block_on};
-
 use crate::k8s::tools::{
     k8s_api::check_deployments_exist, k8s_env::K8sEnv,
     super_agent::start_super_agent_with_testdata_config,
 };
+use serial_test::serial;
 use std::time::Duration;
 use tempfile::tempdir;
 
@@ -11,6 +11,7 @@ use tempfile::tempdir;
 /// local configuration when OpAMP is not enabled.
 #[test]
 #[ignore = "needs a k8s cluster"]
+#[serial]
 fn k8s_sub_agent_started_with_no_opamp() {
     let test_name = "k8s_sub_agent_started";
     // Setup k8s env
@@ -23,18 +24,15 @@ fn k8s_sub_agent_started_with_no_opamp() {
         k8s.client.clone(),
         &namespace,
         None,
-        vec!["local-data-my-agent-id", "local-data-my-agent-id-2"],
+        vec!["local-data-hello-world"],
         tmp_dir.path(),
     );
-
-    let deployment_name = "my-agent-id-opentelemetry-collector";
-    let deployment_name_2 = "my-agent-id-2-opentelemetry-collector";
 
     // Check deployment for first Agent is created with retry.
     retry(30, Duration::from_secs(5), || {
         block_on(check_deployments_exist(
             k8s.client.clone(),
-            &[deployment_name, deployment_name_2],
+            &["hello-world"],
             namespace.as_str(),
         ))
     });

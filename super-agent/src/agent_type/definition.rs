@@ -426,7 +426,7 @@ pub mod tests {
     pub const AGENT_GIVEN_YAML: &str = r#"
 name: nrdot
 namespace: newrelic
-version: 0.1.0
+version: 0.0.1
 variables:
   common:
     description:
@@ -480,7 +480,7 @@ restart_policy:
 
         assert_eq!("nrdot", agent.metadata.name);
         assert_eq!("newrelic", agent.metadata.namespace);
-        assert_eq!("0.1.0", agent.metadata.version.to_string());
+        assert_eq!("0.0.1", agent.metadata.version.to_string());
 
         let on_host = agent.runtime_config.deployment.on_host.clone().unwrap();
 

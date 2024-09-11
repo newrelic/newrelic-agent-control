@@ -10,7 +10,9 @@ use newrelic_super_agent::k8s::store::{
     K8sStore, CM_NAME_LOCAL_DATA_PREFIX, STORE_KEY_LOCAL_DATA_CONFIG,
 };
 use newrelic_super_agent::super_agent::config::AgentID;
-use newrelic_super_agent::super_agent::defaults::SUPER_AGENT_CONFIG_FILE;
+use newrelic_super_agent::super_agent::defaults::{
+    DYNAMIC_AGENT_TYPE_FILENAME, SUPER_AGENT_CONFIG_FILE,
+};
 use std::collections::BTreeMap;
 use std::io::Read;
 use std::path::Path;
@@ -30,8 +32,14 @@ pub fn start_super_agent_with_testdata_config(
     subagent_file_names: Vec<&str>,
     local_dir: &Path,
 ) -> AutoDroppingChild {
-    create_local_super_agent_config(client.clone(), ns, opamp_endpoint, folder_name, local_dir);
+    // Move the custom agentType, for now there is only one for all the tests
+    std::fs::copy(
+        "tests/k8s/data/custom_agent_type.yml",
+        local_dir.join(DYNAMIC_AGENT_TYPE_FILENAME),
+    )
+    .unwrap();
 
+    create_local_super_agent_config(client.clone(), ns, opamp_endpoint, folder_name, local_dir);
     for file_name in subagent_file_names {
         block_on(create_local_config_map(
             client.clone(),
@@ -57,7 +65,7 @@ impl Drop for AutoDroppingChild {
 }
 
 /// Starts the super-agent compiled with the k8s feature and the provided configuration file.
-pub fn start_super_agent(file_path: &Path) -> std::process::Child {
+pub fn start_super_agent(local_path: &Path) -> std::process::Child {
     let mut command = Command::new("cargo");
 
     command
@@ -70,7 +78,7 @@ pub fn start_super_agent(file_path: &Path) -> std::process::Child {
             "--",
             "--local-dir",
         ])
-        .arg(file_path)
+        .arg(local_path)
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit());
 

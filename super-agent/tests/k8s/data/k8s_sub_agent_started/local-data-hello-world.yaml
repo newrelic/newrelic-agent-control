@@ -1,0 +1,3 @@
+chart_values:
+  cluster: minikube
+  licenseKey: test
