@@ -26,10 +26,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let config: MigrationConfig = MigrationConfig::parse(NEWRELIC_INFRA_AGENT_TYPE_CONFIG_MAPPING)?;
 
     let cli = Cli::init_config_migrate_cli();
-    let mut local_config_path = cli.get_config_path();
-    local_config_path.pop();
     let remote_dir = PathBuf::from(SUPER_AGENT_DATA_DIR);
-    let vr = YAMLConfigRepositoryFile::new(local_config_path, remote_dir);
+    let vr = YAMLConfigRepositoryFile::new(cli.local_data_dir(), remote_dir);
     let sa_local_config_loader = SuperAgentConfigStore::new(Arc::new(vr));
     let config_migrator = ConfigMigrator::new(
         ConfigConverter::default(),

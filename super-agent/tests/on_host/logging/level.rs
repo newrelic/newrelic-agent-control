@@ -16,8 +16,7 @@ pub(crate) const TIME_FORMAT: &str = r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*
 #[test]
 fn default_log_level_no_root() {
     let dir = TempDir::new().unwrap();
-    let config_path = dir.path().join(SUPER_AGENT_CONFIG_FILE);
-    std::fs::write(config_path, EMPTY_CONFIG).unwrap();
+    std::fs::write(dir.path().join(SUPER_AGENT_CONFIG_FILE), EMPTY_CONFIG).unwrap();
 
     let mut cmd = cmd_with_config_file(dir.path());
     // Expecting to fail as non_root
@@ -40,12 +39,9 @@ fn default_log_level_no_root() {
 #[test]
 fn default_log_level_as_root() {
     let dir = TempDir::new().unwrap();
-    let config_path = dir.path().join(SUPER_AGENT_CONFIG_FILE);
-    std::fs::write(config_path, EMPTY_CONFIG).unwrap();
+    std::fs::write(dir.path().join(SUPER_AGENT_CONFIG_FILE), EMPTY_CONFIG).unwrap();
 
     let mut cmd = cmd_with_config_file(dir.path());
-    thread::sleep(Duration::from_millis(2000));
-
     cmd.assert()
         .failure()
         .stdout(
@@ -71,12 +67,9 @@ fn default_log_level_as_root() {
 #[test]
 fn debug_log_level_no_root() {
     let dir = TempDir::new().unwrap();
-    let config_path = dir.path().join(SUPER_AGENT_CONFIG_FILE);
-    std::fs::write(config_path, DEBUG_LEVEL_CONFIG).unwrap();
+    std::fs::write(dir.path().join(SUPER_AGENT_CONFIG_FILE), DEBUG_LEVEL_CONFIG).unwrap();
 
     let mut cmd = cmd_with_config_file(dir.path());
-
-    thread::sleep(Duration::from_millis(2000));
     // Expecting to fail as non_root
     cmd.assert()
         .failure()
@@ -95,12 +88,9 @@ fn debug_log_level_no_root() {
 #[test]
 fn trace_log_level_as_root() {
     let dir = TempDir::new().unwrap();
-    let config_path = dir.path().join(SUPER_AGENT_CONFIG_FILE);
-    std::fs::write(config_path, TRACE_LEVEL_CONFIG).unwrap();
+    std::fs::write(dir.path().join(SUPER_AGENT_CONFIG_FILE), TRACE_LEVEL_CONFIG).unwrap();
 
     let mut cmd = cmd_with_config_file(dir.path());
-    thread::sleep(Duration::from_millis(2000));
-
     // Expecting to fail as non_root
     cmd.assert()
         .failure()

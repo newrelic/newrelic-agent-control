@@ -57,19 +57,16 @@ pub struct Cli {
     version: bool,
 
     /// Overrides the default local configuration path `/etc/newrelic-super-agent/`.
-    /// This config takes precedence over the general `debug`
     #[cfg(debug_assertions)]
     #[arg(long)]
     pub local_dir: Option<PathBuf>,
 
     /// Overrides the default remote configuration path `/var/lib/newrelic-super-agent`.
-    /// This config takes precedence over the general `debug`
     #[cfg(debug_assertions)]
     #[arg(long)]
     pub remote_dir: Option<PathBuf>,
 
     /// Overrides the default log path `/var/log/newrelic-super-agent`.
-    /// This config takes precedence over the general `debug`    
     #[cfg(debug_assertions)]
     #[arg(long)]
     pub logs_dir: Option<PathBuf>,
@@ -116,7 +113,10 @@ impl Cli {
             .log
             .try_init(base_paths.log_dir.clone())?;
         info!("{}", binary_metadata());
-        info!("Starting NewRelic Super Agent");
+        info!(
+            "Starting NewRelic Super Agent with config folder '{}'",
+            base_paths.local_dir.to_string_lossy().to_string()
+        );
 
         let opamp = super_agent_config.opamp;
         let http_server = super_agent_config.server;

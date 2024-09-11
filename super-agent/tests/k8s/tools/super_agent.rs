@@ -17,7 +17,6 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 use std::time::Duration;
 use std::{fs::File, io::Write};
-use tempfile::tempdir;
 
 pub const TEST_CLUSTER_NAME: &str = "minikube";
 

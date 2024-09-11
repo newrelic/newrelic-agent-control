@@ -158,7 +158,6 @@ fn custom_directory_overrides_as_root() -> Result<(), Box<dyn std::error::Error>
     use httpmock::MockServer;
 
     let dir = TempDir::new()?;
-    let another_dir = TempDir::new()?;
 
     // simple mock that returns 200 so the agent can start and create the directories.
     let opamp_server = MockServer::start();
@@ -187,8 +186,7 @@ agents: {{}}
 
     let tmpdir_path = dir.path();
     let tmpdir_remote = TempDir::new()?.path().join("test");
-
-    let override_logs_path = another_dir.path().join("logs");
+    let tmpdir_logs = TempDir::new()?.path().join("logs");
     let mut command = std::process::Command::new("cargo");
     command
         .args([
@@ -202,7 +200,7 @@ agents: {{}}
         .arg("--local-dir")
         .arg(tmpdir_path)
         .arg("--logs-dir")
-        .arg(&override_logs_path)
+        .arg(&tmpdir_logs)
         .arg("--remote-dir")
         .arg(&tmpdir_remote)
         .stdout(Stdio::inherit())
@@ -213,7 +211,7 @@ agents: {{}}
 
     retry(90, Duration::from_secs(1), || {
         || -> Result<(), Box<dyn Error>> {
-            if tmpdir_remote.exists() && override_logs_path.exists() {
+            if tmpdir_remote.exists() && tmpdir_logs.exists() {
                 return Ok(());
             }
             Err("Directories not created yet".into())
