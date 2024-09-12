@@ -11,7 +11,6 @@ use crate::super_agent::config::{AgentID, AgentTypeFQN, SubAgentConfig};
 use crate::values::yaml_config_repository::{
     load_remote_fallback_local, YAMLConfigRepository, YAMLConfigRepositoryError,
 };
-use fs::file_reader::FileReaderError;
 use std::fmt::Display;
 use std::sync::Arc;
 use thiserror::Error;
@@ -23,8 +22,6 @@ pub enum EffectiveAgentsAssemblerError {
     EffectiveAgentsAssemblerError(String),
     #[error("error assembling agents: `{0}`")]
     RepositoryError(#[from] AgentRepositoryError),
-    #[error("error assembling agents: `{0}`")]
-    FileError(#[from] FileReaderError),
     #[error("error assembling agents: `{0}`")]
     SerdeYamlError(#[from] serde_yaml::Error),
     #[error("error assembling agents: `{0}`")]

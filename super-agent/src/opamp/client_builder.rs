@@ -1,10 +1,7 @@
-use std::time::SystemTimeError;
-
-use opamp_client::http::config::HttpConfigError;
-use opamp_client::http::{HttpClientError, NotStartedHttpClient, StartedHttpClient};
+use opamp_client::http::{NotStartedHttpClient, StartedHttpClient};
 use opamp_client::operation::callbacks::Callbacks;
 use opamp_client::operation::settings::StartSettings;
-use opamp_client::{NotStartedClient, NotStartedClientError, StartedClient, StartedClientError};
+use opamp_client::{NotStartedClient, NotStartedClientError, StartedClient};
 use thiserror::Error;
 use tracing::{error, info};
 
@@ -19,18 +16,8 @@ use super::http::builder::{HttpClientBuilder, HttpClientBuilderError};
 
 #[derive(Error, Debug)]
 pub enum OpAMPClientBuilderError {
-    #[error("unable to create OpAMP HTTP client: `{0}`")]
-    HttpClientError(#[from] HttpClientError),
-    #[error("invalid HTTP configuration: `{0}`")]
-    HttpConfigError(#[from] HttpConfigError),
     #[error("`{0}`")]
     NotStartedClientError(#[from] NotStartedClientError),
-    #[error("`{0}`")]
-    StartedClientError(#[from] StartedClientError),
-    #[error("`{0}`")]
-    StartedOpAMPlientError(#[from] opamp_client::ClientError),
-    #[error("system time error: `{0}`")]
-    SystemTimeError(#[from] SystemTimeError),
     #[error("error getting agent instance id: `{0}`")]
     GetInstanceIDError(#[from] instance_id::GetterError),
     #[error("error building http client: `{0}`")]
@@ -99,7 +86,6 @@ where
 pub(crate) mod test {
     use mockall::{mock, predicate};
     use opamp_client::operation::settings::StartSettings;
-    use opamp_client::ClientError;
     use opamp_client::{
         opamp::proto::{AgentDescription, ComponentHealth, RemoteConfigStatus},
         Client, ClientResult, NotStartedClient, NotStartedClientResult, StartedClient,
@@ -171,18 +157,6 @@ pub(crate) mod test {
 
         pub fn should_stop(&mut self, times: usize) {
             self.expect_stop().times(times).returning(|| Ok(()));
-        }
-
-        #[allow(dead_code)]
-        pub fn should_not_stop(&mut self, times: usize, status_code: u16, error_msg: String) {
-            self.expect_stop().times(times).returning(move || {
-                Err(StartedClientError::SyncClientError(
-                    ClientError::SenderError(HttpClientError::UnsuccessfulResponse(
-                        status_code,
-                        error_msg.clone(),
-                    )),
-                ))
-            });
         }
 
         // assertion just for the call of the method but not the remote
