@@ -86,7 +86,6 @@ where
 pub(crate) mod test {
     use mockall::{mock, predicate};
     use opamp_client::operation::settings::StartSettings;
-    use opamp_client::ClientError;
     use opamp_client::{
         opamp::proto::{AgentDescription, ComponentHealth, RemoteConfigStatus},
         Client, ClientResult, NotStartedClient, NotStartedClientResult, StartedClient,
@@ -158,18 +157,6 @@ pub(crate) mod test {
 
         pub fn should_stop(&mut self, times: usize) {
             self.expect_stop().times(times).returning(|| Ok(()));
-        }
-
-        #[allow(dead_code)]
-        pub fn should_not_stop(&mut self, times: usize, status_code: u16, error_msg: String) {
-            self.expect_stop().times(times).returning(move || {
-                Err(StartedClientError::SyncClientError(
-                    ClientError::SenderError(HttpClientError::UnsuccessfulResponse(
-                        status_code,
-                        error_msg.clone(),
-                    )),
-                ))
-            });
         }
 
         // assertion just for the call of the method but not the remote
