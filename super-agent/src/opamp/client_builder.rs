@@ -1,10 +1,7 @@
-use std::time::SystemTimeError;
-
-use opamp_client::http::config::HttpConfigError;
-use opamp_client::http::{HttpClientError, NotStartedHttpClient, StartedHttpClient};
+use opamp_client::http::{NotStartedHttpClient, StartedHttpClient};
 use opamp_client::operation::callbacks::Callbacks;
 use opamp_client::operation::settings::StartSettings;
-use opamp_client::{NotStartedClient, NotStartedClientError, StartedClient, StartedClientError};
+use opamp_client::{NotStartedClient, NotStartedClientError, StartedClient};
 use thiserror::Error;
 use tracing::{error, info};
 
