@@ -1,4 +1,5 @@
 use crate::agent_type::variable::definition::VariableDefinition;
+use crate::event::channel::pub_sub;
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::{Identifiers, Storer};
@@ -126,15 +127,16 @@ impl SuperAgentRunner {
             .transpose()?
             .map(|(client, consumer)| (Some(client), Some(consumer)))
             .unwrap_or_default();
-
         SuperAgent::new(
             maybe_client,
             super_agent_hash_repository,
             sub_agent_builder,
             config_storer,
             self.super_agent_publisher,
+            self.application_event_consumer,
+            maybe_sa_opamp_consumer,
         )
-        .run(self.application_event_consumer, maybe_sa_opamp_consumer)
+        .run()
     }
 }
 

@@ -1,14 +1,12 @@
 use opamp_client::StartedClient;
 use tracing::{error, info};
 
-use crate::event::SubAgentEvent;
 use crate::opamp::effective_config::loader::EffectiveConfigLoader;
 use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
 use crate::super_agent::config_storer::loader_storer::{
     SuperAgentDynamicConfigDeleter, SuperAgentDynamicConfigLoader, SuperAgentDynamicConfigStorer,
 };
 use crate::{
-    event::channel::EventPublisher,
     opamp::{
         hash_repository::HashRepository,
         remote_config::RemoteConfig,
@@ -40,7 +38,6 @@ where
     pub(crate) fn remote_config(
         &self,
         mut remote_config: RemoteConfig,
-        sub_agent_publisher: EventPublisher<SubAgentEvent>,
         sub_agents: &mut StartedSubAgents<
             <<S as SubAgentBuilder>::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
@@ -52,8 +49,7 @@ where
         info!("Applying SuperAgent remote config");
         report_remote_config_status_applying(opamp_client, &remote_config.hash)?;
 
-        match self.apply_remote_super_agent_config(&remote_config, sub_agents, sub_agent_publisher)
-        {
+        match self.apply_remote_super_agent_config(&remote_config, sub_agents) {
             Err(err) => {
                 let error_message = format!("Error applying Super Agent remote config: {}", err);
                 error!(error_message);
@@ -83,6 +79,8 @@ mod tests {
     use std::collections::HashMap;
     use std::sync::Arc;
 
+    use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
+    use crate::super_agent::super_agent::SuperAgentCallbacks;
     use crate::{
         event::channel::pub_sub,
         opamp::{
@@ -112,8 +110,8 @@ mod tests {
         let sub_agent_builder = MockSubAgentBuilderMock::new();
         let mut sub_agents_config_store = MockSuperAgentDynamicConfigStore::new();
         let hash_repository_mock = Arc::new(MockHashRepositoryMock::new());
-        let mut started_client = MockStartedOpAMPClientMock::new();
-
+        let mut started_client =
+            MockStartedOpAMPClientMock::<SuperAgentCallbacks<MockEffectiveConfigLoaderMock>>::new();
         // Structs
         let mut running_sub_agents = StartedSubAgents::default();
         let old_sub_agents_config = SuperAgentDynamicConfig::default();
@@ -149,21 +147,22 @@ mod tests {
         started_client.should_set_remote_config_status(status);
 
         started_client.should_set_unhealthy();
-
+        let (_opamp_publisher, opamp_consumer) = pub_sub();
         let (super_agent_publisher, _super_agent_consumer) = pub_sub();
 
         // Create the Super Agent and rub Sub Agents
-        let super_agent = SuperAgent::new_custom(
+        let super_agent = SuperAgent::new(
             Some(started_client),
             hash_repository_mock,
             sub_agent_builder,
-            sub_agents_config_store,
+            Arc::new(sub_agents_config_store),
             super_agent_publisher,
+            pub_sub().1,
+            Some(opamp_consumer),
         );
 
-        let (opamp_publisher, _opamp_consumer) = pub_sub();
         super_agent
-            .remote_config(remote_config, opamp_publisher, &mut running_sub_agents)
+            .remote_config(remote_config, &mut running_sub_agents)
             .unwrap();
     }
 
@@ -173,8 +172,8 @@ mod tests {
         let sub_agent_builder = MockSubAgentBuilderMock::new();
         let mut sub_agents_config_store = MockSuperAgentDynamicConfigStore::new();
         let mut hash_repository_mock = MockHashRepositoryMock::new();
-        let mut started_client = MockStartedOpAMPClientMock::new();
-
+        let mut started_client =
+            MockStartedOpAMPClientMock::<SuperAgentCallbacks<MockEffectiveConfigLoaderMock>>::new();
         // Structs
         let mut started_sub_agent = MockStartedSubAgent::new();
         let sub_agent_id = AgentID::try_from("agent-id".to_string()).unwrap();
@@ -234,21 +233,22 @@ mod tests {
         started_client.should_set_remote_config_status(status);
 
         started_client.should_set_healthy();
-
+        let (_opamp_publisher, opamp_consumer) = pub_sub();
         let (super_agent_publisher, _super_agent_consumer) = pub_sub();
 
         // Create the Super Agent and rub Sub Agents
-        let super_agent = SuperAgent::new_custom(
+        let super_agent = SuperAgent::new(
             Some(started_client),
             Arc::new(hash_repository_mock),
             sub_agent_builder,
-            sub_agents_config_store,
+            Arc::new(sub_agents_config_store),
             super_agent_publisher,
+            pub_sub().1,
+            Some(opamp_consumer),
         );
 
-        let (opamp_publisher, _opamp_consumer) = pub_sub();
         super_agent
-            .remote_config(remote_config, opamp_publisher, &mut running_sub_agents)
+            .remote_config(remote_config, &mut running_sub_agents)
             .unwrap();
     }
 }
