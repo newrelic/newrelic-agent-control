@@ -19,18 +19,8 @@ use super::http::builder::{HttpClientBuilder, HttpClientBuilderError};
 
 #[derive(Error, Debug)]
 pub enum OpAMPClientBuilderError {
-    #[error("unable to create OpAMP HTTP client: `{0}`")]
-    HttpClientError(#[from] HttpClientError),
-    #[error("invalid HTTP configuration: `{0}`")]
-    HttpConfigError(#[from] HttpConfigError),
     #[error("`{0}`")]
     NotStartedClientError(#[from] NotStartedClientError),
-    #[error("`{0}`")]
-    StartedClientError(#[from] StartedClientError),
-    #[error("`{0}`")]
-    StartedOpAMPlientError(#[from] opamp_client::ClientError),
-    #[error("system time error: `{0}`")]
-    SystemTimeError(#[from] SystemTimeError),
     #[error("error getting agent instance id: `{0}`")]
     GetInstanceIDError(#[from] instance_id::GetterError),
     #[error("error building http client: `{0}`")]
