@@ -1,5 +1,7 @@
 use crate::super_agent::config::AgentID;
-use crate::super_agent::defaults::{VALUES_DIR, VALUES_FILE};
+use crate::super_agent::defaults::{
+    SUB_AGENT_DIR, SUPER_AGENT_CONFIG_FILE, VALUES_DIR, VALUES_FILE,
+};
 use crate::values::yaml_config::{has_remote_management, YAMLConfig};
 use crate::values::yaml_config_repository::{YAMLConfigRepository, YAMLConfigRepositoryError};
 use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
@@ -10,9 +12,10 @@ use opamp_client::operation::capabilities::Capabilities;
 use std::fs::Permissions;
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::PermissionsExt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 use thiserror::Error;
+use tracing::log::trace;
 use tracing::{debug, error};
 
 #[cfg(target_family = "unix")]
@@ -49,8 +52,6 @@ where
 }
 
 impl YAMLConfigRepositoryFile<LocalFile, DirectoryManagerFs> {
-    // TODO when initializing a SA paths represent the config file path, not the directory.
-    // while for subagents it represents a base directory. This is confusing and should be fixed.
     pub fn new(local_path: PathBuf, remote_path: PathBuf) -> Self {
         YAMLConfigRepositoryFile {
             directory_manager: DirectoryManagerFs {},
@@ -75,24 +76,18 @@ where
 {
     pub fn get_values_file_path(&self, agent_id: &AgentID) -> PathBuf {
         if agent_id.is_super_agent_id() {
-            return self.local_conf_path.clone();
+            return self.local_conf_path.join(SUPER_AGENT_CONFIG_FILE);
         }
-        self.local_conf_path
-            .join(agent_id)
-            .join(VALUES_DIR)
-            .join(VALUES_FILE)
+        concatenate_sub_agent_dir_path(&self.local_conf_path, agent_id)
     }
 
     pub fn get_remote_values_file_path(&self, agent_id: &AgentID) -> PathBuf {
         // This file (soon files) will often be removed, but its parent directory contains files
         // that should persist across these deletions.
         if agent_id.is_super_agent_id() {
-            return self.remote_conf_path.clone();
+            return self.remote_conf_path.join(SUPER_AGENT_CONFIG_FILE);
         }
-        self.remote_conf_path
-            .join(agent_id)
-            .join(VALUES_DIR)
-            .join(VALUES_FILE)
+        concatenate_sub_agent_dir_path(&self.remote_conf_path, agent_id)
     }
 
     // Load a file contents only if the file is present.
@@ -103,7 +98,8 @@ where
     ) -> Result<Option<YAMLConfig>, OnHostYAMLConfigRepositoryError> {
         let values_result = self.file_rw.read(path.as_path());
         match values_result {
-            Err(FileReaderError::FileNotFound(_)) => {
+            Err(FileReaderError::FileNotFound(e)) => {
+                trace!("file not found! {}", e);
                 //actively fallback to load local file
                 Ok(None)
             }
@@ -209,9 +205,16 @@ where
     }
 }
 
+pub fn concatenate_sub_agent_dir_path(dir: &Path, agent_id: &AgentID) -> PathBuf {
+    dir.join(SUB_AGENT_DIR)
+        .join(agent_id)
+        .join(VALUES_DIR)
+        .join(VALUES_FILE)
+}
+
 #[cfg(test)]
 pub mod test {
-    use super::YAMLConfigRepositoryFile;
+    use super::{concatenate_sub_agent_dir_path, YAMLConfigRepositoryFile};
     use crate::super_agent::config::AgentID;
     use crate::super_agent::defaults::default_capabilities;
     use crate::values::yaml_config::YAMLConfig;
@@ -270,7 +273,7 @@ pub mod test {
         let yaml_config_content = "some_config: true\nanother_item: false";
 
         file_rw.should_read(
-            Path::new("some/remote/path/some-agent-id/values/values.yaml"),
+            concatenate_sub_agent_dir_path(remote_dir_path, &agent_id).as_path(),
             yaml_config_content.to_string(),
         );
 
@@ -306,7 +309,7 @@ pub mod test {
         let yaml_config_content = "some_config: true\nanother_item: false";
 
         file_rw.should_read(
-            Path::new("some/local/path/some-agent-id/values/values.yaml"),
+            concatenate_sub_agent_dir_path(local_dir_path, &agent_id).as_path(),
             yaml_config_content.to_string(),
         );
 
@@ -342,12 +345,12 @@ pub mod test {
         let yaml_config_content = "some_config: true\nanother_item: false";
 
         file_rw.should_not_read_file_not_found(
-            Path::new("some/remote/path/some-agent-id/values/values.yaml"),
+            concatenate_sub_agent_dir_path(remote_dir_path, &agent_id).as_path(),
             "some_error_message".to_string(),
         );
 
         file_rw.should_read(
-            Path::new("some/local/path/some-agent-id/values/values.yaml"),
+            concatenate_sub_agent_dir_path(local_dir_path, &agent_id).as_path(),
             yaml_config_content.to_string(),
         );
 
@@ -381,7 +384,7 @@ pub mod test {
         let agent_id = AgentID::new("some-agent-id").unwrap();
 
         file_rw.should_not_read_file_not_found(
-            Path::new("some/local/path/some-agent-id/values/values.yaml"),
+            concatenate_sub_agent_dir_path(local_dir_path, &agent_id).as_path(),
             "some message".to_string(),
         );
 
@@ -410,9 +413,9 @@ pub mod test {
 
         let agent_id = AgentID::new("some-agent-id").unwrap();
 
-        file_rw.should_not_read_io_error(Path::new(
-            "some/remote/path/some-agent-id/values/values.yaml",
-        ));
+        file_rw.should_not_read_io_error(
+            concatenate_sub_agent_dir_path(remote_dir_path, &agent_id).as_path(),
+        );
 
         let repo = YAMLConfigRepositoryFile::with_mocks(
             file_rw,
@@ -441,7 +444,7 @@ pub mod test {
         let agent_id = AgentID::new("some-agent-id").unwrap();
 
         file_rw.should_not_read_io_error(Path::new(
-            "some/local/path/some-agent-id/values/values.yaml",
+            concatenate_sub_agent_dir_path(local_dir_path, &agent_id).as_path(),
         ));
 
         let repo = YAMLConfigRepositoryFile::with_mocks(
@@ -472,12 +475,12 @@ pub mod test {
         let yaml_config = YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]));
 
         dir_manager.should_create(
-            Path::new("some/remote/path/some-agent-id/values"),
+            Path::new("some/remote/path/fleet/agents.d/some-agent-id/values"),
             Permissions::from_mode(0o700),
         );
 
         file_rw.should_write(
-            Path::new("some/remote/path/some-agent-id/values/values.yaml"),
+            concatenate_sub_agent_dir_path(remote_dir_path, &agent_id).as_path(),
             "one_item: one value\n".to_string(),
             Permissions::from_mode(0o600),
         );
@@ -506,7 +509,7 @@ pub mod test {
         let yaml_config = YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]));
 
         dir_manager.should_not_create(
-            Path::new("some/remote/path/some-agent-id/values"),
+            Path::new("some/remote/path/fleet/agents.d/some-agent-id/values"),
             Permissions::from_mode(0o700),
             ErrorCreatingDirectory("dir name".to_string(), "oh now...".to_string()),
         );
@@ -539,12 +542,12 @@ pub mod test {
         let yaml_config = YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]));
 
         dir_manager.should_create(
-            Path::new("some/remote/path/some-agent-id/values"),
+            Path::new("some/remote/path/fleet/agents.d/some-agent-id/values"),
             Permissions::from_mode(0o700),
         );
 
         file_rw.should_not_write(
-            Path::new("some/remote/path/some-agent-id/values/values.yaml"),
+            concatenate_sub_agent_dir_path(remote_dir_path, &agent_id).as_path(),
             "one_item: one value\n".to_string(),
             Permissions::from_mode(0o600),
         );

@@ -1,8 +1,8 @@
+use crate::on_host::cli::cmd_with_config_file;
+use newrelic_super_agent::super_agent::defaults::SUPER_AGENT_CONFIG_FILE;
 use predicates::prelude::predicate;
 use std::{fs::read_dir, path::Path};
 use tempfile::TempDir;
-
-use crate::on_host::cli::cmd_with_config_file;
 
 use super::level::TIME_FORMAT;
 
@@ -23,14 +23,14 @@ fn build_logging_config(config_path: &Path, log_path: &Path) {
 #[test]
 fn default_log_level_no_root() {
     let dir = TempDir::new().unwrap();
-    let config_path = dir.path().join("super_agent.yaml");
+    let config_path = dir.path().join(SUPER_AGENT_CONFIG_FILE);
     let log_dir = dir.path().join("log");
     let log_path = log_dir.join("super_agent.log");
 
     // Write the config file
     build_logging_config(&config_path, &log_path);
 
-    let mut cmd = cmd_with_config_file(&config_path);
+    let mut cmd = cmd_with_config_file(dir.path());
 
     // Expecting to fail as non_root
     // Asserting content is logged to stdout as well
@@ -59,14 +59,14 @@ fn default_log_level_no_root() {
 #[test]
 fn default_log_level_as_root() {
     let dir = TempDir::new().unwrap();
-    let config_path = dir.path().join("super_agent.yaml");
+    let config_path = dir.path().join(SUPER_AGENT_CONFIG_FILE);
     let log_dir = dir.path().join("log");
     let log_path = log_dir.join("super_agent.log");
 
     // Write the config file
     build_logging_config(&config_path, &log_path);
 
-    let mut cmd = cmd_with_config_file(&config_path);
+    let mut cmd = cmd_with_config_file(dir.path());
 
     // Expecting to fail as non_root
     // Asserting content is logged to stdout as well

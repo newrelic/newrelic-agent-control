@@ -8,6 +8,8 @@ use crate::on_host::tools::custom_agent_type::get_agent_type_custom;
 use crate::on_host::tools::instance_id::get_instance_id;
 use crate::on_host::tools::super_agent::start_super_agent_with_custom_config;
 use newrelic_super_agent::agent_type::variable::namespace::Namespace;
+use newrelic_super_agent::event::channel::pub_sub;
+use newrelic_super_agent::event::ApplicationEvent;
 use newrelic_super_agent::super_agent::config::{AgentID, SuperAgentDynamicConfig};
 use newrelic_super_agent::super_agent::defaults::{
     SUB_AGENT_DIR, SUPER_AGENT_CONFIG_FILE, VALUES_DIR, VALUES_FILE,
@@ -28,20 +30,22 @@ fn onhost_opamp_super_agent_local_effective_config() {
     let remote_dir = tempdir().expect("failed to create remote temp dir");
 
     let agents = "{}";
-    let config_file_path = create_super_agent_config(
+    create_super_agent_config(
         opamp_server.endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
     );
 
     let base_paths = BasePaths {
-        super_agent_local_config: config_file_path.as_path().to_path_buf(),
         local_dir: local_dir.path().to_path_buf(),
         remote_dir: remote_dir.path().to_path_buf(),
         log_dir: local_dir.path().to_path_buf(),
     };
     let base_paths_copy = base_paths.clone();
-    let _super_agent_join = thread::spawn(move || start_super_agent_with_custom_config(base_paths));
+    let (application_event_publisher, application_event_consumer) = pub_sub();
+    let super_agent_join = thread::spawn(move || {
+        start_super_agent_with_custom_config(base_paths, application_event_consumer)
+    });
 
     let super_agent_instance_id = get_instance_id(&AgentID::new_super_agent_id(), base_paths_copy);
 
@@ -55,6 +59,10 @@ fn onhost_opamp_super_agent_local_effective_config() {
         )?;
         check_latest_health_status_was_healthy(&opamp_server, &super_agent_instance_id)
     });
+    application_event_publisher
+        .publish(ApplicationEvent::StopRequested)
+        .unwrap();
+    super_agent_join.join().unwrap();
 }
 
 #[cfg(unix)]
@@ -67,14 +75,13 @@ fn onhost_opamp_super_agent_remote_effective_config() {
     let remote_dir = tempdir().expect("failed to create remote temp dir");
 
     let agents = "{}";
-    let config_file_path = create_super_agent_config(
+    create_super_agent_config(
         opamp_server.endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
     );
 
     let base_paths = BasePaths {
-        super_agent_local_config: config_file_path.as_path().to_path_buf(),
         local_dir: local_dir.path().to_path_buf(),
         remote_dir: remote_dir.path().to_path_buf(),
         log_dir: local_dir.path().to_path_buf(),
@@ -88,7 +95,10 @@ fn onhost_opamp_super_agent_remote_effective_config() {
         "tests/on_host/data/trap_term_sleep_60.sh",
     );
 
-    let _super_agent_join = thread::spawn(move || start_super_agent_with_custom_config(base_paths));
+    let (application_event_publisher, application_event_consumer) = pub_sub();
+    let super_agent_join = thread::spawn(move || {
+        start_super_agent_with_custom_config(base_paths, application_event_consumer)
+    });
 
     let super_agent_instance_id = get_instance_id(&AgentID::new_super_agent_id(), base_paths_copy);
 
@@ -140,6 +150,10 @@ agents:
         )?;
         check_latest_health_status_was_healthy(&opamp_server, &super_agent_instance_id)
     });
+    application_event_publisher
+        .publish(ApplicationEvent::StopRequested)
+        .unwrap();
+    super_agent_join.join().unwrap();
 }
 
 #[cfg(unix)]
@@ -152,21 +166,23 @@ fn onhost_opamp_super_agent_wrong_remote_effective_config() {
     let remote_dir = tempdir().expect("failed to create remote temp dir");
 
     let agents = "{}";
-    let config_file_path = create_super_agent_config(
+    create_super_agent_config(
         opamp_server.endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
     );
 
     let base_paths = BasePaths {
-        super_agent_local_config: config_file_path.as_path().to_path_buf(),
         local_dir: local_dir.path().to_path_buf(),
         remote_dir: remote_dir.path().to_path_buf(),
         log_dir: local_dir.path().to_path_buf(),
     };
     let base_paths_copy = base_paths.clone();
 
-    let _super_agent_join = thread::spawn(move || start_super_agent_with_custom_config(base_paths));
+    let (application_event_publisher, application_event_consumer) = pub_sub();
+    let super_agent_join = thread::spawn(move || {
+        start_super_agent_with_custom_config(base_paths, application_event_consumer)
+    });
 
     let super_agent_instance_id = get_instance_id(&AgentID::new_super_agent_id(), base_paths_copy);
 
@@ -215,6 +231,10 @@ non-existing: {}
             )
         }
     });
+    application_event_publisher
+        .publish(ApplicationEvent::StopRequested)
+        .unwrap();
+    super_agent_join.join().unwrap();
 }
 
 #[cfg(unix)]
@@ -240,7 +260,7 @@ fn onhost_opamp_sub_agent_local_effective_config() {
         sleep_agent_type
     );
 
-    let sa_config_file_path = create_super_agent_config(
+    create_super_agent_config(
         opamp_server.endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
@@ -257,20 +277,22 @@ fn onhost_opamp_sub_agent_local_effective_config() {
         "backoff_delay: ${{{}}}",
         Namespace::EnvironmentVariable.namespaced_name("my_env_var")
     );
-    let _values_file_path = create_sub_agent_values(
+    create_sub_agent_values(
         agent_id.to_string(),
         values_config.to_string(),
         local_dir.path().to_path_buf(),
     );
 
     let base_paths = BasePaths {
-        super_agent_local_config: sa_config_file_path.as_path().to_path_buf(),
         local_dir: local_dir.path().to_path_buf(),
         remote_dir: remote_dir.path().to_path_buf(),
         log_dir: local_dir.path().to_path_buf(),
     };
     let base_paths_copy = base_paths.clone();
-    let _super_agent_join = thread::spawn(move || start_super_agent_with_custom_config(base_paths));
+    let (application_event_publisher, application_event_consumer) = pub_sub();
+    let super_agent_join = thread::spawn(move || {
+        start_super_agent_with_custom_config(base_paths, application_event_consumer)
+    });
 
     let sub_agent_instance_id = get_instance_id(&AgentID::new(agent_id).unwrap(), base_paths_copy);
 
@@ -291,6 +313,10 @@ fn onhost_opamp_sub_agent_local_effective_config() {
     });
 
     env::remove_var("my_env_var");
+    application_event_publisher
+        .publish(ApplicationEvent::StopRequested)
+        .unwrap();
+    super_agent_join.join().unwrap();
 }
 
 #[cfg(unix)]
@@ -316,7 +342,7 @@ fn onhost_opamp_sub_agent_remote_effective_config() {
         sleep_agent_type
     );
 
-    let sa_config_file_path = create_super_agent_config(
+    create_super_agent_config(
         opamp_server.endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
@@ -325,7 +351,7 @@ fn onhost_opamp_sub_agent_remote_effective_config() {
     // And the custom-agent has local config values
     let agent_id = "nr-sleep-agent";
     let local_values_config = "backoff_delay: 10s";
-    let _local_values_file_path = create_sub_agent_values(
+    create_sub_agent_values(
         agent_id.to_string(),
         local_values_config.to_string(),
         local_dir.path().to_path_buf(),
@@ -333,20 +359,22 @@ fn onhost_opamp_sub_agent_remote_effective_config() {
 
     // And the custom-agent has also remote config values
     let remote_values_config = "backoff_delay: 40s";
-    let _remote_values_file_path = create_sub_agent_values(
+    create_sub_agent_values(
         agent_id.to_string(),
         remote_values_config.to_string(),
         local_dir.path().to_path_buf(),
     );
 
     let base_paths = BasePaths {
-        super_agent_local_config: sa_config_file_path.as_path().to_path_buf(),
         local_dir: local_dir.path().to_path_buf(),
         remote_dir: remote_dir.path().to_path_buf(),
         log_dir: local_dir.path().to_path_buf(),
     };
     let base_paths_copy = base_paths.clone();
-    let _super_agent_join = thread::spawn(move || start_super_agent_with_custom_config(base_paths));
+    let (application_event_publisher, application_event_consumer) = pub_sub();
+    let super_agent_join = thread::spawn(move || {
+        start_super_agent_with_custom_config(base_paths, application_event_consumer)
+    });
 
     let sub_agent_instance_id = get_instance_id(&AgentID::new(agent_id).unwrap(), base_paths_copy);
 
@@ -362,6 +390,10 @@ fn onhost_opamp_sub_agent_remote_effective_config() {
             )
         }
     });
+    application_event_publisher
+        .publish(ApplicationEvent::StopRequested)
+        .unwrap();
+    super_agent_join.join().unwrap();
 }
 
 #[cfg(unix)]
@@ -387,7 +419,7 @@ fn onhost_opamp_sub_agent_empty_local_effective_config() {
         sleep_agent_type
     );
 
-    let sa_config_file_path = create_super_agent_config(
+    create_super_agent_config(
         opamp_server.endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
@@ -397,13 +429,15 @@ fn onhost_opamp_sub_agent_empty_local_effective_config() {
     let agent_id = "nr-sleep-agent";
 
     let base_paths = BasePaths {
-        super_agent_local_config: sa_config_file_path.as_path().to_path_buf(),
         local_dir: local_dir.path().to_path_buf(),
         remote_dir: remote_dir.path().to_path_buf(),
         log_dir: local_dir.path().to_path_buf(),
     };
     let base_paths_copy = base_paths.clone();
-    let _super_agent_join = thread::spawn(move || start_super_agent_with_custom_config(base_paths));
+    let (application_event_publisher, application_event_consumer) = pub_sub();
+    let super_agent_join = thread::spawn(move || {
+        start_super_agent_with_custom_config(base_paths, application_event_consumer)
+    });
 
     let sub_agent_instance_id = get_instance_id(&AgentID::new(agent_id).unwrap(), base_paths_copy);
 
@@ -419,6 +453,10 @@ fn onhost_opamp_sub_agent_empty_local_effective_config() {
             )
         }
     });
+    application_event_publisher
+        .publish(ApplicationEvent::StopRequested)
+        .unwrap();
+    super_agent_join.join().unwrap();
 }
 
 #[cfg(unix)]
@@ -443,7 +481,7 @@ fn onhost_opamp_sub_gent_wrong_remote_effective_config() {
         sleep_agent_type
     );
 
-    let config_file_path = create_super_agent_config(
+    create_super_agent_config(
         opamp_server.endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
@@ -452,22 +490,25 @@ fn onhost_opamp_sub_gent_wrong_remote_effective_config() {
     // And the custom-agent has local config values
     let agent_id = "nr-sleep-agent";
     let initial_values_config = "backoff_delay: 30s";
-    let _values_file_path = create_sub_agent_values(
+    create_sub_agent_values(
         agent_id.to_string(),
         initial_values_config.to_string(),
         local_dir.path().to_path_buf(),
     );
 
     let base_paths = BasePaths {
-        super_agent_local_config: config_file_path.as_path().to_path_buf(),
         local_dir: local_dir.path().to_path_buf(),
         remote_dir: remote_dir.path().to_path_buf(),
         log_dir: local_dir.path().to_path_buf(),
     };
     let base_paths_copy = base_paths.clone();
-    let _super_agent_join = thread::spawn(move || start_super_agent_with_custom_config(base_paths));
+    let (application_event_publisher, application_event_consumer) = pub_sub();
+    let super_agent_join = thread::spawn(move || {
+        start_super_agent_with_custom_config(base_paths, application_event_consumer)
+    });
 
-    let sub_agent_instance_id = get_instance_id(&AgentID::new(agent_id).unwrap(), base_paths_copy);
+    let sub_agent_instance_id =
+        get_instance_id(&AgentID::new(agent_id).unwrap(), base_paths_copy.clone());
 
     // When a new incorrect config is received from OpAMP
     opamp_server.set_config_response(
@@ -504,4 +545,8 @@ fn onhost_opamp_sub_gent_wrong_remote_effective_config() {
             )
         }
     });
+    application_event_publisher
+        .publish(ApplicationEvent::StopRequested)
+        .unwrap();
+    super_agent_join.join().unwrap();
 }

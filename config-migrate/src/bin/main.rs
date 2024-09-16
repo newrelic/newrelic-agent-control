@@ -9,8 +9,7 @@ use config_migrate::migration::persister::values_persister_file::ValuesPersister
 use newrelic_super_agent::logging::config::LoggingConfig;
 use newrelic_super_agent::super_agent::config_storer::store::SuperAgentConfigStore;
 use newrelic_super_agent::super_agent::defaults::{
-    SUB_AGENT_DIR, SUPER_AGENT_CONFIG_FILE, SUPER_AGENT_DATA_DIR, SUPER_AGENT_LOCAL_DATA_DIR,
-    SUPER_AGENT_LOG_DIR,
+    SUB_AGENT_DIR, SUPER_AGENT_DATA_DIR, SUPER_AGENT_LOCAL_DATA_DIR, SUPER_AGENT_LOG_DIR,
 };
 use newrelic_super_agent::values::file::YAMLConfigRepositoryFile;
 use std::error::Error;
@@ -27,9 +26,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let config: MigrationConfig = MigrationConfig::parse(NEWRELIC_INFRA_AGENT_TYPE_CONFIG_MAPPING)?;
 
     let cli = Cli::init_config_migrate_cli();
-    let local_config_path = cli.get_config_path();
-    let remote_config_path = PathBuf::from(SUPER_AGENT_DATA_DIR).join(SUPER_AGENT_CONFIG_FILE);
-    let vr = YAMLConfigRepositoryFile::new(local_config_path, remote_config_path);
+    let remote_dir = PathBuf::from(SUPER_AGENT_DATA_DIR);
+    let vr = YAMLConfigRepositoryFile::new(cli.local_data_dir(), remote_dir);
     let sa_local_config_loader = SuperAgentConfigStore::new(Arc::new(vr));
     let config_migrator = ConfigMigrator::new(
         ConfigConverter::default(),

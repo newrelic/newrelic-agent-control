@@ -1,6 +1,8 @@
 use ::fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
 use newrelic_super_agent::super_agent::config::AgentID;
-use newrelic_super_agent::values::file::YAMLConfigRepositoryFile;
+use newrelic_super_agent::values::file::{
+    concatenate_sub_agent_dir_path, YAMLConfigRepositoryFile,
+};
 use newrelic_super_agent::values::yaml_config::YAMLConfig;
 use newrelic_super_agent::values::yaml_config_repository::YAMLConfigRepository;
 use std::fs;
@@ -37,13 +39,9 @@ fn test_store_remote_no_mocks() {
         .store_remote(&agent_id.clone(), &agent_values)
         .unwrap();
 
-    remote_dir.push(agent_id);
-    remote_dir.push("values");
-    remote_dir.push("values.yaml");
-
     assert_eq!(
         AGENT_VALUES_SINGLE_FILE,
-        fs::read_to_string(remote_dir.as_path()).unwrap()
+        fs::read_to_string(concatenate_sub_agent_dir_path(&remote_dir, &agent_id)).unwrap()
     );
 }
 

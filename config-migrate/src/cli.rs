@@ -1,11 +1,14 @@
 use clap::Parser;
+use newrelic_super_agent::super_agent::defaults::SUPER_AGENT_LOCAL_DATA_DIR;
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)] // Read from `Cargo.toml`
 pub struct Cli {
-    #[arg(short, long, default_value_t = String::from("/etc/newrelic-super-agent/config.yaml"))]
-    config: String,
+    /// Overrides the default local configuration path `/etc/newrelic-super-agent/`.
+    #[cfg(debug_assertions)]
+    #[arg(long)]
+    local_dir: Option<PathBuf>,
 }
 
 impl Cli {
@@ -15,7 +18,10 @@ impl Cli {
         Self::parse()
     }
 
-    pub fn get_config_path(&self) -> PathBuf {
-        PathBuf::from(&self.config)
+    pub fn local_data_dir(&self) -> PathBuf {
+        if let Some(path) = &self.local_dir {
+            return path.clone();
+        }
+        PathBuf::from(SUPER_AGENT_LOCAL_DATA_DIR)
     }
 }

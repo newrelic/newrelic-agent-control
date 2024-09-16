@@ -25,11 +25,10 @@ use crate::super_agent::{
     defaults::{SUPER_AGENT_NAMESPACE, SUPER_AGENT_TYPE, SUPER_AGENT_VERSION},
     error::AgentError,
 };
-use crate::utils::time::get_sys_time_nano;
 use crate::values::yaml_config::YAMLConfig;
 use crossbeam::channel::never;
 use crossbeam::select;
-use opamp_client::{opamp::proto::ComponentHealth, StartedClient};
+use opamp_client::StartedClient;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::sync::Arc;

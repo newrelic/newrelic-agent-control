@@ -10,7 +10,6 @@ use crate::super_agent::config_storer::loader_storer::SuperAgentConfigLoader;
 use crate::super_agent::config_storer::store::SuperAgentConfigStore;
 use crate::super_agent::defaults::{
     FLEET_ID_ATTRIBUTE_KEY, HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY, SUB_AGENT_DIR,
-    SUPER_AGENT_CONFIG_FILE,
 };
 use crate::super_agent::run::SuperAgentRunner;
 use crate::super_agent::{super_agent_fqn, SuperAgent};
@@ -29,30 +28,27 @@ use fs::LocalFile;
 use opamp_client::operation::settings::DescriptionValueType;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::info;
+use tracing::{debug, info};
 
 impl SuperAgentRunner {
     pub fn run(self) -> Result<(), AgentError> {
-        let (super_agent_repository, sub_agent_repository) = {
-            let mut super_agent_repository = YAMLConfigRepositoryFile::new(
-                self.base_paths.super_agent_local_config.clone(),
-                self.base_paths.remote_dir.join(SUPER_AGENT_CONFIG_FILE),
-            );
-            let mut sub_agent_repository = YAMLConfigRepositoryFile::new(
-                self.base_paths.local_dir.join(SUB_AGENT_DIR),
-                self.base_paths.remote_dir.join(SUB_AGENT_DIR),
-            );
-            if self.opamp_http_builder.is_some() {
-                super_agent_repository = super_agent_repository.with_remote();
-                sub_agent_repository = sub_agent_repository.with_remote();
-            }
-            (
-                Arc::new(super_agent_repository),
-                Arc::new(sub_agent_repository),
+        debug!("Initialising yaml_config_repository");
+        let yaml_config_repository = if self.opamp_http_builder.is_some() {
+            Arc::new(
+                YAMLConfigRepositoryFile::new(
+                    self.base_paths.local_dir.clone(),
+                    self.base_paths.remote_dir.clone(),
+                )
+                .with_remote(),
             )
+        } else {
+            Arc::new(YAMLConfigRepositoryFile::new(
+                self.base_paths.local_dir.clone(),
+                self.base_paths.remote_dir.clone(),
+            ))
         };
 
-        let config_storer = Arc::new(SuperAgentConfigStore::new(super_agent_repository.clone()));
+        let config_storer = Arc::new(SuperAgentConfigStore::new(yaml_config_repository.clone()));
         let config = config_storer.load()?;
 
         let identifiers_provider = IdentifiersProvider::default()
@@ -87,10 +83,7 @@ impl SuperAgentRunner {
         let opamp_client_builder = self.opamp_http_builder.map(|http_builder| {
             DefaultOpAMPClientBuilder::new(
                 http_builder,
-                DefaultEffectiveConfigLoaderBuilder::new(
-                    sub_agent_repository.clone(),
-                    super_agent_repository.clone(),
-                ),
+                DefaultEffectiveConfigLoaderBuilder::new(yaml_config_repository.clone()),
             )
         });
 
@@ -99,14 +92,14 @@ impl SuperAgentRunner {
             .with_super_agent_variables(super_agent_variables.into_iter());
 
         let agents_assembler = LocalEffectiveAgentsAssembler::new(
-            sub_agent_repository.clone(),
+            yaml_config_repository.clone(),
             self.agent_type_registry,
             template_renderer,
         );
 
         let sub_agent_event_processor_builder = EventProcessorBuilder::new(
             sub_agent_hash_repository.clone(),
-            sub_agent_repository.clone(),
+            yaml_config_repository.clone(),
         );
 
         let sub_agent_builder = OnHostSubAgentBuilder::new(

@@ -7,7 +7,6 @@ use std::sync::Arc;
 use thiserror::Error;
 use tracing::info;
 
-use crate::super_agent::defaults::SUPER_AGENT_CONFIG_FILE;
 #[cfg(debug_assertions)]
 use crate::super_agent::run::set_debug_dirs;
 use crate::values::file::YAMLConfigRepositoryFile;
@@ -51,9 +50,6 @@ pub enum CliCommand {
 #[derive(Parser, Debug)]
 #[command(author, about, long_about = None)] // Read from `Cargo.toml`
 pub struct Cli {
-    #[arg(short, long, default_value_t = String::from("/etc/newrelic-super-agent/config.yaml"))]
-    config: String,
-
     #[arg(long)]
     print_debug_info: bool,
 
@@ -61,31 +57,19 @@ pub struct Cli {
     version: bool,
 
     /// Overrides the default local configuration path `/etc/newrelic-super-agent/`.
-    /// This config takes precedence over the general `debug`
     #[cfg(debug_assertions)]
     #[arg(long)]
     pub local_dir: Option<PathBuf>,
 
     /// Overrides the default remote configuration path `/var/lib/newrelic-super-agent`.
-    /// This config takes precedence over the general `debug`
     #[cfg(debug_assertions)]
     #[arg(long)]
     pub remote_dir: Option<PathBuf>,
 
     /// Overrides the default log path `/var/log/newrelic-super-agent`.
-    /// This config takes precedence over the general `debug`    
     #[cfg(debug_assertions)]
     #[arg(long)]
     pub logs_dir: Option<PathBuf>,
-
-    /// Overrides the default paths used for local/remote configuration and logs to the following
-    /// relatives paths.
-    /// `/etc/newrelic-super-agent/` -> <defined path>/nrsa_local
-    /// `/var/lib/newrelic-super-agent` -> <defined path>/nrsa_remote
-    /// `/var/log/newrelic-super-agent` -> <defined path>/nrsa_logs
-    #[cfg(debug_assertions)]
-    #[arg(long, value_name = "DATA_DIR")]
-    pub debug: Option<PathBuf>,
 }
 
 impl Cli {
@@ -94,7 +78,7 @@ impl Cli {
         // Get command line args
         let cli = Self::parse();
 
-        let base_paths = BasePaths::new(cli.config.clone());
+        let base_paths = BasePaths::default();
 
         // Initialize debug directories (if set)
         #[cfg(debug_assertions)]
@@ -109,8 +93,8 @@ impl Cli {
         }
 
         let super_agent_repository = YAMLConfigRepositoryFile::new(
-            base_paths.super_agent_local_config.clone(),
-            base_paths.remote_dir.join(SUPER_AGENT_CONFIG_FILE),
+            base_paths.local_dir.clone(),
+            base_paths.remote_dir.clone(),
         );
 
         // In both K8s and onHost we read here the super-agent config that is used to bootstrap the SA from file
@@ -120,10 +104,7 @@ impl Cli {
             .load()
             .map_err(|err| {
                 CliError::LoaderError(
-                    base_paths
-                        .super_agent_local_config
-                        .to_string_lossy()
-                        .to_string(),
+                    base_paths.local_dir.to_string_lossy().to_string(),
                     err.to_string(),
                 )
             })?;
@@ -132,7 +113,10 @@ impl Cli {
             .log
             .try_init(base_paths.log_dir.clone())?;
         info!("{}", binary_metadata());
-        info!("Starting NewRelic Super Agent with config '{}'", cli.config);
+        info!(
+            "Starting NewRelic Super Agent with config folder '{}'",
+            base_paths.local_dir.to_string_lossy().to_string()
+        );
 
         let opamp = super_agent_config.opamp;
         let http_server = super_agent_config.server;

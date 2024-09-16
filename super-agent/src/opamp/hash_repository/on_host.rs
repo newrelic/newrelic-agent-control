@@ -121,7 +121,7 @@ where
     D: DirectoryManager,
     F: FileWriter + FileReader,
 {
-    fn hash_file_path<'a>(&'a self, agent_id: &AgentID, path: &'a mut PathBuf) -> &Path {
+    fn hash_file_path<'a>(&'a self, agent_id: &AgentID, path: &'a mut PathBuf) -> &'a Path {
         let hash_file = if agent_id.is_super_agent_id() {
             HASH_FILE_NAME.to_string()
         } else {

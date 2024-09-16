@@ -30,18 +30,16 @@ pub struct DefaultEffectiveConfigLoaderBuilder<Y>
 where
     Y: YAMLConfigRepository,
 {
-    sub_agent_repository: Arc<Y>,
-    super_agent_repository: Arc<Y>,
+    yaml_config_repository: Arc<Y>,
 }
 
 impl<Y> DefaultEffectiveConfigLoaderBuilder<Y>
 where
     Y: YAMLConfigRepository,
 {
-    pub fn new(sub_agent_repository: Arc<Y>, super_agent_repository: Arc<Y>) -> Self {
+    pub fn new(yaml_config_repository: Arc<Y>) -> Self {
         Self {
-            sub_agent_repository,
-            super_agent_repository,
+            yaml_config_repository,
         }
     }
 }
@@ -55,12 +53,12 @@ where
     fn build(&self, agent_id: AgentID) -> Self::Loader {
         if agent_id.is_super_agent_id() {
             return EffectiveConfigLoaderImpl::SuperAgent(SuperAgentEffectiveConfigLoader::new(
-                self.super_agent_repository.clone(),
+                self.yaml_config_repository.clone(),
             ));
         }
         EffectiveConfigLoaderImpl::SubAgent(SubAgentEffectiveConfigLoader::new(
             agent_id,
-            self.sub_agent_repository.clone(),
+            self.yaml_config_repository.clone(),
         ))
     }
 }
@@ -113,10 +111,9 @@ pub mod tests {
     }
     #[test]
     fn builder() {
-        let builder = DefaultEffectiveConfigLoaderBuilder::new(
-            Arc::new(MockYAMLConfigRepositoryMock::default()),
-            Arc::new(MockYAMLConfigRepositoryMock::default()),
-        );
+        let builder = DefaultEffectiveConfigLoaderBuilder::new(Arc::new(
+            MockYAMLConfigRepositoryMock::default(),
+        ));
 
         match builder.build(AgentID::new_super_agent_id()) {
             EffectiveConfigLoaderImpl::SuperAgent(_) => {}
