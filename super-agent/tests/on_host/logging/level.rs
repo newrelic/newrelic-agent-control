@@ -1,8 +1,6 @@
 use crate::on_host::cli::cmd_with_config_file;
 use newrelic_super_agent::super_agent::defaults::SUPER_AGENT_CONFIG_FILE;
 use predicates::prelude::predicate;
-use std::thread;
-use std::time::Duration;
 use tempfile::TempDir;
 
 const EMPTY_CONFIG: &str = "# Empty config\nagents: {}";
