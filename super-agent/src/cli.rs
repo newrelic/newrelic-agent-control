@@ -2,7 +2,6 @@ mod one_shot_operation;
 
 use clap::Parser;
 use one_shot_operation::OneShotCommand;
-use std::path::PathBuf;
 use std::sync::Arc;
 use thiserror::Error;
 use tracing::info;
@@ -59,17 +58,17 @@ pub struct Cli {
     /// Overrides the default local configuration path `/etc/newrelic-super-agent/`.
     #[cfg(debug_assertions)]
     #[arg(long)]
-    pub local_dir: Option<PathBuf>,
+    pub local_dir: Option<std::path::PathBuf>,
 
     /// Overrides the default remote configuration path `/var/lib/newrelic-super-agent`.
     #[cfg(debug_assertions)]
     #[arg(long)]
-    pub remote_dir: Option<PathBuf>,
+    pub remote_dir: Option<std::path::PathBuf>,
 
     /// Overrides the default log path `/var/log/newrelic-super-agent`.
     #[cfg(debug_assertions)]
     #[arg(long)]
-    pub logs_dir: Option<PathBuf>,
+    pub logs_dir: Option<std::path::PathBuf>,
 }
 
 impl Cli {
