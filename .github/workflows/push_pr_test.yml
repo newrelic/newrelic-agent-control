@@ -10,6 +10,31 @@ concurrency:
   cancel-in-progress: true
 name: test
 jobs:
+  release-build:
+    runs-on: ubuntu-latest
+    name: "Build release binaries"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Give GitHub Actions access to private crates
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
+      - name: Install stable
+        uses: dtolnay/rust-toolchain@1.78.0
+        with:
+          toolchain: stable
+      - name: cargo generate-lockfile
+        if: hashFiles('Cargo.lock') == ''
+        run: cargo generate-lockfile
+      - name: Build config migrate in release mode
+        run: cargo build --release --package config-migrate
+      - name: Build k8s in release mode
+        run: cargo build --release --package newrelic_super_agent --features k8s
+      - name: Build onhost in release mode
+        run: cargo build --release --package newrelic_super_agent --features onhost
+
   required:
     runs-on: ubuntu-latest
     name: ubuntu / ${{ matrix.toolchain }}
@@ -88,7 +113,7 @@ jobs:
 
       - name: Run onHost root-required lib tests only
         run: make -C super-agent test/onhost/root
-      
+
       - name: Run onHost root-required integration-tests only
         run: make -C super-agent test/onhost/root/integration
 
