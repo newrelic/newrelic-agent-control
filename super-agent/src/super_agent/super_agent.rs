@@ -250,21 +250,28 @@ where
             .unwrap_or(&never_receive);
         loop {
             select! {
-                recv(&opamp_receiver.as_ref()) -> opamp_event => {
-                    match opamp_event.unwrap() {
-                        OpAMPEvent::RemoteConfigReceived(remote_config) => {
-                            let _ = self.remote_config(remote_config, sub_agent_publisher.clone(), &mut sub_agents )
-                            .inspect_err(|err| error!(error_msg = %err,"Error processing valid remote config"));
-                        }
-                        OpAMPEvent::Connected => {
-                            let _ = self.super_agent_publisher
-                            .publish(SuperAgentEvent::OpAMPConnected)
-                            .inspect_err(|err| error!(error_msg = %err,"cannot publish super_agent_event::super_agent_opamp_connected"));
-                        }
-                        OpAMPEvent::ConnectFailed(error_code, error_message) => {
-                            let _ = self.super_agent_publisher
-                            .publish(SuperAgentEvent::OpAMPConnectFailed(error_code, error_message))
-                            .inspect_err(|err| error!(error_msg = %err,"cannot publish super_agent_event::super_agent_opamp_connect_failed"));
+                recv(&opamp_receiver.as_ref()) -> opamp_event_res => {
+                    match opamp_event_res {
+                        Err(_) => {
+                            debug!("channel closed");
+                        },
+                        Ok(opamp_event) => {
+                            match opamp_event {
+                                OpAMPEvent::RemoteConfigReceived(remote_config) => {
+                                    let _ = self.remote_config(remote_config, sub_agent_publisher.clone(), &mut sub_agents )
+                                    .inspect_err(|err| error!(error_msg = %err,"Error processing valid remote config"));
+                                }
+                                OpAMPEvent::Connected => {
+                                    let _ = self.super_agent_publisher
+                                    .publish(SuperAgentEvent::OpAMPConnected)
+                                    .inspect_err(|err| error!(error_msg = %err,"cannot publish super_agent_event::super_agent_opamp_connected"));
+                                }
+                                OpAMPEvent::ConnectFailed(error_code, error_message) => {
+                                    let _ = self.super_agent_publisher
+                                    .publish(SuperAgentEvent::OpAMPConnectFailed(error_code, error_message))
+                                    .inspect_err(|err| error!(error_msg = %err,"cannot publish super_agent_event::super_agent_opamp_connect_failed"));
+                                }
+                            }
                         }
                     }
                 },
