@@ -19,9 +19,11 @@ impl Cli {
     }
 
     pub fn local_data_dir(&self) -> PathBuf {
+        #[cfg(debug_assertions)]
         if let Some(path) = &self.local_dir {
             return path.clone();
         }
+
         PathBuf::from(SUPER_AGENT_LOCAL_DATA_DIR)
     }
 }
