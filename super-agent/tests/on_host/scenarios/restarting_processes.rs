@@ -8,6 +8,8 @@ use std::thread;
 use std::time::Duration;
 use tempfile::TempDir;
 
+/// The super agent is configured with no OpAMP and a custom agent-type to check that
+/// a process gets restarted as expected when killing it externally.
 #[cfg(unix)]
 #[test]
 fn killing_subprocess_with_signal_restarts_as_root() -> Result<(), Box<dyn std::error::Error>> {

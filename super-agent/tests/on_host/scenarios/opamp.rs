@@ -20,6 +20,10 @@ use std::time::Duration;
 use std::{env, thread};
 use tempfile::tempdir;
 
+/// OpAMP is enabled but there is no remote configuration
+/// - Local configuration (with no agents) is used
+/// - Effective configuration for the super-agent is reported
+/// - Healthy status is reported
 #[cfg(unix)]
 #[test]
 fn onhost_opamp_super_agent_local_effective_config() {
@@ -65,10 +69,17 @@ fn onhost_opamp_super_agent_local_effective_config() {
     super_agent_join.join().unwrap();
 }
 
+/// Given a super-agent whose local configuration has no agents and then a valid remote configuration with an agent
+/// is set through OpAMP:
+/// - The corresponding files in the filesystem are created
+/// - The corresponding effective config is reported for the super agent
+/// - The super agent reports healthy
+/// - The subagent reports healthy
 #[cfg(unix)]
 #[test]
 fn onhost_opamp_super_agent_remote_effective_config() {
     // Given a super-agent without agents and opamp configured.
+
     let mut opamp_server = FakeServer::start_new();
 
     let local_dir = tempdir().expect("failed to create local temp dir");
@@ -86,7 +97,6 @@ fn onhost_opamp_super_agent_remote_effective_config() {
         remote_dir: remote_dir.path().to_path_buf(),
         log_dir: local_dir.path().to_path_buf(),
     };
-    let base_paths_copy = base_paths.clone();
 
     // Add custom agent_type to registry
     let sleep_agent_type = get_agent_type_custom(
@@ -96,11 +106,13 @@ fn onhost_opamp_super_agent_remote_effective_config() {
     );
 
     let (application_event_publisher, application_event_consumer) = pub_sub();
+    let sa_base_paths = base_paths.clone();
     let super_agent_join = thread::spawn(move || {
-        start_super_agent_with_custom_config(base_paths, application_event_consumer)
+        start_super_agent_with_custom_config(sa_base_paths, application_event_consumer)
     });
 
-    let super_agent_instance_id = get_instance_id(&AgentID::new_super_agent_id(), base_paths_copy);
+    let super_agent_instance_id =
+        get_instance_id(&AgentID::new_super_agent_id(), base_paths.clone());
 
     let agents = format!(
         r#"
@@ -129,6 +141,9 @@ agents:
     let expected_config_parsed =
         serde_yaml::from_str::<SuperAgentDynamicConfig>(expected_config.as_str()).unwrap();
 
+    let subagent_instance_id =
+        get_instance_id(&AgentID::new("nr-sleep-agent").unwrap(), base_paths.clone());
+
     retry(60, Duration::from_secs(1), || {
         let remote_file = remote_dir.path().join(SUPER_AGENT_CONFIG_FILE);
         let remote_config =
@@ -148,7 +163,8 @@ agents:
             &super_agent_instance_id,
             remote_config,
         )?;
-        check_latest_health_status_was_healthy(&opamp_server, &super_agent_instance_id)
+        check_latest_health_status_was_healthy(&opamp_server, &super_agent_instance_id)?;
+        check_latest_health_status_was_healthy(&opamp_server, &subagent_instance_id)
     });
     application_event_publisher
         .publish(ApplicationEvent::StopRequested)
@@ -156,9 +172,11 @@ agents:
     super_agent_join.join().unwrap();
 }
 
+/// Given a super-agent whose local configuration has no agents and then a valid remote configuration with no agents
+/// and an unknown field is set. The unknown should be ignored and the corresponding effective configuration reported.
 #[cfg(unix)]
 #[test]
-fn onhost_opamp_super_agent_wrong_remote_effective_config() {
+fn onhost_opamp_super_agent_remote_config_with_unknown_field() {
     // Given a super-agent without agents and opamp configured.
     let mut opamp_server = FakeServer::start_new();
 
@@ -237,9 +255,12 @@ non-existing: {}
     super_agent_join.join().unwrap();
 }
 
+/// The super agent is configured with one agent whose local configuration contains an environment variable
+/// placeholder. This test checks that the effective config is reported as expected (and it does not included
+/// the environment variable expanded).
 #[cfg(unix)]
 #[test]
-fn onhost_opamp_sub_agent_local_effective_config() {
+fn onhost_opamp_sub_agent_local_effective_config_with_env_var() {
     // Given a super-agent with a custom-agent running a sleep command with opamp configured.
     let opamp_server = FakeServer::start_new();
 
@@ -319,6 +340,8 @@ fn onhost_opamp_sub_agent_local_effective_config() {
     super_agent_join.join().unwrap();
 }
 
+/// The super-agent is configured with on agent with local configuration and a remote configuration was also set for the
+/// corresponding sub-agent. This test checks that the latest effective config reported corresponds to the remote.
 #[cfg(unix)]
 #[test]
 fn onhost_opamp_sub_agent_remote_effective_config() {
@@ -396,6 +419,8 @@ fn onhost_opamp_sub_agent_remote_effective_config() {
     super_agent_join.join().unwrap();
 }
 
+/// There is a super agent with a sub agent configured whose configuration is empty, we expect the empty configuration
+/// to be reported as effective configuration for the sub-agent.
 #[cfg(unix)]
 #[test]
 fn onhost_opamp_sub_agent_empty_local_effective_config() {
@@ -459,6 +484,10 @@ fn onhost_opamp_sub_agent_empty_local_effective_config() {
     super_agent_join.join().unwrap();
 }
 
+/// A super agent has a sub agent configured and the sub agent has a local configuration, then a **invalid** remote
+/// configuration is set. This test checks:
+/// - That the latest remote config status is failed.
+/// - That latest effective configuration reported is the local one (which is valid).
 #[cfg(unix)]
 #[test]
 fn onhost_opamp_sub_gent_wrong_remote_effective_config() {

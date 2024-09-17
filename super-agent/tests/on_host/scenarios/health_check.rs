@@ -1,7 +1,7 @@
-use super::tools::instance_id::get_instance_id;
 use crate::common::opamp::FakeServer;
 use crate::common::retry::retry;
 use crate::on_host::tools::config::{create_file, create_super_agent_config};
+use crate::on_host::tools::instance_id::get_instance_id;
 use crate::on_host::tools::super_agent::start_super_agent_with_custom_config;
 use httpmock::Method::GET;
 use httpmock::MockServer;
