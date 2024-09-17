@@ -68,9 +68,9 @@ variables:
       file_path: newrelic-infra.yml
 deployment:
   on_host:
-    executables:
-      - path: /usr/bin/newrelic-infra
-        args: "--config=${config_file}"
+    executable:
+      path: /usr/bin/newrelic-infra
+      args: "--config=${config_file}"
     restart_policy:
       backoff_strategy:
         type: fixed

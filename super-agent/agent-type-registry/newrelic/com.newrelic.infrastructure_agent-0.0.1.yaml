@@ -10,11 +10,11 @@ variables:
       default: /etc/newrelic-infra.yml
 deployment:
   on_host:
-    executables:
-      - path: /usr/bin/newrelic-infra
-        args: >-
-          --config=${nr-var:config_file}
-        restart_policy:
-          backoff_strategy:
-            type: fixed
-            backoff_delay: 20s
+    executable:
+      path: /usr/bin/newrelic-infra
+      args: >-
+        --config=${nr-var:config_file}
+      restart_policy:
+        backoff_strategy:
+          type: fixed
+          backoff_delay: 20s

@@ -141,12 +141,12 @@ version: 0.0.0
 variables: {}
 deployment:
   on_host:
-    executables:
-      - path: "sh"
-        args: >-
-          tests/on_host/data/trap_term_sleep_60.sh
-          --host_id=${nr-sa:host_id}
-          --agent_id=${nr-sub:agent_id}
+    executable:
+      path: "sh"
+      args: >-
+        tests/on_host/data/trap_term_sleep_60.sh
+        --host_id=${nr-sa:host_id}
+        --agent_id=${nr-sub:agent_id}
     "#
         .to_string(),
         local_dir.path().join(DYNAMIC_AGENT_TYPE_FILENAME),
@@ -176,11 +176,10 @@ agents:
 
     retry(30, Duration::from_secs(1), || {
         // Check that the process is running with this exact command
-        let _ = Command::new("pgrep")
+        Command::new("pgrep")
             .arg("-f")
             .arg("sh tests/on_host/data/trap_term_sleep_60.sh --host_id=fixed-host-id --agent_id=test-agent")
-            .output()?;
-
+            .assert().try_success()?;
         Ok(())
     });
     application_event_publisher

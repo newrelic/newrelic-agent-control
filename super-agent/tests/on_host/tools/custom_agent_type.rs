@@ -22,9 +22,9 @@ variables:
       default: 1s
 deployment:
   on_host:
-    executables:
-      - path: {}
-        args: {}
+    executable:
+      path: {}
+      args: {}
 "#,
         path, args
     );

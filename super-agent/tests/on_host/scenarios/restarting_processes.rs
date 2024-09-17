@@ -34,14 +34,14 @@ variables:
 deployment:
   on_host:
     enable_file_logging: false
-    executables:
-      - path: sleep
-        args: "${nr-var:duration}"
-        restart_policy:
-          backoff_strategy:
-            type: fixed
-            max_retries: 2
-            backoff_delay: 0s
+    executable:
+      path: sleep
+      args: "${nr-var:duration}"
+      restart_policy:
+        backoff_strategy:
+          type: fixed
+          max_retries: 2
+          backoff_delay: 0s
 "#,
     );
 

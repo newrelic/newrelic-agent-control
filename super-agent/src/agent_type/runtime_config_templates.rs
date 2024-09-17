@@ -112,12 +112,10 @@ fn template_string(s: String, variables: &Variables) -> Result<String, AgentType
 impl Templateable for OnHost {
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         Ok(Self {
-            executables: self
-                .executables
-                .into_iter()
+            executable: self
+                .executable
                 .map(|e| e.template_with(variables))
-                .collect::<Result<Vec<Executable>, AgentTypeError>>()?,
-
+                .transpose()?,
             enable_file_logging: self.enable_file_logging.template_with(variables)?,
             health: self
                 .health

@@ -262,8 +262,7 @@ pub(crate) mod tests {
                 .deployment
                 .on_host
                 .unwrap()
-                .executables
-                .first()
+                .executable
                 .unwrap()
                 .args
                 .clone()
@@ -338,8 +337,7 @@ pub(crate) mod tests {
                 .deployment
                 .on_host
                 .unwrap()
-                .executables
-                .first()
+                .executable
                 .unwrap()
                 .args
                 .clone()
@@ -416,7 +414,12 @@ pub(crate) mod tests {
             .render(&agent_id, agent_type, values, attributes)
             .unwrap();
 
-        let backoff_strategy = &runtime_config.deployment.on_host.unwrap().executables[0]
+        let backoff_strategy = &runtime_config
+            .deployment
+            .on_host
+            .unwrap()
+            .executable
+            .unwrap()
             .restart_policy
             .backoff_strategy;
         assert_eq!(
@@ -450,7 +453,12 @@ pub(crate) mod tests {
             .render(&agent_id, agent_type, values, attributes)
             .unwrap();
 
-        let backoff_strategy = &runtime_config.deployment.on_host.unwrap().executables[0]
+        let backoff_strategy = &runtime_config
+            .deployment
+            .on_host
+            .unwrap()
+            .executable
+            .unwrap()
             .restart_policy
             .backoff_strategy;
         assert_eq!(
@@ -698,9 +706,9 @@ version: 0.1.0
 variables: {}
 deployment:
   on_host:
-    executables:
-     - path: /opt/first
-       args: "${nr-sa:sa-fake-var}"
+    executable:
+      path: /opt/first
+      args: "${nr-sa:sa-fake-var}"
 "#,
             &Environment::OnHost,
         );
@@ -723,8 +731,7 @@ deployment:
                 .deployment
                 .on_host
                 .unwrap()
-                .executables
-                .first()
+                .executable
                 .unwrap()
                 .args
                 .clone()
@@ -751,9 +758,9 @@ variables:
       default: bar
 deployment:
   on_host:
-    executables:
-      - path: /opt/first
-        args: "--config_path=${nr-var:config_path} --foo=${nr-var:config_argument}"
+    executable:
+      path: /opt/first
+      args: "--config_path=${nr-var:config_path} --foo=${nr-var:config_argument}"
 "#;
 
     const SIMPLE_AGENT_VALUES: &str = r#"
@@ -782,9 +789,9 @@ variables:
       file_path: "config2.d"
 deployment:
   on_host:
-    executables:
-      - path: /usr/bin/newrelic-infra
-        args: "--config1 ${nr-var:config1} --config2 ${nr-var:config2}"
+    executable:
+      path: /usr/bin/newrelic-infra
+      args: "--config1 ${nr-var:config1} --config2 ${nr-var:config2}"
 "#;
 
     const AGENT_VALUES_WITH_FILES: &str = r#"
@@ -826,15 +833,15 @@ variables:
         required: true
 deployment:
   on_host:
-    executables:
-      - path: /bin/otelcol
-        args: "-c some-arg"
-        restart_policy:
-          backoff_strategy:
-            type: ${nr-var:backoff.type}
-            backoff_delay: ${nr-var:backoff.delay}
-            max_retries: ${nr-var:backoff.retries}
-            last_retry_interval: ${nr-var:backoff.interval}
+    executable:
+      path: /bin/otelcol
+      args: "-c some-arg"
+      restart_policy:
+        backoff_strategy:
+          type: ${nr-var:backoff.type}
+          backoff_delay: ${nr-var:backoff.delay}
+          max_retries: ${nr-var:backoff.retries}
+          last_retry_interval: ${nr-var:backoff.interval}
 "#;
 
     const BACKOFF_VALUES_YAML: &str = r#"

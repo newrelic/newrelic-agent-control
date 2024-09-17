@@ -84,20 +84,20 @@ variables:
 # How the agent should be supervised
 deployment:
   on_host:
-    executables:
-      - path: /opt/newrelic-super-agent/bin/newrelic-infra
-        args: "--config=${nr-var:config_agent}"
-        env: "NRIA_PLUGIN_DIR=${nr-var:config_integrations} NRIA_STATUS_SERVER_ENABLED=true"
-        restart_policy:
-          backoff_strategy:
-            type: fixed
-            backoff_delay: ${nr-var:backoff_delay}
-        health:
-          interval: 5s
-          timeout: 5s
-          http:
-            path: "/v1/status"
-            port: 8003
+    executable:
+      path: /opt/newrelic-super-agent/bin/newrelic-infra
+      args: "--config=${nr-var:config_agent}"
+      env: "NRIA_PLUGIN_DIR=${nr-var:config_integrations} NRIA_STATUS_SERVER_ENABLED=true"
+      restart_policy:
+        backoff_strategy:
+          type: fixed
+          backoff_delay: ${nr-var:backoff_delay}
+      health:
+        interval: 5s
+        timeout: 5s
+        http:
+          path: "/v1/status"
+          port: 8003
 ```
 
 Note that the actual Infra Agent configuration `config_agent` is a variable whose yaml content is saved in a specific file defined by the Agent Type creator through a variable attribute `file_path`.

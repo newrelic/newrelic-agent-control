@@ -23,8 +23,7 @@ pub struct Deployment {
 /// It contains the instructions of what are the agent binaries, command-line arguments, the environment variables passed to it and the restart policy of the supervisor.
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub struct OnHost {
-    #[serde(default)]
-    pub executables: Vec<Executable>,
+    pub executable: Option<Executable>,
     #[serde(default)]
     pub enable_file_logging: TemplateableValue<bool>,
     /// Enables and define health checks configuration.

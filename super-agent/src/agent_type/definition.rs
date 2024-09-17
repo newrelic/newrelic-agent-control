@@ -443,23 +443,15 @@ deployment:
       http:
         path: /healthz
         port: 8080
-    executables:
-      - path: ${nr-var:bin}/otelcol
-        args: "-c ${nr-var:deployment.k8s.image}"
-        restart_policy:
-          backoff_strategy:
-            type: fixed
-            backoff_delay: 1s
-            max_retries: 3
-            last_retry_interval: 30s
-      - path: ${nr-var:bin}/otelcol-gw
-        args: "-c ${nr-var:deployment.k8s.image}"
-        restart_policy:
-          backoff_strategy:
-            type: linear
-            backoff_delay: 3s
-            max_retries: 8
-            last_retry_interval: 60s
+    executable:
+      path: ${nr-var:bin}/otelcol
+      args: "-c ${nr-var:deployment.k8s.image}"
+      restart_policy:
+        backoff_strategy:
+          type: fixed
+          backoff_delay: 1s
+          max_retries: 3
+          last_retry_interval: 30s
 "#;
 
     const AGENT_GIVEN_BAD_YAML: &str = r#"
@@ -471,9 +463,9 @@ spec:
     name:
 deployment:
   on_host:
-    executables:
-      - path: ${nr-var:bin}/otelcol
-        args: "-c ${nr-var:deployment.k8s.image}"
+    executable:
+      path: ${nr-var:bin}/otelcol
+      args: "-c ${nr-var:deployment.k8s.image}"
 "#;
 
     pub const RESTART_POLICY_OMITTED_FIELDS_YAML: &str = r#"
@@ -494,11 +486,11 @@ restart_policy:
 
         assert_eq!(
             "${nr-var:bin}/otelcol",
-            on_host.executables[0].clone().path.template
+            on_host.executable.clone().unwrap().path.template
         );
         assert_eq!(
             "-c ${nr-var:deployment.k8s.image}".to_string(),
-            on_host.executables[0].clone().args.template
+            on_host.executable.clone().unwrap().args.template
         );
 
         // Restart policy values
@@ -509,16 +501,7 @@ restart_policy:
                 max_retries: TemplateableValue::from_template("3".to_string()),
                 last_retry_interval: TemplateableValue::from_template("30s".to_string()),
             },
-            on_host.executables[0].restart_policy.backoff_strategy
-        );
-        assert_eq!(
-            BackoffStrategyConfig {
-                backoff_type: TemplateableValue::from_template("linear".to_string()),
-                backoff_delay: TemplateableValue::from_template("3s".to_string()),
-                max_retries: TemplateableValue::from_template("8".to_string()),
-                last_retry_interval: TemplateableValue::from_template("60s".to_string()),
-            },
-            on_host.executables[1].restart_policy.backoff_strategy
+            on_host.executable.unwrap().restart_policy.backoff_strategy
         );
     }
 
@@ -538,16 +521,13 @@ deployment:
         assert_eq!("no-exec", agent.metadata.name);
         assert_eq!("newrelic", agent.metadata.namespace);
         assert_eq!("0.0.1", agent.metadata.version.to_string());
-        assert_eq!(
-            0,
-            agent
-                .runtime_config
-                .deployment
-                .on_host
-                .unwrap()
-                .executables
-                .len()
-        );
+        assert!(agent
+            .runtime_config
+            .deployment
+            .on_host
+            .unwrap()
+            .executable
+            .is_none());
     }
 
     #[test]
@@ -924,9 +904,9 @@ deployment:
       http:
         path: /v1/status
         port: "${nr-var:status_server_port}"
-    executables:
-      - path: /usr/bin/newrelic-infra
-        args: "--config ${nr-var:config} --config2 ${nr-var:config2}"
+    executable:
+      path: /usr/bin/newrelic-infra
+      args: "--config ${nr-var:config} --config2 ${nr-var:config2}"
 "#;
 
     const GIVEN_NEWRELIC_INFRA_USER_CONFIG_YAML: &str = r#"
@@ -1055,8 +1035,8 @@ variables:
         default: exponential
 deployment:
   on_host:
-      executables:
-      - path: /bin/echo
+      executable:
+        path: /bin/echo
         args: "${nr-var:restart_policy.type}"
 "#;
 

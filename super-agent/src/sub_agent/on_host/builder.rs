@@ -86,21 +86,20 @@ where
         }
     }
 
-    fn build_supervisors(
+    fn build_supervisor(
         &self,
         effective_agent: EffectiveAgent,
-    ) -> Result<Vec<SupervisorOnHost<command_supervisor::NotStarted>>, SubAgentBuilderError> {
+    ) -> Result<Option<SupervisorOnHost<command_supervisor::NotStarted>>, SubAgentBuilderError>
+    {
         let agent_id = effective_agent.get_agent_id();
         let on_host = effective_agent.get_onhost_config()?.clone();
 
         let enable_file_logging = on_host.enable_file_logging.get();
-        let supervisors = on_host
-            .executables
-            .into_iter()
-            .map(|e| self.create_executable_supervisor(agent_id.clone(), enable_file_logging, e))
-            .collect();
+        let supervisor = on_host
+            .executable
+            .map(|e| self.create_executable_supervisor(agent_id.clone(), enable_file_logging, e));
 
-        Ok(supervisors)
+        Ok(supervisor)
     }
 
     fn create_executable_supervisor(
@@ -195,12 +194,12 @@ where
             _ => None,
         };
 
-        let supervisors = build_supervisor_or_default::<HR, O, _, _, _>(
+        let supervisor = build_supervisor_or_default::<HR, O, _, _, _>(
             &agent_id,
             &self.hash_repository,
             &maybe_opamp_client,
             effective_agent_res,
-            |effective_agent| self.build_supervisors(effective_agent),
+            |effective_agent| self.build_supervisor(effective_agent),
         )?;
 
         let event_processor = self.event_processor_builder.build(
@@ -216,7 +215,7 @@ where
             agent_id,
             sub_agent_config.agent_type.clone(),
             health_checker,
-            supervisors,
+            supervisor,
             event_processor,
             sub_agent_internal_publisher,
         ))
@@ -325,12 +324,11 @@ mod test {
             PathBuf::default(),
         );
 
-        assert!(on_host_builder
+        on_host_builder
             .build(sub_agent_id, &sub_agent_config, opamp_publisher)
             .unwrap()
             .run()
             .stop()
-            .is_ok())
     }
 
     #[test]
@@ -422,7 +420,7 @@ mod test {
             Runtime {
                 deployment: Deployment {
                     on_host: Some(OnHost {
-                        executables: vec![],
+                        executable: None,
                         enable_file_logging: TemplateableValue::new(false),
                         health: None,
                     }),

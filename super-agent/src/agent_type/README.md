@@ -113,20 +113,20 @@ For on-host deployment, use the following format:
 deployment:
   on_host:
     enable_file_logging: ${nr-var:enable_file_logging}
-    executables:
-      - path: /usr/bin/newrelic-infra
-        args: "--config=${nr-var:config_agent}"
-        env: "NRIA_PLUGIN_DIR=${nr-var:config_integrations} NRIA_STATUS_SERVER_ENABLED=true"
-        restart_policy:
-          backoff_strategy:
-            type: fixed
-            backoff_delay: ${nr-var:backoff_delay}
-        health:
-          interval: 5s
-          timeout: 5s
-          http:
-            path: "/v1/status"
-            port: 8003
+    executable:
+      path: /usr/bin/newrelic-infra
+      args: "--config=${nr-var:config_agent}"
+      env: "NRIA_PLUGIN_DIR=${nr-var:config_integrations} NRIA_STATUS_SERVER_ENABLED=true"
+      restart_policy:
+        backoff_strategy:
+          type: fixed
+          backoff_delay: ${nr-var:backoff_delay}
+      health:
+        interval: 5s
+        timeout: 5s
+        http:
+          path: "/v1/status"
+          port: 8003
 ```
 
 In this section:
@@ -369,14 +369,14 @@ variables:
     
 deployment:
   on_host:
-    executables:
-      - path: /usr/bin/telegraf
-        args: "--config ${nr-var:config_file}"
-        env: ""
-        restart_policy:
-          backoff_strategy:
-            type: fixed
-            backoff_delay: ${nr-var:backoff_delay}
+    executable:
+      path: /usr/bin/telegraf
+      args: "--config ${nr-var:config_file}"
+      env: ""
+      restart_policy:
+        backoff_strategy:
+          type: fixed
+          backoff_delay: ${nr-var:backoff_delay}
 ```
 
 2. Copy the agent type definition to `/etc/newrelic-super-agent/dynamic-agent-type.yaml`
