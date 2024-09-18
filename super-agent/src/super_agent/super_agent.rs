@@ -282,7 +282,7 @@ where
                     .publish(SuperAgentEvent::SuperAgentStopped)
                     .inspect_err(|err| error!(error_msg = %err,"cannot publish super_agent_event::super_agent_stopped"));
 
-                    break sub_agents.stop()?;
+                    break sub_agents.stop();
                 },
                 recv(sub_agent_consumer.as_ref()) -> sub_agent_event_res => {
                     debug!("Received SubAgent event");
@@ -959,7 +959,7 @@ agents:
 
         assert_eq!(running_sub_agents.len(), 1);
 
-        assert!(running_sub_agents.stop().is_ok())
+        running_sub_agents.stop()
     }
 
     #[test]

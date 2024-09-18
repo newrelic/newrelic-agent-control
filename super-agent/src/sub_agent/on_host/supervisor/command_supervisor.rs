@@ -218,8 +218,8 @@ impl Deref for SupervisorOnHost<NotStarted> {
 
 impl SupervisorOnHost<Started> {
     pub fn stop(self) -> JoinHandle<()> {
-        // Stop all the supervisors
-        // TODO: handle PoisonErrors (log?)
+        // TODO: refact SupervisorOnHost so it contains agent_id to join thread inside here
+        // and print logs accordingly.
         self.state.ctx.cancel_all(true).unwrap();
         self.state.handle
     }

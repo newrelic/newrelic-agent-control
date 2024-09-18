@@ -6,6 +6,5 @@ mod id;
 mod logging;
 mod opamp_auth;
 mod scenarios;
-mod supervisor;
 mod tools;
 mod yaml_config_repository;

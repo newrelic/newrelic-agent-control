@@ -195,12 +195,12 @@ pub struct StartedSupervisor {
 }
 
 impl StartedSupervisor {
-    pub fn stop(self) -> Result<Vec<JoinHandle<()>>, EventPublisherError> {
+    pub fn stop(self) -> Result<JoinHandle<()>, EventPublisherError> {
         if let Some(stop_health) = self.maybe_stop_health {
             stop_health.publish(())?; // TODO: should we also return the health-check join handle?
         }
         self.stop_objects_supervisor.publish(())?;
-        Ok(vec![self.objects_supervisor_handle])
+        Ok(self.objects_supervisor_handle)
     }
 }
 
@@ -366,11 +366,11 @@ pub mod test {
         let started = not_started
             .start(sub_agent_internal_publisher, SystemTime::UNIX_EPOCH)
             .expect("supervisor started");
-        let _ = started
+        started
             .stop()
             .expect("supervisor stopped")
-            .into_iter()
-            .map(|jh| jh.join().unwrap());
+            .join()
+            .expect("supervisor thread joined");
     }
 
     #[test]
@@ -433,6 +433,9 @@ pub mod test {
         mock_client
             .expect_default_namespace()
             .return_const(TEST_NAMESPACE.to_string());
+        mock_client
+            .expect_apply_dynamic_object_if_changed()
+            .returning(|_| Ok(()));
         if let Some(f) = additional_expectations_fn {
             f(&mut mock_client)
         }

@@ -717,9 +717,9 @@ variables:
       file_path: newrelic-infra.yml
 deployment:
   on_host:
-    executables:
-      - path: /usr/bin/newrelic-infra
-        args: "--config=${config_file}"
+    executable:
+      path: /usr/bin/newrelic-infra
+      args: "--config=${config_file}"
     restart_policy:
       backoff_strategy:
         type: fixed
@@ -762,9 +762,9 @@ variables:
           level: trace
 deployment:
   on_host:
-    executables:
-      - path: /usr/bin/newrelic-infra
-        args: "--config=${config_file1} --config=${config_file2} --config=${config_file3}"
+    executable:
+      path: /usr/bin/newrelic-infra
+      args: "--config=${config_file1} --config=${config_file2} --config=${config_file3}"
     restart_policy:
       backoff_strategy:
         type: fixed
@@ -796,9 +796,9 @@ variables:
       file_path: integrations.d
 deployment:
   on_host:
-    executables:
-      - path: /usr/bin/newrelic-infra
-        args: "--config=${integrations}"
+    executable:
+      path: /usr/bin/newrelic-infra
+      args: "--config=${integrations}"
     restart_policy:
       backoff_strategy:
         type: fixed
@@ -843,9 +843,9 @@ variables:
       required: true
 deployment:
   on_host:
-    executables:
-      - path: /usr/bin/newrelic-infra
-        args: "--config=${integrations} --logging=${logging}"
+    executable:
+      path: /usr/bin/newrelic-infra
+      args: "--config=${integrations} --logging=${logging}"
     restart_policy:
       backoff_strategy:
         type: fixed

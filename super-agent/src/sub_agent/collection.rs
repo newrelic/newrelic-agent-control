@@ -1,7 +1,7 @@
 use super::{error::SubAgentCollectionError, NotStartedSubAgent, StartedSubAgent};
 use crate::super_agent::config::AgentID;
 use std::collections::HashMap;
-use tracing::{debug, error, info};
+use tracing::{debug, info};
 
 pub(crate) struct NotStartedSubAgents<S>(HashMap<AgentID, S>)
 where
@@ -25,7 +25,7 @@ where
             .0
             .into_iter()
             .map(|(id, subagent)| {
-                debug!("Running supervisors for agent {}", id);
+                debug!("Running supervisor for agent {}", id);
                 (id, subagent.run())
             })
             .collect();
@@ -41,20 +41,6 @@ impl<S> StartedSubAgents<S>
 where
     S: StartedSubAgent,
 {
-    fn stop_agent(agent_id: &AgentID, sub_agent: S) -> Result<(), SubAgentCollectionError> {
-        let result = sub_agent.stop()?;
-        result.into_iter().for_each(|handle| {
-            handle.join().map_or_else(
-                |_err| {
-                    // let error: &dyn std::error::Error = &err;
-                    error!("Supervisor for {} stopped with error", agent_id,)
-                },
-                |_| info!("Supervisor for {} stopped successfully", agent_id),
-            )
-        });
-        Ok(())
-    }
-
     pub(crate) fn stop_remove(
         &mut self,
         agent_id: &AgentID,
@@ -65,7 +51,11 @@ where
                 .ok_or(SubAgentCollectionError::SubAgentNotFound(
                     agent_id.to_string(),
                 ))?;
-        Self::stop_agent(agent_id, sub_agent)
+
+        info!(%agent_id, "Stopping sub agent");
+        sub_agent.stop();
+
+        Ok(())
     }
 
     pub(crate) fn insert(&mut self, agent_id: AgentID, sub_agent: S) -> Option<S> {
@@ -73,10 +63,11 @@ where
         self.0.insert(agent_id, sub_agent)
     }
 
-    pub(crate) fn stop(self) -> Result<(), SubAgentCollectionError> {
-        self.0
-            .into_iter()
-            .try_for_each(|(agent_id, sub_agent)| Self::stop_agent(&agent_id, sub_agent))
+    pub(crate) fn stop(self) {
+        self.0.into_iter().for_each(|(agent_id, sub_agent)| {
+            info!(%agent_id, "Stopping sub agent");
+            sub_agent.stop();
+        })
     }
 
     pub(crate) fn get(&self, agent_id: &AgentID) -> Option<&S> {

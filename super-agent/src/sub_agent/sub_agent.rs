@@ -22,10 +22,10 @@ use super::error::SubAgentBuilderError;
 
 pub(crate) type SubAgentCallbacks<C> = AgentCallbacks<C>;
 
-/// NotStartedSubAgent exposes a run method that starts processing events and, if present, the supervisors.
+/// NotStartedSubAgent exposes a run method that starts processing events and, if present, the supervisor.
 pub trait NotStartedSubAgent {
     type StartedSubAgent: StartedSubAgent;
-    /// The run method (non-blocking) starts processing events and, if present, the supervisors.
+    /// The run method (non-blocking) starts processing events and, if present, the supervisor.
     /// It returns a StartedSubAgent exposing .stop() to manage the running process.
     fn run(self) -> Self::StartedSubAgent;
 }
@@ -38,8 +38,8 @@ pub trait StartedSubAgent {
     fn agent_id(&self) -> AgentID;
     /// Returns the AgentType of the SubAgent
     fn agent_type(&self) -> AgentTypeFQN;
-    /// Cancels the supervised process and returns its inner handle.
-    fn stop(self) -> Result<Vec<JoinHandle<()>>, error::SubAgentError>;
+    /// Stops all internal services owned by the SubAgent
+    fn stop(self);
 }
 
 pub trait SubAgentBuilder {
@@ -154,7 +154,7 @@ pub mod test {
         pub StartedSubAgent {}
 
         impl StartedSubAgent for StartedSubAgent {
-            fn stop(self) -> Result<Vec<JoinHandle<()>>, error::SubAgentError>;
+            fn stop(self);
             fn agent_id(&self) -> AgentID;
             fn agent_type(&self) -> AgentTypeFQN;
         }
@@ -162,7 +162,7 @@ pub mod test {
 
     impl MockStartedSubAgent {
         pub fn should_stop(&mut self) {
-            self.expect_stop().once().returning(|| Ok(Vec::new()));
+            self.expect_stop().once().return_const(());
         }
 
         pub fn should_agent_id(&mut self, agent_id: AgentID) {
@@ -217,10 +217,7 @@ pub mod test {
                 let mut not_started_sub_agent = MockNotStartedSubAgent::new();
                 not_started_sub_agent.expect_run().times(1).returning(|| {
                     let mut started_agent = MockStartedSubAgent::new();
-                    started_agent
-                        .expect_stop()
-                        .times(1)
-                        .returning(|| Ok(Vec::new()));
+                    started_agent.expect_stop().times(1).return_const(());
                     started_agent
                 });
                 Ok(not_started_sub_agent)

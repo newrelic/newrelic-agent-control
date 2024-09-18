@@ -1,11 +1,13 @@
 use std::time::SystemTime;
 
+use tracing::error;
+
 use crate::event::channel::EventPublisher;
 use crate::event::SubAgentInternalEvent;
 use crate::sub_agent::event_processor::SubAgentEventProcessor;
 use crate::sub_agent::k8s::NotStartedSupervisor;
-use crate::sub_agent::{error::SubAgentError, NotStartedSubAgent, StartedSubAgent};
 use crate::sub_agent::{NotStarted, Started};
+use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
 use crate::super_agent::config::{AgentID, AgentTypeFQN};
 
 use super::supervisor::log_and_report_unhealthy;
@@ -50,7 +52,7 @@ where
     type StartedSubAgent = SubAgentK8s<Started, StartedSupervisor>;
 
     // Run has two main duties:
-    // - it starts the supervisors if any
+    // - it starts the supervisor if any
     // - it starts processing events (internal and opamp ones)
     fn run(self) -> Self::StartedSubAgent {
         let start_time = SystemTime::now();
@@ -90,21 +92,39 @@ impl StartedSubAgent for SubAgentK8s<Started, StartedSupervisor> {
     }
 
     // Stop does not delete directly the CR. It will be the garbage collector doing so if needed.
-    fn stop(self) -> Result<Vec<std::thread::JoinHandle<()>>, SubAgentError> {
+    fn stop(self) {
         // stop the k8s object supervisor
-        let join_handles = self
+        let _ = self
             .supervisor
             .map(|s| s.stop())
-            .transpose()?
-            .unwrap_or_default();
-        // Stop processing events
-        self.sub_agent_internal_publisher
-            .publish(SubAgentInternalEvent::StopRequested)?;
+            .transpose()
+            .map_err(|err| {
+                error!(
+                    agent_id = %self.agent_id,
+                    %err,
+                    "Error stopping k8s supervisor"
+                )
+            });
 
-        self.state.event_loop_handle.join().map_err(|_| {
-            SubAgentError::PoisonError(String::from("error handling event_loop_handle"))
-        })??;
-        Ok(join_handles)
+        // Stop processing events
+        let _ = self
+            .sub_agent_internal_publisher
+            .publish(SubAgentInternalEvent::StopRequested)
+            .inspect_err(|err| {
+                error!(
+                    agent_id = %self.agent_id,
+                    %err,
+                    "Error stopping event loop"
+                )
+            })
+            .inspect(|_| {
+                let _ = self.state.event_loop_handle.join().inspect_err(|_| {
+                    error!(
+                        agent_id = %self.agent_id,
+                        "Error stopping event thread"
+                    );
+                });
+            });
     }
 }
 
@@ -115,30 +135,35 @@ pub mod test {
     use crate::event::SubAgentInternalEvent;
     use crate::k8s::client::MockSyncK8sClient;
     use crate::k8s::error::K8sError;
-    use crate::sub_agent::error::SubAgentError;
     use crate::sub_agent::event_processor::test::MockEventProcessorMock;
     use crate::sub_agent::k8s::builder::test::k8s_sample_runtime_config;
     use crate::sub_agent::k8s::sub_agent::SubAgentK8s;
     use crate::sub_agent::k8s::NotStartedSupervisor;
     use crate::sub_agent::{NotStarted, NotStartedSubAgent, StartedSubAgent};
     use crate::super_agent::config::{helm_release_type_meta, AgentID, AgentTypeFQN};
-    use assert_matches::assert_matches;
     use kube::api::DynamicObject;
     use std::sync::Arc;
     use std::time::Duration;
+    use tracing_test::traced_test;
 
     const TEST_K8S_ISSUE: &str = "random issue";
     pub const TEST_AGENT_ID: &str = "k8s-test";
     pub const TEST_GENT_FQN: &str = "ns/test:0.1.2";
+
+    #[traced_test]
     #[test]
     fn k8s_sub_agent_start_and_stop() {
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
 
         let started_agent =
             create_k8s_sub_agent_successfully(sub_agent_internal_publisher, false).run();
-        assert!(started_agent.stop().is_ok());
+
+        started_agent.stop();
+
+        assert!(!logs_contain("ERROR"));
     }
 
+    #[traced_test]
     #[test]
     fn k8s_sub_agent_start_and_fail_stop() {
         let (sub_agent_internal_publisher, _) = pub_sub();
@@ -146,12 +171,10 @@ pub mod test {
         let started_agent =
             create_k8s_sub_agent_successfully(sub_agent_internal_publisher, false).run();
 
+        started_agent.stop();
         // This error is triggered since the consumer is dropped and therefore the channel is closed
         // Therefore, the subAgent fails to write to such channel when stopping
-        assert_matches!(
-            started_agent.stop().unwrap_err(),
-            SubAgentError::EventPublisherError(_)
-        );
+        assert!(logs_contain("Error stopping event loop"));
     }
 
     #[test]

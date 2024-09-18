@@ -45,17 +45,17 @@ deployment:
       http:
         path: "/v1/status/health"
         port: ${nr-var:health_port}
-    executables:
-      - path: /usr/bin/newrelic-infra
-        args: >-
-          --config=${nr-var:config_agent}
-        env:
-          NRIA_PLUGIN_DIR: "${nr-var:config_integrations}"
-          NRIA_LOGGING_CONFIGS_DIR: "${nr-var:config_logging}"
-          NRIA_STATUS_SERVER_ENABLED: true
-          NRIA_STATUS_SERVER_PORT: "${nr-var:health_port}"
-          NR_HOST_ID: "${nr-sa:host_id}"
-        restart_policy:
-          backoff_strategy:
-            type: fixed
-            backoff_delay: ${nr-var:backoff_delay}
+    executable:
+      path: /usr/bin/newrelic-infra
+      args: >-
+        --config=${nr-var:config_agent}
+      env:
+        NRIA_PLUGIN_DIR: "${nr-var:config_integrations}"
+        NRIA_LOGGING_CONFIGS_DIR: "${nr-var:config_logging}"
+        NRIA_STATUS_SERVER_ENABLED: true
+        NRIA_STATUS_SERVER_PORT: "${nr-var:health_port}"
+        NR_HOST_ID: "${nr-sa:host_id}"
+      restart_policy:
+        backoff_strategy:
+          type: fixed
+          backoff_delay: ${nr-var:backoff_delay}
