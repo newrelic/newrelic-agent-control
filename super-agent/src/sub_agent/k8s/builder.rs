@@ -90,8 +90,12 @@ where
     A: EffectiveAgentsAssembler,
     E: SubAgentEventProcessorBuilder<O::Client, G>,
 {
-    type NotStartedSubAgent =
-        SubAgentK8s<NotStarted<E::SubAgentEventProcessor>, NotStartedSupervisor>;
+    type NotStartedSubAgent = SubAgentK8s<
+        NotStarted<E::SubAgentEventProcessor>,
+        NotStartedSupervisor,
+        O::Client,
+        SubAgentCallbacks<G>,
+    >;
 
     fn build(
         &self,
@@ -150,13 +154,15 @@ where
             },
         )?;
 
+        let maybe_opamp_client = Arc::new(maybe_opamp_client);
+
         let event_processor = self.event_processor_builder.build(
             agent_id.clone(),
             agent_fqn,
             sub_agent_publisher,
             sub_agent_opamp_consumer,
             sub_agent_internal_consumer,
-            maybe_opamp_client,
+            maybe_opamp_client.clone(),
         );
 
         Ok(SubAgentK8s::new(
@@ -165,6 +171,7 @@ where
             event_processor,
             sub_agent_internal_publisher,
             supervisor,
+            maybe_opamp_client.clone(),
         ))
     }
 }

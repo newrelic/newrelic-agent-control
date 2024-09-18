@@ -208,7 +208,7 @@ where
             sub_agent_publisher,
             sub_agent_opamp_consumer,
             sub_agent_internal_consumer,
-            maybe_opamp_client,
+            Arc::new(maybe_opamp_client),
         );
 
         Ok(SubAgentOnHost::new(

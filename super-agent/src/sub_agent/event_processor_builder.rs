@@ -24,7 +24,7 @@ where
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
         sub_agent_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
         sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
-        maybe_opamp_client: Option<C>,
+        maybe_opamp_client: Arc<Option<C>>,
     ) -> Self::SubAgentEventProcessor;
 }
 
@@ -69,7 +69,7 @@ where
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
         sub_agent_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
         sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
-        maybe_opamp_client: Option<C>,
+        maybe_opamp_client: Arc<Option<C>>,
     ) -> EventProcessor<C, H, Y, G>
     where
         G: EffectiveConfigLoader,
@@ -102,6 +102,7 @@ pub mod test {
     use crate::super_agent::config::{AgentID, AgentTypeFQN};
     use mockall::mock;
     use opamp_client::StartedClient;
+    use std::sync::Arc;
     use std::thread;
 
     mock! {
@@ -124,7 +125,7 @@ pub mod test {
                 sub_agent_publisher: EventPublisher<SubAgentEvent>,
                 sub_agent_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
                 sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
-                maybe_opamp_client: Option<C>,
+                maybe_opamp_client: Arc<Option<C>>,
             ) -><Self as SubAgentEventProcessorBuilder<C, MockEffectiveConfigLoaderMock>>::SubAgentEventProcessor;
 
         }

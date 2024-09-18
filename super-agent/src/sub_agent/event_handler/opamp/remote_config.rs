@@ -29,7 +29,7 @@ where
     /// When the configuration is empty, the values are deleted instead (an empty configuration means that the remote
     /// configuration should not apply anymore).
     pub(crate) fn remote_config(&self, remote_config: RemoteConfig) -> Result<(), SubAgentError> {
-        let Some(opamp_client) = &self.maybe_opamp_client else {
+        let Some(opamp_client) = self.maybe_opamp_client.as_ref() else {
             unreachable!("got remote config without OpAMP being enabled")
         };
 
@@ -534,7 +534,7 @@ mod tests {
                 sub_agent_publisher,
                 sub_agent_opamp_consumer.into(),
                 sub_agent_internal_consumer,
-                Some(test_values.opamp_client),
+                Arc::new(Some(test_values.opamp_client)),
                 Arc::new(test_values.hash_repository),
                 Arc::new(test_values.yaml_config_repository),
                 Arc::new(

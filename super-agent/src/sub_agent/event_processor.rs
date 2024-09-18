@@ -36,7 +36,7 @@ where
     pub(crate) sub_agent_publisher: EventPublisher<SubAgentEvent>,
     pub(crate) sub_agent_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
     pub(crate) sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
-    pub(crate) maybe_opamp_client: Option<C>,
+    pub(crate) maybe_opamp_client: Arc<Option<C>>,
     pub(crate) sub_agent_remote_config_hash_repository: Arc<H>,
     pub(crate) remote_values_repo: Arc<Y>,
     pub(crate) config_validator: Arc<ConfigValidator>,
@@ -60,7 +60,7 @@ where
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
         sub_agent_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
         sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
-        maybe_opamp_client: Option<C>,
+        maybe_opamp_client: Arc<Option<C>>,
         sub_agent_remote_config_hash_repository: Arc<H>,
         remote_values_repo: Arc<Y>,
         config_validator: Arc<ConfigValidator>,
@@ -103,9 +103,7 @@ where
                 "event processor started"
             );
 
-            self.maybe_opamp_client
-                .as_ref()
-                .map(|client| client.update_effective_config());
+            Option::as_ref(&self.maybe_opamp_client).map(|client| client.update_effective_config());
 
             // The below two lines are used to create a channel that never receives any message
             // if the sub_agent_opamp_consumer is None. Thus, we avoid erroring if there is no
@@ -134,7 +132,7 @@ where
                             // 2. The configuration is persisted and applied and then an APPLIED message is reported
                             // (considering errors when config is not valid or cannot be applied)
                             // However, the code cannot be the same as of now since the current sub-agent supervisor
-                            // will persists the configuration and ask will notify the super-agent which will stop
+                            // will persist the configuration and will notify the super-agent which will stop
                             // the current sub-agent supervisor and start a new one which will be in charge of notifying
                             // the APPLIED message.
                             Ok(OpAMPEvent::RemoteConfigReceived(remote_config)) => {
@@ -172,7 +170,12 @@ where
                     }
                 }
             }
-            stop_opamp_client(self.maybe_opamp_client, &self.agent_id)
+            // We need to consume the opamp_client in order to stop it
+            if let Some(maybe_opamp_client) = Arc::into_inner(self.maybe_opamp_client) {
+                stop_opamp_client(maybe_opamp_client, &self.agent_id)
+            } else {
+                Ok(())
+            }
         })
     }
 }
@@ -247,7 +250,7 @@ pub mod test {
             sub_agent_publisher,
             sub_agent_opamp_consumer.into(),
             sub_agent_internal_consumer,
-            Some(opamp_client),
+            Arc::new(Some(opamp_client)),
             Arc::new(hash_repository),
             Arc::new(yaml_config_repository),
             Arc::new(
@@ -316,7 +319,7 @@ pub mod test {
             sub_agent_publisher,
             sub_agent_opamp_consumer.into(),
             sub_agent_internal_consumer,
-            Some(opamp_client),
+            Arc::new(Some(opamp_client)),
             Arc::new(hash_repository),
             Arc::new(yaml_config_repository),
             Arc::new(
