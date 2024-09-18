@@ -52,7 +52,6 @@ variables:
       default: 1s
 deployment:
   on_host:
-    executables: []
     health:
       interval: 2s
       timeout: 1s
