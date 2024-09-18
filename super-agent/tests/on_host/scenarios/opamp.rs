@@ -3,8 +3,12 @@ use crate::common::health::check_latest_health_status_was_healthy;
 use crate::common::opamp::ConfigResponse;
 use crate::common::remote_config_status::check_latest_remote_config_status_is_expected;
 use crate::common::{opamp::FakeServer, retry::retry};
-use crate::on_host::tools::config::{create_sub_agent_values, create_super_agent_config};
-use crate::on_host::tools::custom_agent_type::get_agent_type_custom;
+use crate::on_host::tools::config::{
+    create_file, create_sub_agent_values, create_super_agent_config,
+};
+use crate::on_host::tools::custom_agent_type::{
+    get_agent_type_custom, get_agent_type_without_executables,
+};
 use crate::on_host::tools::instance_id::get_instance_id;
 use crate::on_host::tools::super_agent::start_super_agent_with_custom_config;
 use newrelic_super_agent::agent_type::variable::namespace::Namespace;
@@ -12,10 +16,11 @@ use newrelic_super_agent::event::channel::pub_sub;
 use newrelic_super_agent::event::ApplicationEvent;
 use newrelic_super_agent::super_agent::config::{AgentID, SuperAgentDynamicConfig};
 use newrelic_super_agent::super_agent::defaults::{
-    SUB_AGENT_DIR, SUPER_AGENT_CONFIG_FILE, VALUES_DIR, VALUES_FILE,
+    DYNAMIC_AGENT_TYPE_FILENAME, SUB_AGENT_DIR, SUPER_AGENT_CONFIG_FILE, VALUES_DIR, VALUES_FILE,
 };
 use newrelic_super_agent::super_agent::run::BasePaths;
 use opamp_client::opamp::proto::RemoteConfigStatuses;
+use std::path::Path;
 use std::time::Duration;
 use std::{env, thread};
 use tempfile::tempdir;
@@ -578,4 +583,275 @@ fn onhost_opamp_sub_gent_wrong_remote_effective_config() {
         .publish(ApplicationEvent::StopRequested)
         .unwrap();
     super_agent_join.join().unwrap();
+}
+
+/// There is a Sub Agent without executables
+/// OpAMP is enabled but there is no remote configuration
+/// - Local configuration (with no agents) is used
+/// - Effective configuration for the super-agent is reported
+/// - Healthy status is reported
+#[cfg(unix)]
+#[test]
+fn onhost_executable_less_reports_local_effective_config() {
+    // Given a super-agent without agents and opamp configured.
+    let opamp_server = FakeServer::start_new();
+
+    let local_dir = tempdir().expect("failed to create local temp dir");
+    let remote_dir = tempdir().expect("failed to create remote temp dir");
+
+    let health_file_path = local_dir.path().join("health_file.yaml");
+    // Add custom agent_type to registry
+    let agent_type_wo_exec = get_agent_type_without_executables(
+        local_dir.path().to_path_buf(),
+        health_file_path.as_path(),
+    );
+
+    let agents = format!(
+        r#"
+agents:
+  no-executables:
+    agent_type: "{}"
+"#,
+        agent_type_wo_exec
+    );
+
+    create_super_agent_config(
+        opamp_server.endpoint(),
+        agents.to_string(),
+        local_dir.path().to_path_buf(),
+    );
+
+    let sub_agent_id = AgentID::new("no-executables").unwrap();
+    let local_values_config = "backoff_delay: 10s";
+    create_sub_agent_values(
+        sub_agent_id.to_string(),
+        local_values_config.to_string(),
+        local_dir.path().to_path_buf(),
+    );
+
+    // create sub agent health file as healthy
+    create_file(
+        r#"
+healthy: true
+status: "healthy-message"
+start_time_unix_nano: 1725444000
+status_time_unix_nano: 1725444001
+    "#
+        .to_string(),
+        health_file_path.clone(),
+    );
+
+    let base_paths = BasePaths {
+        local_dir: local_dir.path().to_path_buf(),
+        remote_dir: remote_dir.path().to_path_buf(),
+        log_dir: local_dir.path().to_path_buf(),
+    };
+    let base_paths_copy = base_paths.clone();
+    let (application_event_publisher, application_event_consumer) = pub_sub();
+    let super_agent_join = thread::spawn(move || {
+        start_super_agent_with_custom_config(base_paths, application_event_consumer)
+    });
+
+    let sub_agent_instance_id = get_instance_id(&sub_agent_id, base_paths_copy);
+
+    retry(20, Duration::from_secs(1), || {
+        let expected_config = "backoff_delay: 10s\n";
+
+        check_latest_effective_config_is_expected(
+            &opamp_server,
+            &sub_agent_instance_id,
+            expected_config.to_string(),
+        )?;
+        check_latest_health_status_was_healthy(&opamp_server, &sub_agent_instance_id)
+    });
+    application_event_publisher
+        .publish(ApplicationEvent::StopRequested)
+        .unwrap();
+    super_agent_join.join().unwrap();
+}
+
+/// Given a super-agent with a sub-agent without supervised executables, it should be able
+/// to persist the remote config messages from OpAMP
+#[cfg(unix)]
+#[test]
+fn test_config_without_supervisor() {
+    let mut opamp_server = FakeServer::start_new();
+
+    let local_dir = tempdir().expect("failed to create local temp dir");
+    let remote_dir = tempdir().expect("failed to create remote temp dir");
+    let sub_agent_id = AgentID::new("test-agent").unwrap();
+
+    agent_type_without_executables(local_dir.path());
+
+    let agents = r#"
+  test-agent:
+    agent_type: "test/test:0.0.0"
+"#;
+
+    create_super_agent_config(
+        opamp_server.endpoint(),
+        agents.to_string(),
+        local_dir.path().to_path_buf(),
+    );
+
+    let base_paths = BasePaths {
+        local_dir: local_dir.path().to_path_buf(),
+        remote_dir: remote_dir.path().to_path_buf(),
+        log_dir: local_dir.path().to_path_buf(),
+    };
+    let base_paths_copy = base_paths.clone();
+    let (application_event_publisher, application_event_consumer) = pub_sub();
+    let super_agent_join = thread::spawn(move || {
+        start_super_agent_with_custom_config(base_paths.clone(), application_event_consumer)
+    });
+
+    let instance_id = get_instance_id(&sub_agent_id, base_paths_copy.clone());
+
+    // Send the first remote configuration
+    let first_remote_config = "some_string: some value\n";
+    opamp_server.set_config_response(
+        instance_id.clone(),
+        ConfigResponse::from(first_remote_config),
+    );
+
+    retry(30, Duration::from_secs(1), || {
+        let remote_config = crate::on_host::tools::config::get_remote_config_content(
+            &sub_agent_id,
+            base_paths_copy.clone(),
+        )?;
+        if remote_config != first_remote_config {
+            Err("not the expected content".into())
+        } else {
+            Ok(())
+        }
+    });
+
+    // Send another configuration
+    let second_remote_config = "some_string: this is amazing\n";
+    opamp_server.set_config_response(
+        instance_id.clone(),
+        ConfigResponse::from(second_remote_config),
+    );
+
+    retry(30, Duration::from_secs(1), || {
+        let remote_config = crate::on_host::tools::config::get_remote_config_content(
+            &sub_agent_id,
+            base_paths_copy.clone(),
+        )?;
+        if remote_config != second_remote_config {
+            Err("not the expected content".into())
+        } else {
+            Ok(())
+        }
+    });
+
+    application_event_publisher
+        .publish(ApplicationEvent::StopRequested)
+        .unwrap();
+    super_agent_join.join().unwrap();
+}
+
+/// Given a super-agent with a sub-agent without supervised executables, it should be able
+/// to receive an invalid config, and then a second valid one from OpAMP
+#[cfg(unix)]
+#[test]
+fn test_invalid_config_without_supervisor() {
+    let mut opamp_server = FakeServer::start_new();
+
+    let local_dir = tempdir().expect("failed to create local temp dir");
+    let remote_dir = tempdir().expect("failed to create remote temp dir");
+    let sub_agent_id = AgentID::new("test-agent").unwrap();
+
+    agent_type_without_executables(local_dir.path());
+
+    let agents = r#"
+  test-agent:
+    agent_type: "test/test:0.0.0"
+"#;
+
+    create_super_agent_config(
+        opamp_server.endpoint(),
+        agents.to_string(),
+        local_dir.path().to_path_buf(),
+    );
+
+    let base_paths = BasePaths {
+        local_dir: local_dir.path().to_path_buf(),
+        remote_dir: remote_dir.path().to_path_buf(),
+        log_dir: local_dir.path().to_path_buf(),
+    };
+    let base_paths_copy = base_paths.clone();
+    let (application_event_publisher, application_event_consumer) = pub_sub();
+    let super_agent_join = thread::spawn(move || {
+        start_super_agent_with_custom_config(base_paths.clone(), application_event_consumer)
+    });
+
+    let instance_id = get_instance_id(&sub_agent_id, base_paths_copy.clone());
+
+    // Send an invalid first remote configuration
+    let first_remote_config = "this_does_not_exit: in the agent type\n";
+    opamp_server.set_config_response(
+        instance_id.clone(),
+        ConfigResponse::from(first_remote_config),
+    );
+
+    retry(30, Duration::from_secs(1), || {
+        let remote_config = crate::on_host::tools::config::get_remote_config_content(
+            &sub_agent_id,
+            base_paths_copy.clone(),
+        )?;
+        if remote_config != first_remote_config {
+            Err("not the expected content".into())
+        } else {
+            Ok(())
+        }
+    });
+
+    // Send another configuration
+    let second_remote_config = "some_string: this is amazing\n";
+    opamp_server.set_config_response(
+        instance_id.clone(),
+        ConfigResponse::from(second_remote_config),
+    );
+
+    retry(30, Duration::from_secs(1), || {
+        let remote_config = crate::on_host::tools::config::get_remote_config_content(
+            &sub_agent_id,
+            base_paths_copy.clone(),
+        )?;
+        if remote_config != second_remote_config {
+            Err("not the expected content".into())
+        } else {
+            Ok(())
+        }
+    });
+
+    application_event_publisher
+        .publish(ApplicationEvent::StopRequested)
+        .unwrap();
+    super_agent_join.join().unwrap();
+}
+
+////////////////////////////////
+// Helpers
+////////////////////////////////
+pub(super) fn agent_type_without_executables(local_dir: &Path) {
+    create_file(
+        String::from(
+            r#"
+namespace: test
+name: test
+version: 0.0.0
+variables:
+  on_host:
+    some_string:
+      description: "some string"
+      type: string
+      required: true
+deployment:
+  on_host: {}
+"#,
+        ),
+        local_dir.join(DYNAMIC_AGENT_TYPE_FILENAME),
+    );
 }

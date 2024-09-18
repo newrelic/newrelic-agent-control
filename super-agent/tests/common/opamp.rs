@@ -202,6 +202,9 @@ async fn opamp_handler(state: web::Data<Arc<Mutex<State>>>, req: web::Bytes) -> 
         })
         .unwrap_or_default();
 
+    // Just return once each response
+    state.config_responses.remove(&instance_id);
+
     HttpResponse::Ok().body(config_response.encode())
 }
 
