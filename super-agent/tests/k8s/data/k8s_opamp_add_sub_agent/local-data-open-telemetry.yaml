@@ -1,5 +1,0 @@
-chart_values:
-  mode: deployment
-  config:
-    exporters:
-      logging: { }

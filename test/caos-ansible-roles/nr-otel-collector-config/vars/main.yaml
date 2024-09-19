@@ -3,7 +3,7 @@
 super_agent_examples_path: "/etc/newrelic-super-agent/examples"
 super_agent_service_config_path: "/etc/newrelic-super-agent/newrelic-super-agent.conf"
 nr_otel_collector_agent_name: "nr-otel-collector"
-nr_otel_collector_agent_type_version: "0.1.0"
+nr_otel_collector_agent_type_version: "0.2.0"
 nr_otel_collector_values_file: "/etc/newrelic-super-agent/fleet/agents.d/{{ nr_otel_collector_agent_name }}/values/values.yaml"
 nr_otel_collector_example_conf: "values-nr-otel-collector-agent-linux-{{ nr_otel_collector_agent_type_version }}.yaml"
 
