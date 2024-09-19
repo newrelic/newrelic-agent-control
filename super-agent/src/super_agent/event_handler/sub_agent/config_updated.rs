@@ -1,5 +1,3 @@
-use crate::event::channel::EventPublisher;
-use crate::event::SubAgentEvent;
 use crate::opamp::effective_config::loader::EffectiveConfigLoader;
 use crate::opamp::hash_repository::HashRepository;
 use crate::sub_agent::collection::StartedSubAgents;
@@ -25,7 +23,6 @@ where
     pub(crate) fn sub_agent_config_updated(
         &self,
         agent_id: AgentID,
-        sub_agent_publisher: EventPublisher<SubAgentEvent>,
         sub_agents: &mut StartedSubAgents<
             <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
@@ -34,6 +31,6 @@ where
         let agent_config = super_agent_dynamic_config.agents.get(&agent_id).ok_or(
             SuperAgentConfigError::SubAgentNotFound(agent_id.to_string()),
         )?;
-        self.recreate_sub_agent(agent_id, agent_config, sub_agents, sub_agent_publisher)
+        self.recreate_sub_agent(agent_id, agent_config, sub_agents)
     }
 }

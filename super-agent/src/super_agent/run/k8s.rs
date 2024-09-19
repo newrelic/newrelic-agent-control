@@ -101,7 +101,7 @@ impl SuperAgentRunner {
             self.k8s_config.clone(),
         );
 
-        let (maybe_client, opamp_consumer) = opamp_client_builder
+        let (maybe_client, maybe_opamp_consumer) = opamp_client_builder
             .as_ref()
             .map(|builder| {
                 build_opamp_with_channel(
@@ -126,8 +126,10 @@ impl SuperAgentRunner {
             sub_agent_builder,
             config_storer,
             self.super_agent_publisher,
+            self.application_event_consumer,
+            maybe_opamp_consumer,
         )
-        .run(self.application_event_consumer, opamp_consumer)
+        .run()
     }
 }
 
