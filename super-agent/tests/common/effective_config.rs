@@ -16,7 +16,7 @@ pub fn check_latest_effective_config_is_expected(
             .to_vec();
         if expected_config.as_bytes() != cfg_body {
             return Err(format!(
-                "Super agent config not as expected, Expected: {:?}, Found: {:?}",
+                "Effective config not as expected, Expected: {:?}, Found: {:?}",
                 expected_config,
                 String::from_utf8(cfg_body).unwrap(),
             )

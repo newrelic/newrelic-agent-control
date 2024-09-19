@@ -1,4 +1,4 @@
-use super::health_checker::{HealthChecker, HealthCheckerNotStarted};
+use super::health_checker::HealthCheckerNotStarted;
 use super::supervisor::command_supervisor_config::ExecutableData;
 use super::{
     sub_agent::SubAgentOnHost,
@@ -6,7 +6,6 @@ use super::{
         command_supervisor::SupervisorOnHost, command_supervisor_config::SupervisorConfigOnHost,
     },
 };
-use crate::agent_type::environment::Environment;
 use crate::agent_type::runtime_config::Executable;
 use crate::event::channel::{pub_sub, EventPublisher};
 use crate::event::SubAgentEvent;
@@ -37,7 +36,6 @@ use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tracing::error;
 
 pub struct OnHostSubAgentBuilder<'a, O, I, HR, A, E, G>
 where
@@ -100,9 +98,14 @@ where
     E: SubAgentEventProcessorBuilder<O::Client, G>,
 {
     type NotStartedSubAgent = SubAgentOnHost<
+        'a,
         NotStarted<E::SubAgentEventProcessor>,
         command_supervisor::NotStarted,
         HealthCheckerNotStarted,
+        A,
+        O::Client,
+        SubAgentCallbacks<G>,
+        SupervisortBuilderOnHost<O, HR, G>,
     >;
 
     fn build(
@@ -130,44 +133,14 @@ where
             .unwrap_or_default();
 
         let agent_fqn = sub_agent_config.agent_type.clone();
-        // try to build effective agent
-        let effective_agent_res = self.effective_agent_assembler.assemble_agent(
-            &agent_id,
-            sub_agent_config,
-            &Environment::OnHost,
-        );
-
-        // try to build health checker
-        let health_checker = match &effective_agent_res {
-            Ok(effective_agent) => effective_agent
-                .get_onhost_config()?
-                .health
-                .as_ref()
-                .and_then(|health_config| {
-                    HealthChecker::try_new(
-                        agent_id.clone(),
-                        sub_agent_internal_publisher.clone(),
-                        health_config.clone(),
-                    )
-                    .inspect_err(|err| {
-                        error!(
-                            %agent_id,
-                            %err,
-                            "could not launch health checker, using default",
-                        )
-                    })
-                    .ok()
-                }),
-            _ => None,
-        };
 
         let supervisor_builder: SupervisortBuilderOnHost<O, HR, G> = SupervisortBuilderOnHost::new(
             agent_id.clone(),
             self.hash_repository.clone(),
             self.logging_path.clone(),
         );
-        let supervisor =
-            supervisor_builder.build_supervisor(effective_agent_res, &maybe_opamp_client)?;
+
+        let maybe_opamp_client = Arc::new(maybe_opamp_client);
 
         let event_processor = self.event_processor_builder.build(
             agent_id.clone(),
@@ -175,16 +148,17 @@ where
             sub_agent_publisher,
             sub_agent_opamp_consumer,
             sub_agent_internal_consumer,
-            Arc::new(maybe_opamp_client),
+            maybe_opamp_client.clone(),
         );
 
         Ok(SubAgentOnHost::new(
             agent_id,
-            sub_agent_config.agent_type.clone(),
-            health_checker,
-            supervisor,
+            sub_agent_config.clone(),
             event_processor,
             sub_agent_internal_publisher,
+            self.effective_agent_assembler,
+            maybe_opamp_client,
+            supervisor_builder,
         ))
     }
 }
@@ -294,6 +268,7 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::agent_type::environment::Environment;
     use crate::agent_type::runtime_config::{Deployment, OnHost, Runtime};
     use crate::event::channel::pub_sub;
     use crate::opamp::client_builder::test::MockOpAMPClientBuilderMock;
@@ -316,6 +291,8 @@ mod test {
     };
     use std::collections::HashMap;
 
+    // TODO: tests below are testing not only the builder but also the sub-agent start/stop behavior.
+    // We should re-consider their scope.
     #[test]
     fn build_start_stop() {
         let (opamp_publisher, _opamp_consumer) = pub_sub();
@@ -343,6 +320,8 @@ mod test {
 
         let mut started_client = MockStartedOpAMPClientMock::new();
         started_client.should_set_any_remote_config_status(1);
+        started_client.should_update_effective_config(1);
+        started_client.should_stop(1);
 
         // Infra Agent OpAMP no final stop nor health, just after stopping on reload
         opamp_builder.should_build_and_start(
@@ -393,7 +372,7 @@ mod test {
     }
 
     #[test]
-    fn test_builder_should_report_failed_config() {
+    fn test_subagent_should_report_failed_config() {
         let (opamp_publisher, _opamp_consumer) = pub_sub();
         // Mocks
         let mut opamp_builder = MockOpAMPClientBuilderMock::new();
@@ -452,8 +431,10 @@ mod test {
             Hash::failed("a-hash".to_string(), "this is an error message".to_string());
         hash_repository_mock.should_get_hash(&sub_agent_id, failed_hash);
 
+        let mut processor = MockEventProcessorMock::new();
+        processor.should_process();
         let mut sub_agent_event_processor_builder = MockSubAgentEventProcessorBuilderMock::new();
-        sub_agent_event_processor_builder.should_build(MockEventProcessorMock::default());
+        sub_agent_event_processor_builder.should_build(processor);
 
         // Sub Agent Builder
         let on_host_builder = OnHostSubAgentBuilder::new(
@@ -465,9 +446,10 @@ mod test {
             PathBuf::default(),
         );
 
-        assert!(on_host_builder
+        let sub_agent = on_host_builder
             .build(sub_agent_id, &sub_agent_config, opamp_publisher)
-            .is_ok());
+            .expect("Subagent build should be OK");
+        let _ = sub_agent.run(); // Running the sub-agent should report the failed configuration.
     }
 
     // HELPERS

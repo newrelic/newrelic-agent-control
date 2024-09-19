@@ -281,7 +281,7 @@ where
                             trace!("SubAgent event: {:?}", sub_agent_event);
                             match sub_agent_event{
                                 SubAgentEvent::ConfigUpdated(agent_id) => {
-                                    self.sub_agent_config_updated(agent_id,&mut sub_agents)?
+                                    self.sub_agent_config_updated(agent_id, &mut sub_agents)?
                                 },
                                 SubAgentEvent::SubAgentBecameHealthy(agent_id, healthy, start_time) => {
                                     debug!(agent_id = agent_id.to_string() ,"sub agent is healthy");
@@ -485,8 +485,8 @@ mod tests {
     use crate::opamp::LastErrorMessage;
     use crate::sub_agent::collection::StartedSubAgents;
     use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
+    use crate::sub_agent::test::MockStartedSubAgent;
     use crate::sub_agent::test::MockSubAgentBuilderMock;
-    use crate::sub_agent::test::{MockNotStartedSubAgent, MockStartedSubAgent};
     use crate::super_agent::config::{
         AgentID, AgentTypeFQN, SubAgentConfig, SuperAgentDynamicConfig,
     };
@@ -916,10 +916,10 @@ agents:
     }
 
     #[test]
-    fn test_sub_agent_config_updated_should_recreate_sub_agent() {
+    fn test_sub_agent_config_updated_should_update_subagent() {
         let hash_repository_mock = Arc::new(MockHashRepositoryMock::new());
-        let mut sub_agent_builder = MockSubAgentBuilderMock::new();
-        let mut sub_agents_config_store = MockSuperAgentDynamicConfigStore::new();
+        let sub_agent_builder = MockSubAgentBuilderMock::new();
+        let sub_agents_config_store = MockSuperAgentDynamicConfigStore::new();
 
         // Given that we have 3 running Sub Agents
         let sub_agent_id = AgentID::new("infra-agent").unwrap();
@@ -932,47 +932,16 @@ agents:
             (AgentID::new("nrdot").unwrap(), MockStartedSubAgent::new()),
         ]));
 
-        let sub_agents_config = SuperAgentDynamicConfig::from(HashMap::from([
-            (
-                AgentID::new("nrdot").unwrap(),
-                SubAgentConfig {
-                    agent_type: AgentTypeFQN::try_from("namespace/fqn_rdot:0.0.1").unwrap(),
-                },
-            ),
-            (
-                sub_agent_id.clone(),
-                SubAgentConfig {
-                    agent_type: AgentTypeFQN::try_from("namespace/fqn_infra_agent:0.0.1").unwrap(),
-                },
-            ),
-            (
-                AgentID::new("fluent-bit").unwrap(),
-                SubAgentConfig {
-                    agent_type: AgentTypeFQN::try_from("namespace/fqn_fluent_bit:0.0.1").unwrap(),
-                },
-            ),
-        ]));
+        // The configuration for the sub-agent publishing the event should be updated
+        sub_agents
+            .get_mut(&sub_agent_id)
+            .unwrap()
+            .expect_apply_config_update()
+            .times(1)
+            .returning(|| {});
 
-        sub_agents_config_store.should_load(&sub_agents_config);
-        // And the Sub Agent should be stopped
-        sub_agents.get_mut(&sub_agent_id).unwrap().should_stop();
-        // And the Sub Agent should be re-created
-        let mut not_started_sub_agent = MockNotStartedSubAgent::default();
-        // and it will be started
-        let mut started_sub_agent = MockStartedSubAgent::default();
-        // and will be stopped in the end
-        started_sub_agent.should_stop();
-
-        not_started_sub_agent.should_run(started_sub_agent);
-
-        sub_agent_builder.should_build_not_started(
-            &sub_agent_id,
-            SubAgentConfig {
-                agent_type: AgentTypeFQN::try_from("namespace/fqn_infra_agent:0.0.1").unwrap(),
-            },
-            not_started_sub_agent,
-        );
         // And all the Sub Agents should stop on Stopping the Super Agent
+        sub_agents.get_mut(&sub_agent_id).unwrap().should_stop();
         sub_agents
             .get_mut(&AgentID::new("nrdot").unwrap())
             .unwrap()

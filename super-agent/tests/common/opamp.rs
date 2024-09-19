@@ -193,26 +193,15 @@ async fn opamp_handler(state: web::Data<Arc<Mutex<State>>>, req: web::Bytes) -> 
 
     let config_response = state
         .config_responses
-        .get_mut(&instance_id)
-        .map(|config_response| {
-            if remote_config_is_applied(&message) {
-                config_response.raw_body = None;
-            }
-            config_response.to_owned()
-        })
+        .get(&instance_id)
+        .map(|config_response| config_response.to_owned())
         .unwrap_or_default();
 
     // Just return once each response
+    // If we needed to test "retries" (sending the same response more than once if we don't get the expected
+    // AgentToServer message. Ex: the RemoteConfigStatus(Applying) is not received) we would need to check the
+    // `message` content before removing the config response from the state.
     state.config_responses.remove(&instance_id);
 
     HttpResponse::Ok().body(config_response.encode())
-}
-
-/// Checks if the remote is applied according to the agent message
-fn remote_config_is_applied(message: &opamp::proto::AgentToServer) -> bool {
-    if let Some(remote_config_status) = message.clone().remote_config_status {
-        return opamp::proto::RemoteConfigStatuses::try_from(remote_config_status.status).unwrap()
-            == opamp::proto::RemoteConfigStatuses::Applied;
-    }
-    false
 }
