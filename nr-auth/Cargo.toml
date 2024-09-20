@@ -1,24 +1,25 @@
 [package]
 name = "nr-auth"
 description = "Crate to manage NR System Identity Service authentication"
-version = "0.0.1"
+version = "0.0.2"
 edition = "2021"
-authors = ["The New Relic Super Agent Team"]
+authors = ["The New Relic Agent Control Team"]
 publish = false
 
 [dependencies]
-chrono = { workspace = true }
-thiserror = { workspace = true }
-ureq = { workspace = true, features = ["json"] }
-serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true }
-jsonwebtoken = { workspace = true }
-url = { version = "2.5.0", features = ["serde"] }
-uuid = { version = "1.8.0", features = ["serde", "v7"] }
-tracing.workspace = true
+chrono = "0.4"
+thiserror = "1.0.63"
+ureq = { version = "2.10.1", features = ["json"] }
+serde = { version = "1.0.210", features = ["derive"] }
+serde_json = "1.0.128"
+jsonwebtoken = "9.3.0"
+url = { version = "2.5.2", features = ["serde"] }
+uuid = { version = "1.10.0", features = ["serde", "v7"] }
+tracing = "0.1.40"
+http = "1.1.0"
 
 [dev-dependencies]
-assert_matches = { workspace = true }
+assert_matches = "1.5.0"
 httpmock = "0.7.0"
-mockall = { workspace = true }
-mockall_double = { workspace = true }
+mockall = "0.13.0"
+mockall_double = "0.3.1"
