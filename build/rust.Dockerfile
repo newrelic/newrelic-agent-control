@@ -11,7 +11,7 @@ RUN if [ "${ARCH_NAME}" = "aarch64" ]; then \
       rustup toolchain install stable-aarch64-unknown-linux-musl --force-non-host; \
     fi
 RUN if [ "${ARCH_NAME}" = "x86_64" ]; then \
-      rustup toolchain install stable-x86_64-unknown-linux-musl; \
+      rustup toolchain install stable-x86_64-unknown-linux-musl --force-non-host; \
     fi
 RUN rustup target add "${ARCH_NAME}-unknown-linux-musl"
 
