@@ -1,34 +1,7 @@
 use http::Response;
+use nr_auth::http_client::{HttpClient, HttpClientError};
 use std::io::Cursor;
 use std::time::Duration;
-
-#[derive(thiserror::Error, Debug)]
-pub enum HttpClientError {
-    /// Represents an http transport crate error.
-    #[error("HTTP Transport error: `{0}`")]
-    TransportError(String),
-    /// Unsuccessful HTTP response.
-    #[error("Status code: `{0}` Canonical reason: `{1}`")]
-    UnsuccessfulResponse(u16, String),
-    /// Represents a decode error.
-    #[error("error decoding: `{0}`")]
-    DecoderError(String),
-    /// Represents an encode error.
-    #[error("error encoding `{0}`")]
-    EncoderError(String),
-    /// Represents a compression error.
-    #[error("error compressing data: `{0}`")]
-    CompressionError(String),
-    /// Represents a compression error.
-    #[error("invalid http response: `{0}`")]
-    InvalidResponse(String),
-}
-
-/// A synchronous trait that defines the internal methods for HTTP clients.
-pub trait HttpClient {
-    /// A synchronous function that defines the `post` method for HTTP client.
-    fn post(&self, url: &str, body: Vec<u8>) -> Result<Response<Vec<u8>>, HttpClientError>;
-}
 
 /// Ureq implementation of HttpClient
 pub struct HttpClientUreq {

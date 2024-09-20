@@ -71,8 +71,8 @@ where
             ));
         }
 
-        Ok(serde_json::from_str(body.as_str())
-            .map_err(|e| AuthenticateError::DeserializeError(e.to_string()))?)
+        serde_json::from_str(body.as_str())
+            .map_err(|e| AuthenticateError::DeserializeError(e.to_string()))
     }
 }
 

@@ -1,8 +1,9 @@
 use super::config::{AuthConfig, LocalConfig, ProviderConfig};
+use crate::opamp::auth::http_client::HttpClientUreq;
 use crate::super_agent::run::BasePaths;
 use chrono::DateTime;
 use nr_auth::{
-    authenticator::AuthenticatorConfig,
+    authenticator::HttpAuthenticator,
     jwt::signer::{local::LocalPrivateKeySigner, JwtSignerImpl, JwtSignerImplError},
     token::{AccessToken, Token, TokenType},
     token_retriever::TokenRetrieverWithCache,
@@ -20,10 +21,13 @@ pub enum TokenRetrieverImplError {
     JwtSignerBuildError(#[from] JwtSignerImplError),
 }
 
+// Just an alias to make the code more readable
+type TokenRetrieverHttp = TokenRetrieverWithCache<HttpAuthenticator<HttpClientUreq>>;
+
 /// Enumerates all implementations for `TokenRetriever` for static dispatching reasons.
 #[allow(clippy::large_enum_variant)]
 pub enum TokenRetrieverImpl {
-    HttpTR(TokenRetrieverWithCache),
+    HttpTR(TokenRetrieverHttp),
     Noop(TokenRetrieverNoop),
 }
 
@@ -75,7 +79,7 @@ impl AuthConfig {
     pub fn try_into_token_retriever_with_cache(
         self,
         paths: BasePaths,
-    ) -> Result<TokenRetrieverWithCache, TokenRetrieverImplError> {
+    ) -> Result<TokenRetrieverHttp, TokenRetrieverImplError> {
         let provider = self
             .provider
             .unwrap_or(ProviderConfig::Local(LocalConfig::new(
@@ -84,13 +88,11 @@ impl AuthConfig {
 
         let jwt_signer = JwtSignerImpl::try_from(provider)?;
 
-        let authenticator_config = AuthenticatorConfig {
-            timeout: DEFAULT_AUTHENTICATOR_TIMEOUT,
-            url: self.token_url.clone(),
-        };
+        let http_client = HttpClientUreq::new(DEFAULT_AUTHENTICATOR_TIMEOUT);
+        let authenticator = HttpAuthenticator::new(http_client, self.token_url.clone());
 
         Ok(
-            TokenRetrieverWithCache::new(self.client_id, jwt_signer, authenticator_config.into())
+            TokenRetrieverWithCache::new(self.client_id, jwt_signer, authenticator)
                 .with_retries(self.retries),
         )
     }
